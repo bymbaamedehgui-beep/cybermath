@@ -6942,7 +6942,24 @@ body {
     document.getElementById('profile-modal').style.display = 'flex';
   }
   function closeProfileModal() { document.getElementById('profile-modal').style.display = 'none'; }
-  if (_currentUser) { setTimeout(_onLogin, 100); }
+  if (_currentUser && _currentUser.email) {
+    // Database-аас шинэ мэдээлэл авах (pass шаардахгүй)
+    fetch('/api/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'getuser', email: _currentUser.email })
+    }).then(function(r){ return r.json(); }).then(function(data){
+      if (data.ok) {
+        var savedPass = _currentUser.pass;
+        _currentUser = data.user;
+        _currentUser.pass = savedPass;
+        _saveCurrentUser();
+      }
+      setTimeout(_onLogin, 100);
+    }).catch(function(){
+      setTimeout(_onLogin, 100);
+    });
+  }
 
   // ===== MATHLET MULTIPLAYER =====
   var _mathletRoom = null;
