@@ -6722,10 +6722,24 @@ body {
     var email = document.getElementById('login-email').value.trim().toLowerCase();
     var pass = document.getElementById('login-pass').value;
     var err = document.getElementById('auth-error');
-    var user = _users.find(function(u){ return u.email === email && u.pass === pass; });
-    if (!user) { err.textContent = 'И-мэйл эсвэл нууц үг буруу байна.'; return; }
-    _currentUser = user; _saveCurrentUser();
-    closeAuthModal(); _onLogin();
+    err.textContent = 'Нэвтэрч байна...';
+    fetch('/api/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'login', email: email, pass: pass })
+    }).then(function(r){ return r.json(); }).then(function(data){
+      if (!data.ok) { err.textContent = data.error || 'Нэвтрэх алдаа'; return; }
+      err.textContent = '';
+      _currentUser = data.user; _saveCurrentUser();
+      closeAuthModal(); _onLogin();
+    }).catch(function(){
+      // Fallback: local
+      var user = _users.find(function(u){ return u.email === email && u.pass === pass; });
+      if (!user) { err.textContent = 'И-мэйл эсвэл нууц үг буруу байна.'; return; }
+      err.textContent = '';
+      _currentUser = user; _saveCurrentUser();
+      closeAuthModal(); _onLogin();
+    });
   }
   function checkResetEmail() {
     var email = document.getElementById('reset-email').value.trim().toLowerCase();
@@ -6764,7 +6778,24 @@ body {
     if (btn) btn.style.borderColor = u.plan === 'premium' ? '#FFC800' : '#7B52EE';
     var badge = document.getElementById('nav-level-badge');
     if (badge) badge.textContent = u.plan === 'premium' ? '★' : 'Lv1';
+    // Database-аас авсан утгуудыг дэлгэцэнд тавих
+    var gemEl = document.getElementById('gem-count');
+    if (gemEl) gemEl.textContent = u.gems !== undefined ? u.gems : 340;
+    var heartEl = document.getElementById('heart-count');
+    if (heartEl) heartEl.textContent = u.hearts !== undefined ? u.hearts : 5;
     showApp();
+  }
+
+  // Database-д хэрэглэгчийн мэдээллийг хадгалах
+  function syncUserToServer(fields) {
+    var u = _currentUser;
+    if (!u || !u.email) return;
+    var payload = Object.assign({ email: u.email }, fields);
+    fetch('/api/users', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).catch(function(){});
   }
   function _onLogout() {
     var btn = document.getElementById('nav-avatar-btn');
