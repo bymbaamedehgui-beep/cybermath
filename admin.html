@@ -522,6 +522,28 @@ tr:hover td { background:rgba(123,82,238,0.05); }
               </select>
             </div>
           </div>
+          <div class="form-group">
+            <label>Node (Хичээлийн үе)</label>
+            <select id="q-node" class="form-input form-select">
+              <option value="">Node сонгоно уу</option>
+              <option value="1">Node 1 — Нэмэх үйлдэл</option>
+              <option value="2">Node 2 — Хасах үйлдэл</option>
+              <option value="3">Node 3 — Үржих үйлдэл</option>
+              <option value="4">Node 4 — Хуваах үйлдэл</option>
+              <option value="5">Node 5 — Бутархай тоо</option>
+              <option value="6">Node 6 — Хувь тооцоо</option>
+              <option value="7">Node 7 — Талбай тооцоо</option>
+              <option value="8">Node 8 — Зэрэг ба язгуур</option>
+              <option value="9">Node 9</option>
+              <option value="10">Node 10</option>
+              <option value="11">Node 11</option>
+              <option value="12">Node 12</option>
+              <option value="13">Node 13</option>
+              <option value="14">Node 14</option>
+              <option value="15">Node 15</option>
+              <option value="16">Node 16</option>
+            </select>
+          </div>
           <div class="form-group" style="margin-bottom:12px;">
             <label>Бодлогын текст (Equation editor)</label>
             <div class="math-editor-wrap">
@@ -1137,6 +1159,7 @@ function addQuestion() {
   var text   = getMathText();
   var topic  = document.getElementById('q-topic').value;
   var grade  = document.getElementById('q-grade').value;
+  var nodeId = document.getElementById('q-node') ? document.getElementById('q-node').value : '';
   var a = document.getElementById('q-a').value.trim();
   var b = document.getElementById('q-b').value.trim();
   var c = document.getElementById('q-c').value.trim();
@@ -1157,7 +1180,7 @@ function addQuestion() {
   }
 
   var qs = getQuestions();
-  qs.push({ id: Date.now(), text: text, topic: topic, grade: grade, correct: a, choices: [a,b,c,d], hint: Object.keys(hint).length ? hint : null, createdAt: new Date().toISOString() });
+  qs.push({ id: Date.now(), text: text, topic: topic, grade: grade, node_id: nodeId ? parseInt(nodeId) : null, correct: a, choices: [a,b,c,d], hint: Object.keys(hint).length ? hint : null, createdAt: new Date().toISOString() });
   saveQuestions(qs);
   addLog('Бодлого', '"'+text+'" нэмэгдлээ ['+topic+']', '#58CC02');
   msg.style.color='var(--green)'; msg.textContent='✓ Амжилттай нэмэгдлээ!';
@@ -1310,94 +1333,5 @@ document.getElementById('user-modal').addEventListener('click', function(e) {
   if (e.target === this) closeUserModal();
 });
 </script>
-
-<script>
-// ═══ ADMIN API CLIENT ═══
-var API_BASE = '/api';
-
-async function apiCall(path, method, body) {
-  try {
-    var opts = { method: method || 'GET', headers: { 'Content-Type': 'application/json' } };
-    if (body) opts.body = JSON.stringify(body);
-    var r = await fetch(API_BASE + path, opts);
-    return await r.json();
-  } catch(e) { return { ok: false, error: e.message }; }
-}
-
-// Override all data functions to use API
-async function getUsers() {
-  var r = await apiCall('/users');
-  return r.ok ? r.users.map(function(u) {
-    return { email: u.email, firstName: u.first_name, lastName: u.last_name,
-             grade: u.grade, plan: u.plan, xp: u.xp, createdAt: u.created_at };
-  }) : [];
-}
-
-async function saveUsers(users) {} // handled per-operation
-
-async function admDeleteUser(email) {
-  await apiCall('/users', 'DELETE', { email });
-  await apiCall('/logs', 'POST', { action: 'Устгах', detail: email + ' устгагдлаа', color: '#FF4B4B' });
-}
-
-async function admTogglePlan(email, plan) {
-  await apiCall('/users', 'PUT', { email, plan });
-  await apiCall('/logs', 'POST', { action: 'Тарифф', detail: email + ' → ' + plan, color: '#FFC113' });
-}
-
-async function getQuestions() {
-  var r = await apiCall('/questions');
-  if (!r.ok) return [];
-  return r.questions.map(function(q) {
-    return { id: q.id, text: q.text, topic: q.topic, grade: q.grade,
-             correct: q.correct, choices: q.choices, hint: q.hint, createdAt: q.created_at };
-  });
-}
-
-async function saveQuestion(q) {
-  var r = await apiCall('/questions', 'POST', q);
-  await apiCall('/logs', 'POST', { action: 'Бодлого', detail: '"' + q.text + '" нэмэгдлээ', color: '#58CC02' });
-  return r;
-}
-
-async function admDeleteQuestion(id) {
-  await apiCall('/questions', 'DELETE', { id });
-  await apiCall('/logs', 'POST', { action: 'Бодлого устгав', detail: 'ID:' + id, color: '#FF4B4B' });
-}
-
-async function getNodes() {
-  var r = await apiCall('/nodes');
-  return r.ok ? r.nodes.map(function(n) {
-    return { id: n.id, name: n.name, type: n.type, icon: n.icon, grade: n.grade };
-  }) : [];
-}
-
-async function admSaveNodes(nodes) {
-  await apiCall('/nodes', 'PUT', { nodes });
-  await apiCall('/logs', 'POST', { action: 'Nodes', detail: nodes.length + ' node хадгалагдлаа', color: '#58CC02' });
-}
-
-async function getLogs() {
-  var r = await apiCall('/logs');
-  return r.ok ? r.logs.map(function(l) {
-    return { action: l.action, detail: l.detail, color: l.color, time: l.created_at };
-  }) : [];
-}
-
-async function addLog(action, detail, color) {
-  await apiCall('/logs', 'POST', { action, detail, color: color || '#7B52EE' });
-}
-
-async function admClearLogs() {
-  await apiCall('/logs', 'DELETE');
-}
-
-async function admResetPass(email, newPass) {
-  var r = await apiCall('/auth', 'POST', { action: 'reset', email, newPass });
-  if (r.ok) await apiCall('/logs', 'POST', { action: 'Нууц үг', detail: email + ' шинэчлэгдлээ', color: '#58CC02' });
-  return r;
-}
-</script>
-
 </body>
 </html>
