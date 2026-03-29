@@ -17,9 +17,18 @@ module.exports = async (req, res) => {
         grade TEXT,
         plan TEXT DEFAULT 'free',
         xp INT DEFAULT 0,
+        gems INT DEFAULT 340,
+        hearts INT DEFAULT 5,
         streak INT DEFAULT 0,
+        avatar TEXT DEFAULT 'default',
+        completed_lessons INT[] DEFAULT '{}',
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
+      ALTER TABLE questions ADD COLUMN IF NOT EXISTS node_id INT;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS gems INT DEFAULT 340;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS hearts INT DEFAULT 5;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT DEFAULT 'default';
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS completed_lessons INT[] DEFAULT '{}';
       CREATE TABLE IF NOT EXISTS nodes (
         id INT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -46,7 +55,7 @@ module.exports = async (req, res) => {
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
     `);
-    res.status(200).json({ ok: true, message: 'Tables created successfully' });
+    res.status(200).json({ ok: true, message: 'Tables ready' });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }

@@ -1179,46 +1179,63 @@ function addQuestion() {
     hint.video = m ? m[1] : hintVideo.trim();
   }
 
-  var qs = getQuestions();
-  qs.push({ id: Date.now(), text: text, topic: topic, grade: grade, node_id: nodeId ? parseInt(nodeId) : null, correct: a, choices: [a,b,c,d], hint: Object.keys(hint).length ? hint : null, createdAt: new Date().toISOString() });
-  saveQuestions(qs);
-  addLog('Бодлого', '"'+text+'" нэмэгдлээ ['+topic+']', '#58CC02');
-  msg.style.color='var(--green)'; msg.textContent='✓ Амжилттай нэмэгдлээ!';
-  var md = document.getElementById('q-math-display'); if(md){ md.value=''; } updatePreview();
-  ['q-a','q-b','q-c','q-d','q-hint-text'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
-  clearImage(); clearVideo();
-  setTimeout(function(){ msg.textContent=''; }, 2000);
-  renderQuestions();
-  loadOverview();
+  // Database-д хадгалах
+  fetch('/api/questions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text: text, topic: topic, grade: grade,
+      node_id: nodeId ? parseInt(nodeId) : null,
+      correct: a, choices: [a,b,c,d],
+      hint: Object.keys(hint).length ? hint : null
+    })
+  }).then(function(r){ return r.json(); }).then(function(data){
+    if (!data.ok) { msg.style.color='var(--red)'; msg.textContent='Алдаа: '+data.error; return; }
+    addLog('Бодлого', '"'+text+'" нэмэгдлээ ['+topic+']', '#58CC02');
+    msg.style.color='var(--green)'; msg.textContent='✓ Амжилттай нэмэгдлээ!';
+    var md = document.getElementById('q-math-display'); if(md){ md.value=''; } updatePreview();
+    ['q-a','q-b','q-c','q-d','q-hint-text'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+    clearImage(); clearVideo();
+    setTimeout(function(){ msg.textContent=''; }, 2000);
+    renderQuestions();
+    loadOverview();
+  }).catch(function(e){
+    msg.style.color='var(--red)'; msg.textContent='Сервертэй холбогдоход алдаа гарлаа.';
+  });
 }
 
 function renderQuestions(search) {
-  var qs = getQuestions();
-  if (_curTopic !== 'all') qs = qs.filter(function(q){ return q.topic === _curTopic; });
-  if (search) qs = qs.filter(function(q){ return q.text.toLowerCase().includes(search.toLowerCase()); });
   var el = document.getElementById('q-list');
-  if (!qs.length) { el.innerHTML='<div class="empty-state">Бодлого байхгүй</div>'; return; }
-  el.innerHTML = qs.map(function(q) {
-    return '<div class="q-item">'
-      + '<div style="flex:1;">'
-      + '<div class="q-text">' + q.text + '</div>'
-      + '<div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap;">'
-      + '<span class="q-meta">' + (TOPICS[q.topic]||q.topic) + '</span>'
-      + (q.grade ? '<span class="badge badge-grade">' + q.grade + '-р анги</span>' : '')
-      + '<span class="q-ans">✓ ' + q.correct + '</span>'
-      + '<span class="q-meta">[' + q.choices.join(' / ') + ']</span>'
-      + '</div></div>'
-      + '<button class="btn-sm btn-danger" onclick="deleteQuestion('+q.id+')">Устгах</button>'
-      + '</div>';
-  }).join('');
+  el.innerHTML = '<div class="empty-state">Уншиж байна...</div>';
+  var url = '/api/questions';
+  if (_curTopic !== 'all') url += '?topic=' + _curTopic;
+  fetch(url).then(function(r){ return r.json(); }).then(function(data){
+    var qs = data.questions || [];
+    if (search) qs = qs.filter(function(q){ return q.text.toLowerCase().includes(search.toLowerCase()); });
+    if (!qs.length) { el.innerHTML='<div class="empty-state">Бодлого байхгүй</div>'; return; }
+    el.innerHTML = qs.map(function(q) {
+      return '<div class="q-item">'
+        + '<div style="flex:1;">'
+        + '<div class="q-text">' + q.text + '</div>'
+        + '<div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap;">'
+        + '<span class="q-meta">' + (TOPICS[q.topic]||q.topic) + '</span>'
+        + (q.grade ? '<span class="badge badge-grade">' + q.grade + '-р анги</span>' : '')
+        + (q.node_id ? '<span class="badge badge-grade" style="background:#7B52EE;color:#fff;">Node '+q.node_id+'</span>' : '')
+        + '<span class="q-ans">✓ ' + q.correct + '</span>'
+        + '<span class="q-meta">[' + (q.choices||[]).join(' / ') + ']</span>'
+        + '</div></div>'
+        + '<button class="btn-sm btn-danger" onclick="deleteQuestion('+q.id+')">Устгах</button>'
+        + '</div>';
+    }).join('');
+  }).catch(function(){ el.innerHTML='<div class="empty-state">Уншихад алдаа гарлаа</div>'; });
 }
 
 function deleteQuestion(id) {
-  var qs = getQuestions().filter(function(q){ return q.id !== id; });
-  saveQuestions(qs);
-  addLog('Бодлого', 'ID:'+id+' устгагдлаа', '#FF4B4B');
-  renderQuestions();
-  loadOverview();
+  fetch('/api/questions', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: id })
+  }).then(function(){ addLog('Бодлого', 'ID:'+id+' устгагдлаа', '#FF4B4B'); renderQuestions(); loadOverview(); });
 }
 
 // ══ USERS ══
