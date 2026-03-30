@@ -45,8 +45,10 @@ module.exports = async (req, res) => {
         correct TEXT,
         choices TEXT[],
         hint JSONB,
+        node_id INT,
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
+      ALTER TABLE questions ADD COLUMN IF NOT EXISTS node_id INT;
       CREATE TABLE IF NOT EXISTS logs (
         id BIGSERIAL PRIMARY KEY,
         action TEXT,
