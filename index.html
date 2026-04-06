@@ -2124,6 +2124,7 @@ body {
 </script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
 </head>
 <body>
 
@@ -9504,17 +9505,32 @@ body {
 
 function renderMath(text) {
     if (!text) return '';
-    if (typeof katex === 'undefined') return text;
-    // $...$ болон $$...$$ томьёог render хийх
-    return text
-      .replace(/\$\$([^$]+)\$\$/g, function(_, latex) {
-        try { return katex.renderToString(latex, {displayMode:true, throwOnError:false}); }
-        catch(e) { return latex; }
-      })
-      .replace(/\$([^$]+)\$/g, function(_, latex) {
-        try { return katex.renderToString(latex, {displayMode:false, throwOnError:false}); }
-        catch(e) { return latex; }
-      });
+    if (typeof katex === 'undefined') return escHtml(text);
+    // Эхлээд HTML escape хийх
+    function escHtml(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+    // $$...$$ display mode
+    text = text.replace(/\$\$([^$]+)\$\$/g, function(_, latex) {
+      try { return katex.renderToString(latex, {displayMode:true, throwOnError:false}); }
+      catch(e) { return escHtml(latex); }
+    });
+    // $...$ inline mode
+    text = text.replace(/\$([^$\n]+)\$/g, function(_, latex) {
+      try { return katex.renderToString(latex, {displayMode:false, throwOnError:false}); }
+      catch(e) { return escHtml(latex); }
+    });
+    // \(...\) inline
+    text = text.replace(/\\\(([^)]+)\\\)/g, function(_, latex) {
+      try { return katex.renderToString(latex, {displayMode:false, throwOnError:false}); }
+      catch(e) { return escHtml(latex); }
+    });
+    // \[...\] display
+    text = text.replace(/\\\[([^\]]+)\\\]/g, function(_, latex) {
+      try { return katex.renderToString(latex, {displayMode:true, throwOnError:false}); }
+      catch(e) { return escHtml(latex); }
+    });
+    return text;
   }
 
   function renderQuestion() {
@@ -9549,6 +9565,21 @@ function renderMath(text) {
       <button class="check-btn" id="check-btn" disabled onclick="checkAnswer()">ШАЛГАХ</button>
     `;
     selectedOpt = null;
+    // KaTeX auto-render
+    setTimeout(function() {
+      var content = document.getElementById('quiz-content');
+      if (content && typeof renderMathInElement !== 'undefined') {
+        renderMathInElement(content, {
+          delimiters: [
+            {left:'$$', right:'$$', display:true},
+            {left:'$', right:'$', display:false},
+            {left:'\\(', right:'\\)', display:false},
+            {left:'\\[', right:'\\]', display:true}
+          ],
+          throwOnError: false
+        });
+      }
+    }, 50);
   }
 
 
