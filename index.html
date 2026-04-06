@@ -9475,8 +9475,8 @@ body {
             title: 'Node ' + id,
             questions: dbQs.map(function(q){
               var choices = q.choices || [];
+              if (typeof choices === 'string') { try { choices = JSON.parse(choices); } catch(e) { choices = []; } }
               var correctIdx = choices.indexOf(q.correct);
-              // correct индекс олдохгүй бол 0 болгох
               if (correctIdx === -1) correctIdx = 0;
               return {
                 q: q.text,
@@ -9505,32 +9505,40 @@ body {
 
 function renderMath(text) {
     if (!text) return '';
-    if (typeof katex === 'undefined') return escHtml(text);
-    // Эхлээд HTML escape хийх
     function escHtml(s) {
-      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }
+    if (typeof katex === 'undefined') return escHtml(text);
+    var str = String(text);
     // $$...$$ display mode
-    text = text.replace(/\$\$([^$]+)\$\$/g, function(_, latex) {
+    str = str.replace(/\$\$([^$]+)\$\$/g, function(_, latex) {
       try { return katex.renderToString(latex, {displayMode:true, throwOnError:false}); }
       catch(e) { return escHtml(latex); }
     });
     // $...$ inline mode
-    text = text.replace(/\$([^$\n]+)\$/g, function(_, latex) {
+    str = str.replace(/\$([^$\n]+)\$/g, function(_, latex) {
       try { return katex.renderToString(latex, {displayMode:false, throwOnError:false}); }
       catch(e) { return escHtml(latex); }
     });
     // \(...\) inline
-    text = text.replace(/\\\(([^)]+)\\\)/g, function(_, latex) {
+    str = str.replace(/\\\(([^)]+)\\\)/g, function(_, latex) {
       try { return katex.renderToString(latex, {displayMode:false, throwOnError:false}); }
       catch(e) { return escHtml(latex); }
     });
     // \[...\] display
-    text = text.replace(/\\\[([^\]]+)\\\]/g, function(_, latex) {
+    str = str.replace(/\\\[([^\]]+)\\\]/g, function(_, latex) {
       try { return katex.renderToString(latex, {displayMode:true, throwOnError:false}); }
       catch(e) { return escHtml(latex); }
     });
-    return text;
+    // $ тэмдэгтгүй ч LaTeX мэт харагдвал render хийх
+    if (str === escHtml(String(text))) {
+      var hasLatex = /[_^]|\\[a-zA-Z]|\\frac|\\sqrt|\\sum|\\int|\\pi|\\alpha/.test(str);
+      if (hasLatex) {
+        try { return katex.renderToString(str, {displayMode:false, throwOnError:false}); }
+        catch(e) {}
+      }
+    }
+    return str;
   }
 
   function renderQuestion() {
@@ -9559,7 +9567,7 @@ function renderMath(text) {
       <div class="feedback-bar" id="feedback"></div>
       <div class="options-grid" id="options">
         ${qData.options.map((opt, i) => `
-          <button class="option-btn" id="opt-${i}" onclick="selectOption(${i})">${renderMath(opt)}</button>
+          <button class="option-btn" id="opt-${i}" onclick="selectOption(${i})" data-raw="${opt.replace(/"/g,'&quot;')}">${renderMath(opt)}</button>
         `).join('')}
       </div>
       <button class="check-btn" id="check-btn" disabled onclick="checkAnswer()">ШАЛГАХ</button>
