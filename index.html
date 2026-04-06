@@ -876,6 +876,7 @@
     flex-shrink: 0;
     display: inline-block;
     margin-bottom: 4px;
+    overflow: visible;
   }
   .nav-avatar-btn {
     width: 40px; height: 40px; border-radius: 50%;
@@ -2632,16 +2633,45 @@ body {
 </svg>
   </a>
   <div class="nav-stats">
-    <div class="nav-avatar-wrap" onclick="openAvatarModal()" title="Профайл сонгох">
+    <div class="nav-avatar-wrap" onclick="toggleProfilePanel()" style="position:relative;" title="Профайл">
       <div class="nav-avatar-btn" id="nav-avatar-btn">
-        <div class="nav-avatar-inner" id="nav-avatar-inner">
+        
+      <div class="nav-avatar-inner" id="nav-avatar-inner">
           <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="28" height="28">
             <defs><linearGradient id="avG" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#7B52EE"/><stop offset="1" stop-color="#C084FC"/></linearGradient></defs>
             <circle cx="12" cy="8" r="4" fill="url(#avG)"/>
             <path d="M4 20C4 16 7.58 13 12 13C16.42 13 20 16 20 20" stroke="url(#avG)" stroke-width="2" stroke-linecap="round"/>
           </svg>
         </div>
+      
+      <div id="profile-panel" style="display:none;position:absolute;top:54px;left:50%;transform:translateX(-50%);background:#1e1a35;border:1px solid rgba(123,82,238,0.3);border-radius:14px;padding:16px;min-width:200px;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,0.5);">
+        <div style="text-align:center;margin-bottom:12px;">
+          <div id="panel-avatar" style="width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#1a1040,#2a1860);border:2px solid #7B52EE;margin:0 auto 8px;overflow:hidden;display:flex;align-items:center;justify-content:center;"></div>
+          <div id="panel-name" style="font-weight:800;font-size:0.9rem;color:#f0eeff;"></div>
+          <div id="panel-plan" style="font-size:0.72rem;color:#A855F7;font-weight:700;margin-top:2px;"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px;">
+          <div style="background:rgba(123,82,238,0.1);border-radius:8px;padding:8px;text-align:center;">
+            <div id="panel-xp" style="font-weight:900;font-size:1rem;color:#A855F7;"></div>
+            <div style="font-size:0.65rem;color:#8880aa;font-weight:700;">XP</div>
+          </div>
+          <div style="background:rgba(88,204,2,0.1);border-radius:8px;padding:8px;text-align:center;">
+            <div id="panel-level" style="font-weight:900;font-size:1rem;color:#58CC02;"></div>
+            <div style="font-size:0.65rem;color:#8880aa;font-weight:700;">Түвшин</div>
+          </div>
+          <div style="background:rgba(255,200,0,0.1);border-radius:8px;padding:8px;text-align:center;">
+            <div id="panel-streak" style="font-weight:900;font-size:1rem;color:#FFC800;"></div>
+            <div style="font-size:0.65rem;color:#8880aa;font-weight:700;">Streak</div>
+          </div>
+          <div style="background:rgba(28,176,246,0.1);border-radius:8px;padding:8px;text-align:center;">
+            <div id="panel-done" style="font-weight:900;font-size:1rem;color:#1CB0F6;"></div>
+            <div style="font-size:0.65rem;color:#8880aa;font-weight:700;">Дууссан</div>
+          </div>
+        </div>
+        <button onclick="openAvatarModal();closeProfilePanel();" style="width:100%;background:rgba(123,82,238,0.2);border:1px solid rgba(123,82,238,0.4);color:#A855F7;border-radius:8px;padding:7px;cursor:pointer;font-weight:800;font-size:0.82rem;margin-bottom:6px;">🐦 Аватар солих</button>
+        <button onclick="openProfileModal();closeProfilePanel();" style="width:100%;background:rgba(123,82,238,0.1);border:1px solid rgba(123,82,238,0.2);color:#8880aa;border-radius:8px;padding:7px;cursor:pointer;font-weight:700;font-size:0.78rem;">👤 Дэлгэрэнгүй профайл</button>
       </div>
+    </div>
       <div class="nav-level-badge" id="nav-level-badge">Lv1</div>
     </div>
     <div class="stat-chip fire"><span class="icon"><svg width="18" height="18" viewBox="240 0 220 340" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -10108,6 +10138,9 @@ function renderMath(text) {
   function openAvatarModal() {
     var user = _getUser();
     if (user) {
+      // Хадгалагдсан avatar-г сэргээх
+      var saved = user.avatar || localStorage.getItem('cm_avatar');
+      if (saved) _selAv = parseInt(saved) || 1;
       var m = document.getElementById('av-modal');
       m.style.display = 'flex';
       _updateAv();
@@ -10117,10 +10150,40 @@ function renderMath(text) {
   }
   function closeAv() {
     document.getElementById('av-modal').style.display = 'none';
+    // Хаахад шинэчлэх
+    _applyAvatarToNav(_selAv);
   }
   function selAv(id) {
     _selAv = id;
     _updateAv();
+    // Avatar-г шууд хадгалах
+    _saveAvatarToStorage(id);
+    // Nav-д шинэчлэх
+    _applyAvatarToNav(id);
+  }
+
+  function _saveAvatarToStorage(id) {
+    // localStorage-д хадгалах
+    localStorage.setItem('cm_avatar', String(id));
+    // Database-д хадгалах
+    if (_currentUser && _currentUser.email) {
+      _currentUser.avatar = id;
+      _saveCurrentUser();
+      fetch('/api/users', {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({email: _currentUser.email, avatar: id})
+      }).catch(function(){});
+    }
+  }
+
+  function _applyAvatarToNav(id) {
+    var card = document.getElementById('avc-' + id);
+    if (!card) return;
+    var svgEl = card.querySelector('svg');
+    if (!svgEl) return;
+    var navInner = document.getElementById('nav-avatar-inner');
+    if (navInner) navInner.innerHTML = svgEl.outerHTML;
   }
   function _updateAv() {
     document.querySelectorAll('.avc').forEach(function(c){ c.classList.remove('selected'); });
@@ -10530,7 +10593,64 @@ function renderMath(text) {
     document.getElementById('cybermath-app').style.display = 'none';
     document.getElementById('landing-page').style.display = 'block';
   }
-  function _onLogin() {
+  
+  function toggleProfilePanel() {
+    var panel = document.getElementById('profile-panel');
+    if (!panel) { console.error('profile-panel not found'); return; }
+    if (panel.style.display === 'none' || !panel.style.display) {
+      openProfilePanel();
+    } else {
+      closeProfilePanel();
+    }
+  }
+
+  function openProfilePanel() {
+    var panel = document.getElementById('profile-panel');
+    if (!panel) return;
+    var u = _currentUser;
+    if (!u) { openAuthModal('login'); return; }
+    // Мэдээлэл дүүргэх
+    var pName = document.getElementById('panel-name');
+    var pPlan = document.getElementById('panel-plan');
+    var pXp = document.getElementById('panel-xp');
+    var pLevel = document.getElementById('panel-level');
+    var pStreak = document.getElementById('panel-streak');
+    var pDone = document.getElementById('panel-done');
+    var pAvatar = document.getElementById('panel-avatar');
+    if (pName) pName.textContent = (u.firstName || u.first_name || '') + ' ' + (u.lastName || u.last_name || '');
+    if (pPlan) pPlan.textContent = u.plan === 'premium' ? '⭐ Premium' : '🆓 Free';
+    if (pXp) pXp.textContent = (u.xp || xp || 0) + ' XP';
+    if (pLevel) pLevel.textContent = 'Lv ' + _userLevel;
+    if (pStreak) {
+      try { var sd = JSON.parse(localStorage.getItem('cybermath_streak') || '{}'); pStreak.textContent = (sd.count || 0) + ' өдөр'; }
+      catch(e) { pStreak.textContent = '0 өдөр'; }
+    }
+    if (pDone) pDone.textContent = getCompletedLessons().length;
+    // Avatar
+    if (pAvatar) {
+      var navInner = document.getElementById('nav-avatar-inner');
+      pAvatar.innerHTML = navInner ? navInner.innerHTML : '';
+    }
+    panel.style.display = 'block';
+    // Гадна дарахад хаах
+    setTimeout(function() {
+      document.addEventListener('click', _closePanelOutside);
+    }, 100);
+  }
+
+  function closeProfilePanel() {
+    var panel = document.getElementById('profile-panel');
+    if (panel) panel.style.display = 'none';
+    document.removeEventListener('click', _closePanelOutside);
+  }
+
+  function _closePanelOutside(e) {
+    var wrap = document.querySelector('.nav-avatar-wrap');
+    if (wrap && !wrap.contains(e.target)) {
+      closeProfilePanel();
+    }
+  }
+function _onLogin() {
     var u = _currentUser;
     var btn = document.getElementById('nav-avatar-btn');
     if (btn) btn.style.borderColor = u.plan === 'premium' ? '#FFC800' : '#7B52EE';
@@ -10564,45 +10684,12 @@ function renderMath(text) {
       var local2 = JSON.parse(localStorage.getItem('cm_completed') || '[]');
       if (local2.length > 0) _completedLessons = local2;
     }
-    // Avatar-г database-аас авах
-    if (u.avatar !== undefined && u.avatar !== 'default') {
-      var avId = parseInt(u.avatar) || 8;
-      setTimeout(function(){
-        var card = document.getElementById('avc-' + avId);
-        if (card) {
-          var svg = card.querySelector('svg');
-          if (svg) {
-            var inner = document.getElementById('nav-avatar-inner');
-            if (inner) {
-              var clone = svg.cloneNode(true);
-              clone.setAttribute('width', '42');
-              clone.setAttribute('height', '42');
-              clone.style.display = 'block';
-              inner.innerHTML = '';
-              inner.appendChild(clone);
-            }
-          }
-        }
-      }, 200);
-    } else {
-      // Анхдагч: Сарнай
-      setTimeout(function(){
-        var card = document.getElementById('avc-8');
-        if (card) {
-          var svg = card.querySelector('svg');
-          if (svg) {
-            var inner = document.getElementById('nav-avatar-inner');
-            if (inner) {
-              var clone = svg.cloneNode(true);
-              clone.setAttribute('width', '42');
-              clone.setAttribute('height', '42');
-              clone.style.display = 'block';
-              inner.innerHTML = '';
-              inner.appendChild(clone);
-            }
-          }
-        }
-      }, 200);
+    // Avatar-г database/localStorage-аас сэргээх
+    var avId = u.avatar ? parseInt(u.avatar) : parseInt(localStorage.getItem('cm_avatar') || '0');
+    if (avId > 0) {
+      _selAv = avId;
+      localStorage.setItem('cm_avatar', String(avId));
+      setTimeout(function(){ _applyAvatarToNav(avId); }, 300);
     }
     showApp();
     setTimeout(unlockNextNodes, 300);
