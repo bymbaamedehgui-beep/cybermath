@@ -816,35 +816,46 @@ function toggleAdmPw() {
 </select>
           </div>
           <div class="form-group" style="margin-bottom:12px;">
-            <label>Бодлогын текст (Equation editor)</label>
-            <div class="math-editor-wrap">
-<!-- LaTeX input -->
-              <div style="margin-bottom:6px;">
-                <div style="font-size:0.65rem;font-weight:900;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">LaTeX оруулах</div>
-                <math-field 
-                  id="q-math-display"
-                  class="math-latex-input"
-                  virtual-keyboard-mode="manual"
-                  placeholder="жишээ: x^2 + 1">
-                </math-field>
-              </div>
+            <label>Бодлогын текст</label>
+            <div style="position:relative;">
+              <textarea 
+                id="q-text-main"
+                rows="3"
+                placeholder="Бодлогын өгүүлбэр бичнэ үү... (жишээ: x² + 2x + 1 = 0 тэгшитгэлийн шийдийг ол)"
+                style="width:100%;padding:10px 14px;padding-right:110px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-size:0.95rem;resize:vertical;box-sizing:border-box;line-height:1.6;"
+                oninput="updateQPreview()"
+              ></textarea>
+              <button type="button" onclick="openQMathModal()" 
+                style="position:absolute;top:8px;right:8px;background:#7B52EE;border:none;color:white;border-radius:7px;padding:5px 10px;cursor:pointer;font-size:0.78rem;font-weight:800;white-space:nowrap;">
+                ∑ Томьёо
+              </button>
+            </div>
+            <!-- Preview -->
+            <div id="q-text-preview" style="min-height:28px;margin-top:6px;padding:6px 10px;background:var(--surface2);border-radius:8px;font-size:0.9rem;color:var(--text);display:none;"></div>
+          </div>
 
-              <!-- KaTeX Preview -->
-              <div class="math-preview-wrap" id="math-preview">
-                <span class="math-preview-empty">Дээр бодлого бичихэд энд харагдана...</span>
+          <!-- Math томьёо оруулах modal -->
+          <div id="q-math-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:2000;align-items:center;justify-content:center;">
+            <div style="background:var(--surface);border-radius:16px;padding:24px;width:92%;max-width:520px;border:1px solid var(--border);">
+              <div style="font-weight:800;margin-bottom:4px;color:var(--text);font-size:1rem;">∑ Математик томьёо оруулах</div>
+              <div style="font-size:0.78rem;color:var(--muted);margin-bottom:12px;">Томьёогоо бичээд "Оруулах" дарна уу</div>
+              <math-field id="q-math-display" virtual-keyboard-mode="manual"
+                style="width:100%;min-height:52px;border:1.5px solid var(--border);border-radius:8px;padding:8px;background:var(--surface2);display:block;">
+              </math-field>
+              <div id="math-preview" class="math-preview-wrap" style="margin-top:8px;min-height:32px;padding:8px 12px;background:var(--surface2);border-radius:8px;text-align:center;">
+                <span class="math-preview-empty">Томьёо энд харагдана...</span>
               </div>
-
-              <!-- Keyboard toggle -->
-              <div style="display:flex;justify-content:flex-end;margin-bottom:6px;">
-                <button class="math-tool-btn" onclick="toggleKb()" style="font-size:0.8rem;padding:6px 14px;">
-                  ⌨ Математик клавиатур
-                </button>
-              </div>
-
               <!-- Math keyboard -->
+              <div style="display:flex;justify-content:flex-end;margin:8px 0 4px;">
+                <button class="math-tool-btn" onclick="toggleKb()" style="font-size:0.78rem;padding:5px 12px;">⌨ Клавиатур</button>
+              </div>
               <div id="math-kb" class="math-kb">
                 <div class="math-kb-tabs" id="math-kb-tabs"></div>
                 <div class="math-kb-grid" id="math-kb-grid"></div>
+              </div>
+              <div style="display:flex;gap:8px;margin-top:14px;">
+                <button onclick="insertQMath()" style="flex:1;background:#58CC02;border:none;color:white;border-radius:8px;padding:10px;cursor:pointer;font-weight:800;font-size:0.95rem;">✓ Оруулах</button>
+                <button onclick="closeQMathModal()" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:10px 16px;cursor:pointer;font-weight:700;">Болих</button>
               </div>
             </div>
           </div>
@@ -1116,12 +1127,54 @@ function handleMathKey(e) {
 }
 
 function getMathText() {
-  var inp = document.getElementById('q-math-display');
+  var inp = document.getElementById('q-text-main');
   return inp ? inp.value.trim() : '';
 }
 
-// ── Хариултад математик оруулах modal ──
-var _currentChoiceTarget = null;
+function updateQPreview() {
+  var text = document.getElementById('q-text-main') ? document.getElementById('q-text-main').value : '';
+  var prev = document.getElementById('q-text-preview');
+  if (!prev) return;
+  if (!text) { prev.style.display='none'; return; }
+  prev.style.display = 'block';
+  if (window.katex) {
+    try { katex.render(text, prev, {throwOnError:false, displayMode:false}); return; } catch(e) {}
+  }
+  prev.textContent = text;
+}
+
+function openQMathModal() {
+  var modal = document.getElementById('q-math-modal');
+  if (modal) modal.style.display = 'flex';
+  var mf = document.getElementById('q-math-display');
+  if (mf) setTimeout(function(){ mf.focus(); }, 100);
+  initMathKb();
+}
+
+function closeQMathModal() {
+  var modal = document.getElementById('q-math-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function insertQMath() {
+  var mf = document.getElementById('q-math-display');
+  var target = document.getElementById('q-text-main');
+  if (!mf || !target) return;
+  var latex = mf.value.trim();
+  if (!latex) { closeQMathModal(); return; }
+  // Cursor байрлалд оруулах
+  var start = target.selectionStart || target.value.length;
+  var end = target.selectionEnd || target.value.length;
+  var before = target.value.slice(0, start);
+  var after = target.value.slice(end);
+  target.value = before + '$' + latex + '$' + after;
+  target.focus();
+  var pos = start + latex.length + 2;
+  target.setSelectionRange(pos, pos);
+  mf.value = '';
+  closeQMathModal();
+  updateQPreview();
+}
 
 function insertMathToChoice(targetId) {
   _currentChoiceTarget = targetId;
