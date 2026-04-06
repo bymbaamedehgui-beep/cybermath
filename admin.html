@@ -56,7 +56,7 @@ function toggleAdmPw() {
   inp.type = inp.type === 'password' ? 'text' : 'password';
 }
 </script>
-<script src="https://unpkg.com/mathlive"></script>
+<script src="/mathlive.min.js"></script>
 <style>
 :root {
   --bg: #0d0b1a;
@@ -823,23 +823,34 @@ function toggleAdmPw() {
 
           <!-- Math томьёо оруулах modal -->
           <div id="q-math-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:2000;align-items:center;justify-content:center;">
-            <div style="background:var(--surface);border-radius:16px;padding:24px;width:92%;max-width:520px;border:1px solid var(--border);">
+            <div style="background:var(--surface);border-radius:16px;padding:24px;width:92%;max-width:560px;max-height:90vh;overflow-y:auto;border:1px solid var(--border);">
               <div style="font-weight:800;margin-bottom:4px;color:var(--text);font-size:1rem;">∑ Математик томьёо оруулах</div>
               <div style="font-size:0.78rem;color:var(--muted);margin-bottom:12px;">Томьёогоо бичээд "Оруулах" дарна уу</div>
-              <math-field id="q-math-display" virtual-keyboard-mode="manual" style="width:100%;min-height:80px;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--surface2);color:white;display:block;font-size:1.1rem;"></math-field>
+              
+              <!-- MathLive field -->
+              <math-field id="q-math-display" 
+                virtual-keyboard-mode="manual"
+                style="width:100%;min-height:60px;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--surface2);color:white;display:block;font-size:1.1rem;">
+              </math-field>
+
+              <!-- Preview -->
               <div id="math-preview" class="math-preview-wrap" style="margin-top:8px;min-height:32px;padding:8px 12px;background:var(--surface2);border-radius:8px;text-align:center;">
                 <span class="math-preview-empty">Томьёо энд харагдана...</span>
               </div>
-              <!-- Math keyboard -->
-              <div style="display:flex;justify-content:flex-end;margin:8px 0 4px;">
+
+              <!-- MathLive virtual keyboard - modal ДОТОРХ div-д -->
+              <div id="mlk-container" style="margin-top:10px;border-radius:10px;overflow:hidden;border:1px solid var(--border);"></div>
+
+              <!-- Манай keyboard -->
+              <div style="display:flex;justify-content:space-between;align-items:center;margin:10px 0 4px;">
+                <span style="font-size:0.75rem;color:var(--muted);font-weight:700;">Тэмдэгт оруулах:</span>
                 <button class="math-tool-btn" onclick="toggleKb()" style="font-size:0.78rem;padding:5px 12px;">⌨ Клавиатур</button>
               </div>
               <div id="math-kb" class="math-kb">
                 <div class="math-kb-tabs" id="math-kb-tabs"></div>
                 <div class="math-kb-grid" id="math-kb-grid"></div>
               </div>
-              <!-- MathLive virtual keyboard container -->
-              <div id="mlk-container" style="margin-top:8px;border-radius:10px;overflow:hidden;"></div>
+
               <div style="display:flex;gap:8px;margin-top:14px;">
                 <button onclick="insertQMath()" style="flex:1;background:#58CC02;border:none;color:white;border-radius:8px;padding:10px;cursor:pointer;font-weight:800;font-size:0.95rem;">✓ Оруулах</button>
                 <button onclick="closeQMathModal()" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:10px 16px;cursor:pointer;font-weight:700;">Болих</button>
@@ -1090,7 +1101,7 @@ function updatePreview() {
   var inp = document.getElementById('q-math-display');
   var prev = document.getElementById('math-preview');
   if (!inp || !prev) return;
-  var latex = inp.value.trim();
+  var latex = (inp.value||inp.getValue&&inp.getValue()||"").trim();
   if (!latex) {
     prev.innerHTML = '<span class="math-preview-empty">Дээр бодлого бичихэд энд харагдана...</span>';
     return;
@@ -1115,7 +1126,7 @@ function handleMathKey(e) {
 
 function getMathText() {
   var inp = document.getElementById('q-text-main');
-  return inp ? inp.value.trim() : '';
+  return inp ? ((inp.value||inp.getValue&&inp.getValue()||"").trim()) : '';
 }
 
 function updateQPreview() {
@@ -1135,12 +1146,17 @@ function updateQPreview() {
   prev.innerHTML = html_parts.join('');
 }
 
-// MathLive virtual keyboard-г disable хийх
+// MathLive virtual keyboard-г modal дотор байрлуулах
 window.addEventListener('load', function() {
   if (window.MathfieldElement) {
     window.MathfieldElement.defaultOptions = {
       virtualKeyboardMode: 'manual',
     };
+  }
+  // keyboard container тохируулах
+  if (window.mathVirtualKeyboard) {
+    var container = document.getElementById('mlk-container');
+    if (container) window.mathVirtualKeyboard.container = container;
   }
 });
 
@@ -1148,20 +1164,31 @@ function openQMathModal() {
   var modal = document.getElementById('q-math-modal');
   if (modal) modal.style.display = 'flex';
   var mf = document.getElementById('q-math-display');
-  if (mf) setTimeout(function(){ mf.focus(); }, 100);
-  initMathKb();
+  // MathLive keyboard-г modal дотор харуулах
+  setTimeout(function(){
+    if (window.mathVirtualKeyboard) {
+      var container = document.getElementById('mlk-container');
+      if (container) {
+        window.mathVirtualKeyboard.container = container;
+        window.mathVirtualKeyboard.show();
+      }
+    }
+    if (mf) mf.focus();
+    initMathKb();
+  }, 100);
 }
 
 function closeQMathModal() {
   var modal = document.getElementById('q-math-modal');
   if (modal) modal.style.display = 'none';
+  if (window.mathVirtualKeyboard) window.mathVirtualKeyboard.hide();
 }
 
 function insertQMath() {
   var mf = document.getElementById('q-math-display');
   var target = document.getElementById('q-text-main');
   if (!mf || !target) return;
-  var latex = mf.value.trim();
+  var latex = (mf.value||mf.getValue&&mf.getValue()||"").trim();
   if (!latex) { closeQMathModal(); return; }
   // Cursor байрлалд оруулах
   var start = target.selectionStart || target.value.length;
@@ -1526,10 +1553,10 @@ function closeMathModal() {
 
   function saveQuestion(id) {
     var textEl = document.getElementById('qedit-text-'+id);
-    var text = textEl ? textEl.value.trim() : '';
+    var text = textEl ? ((textEl.value||textEl.getValue&&textEl.getValue()||"").trim()) : '';
     var choices = [0,1,2,3].map(function(ci){
       var el = document.getElementById('qedit-ch'+ci+'-'+id);
-      return el ? el.value.trim() : '';
+      return el ? ((el.value||el.getValue&&el.getValue()||"").trim()) : '';
     });
     var correctIdx = 0;
     var radios = document.querySelectorAll('input[name="correct-'+id+'"]');
@@ -1583,10 +1610,10 @@ function closeMathModal() {
   function addQuestion() {
     var text = getMathText();
     var nodeId = document.getElementById('q-node') ? document.getElementById('q-node').value : '';
-    var a = document.getElementById('q-a') ? document.getElementById('q-a').value.trim() : '';
-    var b = document.getElementById('q-b') ? document.getElementById('q-b').value.trim() : '';
-    var c = document.getElementById('q-c') ? document.getElementById('q-c').value.trim() : '';
-    var d = document.getElementById('q-d') ? document.getElementById('q-d').value.trim() : '';
+    var a = document.getElementById('q-a') ? ((document.getElementById('q-a').value||document.getElementById('q-a').getValue&&document.getElementById('q-a').getValue()||"").trim()) : '';
+    var b = document.getElementById('q-b') ? ((document.getElementById('q-b').value||document.getElementById('q-b').getValue&&document.getElementById('q-b').getValue()||"").trim()) : '';
+    var c = document.getElementById('q-c') ? ((document.getElementById('q-c').value||document.getElementById('q-c').getValue&&document.getElementById('q-c').getValue()||"").trim()) : '';
+    var d = document.getElementById('q-d') ? ((document.getElementById('q-d').value||document.getElementById('q-d').getValue&&document.getElementById('q-d').getValue()||"").trim()) : '';
     // Зөв хариулт radio-аас авах
     var selected = document.querySelector('input[name="q-correct"]:checked');
     var correctKey = selected ? selected.value : 'a';
