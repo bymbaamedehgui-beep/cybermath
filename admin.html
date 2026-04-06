@@ -56,6 +56,7 @@ function toggleAdmPw() {
   inp.type = inp.type === 'password' ? 'text' : 'password';
 }
 </script>
+<script src="https://unpkg.com/mathlive"></script>
 <style>
 :root {
   --bg: #0d0b1a;
@@ -825,7 +826,7 @@ function toggleAdmPw() {
             <div style="background:var(--surface);border-radius:16px;padding:24px;width:92%;max-width:520px;border:1px solid var(--border);">
               <div style="font-weight:800;margin-bottom:4px;color:var(--text);font-size:1rem;">∑ Математик томьёо оруулах</div>
               <div style="font-size:0.78rem;color:var(--muted);margin-bottom:12px;">Томьёогоо бичээд "Оруулах" дарна уу</div>
-              <textarea id="q-math-display" style="width:100%;min-height:72px;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--surface2);color:var(--text);font-size:1rem;resize:none;box-sizing:border-box;font-family:monospace;" placeholder="Томьёо бичнэ үү: x^2+1" oninput="updatePreview()"></textarea>
+              <math-field id="q-math-display" virtual-keyboard-mode="manual" style="width:100%;min-height:80px;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--surface2);color:white;display:block;font-size:1.1rem;"></math-field>
               <div id="math-preview" class="math-preview-wrap" style="margin-top:8px;min-height:32px;padding:8px 12px;background:var(--surface2);border-radius:8px;text-align:center;">
                 <span class="math-preview-empty">Томьёо энд харагдана...</span>
               </div>
@@ -837,6 +838,8 @@ function toggleAdmPw() {
                 <div class="math-kb-tabs" id="math-kb-tabs"></div>
                 <div class="math-kb-grid" id="math-kb-grid"></div>
               </div>
+              <!-- MathLive virtual keyboard container -->
+              <div id="mlk-container" style="margin-top:8px;border-radius:10px;overflow:hidden;"></div>
               <div style="display:flex;gap:8px;margin-top:14px;">
                 <button onclick="insertQMath()" style="flex:1;background:#58CC02;border:none;color:white;border-radius:8px;padding:10px;cursor:pointer;font-weight:800;font-size:0.95rem;">✓ Оруулах</button>
                 <button onclick="closeQMathModal()" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:10px 16px;cursor:pointer;font-weight:700;">Болих</button>
@@ -929,7 +932,7 @@ function toggleAdmPw() {
           <div id="choice-math-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center;">
             <div style="background:var(--surface);border-radius:16px;padding:24px;width:90%;max-width:480px;border:1px solid var(--border);">
               <div style="font-weight:800;margin-bottom:12px;color:var(--text);">Математик бичиглэл оруулах</div>
-              <textarea id="choice-math-field" style="width:100%;min-height:72px;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--surface2);color:var(--text);font-size:1rem;resize:none;box-sizing:border-box;font-family:monospace;" placeholder="Томьёо бичнэ үү: x^2+1" oninput="updatePreview()"></textarea>
+              <math-field id="choice-math-field" virtual-keyboard-mode="manual" style="width:100%;min-height:60px;border:1.5px solid var(--border);border-radius:8px;padding:8px;background:var(--surface2);color:white;display:block;"></math-field>
               <div id="choice-math-preview" style="margin-top:10px;min-height:32px;padding:8px;background:var(--surface2);border-radius:8px;text-align:center;"></div>
               <div style="display:flex;gap:8px;margin-top:14px;">
                 <button onclick="confirmMathToChoice()" style="flex:1;background:#58CC02;border:none;color:white;border-radius:8px;padding:10px;cursor:pointer;font-weight:800;">✓ Оруулах</button>
@@ -1132,21 +1135,20 @@ function updateQPreview() {
   prev.innerHTML = html_parts.join('');
 }
 
+// MathLive virtual keyboard-г disable хийх
+window.addEventListener('load', function() {
+  if (window.MathfieldElement) {
+    window.MathfieldElement.defaultOptions = {
+      virtualKeyboardMode: 'manual',
+    };
   }
-});
-
 });
 
 function openQMathModal() {
   var modal = document.getElementById('q-math-modal');
   if (modal) modal.style.display = 'flex';
   var mf = document.getElementById('q-math-display');
-  if (mf) {
-    setTimeout(function(){
-      mf.focus();
-      }
-    }, 150);
-  }
+  if (mf) setTimeout(function(){ mf.focus(); }, 100);
   initMathKb();
 }
 
@@ -1492,11 +1494,11 @@ function closeMathModal() {
           // Edit form (нуугдсан)
           + '<div id="qedit-'+q.id+'" style="display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:14px;">'
           + '<div style="margin-bottom:8px;"><label style="font-size:0.78rem;color:var(--muted);font-weight:700;">Бодлого</label>'
-          + '<textarea id="qedit-text-'+q.id+'" style="width:100%;min-height:54px;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:0.95rem;resize:vertical;box-sizing:border-box;">'+((q.text||''))+'</textarea></div>'
+          + '<math-field id="qedit-text-'+q.id+'" virtual-keyboard-mode="manual" style="width:100%;min-height:56px;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--surface);color:var(--text);display:block;margin-top:4px;font-size:1rem;">'+((q.text||''))+'</math-field></div>'
           + ['А','Б','В','Г'].map(function(lbl, ci) {
               return '<div style="margin-bottom:6px;display:flex;align-items:center;gap:8px;">'
                 +'<label style="font-size:0.78rem;color:var(--muted);font-weight:700;min-width:24px;">'+lbl+'</label>'
-                +'<input id="qedit-ch'+ci+'-'+q.id+'" value="'+(choices[ci]||'')+'" style="flex:1;height:38px;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:0.92rem;box-sizing:border-box;">'
+                +'<math-field id="qedit-ch'+ci+'-'+q.id+'" virtual-keyboard-mode="manual" style="flex:1;min-height:46px;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;background:var(--surface);color:var(--text);display:block;font-size:0.95rem;">'+(choices[ci]||'')+'</math-field>'
                 +'<label style="font-size:0.75rem;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap;">'
                 +'<input type="radio" name="correct-'+q.id+'" value="'+ci+'" '+(choices[ci]===q.correct?'checked':'')+' style="cursor:pointer;"> Зөв</label>'
                 +'</div>';
@@ -1712,7 +1714,11 @@ function closeMathModal() {
 
   // ══ INIT ══
   document.addEventListener('DOMContentLoaded', function() {
-    
+    // MathLive virtual keyboard анхандаа нуух
+    initMathKb();
+    setInterval(updatePreview, 150);
+  });
+
 </script>
 </body>
 </html>
