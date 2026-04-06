@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CyberMath Admin</title>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/mathlive"></script>
 <script>
 function admLogin() {
   var user = (document.getElementById('adm-user') || {}).value || '';
@@ -56,7 +57,6 @@ function toggleAdmPw() {
   inp.type = inp.type === 'password' ? 'text' : 'password';
 }
 </script>
-<script src="https://unpkg.com/mathlive"></script>
 <style>
 :root {
   --bg: #0d0b1a;
@@ -826,7 +826,7 @@ function toggleAdmPw() {
             <div style="background:var(--surface);border-radius:16px;padding:24px;width:92%;max-width:520px;border:1px solid var(--border);">
               <div style="font-weight:800;margin-bottom:4px;color:var(--text);font-size:1rem;">∑ Математик томьёо оруулах</div>
               <div style="font-size:0.78rem;color:var(--muted);margin-bottom:12px;">Томьёогоо бичээд "Оруулах" дарна уу</div>
-              <math-field id="q-math-display" virtual-keyboard-mode="manual" style="width:100%;min-height:80px;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--surface2);color:white;display:block;font-size:1.1rem;"></math-field>
+              <textarea id="q-math-display" style="width:100%;min-height:72px;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--surface2);color:var(--text);font-size:1rem;resize:none;box-sizing:border-box;font-family:monospace;" placeholder="Томьёо бичнэ үү: x^2+1" oninput="updatePreview()"></textarea>
               <div id="math-preview" class="math-preview-wrap" style="margin-top:8px;min-height:32px;padding:8px 12px;background:var(--surface2);border-radius:8px;text-align:center;">
                 <span class="math-preview-empty">Томьёо энд харагдана...</span>
               </div>
@@ -838,8 +838,6 @@ function toggleAdmPw() {
                 <div class="math-kb-tabs" id="math-kb-tabs"></div>
                 <div class="math-kb-grid" id="math-kb-grid"></div>
               </div>
-              <!-- MathLive virtual keyboard container -->
-              <div id="mlk-container" style="margin-top:8px;border-radius:10px;overflow:hidden;"></div>
               <div style="display:flex;gap:8px;margin-top:14px;">
                 <button onclick="insertQMath()" style="flex:1;background:#58CC02;border:none;color:white;border-radius:8px;padding:10px;cursor:pointer;font-weight:800;font-size:0.95rem;">✓ Оруулах</button>
                 <button onclick="closeQMathModal()" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:10px 16px;cursor:pointer;font-weight:700;">Болих</button>
@@ -932,7 +930,7 @@ function toggleAdmPw() {
           <div id="choice-math-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center;">
             <div style="background:var(--surface);border-radius:16px;padding:24px;width:90%;max-width:480px;border:1px solid var(--border);">
               <div style="font-weight:800;margin-bottom:12px;color:var(--text);">Математик бичиглэл оруулах</div>
-              <math-field id="choice-math-field" virtual-keyboard-mode="manual" style="width:100%;min-height:60px;border:1.5px solid var(--border);border-radius:8px;padding:8px;background:var(--surface2);color:white;display:block;"></math-field>
+              <textarea id="choice-math-field" style="width:100%;min-height:72px;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--surface2);color:var(--text);font-size:1rem;resize:none;box-sizing:border-box;font-family:monospace;" placeholder="Томьёо бичнэ үү: x^2+1" oninput="updatePreview()"></textarea>
               <div id="choice-math-preview" style="margin-top:10px;min-height:32px;padding:8px;background:var(--surface2);border-radius:8px;text-align:center;"></div>
               <div style="display:flex;gap:8px;margin-top:14px;">
                 <button onclick="confirmMathToChoice()" style="flex:1;background:#58CC02;border:none;color:white;border-radius:8px;padding:10px;cursor:pointer;font-weight:800;">✓ Оруулах</button>
@@ -953,6 +951,914 @@ function toggleAdmPw() {
               <input type="text" class="search-input" placeholder="Хайх..." oninput="renderQuestions(this.value)">
               <button onclick="renderQuestions()" style="background:var(--purple);border:none;color:white;border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:700;white-space:nowrap;">🔄 Харах</button>
             </div>
+          </div>
+          <div id="q-list" style="padding:0 20px 12px;"></div>
+        </div>
+      </div>
+
+      <!-- Users -->
+      <div class="page" id="page-users">
+        <div class="page-title">Хэрэглэгчид</div>
+        <div class="page-sub">Бүртгэлтэй хэрэглэгчдийн жагсаалт</div>
+        <div class="table-card">
+          <div class="table-header">
+            <div class="table-title">Бүх хэрэглэгчид</div>
+            <input type="text" class="search-input" placeholder="Нэр, и-мэйлээр хайх..." oninput="renderUsers(this.value)">
+          </div>
+          <table>
+            <thead><tr><th>#</th><th>Нэр</th><th>И-мэйл</th><th>Анги</th><th>Тарифф</th><th>Бүртгэсэн</th><th>Үйлдэл</th></tr></thead>
+            <tbody id="users-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Reset password -->
+      <div class="page" id="page-reset">
+        <div class="page-title">Нууц үг сэргээх</div>
+        <div class="page-sub">Хэрэглэгчийн нууц үгийг шинэчилнэ</div>
+        <div class="reset-form">
+          <div class="form-group" style="margin-bottom:14px;">
+            <label class="adm-label">Хэрэглэгчийн и-мэйл</label>
+            <input id="reset-email" type="email" class="adm-input" placeholder="user@example.com">
+          </div>
+          <div class="form-group" style="margin-bottom:14px;">
+            <label class="adm-label">Шинэ нууц үг</label>
+            <div class="pw-wrap">
+              <input id="reset-newpw" type="password" class="adm-input" placeholder="•••••• (6+ тэмдэгт)" style="padding-right:44px;">
+              <button class="pw-eye" onclick="toggleResetPw()" tabindex="-1">
+                <svg id="reset-eye" viewBox="0 0 24 24" fill="none" width="18" height="18"><path d="M1 12C1 12 5 5 12 5C19 5 23 12 23 12C23 12 19 19 12 19C5 19 1 12 1 12Z" stroke="#8880aa" stroke-width="1.8"/><circle cx="12" cy="12" r="3" stroke="#8880aa" stroke-width="1.8"/></svg>
+              </button>
+            </div>
+          </div>
+          <button class="add-btn" onclick="doAdminReset()" style="width:100%;">Нууц үг шинэчлэх</button>
+          <div id="reset-result" class="reset-result"></div>
+        </div>
+      </div>
+
+      <!-- Log -->
+      <div class="page" id="page-log">
+        <div class="page-title">Хандалтын лог</div>
+        <div class="page-sub">Системийн үйл ажиллагааны бүртгэл</div>
+        <div class="table-card">
+          <div class="table-header">
+            <div class="table-title">Сүүлийн үйлдлүүд</div>
+            <button class="btn-sm btn-danger" onclick="clearLog()">Цэвэрлэх</button>
+          </div>
+          <div id="log-list" style="padding:0 20px;"></div>
+        </div>
+      </div>
+
+    </div><!-- /main -->
+  </div><!-- /layout -->
+</div><!-- /dashboard -->
+
+<!-- User detail modal -->
+<div class="modal-overlay" id="user-modal">
+  <div class="modal-box">
+    <div class="modal-title">👤 Хэрэглэгчийн мэдээлэл</div>
+    <div id="user-detail-body"></div>
+    <div class="modal-actions">
+      <button class="btn-sm btn-warn" id="modal-toggle-plan" onclick="toggleUserPlan()">Premium болгох</button>
+      <button class="btn-sm btn-danger" id="modal-delete" onclick="deleteUser()">Устгах</button>
+      <button class="btn-sm btn-purple" onclick="closeUserModal()">Хаах</button>
+    </div>
+  </div>
+</div>
+
+<script>
+
+
+<style>
+:root {
+  --bg: #0d0b1a;
+  --surface: #16132b;
+  --surface2: #1e1a35;
+  --border: rgba(123,82,238,0.2);
+  --purple: #7B52EE;
+  --purple-light: #A855F7;
+  --yellow: #FFC113;
+  --green: #58CC02;
+  --red: #FF4B4B;
+  --blue: #5AC5F1;
+  --text: #f0eeff;
+  --muted: #8880aa;
+  --radius: 14px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Baloo 2',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+
+/* ── LOGIN ── */
+#login-screen {
+  min-height:100vh; display:flex; align-items:center; justify-content:center;
+  background: radial-gradient(ellipse at 30% 40%, rgba(123,82,238,0.25) 0%, transparent 60%),
+              radial-gradient(ellipse at 80% 70%, rgba(255,193,19,0.1) 0%, transparent 50%),
+              var(--bg);
+}
+.login-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:24px;
+  padding:40px 36px; width:100%; max-width:380px;
+  box-shadow:0 24px 80px rgba(0,0,0,0.5);
+}
+.login-logo { text-align:center; margin-bottom:32px; }
+.login-logo svg { height:34px; width:auto; }
+.login-title { font-size:1.1rem; font-weight:900; color:var(--muted); text-align:center; letter-spacing:2px; text-transform:uppercase; margin-bottom:28px; }
+.adm-label { font-size:0.72rem; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; display:block; }
+.adm-input {
+  width:100%; padding:12px 14px; background:var(--surface2); border:1.5px solid var(--border);
+  border-radius:10px; font-family:'Baloo 2',sans-serif; font-size:0.95rem; font-weight:700;
+  color:var(--text); outline:none; transition:border-color 0.2s; margin-bottom:14px;
+}
+.adm-input:focus { border-color:var(--purple); }
+.pw-wrap { position:relative; }
+.pw-wrap .adm-input { padding-right:44px; }
+.pw-eye { position:absolute; right:12px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; padding:4px; display:flex; }
+.btn-primary {
+  width:100%; padding:13px; background:linear-gradient(135deg,var(--purple),var(--purple-light));
+  border:none; border-radius:100px; font-family:'Baloo 2',sans-serif; font-weight:900;
+  font-size:1rem; color:white; cursor:pointer; box-shadow:0 4px 0 #4a2fbf;
+  transition:transform 0.1s; margin-top:6px;
+}
+.btn-primary:active { transform:translateY(2px); box-shadow:0 2px 0 #4a2fbf; }
+.login-err { color:var(--red); font-size:0.82rem; font-weight:700; text-align:center; margin-top:10px; min-height:20px; }
+
+/* ── DASHBOARD ── */
+#dashboard { display:none; }
+.topbar {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:16px 24px; background:var(--surface); border-bottom:1px solid var(--border);
+  position:sticky; top:0; z-index:100;
+}
+.topbar-logo { display:flex; align-items:center; gap:10px; }
+.topbar-logo svg { height:28px; width:auto; }
+.topbar-badge {
+  font-size:0.65rem; font-weight:900; color:var(--yellow); background:rgba(255,193,19,0.15);
+  border:1px solid rgba(255,193,19,0.3); border-radius:6px; padding:2px 8px;
+  letter-spacing:1px; text-transform:uppercase;
+}
+.logout-btn {
+  padding:7px 16px; background:transparent; border:1.5px solid var(--border);
+  border-radius:8px; font-family:'Baloo 2',sans-serif; font-weight:800; font-size:0.8rem;
+  color:var(--muted); cursor:pointer; transition:all 0.2s;
+}
+.logout-btn:hover { border-color:var(--red); color:var(--red); }
+
+.layout { display:flex; min-height:calc(100vh - 61px); }
+
+/* ── SIDEBAR ── */
+.sidebar {
+  width:220px; flex-shrink:0; background:var(--surface); border-right:1px solid var(--border);
+  padding:20px 12px;
+}
+.nav-item {
+  display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:10px;
+  font-size:0.88rem; font-weight:800; color:var(--muted); cursor:pointer;
+  transition:all 0.15s; margin-bottom:4px; border:none; background:none; width:100%; text-align:left;
+}
+.nav-item:hover { background:var(--surface2); color:var(--text); }
+.nav-item.active { background:rgba(123,82,238,0.15); color:var(--purple-light); }
+.nav-item svg { flex-shrink:0; }
+.nav-section { font-size:0.65rem; font-weight:900; color:rgba(136,128,170,0.5); text-transform:uppercase; letter-spacing:1.5px; padding:16px 14px 6px; }
+
+/* ── MAIN ── */
+.main { flex:1; padding:28px 28px; overflow-x:hidden; }
+.page { display:none; }
+.page.active { display:block; }
+.page-title { font-size:1.4rem; font-weight:900; color:var(--text); margin-bottom:6px; }
+.page-sub { font-size:0.82rem; font-weight:600; color:var(--muted); margin-bottom:24px; }
+
+/* ── STAT CARDS ── */
+.stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:28px; }
+.stat-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:20px; position:relative; overflow:hidden;
+}
+.stat-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; }
+.stat-card.s-purple::before { background:linear-gradient(90deg,var(--purple),var(--purple-light)); }
+.stat-card.s-yellow::before { background:linear-gradient(90deg,var(--yellow),#FF9600); }
+.stat-card.s-green::before  { background:linear-gradient(90deg,var(--green),#46A302); }
+.stat-card.s-blue::before   { background:linear-gradient(90deg,var(--blue),#1899D6); }
+.stat-num { font-size:2rem; font-weight:900; color:var(--text); }
+.stat-label { font-size:0.78rem; font-weight:700; color:var(--muted); margin-top:4px; }
+
+/* ── TABLE ── */
+.table-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; margin-bottom:20px; }
+.table-header { display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--border); }
+.table-title { font-size:0.9rem; font-weight:900; color:var(--text); }
+.search-input {
+  padding:8px 14px; background:var(--surface2); border:1.5px solid var(--border);
+  border-radius:8px; font-family:'Baloo 2',sans-serif; font-size:0.82rem; font-weight:700;
+  color:var(--text); outline:none; width:200px;
+}
+.search-input:focus { border-color:var(--purple); }
+table { width:100%; border-collapse:collapse; }
+th { font-size:0.68rem; font-weight:900; color:var(--muted); text-transform:uppercase; letter-spacing:1px; padding:12px 20px; text-align:left; border-bottom:1px solid var(--border); }
+td { padding:12px 20px; font-size:0.85rem; font-weight:700; border-bottom:1px solid rgba(123,82,238,0.08); color:var(--text); }
+tr:last-child td { border-bottom:none; }
+tr:hover td { background:rgba(123,82,238,0.05); }
+.badge {
+  display:inline-block; padding:3px 10px; border-radius:100px;
+  font-size:0.72rem; font-weight:900; letter-spacing:0.5px;
+}
+.badge-premium { background:rgba(255,193,19,0.15); color:var(--yellow); border:1px solid rgba(255,193,19,0.3); }
+.badge-free { background:rgba(123,82,238,0.15); color:var(--purple-light); border:1px solid rgba(123,82,238,0.3); }
+.badge-active { background:rgba(88,204,2,0.15); color:var(--green); border:1px solid rgba(88,204,2,0.3); }
+.badge-grade { background:rgba(90,197,241,0.15); color:var(--blue); border:1px solid rgba(90,197,241,0.3); }
+
+/* ── BUTTONS ── */
+.btn-sm {
+  padding:5px 12px; border-radius:7px; font-family:'Baloo 2',sans-serif;
+  font-weight:800; font-size:0.75rem; cursor:pointer; border:none; transition:all 0.15s;
+}
+.btn-danger { background:rgba(255,75,75,0.15); color:var(--red); }
+.btn-danger:hover { background:rgba(255,75,75,0.3); }
+.btn-warn { background:rgba(255,193,19,0.15); color:var(--yellow); }
+.btn-warn:hover { background:rgba(255,193,19,0.3); }
+.btn-success { background:rgba(88,204,2,0.15); color:var(--green); }
+.btn-success:hover { background:rgba(88,204,2,0.3); }
+.btn-purple { background:rgba(123,82,238,0.2); color:var(--purple-light); }
+.btn-purple:hover { background:rgba(123,82,238,0.35); }
+
+
+/* ── MATH EDITOR ── */
+.math-editor-wrap { position:relative; }
+.math-input-row { display:flex; gap:8px; margin-bottom:8px; }
+.math-latex-input {
+  flex:1; padding:11px 14px; background:var(--surface2); border:2px solid var(--purple);
+  border-radius:10px; font-family:'Courier New',monospace; font-size:0.95rem;
+  color:var(--text); outline:none; transition:border-color 0.2s;
+}
+.math-latex-input::placeholder { color:var(--muted); font-size:0.82rem; }
+.math-preview-wrap {
+  background:#1a1528; border:1.5px solid rgba(123,82,238,0.35);
+  border-radius:12px; padding:16px 20px; min-height:56px;
+  display:flex; align-items:center; justify-content:center;
+  margin-bottom:8px; position:relative; overflow:hidden;
+}
+.math-preview-wrap::before {
+  content:'Preview'; position:absolute; top:6px; left:12px;
+  font-size:0.62rem; font-weight:900; color:rgba(123,82,238,0.5);
+  text-transform:uppercase; letter-spacing:1.5px;
+}
+.math-preview-wrap .katex { color:#f0eeff !important; font-size:1.4rem !important; }
+.math-preview-wrap .katex-error { color:var(--red); font-size:0.82rem; font-family:monospace; }
+.math-preview-empty { color:rgba(136,128,170,0.4); font-size:0.88rem; font-style:italic; }
+.math-kb {
+  background:var(--surface); border:1.5px solid var(--border);
+  border-radius:14px; padding:14px; margin-top:8px;
+  display:none; max-height:320px; overflow-y:auto;
+}
+.math-kb.open { display:block; }
+.math-kb-tabs { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:12px; }
+.math-kb-tab {
+  padding:4px 10px; background:var(--surface2); border:1.5px solid var(--border);
+  border-radius:100px; font-family:'Baloo 2',sans-serif; font-weight:800;
+  font-size:0.68rem; color:var(--muted); cursor:pointer; transition:all 0.15s; white-space:nowrap;
+}
+.math-kb-tab.active { background:rgba(123,82,238,0.2); border-color:var(--purple); color:var(--purple-light); }
+.math-kb-grid { display:flex; flex-wrap:wrap; gap:6px; }
+.math-kb-btn {
+  padding:6px 8px; background:var(--surface2); border:1.5px solid var(--border);
+  border-radius:8px; font-family:'Courier New',monospace; font-weight:700;
+  font-size:0.8rem; color:var(--text); cursor:pointer; transition:all 0.15s;
+  min-width:38px; text-align:center; white-space:nowrap;
+}
+.math-kb-btn:hover { background:rgba(123,82,238,0.2); border-color:var(--purple); color:var(--purple-light); }
+.math-kb-btn .btn-preview { display:block; font-size:0.65rem; color:var(--muted); margin-top:2px; font-family:'Baloo 2',sans-serif; }
+.math-toolbar { display:flex; gap:5px; margin-bottom:8px; flex-wrap:wrap; }
+.math-tool-btn {
+  padding:5px 10px; background:var(--surface2); border:1.5px solid var(--border);
+  border-radius:7px; font-family:'Baloo 2',sans-serif; font-weight:800;
+  font-size:0.75rem; color:var(--muted); cursor:pointer; transition:all 0.15s;
+  display:flex; flex-direction:column; align-items:center; gap:1px;
+}
+.math-tool-btn:hover { border-color:var(--purple); color:var(--purple-light); }
+.math-tool-btn .tool-latex { font-family:'Courier New',monospace; font-size:0.65rem; color:rgba(136,128,170,0.6); }
+.preview-label { font-size:0.65rem; font-weight:900; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px; }
+
+/* ── QUESTIONS ── */
+.topic-tabs { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px; }
+.topic-tab {
+  padding:7px 16px; background:var(--surface2); border:1.5px solid var(--border);
+  border-radius:100px; font-family:'Baloo 2',sans-serif; font-weight:800; font-size:0.82rem;
+  color:var(--muted); cursor:pointer; transition:all 0.15s;
+}
+.topic-tab.active { background:rgba(123,82,238,0.2); border-color:var(--purple); color:var(--purple-light); }
+.q-form { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:20px; margin-bottom:20px; }
+.q-form-title { font-size:0.85rem; font-weight:900; color:var(--text); margin-bottom:16px; }
+.form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px; }
+.form-group { display:flex; flex-direction:column; gap:6px; }
+.form-group label { font-size:0.7rem; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:1px; }
+.form-input {
+  padding:10px 12px; background:var(--surface2); border:1.5px solid var(--border);
+  border-radius:10px; font-family:'Baloo 2',sans-serif; font-size:0.88rem; font-weight:700;
+  color:var(--text); outline:none; transition:border-color 0.2s;
+}
+.form-input:focus { border-color:var(--purple); }
+.form-select { appearance:none; cursor:pointer; }
+.choices-row { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:8px; margin-bottom:12px; }
+.choice-input { position:relative; }
+.choice-input input { width:100%; padding:10px 12px; background:var(--surface2); border:1.5px solid var(--border); border-radius:10px; font-family:'Baloo 2',sans-serif; font-size:0.88rem; font-weight:700; color:var(--text); outline:none; }
+.choice-input input.correct { border-color:var(--green); background:rgba(88,204,2,0.08); }
+.choice-input span { position:absolute; top:-8px; left:10px; font-size:0.65rem; font-weight:900; color:var(--muted); background:var(--surface); padding:0 4px; }
+.add-btn {
+  padding:10px 20px; background:linear-gradient(135deg,var(--purple),var(--purple-light));
+  border:none; border-radius:10px; font-family:'Baloo 2',sans-serif; font-weight:900;
+  font-size:0.88rem; color:white; cursor:pointer; box-shadow:0 3px 0 #4a2fbf;
+}
+.q-list { display:flex; flex-direction:column; gap:8px; }
+.q-item {
+  display:flex; align-items:center; gap:12px; background:var(--surface);
+  border:1px solid var(--border); border-radius:10px; padding:14px 16px;
+}
+.q-text { flex:1; font-size:0.88rem; font-weight:800; color:var(--text); }
+.q-meta { font-size:0.75rem; font-weight:700; color:var(--muted); }
+.q-ans { font-size:0.78rem; font-weight:900; color:var(--green); }
+.empty-state { text-align:center; padding:40px; color:var(--muted); font-size:0.9rem; font-weight:700; }
+
+/* ── RESET PW ── */
+.reset-form { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:24px; max-width:480px; }
+.reset-result { margin-top:16px; padding:14px 16px; border-radius:10px; font-size:0.85rem; font-weight:800; display:none; }
+.reset-result.ok { background:rgba(88,204,2,0.1); border:1px solid rgba(88,204,2,0.3); color:var(--green); }
+.reset-result.err { background:rgba(255,75,75,0.1); border:1px solid rgba(255,75,75,0.3); color:var(--red); }
+
+/* ── ACTIVITY LOG ── */
+.log-item { display:flex; align-items:flex-start; gap:14px; padding:14px 0; border-bottom:1px solid var(--border); }
+.log-item:last-child { border-bottom:none; }
+.log-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; margin-top:5px; }
+.log-text { font-size:0.85rem; font-weight:700; color:var(--text); }
+.log-time { font-size:0.75rem; font-weight:700; color:var(--muted); margin-top:2px; }
+
+/* ── MODAL ── */
+.modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); backdrop-filter:blur(6px); z-index:200; align-items:center; justify-content:center; padding:20px; }
+.modal-overlay.open { display:flex; }
+.modal-box { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:28px; width:100%; max-width:420px; }
+.modal-title { font-size:1rem; font-weight:900; margin-bottom:20px; }
+.modal-actions { display:flex; gap:10px; margin-top:20px; justify-content:flex-end; }
+
+@media(max-width:768px) {
+  .sidebar { display:none; }
+  .stats-grid { grid-template-columns:1fr 1fr; }
+  .choices-row { grid-template-columns:1fr 1fr; }
+  .form-row { grid-template-columns:1fr; }
+}
+</style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+</head>
+<body>
+
+<!-- ══ LOGIN ══ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <svg viewBox="0 0 1683 415" style="height:38px;width:auto;display:block;margin:0 auto;" viewBox="0 0 1683 415" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g clip-path="url(#clip0_71_11257)">
+<path d="M203.662 326.569C203.662 327.266 203.662 327.922 203.662 328.619C199.808 340.47 191.156 354.575 174.549 354.575C159.951 354.575 148.06 343.832 144.328 328.619C144.328 328.168 144.328 326.815 144.328 326.364" fill="#D79F01"/>
+<path d="M204.072 326.202L174.057 343.834L144.328 326.202L174.221 303.321L204.072 326.202Z" fill="#FFC113"/>
+<path d="M270.792 201.574C255.292 201.566 240.138 206.155 227.246 214.76C214.354 223.366 204.304 235.601 198.367 249.919C192.43 264.237 190.872 279.994 193.891 295.197C196.91 310.4 204.37 324.366 215.327 335.329C226.285 346.292 240.247 353.759 255.448 356.786C270.65 359.813 286.408 358.263 300.729 352.334C315.049 346.404 327.29 336.36 335.902 323.473C344.514 310.586 349.111 295.434 349.111 279.934C349.111 259.159 340.861 239.234 326.174 224.54C311.488 209.846 291.567 201.585 270.792 201.574ZM270.792 349.192C257.005 349.192 243.528 345.103 232.064 337.444C220.601 329.784 211.666 318.897 206.39 306.16C201.114 293.422 199.733 279.406 202.423 265.884C205.113 252.362 211.752 239.941 221.501 230.192C231.25 220.443 243.67 213.804 257.192 211.115C270.715 208.425 284.731 209.805 297.468 215.081C310.206 220.358 321.092 229.292 328.752 240.756C336.412 252.219 340.5 265.696 340.5 279.483C340.467 297.95 333.109 315.649 320.04 328.695C306.97 341.741 289.258 349.069 270.792 349.069V349.192Z" fill="#FFC113"/>
+<path d="M78.3603 201.574C62.8621 201.574 47.7119 206.17 34.8256 214.78C21.9393 223.391 11.8958 235.629 5.96486 249.947C0.033959 264.266 -1.51784 280.021 1.5057 295.222C4.52925 310.422 11.9923 324.385 22.9512 335.344C33.9101 346.302 47.8725 353.765 63.0729 356.789C78.2733 359.813 94.0289 358.261 108.347 352.33C122.666 346.399 134.904 336.355 143.514 323.469C152.125 310.583 156.72 295.433 156.72 279.934C156.726 269.643 154.703 259.45 150.767 249.941C146.831 240.431 141.059 231.791 133.781 224.513C126.504 217.236 117.863 211.464 108.354 207.528C98.8442 203.592 88.6522 201.569 78.3603 201.574ZM78.3603 349.192C64.5733 349.192 51.0959 345.103 39.6324 337.444C28.169 329.784 19.2343 318.897 13.9582 306.16C8.6822 293.422 7.30177 279.406 9.99148 265.884C12.6812 252.362 19.3202 239.941 29.0691 230.192C38.8179 220.443 51.2388 213.804 64.7608 211.115C78.2829 208.425 92.2989 209.805 105.036 215.081C117.774 220.358 128.661 229.292 136.32 240.756C143.98 252.219 148.068 265.696 148.068 279.483C148.036 297.95 140.677 315.649 127.608 328.695C114.539 341.741 96.8267 349.069 78.3603 349.069V349.192Z" fill="#FFC113"/>
+<path d="M101.799 309.536C114.299 309.536 124.433 299.402 124.433 286.901C124.433 274.4 114.299 264.267 101.799 264.267C89.2979 264.267 79.1641 274.4 79.1641 286.901C79.1641 299.402 89.2979 309.536 101.799 309.536Z" fill="#FFC113"/>
+<path d="M246.627 309.536C259.128 309.536 269.262 299.402 269.262 286.901C269.262 274.4 259.128 264.267 246.627 264.267C234.126 264.267 223.992 274.4 223.992 286.901C223.992 299.402 234.126 309.536 246.627 309.536Z" fill="#FFC113"/>
+<path d="M259.61 49.2588C259.61 49.2588 185.802 104.205 173.828 139.838L210.732 133.155C210.732 133.155 180.348 182.852 173.828 217.01C173.828 217.01 235.335 123.478 259.61 102.688L216.555 108.634L259.61 49.2588Z" fill="#FFC113"/>
+<path d="M192.32 286.915C173.909 270.226 156.605 286.915 156.605 286.915L155.047 295.69C155.047 295.69 176.041 276.131 193.919 295.69L192.32 286.915Z" fill="#FFC113"/>
+<path d="M507.516 200.343C518.132 200.343 527.44 201.87 535.438 204.924C543.582 207.832 547.654 211.832 547.654 216.922C547.654 222.012 545.691 228.338 541.764 235.9C537.983 243.317 534.784 247.025 532.166 247.025C531.439 247.025 530.566 246.662 529.548 245.934C528.676 245.062 526.494 244.189 523.004 243.317C519.659 242.299 516.751 241.79 514.279 241.79C505.844 241.79 499.009 244.771 493.773 250.734C488.683 256.696 486.138 265.858 486.138 278.219C486.138 290.435 488.756 299.524 493.991 305.487C499.372 311.449 506.135 314.431 514.279 314.431C517.623 314.431 521.332 313.994 525.404 313.122C529.621 312.104 532.602 310.722 534.347 308.977C534.638 308.686 535.22 308.541 536.093 308.541C536.965 308.541 538.565 310.213 540.892 313.558C543.364 316.758 545.618 321.048 547.654 326.428C549.69 331.664 550.708 335.736 550.708 338.644C550.708 344.316 546.345 348.824 537.62 352.169C528.894 355.514 518.569 357.186 506.644 357.186C487.447 357.186 471.668 350.424 459.307 336.899C446.946 323.374 440.765 304.323 440.765 279.746C440.765 255.024 447.091 235.609 459.743 221.503C472.541 207.396 488.465 200.343 507.516 200.343ZM643.319 209.505C645.21 204.415 654.517 201.87 671.241 201.87C675.459 201.87 680.403 202.161 686.075 202.743C691.892 203.324 694.582 204.051 694.146 204.924L648.773 296.107V349.333C648.773 351.805 644.773 353.551 636.775 354.569C632.703 355.15 628.704 355.441 624.777 355.441C620.851 355.441 616.924 355.223 612.998 354.787C604.999 353.769 601 351.951 601 349.333V297.416L554.099 205.36C553.518 204.488 556.499 203.688 563.043 202.961C569.587 202.088 575.114 201.652 579.622 201.652C597.51 201.652 607.326 204.27 609.071 209.505L624.995 254.006L643.319 209.505ZM808.721 241.79C808.721 256.914 802.177 268.403 789.088 276.256C796.214 278.874 802.177 283.382 806.976 289.781C811.775 296.18 814.175 305.269 814.175 317.048C814.175 328.683 809.812 337.917 801.086 344.752C792.506 351.587 780.145 355.005 764.002 355.005H712.521C710.049 355.005 708.013 354.205 706.413 352.605C704.813 350.86 704.013 348.606 704.013 345.843V206.233C704.013 204.633 704.232 203.615 704.668 203.179C705.25 202.597 706.34 202.306 707.94 202.306H757.676C791.706 202.306 808.721 215.467 808.721 241.79ZM745.896 237.645V266.222H746.987C760.948 266.222 767.929 261.568 767.929 252.261C767.929 247.171 766.547 243.462 763.784 241.135C761.166 238.808 756.731 237.645 750.477 237.645H745.896ZM745.896 291.962V320.32H749.823C756.076 320.32 760.657 319.157 763.566 316.83C766.474 314.503 767.929 310.795 767.929 305.705C767.929 300.615 766.547 297.052 763.784 295.016C761.166 292.98 756.731 291.962 750.477 291.962H745.896ZM902.031 262.949C904.794 262.949 906.175 268.039 906.175 278.219C906.175 281.273 905.812 284.909 905.085 289.126C904.503 293.198 903.34 295.234 901.594 295.234H873.891V317.048H914.029C916.501 317.048 918.173 320.248 919.046 326.647C919.482 329.41 919.7 332.391 919.7 335.59C919.7 338.644 919.264 342.644 918.391 347.588C917.519 352.533 916.065 355.005 914.029 355.005H839.424C833.898 355.005 831.135 352.751 831.135 348.243V207.978C831.135 204.197 832.807 202.306 836.152 202.306H914.247C917.301 202.306 918.828 208.778 918.828 221.721C918.828 234.518 917.301 240.917 914.247 240.917H873.891V262.949H902.031ZM980.379 351.951C980.379 354.278 973.471 355.441 959.656 355.441C945.695 355.441 938.714 354.35 938.714 352.169V209.941C938.714 204.851 941.405 202.306 946.785 202.306H988.45C1026.7 202.306 1045.82 217.213 1045.82 247.025C1045.82 256.042 1044.08 264.258 1040.59 271.675C1037.1 278.946 1032.15 284.764 1025.75 289.126L1053.24 334.936C1052.07 338.426 1048.29 342.425 1041.89 346.934C1033.17 353.187 1025.97 356.314 1020.3 356.314C1014.63 356.314 1010.41 354.278 1007.65 350.206L987.142 302.433H980.379V351.951ZM980.379 240.917V273.638H981.47C995.285 273.638 1002.19 267.894 1002.19 256.405C1002.19 251.17 1000.81 247.316 998.049 244.844C995.431 242.226 991.068 240.917 984.96 240.917H980.379ZM1261.2 355.223C1248.25 355.223 1241.78 353.769 1241.78 350.86L1237.2 263.386L1210.59 351.951C1210.01 353.696 1205.06 354.569 1195.75 354.569C1186.45 354.569 1181.65 353.769 1181.36 352.169L1153.87 262.513L1150.82 349.551C1150.67 351.733 1147.91 353.26 1142.53 354.132C1137.15 354.859 1132.64 355.223 1129 355.223C1125.51 355.223 1122.1 355.005 1118.75 354.569C1111.77 353.551 1108.35 351.733 1108.5 349.115L1113.51 207.323C1113.51 203.833 1122.39 202.088 1140.13 202.088C1145.36 202.088 1151.76 202.524 1159.32 203.397C1166.89 204.124 1171.1 205.651 1171.98 207.978L1196.41 276.692L1217.79 207.76C1219.1 203.979 1229.13 202.088 1247.89 202.088C1253.27 202.088 1259.67 202.524 1267.09 203.397C1274.65 204.124 1278.43 205.506 1278.43 207.542L1284.76 350.642C1284.76 352.242 1281.92 353.405 1276.25 354.132C1270.58 354.859 1265.56 355.223 1261.2 355.223ZM1408.93 355.441C1396.27 355.441 1389.44 353.405 1388.42 349.333L1381.22 321.193H1346.54L1340.21 348.243C1339.34 352.751 1332.36 355.005 1319.27 355.005C1312.29 355.005 1307.13 354.641 1303.78 353.914C1300.44 353.042 1298.77 352.387 1298.77 351.951L1337.38 204.27C1337.38 203.106 1347.34 202.524 1367.26 202.524C1387.19 202.524 1397.15 203.106 1397.15 204.27L1434.89 352.169C1434.89 353.187 1431.54 353.987 1424.85 354.569C1418.16 355.15 1412.85 355.441 1408.93 355.441ZM1351.99 293.489H1374.9L1365.08 248.334H1363.77L1351.99 293.489ZM1509.46 351.515C1509.46 354.423 1502.27 355.877 1487.87 355.877C1473.47 355.877 1466.27 354.423 1466.27 351.515V242.008H1440.1C1437.62 242.008 1435.88 238.663 1434.86 231.973C1434.42 228.774 1434.21 225.502 1434.21 222.157C1434.21 218.812 1434.42 215.54 1434.86 212.341C1435.88 205.651 1437.62 202.306 1440.1 202.306H1534.99C1537.46 202.306 1539.2 205.651 1540.22 212.341C1540.66 215.54 1540.88 218.812 1540.88 222.157C1540.88 225.502 1540.66 228.774 1540.22 231.973C1539.2 238.663 1537.46 242.008 1534.99 242.008H1509.46V351.515ZM1671.97 351.296C1671.97 353.769 1664.63 355.005 1649.94 355.005C1635.25 355.005 1627.9 353.769 1627.9 351.296V301.124H1597.37V351.296C1597.37 353.769 1590.02 355.005 1575.33 355.005C1560.64 355.005 1553.3 353.769 1553.3 351.296V206.669C1553.3 203.615 1560.64 202.088 1575.33 202.088C1590.02 202.088 1597.37 203.615 1597.37 206.669V257.932H1627.9V207.105C1627.9 205.069 1631.54 203.615 1638.81 202.743C1642.59 202.452 1646.3 202.306 1649.94 202.306L1661.06 202.743C1668.33 203.615 1671.97 205.069 1671.97 207.105V351.296Z" fill="#FFC113"/>
+</g>
+<defs>
+<clipPath id="clip0_71_11257">
+<rect width="1683" height="684" fill="white" transform="translate(0 -269)"/>
+</clipPath>
+</defs>
+</svg>
+    </div>/div>
+    <div class="login-title">Админ панель</div>
+    <div>
+      <label class="adm-label">Нэвтрэх нэр</label>
+      <input id="adm-user" type="text" class="adm-input" placeholder="admin">
+    </div>
+    <div>
+      <label class="adm-label">Нууц үг</label>
+      <div class="pw-wrap">
+        <input id="adm-pass" type="password" class="adm-input" placeholder="••••••" onkeydown="if(event.key==='Enter')admLogin()">
+        <button class="pw-eye" onclick="toggleAdmPw()" tabindex="-1">
+          <svg id="adm-eye-icon" viewBox="0 0 24 24" fill="none" width="18" height="18"><path d="M1 12C1 12 5 5 12 5C19 5 23 12 23 12C23 12 19 19 12 19C5 19 1 12 1 12Z" stroke="#8880aa" stroke-width="1.8"/><circle cx="12" cy="12" r="3" stroke="#8880aa" stroke-width="1.8"/></svg>
+        </button>
+      </div>
+    </div>
+    <button class="btn-primary" onclick="admLogin()">Нэвтрэх →</button>
+    <div id="login-err" class="login-err"></div>
+  </div>
+</div>
+
+<!-- ══ DASHBOARD ══ -->
+<div id="dashboard">
+  <div class="topbar">
+    <div class="topbar-logo">
+      <svg viewBox="0 0 1683 415" style="height:28px;width:auto;display:block;" viewBox="0 0 1683 415" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g clip-path="url(#clip0_71_11257)">
+<path d="M203.662 326.569C203.662 327.266 203.662 327.922 203.662 328.619C199.808 340.47 191.156 354.575 174.549 354.575C159.951 354.575 148.06 343.832 144.328 328.619C144.328 328.168 144.328 326.815 144.328 326.364" fill="#D79F01"/>
+<path d="M204.072 326.202L174.057 343.834L144.328 326.202L174.221 303.321L204.072 326.202Z" fill="#FFC113"/>
+<path d="M270.792 201.574C255.292 201.566 240.138 206.155 227.246 214.76C214.354 223.366 204.304 235.601 198.367 249.919C192.43 264.237 190.872 279.994 193.891 295.197C196.91 310.4 204.37 324.366 215.327 335.329C226.285 346.292 240.247 353.759 255.448 356.786C270.65 359.813 286.408 358.263 300.729 352.334C315.049 346.404 327.29 336.36 335.902 323.473C344.514 310.586 349.111 295.434 349.111 279.934C349.111 259.159 340.861 239.234 326.174 224.54C311.488 209.846 291.567 201.585 270.792 201.574ZM270.792 349.192C257.005 349.192 243.528 345.103 232.064 337.444C220.601 329.784 211.666 318.897 206.39 306.16C201.114 293.422 199.733 279.406 202.423 265.884C205.113 252.362 211.752 239.941 221.501 230.192C231.25 220.443 243.67 213.804 257.192 211.115C270.715 208.425 284.731 209.805 297.468 215.081C310.206 220.358 321.092 229.292 328.752 240.756C336.412 252.219 340.5 265.696 340.5 279.483C340.467 297.95 333.109 315.649 320.04 328.695C306.97 341.741 289.258 349.069 270.792 349.069V349.192Z" fill="#FFC113"/>
+<path d="M78.3603 201.574C62.8621 201.574 47.7119 206.17 34.8256 214.78C21.9393 223.391 11.8958 235.629 5.96486 249.947C0.033959 264.266 -1.51784 280.021 1.5057 295.222C4.52925 310.422 11.9923 324.385 22.9512 335.344C33.9101 346.302 47.8725 353.765 63.0729 356.789C78.2733 359.813 94.0289 358.261 108.347 352.33C122.666 346.399 134.904 336.355 143.514 323.469C152.125 310.583 156.72 295.433 156.72 279.934C156.726 269.643 154.703 259.45 150.767 249.941C146.831 240.431 141.059 231.791 133.781 224.513C126.504 217.236 117.863 211.464 108.354 207.528C98.8442 203.592 88.6522 201.569 78.3603 201.574ZM78.3603 349.192C64.5733 349.192 51.0959 345.103 39.6324 337.444C28.169 329.784 19.2343 318.897 13.9582 306.16C8.6822 293.422 7.30177 279.406 9.99148 265.884C12.6812 252.362 19.3202 239.941 29.0691 230.192C38.8179 220.443 51.2388 213.804 64.7608 211.115C78.2829 208.425 92.2989 209.805 105.036 215.081C117.774 220.358 128.661 229.292 136.32 240.756C143.98 252.219 148.068 265.696 148.068 279.483C148.036 297.95 140.677 315.649 127.608 328.695C114.539 341.741 96.8267 349.069 78.3603 349.069V349.192Z" fill="#FFC113"/>
+<path d="M101.799 309.536C114.299 309.536 124.433 299.402 124.433 286.901C124.433 274.4 114.299 264.267 101.799 264.267C89.2979 264.267 79.1641 274.4 79.1641 286.901C79.1641 299.402 89.2979 309.536 101.799 309.536Z" fill="#FFC113"/>
+<path d="M246.627 309.536C259.128 309.536 269.262 299.402 269.262 286.901C269.262 274.4 259.128 264.267 246.627 264.267C234.126 264.267 223.992 274.4 223.992 286.901C223.992 299.402 234.126 309.536 246.627 309.536Z" fill="#FFC113"/>
+<path d="M259.61 49.2588C259.61 49.2588 185.802 104.205 173.828 139.838L210.732 133.155C210.732 133.155 180.348 182.852 173.828 217.01C173.828 217.01 235.335 123.478 259.61 102.688L216.555 108.634L259.61 49.2588Z" fill="#FFC113"/>
+<path d="M192.32 286.915C173.909 270.226 156.605 286.915 156.605 286.915L155.047 295.69C155.047 295.69 176.041 276.131 193.919 295.69L192.32 286.915Z" fill="#FFC113"/>
+<path d="M507.516 200.343C518.132 200.343 527.44 201.87 535.438 204.924C543.582 207.832 547.654 211.832 547.654 216.922C547.654 222.012 545.691 228.338 541.764 235.9C537.983 243.317 534.784 247.025 532.166 247.025C531.439 247.025 530.566 246.662 529.548 245.934C528.676 245.062 526.494 244.189 523.004 243.317C519.659 242.299 516.751 241.79 514.279 241.79C505.844 241.79 499.009 244.771 493.773 250.734C488.683 256.696 486.138 265.858 486.138 278.219C486.138 290.435 488.756 299.524 493.991 305.487C499.372 311.449 506.135 314.431 514.279 314.431C517.623 314.431 521.332 313.994 525.404 313.122C529.621 312.104 532.602 310.722 534.347 308.977C534.638 308.686 535.22 308.541 536.093 308.541C536.965 308.541 538.565 310.213 540.892 313.558C543.364 316.758 545.618 321.048 547.654 326.428C549.69 331.664 550.708 335.736 550.708 338.644C550.708 344.316 546.345 348.824 537.62 352.169C528.894 355.514 518.569 357.186 506.644 357.186C487.447 357.186 471.668 350.424 459.307 336.899C446.946 323.374 440.765 304.323 440.765 279.746C440.765 255.024 447.091 235.609 459.743 221.503C472.541 207.396 488.465 200.343 507.516 200.343ZM643.319 209.505C645.21 204.415 654.517 201.87 671.241 201.87C675.459 201.87 680.403 202.161 686.075 202.743C691.892 203.324 694.582 204.051 694.146 204.924L648.773 296.107V349.333C648.773 351.805 644.773 353.551 636.775 354.569C632.703 355.15 628.704 355.441 624.777 355.441C620.851 355.441 616.924 355.223 612.998 354.787C604.999 353.769 601 351.951 601 349.333V297.416L554.099 205.36C553.518 204.488 556.499 203.688 563.043 202.961C569.587 202.088 575.114 201.652 579.622 201.652C597.51 201.652 607.326 204.27 609.071 209.505L624.995 254.006L643.319 209.505ZM808.721 241.79C808.721 256.914 802.177 268.403 789.088 276.256C796.214 278.874 802.177 283.382 806.976 289.781C811.775 296.18 814.175 305.269 814.175 317.048C814.175 328.683 809.812 337.917 801.086 344.752C792.506 351.587 780.145 355.005 764.002 355.005H712.521C710.049 355.005 708.013 354.205 706.413 352.605C704.813 350.86 704.013 348.606 704.013 345.843V206.233C704.013 204.633 704.232 203.615 704.668 203.179C705.25 202.597 706.34 202.306 707.94 202.306H757.676C791.706 202.306 808.721 215.467 808.721 241.79ZM745.896 237.645V266.222H746.987C760.948 266.222 767.929 261.568 767.929 252.261C767.929 247.171 766.547 243.462 763.784 241.135C761.166 238.808 756.731 237.645 750.477 237.645H745.896ZM745.896 291.962V320.32H749.823C756.076 320.32 760.657 319.157 763.566 316.83C766.474 314.503 767.929 310.795 767.929 305.705C767.929 300.615 766.547 297.052 763.784 295.016C761.166 292.98 756.731 291.962 750.477 291.962H745.896ZM902.031 262.949C904.794 262.949 906.175 268.039 906.175 278.219C906.175 281.273 905.812 284.909 905.085 289.126C904.503 293.198 903.34 295.234 901.594 295.234H873.891V317.048H914.029C916.501 317.048 918.173 320.248 919.046 326.647C919.482 329.41 919.7 332.391 919.7 335.59C919.7 338.644 919.264 342.644 918.391 347.588C917.519 352.533 916.065 355.005 914.029 355.005H839.424C833.898 355.005 831.135 352.751 831.135 348.243V207.978C831.135 204.197 832.807 202.306 836.152 202.306H914.247C917.301 202.306 918.828 208.778 918.828 221.721C918.828 234.518 917.301 240.917 914.247 240.917H873.891V262.949H902.031ZM980.379 351.951C980.379 354.278 973.471 355.441 959.656 355.441C945.695 355.441 938.714 354.35 938.714 352.169V209.941C938.714 204.851 941.405 202.306 946.785 202.306H988.45C1026.7 202.306 1045.82 217.213 1045.82 247.025C1045.82 256.042 1044.08 264.258 1040.59 271.675C1037.1 278.946 1032.15 284.764 1025.75 289.126L1053.24 334.936C1052.07 338.426 1048.29 342.425 1041.89 346.934C1033.17 353.187 1025.97 356.314 1020.3 356.314C1014.63 356.314 1010.41 354.278 1007.65 350.206L987.142 302.433H980.379V351.951ZM980.379 240.917V273.638H981.47C995.285 273.638 1002.19 267.894 1002.19 256.405C1002.19 251.17 1000.81 247.316 998.049 244.844C995.431 242.226 991.068 240.917 984.96 240.917H980.379ZM1261.2 355.223C1248.25 355.223 1241.78 353.769 1241.78 350.86L1237.2 263.386L1210.59 351.951C1210.01 353.696 1205.06 354.569 1195.75 354.569C1186.45 354.569 1181.65 353.769 1181.36 352.169L1153.87 262.513L1150.82 349.551C1150.67 351.733 1147.91 353.26 1142.53 354.132C1137.15 354.859 1132.64 355.223 1129 355.223C1125.51 355.223 1122.1 355.005 1118.75 354.569C1111.77 353.551 1108.35 351.733 1108.5 349.115L1113.51 207.323C1113.51 203.833 1122.39 202.088 1140.13 202.088C1145.36 202.088 1151.76 202.524 1159.32 203.397C1166.89 204.124 1171.1 205.651 1171.98 207.978L1196.41 276.692L1217.79 207.76C1219.1 203.979 1229.13 202.088 1247.89 202.088C1253.27 202.088 1259.67 202.524 1267.09 203.397C1274.65 204.124 1278.43 205.506 1278.43 207.542L1284.76 350.642C1284.76 352.242 1281.92 353.405 1276.25 354.132C1270.58 354.859 1265.56 355.223 1261.2 355.223ZM1408.93 355.441C1396.27 355.441 1389.44 353.405 1388.42 349.333L1381.22 321.193H1346.54L1340.21 348.243C1339.34 352.751 1332.36 355.005 1319.27 355.005C1312.29 355.005 1307.13 354.641 1303.78 353.914C1300.44 353.042 1298.77 352.387 1298.77 351.951L1337.38 204.27C1337.38 203.106 1347.34 202.524 1367.26 202.524C1387.19 202.524 1397.15 203.106 1397.15 204.27L1434.89 352.169C1434.89 353.187 1431.54 353.987 1424.85 354.569C1418.16 355.15 1412.85 355.441 1408.93 355.441ZM1351.99 293.489H1374.9L1365.08 248.334H1363.77L1351.99 293.489ZM1509.46 351.515C1509.46 354.423 1502.27 355.877 1487.87 355.877C1473.47 355.877 1466.27 354.423 1466.27 351.515V242.008H1440.1C1437.62 242.008 1435.88 238.663 1434.86 231.973C1434.42 228.774 1434.21 225.502 1434.21 222.157C1434.21 218.812 1434.42 215.54 1434.86 212.341C1435.88 205.651 1437.62 202.306 1440.1 202.306H1534.99C1537.46 202.306 1539.2 205.651 1540.22 212.341C1540.66 215.54 1540.88 218.812 1540.88 222.157C1540.88 225.502 1540.66 228.774 1540.22 231.973C1539.2 238.663 1537.46 242.008 1534.99 242.008H1509.46V351.515ZM1671.97 351.296C1671.97 353.769 1664.63 355.005 1649.94 355.005C1635.25 355.005 1627.9 353.769 1627.9 351.296V301.124H1597.37V351.296C1597.37 353.769 1590.02 355.005 1575.33 355.005C1560.64 355.005 1553.3 353.769 1553.3 351.296V206.669C1553.3 203.615 1560.64 202.088 1575.33 202.088C1590.02 202.088 1597.37 203.615 1597.37 206.669V257.932H1627.9V207.105C1627.9 205.069 1631.54 203.615 1638.81 202.743C1642.59 202.452 1646.3 202.306 1649.94 202.306L1661.06 202.743C1668.33 203.615 1671.97 205.069 1671.97 207.105V351.296Z" fill="#FFC113"/>
+</g>
+<defs>
+<clipPath id="clip0_71_11257">
+<rect width="1683" height="684" fill="white" transform="translate(0 -269)"/>
+</clipPath>
+</defs>
+</svg>
+      <span class="topbar-badge">ADMIN</span>
+    </div>
+    <button class="logout-btn" onclick="admLogout()">Гарах</button>
+  </div>
+
+  <div class="layout">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="nav-section">Ерөнхий</div>
+      <button class="nav-item active" onclick="showPage('overview',this)">
+        <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="1.8"/><rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="1.8"/><rect x="14" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="1.8"/></svg>
+        Хяналтын самбар
+      </button>
+      <div class="nav-section">Агуулга</div>
+      <button class="nav-item" onclick="showPage('questions',this)">
+        <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M9 5H7C5.9 5 5 5.9 5 7V19C5 20.1 5.9 21 7 21H17C18.1 21 19 20.1 19 19V7C19 5.9 18.1 5 17 5H15M9 5C9 5.6 9.4 6 10 6H14C14.6 6 15 5.6 15 5C15 4.4 14.6 4 14 4H10C9.4 4 9 4.4 9 5ZM9 12H15M9 16H12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Бодлогууд
+      </button>
+      <button class="nav-item" onclick="showPage('nodes',this)">
+        <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><circle cx="12" cy="5" r="2" stroke="currentColor" stroke-width="1.8"/><circle cx="5" cy="19" r="2" stroke="currentColor" stroke-width="1.8"/><circle cx="19" cy="19" r="2" stroke="currentColor" stroke-width="1.8"/><path d="M12 7V12M12 12L5 17M12 12L19 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Хичээлийн зам
+      </button>
+      <div class="nav-section">Хэрэглэгч</div>
+      <button class="nav-item" onclick="showPage('users',this)">
+        <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M3 21C3 17.7 5.7 15 9 15H15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M16 19L18 21L22 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Хэрэглэгчид
+      </button>
+      <button class="nav-item" onclick="showPage('reset',this)">
+        <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M12 2C6.5 2 2 6.5 2 12C2 17.5 6.5 22 12 22C17.5 22 22 17.5 22 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M17 2V8H23" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 8V12L15 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Нууц үг сэргээх
+      </button>
+      <div class="nav-section">Бусад</div>
+      <button class="nav-item" onclick="showPage('log',this)">
+        <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M9 5H7C5.9 5 5 5.9 5 7V19C5 20.1 5.9 21 7 21H17C18.1 21 19 20.1 19 19V7C19 5.9 18.1 5 17 5H15M9 5C9 5.6 9.4 6 10 6H14C14.6 6 15 5.6 15 5" stroke="currentColor" stroke-width="1.8"/><path d="M9 12H15M9 16H12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Хандалтын лог
+      </button>
+    </div>
+
+    <!-- Main content -->
+    <div class="main">
+
+      <!-- Overview -->
+      <div class="page active" id="page-overview">
+        <div class="page-title">Хяналтын самбар</div>
+        <div class="page-sub" id="overview-time"></div>
+        <div class="stats-grid">
+          <div class="stat-card s-purple">
+            <div class="stat-num" id="stat-users">0</div>
+            <div class="stat-label">Нийт хэрэглэгч</div>
+          </div>
+          <div class="stat-card s-yellow">
+            <div class="stat-num" id="stat-premium">0</div>
+            <div class="stat-label">Premium</div>
+          </div>
+          <div class="stat-card s-green">
+            <div class="stat-num" id="stat-questions">0</div>
+            <div class="stat-label">Нийт бодлого</div>
+          </div>
+          <div class="stat-card s-blue">
+            <div class="stat-num" id="stat-today">0</div>
+            <div class="stat-label">Өнөөдөр бүртгэгдсэн</div>
+          </div>
+        </div>
+
+        <!-- Recent users -->
+        <div class="table-card">
+          <div class="table-header">
+            <div class="table-title">Сүүлийн бүртгэлүүд</div>
+          </div>
+          <table>
+            <thead><tr><th>Нэр</th><th>И-мэйл</th><th>Анги</th><th>Тарифф</th><th>Бүртгэсэн</th></tr></thead>
+            <tbody id="recent-users-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+
+      <!-- Nodes page -->
+      <div class="page" id="page-nodes">
+        <div class="page-title">Хичээлийн зам</div>
+        <div class="page-sub">Node-уудын нэр засах, шинэ node нэмэх</div>
+
+        <!-- Existing nodes list -->
+        <div class="table-card" style="margin-bottom:20px;">
+          <div class="table-header">
+            <div class="table-title">Одоогийн хичээлүүд</div>
+            <button class="btn-sm btn-success" onclick="saveNodesToGame()">💾 Тоглоомд хадгалах</button>
+          </div>
+          <div id="nodes-list" style="padding:12px 20px;display:flex;flex-direction:column;gap:8px;"></div>
+        </div>
+
+        <!-- Add new node -->
+        <div class="q-form">
+          <div class="q-form-title">+ Шинэ хичээл нэмэх</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Хичээлийн нэр</label>
+              <input id="node-name" type="text" class="form-input" placeholder="жишээ: Бутархай тоо">
+            </div>
+            <div class="form-group">
+              <label>Төрөл</label>
+              <select id="node-type" class="form-input form-select">
+                <option value="lesson">📚 Хичээл (нээлттэй)</option>
+                <option value="soon">⏳ Удахгүй</option>
+                <option value="locked">🔒 Хаалттай</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Дүрс тэмдэг (emoji)</label>
+              <input id="node-icon" type="text" class="form-input" placeholder="жишээ: ➕">
+            </div>
+            <div class="form-group">
+              <label>Анги</label>
+              <select id="node-grade" class="form-input form-select">
+                <option value="">Бүх анги</option>
+                <option value="1">1-р анги</option><option value="2">2-р анги</option>
+                <option value="3">3-р анги</option><option value="4">4-р анги</option>
+                <option value="5">5-р анги</option><option value="6">6-р анги</option>
+                <option value="7">7-р анги</option><option value="8">8-р анги</option>
+                <option value="9">9-р анги</option><option value="10">10-р анги</option>
+                <option value="11">11-р анги</option><option value="12">12-р анги</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <button class="add-btn" onclick="addNode()">Нэмэх</button>
+            <div id="node-msg" style="font-size:0.82rem;font-weight:800;color:var(--green);"></div>
+          </div>
+        </div>
+
+        <!-- Note -->
+        <div style="background:rgba(255,193,19,0.08);border:1.5px solid rgba(255,193,19,0.25);border-radius:12px;padding:14px 16px;font-size:0.82rem;font-weight:700;color:rgba(255,193,19,0.8);">
+          ⚠ "Тоглоомд хадгалах" дарсны дараа тоглоомыг дахин нээхэд хичээлийн замд харагдана.
+        </div>
+      </div>
+
+      <!-- Questions -->
+      <div class="page" id="page-questions">
+        <div class="page-title">Бодлогууд</div>
+        <div class="page-sub">Сэдэв бүрт бодлого нэмж удирдана</div>
+
+        <div class="topic-tabs" id="topic-tabs"></div>
+
+        <div class="q-form">
+          <div class="q-form-title">+ Шинэ бодлого нэмэх</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Сэдэв</label>
+              <select id="q-topic" class="form-input form-select">
+                <option value="add">➕ Нэмэх</option>
+                <option value="sub">➖ Хасах</option>
+                <option value="mul">✖️ Үржих</option>
+                <option value="div">➗ Хуваах</option>
+                <option value="mixed">🔀 Холимог</option>
+                <option value="fraction">📐 Бутархай</option>
+                <option value="geometry">📏 Геометр</option>
+                <option value="algebra">🔢 Алгебр</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Анги</label>
+              <select id="q-grade" class="form-input form-select">
+                <option value="">Бүх анги</option>
+                <option value="1">1-р анги</option><option value="2">2-р анги</option>
+                <option value="3">3-р анги</option><option value="4">4-р анги</option>
+                <option value="5">5-р анги</option><option value="6">6-р анги</option>
+                <option value="7">7-р анги</option><option value="8">8-р анги</option>
+                <option value="9">9-р анги</option><option value="10">10-р анги</option>
+                <option value="11">11-р анги</option><option value="12">12-р анги</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Node (Хичээлийн үе)</label>
+            <select id="q-node" class="form-input form-select">
+              <option value="">Node сонгоно уу</option>
+              <option disabled>━━ 8-Р АНГИ ━━</option>
+              <option disabled>  Тооны илэрхийлэл ба үйлдлүүд</option>
+              <option value="1">1. Бүхэл тооны зэрэг, шинж чанар</option>
+              <option value="2">2. Стандарт хэлбэр (a×10ⁿ)</option>
+              <option value="3">3. Язгуурын тухай ойлголт, √, ∛</option>
+              <option value="4">4. Язгуурын шинж чанар, хялбарчлах</option>
+              <option value="5">5. Шалгалт: Тооны илэрхийлэл ба үйлдлүүд</option>
+              <option disabled>  Олон гишүүнт</option>
+              <option value="6">6. Олон гишүүнтийн тухай ойлголт</option>
+              <option value="7">7. Нэмэх, хасах үйлдэл</option>
+              <option value="8">8. Үржүүлэх үйлдэл</option>
+              <option value="9">9. Хураах томьёо (a±b)², a²-b²</option>
+              <option value="10">10. Задлан бичих</option>
+              <option value="11">11. Шалгалт: Олон гишүүнт</option>
+              <option disabled>  Алгебрийн бутархай</option>
+              <option value="12">12. Алгебрийн бутархайн тухай ойлголт</option>
+              <option value="13">13. Хялбарчлах, үржүүлэх, хуваах</option>
+              <option value="14">14. Нэмэх, хасах (ижил, өөр хуваарь)</option>
+              <option value="15">15. Нийлмэл бутархай</option>
+              <option value="16">16. Шалгалт: Алгебрийн бутархай</option>
+              <option disabled>  Шугаман тэгшитгэл</option>
+              <option value="17">17. Нэг хувьсагчтай шугаман тэгшитгэл</option>
+              <option value="18">18. Хоёр хувьсагчтай шугаман тэгшитгэл</option>
+              <option value="19">19. Систем тэгшитгэл — орлуулах арга</option>
+              <option value="20">20. Систем тэгшитгэл — нэмэх арга</option>
+              <option value="21">21. Бодлого бодох (текст → тэгшитгэл)</option>
+              <option value="22">22. Шалгалт: Шугаман тэгшитгэл</option>
+              <option disabled>  Тэнцэтгэл бус байдал</option>
+              <option value="23">23. Шугаман тэнцэтгэл бус байдал</option>
+              <option value="24">24. Тэнцэтгэл бус байдлын систем</option>
+              <option value="25">25. Тоон шугам дээр дүрслэх</option>
+              <option value="26">26. Шалгалт: Тэнцэтгэл бус байдал</option>
+              <option disabled>  Функц</option>
+              <option value="27">27. Функцийн тухай ойлголт, тэмдэглэгээ</option>
+              <option value="28">28. Шугаман функц y=kx+b, график</option>
+              <option value="29">29. k ба b коэффициентийн утга</option>
+              <option value="30">30. Шулуунуудын харилцан байдал</option>
+              <option value="31">31. Шалгалт: Функц</option>
+              <option disabled>  Дөрвөн өнцөгт</option>
+              <option value="32">32. Параллелограммын шинж чанар</option>
+              <option value="33">33. Тэгш өнцөгт, ромб, квадрат</option>
+              <option value="34">34. Трапец, шинж чанар</option>
+              <option value="35">35. Талбай тооцоолох</option>
+              <option value="36">36. Шалгалт: Дөрвөн өнцөгт</option>
+              <option disabled>  Адил хэмжсэн гурвалжин</option>
+              <option value="37">37. Адил хэмжсэн байх нөхцөл</option>
+              <option value="38">38. Адил хэмжсэний шинж чанар</option>
+              <option value="39">39. Дундаж шугам</option>
+              <option value="40">40. Бодлого бодох</option>
+              <option value="41">41. Шалгалт: Адил хэмжсэн гурвалжин</option>
+              <option disabled>  Пифагорын теорем</option>
+              <option value="42">42. Теоремийн томьёо, баталгаа</option>
+              <option value="43">43. Хэрэглээ — гурвалжинд</option>
+              <option value="44">44. Хэрэглээ — өдөр тутмын бодлого</option>
+              <option value="45">45. Пифагорын тоонууд</option>
+              <option value="46">46. Шалгалт: Пифагорын теорем</option>
+              <option disabled>  Тойрог</option>
+              <option value="47">47. Тойрог, тойрог хоёрын ялгаа</option>
+              <option value="48">48. Хөвч, диаметр, шинж чанар</option>
+              <option value="49">49. Тангенс шугам</option>
+              <option value="50">50. Тойрогт багтсан өнцөг</option>
+              <option value="51">51. Шалгалт: Тойрог</option>
+              <option disabled>  Статистикийн үндэс</option>
+              <option value="52">52. Өгөгдөл цуглуулах, ангилах</option>
+              <option value="53">53. Дундаж, медиан, мод</option>
+              <option value="54">54. Диаграмм (багана, дугуй, шугам)</option>
+              <option value="55">55. Өгөгдөл тайлбарлах</option>
+              <option value="56">56. Шалгалт: Статистикийн үндэс</option>
+              <option disabled>━━ 9-Р АНГИ ━━</option>
+              <option disabled>  Бодит тоо</option>
+              <option value="57">57. Рационал ба иррационал тоо</option>
+              <option value="58">58. Бодит тооны олонлог, бүтэц</option>
+              <option value="59">59. Модуль (үнэмлэхүй утга)</option>
+              <option value="60">60. Тооны тэнхлэг дээр дүрслэх</option>
+              <option value="61">61. Шалгалт: Бодит тоо</option>
+              <option disabled>  Иррационал илэрхийлэл</option>
+              <option value="62">62. Язгуурын шинж чанар давтах</option>
+              <option value="63">63. Нэмэх, хасах (ижил язгуур)</option>
+              <option value="64">64. Үржүүлэх, хуваах</option>
+              <option value="65">65. Хуваарийг рационалчлах</option>
+              <option value="66">66. Иррационал тэгшитгэл</option>
+              <option value="67">67. Шалгалт: Иррационал илэрхийлэл</option>
+              <option disabled>  Квадрат тэгшитгэл</option>
+              <option value="68">68. Квадрат тэгшитгэлийн тухай ойлголт</option>
+              <option value="69">69. Бүрэн квадратт хүргэх арга</option>
+              <option value="70">70. Discriminant (D=b²-4ac)</option>
+              <option value="71">71. Vieta-гийн теорем (x₁+x₂, x₁·x₂)</option>
+              <option value="72">72. Квадрат тэгшитгэл задлах</option>
+              <option value="73">73. Бодлого бодох</option>
+              <option value="74">74. Шалгалт: Квадрат тэгшитгэл</option>
+              <option disabled>  Тэнцэтгэл бус байдал</option>
+              <option value="75">75. Шугаман тэнцэтгэл бус давтах</option>
+              <option value="76">76. Квадрат тэнцэтгэл бус байдал</option>
+              <option value="77">77. Интервалын арга</option>
+              <option value="78">78. Систем тэнцэтгэл бус байдал</option>
+              <option value="79">79. Шалгалт: Тэнцэтгэл бус байдал</option>
+              <option disabled>  Функц</option>
+              <option value="80">80. Функцийн тухай ойлголт, давталт</option>
+              <option value="81">81. Квадрат функц y=ax²+bx+c</option>
+              <option value="82">82. Парабол — оройн координат</option>
+              <option value="83">83. Параболын график байгуулах</option>
+              <option value="84">84. Функцийн нэмэгдэх, буурах</option>
+              <option value="85">85. Хэсэг-шугаман функц</option>
+              <option value="86">86. Шалгалт: Функц</option>
+              <option disabled>  Арифметик прогресс</option>
+              <option value="87">87. Дарааллын тухай ойлголт</option>
+              <option value="88">88. Арифметик прогресс, d олох</option>
+              <option value="89">89. n-р гишүүн олох томьёо</option>
+              <option value="90">90. Нийлбэр олох томьёо Sₙ</option>
+              <option value="91">91. Бодлого бодох</option>
+              <option value="92">92. Шалгалт: Арифметик прогресс</option>
+              <option disabled>  Геометрийн прогресс</option>
+              <option value="93">93. Геометрийн прогресс, q олох</option>
+              <option value="94">94. n-р гишүүн олох томьёо</option>
+              <option value="95">95. Нийлбэр олох томьёо Sₙ</option>
+              <option value="96">96. Хязгааргүй геометрийн прогресс</option>
+              <option value="97">97. Бодлого бодох</option>
+              <option value="98">98. Шалгалт: Геометрийн прогресс</option>
+              <option disabled>  Тригонометр</option>
+              <option value="99">99. Хурц өнцгийн sin, cos, tan, cot</option>
+              <option value="100">100. Тригонометрийн үндсэн харилцаа</option>
+              <option value="101">101. 30°, 45°, 60° өнцгийн утга</option>
+              <option value="102">102. Гурвалжны тал өнцөг тооцоолох</option>
+              <option value="103">103. Хэрэглээний бодлого</option>
+              <option value="104">104. Шалгалт: Тригонометр</option>
+              <option disabled>  Синусын теорем</option>
+              <option value="105">105. Синусын теорем, баталгаа</option>
+              <option value="106">106. Хэрэглэх — тал, өнцөг олох</option>
+              <option value="107">107. Бодлого бодох</option>
+              <option value="108">108. Шалгалт: Синусын теорем</option>
+              <option disabled>  Косинусын теорем</option>
+              <option value="109">109. Косинусын теорем, баталгаа</option>
+              <option value="110">110. Хэрэглэх — тал, өнцөг олох</option>
+              <option value="111">111. Синус ба косинусын теорем хавсарган хэрэглэх</option>
+              <option value="112">112. Шалгалт: Косинусын теорем</option>
+              <option disabled>  Тойргийн шинж чанар</option>
+              <option value="113">113. Нум, хөвч, өнцгийн харилцаа</option>
+              <option value="114">114. Тойрогт бичигдсэн өнцөг</option>
+              <option value="115">115. Тойрогт багтсан ба тойргийг хүрээлсэн олон өнцөгт</option>
+              <option value="116">116. Тойргийн талбай, нумын урт</option>
+              <option value="117">117. Шалгалт: Тойргийн шинж чанар</option>
+              <option disabled>  Вектор</option>
+              <option value="118">118. Векторын тухай ойлголт</option>
+              <option value="119">119. Нэмэх, хасах, скалярт үржүүлэх</option>
+              <option value="120">120. Координатын системд вектор</option>
+              <option value="121">121. Скаляр үржвэр</option>
+              <option value="122">122. Хэрэглэх — геометр бодлого</option>
+              <option value="123">123. Шалгалт: Вектор</option>
+              <option disabled>  Тооллын зарчим</option>
+              <option value="124">124. Нэмэх зарчим</option>
+              <option value="125">125. Үржүүлэх зарчим</option>
+              <option value="126">126. Хослол (Combination) Cₙᵏ</option>
+              <option value="127">127. Байрлал (Permutation) Pₙ</option>
+              <option value="128">128. Binomial коэффициент</option>
+              <option value="129">129. Шалгалт: Тооллын зарчим</option>
+              <option disabled>  Магадлал</option>
+              <option value="130">130. Магадлалын классик тодорхойлолт</option>
+              <option value="131">131. Нэмэх теорем</option>
+              <option value="132">132. Үржүүлэх теорем</option>
+              <option value="133">133. Хамтарсан ба хасагдах үйл явдал</option>
+              <option value="134">134. Нөхцөлт магадлал</option>
+              <option value="135">135. Бодлого бодох</option>
+              <option value="136">136. Шалгалт: Магадлал</option>
+              <option disabled>  Статистик</option>
+              <option value="137">137. Өгөгдлийн тархалт</option>
+              <option value="138">138. Дундаж, медиан, мод давтах</option>
+              <option value="139">139. Дисперс, стандарт хазайлт</option>
+              <option value="140">140. Диаграмм ба график тайлбарлах</option>
+              <option value="141">141. Практик бодлого</option>
+              <option value="142">142. Шалгалт: Статистик</option>
+                          <option disabled>── 🏆 СОРИЛ ──</option>
+              <option value="143">143. Сорил 1</option>
+              <option value="144">144. Сорил 2</option>
+              <option value="145">145. Сорил 3</option>
+              <option value="146">146. Сорил 4</option>
+              <option value="147">147. Сорил 5</option>
+              <option value="148">148. Сорил 6</option>
+              <option value="149">149. Сорил 7</option>
+              <option value="150">150. Сорил 8</option>
+              <option value="151">151. Сорил 9</option>
+              <option value="152">152. Сорил 10</option>
+              <option value="153">153. Сорил 11</option>
+              <option value="154">154. Сорил 12</option>
+              <option value="155">155. Сорил 13</option>
+              <option value="156">156. Сорил 14</option>
+              <option value="157">157. Сорил 15</option>
+              <option value="158">158. Сорил 16</option>
+              <option value="159">159. Сорил 17</option>
+              <option value="160">160. Сорил 18</option>
+              <option value="161">161. Сорил 19</option>
+              <option value="162">162. Сорил 20</option>
+</select>
+          </div>
+          <div class="form-group" style="margin-bottom:12px;">
+            <label>Бодлогын текст (Equation editor)</label>
+            <div class="math-editor-wrap">
+              <!-- Энгийн текст оруулах -->
+              <div style="margin-bottom:8px;">
+                <div style="font-size:0.65rem;font-weight:900;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">Бодлогын өгүүлбэр</div>
+                <textarea id="q-text-main" rows="2" placeholder="Бодлогын өгүүлбэр бичнэ үү..." 
+                  style="width:100%;padding:8px 12px;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;color:var(--text);font-size:0.92rem;resize:vertical;box-sizing:border-box;line-height:1.5;"
+                  oninput="updateQPreview()"></textarea>
+                <div id="q-text-preview" style="display:none;margin-top:4px;padding:6px 10px;background:var(--surface2);border-radius:8px;font-size:0.9rem;"></div>
+              </div>
+<!-- LaTeX input -->
+              <div style="margin-bottom:6px;">
+                <div style="font-size:0.65rem;font-weight:900;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;">Томьёо (MathLive)</div>
+                <math-field 
+                  id="q-math-display"
+                  class="math-latex-input"
+                  virtual-keyboard-mode="manual"
+                  placeholder="жишээ: x^2 + 1">
+                </math-field>
+              </div>
+
+              <!-- KaTeX Preview -->
+              <div class="math-preview-wrap" id="math-preview">
+                <span class="math-preview-empty">Дээр бодлого бичихэд энд харагдана...</span>
+              </div>
+
+              <!-- Keyboard toggle -->
+              <div style="display:flex;justify-content:flex-end;margin-bottom:6px;">
+                <button class="math-tool-btn" onclick="toggleKb()" style="font-size:0.8rem;padding:6px 14px;">
+                  ⌨ Математик клавиатур
+                </button>
+              </div>
+
+              <!-- Math keyboard -->
+              <div id="math-kb" class="math-kb">
+                <div class="math-kb-tabs" id="math-kb-tabs"></div>
+                <div class="math-kb-grid" id="math-kb-grid"></div>
+              </div>
+            </div>
+          </div>
+          <!-- Тайлбар (hint) -->
+          <div style="margin-bottom:14px;">
+            <div style="font-size:0.7rem;font-weight:900;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Тайлбар мэдээлэл</div>
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <div class="form-group">
+                <label>📝 Текст тайлбар</label>
+                <input id="q-hint-text" type="text" class="form-input" placeholder="жишээ: 6×8 = 48 гэдгийг санаарай...">
+              </div>
+              <div class="form-group">
+                <label>🖼 Зураг (файл эсвэл URL)</label>
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                  <div style="display:flex;gap:6px;align-items:center;">
+                    <label style="flex:1;display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--surface2);border:1.5px dashed var(--border);border-radius:10px;cursor:pointer;font-size:0.82rem;font-weight:800;color:var(--muted);transition:all 0.2s;" onmouseover="this.style.borderColor='var(--purple)'" onmouseout="this.style.borderColor='var(--border)'">
+                      <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M21 15V19C21 20.1 20.1 21 19 21H5C3.9 21 3 20.1 3 19V15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M17 8L12 3L7 8M12 3V15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                      Зураг сонгох
+                      <input type="file" accept="image/*" style="display:none" onchange="handleImageUpload(this)">
+                    </label>
+                    <span style="font-size:0.75rem;color:var(--muted);font-weight:700;">эсвэл</span>
+                    <input id="q-hint-image" type="text" class="form-input" placeholder="URL..." style="flex:1;margin-bottom:0;">
+                  </div>
+                  <div id="img-preview" style="display:none;position:relative;border-radius:10px;overflow:hidden;border:1.5px solid var(--border);">
+                    <img id="img-preview-el" style="width:100%;max-height:160px;object-fit:contain;background:#111;display:block;">
+                    <button onclick="clearImage()" style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,0.6);border:none;border-radius:50%;width:24px;height:24px;color:white;cursor:pointer;font-size:0.8rem;display:flex;align-items:center;justify-content:center;">✕</button>
+                  </div>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>▶ Бичлэг (файл эсвэл YouTube URL)</label>
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                  <div style="display:flex;gap:6px;align-items:center;">
+                    <label style="flex:1;display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--surface2);border:1.5px dashed var(--border);border-radius:10px;cursor:pointer;font-size:0.82rem;font-weight:800;color:var(--muted);transition:all 0.2s;" onmouseover="this.style.borderColor='var(--purple)'" onmouseout="this.style.borderColor='var(--border)'">
+                      <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M21 15V19C21 20.1 20.1 21 19 21H5C3.9 21 3 20.1 3 19V15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M17 8L12 3L7 8M12 3V15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                      Бичлэг сонгох
+                      <input type="file" accept="video/*" style="display:none" onchange="handleVideoUpload(this)">
+                    </label>
+                    <span style="font-size:0.75rem;color:var(--muted);font-weight:700;">эсвэл</span>
+                    <input id="q-hint-video" type="text" class="form-input" placeholder="YouTube URL..." style="flex:1;margin-bottom:0;">
+                  </div>
+                  <div id="vid-preview" style="display:none;border-radius:10px;overflow:hidden;border:1.5px solid var(--border);position:relative;">
+                    <video id="vid-preview-el" controls style="width:100%;max-height:160px;background:#111;display:block;"></video>
+                    <button onclick="clearVideo()" style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,0.6);border:none;border-radius:50%;width:24px;height:24px;color:white;cursor:pointer;font-size:0.8rem;display:flex;align-items:center;justify-content:center;">✕</button>
+                  </div>
+                  <div id="vid-size-warn" style="display:none;font-size:0.75rem;font-weight:800;color:var(--yellow);">⚠ Бичлэг 5MB-аас их байна. Хэмжээ ихтэй файл удаан ажиллана.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="choices-row">
+            <div class="choice-input">
+              <span>A — зөв хариулт</span>
+              <math-field id="q-a" virtual-keyboard-mode="manual" style="width:100%;min-height:40px;border:2px solid #58CC02;border-radius:8px;padding:4px;background:#0a1f0a;color:#f0eeff;display:block;"></math-field>
+            </div>
+            <div class="choice-input">
+              <span>B</span>
+              <math-field id="q-b" virtual-keyboard-mode="manual" style="width:100%;min-height:40px;border:2px solid #444;border-radius:8px;padding:4px;background:#1a1040;color:#f0eeff;display:block;"></math-field>
+            </div>
+            <div class="choice-input">
+              <span>C</span>
+              <math-field id="q-c" virtual-keyboard-mode="manual" style="width:100%;min-height:40px;border:2px solid #444;border-radius:8px;padding:4px;background:#1a1040;color:#f0eeff;display:block;"></math-field>
+            </div>
+            <div class="choice-input">
+              <span>D</span>
+              <math-field id="q-d" virtual-keyboard-mode="manual" style="width:100%;min-height:40px;border:2px solid #444;border-radius:8px;padding:4px;background:#1a1040;color:#f0eeff;display:block;"></math-field>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <button class="add-btn" onclick="addQuestion()">Нэмэх</button>
+            <div id="q-msg" style="font-size:0.82rem;font-weight:800;color:var(--green);"></div>
+          </div>
+        </div>
+
+        <div class="table-card">
+          <div class="table-header">
+            <div class="table-title">Бодлогын жагсаалт</div>
+            <input type="text" class="search-input" placeholder="Хайх..." oninput="renderQuestions(this.value)">
           </div>
           <div id="q-list" style="padding:0 20px 12px;"></div>
         </div>
@@ -1114,8 +2020,11 @@ function handleMathKey(e) {
 }
 
 function getMathText() {
-  var inp = document.getElementById('q-text-main');
-  return inp ? inp.value.trim() : '';
+  var text = document.getElementById('q-text-main') ? document.getElementById('q-text-main').value.trim() : '';
+  var math = document.getElementById('q-math-display') ? document.getElementById('q-math-display').value.trim() : '';
+  if (text && math) return text + ' $' + math + '$';
+  if (math) return '$' + math + '$';
+  return text;
 }
 
 function updateQPreview() {
@@ -1124,97 +2033,14 @@ function updateQPreview() {
   if (!prev) return;
   if (!text) { prev.style.display='none'; return; }
   prev.style.display = 'block';
-  // Зөвхөн текстээр харуулах — $...$ доторх томьёог render хийх
   var parts = text.split(/\$([^$]+)\$/g);
-  var html_parts = parts.map(function(p, i) {
+  var out = parts.map(function(p, i) {
     if (i % 2 === 1 && window.katex) {
       try { return katex.renderToString(p, {throwOnError:false}); } catch(e) {}
     }
-    return p.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return p.replace(/</g,'&lt;');
   });
-  prev.innerHTML = html_parts.join('');
-}
-
-// MathLive virtual keyboard-г disable хийх
-window.addEventListener('load', function() {
-  if (window.MathfieldElement) {
-    window.MathfieldElement.defaultOptions = {
-      virtualKeyboardMode: 'manual',
-    };
-  }
-});
-
-function openQMathModal() {
-  var modal = document.getElementById('q-math-modal');
-  if (modal) modal.style.display = 'flex';
-  var mf = document.getElementById('q-math-display');
-  if (mf) setTimeout(function(){ mf.focus(); }, 100);
-  initMathKb();
-}
-
-function closeQMathModal() {
-  var modal = document.getElementById('q-math-modal');
-  if (modal) modal.style.display = 'none';
-}
-
-function insertQMath() {
-  var mf = document.getElementById('q-math-display');
-  var target = document.getElementById('q-text-main');
-  if (!mf || !target) return;
-  var latex = mf.value.trim();
-  if (!latex) { closeQMathModal(); return; }
-  // Cursor байрлалд оруулах
-  var start = target.selectionStart || target.value.length;
-  var end = target.selectionEnd || target.value.length;
-  var before = target.value.slice(0, start);
-  var after = target.value.slice(end);
-  target.value = before + '$' + latex + '$' + after;
-  target.focus();
-  var pos = start + latex.length + 2;
-  target.setSelectionRange(pos, pos);
-  mf.value = '';
-  closeQMathModal();
-  updateQPreview();
-}
-
-function insertMathToChoice(targetId) {
-  _currentChoiceTarget = targetId;
-  var modal = document.getElementById('choice-math-modal');
-  var mf = document.getElementById('choice-math-field');
-  if (modal) modal.style.display = 'flex';
-  if (mf) {
-    // Одоогийн утгыг оруулах
-    var cur = document.getElementById(targetId);
-    mf.value = cur ? cur.value : '';
-    setTimeout(function(){ mf.focus(); }, 100);
-  }
-  // Preview шинэчлэх
-  if (mf) {
-    mf.addEventListener('input', function() {
-      var prev = document.getElementById('choice-math-preview');
-      if (prev && window.katex) {
-        try { katex.render(mf.value, prev, {throwOnError:false}); }
-        catch(e) { prev.textContent = mf.value; }
-      }
-    });
-  }
-}
-
-function confirmMathToChoice() {
-  if (!_currentChoiceTarget) return;
-  var mf = document.getElementById('choice-math-field');
-  var target = document.getElementById(_currentChoiceTarget);
-  if (mf && target) {
-    target.value = mf.value;
-    updateChoiceHighlight();
-  }
-  closeMathModal();
-}
-
-function closeMathModal() {
-  var modal = document.getElementById('choice-math-modal');
-  if (modal) modal.style.display = 'none';
-  _currentChoiceTarget = null;
+  prev.innerHTML = out.join('');
 }
 
 
@@ -1421,304 +2247,3 @@ function closeMathModal() {
     {id:161, name:"Сорил 19", type:"locked", icon:"🏆", grade:"9"},
     {id:162, name:"Сорил 20", type:"locked", icon:"🏆", grade:"9"},
   ];
-  // ══ CORE FUNCTIONS ══
-  var API = '';
-
-  function getNodes() {
-    try { return JSON.parse(localStorage.getItem('cm_nodes') || 'null') || DEFAULT_NODES; }
-    catch(e) { return DEFAULT_NODES; }
-  }
-  function saveNodes(nodes) { localStorage.setItem('cm_nodes', JSON.stringify(nodes)); }
-
-  function addLog(action, detail, color) {
-    fetch(API + '/api/logs', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({action, detail, color: color||'#58CC02'})
-    }).catch(function(){});
-  }
-
-  // ══ OVERVIEW ══
-  function loadOverview() {
-    fetch(API + '/api/users').then(r=>r.json()).then(function(d) {
-      var users = d.users || [];
-      var el = document.getElementById('ov-total'); if(el) el.textContent = users.length;
-      var ep = document.getElementById('ov-premium'); if(ep) ep.textContent = users.filter(u=>u.plan==='premium').length;
-      var tbody = document.getElementById('ov-recent');
-      if(tbody) tbody.innerHTML = users.slice(0,5).map(function(u){
-        return '<tr><td>'+(u.first_name||'')+'</td><td>'+u.email+'</td><td>'+(u.grade||'-')+'</td><td>'+(u.plan||'free')+'</td><td>'+(u.created_at||'').slice(0,10)+'</td></tr>';
-      }).join('');
-    }).catch(function(){});
-    fetch(API + '/api/questions').then(r=>r.json()).then(function(d){
-      var el = document.getElementById('ov-questions'); if(el) el.textContent = (d.questions||[]).length;
-    }).catch(function(){});
-    var el2 = document.getElementById('ov-today'); if(el2) el2.textContent = new Date().toLocaleDateString('mn-MN');
-  }
-
-  // ══ QUESTIONS ══
-  function renderQuestions(search) {
-    var el = document.getElementById('q-list');
-    if (!el) return;
-    var nodeEl = document.getElementById('q-node');
-    var nodeId = nodeEl ? nodeEl.value : '';
-    var nodeName = nodeEl && nodeEl.selectedIndex >= 0 ? nodeEl.options[nodeEl.selectedIndex].text : '';
-    // Гарчиг шинэчлэх
-    var titleEl = document.getElementById('q-list-title');
-    if (titleEl) titleEl.textContent = nodeId ? ('Node ' + nodeId + ': ' + nodeName + ' — бодлогууд') : 'Бүх бодлого';
-    el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted);">Уншиж байна...</div>';
-    var url = API + '/api/questions';
-    if (nodeId) url += '?node_id=' + nodeId;
-    fetch(url).then(r=>r.json()).then(function(data) {
-      var qs = data.questions || [];
-      if (search) qs = qs.filter(function(q){ return q.text && q.text.toLowerCase().includes(search.toLowerCase()); });
-      if (!qs.length) { el.innerHTML = '<div style="color:var(--muted);text-align:center;padding:32px;">Бодлого байхгүй байна</div>'; return; }
-      el.innerHTML = qs.map(function(q, idx) {
-        var choices = q.choices || [];
-        return '<div id="qblock-'+q.id+'" style="background:var(--surface2);border-radius:12px;padding:16px;margin-bottom:10px;border:1px solid var(--border);">'
-          // Header
-          + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">'
-          + '<div style="flex:1;font-weight:700;font-size:0.9rem;color:var(--text);">'+(idx+1)+'. ' + (q.text||'') + '</div>'
-          + '<div style="display:flex;gap:6px;flex-shrink:0;">'
-          + '<button onclick="editQuestion('+q.id+')" style="background:#7B52EE22;border:none;color:#A855F7;border-radius:8px;padding:6px 12px;cursor:pointer;font-weight:700;">✏️ Засах</button>'
-          + '<button onclick="deleteQuestion('+q.id+')" style="background:#FF4B4B22;border:none;color:#FF4B4B;border-radius:8px;padding:6px 12px;cursor:pointer;font-weight:700;">🗑</button>'
-          + '</div></div>'
-          // Choices
-          + '<div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:6px;">'
-          + choices.map(function(ch, ci) {
-              var isCorrect = ch === q.correct;
-              return '<div style="padding:6px 10px;border-radius:8px;font-size:0.82rem;font-weight:700;'
-                + (isCorrect ? 'background:#58CC0222;color:#58CC02;border:1px solid #58CC0240;' : 'background:var(--surface);color:var(--muted);border:1px solid var(--border);')
-                + '">' + (isCorrect ? '✓ ' : '') + (ch||'—') + '</div>';
-            }).join('')
-          + '</div>'
-          + '<div style="margin-top:8px;font-size:0.78rem;color:var(--muted);">Node: '+(q.node_id||'-')+(q.hint&&q.hint.text?' | 💡 Hint байна':'')+'</div>'
-          // Edit form (нуугдсан)
-          + '<div id="qedit-'+q.id+'" style="display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:14px;">'
-          + '<div style="margin-bottom:8px;"><label style="font-size:0.78rem;color:var(--muted);font-weight:700;">Бодлого</label>'
-          + '<math-field id="qedit-text-'+q.id+'" virtual-keyboard-mode="manual" style="width:100%;min-height:56px;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--surface);color:var(--text);display:block;margin-top:4px;font-size:1rem;">'+((q.text||''))+'</math-field></div>'
-          + ['А','Б','В','Г'].map(function(lbl, ci) {
-              return '<div style="margin-bottom:6px;display:flex;align-items:center;gap:8px;">'
-                +'<label style="font-size:0.78rem;color:var(--muted);font-weight:700;min-width:24px;">'+lbl+'</label>'
-                +'<math-field id="qedit-ch'+ci+'-'+q.id+'" virtual-keyboard-mode="manual" style="flex:1;min-height:46px;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;background:var(--surface);color:var(--text);display:block;font-size:0.95rem;">'+(choices[ci]||'')+'</math-field>'
-                +'<label style="font-size:0.75rem;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap;">'
-                +'<input type="radio" name="correct-'+q.id+'" value="'+ci+'" '+(choices[ci]===q.correct?'checked':'')+' style="cursor:pointer;"> Зөв</label>'
-                +'</div>';
-            }).join('')
-          + '<div style="margin-bottom:6px;"><label style="font-size:0.78rem;color:var(--muted);font-weight:700;">💡 Hint</label>'
-          + '<input id="qedit-hint-'+q.id+'" value="'+((q.hint&&q.hint.text||'').replace(/"/g,'&quot;'))+'" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-size:0.84rem;margin-top:4px;"></div>'
-          + '<div style="display:flex;gap:8px;margin-top:10px;">'
-          + '<button onclick="saveQuestion('+q.id+')" style="flex:1;background:#58CC02;border:none;color:white;border-radius:8px;padding:9px;cursor:pointer;font-weight:800;">✓ Хадгалах</button>'
-          + '<button onclick="cancelEdit('+q.id+')" style="background:var(--surface);border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:9px 16px;cursor:pointer;font-weight:700;">Болих</button>'
-          + '</div></div>'
-          + '</div>';
-      }).join('');
-    }).catch(function(){ el.innerHTML = '<div style="color:var(--muted);text-align:center;padding:32px;">Сервертэй холбогдоход алдаа гарлаа</div>'; });
-  }
-
-  function editQuestion(id) {
-    var form = document.getElementById('qedit-'+id);
-    if (form) form.style.display = form.style.display==='none' ? 'block' : 'none';
-  }
-
-  function cancelEdit(id) {
-    var form = document.getElementById('qedit-'+id);
-    if (form) form.style.display = 'none';
-  }
-
-  function saveQuestion(id) {
-    var textEl = document.getElementById('qedit-text-'+id);
-    var text = textEl ? textEl.value.trim() : '';
-    var choices = [0,1,2,3].map(function(ci){
-      var el = document.getElementById('qedit-ch'+ci+'-'+id);
-      return el ? el.value.trim() : '';
-    });
-    var correctIdx = 0;
-    var radios = document.querySelectorAll('input[name="correct-'+id+'"]');
-    radios.forEach(function(r){ if(r.checked) correctIdx = parseInt(r.value); });
-    var correct = choices[correctIdx] || choices[0];
-    var hintEl = document.getElementById('qedit-hint-'+id);
-    var hint = hintEl ? {text: hintEl.value.trim()} : null;
-    if (!text) { alert('Бодлогын текст оруулна уу!'); return; }
-    var nodeEl = document.getElementById('q-node');
-    var nodeId = nodeEl ? parseInt(nodeEl.value)||null : null;
-    // DELETE + POST (update)
-    fetch(API + '/api/questions', {
-      method:'DELETE', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({id: id})
-    }).then(function() {
-      return fetch(API + '/api/questions', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({text, correct, choices, hint: hint&&hint.text?hint:null,
-          node_id: document.getElementById('q-node') ? parseInt(document.getElementById('q-node').value)||null : null})
-      });
-    }).then(r=>r.json()).then(function(d){
-      if(d.ok) { renderQuestions(); addLog('Бодлого засав', text.slice(0,40), '#1CB0F6'); }
-      else alert('Алдаа: ' + d.error);
-    }).catch(function(){ alert('Алдаа гарлаа!'); });
-  }
-
-  function deleteQuestion(id) {
-    if (!confirm('Устгах уу?')) return;
-    fetch(API + '/api/questions', {
-      method:'DELETE', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({id: id})
-    }).then(function(){ renderQuestions(); }).catch(function(){});
-  }
-
-  function updateChoiceHighlight() {
-    var selected = document.querySelector('input[name="q-correct"]:checked');
-    var val = selected ? selected.value : 'a';
-    ['a','b','c','d'].forEach(function(ch) {
-      var mf = document.getElementById('q-' + ch);
-      if (!mf) return;
-      if (ch === val) {
-        mf.style.border = '2px solid #58CC02';
-        mf.style.background = '#0a1f0a';
-      } else {
-        mf.style.border = '2px solid #444';
-        mf.style.background = '#1a1040';
-      }
-    });
-  }
-
-  function addQuestion() {
-    var text = getMathText();
-    var nodeId = document.getElementById('q-node') ? document.getElementById('q-node').value : '';
-    var a = document.getElementById('q-a') ? document.getElementById('q-a').value.trim() : '';
-    var b = document.getElementById('q-b') ? document.getElementById('q-b').value.trim() : '';
-    var c = document.getElementById('q-c') ? document.getElementById('q-c').value.trim() : '';
-    var d = document.getElementById('q-d') ? document.getElementById('q-d').value.trim() : '';
-    // Зөв хариулт radio-аас авах
-    var selected = document.querySelector('input[name="q-correct"]:checked');
-    var correctKey = selected ? selected.value : 'a';
-    var correctMap = {a: a, b: b, c: c, d: d};
-    var correct = correctMap[correctKey];
-    var hint = {text: document.getElementById('q-hint-text') ? document.getElementById('q-hint-text').value.trim() : ''};
-    var msg = document.getElementById('q-msg');
-    if (!text) { if(msg){msg.style.color='var(--red)';msg.textContent='Бодлогын текст оруулна уу!';} return; }
-    if (!correct) { if(msg){msg.style.color='var(--red)';msg.textContent='Зөв хариулт хоосон байна!';} return; }
-    fetch(API + '/api/questions', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({text, node_id: nodeId?parseInt(nodeId):null, correct, choices:[a,b,c,d], hint: hint.text?hint:null})
-    }).then(r=>r.json()).then(function(data) {
-      if (!data.ok) { if(msg){msg.style.color='var(--red)';msg.textContent='Алдаа: '+data.error;} return; }
-      if(msg){msg.style.color='var(--green)';msg.textContent='✓ Амжилттай нэмэгдлээ!';}
-      ['q-a','q-b','q-c','q-d'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
-      var md = document.getElementById('q-math-display'); if(md) md.value='';
-      var ht = document.getElementById('q-hint-text'); if(ht) ht.value='';
-      // Radio-г A руу буцаах
-      var radioA = document.querySelector('input[name="q-correct"][value="a"]');
-      if (radioA) { radioA.checked = true; updateChoiceHighlight(); }
-      updatePreview();
-      setTimeout(function(){if(msg)msg.textContent='';},2000);
-      renderQuestions();
-      addLog('Бодлого', '"'+text.slice(0,30)+'" нэмэгдлээ', '#58CC02');
-    }).catch(function(){if(msg){msg.style.color='var(--red)';msg.textContent='Алдаа гарлаа!';}});
-  }
-
-  // ══ NODES ══
-  function renderNodesList() {
-    var nodes = getNodes();
-    var el = document.getElementById('nodes-list');
-    if (!el) return;
-    el.innerHTML = nodes.map(function(n) {
-      var typeColor = n.type==='lesson' ? 'var(--green)' : n.type==='soon' ? 'var(--yellow)' : 'var(--muted)';
-      var typeLbl = n.type==='lesson' ? '✅ Нээлттэй' : n.type==='soon' ? '⏳ Удахгүй' : '🔒 Хаалттай';
-      return '<div style="display:flex;align-items:center;gap:12px;background:var(--surface2);border-radius:10px;padding:12px 14px;margin-bottom:8px;">'
-        + '<div style="font-size:1.4rem;width:32px;text-align:center;">'+(n.icon||'📚')+'</div>'
-        + '<div style="flex:1;">'
-        + '<div style="font-weight:800;font-size:0.92rem;color:var(--text);">'+n.id+'. '+n.name+'</div>'
-        + '<div style="display:flex;gap:8px;margin-top:4px;">'
-        + '<span style="font-size:0.72rem;font-weight:800;color:'+typeColor+';">'+typeLbl+'</span>'
-        + (n.grade?'<span style="font-size:0.72rem;background:var(--surface);border-radius:6px;padding:2px 8px;color:var(--muted);">'+n.grade+'-р анги</span>':'')
-        + '</div></div>'
-        + '<select onchange="updateNodeType('+n.id+',this.value)" style="padding:5px 8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:0.75rem;color:var(--text);cursor:pointer;">'
-        + '<option value="lesson"'+(n.type==='lesson'?' selected':'')+'>✅ Нээлттэй</option>'
-        + '<option value="locked"'+(n.type==='locked'?' selected':'')+'>🔒 Хаалттай</option>'
-        + '<option value="soon"'+(n.type==='soon'?' selected':'')+'>⏳ Удахгүй</option>'
-        + '</select>'
-        + '</div>';
-    }).join('');
-  }
-
-  function updateNodeType(id, type) {
-    var nodes = getNodes();
-    var n = nodes.find(function(x){return x.id===id;});
-    if (n) { n.type = type; saveNodes(nodes); }
-    fetch(API + '/api/nodes', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({id, type})
-    }).catch(function(){});
-  }
-
-  function saveAllNodes() {
-    var nodes = getNodes();
-    fetch(API + '/api/seed', {method:'GET'}).catch(function(){});
-    alert('Node-ууд хадгалагдлаа!');
-  }
-
-  // ══ USERS ══
-  function loadUsers() {
-    fetch(API + '/api/users').then(r=>r.json()).then(function(d) {
-      var users = d.users || [];
-      var el = document.getElementById('users-list');
-      if (!el) return;
-      el.innerHTML = users.length ? users.map(function(u){
-        return '<tr>'
-          +'<td>'+(u.first_name||'')+' '+(u.last_name||'')+'</td>'
-          +'<td>'+u.email+'</td>'
-          +'<td>'+(u.grade||'-')+'</td>'
-          +'<td><span style="color:'+(u.plan==='premium'?'var(--yellow)':'var(--muted)')+';">'+(u.plan||'free')+'</span></td>'
-          +'<td>'+(u.created_at||'').slice(0,10)+'</td>'
-          +'<td><button onclick="deleteUser(\''+u.email+'\')" style="background:#FF4B4B22;border:none;color:#FF4B4B;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.78rem;">Устгах</button></td>'
-          +'</tr>';
-      }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px;">Хэрэглэгч байхгүй байна</td></tr>';
-    }).catch(function(){});
-  }
-
-  function deleteUser(email) {
-    if (!confirm(email + ' хэрэглэгчийг устгах уу?')) return;
-    fetch(API + '/api/users', {
-      method:'DELETE', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({email})
-    }).then(function(){loadUsers();}).catch(function(){});
-  }
-
-  function resetPassword() {
-    var email = document.getElementById('reset-email') ? document.getElementById('reset-email').value.trim() : '';
-    var newPass = document.getElementById('reset-new') ? document.getElementById('reset-new').value.trim() : '';
-    var el = document.getElementById('reset-result');
-    if (!email || !newPass) { if(el){el.style.display='block';el.style.background='#FF4B4B22';el.textContent='И-мэйл болон нууц үг оруулна уу!';} return; }
-    fetch(API + '/api/auth', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({action:'reset', email, newPass})
-    }).then(r=>r.json()).then(function(d){
-      if(el){el.style.display='block';el.style.background=d.ok?'#58CC0222':'#FF4B4B22';el.textContent=d.ok?'✓ Нууц үг шинэчлэгдлээ!':'Алдаа: '+d.error;}
-    }).catch(function(){if(el){el.style.display='block';el.textContent='Алдаа гарлаа!';}});
-  }
-
-  // ══ LOGS ══
-  function loadLogs() {
-    fetch(API + '/api/logs').then(r=>r.json()).then(function(d){
-      var el = document.getElementById('log-list');
-      if(!el) return;
-      var logs = d.logs || [];
-      el.innerHTML = logs.length ? logs.map(function(l){
-        return '<div style="display:flex;gap:12px;align-items:center;padding:10px 14px;background:var(--surface2);border-radius:8px;margin-bottom:6px;">'
-          +'<span style="color:'+(l.color||'#58CC02')+';font-weight:800;font-size:0.8rem;min-width:80px;">'+(l.action||'')+'</span>'
-          +'<span style="flex:1;font-size:0.82rem;color:var(--text);">'+(l.detail||'')+'</span>'
-          +'<span style="font-size:0.72rem;color:var(--muted);">'+(l.created_at||'').slice(0,16).replace('T',' ')+'</span>'
-          +'</div>';
-      }).join('') : '<div style="text-align:center;color:var(--muted);padding:32px;">Лог байхгүй байна</div>';
-    }).catch(function(){});
-  }
-
-  // ══ INIT ══
-  document.addEventListener('DOMContentLoaded', function() {
-    // MathLive virtual keyboard анхандаа нуух
-    initMathKb();
-    setInterval(updatePreview, 150);
-  });
-
-</script>
-</body>
-</html>
