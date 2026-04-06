@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CyberMath Admin</title>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/mathlive"></script>
 <script>
 function admLogin() {
   var user = (document.getElementById('adm-user') || {}).value || '';
@@ -57,6 +56,7 @@ function toggleAdmPw() {
   inp.type = inp.type === 'password' ? 'text' : 'password';
 }
 </script>
+<script src="https://unpkg.com/mathlive"></script>
 <style>
 :root {
   --bg: #0d0b1a;
@@ -331,19 +331,6 @@ tr:hover td { background:rgba(123,82,238,0.05); }
   .form-row { grid-template-columns:1fr; }
 }
 
-/* MathLive custom styles */
-math-field {
-  --caret-color: #A855F7;
-  --selection-background-color: rgba(123,82,238,0.3);
-  font-size: 1rem !important;
-  line-height: 1.6 !important;
-}
-math-field::part(container) {
-  padding: 6px 8px;
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-}
 </style>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
@@ -839,9 +826,7 @@ function toggleAdmPw() {
             <div style="background:var(--surface);border-radius:16px;padding:24px;width:92%;max-width:520px;border:1px solid var(--border);">
               <div style="font-weight:800;margin-bottom:4px;color:var(--text);font-size:1rem;">∑ Математик томьёо оруулах</div>
               <div style="font-size:0.78rem;color:var(--muted);margin-bottom:12px;">Томьёогоо бичээд "Оруулах" дарна уу</div>
-              <math-field id="q-math-display" virtual-keyboard-mode="manual" math-virtual-keyboard-policy="manual"
-                style="width:100%;min-height:52px;border:1.5px solid var(--border);border-radius:8px;padding:8px;background:var(--surface2);display:block;">
-              </math-field>
+              <math-field id="q-math-display" virtual-keyboard-mode="manual" style="width:100%;min-height:80px;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--surface2);color:white;display:block;font-size:1.1rem;"></math-field>
               <div id="math-preview" class="math-preview-wrap" style="margin-top:8px;min-height:32px;padding:8px 12px;background:var(--surface2);border-radius:8px;text-align:center;">
                 <span class="math-preview-empty">Томьёо энд харагдана...</span>
               </div>
@@ -853,6 +838,8 @@ function toggleAdmPw() {
                 <div class="math-kb-tabs" id="math-kb-tabs"></div>
                 <div class="math-kb-grid" id="math-kb-grid"></div>
               </div>
+              <!-- MathLive virtual keyboard container -->
+              <div id="mlk-container" style="margin-top:8px;border-radius:10px;overflow:hidden;"></div>
               <div style="display:flex;gap:8px;margin-top:14px;">
                 <button onclick="insertQMath()" style="flex:1;background:#58CC02;border:none;color:white;border-radius:8px;padding:10px;cursor:pointer;font-weight:800;font-size:0.95rem;">✓ Оруулах</button>
                 <button onclick="closeQMathModal()" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:10px 16px;cursor:pointer;font-weight:700;">Болих</button>
@@ -945,7 +932,7 @@ function toggleAdmPw() {
           <div id="choice-math-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center;">
             <div style="background:var(--surface);border-radius:16px;padding:24px;width:90%;max-width:480px;border:1px solid var(--border);">
               <div style="font-weight:800;margin-bottom:12px;color:var(--text);">Математик бичиглэл оруулах</div>
-              <math-field id="choice-math-field" virtual-keyboard-mode="manual" math-virtual-keyboard-policy="manual" style="width:100%;min-height:52px;border:1.5px solid var(--border);border-radius:8px;padding:8px;background:var(--surface2);display:block;"></math-field>
+              <math-field id="choice-math-field" virtual-keyboard-mode="manual" style="width:100%;min-height:60px;border:1.5px solid var(--border);border-radius:8px;padding:8px;background:var(--surface2);color:white;display:block;"></math-field>
               <div id="choice-math-preview" style="margin-top:10px;min-height:32px;padding:8px;background:var(--surface2);border-radius:8px;text-align:center;"></div>
               <div style="display:flex;gap:8px;margin-top:14px;">
                 <button onclick="confirmMathToChoice()" style="flex:1;background:#58CC02;border:none;color:white;border-radius:8px;padding:10px;cursor:pointer;font-weight:800;">✓ Оруулах</button>
@@ -1137,11 +1124,25 @@ function updateQPreview() {
   if (!prev) return;
   if (!text) { prev.style.display='none'; return; }
   prev.style.display = 'block';
-  if (window.katex) {
-    try { katex.render(text, prev, {throwOnError:false, displayMode:false}); return; } catch(e) {}
-  }
-  prev.textContent = text;
+  // Зөвхөн текстээр харуулах — $...$ доторх томьёог render хийх
+  var parts = text.split(/\$([^$]+)\$/g);
+  var html_parts = parts.map(function(p, i) {
+    if (i % 2 === 1 && window.katex) {
+      try { return katex.renderToString(p, {throwOnError:false}); } catch(e) {}
+    }
+    return p.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  });
+  prev.innerHTML = html_parts.join('');
 }
+
+// MathLive virtual keyboard-г disable хийх
+window.addEventListener('load', function() {
+  if (window.MathfieldElement) {
+    window.MathfieldElement.defaultOptions = {
+      virtualKeyboardMode: 'manual',
+    };
+  }
+});
 
 function openQMathModal() {
   var modal = document.getElementById('q-math-modal');
@@ -1713,13 +1714,7 @@ function closeMathModal() {
 
   // ══ INIT ══
   document.addEventListener('DOMContentLoaded', function() {
-    // MathLive virtual keyboard унтраах
-    if (window.mathVirtualKeyboard) {
-      window.mathVirtualKeyboard.hide();
-    }
-    window.addEventListener('virtual-keyboard-layer-change', function(e) {
-      e.preventDefault();
-    });
+    // MathLive virtual keyboard анхандаа нуух
     initMathKb();
     setInterval(updatePreview, 150);
   });
