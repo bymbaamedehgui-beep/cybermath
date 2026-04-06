@@ -884,19 +884,31 @@ function toggleAdmPw() {
 
           <div class="choices-row">
             <div class="choice-input">
-              <span>A — зөв хариулт</span>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                <input type="radio" name="q-correct" value="a" checked onchange="updateChoiceHighlight()"> 
+                <span>A</span>
+              </label>
               <math-field id="q-a" virtual-keyboard-mode="manual" style="width:100%;min-height:40px;border:2px solid #58CC02;border-radius:8px;padding:4px;background:#0a1f0a;color:#f0eeff;display:block;"></math-field>
             </div>
             <div class="choice-input">
-              <span>B</span>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                <input type="radio" name="q-correct" value="b" onchange="updateChoiceHighlight()">
+                <span>B</span>
+              </label>
               <math-field id="q-b" virtual-keyboard-mode="manual" style="width:100%;min-height:40px;border:2px solid #444;border-radius:8px;padding:4px;background:#1a1040;color:#f0eeff;display:block;"></math-field>
             </div>
             <div class="choice-input">
-              <span>C</span>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                <input type="radio" name="q-correct" value="c" onchange="updateChoiceHighlight()">
+                <span>C</span>
+              </label>
               <math-field id="q-c" virtual-keyboard-mode="manual" style="width:100%;min-height:40px;border:2px solid #444;border-radius:8px;padding:4px;background:#1a1040;color:#f0eeff;display:block;"></math-field>
             </div>
             <div class="choice-input">
-              <span>D</span>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                <input type="radio" name="q-correct" value="d" onchange="updateChoiceHighlight()">
+                <span>D</span>
+              </label>
               <math-field id="q-d" virtual-keyboard-mode="manual" style="width:100%;min-height:40px;border:2px solid #444;border-radius:8px;padding:4px;background:#1a1040;color:#f0eeff;display:block;"></math-field>
             </div>
           </div>
@@ -1422,6 +1434,22 @@ function getMathText() {
     }).then(function(){ renderQuestions(); }).catch(function(){});
   }
 
+  function updateChoiceHighlight() {
+    var selected = document.querySelector('input[name="q-correct"]:checked');
+    var val = selected ? selected.value : 'a';
+    ['a','b','c','d'].forEach(function(ch) {
+      var mf = document.getElementById('q-' + ch);
+      if (!mf) return;
+      if (ch === val) {
+        mf.style.border = '2px solid #58CC02';
+        mf.style.background = '#0a1f0a';
+      } else {
+        mf.style.border = '2px solid #444';
+        mf.style.background = '#1a1040';
+      }
+    });
+  }
+
   function addQuestion() {
     var text = getMathText();
     var nodeId = document.getElementById('q-node') ? document.getElementById('q-node').value : '';
@@ -1429,22 +1457,31 @@ function getMathText() {
     var b = document.getElementById('q-b') ? document.getElementById('q-b').value.trim() : '';
     var c = document.getElementById('q-c') ? document.getElementById('q-c').value.trim() : '';
     var d = document.getElementById('q-d') ? document.getElementById('q-d').value.trim() : '';
+    // Зөв хариулт radio-аас авах
+    var selected = document.querySelector('input[name="q-correct"]:checked');
+    var correctKey = selected ? selected.value : 'a';
+    var correctMap = {a: a, b: b, c: c, d: d};
+    var correct = correctMap[correctKey];
     var hint = {text: document.getElementById('q-hint-text') ? document.getElementById('q-hint-text').value.trim() : ''};
     var msg = document.getElementById('q-msg');
     if (!text) { if(msg){msg.style.color='var(--red)';msg.textContent='Бодлогын текст оруулна уу!';} return; }
-    if (!a) { if(msg){msg.style.color='var(--red)';msg.textContent='А хариулт оруулна уу!';} return; }
+    if (!correct) { if(msg){msg.style.color='var(--red)';msg.textContent='Зөв хариулт хоосон байна!';} return; }
     fetch(API + '/api/questions', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({text, node_id: nodeId?parseInt(nodeId):null, correct:a, choices:[a,b,c,d], hint: hint.text?hint:null})
+      body: JSON.stringify({text, node_id: nodeId?parseInt(nodeId):null, correct, choices:[a,b,c,d], hint: hint.text?hint:null})
     }).then(r=>r.json()).then(function(data) {
       if (!data.ok) { if(msg){msg.style.color='var(--red)';msg.textContent='Алдаа: '+data.error;} return; }
       if(msg){msg.style.color='var(--green)';msg.textContent='✓ Амжилттай нэмэгдлээ!';}
-      ['q-a','q-b','q-c','q-d','q-hint-text'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+      ['q-a','q-b','q-c','q-d'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
       var md = document.getElementById('q-math-display'); if(md) md.value='';
+      var ht = document.getElementById('q-hint-text'); if(ht) ht.value='';
+      // Radio-г A руу буцаах
+      var radioA = document.querySelector('input[name="q-correct"][value="a"]');
+      if (radioA) { radioA.checked = true; updateChoiceHighlight(); }
       updatePreview();
       setTimeout(function(){if(msg)msg.textContent='';},2000);
       renderQuestions();
-      addLog('Бодлого', '"'+text+'" нэмэгдлээ', '#58CC02');
+      addLog('Бодлого', '"'+text.slice(0,30)+'" нэмэгдлээ', '#58CC02');
     }).catch(function(){if(msg){msg.style.color='var(--red)';msg.textContent='Алдаа гарлаа!';}});
   }
 
