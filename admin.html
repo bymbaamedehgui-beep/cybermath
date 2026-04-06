@@ -30,6 +30,27 @@ function admLogout() {
   if (ls) ls.style.display = 'flex';
   if (db) db.style.display = 'none';
 }
+
+function showPage(name, btn) {
+  // Бүх page нуух
+  document.querySelectorAll('.page').forEach(function(p) {
+    p.classList.remove('active');
+  });
+  // Идэвхтэй page харуулах
+  var page = document.getElementById('page-' + name);
+  if (page) page.classList.add('active');
+  // Nav button
+  document.querySelectorAll('.nav-item').forEach(function(b) {
+    b.classList.remove('active');
+  });
+  if (btn) btn.classList.add('active');
+  // Тухайн page-ийн өгөгдөл ачаалах
+  if (name === 'overview') loadOverview();
+  if (name === 'questions') renderQuestions();
+  if (name === 'nodes') renderNodesList();
+  if (name === 'users') loadUsers();
+  if (name === 'log') loadLogs();
+}
 function toggleAdmPw() {
   var inp = document.getElementById('adm-pass');
   if (!inp) return;
@@ -585,7 +606,7 @@ function toggleAdmPw() {
           </div>
           <div class="form-group">
             <label>Node (Хичээлийн үе)</label>
-            <select id="q-node" class="form-input form-select">
+            <select id="q-node" class="form-input form-select" onchange="renderQuestions()"  >
               <option value="">Node сонгоно уу</option>
               <option disabled>━━ 8-Р АНГИ ━━</option>
               <option disabled>  Тооны илэрхийлэл ба үйлдлүүд</option>
@@ -887,8 +908,11 @@ function toggleAdmPw() {
 
         <div class="table-card">
           <div class="table-header">
-            <div class="table-title">Бодлогын жагсаалт</div>
-            <input type="text" class="search-input" placeholder="Хайх..." oninput="renderQuestions(this.value)">
+            <div class="table-title" id="q-list-title">Бодлогын жагсаалт</div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input type="text" class="search-input" placeholder="Хайх..." oninput="renderQuestions(this.value)">
+              <button onclick="renderQuestions()" style="background:var(--purple);border:none;color:white;border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:700;white-space:nowrap;">🔄 Харах</button>
+            </div>
           </div>
           <div id="q-list" style="padding:0 20px 12px;"></div>
         </div>
@@ -1258,3 +1282,275 @@ function getMathText() {
     {id:161, name:"Сорил 19", type:"locked", icon:"🏆", grade:"9"},
     {id:162, name:"Сорил 20", type:"locked", icon:"🏆", grade:"9"},
   ];
+  // ══ CORE FUNCTIONS ══
+  var API = '';
+
+  function getNodes() {
+    try { return JSON.parse(localStorage.getItem('cm_nodes') || 'null') || DEFAULT_NODES; }
+    catch(e) { return DEFAULT_NODES; }
+  }
+  function saveNodes(nodes) { localStorage.setItem('cm_nodes', JSON.stringify(nodes)); }
+
+  function addLog(action, detail, color) {
+    fetch(API + '/api/logs', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({action, detail, color: color||'#58CC02'})
+    }).catch(function(){});
+  }
+
+  // ══ OVERVIEW ══
+  function loadOverview() {
+    fetch(API + '/api/users').then(r=>r.json()).then(function(d) {
+      var users = d.users || [];
+      var el = document.getElementById('ov-total'); if(el) el.textContent = users.length;
+      var ep = document.getElementById('ov-premium'); if(ep) ep.textContent = users.filter(u=>u.plan==='premium').length;
+      var tbody = document.getElementById('ov-recent');
+      if(tbody) tbody.innerHTML = users.slice(0,5).map(function(u){
+        return '<tr><td>'+(u.first_name||'')+'</td><td>'+u.email+'</td><td>'+(u.grade||'-')+'</td><td>'+(u.plan||'free')+'</td><td>'+(u.created_at||'').slice(0,10)+'</td></tr>';
+      }).join('');
+    }).catch(function(){});
+    fetch(API + '/api/questions').then(r=>r.json()).then(function(d){
+      var el = document.getElementById('ov-questions'); if(el) el.textContent = (d.questions||[]).length;
+    }).catch(function(){});
+    var el2 = document.getElementById('ov-today'); if(el2) el2.textContent = new Date().toLocaleDateString('mn-MN');
+  }
+
+  // ══ QUESTIONS ══
+  function renderQuestions(search) {
+    var el = document.getElementById('q-list');
+    if (!el) return;
+    var nodeEl = document.getElementById('q-node');
+    var nodeId = nodeEl ? nodeEl.value : '';
+    var nodeName = nodeEl && nodeEl.selectedIndex >= 0 ? nodeEl.options[nodeEl.selectedIndex].text : '';
+    // Гарчиг шинэчлэх
+    var titleEl = document.getElementById('q-list-title');
+    if (titleEl) titleEl.textContent = nodeId ? ('Node ' + nodeId + ': ' + nodeName + ' — бодлогууд') : 'Бүх бодлого';
+    el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted);">Уншиж байна...</div>';
+    var url = API + '/api/questions';
+    if (nodeId) url += '?node_id=' + nodeId;
+    fetch(url).then(r=>r.json()).then(function(data) {
+      var qs = data.questions || [];
+      if (search) qs = qs.filter(function(q){ return q.text && q.text.toLowerCase().includes(search.toLowerCase()); });
+      if (!qs.length) { el.innerHTML = '<div style="color:var(--muted);text-align:center;padding:32px;">Бодлого байхгүй байна</div>'; return; }
+      el.innerHTML = qs.map(function(q, idx) {
+        var choices = q.choices || [];
+        return '<div id="qblock-'+q.id+'" style="background:var(--surface2);border-radius:12px;padding:16px;margin-bottom:10px;border:1px solid var(--border);">'
+          // Header
+          + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">'
+          + '<div style="flex:1;font-weight:700;font-size:0.9rem;color:var(--text);">'+(idx+1)+'. ' + (q.text||'') + '</div>'
+          + '<div style="display:flex;gap:6px;flex-shrink:0;">'
+          + '<button onclick="editQuestion('+q.id+')" style="background:#7B52EE22;border:none;color:#A855F7;border-radius:8px;padding:6px 12px;cursor:pointer;font-weight:700;">✏️ Засах</button>'
+          + '<button onclick="deleteQuestion('+q.id+')" style="background:#FF4B4B22;border:none;color:#FF4B4B;border-radius:8px;padding:6px 12px;cursor:pointer;font-weight:700;">🗑</button>'
+          + '</div></div>'
+          // Choices
+          + '<div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:6px;">'
+          + choices.map(function(ch, ci) {
+              var isCorrect = ch === q.correct;
+              return '<div style="padding:6px 10px;border-radius:8px;font-size:0.82rem;font-weight:700;'
+                + (isCorrect ? 'background:#58CC0222;color:#58CC02;border:1px solid #58CC0240;' : 'background:var(--surface);color:var(--muted);border:1px solid var(--border);')
+                + '">' + (isCorrect ? '✓ ' : '') + (ch||'—') + '</div>';
+            }).join('')
+          + '</div>'
+          + '<div style="margin-top:8px;font-size:0.78rem;color:var(--muted);">Node: '+(q.node_id||'-')+(q.hint&&q.hint.text?' | 💡 Hint байна':'')+'</div>'
+          // Edit form (нуугдсан)
+          + '<div id="qedit-'+q.id+'" style="display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:14px;">'
+          + '<div style="margin-bottom:8px;"><label style="font-size:0.78rem;color:var(--muted);font-weight:700;">Бодлого</label>'
+          + '<textarea id="qedit-text-'+q.id+'" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--text);font-size:0.85rem;margin-top:4px;resize:vertical;min-height:60px;">'+((q.text||'').replace(/</g,'&lt;'))+'</textarea></div>'
+          + ['А','Б','В','Г'].map(function(lbl, ci) {
+              return '<div style="margin-bottom:6px;display:flex;align-items:center;gap:8px;">'
+                +'<label style="font-size:0.78rem;color:var(--muted);font-weight:700;min-width:24px;">'+lbl+'</label>'
+                +'<input id="qedit-ch'+ci+'-'+q.id+'" value="'+(choices[ci]||'').replace(/"/g,'&quot;')+'" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-size:0.84rem;">'
+                +'<label style="font-size:0.75rem;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer;">'
+                +'<input type="radio" name="correct-'+q.id+'" value="'+ci+'" '+(choices[ci]===q.correct?'checked':'')+' style="cursor:pointer;"> Зөв</label>'
+                +'</div>';
+            }).join('')
+          + '<div style="margin-bottom:6px;"><label style="font-size:0.78rem;color:var(--muted);font-weight:700;">💡 Hint</label>'
+          + '<input id="qedit-hint-'+q.id+'" value="'+((q.hint&&q.hint.text||'').replace(/"/g,'&quot;'))+'" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-size:0.84rem;margin-top:4px;"></div>'
+          + '<div style="display:flex;gap:8px;margin-top:10px;">'
+          + '<button onclick="saveQuestion('+q.id+')" style="flex:1;background:#58CC02;border:none;color:white;border-radius:8px;padding:9px;cursor:pointer;font-weight:800;">✓ Хадгалах</button>'
+          + '<button onclick="cancelEdit('+q.id+')" style="background:var(--surface);border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:9px 16px;cursor:pointer;font-weight:700;">Болих</button>'
+          + '</div></div>'
+          + '</div>';
+      }).join('');
+    }).catch(function(){ el.innerHTML = '<div style="color:var(--muted);text-align:center;padding:32px;">Сервертэй холбогдоход алдаа гарлаа</div>'; });
+  }
+
+  function editQuestion(id) {
+    var form = document.getElementById('qedit-'+id);
+    if (form) form.style.display = form.style.display==='none' ? 'block' : 'none';
+  }
+
+  function cancelEdit(id) {
+    var form = document.getElementById('qedit-'+id);
+    if (form) form.style.display = 'none';
+  }
+
+  function saveQuestion(id) {
+    var text = document.getElementById('qedit-text-'+id) ? document.getElementById('qedit-text-'+id).value.trim() : '';
+    var choices = [0,1,2,3].map(function(ci){
+      var el = document.getElementById('qedit-ch'+ci+'-'+id);
+      return el ? el.value.trim() : '';
+    });
+    var correctIdx = 0;
+    var radios = document.querySelectorAll('input[name="correct-'+id+'"]');
+    radios.forEach(function(r){ if(r.checked) correctIdx = parseInt(r.value); });
+    var correct = choices[correctIdx] || choices[0];
+    var hintEl = document.getElementById('qedit-hint-'+id);
+    var hint = hintEl ? {text: hintEl.value.trim()} : null;
+    if (!text) { alert('Бодлогын текст оруулна уу!'); return; }
+    // DELETE + POST (update)
+    fetch(API + '/api/questions', {
+      method:'DELETE', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({id: id})
+    }).then(function() {
+      return fetch(API + '/api/questions', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({text, correct, choices, hint: hint&&hint.text?hint:null,
+          node_id: document.getElementById('q-node') ? parseInt(document.getElementById('q-node').value)||null : null})
+      });
+    }).then(r=>r.json()).then(function(d){
+      if(d.ok) { renderQuestions(); addLog('Бодлого засав', text.slice(0,40), '#1CB0F6'); }
+      else alert('Алдаа: ' + d.error);
+    }).catch(function(){ alert('Алдаа гарлаа!'); });
+  }
+
+  function deleteQuestion(id) {
+    if (!confirm('Устгах уу?')) return;
+    fetch(API + '/api/questions', {
+      method:'DELETE', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({id: id})
+    }).then(function(){ renderQuestions(); }).catch(function(){});
+  }
+
+  function addQuestion() {
+    var text = getMathText();
+    var nodeId = document.getElementById('q-node') ? document.getElementById('q-node').value : '';
+    var a = document.getElementById('q-a') ? document.getElementById('q-a').value.trim() : '';
+    var b = document.getElementById('q-b') ? document.getElementById('q-b').value.trim() : '';
+    var c = document.getElementById('q-c') ? document.getElementById('q-c').value.trim() : '';
+    var d = document.getElementById('q-d') ? document.getElementById('q-d').value.trim() : '';
+    var hint = {text: document.getElementById('q-hint-text') ? document.getElementById('q-hint-text').value.trim() : ''};
+    var msg = document.getElementById('q-msg');
+    if (!text) { if(msg){msg.style.color='var(--red)';msg.textContent='Бодлогын текст оруулна уу!';} return; }
+    if (!a) { if(msg){msg.style.color='var(--red)';msg.textContent='А хариулт оруулна уу!';} return; }
+    fetch(API + '/api/questions', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({text, node_id: nodeId?parseInt(nodeId):null, correct:a, choices:[a,b,c,d], hint: hint.text?hint:null})
+    }).then(r=>r.json()).then(function(data) {
+      if (!data.ok) { if(msg){msg.style.color='var(--red)';msg.textContent='Алдаа: '+data.error;} return; }
+      if(msg){msg.style.color='var(--green)';msg.textContent='✓ Амжилттай нэмэгдлээ!';}
+      ['q-a','q-b','q-c','q-d','q-hint-text'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+      var md = document.getElementById('q-math-display'); if(md) md.value='';
+      updatePreview();
+      setTimeout(function(){if(msg)msg.textContent='';},2000);
+      renderQuestions();
+      addLog('Бодлого', '"'+text+'" нэмэгдлээ', '#58CC02');
+    }).catch(function(){if(msg){msg.style.color='var(--red)';msg.textContent='Алдаа гарлаа!';}});
+  }
+
+  // ══ NODES ══
+  function renderNodesList() {
+    var nodes = getNodes();
+    var el = document.getElementById('nodes-list');
+    if (!el) return;
+    el.innerHTML = nodes.map(function(n) {
+      var typeColor = n.type==='lesson' ? 'var(--green)' : n.type==='soon' ? 'var(--yellow)' : 'var(--muted)';
+      var typeLbl = n.type==='lesson' ? '✅ Нээлттэй' : n.type==='soon' ? '⏳ Удахгүй' : '🔒 Хаалттай';
+      return '<div style="display:flex;align-items:center;gap:12px;background:var(--surface2);border-radius:10px;padding:12px 14px;margin-bottom:8px;">'
+        + '<div style="font-size:1.4rem;width:32px;text-align:center;">'+(n.icon||'📚')+'</div>'
+        + '<div style="flex:1;">'
+        + '<div style="font-weight:800;font-size:0.92rem;color:var(--text);">'+n.id+'. '+n.name+'</div>'
+        + '<div style="display:flex;gap:8px;margin-top:4px;">'
+        + '<span style="font-size:0.72rem;font-weight:800;color:'+typeColor+';">'+typeLbl+'</span>'
+        + (n.grade?'<span style="font-size:0.72rem;background:var(--surface);border-radius:6px;padding:2px 8px;color:var(--muted);">'+n.grade+'-р анги</span>':'')
+        + '</div></div>'
+        + '<select onchange="updateNodeType('+n.id+',this.value)" style="padding:5px 8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:0.75rem;color:var(--text);cursor:pointer;">'
+        + '<option value="lesson"'+(n.type==='lesson'?' selected':'')+'>✅ Нээлттэй</option>'
+        + '<option value="locked"'+(n.type==='locked'?' selected':'')+'>🔒 Хаалттай</option>'
+        + '<option value="soon"'+(n.type==='soon'?' selected':'')+'>⏳ Удахгүй</option>'
+        + '</select>'
+        + '</div>';
+    }).join('');
+  }
+
+  function updateNodeType(id, type) {
+    var nodes = getNodes();
+    var n = nodes.find(function(x){return x.id===id;});
+    if (n) { n.type = type; saveNodes(nodes); }
+    fetch(API + '/api/nodes', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({id, type})
+    }).catch(function(){});
+  }
+
+  function saveAllNodes() {
+    var nodes = getNodes();
+    fetch(API + '/api/seed', {method:'GET'}).catch(function(){});
+    alert('Node-ууд хадгалагдлаа!');
+  }
+
+  // ══ USERS ══
+  function loadUsers() {
+    fetch(API + '/api/users').then(r=>r.json()).then(function(d) {
+      var users = d.users || [];
+      var el = document.getElementById('users-list');
+      if (!el) return;
+      el.innerHTML = users.length ? users.map(function(u){
+        return '<tr>'
+          +'<td>'+(u.first_name||'')+' '+(u.last_name||'')+'</td>'
+          +'<td>'+u.email+'</td>'
+          +'<td>'+(u.grade||'-')+'</td>'
+          +'<td><span style="color:'+(u.plan==='premium'?'var(--yellow)':'var(--muted)')+';">'+(u.plan||'free')+'</span></td>'
+          +'<td>'+(u.created_at||'').slice(0,10)+'</td>'
+          +'<td><button onclick="deleteUser(\''+u.email+'\')" style="background:#FF4B4B22;border:none;color:#FF4B4B;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.78rem;">Устгах</button></td>'
+          +'</tr>';
+      }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px;">Хэрэглэгч байхгүй байна</td></tr>';
+    }).catch(function(){});
+  }
+
+  function deleteUser(email) {
+    if (!confirm(email + ' хэрэглэгчийг устгах уу?')) return;
+    fetch(API + '/api/users', {
+      method:'DELETE', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({email})
+    }).then(function(){loadUsers();}).catch(function(){});
+  }
+
+  function resetPassword() {
+    var email = document.getElementById('reset-email') ? document.getElementById('reset-email').value.trim() : '';
+    var newPass = document.getElementById('reset-new') ? document.getElementById('reset-new').value.trim() : '';
+    var el = document.getElementById('reset-result');
+    if (!email || !newPass) { if(el){el.style.display='block';el.style.background='#FF4B4B22';el.textContent='И-мэйл болон нууц үг оруулна уу!';} return; }
+    fetch(API + '/api/auth', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({action:'reset', email, newPass})
+    }).then(r=>r.json()).then(function(d){
+      if(el){el.style.display='block';el.style.background=d.ok?'#58CC0222':'#FF4B4B22';el.textContent=d.ok?'✓ Нууц үг шинэчлэгдлээ!':'Алдаа: '+d.error;}
+    }).catch(function(){if(el){el.style.display='block';el.textContent='Алдаа гарлаа!';}});
+  }
+
+  // ══ LOGS ══
+  function loadLogs() {
+    fetch(API + '/api/logs').then(r=>r.json()).then(function(d){
+      var el = document.getElementById('log-list');
+      if(!el) return;
+      var logs = d.logs || [];
+      el.innerHTML = logs.length ? logs.map(function(l){
+        return '<div style="display:flex;gap:12px;align-items:center;padding:10px 14px;background:var(--surface2);border-radius:8px;margin-bottom:6px;">'
+          +'<span style="color:'+(l.color||'#58CC02')+';font-weight:800;font-size:0.8rem;min-width:80px;">'+(l.action||'')+'</span>'
+          +'<span style="flex:1;font-size:0.82rem;color:var(--text);">'+(l.detail||'')+'</span>'
+          +'<span style="font-size:0.72rem;color:var(--muted);">'+(l.created_at||'').slice(0,16).replace('T',' ')+'</span>'
+          +'</div>';
+      }).join('') : '<div style="text-align:center;color:var(--muted);padding:32px;">Лог байхгүй байна</div>';
+    }).catch(function(){});
+  }
+
+  // ══ INIT ══
+  document.addEventListener('DOMContentLoaded', function() {
+    initMathKb();
+    setInterval(updatePreview, 150);
+  });
+
+</script>
+</body>
+</html>
