@@ -1245,20 +1245,17 @@ function closeQMathModal() {
 }
 
 function insertQMath() {
+  // Edit modal-аас дуудсан бол override ашиглах
+  if (window._editMathConfirm) { window._editMathConfirm(); return; }
   var mf = document.getElementById('q-math-display');
   var target = document.getElementById('q-text-main');
   if (!mf || !target) return;
-  var latex = (mf.value||mf.getValue&&mf.getValue()||"").trim();
+  var latex = ((mf.value||mf.getValue&&mf.getValue()||'')).trim();
   if (!latex) { closeQMathModal(); return; }
-  // Cursor байрлалд оруулах
   var start = target.selectionStart || target.value.length;
   var end = target.selectionEnd || target.value.length;
-  var before = target.value.slice(0, start);
-  var after = target.value.slice(end);
-  target.value = before + '$' + latex + '$' + after;
+  target.value = target.value.slice(0,start) + '$' + latex + '$' + target.value.slice(end);
   target.focus();
-  var pos = start + latex.length + 2;
-  target.setSelectionRange(pos, pos);
   mf.value = '';
   closeQMathModal();
   updateQPreview();
@@ -1598,20 +1595,35 @@ function closeMathModal() { closeChoiceMathModal(); }
           + '<div style="margin-top:8px;font-size:0.78rem;color:var(--muted);">Node: '+(q.node_id||'-')+(q.hint&&q.hint.text?' | 💡 Hint байна':'')+'</div>'
           // Edit form (нуугдсан)
           + '<div id="qedit-'+q.id+'" style="display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:14px;">'
-          + '<div style="margin-bottom:8px;"><label style="font-size:0.78rem;color:var(--muted);font-weight:700;">Бодлого</label>'
-          + '<math-field id="qedit-text-'+q.id+'" virtual-keyboard-mode="manual" style="width:100%;min-height:56px;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--surface);color:var(--text);display:block;margin-top:4px;font-size:1rem;">'+((q.text||''))+'</math-field></div>'
+          // Бодлогын текст — textarea + ∑ товч
+          + '<div style="margin-bottom:10px;">'
+          + '<label style="font-size:0.78rem;color:var(--muted);font-weight:700;display:block;margin-bottom:4px;">Бодлогын текст</label>'
+          + '<div style="position:relative;">'
+          + '<textarea id="qedit-text-'+q.id+'" rows="2" style="width:100%;padding:10px 12px;padding-right:90px;background:var(--surface2);border:1.5px solid var(--border);border-radius:8px;color:var(--text);font-size:0.92rem;resize:vertical;box-sizing:border-box;font-family:\'Baloo 2\',sans-serif;">'+((q.text||'').replace(/</g,'&lt;'))+'</textarea>'
+          + '<button type="button" onclick="openEditMathModal(\'qedit-text-'+q.id+'\')" style="position:absolute;top:8px;right:8px;background:#7B52EE;border:none;color:white;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.78rem;font-weight:800;">∑ Томьёо</button>'
+          + '</div></div>'
+          // A,B,C,D хариулт — input + ∑ товч
+          + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">'
           + ['А','Б','В','Г'].map(function(lbl, ci) {
-              return '<div style="margin-bottom:6px;display:flex;align-items:center;gap:8px;">'
-                +'<label style="font-size:0.78rem;color:var(--muted);font-weight:700;min-width:24px;">'+lbl+'</label>'
-                +'<math-field id="qedit-ch'+ci+'-'+q.id+'" virtual-keyboard-mode="manual" style="flex:1;min-height:46px;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;background:var(--surface);color:var(--text);display:block;font-size:0.95rem;">'+(choices[ci]||'')+'</math-field>'
-                +'<label style="font-size:0.75rem;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap;">'
-                +'<input type="radio" name="correct-'+q.id+'" value="'+ci+'" '+(choices[ci]===q.correct?'checked':'')+' style="cursor:pointer;"> Зөв</label>'
-                +'</div>';
+              var isCorrect = choices[ci] === q.correct;
+              return '<div>'
+                + '<label style="display:flex;align-items:center;gap:6px;margin-bottom:4px;cursor:pointer;">'
+                + '<input type="radio" name="correct-'+q.id+'" value="'+ci+'" '+(isCorrect?'checked':'')+' style="cursor:pointer;">'
+                + '<span style="font-weight:800;font-size:0.8rem;color:var(--muted);">'+lbl+'</span>'
+                + '</label>'
+                + '<div style="display:flex;gap:4px;">'
+                + '<input id="qedit-ch'+ci+'-'+q.id+'" type="text" value="'+(choices[ci]||'').replace(/"/g,'&quot;')+'" style="flex:1;height:36px;background:var(--surface2);border:1.5px solid '+(isCorrect?'#58CC02':'var(--border)')+';border-radius:8px;padding:6px 10px;color:var(--text);font-size:0.88rem;box-sizing:border-box;">'
+                + '<button type="button" onclick="openEditMathModal(\'qedit-ch'+ci+'-'+q.id+'\')" style="background:#7B52EE;border:none;color:white;border-radius:8px;padding:0 8px;cursor:pointer;font-size:0.8rem;font-weight:800;">∑</button>'
+                + '</div></div>';
             }).join('')
-          + '<div style="margin-bottom:6px;"><label style="font-size:0.78rem;color:var(--muted);font-weight:700;">💡 Hint</label>'
-          + '<input id="qedit-hint-'+q.id+'" value="'+((q.hint&&q.hint.text||'').replace(/"/g,'&quot;'))+'" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-size:0.84rem;margin-top:4px;"></div>'
+          + '</div>'
+          // Hint
+          + '<div style="margin-bottom:8px;">'
+          + '<label style="font-size:0.78rem;color:var(--muted);font-weight:700;display:block;margin-bottom:4px;">💡 Hint</label>'
+          + '<input id="qedit-hint-'+q.id+'" type="text" value="'+((q.hint&&q.hint.text||'').replace(/"/g,'&quot;'))+'" style="width:100%;height:36px;background:var(--surface2);border:1.5px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text);font-size:0.88rem;box-sizing:border-box;">'
+          + '</div>'
           + '<div style="display:flex;gap:8px;margin-top:10px;">'
-          + '<button onclick="saveQuestion('+q.id+')" style="flex:1;background:#58CC02;border:none;color:white;border-radius:8px;padding:9px;cursor:pointer;font-weight:800;">✓ Хадгалах</button>'
+          + '<button onclick="saveQuestion('+q.id+')" style="flex:1;background:#58CC02;border:none;color:white;border-radius:8px;padding:9px;cursor:pointer;font-weight:800;font-size:0.9rem;">✓ Хадгалах</button>'
           + '<button onclick="cancelEdit('+q.id+')" style="background:var(--surface);border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:9px 16px;cursor:pointer;font-weight:700;">Болих</button>'
           + '</div></div>'
           + '</div>';
@@ -1623,6 +1635,50 @@ function closeMathModal() { closeChoiceMathModal(); }
     var form = document.getElementById('qedit-'+id);
     if (form) form.style.display = form.style.display==='none' ? 'block' : 'none';
   }
+
+// Засах form-ын томьёо оруулах modal — q-math-modal-тай яг адил ажиллана
+var _editMathTarget = null;
+function openEditMathModal(targetId) {
+  _editMathTarget = targetId;
+  var modal = document.getElementById('q-math-modal');
+  var card = document.getElementById('q-math-card');
+  if (modal) modal.style.display = 'flex';
+  if (card) { card.style.position = 'relative'; card.style.left = ''; card.style.top = ''; }
+  // Title шинэчлэх
+  var title = card ? card.querySelector('div[style*="font-weight:800"]') : null;
+  // Одоогийн утга оруулах
+  var mf = document.getElementById('q-math-display');
+  var cur = document.getElementById(targetId);
+  setTimeout(function(){
+    if (mf && cur) {
+      var val = cur.value || cur.textContent || '';
+      // $...$ байвал хасах
+      mf.value = val.replace(/^\$|\$$/g, '');
+    }
+    if (mf) mf.focus();
+    initMathKb();
+  }, 150);
+  // insertQMath-г override хийх
+  window._editMathConfirm = function() {
+    var mf2 = document.getElementById('q-math-display');
+    var target = document.getElementById(_editMathTarget);
+    if (mf2 && target) {
+      var val2 = ((mf2.value||mf2.getValue&&mf2.getValue()||'')).trim();
+      if (target.tagName === 'TEXTAREA') {
+        // cursor байрлалд оруулах
+        var start = target.selectionStart || target.value.length;
+        var end = target.selectionEnd || target.value.length;
+        target.value = target.value.slice(0,start) + '$' + val2 + '$' + target.value.slice(end);
+      } else {
+        target.value = val2 ? '$' + val2 + '$' : '';
+      }
+      mf2.value = '';
+    }
+    closeQMathModal();
+    _editMathTarget = null;
+    window._editMathConfirm = null;
+  };
+}
 
   function cancelEdit(id) {
     var form = document.getElementById('qedit-'+id);
