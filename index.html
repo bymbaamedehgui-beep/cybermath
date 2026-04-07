@@ -2632,7 +2632,7 @@ body {
 </svg>
   </a>
   <div class="nav-stats">
-    <div class="nav-avatar-wrap" onclick="_currentUser ? openProfileModal() : openAvatarModal()" title="Профайл">
+    <div class="nav-avatar-wrap" onclick="handleAvatarClick()" title="Профайл">
       <div class="nav-avatar-btn" id="nav-avatar-btn">
         <div class="nav-avatar-inner" id="nav-avatar-inner">
           <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="28" height="28">
@@ -10823,62 +10823,98 @@ function renderMath(text) {
     if (badge) badge.textContent = 'Lv1';
     showLanding();
   }
+  function handleAvatarClick() {
+    if (_currentUser) {
+      openProfileModal();
+    } else {
+      openAvatarModal();
+    }
+  }
+
   function openProfileModal() {
-    var u = _currentUser;
-    if (!u) { openAuthModal('login'); return; }
-    document.getElementById('prof-name').textContent = (u.lastName||'') + ' ' + (u.firstName||'');
-    document.getElementById('prof-email').textContent = u.email;
-    var gradeEl = document.getElementById('prof-grade');
-    if (gradeEl) gradeEl.textContent = u.grade ? u.grade + '-р анги' : 'Тогтоогдоогүй';
-    var planEl = document.getElementById('prof-plan');
-    if (planEl) {
-      planEl.textContent = u.plan === 'premium' ? '⭐ Premium' : '🆓 Free';
-      planEl.style.background = u.plan === 'premium' ? 'linear-gradient(135deg,#FFC800,#FF9600)' : 'linear-gradient(135deg,#7B52EE,#A855F7)';
-    }
-    var streakEl = document.getElementById('prof-streak');
-    if (streakEl) {
-      try { var sd = JSON.parse(localStorage.getItem('cybermath_streak') || '{}'); streakEl.textContent = (sd.count || 0) + ' өдөр'; }
-      catch(e) { streakEl.textContent = '0 өдөр'; }
-    }
-    var xpEl = document.getElementById('prof-xp');
-    if (xpEl) xpEl.textContent = (xp || 0) + ' XP (Lv' + (_userLevel||1) + ')';
-    var expEl = document.getElementById('prof-expiry');
-    var expCard = document.getElementById('prof-expiry-card');
-    if (expEl && expCard) {
-      if (u.plan === 'premium') {
-        var expDate = u.premiumUntil ? new Date(u.premiumUntil) : new Date(Date.now() + 30*24*60*60*1000);
-        var diff = Math.ceil((expDate - Date.now()) / (1000*60*60*24));
-        expEl.textContent = expDate.toLocaleDateString('mn-MN') + ' (' + diff + ' өдөр үлдсэн)';
-        expEl.style.color = diff < 7 ? '#FF4B4B' : '#3C3C3C';
-        expCard.style.display = 'flex';
-      } else { expCard.style.display = 'none'; }
-    }
-    var avatarEl = document.getElementById('prof-avatar-display');
-    var navInner = document.getElementById('nav-avatar-inner');
-    if (avatarEl && navInner) avatarEl.innerHTML = navInner.innerHTML;
-    // Нэмэлт статс
-    var statsEl = document.getElementById('prof-extra-stats');
-    if (!statsEl) {
-      var profBody = document.querySelector('.prof-body');
-      if (profBody) {
+    try {
+      var u = _currentUser;
+      if (!u) { openAuthModal('login'); return; }
+
+      var pm = document.getElementById('profile-modal');
+      if (!pm) return;
+
+      // Нэр
+      var nameEl = document.getElementById('prof-name');
+      if (nameEl) nameEl.textContent = (u.lastName||'') + ' ' + (u.firstName||'');
+
+      // И-мэйл
+      var emailEl = document.getElementById('prof-email');
+      if (emailEl) emailEl.textContent = u.email || '';
+
+      // Анги
+      var gradeEl = document.getElementById('prof-grade');
+      if (gradeEl) gradeEl.textContent = u.grade ? u.grade + '-р анги' : '-';
+
+      // Тарифф
+      var planEl = document.getElementById('prof-plan');
+      if (planEl) {
+        planEl.textContent = u.plan === 'premium' ? '⭐ Premium' : '🆓 Free';
+        planEl.style.background = u.plan === 'premium'
+          ? 'linear-gradient(135deg,#FFC800,#FF9600)'
+          : 'linear-gradient(135deg,#7B52EE,#A855F7)';
+      }
+
+      // Streak
+      var streakEl = document.getElementById('prof-streak');
+      if (streakEl) {
+        try {
+          var sd = JSON.parse(localStorage.getItem('cybermath_streak') || '{}');
+          streakEl.textContent = (sd.count || 0) + ' өдөр';
+        } catch(e) { streakEl.textContent = '0 өдөр'; }
+      }
+
+      // XP
+      var xpEl = document.getElementById('prof-xp');
+      if (xpEl) xpEl.textContent = (xp || 0) + ' XP (Lv' + (_userLevel || 1) + ')';
+
+      // Premium хугацаа
+      var expCard = document.getElementById('prof-expiry-card');
+      if (expCard) expCard.style.display = 'none';
+
+      // Avatar
+      var avatarEl = document.getElementById('prof-avatar-display');
+      var navInner = document.getElementById('nav-avatar-inner');
+      if (avatarEl && navInner && navInner.innerHTML) {
+        avatarEl.innerHTML = navInner.innerHTML;
+      }
+
+      // Gem, heart, done stats
+      var done = getCompletedLessons ? getCompletedLessons().length : 0;
+      var gemCount = (document.getElementById('gem-count') || {}).textContent || (u.gems || 340);
+      var heartCount = (document.getElementById('heart-count') || {}).textContent || (u.hearts || 5);
+
+      var statsEl = document.getElementById('prof-extra-stats');
+      if (!statsEl) {
         statsEl = document.createElement('div');
         statsEl.id = 'prof-extra-stats';
-        statsEl.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;';
-        profBody.insertBefore(statsEl, profBody.firstChild);
+        var profBody = pm.querySelector('.prof-body');
+        if (profBody) profBody.insertBefore(statsEl, profBody.firstChild);
       }
+      if (statsEl) {
+        statsEl.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;';
+        statsEl.innerHTML = [
+          ['💎', gemCount, 'Эрдэнэ'],
+          ['❤️', heartCount, 'Зүрх'],
+          ['✅', done, 'Хичээл']
+        ].map(function(s) {
+          return '<div style="background:#f8f6ff;border:1px solid #e0d8ff;border-radius:12px;padding:12px 6px;text-align:center;">'
+            + '<div style="font-size:1.3rem;">' + s[0] + '</div>'
+            + '<div style="font-weight:900;font-size:1.05rem;color:#7B52EE;">' + s[1] + '</div>'
+            + '<div style="font-size:0.68rem;color:#999;font-weight:700;">' + s[2] + '</div>'
+            + '</div>';
+        }).join('');
+      }
+
+      pm.style.display = 'flex';
+    } catch(e) {
+      console.error('openProfileModal error:', e);
     }
-    if (statsEl) {
-      var done = getCompletedLessons().length;
-      var gems = (document.getElementById('gem-count')||{}).textContent || (u.gems||340);
-      var hearts = (document.getElementById('heart-count')||{}).textContent || (u.hearts||5);
-      statsEl.innerHTML = [['💎',gems,'Эрдэнэ'],['❤️',hearts,'Зүрх'],['✅',done,'Хичээл']].map(function(s){
-        return '<div style="background:#f8f6ff;border:1px solid #e8e0ff;border-radius:12px;padding:12px 8px;text-align:center;">'
-          +'<div style="font-size:1.4rem;">'+s[0]+'</div>'
-          +'<div style="font-weight:900;font-size:1.1rem;color:#7B52EE;">'+s[1]+'</div>'
-          +'<div style="font-size:0.68rem;color:#888;font-weight:700;">'+s[2]+'</div></div>';
-      }).join('');
-    }
-    document.getElementById('profile-modal').style.display = 'flex';
   }
 
   function closeProfileModal() { document.getElementById('profile-modal').style.display = 'none'; }
