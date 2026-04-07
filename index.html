@@ -10202,14 +10202,56 @@ function renderMath(text) {
  
   // ===== AVATAR =====
   var _selAv = 1;
+function toggleAvatarSection() {
+    var sec = document.getElementById('av-selector-section');
+    var btn = document.getElementById('av-toggle-btn');
+    if (!sec) return;
+    if (sec.style.display === 'none') {
+      sec.style.display = 'block';
+      if (btn) btn.textContent = '🐦 Профайл сонгох ▲';
+    } else {
+      sec.style.display = 'none';
+      if (btn) btn.textContent = '🐦 Профайл сонгох ▼';
+    }
+  }
+
   function openAvatarModal() {
     var user = _getUser();
+    var m = document.getElementById('av-modal');
+    if (!m) return;
+    m.style.display = 'flex';
+    _updateAv();
+
+    var infoEl = document.getElementById('av-user-info');
+    var secEl = document.getElementById('av-selector-section');
+    var btn = document.getElementById('av-toggle-btn');
+
     if (user) {
-      var m = document.getElementById('av-modal');
-      m.style.display = 'flex';
-      _updateAv();
+      // Нэвтэрсэн: stats харуулж, avatar section нуух
+      if (infoEl) infoEl.style.display = 'block';
+      if (secEl) secEl.style.display = 'none';
+      if (btn) btn.textContent = '🐦 Профайл сонгох ▼';
+      // Stats
+      var statsEl = document.getElementById('av-stats-grid');
+      if (statsEl) {
+        var done = getCompletedLessons ? getCompletedLessons().length : 0;
+        var gems = (document.getElementById('gem-count')||{}).textContent || (user.gems||340);
+        statsEl.innerHTML = [
+          ['⭐', (xp||0) + ' XP', 'Lv' + (_userLevel||1)],
+          ['💎', gems, 'Эрдэнэ'],
+          ['✅', done, 'Хичээл']
+        ].map(function(s){
+          return '<div style="background:#f8f6ff;border:1px solid #e8e0ff;border-radius:10px;padding:10px 6px;text-align:center;">'
+            +'<div style="font-size:1.1rem;">'+s[0]+'</div>'
+            +'<div style="font-weight:900;font-size:0.95rem;color:#7B52EE;">'+s[1]+'</div>'
+            +'<div style="font-size:0.65rem;color:#999;font-weight:700;">'+s[2]+'</div>'
+            +'</div>';
+        }).join('');
+      }
     } else {
-      openAuthModal('login');
+      // Нэвтрээгүй: avatar section шууд харуулах
+      if (infoEl) infoEl.style.display = 'none';
+      if (secEl) secEl.style.display = 'block';
     }
   }
   function closeAv() {
@@ -10824,11 +10866,7 @@ function renderMath(text) {
     showLanding();
   }
   function handleAvatarClick() {
-    if (_currentUser) {
-      openProfileModal();
-    } else {
-      openAvatarModal();
-    }
+    openAvatarModal();
   }
 
   function openProfileModal() {
@@ -11353,11 +11391,26 @@ function renderMath(text) {
 
     <!-- Header -->
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-      <span style="font-family:'Baloo 2',sans-serif;font-size:1.4rem;font-weight:800;background:linear-gradient(135deg,#7B52EE,#C084FC);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">Профайл сонгох</span>
+      <span style="font-family:'Baloo 2',sans-serif;font-size:1.1rem;font-weight:800;color:#7B52EE;">Профайл</span>
       <button onclick="closeAv()" style="width:32px;height:32px;border-radius:50%;border:none;background:#f0f0f6;cursor:pointer;font-size:1rem;font-weight:700;color:#666">✕</button>
     </div>
 
-    <!-- Photo upload — always visible, prominent -->
+    <!-- Stats (нэвтэрсэн үед) -->
+    <div id="av-user-info" style="display:none;margin-bottom:12px;">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px;" id="av-stats-grid"></div>
+      <button onclick="toggleAvatarSection()" id="av-toggle-btn"
+        style="width:100%;padding:11px;background:linear-gradient(135deg,#f0eeff,#e8e0ff);border:1.5px solid #c8b8ff;border-radius:12px;color:#7B52EE;font-weight:800;font-size:0.9rem;cursor:pointer;margin-bottom:8px;">
+        🐦 Профайл сонгох ▼
+      </button>
+      <button onclick="closeAv();doLogout();"
+        style="width:100%;padding:10px;background:#fff0f0;border:1px solid #ffc8c8;border-radius:12px;color:#FF4B4B;font-weight:800;font-size:0.88rem;cursor:pointer;">
+        🚪 Гарах
+      </button>
+    </div>
+
+    <!-- Avatar section -->
+    <div id="av-selector-section" style="display:none;">
+<!-- Photo upload — always visible, prominent -->
     <div id="photo-upload-area" onclick="document.getElementById('av-photo-input').click()"
          style="border:2.5px dashed #b39dfc;border-radius:18px;padding:16px 12px;text-align:center;cursor:pointer;margin-bottom:16px;background:linear-gradient(135deg,#faf7ff,#f0ebff);transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:12px">
       <input type="file" id="av-photo-input" accept="image/*" style="display:none" onchange="handlePhotoUpload(event)">
@@ -12117,11 +12170,13 @@ function renderMath(text) {
 
     <!-- Confirm button -->
     <button onclick="confAv()" style="width:100%;padding:14px;background:linear-gradient(135deg,#7B52EE,#A855F7);color:#fff;font-family:'Baloo 2',sans-serif;font-weight:800;font-size:1rem;border:none;border-radius:100px;cursor:pointer;box-shadow:0 5px 0 #5a30cc;transition:transform 0.12s,box-shadow 0.12s">Сонгох ✓</button>
+</div>
+</div> <!-- /av-selector-section -->
   
-    <div style="display:flex;gap:8px;padding:12px 0 4px;">
-      <button onclick="closeAv();openProfileModal();" style="flex:1;padding:10px;background:#f0eeff;border:1px solid #d0c8ff;border-radius:12px;color:#7B52EE;font-weight:800;font-size:0.88rem;cursor:pointer;">👤 Профайл</button>
-      <button onclick="closeAv();doLogout();" style="flex:1;padding:10px;background:#fff0f0;border:1px solid #ffc8c8;border-radius:12px;color:#FF4B4B;font-weight:800;font-size:0.88rem;cursor:pointer;">🚪 Гарах</button>
-    </div></div>
+    <!-- User info + товчнууд -->
+
+
+    <!-- Avatar+photo хэсэг — эхэндээ нуугдсан -->
 </div>
 
 <script>
