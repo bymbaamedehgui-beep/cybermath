@@ -10826,38 +10826,22 @@ function renderMath(text) {
   function openProfileModal() {
     var u = _currentUser;
     if (!u) return;
-
-    // Нэр
-    document.getElementById('prof-name').textContent = u.lastName + ' ' + u.firstName;
-
-    // И-мэйл
+    document.getElementById('prof-name').textContent = (u.lastName||'') + ' ' + (u.firstName||'');
     document.getElementById('prof-email').textContent = u.email;
-
-    // Анги
     var gradeEl = document.getElementById('prof-grade');
     if (gradeEl) gradeEl.textContent = u.grade ? u.grade + '-р анги' : 'Тогтоогдоогүй';
-
-    // Тарифф
     var planEl = document.getElementById('prof-plan');
     if (planEl) {
       planEl.textContent = u.plan === 'premium' ? '⭐ Premium' : '🆓 Free';
       planEl.style.background = u.plan === 'premium' ? 'linear-gradient(135deg,#FFC800,#FF9600)' : 'linear-gradient(135deg,#7B52EE,#A855F7)';
     }
-
-    // Streak
     var streakEl = document.getElementById('prof-streak');
     if (streakEl) {
-        try {
-          var sd = JSON.parse(localStorage.getItem('cybermath_streak') || '{}');
-          streakEl.textContent = (sd.count || 0) + ' өдөр';
-        } catch(e) { streakEl.textContent = '0 өдөр'; }
-      }
-
-    // XP
+      try { var sd = JSON.parse(localStorage.getItem('cybermath_streak') || '{}'); streakEl.textContent = (sd.count || 0) + ' өдөр'; }
+      catch(e) { streakEl.textContent = '0 өдөр'; }
+    }
     var xpEl = document.getElementById('prof-xp');
-    if (xpEl) xpEl.textContent = xp + ' XP (Lv' + _userLevel + ')';
-
-    // Дуусах хугацаа
+    if (xpEl) xpEl.textContent = (xp || 0) + ' XP (Lv' + (_userLevel||1) + ')';
     var expEl = document.getElementById('prof-expiry');
     var expCard = document.getElementById('prof-expiry-card');
     if (expEl && expCard) {
@@ -10867,20 +10851,36 @@ function renderMath(text) {
         expEl.textContent = expDate.toLocaleDateString('mn-MN') + ' (' + diff + ' өдөр үлдсэн)';
         expEl.style.color = diff < 7 ? '#FF4B4B' : '#3C3C3C';
         expCard.style.display = 'flex';
-      } else {
-        expCard.style.display = 'none';
-      }
+      } else { expCard.style.display = 'none'; }
     }
-
-    // Avatar
     var avatarEl = document.getElementById('prof-avatar-display');
     var navInner = document.getElementById('nav-avatar-inner');
-    if (avatarEl && navInner) {
-      avatarEl.innerHTML = navInner.innerHTML || '<svg viewBox="0 0 24 24" fill="none" width="36" height="36"><circle cx="12" cy="8" r="4" fill="white"/><path d="M4 20C4 16 7.58 13 12 13C16.42 13 20 16 20 20" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>';
+    if (avatarEl && navInner) avatarEl.innerHTML = navInner.innerHTML;
+    // Нэмэлт статс
+    var statsEl = document.getElementById('prof-extra-stats');
+    if (!statsEl) {
+      var profBody = document.querySelector('.prof-body');
+      if (profBody) {
+        statsEl = document.createElement('div');
+        statsEl.id = 'prof-extra-stats';
+        statsEl.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;';
+        profBody.insertBefore(statsEl, profBody.firstChild);
+      }
     }
-
+    if (statsEl) {
+      var done = getCompletedLessons().length;
+      var gems = (document.getElementById('gem-count')||{}).textContent || (u.gems||340);
+      var hearts = (document.getElementById('heart-count')||{}).textContent || (u.hearts||5);
+      statsEl.innerHTML = [['💎',gems,'Эрдэнэ'],['❤️',hearts,'Зүрх'],['✅',done,'Хичээл']].map(function(s){
+        return '<div style="background:#f8f6ff;border:1px solid #e8e0ff;border-radius:12px;padding:12px 8px;text-align:center;">'
+          +'<div style="font-size:1.4rem;">'+s[0]+'</div>'
+          +'<div style="font-weight:900;font-size:1.1rem;color:#7B52EE;">'+s[1]+'</div>'
+          +'<div style="font-size:0.68rem;color:#888;font-weight:700;">'+s[2]+'</div></div>';
+      }).join('');
+    }
     document.getElementById('profile-modal').style.display = 'flex';
   }
+
   function closeProfileModal() { document.getElementById('profile-modal').style.display = 'none'; }
   if (_currentUser && _currentUser.email) {
     // Database-аас шинэ мэдээлэл авах (pass шаардахгүй)
