@@ -7,7 +7,6 @@ module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
-    // Users table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
@@ -26,11 +25,13 @@ module.exports = async (req, res) => {
         verify_code TEXT,
         verify_expiry TIMESTAMPTZ,
         completed_lessons INT[] DEFAULT '{}',
+        aimag TEXT,
+        duureg TEXT,
+        school TEXT,
         created_at TIMESTAMPTZ DEFAULT NOW()
       )
     `);
 
-    // Add missing columns one by one
     const alters = [
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS gems INT DEFAULT 340`,
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS hearts INT DEFAULT 5`,
@@ -39,14 +40,13 @@ module.exports = async (req, res) => {
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS verify_code TEXT`,
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS verify_expiry TIMESTAMPTZ`,
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS completed_lessons INT[] DEFAULT '{}'`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS aimag TEXT`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS duureg TEXT`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS school TEXT`,
       `UPDATE users SET verified=true WHERE verified IS NULL`,
     ];
+    for (const q of alters) await pool.query(q).catch(()=>{});
 
-    for (const q of alters) {
-      await pool.query(q).catch(() => {});
-    }
-
-    // Questions table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS questions (
         id BIGSERIAL PRIMARY KEY,
@@ -62,7 +62,6 @@ module.exports = async (req, res) => {
     `);
     await pool.query(`ALTER TABLE questions ADD COLUMN IF NOT EXISTS node_id INT`).catch(()=>{});
 
-    // Nodes table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS nodes (
         id INT PRIMARY KEY,
@@ -74,7 +73,6 @@ module.exports = async (req, res) => {
       )
     `);
 
-    // Logs table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS logs (
         id BIGSERIAL PRIMARY KEY,

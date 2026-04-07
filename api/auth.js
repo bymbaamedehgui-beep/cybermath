@@ -7,7 +7,7 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const { action, email, pass, firstName, lastName, grade, plan, newPass, code } = req.body || {};
+  const { action, email, pass, firstName, lastName, grade, plan, newPass, code, aimag, duureg, school } = req.body || {};
 
   try {
     // LOGIN
@@ -34,8 +34,8 @@ module.exports = async (req, res) => {
       const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
       const codeExpiry = new Date(Date.now() + 10 * 60 * 1000);
       await pool.query(
-        'INSERT INTO users (email,pass,first_name,last_name,grade,plan,xp,gems,hearts,streak,avatar,verified,verify_code,verify_expiry) VALUES ($1,$2,$3,$4,$5,$6,0,340,5,0,$7,false,$8,$9)',
-        [email, pass, firstName, lastName, grade, plan || 'free', 'default', verifyCode, codeExpiry]
+        'INSERT INTO users (email,pass,first_name,last_name,grade,plan,xp,gems,hearts,streak,avatar,verified,verify_code,verify_expiry,aimag,duureg,school) VALUES ($1,$2,$3,$4,$5,$6,0,340,5,0,$7,false,$8,$9,$10,$11,$12)',
+        [email, pass, firstName, lastName, grade, plan || 'free', 'default', verifyCode, codeExpiry, aimag||null, duureg||null, school||null]
       );
       await sendVerifyEmail(email, verifyCode, firstName);
       return res.json({ ok: true, needVerify: true, email });
@@ -84,7 +84,8 @@ module.exports = async (req, res) => {
         email: u.email, firstName: u.first_name, lastName: u.last_name,
         grade: u.grade, plan: u.plan, xp: u.xp || 0, gems: u.gems || 340,
         hearts: u.hearts || 5, streak: u.streak || 0, avatar: u.avatar || 'default',
-        completedLessons: u.completed_lessons || []
+        completedLessons: u.completed_lessons || [],
+        aimag: u.aimag, duureg: u.duureg, school: u.school
       }});
     }
 
