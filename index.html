@@ -9838,8 +9838,10 @@ function renderMath(text) {
         syncUserToServer({ hearts: hearts });
       }
       if (hearts === 0) {
+        // 24 цагийн дараа сэргэх цаг тэмдэглэх
+        localStorage.setItem('cm_heart_empty_time', Date.now().toString());
         setTimeout(function(){
-          showToast('💔 Зүрх дууслаа! Хичээл дуусгагдлаа.');
+          showToast('💔 Зүрх дууслаа! 24 цагийн дараа сэргэнэ.');
           closeModal();
         }, 1200);
       }
@@ -9992,6 +9994,24 @@ function renderMath(text) {
 
 
   function tryOpenLesson(id) {
+    // 24 цагийн дараа зүрх сэргэх шалгалт
+    var emptyTime = localStorage.getItem('cm_heart_empty_time');
+    if (emptyTime) {
+      var elapsed = Date.now() - parseInt(emptyTime);
+      if (elapsed >= 24 * 60 * 60 * 1000) {
+        // 24 цаг өнгөрсөн — зүрх сэргэх
+        var newHearts = 5;
+        localStorage.removeItem('cm_heart_empty_time');
+        var heartEl = document.getElementById('heart-count');
+        if (heartEl) heartEl.textContent = newHearts;
+        if (_currentUser) {
+          _currentUser.hearts = newHearts;
+          _saveCurrentUser();
+          syncUserToServer({ hearts: newHearts });
+        }
+        showToast('❤️ Зүрх сэргэлээ! +5 зүрх');
+      }
+    }
     var c = getCompletedLessons().map(function(x){ return parseInt(x); });
     if (id === 1 || c.indexOf(id - 1) !== -1) {
       // Зүрх шалгах
@@ -10519,6 +10539,8 @@ function renderMath(text) {
       ? '<svg viewBox="0 0 24 24" fill="none" width="18" height="18"><path d="M2 2L22 22" stroke="#AFAFAF" stroke-width="1.8" stroke-linecap="round"/><path d="M6.7 6.7C4.2 8.1 2 12 2 12C2 12 6 19 12 19C14 19 15.8 18.3 17.3 17.3" stroke="#AFAFAF" stroke-width="1.8" stroke-linecap="round"/><path d="M9.9 5.1C10.6 5 11.3 5 12 5C18 5 22 12 22 12C22 12 21.2 13.5 19.8 15" stroke="#AFAFAF" stroke-width="1.8" stroke-linecap="round"/></svg>'
       : '<svg viewBox="0 0 24 24" fill="none" width="18" height="18"><path d="M1 12C1 12 5 5 12 5C19 5 23 12 23 12C23 12 19 19 12 19C5 19 1 12 1 12Z" stroke="#AFAFAF" stroke-width="1.8"/><circle cx="12" cy="12" r="3" stroke="#AFAFAF" stroke-width="1.8"/></svg>';
   }
+  var _regData = null;
+
   function doRegister() {
     var lastName  = document.getElementById('reg-lastname').value.trim();
     var firstName = document.getElementById('reg-firstname').value.trim();
@@ -10531,18 +10553,79 @@ function renderMath(text) {
     if (!email || !email.includes('@')) { err.textContent = 'Зөв и-мэйл оруулна уу.'; return; }
     if (pass.length < 6) { err.textContent = 'Нууц үг хамгийн багадаа 6 тэмдэгт байх ёстой.'; return; }
     if (!grade) { err.textContent = 'Ангиа сонгоно уу.'; return; }
-    err.textContent = 'Бүртгэж байна...';
+
+    err.textContent = 'Баталгаажуулах код илгээж байна...';
     fetch('/api/auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'register', email: email, pass: pass, firstName: firstName, lastName: lastName, grade: grade, plan: plan })
-    }).then(function(r){ return r.json(); }).then(function(data){
-      if (!data.ok) { err.textContent = data.error || 'Бүртгэх алдаа'; return; }
+      body: JSON.stringify({ action: 'register', email, pass, firstName, lastName, grade, plan })
+    }).then(function(r){ return r.json(); }).then(function(d){
+      if (!d.ok) { err.textContent = d.error || 'Алдаа гарлаа'; return; }
       err.textContent = '';
+      showVerifyModal(email);
+    }).catch(function(){ err.textContent = 'Сервертэй холбогдоход алдаа гарлаа.'; });
+  }
+
+  function showVerifyStep(email) {
+    var form = document.getElementById('auth-form-register');
+    if (!form) { _completeRegister(); return; }
+    form.innerHTML = '<div style="text-align:center;padding:8px 0;">'
+      + '<div style="font-size:2rem;margin-bottom:8px;">📧</div>'
+      + '<div style="font-weight:800;font-size:1rem;color:#1a1035;margin-bottom:4px;">Баталгаажуулах код</div>'
+      + '<div style="font-size:0.82rem;color:#888;margin-bottom:16px;"><b>' + email + '</b> хаягт код илгээлээ</div>'
+      + '<input id="verify-code-input" type="text" maxlength="6" placeholder="000000"'
+      + ' style="width:100%;padding:14px;font-size:1.4rem;font-weight:900;letter-spacing:8px;text-align:center;border:2px solid #7B52EE;border-radius:10px;margin-bottom:12px;box-sizing:border-box;">'
+      + '<div id="verify-err" style="color:#dc2626;font-size:0.82rem;min-height:20px;margin-bottom:8px;"></div>'
+      + '<button onclick="submitVerifyCode()" style="width:100%;padding:13px;background:linear-gradient(135deg,#7B52EE,#A855F7);border:none;border-radius:100px;font-weight:900;font-size:1rem;color:white;cursor:pointer;margin-bottom:8px;">✓ Баталгаажуулах</button>'
+      + '<button onclick="openAuthModal('register')" style="width:100%;padding:10px;background:none;border:none;color:#888;font-size:0.82rem;cursor:pointer;">← Буцах</button>'
+      + '</div>';
+  }
+
+  function showVerifyModal(email) {
+    showVerifyStep(email);
+    // email хадгалах
+    window._verifyEmail = email;
+  }
+
+  function submitVerifyCode() {
+    var code = (document.getElementById('verify-code-input')||{}).value || '';
+    var errEl = document.getElementById('verify-err');
+    var email = window._verifyEmail || (_regData && _regData.email) || '';
+    if (code.length !== 6) { if(errEl) errEl.textContent = '6 оронтой код оруулна уу'; return; }
+    if(errEl) errEl.textContent = 'Шалгаж байна...';
+    fetch('/api/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'verify', email, code })
+    }).then(function(r){ return r.json(); }).then(function(d){
+      if (!d.ok) { if(errEl) errEl.textContent = d.error || 'Код буруу байна'; return; }
+      // Амжилттай — нэвтрэх
+      _currentUser = d.user;
+      _saveCurrentUser();
+      closeAuthModal();
+      _onLogin();
+    }).catch(function(){ if(errEl) errEl.textContent = 'Алдаа гарлаа'; });
+  }
+
+  function _completeRegister() {
+    var d = _regData;
+    if (!d) return;
+    fetch('/api/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'register', email: d.email, pass: d.pass, firstName: d.firstName, lastName: d.lastName, grade: d.grade, plan: d.plan })
+    }).then(function(r){ return r.json(); }).then(function(data){
+      if (!data.ok) {
+        var err = document.getElementById('auth-error');
+        if(err) err.textContent = data.error || 'Бүртгэх алдаа';
+        openAuthModal('register');
+        return;
+      }
       _currentUser = data.user; _saveCurrentUser();
       closeAuthModal(); _onLogin();
     }).catch(function(){
-      err.textContent = 'Сервертэй холбогдоход алдаа гарлаа.';
+      var err = document.getElementById('auth-error');
+      if(err) err.textContent = 'Сервертэй холбогдоход алдаа гарлаа.';
     });
   }
   function doLogin() {
@@ -10607,6 +10690,22 @@ function renderMath(text) {
     document.getElementById('cybermath-app').style.display = 'none';
     document.getElementById('landing-page').style.display = 'block';
   }
+  function checkHeartRestore() {
+    var emptyTime = localStorage.getItem('cm_heart_empty_time');
+    if (!emptyTime) return;
+    var elapsed = Date.now() - parseInt(emptyTime);
+    if (elapsed >= 24 * 60 * 60 * 1000) {
+      localStorage.removeItem('cm_heart_empty_time');
+      var heartEl = document.getElementById('heart-count');
+      if (heartEl) heartEl.textContent = '5';
+      if (_currentUser) {
+        _currentUser.hearts = 5;
+        _saveCurrentUser();
+        syncUserToServer({ hearts: 5 });
+      }
+    }
+  }
+
   function _onLogin() {
     var u = _currentUser;
     var btn = document.getElementById('nav-avatar-btn');
@@ -13608,7 +13707,7 @@ function renderMath(text) {
       </div>
 
       <!-- REGISTER -->
-      <div id="auth-register-tab" style="display:none;">
+      <div id="auth-register-tab" style="display:none;"><div id="auth-form-register">
         <div class="auth-input-row">
           <div>
             <label class="auth-input-label">Овог</label>
@@ -13664,7 +13763,9 @@ function renderMath(text) {
           </div>
         </div>
         <button class="auth-btn auth-btn-primary" onclick="doRegister()">Бүртгүүлэх ✓</button>
-        <p class="auth-foot">Бүртгэлтэй юу? <a onclick="switchAuthTab('login')">Нэвтрэх</a></p>
+        <p class="auth-foot">Бүртгэлтэй юу? <a onclick="switchAuthT      </div></div>
+
+      <!a></p>
       </div>
 
       <!-- RESET -->

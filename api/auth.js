@@ -1,4 +1,5 @@
 const pool = require('./_db');
+const { sendVerifyEmail } = require('./_email');
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -6,15 +7,23 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const { action, email, pass, firstName, lastName, grade, plan, newPass } = req.body || {};
+  const { action, email, pass, firstName, lastName, grade, plan, newPass, code } = req.body || {};
 
   try {
     // LOGIN
     if (action === 'login') {
-      const r = await pool.query('SELECT * FROM users WHERE email=$1 AND pass=$2', [email, pass]);
+      const r = await pool.query('SELECT *,completed_lessons FROM users WHERE email=$1 AND pass=$2', [email, pass]);
       if (!r.rows.length) return res.status(401).json({ ok: false, error: 'И-мэйл эсвэл нууц үг буруу' });
       const u = r.rows[0];
-      return res.json({ ok: true, user: { email: u.email, firstName: u.first_name, lastName: u.last_name, grade: u.grade, plan: u.plan, xp: u.xp, streak: u.streak } });
+      if (u.verified === false) {
+        return res.status(401).json({ ok: false, error: 'Имэйлээ баталгаажуулна уу', needVerify: true, email });
+      }
+      return res.json({ ok: true, user: {
+        email: u.email, firstName: u.first_name, lastName: u.last_name,
+        grade: u.grade, plan: u.plan, xp: u.xp || 0, gems: u.gems || 340,
+        hearts: u.hearts || 5, streak: u.streak || 0, avatar: u.avatar || 'default',
+        completedLessons: u.completed_lessons || []
+      }});
     }
 
     // REGISTER
@@ -22,19 +31,61 @@ module.exports = async (req, res) => {
       const exists = await pool.query('SELECT id FROM users WHERE email=$1', [email]);
       if (exists.rows.length) return res.status(400).json({ ok: false, error: 'И-мэйл бүртгэлтэй байна' });
       if (!grade) return res.status(400).json({ ok: false, error: 'Ангиа сонгоно уу' });
+      const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const codeExpiry = new Date(Date.now() + 10 * 60 * 1000);
       await pool.query(
-        'INSERT INTO users (email,pass,first_name,last_name,grade,plan) VALUES ($1,$2,$3,$4,$5,$6)',
-        [email, pass, firstName, lastName, grade, plan || 'free']
+        'INSERT INTO users (email,pass,first_name,last_name,grade,plan,xp,gems,hearts,streak,avatar,verified,verify_code,verify_expiry) VALUES ($1,$2,$3,$4,$5,$6,0,340,5,0,$7,false,$8,$9)',
+        [email, pass, firstName, lastName, grade, plan || 'free', 'default', verifyCode, codeExpiry]
       );
-      const u = (await pool.query('SELECT * FROM users WHERE email=$1', [email])).rows[0];
-      return res.json({ ok: true, user: { email: u.email, firstName: u.first_name, lastName: u.last_name, grade: u.grade, plan: u.plan, xp: 0, streak: 0 } });
+      await sendVerifyEmail(email, verifyCode, firstName);
+      return res.json({ ok: true, needVerify: true, email });
     }
 
-    // RESET PASSWORD (admin)
+    // VERIFY
+    if (action === 'verify') {
+      const r = await pool.query('SELECT * FROM users WHERE email=$1 AND verify_code=$2', [email, code]);
+      if (!r.rows.length) return res.status(400).json({ ok: false, error: 'Код буруу байна' });
+      const u = r.rows[0];
+      if (new Date() > new Date(u.verify_expiry)) {
+        return res.status(400).json({ ok: false, error: 'Кодны хугацаа дууссан' });
+      }
+      await pool.query('UPDATE users SET verified=true, verify_code=NULL, verify_expiry=NULL WHERE email=$1', [email]);
+      return res.json({ ok: true, user: {
+        email: u.email, firstName: u.first_name, lastName: u.last_name,
+        grade: u.grade, plan: u.plan || 'free', xp: 0, gems: 340,
+        hearts: 5, streak: 0, avatar: 'default', completedLessons: []
+      }});
+    }
+
+    // RESEND CODE
+    if (action === 'resend') {
+      const r = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
+      if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Хэрэглэгч олдсонгүй' });
+      const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const codeExpiry = new Date(Date.now() + 10 * 60 * 1000);
+      await pool.query('UPDATE users SET verify_code=$1, verify_expiry=$2 WHERE email=$3', [verifyCode, codeExpiry, email]);
+      await sendVerifyEmail(email, verifyCode, r.rows[0].first_name);
+      return res.json({ ok: true });
+    }
+
+    // RESET PASSWORD
     if (action === 'reset') {
       const r = await pool.query('UPDATE users SET pass=$1 WHERE email=$2 RETURNING id', [newPass, email]);
       if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Хэрэглэгч олдсонгүй' });
       return res.json({ ok: true });
+    }
+
+    // GET USER
+    if (action === 'getuser') {
+      const r = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
+      if (!r.rows.length) return res.status(404).json({ ok: false, error: 'User not found' });
+      const u = r.rows[0];
+      return res.json({ ok: true, user: {
+        email: u.email, firstName: u.first_name, lastName: u.last_name,
+        grade: u.grade, plan: u.plan, xp: u.xp || 0, gems: u.gems || 340,
+        hearts: u.hearts || 5, streak: u.streak || 0, avatar: u.avatar || 'default',
+        completedLessons: u.completed_lessons || []
+      }});
     }
 
     res.status(400).json({ ok: false, error: 'Unknown action' });

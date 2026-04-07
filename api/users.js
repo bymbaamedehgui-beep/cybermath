@@ -1,4 +1,5 @@
 const pool = require('./_db');
+const { sendPremiumEmail, sendFreeEmail } = require('./_email');
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -41,6 +42,37 @@ module.exports = async (req, res) => {
         await pool.query(`UPDATE users SET ${sets.join(',')} WHERE email=$${i}`, vals);
       }
 
+      // Plan солиход email мэдэгдэл
+      if (plan !== undefined && email) {
+        try {
+          const sendEmail = require('./email');
+          const isPremium = plan === 'premium';
+          await sendEmail({
+            to: email,
+            subject: isPremium ? 'CyberMath - Premium эрх идэвхжлээ! ⭐' : 'CyberMath - Тарифф өөрчлөгдлөө',
+            html: isPremium ? `
+              <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#0d0b1a;color:#f0eeff;border-radius:16px;">
+                <h2 style="color:#FFC800;margin:0 0 8px;">⭐ Premium эрх идэвхжлээ!</h2>
+                <p>Таны бүртгэл Premium болж, бүх хичээлүүд нээгдлээ.</p>
+                <p style="color:#8880aa;font-size:14px;">CyberMath багийн мэндчилгээтэй</p>
+              </div>` : `
+              <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#0d0b1a;color:#f0eeff;border-radius:16px;">
+                <h2 style="color:#A855F7;margin:0 0 8px;">CyberMath - Тарифф өөрчлөгдлөө</h2>
+                <p>Таны бүртгэл Free тариффт шилжлээ.</p>
+                <p style="color:#8880aa;font-size:14px;">Асуулт байвал admin@cybermath.mn-д хандана уу.</p>
+              </div>`
+          });
+        } catch(e) { console.log('Email error:', e.message); }
+      }
+      // Plan өөрчлөгдсөн бол имэйл илгээх
+      if (plan !== undefined) {
+        const u = await pool.query('SELECT first_name, email FROM users WHERE email=$1', [email]);
+        if (u.rows.length) {
+          const firstName = u.rows[0].first_name;
+          if (plan === 'premium') sendPremiumEmail(email, firstName).catch(()=>{});
+          else if (plan === 'free') sendFreeEmail(email, firstName).catch(()=>{});
+        }
+      }
       return res.json({ ok: true });
     }
 
