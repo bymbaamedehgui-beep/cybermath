@@ -120,6 +120,17 @@ body.light .math-kb { background: #f0eeff; }
 body.light .math-kb-btn { background: #fff; color: var(--text); border-color: rgba(123,82,238,0.15); }
 body.light .math-kb-tab { color: var(--muted); }
 body.light .math-kb-tab.active { background: var(--purple); color: #fff; }
+body.light math-field {
+  --caret-color: #7B52EE;
+  color: #1a1035;
+  background: #f8f6ff;
+  border-color: rgba(123,82,238,0.2);
+}
+body.light #q-math-display,
+body.light #choice-math-field {
+  color: #1a1035 !important;
+  background: #f8f6ff !important;
+}
 body.light .adm-input { background: #f8f6ff; color: var(--text); }
 body.light .form-input, body.light .form-select { background: #f8f6ff; color: var(--text); }
 body.light #login-screen {
@@ -1597,17 +1608,31 @@ function closeMathModal() { closeChoiceMathModal(); }
   function loadOverview() {
     fetch(API + '/api/users').then(r=>r.json()).then(function(d) {
       var users = d.users || [];
-      var el = document.getElementById('ov-total'); if(el) el.textContent = users.length;
-      var ep = document.getElementById('ov-premium'); if(ep) ep.textContent = users.filter(u=>u.plan==='premium').length;
-      var tbody = document.getElementById('ov-recent');
+      // Stat cards
+      var elTotal = document.getElementById('ov-total') || document.getElementById('stat-users');
+      if(elTotal) elTotal.textContent = users.length;
+      var elPrem = document.getElementById('ov-premium') || document.getElementById('stat-premium');
+      if(elPrem) elPrem.textContent = users.filter(function(u){return u.plan==='premium';}).length;
+      var elToday = document.getElementById('ov-today') || document.getElementById('stat-today');
+      if(elToday) elToday.textContent = users.filter(function(u){
+        return u.created_at && u.created_at.slice(0,10) === new Date().toISOString().slice(0,10);
+      }).length;
+      // Сүүлийн бүртгэлүүд
+      var tbody = document.getElementById('ov-recent') || document.getElementById('recent-users-body');
       if(tbody) tbody.innerHTML = users.slice(0,5).map(function(u){
-        return '<tr><td>'+(u.first_name||'')+'</td><td>'+u.email+'</td><td>'+(u.grade||'-')+'</td><td>'+(u.plan||'free')+'</td><td>'+(u.created_at||'').slice(0,10)+'</td></tr>';
+        return '<tr>'
+          +'<td>'+(u.first_name||'')+' '+(u.last_name||'')+'</td>'
+          +'<td>'+u.email+'</td>'
+          +'<td>'+(u.grade||'-')+'</td>'
+          +'<td><span style="color:'+(u.plan==='premium'?'var(--yellow)':'var(--muted)')+';">'+(u.plan||'free')+'</span></td>'
+          +'<td>'+(u.created_at||'').slice(0,10)+'</td>'
+          +'</tr>';
       }).join('');
     }).catch(function(){});
     fetch(API + '/api/questions').then(r=>r.json()).then(function(d){
-      var el = document.getElementById('ov-questions'); if(el) el.textContent = (d.questions||[]).length;
+      var elQ = document.getElementById('ov-questions') || document.getElementById('stat-questions');
+      if(elQ) elQ.textContent = (d.questions||[]).length;
     }).catch(function(){});
-    var el2 = document.getElementById('ov-today'); if(el2) el2.textContent = new Date().toLocaleDateString('mn-MN');
   }
 
   // ══ QUESTIONS ══
