@@ -10568,16 +10568,21 @@ function renderMath(text) {
 
   function showVerifyStep(email) {
     var form = document.getElementById('auth-form-register');
-    if (!form) { _completeRegister(); return; }
+    if (!form) {
+      var tab = document.getElementById('auth-register-tab');
+      if (tab) tab.style.display = 'block';
+      form = document.getElementById('auth-form-register');
+    }
+    if (!form) return;
     form.innerHTML = '<div style="text-align:center;padding:8px 0;">'
-      + '<div style="font-size:2rem;margin-bottom:8px;">📧</div>'
-      + '<div style="font-weight:800;font-size:1rem;color:#1a1035;margin-bottom:4px;">Баталгаажуулах код</div>'
-      + '<div style="font-size:0.82rem;color:#888;margin-bottom:16px;"><b>' + email + '</b> хаягт код илгээлээ</div>'
-      + '<input id="verify-code-input" type="text" maxlength="6" placeholder="000000"'
-      + ' style="width:100%;padding:14px;font-size:1.4rem;font-weight:900;letter-spacing:8px;text-align:center;border:2px solid #7B52EE;border-radius:10px;margin-bottom:12px;box-sizing:border-box;">'
+      + '<div style="font-size:2.5rem;margin-bottom:8px;">📧</div>'
+      + '<div style="font-weight:900;font-size:1.1rem;color:#7B52EE;margin-bottom:4px;">Баталгаажуулах код</div>'
+      + '<div style="font-size:0.85rem;color:#888;margin-bottom:20px;line-height:1.5;"><b>' + email + '</b><br>хаягт 6 оронтой код илгээлээ</div>'
+      + '<input id="verify-code-input" type="text" maxlength="6" placeholder="000000" autofocus'
+      + ' style="width:100%;padding:16px;font-size:1.8rem;font-weight:900;letter-spacing:10px;text-align:center;border:2px solid #7B52EE;border-radius:12px;margin-bottom:12px;box-sizing:border-box;">'
       + '<div id="verify-err" style="color:#dc2626;font-size:0.82rem;min-height:20px;margin-bottom:8px;"></div>'
-      + '<button onclick="submitVerifyCode()" style="width:100%;padding:13px;background:linear-gradient(135deg,#7B52EE,#A855F7);border:none;border-radius:100px;font-weight:900;font-size:1rem;color:white;cursor:pointer;margin-bottom:8px;">✓ Баталгаажуулах</button>'
-      + '<button onclick="openAuthModal('register')" style="width:100%;padding:10px;background:none;border:none;color:#888;font-size:0.82rem;cursor:pointer;">← Буцах</button>'
+      + '<button onclick="submitVerifyCode()" style="width:100%;padding:14px;background:linear-gradient(135deg,#7B52EE,#A855F7);border:none;border-radius:100px;font-weight:900;font-size:1rem;color:white;cursor:pointer;margin-bottom:8px;">✓ Баталгаажуулах</button>'
+      + '<button onclick="resendVerifyCode(\'' + email + '\')" style="width:100%;padding:8px;background:none;border:1px solid #ddd;border-radius:8px;color:#888;font-size:0.82rem;cursor:pointer;margin-bottom:6px;">📨 Дахин код илгээх</button>'
       + '</div>';
   }
 
@@ -10585,6 +10590,18 @@ function renderMath(text) {
     showVerifyStep(email);
     // email хадгалах
     window._verifyEmail = email;
+  }
+
+  function resendVerifyCode(email) {
+    fetch('/api/auth', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action: 'resend', email: email})
+    }).then(r=>r.json()).then(function(d){
+      var errEl = document.getElementById('verify-err');
+      if(errEl) errEl.style.color = d.ok ? '#16a34a' : '#dc2626';
+      if(errEl) errEl.textContent = d.ok ? '✓ Код дахин илгээгдлээ!' : (d.error||'Алдаа');
+    });
   }
 
   function submitVerifyCode() {
