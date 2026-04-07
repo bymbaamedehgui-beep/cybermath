@@ -1872,22 +1872,69 @@ function openEditMathModal(targetId) {
   }
 
   // ══ USERS ══
+  var _allUsers = [];
+
   function loadUsers() {
+    var el = document.getElementById('users-body');
+    if (!el) return;
+    el.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted);">Уншиж байна...</td></tr>';
     fetch(API + '/api/users').then(r=>r.json()).then(function(d) {
-      var users = d.users || [];
-      var el = document.getElementById('users-list');
-      if (!el) return;
-      el.innerHTML = users.length ? users.map(function(u){
-        return '<tr>'
-          +'<td>'+(u.first_name||'')+' '+(u.last_name||'')+'</td>'
-          +'<td>'+u.email+'</td>'
-          +'<td>'+(u.grade||'-')+'</td>'
-          +'<td><span style="color:'+(u.plan==='premium'?'var(--yellow)':'var(--muted)')+';">'+(u.plan||'free')+'</span></td>'
-          +'<td>'+(u.created_at||'').slice(0,10)+'</td>'
-          +'<td><button onclick="deleteUser(\''+u.email+'\')" style="background:#FF4B4B22;border:none;color:#FF4B4B;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.78rem;">Устгах</button></td>'
-          +'</tr>';
-      }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px;">Хэрэглэгч байхгүй байна</td></tr>';
-    }).catch(function(){});
+      _allUsers = d.users || [];
+      renderUsers();
+    }).catch(function(e){
+      if(el) el.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--red);padding:32px;">Алдаа гарлаа: ' + e.message + '</td></tr>';
+    });
+  }
+
+  function renderUsers(search) {
+    var el = document.getElementById('users-body');
+    if (!el) return;
+    var users = _allUsers;
+    if (search) {
+      var s = search.toLowerCase();
+      users = users.filter(function(u){
+        return (u.email||'').toLowerCase().includes(s) ||
+               (u.first_name||'').toLowerCase().includes(s) ||
+               (u.last_name||'').toLowerCase().includes(s);
+      });
+    }
+    el.innerHTML = users.length ? users.map(function(u, i){
+      var isPremium = u.plan === 'premium';
+      return '<tr>'
+        +'<td>'+(i+1)+'</td>'
+        +'<td>'+(u.first_name||'')+' '+(u.last_name||'')+'</td>'
+        +'<td>'+u.email+'</td>'
+        +'<td>'+(u.grade||'-')+'</td>'
+        +'<td>'
+          +'<button onclick="togglePlan(\''+u.email+'\',\''+u.plan+'\')" style="'
+          +(isPremium
+            ? 'background:#FFC80022;border:1px solid #FFC80055;color:#FFC800;'
+            : 'background:#7B52EE22;border:1px solid #7B52EE55;color:#A855F7;')
+          +'border-radius:6px;padding:4px 12px;cursor:pointer;font-size:0.78rem;font-weight:800;">'
+          +(isPremium ? '⭐ Premium' : '🆓 Free')
+          +'</button>'
+        +'</td>'
+        +'<td>'+(u.created_at||'').slice(0,10)+'</td>'
+        +'<td><button onclick="deleteUser(\''+u.email+'\')" style="background:#FF4B4B22;border:none;color:#FF4B4B;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.78rem;">Устгах</button></td>'
+        +'</tr>';
+    }).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px;">'+(search?'Хайлт олдсонгүй':'Хэрэглэгч байхгүй байна')+'</td></tr>';
+  }
+
+  function togglePlan(email, currentPlan) {
+    var newPlan = currentPlan === 'premium' ? 'free' : 'premium';
+    if (!confirm(email + ' хэрэглэгчийг ' + newPlan + ' болгох уу?')) return;
+    fetch(API + '/api/users', {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({email: email, plan: newPlan})
+    }).then(r=>r.json()).then(function(d){
+      if (d.ok) {
+        loadUsers();
+        showToast && showToast('✓ ' + email + ' → ' + newPlan);
+      } else {
+        alert('Алдаа: ' + (d.error || 'unknown'));
+      }
+    }).catch(function(){ alert('Сервертэй холбогдоход алдаа гарлаа!'); });
   }
 
   function deleteUser(email) {
