@@ -35,11 +35,18 @@ module.exports = async (req, res) => {
       const codeExpiry = new Date(Date.now() + 10 * 60 * 1000);
       const userRole = role === 'teacher' ? 'teacher' : 'student';
       await pool.query(
-        'INSERT INTO users (email,pass,first_name,last_name,grade,plan,xp,gems,hearts,streak,avatar,verified,verify_code,verify_expiry,role) VALUES ($1,$2,$3,$4,$5,$6,0,340,5,0,$7,false,$8,$9,$10)',
+        'INSERT INTO users (email,pass,first_name,last_name,grade,plan,xp,gems,hearts,streak,avatar,verified,verify_code,verify_expiry,role) VALUES ($1,$2,$3,$4,$5,$6,0,340,5,0,$7,true,$8,$9,$10)',
         [email, pass, firstName, lastName, grade, plan || 'free', 'default', verifyCode, codeExpiry, userRole]
       );
-      await sendVerifyEmail(email, verifyCode, firstName);
-      return res.json({ ok: true, needVerify: true, email });
+      // Имэйл баталгаажуулалт түр хаасан
+      // await sendVerifyEmail(email, verifyCode, firstName);
+      const newUser = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
+      const u = newUser.rows[0];
+      return res.json({ ok: true, user: {
+        email: u.email, firstName: u.first_name, lastName: u.last_name,
+        grade: u.grade, plan: u.plan, xp: 0, gems: 340,
+        hearts: 5, streak: 0, avatar: 'default', completedLessons: [], role: u.role || 'student'
+      }});
     }
 
     // VERIFY
