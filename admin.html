@@ -960,6 +960,11 @@ function toggleAdmPw() {
             <div style="font-size:0.7rem;font-weight:900;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Тайлбар мэдээлэл</div>
             <div style="display:flex;flex-direction:column;gap:8px;">
               <div class="form-group">
+                <label>📐 Desmos / GeoGebra embed URL</label>
+                <input id="q-hint-embed" type="text" class="form-input" placeholder="https://www.desmos.com/calculator/xxxxx эсвэл https://www.geogebra.org/m/xxxxx">
+                <div style="font-size:0.72rem;color:var(--muted);margin-top:4px;font-weight:700;">Desmos: Share → Copy Link | GeoGebra: Share → Embed link</div>
+              </div>
+              <div class="form-group">
                 <label>📝 Текст тайлбар</label>
                 <input id="q-hint-text" type="text" class="form-input" placeholder="жишээ: 6×8 = 48 гэдгийг санаарай...">
               </div>
@@ -1857,18 +1862,21 @@ function openEditMathModal(targetId) {
     var correctMap = {a: a, b: b, c: c, d: d};
     var correct = correctMap[correctKey];
     var hint = {text: document.getElementById('q-hint-text') ? document.getElementById('q-hint-text').value.trim() : ''};
+    var embedUrl = document.getElementById('q-hint-embed') ? document.getElementById('q-hint-embed').value.trim() : '';
+    if (embedUrl) hint.embed = embedUrl;
     var msg = document.getElementById('q-msg');
     if (!text) { if(msg){msg.style.color='var(--red)';msg.textContent='Бодлогын текст оруулна уу!';} return; }
     if (!correct) { if(msg){msg.style.color='var(--red)';msg.textContent='Зөв хариулт хоосон байна!';} return; }
     fetch(API + '/api/questions', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({text, node_id: nodeId?parseInt(nodeId):null, correct, choices:[a,b,c,d], hint: hint.text?hint:null})
+      body: JSON.stringify({text, node_id: nodeId?parseInt(nodeId):null, correct, choices:[a,b,c,d], hint: (hint.text||hint.embed)?hint:null})
     }).then(r=>r.json()).then(function(data) {
       if (!data.ok) { if(msg){msg.style.color='var(--red)';msg.textContent='Алдаа: '+data.error;} return; }
       if(msg){msg.style.color='var(--green)';msg.textContent='✓ Амжилттай нэмэгдлээ!';}
       ['q-a','q-b','q-c','q-d'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
       var md = document.getElementById('q-math-display'); if(md) md.value='';
       var ht = document.getElementById('q-hint-text'); if(ht) ht.value='';
+      var he = document.getElementById('q-hint-embed'); if(he) he.value='';
       // Radio-г A руу буцаах
       var radioA = document.querySelector('input[name="q-correct"][value="a"]');
       if (radioA) { radioA.checked = true; updateChoiceHighlight(); }
@@ -1887,48 +1895,21 @@ function openEditMathModal(targetId) {
     el.innerHTML = nodes.map(function(n) {
       var typeColor = n.type==='lesson' ? 'var(--green)' : n.type==='soon' ? 'var(--yellow)' : 'var(--muted)';
       var typeLbl = n.type==='lesson' ? '✅ Нээлттэй' : n.type==='soon' ? '⏳ Удахгүй' : '🔒 Хаалттай';
-      return '<div style="background:var(--surface2);border-radius:10px;padding:12px 14px;margin-bottom:8px;">'
-        + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">'
-        + '<div style="font-size:1.3rem;width:28px;text-align:center;">'+(n.icon||'📚')+'</div>'
-        + '<span style="font-weight:800;font-size:0.82rem;color:var(--muted);min-width:20px;">'+n.id+'.</span>'
-        + '<input id="nname-'+n.id+'" value="'+n.name.replace(/"/g,'&quot;')+'" style="flex:1;padding:7px 10px;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;font-size:0.88rem;color:var(--text);font-weight:700;outline:none;font-family:\'Baloo 2\',sans-serif;">'
-        + '<button onclick="saveNodeName('+n.id+')" style="padding:7px 14px;background:var(--purple);border:none;border-radius:8px;color:white;font-weight:800;font-size:0.78rem;cursor:pointer;white-space:nowrap;">💾 Хадгалах</button>'
-        + '</div>'
-        + '<div style="display:flex;align-items:center;gap:8px;">'
+      return '<div style="display:flex;align-items:center;gap:12px;background:var(--surface2);border-radius:10px;padding:12px 14px;margin-bottom:8px;">'
+        + '<div style="font-size:1.4rem;width:32px;text-align:center;">'+(n.icon||'📚')+'</div>'
+        + '<div style="flex:1;">'
+        + '<div style="font-weight:800;font-size:0.92rem;color:var(--text);">'+n.id+'. '+n.name+'</div>'
+        + '<div style="display:flex;gap:8px;margin-top:4px;">'
         + '<span style="font-size:0.72rem;font-weight:800;color:'+typeColor+';">'+typeLbl+'</span>'
         + (n.grade?'<span style="font-size:0.72rem;background:var(--surface);border-radius:6px;padding:2px 8px;color:var(--muted);">'+n.grade+'-р анги</span>':'')
-        + '<div style="margin-left:auto;">'
+        + '</div></div>'
         + '<select onchange="updateNodeType('+n.id+',this.value)" style="padding:5px 8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:0.75rem;color:var(--text);cursor:pointer;">'
         + '<option value="lesson"'+(n.type==='lesson'?' selected':'')+'>✅ Нээлттэй</option>'
         + '<option value="locked"'+(n.type==='locked'?' selected':'')+'>🔒 Хаалттай</option>'
         + '<option value="soon"'+(n.type==='soon'?' selected':'')+'>⏳ Удахгүй</option>'
-        + '</select></div>'
-        + '</div>'
+        + '</select>'
         + '</div>';
     }).join('');
-  }
-
-  function saveNodeName(id) {
-    var input = document.getElementById('nname-' + id);
-    if (!input) return;
-    var name = input.value.trim();
-    if (!name) return;
-    var nodes = getNodes();
-    var n = nodes.find(function(x){ return x.id === id; });
-    if (!n) return;
-    n.name = name;
-    saveNodes(nodes);
-    fetch(API + '/api/nodes', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ id: id, name: name, type: n.type, icon: n.icon||'📚', grade: n.grade||'', sort_order: n.sort_order||id })
-    }).then(function(r){ return r.json(); }).then(function(d){
-      if (d.ok) {
-        input.style.borderColor = '#58CC02';
-        var msg = document.getElementById('node-msg');
-        if (msg) { msg.textContent = '✓ ' + name + ' хадгалагдлаа'; setTimeout(function(){ msg.textContent=''; input.style.borderColor='var(--border)'; }, 2000); }
-      }
-    }).catch(function(){});
   }
 
   function updateNodeType(id, type) {
