@@ -960,6 +960,11 @@ function toggleAdmPw() {
             <div style="font-size:0.7rem;font-weight:900;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Тайлбар мэдээлэл</div>
             <div style="display:flex;flex-direction:column;gap:8px;">
               <div class="form-group">
+                <label>📐 Desmos / GeoGebra embed URL</label>
+                <input id="q-hint-embed" type="text" class="form-input" placeholder="https://www.desmos.com/calculator/xxxxx эсвэл https://www.geogebra.org/m/xxxxx">
+                <div style="font-size:0.72rem;color:var(--muted);margin-top:4px;font-weight:700;">Desmos: Share → Copy Link | GeoGebra: Share → Embed link</div>
+              </div>
+              <div class="form-group">
                 <label>📝 Текст тайлбар</label>
                 <input id="q-hint-text" type="text" class="form-input" placeholder="жишээ: 6×8 = 48 гэдгийг санаарай...">
               </div>
@@ -1864,18 +1869,21 @@ function openEditMathModal(targetId) {
     var correctMap = {a: a, b: b, c: c, d: d};
     var correct = correctMap[correctKey];
     var hint = {text: document.getElementById('q-hint-text') ? document.getElementById('q-hint-text').value.trim() : ''};
+    var embedUrl = document.getElementById('q-hint-embed') ? document.getElementById('q-hint-embed').value.trim() : '';
+    if (embedUrl) hint.embed = embedUrl;
     var msg = document.getElementById('q-msg');
     if (!text) { if(msg){msg.style.color='var(--red)';msg.textContent='Бодлогын текст оруулна уу!';} return; }
     if (!correct) { if(msg){msg.style.color='var(--red)';msg.textContent='Зөв хариулт хоосон байна!';} return; }
     fetch(API + '/api/questions', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({text, node_id: nodeId?parseInt(nodeId):null, correct, choices:[a,b,c,d], hint: hint.text?hint:null})
+      body: JSON.stringify({text, node_id: nodeId?parseInt(nodeId):null, correct, choices:[a,b,c,d], hint: (hint.text||hint.embed)?hint:null})
     }).then(r=>r.json()).then(function(data) {
       if (!data.ok) { if(msg){msg.style.color='var(--red)';msg.textContent='Алдаа: '+data.error;} return; }
       if(msg){msg.style.color='var(--green)';msg.textContent='✓ Амжилттай нэмэгдлээ!';}
       ['q-a','q-b','q-c','q-d'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
       var md = document.getElementById('q-math-display'); if(md) md.value='';
       var ht = document.getElementById('q-hint-text'); if(ht) ht.value='';
+      var he = document.getElementById('q-hint-embed'); if(he) he.value='';
       // Radio-г A руу буцаах
       var radioA = document.querySelector('input[name="q-correct"][value="a"]');
       if (radioA) { radioA.checked = true; updateChoiceHighlight(); }
