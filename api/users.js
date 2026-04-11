@@ -9,12 +9,12 @@ module.exports = async (req, res) => {
 
   try {
     if (req.method === 'GET') {
-      const r = await pool.query('SELECT id,email,first_name,last_name,grade,plan,xp,gems,hearts,streak,streak_data,avatar,completed_lessons,created_at FROM users ORDER BY created_at DESC');
+      const r = await pool.query('SELECT id,email,first_name,last_name,grade,plan,xp,gems,hearts,streak,streak_data,stars_data,avatar,completed_lessons,created_at FROM users ORDER BY created_at DESC');
       return res.json({ ok: true, users: r.rows });
     }
 
     if (req.method === 'PUT') {
-      const { email, plan, xp, gems, hearts, streak, streak_data, avatar, completed_lesson } = req.body || {};
+      const { email, plan, xp, gems, hearts, streak, streak_data, stars_data, avatar, completed_lesson } = req.body || {};
       if (!email) return res.status(400).json({ ok: false, error: 'Missing email' });
 
       // completed_lesson array-д нэмэх
