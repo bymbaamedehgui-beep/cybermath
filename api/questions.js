@@ -21,11 +21,11 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === 'POST') {
-      const { text, topic, grade, correct, choices, hint, node_id } = req.body || {};
+      const { text, topic, grade, correct, choices, hint, node_id, type } = req.body || {};
       if (!text || !correct) return res.status(400).json({ ok: false, error: 'Missing fields' });
       const r = await pool.query(
-        'INSERT INTO questions (text,topic,grade,correct,choices,hint,node_id) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
-        [text, topic, grade, correct, choices, hint ? JSON.stringify(hint) : null, node_id || null]
+        'INSERT INTO questions (text,topic,grade,correct,choices,hint,node_id,type) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
+        [text, topic, grade, correct, choices, hint ? JSON.stringify(hint) : null, node_id || null, type || 'choice']
       );
       return res.json({ ok: true, question: r.rows[0] });
     }

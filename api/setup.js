@@ -39,42 +39,8 @@ module.exports = async (req, res) => {
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS verify_code TEXT`,
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS verify_expiry TIMESTAMPTZ`,
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS completed_lessons INT[] DEFAULT '{}'`,
-      `ALTER TABLE users ADD COLUMN IF NOT EXISTS league_tier TEXT DEFAULT 'bronze'`,
-      `ALTER TABLE users ADD COLUMN IF NOT EXISTS weekly_xp INT DEFAULT 0`,
-      `ALTER TABLE users ADD COLUMN IF NOT EXISTS league_reset_date TIMESTAMPTZ DEFAULT NOW()`,
-      `ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'student'`,
       `UPDATE users SET verified=true WHERE verified IS NULL`,
-      `UPDATE users SET league_tier='bronze' WHERE league_tier IS NULL`,
-      `UPDATE users SET weekly_xp=0 WHERE weekly_xp IS NULL`,
-      `UPDATE users SET role='student' WHERE role IS NULL`,
     ];
-
-    for (const q of alters) {
-      await pool.query(q).catch(() => {});
-    }
-
-    // Classrooms table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS classrooms (
-        id SERIAL PRIMARY KEY,
-        name TEXT NOT NULL,
-        join_code TEXT UNIQUE NOT NULL,
-        teacher_email TEXT NOT NULL,
-        grade TEXT,
-        created_at TIMESTAMPTZ DEFAULT NOW()
-      )
-    `);
-
-    // Class members table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS class_members (
-        id SERIAL PRIMARY KEY,
-        classroom_id INT REFERENCES classrooms(id) ON DELETE CASCADE,
-        student_email TEXT NOT NULL,
-        joined_at TIMESTAMPTZ DEFAULT NOW(),
-        UNIQUE(classroom_id, student_email)
-      )
-    `);
 
     for (const q of alters) {
       await pool.query(q).catch(() => {});
@@ -95,6 +61,7 @@ module.exports = async (req, res) => {
       )
     `);
     await pool.query(`ALTER TABLE questions ADD COLUMN IF NOT EXISTS node_id INT`).catch(()=>{});
+    await pool.query(`ALTER TABLE questions ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'choice'`).catch(()=>{});
 
     // Nodes table
     await pool.query(`
