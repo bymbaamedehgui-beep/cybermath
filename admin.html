@@ -1621,20 +1621,6 @@ function closeMathModal() { closeChoiceMathModal(); }
   }
   function saveNodes(nodes) { localStorage.setItem('cm_nodes', JSON.stringify(nodes)); }
 
-  function saveNodesToGame() {
-    var nodes = getNodes();
-    fetch(API + '/api/nodes', {
-      method: 'PUT',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ nodes: nodes })
-    }).then(function(r){ return r.json(); }).then(function(d){
-      if (d.ok) {
-        var msg = document.getElementById('node-msg');
-        if (msg) { msg.textContent = '✓ Тоглоомд хадгалагдлаа'; setTimeout(function(){ msg.textContent=''; }, 2000); }
-      }
-    }).catch(function(){});
-  }
-
   function addLog(action, detail, color) {
     fetch(API + '/api/logs', {
       method:'POST', headers:{'Content-Type':'application/json'},
@@ -1739,6 +1725,18 @@ function closeMathModal() { closeChoiceMathModal(); }
           + '<label style="font-size:0.78rem;color:var(--muted);font-weight:700;display:block;margin-bottom:4px;">💡 Hint</label>'
           + '<input id="qedit-hint-'+q.id+'" type="text" value="'+((q.hint&&q.hint.text||'').replace(/"/g,'&quot;'))+'" style="width:100%;height:36px;background:var(--surface2);border:1.5px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text);font-size:0.88rem;box-sizing:border-box;">'
           + '</div>'
+          + '<div style="margin-bottom:8px;">'
+          + '<label style="font-size:0.78rem;color:var(--muted);font-weight:700;display:block;margin-bottom:4px;">📐 Desmos/GeoGebra embed URL</label>'
+          + '<input id="qedit-embed-'+q.id+'" type="text" value="'+((q.hint&&q.hint.embed||'').replace(/"/g,'&quot;'))+'" placeholder="https://www.desmos.com/calculator/xxxxx" style="width:100%;height:36px;background:var(--surface2);border:1.5px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text);font-size:0.88rem;box-sizing:border-box;">'
+          + '</div>'
+          + '<div style="margin-bottom:8px;">'
+          + '<label style="font-size:0.78rem;color:var(--muted);font-weight:700;display:block;margin-bottom:4px;">📝 Хариултын төрөл</label>'
+          + '<select id="qedit-type-'+q.id+'" style="width:100%;height:36px;background:var(--surface2);border:1.5px solid var(--border);border-radius:8px;padding:0 10px;color:var(--text);font-size:0.88rem;">'
+          + '<option value="choice"'+((!q.type||q.type==="choice")?" selected":"")+'>Сонголт (choice)</option>'
+          + '<option value="fill"'+(q.type==="fill"?" selected":"")+'>Нөхөх (fill)</option>'
+          + '<option value="number"'+(q.type==="number"?" selected":"")+'>Тоо (number)</option>'
+          + '</select>'
+          + '</div>'
           + '<div style="display:flex;gap:8px;margin-top:10px;">'
           + '<button onclick="saveQuestion('+q.id+')" style="flex:1;background:#58CC02;border:none;color:white;border-radius:8px;padding:9px;cursor:pointer;font-weight:800;font-size:0.9rem;">✓ Хадгалах</button>'
           + '<button onclick="cancelEdit('+q.id+')" style="background:var(--surface);border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:9px 16px;cursor:pointer;font-weight:700;">Болих</button>'
@@ -1814,7 +1812,11 @@ function openEditMathModal(targetId) {
     radios.forEach(function(r){ if(r.checked) correctIdx = parseInt(r.value); });
     var correct = choices[correctIdx] || choices[0];
     var hintEl = document.getElementById('qedit-hint-'+id);
+    var embedEl = document.getElementById('qedit-embed-'+id);
+    var typeEl = document.getElementById('qedit-type-'+id);
     var hint = hintEl ? {text: hintEl.value.trim()} : null;
+    if (embedEl && embedEl.value.trim()) { hint = hint || {}; hint.embed = embedEl.value.trim(); }
+    var qtype = typeEl ? typeEl.value : 'choice';
     if (!text) { alert('Бодлогын текст оруулна уу!'); return; }
     var nodeEl = document.getElementById('q-node');
     var nodeId = nodeEl ? parseInt(nodeEl.value)||null : null;
@@ -1825,7 +1827,8 @@ function openEditMathModal(targetId) {
     }).then(function() {
       return fetch(API + '/api/questions', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({text, correct, choices, hint: hint&&hint.text?hint:null,
+        body: JSON.stringify({text, correct, choices, hint: hint&&(hint.text||hint.embed)?hint:null,
+          type: qtype,
           node_id: document.getElementById('q-node') ? parseInt(document.getElementById('q-node').value)||null : null})
       });
     }).then(r=>r.json()).then(function(d){
