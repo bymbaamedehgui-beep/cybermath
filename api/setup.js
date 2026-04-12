@@ -61,8 +61,7 @@ module.exports = async (req, res) => {
       )
     `);
     await pool.query(`ALTER TABLE questions ADD COLUMN IF NOT EXISTS node_id INT`).catch(()=>{});
-    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_data TEXT`).catch(()=>{});
-    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS stars_data TEXT`).catch(()=>{});
+    await pool.query(`ALTER TABLE questions ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'choice'`).catch(()=>{});
 
     // Nodes table
     await pool.query(`
