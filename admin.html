@@ -969,7 +969,7 @@ function toggleAdmPw() {
               </div>
               <div class="form-group">
                 <label>📝 Хариултын төрөл</label>
-                <select id="q-type" class="form-input">
+                <select id="q-type" class="form-input" onchange="switchQType(this.value)">
                   <option value="choice">Сонголт (choice)</option>
                   <option value="fill">Нөхөх (fill)</option>
                   <option value="number">Тоо (number)</option>
@@ -1015,7 +1015,7 @@ function toggleAdmPw() {
             </div>
           </div>
 
-          <div class="choices-row">
+          <div class="choices-row" id="choices-section">
             <div class="choice-input">
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:4px;">
                 <input type="radio" name="q-correct" value="a" checked onchange="updateChoiceHighlight()">
@@ -1054,6 +1054,19 @@ function toggleAdmPw() {
               <div style="display:flex;gap:4px;">
                 <input id="q-d" type="text" placeholder="Хариулт D" style="flex:1;height:40px;border:2px solid #444;border-radius:8px;padding:8px 10px;background:#1a1040;color:#f0eeff;font-size:0.9rem;box-sizing:border-box;">
                 <button type="button" onclick="openChoiceMathModal('q-d')" style="background:#7B52EE;border:none;color:white;border-radius:8px;padding:0 10px;cursor:pointer;font-size:0.8rem;font-weight:800;white-space:nowrap;">∑</button>
+              </div>
+            </div>
+          </div>
+
+          </div>
+
+          <!-- Нөхөх хариулт -->
+          <div id="fill-section" style="display:none;margin-top:12px;">
+            <div class="form-group">
+              <label>✏️ Зөв хариулт (нөхөх)</label>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <input id="q-fill-answer" type="text" class="form-input" placeholder="Зөв хариулт оруулна уу..." style="flex:1;">
+                <button type="button" onclick="openChoiceMathModal('q-fill-answer')" style="background:#7B52EE;border:none;color:white;border-radius:8px;padding:0 12px;height:40px;cursor:pointer;font-size:0.9rem;font-weight:800;white-space:nowrap;">∑</button>
               </div>
             </div>
           </div>
@@ -1873,29 +1886,48 @@ function openEditMathModal(targetId) {
     });
   }
 
+  function switchQType(type) {
+    var choicesSection = document.getElementById('choices-section');
+    var fillSection = document.getElementById('fill-section');
+    if (type === 'fill' || type === 'number') {
+      if (choicesSection) choicesSection.style.display = 'none';
+      if (fillSection) fillSection.style.display = 'block';
+    } else {
+      if (choicesSection) choicesSection.style.display = '';
+      if (fillSection) fillSection.style.display = 'none';
+    }
+  }
+
   function addQuestion() {
     var text = getMathText();
     var nodeId = document.getElementById('q-node') ? document.getElementById('q-node').value : '';
-    var a = document.getElementById('q-a') ? ((document.getElementById('q-a').value||document.getElementById('q-a').getValue&&document.getElementById('q-a').getValue()||"").trim()) : '';
-    var b = document.getElementById('q-b') ? ((document.getElementById('q-b').value||document.getElementById('q-b').getValue&&document.getElementById('q-b').getValue()||"").trim()) : '';
-    var c = document.getElementById('q-c') ? ((document.getElementById('q-c').value||document.getElementById('q-c').getValue&&document.getElementById('q-c').getValue()||"").trim()) : '';
-    var d = document.getElementById('q-d') ? ((document.getElementById('q-d').value||document.getElementById('q-d').getValue&&document.getElementById('q-d').getValue()||"").trim()) : '';
-    // Зөв хариулт radio-аас авах
-    var selected = document.querySelector('input[name="q-correct"]:checked');
-    var correctKey = selected ? selected.value : 'a';
-    var correctMap = {a: a, b: b, c: c, d: d};
-    var correct = correctMap[correctKey];
+    var typeEl = document.getElementById('q-type');
+    var qtype = typeEl ? typeEl.value : 'choice';
+    var correct, choices;
+    if (qtype === 'fill' || qtype === 'number') {
+      var fillEl = document.getElementById('q-fill-answer');
+      correct = fillEl ? fillEl.value.trim() : '';
+      choices = [correct];
+    } else {
+      var a = document.getElementById('q-a') ? ((document.getElementById('q-a').value||document.getElementById('q-a').getValue&&document.getElementById('q-a').getValue()||"").trim()) : '';
+      var b = document.getElementById('q-b') ? ((document.getElementById('q-b').value||document.getElementById('q-b').getValue&&document.getElementById('q-b').getValue()||"").trim()) : '';
+      var c = document.getElementById('q-c') ? ((document.getElementById('q-c').value||document.getElementById('q-c').getValue&&document.getElementById('q-c').getValue()||"").trim()) : '';
+      var d = document.getElementById('q-d') ? ((document.getElementById('q-d').value||document.getElementById('q-d').getValue&&document.getElementById('q-d').getValue()||"").trim()) : '';
+      var selected = document.querySelector('input[name="q-correct"]:checked');
+      var correctKey = selected ? selected.value : 'a';
+      var correctMap = {a: a, b: b, c: c, d: d};
+      correct = correctMap[correctKey];
+      choices = [a,b,c,d];
+    }
     var hint = {text: document.getElementById('q-hint-text') ? document.getElementById('q-hint-text').value.trim() : ''};
     var embedEl = document.getElementById('q-hint-embed');
     if (embedEl && embedEl.value.trim()) hint.embed = embedEl.value.trim();
-    var typeEl = document.getElementById('q-type');
-    var qtype = typeEl ? typeEl.value : 'choice';
     var msg = document.getElementById('q-msg');
     if (!text) { if(msg){msg.style.color='var(--red)';msg.textContent='Бодлогын текст оруулна уу!';} return; }
     if (!correct) { if(msg){msg.style.color='var(--red)';msg.textContent='Зөв хариулт хоосон байна!';} return; }
     fetch(API + '/api/questions', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({text, node_id: nodeId?parseInt(nodeId):null, correct, choices:[a,b,c,d], hint: (hint.text||hint.embed)?hint:null, type: qtype})
+      body: JSON.stringify({text, node_id: nodeId?parseInt(nodeId):null, correct, choices: choices, hint: (hint.text||hint.embed)?hint:null, type: qtype})
     }).then(r=>r.json()).then(function(data) {
       if (!data.ok) { if(msg){msg.style.color='var(--red)';msg.textContent='Алдаа: '+data.error;} return; }
       if(msg){msg.style.color='var(--green)';msg.textContent='✓ Амжилттай нэмэгдлээ!';}
