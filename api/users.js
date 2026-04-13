@@ -9,12 +9,12 @@ module.exports = async (req, res) => {
 
   try {
     if (req.method === 'GET') {
-      const r = await pool.query('SELECT id,email,first_name,last_name,grade,plan,xp,gems,hearts,streak,streak_data,stars_data,avatar,completed_lessons,created_at FROM users ORDER BY created_at DESC');
+      const r = await pool.query('SELECT id,email,first_name,last_name,grade,plan,xp,gems,hearts,streak,avatar,completed_lessons,created_at FROM users ORDER BY created_at DESC');
       return res.json({ ok: true, users: r.rows });
     }
 
     if (req.method === 'PUT') {
-      const { email, plan, xp, gems, hearts, streak, streak_data, stars_data, avatar, completed_lesson } = req.body || {};
+      const { email, plan, xp, gems, hearts, streak, avatar, completed_lesson, stars_data, streak_data } = req.body || {};
       if (!email) return res.status(400).json({ ok: false, error: 'Missing email' });
 
       // completed_lesson array-д нэмэх
@@ -36,8 +36,6 @@ module.exports = async (req, res) => {
       if (hearts !== undefined) { sets.push(`hearts=$${i++}`); vals.push(hearts); }
       if (streak !== undefined) { sets.push(`streak=$${i++}`); vals.push(streak); }
       if (avatar !== undefined) { sets.push(`avatar=$${i++}`); vals.push(avatar); }
-      if (streak_data !== undefined) { sets.push(`streak_data=$${i++}`); vals.push(streak_data); }
-      if (stars_data  !== undefined) { sets.push(`stars_data=$${i++}`);  vals.push(stars_data); }
 
       if (sets.length) {
         vals.push(email);

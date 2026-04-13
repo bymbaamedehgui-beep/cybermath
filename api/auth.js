@@ -22,7 +22,7 @@ module.exports = async (req, res) => {
         email: u.email, firstName: u.first_name, lastName: u.last_name,
         grade: u.grade, plan: u.plan, xp: u.xp || 0, gems: u.gems || 340,
         hearts: u.hearts || 5, streak: u.streak || 0, avatar: u.avatar || 'default',
-        completedLessons: u.completed_lessons || []
+        completedLessons: u.completed_lessons || [], stars_data: u.stars_data || null, streak_data: u.streak_data || null
       }});
     }
 
@@ -85,7 +85,7 @@ module.exports = async (req, res) => {
         email: u.email, firstName: u.first_name, lastName: u.last_name,
         grade: u.grade, plan: u.plan, xp: u.xp || 0, gems: u.gems || 340,
         hearts: u.hearts || 5, streak: u.streak || 0, avatar: u.avatar || 'default',
-        completedLessons: u.completed_lessons || []
+        completedLessons: u.completed_lessons || [], stars_data: u.stars_data || null, streak_data: u.streak_data || null
       }});
     }
 
