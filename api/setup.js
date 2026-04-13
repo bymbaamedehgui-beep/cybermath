@@ -40,6 +40,9 @@ module.exports = async (req, res) => {
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS verify_expiry TIMESTAMPTZ`,
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS completed_lessons INT[] DEFAULT '{}'`,
       `UPDATE users SET verified=true WHERE verified IS NULL`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS aimag TEXT`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS sum TEXT`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS school TEXT`,
     ];
 
     for (const q of alters) {
@@ -61,7 +64,6 @@ module.exports = async (req, res) => {
       )
     `);
     await pool.query(`ALTER TABLE questions ADD COLUMN IF NOT EXISTS node_id INT`).catch(()=>{});
-    await pool.query(`ALTER TABLE questions ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'choice'`).catch(()=>{});
 
     // Nodes table
     await pool.query(`
