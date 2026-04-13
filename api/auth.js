@@ -15,7 +15,9 @@ module.exports = async (req, res) => {
       const r = await pool.query('SELECT *,completed_lessons FROM users WHERE email=$1 AND pass=$2', [email, pass]);
       if (!r.rows.length) return res.status(401).json({ ok: false, error: 'И-мэйл эсвэл нууц үг буруу' });
       const u = r.rows[0];
-      // email verification disabled
+      if (u.verified === false) {
+        return res.status(401).json({ ok: false, error: 'Имэйлээ баталгаажуулна уу', needVerify: true, email });
+      }
       return res.json({ ok: true, user: {
         email: u.email, firstName: u.first_name, lastName: u.last_name,
         grade: u.grade, plan: u.plan, xp: u.xp || 0, gems: u.gems || 340,

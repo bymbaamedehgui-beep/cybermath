@@ -1,25 +1,25 @@
-const RESEND_API_KEY = process.env.RESEND_API_KEY || 're_6V3gNUWE_2ZpUkr8UAtc57eYtKNK5ZdAh';
-const FROM = 'CyberMath <onboarding@resend.dev>';
+const nodemailer = require('nodemailer');
+
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: 'cybermath424@gmail.com',
+    pass: 'fmfu zlsc wznf evfn'
+  }
+});
+
+const FROM = 'CyberMath <cybermath424@gmail.com>';
 
 async function sendEmail({ to, subject, html }) {
   try {
-    const r = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ from: FROM, to, subject, html })
-    });
-    const d = await r.json();
-    return d;
+    await transporter.sendMail({ from: FROM, to, subject, html });
+    return { ok: true };
   } catch (e) {
     console.error('Email error:', e.message);
     return { error: e.message };
   }
 }
 
-// Баталгаажуулах код
 function sendVerifyEmail(to, code, firstName) {
   return sendEmail({
     to,
@@ -47,7 +47,6 @@ function sendVerifyEmail(to, code, firstName) {
   });
 }
 
-// Premium болсон мэдэгдэл
 function sendPremiumEmail(to, firstName) {
   return sendEmail({
     to,
@@ -60,40 +59,18 @@ function sendPremiumEmail(to, firstName) {
       </div>
       <div style="padding:32px;">
         <h2 style="color:#f0eeff;">Баяр хүргэе, ${firstName}! 🎉</h2>
-        <p style="color:#c0b8e8;line-height:1.6;">Та CyberMath Premium гишүүн болсон байна. Бүх хичээл, бодлогуудыг хязгааргүй ашиглаарай!</p>
-        <div style="background:#1e1a35;border:2px solid #FFC800;border-radius:12px;padding:20px;margin:24px 0;">
-          <p style="color:#FFC800;font-weight:bold;margin:0 0 12px;">✨ Premium давуу талууд:</p>
-          <ul style="color:#c0b8e8;margin:0;padding-left:20px;line-height:2;">
-            <li>Хязгааргүй зүрх</li>
-            <li>Бүх нэгж нэвтрэх</li>
-            <li>Дэлгэрэнгүй тайлбар</li>
-            <li>Онцгой дэмжлэг</li>
-          </ul>
-        </div>
-        <a href="https://cybermath.vercel.app" style="display:block;background:linear-gradient(135deg,#FFC800,#FF9600);color:#fff;text-decoration:none;text-align:center;padding:14px;border-radius:10px;font-weight:bold;font-size:1rem;">Хичээлд орох →</a>
+        <p style="color:#c0b8e8;line-height:1.6;">Та CyberMath Premium гишүүн болсон байна!</p>
+        <a href="https://cybermath.vercel.app" style="display:block;background:linear-gradient(135deg,#FFC800,#FF9600);color:#fff;text-decoration:none;text-align:center;padding:14px;border-radius:10px;font-weight:bold;">Хичээлд орох →</a>
       </div>
     </div>`
   });
 }
 
-// Free болсон мэдэгдэл
 function sendFreeEmail(to, firstName) {
   return sendEmail({
     to,
     subject: 'CyberMath - Тарифф өөрчлөгдлөө',
-    html: `
-    <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;background:#0d0b1a;color:#f0eeff;border-radius:16px;overflow:hidden;">
-      <div style="background:linear-gradient(135deg,#7B52EE,#A855F7);padding:32px;text-align:center;">
-        <div style="font-size:2rem;">🧮</div>
-        <h1 style="margin:8px 0;font-size:1.6rem;color:#fff;">CyberMath</h1>
-      </div>
-      <div style="padding:32px;">
-        <h2 style="color:#f0eeff;">Сайн байна уу, ${firstName}!</h2>
-        <p style="color:#c0b8e8;line-height:1.6;">Таны бүртгэл Free тарифф руу шилжсэн байна. CyberMath-ийг үргэлжлүүлэн ашиглаарай!</p>
-        <p style="color:#c0b8e8;line-height:1.6;">Premium-ийн давуу талуудыг дахин ашиглахыг хүсвэл admin-тай холбогдоно уу.</p>
-        <a href="https://cybermath.vercel.app" style="display:block;background:linear-gradient(135deg,#7B52EE,#A855F7);color:#fff;text-decoration:none;text-align:center;padding:14px;border-radius:10px;font-weight:bold;font-size:1rem;">Хичээлд орох →</a>
-      </div>
-    </div>`
+    html: `<div style="font-family:Arial,sans-serif;padding:32px;">Сайн байна уу, ${firstName}! Таны бүртгэл Free тарифф руу шилжсэн байна.</div>`
   });
 }
 
