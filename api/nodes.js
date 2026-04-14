@@ -8,17 +8,24 @@ module.exports = async (req, res) => {
 
   try {
     if (req.method === 'GET') {
-      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-      res.setHeader('Pragma', 'no-cache');
       const r = await pool.query('SELECT * FROM nodes ORDER BY sort_order, id');
       return res.json({ ok: true, nodes: r.rows });
     }
 
     if (req.method === 'POST') {
       const { id, name, type, icon, grade, sort_order } = req.body || {};
+      // Зөвхөн name шинэчлэх бол тусад нь UPDATE хийнэ
+      if (name !== undefined && type === undefined) {
+        await pool.query(
+          'UPDATE nodes SET name=$2 WHERE id=$1',
+          [id, name]
+        );
+        return res.json({ ok: true });
+      }
+      // Бүх field шинэчлэх
       await pool.query(
         'INSERT INTO nodes (id,name,type,icon,grade,sort_order) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO UPDATE SET name=$2,type=$3,icon=$4,grade=$5,sort_order=$6',
-        [id, name, type||'locked', icon||'📚', grade||'', sort_order||0]
+        [id, name, type||'locked', icon||'📚', grade||'', sort_order||id]
       );
       return res.json({ ok: true });
     }
