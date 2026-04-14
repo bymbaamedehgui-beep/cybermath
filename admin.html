@@ -2293,8 +2293,31 @@ function openEditMathModal(targetId) {
 
   function saveAllNodes() {
     var btn = document.getElementById('save-nodes-btn');
-    if (btn) { btn.textContent = '✅ Амжилттай!'; btn.style.background='var(--green)'; }
-    setTimeout(function(){ if(btn){ btn.textContent='💾 Хадгалах'; btn.style.background=''; } }, 2000);
+    if (btn) { btn.textContent = '⏳ Хадгалж байна...'; btn.disabled = true; }
+    var nodes = getNodes();
+    // Input-уудаас хамгийн сүүлийн утгыг авах
+    nodes.forEach(function(n) {
+      var inp = document.getElementById('nname-' + n.id);
+      if (inp && inp.value.trim()) n.name = inp.value.trim();
+    });
+    saveNodes(nodes);
+    // DB-д бүгдийг хадгалах
+    var promises = nodes.map(function(n) {
+      return fetch(API + '/api/nodes', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({id: n.id, name: n.name, type: n.type, icon: n.icon||'📚', grade: n.grade||'', sort_order: n.sort_order||n.id})
+      }).then(function(r){ return r.json(); });
+    });
+    Promise.all(promises).then(function() {
+      if (btn) { btn.textContent = '✅ Хадгалагдлаа!'; btn.style.background='var(--green)'; btn.disabled = false; }
+      setTimeout(function(){ if(btn){ btn.textContent='💾 Хадгалах'; btn.style.background=''; } }, 2500);
+      renderAdminMap(nodes);
+      addLog('Node', nodes.length + ' node DB-д хадгалагдлаа', '#58CC02');
+    }).catch(function(e) {
+      if (btn) { btn.textContent = '❌ Алдаа'; btn.disabled = false; }
+      alert('Хадгалахад алдаа гарлаа: ' + e.message);
+    });
   }
 
   // ══ USERS ══
