@@ -8,6 +8,8 @@ module.exports = async (req, res) => {
 
   try {
     if (req.method === 'GET') {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
       const r = await pool.query('SELECT * FROM nodes ORDER BY sort_order, id');
       return res.json({ ok: true, nodes: r.rows });
     }
