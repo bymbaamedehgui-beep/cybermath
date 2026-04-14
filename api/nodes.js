@@ -14,11 +14,11 @@ module.exports = async (req, res) => {
 
     if (req.method === 'POST') {
       const { id, name, type, icon, grade, sort_order } = req.body || {};
-      // Зөвхөн name шинэчлэх бол тусад нь UPDATE хийнэ
+      // Зөвхөн name шинэчлэх бол тусад нь UPSERT хийнэ
       if (name !== undefined && type === undefined) {
         await pool.query(
-          'UPDATE nodes SET name=$2 WHERE id=$1',
-          [id, name]
+          'INSERT INTO nodes (id, name, type, icon, grade, sort_order) VALUES ($1,$2,\'locked\',\'📚\',$3,$1) ON CONFLICT (id) DO UPDATE SET name=$2',
+          [id, name, grade||'']
         );
         return res.json({ ok: true });
       }
