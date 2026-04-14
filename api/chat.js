@@ -9,19 +9,32 @@ module.exports = async (req, res) => {
     const { messages, system } = req.body || {};
     const apiKey = process.env.GEMINI_API_KEY;
 
+    // List available models first
+    const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+    const listData = await listRes.json();
+    
+    // Find first model that supports generateContent
+    const available = (listData.models || [])
+      .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
+      .map(m => m.name.replace('models/', ''));
+    
+    if (!available.length) {
+      return res.json({ ok: true, content: [{ text: 'API key алдаатай байна: ' + JSON.stringify(listData).substring(0,100) }] });
+    }
+
+    const modelName = available[0];
     const sys = system || 'Чи бол математикийн туслагч Сарнай. Монгол хэлээр хариул.';
     
-    // Build contents with system as first user turn
     const contents = [
       { role: 'user', parts: [{ text: sys }] },
-      { role: 'model', parts: [{ text: 'Ойлголоо, бэлэн байна!' }] },
+      { role: 'model', parts: [{ text: 'Ойлголоо!' }] },
       ...(messages || []).map(m => ({
         role: m.role === 'assistant' ? 'model' : 'user',
         parts: [{ text: m.content }]
       }))
     ];
 
-    const r = await fetch('https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=' + apiKey, {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contents, generationConfig: { maxOutputTokens: 1000 } })
