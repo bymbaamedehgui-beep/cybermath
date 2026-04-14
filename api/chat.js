@@ -6,32 +6,71 @@ module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).end();
 
   try {
-    const { messages, system } = req.body || {};
-    const apiKey = process.env.GROQ_API_KEY;
-    if (!apiKey) return res.status(500).json({ ok: false, error: 'GROQ_API_KEY not set' });
+    const { messages, system, userEmail } = req.body || {};
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) return res.status(500).json({ ok: false, error: 'API key not set' });
 
-    const sys = system || `Чи бол CyberMath платформын математикийн туслагч Сарнай. Монголын ЕБС-ийн сурагчдад (6-12-р анги) зориулж математик заадаг.
+    // Хязгаар шалгах - premium хэрэглэгч өдөрт 30, энгийн 5
+    const { Pool } = require('@neondatabase/serverless');
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-ДҮРМҮҮД:
-- Зөвхөн монгол хэлээр хариул
-- Математикийн томьёо, тэгшитгэлийг тодорхой, алхам алхмаар тайлбарла
-- Энгийн үгээр ойлгомжтой тайлбарла
-- Хариулт нь богино, тодорхой байх
-- Монгол сурагчдын түвшинд тохируулж хариул
-- Зөв математикийн нэр томьёо ашигла (зэрэг, язгуур, тэгшитгэл гэх мэт)`;
+    let dailyLimit = 5;
+    let isPremium = false;
 
-    const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    if (userEmail) {
+      const userRes = await pool.query('SELECT plan FROM users WHERE email=$1', [userEmail]);
+      if (userRes.rows[0]?.plan === 'premium') {
+        isPremium = true;
+        dailyLimit = 30;
+      }
+
+      // Өнөөдрийн тоо шалгах
+      const today = new Date().toISOString().split('T')[0];
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS chat_usage (
+          email TEXT, date TEXT, count INT DEFAULT 0,
+          PRIMARY KEY (email, date)
+        )
+      `);
+      const usage = await pool.query(
+        'SELECT count FROM chat_usage WHERE email=$1 AND date=$2',
+        [userEmail, today]
+      );
+      const count = usage.rows[0]?.count || 0;
+      if (count >= dailyLimit) {
+        await pool.end();
+        return res.json({ ok: false, limitReached: true, limit: dailyLimit, content: [{ text: isPremium
+          ? `Өнөөдрийн хязгаар (${dailyLimit} асуулт) дууссан. Маргааш дахин ашиглаарай.`
+          : `Үнэгүй хэрэглэгчид өдөрт ${dailyLimit} асуулт боломжтой. Premium авбал 30 болно!` }] });
+      }
+
+      // Тоолуурыг нэмэх
+      await pool.query(`
+        INSERT INTO chat_usage (email, date, count) VALUES ($1, $2, 1)
+        ON CONFLICT (email, date) DO UPDATE SET count = chat_usage.count + 1
+      `, [userEmail, today]);
+    }
+    await pool.end();
+
+    const sys = system || 'Чи бол CyberMath платформын математикийн туслагч Сарнай. Монгол ЕБС-ийн сурагчдад зориулж математикийн бодлого, теорем, томьёог алхам алхмаар тайлбарла. Монгол хэлээр хариул. Товч бөгөөд ойлгомжтой байх.';
+
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [{ role: 'system', content: sys }, ...(messages || [])],
+        model: 'claude-haiku-4-5-20251001',
         max_tokens: 1000,
-        temperature: 0.7
+        system: sys,
+        messages: (messages || []).map(m => ({ role: m.role, content: m.content }))
       })
     });
+
     const data = await r.json();
-    const text = data.choices?.[0]?.message?.content || data.error?.message || 'Уучлаарай, хариулт олдсонгүй.';
+    const text = data.content?.[0]?.text || data.error?.message || 'Уучлаарай, хариулт олдсонгүй.';
     return res.json({ ok: true, content: [{ text }] });
   } catch(e) {
     return res.status(500).json({ ok: false, error: e.message });
