@@ -600,14 +600,40 @@ function toggleAdmPw() {
       <!-- Nodes page -->
       <div class="page" id="page-nodes">
         <div class="page-title">Хичээлийн зам</div>
-        <div class="page-sub">Node-уудын нэр засах, шинэ node нэмэх</div>
+        <div class="page-sub">Node дээр дарж нэрийг нь засна уу</div>
 
-        <!-- Existing nodes list -->
+        <!-- Map view -->
         <div class="table-card" style="margin-bottom:20px;">
           <div class="table-header">
-            <div class="table-title">Одоогийн хичээлүүд</div>
-            <button class="btn-sm btn-success" id="save-nodes-btn" onclick="saveAllNodes()">💾 Хадгалах</button>
-            <button class="btn-sm btn-danger" id="delete-all-btn" onclick="deleteAllNodeNames()">🗑️ Нийтийг устгах</button>
+            <div class="table-title">🗺️ Learning Path Map</div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn-sm btn-success" id="save-nodes-btn" onclick="saveAllNodes()">💾 Хадгалах</button>
+              <button class="btn-sm btn-danger" id="delete-all-btn" onclick="deleteAllNodeNames()">🗑️ Нийтийг устгах</button>
+            </div>
+          </div>
+          <!-- Map container -->
+          <div id="admin-map-wrap" style="position:relative;background:linear-gradient(180deg,#0a1628,#0d2240);border-radius:12px;overflow:hidden;margin:0 12px 12px;height:600px;">
+            <div id="admin-map-scroll" style="position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;">
+              <svg id="admin-map-svg" style="width:100%;display:block;" viewBox="0 0 420 2000" xmlns="http://www.w3.org/2000/svg"></svg>
+            </div>
+          </div>
+          <!-- Edit popup -->
+          <div id="admin-node-popup" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--surface2);border:2px solid var(--purple);border-radius:16px;padding:24px;z-index:9999;min-width:300px;box-shadow:0 8px 40px rgba(0,0,0,0.5);">
+            <div style="font-weight:900;font-size:1rem;color:var(--text);margin-bottom:4px;" id="popup-title">Node #1</div>
+            <div style="font-size:0.78rem;color:var(--muted);margin-bottom:12px;" id="popup-sub">Нэрийг засна уу</div>
+            <input id="popup-name-input" type="text" style="width:100%;padding:10px 14px;background:var(--surface);border:1.5px solid var(--purple);border-radius:10px;color:var(--text);font-size:0.95rem;font-weight:700;outline:none;box-sizing:border-box;margin-bottom:12px;" placeholder="Хичээлийн нэр...">
+            <div style="display:flex;gap:8px;">
+              <button id="popup-save-btn" style="flex:1;padding:10px;background:var(--purple);border:none;border-radius:10px;color:white;font-weight:900;cursor:pointer;font-size:0.9rem;">💾 Хадгалах</button>
+              <button onclick="closeNodePopup()" style="padding:10px 16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;color:var(--muted);font-weight:700;cursor:pointer;">Болих</button>
+            </div>
+          </div>
+          <div id="admin-node-overlay" onclick="closeNodePopup()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9998;"></div>
+        </div>
+
+        <!-- Node list (compact) -->
+        <div class="table-card" style="margin-bottom:20px;">
+          <div class="table-header">
+            <div class="table-title">📋 Хичээлийн жагсаалт</div>
           </div>
           <div id="nodes-list" style="padding:12px 20px;display:flex;flex-direction:column;gap:8px;"></div>
         </div>
@@ -2010,6 +2036,104 @@ function openEditMathModal(targetId) {
   }
 
   // ══ NODES ══
+  // ── Admin Map ──
+  var _adminPopupNodeId = null;
+
+  function renderAdminMap(nodes) {
+    var svg = document.getElementById('admin-map-svg');
+    if (!svg) return;
+    if (!nodes.length) return;
+
+    var totalH = nodes.length * 120 + 100;
+    svg.setAttribute('viewBox', '0 0 420 ' + totalH);
+    svg.setAttribute('height', totalH);
+
+    // Store nodes for click handler
+    window._adminMapNodes = nodes;
+
+    var colors = {'8':'#58CC02','9':'#1CB0F6','10':'#FF9600','11':'#CE82FF','12':'#FF4B4B'};
+    var positions = [210, 320, 100, 305, 115, 295, 210, 320, 100, 305, 115];
+    var paths = '';
+    var circles = '';
+    var texts = '';
+
+    nodes.forEach(function(n, i) {
+      var cx = positions[i % positions.length];
+      var cy = 60 + i * 120;
+      var color = colors[n.grade] || '#7B52EE';
+      var name = n.name || ('Node ' + n.id);
+      var display = name.length > 14 ? name.substring(0,13) + '…' : name;
+
+      // Path to next node
+      if (i < nodes.length - 1) {
+        var nx = positions[(i+1) % positions.length];
+        var ny = cy + 120;
+        paths += '<path d="M'+cx+','+cy+' C'+cx+','+(cy+60)+' '+nx+','+(ny-60)+' '+nx+','+ny+'" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="3" stroke-dasharray="8 6"/>';
+      }
+
+      // Clickable group - use data attribute for id
+      circles += '<circle class="adm-node-circle" data-id="'+n.id+'" cx="'+cx+'" cy="'+cy+'" r="32" fill="#0d1a2a" stroke="'+color+'" stroke-width="3.5" filter="url(#adm-neon)" style="cursor:pointer;"/>';
+      circles += '<circle cx="'+cx+'" cy="'+cy+'" r="26" fill="#111d2e" stroke="'+color+'" stroke-width="1.5" style="pointer-events:none;"/>';
+      circles += '<text x="'+cx+'" y="'+(cy-42)+'" font-size="10" fill="'+color+'" text-anchor="middle" font-weight="900" font-family="sans-serif" opacity="0.8" style="pointer-events:none;">'+n.id+'</text>';
+      circles += '<text class="adm-node-circle" data-id="'+n.id+'" x="'+cx+'" y="'+(cy+4)+'" font-size="14" text-anchor="middle" dominant-baseline="middle" style="cursor:pointer;">✏️</text>';
+      texts += '<text class="adm-node-circle" data-id="'+n.id+'" x="'+cx+'" y="'+(cy+50)+'" font-size="11" fill="rgba(255,255,255,0.85)" text-anchor="middle" font-weight="700" font-family="sans-serif" style="cursor:pointer;">'+display+'</text>';
+    });
+
+    svg.innerHTML = '<defs><filter id="adm-neon" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="3" result="b1"/><feGaussianBlur stdDeviation="7" result="b2"/><feMerge><feMergeNode in="b2"/><feMergeNode in="b1"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>'
+      + paths + circles + texts;
+
+    // Attach click events via JS (no inline onclick)
+    svg.querySelectorAll('.adm-node-circle').forEach(function(el) {
+      el.addEventListener('click', function() {
+        var id = parseInt(this.getAttribute('data-id'));
+        var node = (window._adminMapNodes || []).find(function(x){ return x.id === id; });
+        if (node) openNodePopup(node.id, node.name || '');
+      });
+    });
+  }
+
+  function openNodePopup(id, currentName) {
+    _adminPopupNodeId = id;
+    document.getElementById('popup-title').textContent = 'Node #' + id;
+    document.getElementById('popup-sub').textContent = 'Одоогийн нэр: ' + (currentName || '—');
+    document.getElementById('popup-name-input').value = currentName || '';
+    document.getElementById('admin-node-popup').style.display = 'block';
+    document.getElementById('admin-node-overlay').style.display = 'block';
+    setTimeout(function(){ document.getElementById('popup-name-input').focus(); }, 100);
+    document.getElementById('popup-save-btn').onclick = function() { savePopupNodeName(); };
+    document.getElementById('popup-name-input').onkeydown = function(e){ if(e.key==='Enter') savePopupNodeName(); };
+  }
+
+  function closeNodePopup() {
+    document.getElementById('admin-node-popup').style.display = 'none';
+    document.getElementById('admin-node-overlay').style.display = 'none';
+    _adminPopupNodeId = null;
+  }
+
+  function savePopupNodeName() {
+    var id = _adminPopupNodeId;
+    if (!id) return;
+    var name = document.getElementById('popup-name-input').value.trim();
+    var nodes = getNodes();
+    var n = nodes.find(function(x){ return x.id === id; });
+    if (!n) { closeNodePopup(); return; }
+    n.name = name;
+    saveNodes(nodes);
+    // Update list input too
+    var inp = document.getElementById('nname-' + id);
+    if (inp) inp.value = name;
+    fetch(API + '/api/nodes', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({id: n.id, name: name, type: n.type, icon: n.icon||'📚', grade: n.grade||'', sort_order: n.sort_order||n.id})
+    }).then(function(){
+      // Re-render map with updated name
+      renderAdminMap(getNodes());
+      closeNodePopup();
+      addLog('Node', 'Node #'+id+' нэр: "'+name+'"', '#58CC02');
+    }).catch(function(){ closeNodePopup(); });
+  }
+
   function renderNodesList() {
     var el = document.getElementById('nodes-list');
     if (!el) return;
@@ -2020,6 +2144,7 @@ function openEditMathModal(targetId) {
         var nodes = data.nodes || [];
         saveNodes(nodes);
         _renderNodesUI(nodes);
+        renderAdminMap(nodes);
       })
       .catch(function(){ _renderNodesUI(getNodes()); });
   }
