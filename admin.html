@@ -2011,32 +2011,119 @@ function openEditMathModal(targetId) {
 
   // ══ NODES ══
   function renderNodesList() {
-    var nodes = getNodes();
     var el = document.getElementById('nodes-list');
     if (!el) return;
+    el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);">Уншиж байна...</div>';
+    fetch(API + '/api/nodes')
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        var nodes = data.nodes || [];
+        saveNodes(nodes);
+        _renderNodesUI(nodes);
+      })
+      .catch(function(){ _renderNodesUI(getNodes()); });
+  }
+
+  function _renderNodesUI(nodes) {
+    var el = document.getElementById('nodes-list');
+    if (!el) return;
+    if (!nodes.length) { el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);">Node байхгүй байна</div>'; return; }
     el.innerHTML = nodes.map(function(n) {
-      var typeColor = n.type==='lesson' ? 'var(--green)' : n.type==='soon' ? 'var(--yellow)' : 'var(--muted)';
-      var typeLbl = n.type==='lesson' ? '✅ Нээлттэй' : n.type==='soon' ? '⏳ Удахгүй' : '🔒 Хаалттай';
-      return '<div style="display:flex;align-items:center;gap:12px;background:var(--surface2);border-radius:10px;padding:12px 14px;margin-bottom:8px;">'
-        + '<div style="font-size:1.4rem;width:32px;text-align:center;">'+(n.icon||'📚')+'</div>'
-        + '<div style="flex:1;">'
-        + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">'
-        + '<span style="font-weight:800;font-size:0.82rem;color:var(--muted);">'+n.id+'.</span>'
-        + '<input id="nname-'+n.id+'" value="'+n.name.replace(/"/g,'&quot;')+'" style="flex:1;padding:6px 10px;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;font-size:0.88rem;color:var(--text);font-weight:700;outline:none;">'
-        + '<button onclick="saveNodeName('+n.id+')" style="padding:6px 12px;background:var(--purple);border:none;border-radius:8px;color:white;font-weight:800;font-size:0.78rem;cursor:pointer;">💾</button>'
-        + '</div>'
-        + '<div style="display:flex;gap:8px;margin-top:4px;">'
-        + '<span style="font-size:0.72rem;font-weight:800;color:'+typeColor+';">'+typeLbl+'</span>'
-        + (n.grade?'<span style="font-size:0.72rem;background:var(--surface);border-radius:6px;padding:2px 8px;color:var(--muted);">'+n.grade+'-р анги</span>':'')
-        + '</div></div>'
-        + '<select onchange="updateNodeType('+n.id+',this.value)" style="padding:5px 8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:0.75rem;color:var(--text);cursor:pointer;">'
-        + '<option value="lesson"'+(n.type==='lesson'?' selected':'')+'>✅ Нээлттэй</option>'
-        + '<option value="locked"'+(n.type==='locked'?' selected':'')+'>🔒 Хаалттай</option>'
-        + '<option value="soon"'+(n.type==='soon'?' selected':'')+'>⏳ Удахгүй</option>'
-        + '</select>'
-        + '</div>';
+      return '<div style="display:flex;align-items:center;gap:10px;background:var(--surface2);border-radius:10px;padding:10px 14px;margin-bottom:8px;">'        + '<span style="font-weight:800;font-size:0.85rem;color:var(--muted);min-width:24px;">'+n.id+'.</span>'        + '<input id="nname-'+n.id+'" value="'+n.name.replace(/"/g,'&quot;')+'" style="flex:1;padding:6px 10px;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;font-size:0.88rem;color:var(--text);font-weight:700;outline:none;">'        + '<button onclick="saveNodeName('+n.id+')" style="padding:6px 12px;background:var(--purple);border:none;border-radius:8px;color:white;font-weight:700;font-size:0.78rem;cursor:pointer;">💾</button>'        + '<div style="position:relative;" id="menu-wrap-'+n.id+'">'        + '<button onclick="toggleNodeMenu('+n.id+')" style="padding:6px 11px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:1.1rem;cursor:pointer;font-weight:900;line-height:1;">⋯</button>'        + '<div id="node-menu-'+n.id+'" style="display:none;position:absolute;right:0;top:110%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;min-width:150px;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,0.3);overflow:hidden;">'        + '<button onclick="clearNodeName('+n.id+');toggleNodeMenu('+n.id+')" style="width:100%;padding:10px 16px;background:none;border:none;border-bottom:1px solid var(--border);color:var(--text);font-size:0.85rem;cursor:pointer;text-align:left;">🗑️ Нэр устгах</button>'        + '<button onclick="deleteNode('+n.id+')" style="width:100%;padding:10px 16px;background:none;border:none;color:#ff4b4b;font-size:0.85rem;cursor:pointer;text-align:left;">❌ Node устгах</button>'        + '</div></div>'        + '</div>';
     }).join('');
   }
+
+  function toggleNodeMenu(id) {
+    var menu = document.getElementById('node-menu-' + id);
+    if (!menu) return;
+    var isOpen = menu.style.display !== 'none';
+    document.querySelectorAll('[id^="node-menu-"]').forEach(function(m){ m.style.display='none'; });
+    if (!isOpen) menu.style.display = 'block';
+  }
+
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest || !e.target.closest('[id^="menu-wrap-"]')) {
+      document.querySelectorAll('[id^="node-menu-"]').forEach(function(m){ m.style.display='none'; });
+    }
+  });
+
+  function deleteNode(id) {
+    if (!confirm(id + '-р node-ийг устгах уу?')) return;
+    var nodes = getNodes().filter(function(n){ return n.id !== id; });
+    saveNodes(nodes);
+    fetch(API + '/api/nodes', {
+      method: 'DELETE',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({id: id})
+    }).catch(function(){});
+    renderNodesList();
+  }
+
+  function clearNodeName(id) {
+    var nodes = getNodes();
+    var n = nodes.find(function(x){ return x.id === id; });
+    if (!n) return;
+    n.name = '';
+    saveNodes(nodes);
+    var input = document.getElementById('nname-' + id);
+    if (input) input.value = '';
+    fetch(API + '/api/nodes', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({id: n.id, name: '', type: n.type, icon: n.icon||'📚', grade: n.grade||'', sort_order: n.sort_order||n.id})
+    }).then(function(){
+      if (input) { input.style.borderColor='#ff4b4b'; setTimeout(function(){ input.style.borderColor='var(--border)'; }, 1500); }
+    }).catch(function(){});
+  }
+
+  var _deletedNames = null;
+  var _undoTimer = null;
+
+  function deleteAllNodeNames() {
+    var nodes = getNodes();
+    _deletedNames = nodes.map(function(n){ return {id: n.id, name: n.name}; });
+    nodes.forEach(function(n){ n.name = ''; });
+    saveNodes(nodes);
+    _renderNodesUI(nodes);
+    Promise.all(nodes.map(function(n){
+      return fetch(API + '/api/nodes', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({id: n.id, name: '', type: n.type, icon: n.icon||'📚', grade: n.grade||'', sort_order: n.sort_order||n.id})
+      });
+    })).catch(function(){});
+    var btn = document.getElementById('delete-all-btn');
+    if (btn) { btn.textContent = '↩️ Буцаах (5с)'; btn.onclick = function(){ undoDeleteNames(); }; }
+    if (_undoTimer) clearTimeout(_undoTimer);
+    _undoTimer = setTimeout(function(){
+      _deletedNames = null;
+      if (btn) { btn.textContent = '🗑️ Нийтийг устгах'; btn.onclick = function(){ deleteAllNodeNames(); }; }
+    }, 5000);
+  }
+
+  function undoDeleteNames() {
+    if (!_deletedNames) return;
+    clearTimeout(_undoTimer);
+    var nodes = getNodes();
+    _deletedNames.forEach(function(d){
+      var n = nodes.find(function(x){ return x.id === d.id; });
+      if (n) n.name = d.name;
+    });
+    saveNodes(nodes);
+    _renderNodesUI(nodes);
+    Promise.all(nodes.map(function(n){
+      return fetch(API + '/api/nodes', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({id: n.id, name: n.name, type: n.type, icon: n.icon||'📚', grade: n.grade||'', sort_order: n.sort_order||n.id})
+      });
+    })).catch(function(){});
+    _deletedNames = null;
+    var btn = document.getElementById('delete-all-btn');
+    if (btn) { btn.textContent = '✅ Буцаалаа!'; btn.style.background='var(--green)'; }
+    setTimeout(function(){
+      if (btn) { btn.textContent = '🗑️ Нийтийг устгах'; btn.style.background=''; btn.onclick = function(){ deleteAllNodeNames(); }; }
+    }, 1500);
+  }
+
 
   function saveNodeName(id) {
     var input = document.getElementById('nname-' + id);
@@ -2071,68 +2158,18 @@ function openEditMathModal(targetId) {
     }).catch(function(){});
   }
 
-  var _deletedNames = null;
-  var _undoTimer = null;
-
-  function deleteAllNodeNames() {
-    var nodes = getNodes();
-    _deletedNames = nodes.map(function(n){ return {id: n.id, name: n.name}; });
-
-    // Clear all names
-    nodes.forEach(function(n){ n.name = ''; });
-    saveNodes(nodes);
-    renderNodesList();
-
-    // Send to server
-    Promise.all(nodes.map(function(n){
-      return fetch(API + '/api/nodes', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({id: n.id, name: '', type: n.type, icon: n.icon||'📚', grade: n.grade||'', sort_order: n.sort_order||n.id})
-      });
-    })).catch(function(){});
-
-    // Show undo toast
-    var btn = document.getElementById('delete-all-btn');
-    if (btn) { btn.textContent = '↩️ Буцаах (5с)'; btn.onclick = function(){ undoDeleteNames(); }; }
-    if (_undoTimer) clearTimeout(_undoTimer);
-    _undoTimer = setTimeout(function(){
-      _deletedNames = null;
-      if (btn) { btn.textContent = '🗑️ Нийтийг устгах'; btn.onclick = function(){ deleteAllNodeNames(); }; }
-    }, 5000);
-  }
-
-  function undoDeleteNames() {
-    if (!_deletedNames) return;
-    clearTimeout(_undoTimer);
-    var nodes = getNodes();
-    _deletedNames.forEach(function(d){
-      var n = nodes.find(function(x){ return x.id === d.id; });
-      if (n) n.name = d.name;
-    });
-    saveNodes(nodes);
-    renderNodesList();
-
-    Promise.all(nodes.map(function(n){
-      return fetch(API + '/api/nodes', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({id: n.id, name: n.name, type: n.type, icon: n.icon||'📚', grade: n.grade||'', sort_order: n.sort_order||n.id})
-      });
-    })).catch(function(){});
-
-    _deletedNames = null;
-    var btn = document.getElementById('delete-all-btn');
-    if (btn) { btn.textContent = '✅ Буцаалаа!'; btn.style.background='var(--green)'; }
-    setTimeout(function(){
-      if (btn) { btn.textContent = '🗑️ Нийтийг устгах'; btn.style.background=''; btn.onclick = function(){ deleteAllNodeNames(); }; }
-    }, 1500);
-  }
-
   function saveAllNodes() {
-    var nodes = getNodes();
-    fetch(API + '/api/seed', {method:'GET'}).catch(function(){});
-    alert('Node-ууд хадгалагдлаа!');
+    var btn = document.getElementById('save-nodes-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Хадгалж байна...'; }
+    fetch(API + '/api/seed', {method:'GET'})
+      .then(function(){
+        if (btn) { btn.textContent = '✅ Амжилттай!'; btn.style.background='var(--green)'; }
+        setTimeout(function(){ if(btn){ btn.textContent='💾 Хадгалах'; btn.style.background=''; btn.disabled=false; } }, 2000);
+      })
+      .catch(function(){
+        if (btn) { btn.textContent = '❌ Алдаа'; btn.style.background='var(--red)'; }
+        setTimeout(function(){ if(btn){ btn.textContent='💾 Хадгалах'; btn.style.background=''; btn.disabled=false; } }, 2000);
+      });
   }
 
   // ══ USERS ══
