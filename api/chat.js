@@ -7,43 +7,37 @@ module.exports = async (req, res) => {
 
   try {
     const { messages, system } = req.body || {};
-    const apiKey = process.env.GEMINI_API_KEY;
 
-    // List available models first
-    const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-    const listData = await listRes.json();
-    
-    // Find first model that supports generateContent
-    const available = (listData.models || [])
-      .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
-      .map(m => m.name.replace('models/', ''));
-    
-    if (!available.length) {
-      return res.json({ ok: true, content: [{ text: 'API key алдаатай байна: ' + JSON.stringify(listData).substring(0,100) }] });
-    }
-
-    const modelName = available[0];
-    const sys = system || 'Чи бол математикийн туслагч Сарнай. Монгол хэлээр хариул.';
-    
-    const contents = [
-      { role: 'user', parts: [{ text: sys }] },
-      { role: 'model', parts: [{ text: 'Ойлголоо!' }] },
-      ...(messages || []).map(m => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }]
-      }))
+    // Try multiple free models in order
+    const freeModels = [
+      'google/gemma-3-27b-it:free',
+      'mistralai/mistral-7b-instruct:free',
+      'meta-llama/llama-3.2-3b-instruct:free',
+      'qwen/qwen-2-7b-instruct:free',
     ];
 
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents, generationConfig: { maxOutputTokens: 1000 } })
-    });
-    const data = await r.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text
-      || data.error?.message
-      || 'Уучлаарай, хариулт олдсонгүй.';
-    return res.json({ ok: true, content: [{ text }] });
+    const sys = system || 'Чи бол математикийн туслагч Сарнай. Монгол хэлээр хариул.';
+    const allMessages = [{ role: 'system', content: sys }, ...(messages || [])];
+
+    let lastError = '';
+    for (const model of freeModels) {
+      const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer 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',
+          'HTTP-Referer': 'https://cybermath.vercel.app',
+          'X-Title': 'CyberMath'
+        },
+        body: JSON.stringify({ model, messages: allMessages, max_tokens: 1000 })
+      });
+      const data = await r.json();
+      const text = data.choices?.[0]?.message?.content;
+      if (text) return res.json({ ok: true, content: [{ text }] });
+      lastError = data.error?.message || 'empty';
+    }
+
+    return res.json({ ok: true, content: [{ text: 'Түр завсарлаж байна, дахин оролдоно уу.' }] });
   } catch(e) {
     return res.status(500).json({ ok: false, error: e.message });
   }
