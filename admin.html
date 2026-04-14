@@ -606,7 +606,7 @@ function toggleAdmPw() {
         <div class="table-card" style="margin-bottom:20px;">
           <div class="table-header">
             <div class="table-title">Одоогийн хичээлүүд</div>
-            <button class="btn-sm btn-success" onclick="saveNodesToGame()">💾 Тоглоомд хадгалах</button>
+            <button class="btn-sm btn-success" id="save-nodes-btn" onclick="saveAllNodes()">💾 Хадгалах</button>
           </div>
           <div id="nodes-list" style="padding:12px 20px;display:flex;flex-direction:column;gap:8px;"></div>
         </div>
@@ -654,7 +654,7 @@ function toggleAdmPw() {
 
         <!-- Note -->
         <div style="background:rgba(255,193,19,0.08);border:1.5px solid rgba(255,193,19,0.25);border-radius:12px;padding:14px 16px;font-size:0.82rem;font-weight:700;color:rgba(255,193,19,0.8);">
-          ⚠ "Тоглоомд хадгалах" дарсны дараа тоглоомыг дахин нээхэд хичээлийн замд харагдана.
+          ⚠ "Хадгалах" дарсны дараа тоглоомыг дахин нээхэд хичээлийн замд харагдана.
         </div>
       </div>
 
@@ -2023,7 +2023,6 @@ function openEditMathModal(targetId) {
         + '<span style="font-weight:800;font-size:0.82rem;color:var(--muted);">'+n.id+'.</span>'
         + '<input id="nname-'+n.id+'" value="'+n.name.replace(/"/g,'&quot;')+'" style="flex:1;padding:6px 10px;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;font-size:0.88rem;color:var(--text);font-weight:700;outline:none;">'
         + '<button onclick="saveNodeName('+n.id+')" style="padding:6px 12px;background:var(--purple);border:none;border-radius:8px;color:white;font-weight:800;font-size:0.78rem;cursor:pointer;">💾</button>'
-        + '<button onclick="clearNodeName('+n.id+')" style="padding:6px 10px;background:rgba(255,75,75,0.15);border:1px solid rgba(255,75,75,0.3);border-radius:8px;color:#ff4b4b;font-weight:800;font-size:0.78rem;cursor:pointer;">🗑️</button>'
         + '</div>'
         + '<div style="display:flex;gap:8px;margin-top:4px;">'
         + '<span style="font-size:0.72rem;font-weight:800;color:'+typeColor+';">'+typeLbl+'</span>'
@@ -2036,24 +2035,6 @@ function openEditMathModal(targetId) {
         + '</select>'
         + '</div>';
     }).join('');
-  }
-
-  function clearNodeName(id) {
-    var input = document.getElementById('nname-' + id);
-    if (input) input.value = '';
-    var nodes = getNodes();
-    var n = nodes.find(function(x){ return x.id === id; });
-    if (!n) return;
-    n.name = '';
-    saveNodes(nodes);
-    fetch(API + '/api/nodes', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ id: id, name: '', type: n.type, icon: n.icon||'📚', grade: n.grade||'', sort_order: n.sort_order||id })
-    }).then(function(){
-      if (input) input.style.borderColor = '#ff4b4b';
-      setTimeout(function(){ if(input) input.style.borderColor='var(--border)'; }, 1500);
-    }).catch(function(){});
   }
 
   function saveNodeName(id) {
@@ -2090,9 +2071,21 @@ function openEditMathModal(targetId) {
   }
 
   function saveAllNodes() {
-    var nodes = getNodes();
-    fetch(API + '/api/seed', {method:'GET'}).catch(function(){});
-    alert('Node-ууд хадгалагдлаа!');
+    var btn = document.getElementById('save-nodes-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Хадгалж байна...'; }
+    fetch(API + '/api/seed', {method:'GET'})
+      .then(function(){
+        if (btn) { btn.textContent = '✅ Амжилттай!'; btn.style.background = 'var(--green)'; }
+        setTimeout(function(){
+          if (btn) { btn.textContent = '💾 Хадгалах'; btn.style.background = ''; btn.disabled = false; }
+        }, 2000);
+      })
+      .catch(function(){
+        if (btn) { btn.textContent = '❌ Алдаа гарлаа'; btn.style.background = 'var(--red)'; }
+        setTimeout(function(){
+          if (btn) { btn.textContent = '💾 Хадгалах'; btn.style.background = ''; btn.disabled = false; }
+        }, 2000);
+      });
   }
 
   // ══ USERS ══
