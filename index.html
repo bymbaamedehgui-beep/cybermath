@@ -2187,113 +2187,122 @@ function applyNodeNamesToMap() {
 }
 
 function renderDynamicMap(nodes) {
-  var container = document.getElementById('nodes-container');
-  var connSvg = document.getElementById('conn-svg');
+  var container = document.getElementById('dm-nodes');
+  var linesSvg = document.getElementById('dm-lines');
   if (!container) return;
-  if (!nodes || !nodes.length) { container.innerHTML = '<div style="color:#fff;text-align:center;padding:40px;">Хичээл байхгүй байна</div>'; return; }
+  if (!nodes || !nodes.length) {
+    container.innerHTML = '<div style="color:#ffffff33;text-align:center;padding:80px 20px;font-size:14px;">Хичээл байхгүй байна</div>';
+    return;
+  }
 
-  var completed = getCompletedLessons ? getCompletedLessons().map(function(x){return parseInt(x);}) : [];
-  var stars = JSON.parse(localStorage.getItem('cm_node_stars')||'{}');
+  var completed = (typeof getCompletedLessons === 'function') ? getCompletedLessons().map(function(x){return parseInt(x);}) : [];
+  var starsData = JSON.parse(localStorage.getItem('cm_node_stars')||'{}');
 
-  // Zigzag positions: left=15%, center=50%, right=85%
-  var positions = [50, 78, 22, 78, 22, 78, 50, 22, 78, 22, 78, 50];
-  var nodeH = 150; // height per node
-  var totalH = nodes.length * nodeH + 100;
+  var themes = {
+    '8':  {a:'#58CC02',b:'#2a5010',c:'#58CC0288',d:'#1a3008',h:'#3a6015',label:'8-р анги · Үндсэн алгебр'},
+    '9':  {a:'#1CB0F6',b:'#0a3050',c:'#1CB0F688',d:'#061828',h:'#0d3560',label:'9-р анги · Дэвшилтэт алгебр'},
+    '10': {a:'#FF9600',b:'#3a1800',c:'#FF960088',d:'#1e0e00',h:'#3a2008',label:'10-р анги'},
+    '11': {a:'#CE82FF',b:'#280a40',c:'#CE82FF88',d:'#180828',h:'#2a1040',label:'11-р анги'},
+    '12': {a:'#FF4B4B',b:'#300808',c:'#FF4B4B88',d:'#1a0505',h:'#320808',label:'12-р анги'}
+  };
+  var defT = {a:'#6C3DE8',b:'#1a0a40',c:'#6C3DE888',d:'#0d0626',h:'#2a1060',label:'Хичээл'};
 
-  // Section labels (grade groups)
-  var sections = {};
-  nodes.forEach(function(n){ if(n.grade && !sections[n.grade]) sections[n.grade] = n.id; });
+  // Zigzag layout — Duolingo pattern
+  var zz = [50,78,22,72,28,78,50,22,72,28,78,22];
 
+  var seenGrades = {};
+  var nodeRefs = [];
   var html = '';
-  var nodePositions = [];
 
   nodes.forEach(function(n, i) {
-    var xpct = positions[i % positions.length];
-    var y = 40 + i * nodeH;
-    nodePositions.push({id: n.id, x: xpct, y: y, name: n.name});
+    var t = themes[n.grade] || defT;
+    var xpct = zz[i % zz.length];
+    var isDone = completed.indexOf(n.id) !== -1;
+    var isNext = (n.id === 1) || (completed.indexOf(n.id-1) !== -1 && !isDone);
+    var isLocked = !isDone && !isNext;
+    var ns = starsData['node_'+n.id] || 0;
 
-    // Section divider
-    if (sections[n.grade] === n.id) {
-      var sColors = {'8':'#58CC02','9':'#1CB0F6','10':'#FF9600','11':'#CE82FF','12':'#FF4B4B'};
-      var sc = sColors[n.grade] || '#9B59B6';
-      html += '<div class="dyn-section-label" style="background:'+sc+'22;color:'+sc+';border:1.5px solid '+sc+'44;margin-top:'+(i===0?'0':'24px')+';">'+n.grade+'-р анги</div>';
+    var starsHtml = isDone
+      ? (ns>=3 ? '<span style="color:#FFC800">★★★</span>'
+       : ns>=2 ? '<span style="color:#FFC800">★★</span><span style="color:#ffffff25">★</span>'
+       : '<span style="color:#FFC800">★</span><span style="color:#ffffff25">★★</span>')
+      : '<span style="color:#ffffff20">★★★</span>';
+
+    var icon = isLocked ? '🔒' : isDone ? '🐥' : isNext ? '🐣' : '🐤';
+    if (n.type==='soon') icon='⏳';
+
+    // Chapter divider
+    if (n.grade && !seenGrades[n.grade]) {
+      seenGrades[n.grade] = true;
+      var lineColor = t.a+'44';
+      html += '<div class="dm-chapter"><div class="dm-chapter-line" style="background:linear-gradient(90deg,transparent,'+lineColor+');"></div>';
+      html += '<div class="dm-chapter-badge" style="color:'+t.a+';border-color:'+t.a+'44;background:'+t.a+'11;">'+t.label+'</div>';
+      html += '<div class="dm-chapter-line" style="background:linear-gradient(90deg,'+lineColor+',transparent);"></div></div>';
     }
 
-    var isDone = completed.indexOf(n.id) !== -1;
-    var nodeStars = stars['node_'+n.id] || 0;
-    var isLocked = n.type === 'locked' && !isDone && n.id !== 1 && completed.indexOf(n.id-1) === -1;
-    var starsHtml = isDone ? (nodeStars >= 3 ? '★★★' : nodeStars >= 2 ? '★★☆' : nodeStars >= 1 ? '★☆☆' : '★☆☆') : '☆☆☆';
-    var starsColor = isDone ? '#FFC800' : '#ffffff33';
+    var elId = 'dmn-'+n.id;
+    nodeRefs.push({id:n.id, xpct:xpct, elId:elId, done:isDone, color:t.a});
+    var delay = (i*0.05)+'s';
+    var ml = Math.max(0,xpct-12)+'%';
+    var mr = Math.max(0,88-xpct)+'%';
 
-    // Color theme per grade
-    var cMap = {'8':['#58CC02','#1a3a0a'],'9':['#1CB0F6','#0a2030'],'10':['#FF9600','#2a1a00'],'11':['#CE82FF','#1a0a2a'],'12':['#FF4B4B','#2a0a0a']};
-    var colors = cMap[n.grade] || ['#6C3DE8','#1a0a3a'];
-    var borderC = isDone ? colors[0] : (isLocked ? '#333' : colors[0]+'88');
-    var bgC = isDone ? colors[1] : (isLocked ? '#111' : colors[1]);
+    html += '<div class="dm-row" style="animation-delay:'+delay+'">';
+    html += '<div class="dm-node'+(isLocked?' dm-node-locked':isDone?' dm-node-done':' dm-node-next')+'" id="'+elId+'" style="margin-left:'+ml+';margin-right:'+mr+';animation-delay:'+delay+'">';
 
-    // Bird emoji based on grade/type
-    var face = n.type === 'locked' && isLocked ? '🔒' : '🐣';
-    if (isDone) face = '🐥';
-    if (n.type === 'soon') face = '⏳';
-
-    html += '<div class="dyn-node'+(isLocked?' dyn-node-locked':'')+'" style="margin-left:'+(xpct-8)+'%;margin-right:'+(92-xpct)+'%;margin-bottom:0;" data-nid="'+n.id+'">';
-    html += '<button class="dyn-node-btn" onclick="tryOpenLesson('+n.id+')" style="transform:scale(1);transition:transform 0.15s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">';
-    html += '<div class="dyn-node-outer" style="border:3px solid '+borderC+';background:'+bgC+';box-shadow:0 0 '+(isDone?'20px 6px '+colors[0]+'66':'8px 2px #00000088')+';border-radius:50%;">';
-    html += '<div class="dyn-node-inner" style="background:radial-gradient(circle at 35% 35%,'+colors[0]+'22,'+bgC+');">';
-    html += '<span class="dyn-node-face">'+face+'</span>';
-    html += '</div></div></button>';
-    html += '<div class="dyn-node-stars" style="color:'+starsColor+';">'+starsHtml+'</div>';
-    html += '<div class="dyn-node-label">'+(n.name||'')+'</div>';
+    // Disc
+    html += '<div class="dm-disc-wrap" style="--nc:'+t.a+';--nb:'+t.a+';--nh:'+t.h+';--nd:'+t.d+';" onclick="tryOpenLesson('+n.id+')">';
+    if (isDone) html += '<div class="dm-done-ring"></div>';
+    if (isNext) { html += '<div class="dm-pulse-ring"></div><div class="dm-pulse-ring2"></div>'; }
+    html += '<div class="dm-disc-top"><span class="dm-icon">'+icon+'</span></div>';
+    html += '<div class="dm-disc-bot"></div>';
     html += '</div>';
+
+    html += '<div class="dm-stars">'+starsHtml+'</div>';
+    html += '<div class="dm-label">'+(n.name||'')+'</div>';
+    html += '</div></div>';
   });
 
-  container.style.height = totalH + 'px';
   container.innerHTML = html;
 
-  // Draw connections
-  if (connSvg) {
+  // Bezier connection lines
+  setTimeout(function() {
+    if (!linesSvg) return;
     var mapEl = document.getElementById('dynamic-map');
-    var mw = mapEl ? mapEl.offsetWidth : 420;
-    connSvg.setAttribute('viewBox', '0 0 '+mw+' '+totalH);
-    connSvg.style.height = totalH + 'px';
+    var scrollEl = document.getElementById('path-scroll');
+    if (!mapEl || !scrollEl) return;
+    var totalH = container.offsetTop + container.offsetHeight + 60;
+    var mw = mapEl.offsetWidth;
+    linesSvg.setAttribute('viewBox','0 0 '+mw+' '+totalH);
+    linesSvg.style.height = totalH+'px';
 
-    var lines = '';
-    for (var i = 1; i < nodePositions.length; i++) {
-      var p1 = nodePositions[i-1];
-      var p2 = nodePositions[i];
-      var x1 = Math.round(p1.x / 100 * mw);
-      var y1 = p1.y + 36;
-      var x2 = Math.round(p2.x / 100 * mw);
-      var y2 = p2.y;
-      var mx = Math.round((x1+x2)/2);
-      var my = Math.round((y1+y2)/2);
-      lines += '<path d="M'+x1+','+y1+' Q'+mx+','+(my-20)+' '+x2+','+y2+'" stroke="#58CC0266" stroke-width="4" fill="none" stroke-linecap="round" stroke-dasharray="8 5"/>';
+    var paths = '';
+    var mapRect = mapEl.getBoundingClientRect();
+    var scrollTop = scrollEl.scrollTop;
+
+    for (var i = 1; i < nodeRefs.length; i++) {
+      var el1 = document.getElementById(nodeRefs[i-1].elId);
+      var el2 = document.getElementById(nodeRefs[i].elId);
+      if (!el1||!el2) continue;
+      var d1 = el1.querySelector('.dm-disc-wrap');
+      var d2 = el2.querySelector('.dm-disc-wrap');
+      if (!d1||!d2) continue;
+      var r1 = d1.getBoundingClientRect();
+      var r2 = d2.getBoundingClientRect();
+      var x1 = r1.left - mapRect.left + r1.width/2;
+      var y1 = r1.top - mapRect.top + r1.height - 6 + scrollTop;
+      var x2 = r2.left - mapRect.left + r2.width/2;
+      var y2 = r2.top - mapRect.top + 6 + scrollTop;
+      var my = (y1+y2)/2;
+      var isDone1 = nodeRefs[i-1].done;
+      var c1 = nodeRefs[i-1].color;
+      var c2 = nodeRefs[i].color;
+      var stroke = isDone1 ? c1+'cc' : '#ffffff18';
+      var sw = isDone1 ? '4' : '3';
+      var dash = isDone1 ? '' : 'stroke-dasharray="7 6"';
+      paths += '<path d="M'+x1.toFixed(1)+','+y1.toFixed(1)+' C'+x1.toFixed(1)+','+(my-10).toFixed(1)+' '+x2.toFixed(1)+','+(my+10).toFixed(1)+' '+x2.toFixed(1)+','+y2.toFixed(1)+'" stroke="'+stroke+'" stroke-width="'+sw+'" fill="none" '+dash+'/>';
     }
-    connSvg.innerHTML = lines;
-  }
-
-  // Stars background animation
-  initStarsBg();
-}
-
-function initStarsBg() {
-  var c = document.getElementById('stars-bg');
-  if (!c || c._init) return;
-  c._init = true;
-  var map = document.getElementById('dynamic-map');
-  if (!map) return;
-  c.width = map.offsetWidth;
-  c.height = map.offsetHeight;
-  var ctx = c.getContext('2d');
-  for (var i = 0; i < 120; i++) {
-    var x = Math.random() * c.width;
-    var y = Math.random() * c.height;
-    var r = Math.random() * 1.5 + 0.3;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI*2);
-    ctx.fillStyle = 'rgba(255,255,255,'+(Math.random()*0.6+0.2)+')';
-    ctx.fill();
-  }
+    linesSvg.innerHTML = paths;
+  }, 150);
 }
 document.addEventListener('DOMContentLoaded', function(){
   setTimeout(applyNodeNamesToMap, 1500);
@@ -2755,11 +2764,11 @@ window.addEventListener('load', function() {
     <h2 style="font-family:'Baloo 2',sans-serif;font-size:2rem;font-weight:900;color:white;margin-bottom:8px;">Холбоо барих</h2>
     <p style="font-family:'Baloo 2',sans-serif;font-size:1rem;color:rgba(255,255,255,0.8);margin-bottom:40px;">Асуулт, санал хүсэлт байвал бидэнтэй холбогдоорой</p>
     <div style="display:flex;flex-wrap:wrap;gap:16px;justify-content:center;">
-      <a href="/cdn-cgi/l/email-protection#d1b2a8b3b4a3bcb0a5b9e5e3e591b6bcb0b8bdffb2bebc" style="display:flex;align-items:center;gap:12px;background:rgba(255,255,255,0.15);border:1.5px solid rgba(255,255,255,0.3);border-radius:16px;padding:16px 24px;text-decoration:none;transition:all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+      <a href="/cdn-cgi/l/email-protection#294a504b4c5b44485d411d1b1d694e44484045074a4644" style="display:flex;align-items:center;gap:12px;background:rgba(255,255,255,0.15);border:1.5px solid rgba(255,255,255,0.3);border-radius:16px;padding:16px 24px;text-decoration:none;transition:all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
         <svg viewBox="0 0 24 24" fill="none" width="24" height="24"><rect x="2" y="4" width="20" height="16" rx="2" stroke="white" stroke-width="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 01-2.06 0L2 7" stroke="white" stroke-width="2"/></svg>
         <div style="text-align:left;">
           <div style="font-family:'Baloo 2',sans-serif;font-size:0.72rem;font-weight:700;color:rgba(255,255,255,0.7);">И-МЭЙЛ</div>
-          <div style="font-family:'Baloo 2',sans-serif;font-size:0.95rem;font-weight:900;color:white;"><span class="__cf_email__" data-cfemail="ddbea4bfb8afb0bca9b5e9efe99dbab0bcb4b1f3beb2b0">[email&#160;protected]</span></div>
+          <div style="font-family:'Baloo 2',sans-serif;font-size:0.95rem;font-weight:900;color:white;"><span class="__cf_email__" data-cfemail="ea8993888f98878b9e82ded8deaa8d878b8386c4898587">[email&#160;protected]</span></div>
         </div>
       </a>
       <a href="tel:88449307" style="display:flex;align-items:center;gap:12px;background:rgba(255,255,255,0.15);border:1.5px solid rgba(255,255,255,0.3);border-radius:16px;padding:16px 24px;text-decoration:none;transition:all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
@@ -3321,73 +3330,170 @@ document.head.appendChild(cmStyle);
     <div class="lesson-path" id="lesson-path">
 
       <!-- Math-themed background + nodes all in one SVG -->
-      <div id="path-scroll" style="position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;scroll-behavior:smooth;">
-  <div id="dynamic-map" style="position:relative;width:100%;min-height:100%;background:linear-gradient(180deg,#0d0b2e 0%,#0a1428 50%,#0d0b2e 100%);padding-bottom:80px;">
-    <!-- Stars background -->
-    <canvas id="stars-bg" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:0.5;"></canvas>
-    <!-- Connection lines SVG overlay -->
-    <svg id="conn-svg" style="position:absolute;inset:0;width:100%;pointer-events:none;" id="connections-svg"></svg>
-    <!-- Nodes container -->
-    <div id="nodes-container" style="position:relative;z-index:2;padding-top:30px;"></div>
-  </div>
-</div>
+      <div id="path-scroll" style="position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;scroll-behavior:smooth;-webkit-overflow-scrolling:touch;">
+<div id="dynamic-map" style="position:relative;width:100%;min-height:100%;padding-bottom:120px;background:#0b0b1e;">
+
 <style>
-.dyn-node {
-  position:relative;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  margin:0 auto 0;
-  cursor:pointer;
-  user-select:none;
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900;1000&display=swap');
+#dynamic-map,#dynamic-map * { font-family:'Nunito',sans-serif; box-sizing:border-box; }
+
+/* ── Background ── */
+.dm-bg {
+  position:absolute;inset:0;pointer-events:none;overflow:hidden;
+  background:radial-gradient(ellipse 120% 40% at 50% 0%,#1a1045 0%,transparent 70%),
+             radial-gradient(ellipse 80% 30% at 80% 50%,#0d1f3a 0%,transparent 60%),
+             #0b0b1e;
 }
-.dyn-node-btn {
+.dm-orb {
+  position:absolute;border-radius:50%;pointer-events:none;
+  animation:dm-float 6s ease-in-out infinite;
+}
+@keyframes dm-float {
+  0%,100%{transform:translateY(0)}
+  50%{transform:translateY(-18px)}
+}
+
+/* ── Section header ── */
+.dm-chapter {
+  position:relative;z-index:3;
+  display:flex;align-items:center;gap:10px;
+  padding:28px 20px 12px;
+}
+.dm-chapter-line {
+  flex:1;height:1px;
+}
+.dm-chapter-badge {
+  display:flex;align-items:center;gap:6px;
+  padding:5px 16px;border-radius:100px;
+  font-size:10.5px;font-weight:900;letter-spacing:1.8px;text-transform:uppercase;
+  border:1.5px solid;white-space:nowrap;
+}
+
+/* ── Row ── */
+.dm-row {
+  position:relative;z-index:3;
+  display:flex;justify-content:center;
+  padding:6px 0;
+}
+
+/* ── Node ── */
+.dm-node {
+  display:flex;flex-direction:column;align-items:center;
+  animation:dm-pop 0.5s cubic-bezier(0.34,1.56,0.64,1) both;
+}
+@keyframes dm-pop {
+  from{opacity:0;transform:scale(0.4) translateY(30px)}
+  to  {opacity:1;transform:scale(1) translateY(0)}
+}
+
+/* 3D disc button (Brilliant-inspired) */
+.dm-disc-wrap {
   position:relative;
   width:72px;height:72px;
-  border-radius:50%;
-  display:flex;align-items:center;justify-content:center;
-  transition:transform 0.18s,box-shadow 0.18s;
   cursor:pointer;
-  outline:none;border:none;background:none;padding:0;
+  filter:drop-shadow(0 8px 20px var(--nc,#6C3DE8));
+  transition:filter 0.2s,transform 0.2s cubic-bezier(0.34,1.56,0.64,1);
 }
-.dyn-node-btn:active { transform:scale(0.93)!important; }
-.dyn-node-outer {
-  width:72px;height:72px;border-radius:50%;
+.dm-disc-wrap:hover { transform:translateY(-5px) scale(1.08); filter:drop-shadow(0 14px 28px var(--nc,#6C3DE8)); }
+.dm-disc-wrap:active { transform:scale(0.93); }
+
+/* Top face of disc */
+.dm-disc-top {
+  position:absolute;
+  top:0;left:50%;transform:translateX(-50%);
+  width:66px;height:66px;border-radius:50%;
   display:flex;align-items:center;justify-content:center;
-  position:relative;
+  z-index:2;
+  border:2.5px solid var(--nb,#8B5CF6);
+  background:radial-gradient(circle at 35% 30%,var(--nh,#3a1e80),var(--nd,#1a0f40));
+  overflow:hidden;
 }
-.dyn-node-inner {
-  width:58px;height:58px;border-radius:50%;
-  display:flex;align-items:center;justify-content:center;
-  position:relative;overflow:hidden;
+.dm-disc-top::after {
+  content:'';position:absolute;
+  top:6px;left:10px;width:20px;height:10px;
+  border-radius:50%;
+  background:rgba(255,255,255,0.18);
+  transform:rotate(-25deg);
 }
-.dyn-node-face {
-  font-size:26px;line-height:1;
-  filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+
+/* Bottom shadow of disc (3D effect) */
+.dm-disc-bot {
+  position:absolute;
+  bottom:0;left:50%;transform:translateX(-50%);
+  width:60px;height:14px;border-radius:50%;
+  background:var(--nb,#8B5CF6);
+  opacity:0.55;filter:blur(2px);
+  z-index:1;
 }
-.dyn-node-label {
-  margin-top:8px;
-  font-size:12px;font-weight:800;
-  color:#fff;text-align:center;
-  max-width:110px;line-height:1.3;
-  text-shadow:0 2px 8px rgba(0,0,0,0.8);
-  min-height:16px;
+
+.dm-icon {
+  font-size:28px;z-index:1;position:relative;
+  filter:drop-shadow(0 2px 8px rgba(0,0,0,0.7));
 }
-.dyn-node-stars {
-  font-size:13px;margin-top:2px;letter-spacing:1px;
+
+/* Stars */
+.dm-stars { font-size:11px;margin-top:6px;letter-spacing:3px; }
+
+/* Label */
+.dm-label {
+  margin-top:3px;
+  font-size:11px;font-weight:800;
+  text-align:center;max-width:96px;
+  line-height:1.35;
+  color:#fff;
+  text-shadow:0 1px 8px rgba(0,0,0,0.95);
+  min-height:14px;
 }
-.dyn-node-locked .dyn-node-inner { filter:brightness(0.5); }
-.dyn-node-locked .dyn-node-label { opacity:0.5; }
-.dyn-section-label {
-  text-align:center;
-  font-size:13px;font-weight:800;
-  padding:6px 20px;margin:18px auto 10px;
-  border-radius:20px;
-  letter-spacing:0.5px;
-  max-width:220px;
-  position:relative;z-index:3;
+.dm-node-locked .dm-label { color:#ffffff40; }
+.dm-node-locked .dm-disc-top { background:radial-gradient(#1a1a2e,#0d0d1e)!important; border-color:#333!important; }
+.dm-node-locked .dm-disc-bot { background:#222!important;opacity:0.3; }
+.dm-node-locked { filter:saturate(0.3) brightness(0.7); }
+
+/* Active pulse ring */
+.dm-pulse-ring {
+  position:absolute;inset:-8px;border-radius:50%;
+  border:2px solid var(--nc,#6C3DE8);
+  animation:dm-pulse 1.8s ease-out infinite;
+  z-index:0;pointer-events:none;
 }
+.dm-pulse-ring2 {
+  position:absolute;inset:-8px;border-radius:50%;
+  border:2px solid var(--nc,#6C3DE8);
+  animation:dm-pulse 1.8s ease-out 0.6s infinite;
+  z-index:0;pointer-events:none;
+}
+@keyframes dm-pulse {
+  0%   {transform:scale(1);opacity:0.8}
+  100% {transform:scale(1.7);opacity:0}
+}
+
+/* Done ring */
+.dm-done-ring {
+  position:absolute;inset:-4px;border-radius:50%;
+  background:conic-gradient(#FFC800 0deg,#58CC02 120deg,#1CB0F6 240deg,#FFC800 360deg);
+  -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#fff calc(100% - 3px));
+  mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#fff calc(100% - 3px));
+  animation:dm-spin 4s linear infinite;
+  z-index:0;
+}
+@keyframes dm-spin { to{transform:rotate(360deg)} }
+
+/* SVG path lines */
+#dm-lines path { stroke-linecap:round; }
 </style>
+
+<div class="dm-bg">
+  <div class="dm-orb" style="width:350px;height:350px;top:-5%;left:-15%;background:radial-gradient(#6C3DE855,transparent 70%);animation-delay:-2s;"></div>
+  <div class="dm-orb" style="width:280px;height:280px;top:30%;right:-10%;background:radial-gradient(#1CB0F633,transparent 70%);animation-delay:-4s;"></div>
+  <div class="dm-orb" style="width:240px;height:240px;top:60%;left:-5%;background:radial-gradient(#58CC0222,transparent 70%);animation-delay:-1s;"></div>
+  <div class="dm-orb" style="width:300px;height:300px;top:80%;right:-8%;background:radial-gradient(#FF960022,transparent 70%);animation-delay:-3s;"></div>
+</div>
+
+<svg id="dm-lines" style="position:absolute;inset:0;width:100%;pointer-events:none;z-index:2;overflow:visible;"></svg>
+<div id="dm-nodes" style="position:relative;z-index:3;padding-top:10px;"></div>
+
+</div>
+</div>
       <canvas id="bird-canvas" style="display:none"></canvas>
 
     </div>
