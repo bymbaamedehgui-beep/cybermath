@@ -2191,89 +2191,103 @@ function renderDynamicMap(nodes) {
   var linesSvg = document.getElementById('dm-lines');
   if (!container) return;
   if (!nodes || !nodes.length) {
-    container.innerHTML = '<div style="color:#ffffff33;text-align:center;padding:80px 20px;font-size:14px;">Хичээл байхгүй байна</div>';
+    container.innerHTML = '<div style="color:rgba(255,255,255,0.2);text-align:center;padding:80px 20px;font-size:14px;">Хичээл байхгүй байна</div>';
     return;
   }
 
   var completed = (typeof getCompletedLessons === 'function') ? getCompletedLessons().map(function(x){return parseInt(x);}) : [];
   var starsData = JSON.parse(localStorage.getItem('cm_node_stars')||'{}');
 
+  // Color themes
   var themes = {
-    '8':  {a:'#58CC02',b:'#2a5010',c:'#58CC0288',d:'#1a3008',h:'#3a6015',label:'8-р анги · Үндсэн алгебр'},
-    '9':  {a:'#1CB0F6',b:'#0a3050',c:'#1CB0F688',d:'#061828',h:'#0d3560',label:'9-р анги · Дэвшилтэт алгебр'},
-    '10': {a:'#FF9600',b:'#3a1800',c:'#FF960088',d:'#1e0e00',h:'#3a2008',label:'10-р анги'},
-    '11': {a:'#CE82FF',b:'#280a40',c:'#CE82FF88',d:'#180828',h:'#2a1040',label:'11-р анги'},
-    '12': {a:'#FF4B4B',b:'#300808',c:'#FF4B4B88',d:'#1a0505',h:'#320808',label:'12-р анги'}
+    '8' :{ top:'#2d5a1b',side:'#1a3a0d',shadow:'#58CC02',ring:'#58CC02',text:'#58CC02',label:'8-р анги · Алгебрийн үндэс' },
+    '9' :{ top:'#0d3352',side:'#072035',shadow:'#1CB0F6',ring:'#1CB0F6',text:'#1CB0F6',label:'9-р анги · Дэвшилтэт алгебр' },
+    '10':{ top:'#3a2000',side:'#241400',shadow:'#FF9600',ring:'#FF9600',text:'#FF9600',label:'10-р анги' },
+    '11':{ top:'#2a1045',side:'#18082a',shadow:'#CE82FF',ring:'#CE82FF',text:'#CE82FF',label:'11-р анги' },
+    '12':{ top:'#300a0a',side:'#1e0505',shadow:'#FF4B4B',ring:'#FF4B4B',text:'#FF4B4B',label:'12-р анги' }
   };
-  var defT = {a:'#6C3DE8',b:'#1a0a40',c:'#6C3DE888',d:'#0d0626',h:'#2a1060',label:'Хичээл'};
-
-  // Zigzag layout — Duolingo pattern
-  var zz = [50,78,22,72,28,78,50,22,72,28,78,22];
+  var defT = { top:'#1e1050',side:'#120a38',shadow:'#6C3DE8',ring:'#6C3DE8',text:'#9B7BE8',label:'Хичээл' };
 
   var seenGrades = {};
   var nodeRefs = [];
   var html = '';
 
+  // Brilliant-style: slight zigzag, mostly centered
+  // Left rows: flex-direction normal, right rows: reversed
+  // Simple alternating: even=left-leaning, odd=right-leaning
+
   nodes.forEach(function(n, i) {
     var t = themes[n.grade] || defT;
-    var xpct = zz[i % zz.length];
     var isDone = completed.indexOf(n.id) !== -1;
     var isNext = (n.id === 1) || (completed.indexOf(n.id-1) !== -1 && !isDone);
     var isLocked = !isDone && !isNext;
     var ns = starsData['node_'+n.id] || 0;
 
     var starsHtml = isDone
-      ? (ns>=3 ? '<span style="color:#FFC800">★★★</span>'
-       : ns>=2 ? '<span style="color:#FFC800">★★</span><span style="color:#ffffff25">★</span>'
-       : '<span style="color:#FFC800">★</span><span style="color:#ffffff25">★★</span>')
-      : '<span style="color:#ffffff20">★★★</span>';
+      ? (ns>=3?'<span style="color:#FFC800">★★★</span>'
+        :ns>=2?'<span style="color:#FFC800">★★</span><span style="color:#ffffff20">★</span>'
+        :'<span style="color:#FFC800">★</span><span style="color:#ffffff20">★★</span>')
+      : '<span style="color:rgba(255,255,255,0.15)">★★★</span>';
 
-    var icon = isLocked ? '🔒' : isDone ? '🐥' : isNext ? '🐣' : '🐤';
+    var icon = isLocked ? '🔒' : isDone ? '✓' : isNext ? '🐣' : '🐤';
     if (n.type==='soon') icon='⏳';
 
-    // Chapter divider
+    // Section header
     if (n.grade && !seenGrades[n.grade]) {
       seenGrades[n.grade] = true;
-      var lineColor = t.a+'44';
-      html += '<div class="dm-chapter"><div class="dm-chapter-line" style="background:linear-gradient(90deg,transparent,'+lineColor+');"></div>';
-      html += '<div class="dm-chapter-badge" style="color:'+t.a+';border-color:'+t.a+'44;background:'+t.a+'11;">'+t.label+'</div>';
-      html += '<div class="dm-chapter-line" style="background:linear-gradient(90deg,'+lineColor+',transparent);"></div></div>';
+      html += '<div class="dm-chapter"><div class="dm-chapter-inner">';
+      html += '<div class="dm-chapter-sub" style="color:'+t.text+';">'+t.text.replace('#','')+'</div>';
+      html += '<div class="dm-chapter-sub" style="color:'+t.text+';">ХИЧЭЭЛИЙН ЗАМ</div>';
+      html += '<div class="dm-chapter-title">'+t.label+'</div>';
+      html += '</div></div>';
     }
 
     var elId = 'dmn-'+n.id;
-    nodeRefs.push({id:n.id, xpct:xpct, elId:elId, done:isDone, color:t.a});
-    var delay = (i*0.05)+'s';
-    var ml = Math.max(0,xpct-12)+'%';
-    var mr = Math.max(0,88-xpct)+'%';
+    nodeRefs.push({id:n.id, elId:elId, done:isDone, color:t.ring});
 
-    html += '<div class="dm-row" style="animation-delay:'+delay+'">';
-    html += '<div class="dm-node'+(isLocked?' dm-node-locked':isDone?' dm-node-done':' dm-node-next')+'" id="'+elId+'" style="margin-left:'+ml+';margin-right:'+mr+';animation-delay:'+delay+'">';
+    // Alternate row direction like Brilliant
+    var isRight = (i % 2 === 1);
+    var delay = (i * 0.045) + 's';
+
+    html += '<div class="dm-row'+(isRight?' dm-row-right':'')+' dm-node'+(isLocked?' dm-node-locked':'')+'" id="'+elId+'" style="animation-delay:'+delay+'">';
 
     // Disc
-    html += '<div class="dm-disc-wrap" style="--nc:'+t.a+';--nb:'+t.a+';--nh:'+t.h+';--nd:'+t.d+';" onclick="tryOpenLesson('+n.id+')">';
+    html += '<div class="dm-disc" onclick="tryOpenLesson('+n.id+')" style="--rc:'+t.ring+';">';
     if (isDone) html += '<div class="dm-done-ring"></div>';
-    if (isNext) { html += '<div class="dm-pulse-ring"></div><div class="dm-pulse-ring2"></div>'; }
-    html += '<div class="dm-disc-top"><span class="dm-icon">'+icon+'</span></div>';
-    html += '<div class="dm-disc-bot"></div>';
+    if (isNext) {
+      html += '<div class="dm-active-ring"></div><div class="dm-active-ring2"></div>';
+    }
+    html += '<div class="dm-disc-shadow" style="background:'+t.shadow+';"></div>';
+    html += '<div class="dm-disc-side" style="background:'+t.side+';"></div>';
+    html += '<div class="dm-disc-face" style="background:radial-gradient(circle at 40% 35%,'+(isDone?t.top+' 0%,#0d1f0a':'isNext'===''?t.top:''+t.top)+',#080818);'+(isNext||isDone?'box-shadow:inset 0 0 20px '+t.shadow+'33,0 0 0 2.5px '+t.ring+';':'box-shadow:inset 0 0 0 2px rgba(255,255,255,0.08);')+'">';
+    if (isDone) {
+      html += '<span class="dm-disc-icon" style="font-size:26px;color:#fff;font-weight:900;">✓</span>';
+    } else {
+      html += '<span class="dm-disc-icon">'+icon+'</span>';
+    }
+    html += '</div></div>';
+
+    // Info
+    html += '<div class="dm-info">';
+    html += '<div class="dm-info-stars">'+starsHtml+'</div>';
+    html += '<div class="dm-info-name">'+(n.name||'&nbsp;')+'</div>';
     html += '</div>';
 
-    html += '<div class="dm-stars">'+starsHtml+'</div>';
-    html += '<div class="dm-label">'+(n.name||'')+'</div>';
-    html += '</div></div>';
+    html += '</div>';
   });
 
   container.innerHTML = html;
 
-  // Bezier connection lines
+  // Draw smooth connecting lines
   setTimeout(function() {
     if (!linesSvg) return;
     var mapEl = document.getElementById('dynamic-map');
     var scrollEl = document.getElementById('path-scroll');
-    if (!mapEl || !scrollEl) return;
+    if (!mapEl||!scrollEl) return;
     var totalH = container.offsetTop + container.offsetHeight + 60;
     var mw = mapEl.offsetWidth;
     linesSvg.setAttribute('viewBox','0 0 '+mw+' '+totalH);
-    linesSvg.style.height = totalH+'px';
+    linesSvg.style.height = totalH + 'px';
 
     var paths = '';
     var mapRect = mapEl.getBoundingClientRect();
@@ -2283,23 +2297,24 @@ function renderDynamicMap(nodes) {
       var el1 = document.getElementById(nodeRefs[i-1].elId);
       var el2 = document.getElementById(nodeRefs[i].elId);
       if (!el1||!el2) continue;
-      var d1 = el1.querySelector('.dm-disc-wrap');
-      var d2 = el2.querySelector('.dm-disc-wrap');
+      var d1 = el1.querySelector('.dm-disc');
+      var d2 = el2.querySelector('.dm-disc');
       if (!d1||!d2) continue;
       var r1 = d1.getBoundingClientRect();
       var r2 = d2.getBoundingClientRect();
       var x1 = r1.left - mapRect.left + r1.width/2;
-      var y1 = r1.top - mapRect.top + r1.height - 6 + scrollTop;
+      var y1 = r1.top - mapRect.top + r1.height - 4 + scrollTop;
       var x2 = r2.left - mapRect.left + r2.width/2;
-      var y2 = r2.top - mapRect.top + 6 + scrollTop;
-      var my = (y1+y2)/2;
+      var y2 = r2.top - mapRect.top + 4 + scrollTop;
+      var cx1 = x1, cx2 = x2;
+      var cy1 = (y1*0.55 + y2*0.45);
+      var cy2 = (y1*0.45 + y2*0.55);
       var isDone1 = nodeRefs[i-1].done;
-      var c1 = nodeRefs[i-1].color;
-      var c2 = nodeRefs[i].color;
-      var stroke = isDone1 ? c1+'cc' : '#ffffff18';
-      var sw = isDone1 ? '4' : '3';
-      var dash = isDone1 ? '' : 'stroke-dasharray="7 6"';
-      paths += '<path d="M'+x1.toFixed(1)+','+y1.toFixed(1)+' C'+x1.toFixed(1)+','+(my-10).toFixed(1)+' '+x2.toFixed(1)+','+(my+10).toFixed(1)+' '+x2.toFixed(1)+','+y2.toFixed(1)+'" stroke="'+stroke+'" stroke-width="'+sw+'" fill="none" '+dash+'/>';
+      var c = nodeRefs[i-1].color;
+      var stroke = isDone1 ? c : 'rgba(255,255,255,0.1)';
+      var sw = isDone1 ? '3.5' : '2.5';
+      var dash = isDone1 ? '' : 'stroke-dasharray="6 5"';
+      paths += '<path d="M'+x1.toFixed(1)+','+y1.toFixed(1)+' C'+cx1.toFixed(1)+','+cy1.toFixed(1)+' '+cx2.toFixed(1)+','+cy2.toFixed(1)+' '+x2.toFixed(1)+','+y2.toFixed(1)+'" stroke="'+stroke+'" stroke-width="'+sw+'" fill="none" stroke-opacity="0.7" '+dash+'/>';
     }
     linesSvg.innerHTML = paths;
   }, 150);
@@ -2764,11 +2779,11 @@ window.addEventListener('load', function() {
     <h2 style="font-family:'Baloo 2',sans-serif;font-size:2rem;font-weight:900;color:white;margin-bottom:8px;">Холбоо барих</h2>
     <p style="font-family:'Baloo 2',sans-serif;font-size:1rem;color:rgba(255,255,255,0.8);margin-bottom:40px;">Асуулт, санал хүсэлт байвал бидэнтэй холбогдоорой</p>
     <div style="display:flex;flex-wrap:wrap;gap:16px;justify-content:center;">
-      <a href="/cdn-cgi/l/email-protection#294a504b4c5b44485d411d1b1d694e44484045074a4644" style="display:flex;align-items:center;gap:12px;background:rgba(255,255,255,0.15);border:1.5px solid rgba(255,255,255,0.3);border-radius:16px;padding:16px 24px;text-decoration:none;transition:all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+      <a href="/cdn-cgi/l/email-protection#7b1802191e09161a0f134f494f3b1c161a121755181416" style="display:flex;align-items:center;gap:12px;background:rgba(255,255,255,0.15);border:1.5px solid rgba(255,255,255,0.3);border-radius:16px;padding:16px 24px;text-decoration:none;transition:all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
         <svg viewBox="0 0 24 24" fill="none" width="24" height="24"><rect x="2" y="4" width="20" height="16" rx="2" stroke="white" stroke-width="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 01-2.06 0L2 7" stroke="white" stroke-width="2"/></svg>
         <div style="text-align:left;">
           <div style="font-family:'Baloo 2',sans-serif;font-size:0.72rem;font-weight:700;color:rgba(255,255,255,0.7);">И-МЭЙЛ</div>
-          <div style="font-family:'Baloo 2',sans-serif;font-size:0.95rem;font-weight:900;color:white;"><span class="__cf_email__" data-cfemail="ea8993888f98878b9e82ded8deaa8d878b8386c4898587">[email&#160;protected]</span></div>
+          <div style="font-family:'Baloo 2',sans-serif;font-size:0.95rem;font-weight:900;color:white;"><span class="__cf_email__" data-cfemail="67041e0502150a06130f53555327000a060e0b4904080a">[email&#160;protected]</span></div>
         </div>
       </a>
       <a href="tel:88449307" style="display:flex;align-items:center;gap:12px;background:rgba(255,255,255,0.15);border:1.5px solid rgba(255,255,255,0.3);border-radius:16px;padding:16px 24px;text-decoration:none;transition:all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
@@ -3331,166 +3346,175 @@ document.head.appendChild(cmStyle);
 
       <!-- Math-themed background + nodes all in one SVG -->
       <div id="path-scroll" style="position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;scroll-behavior:smooth;-webkit-overflow-scrolling:touch;">
-<div id="dynamic-map" style="position:relative;width:100%;min-height:100%;padding-bottom:120px;background:#0b0b1e;">
+<div id="dynamic-map" style="position:relative;width:100%;min-height:100%;background:#0e0c1f;padding-bottom:120px;">
 
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900;1000&display=swap');
-#dynamic-map,#dynamic-map * { font-family:'Nunito',sans-serif; box-sizing:border-box; }
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&display=swap');
+#dynamic-map,#dynamic-map *{font-family:'Nunito',sans-serif;box-sizing:border-box;}
 
-/* ── Background ── */
-.dm-bg {
-  position:absolute;inset:0;pointer-events:none;overflow:hidden;
-  background:radial-gradient(ellipse 120% 40% at 50% 0%,#1a1045 0%,transparent 70%),
-             radial-gradient(ellipse 80% 30% at 80% 50%,#0d1f3a 0%,transparent 60%),
-             #0b0b1e;
-}
-.dm-orb {
-  position:absolute;border-radius:50%;pointer-events:none;
-  animation:dm-float 6s ease-in-out infinite;
-}
-@keyframes dm-float {
-  0%,100%{transform:translateY(0)}
-  50%{transform:translateY(-18px)}
+/* Background */
+#dynamic-map::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:radial-gradient(ellipse 100% 50% at 50% 0%,#1e1550 0%,transparent 70%);
 }
 
-/* ── Section header ── */
-.dm-chapter {
+/* Chapter header */
+.dm-chapter{
   position:relative;z-index:3;
-  display:flex;align-items:center;gap:10px;
-  padding:28px 20px 12px;
+  padding:32px 24px 6px;
 }
-.dm-chapter-line {
-  flex:1;height:1px;
+.dm-chapter-inner{
+  border:1.5px solid rgba(255,255,255,0.08);
+  border-radius:14px;
+  padding:12px 18px;
+  background:rgba(255,255,255,0.03);
+  backdrop-filter:blur(8px);
 }
-.dm-chapter-badge {
-  display:flex;align-items:center;gap:6px;
-  padding:5px 16px;border-radius:100px;
-  font-size:10.5px;font-weight:900;letter-spacing:1.8px;text-transform:uppercase;
-  border:1.5px solid;white-space:nowrap;
+.dm-chapter-sub{
+  font-size:9.5px;font-weight:900;letter-spacing:2.5px;text-transform:uppercase;
+  margin-bottom:3px;
 }
-
-/* ── Row ── */
-.dm-row {
-  position:relative;z-index:3;
-  display:flex;justify-content:center;
-  padding:6px 0;
+.dm-chapter-title{
+  font-size:15px;font-weight:900;color:#fff;
 }
 
-/* ── Node ── */
-.dm-node {
-  display:flex;flex-direction:column;align-items:center;
-  animation:dm-pop 0.5s cubic-bezier(0.34,1.56,0.64,1) both;
-}
-@keyframes dm-pop {
-  from{opacity:0;transform:scale(0.4) translateY(30px)}
-  to  {opacity:1;transform:scale(1) translateY(0)}
-}
-
-/* 3D disc button (Brilliant-inspired) */
-.dm-disc-wrap {
-  position:relative;
-  width:72px;height:72px;
-  cursor:pointer;
-  filter:drop-shadow(0 8px 20px var(--nc,#6C3DE8));
-  transition:filter 0.2s,transform 0.2s cubic-bezier(0.34,1.56,0.64,1);
-}
-.dm-disc-wrap:hover { transform:translateY(-5px) scale(1.08); filter:drop-shadow(0 14px 28px var(--nc,#6C3DE8)); }
-.dm-disc-wrap:active { transform:scale(0.93); }
-
-/* Top face of disc */
-.dm-disc-top {
-  position:absolute;
-  top:0;left:50%;transform:translateX(-50%);
-  width:66px;height:66px;border-radius:50%;
-  display:flex;align-items:center;justify-content:center;
-  z-index:2;
-  border:2.5px solid var(--nb,#8B5CF6);
-  background:radial-gradient(circle at 35% 30%,var(--nh,#3a1e80),var(--nd,#1a0f40));
-  overflow:hidden;
-}
-.dm-disc-top::after {
-  content:'';position:absolute;
-  top:6px;left:10px;width:20px;height:10px;
-  border-radius:50%;
-  background:rgba(255,255,255,0.18);
-  transform:rotate(-25deg);
-}
-
-/* Bottom shadow of disc (3D effect) */
-.dm-disc-bot {
-  position:absolute;
-  bottom:0;left:50%;transform:translateX(-50%);
-  width:60px;height:14px;border-radius:50%;
-  background:var(--nb,#8B5CF6);
-  opacity:0.55;filter:blur(2px);
+/* Path line */
+.dm-path-line{
+  position:absolute;left:50%;top:0;bottom:0;
+  width:3px;transform:translateX(-50%);
+  background:linear-gradient(to bottom,transparent,rgba(255,255,255,0.08) 10%,rgba(255,255,255,0.08) 90%,transparent);
   z-index:1;
+  pointer-events:none;
 }
 
-.dm-icon {
+/* Node row */
+.dm-row{
+  position:relative;z-index:3;
+  display:flex;align-items:center;
+  padding:10px 20px;
+  gap:16px;
+  animation:dm-up 0.45s cubic-bezier(0.34,1.56,0.64,1) both;
+}
+.dm-row-right{flex-direction:row-reverse;text-align:right;}
+@keyframes dm-up{
+  from{opacity:0;transform:translateY(24px) scale(0.85)}
+  to  {opacity:1;transform:translateY(0) scale(1)}
+}
+
+/* ── Brilliant 3D disc ── */
+.dm-disc{
+  flex-shrink:0;
+  width:72px;height:72px;
+  position:relative;
+  cursor:pointer;
+  transition:transform 0.2s cubic-bezier(0.34,1.56,0.64,1);
+}
+.dm-disc:hover{transform:translateY(-5px) scale(1.07);}
+.dm-disc:active{transform:scale(0.93);}
+
+/* Shadow base */
+.dm-disc-shadow{
+  position:absolute;
+  bottom:-6px;left:50%;
+  width:58px;height:16px;
+  border-radius:50%;
+  transform:translateX(-50%);
+  filter:blur(8px);
+  opacity:0.6;
+}
+
+/* Disc side (3D thickness) */
+.dm-disc-side{
+  position:absolute;
+  bottom:0;left:50%;
+  width:66px;height:22px;
+  border-radius:0 0 50% 50%/0 0 100% 100%;
+  transform:translateX(-50%);
+}
+
+/* Disc top face */
+.dm-disc-face{
+  position:absolute;
+  top:0;left:50%;
+  width:66px;height:66px;
+  border-radius:50%;
+  transform:translateX(-50%);
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;
+  border:none;
+  z-index:2;
+}
+/* shine */
+.dm-disc-face::after{
+  content:'';
+  position:absolute;
+  top:5px;left:9px;
+  width:22px;height:11px;
+  border-radius:50%;
+  background:rgba(255,255,255,0.22);
+  transform:rotate(-30deg);
+  pointer-events:none;
+}
+
+.dm-disc-icon{
   font-size:28px;z-index:1;position:relative;
-  filter:drop-shadow(0 2px 8px rgba(0,0,0,0.7));
+  filter:drop-shadow(0 2px 6px rgba(0,0,0,0.5));
 }
 
-/* Stars */
-.dm-stars { font-size:11px;margin-top:6px;letter-spacing:3px; }
+/* Pulse ring for active */
+.dm-active-ring{
+  position:absolute;
+  inset:-8px;border-radius:50%;
+  border:2.5px solid var(--rc);
+  animation:dm-ring 2s ease-out infinite;
+  pointer-events:none;z-index:0;
+}
+.dm-active-ring2{
+  position:absolute;
+  inset:-8px;border-radius:50%;
+  border:2.5px solid var(--rc);
+  animation:dm-ring 2s ease-out 0.7s infinite;
+  pointer-events:none;z-index:0;
+}
+@keyframes dm-ring{
+  0%{transform:scale(1);opacity:0.9}
+  100%{transform:scale(1.8);opacity:0}
+}
+
+/* Done spinning ring */
+.dm-done-ring{
+  position:absolute;inset:-5px;border-radius:50%;
+  background:conic-gradient(#FFC800,#58CC02,#1CB0F6,#FFC800);
+  -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 3.5px),#fff calc(100% - 3.5px));
+  mask:radial-gradient(farthest-side,transparent calc(100% - 3.5px),#fff calc(100% - 3.5px));
+  animation:dm-spin 5s linear infinite;
+  pointer-events:none;z-index:3;
+}
+@keyframes dm-spin{to{transform:rotate(360deg)}}
 
 /* Label */
-.dm-label {
-  margin-top:3px;
-  font-size:11px;font-weight:800;
-  text-align:center;max-width:96px;
-  line-height:1.35;
-  color:#fff;
-  text-shadow:0 1px 8px rgba(0,0,0,0.95);
-  min-height:14px;
+.dm-info{flex:1;min-width:0;}
+.dm-info-stars{font-size:12px;letter-spacing:2px;margin-bottom:3px;}
+.dm-info-name{
+  font-size:13px;font-weight:800;
+  color:#fff;line-height:1.35;
+  text-shadow:0 1px 6px rgba(0,0,0,0.8);
 }
-.dm-node-locked .dm-label { color:#ffffff40; }
-.dm-node-locked .dm-disc-top { background:radial-gradient(#1a1a2e,#0d0d1e)!important; border-color:#333!important; }
-.dm-node-locked .dm-disc-bot { background:#222!important;opacity:0.3; }
-.dm-node-locked { filter:saturate(0.3) brightness(0.7); }
+.dm-node-locked .dm-info-name{color:rgba(255,255,255,0.3);}
+.dm-node-locked .dm-disc{filter:saturate(0.15) brightness(0.55);}
 
-/* Active pulse ring */
-.dm-pulse-ring {
-  position:absolute;inset:-8px;border-radius:50%;
-  border:2px solid var(--nc,#6C3DE8);
-  animation:dm-pulse 1.8s ease-out infinite;
-  z-index:0;pointer-events:none;
+/* Connector dot */
+.dm-connector-dot{
+  position:absolute;left:50%;top:50%;
+  width:8px;height:8px;border-radius:50%;
+  transform:translate(-50%,-50%);
+  background:rgba(255,255,255,0.12);
+  z-index:2;
 }
-.dm-pulse-ring2 {
-  position:absolute;inset:-8px;border-radius:50%;
-  border:2px solid var(--nc,#6C3DE8);
-  animation:dm-pulse 1.8s ease-out 0.6s infinite;
-  z-index:0;pointer-events:none;
-}
-@keyframes dm-pulse {
-  0%   {transform:scale(1);opacity:0.8}
-  100% {transform:scale(1.7);opacity:0}
-}
-
-/* Done ring */
-.dm-done-ring {
-  position:absolute;inset:-4px;border-radius:50%;
-  background:conic-gradient(#FFC800 0deg,#58CC02 120deg,#1CB0F6 240deg,#FFC800 360deg);
-  -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#fff calc(100% - 3px));
-  mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#fff calc(100% - 3px));
-  animation:dm-spin 4s linear infinite;
-  z-index:0;
-}
-@keyframes dm-spin { to{transform:rotate(360deg)} }
-
-/* SVG path lines */
-#dm-lines path { stroke-linecap:round; }
 </style>
 
-<div class="dm-bg">
-  <div class="dm-orb" style="width:350px;height:350px;top:-5%;left:-15%;background:radial-gradient(#6C3DE855,transparent 70%);animation-delay:-2s;"></div>
-  <div class="dm-orb" style="width:280px;height:280px;top:30%;right:-10%;background:radial-gradient(#1CB0F633,transparent 70%);animation-delay:-4s;"></div>
-  <div class="dm-orb" style="width:240px;height:240px;top:60%;left:-5%;background:radial-gradient(#58CC0222,transparent 70%);animation-delay:-1s;"></div>
-  <div class="dm-orb" style="width:300px;height:300px;top:80%;right:-8%;background:radial-gradient(#FF960022,transparent 70%);animation-delay:-3s;"></div>
-</div>
-
 <svg id="dm-lines" style="position:absolute;inset:0;width:100%;pointer-events:none;z-index:2;overflow:visible;"></svg>
-<div id="dm-nodes" style="position:relative;z-index:3;padding-top:10px;"></div>
+<div id="dm-nodes" style="position:relative;z-index:3;padding-top:8px;"></div>
 
 </div>
 </div>
