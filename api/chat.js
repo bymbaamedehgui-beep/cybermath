@@ -24,7 +24,7 @@ module.exports = async (req, res) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
       body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
+        model: 'deepseek-r1-distill-llama-70b',
         messages: [{ role: 'system', content: sys }, ...(messages || [])],
         max_tokens: 1000,
         temperature: 0.7
