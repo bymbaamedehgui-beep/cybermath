@@ -607,6 +607,7 @@ function toggleAdmPw() {
           <div class="table-header">
             <div class="table-title">Одоогийн хичээлүүд</div>
             <button class="btn-sm btn-success" id="save-nodes-btn" onclick="saveAllNodes()">💾 Хадгалах</button>
+            <button class="btn-sm btn-danger" id="delete-all-btn" onclick="deleteAllNodeNames()">🗑️ Нийтийг устгах</button>
           </div>
           <div id="nodes-list" style="padding:12px 20px;display:flex;flex-direction:column;gap:8px;"></div>
         </div>
@@ -654,7 +655,7 @@ function toggleAdmPw() {
 
         <!-- Note -->
         <div style="background:rgba(255,193,19,0.08);border:1.5px solid rgba(255,193,19,0.25);border-radius:12px;padding:14px 16px;font-size:0.82rem;font-weight:700;color:rgba(255,193,19,0.8);">
-          ⚠ "Хадгалах" дарсны дараа тоглоомыг дахин нээхэд хичээлийн замд харагдана.
+          ⚠ "Тоглоомд хадгалах" дарсны дараа тоглоомыг дахин нээхэд хичээлийн замд харагдана.
         </div>
       </div>
 
@@ -2070,22 +2071,68 @@ function openEditMathModal(targetId) {
     }).catch(function(){});
   }
 
-  function saveAllNodes() {
-    var btn = document.getElementById('save-nodes-btn');
-    if (btn) { btn.disabled = true; btn.textContent = '⏳ Хадгалж байна...'; }
-    fetch(API + '/api/seed', {method:'GET'})
-      .then(function(){
-        if (btn) { btn.textContent = '✅ Амжилттай!'; btn.style.background = 'var(--green)'; }
-        setTimeout(function(){
-          if (btn) { btn.textContent = '💾 Хадгалах'; btn.style.background = ''; btn.disabled = false; }
-        }, 2000);
-      })
-      .catch(function(){
-        if (btn) { btn.textContent = '❌ Алдаа гарлаа'; btn.style.background = 'var(--red)'; }
-        setTimeout(function(){
-          if (btn) { btn.textContent = '💾 Хадгалах'; btn.style.background = ''; btn.disabled = false; }
-        }, 2000);
+  var _deletedNames = null;
+  var _undoTimer = null;
+
+  function deleteAllNodeNames() {
+    var nodes = getNodes();
+    _deletedNames = nodes.map(function(n){ return {id: n.id, name: n.name}; });
+
+    // Clear all names
+    nodes.forEach(function(n){ n.name = ''; });
+    saveNodes(nodes);
+    renderNodesList();
+
+    // Send to server
+    Promise.all(nodes.map(function(n){
+      return fetch(API + '/api/nodes', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({id: n.id, name: '', type: n.type, icon: n.icon||'📚', grade: n.grade||'', sort_order: n.sort_order||n.id})
       });
+    })).catch(function(){});
+
+    // Show undo toast
+    var btn = document.getElementById('delete-all-btn');
+    if (btn) { btn.textContent = '↩️ Буцаах (5с)'; btn.onclick = function(){ undoDeleteNames(); }; }
+    if (_undoTimer) clearTimeout(_undoTimer);
+    _undoTimer = setTimeout(function(){
+      _deletedNames = null;
+      if (btn) { btn.textContent = '🗑️ Нийтийг устгах'; btn.onclick = function(){ deleteAllNodeNames(); }; }
+    }, 5000);
+  }
+
+  function undoDeleteNames() {
+    if (!_deletedNames) return;
+    clearTimeout(_undoTimer);
+    var nodes = getNodes();
+    _deletedNames.forEach(function(d){
+      var n = nodes.find(function(x){ return x.id === d.id; });
+      if (n) n.name = d.name;
+    });
+    saveNodes(nodes);
+    renderNodesList();
+
+    Promise.all(nodes.map(function(n){
+      return fetch(API + '/api/nodes', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({id: n.id, name: n.name, type: n.type, icon: n.icon||'📚', grade: n.grade||'', sort_order: n.sort_order||n.id})
+      });
+    })).catch(function(){});
+
+    _deletedNames = null;
+    var btn = document.getElementById('delete-all-btn');
+    if (btn) { btn.textContent = '✅ Буцаалаа!'; btn.style.background='var(--green)'; }
+    setTimeout(function(){
+      if (btn) { btn.textContent = '🗑️ Нийтийг устгах'; btn.style.background=''; btn.onclick = function(){ deleteAllNodeNames(); }; }
+    }, 1500);
+  }
+
+  function saveAllNodes() {
+    var nodes = getNodes();
+    fetch(API + '/api/seed', {method:'GET'}).catch(function(){});
+    alert('Node-ууд хадгалагдлаа!');
   }
 
   // ══ USERS ══
