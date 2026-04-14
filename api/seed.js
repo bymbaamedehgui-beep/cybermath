@@ -127,11 +127,10 @@ module.exports = async (req, res) => {
       [116,"Статистик — практик бодлого","locked","📝","9"],
     ];
 
-    // Nodes table шинэчлэх
-    await pool.query('DELETE FROM nodes');
+    // Nodes table шинэчлэх — зөвхөн байхгүй node-уудыг нэмнэ, байгааг өөрчлөхгүй
     for (const [id, name, type, icon, grade] of nodes) {
       await pool.query(
-        'INSERT INTO nodes (id, name, type, icon, grade, sort_order) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO UPDATE SET name=$2, type=$3, icon=$4, grade=$5, sort_order=$6',
+        'INSERT INTO nodes (id, name, type, icon, grade, sort_order) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO NOTHING',
         [id, name, type, icon, grade, id]
       );
     }
@@ -167,7 +166,7 @@ module.exports = async (req, res) => {
     ];
     for (const [id, name, type, icon, grade] of examNodes) {
       await pool.query(
-        'INSERT INTO nodes (id, name, type, icon, grade, sort_order) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO UPDATE SET name=$2, type=$3, icon=$4, grade=$5, sort_order=$6',
+        'INSERT INTO nodes (id, name, type, icon, grade, sort_order) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO NOTHING',
         [id, name, type, icon, grade, id]
       );
     }
