@@ -729,17 +729,19 @@ function toggleAdmPw() {
         <div class="table-card" style="margin-bottom:20px;">
           <div class="table-header">
             <div class="table-title">🗺️ Learning Path Map</div>
+            <button class="btn-sm" onclick="renderNodesList()" style="background:#1CB0F622;border:1px solid #1CB0F6;color:#1CB0F6;">🔄 Шинэчлэх</button>
             <div style="display:flex;gap:8px;">
-              <button class="btn-sm" onclick="renderNodesList()" style="background:#1CB0F622;border:1px solid #1CB0F6;color:#1CB0F6;">🔄 Шинэчлэх</button>
               <button class="btn-sm btn-success" id="save-nodes-btn" onclick="saveAllNodes()">💾 Хадгалах</button>
               <button class="btn-sm btn-danger" id="delete-all-btn" onclick="deleteAllNodeNames()">🗑️ Нийтийг устгах</button>
             </div>
           </div>
+          <!-- Map container -->
           <div id="admin-map-wrap" style="position:relative;background:linear-gradient(180deg,#0a1628,#0d2240);border-radius:12px;overflow:hidden;margin:0 12px 12px;height:700px;">
             <div id="admin-map-scroll" style="position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;">
               <svg id="admin-map-svg" style="width:100%;display:block;" viewBox="0 0 420 2000" xmlns="http://www.w3.org/2000/svg"></svg>
             </div>
           </div>
+          <!-- Edit popup -->
           <div id="admin-node-popup" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--surface2);border:2px solid var(--purple);border-radius:16px;padding:24px;z-index:9999;min-width:300px;box-shadow:0 8px 40px rgba(0,0,0,0.5);">
             <div style="font-weight:900;font-size:1rem;color:var(--text);margin-bottom:4px;" id="popup-title">Хичээл #1</div>
             <div style="font-size:0.78rem;color:var(--muted);margin-bottom:12px;" id="popup-sub">Нэрийг засна уу</div>
@@ -752,7 +754,7 @@ function toggleAdmPw() {
           <div id="admin-node-overlay" onclick="closeNodePopup()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9998;"></div>
         </div>
 
-        <!-- Хичээлийн жагсаалт -->
+        <!-- Node list (compact) -->
         <div class="table-card" style="margin-bottom:20px;">
           <div class="table-header">
             <div class="table-title">📋 Хичээлийн жагсаалт</div>
@@ -1599,28 +1601,21 @@ function openEditMathModal(targetId) {
     if (!text) { alert('Бодлогын текст оруулна уу!'); return; }
     var nodeEl = document.getElementById('q-node');
     var nodeId = nodeEl ? parseInt(nodeEl.value)||null : null;
-    // PUT (update existing question)
+    // DELETE + POST (update)
     fetch(API + '/api/questions', {
-      method: 'PUT',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        id: id,
-        text: text,
-        correct: correct,
-        choices: choices,
-        hint: hint && (hint.text || hint.embed || hint.video) ? hint : null,
-        type: qtype,
-        node_id: nodeId
-      })
-    }).then(r => r.json()).then(function(d) {
-      if (d.ok) {
-        cancelEdit(id);
-        renderQuestions();
-        addLog('Бодлого засав', text.slice(0,40), '#1CB0F6');
-      } else {
-        alert('Алдаа: ' + d.error);
-      }
-    }).catch(function() { alert('Алдаа гарлаа!'); });
+      method:'DELETE', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({id: id})
+    }).then(function() {
+      return fetch(API + '/api/questions', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({text, correct, choices, hint: hint&&(hint.text||hint.embed)?hint:null,
+          type: qtype,
+          node_id: document.getElementById('q-node') ? parseInt(document.getElementById('q-node').value)||null : null})
+      });
+    }).then(r=>r.json()).then(function(d){
+      if(d.ok) { renderQuestions(); addLog('Бодлого засав', text.slice(0,40), '#1CB0F6'); }
+      else alert('Алдаа: ' + d.error);
+    }).catch(function(){ alert('Алдаа гарлаа!'); });
   }
 
   function deleteQuestion(id) {
@@ -1881,7 +1876,6 @@ function openEditMathModal(targetId) {
         saveNodes(nodes);
         _renderNodesUI(nodes);
         renderAdminMap(nodes);
-        renderAdminMap(nodes);
       })
       .catch(function(){ _renderNodesUI(getNodes()); });
   }
@@ -1889,7 +1883,7 @@ function openEditMathModal(targetId) {
   function _renderNodesUI(nodes) {
     var el = document.getElementById('nodes-list');
     if (!el) return;
-    if (!nodes.length) { el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);">Node байхгүй байна</div>'; return; }
+    if (!nodes.length) { el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);">Хичээл байхгүй байна</div>'; return; }
     var gradeColors = {'8':'#58CC02','9':'#1CB0F6','10':'#FF9600','11':'#CE82FF','12':'#FF4B4B'};
     var lastGrade = null;
     var html = '';
