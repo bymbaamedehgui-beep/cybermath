@@ -670,15 +670,38 @@ function toggleAdmPw() {
               <input id="q-fill-answer" type="text" class="form-input" placeholder="Зөв хариулт...">
             </div>
           </div>
-          <!-- Hint -->
-          <div class="form-row">
-            <div class="form-group">
-              <label>💡 Hint (тайлбар)</label>
-              <input id="q-hint-text" type="text" class="form-input" placeholder="Тайлбар текст...">
+          <!-- Hint / Тайлбар -->
+          <div class="form-group" style="margin-bottom:10px;">
+            <label style="font-weight:900;font-size:0.85rem;margin-bottom:8px;display:block;">💡 Тайлбар оруулах</label>
+            <!-- Tabs -->
+            <div style="display:flex;gap:4px;margin-bottom:10px;flex-wrap:wrap;">
+              <button type="button" class="hint-tab-btn active" onclick="switchHintTab('text',this)" style="padding:5px 12px;border-radius:8px;border:1.5px solid var(--purple);background:var(--purple);color:white;font-size:0.78rem;font-weight:800;cursor:pointer;">📝 Текст</button>
+              <button type="button" class="hint-tab-btn" onclick="switchHintTab('image',this)" style="padding:5px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);color:var(--muted);font-size:0.78rem;font-weight:800;cursor:pointer;">🖼 Зураг</button>
+              <button type="button" class="hint-tab-btn" onclick="switchHintTab('video',this)" style="padding:5px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);color:var(--muted);font-size:0.78rem;font-weight:800;cursor:pointer;">▶️ Видео URL</button>
+              <button type="button" class="hint-tab-btn" onclick="switchHintTab('embed',this)" style="padding:5px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);color:var(--muted);font-size:0.78rem;font-weight:800;cursor:pointer;">📐 Embed URL</button>
             </div>
-            <div class="form-group">
-              <label>📐 Desmos/GeoGebra URL</label>
-              <input id="q-hint-embed" type="text" class="form-input" placeholder="https://www.desmos.com/...">
+            <!-- Text -->
+            <div id="hint-tab-text" class="hint-tab-content">
+              <textarea id="q-hint-text" rows="2" class="form-input" placeholder="Тайлбар текст оруулна уу..." style="resize:vertical;"></textarea>
+            </div>
+            <!-- Image -->
+            <div id="hint-tab-image" class="hint-tab-content" style="display:none;">
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <input type="file" id="q-hint-image-file" accept="image/*" onchange="loadHintImage(this)" style="flex:1;padding:8px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:0.82rem;">
+                <button type="button" onclick="clearHintImage()" style="padding:6px 12px;background:#FF4B4B22;border:1px solid #FF4B4B55;color:#FF4B4B;border-radius:8px;cursor:pointer;font-size:0.78rem;font-weight:800;">🗑 Цэвэрлэх</button>
+              </div>
+              <input type="hidden" id="q-hint-image">
+              <div id="hint-image-preview" style="margin-top:8px;display:none;"><img id="hint-img-el" style="max-width:100%;max-height:160px;border-radius:8px;border:1px solid var(--border);" /></div>
+            </div>
+            <!-- Video URL -->
+            <div id="hint-tab-video" class="hint-tab-content" style="display:none;">
+              <input id="q-hint-video" type="text" class="form-input" placeholder="YouTube URL: https://youtube.com/watch?v=...">
+              <div style="font-size:0.75rem;color:var(--muted);margin-top:4px;">YouTube, Vimeo болон бусад видео URL</div>
+            </div>
+            <!-- Embed URL -->
+            <div id="hint-tab-embed" class="hint-tab-content" style="display:none;">
+              <input id="q-hint-embed" type="text" class="form-input" placeholder="https://www.desmos.com/calculator/... эсвэл https://geogebra.org/...">
+              <div style="font-size:0.75rem;color:var(--muted);margin-top:4px;">Desmos, GeoGebra болон бусад iframe embed URL</div>
             </div>
           </div>
           <div style="display:flex;gap:10px;align-items:center;">
@@ -1359,6 +1382,36 @@ function closeMathModal() { closeChoiceMathModal(); }
   }
 
   // ══ QUESTIONS ══
+  function switchHintTab(tab, btn) {
+    document.querySelectorAll('.hint-tab-content').forEach(function(el){ el.style.display='none'; });
+    document.querySelectorAll('.hint-tab-btn').forEach(function(b){
+      b.style.background='var(--surface)'; b.style.color='var(--muted)'; b.style.borderColor='var(--border)';
+    });
+    var el = document.getElementById('hint-tab-'+tab);
+    if (el) el.style.display='';
+    if (btn) { btn.style.background='var(--purple)'; btn.style.color='white'; btn.style.borderColor='var(--purple)'; }
+  }
+
+  function loadHintImage(input) {
+    var file = input.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      document.getElementById('q-hint-image').value = e.target.result;
+      var preview = document.getElementById('hint-image-preview');
+      var img = document.getElementById('hint-img-el');
+      if (preview && img) { img.src = e.target.result; preview.style.display='block'; }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function clearHintImage() {
+    document.getElementById('q-hint-image').value = '';
+    document.getElementById('q-hint-image-file').value = '';
+    var preview = document.getElementById('hint-image-preview');
+    if (preview) preview.style.display='none';
+  }
+
   function populateQNodeSelect() {
     var sel = document.getElementById('q-node');
     if (!sel || sel.options.length > 1) return;
@@ -1677,11 +1730,15 @@ function openEditMathModal(targetId) {
       correct = correctMap[correctKey];
       choices = [a,b,c,d];
     }
-    var hint = {text: document.getElementById('q-hint-text') ? document.getElementById('q-hint-text').value.trim() : ''};
-    var embedEl = document.getElementById('q-hint-embed');
-    var videoEl = document.getElementById('q-hint-video');
-    if (embedEl && embedEl.value.trim()) hint.embed = embedEl.value.trim();
-    if (videoEl && videoEl.value.trim()) hint.video = videoEl.value.trim();
+    var hint = {};
+    var hintText = document.getElementById('q-hint-text') ? document.getElementById('q-hint-text').value.trim() : '';
+    var hintImage = document.getElementById('q-hint-image') ? document.getElementById('q-hint-image').value : '';
+    var hintVideo = document.getElementById('q-hint-video') ? document.getElementById('q-hint-video').value.trim() : '';
+    var hintEmbed = document.getElementById('q-hint-embed') ? document.getElementById('q-hint-embed').value.trim() : '';
+    if (hintText) hint.text = hintText;
+    if (hintImage) hint.image = hintImage;
+    if (hintVideo) hint.video = hintVideo;
+    if (hintEmbed) hint.embed = hintEmbed;
     var msg = document.getElementById('q-msg');
     if (!text) { if(msg){msg.style.color='var(--red)';msg.textContent='Бодлогын текст оруулна уу!';} return; }
     if (!correct) { if(msg){msg.style.color='var(--red)';msg.textContent='Зөв хариулт хоосон байна!';} return; }
@@ -1694,7 +1751,9 @@ function openEditMathModal(targetId) {
       ['q-a','q-b','q-c','q-d'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
       var md = document.getElementById('q-math-display'); if(md) md.value='';
       var ht = document.getElementById('q-hint-text'); if(ht) ht.value='';
-      if(embedEl) embedEl.value='';
+      var hv = document.getElementById('q-hint-video'); if(hv) hv.value='';
+      var he = document.getElementById('q-hint-embed'); if(he) he.value='';
+      clearHintImage();
       // Radio-г A руу буцаах
       var radioA = document.querySelector('input[name="q-correct"][value="a"]');
       if (radioA) { radioA.checked = true; updateChoiceHighlight(); }
