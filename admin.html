@@ -1601,21 +1601,28 @@ function openEditMathModal(targetId) {
     if (!text) { alert('Бодлогын текст оруулна уу!'); return; }
     var nodeEl = document.getElementById('q-node');
     var nodeId = nodeEl ? parseInt(nodeEl.value)||null : null;
-    // DELETE + POST (update)
+    // PUT (update existing question)
     fetch(API + '/api/questions', {
-      method:'DELETE', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({id: id})
-    }).then(function() {
-      return fetch(API + '/api/questions', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({text, correct, choices, hint: hint&&(hint.text||hint.embed)?hint:null,
-          type: qtype,
-          node_id: document.getElementById('q-node') ? parseInt(document.getElementById('q-node').value)||null : null})
-      });
-    }).then(r=>r.json()).then(function(d){
-      if(d.ok) { renderQuestions(); addLog('Бодлого засав', text.slice(0,40), '#1CB0F6'); }
-      else alert('Алдаа: ' + d.error);
-    }).catch(function(){ alert('Алдаа гарлаа!'); });
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        id: id,
+        text: text,
+        correct: correct,
+        choices: choices,
+        hint: hint && (hint.text || hint.embed || hint.video) ? hint : null,
+        type: qtype,
+        node_id: nodeId
+      })
+    }).then(r => r.json()).then(function(d) {
+      if (d.ok) {
+        cancelEdit(id);
+        renderQuestions();
+        addLog('Бодлого засав', text.slice(0,40), '#1CB0F6');
+      } else {
+        alert('Алдаа: ' + d.error);
+      }
+    }).catch(function() { alert('Алдаа гарлаа!'); });
   }
 
   function deleteQuestion(id) {
