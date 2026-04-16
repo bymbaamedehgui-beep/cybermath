@@ -37,15 +37,18 @@ module.exports = async (req, res) => {
       }
 
       // Бусад талбарууд
+      const { stars_data, streak_data } = req.body || {};
       const sets = [];
       const vals = [];
       let i = 1;
-      if (plan   !== undefined) { sets.push(`plan=$${i++}`);   vals.push(plan); }
-      if (xp     !== undefined) { sets.push(`xp=$${i++}`);     vals.push(xp); }
-      if (gems   !== undefined) { sets.push(`gems=$${i++}`);   vals.push(gems); }
-      if (hearts !== undefined) { sets.push(`hearts=$${i++}`); vals.push(hearts); }
-      if (streak !== undefined) { sets.push(`streak=$${i++}`); vals.push(streak); }
-      if (avatar !== undefined) { sets.push(`avatar=$${i++}`); vals.push(avatar); }
+      if (plan        !== undefined) { sets.push(`plan=$${i++}`);        vals.push(plan); }
+      if (xp          !== undefined) { sets.push(`xp=$${i++}`);          vals.push(xp); }
+      if (gems        !== undefined) { sets.push(`gems=$${i++}`);        vals.push(gems); }
+      if (hearts      !== undefined) { sets.push(`hearts=$${i++}`);      vals.push(hearts); }
+      if (streak      !== undefined) { sets.push(`streak=$${i++}`);      vals.push(streak); }
+      if (avatar      !== undefined) { sets.push(`avatar=$${i++}`);      vals.push(avatar); }
+      if (stars_data  !== undefined) { sets.push(`stars_data=$${i++}`);  vals.push(stars_data); }
+      if (streak_data !== undefined) { sets.push(`streak_data=$${i++}`); vals.push(streak_data); }
 
       if (sets.length) {
         vals.push(email);
