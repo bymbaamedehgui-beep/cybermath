@@ -69,10 +69,30 @@ module.exports = async (req, res) => {
       return res.json({ ok: true });
     }
 
+    // SEND RESET CODE
+    if (action === 'sendResetCode') {
+      const r = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
+      if (!r.rows.length) return res.json({ ok: false, error: 'Энэ и-мэйлтэй бүртгэл олдсонгүй' });
+      const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const codeExpiry = new Date(Date.now() + 10 * 60 * 1000);
+      await pool.query('UPDATE users SET verify_code=$1, verify_expiry=$2 WHERE email=$3', [resetCode, codeExpiry, email]);
+      await sendVerifyEmail(email, resetCode, r.rows[0].first_name, true);
+      return res.json({ ok: true });
+    }
+
+    // VERIFY RESET CODE
+    if (action === 'verifyResetCode') {
+      const r = await pool.query('SELECT * FROM users WHERE email=$1 AND verify_code=$2', [email, code]);
+      if (!r.rows.length) return res.json({ ok: false, error: 'Код буруу байна' });
+      if (new Date() > new Date(r.rows[0].verify_expiry)) return res.json({ ok: false, error: 'Кодны хугацаа дууссан' });
+      return res.json({ ok: true });
+    }
+
     // RESET PASSWORD
     if (action === 'reset') {
-      const r = await pool.query('UPDATE users SET pass=$1 WHERE email=$2 RETURNING id', [newPass, email]);
-      if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Хэрэглэгч олдсонгүй' });
+      const r = await pool.query('SELECT * FROM users WHERE email=$1 AND verify_code=$2', [email, code]);
+      if (!r.rows.length) return res.json({ ok: false, error: 'Код буруу байна' });
+      await pool.query('UPDATE users SET pass=$1, verify_code=NULL, verify_expiry=NULL WHERE email=$2', [newPass, email]);
       return res.json({ ok: true });
     }
 

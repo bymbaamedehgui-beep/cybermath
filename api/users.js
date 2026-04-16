@@ -14,8 +14,18 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === 'PUT') {
-      const { email, plan, xp, gems, hearts, streak, avatar, completed_lesson, stars_data, streak_data } = req.body || {};
+      const { email, action, plan, xp, gems, hearts, streak, avatar, completed_lesson, stars_data, streak_data } = req.body || {};
       if (!email) return res.status(400).json({ ok: false, error: 'Missing email' });
+
+      // Нууц үг солих
+      if (action === 'changePassword') {
+        const { oldPassword, newPassword } = req.body;
+        const r = await pool.query('SELECT pass FROM users WHERE email=$1', [email]);
+        if (!r.rows.length) return res.json({ ok: false, error: 'Хэрэглэгч олдсонгүй' });
+        if (r.rows[0].pass !== oldPassword) return res.json({ ok: false, error: 'Одоогийн нууц үг буруу байна' });
+        await pool.query('UPDATE users SET pass=$1 WHERE email=$2', [newPassword, email]);
+        return res.json({ ok: true });
+      }
 
       // completed_lesson array-д нэмэх
       if (completed_lesson !== undefined) {
