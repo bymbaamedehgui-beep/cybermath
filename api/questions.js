@@ -15,7 +15,7 @@ module.exports = async (req, res) => {
       if (grade)   { conds.push(`(grade=$${vals.length+1} OR grade IS NULL OR grade='')`); vals.push(grade); }
       if (node_id) { conds.push(`node_id=$${vals.length+1}`); vals.push(parseInt(node_id)); }
       if (conds.length) q += ' WHERE ' + conds.join(' AND ');
-      q += ' ORDER BY created_at DESC';
+      q += ' ORDER BY id ASC';
       const r = await pool.query(q, vals);
       return res.json({ ok: true, questions: r.rows });
     }
