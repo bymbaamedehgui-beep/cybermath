@@ -37,7 +37,6 @@ module.exports = async (req, res) => {
       }
 
       // Бусад талбарууд
-      const { stars_data, streak_data } = req.body || {};
       const sets = [];
       const vals = [];
       let i = 1;
