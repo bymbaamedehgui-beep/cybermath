@@ -23,10 +23,8 @@ module.exports = async (req, res) => {
       const sessionToken = crypto.randomBytes(32).toString('hex');
       let tokens = [];
       try { tokens = JSON.parse(u.session_token || '[]'); } catch(e) { tokens = u.session_token ? [u.session_token] : []; }
-      if (tokens.length >= 2) {
-        return res.status(401).json({ ok: false, error: 'Энэ бүртгэл аль хэдийн 2 төхөөрөмж дээр нэвтэрсэн байна. Нэгэн дээрээс гарна уу.', alreadyLoggedIn: true });
-      }
       tokens.push(sessionToken);
+      if (tokens.length > 10) tokens = tokens.slice(-10);
       await pool.query('UPDATE users SET session_token=$1 WHERE email=$2', [JSON.stringify(tokens), email]);
       return res.json({ ok: true, sessionToken, user: {
         email: u.email, firstName: u.first_name, lastName: u.last_name,
