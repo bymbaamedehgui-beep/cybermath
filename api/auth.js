@@ -70,15 +70,15 @@ module.exports = async (req, res) => {
 
     // REGISTER
     if (action === 'register') {
-      const { aimag, sum, school } = req.body || {};
+      const { aimag, sum, school, phone } = req.body || {};
       const exists = await pool.query('SELECT id FROM users WHERE email=$1', [email]);
       if (exists.rows.length) return res.status(400).json({ ok: false, error: 'И-мэйл бүртгэлтэй байна' });
       if (!grade) return res.status(400).json({ ok: false, error: 'Ангиа сонгоно уу' });
       const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
       const codeExpiry = new Date(Date.now() + 10 * 60 * 1000);
       await pool.query(
-        'INSERT INTO users (email,pass,first_name,last_name,grade,plan,xp,gems,hearts,streak,avatar,verified,verify_code,verify_expiry,aimag,sum,school) VALUES ($1,$2,$3,$4,$5,$6,0,340,5,0,$7,false,$8,$9,$10,$11,$12)',
-        [email, pass, firstName, lastName, grade, plan || 'free', 'default', verifyCode, codeExpiry, aimag||null, sum||null, school||null]
+        'INSERT INTO users (email,pass,first_name,last_name,grade,plan,xp,gems,hearts,streak,avatar,verified,verify_code,verify_expiry,aimag,sum,school,phone) VALUES ($1,$2,$3,$4,$5,$6,0,340,5,0,$7,false,$8,$9,$10,$11,$12,$13)',
+        [email, pass, firstName, lastName, grade, plan || 'free', 'default', verifyCode, codeExpiry, aimag||null, sum||null, school||null, phone||null]
       );
       await sendVerifyEmail(email, verifyCode, firstName);
       return res.json({ ok: true, needVerify: true, email });
