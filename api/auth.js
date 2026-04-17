@@ -18,12 +18,54 @@ module.exports = async (req, res) => {
       if (u.verified === false) {
         return res.status(401).json({ ok: false, error: 'Имэйлээ баталгаажуулна уу', needVerify: true, email });
       }
+      // Session tokens — ихдээ 2 төхөөрөмж зөвшөөрөх
+      const crypto = require('crypto');
+      const sessionToken = crypto.randomBytes(32).toString('hex');
+      let tokens = [];
+      try { tokens = JSON.parse(u.session_token || '[]'); } catch(e) { tokens = u.session_token ? [u.session_token] : []; }
+      if (tokens.length >= 2) {
+        return res.status(401).json({ ok: false, error: 'Энэ бүртгэл аль хэдийн 2 төхөөрөмж дээр нэвтэрсэн байна. Нэгэн дээрээс гарна уу.', alreadyLoggedIn: true });
+      }
+      tokens.push(sessionToken);
+      await pool.query('UPDATE users SET session_token=$1 WHERE email=$2', [JSON.stringify(tokens), email]);
+      return res.json({ ok: true, sessionToken, user: {
+        email: u.email, firstName: u.first_name, lastName: u.last_name,
+        grade: u.grade, plan: u.plan, xp: u.xp || 0, gems: u.gems || 340,
+        hearts: u.hearts || 5, streak: u.streak || 0, avatar: u.avatar || 'default',
+        completedLessons: u.completed_lessons || [], stars_data: u.stars_data || null, streak_data: u.streak_data || null
+      }});
+    }
+
+    // VERIFY SESSION
+    if (action === 'verifySession') {
+      const { sessionToken } = req.body || {};
+      if (!sessionToken || !email) return res.json({ ok: false, error: 'Invalid' });
+      const r = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
+      if (!r.rows.length) return res.json({ ok: false, error: 'Session хүчингүй', expired: true });
+      const u2 = r.rows[0];
+      let tokens2 = [];
+      try { tokens2 = JSON.parse(u2.session_token || '[]'); } catch(e) { tokens2 = u2.session_token ? [u2.session_token] : []; }
+      if (!tokens2.includes(sessionToken)) return res.json({ ok: false, error: 'Session хүчингүй — дахин нэвтэрнэ үү', expired: true });
+      const u = r.rows[0];
       return res.json({ ok: true, user: {
         email: u.email, firstName: u.first_name, lastName: u.last_name,
         grade: u.grade, plan: u.plan, xp: u.xp || 0, gems: u.gems || 340,
         hearts: u.hearts || 5, streak: u.streak || 0, avatar: u.avatar || 'default',
         completedLessons: u.completed_lessons || [], stars_data: u.stars_data || null, streak_data: u.streak_data || null
       }});
+    }
+
+    // LOGOUT — тухайн session-г устгах
+    if (action === 'logout') {
+      const { sessionToken } = req.body || {};
+      const rl = await pool.query('SELECT session_token FROM users WHERE email=$1', [email]);
+      if (rl.rows.length) {
+        let toks = [];
+        try { toks = JSON.parse(rl.rows[0].session_token || '[]'); } catch(e) { toks = []; }
+        toks = toks.filter(t => t !== sessionToken);
+        await pool.query('UPDATE users SET session_token=$1 WHERE email=$2', [JSON.stringify(toks), email]);
+      }
+      return res.json({ ok: true });
     }
 
     // REGISTER
