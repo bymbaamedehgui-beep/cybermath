@@ -21,21 +21,21 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === 'POST') {
-      const { text, topic, grade, correct, choices, hint, node_id, type } = req.body || {};
+      const { text, topic, grade, correct, choices, hint, node_id, type, image } = req.body || {};
       if (!text || !correct) return res.status(400).json({ ok: false, error: 'Missing fields' });
       const r = await pool.query(
-        'INSERT INTO questions (text,topic,grade,correct,choices,hint,node_id,type) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
-        [text, topic, grade, correct, choices, hint ? JSON.stringify(hint) : null, node_id || null, type || 'choice']
+        'INSERT INTO questions (text,topic,grade,correct,choices,hint,node_id,type,image) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',
+        [text, topic, grade, correct, choices, hint ? JSON.stringify(hint) : null, node_id || null, type || 'choice', image || null]
       );
       return res.json({ ok: true, question: r.rows[0] });
     }
 
     if (req.method === 'PUT') {
-      const { id, text, correct, choices, hint, node_id, type } = req.body || {};
+      const { id, text, correct, choices, hint, node_id, type, image } = req.body || {};
       if (!id || !text || !correct) return res.status(400).json({ ok: false, error: 'Missing fields' });
       await pool.query(
-        'UPDATE questions SET text=$2, correct=$3, choices=$4, hint=$5, node_id=$6, type=$7 WHERE id=$1',
-        [id, text, correct, choices, hint ? JSON.stringify(hint) : null, node_id || null, type || 'choice']
+        'UPDATE questions SET text=$2, correct=$3, choices=$4, hint=$5, node_id=$6, type=$7, image=$8 WHERE id=$1',
+        [id, text, correct, choices, hint ? JSON.stringify(hint) : null, node_id || null, type || 'choice', image || null]
       );
       return res.json({ ok: true });
     }
