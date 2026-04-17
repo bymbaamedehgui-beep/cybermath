@@ -60,7 +60,7 @@ function showPage(name, btn) {
   if (btn) btn.classList.add('active');
   // Тухайн page-ийн өгөгдөл ачаалах
   if (name === 'overview') loadOverview();
-  if (name === 'questions') renderQuestions();
+  if (name === 'questions') { populateQNodeSelect(); renderQuestions(); }
   if (name === 'nodes') renderNodesList();
   if (name === 'users') loadUsers();
   if (name === 'log') loadLogs();
@@ -598,6 +598,105 @@ function toggleAdmPw() {
       </div>
 
 
+      <!-- Questions page -->
+      <div class="page" id="page-questions" style="display:none;">
+        <div class="page-title">Бодлогууд</div>
+        <div class="page-sub">Node сонгоод бодлого нэмэх, засах</div>
+
+        <!-- Node сонгох + бодлого нэмэх -->
+        <div class="q-form">
+          <div class="q-form-title">+ Шинэ бодлого нэмэх</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Node сонгох</label>
+              <select id="q-node" class="form-input form-select" onchange="renderQuestions()">
+                <option value="">— Node сонгох —</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Төрөл</label>
+              <select id="q-type" class="form-input form-select" onchange="toggleQType()">
+                <option value="choice">Сонголт (choice)</option>
+                <option value="fill">Нөхөх (fill)</option>
+                <option value="number">Тоо (number)</option>
+              </select>
+            </div>
+          </div>
+          <!-- Бодлогын текст -->
+          <div class="form-group" style="margin-bottom:12px;">
+            <label>Бодлогын текст</label>
+            <div style="position:relative;">
+              <textarea id="q-math-display" rows="2" class="form-input" placeholder="Бодлогын текст..." style="padding-right:90px;resize:vertical;"></textarea>
+              <button type="button" onclick="openMathModal('q-math-display')" style="position:absolute;top:8px;right:8px;background:#7B52EE;border:none;color:white;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.78rem;font-weight:800;">∑ Томьёо</button>
+            </div>
+          </div>
+          <!-- Сонголтууд -->
+          <div id="q-choices-wrap">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+              <div class="form-group">
+                <label style="display:flex;align-items:center;gap:6px;"><input type="radio" name="q-correct" value="a" checked onchange="updateChoiceHighlight()"> А</label>
+                <div style="display:flex;gap:4px;">
+                  <input id="q-a" type="text" class="form-input" placeholder="А хариулт" style="flex:1;">
+                  <button type="button" onclick="openMathModal('q-a')" style="background:#7B52EE;border:none;color:white;border-radius:8px;padding:0 8px;cursor:pointer;">∑</button>
+                </div>
+              </div>
+              <div class="form-group">
+                <label style="display:flex;align-items:center;gap:6px;"><input type="radio" name="q-correct" value="b" onchange="updateChoiceHighlight()"> Б</label>
+                <div style="display:flex;gap:4px;">
+                  <input id="q-b" type="text" class="form-input" placeholder="Б хариулт" style="flex:1;">
+                  <button type="button" onclick="openMathModal('q-b')" style="background:#7B52EE;border:none;color:white;border-radius:8px;padding:0 8px;cursor:pointer;">∑</button>
+                </div>
+              </div>
+              <div class="form-group">
+                <label style="display:flex;align-items:center;gap:6px;"><input type="radio" name="q-correct" value="c" onchange="updateChoiceHighlight()"> В</label>
+                <div style="display:flex;gap:4px;">
+                  <input id="q-c" type="text" class="form-input" placeholder="В хариулт" style="flex:1;">
+                  <button type="button" onclick="openMathModal('q-c')" style="background:#7B52EE;border:none;color:white;border-radius:8px;padding:0 8px;cursor:pointer;">∑</button>
+                </div>
+              </div>
+              <div class="form-group">
+                <label style="display:flex;align-items:center;gap:6px;"><input type="radio" name="q-correct" value="d" onchange="updateChoiceHighlight()"> Г</label>
+                <div style="display:flex;gap:4px;">
+                  <input id="q-d" type="text" class="form-input" placeholder="Г хариулт" style="flex:1;">
+                  <button type="button" onclick="openMathModal('q-d')" style="background:#7B52EE;border:none;color:white;border-radius:8px;padding:0 8px;cursor:pointer;">∑</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Fill/number хариулт -->
+          <div id="q-fill-wrap" style="display:none;margin-bottom:10px;">
+            <div class="form-group">
+              <label>Зөв хариулт</label>
+              <input id="q-fill-answer" type="text" class="form-input" placeholder="Зөв хариулт...">
+            </div>
+          </div>
+          <!-- Hint -->
+          <div class="form-row">
+            <div class="form-group">
+              <label>💡 Hint (тайлбар)</label>
+              <input id="q-hint-text" type="text" class="form-input" placeholder="Тайлбар текст...">
+            </div>
+            <div class="form-group">
+              <label>📐 Desmos/GeoGebra URL</label>
+              <input id="q-hint-embed" type="text" class="form-input" placeholder="https://www.desmos.com/...">
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <button class="btn-primary" onclick="addQuestion()">+ Нэмэх</button>
+            <span id="q-msg" style="font-size:0.85rem;font-weight:700;"></span>
+          </div>
+        </div>
+
+        <!-- Node-ийн бодлогууд -->
+        <div class="table-card" style="margin-top:20px;">
+          <div class="table-header">
+            <div class="table-title" id="q-list-title">Бодлогууд</div>
+            <input type="text" placeholder="Хайх..." style="padding:6px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:0.85rem;width:200px;" oninput="renderQuestions(this.value)">
+          </div>
+          <div id="q-list" style="padding:0 20px 12px;"></div>
+        </div>
+      </div>
+
       <!-- Nodes page -->
       <div class="page" id="page-nodes">
         <div class="page-title">Хичээлийн зам</div>
@@ -684,67 +783,6 @@ function toggleAdmPw() {
         <!-- Note -->
         <div style="background:rgba(255,193,19,0.08);border:1.5px solid rgba(255,193,19,0.25);border-radius:12px;padding:14px 16px;font-size:0.82rem;font-weight:700;color:rgba(255,193,19,0.8);">
           ⚠ "Тоглоомд хадгалах" дарсны дараа тоглоомыг дахин нээхэд хичээлийн замд харагдана.
-        </div>
-      </div>
-
-      <!-- Questions -->
-      <div class="page" id="page-questions">
-        <div class="page-title">Бодлогууд</div>
-        <div class="page-sub">Сэдэв бүрт бодлого нэмж удирдана</div>
-
-        <div class="topic-tabs" id="topic-tabs"></div>
-
-        
-
-          <!-- Нөхөх хариулт -->
-          <div id="fill-section" style="display:none;margin-top:12px;">
-            <div class="form-group">
-              <label>✏️ Зөв хариулт (нөхөх)</label>
-              <div style="display:flex;gap:8px;align-items:center;">
-                <input id="q-fill-answer" type="text" class="form-input" placeholder="Зөв хариулт оруулна уу..." style="flex:1;">
-                <button type="button" onclick="openChoiceMathModal('q-fill-answer')" style="background:#7B52EE;border:none;color:white;border-radius:8px;padding:0 12px;height:40px;cursor:pointer;font-size:0.9rem;font-weight:800;white-space:nowrap;">∑</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Choice math modal — яг бодлогын томьёо оруулах шиг -->
-          <div id="choice-math-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:flex-start;justify-content:center;padding-top:40px;pointer-events:none;">
-            <div id="choice-math-card" style="background:var(--surface);border-radius:16px;padding:20px;width:92%;max-width:480px;border:1px solid var(--border);position:relative;pointer-events:all;user-select:none;"
-              onmousedown="startChoiceDrag(event)">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;cursor:grab;">
-                <div style="font-weight:800;color:var(--text);font-size:1rem;">∑ Хариултад томьёо оруулах</div>
-                <div style="display:flex;gap:6px;">
-                  <div style="width:8px;height:8px;border-radius:50%;background:#FF4B4B;"></div>
-                  <div style="width:8px;height:8px;border-radius:50%;background:#FFC800;"></div>
-                  <div style="width:8px;height:8px;border-radius:50%;background:#58CC02;cursor:pointer;" onclick="closeChoiceMathModal()" title="Хаах"></div>
-                </div>
-              </div>
-              <math-field id="choice-math-field" virtual-keyboard-mode="onfocus"
-                style="width:100%;min-height:56px;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--surface2);color:white;display:block;font-size:1.05rem;"
-                onmousedown="event.stopPropagation()">
-              </math-field>
-              <div id="choice-math-preview" style="margin-top:8px;min-height:28px;padding:6px 12px;background:var(--surface2);border-radius:8px;text-align:center;" onmousedown="event.stopPropagation()"></div>
-              <div style="display:flex;gap:8px;margin-top:12px;" onmousedown="event.stopPropagation()">
-                <button onclick="confirmChoiceMath()" style="flex:1;background:#58CC02;border:none;color:white;border-radius:8px;padding:10px;cursor:pointer;font-weight:800;">✓ Оруулах</button>
-                <button onclick="closeChoiceMathModal()" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:10px 16px;cursor:pointer;font-weight:700;">Болих</button>
-              </div>
-            </div>
-          </div>
-          <div style="display:flex;gap:10px;align-items:center;">
-            <button class="add-btn" onclick="addQuestion()">Нэмэх</button>
-            <div id="q-msg" style="font-size:0.82rem;font-weight:800;color:var(--green);"></div>
-          </div>
-        </div>
-
-        <div class="table-card">
-          <div class="table-header">
-            <div class="table-title" id="q-list-title">Бодлогын жагсаалт</div>
-            <div style="display:flex;gap:8px;align-items:center;">
-              <input type="text" class="search-input" placeholder="Хайх..." oninput="renderQuestions(this.value)">
-              <button onclick="renderQuestions()" style="background:var(--purple);border:none;color:white;border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:700;white-space:nowrap;">🔄 Харах</button>
-            </div>
-          </div>
-          <div id="q-list" style="padding:0 20px 12px;"></div>
         </div>
       </div>
 
@@ -1321,6 +1359,29 @@ function closeMathModal() { closeChoiceMathModal(); }
   }
 
   // ══ QUESTIONS ══
+  function populateQNodeSelect() {
+    var sel = document.getElementById('q-node');
+    if (!sel || sel.options.length > 1) return;
+    var nodes = getNodes();
+    nodes.forEach(function(n) {
+      if (!n.name) return;
+      var opt = document.createElement('option');
+      opt.value = n.id;
+      opt.textContent = n.id + '. ' + n.name;
+      sel.appendChild(opt);
+    });
+  }
+
+  function toggleQType() {
+    var type = document.getElementById('q-type').value;
+    var choicesWrap = document.getElementById('q-choices-wrap');
+    var fillWrap = document.getElementById('q-fill-wrap');
+    if (choicesWrap) choicesWrap.style.display = (type === 'choice') ? '' : 'none';
+    if (fillWrap) fillWrap.style.display = (type === 'fill' || type === 'number') ? '' : 'none';
+  }
+
+  function updateChoiceHighlight() {}
+
   function renderQuestions(search) {
     var el = document.getElementById('q-list');
     if (!el) return;
@@ -1771,19 +1832,19 @@ function openEditMathModal(targetId) {
       if (n.grade && n.grade !== lastGrade) {
         lastGrade = n.grade;
         var c = gradeColors[n.grade] || 'var(--purple)';
-        html += '<div style="display:flex;align-items:center;gap:8px;margin:10px 0 6px;padding:0 4px;">'
-          + '<div style="height:2px;flex:1;background:'+c+'33;border-radius:2px;"></div>'
+        html += '<div style="display:flex;align-items:center;gap:8px;margin:10px 0 6px;">'
+          + '<div style="height:2px;flex:1;background:'+c+'33;"></div>'
           + '<span style="font-size:0.75rem;font-weight:900;color:'+c+';letter-spacing:1px;">'+n.grade+'-Р АНГИ</span>'
-          + '<div style="height:2px;flex:1;background:'+c+'33;border-radius:2px;"></div>'
+          + '<div style="height:2px;flex:1;background:'+c+'33;"></div>'
           + '</div>';
       }
       html += '<div style="display:flex;align-items:center;gap:8px;background:var(--surface2);border-radius:10px;padding:8px 12px;border:1px solid var(--border);margin-bottom:4px;">'
         + '<span style="font-weight:900;font-size:0.78rem;color:var(--muted);min-width:28px;text-align:right;">'+n.id+'</span>'
         + '<div style="width:2px;height:20px;background:var(--border);border-radius:2px;flex-shrink:0;"></div>'
-        + '<input id="nname-'+n.id+'" value="'+n.name.replace(/"/g,'&quot;')+'" placeholder="Хичээлийн нэр..." style="flex:1;padding:5px 8px;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;font-size:0.85rem;color:var(--text);font-weight:700;outline:none;" onkeydown="if(event.key==='Enter')saveNodeName('+n.id+')">'
+        + '<input id="nname-'+n.id+'" value="'+n.name.replace(/"/g,'&quot;')+'" placeholder="Хичээлийн нэр..." style="flex:1;padding:5px 8px;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;font-size:0.85rem;color:var(--text);font-weight:700;outline:none;">'
         + '<button onclick="saveNodeName('+n.id+')" style="padding:5px 10px;background:var(--purple);border:none;border-radius:8px;color:white;font-weight:700;font-size:0.75rem;cursor:pointer;flex-shrink:0;">💾</button>'
         + '<div style="position:relative;" id="menu-wrap-'+n.id+'">'
-        + '<button onclick="toggleNodeMenu('+n.id+')" style="padding:5px 9px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:1rem;cursor:pointer;font-weight:900;line-height:1;">⋯</button>'
+        + '<button onclick="toggleNodeMenu('+n.id+')" style="padding:5px 9px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:1rem;cursor:pointer;font-weight:900;">⋯</button>'
         + '<div id="node-menu-'+n.id+'" style="display:none;position:absolute;right:0;top:110%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;min-width:150px;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,0.3);overflow:hidden;">'
         + '<button onclick="clearNodeName('+n.id+');toggleNodeMenu('+n.id+')" style="width:100%;padding:10px 16px;background:none;border:none;border-bottom:1px solid var(--border);color:var(--text);font-size:0.85rem;cursor:pointer;text-align:left;">🗑️ Нэр устгах</button>'
         + '<button onclick="deleteNode('+n.id+')" style="width:100%;padding:10px 16px;background:none;border:none;color:#ff4b4b;font-size:0.85rem;cursor:pointer;text-align:left;">❌ Хичээл устгах</button>'
