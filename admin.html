@@ -61,7 +61,7 @@ function showPage(name, btn) {
   // Тухайн page-ийн өгөгдөл ачаалах
   if (name === 'overview') loadOverview();
   if (name === 'questions') { populateQNodeSelect(); renderQuestions(); }
-  if (name === 'nodes') renderNodesList();
+  if (name === 'nodes') { renderNodesList(); renderSectionLabelsList(); }
   if (name === 'users') loadUsers();
   if (name === 'log') loadLogs();
 }
@@ -810,6 +810,18 @@ function toggleAdmPw() {
             <button class="add-btn" onclick="addNode()">Нэмэх</button>
             <div id="node-msg" style="font-size:0.82rem;font-weight:800;color:var(--green);"></div>
           </div>
+        </div>
+
+        <!-- Section labels удирдах -->
+        <div class="table-card" style="margin-bottom:20px;">
+          <div class="table-header">
+            <div class="table-title">🏷️ Сэдвийн гарчгууд</div>
+            <button class="btn-sm btn-success" onclick="saveSectionLabels()">💾 Хадгалах</button>
+          </div>
+          <div style="padding:12px 16px;font-size:0.78rem;color:var(--muted);font-weight:700;margin-bottom:4px;">
+            Хичээлийн замд харагдах сэдвийн гарчгуудыг засна уу. "Хэдэн дугаарын дараа" гэдэг нь аль хичээлийн дараа харагдах вэ гэсэн утгатай.
+          </div>
+          <div id="section-labels-list" style="padding:4px 16px 12px;display:flex;flex-direction:column;gap:6px;max-height:50vh;overflow-y:auto;"></div>
         </div>
 
         <!-- Note -->
@@ -1908,6 +1920,61 @@ function openEditMathModal(targetId) {
     }).catch(function(){ closeNodePopup(); });
   }
 
+
+  // ══ SECTION LABELS ══
+  var DEFAULT_SECTION_LABELS = [{"id": 1, "name": "\u0422\u043e\u043e\u043d\u044b \u0438\u043b\u044d\u0440\u0445\u0438\u0439\u043b\u044d\u043b \u0431\u0430 \u04af\u0439\u043b\u0434\u043b\u04af\u04af\u0434", "afterNode": 0}, {"id": 2, "name": "\u041e\u043b\u043e\u043d \u0433\u0438\u0448\u04af\u04af\u043d\u0442", "afterNode": 6}, {"id": 3, "name": "\u0410\u043b\u0433\u0435\u0431\u0440\u0438\u0439\u043d \u0431\u0443\u0442\u0430\u0440\u0445\u0430\u0439", "afterNode": 11}, {"id": 4, "name": "\u0428\u0443\u0433\u0430\u043c\u0430\u043d \u0442\u044d\u0433\u0448\u0438\u0442\u0433\u044d\u043b", "afterNode": 18}, {"id": 5, "name": "\u0413\u0435\u043e\u043c\u0435\u0442\u0440", "afterNode": 25}, {"id": 6, "name": "\u0421\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043a\u0438\u0439\u043d \u04af\u043d\u0434\u044d\u0441", "afterNode": 30}, {"id": 7, "name": "\u0410\u0434\u0438\u043b \u0445\u044d\u043c\u0436\u0441\u044d\u043d \u0433\u0443\u0440\u0432\u0430\u043b\u0436\u0438\u043d", "afterNode": 36}, {"id": 8, "name": "\u041f\u0438\u0444\u0430\u0433\u043e\u0440\u044b\u043d \u0442\u0435\u043e\u0440\u0435\u043c", "afterNode": 41}, {"id": 9, "name": "\u0422\u043e\u0439\u0440\u043e\u0433", "afterNode": 46}, {"id": 10, "name": "\u0421\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043a\u0438\u0439\u043d \u04af\u043d\u0434\u044d\u0441", "afterNode": 51}, {"id": 11, "name": "\u0411\u043e\u0434\u0438\u0442 \u0442\u043e\u043e", "afterNode": 56}, {"id": 12, "name": "\u0418\u0440\u0440\u0430\u0446\u0438\u043e\u043d\u0430\u043b \u0438\u043b\u044d\u0440\u0445\u0438\u0439\u043b\u044d\u043b", "afterNode": 61}, {"id": 13, "name": "\u041a\u0432\u0430\u0434\u0440\u0430\u0442 \u0442\u044d\u0433\u0448\u0438\u0442\u0433\u044d\u043b", "afterNode": 67}, {"id": 14, "name": "\u0422\u044d\u043d\u0446\u044d\u0442\u0433\u044d\u043b \u0431\u0443\u0441 \u0431\u0430\u0439\u0434\u0430\u043b", "afterNode": 74}, {"id": 15, "name": "\u0424\u0443\u043d\u043a\u0446", "afterNode": 79}, {"id": 16, "name": "\u0410\u0440\u0438\u0444\u043c\u0435\u0442\u0438\u043a \u043f\u0440\u043e\u0433\u0440\u0435\u0441\u0441", "afterNode": 86}, {"id": 17, "name": "\u0413\u0435\u043e\u043c\u0435\u0442\u0440\u0438\u0439\u043d \u043f\u0440\u043e\u0433\u0440\u0435\u0441\u0441", "afterNode": 92}, {"id": 18, "name": "\u0422\u0440\u0438\u0433\u043e\u043d\u043e\u043c\u0435\u0442\u0440", "afterNode": 98}, {"id": 19, "name": "\u0421\u0438\u043d\u0443\u0441\u044b\u043d \u0442\u0435\u043e\u0440\u0435\u043c", "afterNode": 104}, {"id": 20, "name": "\u041a\u043e\u0441\u0438\u043d\u0443\u0441\u044b\u043d \u0442\u0435\u043e\u0440\u0435\u043c", "afterNode": 107}, {"id": 21, "name": "\u0422\u043e\u0439\u0440\u0433\u0438\u0439\u043d \u0448\u0438\u043d\u0436 \u0447\u0430\u043d\u0430\u0440", "afterNode": 112}, {"id": 22, "name": "\u0412\u0435\u043a\u0442\u043e\u0440", "afterNode": 117}, {"id": 23, "name": "\u0422\u043e\u043e\u043b\u043b\u044b\u043d \u0437\u0430\u0440\u0447\u0438\u043c", "afterNode": 123}, {"id": 24, "name": "\u041c\u0430\u0433\u0430\u0434\u043b\u0430\u043b", "afterNode": 129}, {"id": 25, "name": "\ud83c\udfc6 \u0421\u041e\u0420\u0418\u041b", "afterNode": 142}];
+
+  function getSectionLabels() {
+    try {
+      return JSON.parse(localStorage.getItem('cm_section_labels') || 'null') || DEFAULT_SECTION_LABELS;
+    } catch(e) { return DEFAULT_SECTION_LABELS; }
+  }
+  function saveSectionLabelsLocal(data) {
+    localStorage.setItem('cm_section_labels', JSON.stringify(data));
+  }
+
+  function renderSectionLabelsList() {
+    var el = document.getElementById('section-labels-list');
+    if (!el) return;
+    var labels = getSectionLabels();
+    var html = '';
+    labels.forEach(function(lbl) {
+      html += '<div style="display:flex;align-items:center;gap:8px;background:var(--surface2);border-radius:10px;padding:8px 12px;border:1px solid var(--border);">'
+        + '<span style="font-weight:900;font-size:0.75rem;color:var(--muted);min-width:20px;">' + lbl.id + '</span>'
+        + '<div style="width:2px;height:20px;background:var(--border);border-radius:2px;flex-shrink:0;"></div>'
+        + '<input id="slabel-name-' + lbl.id + '" value="' + lbl.name.replace(/"/g, '&quot;') + '" placeholder="Гарчиг..." style="flex:2;padding:5px 8px;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;font-size:0.85rem;color:var(--text);font-weight:700;outline:none;">'
+        + '<span style="font-size:0.75rem;color:var(--muted);font-weight:700;flex-shrink:0;">хичээл #</span>'
+        + '<input id="slabel-after-' + lbl.id + '" type="number" value="' + lbl.afterNode + '" min="0" max="162" style="width:60px;padding:5px 8px;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;font-size:0.85rem;color:var(--text);font-weight:700;outline:none;text-align:center;">'
+        + '<span style="font-size:0.72rem;color:var(--muted);">-ны дараа</span>'
+        + '</div>';
+    });
+    el.innerHTML = html;
+  }
+
+  function saveSectionLabels() {
+    var labels = getSectionLabels();
+    labels.forEach(function(lbl) {
+      var nameEl = document.getElementById('slabel-name-' + lbl.id);
+      var afterEl = document.getElementById('slabel-after-' + lbl.id);
+      if (nameEl) lbl.name = nameEl.value.trim();
+      if (afterEl) lbl.afterNode = parseInt(afterEl.value) || 0;
+    });
+    saveSectionLabelsLocal(labels);
+    // API-д хадгалах
+    fetch(API + '/api/nodes', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ action: 'saveSectionLabels', labels: labels })
+    }).then(r => r.json()).then(function(d) {
+      if (d.ok) {
+        showToast('✓ Гарчгууд хадгалагдлаа!');
+        addLog('Гарчиг', labels.length + ' гарчиг хадгалагдлаа', '#1CB0F6');
+      }
+    }).catch(function() {
+      showToast('✓ Локалд хадгалагдлаа');
+    });
+  }
+
   function renderNodesList() {
     var el = document.getElementById('nodes-list');
     if (!el) return;
@@ -1919,8 +1986,13 @@ function openEditMathModal(targetId) {
         saveNodes(nodes);
         _renderNodesUI(nodes);
         renderAdminMap(nodes);
+        // Section labels DB-аас авах
+        if (data.sectionLabels && data.sectionLabels.length) {
+          saveSectionLabelsLocal(data.sectionLabels);
+        }
+        renderSectionLabelsList();
       })
-      .catch(function(){ _renderNodesUI(getNodes()); });
+      .catch(function(){ _renderNodesUI(getNodes()); renderSectionLabelsList(); });
   }
 
   function _renderNodesUI(nodes) {

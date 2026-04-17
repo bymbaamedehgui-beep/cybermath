@@ -10,11 +10,29 @@ module.exports = async (req, res) => {
     if (req.method === 'GET') {
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
       const r = await pool.query('SELECT * FROM nodes ORDER BY sort_order, id');
-      return res.json({ ok: true, nodes: r.rows });
+      // Section labels ч хамт буцаах
+      let sectionLabels = [];
+      try {
+        const sl = await pool.query('SELECT * FROM section_labels ORDER BY id');
+        sectionLabels = sl.rows.map(r => ({ id: r.id, name: r.name, afterNode: r.after_node }));
+      } catch(e) {}
+      return res.json({ ok: true, nodes: r.rows, sectionLabels });
     }
 
     if (req.method === 'POST') {
-      const { id, name, type, icon, grade, sort_order } = req.body || {};
+      const { id, name, type, icon, grade, sort_order, action, labels } = req.body || {};
+
+      // Section labels хадгалах
+      if (action === 'saveSectionLabels' && Array.isArray(labels)) {
+        for (const lbl of labels) {
+          await pool.query(
+            'INSERT INTO section_labels (id, name, after_node) VALUES ($1,$2,$3) ON CONFLICT (id) DO UPDATE SET name=$2, after_node=$3',
+            [lbl.id, lbl.name, lbl.afterNode]
+          );
+        }
+        return res.json({ ok: true });
+      }
+
       // Зөвхөн name шинэчлэх
       if (name !== undefined && type === undefined) {
         await pool.query(
