@@ -40,7 +40,19 @@ module.exports = async (req, res) => {
       const sets = [];
       const vals = [];
       let i = 1;
-      if (plan        !== undefined) { sets.push(`plan=$${i++}`);        vals.push(plan); }
+      if (plan !== undefined) {
+        sets.push(`plan=$${i++}`);
+        vals.push(plan);
+        if (plan === 'premium') {
+          // premium_until тусгайлан өгсөн бол ашиглах, үгүй бол 30 хоног
+          const { premium_until } = req.body || {};
+          sets.push(`premium_until=$${i++}`);
+          vals.push(premium_until ? new Date(premium_until) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
+        } else if (plan === 'free') {
+          sets.push(`premium_until=$${i++}`);
+          vals.push(null);
+        }
+      }
       if (xp          !== undefined) { sets.push(`xp=$${i++}`);          vals.push(xp); }
       if (gems        !== undefined) { sets.push(`gems=$${i++}`);        vals.push(gems); }
       if (hearts      !== undefined) { sets.push(`hearts=$${i++}`);      vals.push(hearts); }
