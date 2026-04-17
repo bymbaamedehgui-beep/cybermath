@@ -670,15 +670,47 @@ function toggleAdmPw() {
               <input id="q-fill-answer" type="text" class="form-input" placeholder="Зөв хариулт...">
             </div>
           </div>
-          <!-- Hint -->
-          <div class="form-row">
-            <div class="form-group">
-              <label>💡 Hint (тайлбар)</label>
-              <input id="q-hint-text" type="text" class="form-input" placeholder="Тайлбар текст...">
+          <!-- Hint / Тайлбар -->
+          <div style="margin-bottom:14px;">
+            <label style="font-weight:900;font-size:0.82rem;color:var(--muted);display:block;margin-bottom:8px;">💡 Тайлбар (заавал биш)</label>
+            <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
+              <button type="button" class="hint-tab-btn active" data-tab="text" onclick="switchHintTab('text',this)" style="padding:5px 12px;border-radius:8px;border:1.5px solid var(--purple);background:var(--purple);color:white;font-size:0.78rem;font-weight:800;cursor:pointer;" data-tab="text">📝 Текст</button>
+              <button type="button" class="hint-tab-btn" data-tab="image" onclick="switchHintTab('image',this)" style="padding:5px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);color:var(--muted);font-size:0.78rem;font-weight:800;cursor:pointer;">🖼 Зураг</button>
+              <button type="button" class="hint-tab-btn" data-tab="pdf" onclick="switchHintTab('pdf',this)" style="padding:5px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);color:var(--muted);font-size:0.78rem;font-weight:800;cursor:pointer;">📄 PDF</button>
+              <button type="button" class="hint-tab-btn" data-tab="video" onclick="switchHintTab('video',this)" style="padding:5px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);color:var(--muted);font-size:0.78rem;font-weight:800;cursor:pointer;">▶️ Видео</button>
+              <button type="button" class="hint-tab-btn" data-tab="embed" onclick="switchHintTab('embed',this)" style="padding:5px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);color:var(--muted);font-size:0.78rem;font-weight:800;cursor:pointer;">📐 Embed</button>
             </div>
-            <div class="form-group">
-              <label>📐 Desmos/GeoGebra URL</label>
-              <input id="q-hint-embed" type="text" class="form-input" placeholder="https://www.desmos.com/...">
+            <!-- Текст -->
+            <div id="hint-tab-text" class="hint-tab-pane">
+              <textarea id="q-hint-text" rows="2" class="form-input" placeholder="Тайлбар текст..." style="resize:vertical;"></textarea>
+            </div>
+            <!-- Зураг -->
+            <div id="hint-tab-image" class="hint-tab-pane" style="display:none;">
+              <div style="display:flex;gap:8px;align-items:center;">
+                <input type="file" id="q-hint-image-file" accept="image/*" onchange="loadHintFile(this,'image')" style="flex:1;padding:7px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:0.82rem;">
+                <button type="button" onclick="clearHintFile('image')" style="padding:6px 10px;background:#FF4B4B22;border:1px solid #FF4B4B55;color:#FF4B4B;border-radius:8px;cursor:pointer;font-size:0.78rem;font-weight:800;">🗑</button>
+              </div>
+              <input type="hidden" id="q-hint-image">
+              <div id="hint-image-preview" style="margin-top:8px;display:none;"><img id="hint-img-el" style="max-width:100%;max-height:140px;border-radius:8px;border:1px solid var(--border);"></div>
+            </div>
+            <!-- PDF -->
+            <div id="hint-tab-pdf" class="hint-tab-pane" style="display:none;">
+              <div style="display:flex;gap:8px;align-items:center;">
+                <input type="file" id="q-hint-pdf-file" accept=".pdf" onchange="loadHintFile(this,'pdf')" style="flex:1;padding:7px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:0.82rem;">
+                <button type="button" onclick="clearHintFile('pdf')" style="padding:6px 10px;background:#FF4B4B22;border:1px solid #FF4B4B55;color:#FF4B4B;border-radius:8px;cursor:pointer;font-size:0.78rem;font-weight:800;">🗑</button>
+              </div>
+              <input type="hidden" id="q-hint-pdf">
+              <div id="hint-pdf-preview" style="margin-top:6px;font-size:0.8rem;color:var(--muted);font-weight:700;"></div>
+            </div>
+            <!-- Видео URL -->
+            <div id="hint-tab-video" class="hint-tab-pane" style="display:none;">
+              <input id="q-hint-video" type="text" class="form-input" placeholder="YouTube/Vimeo URL: https://youtube.com/watch?v=...">
+              <div style="font-size:0.72rem;color:var(--muted);margin-top:4px;">YouTube, Vimeo холбоос</div>
+            </div>
+            <!-- Embed URL -->
+            <div id="hint-tab-embed" class="hint-tab-pane" style="display:none;">
+              <input id="q-hint-embed" type="text" class="form-input" placeholder="https://www.desmos.com/calculator/...">
+              <div style="font-size:0.72rem;color:var(--muted);margin-top:4px;">Desmos, GeoGebra болон бусад iframe</div>
             </div>
           </div>
           <div style="display:flex;gap:10px;align-items:center;">
@@ -1359,6 +1391,80 @@ function closeMathModal() { closeChoiceMathModal(); }
   }
 
   // ══ QUESTIONS ══
+  function switchHintTab(tab, btn) {
+    document.querySelectorAll('.hint-tab-pane').forEach(function(el){ el.style.display='none'; });
+    document.querySelectorAll('.hint-tab-btn').forEach(function(b){
+      b.style.background='var(--surface)'; b.style.color='var(--muted)'; b.style.borderColor='var(--border)';
+    });
+    var el = document.getElementById('hint-tab-'+tab);
+    if (el) el.style.display='';
+    if (btn) { btn.style.background='var(--purple)'; btn.style.color='white'; btn.style.borderColor='var(--purple)'; }
+  }
+
+  function loadHintFile(input, type) {
+    var file = input.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      document.getElementById('q-hint-'+type).value = e.target.result;
+      if (type === 'image') {
+        var preview = document.getElementById('hint-image-preview');
+        var img = document.getElementById('hint-img-el');
+        if (preview && img) { img.src = e.target.result; preview.style.display='block'; }
+      } else if (type === 'pdf') {
+        var prev = document.getElementById('hint-pdf-preview');
+        if (prev) prev.textContent = '📄 ' + file.name + ' (' + Math.round(file.size/1024) + ' KB)';
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function clearHintFile(type) {
+    var fileInput = document.getElementById('q-hint-'+type+'-file');
+    var hiddenInput = document.getElementById('q-hint-'+type);
+    if (fileInput) fileInput.value = '';
+    if (hiddenInput) hiddenInput.value = '';
+    if (type === 'image') {
+      var preview = document.getElementById('hint-image-preview');
+      if (preview) preview.style.display='none';
+    } else if (type === 'pdf') {
+      var prev = document.getElementById('hint-pdf-preview');
+      if (prev) prev.textContent = '';
+    }
+  }
+
+  function getHintData() {
+    var activeTab = document.querySelector('.hint-tab-btn.active');
+    if (!activeTab) activeTab = document.querySelector('[data-tab="text"]');
+    var tab = activeTab ? activeTab.getAttribute('data-tab') : 'text';
+    var hint = {};
+    if (tab === 'text') {
+      var t = document.getElementById('q-hint-text');
+      if (t && t.value.trim()) hint.text = t.value.trim();
+    } else if (tab === 'image') {
+      var img = document.getElementById('q-hint-image');
+      if (img && img.value) hint.image = img.value;
+    } else if (tab === 'pdf') {
+      var pdf = document.getElementById('q-hint-pdf');
+      if (pdf && pdf.value) hint.pdf = pdf.value;
+    } else if (tab === 'video') {
+      var vid = document.getElementById('q-hint-video');
+      if (vid && vid.value.trim()) hint.video = vid.value.trim();
+    } else if (tab === 'embed') {
+      var emb = document.getElementById('q-hint-embed');
+      if (emb && emb.value.trim()) hint.embed = emb.value.trim();
+    }
+    return Object.keys(hint).length ? hint : null;
+  }
+
+  function clearHintForm() {
+    var t = document.getElementById('q-hint-text'); if(t) t.value='';
+    var v = document.getElementById('q-hint-video'); if(v) v.value='';
+    var e = document.getElementById('q-hint-embed'); if(e) e.value='';
+    clearHintFile('image');
+    clearHintFile('pdf');
+  }
+
   function populateQNodeSelect() {
     var sel = document.getElementById('q-node');
     if (!sel || sel.options.length > 1) return;
@@ -1677,11 +1783,7 @@ function openEditMathModal(targetId) {
       correct = correctMap[correctKey];
       choices = [a,b,c,d];
     }
-    var hint = {text: document.getElementById('q-hint-text') ? document.getElementById('q-hint-text').value.trim() : ''};
-    var embedEl = document.getElementById('q-hint-embed');
-    var videoEl = document.getElementById('q-hint-video');
-    if (embedEl && embedEl.value.trim()) hint.embed = embedEl.value.trim();
-    if (videoEl && videoEl.value.trim()) hint.video = videoEl.value.trim();
+    var hint = getHintData();
     var msg = document.getElementById('q-msg');
     if (!text) { if(msg){msg.style.color='var(--red)';msg.textContent='Бодлогын текст оруулна уу!';} return; }
     if (!correct) { if(msg){msg.style.color='var(--red)';msg.textContent='Зөв хариулт хоосон байна!';} return; }
