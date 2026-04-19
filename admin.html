@@ -669,7 +669,7 @@ function toggleAdmPw() {
             <label>Бодлогын текст</label>
             <div style="position:relative;">
               <textarea id="q-math-display" rows="2" class="form-input" placeholder="Бодлогын текст..." style="padding-right:90px;resize:vertical;"></textarea>
-              <button type="button" onclick="openMathModal('q-math-display')" style="position:absolute;top:8px;right:8px;background:#7B52EE;border:none;color:white;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.78rem;font-weight:800;">∑ Томьёо</button>
+              <button type="button" onclick="openQMathModal()" style="position:absolute;top:8px;right:8px;background:#7B52EE;border:none;color:white;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.78rem;font-weight:800;">∑ Томьёо</button>
             </div>
           </div>
           <!-- Сонголтууд -->
@@ -679,28 +679,28 @@ function toggleAdmPw() {
                 <label style="display:flex;align-items:center;gap:6px;"><input type="radio" name="q-correct" value="a" checked onchange="updateChoiceHighlight()"> А</label>
                 <div style="display:flex;gap:4px;">
                   <input id="q-a" type="text" class="form-input" placeholder="А хариулт" style="flex:1;">
-                  <button type="button" onclick="openMathModal('q-a')" style="background:#7B52EE;border:none;color:white;border-radius:8px;padding:0 8px;cursor:pointer;">∑</button>
+                  <button type="button" onclick="openChoiceMathModal('q-a')" style="background:#7B52EE;border:none;color:white;border-radius:8px;padding:0 8px;cursor:pointer;">∑</button>
                 </div>
               </div>
               <div class="form-group">
                 <label style="display:flex;align-items:center;gap:6px;"><input type="radio" name="q-correct" value="b" onchange="updateChoiceHighlight()"> Б</label>
                 <div style="display:flex;gap:4px;">
                   <input id="q-b" type="text" class="form-input" placeholder="Б хариулт" style="flex:1;">
-                  <button type="button" onclick="openMathModal('q-b')" style="background:#7B52EE;border:none;color:white;border-radius:8px;padding:0 8px;cursor:pointer;">∑</button>
+                  <button type="button" onclick="openChoiceMathModal('q-b')" style="background:#7B52EE;border:none;color:white;border-radius:8px;padding:0 8px;cursor:pointer;">∑</button>
                 </div>
               </div>
               <div class="form-group">
                 <label style="display:flex;align-items:center;gap:6px;"><input type="radio" name="q-correct" value="c" onchange="updateChoiceHighlight()"> В</label>
                 <div style="display:flex;gap:4px;">
                   <input id="q-c" type="text" class="form-input" placeholder="В хариулт" style="flex:1;">
-                  <button type="button" onclick="openMathModal('q-c')" style="background:#7B52EE;border:none;color:white;border-radius:8px;padding:0 8px;cursor:pointer;">∑</button>
+                  <button type="button" onclick="openChoiceMathModal('q-c')" style="background:#7B52EE;border:none;color:white;border-radius:8px;padding:0 8px;cursor:pointer;">∑</button>
                 </div>
               </div>
               <div class="form-group">
                 <label style="display:flex;align-items:center;gap:6px;"><input type="radio" name="q-correct" value="d" onchange="updateChoiceHighlight()"> Г</label>
                 <div style="display:flex;gap:4px;">
                   <input id="q-d" type="text" class="form-input" placeholder="Г хариулт" style="flex:1;">
-                  <button type="button" onclick="openMathModal('q-d')" style="background:#7B52EE;border:none;color:white;border-radius:8px;padding:0 8px;cursor:pointer;">∑</button>
+                  <button type="button" onclick="openChoiceMathModal('q-d')" style="background:#7B52EE;border:none;color:white;border-radius:8px;padding:0 8px;cursor:pointer;">∑</button>
                 </div>
               </div>
             </div>
@@ -1110,6 +1110,14 @@ function onDragEnd() {
   document.removeEventListener('mouseup', onDragEnd);
 }
 
+function openMathModal(targetId) {
+  if (targetId === 'q-math-display' || targetId === 'q-text-main') {
+    openQMathModal();
+  } else {
+    openChoiceMathModal(targetId);
+  }
+}
+
 function openQMathModal() {
   var modal = document.getElementById('q-math-modal');
   var card = document.getElementById('q-math-card');
@@ -1122,15 +1130,18 @@ function openQMathModal() {
   }
   var mf = document.getElementById('q-math-display');
   setTimeout(function(){
-    if (mf) { mf.mathVirtualKeyboardPolicy = 'auto'; mf.focus(); }
+    if (!mf) return;
+    mf.focus();
+    if (window.mathVirtualKeyboard) {
+      window.mathVirtualKeyboard.show({animate:true});
+    }
     initMathKb();
-  }, 150);
+  }, 200);
 }
 
 function closeQMathModal() {
   var modal = document.getElementById('q-math-modal');
   if (modal) modal.style.display = 'none';
-  if (window.mathVirtualKeyboard) window.mathVirtualKeyboard.hide();
 }
 
 function insertQMath() {
@@ -1159,8 +1170,13 @@ function openChoiceMathModal(targetId) {
   var mf = document.getElementById('choice-math-field');
   var cur = document.getElementById(targetId);
   setTimeout(function(){
-    if (mf) { mf.mathVirtualKeyboardPolicy = 'auto'; mf.value = cur ? (cur.value||'').replace(/^\$|\$$/g,'') : ''; mf.focus(); }
-  }, 100);
+    if (!mf) return;
+    mf.value = cur ? (cur.value||'').replace(/^\$|\$$/g,'') : '';
+    mf.focus();
+    if (window.mathVirtualKeyboard) {
+      window.mathVirtualKeyboard.show({animate:true});
+    }
+  }, 200);
 }
 
 function confirmChoiceMath() {
@@ -2429,5 +2445,73 @@ function openEditMathModal(targetId) {
       </div>
     </div>
   </div>
+
+          <div id="q-math-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:flex-start;justify-content:center;padding-top:40px;pointer-events:none;">
+            <div id="q-math-card" style="background:var(--surface);border-radius:16px;padding:20px;width:92%;max-width:540px;border:1px solid var(--border);position:relative;cursor:default;user-select:none;pointer-events:all;"
+              onmousedown="startDrag(event)">
+              <!-- Drag handle -->
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;cursor:grab;">
+                <div style="font-weight:800;color:var(--text);font-size:1rem;">∑ Математик томьёо оруулах</div>
+                <div style="display:flex;gap:6px;">
+                  <div style="width:8px;height:8px;border-radius:50%;background:#FF4B4B;"></div>
+                  <div style="width:8px;height:8px;border-radius:50%;background:#FFC800;"></div>
+                  <div style="width:8px;height:8px;border-radius:50%;background:#58CC02;cursor:pointer;" onclick="closeQMathModal()" title="Хаах"></div>
+                </div>
+              </div>
+              <div style="font-size:0.78rem;color:var(--muted);margin-bottom:10px;cursor:default;" onmousedown="event.stopPropagation()">
+                Field дээр дарж keyboard-г нээнэ үү
+              </div>
+
+              <!-- MathLive field — дарахад keyboard нээгдэнэ -->
+              <math-field id="q-math-display"
+                style="width:100%;min-height:60px;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--surface2);color:white;display:block;font-size:1.1rem;cursor:text;"
+                onmousedown="event.stopPropagation()">
+              </math-field>
+
+              <!-- Preview -->
+              <div id="math-preview" class="math-preview-wrap" style="color:inherit;" style="margin-top:8px;min-height:28px;padding:6px 12px;background:var(--surface2);border-radius:8px;text-align:center;" onmousedown="event.stopPropagation()">
+                <span class="math-preview-empty">Томьёо энд харагдана...</span>
+              </div>
+
+              <!-- Манай тэмдэгт keyboard -->
+              <div style="display:flex;justify-content:space-between;align-items:center;margin:8px 0 4px;" onmousedown="event.stopPropagation()">
+                <span style="font-size:0.75rem;color:var(--muted);font-weight:700;">Тэмдэгт:</span>
+                <button class="math-tool-btn" onclick="toggleKb()" style="font-size:0.78rem;padding:5px 12px;">⌨ Клавиатур</button>
+              </div>
+              <div id="math-kb" class="math-kb" onmousedown="event.stopPropagation()">
+                <div class="math-kb-tabs" id="math-kb-tabs"></div>
+                <div class="math-kb-grid" id="math-kb-grid"></div>
+              </div>
+
+              <div style="display:flex;gap:8px;margin-top:12px;" onmousedown="event.stopPropagation()">
+                <button onclick="insertQMath()" style="flex:1;background:#58CC02;border:none;color:white;border-radius:8px;padding:10px;cursor:pointer;font-weight:800;font-size:0.95rem;">✓ Оруулах</button>
+                <button onclick="closeQMathModal()" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:10px 16px;cursor:pointer;font-weight:700;">Болих</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="choice-math-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:flex-start;justify-content:center;padding-top:40px;pointer-events:none;">
+            <div id="choice-math-card" style="background:var(--surface);border-radius:16px;padding:20px;width:92%;max-width:480px;border:1px solid var(--border);position:relative;pointer-events:all;user-select:none;"
+              onmousedown="startChoiceDrag(event)">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;cursor:grab;">
+                <div style="font-weight:800;color:var(--text);font-size:1rem;">∑ Хариултад томьёо оруулах</div>
+                <div style="display:flex;gap:6px;">
+                  <div style="width:8px;height:8px;border-radius:50%;background:#FF4B4B;"></div>
+                  <div style="width:8px;height:8px;border-radius:50%;background:#FFC800;"></div>
+                  <div style="width:8px;height:8px;border-radius:50%;background:#58CC02;cursor:pointer;" onclick="closeChoiceMathModal()" title="Хаах"></div>
+                </div>
+              </div>
+              <math-field id="choice-math-field" virtual-keyboard-mode="onfocus"
+                style="width:100%;min-height:56px;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--surface2);color:white;display:block;font-size:1.05rem;"
+                onmousedown="event.stopPropagation()">
+              </math-field>
+              <div id="choice-math-preview" style="margin-top:8px;min-height:28px;padding:6px 12px;background:var(--surface2);border-radius:8px;text-align:center;" onmousedown="event.stopPropagation()"></div>
+              <div style="display:flex;gap:8px;margin-top:12px;" onmousedown="event.stopPropagation()">
+                <button onclick="confirmChoiceMath()" style="flex:1;background:#58CC02;border:none;color:white;border-radius:8px;padding:10px;cursor:pointer;font-weight:800;">✓ Оруулах</button>
+                <button onclick="closeChoiceMathModal()" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:10px 16px;cursor:pointer;font-weight:700;">Болих</button>
+              </div>
+            </div>
+          </div>
+
 </body>
 </html>
