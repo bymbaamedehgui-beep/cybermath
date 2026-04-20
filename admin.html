@@ -653,7 +653,7 @@ function toggleAdmPw() {
           <div class="form-group" style="margin-bottom:12px;">
             <label>Бодлогын текст</label>
             <div style="position:relative;">
-              <textarea id="q-text-main" rows="5" class="form-input" placeholder="Бодлогын текст... (Ctrl+M → томьёо)" style="padding-right:90px;resize:vertical;min-height:160px;font-size:1rem;field-sizing:content;"></textarea>
+              <textarea id="q-text-main" rows="5" class="form-input" placeholder="Бодлогын текст... (Alt+Z → томьёо)" style="padding-right:90px;resize:vertical;min-height:160px;font-size:1rem;field-sizing:content;"></textarea>
               <button type="button" onclick="openQMathModal()" style="position:absolute;top:8px;right:8px;background:#7B52EE;border:none;color:white;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.78rem;font-weight:800;">∑ Томьёо</button>
             </div>
           </div>
@@ -693,8 +693,10 @@ function toggleAdmPw() {
           <!-- Fill/number хариулт -->
           <div id="q-fill-wrap" style="display:none;margin-bottom:10px;">
             <div class="form-group">
-              <label>Зөв хариулт</label>
-              <input id="q-fill-answer" type="text" class="form-input" placeholder="Зөв хариулт...">
+              <label>Зөв хариулт (LaTeX)</label>
+              <div id="q-fill-mf-wrap" style="border:1.5px solid var(--border);border-radius:10px;overflow:hidden;background:#fff;min-height:52px;cursor:text;" onclick="initFillMf()"></div>
+              <input type="hidden" id="q-fill-answer">
+              <div style="font-size:0.72rem;color:var(--muted);margin-top:4px;">Alt+Z → томьёо оруулах | Дарахад виртуал клавиатур нээгдэнэ</div>
             </div>
           </div>
           <!-- Бодлогын зураг -->
@@ -1551,6 +1553,25 @@ function closeMathModal() { closeChoiceMathModal(); }
     });
   }
 
+  function initFillMf() {
+    var wrap = document.getElementById('q-fill-mf-wrap');
+    if (!wrap || document.getElementById('q-fill-mf')) return;
+    var mf = document.createElement('math-field');
+    mf.id = 'q-fill-mf';
+    mf.style.cssText = 'width:100%;min-height:52px;font-size:1.1rem;display:block;background:#fff;color:#1a1030;padding:8px 12px;box-sizing:border-box;';
+    mf.mathVirtualKeyboardPolicy = 'auto';
+    wrap.style.padding = '0';
+    wrap.appendChild(mf);
+    mf.addEventListener('input', function() {
+      var h = document.getElementById('q-fill-answer');
+      if (h) h.value = mf.value;
+    });
+    setTimeout(function() {
+      mf.focus();
+      if (window.mathVirtualKeyboard) window.mathVirtualKeyboard.show({animate:true});
+    }, 100);
+  }
+
   function toggleQType() {
     var type = document.getElementById('q-type').value;
     var choicesWrap = document.getElementById('q-choices-wrap');
@@ -1844,7 +1865,9 @@ function openEditMathModal(targetId) {
     var qtype = typeEl ? typeEl.value : 'choice';
     var correct, choices;
     if (qtype === 'fill' || qtype === 'number') {
-      var fillEl = document.getElementById('q-fill-answer');
+      var fillMf = document.getElementById('q-fill-mf');
+    var fillEl = document.getElementById('q-fill-answer');
+    if (fillMf && fillEl) fillEl.value = fillMf.value || '';
       correct = fillEl ? fillEl.value.trim() : '';
       choices = [correct];
     } else {
@@ -2419,7 +2442,7 @@ function openEditMathModal(targetId) {
 
   // Keyboard shortcut: Ctrl+M = math modal for focused textarea/input
   document.addEventListener('keydown', function(e) {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'm') {
+    if (e.altKey && (e.key === 'z' || e.key === 'Z' || e.key === 'я' || e.key === 'Я')) {
       e.preventDefault();
       var active = document.activeElement;
       // math-field element дотор cursor байгаа бол q-text-main гэж үзнэ
