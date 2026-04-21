@@ -9,6 +9,11 @@ module.exports = async (req, res) => {
 
   try {
     if (req.method === 'GET') {
+      // Leaderboard
+      if (req.query && req.query.leaderboard) {
+        const r = await pool.query('SELECT id,first_name,last_name,xp,avatar,grade,plan FROM users WHERE xp>0 ORDER BY xp DESC LIMIT 20');
+        return res.json({ ok: true, users: r.rows });
+      }
       const r = await pool.query('SELECT id,email,first_name,last_name,grade,plan,xp,gems,hearts,streak,avatar,completed_lessons,created_at FROM users ORDER BY created_at DESC');
       return res.json({ ok: true, users: r.rows });
     }
