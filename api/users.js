@@ -1,6 +1,11 @@
 const pool = require('./_db');
 const { sendPremiumEmail, sendFreeEmail } = require('./_email');
 
+function todayStr() {
+  const d = new Date(Date.now() + 8 * 60 * 60 * 1000);
+  return d.toISOString().slice(0, 10);
+}
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
@@ -9,20 +14,33 @@ module.exports = async (req, res) => {
 
   try {
     if (req.method === 'GET') {
-      // Leaderboard
       if (req.query && req.query.leaderboard) {
         const r = await pool.query('SELECT id,first_name,last_name,xp,avatar,grade,plan FROM users WHERE xp>0 ORDER BY xp DESC LIMIT 20');
         return res.json({ ok: true, users: r.rows });
       }
-      const r = await pool.query('SELECT id,email,first_name,last_name,grade,plan,xp,gems,hearts,streak,avatar,completed_lessons,created_at FROM users ORDER BY created_at DESC');
-      return res.json({ ok: true, users: r.rows });
+      const today = todayStr();
+      const r = await pool.query(
+        `SELECT id,email,first_name,last_name,grade,plan,xp,gems,hearts,streak,avatar,
+                completed_lessons,created_at,current_node_id,activity_log,hearts_empty_time
+         FROM users ORDER BY created_at DESC`
+      );
+      const users = r.rows.map(u => {
+        const log = u.activity_log || {};
+        const completed = Array.isArray(u.completed_lessons) ? u.completed_lessons.length : 0;
+        return {
+          ...u,
+          today_minutes: log[today] || 0,
+          completed_count: completed
+        };
+      });
+      return res.json({ ok: true, users });
     }
 
     if (req.method === 'PUT') {
-      const { email, action, plan, xp, gems, hearts, streak, avatar, completed_lesson, stars_data, streak_data } = req.body || {};
+      const { email, action, plan, xp, gems, hearts, streak, avatar, completed_lesson,
+              stars_data, streak_data, current_node_id, hearts_empty_time } = req.body || {};
       if (!email) return res.status(400).json({ ok: false, error: 'Missing email' });
 
-      // Нууц үг солих
       if (action === 'changePassword') {
         const { oldPassword, newPassword } = req.body;
         const r = await pool.query('SELECT pass FROM users WHERE email=$1', [email]);
@@ -32,7 +50,6 @@ module.exports = async (req, res) => {
         return res.json({ ok: true });
       }
 
-      // completed_lesson array-д нэмэх
       if (completed_lesson !== undefined) {
         await pool.query(
           `UPDATE users SET completed_lessons = array_append(COALESCE(completed_lessons,'{}'), $1::int)
@@ -41,7 +58,6 @@ module.exports = async (req, res) => {
         );
       }
 
-      // Бусад талбарууд
       const sets = [];
       const vals = [];
       let i = 1;
@@ -49,7 +65,6 @@ module.exports = async (req, res) => {
         sets.push(`plan=$${i++}`);
         vals.push(plan);
         if (plan === 'premium') {
-          // premium_until тусгайлан өгсөн бол ашиглах, үгүй бол 30 хоног
           const { premium_until } = req.body || {};
           sets.push(`premium_until=$${i++}`);
           vals.push(premium_until ? new Date(premium_until) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
@@ -58,44 +73,26 @@ module.exports = async (req, res) => {
           vals.push(null);
         }
       }
-      if (xp          !== undefined) { sets.push(`xp=$${i++}`);          vals.push(xp); }
-      if (gems        !== undefined) { sets.push(`gems=$${i++}`);        vals.push(gems); }
-      if (hearts      !== undefined) { sets.push(`hearts=$${i++}`);      vals.push(hearts); }
-      if (streak      !== undefined) { sets.push(`streak=$${i++}`);      vals.push(streak); }
-      if (avatar      !== undefined) { sets.push(`avatar=$${i++}`);      vals.push(avatar); }
-      if (stars_data  !== undefined) { sets.push(`stars_data=$${i++}`);  vals.push(stars_data); }
-      if (streak_data !== undefined) { sets.push(`streak_data=$${i++}`); vals.push(streak_data); }
+      if (xp                !== undefined) { sets.push(`xp=$${i++}`);                vals.push(xp); }
+      if (gems              !== undefined) { sets.push(`gems=$${i++}`);              vals.push(gems); }
+      if (hearts            !== undefined) { sets.push(`hearts=$${i++}`);            vals.push(hearts); }
+      if (streak            !== undefined) { sets.push(`streak=$${i++}`);            vals.push(streak); }
+      if (avatar            !== undefined) { sets.push(`avatar=$${i++}`);            vals.push(avatar); }
+      if (stars_data        !== undefined) { sets.push(`stars_data=$${i++}`);        vals.push(stars_data); }
+      if (streak_data       !== undefined) { sets.push(`streak_data=$${i++}`);       vals.push(streak_data); }
+      if (current_node_id   !== undefined) { sets.push(`current_node_id=$${i++}`);   vals.push(current_node_id); }
+      if (hearts_empty_time !== undefined) {
+        sets.push(`hearts_empty_time=$${i++}`);
+        vals.push(hearts_empty_time === null ? null : new Date(hearts_empty_time));
+      }
 
       if (sets.length) {
         vals.push(email);
         await pool.query(`UPDATE users SET ${sets.join(',')} WHERE email=$${i}`, vals);
       }
 
-      // Plan солиход email мэдэгдэл
-      if (plan !== undefined && email) {
-        try {
-          const sendEmail = require('./email');
-          const isPremium = plan === 'premium';
-          await sendEmail({
-            to: email,
-            subject: isPremium ? 'CyberMath - Premium эрх идэвхжлээ! ⭐' : 'CyberMath - Тарифф өөрчлөгдлөө',
-            html: isPremium ? `
-              <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#0d0b1a;color:#f0eeff;border-radius:16px;">
-                <h2 style="color:#FFC800;margin:0 0 8px;">⭐ Premium эрх идэвхжлээ!</h2>
-                <p>Таны бүртгэл Premium болж, бүх хичээлүүд нээгдлээ.</p>
-                <p style="color:#8880aa;font-size:14px;">CyberMath багийн мэндчилгээтэй</p>
-              </div>` : `
-              <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#0d0b1a;color:#f0eeff;border-radius:16px;">
-                <h2 style="color:#A855F7;margin:0 0 8px;">CyberMath - Тарифф өөрчлөгдлөө</h2>
-                <p>Таны бүртгэл Free тариффт шилжлээ.</p>
-                <p style="color:#8880aa;font-size:14px;">Асуулт байвал admin@cybermath.mn-д хандана уу.</p>
-              </div>`
-          });
-        } catch(e) { console.log('Email error:', e.message); }
-      }
-      // Plan өөрчлөгдсөн бол имэйл илгээх
       if (plan !== undefined) {
-        const u = await pool.query('SELECT first_name, email FROM users WHERE email=$1', [email]);
+        const u = await pool.query('SELECT first_name FROM users WHERE email=$1', [email]);
         if (u.rows.length) {
           const firstName = u.rows[0].first_name;
           if (plan === 'premium') sendPremiumEmail(email, firstName).catch(()=>{});

@@ -1,6 +1,18 @@
 const pool = require('./_db');
 const { sendVerifyEmail } = require('./_email');
 
+function userPayload(u) {
+  return {
+    email: u.email, firstName: u.first_name, lastName: u.last_name,
+    grade: u.grade, plan: u.plan, xp: u.xp || 0, gems: u.gems || 340,
+    hearts: u.hearts == null ? 5 : u.hearts, streak: u.streak || 0,
+    avatar: u.avatar || 'default',
+    completedLessons: u.completed_lessons || [],
+    stars_data: u.stars_data || null, streak_data: u.streak_data || null,
+    hearts_empty_time: u.hearts_empty_time || null
+  };
+}
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
@@ -10,15 +22,13 @@ module.exports = async (req, res) => {
   const { action, email, pass, firstName, lastName, grade, plan, newPass, code } = req.body || {};
 
   try {
-    // LOGIN
     if (action === 'login') {
-      const r = await pool.query('SELECT *,completed_lessons FROM users WHERE email=$1 AND pass=$2', [email, pass]);
+      const r = await pool.query('SELECT * FROM users WHERE email=$1 AND pass=$2', [email, pass]);
       if (!r.rows.length) return res.status(401).json({ ok: false, error: 'И-мэйл эсвэл нууц үг буруу' });
       const u = r.rows[0];
       if (u.verified === false) {
         return res.status(401).json({ ok: false, error: 'Имэйлээ баталгаажуулна уу', needVerify: true, email });
       }
-      // Session tokens — ихдээ 2 төхөөрөмж зөвшөөрөх
       const crypto = require('crypto');
       const sessionToken = crypto.randomBytes(32).toString('hex');
       let tokens = [];
@@ -26,15 +36,9 @@ module.exports = async (req, res) => {
       tokens.push(sessionToken);
       if (tokens.length > 10) tokens = tokens.slice(-10);
       await pool.query('UPDATE users SET session_token=$1 WHERE email=$2', [JSON.stringify(tokens), email]);
-      return res.json({ ok: true, sessionToken, user: {
-        email: u.email, firstName: u.first_name, lastName: u.last_name,
-        grade: u.grade, plan: u.plan, xp: u.xp || 0, gems: u.gems || 340,
-        hearts: u.hearts || 5, streak: u.streak || 0, avatar: u.avatar || 'default',
-        completedLessons: u.completed_lessons || [], stars_data: u.stars_data || null, streak_data: u.streak_data || null
-      }});
+      return res.json({ ok: true, sessionToken, user: userPayload(u) });
     }
 
-    // VERIFY SESSION
     if (action === 'verifySession') {
       const { sessionToken } = req.body || {};
       if (!sessionToken || !email) return res.json({ ok: false, error: 'Invalid' });
@@ -44,16 +48,9 @@ module.exports = async (req, res) => {
       let tokens2 = [];
       try { tokens2 = JSON.parse(u2.session_token || '[]'); } catch(e) { tokens2 = u2.session_token ? [u2.session_token] : []; }
       if (!tokens2.includes(sessionToken)) return res.json({ ok: false, error: 'Session хүчингүй — дахин нэвтэрнэ үү', expired: true });
-      const u = r.rows[0];
-      return res.json({ ok: true, user: {
-        email: u.email, firstName: u.first_name, lastName: u.last_name,
-        grade: u.grade, plan: u.plan, xp: u.xp || 0, gems: u.gems || 340,
-        hearts: u.hearts || 5, streak: u.streak || 0, avatar: u.avatar || 'default',
-        completedLessons: u.completed_lessons || [], stars_data: u.stars_data || null, streak_data: u.streak_data || null
-      }});
+      return res.json({ ok: true, user: userPayload(u2) });
     }
 
-    // LOGOUT — тухайн session-г устгах
     if (action === 'logout') {
       const { sessionToken } = req.body || {};
       const rl = await pool.query('SELECT session_token FROM users WHERE email=$1', [email]);
@@ -66,7 +63,6 @@ module.exports = async (req, res) => {
       return res.json({ ok: true });
     }
 
-    // REGISTER
     if (action === 'register') {
       const { aimag, sum, school, phone } = req.body || {};
       const exists = await pool.query('SELECT id FROM users WHERE email=$1', [email]);
@@ -82,7 +78,6 @@ module.exports = async (req, res) => {
       return res.json({ ok: true, needVerify: true, email });
     }
 
-    // VERIFY
     if (action === 'verify') {
       const r = await pool.query('SELECT * FROM users WHERE email=$1 AND verify_code=$2', [email, code]);
       if (!r.rows.length) return res.status(400).json({ ok: false, error: 'Код буруу байна' });
@@ -91,14 +86,9 @@ module.exports = async (req, res) => {
         return res.status(400).json({ ok: false, error: 'Кодны хугацаа дууссан' });
       }
       await pool.query('UPDATE users SET verified=true, verify_code=NULL, verify_expiry=NULL WHERE email=$1', [email]);
-      return res.json({ ok: true, user: {
-        email: u.email, firstName: u.first_name, lastName: u.last_name,
-        grade: u.grade, plan: u.plan || 'free', xp: 0, gems: 340,
-        hearts: 5, streak: 0, avatar: 'default', completedLessons: []
-      }});
+      return res.json({ ok: true, user: userPayload(u) });
     }
 
-    // RESEND CODE
     if (action === 'resend') {
       const r = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
       if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Хэрэглэгч олдсонгүй' });
@@ -109,7 +99,6 @@ module.exports = async (req, res) => {
       return res.json({ ok: true });
     }
 
-    // SEND RESET CODE
     if (action === 'sendResetCode') {
       const r = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
       if (!r.rows.length) return res.json({ ok: false, error: 'Энэ и-мэйлтэй бүртгэл олдсонгүй' });
@@ -120,7 +109,6 @@ module.exports = async (req, res) => {
       return res.json({ ok: true });
     }
 
-    // VERIFY RESET CODE
     if (action === 'verifyResetCode') {
       const r = await pool.query('SELECT * FROM users WHERE email=$1 AND verify_code=$2', [email, code]);
       if (!r.rows.length) return res.json({ ok: false, error: 'Код буруу байна' });
@@ -128,7 +116,6 @@ module.exports = async (req, res) => {
       return res.json({ ok: true });
     }
 
-    // RESET PASSWORD
     if (action === 'reset') {
       const r = await pool.query('SELECT * FROM users WHERE email=$1 AND verify_code=$2', [email, code]);
       if (!r.rows.length) return res.json({ ok: false, error: 'Код буруу байна' });
@@ -136,17 +123,10 @@ module.exports = async (req, res) => {
       return res.json({ ok: true });
     }
 
-    // GET USER
     if (action === 'getuser') {
       const r = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
       if (!r.rows.length) return res.status(404).json({ ok: false, error: 'User not found' });
-      const u = r.rows[0];
-      return res.json({ ok: true, user: {
-        email: u.email, firstName: u.first_name, lastName: u.last_name,
-        grade: u.grade, plan: u.plan, xp: u.xp || 0, gems: u.gems || 340,
-        hearts: u.hearts || 5, streak: u.streak || 0, avatar: u.avatar || 'default',
-        completedLessons: u.completed_lessons || [], stars_data: u.stars_data || null, streak_data: u.streak_data || null
-      }});
+      return res.json({ ok: true, user: userPayload(r.rows[0]) });
     }
 
     res.status(400).json({ ok: false, error: 'Unknown action' });
