@@ -7,6 +7,7 @@ function userPayload(u) {
     grade: u.grade, plan: u.plan, xp: u.xp || 0, gems: u.gems || 340,
     hearts: u.hearts == null ? 5 : u.hearts, streak: u.streak || 0,
     avatar: u.avatar || 'default',
+    role: u.role || (u.grade === 'teacher' ? 'teacher' : 'student'),
     completedLessons: u.completed_lessons || [],
     stars_data: u.stars_data || null, streak_data: u.streak_data || null,
     hearts_empty_time: u.hearts_empty_time || null
@@ -64,15 +65,15 @@ module.exports = async (req, res) => {
     }
 
     if (action === 'register') {
-      const { aimag, sum, school, phone } = req.body || {};
+      const { aimag, sum, school, phone, role } = req.body || {};
       const exists = await pool.query('SELECT id FROM users WHERE email=$1', [email]);
       if (exists.rows.length) return res.status(400).json({ ok: false, error: 'И-мэйл бүртгэлтэй байна' });
       if (!grade) return res.status(400).json({ ok: false, error: 'Ангиа сонгоно уу' });
       const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
       const codeExpiry = new Date(Date.now() + 10 * 60 * 1000);
       await pool.query(
-        'INSERT INTO users (email,pass,first_name,last_name,grade,plan,xp,gems,hearts,streak,avatar,verified,verify_code,verify_expiry,aimag,sum,school,phone) VALUES ($1,$2,$3,$4,$5,$6,0,340,5,0,$7,false,$8,$9,$10,$11,$12,$13)',
-        [email, pass, firstName, lastName, grade, plan || 'free', 'default', verifyCode, codeExpiry, aimag||null, sum||null, school||null, phone||null]
+        'INSERT INTO users (email,pass,first_name,last_name,grade,plan,xp,gems,hearts,streak,avatar,verified,verify_code,verify_expiry,aimag,sum,school,phone,role) VALUES ($1,$2,$3,$4,$5,$6,0,340,5,0,$7,false,$8,$9,$10,$11,$12,$13,$14)',
+        [email, pass, firstName, lastName, grade, plan || 'free', 'default', verifyCode, codeExpiry, aimag||null, sum||null, school||null, phone||null, role || 'student']
       );
       await sendVerifyEmail(email, verifyCode, firstName);
       return res.json({ ok: true, needVerify: true, email });
