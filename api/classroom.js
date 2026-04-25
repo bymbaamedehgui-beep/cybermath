@@ -22,13 +22,22 @@ module.exports = async (req, res) => {
           SELECT u.first_name, u.last_name, u.email, u.grade,
                  u.xp, u.streak, u.gems, u.hearts,
                  array_length(u.completed_lessons, 1) as completed_count,
-                 u.weekly_xp, u.league_tier, cm.joined_at
+                 u.weekly_xp, u.league_tier, cm.joined_at,
+                 u.current_node_id, u.activity_log
           FROM class_members cm
           JOIN users u ON u.email = cm.student_email
           WHERE cm.classroom_id = $1
           ORDER BY u.xp DESC
         `, [classroom_id]);
-        return res.json({ ok: true, students: r.rows });
+        // today_minutes тооцох
+        const today = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        const students = r.rows.map(s => {
+          const log = s.activity_log || {};
+          return Object.assign({}, s, {
+            today_minutes: log[today] || 0
+          });
+        });
+        return res.json({ ok: true, students });
       }
 
       if (join_code) {
