@@ -69,8 +69,19 @@ module.exports = async (req, res) => {
 
     if (action === 'register') {
       const { aimag, sum, school, phone, role } = req.body || {};
-      const exists = await pool.query('SELECT id FROM users WHERE email=$1', [email]);
-      if (exists.rows.length) return res.status(400).json({ ok: false, error: 'И-мэйл бүртгэлтэй байна' });
+      // Хугацаа дууссан баталгаажаагүй бүртгэлүүдийг цэвэрлэх (10+ минутаас илүү)
+      await pool.query(
+        `DELETE FROM users WHERE verified=false AND verify_expiry < NOW()`
+      ).catch(() => {});
+      const exists = await pool.query('SELECT id, verified FROM users WHERE email=$1', [email]);
+      if (exists.rows.length) {
+        // Энэ имэйл бүртгэлтэй ч баталгаажаагүй бол устгаад дахин үүсгэнэ
+        if (exists.rows[0].verified === false) {
+          await pool.query('DELETE FROM users WHERE email=$1 AND verified=false', [email]);
+        } else {
+          return res.status(400).json({ ok: false, error: 'И-мэйл бүртгэлтэй байна' });
+        }
+      }
       if (!grade) return res.status(400).json({ ok: false, error: 'Ангиа сонгоно уу' });
       const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
       const codeExpiry = new Date(Date.now() + 10 * 60 * 1000);
