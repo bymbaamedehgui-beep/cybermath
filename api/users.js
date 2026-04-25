@@ -38,7 +38,7 @@ module.exports = async (req, res) => {
 
     if (req.method === 'PUT') {
       const { email, action, plan, xp, gems, hearts, streak, avatar, completed_lesson,
-              stars_data, streak_data, current_node_id, hearts_empty_time } = req.body || {};
+              stars_data, streak_data, current_node_id, hearts_empty_time, profile_image } = req.body || {};
       if (!email) return res.status(400).json({ ok: false, error: 'Missing email' });
 
       if (action === 'changePassword') {
@@ -60,6 +60,28 @@ module.exports = async (req, res) => {
         log[today] = (log[today] || 0) + m;
         await pool.query('UPDATE users SET activity_log=$1 WHERE email=$2', [log, email]);
         return res.json({ ok: true, today: log[today] });
+      }
+
+      if (action === 'saveLessonProgress') {
+        const { lessonId, progress } = req.body || {};
+        if (!lessonId) return res.json({ ok: false });
+        const r = await pool.query('SELECT lesson_progress FROM users WHERE email=$1', [email]);
+        if (!r.rows.length) return res.json({ ok: false });
+        const map = r.rows[0].lesson_progress || {};
+        map[lessonId] = progress;
+        await pool.query('UPDATE users SET lesson_progress=$1 WHERE email=$2', [map, email]);
+        return res.json({ ok: true });
+      }
+
+      if (action === 'clearLessonProgress') {
+        const { lessonId } = req.body || {};
+        if (!lessonId) return res.json({ ok: false });
+        const r = await pool.query('SELECT lesson_progress FROM users WHERE email=$1', [email]);
+        if (!r.rows.length) return res.json({ ok: false });
+        const map = r.rows[0].lesson_progress || {};
+        delete map[lessonId];
+        await pool.query('UPDATE users SET lesson_progress=$1 WHERE email=$2', [map, email]);
+        return res.json({ ok: true });
       }
 
       if (completed_lesson !== undefined) {
@@ -93,6 +115,7 @@ module.exports = async (req, res) => {
       if (stars_data        !== undefined) { sets.push(`stars_data=$${i++}`);        vals.push(stars_data); }
       if (streak_data       !== undefined) { sets.push(`streak_data=$${i++}`);       vals.push(streak_data); }
       if (current_node_id   !== undefined) { sets.push(`current_node_id=$${i++}`);   vals.push(current_node_id); }
+      if (profile_image     !== undefined) { sets.push(`profile_image=$${i++}`);     vals.push(profile_image); }
       if (hearts_empty_time !== undefined) {
         sets.push(`hearts_empty_time=$${i++}`);
         vals.push(hearts_empty_time === null ? null : new Date(hearts_empty_time));
