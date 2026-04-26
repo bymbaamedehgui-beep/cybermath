@@ -288,6 +288,18 @@ tr:hover td { background:rgba(123,82,238,0.05); }
 }
 .badge-premium { background:rgba(255,193,19,0.15); color:var(--yellow); border:1px solid rgba(255,193,19,0.3); }
 .badge-free { background:rgba(123,82,238,0.15); color:var(--purple-light); border:1px solid rgba(123,82,238,0.3); }
+.role-tab {
+  padding:8px 16px; background:var(--surface2); border:1.5px solid var(--border);
+  border-radius:8px; font-family:'Baloo 2',sans-serif; font-size:0.82rem; font-weight:800;
+  color:var(--muted); cursor:pointer; transition:all 0.2s;
+}
+.role-tab:hover { border-color:var(--purple); color:var(--text); }
+.role-tab-active {
+  background:var(--purple); border-color:var(--purple); color:white;
+}
+.role-tab-active:hover { color:white; }
+.badge-teacher { background:rgba(28,176,246,0.15); color:#1CB0F6; border:1px solid rgba(28,176,246,0.3); }
+.badge-student { background:rgba(88,204,2,0.15); color:#58CC02; border:1px solid rgba(88,204,2,0.3); }
 .badge-active { background:rgba(88,204,2,0.15); color:var(--green); border:1px solid rgba(88,204,2,0.3); }
 .badge-grade { background:rgba(90,197,241,0.15); color:var(--blue); border:1px solid rgba(90,197,241,0.3); }
 
@@ -885,10 +897,21 @@ function toggleAdmPw() {
         <div class="table-card">
           <div class="table-header">
             <div class="table-title">Бүх хэрэглэгчид</div>
-            <input type="text" class="search-input" placeholder="Нэр, и-мэйлээр хайх..." oninput="renderUsers(this.value)">
+            <input type="text" class="search-input" id="users-search-input" placeholder="Нэр, и-мэйлээр хайх..." oninput="renderUsers(this.value)">
+          </div>
+          <div style="display:flex;gap:8px;padding:0 16px 12px;border-bottom:1px solid var(--border);">
+            <button id="role-tab-all" onclick="filterUsersByRole('all')" class="role-tab role-tab-active">
+              👥 Бүгд <span id="count-all" style="opacity:0.7;margin-left:4px;"></span>
+            </button>
+            <button id="role-tab-student" onclick="filterUsersByRole('student')" class="role-tab">
+              🎓 Сурагч <span id="count-student" style="opacity:0.7;margin-left:4px;"></span>
+            </button>
+            <button id="role-tab-teacher" onclick="filterUsersByRole('teacher')" class="role-tab">
+              👨‍🏫 Багш <span id="count-teacher" style="opacity:0.7;margin-left:4px;"></span>
+            </button>
           </div>
           <table>
-            <thead><tr><th>#</th><th>Нэр</th><th>И-мэйл</th><th>Анги</th><th>Тарифф</th><th>Бүртгэсэн</th><th>Үйлдэл</th></tr></thead>
+            <thead><tr><th>#</th><th>Нэр</th><th>И-мэйл</th><th>Үүрэг</th><th>Анги</th><th>Тарифф</th><th>Бүртгэсэн</th><th>Үйлдэл</th></tr></thead>
             <tbody id="users-body"></tbody>
           </table>
         </div>
@@ -2275,15 +2298,38 @@ function openEditMathModal(targetId) {
   // ══ USERS ══
   var _allUsers = [];
 
+  var _currentRoleFilter = 'all';
+
+  function filterUsersByRole(role) {
+    _currentRoleFilter = role;
+    // Tab UI шинэчлэх
+    ['all', 'student', 'teacher'].forEach(function(r) {
+      var btn = document.getElementById('role-tab-' + r);
+      if (btn) {
+        if (r === role) btn.classList.add('role-tab-active');
+        else btn.classList.remove('role-tab-active');
+      }
+    });
+    var input = document.getElementById('users-search-input');
+    renderUsers(input ? input.value : '');
+  }
+
   function loadUsers() {
     var el = document.getElementById('users-body');
     if (!el) return;
-    el.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted);">Уншиж байна...</td></tr>';
+    el.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--muted);">Уншиж байна...</td></tr>';
     fetch(API + '/api/users').then(r=>r.json()).then(function(d) {
       _allUsers = d.users || [];
+      // Тоонуудыг шинэчлэх
+      var allCount = _allUsers.length;
+      var teacherCount = _allUsers.filter(function(u){ return u.role === 'teacher' || u.grade === 'teacher'; }).length;
+      var studentCount = allCount - teacherCount;
+      var ca = document.getElementById('count-all'); if (ca) ca.textContent = '(' + allCount + ')';
+      var cs = document.getElementById('count-student'); if (cs) cs.textContent = '(' + studentCount + ')';
+      var ct = document.getElementById('count-teacher'); if (ct) ct.textContent = '(' + teacherCount + ')';
       renderUsers();
     }).catch(function(e){
-      if(el) el.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--red);padding:32px;">Алдаа гарлаа: ' + e.message + '</td></tr>';
+      if(el) el.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--red);padding:32px;">Алдаа гарлаа: ' + e.message + '</td></tr>';
     });
   }
 
@@ -2291,6 +2337,12 @@ function openEditMathModal(targetId) {
     var el = document.getElementById('users-body');
     if (!el) return;
     var users = _allUsers;
+    // Role filter
+    if (_currentRoleFilter === 'teacher') {
+      users = users.filter(function(u){ return u.role === 'teacher' || u.grade === 'teacher'; });
+    } else if (_currentRoleFilter === 'student') {
+      users = users.filter(function(u){ return !(u.role === 'teacher' || u.grade === 'teacher'); });
+    }
     if (search) {
       var s = search.toLowerCase();
       users = users.filter(function(u){
@@ -2301,11 +2353,17 @@ function openEditMathModal(targetId) {
     }
     el.innerHTML = users.length ? users.map(function(u, i){
       var isPremium = u.plan === 'premium';
+      var isTeacher = u.role === 'teacher' || u.grade === 'teacher';
+      var roleLabel = isTeacher
+        ? '<span class="badge badge-teacher">👨‍🏫 Багш</span>'
+        : '<span class="badge badge-student">🎓 Сурагч</span>';
+      var gradeText = isTeacher ? '-' : (u.grade || '-');
       return '<tr>'
         +'<td>'+(i+1)+'</td>'
         +'<td>'+(u.first_name||'')+' '+(u.last_name||'')+'</td>'
         +'<td>'+u.email+'</td>'
-        +'<td>'+(u.grade||'-')+'</td>'
+        +'<td>'+roleLabel+'</td>'
+        +'<td>'+gradeText+'</td>'
         +'<td>'
           +'<button onclick="togglePlan(\''+u.email+'\',\''+u.plan+'\')" style="'
           +(isPremium
@@ -2318,7 +2376,7 @@ function openEditMathModal(targetId) {
         +'<td>'+(u.created_at||'').slice(0,10)+'</td>'
         +'<td><button onclick="deleteUser(\''+u.email+'\')" style="background:#FF4B4B22;border:none;color:#FF4B4B;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.78rem;">Устгах</button></td>'
         +'</tr>';
-    }).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px;">'+(search?'Хайлт олдсонгүй':'Хэрэглэгч байхгүй байна')+'</td></tr>';
+    }).join('') : '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px;">'+(search?'Хайлт олдсонгүй':'Хэрэглэгч байхгүй байна')+'</td></tr>';
   }
 
   function togglePlan(email, currentPlan) {
