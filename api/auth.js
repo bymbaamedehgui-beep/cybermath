@@ -11,6 +11,10 @@ function userPayload(u) {
     current_node_id: u.current_node_id || null,
     lesson_progress: u.lesson_progress || null,
     role: u.role || (u.grade === 'teacher' ? 'teacher' : 'student'),
+    school: u.school || null,
+    aimag: u.aimag || null,
+    sum: u.sum || null,
+    phone: u.phone || null,
     completedLessons: u.completed_lessons || [],
     stars_data: u.stars_data || null, streak_data: u.streak_data || null,
     hearts_empty_time: u.hearts_empty_time || null

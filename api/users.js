@@ -21,7 +21,8 @@ module.exports = async (req, res) => {
       const today = todayStr();
       const r = await pool.query(
         `SELECT id,email,first_name,last_name,grade,plan,xp,gems,hearts,streak,avatar,
-                completed_lessons,created_at,current_node_id,activity_log,hearts_empty_time,verified,role
+                completed_lessons,created_at,current_node_id,activity_log,hearts_empty_time,verified,role,
+                school,aimag,sum,phone
          FROM users WHERE verified=true ORDER BY created_at DESC`
       );
       const users = r.rows.map(u => {
