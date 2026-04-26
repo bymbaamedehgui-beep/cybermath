@@ -171,7 +171,19 @@ module.exports = async (req, res) => {
       // Админ нэвтрэх
       const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
       if (!ADMIN_PASSWORD) return res.status(500).json({ ok: false, error: 'Админ password тохируулагдаагүй' });
-      if (pass !== ADMIN_PASSWORD) return res.status(401).json({ ok: false, error: 'Буруу нууц үг' });
+      if (pass !== ADMIN_PASSWORD) {
+        // Diagnostic — яагаад таарахгүй байгааг шалгахад туслах
+        return res.status(401).json({
+          ok: false,
+          error: 'Буруу нууц үг',
+          debug: {
+            inputLength: (pass || '').length,
+            envLength: ADMIN_PASSWORD.length,
+            inputFirstChar: (pass || '').charCodeAt(0),
+            envFirstChar: ADMIN_PASSWORD.charCodeAt(0)
+          }
+        });
+      }
       const token = jwt.sign({ admin: true }, JWT_SECRET, { expiresIn: '24h' });
       return res.json({ ok: true, token });
     }
