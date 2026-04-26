@@ -1,5 +1,6 @@
 const pool = require('./_db');
 const { sendPremiumEmail, sendFreeEmail } = require('./_email');
+const { checkUserAccess, requireAdmin } = require('./_auth');
 
 function todayStr() {
   const d = new Date(Date.now() + 8 * 60 * 60 * 1000);
@@ -38,6 +39,9 @@ module.exports = async (req, res) => {
         const r = await pool.query('SELECT id,first_name,last_name,xp,avatar,grade,plan FROM users WHERE xp>0 ORDER BY xp DESC LIMIT 20');
         return res.json({ ok: true, users: r.rows });
       }
+      // Бүх хэрэглэгчдийн жагсаалт — зөвхөн админ
+      const adminCheck = requireAdmin(req);
+      if (!adminCheck.ok) return res.status(403).json({ ok: false, error: 'Зөвхөн админ' });
       const today = todayStr();
       const r = await pool.query(
         `SELECT id,email,first_name,last_name,grade,plan,xp,gems,hearts,streak,avatar,
@@ -62,12 +66,30 @@ module.exports = async (req, res) => {
               stars_data, streak_data, current_node_id, hearts_empty_time, profile_image } = req.body || {};
       if (!email) return res.status(400).json({ ok: false, error: 'Missing email' });
 
+      // Auth шалгалт — token байвал email-тай таарч байх ёстой
+      const access = checkUserAccess(req, email, { strict: false });
+      if (!access.ok) return res.status(403).json({ ok: false, error: access.error });
+
+      // Багшаас assignChallenge гэх мэт нь өөр хэрэглэгчид нөлөөлдөг.
+      // Тэдгээр нь action өөрөө security check хийнэ (classroom owner, etc).
+
+      // changePassword нь өөрийнх л байх ёстой
       if (action === 'changePassword') {
         const { oldPassword, newPassword } = req.body;
+        const bcrypt = require('bcryptjs');
         const r = await pool.query('SELECT pass FROM users WHERE email=$1', [email]);
         if (!r.rows.length) return res.json({ ok: false, error: 'Хэрэглэгч олдсонгүй' });
-        if (r.rows[0].pass !== oldPassword) return res.json({ ok: false, error: 'Одоогийн нууц үг буруу байна' });
-        await pool.query('UPDATE users SET pass=$1 WHERE email=$2', [newPassword, email]);
+        const stored = r.rows[0].pass;
+        let isValid = false;
+        if (stored && (stored.startsWith('$2a$') || stored.startsWith('$2b$') || stored.startsWith('$2y$'))) {
+          isValid = await bcrypt.compare(oldPassword, stored);
+        } else {
+          isValid = oldPassword === stored;
+        }
+        if (!isValid) return res.json({ ok: false, error: 'Одоогийн нууц үг буруу байна' });
+        if (!newPassword || newPassword.length < 6) return res.json({ ok: false, error: 'Шинэ нууц үг 6+ тэмдэгт' });
+        const hashedPass = await bcrypt.hash(newPassword, 10);
+        await pool.query('UPDATE users SET pass=$1 WHERE email=$2', [hashedPass, email]);
         return res.json({ ok: true });
       }
 
@@ -374,6 +396,8 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === 'DELETE') {
+      const adminCheck = requireAdmin(req);
+      if (!adminCheck.ok) return res.status(403).json({ ok: false, error: 'Зөвхөн админ' });
       const { email } = req.body || {};
       await pool.query('DELETE FROM users WHERE email=$1', [email]);
       return res.json({ ok: true });

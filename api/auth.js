@@ -1,7 +1,31 @@
 const pool = require('./_db');
 const { sendVerifyEmail } = require('./_email');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
-function userPayload(u) {
+const JWT_SECRET = process.env.JWT_SECRET || 'cybermath-default-secret-change-in-prod';
+const BCRYPT_ROUNDS = 10;
+
+function signToken(email, role) {
+  return jwt.sign({ email: email, role: role }, JWT_SECRET, { expiresIn: '7d' });
+}
+
+async function sendTelegramNotification(message) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+  if (!token || !chatId) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text: message, parse_mode: 'HTML' })
+    });
+  } catch (e) {
+    console.log('Telegram error (non-fatal):', e.message);
+  }
+}
+
+function userPayload(u, token) {
   return {
     email: u.email, firstName: u.first_name, lastName: u.last_name,
     grade: u.grade, plan: u.plan, xp: u.xp || 0, gems: u.gems || 340,
@@ -17,69 +41,51 @@ function userPayload(u) {
     phone: u.phone || null,
     completedLessons: u.completed_lessons || [],
     stars_data: u.stars_data || null, streak_data: u.streak_data || null,
-    hearts_empty_time: u.hearts_empty_time || null
+    hearts_empty_time: u.hearts_empty_time || null,
+    token: token || null
   };
+}
+
+async function verifyPassword(input, stored) {
+  if (!stored) return false;
+  if (stored.startsWith('$2a$') || stored.startsWith('$2b$') || stored.startsWith('$2y$')) {
+    return await bcrypt.compare(input, stored);
+  }
+  return input === stored;
 }
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const { action, email, pass, firstName, lastName, grade, plan, newPass, code } = req.body || {};
 
   try {
     if (action === 'login') {
-      const r = await pool.query('SELECT * FROM users WHERE email=$1 AND pass=$2', [email, pass]);
+      const r = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
       if (!r.rows.length) return res.status(401).json({ ok: false, error: 'И-мэйл эсвэл нууц үг буруу' });
       const u = r.rows[0];
+      const isValid = await verifyPassword(pass, u.pass);
+      if (!isValid) return res.status(401).json({ ok: false, error: 'И-мэйл эсвэл нууц үг буруу' });
       if (u.verified === false) {
-        return res.status(401).json({ ok: false, error: 'Имэйлээ баталгаажуулна уу', needVerify: true, email });
+        return res.status(403).json({ ok: false, error: 'И-мэйл баталгаажаагүй байна', needVerify: true, email });
       }
-      const crypto = require('crypto');
-      const sessionToken = crypto.randomBytes(32).toString('hex');
-      let tokens = [];
-      try { tokens = JSON.parse(u.session_token || '[]'); } catch(e) { tokens = u.session_token ? [u.session_token] : []; }
-      tokens.push(sessionToken);
-      if (tokens.length > 10) tokens = tokens.slice(-10);
-      await pool.query('UPDATE users SET session_token=$1 WHERE email=$2', [JSON.stringify(tokens), email]);
-      return res.json({ ok: true, sessionToken, user: userPayload(u) });
-    }
-
-    if (action === 'verifySession') {
-      const { sessionToken } = req.body || {};
-      if (!sessionToken || !email) return res.json({ ok: false, error: 'Invalid' });
-      const r = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
-      if (!r.rows.length) return res.json({ ok: false, error: 'Session хүчингүй', expired: true });
-      const u2 = r.rows[0];
-      let tokens2 = [];
-      try { tokens2 = JSON.parse(u2.session_token || '[]'); } catch(e) { tokens2 = u2.session_token ? [u2.session_token] : []; }
-      if (!tokens2.includes(sessionToken)) return res.json({ ok: false, error: 'Session хүчингүй — дахин нэвтэрнэ үү', expired: true });
-      return res.json({ ok: true, user: userPayload(u2) });
-    }
-
-    if (action === 'logout') {
-      const { sessionToken } = req.body || {};
-      const rl = await pool.query('SELECT session_token FROM users WHERE email=$1', [email]);
-      if (rl.rows.length) {
-        let toks = [];
-        try { toks = JSON.parse(rl.rows[0].session_token || '[]'); } catch(e) { toks = []; }
-        toks = toks.filter(t => t !== sessionToken);
-        await pool.query('UPDATE users SET session_token=$1 WHERE email=$2', [JSON.stringify(toks), email]);
+      // Хуучин plain text password бол bcrypt-ээр шинэчлэх
+      if (!u.pass.startsWith('$2')) {
+        const newHash = await bcrypt.hash(pass, BCRYPT_ROUNDS);
+        await pool.query('UPDATE users SET pass=$1 WHERE email=$2', [newHash, email]);
       }
-      return res.json({ ok: true });
+      const token = signToken(u.email, u.role || (u.grade === 'teacher' ? 'teacher' : 'student'));
+      return res.json({ ok: true, user: userPayload(u, token) });
     }
 
     if (action === 'register') {
       const { aimag, sum, school, phone, role } = req.body || {};
-      // Хугацаа дууссан баталгаажаагүй бүртгэлүүдийг цэвэрлэх (10+ минутаас илүү)
-      await pool.query(
-        `DELETE FROM users WHERE verified=false AND verify_expiry < NOW()`
-      ).catch(() => {});
+      await pool.query(`DELETE FROM users WHERE verified=false AND verify_expiry < NOW()`).catch(() => {});
       const exists = await pool.query('SELECT id, verified FROM users WHERE email=$1', [email]);
       if (exists.rows.length) {
-        // Энэ имэйл бүртгэлтэй ч баталгаажаагүй бол устгаад дахин үүсгэнэ
         if (exists.rows[0].verified === false) {
           await pool.query('DELETE FROM users WHERE email=$1 AND verified=false', [email]);
         } else {
@@ -87,30 +93,39 @@ module.exports = async (req, res) => {
         }
       }
       if (!grade) return res.status(400).json({ ok: false, error: 'Ангиа сонгоно уу' });
+      if (!pass || pass.length < 6) return res.status(400).json({ ok: false, error: 'Нууц үг 6+ тэмдэгт байх ёстой' });
+
       const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
       const codeExpiry = new Date(Date.now() + 10 * 60 * 1000);
+      const hashedPass = await bcrypt.hash(pass, BCRYPT_ROUNDS);
+
       await pool.query(
         'INSERT INTO users (email,pass,first_name,last_name,grade,plan,xp,gems,hearts,streak,avatar,verified,verify_code,verify_expiry,aimag,sum,school,phone,role) VALUES ($1,$2,$3,$4,$5,$6,0,340,5,0,$7,false,$8,$9,$10,$11,$12,$13,$14)',
-        [email, pass, firstName, lastName, grade, plan || 'free', 'default', verifyCode, codeExpiry, aimag||null, sum||null, school||null, phone||null, role || 'student']
+        [email, hashedPass, firstName, lastName, grade, plan || 'free', 'default', verifyCode, codeExpiry, aimag||null, sum||null, school||null, phone||null, role || 'student']
       );
       await sendVerifyEmail(email, verifyCode, firstName);
       return res.json({ ok: true, needVerify: true, email });
     }
 
     if (action === 'verify') {
-      const r = await pool.query('SELECT * FROM users WHERE email=$1 AND verify_code=$2', [email, code]);
-      if (!r.rows.length) return res.status(400).json({ ok: false, error: 'Код буруу байна' });
+      const r = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
+      if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Хэрэглэгч олдсонгүй' });
       const u = r.rows[0];
-      if (new Date() > new Date(u.verify_expiry)) {
-        return res.status(400).json({ ok: false, error: 'Кодны хугацаа дууссан' });
-      }
+      if (u.verified) return res.json({ ok: true, alreadyVerified: true });
+      if (u.verify_code !== code) return res.status(400).json({ ok: false, error: 'Код буруу байна' });
+      if (new Date(u.verify_expiry) < new Date()) return res.status(400).json({ ok: false, error: 'Кодын хугацаа дууссан' });
       await pool.query('UPDATE users SET verified=true, verify_code=NULL, verify_expiry=NULL WHERE email=$1', [email]);
-      return res.json({ ok: true, user: userPayload(u) });
+      const isT = u.role === 'teacher' || u.grade === 'teacher';
+      const msg = `✅ <b>Шинэ хэрэглэгч баталгаажлаа</b>\n\n👤 ${(u.last_name||'')} ${(u.first_name||'')}\n📧 ${email}\n${isT ? '👨‍🏫 Багш' : '🎓 ' + u.grade + '-р анги'}${u.school ? '\n🏫 ' + u.school : ''}`;
+      sendTelegramNotification(msg).catch(()=>{});
+      const token = signToken(u.email, u.role || (u.grade === 'teacher' ? 'teacher' : 'student'));
+      return res.json({ ok: true, user: userPayload({ ...u, verified: true }, token) });
     }
 
     if (action === 'resend') {
       const r = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
-      if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Хэрэглэгч олдсонгүй' });
+      if (!r.rows.length) return res.status(404).json({ ok: false });
+      if (r.rows[0].verified) return res.json({ ok: true, alreadyVerified: true });
       const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
       const codeExpiry = new Date(Date.now() + 10 * 60 * 1000);
       await pool.query('UPDATE users SET verify_code=$1, verify_expiry=$2 WHERE email=$3', [verifyCode, codeExpiry, email]);
@@ -118,38 +133,52 @@ module.exports = async (req, res) => {
       return res.json({ ok: true });
     }
 
-    if (action === 'sendResetCode') {
-      const r = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
-      if (!r.rows.length) return res.json({ ok: false, error: 'Энэ и-мэйлтэй бүртгэл олдсонгүй' });
-      const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-      const codeExpiry = new Date(Date.now() + 10 * 60 * 1000);
-      await pool.query('UPDATE users SET verify_code=$1, verify_expiry=$2 WHERE email=$3', [resetCode, codeExpiry, email]);
-      await sendVerifyEmail(email, resetCode, r.rows[0].first_name, true);
-      return res.json({ ok: true });
-    }
-
-    if (action === 'verifyResetCode') {
-      const r = await pool.query('SELECT * FROM users WHERE email=$1 AND verify_code=$2', [email, code]);
-      if (!r.rows.length) return res.json({ ok: false, error: 'Код буруу байна' });
-      if (new Date() > new Date(r.rows[0].verify_expiry)) return res.json({ ok: false, error: 'Кодны хугацаа дууссан' });
-      return res.json({ ok: true });
-    }
-
     if (action === 'reset') {
-      const r = await pool.query('SELECT * FROM users WHERE email=$1 AND verify_code=$2', [email, code]);
-      if (!r.rows.length) return res.json({ ok: false, error: 'Код буруу байна' });
-      await pool.query('UPDATE users SET pass=$1, verify_code=NULL, verify_expiry=NULL WHERE email=$2', [newPass, email]);
+      if (!newPass || newPass.length < 6) return res.status(400).json({ ok: false, error: 'Нууц үг 6+ тэмдэгт' });
+      const hashedPass = await bcrypt.hash(newPass, BCRYPT_ROUNDS);
+      await pool.query('UPDATE users SET pass=$1, verify_code=NULL, verify_expiry=NULL WHERE email=$2', [hashedPass, email]);
       return res.json({ ok: true });
     }
 
-    if (action === 'getuser') {
-      const r = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
-      if (!r.rows.length) return res.status(404).json({ ok: false, error: 'User not found' });
-      return res.json({ ok: true, user: userPayload(r.rows[0]) });
+    if (action === 'forgot') {
+      // Forgot password — code илгээх
+      const r = await pool.query('SELECT first_name FROM users WHERE email=$1', [email]);
+      if (!r.rows.length) {
+        // Аюулгүйн үүднээс хэрэглэгч байгаа эсэхийг хэлэхгүй
+        return res.json({ ok: true });
+      }
+      const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const codeExpiry = new Date(Date.now() + 10 * 60 * 1000);
+      await pool.query('UPDATE users SET verify_code=$1, verify_expiry=$2 WHERE email=$3', [verifyCode, codeExpiry, email]);
+      await sendVerifyEmail(email, verifyCode, r.rows[0].first_name);
+      return res.json({ ok: true });
     }
 
-    res.status(400).json({ ok: false, error: 'Unknown action' });
+    if (action === 'resetWithCode') {
+      // Forgot password flow — code-оор баталгаажуулж password шинэчлэх
+      const r = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
+      if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Хэрэглэгч олдсонгүй' });
+      const u = r.rows[0];
+      if (u.verify_code !== code) return res.status(400).json({ ok: false, error: 'Код буруу' });
+      if (new Date(u.verify_expiry) < new Date()) return res.status(400).json({ ok: false, error: 'Кодын хугацаа дууссан' });
+      if (!newPass || newPass.length < 6) return res.status(400).json({ ok: false, error: 'Нууц үг 6+ тэмдэгт' });
+      const hashedPass = await bcrypt.hash(newPass, BCRYPT_ROUNDS);
+      await pool.query('UPDATE users SET pass=$1, verify_code=NULL, verify_expiry=NULL WHERE email=$2', [hashedPass, email]);
+      return res.json({ ok: true });
+    }
+
+    if (action === 'adminLogin') {
+      // Админ нэвтрэх
+      const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+      if (!ADMIN_PASSWORD) return res.status(500).json({ ok: false, error: 'Админ password тохируулагдаагүй' });
+      if (pass !== ADMIN_PASSWORD) return res.status(401).json({ ok: false, error: 'Буруу нууц үг' });
+      const token = jwt.sign({ admin: true }, JWT_SECRET, { expiresIn: '24h' });
+      return res.json({ ok: true, token });
+    }
+
+    return res.status(400).json({ ok: false, error: 'Unknown action' });
   } catch (e) {
-    res.status(500).json({ ok: false, error: e.message });
+    console.error('Auth error:', e);
+    return res.status(500).json({ ok: false, error: e.message });
   }
 };
