@@ -6,6 +6,26 @@ function todayStr() {
   return d.toISOString().slice(0, 10);
 }
 
+// Telegram notification helper
+async function sendTelegramNotification(message) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+  if (!token || !chatId) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: message,
+        parse_mode: 'HTML'
+      })
+    });
+  } catch (e) {
+    console.log('Telegram error (non-fatal):', e.message);
+  }
+}
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
@@ -51,6 +71,11 @@ module.exports = async (req, res) => {
         return res.json({ ok: true });
       }
 
+      if (action === 'heartbeat') {
+        await pool.query('UPDATE users SET last_active_at=NOW() WHERE email=$1', [email]);
+        return res.json({ ok: true });
+      }
+
       if (action === 'addMinutes') {
         const { minutes } = req.body || {};
         const m = parseInt(minutes) || 1;
@@ -85,12 +110,88 @@ module.exports = async (req, res) => {
         return res.json({ ok: true });
       }
 
+      // Багш ангид challenge оноох
+      if (action === 'assignChallenge') {
+        const { classroomId, title, lessons, dueDate } = req.body || {};
+        if (!classroomId || !title || !lessons) return res.json({ ok: false, error: 'Missing fields' });
+        // Анги доторх бүх сурагчдын challenges-руу нэмэх
+        const m = await pool.query('SELECT student_email FROM class_members WHERE classroom_id=$1', [classroomId]);
+        const challenge = {
+          id: 'ch_' + Date.now(),
+          title: title,
+          lessons: lessons,
+          dueDate: dueDate || null,
+          assignedBy: email,
+          assignedAt: new Date().toISOString(),
+          classroomId: classroomId
+        };
+        for (const row of m.rows) {
+          const u = await pool.query('SELECT challenges FROM users WHERE email=$1', [row.student_email]);
+          if (u.rows.length) {
+            const list = u.rows[0].challenges || [];
+            list.push(challenge);
+            await pool.query('UPDATE users SET challenges=$1 WHERE email=$2', [JSON.stringify(list), row.student_email]);
+          }
+        }
+        // Telegram мэдэгдэл
+        const teacherInfo = await pool.query('SELECT first_name, last_name FROM users WHERE email=$1', [email]);
+        const className = await pool.query('SELECT name FROM classrooms WHERE id=$1', [classroomId]);
+        const tName = teacherInfo.rows[0] ? (teacherInfo.rows[0].last_name || '') + ' ' + teacherInfo.rows[0].first_name : email;
+        const cName = className.rows[0] ? className.rows[0].name : 'Анги#' + classroomId;
+        const msg = `🎯 <b>Багш challenge оноолоо</b>\n\n👨‍🏫 ${tName.trim()}\n🏫 ${cName}\n📝 "${title}"\n📚 ${lessons.length} хичээл (${lessons.join(', ')})\n👥 ${m.rows.length} сурагчид илгээгдлээ${dueDate ? '\n📅 ' + dueDate : ''}`;
+        sendTelegramNotification(msg).catch(()=>{});
+        return res.json({ ok: true, count: m.rows.length, challenge });
+      }
+
+      // Сурагч challenge-ыг харах (хийгдээгүй ба хийсэн нь)
+      if (action === 'getChallenges') {
+        const r = await pool.query('SELECT challenges, completed_lessons FROM users WHERE email=$1', [email]);
+        if (!r.rows.length) return res.json({ ok: false });
+        let list = r.rows[0].challenges || [];
+        if (typeof list === 'string') { try { list = JSON.parse(list); } catch(e) { list = []; } }
+        const done = r.rows[0].completed_lessons || [];
+        // Challenge-ийн ахиц тооцох
+        const enriched = list.map(c => {
+          const lessonsArr = Array.isArray(c.lessons) ? c.lessons : [];
+          const completedCount = lessonsArr.filter(l => done.includes(parseInt(l))).length;
+          return Object.assign({}, c, {
+            completedCount: completedCount,
+            totalCount: lessonsArr.length,
+            isComplete: completedCount === lessonsArr.length && lessonsArr.length > 0
+          });
+        });
+        return res.json({ ok: true, challenges: enriched });
+      }
+
       if (completed_lesson !== undefined) {
         await pool.query(
           `UPDATE users SET completed_lessons = array_append(COALESCE(completed_lessons,'{}'), $1::int)
            WHERE email=$2 AND NOT ($1::int = ANY(COALESCE(completed_lessons,'{}')))`,
           [completed_lesson, email]
         );
+        // Энэ хичээл нь challenge-д багтаж байгаа эсэхийг шалгах
+        try {
+          const r = await pool.query('SELECT challenges, completed_lessons, first_name, last_name FROM users WHERE email=$1', [email]);
+          if (r.rows.length) {
+            let list = r.rows[0].challenges || [];
+            if (typeof list === 'string') { try { list = JSON.parse(list); } catch(e) { list = []; } }
+            const done = r.rows[0].completed_lessons || [];
+            const studentName = ((r.rows[0].last_name || '') + ' ' + (r.rows[0].first_name || '')).trim();
+            // Challenge бүрийг шалгах: одоо нэмсэн хичээл challenge-ийн нэг хэсэг үү?
+            for (const c of list) {
+              const lessons = Array.isArray(c.lessons) ? c.lessons.map(l => parseInt(l)) : [];
+              if (!lessons.includes(parseInt(completed_lesson))) continue;
+              // Бүх challenge хичээлийг хийж дуусгасан уу?
+              const allDone = lessons.every(l => done.includes(l));
+              const completedCount = lessons.filter(l => done.includes(l)).length;
+              if (allDone) {
+                // Challenge бүрэн дуусгасан — багш руу telegram
+                const msg = `✅ <b>Сурагч challenge дуусгалаа!</b>\n\n👤 ${studentName || email}\n🎯 "${c.title}"\n📚 ${lessons.length}/${lessons.length} хичээл бүгд хийгдсэн`;
+                sendTelegramNotification(msg).catch(()=>{});
+              }
+            }
+          }
+        } catch(e) { /* non-fatal */ }
       }
 
       const sets = [];
@@ -128,11 +229,18 @@ module.exports = async (req, res) => {
       }
 
       if (plan !== undefined) {
-        const u = await pool.query('SELECT first_name FROM users WHERE email=$1', [email]);
+        const u = await pool.query('SELECT first_name, last_name FROM users WHERE email=$1', [email]);
         if (u.rows.length) {
           const firstName = u.rows[0].first_name;
-          if (plan === 'premium') sendPremiumEmail(email, firstName).catch(()=>{});
-          else if (plan === 'free') sendFreeEmail(email, firstName).catch(()=>{});
+          const lastName = u.rows[0].last_name || '';
+          if (plan === 'premium') {
+            sendPremiumEmail(email, firstName).catch(()=>{});
+            // Telegram мэдэгдэл
+            const msg = `⭐ <b>Premium худалдаж авлаа!</b>\n\n👤 ${lastName} ${firstName}\n📧 ${email}\n💰 ₮9,900`;
+            sendTelegramNotification(msg).catch(()=>{});
+          } else if (plan === 'free') {
+            sendFreeEmail(email, firstName).catch(()=>{});
+          }
         }
       }
       return res.json({ ok: true });

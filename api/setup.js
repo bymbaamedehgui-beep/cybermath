@@ -45,6 +45,8 @@ module.exports = async (req, res) => {
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS school TEXT`,
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image TEXT`,
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS lesson_progress JSONB`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS challenges JSONB DEFAULT '[]'`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMPTZ`,
     ];
 
     for (const q of alters) {
