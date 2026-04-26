@@ -163,6 +163,133 @@ module.exports = async (req, res) => {
         return res.json({ ok: true, challenges: enriched });
       }
 
+      // ===== MATHLET TOURNAMENT =====
+      // Багш Room үүсгэх
+      if (action === 'createTournament') {
+        const { classroomId, title, lessons, questionCount, prizeXp } = req.body || {};
+        if (!classroomId || !lessons || !lessons.length) return res.json({ ok: false, error: 'Missing fields' });
+        const qRes = await pool.query(
+          `SELECT id, text, choices, correct, image, hint, node_id FROM questions WHERE node_id = ANY($1::int[])`,
+          [lessons]
+        );
+        let allQs = qRes.rows.sort(() => Math.random() - 0.5);
+        const limit = Math.min(parseInt(questionCount) || 10, allQs.length);
+        const selected = allQs.slice(0, limit);
+        if (!selected.length) return res.json({ ok: false, error: 'Сонгосон хичээлүүдэд асуулт байхгүй' });
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        let code = '';
+        for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+        const r = await pool.query(
+          `INSERT INTO tournaments (room_code, teacher_email, classroom_id, title, questions, prize_xp, status, current_question, current_phase)
+           VALUES ($1, $2, $3, $4, $5, $6, 'lobby', 0, 'waiting') RETURNING *`,
+          [code, email, classroomId, title || 'Mathlet тэмцээн', JSON.stringify(selected), JSON.stringify(prizeXp || {1:100,2:50,3:25})]
+        );
+        return res.json({ ok: true, tournament: r.rows[0] });
+      }
+
+      // Сурагч room-руу нэгдэх
+      if (action === 'joinTournament') {
+        const { roomCode } = req.body || {};
+        if (!roomCode) return res.json({ ok: false, error: 'Room код оруулна уу' });
+        const r = await pool.query('SELECT * FROM tournaments WHERE room_code=$1', [roomCode.toUpperCase()]);
+        if (!r.rows.length) return res.json({ ok: false, error: 'Код буруу байна' });
+        const t = r.rows[0];
+        if (t.status === 'finished') return res.json({ ok: false, error: 'Тэмцээн дууссан' });
+        const u = await pool.query('SELECT first_name, last_name, avatar, profile_image FROM users WHERE email=$1', [email]);
+        if (!u.rows.length) return res.json({ ok: false });
+        const players = t.players || {};
+        players[email] = {
+          email: email,
+          name: ((u.rows[0].last_name || '') + ' ' + (u.rows[0].first_name || '')).trim(),
+          avatar: u.rows[0].profile_image || u.rows[0].avatar || 'default',
+          joinedAt: new Date().toISOString()
+        };
+        const scores = t.scores || {};
+        if (!scores[email]) scores[email] = 0;
+        await pool.query('UPDATE tournaments SET players=$1, scores=$2 WHERE id=$3', [JSON.stringify(players), JSON.stringify(scores), t.id]);
+        return res.json({ ok: true, tournament: t });
+      }
+
+      // Tournament state-ийг шалгах (live polling)
+      if (action === 'getTournament') {
+        const { roomCode } = req.body || {};
+        if (!roomCode) return res.json({ ok: false });
+        const r = await pool.query('SELECT * FROM tournaments WHERE room_code=$1', [roomCode.toUpperCase()]);
+        if (!r.rows.length) return res.json({ ok: false, error: 'Room олдсонгүй' });
+        return res.json({ ok: true, tournament: r.rows[0] });
+      }
+
+      // Багш тэмцээн эхлүүлэх / асуулт солих / phase солих
+      if (action === 'controlTournament') {
+        const { roomCode, control } = req.body || {};
+        if (!roomCode) return res.json({ ok: false });
+        const r = await pool.query('SELECT * FROM tournaments WHERE room_code=$1 AND teacher_email=$2', [roomCode.toUpperCase(), email]);
+        if (!r.rows.length) return res.json({ ok: false, error: 'Зөвшөөрөлгүй' });
+        const t = r.rows[0];
+
+        if (control === 'start') {
+          await pool.query(
+            `UPDATE tournaments SET status='running', current_question=0, current_phase='answering', question_started_at=NOW(), answers='{}' WHERE id=$1`,
+            [t.id]
+          );
+        } else if (control === 'reveal') {
+          await pool.query(`UPDATE tournaments SET current_phase='revealed' WHERE id=$1`, [t.id]);
+        } else if (control === 'next') {
+          const next = t.current_question + 1;
+          const qs = t.questions || [];
+          if (next >= qs.length) {
+            const scores = t.scores || {};
+            const prize = t.prize_xp || {1:100,2:50,3:25};
+            const ranked = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+            for (let i = 0; i < Math.min(ranked.length, 3); i++) {
+              const xp = parseInt(prize[i + 1]) || 0;
+              if (xp > 0) {
+                await pool.query('UPDATE users SET xp = xp + $1 WHERE email=$2', [xp, ranked[i][0]]);
+              }
+            }
+            await pool.query(`UPDATE tournaments SET status='finished', current_phase='finished' WHERE id=$1`, [t.id]);
+          } else {
+            await pool.query(
+              `UPDATE tournaments SET current_question=$1, current_phase='answering', question_started_at=NOW(), answers='{}' WHERE id=$2`,
+              [next, t.id]
+            );
+          }
+        } else if (control === 'cancel') {
+          await pool.query(`DELETE FROM tournaments WHERE id=$1`, [t.id]);
+        }
+        const r2 = await pool.query('SELECT * FROM tournaments WHERE id=$1', [t.id]);
+        return res.json({ ok: true, tournament: r2.rows[0] || null });
+      }
+
+      // Сурагч хариулт өгөх
+      if (action === 'submitAnswer') {
+        const { roomCode, questionIndex, answer } = req.body || {};
+        if (!roomCode) return res.json({ ok: false });
+        const r = await pool.query('SELECT * FROM tournaments WHERE room_code=$1', [roomCode.toUpperCase()]);
+        if (!r.rows.length) return res.json({ ok: false });
+        const t = r.rows[0];
+        if (t.current_phase !== 'answering') return res.json({ ok: false, error: 'Хариулт хүлээж байгаа үе биш' });
+        if (parseInt(questionIndex) !== t.current_question) return res.json({ ok: false, error: 'Асуулт солигдсон' });
+        const answers = t.answers || {};
+        if (answers[email] !== undefined) return res.json({ ok: true, alreadyAnswered: true });
+        const qs = t.questions || [];
+        const q = qs[t.current_question];
+        let choices = q.choices || [];
+        if (typeof choices === 'string') { try { choices = JSON.parse(choices); } catch(e) { choices = []; } }
+        const correctIdx = choices.indexOf(q.correct);
+        const isCorrect = parseInt(answer) === correctIdx;
+        const startedAt = new Date(t.question_started_at).getTime();
+        const elapsed = Date.now() - startedAt;
+        const speedBonus = Math.max(0, 15000 - elapsed) / 150;
+        answers[email] = { answer: parseInt(answer), isCorrect: isCorrect, time: elapsed };
+        const scores = t.scores || {};
+        if (isCorrect) {
+          scores[email] = (scores[email] || 0) + 100 + Math.round(speedBonus);
+        }
+        await pool.query('UPDATE tournaments SET answers=$1, scores=$2 WHERE id=$3', [JSON.stringify(answers), JSON.stringify(scores), t.id]);
+        return res.json({ ok: true, isCorrect: isCorrect });
+      }
+
       if (completed_lesson !== undefined) {
         await pool.query(
           `UPDATE users SET completed_lessons = array_append(COALESCE(completed_lessons,'{}'), $1::int)

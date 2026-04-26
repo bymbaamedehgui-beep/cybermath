@@ -46,12 +46,33 @@ module.exports = async (req, res) => {
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image TEXT`,
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS lesson_progress JSONB`,
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS challenges JSONB DEFAULT '[]'`,
-      `ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMPTZ`,
     ];
 
     for (const q of alters) {
       await pool.query(q).catch(() => {});
     }
+
+    // Tournaments table — Mathlet (Kahoot-стайл анги дотрын тэмцээн)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS tournaments (
+        id BIGSERIAL PRIMARY KEY,
+        room_code TEXT UNIQUE NOT NULL,
+        teacher_email TEXT NOT NULL,
+        classroom_id INT,
+        title TEXT,
+        questions JSONB DEFAULT '[]',
+        prize_xp JSONB DEFAULT '{"1":100,"2":50,"3":25}',
+        status TEXT DEFAULT 'lobby',
+        current_question INT DEFAULT 0,
+        current_phase TEXT DEFAULT 'waiting',
+        players JSONB DEFAULT '{}',
+        answers JSONB DEFAULT '{}',
+        scores JSONB DEFAULT '{}',
+        question_started_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_tournaments_code ON tournaments(room_code)`).catch(()=>{});
 
     // Questions table
     await pool.query(`
