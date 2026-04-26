@@ -22,14 +22,14 @@ module.exports = async (req, res) => {
           SELECT u.first_name, u.last_name, u.email, u.grade,
                  u.xp, u.streak, u.gems, u.hearts,
                  array_length(u.completed_lessons, 1) as completed_count,
+                 u.completed_lessons,
                  u.weekly_xp, u.league_tier, cm.joined_at,
-                 u.current_node_id, u.activity_log
+                 u.current_node_id, u.activity_log, u.challenges
           FROM class_members cm
           JOIN users u ON u.email = cm.student_email
           WHERE cm.classroom_id = $1
           ORDER BY u.xp DESC
         `, [classroom_id]);
-        // today_minutes тооцох
         const today = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
         const students = r.rows.map(s => {
           const log = s.activity_log || {};
@@ -87,6 +87,24 @@ module.exports = async (req, res) => {
           [classroom.id, student_email]
         );
         return res.json({ ok: true, classroom });
+      }
+
+      if (action === 'update') {
+        const { classroom_id, name, grade } = req.body || {};
+        if (!classroom_id || !teacher_email) return res.status(400).json({ ok: false, error: 'Missing fields' });
+        // Зөвхөн өөрийн ангийг засна
+        const owner = await pool.query('SELECT id FROM classrooms WHERE id=$1 AND teacher_email=$2', [classroom_id, teacher_email]);
+        if (!owner.rows.length) return res.status(403).json({ ok: false, error: 'Зөвхөн өөрийн ангиа засна' });
+        const sets = [];
+        const vals = [];
+        let i = 1;
+        if (name !== undefined) { sets.push(`name=$${i++}`); vals.push(name); }
+        if (grade !== undefined) { sets.push(`grade=$${i++}`); vals.push(grade); }
+        if (sets.length) {
+          vals.push(classroom_id);
+          await pool.query(`UPDATE classrooms SET ${sets.join(',')} WHERE id=$${i}`, vals);
+        }
+        return res.json({ ok: true });
       }
 
       return res.status(400).json({ ok: false, error: 'Unknown action' });
