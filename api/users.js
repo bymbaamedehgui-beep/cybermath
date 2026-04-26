@@ -1,6 +1,35 @@
 const pool = require('./_db');
 const { sendPremiumEmail, sendFreeEmail } = require('./_email');
-const { checkUserAccess, requireAdmin } = require('./_auth');
+const jwt = require('jsonwebtoken');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'cybermath-default-secret-change-in-prod';
+
+function verifyToken(req) {
+  const auth = req.headers.authorization || req.headers.Authorization;
+  if (!auth || !auth.startsWith('Bearer ')) return null;
+  try { return jwt.verify(auth.slice(7), JWT_SECRET); } catch (e) { return null; }
+}
+function checkUserAccess(req, requestedEmail, options) {
+  options = options || {};
+  const decoded = verifyToken(req);
+  if (options.strict) {
+    if (!decoded) return { ok: false, error: 'Унтраалга буруу. Дахин нэвтэрнэ үү.' };
+    if (decoded.admin) return { ok: true, isAdmin: true };
+    if (decoded.email !== requestedEmail) return { ok: false, error: 'Зөвхөн өөрийнхөө өгөгдлийг харна' };
+    return { ok: true, email: decoded.email, role: decoded.role };
+  }
+  if (decoded) {
+    if (decoded.admin) return { ok: true, isAdmin: true };
+    if (decoded.email !== requestedEmail) return { ok: false, error: 'Зөвхөн өөрийнхөө өгөгдлийг харна' };
+    return { ok: true, email: decoded.email, role: decoded.role };
+  }
+  return { ok: true, legacy: true };
+}
+function requireAdmin(req) {
+  const decoded = verifyToken(req);
+  if (!decoded || !decoded.admin) return { ok: false, error: 'Зөвхөн админ' };
+  return { ok: true };
+}
 
 function todayStr() {
   const d = new Date(Date.now() + 8 * 60 * 60 * 1000);
