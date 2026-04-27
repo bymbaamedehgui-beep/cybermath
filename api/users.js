@@ -129,12 +129,13 @@ module.exports = async (req, res) => {
 
       if (action === 'addMinutes') {
         const { minutes } = req.body || {};
-        const m = parseInt(minutes) || 1;
+        const m = parseFloat(minutes) || 1;
         const today = todayStr();
         const r = await pool.query('SELECT activity_log FROM users WHERE email=$1', [email]);
         if (!r.rows.length) return res.json({ ok: false });
         const log = r.rows[0].activity_log || {};
-        log[today] = (log[today] || 0) + m;
+        // Нарийвчилсан тоо хадгалж сум total-ыг 1 оронтой бутархайтай round хийнэ
+        log[today] = Math.round(((log[today] || 0) + m) * 10) / 10;
         await pool.query('UPDATE users SET activity_log=$1 WHERE email=$2', [log, email]);
         return res.json({ ok: true, today: log[today] });
       }
