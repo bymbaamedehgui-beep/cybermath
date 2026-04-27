@@ -92,16 +92,19 @@ module.exports = async (req, res) => {
           return res.status(400).json({ ok: false, error: 'И-мэйл бүртгэлтэй байна' });
         }
       }
-      if (!grade) return res.status(400).json({ ok: false, error: 'Ангиа сонгоно уу' });
+      if (!grade && role !== 'teacher') return res.status(400).json({ ok: false, error: 'Ангиа сонгоно уу' });
       if (!pass || pass.length < 6) return res.status(400).json({ ok: false, error: 'Нууц үг 6+ тэмдэгт байх ёстой' });
 
       const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
       const codeExpiry = new Date(Date.now() + 10 * 60 * 1000);
       const hashedPass = await bcrypt.hash(pass, BCRYPT_ROUNDS);
 
+      // Багш бол grade-ийг 'teacher' болгох
+      const finalGrade = (role === 'teacher') ? 'teacher' : grade;
+
       await pool.query(
         'INSERT INTO users (email,pass,first_name,last_name,grade,plan,xp,gems,hearts,streak,avatar,verified,verify_code,verify_expiry,aimag,sum,school,phone,role) VALUES ($1,$2,$3,$4,$5,$6,0,340,5,0,$7,false,$8,$9,$10,$11,$12,$13,$14)',
-        [email, hashedPass, firstName, lastName, grade, plan || 'free', 'default', verifyCode, codeExpiry, aimag||null, sum||null, school||null, phone||null, role || 'student']
+        [email, hashedPass, firstName, lastName, finalGrade, plan || 'free', 'default', verifyCode, codeExpiry, aimag||null, sum||null, school||null, phone||null, role || 'student']
       );
       await sendVerifyEmail(email, verifyCode, firstName);
       return res.json({ ok: true, needVerify: true, email });
