@@ -195,6 +195,53 @@ module.exports = async (req, res) => {
         return res.json({ ok: true, count: m.rows.length, challenge });
       }
 
+      // Challenge засах — багш ашиглана
+      if (action === 'updateChallenge') {
+        const { classroomId, challengeId, title, lessons, dueDate } = req.body || {};
+        if (!classroomId || !challengeId) return res.json({ ok: false, error: 'Missing fields' });
+        const m = await pool.query('SELECT student_email FROM class_members WHERE classroom_id=$1', [classroomId]);
+        for (const row of m.rows) {
+          const u = await pool.query('SELECT challenges FROM users WHERE email=$1', [row.student_email]);
+          if (!u.rows.length) continue;
+          let list = u.rows[0].challenges || [];
+          if (typeof list === 'string') { try { list = JSON.parse(list); } catch(e) { list = []; } }
+          let updated = false;
+          list = list.map(c => {
+            if (c.id === challengeId) {
+              updated = true;
+              return Object.assign({}, c, {
+                title: title || c.title,
+                lessons: lessons || c.lessons,
+                dueDate: dueDate !== undefined ? dueDate : c.dueDate
+              });
+            }
+            return c;
+          });
+          if (updated) {
+            await pool.query('UPDATE users SET challenges=$1 WHERE email=$2', [JSON.stringify(list), row.student_email]);
+          }
+        }
+        return res.json({ ok: true });
+      }
+
+      // Challenge устгах — багш ашиглана
+      if (action === 'deleteChallenge') {
+        const { classroomId, challengeId } = req.body || {};
+        if (!classroomId || !challengeId) return res.json({ ok: false, error: 'Missing fields' });
+        const m = await pool.query('SELECT student_email FROM class_members WHERE classroom_id=$1', [classroomId]);
+        for (const row of m.rows) {
+          const u = await pool.query('SELECT challenges FROM users WHERE email=$1', [row.student_email]);
+          if (!u.rows.length) continue;
+          let list = u.rows[0].challenges || [];
+          if (typeof list === 'string') { try { list = JSON.parse(list); } catch(e) { list = []; } }
+          const filtered = list.filter(c => c.id !== challengeId);
+          if (filtered.length !== list.length) {
+            await pool.query('UPDATE users SET challenges=$1 WHERE email=$2', [JSON.stringify(filtered), row.student_email]);
+          }
+        }
+        return res.json({ ok: true });
+      }
+
       // Сурагч challenge-ыг харах (хийгдээгүй ба хийсэн нь)
       if (action === 'getChallenges') {
         const r = await pool.query('SELECT challenges, completed_lessons FROM users WHERE email=$1', [email]);
