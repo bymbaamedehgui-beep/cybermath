@@ -20,7 +20,7 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === 'POST') {
-      const { id, name, type, icon, grade, sort_order, action, labels } = req.body || {};
+      const { id, name, type, icon, grade, sort_order, action, labels, intro_html } = req.body || {};
 
       // Section labels хадгалах
       if (action === 'saveSectionLabels' && Array.isArray(labels)) {
@@ -30,6 +30,12 @@ module.exports = async (req, res) => {
             [lbl.id, lbl.name, lbl.afterNode]
           );
         }
+        return res.json({ ok: true });
+      }
+
+      // intro_html хадгалах (зөвхөн HTML widget)
+      if (action === 'saveIntroHtml' && id != null) {
+        await pool.query('UPDATE nodes SET intro_html=$2 WHERE id=$1', [id, intro_html || null]);
         return res.json({ ok: true });
       }
 
