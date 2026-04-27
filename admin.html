@@ -773,7 +773,10 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
         <div class="table-card" style="margin-top:20px;">
           <div class="table-header">
             <div class="table-title" id="q-list-title">Бодлогууд</div>
-            <input type="text" placeholder="Хайх..." style="padding:6px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:0.85rem;width:200px;" oninput="renderQuestions(this.value)">
+            <div style="display:flex;gap:8px;align-items:center;">
+              <button onclick="downloadQuestionsPdf()" style="padding:6px 12px;background:linear-gradient(135deg,#7B52EE,#A855F7);border:none;border-radius:8px;color:white;font-size:0.85rem;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:5px;">📄 PDF татах</button>
+              <input type="text" placeholder="Хайх..." style="padding:6px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:0.85rem;width:200px;" oninput="renderQuestions(this.value)">
+            </div>
           </div>
           <div id="q-list" style="padding:0 20px 12px;"></div>
         </div>
@@ -1594,6 +1597,221 @@ function closeMathModal() { closeChoiceMathModal(); }
   }
 
   function updateChoiceHighlight() {}
+
+  // ═════════════════════════════════════════
+  // PDF татах — бүх бодлогуудыг сэдвээр бүлэглэн
+  // ═════════════════════════════════════════
+  window.downloadQuestionsPdf = function() {
+    var btn = event.target;
+    btn.disabled = true;
+    btn.textContent = '⏳ Бэлдэж байна...';
+
+    // Бүх бодлого + node-уудыг авах
+    Promise.all([
+      fetch(API + '/api/questions?all=1').then(function(r){ return r.json(); }),
+      fetch(API + '/api/nodes').then(function(r){ return r.json(); })
+    ]).then(function(results) {
+      var qData = results[0];
+      var nData = results[1];
+      var questions = qData.questions || [];
+      var nodes = nData.nodes || [];
+      var sectionLabels = nData.sectionLabels || [];
+
+      if (!questions.length) {
+        alert('Бодлого байхгүй байна');
+        btn.disabled = false;
+        btn.textContent = '📄 PDF татах';
+        return;
+      }
+
+      // Бодлогуудыг node_id-ээр group хийх, дараа нь section-ээр
+      var byNode = {};
+      questions.forEach(function(q){
+        if (!byNode[q.node_id]) byNode[q.node_id] = [];
+        byNode[q.node_id].push(q);
+      });
+
+      // Section labels-ийг afterNode-аар sort
+      var sortedLabels = sectionLabels.slice().sort(function(a, b){ return (a.afterNode||0) - (b.afterNode||0); });
+
+      // Node-уудыг ID-аар нь sort
+      var sortedNodes = nodes.slice().sort(function(a, b){ return a.id - b.id; });
+
+      // Section-руу node-уудыг хуваарилах
+      var sections = sortedLabels.map(function(lbl, idx){
+        var startId = lbl.afterNode + 1;
+        var endId = sortedLabels[idx+1] ? sortedLabels[idx+1].afterNode : 9999;
+        var sectionNodes = sortedNodes.filter(function(n){ return n.id >= startId && n.id <= endId; });
+        return {
+          name: lbl.name,
+          nodes: sectionNodes
+        };
+      }).filter(function(s){
+        // Зөвхөн бодлоготой section-ыг авах
+        return s.nodes.some(function(n){ return byNode[n.id] && byNode[n.id].length; });
+      });
+
+      // PDF window нээх
+      var pw = window.open('', '_blank', 'width=900,height=700');
+      if (!pw) { alert('Popup блоклогдсон. Popup-ыг зөвшөөрнө үү.'); btn.disabled = false; btn.textContent = '📄 PDF татах'; return; }
+
+      var html = buildPdfHtml(sections, byNode);
+      pw.document.write(html);
+      pw.document.close();
+
+      // KaTeX render хийсний дараа print хийнэ
+      pw.onload = function() {
+        setTimeout(function() {
+          renderKatexInWindow(pw);
+          setTimeout(function() {
+            pw.print();
+            btn.disabled = false;
+            btn.textContent = '📄 PDF татах';
+          }, 500);
+        }, 200);
+      };
+    }).catch(function(err){
+      alert('Алдаа: ' + err.message);
+      btn.disabled = false;
+      btn.textContent = '📄 PDF татах';
+    });
+  };
+
+  function renderKatexInWindow(pw) {
+    var doc = pw.document;
+    var elements = doc.querySelectorAll('.math');
+    elements.forEach(function(el){
+      var latex = el.getAttribute('data-latex');
+      if (!latex) return;
+      try {
+        pw.katex.render(latex, el, {
+          throwOnError: false,
+          displayMode: el.classList.contains('math-display'),
+          strict: false,
+          trust: true
+        });
+      } catch(e) {
+        el.textContent = latex;
+      }
+    });
+  }
+
+  function escapeHtml(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // Текст дотроос $...$ хайж math span болгон сольж тавих
+  function processMath(text) {
+    if (!text) return '';
+    var s = String(text);
+    var placeholders = [];
+    // $$...$$ display mode
+    s = s.replace(/\$\$([^\$]+)\$\$/g, function(m, latex) {
+      placeholders.push('<span class="math math-display" data-latex="' + escapeHtml(latex) + '"></span>');
+      return '\u0000PH' + (placeholders.length - 1) + '\u0000';
+    });
+    // $...$ inline mode
+    s = s.replace(/\$([^\$]+?)\$/g, function(m, latex) {
+      placeholders.push('<span class="math" data-latex="' + escapeHtml(latex) + '"></span>');
+      return '\u0000PH' + (placeholders.length - 1) + '\u0000';
+    });
+    // Үлдсэн текстийг escape
+    s = escapeHtml(s);
+    // Placeholder-уудыг буцааж сольж тавих
+    s = s.replace(/\u0000PH(\d+)\u0000/g, function(m, idx) {
+      return placeholders[parseInt(idx)];
+    });
+    return s;
+  }
+
+  function buildPdfHtml(sections, byNode) {
+    var titleDate = new Date().toLocaleDateString('mn-MN');
+    var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Бодлогын цуглуулга</title>'
+      + '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">'
+      + '<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"><\/script>'
+      + '<style>'
+      + '@page { size: A4; margin: 18mm 16mm; }'
+      + 'body { font-family: "Times New Roman", serif; line-height: 1.5; color: #000; max-width: 800px; margin: 0 auto; padding: 20px; }'
+      + '.cover { text-align: center; padding: 60px 0 30px; border-bottom: 3px double #333; margin-bottom: 30px; }'
+      + '.cover h1 { font-size: 32px; margin: 0 0 8px; }'
+      + '.cover .sub { font-size: 14px; color: #666; }'
+      + '.section-title { font-size: 22px; font-weight: bold; margin: 28px 0 14px; padding: 10px 14px; background: #f0e9ff; border-left: 5px solid #7B52EE; page-break-after: avoid; }'
+      + '.q-block { margin-bottom: 20px; padding: 12px 14px; background: #fafafa; border-radius: 6px; page-break-inside: avoid; border: 1px solid #eee; }'
+      + '.q-num { font-weight: bold; color: #7B52EE; }'
+      + '.q-text { margin: 6px 0 10px; font-size: 14px; }'
+      + '.q-options { margin: 8px 0; padding-left: 18px; }'
+      + '.q-options li { padding: 3px 0; font-size: 13px; }'
+      + '.q-options li.correct { color: #16a34a; font-weight: bold; }'
+      + '.q-correct { background: #dcfce7; padding: 6px 10px; border-left: 3px solid #16a34a; margin-top: 8px; font-size: 13px; border-radius: 4px; }'
+      + '.q-hint { background: #fef3c7; padding: 6px 10px; border-left: 3px solid #f59e0b; margin-top: 6px; font-size: 12px; color: #78350f; border-radius: 4px; font-style: italic; }'
+      + '.q-fill-ans { background: #ddd6fe; padding: 6px 10px; border-left: 3px solid #7B52EE; margin-top: 8px; font-size: 13px; border-radius: 4px; }'
+      + '.node-name { font-size: 12px; color: #888; margin-bottom: 4px; font-style: italic; }'
+      + '.math { display: inline-block; }'
+      + '.math-display { display: block; text-align: center; margin: 8px 0; }'
+      + '@media print { .no-print { display: none; } body { padding: 0; } }'
+      + '.print-btn { position: fixed; top: 12px; right: 12px; padding: 10px 16px; background: #7B52EE; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }'
+      + '</style></head><body>'
+      + '<button class="print-btn no-print" onclick="window.print()">🖨 Хэвлэх / PDF хадгалах</button>'
+      + '<div class="cover">'
+      + '<h1>📚 Бодлогын цуглуулга</h1>'
+      + '<div class="sub">CyberMath • ' + titleDate + '</div>'
+      + '</div>';
+
+    var qNum = 1;
+    sections.forEach(function(section) {
+      html += '<div class="section-title">' + escapeHtml(section.name) + '</div>';
+      section.nodes.forEach(function(node) {
+        var qs = byNode[node.id] || [];
+        if (!qs.length) return;
+        qs.forEach(function(q){
+          var choices = q.choices;
+          if (typeof choices === 'string') {
+            try { choices = JSON.parse(choices); } catch(e) { choices = []; }
+          }
+          html += '<div class="q-block">';
+          html += '<div class="node-name">📍 ' + escapeHtml(node.name || ('Node ' + node.id)) + '</div>';
+          html += '<div><span class="q-num">' + qNum + '.</span> <span class="q-text">' + processMath(q.text) + '</span></div>';
+
+          // Choices эсвэл fill
+          if (Array.isArray(choices) && choices.length) {
+            html += '<ol class="q-options" type="A">';
+            choices.forEach(function(c, idx){
+              var isCorrect = q.correct === idx || q.correct === String(idx);
+              html += '<li' + (isCorrect ? ' class="correct"' : '') + '>' + processMath(c) + (isCorrect ? ' ✓' : '') + '</li>';
+            });
+            html += '</ol>';
+            // Зөв хариу тодорхой бичих
+            var correctIdx = parseInt(q.correct);
+            if (!isNaN(correctIdx) && choices[correctIdx]) {
+              html += '<div class="q-correct"><strong>Зөв хариу:</strong> ' + String.fromCharCode(65 + correctIdx) + '. ' + processMath(choices[correctIdx]) + '</div>';
+            }
+          } else {
+            // Fill type
+            var ans = q.correct || q.correctAnswer || '';
+            html += '<div class="q-fill-ans"><strong>Зөв хариу:</strong> ' + processMath(ans) + '</div>';
+          }
+
+          // Hint/тайлбар
+          var hint = q.hint;
+          var hintText = '';
+          if (hint) {
+            if (typeof hint === 'string') hintText = hint;
+            else if (hint.text) hintText = hint.text;
+            else if (hint.steps && hint.steps.length) hintText = hint.steps.join(' → ');
+          }
+          if (hintText) {
+            html += '<div class="q-hint"><strong>💡 Тайлбар:</strong> ' + processMath(hintText) + '</div>';
+          }
+
+          html += '</div>';
+          qNum++;
+        });
+      });
+    });
+
+    html += '</body></html>';
+    return html;
+  }
 
   function renderQuestions(search) {
     var el = document.getElementById('q-list');
