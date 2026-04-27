@@ -221,10 +221,20 @@ module.exports = async (req, res) => {
         const { classroomId, title, lessons, questionCount, prizeXp } = req.body || {};
         if (!classroomId || !lessons || !lessons.length) return res.json({ ok: false, error: 'Missing fields' });
         const qRes = await pool.query(
-          `SELECT id, text, choices, correct, image, hint, node_id FROM questions WHERE node_id = ANY($1::int[])`,
+          `SELECT id, text, choices, correct, image, hint, node_id, type FROM questions
+           WHERE node_id = ANY($1::int[])
+             AND (type IS NULL OR type = 'choice')`,
           [lessons]
         );
-        let allQs = qRes.rows.sort(() => Math.random() - 0.5);
+        // Choices хоосон бодлогуудыг JS дээр шүүх (4 сонголттой л байх ёстой)
+        let validQs = qRes.rows.filter(q => {
+          let ch = q.choices;
+          if (typeof ch === 'string') {
+            try { ch = JSON.parse(ch); } catch(e) { return false; }
+          }
+          return Array.isArray(ch) && ch.length >= 2 && ch.length <= 4;
+        });
+        let allQs = validQs.sort(() => Math.random() - 0.5);
         const limit = Math.min(parseInt(questionCount) || 10, allQs.length);
         const selected = allQs.slice(0, limit);
         if (!selected.length) return res.json({ ok: false, error: 'Сонгосон хичээлүүдэд асуулт байхгүй' });
