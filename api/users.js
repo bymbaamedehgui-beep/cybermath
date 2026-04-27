@@ -65,7 +65,7 @@ module.exports = async (req, res) => {
   try {
     if (req.method === 'GET') {
       if (req.query && req.query.leaderboard) {
-        const r = await pool.query('SELECT id,first_name,last_name,xp,avatar,grade,plan FROM users WHERE xp>0 ORDER BY xp DESC LIMIT 20');
+        const r = await pool.query('SELECT id,first_name,last_name,xp,avatar,profile_image,grade,plan FROM users WHERE xp>0 ORDER BY xp DESC LIMIT 20');
         return res.json({ ok: true, users: r.rows });
       }
       // Бүх хэрэглэгчдийн жагсаалт — зөвхөн админ
