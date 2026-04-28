@@ -1641,16 +1641,29 @@ function closeMathModal() { closeChoiceMathModal(); }
       var sortedNodes = nodes.slice().sort(function(a, b){ return a.id - b.id; });
 
       // Section-руу node-уудыг хуваарилах
-      var sections = sortedLabels.map(function(lbl, idx){
+      var sections = [];
+      // Эхний label-ын өмнөх node-уудыг "default" section-руу оруулах
+      if (sortedLabels.length > 0 && sortedLabels[0].afterNode > 0) {
+        var firstSectionStart = 1;
+        var firstSectionEnd = sortedLabels[0].afterNode;
+        var firstNodes = sortedNodes.filter(function(n){ return n.id >= firstSectionStart && n.id <= firstSectionEnd; });
+        if (firstNodes.length) {
+          sections.push({ name: 'Эхлэл', nodes: firstNodes });
+        }
+      }
+      // Section label-ууд тус бүрд node хуваарилах
+      sortedLabels.forEach(function(lbl, idx){
         var startId = lbl.afterNode + 1;
         var endId = sortedLabels[idx+1] ? sortedLabels[idx+1].afterNode : 9999;
         var sectionNodes = sortedNodes.filter(function(n){ return n.id >= startId && n.id <= endId; });
-        return {
-          name: lbl.name,
-          nodes: sectionNodes
-        };
-      }).filter(function(s){
-        // Зөвхөн бодлоготой section-ыг авах
+        sections.push({ name: lbl.name, nodes: sectionNodes });
+      });
+      // Хэрэв section label огт байхгүй бол бүх node-ыг нэг section-руу
+      if (sortedLabels.length === 0) {
+        sections.push({ name: 'Бүх хичээлүүд', nodes: sortedNodes });
+      }
+      // Зөвхөн бодлоготой section-ыг авах
+      sections = sections.filter(function(s){
         return s.nodes.some(function(n){ return byNode[n.id] && byNode[n.id].length; });
       });
 
@@ -1901,7 +1914,7 @@ function closeMathModal() { closeChoiceMathModal(); }
       + '<div class="cover-info-card-title">— Сурагчийн мэдээлэл —</div>'
       + '<div class="cover-name-line"><span class="cover-name-label">Нэр:</span><span class="cover-name-blank"></span></div>'
       + '<div class="cover-name-line"><span class="cover-name-label">Анги:</span><span class="cover-name-blank"></span></div>'
-      + '<div class="cover-name-line"><span class="cover-name-label">Огноо:</span><span class="cover-name-blank"></span></div>'
+      + '<div class="cover-name-line"><span class="cover-name-label">Зорилго:</span><span class="cover-name-blank"></span></div>'
       + '</div>'
 
       + '<div class="cover-footer">'
