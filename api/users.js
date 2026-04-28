@@ -123,8 +123,100 @@ module.exports = async (req, res) => {
       }
 
       if (action === 'heartbeat') {
-        await pool.query('UPDATE users SET last_active_at=NOW() WHERE email=$1', [email]);
+        const { screen } = req.body || {};
+        if (screen !== undefined) {
+          await pool.query('UPDATE users SET last_active_at=NOW(), current_screen=$2 WHERE email=$1', [email, screen || null]);
+        } else {
+          await pool.query('UPDATE users SET last_active_at=NOW() WHERE email=$1', [email]);
+        }
         return res.json({ ok: true });
+      }
+
+      // ═══════ LIVE CLASS SESSION ═══════
+      // Багш session эхлүүлэх
+      if (action === 'startLiveSession') {
+        const { classroomId, title } = req.body || {};
+        if (!classroomId) return res.json({ ok: false, error: 'classroomId шаардлагатай' });
+        // Багш эсэх шалгах
+        const c = await pool.query('SELECT teacher_email FROM classrooms WHERE id=$1', [classroomId]);
+        if (!c.rows.length || c.rows[0].teacher_email !== email) {
+          return res.status(403).json({ ok: false, error: 'Зөвшөөрөлгүй' });
+        }
+        // Хуучин active session-уудыг дуусгах
+        await pool.query('UPDATE live_sessions SET active=false, ended_at=NOW() WHERE classroom_id=$1 AND active=true', [classroomId]);
+        // Шинэ session үүсгэх
+        const r = await pool.query(
+          'INSERT INTO live_sessions (teacher_email, classroom_id, title, active) VALUES ($1,$2,$3,true) RETURNING id, started_at',
+          [email, classroomId, title || 'Хичээл']
+        );
+        return res.json({ ok: true, sessionId: r.rows[0].id, startedAt: r.rows[0].started_at });
+      }
+
+      // Session дуусгах
+      if (action === 'stopLiveSession') {
+        const { classroomId } = req.body || {};
+        if (!classroomId) return res.json({ ok: false });
+        const c = await pool.query('SELECT teacher_email FROM classrooms WHERE id=$1', [classroomId]);
+        if (!c.rows.length || c.rows[0].teacher_email !== email) {
+          return res.status(403).json({ ok: false, error: 'Зөвшөөрөлгүй' });
+        }
+        await pool.query('UPDATE live_sessions SET active=false, ended_at=NOW() WHERE classroom_id=$1 AND active=true', [classroomId]);
+        return res.json({ ok: true });
+      }
+
+      // Live session-ийн идэвхийг авах (багш дуудна)
+      if (action === 'getLiveSession') {
+        const { classroomId } = req.body || {};
+        if (!classroomId) return res.json({ ok: false });
+        // Active session байгаа эсэх шалгах
+        const sessRes = await pool.query(
+          'SELECT id, title, started_at FROM live_sessions WHERE classroom_id=$1 AND active=true ORDER BY started_at DESC LIMIT 1',
+          [classroomId]
+        );
+        if (!sessRes.rows.length) {
+          return res.json({ ok: true, active: false });
+        }
+        const session = sessRes.rows[0];
+        // Анги доторх сурагчдын live мэдээлэл
+        const r = await pool.query(`
+          SELECT u.email, u.first_name, u.last_name, u.avatar, u.profile_image,
+                 u.last_active_at, u.current_screen, u.xp, u.streak,
+                 EXTRACT(EPOCH FROM (NOW() - u.last_active_at)) as seconds_idle
+          FROM class_members cm
+          JOIN users u ON u.email = cm.student_email
+          WHERE cm.classroom_id = $1
+          ORDER BY u.last_active_at DESC NULLS LAST
+        `, [classroomId]);
+        const students = r.rows.map(s => {
+          const idle = parseFloat(s.seconds_idle);
+          let status = 'offline';
+          if (!isNaN(idle)) {
+            if (idle < 120) status = 'online'; // 2 минутын дотор
+            else if (idle < 300) status = 'idle'; // 5 минутын дотор
+          }
+          return {
+            email: s.email,
+            firstName: s.first_name,
+            lastName: s.last_name,
+            avatar: s.avatar,
+            profile_image: s.profile_image,
+            currentScreen: s.current_screen,
+            xp: s.xp,
+            streak: s.streak,
+            secondsIdle: Math.round(idle),
+            status: status
+          };
+        });
+        return res.json({
+          ok: true,
+          active: true,
+          session: {
+            id: session.id,
+            title: session.title,
+            startedAt: session.started_at
+          },
+          students: students
+        });
       }
 
       if (action === 'addMinutes') {

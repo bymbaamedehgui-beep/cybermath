@@ -47,11 +47,26 @@ module.exports = async (req, res) => {
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS lesson_progress JSONB`,
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS challenges JSONB DEFAULT '[]'`,
       `ALTER TABLE nodes ADD COLUMN IF NOT EXISTS intro_html TEXT`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS current_screen TEXT`,
     ];
 
     for (const q of alters) {
       await pool.query(q).catch(() => {});
     }
+
+    // Live class session — багш зориудаар эхлүүлэх real-time hyanan
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS live_sessions (
+        id BIGSERIAL PRIMARY KEY,
+        teacher_email TEXT NOT NULL,
+        classroom_id BIGINT NOT NULL,
+        title TEXT,
+        started_at TIMESTAMPTZ DEFAULT NOW(),
+        ended_at TIMESTAMPTZ,
+        active BOOLEAN DEFAULT true
+      )
+    `).catch(()=>{});
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_live_active ON live_sessions(classroom_id, active)`).catch(()=>{});
 
     // Tournaments table — Mathlet (Kahoot-стайл анги дотрын тэмцээн)
     await pool.query(`
