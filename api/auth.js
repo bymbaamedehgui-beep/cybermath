@@ -162,7 +162,7 @@ module.exports = async (req, res) => {
       return res.json({ ok: true });
     }
 
-    if (action === 'forgot') {
+    if (action === 'forgot' || action === 'sendResetCode') {
       // Forgot password — code илгээх
       const r = await pool.query('SELECT first_name FROM users WHERE email=$1', [email]);
       if (!r.rows.length) {
