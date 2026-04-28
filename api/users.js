@@ -197,8 +197,8 @@ module.exports = async (req, res) => {
           const idle = parseFloat(s.seconds_idle);
           let status = 'offline';
           if (!isNaN(idle)) {
-            if (idle < 10) status = 'online'; // 10 секундын дотор
-            else if (idle < 30) status = 'idle'; // 30 секундын дотор
+            if (idle < 20) status = 'online'; // 20 секундын дотор ping ирсэн
+            else if (idle < 60) status = 'idle'; // 1 минутын дотор
           }
           return {
             email: s.email,
