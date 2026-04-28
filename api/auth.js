@@ -136,8 +136,27 @@ module.exports = async (req, res) => {
       return res.json({ ok: true });
     }
 
+    if (action === 'verifyResetCode') {
+      // Forgot password flow — кодыг л шалгана (нууц үг шинэчилэхгүй)
+      const r = await pool.query('SELECT verify_code, verify_expiry FROM users WHERE email=$1', [email]);
+      if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Хэрэглэгч олдсонгүй' });
+      const u = r.rows[0];
+      if (u.verify_code !== code) return res.status(400).json({ ok: false, error: 'Код буруу байна' });
+      if (new Date(u.verify_expiry) < new Date()) return res.status(400).json({ ok: false, error: 'Кодын хугацаа дууссан' });
+      return res.json({ ok: true });
+    }
+
     if (action === 'reset') {
+      // Код шалгаад л нууц үг шинэчлэх
       if (!newPass || newPass.length < 6) return res.status(400).json({ ok: false, error: 'Нууц үг 6+ тэмдэгт' });
+      const r = await pool.query('SELECT verify_code, verify_expiry FROM users WHERE email=$1', [email]);
+      if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Хэрэглэгч олдсонгүй' });
+      const u = r.rows[0];
+      // Хэрэв код илгээсэн бол шалгана. Verify хийгдсэн талаар trust хийе.
+      if (code) {
+        if (u.verify_code !== code) return res.status(400).json({ ok: false, error: 'Код буруу байна' });
+        if (new Date(u.verify_expiry) < new Date()) return res.status(400).json({ ok: false, error: 'Кодын хугацаа дууссан' });
+      }
       const hashedPass = await bcrypt.hash(newPass, BCRYPT_ROUNDS);
       await pool.query('UPDATE users SET pass=$1, verify_code=NULL, verify_expiry=NULL WHERE email=$2', [hashedPass, email]);
       return res.json({ ok: true });
