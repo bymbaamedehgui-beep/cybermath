@@ -122,6 +122,15 @@ module.exports = async (req, res) => {
         return res.json({ ok: true });
       }
 
+      if (action === 'addXp') {
+        const { amount } = req.body || {};
+        const a = parseInt(amount) || 0;
+        if (a <= 0) return res.json({ ok: false });
+        const r = await pool.query('UPDATE users SET xp = COALESCE(xp,0) + $1 WHERE email=$2 RETURNING xp', [a, email]);
+        if (!r.rows.length) return res.json({ ok: false });
+        return res.json({ ok: true, xp: r.rows[0].xp });
+      }
+
       if (action === 'heartbeat') {
         const { screen } = req.body || {};
         if (screen !== undefined) {
