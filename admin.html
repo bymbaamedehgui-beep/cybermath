@@ -465,6 +465,7 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
 </style>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
 
@@ -1739,9 +1740,10 @@ function closeMathModal() { closeChoiceMathModal(); }
     var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + docTitle + '</title>'
       + '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">'
       + '<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"><\/script>'
+      + '<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>'
       + '<style>'
-      + '@page { size: A4; margin: 10mm 0 10mm 0; }'
-      + '@page :first { margin: 0; }'
+      + '@page { size: A4; margin: 12mm 0 14mm 0; @bottom-center { content: counter(page); font-family: "Times New Roman", serif; font-size: 11px; color: #888; } }'
+      + '@page :first { margin: 0; @bottom-center { content: ""; } }'
       + 'html, body { background: white; margin: 0; padding: 0; }'
       + 'body { font-family: "Baloo 2", "Times New Roman", Georgia, serif; line-height: 1.55; color: #000; }'
 
@@ -1793,6 +1795,23 @@ function closeMathModal() { closeChoiceMathModal(); }
       + '.q-num-row { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 4px; }'
       + '.q-num { font-weight: 900; color: #7B52EE; font-size: 14px; flex-shrink: 0; min-width: 22px; }'
       + '.q-text { font-size: 13px; line-height: 1.55; color: #1a1a1a; flex: 1; }'
+
+      // ═══ Node header (хичээл бүрийн эхлэл) ═══
+      + '.node-header { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin: 18px 0 12px; padding: 14px 18px; background: linear-gradient(135deg, #f5f0ff, #fffaf0); border-left: 5px solid #7B52EE; border-radius: 8px; page-break-after: avoid; page-break-inside: avoid; }'
+      + '.node-header-text { flex: 1; min-width: 0; }'
+      + '.node-header-num { font-size: 11px; color: #7B52EE; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; }'
+      + '.node-header-name { font-size: 18px; color: #1a1040; font-weight: 900; margin: 2px 0 4px; }'
+      + '.node-header-meta { font-size: 11px; color: #888; font-weight: 600; }'
+      + '.node-qr { width: 90px; height: 90px; flex-shrink: 0; background: white; border: 2px solid #e5e0f5; border-radius: 6px; padding: 4px; box-sizing: border-box; }'
+      + '.node-qr img, .node-qr canvas { width: 100% !important; height: 100% !important; }'
+
+      // ═══ Stamp box (тамгалуулах хэсэг) ═══
+      + '.stamp-box { margin: 14px 0 22px; padding: 12px 16px; border: 1.5px dashed #999; border-radius: 6px; page-break-inside: avoid; }'
+      + '.stamp-row { display: flex; align-items: center; gap: 10px; margin: 6px 0; font-size: 12px; }'
+      + '.stamp-label { font-weight: 700; color: #555; flex-shrink: 0; }'
+      + '.stamp-blank { flex: 1; border-bottom: 1.5px solid #999; height: 14px; }'
+      + '.stamp-blank-short { flex: 0 0 60px; }'
+      + '.stamp-circle { margin-left: auto; width: 70px; height: 70px; border: 2px dashed #999; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #999; font-weight: 700; letter-spacing: 1px; }'
 
       // Сонголтууд (хэвтээ дарааллана: а. ... б. ... в. ...)
       + '.q-choices { margin: 4px 0 0 30px; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 8px 24px; }'
@@ -1884,18 +1903,33 @@ function closeMathModal() { closeChoiceMathModal(); }
       + '<div class="content-page">';
 
     var qNum = 1;
+    var nodeIdx = 0;
     sections.forEach(function(section) {
       // Бүлгийн нэр оруулахгүй
       section.nodes.forEach(function(node) {
         var qs = byNode[node.id] || [];
         if (!qs.length) return;
+        nodeIdx++;
+        // Хичээлийн URL — QR кодоор нэвтрэх
+        var lessonUrl = window.location.origin + '/?lesson=' + node.id;
+        // Node header (сэдэв + QR)
+        html += '<div class="node-header">'
+          + '<div class="node-header-text">'
+          + '<div class="node-header-num">Хичээл #' + node.id + '</div>'
+          + '<div class="node-header-name">' + escapeHtml(node.name || ('Хичээл ' + node.id)) + '</div>'
+          + '<div class="node-header-meta">' + qs.length + ' бодлого · QR-аар нэвтэр</div>'
+          + '</div>'
+          + '<div class="node-qr" data-qr-url="' + lessonUrl + '" id="qr-node-' + node.id + '"></div>'
+          + '</div>';
+        // Бодлогын дугаар node бүрт 1-ээс эхлэнэ
+        var nQ = 1;
         qs.forEach(function(q){
           var choices = q.choices;
           if (typeof choices === 'string') {
             try { choices = JSON.parse(choices); } catch(e) { choices = []; }
           }
           html += '<div class="q-block">';
-          html += '<div class="q-num-row"><span class="q-num">' + qNum + '.</span><span class="q-text">' + processMath(q.text) + '</span></div>';
+          html += '<div class="q-num-row"><span class="q-num">' + nQ + '.</span><span class="q-text">' + processMath(q.text) + '</span></div>';
 
           // Choices эсвэл fill — q.type-аар шалгана
           var isFillType = (q.type === 'fill');
@@ -1954,12 +1988,41 @@ function closeMathModal() { closeChoiceMathModal(); }
           }
 
           html += '</div>';
-          qNum++;
+          nQ++;
         });
+        // Node-ийн төгсгөлд багшаар тамгалуулах хэсэг
+        html += '<div class="stamp-box">'
+          + '<div class="stamp-row">'
+          + '<div class="stamp-label">Огноо:</div>'
+          + '<div class="stamp-blank"></div>'
+          + '<div class="stamp-label">Оноо:</div>'
+          + '<div class="stamp-blank stamp-blank-short"></div>'
+          + '</div>'
+          + '<div class="stamp-row">'
+          + '<div class="stamp-label">Багшийн тамга / гарын үсэг:</div>'
+          + '<div class="stamp-circle">ТАМГА</div>'
+          + '</div>'
+          + '</div>';
       });
     });
 
-    html += '</div></body></html>';
+    html += '</div>';
+    // QR-уудыг render хийх script
+    html += '<script>'
+      + 'window.addEventListener("load", function(){'
+      + '  setTimeout(function(){'
+      + '    if (!window.QRCode) return;'
+      + '    document.querySelectorAll(".node-qr").forEach(function(el){'
+      + '      var url = el.getAttribute("data-qr-url");'
+      + '      if (!url) return;'
+      + '      try {'
+      + '        new QRCode(el, { text: url, width: 90, height: 90, colorDark: "#1a1040", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.M });'
+      + '      } catch(e) {}'
+      + '    });'
+      + '  }, 300);'
+      + '});'
+      + '<\/script>';
+    html += '</body></html>';
     return html;
   }
 
