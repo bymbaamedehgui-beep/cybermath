@@ -774,7 +774,8 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
           <div class="table-header">
             <div class="table-title" id="q-list-title">Бодлогууд</div>
             <div style="display:flex;gap:8px;align-items:center;">
-              <button onclick="downloadQuestionsPdf()" style="padding:6px 12px;background:linear-gradient(135deg,#7B52EE,#A855F7);border:none;border-radius:8px;color:white;font-size:0.85rem;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:5px;">📄 PDF татах</button>
+              <button onclick="downloadQuestionsPdf(true)" style="padding:6px 12px;background:linear-gradient(135deg,#7B52EE,#A855F7);border:none;border-radius:8px;color:white;font-size:0.85rem;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:5px;" title="Бодлого + хариу + тайлбар">📄 Бүрэн PDF</button>
+              <button onclick="downloadQuestionsPdf(false)" style="padding:6px 12px;background:linear-gradient(135deg,#1CB0F6,#0EA5E9);border:none;border-radius:8px;color:white;font-size:0.85rem;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:5px;" title="Зөвхөн бодлого">📋 Зөвхөн бодлого</button>
               <input type="text" placeholder="Хайх..." style="padding:6px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:0.85rem;width:200px;" oninput="renderQuestions(this.value)">
             </div>
           </div>
@@ -1601,10 +1602,11 @@ function closeMathModal() { closeChoiceMathModal(); }
   // ═════════════════════════════════════════
   // PDF татах — бүх бодлогуудыг сэдвээр бүлэглэн
   // ═════════════════════════════════════════
-  window.downloadQuestionsPdf = function() {
+  window.downloadQuestionsPdf = function(withAnswers) {
     var btn = event.target;
+    var origText = btn.innerHTML;
     btn.disabled = true;
-    btn.textContent = '⏳ Бэлдэж байна...';
+    btn.innerHTML = '⏳ Бэлдэж байна...';
 
     // Бүх бодлого + node-уудыг авах
     Promise.all([
@@ -1620,7 +1622,7 @@ function closeMathModal() { closeChoiceMathModal(); }
       if (!questions.length) {
         alert('Бодлого байхгүй байна');
         btn.disabled = false;
-        btn.textContent = '📄 PDF татах';
+        btn.innerHTML = origText;
         return;
       }
 
@@ -1653,9 +1655,9 @@ function closeMathModal() { closeChoiceMathModal(); }
 
       // PDF window нээх
       var pw = window.open('', '_blank', 'width=900,height=700');
-      if (!pw) { alert('Popup блоклогдсон. Popup-ыг зөвшөөрнө үү.'); btn.disabled = false; btn.textContent = '📄 PDF татах'; return; }
+      if (!pw) { alert('Popup блоклогдсон. Popup-ыг зөвшөөрнө үү.'); btn.disabled = false; btn.innerHTML = origText; return; }
 
-      var html = buildPdfHtml(sections, byNode);
+      var html = buildPdfHtml(sections, byNode, withAnswers);
       pw.document.write(html);
       pw.document.close();
 
@@ -1666,14 +1668,14 @@ function closeMathModal() { closeChoiceMathModal(); }
           setTimeout(function() {
             pw.print();
             btn.disabled = false;
-            btn.textContent = '📄 PDF татах';
+            btn.innerHTML = origText;
           }, 500);
         }, 200);
       };
     }).catch(function(err){
       alert('Алдаа: ' + err.message);
       btn.disabled = false;
-      btn.textContent = '📄 PDF татах';
+      btn.innerHTML = origText;
     });
   };
 
@@ -1724,9 +1726,10 @@ function closeMathModal() { closeChoiceMathModal(); }
     return s;
   }
 
-  function buildPdfHtml(sections, byNode) {
+  function buildPdfHtml(sections, byNode, withAnswers) {
     var titleDate = new Date().toLocaleDateString('mn-MN');
-    var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Бодлогын цуглуулга</title>'
+    var docTitle = withAnswers ? 'Бодлогын цуглуулга — Хариутай' : 'Бодлогын цуглуулга — Дасгал';
+    var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + docTitle + '</title>'
       + '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">'
       + '<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"><\/script>'
       + '<style>'
@@ -1745,6 +1748,7 @@ function closeMathModal() { closeChoiceMathModal(); }
       + '.q-correct { background: #dcfce7; padding: 6px 10px; border-left: 3px solid #16a34a; margin-top: 8px; font-size: 13px; border-radius: 4px; }'
       + '.q-hint { background: #fef3c7; padding: 6px 10px; border-left: 3px solid #f59e0b; margin-top: 6px; font-size: 12px; color: #78350f; border-radius: 4px; font-style: italic; }'
       + '.q-fill-ans { background: #ddd6fe; padding: 6px 10px; border-left: 3px solid #7B52EE; margin-top: 8px; font-size: 13px; border-radius: 4px; }'
+      + '.q-fill-blank { display: inline-block; min-width: 60px; border-bottom: 1.5px solid #666; margin-left: 6px; }'
       + '.node-name { font-size: 12px; color: #888; margin-bottom: 4px; font-style: italic; }'
       + '.math { display: inline-block; }'
       + '.math-display { display: block; text-align: center; margin: 8px 0; }'
@@ -1753,8 +1757,8 @@ function closeMathModal() { closeChoiceMathModal(); }
       + '</style></head><body>'
       + '<button class="print-btn no-print" onclick="window.print()">🖨 Хэвлэх / PDF хадгалах</button>'
       + '<div class="cover">'
-      + '<h1>📚 Бодлогын цуглуулга</h1>'
-      + '<div class="sub">CyberMath • ' + titleDate + '</div>'
+      + '<h1>📚 ' + (withAnswers ? 'Бодлогын цуглуулга' : 'Дасгалын дэвтэр') + '</h1>'
+      + '<div class="sub">CyberMath • ' + titleDate + (withAnswers ? '' : ' • Хариугүй хувилбар') + '</div>'
       + '</div>';
 
     var qNum = 1;
@@ -1777,30 +1781,42 @@ function closeMathModal() { closeChoiceMathModal(); }
             html += '<ol class="q-options" type="A">';
             choices.forEach(function(c, idx){
               var isCorrect = q.correct === idx || q.correct === String(idx);
-              html += '<li' + (isCorrect ? ' class="correct"' : '') + '>' + processMath(c) + (isCorrect ? ' ✓' : '') + '</li>';
+              // withAnswers байх үед зөвхөн зөв хариуг ногоон болгоно
+              var liClass = (withAnswers && isCorrect) ? ' class="correct"' : '';
+              var checkmark = (withAnswers && isCorrect) ? ' ✓' : '';
+              html += '<li' + liClass + '>' + processMath(c) + checkmark + '</li>';
             });
             html += '</ol>';
-            // Зөв хариу тодорхой бичих
-            var correctIdx = parseInt(q.correct);
-            if (!isNaN(correctIdx) && choices[correctIdx]) {
-              html += '<div class="q-correct"><strong>Зөв хариу:</strong> ' + String.fromCharCode(65 + correctIdx) + '. ' + processMath(choices[correctIdx]) + '</div>';
+            // Зөв хариу + тайлбар - зөвхөн withAnswers үед
+            if (withAnswers) {
+              var correctIdx = parseInt(q.correct);
+              if (!isNaN(correctIdx) && choices[correctIdx]) {
+                html += '<div class="q-correct"><strong>Зөв хариу:</strong> ' + String.fromCharCode(65 + correctIdx) + '. ' + processMath(choices[correctIdx]) + '</div>';
+              }
             }
           } else {
             // Fill type
-            var ans = q.correct || q.correctAnswer || '';
-            html += '<div class="q-fill-ans"><strong>Зөв хариу:</strong> ' + processMath(ans) + '</div>';
+            if (withAnswers) {
+              var ans = q.correct || q.correctAnswer || '';
+              html += '<div class="q-fill-ans"><strong>Зөв хариу:</strong> ' + processMath(ans) + '</div>';
+            } else {
+              // Хоосон зураас
+              html += '<div style="margin-top:10px;font-size:13px;color:#666;">Хариу: <span class="q-fill-blank">&nbsp;</span></div>';
+            }
           }
 
-          // Hint/тайлбар
-          var hint = q.hint;
-          var hintText = '';
-          if (hint) {
-            if (typeof hint === 'string') hintText = hint;
-            else if (hint.text) hintText = hint.text;
-            else if (hint.steps && hint.steps.length) hintText = hint.steps.join(' → ');
-          }
-          if (hintText) {
-            html += '<div class="q-hint"><strong>💡 Тайлбар:</strong> ' + processMath(hintText) + '</div>';
+          // Hint/тайлбар - зөвхөн withAnswers үед
+          if (withAnswers) {
+            var hint = q.hint;
+            var hintText = '';
+            if (hint) {
+              if (typeof hint === 'string') hintText = hint;
+              else if (hint.text) hintText = hint.text;
+              else if (hint.steps && hint.steps.length) hintText = hint.steps.join(' → ');
+            }
+            if (hintText) {
+              html += '<div class="q-hint"><strong>💡 Тайлбар:</strong> ' + processMath(hintText) + '</div>';
+            }
           }
 
           html += '</div>';
