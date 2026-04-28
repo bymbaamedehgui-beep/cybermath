@@ -142,8 +142,8 @@ module.exports = async (req, res) => {
         if (!c.rows.length || c.rows[0].teacher_email !== email) {
           return res.status(403).json({ ok: false, error: 'Зөвшөөрөлгүй' });
         }
-        // Хуучин active session-уудыг дуусгах
-        await pool.query('UPDATE live_sessions SET active=false, ended_at=NOW() WHERE classroom_id=$1 AND active=true', [classroomId]);
+        // Хуучин session-уудыг бүрэн устгах
+        await pool.query('DELETE FROM live_sessions WHERE classroom_id=$1', [classroomId]);
         // Шинэ session үүсгэх
         const r = await pool.query(
           'INSERT INTO live_sessions (teacher_email, classroom_id, title, active) VALUES ($1,$2,$3,true) RETURNING id, started_at',
@@ -160,7 +160,13 @@ module.exports = async (req, res) => {
         if (!c.rows.length || c.rows[0].teacher_email !== email) {
           return res.status(403).json({ ok: false, error: 'Зөвшөөрөлгүй' });
         }
-        await pool.query('UPDATE live_sessions SET active=false, ended_at=NOW() WHERE classroom_id=$1 AND active=true', [classroomId]);
+        // Session устгах
+        await pool.query('DELETE FROM live_sessions WHERE classroom_id=$1', [classroomId]);
+        // Анги доторх сурагчдын current_screen цэвэрлэх
+        await pool.query(
+          `UPDATE users SET current_screen=NULL WHERE email IN (SELECT student_email FROM class_members WHERE classroom_id=$1)`,
+          [classroomId]
+        );
         return res.json({ ok: true });
       }
 
@@ -191,8 +197,8 @@ module.exports = async (req, res) => {
           const idle = parseFloat(s.seconds_idle);
           let status = 'offline';
           if (!isNaN(idle)) {
-            if (idle < 120) status = 'online'; // 2 минутын дотор
-            else if (idle < 300) status = 'idle'; // 5 минутын дотор
+            if (idle < 10) status = 'online'; // 10 секундын дотор
+            else if (idle < 30) status = 'idle'; // 30 секундын дотор
           }
           return {
             email: s.email,
