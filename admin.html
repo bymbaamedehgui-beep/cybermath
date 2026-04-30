@@ -2023,14 +2023,28 @@ function closeMathModal() { closeChoiceMathModal(); }
           // Hint - зөвхөн withAnswers үед
           if (withAnswers) {
             var hint = q.hint;
-            var hintText = '';
-            if (hint) {
-              if (typeof hint === 'string') hintText = hint;
-              else if (hint.text) hintText = hint.text;
-              else if (hint.steps && hint.steps.length) hintText = hint.steps.join(' → ');
+            // String JSON parse оролдох
+            if (typeof hint === 'string') {
+              var trimmed = hint.trim();
+              if (trimmed.charAt(0) === '{' || trimmed.charAt(0) === '[') {
+                try { var parsed = JSON.parse(trimmed); if (parsed && typeof parsed === 'object') hint = parsed; } catch(e) {}
+              }
             }
-            if (hintText) {
-              html += '<div class="q-hint"><strong>💡 Тайлбар:</strong> ' + processMath(hintText) + '</div>';
+            var hintParts = [];
+            if (hint) {
+              if (typeof hint === 'string') {
+                if (hint.trim()) hintParts.push(processMath(hint));
+              } else {
+                if (hint.text) hintParts.push(processMath(hint.text));
+                if (hint.steps && hint.steps.length) hintParts.push(processMath(hint.steps.join(' → ')));
+                if (hint.image) hintParts.push('🖼 Зураг');
+                if (hint.pdf) hintParts.push('📄 PDF');
+                if (hint.video) hintParts.push('▶ Видео');
+                if (hint.embed) hintParts.push('📐 Embed');
+              }
+            }
+            if (hintParts.length) {
+              html += '<div class="q-hint"><strong>💡 Тайлбар:</strong> ' + hintParts.join(' &nbsp;|&nbsp; ') + '</div>';
             }
           }
 
@@ -2108,7 +2122,24 @@ function closeMathModal() { closeChoiceMathModal(); }
                 + '">' + (isCorrect ? '✓ ' : '') + (ch||'—') + '</div>';
             }).join('')
           + '</div>'
-          + '<div style="margin-top:8px;font-size:0.78rem;color:var(--muted);">Node: '+(q.node_id||'-')+(q.hint&&q.hint.text?' | 💡 Hint байна':'')+'</div>'
+          + '<div style="margin-top:8px;font-size:0.78rem;color:var(--muted);">Node: '+(q.node_id||'-')+(function(){
+              var h = q.hint;
+              if (!h) return '';
+              if (typeof h === 'string') {
+                var t = h.trim();
+                if (!t) return '';
+                if (t.charAt(0) === '{' || t.charAt(0) === '[') {
+                  try { var p = JSON.parse(t); if (p && typeof p === 'object') h = p; else return ' | 💡 Hint байна'; } catch(e) { return ' | 💡 Hint байна'; }
+                } else return ' | 💡 Hint байна';
+              }
+              var marks = [];
+              if (h.text) marks.push('💡');
+              if (h.image) marks.push('🖼');
+              if (h.pdf) marks.push('📄');
+              if (h.video) marks.push('▶');
+              if (h.embed) marks.push('📐');
+              return marks.length ? ' | ' + marks.join(' ') + ' Hint байна' : '';
+            })()+'</div>'
           // Edit form (нуугдсан)
           + '<div id="qedit-'+q.id+'" style="display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:14px;">'
           // Бодлогын текст — textarea + ∑ товч
