@@ -44,6 +44,13 @@ module.exports = async (req, res) => {
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS sum TEXT`,
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS school TEXT`,
       `ALTER TABLE users ADD COLUMN IF NOT EXISTS premium_expiry TIMESTAMPTZ`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image TEXT`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS xp INT DEFAULT 0`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS streak INT DEFAULT 0`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS stars_data TEXT`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_data TEXT`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS current_node_id INT`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS hearts_empty_time TIMESTAMPTZ`,
     ];
 
     for (const q of alters) {
