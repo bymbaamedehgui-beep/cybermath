@@ -49,7 +49,9 @@ module.exports = async (req, res) => {
             last7_activity: last7
           };
         });
-        return res.json({ ok: true, students });
+        // Ангийн мэдээлэл (competition оролцуулсан) хариунд багтаах
+        const cInfo = await pool.query('SELECT id, name, join_code, teacher_email, grade, competition FROM classrooms WHERE id=$1', [classroom_id]);
+        return res.json({ ok: true, students, classroom: cInfo.rows[0] || null });
       }
 
       if (join_code) {
@@ -75,7 +77,26 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === 'POST') {
-      const { action, teacher_email, name, grade, student_email, join_code } = req.body || {};
+      const { action, teacher_email, name, grade, student_email, join_code, classroom_id, competition } = req.body || {};
+
+      if (action === 'update') {
+        if (!classroom_id || !teacher_email) return res.status(400).json({ ok: false, error: 'Missing fields' });
+        const own = await pool.query('SELECT id FROM classrooms WHERE id=$1 AND teacher_email=$2', [classroom_id, teacher_email]);
+        if (!own.rows.length) return res.status(403).json({ ok: false, error: 'Эрх байхгүй' });
+        const fields = [];
+        const values = [];
+        let idx = 1;
+        if (typeof name === 'string') { fields.push(`name=$${idx++}`); values.push(name); }
+        if (typeof grade === 'string') { fields.push(`grade=$${idx++}`); values.push(grade); }
+        if (competition !== undefined) {
+          fields.push(`competition=$${idx++}`);
+          values.push(competition === null ? null : JSON.stringify(competition));
+        }
+        if (!fields.length) return res.json({ ok: true });
+        values.push(classroom_id);
+        const r = await pool.query(`UPDATE classrooms SET ${fields.join(', ')} WHERE id=$${idx} RETURNING *`, values);
+        return res.json({ ok: true, classroom: r.rows[0] });
+      }
 
       if (action === 'create') {
         if (!teacher_email || !name) return res.status(400).json({ ok: false, error: 'Missing fields' });

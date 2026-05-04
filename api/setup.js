@@ -89,6 +89,9 @@ module.exports = async (req, res) => {
       )
     `);
 
+    // Classrooms — competition талбар
+    await pool.query(`ALTER TABLE classrooms ADD COLUMN IF NOT EXISTS competition JSONB`).catch(()=>{});
+
     res.status(200).json({ ok: true, message: 'Tables ready' });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });

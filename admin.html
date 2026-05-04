@@ -2105,6 +2105,15 @@ function closeMathModal() { closeChoiceMathModal(); }
       if (!qs.length) { el.innerHTML = '<div style="color:var(--muted);text-align:center;padding:32px;">Бодлого байхгүй байна</div>'; return; }
       el.innerHTML = qs.map(function(q, idx) {
         var choices = q.choices || [];
+        // Hint-ыг JSON string бол object болгон хувиргах (edit form-д ашиглана)
+        if (typeof q.hint === 'string') {
+          var _ht = q.hint.trim();
+          if (_ht.charAt(0) === '{' || _ht.charAt(0) === '[') {
+            try { var _hp = JSON.parse(_ht); if (_hp && typeof _hp === 'object') q.hint = _hp; } catch(e) {}
+          } else if (_ht) {
+            q.hint = { text: _ht };
+          }
+        }
         return '<div id="qblock-'+q.id+'" style="background:var(--surface2);border-radius:12px;padding:16px;margin-bottom:10px;border:1px solid var(--border);">'
           // Header
           + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">'
@@ -2172,6 +2181,24 @@ function closeMathModal() { closeChoiceMathModal(); }
           + '<div style="margin-bottom:8px;">'
           + '<label style="font-size:0.78rem;color:var(--muted);font-weight:700;display:block;margin-bottom:4px;">📐 Desmos/GeoGebra embed URL</label>'
           + '<input id="qedit-embed-'+q.id+'" type="text" value="'+((q.hint&&q.hint.embed||'').replace(/"/g,'&quot;'))+'" placeholder="https://www.desmos.com/calculator/xxxxx" style="width:100%;height:36px;background:var(--surface2);border:1.5px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text);font-size:0.88rem;box-sizing:border-box;">'
+          + '</div>'
+          + '<div style="margin-bottom:8px;">'
+          + '<label style="font-size:0.78rem;color:var(--muted);font-weight:700;display:block;margin-bottom:4px;">🖼 Зураг</label>'
+          + '<div style="display:flex;gap:8px;align-items:center;">'
+          + '<input type="file" id="qedit-image-file-'+q.id+'" accept="image/*" onchange="loadEditHintFile(this,'+q.id+',\'image\')" style="flex:1;padding:6px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:0.82rem;">'
+          + '<button type="button" onclick="clearEditHintFile('+q.id+',\'image\')" style="padding:5px 10px;background:#FF4B4B22;border:1px solid #FF4B4B55;color:#FF4B4B;border-radius:8px;cursor:pointer;font-size:0.78rem;font-weight:800;">🗑</button>'
+          + '</div>'
+          + '<input type="hidden" id="qedit-image-'+q.id+'" value="'+((q.hint&&q.hint.image||'').replace(/"/g,'&quot;'))+'">'
+          + '<div id="qedit-image-preview-'+q.id+'" style="margin-top:6px;'+((q.hint&&q.hint.image)?'':'display:none;')+'"><img id="qedit-img-el-'+q.id+'" src="'+((q.hint&&q.hint.image||'').replace(/"/g,'&quot;'))+'" style="max-width:100%;max-height:140px;border-radius:8px;border:1px solid var(--border);"></div>'
+          + '</div>'
+          + '<div style="margin-bottom:8px;">'
+          + '<label style="font-size:0.78rem;color:var(--muted);font-weight:700;display:block;margin-bottom:4px;">📄 PDF</label>'
+          + '<div style="display:flex;gap:8px;align-items:center;">'
+          + '<input type="file" id="qedit-pdf-file-'+q.id+'" accept=".pdf" onchange="loadEditHintFile(this,'+q.id+',\'pdf\')" style="flex:1;padding:6px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:0.82rem;">'
+          + '<button type="button" onclick="clearEditHintFile('+q.id+',\'pdf\')" style="padding:5px 10px;background:#FF4B4B22;border:1px solid #FF4B4B55;color:#FF4B4B;border-radius:8px;cursor:pointer;font-size:0.78rem;font-weight:800;">🗑</button>'
+          + '</div>'
+          + '<input type="hidden" id="qedit-pdf-'+q.id+'" value="'+((q.hint&&q.hint.pdf||'').replace(/"/g,'&quot;'))+'">'
+          + '<div id="qedit-pdf-preview-'+q.id+'" style="margin-top:6px;font-size:0.8rem;color:var(--muted);font-weight:700;">'+((q.hint&&q.hint.pdf)?'📄 PDF хадгалагдсан':'')+'</div>'
           + '</div>'
           + '<div style="margin-bottom:8px;">'
           + '<label style="font-size:0.78rem;color:var(--muted);font-weight:700;display:block;margin-bottom:4px;">📝 Хариултын төрөл</label>'
@@ -2248,6 +2275,39 @@ function openEditMathModal(targetId) {
     if (form) form.style.display = 'none';
   }
 
+  function loadEditHintFile(input, id, type) {
+    var file = input.files && input.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var hidden = document.getElementById('qedit-'+type+'-'+id);
+      if (hidden) hidden.value = e.target.result;
+      if (type === 'image') {
+        var preview = document.getElementById('qedit-image-preview-'+id);
+        var img = document.getElementById('qedit-img-el-'+id);
+        if (preview && img) { img.src = e.target.result; preview.style.display='block'; }
+      } else if (type === 'pdf') {
+        var prev = document.getElementById('qedit-pdf-preview-'+id);
+        if (prev) prev.textContent = '📄 ' + file.name + ' (' + Math.round(file.size/1024) + ' KB)';
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function clearEditHintFile(id, type) {
+    var fileInput = document.getElementById('qedit-'+type+'-file-'+id);
+    var hidden = document.getElementById('qedit-'+type+'-'+id);
+    if (fileInput) fileInput.value = '';
+    if (hidden) hidden.value = '';
+    if (type === 'image') {
+      var preview = document.getElementById('qedit-image-preview-'+id);
+      if (preview) preview.style.display='none';
+    } else if (type === 'pdf') {
+      var prev = document.getElementById('qedit-pdf-preview-'+id);
+      if (prev) prev.textContent = '';
+    }
+  }
+
   function saveQuestion(id) {
     var textEl = document.getElementById('qedit-text-'+id);
     var text = textEl ? ((textEl.value||textEl.getValue&&textEl.getValue()||"").trim()) : '';
@@ -2263,9 +2323,15 @@ function openEditMathModal(targetId) {
     var embedEl = document.getElementById('qedit-embed-'+id);
     var typeEl = document.getElementById('qedit-type-'+id);
     var videoEl = document.getElementById('qedit-video-'+id);
-    var hint = hintEl ? {text: hintEl.value.trim()} : null;
-    if (embedEl && embedEl.value.trim()) { hint = hint || {}; hint.embed = embedEl.value.trim(); }
-    if (videoEl && videoEl.value.trim()) { hint = hint || {}; hint.video = videoEl.value.trim(); }
+    var imageEl = document.getElementById('qedit-image-'+id);
+    var pdfEl = document.getElementById('qedit-pdf-'+id);
+    var hint = {};
+    if (hintEl && hintEl.value.trim()) hint.text = hintEl.value.trim();
+    if (embedEl && embedEl.value.trim()) hint.embed = embedEl.value.trim();
+    if (videoEl && videoEl.value.trim()) hint.video = videoEl.value.trim();
+    if (imageEl && imageEl.value) hint.image = imageEl.value;
+    if (pdfEl && pdfEl.value) hint.pdf = pdfEl.value;
+    var hasHint = Object.keys(hint).length > 0;
     var qtype = typeEl ? typeEl.value : 'choice';
     if (!text) { alert('Бодлогын текст оруулна уу!'); return; }
     var nodeEl = document.getElementById('q-node');
@@ -2277,7 +2343,7 @@ function openEditMathModal(targetId) {
     }).then(function() {
       return fetch(API + '/api/questions', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({text, correct, choices, hint: hint&&(hint.text||hint.embed)?hint:null,
+        body: JSON.stringify({text, correct, choices, hint: hasHint ? hint : null,
           type: qtype,
           node_id: document.getElementById('q-node') ? parseInt(document.getElementById('q-node').value)||null : null})
       });
