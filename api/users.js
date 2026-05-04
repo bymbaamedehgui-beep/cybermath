@@ -247,6 +247,22 @@ module.exports = async (req, res) => {
         return res.json({ ok: true, today: log[today] });
       }
 
+      if (action === 'markDailyDone') {
+        // Өнөөдрийн өдрийн сорилыг хийсэн гэж тэмдэглэх (өөр утаснаас орсон ч давхардаж хийгдэхгүй)
+        const today = todayStr();
+        await pool.query('UPDATE users SET last_daily_done=$1 WHERE email=$2', [today, email]);
+        return res.json({ ok: true, last_daily_done: today });
+      }
+
+      if (action === 'getDailyStatus') {
+        const today = todayStr();
+        const r = await pool.query('SELECT last_daily_done FROM users WHERE email=$1', [email]);
+        if (!r.rows.length) return res.json({ ok: false });
+        var last = r.rows[0].last_daily_done;
+        var lastStr = last ? (last instanceof Date ? last.toISOString().slice(0,10) : String(last).slice(0,10)) : null;
+        return res.json({ ok: true, done_today: lastStr === today, last_daily_done: lastStr });
+      }
+
       if (action === 'saveLessonProgress') {
         const { lessonId, progress } = req.body || {};
         if (!lessonId) return res.json({ ok: false });
