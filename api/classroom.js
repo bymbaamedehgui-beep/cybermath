@@ -109,7 +109,7 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === 'POST') {
-      const { action, teacher_email, name, grade, student_email, join_code, classroom_id, competition } = req.body || {};
+      const { action, teacher_email, name, grade, student_email, join_code, classroom_id, competition, new_join_code, migrate_from_classroom_id } = req.body || {};
 
       if (action === 'update') {
         if (!classroom_id || !teacher_email) return res.status(400).json({ ok: false, error: 'Missing fields' });
@@ -120,6 +120,13 @@ module.exports = async (req, res) => {
         let idx = 1;
         if (typeof name === 'string') { fields.push(`name=$${idx++}`); values.push(name); }
         if (typeof grade === 'string') { fields.push(`grade=$${idx++}`); values.push(grade); }
+        if (typeof new_join_code === 'string' && new_join_code) {
+          // Кодыг солихоос өмнө давхцаагүй эсэхийг шалгах
+          const dup = await pool.query('SELECT id FROM classrooms WHERE join_code=$1 AND id<>$2', [new_join_code.toUpperCase(), classroom_id]);
+          if (dup.rows.length) return res.status(400).json({ ok: false, error: 'Энэ код өөр ангид аль хэдийн байна' });
+          fields.push(`join_code=$${idx++}`);
+          values.push(new_join_code.toUpperCase());
+        }
         if (competition !== undefined) {
           fields.push(`competition=$${idx++}`);
           values.push(competition === null ? null : JSON.stringify(competition));
@@ -128,6 +135,24 @@ module.exports = async (req, res) => {
         values.push(classroom_id);
         const r = await pool.query(`UPDATE classrooms SET ${fields.join(', ')} WHERE id=$${idx} RETURNING *`, values);
         return res.json({ ok: true, classroom: r.rows[0] });
+      }
+
+      // Хуучин (устгасан) classroom_id-ээс шинэ classroom руу class_members-ийг шилжүүлэх
+      if (action === 'migrateMembers') {
+        if (!classroom_id || !migrate_from_classroom_id || !teacher_email) return res.status(400).json({ ok: false, error: 'Missing fields' });
+        const own = await pool.query('SELECT id FROM classrooms WHERE id=$1 AND teacher_email=$2', [classroom_id, teacher_email]);
+        if (!own.rows.length) return res.status(403).json({ ok: false, error: 'Эрх байхгүй' });
+        // Шилжүүлэх (давхцал гарвал хуучнаа алгасах)
+        const r = await pool.query(`
+          UPDATE class_members SET classroom_id = $1
+          WHERE classroom_id = $2
+            AND NOT EXISTS (
+              SELECT 1 FROM class_members cm2
+              WHERE cm2.classroom_id = $1 AND cm2.student_email = class_members.student_email
+            )
+          RETURNING student_email
+        `, [classroom_id, migrate_from_classroom_id]);
+        return res.json({ ok: true, migrated: r.rows.length });
       }
 
       // Сурагч ангийн нууц хичээл дуусгасан үед attempt-ыг бүртгэх
