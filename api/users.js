@@ -520,6 +520,21 @@ module.exports = async (req, res) => {
         return res.json({ ok: true, tournament: t });
       }
 
+      // Багшийн идэвхтэй (status != 'finished') хамгийн сүүлийн тэмцээнийг буцаах
+      if (action === 'getMyActiveTournament') {
+        try {
+          const r = await pool.query(
+            `SELECT * FROM tournaments
+             WHERE teacher_email=$1 AND status <> 'finished'
+             ORDER BY id DESC LIMIT 1`,
+            [email]
+          );
+          return res.json({ ok: true, tournament: r.rows[0] || null });
+        } catch(e) {
+          return res.json({ ok: false, error: e.message });
+        }
+      }
+
       // Tournament state-ийг шалгах (live polling)
       if (action === 'getTournament') {
         const { roomCode } = req.body || {};
