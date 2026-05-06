@@ -38,12 +38,20 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === 'PUT') {
-      const { id, text, correct, choices, hint, node_id, type, image } = req.body || {};
+      const { id, text, correct, choices, hint, node_id, type, image, grade } = req.body || {};
       if (!id || !text || !correct) return res.status(400).json({ ok: false, error: 'Missing fields' });
-      await pool.query(
-        'UPDATE questions SET text=$2, correct=$3, choices=$4, hint=$5, node_id=$6, type=$7, image=$8 WHERE id=$1',
-        [id, text, correct, choices, hint ? JSON.stringify(hint) : null, node_id || null, type || 'choice', image || null]
-      );
+      // grade талбар оруулсан тохиолдолд шинэчилнэ; эс бөгөөс хадгалагдсан утгыг хэвээр үлдээх
+      if (grade !== undefined) {
+        await pool.query(
+          'UPDATE questions SET text=$2, correct=$3, choices=$4, hint=$5, node_id=$6, type=$7, image=$8, grade=$9 WHERE id=$1',
+          [id, text, correct, choices, hint ? JSON.stringify(hint) : null, node_id || null, type || 'choice', image || null, grade || null]
+        );
+      } else {
+        await pool.query(
+          'UPDATE questions SET text=$2, correct=$3, choices=$4, hint=$5, node_id=$6, type=$7, image=$8 WHERE id=$1',
+          [id, text, correct, choices, hint ? JSON.stringify(hint) : null, node_id || null, type || 'choice', image || null]
+        );
+      }
       return res.json({ ok: true });
     }
 
