@@ -583,6 +583,18 @@ module.exports = async (req, res) => {
               [next, t.id]
             );
           }
+        } else if (control === 'finish') {
+          // Тэмцээнийг яг одоо дуусгаад шагнал хуваарилах (асуулт дуустай биш ч)
+          const scores = t.scores || {};
+          const prize = t.prize_xp || {1:100,2:50,3:25};
+          const ranked = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+          for (let i = 0; i < Math.min(ranked.length, 3); i++) {
+            const xp = parseInt(prize[i + 1]) || 0;
+            if (xp > 0) {
+              await pool.query('UPDATE users SET xp = xp + $1 WHERE email=$2', [xp, ranked[i][0]]);
+            }
+          }
+          await pool.query(`UPDATE tournaments SET status='finished', current_phase='finished' WHERE id=$1`, [t.id]);
         } else if (control === 'cancel') {
           await pool.query(`DELETE FROM tournaments WHERE id=$1`, [t.id]);
         }
