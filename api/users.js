@@ -458,8 +458,8 @@ module.exports = async (req, res) => {
         return res.json({ ok: true, tournament: r.rows[0] });
       }
 
-      // Цаасаар горимд: багш scan-аас тооцсон хариултуудыг бичих
-      // (live submission — нэг сурагчийн хариулт шинэчлэгдэх боломжтой картаа эргүүлж шинэ хариулт сонговол)
+      // Цаасаар горимд: багш scan-аас тооцсон хариултуудыг live илгээх
+      // (нэг сурагч нэг л удаа хариулна — эхний удаа уншигдсаныг л хүлээн авна)
       if (action === 'submitPaperBatch') {
         const { roomCode, questionIndex, answers: paperAnswers } = req.body || {};
         if (!roomCode || !Array.isArray(paperAnswers)) return res.json({ ok: false, error: 'Missing fields' });
@@ -480,30 +480,25 @@ module.exports = async (req, res) => {
         const scores  = t.scores  || {};
         const players = t.players || {};
         let countedNew = 0;
-        let countedUpdated = 0;
 
         paperAnswers.forEach(a => {
           const em = (a.email || '').trim();
           const idx = parseInt(a.answer);
           if (!em || !players[em] || isNaN(idx) || idx < 0 || idx > 3) return;
-          const prev = answers[em];
-          // Хэрэв ижил хариулт өмнө бичигдсэн бол алгасах
-          if (prev && prev.answer === idx) return;
+          // Нэг сурагч нэг удаа л хариулна — өмнө бичигдсэн бол алгасах
+          if (answers[em] !== undefined) return;
           const isCorrect = idx === correctIdx;
-          // Оноог тохируулах: хуучин зөв байсан бол хасах, шинэ зөв бол нэмэх
-          const prevCorrect = prev && prev.isCorrect;
-          if (prevCorrect && !isCorrect) {
-            scores[em] = Math.max(0, (scores[em] || 0) - 100);
-          } else if (!prevCorrect && isCorrect) {
+          answers[em] = { answer: idx, isCorrect: isCorrect, time: 0, source: 'paper' };
+          if (isCorrect) {
             scores[em] = (scores[em] || 0) + 100;
           }
-          answers[em] = { answer: idx, isCorrect: isCorrect, time: 0, source: 'paper' };
-          if (prev) countedUpdated++;
-          else countedNew++;
+          countedNew++;
         });
 
-        await pool.query('UPDATE tournaments SET answers=$1, scores=$2 WHERE id=$3', [JSON.stringify(answers), JSON.stringify(scores), t.id]);
-        return res.json({ ok: true, countedNew, countedUpdated });
+        if (countedNew > 0) {
+          await pool.query('UPDATE tournaments SET answers=$1, scores=$2 WHERE id=$3', [JSON.stringify(answers), JSON.stringify(scores), t.id]);
+        }
+        return res.json({ ok: true, countedNew });
       }
 
       // Сурагч room-руу нэгдэх
