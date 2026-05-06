@@ -15,7 +15,21 @@ module.exports = async (req, res) => {
 
   try {
     if (req.method === 'GET') {
-      const { teacher_email, join_code, classroom_id } = req.query || {};
+      const { teacher_email, join_code, classroom_id, student_email } = req.query || {};
+
+      if (student_email) {
+        // Сурагчийн нэгдсэн бүх ангиудыг буцаах
+        const r = await pool.query(`
+          SELECT c.id, c.name, c.join_code, c.teacher_email, c.grade, c.competition, c.lessons,
+                 cm.joined_at
+          FROM class_members cm
+          JOIN classrooms c ON c.id = cm.classroom_id
+          WHERE cm.student_email = $1
+          ORDER BY cm.joined_at DESC
+        `, [student_email]);
+        return res.json({ ok: true, classrooms: r.rows });
+      }
+
 
       if (classroom_id) {
         const r = await pool.query(`
