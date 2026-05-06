@@ -17,6 +17,24 @@ module.exports = async (req, res) => {
     if (req.method === 'GET') {
       const { teacher_email, join_code, classroom_id, student_email } = req.query || {};
 
+      const { lesson_attempts, lesson_id } = req.query || {};
+
+      // Багшид зориулсан: тухайн ангийн lesson attempts
+      if (lesson_attempts && classroom_id) {
+        let q = `
+          SELECT a.id, a.lesson_id, a.lesson_name, a.student_email, a.score, a.total, a.mistakes, a.completed_at,
+                 u.first_name, u.last_name, u.avatar, u.profile_image
+          FROM classroom_lesson_attempts a
+          LEFT JOIN users u ON u.email = a.student_email
+          WHERE a.classroom_id = $1
+        `;
+        const vals = [classroom_id];
+        if (lesson_id) { q += ' AND a.lesson_id = $2'; vals.push(lesson_id); }
+        q += ' ORDER BY a.completed_at DESC';
+        const r = await pool.query(q, vals);
+        return res.json({ ok: true, attempts: r.rows });
+      }
+
       if (student_email) {
         // Сурагчийн нэгдсэн бүх ангиудыг буцаах
         const r = await pool.query(`
@@ -110,6 +128,17 @@ module.exports = async (req, res) => {
         values.push(classroom_id);
         const r = await pool.query(`UPDATE classrooms SET ${fields.join(', ')} WHERE id=$${idx} RETURNING *`, values);
         return res.json({ ok: true, classroom: r.rows[0] });
+      }
+
+      // Сурагч ангийн нууц хичээл дуусгасан үед attempt-ыг бүртгэх
+      if (action === 'recordLessonAttempt') {
+        const { classroom_id, lesson_id, lesson_name, score, total, mistakes, student_email } = req.body || {};
+        if (!classroom_id || !lesson_id || !student_email) return res.status(400).json({ ok: false, error: 'Missing fields' });
+        await pool.query(
+          'INSERT INTO classroom_lesson_attempts (classroom_id, lesson_id, lesson_name, student_email, score, total, mistakes) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+          [parseInt(classroom_id), String(lesson_id), lesson_name || '', student_email, parseInt(score) || 0, parseInt(total) || 0, parseInt(mistakes) || 0]
+        );
+        return res.json({ ok: true });
       }
 
       // Ангийн нууц хичээлийг хадгалах/шинэчлэх (replace whole list)

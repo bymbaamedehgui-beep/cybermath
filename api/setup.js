@@ -101,6 +101,23 @@ module.exports = async (req, res) => {
     await pool.query(`ALTER TABLE classrooms ADD COLUMN IF NOT EXISTS competition JSONB`).catch(()=>{});
     await pool.query(`ALTER TABLE classrooms ADD COLUMN IF NOT EXISTS lessons JSONB DEFAULT '[]'::jsonb`).catch(()=>{});
 
+    // Ангийн нууц хичээлийн гүйцэтгэлийн attempts
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS classroom_lesson_attempts (
+        id BIGSERIAL PRIMARY KEY,
+        classroom_id INT NOT NULL,
+        lesson_id TEXT NOT NULL,
+        lesson_name TEXT,
+        student_email TEXT NOT NULL,
+        score INT NOT NULL DEFAULT 0,
+        total INT NOT NULL DEFAULT 0,
+        mistakes INT DEFAULT 0,
+        completed_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_cla_classroom_lesson ON classroom_lesson_attempts(classroom_id, lesson_id)`).catch(()=>{});
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_cla_student ON classroom_lesson_attempts(student_email)`).catch(()=>{});
+
     res.status(200).json({ ok: true, message: 'Tables ready' });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
