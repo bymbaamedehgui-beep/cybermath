@@ -848,8 +848,17 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
 
         <!-- Node list (compact) -->
         <div class="table-card" style="margin-bottom:20px;">
-          <div class="table-header">
+          <div class="table-header" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
             <div class="table-title">📋 Хичээлийн жагсаалт</div>
+            <select id="nodes-filter-grade" onchange="renderNodesList()" style="padding:6px 10px;background:var(--surface2);border:1.5px solid var(--border);border-radius:8px;color:var(--text);font-size:0.85rem;font-weight:700;cursor:pointer;">
+              <option value="">Бүх анги</option>
+              <option value="1">1-р анги</option><option value="2">2-р анги</option>
+              <option value="3">3-р анги</option><option value="4">4-р анги</option>
+              <option value="5">5-р анги</option><option value="6">6-р анги</option>
+              <option value="7">7-р анги</option><option value="8">8-р анги</option>
+              <option value="9">9-р анги</option><option value="10">10-р анги</option>
+              <option value="11">11-р анги</option><option value="12">12-р анги</option>
+            </select>
           </div>
           <div id="nodes-list" style="padding:12px 16px;display:flex;flex-direction:column;gap:4px;max-height:65vh;overflow-y:auto;"></div>
         </div>
@@ -1578,16 +1587,28 @@ function closeMathModal() { closeChoiceMathModal(); }
 
   function populateQNodeSelect() {
     var sel = document.getElementById('q-node');
-    if (!sel || sel.options.length > 1) return;
+    if (!sel) return;
+    // Бодлогыг нэмэх грэйд сонголтоор шүүлт
+    var gradeEl = document.getElementById('q-grade');
+    var gradeFilter = gradeEl ? (gradeEl.value || '') : '';
+    sel.innerHTML = '<option value="">— Node сонгох —</option>';
     var nodes = getNodes();
-    nodes.forEach(function(n) {
+    var filtered = gradeFilter
+      ? nodes.filter(function(n){ return String(n.grade || '') === String(gradeFilter); })
+      : nodes;
+    filtered.forEach(function(n) {
       if (!n.name) return;
       var opt = document.createElement('option');
       opt.value = n.id;
-      opt.textContent = n.id + '. ' + n.name;
+      opt.textContent = n.id + '. ' + n.name + (n.grade ? ' [' + n.grade + 'р]' : '');
       sel.appendChild(opt);
     });
   }
+  // q-grade өөрчлөгдөхөд node dropdown-ыг автоматаар шүүлэх
+  document.addEventListener('DOMContentLoaded', function(){
+    var g = document.getElementById('q-grade');
+    if (g) g.addEventListener('change', populateQNodeSelect);
+  });
 
   function initFillMf() {
     var wrap = document.getElementById('q-fill-mf-wrap');
@@ -2683,6 +2704,39 @@ function openEditMathModal(targetId) {
     });
   }
 
+  // Шинэ node нэмэх
+  function addNode() {
+    var name = (document.getElementById('node-name').value || '').trim();
+    var type = document.getElementById('node-type').value;
+    var icon = (document.getElementById('node-icon').value || '').trim();
+    var grade = document.getElementById('node-grade').value;
+    var msg = document.getElementById('node-msg');
+    if (!name) { if(msg){msg.textContent='⚠️ Нэр оруулна уу';msg.style.color='var(--red)';} return; }
+    // Шинэ id-г одоогийн node-уудаас хамгийн их id+1 болгож автомат сонгоно
+    var nodes = getNodes() || [];
+    var maxId = 0;
+    nodes.forEach(function(n){ if (n.id > maxId) maxId = n.id; });
+    var newId = maxId + 1;
+    if(msg){msg.textContent='Хадгалж байна...';msg.style.color='var(--muted)';}
+    fetch(API + '/api/nodes', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ id: newId, name: name, type: type, icon: icon || '📚', grade: grade, sort_order: newId })
+    }).then(function(r){ return r.json(); }).then(function(d){
+      if (d.ok) {
+        if(msg){msg.textContent='✓ #' + newId + ' нэмэгдлээ' + (grade ? ' (' + grade + '-р анги)' : '');msg.style.color='var(--green)';}
+        document.getElementById('node-name').value = '';
+        document.getElementById('node-icon').value = '';
+        renderNodesList();
+      } else {
+        if(msg){msg.textContent='⚠️ Алдаа: ' + (d.error || 'unknown');msg.style.color='var(--red)';}
+      }
+    }).catch(function(){
+      if(msg){msg.textContent='⚠️ Сүлжээний алдаа';msg.style.color='var(--red)';}
+    });
+  }
+  window.addNode = addNode;
+
   function renderNodesList() {
     var el = document.getElementById('nodes-list');
     if (!el) return;
@@ -2700,7 +2754,13 @@ function openEditMathModal(targetId) {
           }
         });
         saveNodes(nodes);
-        _renderNodesUI(nodes);
+        // Сонгосон ангиар шүүх (хэрэв байвал)
+        var filterEl = document.getElementById('nodes-filter-grade');
+        var filterGrade = filterEl ? (filterEl.value || '') : '';
+        var visibleNodes = filterGrade
+          ? nodes.filter(function(n){ return String(n.grade || '') === String(filterGrade); })
+          : nodes;
+        _renderNodesUI(visibleNodes);
         renderAdminMap(nodes);
         // Section labels DB-аас авах
         if (data.sectionLabels && data.sectionLabels.length) {
