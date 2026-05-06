@@ -50,7 +50,7 @@ module.exports = async (req, res) => {
           };
         });
         // Ангийн мэдээлэл (competition оролцуулсан) хариунд багтаах
-        const cInfo = await pool.query('SELECT id, name, join_code, teacher_email, grade, competition FROM classrooms WHERE id=$1', [classroom_id]);
+        const cInfo = await pool.query('SELECT id, name, join_code, teacher_email, grade, competition, lessons FROM classrooms WHERE id=$1', [classroom_id]);
         return res.json({ ok: true, students, classroom: cInfo.rows[0] || null });
       }
 
@@ -95,6 +95,17 @@ module.exports = async (req, res) => {
         if (!fields.length) return res.json({ ok: true });
         values.push(classroom_id);
         const r = await pool.query(`UPDATE classrooms SET ${fields.join(', ')} WHERE id=$${idx} RETURNING *`, values);
+        return res.json({ ok: true, classroom: r.rows[0] });
+      }
+
+      // Ангийн нууц хичээлийг хадгалах/шинэчлэх (replace whole list)
+      if (action === 'updateLessons') {
+        const { lessons } = req.body || {};
+        if (!classroom_id || !teacher_email) return res.status(400).json({ ok: false, error: 'Missing fields' });
+        const own = await pool.query('SELECT id FROM classrooms WHERE id=$1 AND teacher_email=$2', [classroom_id, teacher_email]);
+        if (!own.rows.length) return res.status(403).json({ ok: false, error: 'Эрх байхгүй' });
+        const arr = Array.isArray(lessons) ? lessons : [];
+        const r = await pool.query('UPDATE classrooms SET lessons=$1 WHERE id=$2 RETURNING *', [JSON.stringify(arr), classroom_id]);
         return res.json({ ok: true, classroom: r.rows[0] });
       }
 

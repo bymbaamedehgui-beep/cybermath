@@ -97,8 +97,9 @@ module.exports = async (req, res) => {
       )
     `);
 
-    // Classrooms — competition талбар
+    // Classrooms — competition + ангийн нууц хичээлүүд
     await pool.query(`ALTER TABLE classrooms ADD COLUMN IF NOT EXISTS competition JSONB`).catch(()=>{});
+    await pool.query(`ALTER TABLE classrooms ADD COLUMN IF NOT EXISTS lessons JSONB DEFAULT '[]'::jsonb`).catch(()=>{});
 
     res.status(200).json({ ok: true, message: 'Tables ready' });
   } catch (e) {
