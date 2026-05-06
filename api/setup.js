@@ -101,6 +101,9 @@ module.exports = async (req, res) => {
     await pool.query(`ALTER TABLE classrooms ADD COLUMN IF NOT EXISTS competition JSONB`).catch(()=>{});
     await pool.query(`ALTER TABLE classrooms ADD COLUMN IF NOT EXISTS lessons JSONB DEFAULT '[]'::jsonb`).catch(()=>{});
 
+    // Tournaments — нэмэлт талбарууд
+    await pool.query(`ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS seconds_per_question INT DEFAULT 30`).catch(()=>{});
+
     // Ангийн нууц хичээлийн гүйцэтгэлийн attempts
     await pool.query(`
       CREATE TABLE IF NOT EXISTS classroom_lesson_attempts (

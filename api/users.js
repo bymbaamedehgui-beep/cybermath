@@ -388,7 +388,7 @@ module.exports = async (req, res) => {
       // ===== MATHLET TOURNAMENT =====
       // Багш Room үүсгэх
       if (action === 'createTournament') {
-        const { classroomId, title, lessons, questionCount, prizeXp } = req.body || {};
+        const { classroomId, title, lessons, questionCount, prizeXp, secondsPerQuestion } = req.body || {};
         if (!classroomId || !lessons || !lessons.length) return res.json({ ok: false, error: 'Missing fields' });
         const qRes = await pool.query(
           `SELECT id, text, choices, correct, image, hint, node_id, type FROM questions
@@ -396,7 +396,6 @@ module.exports = async (req, res) => {
              AND (type IS NULL OR type = 'choice')`,
           [lessons]
         );
-        // Choices хоосон бодлогуудыг JS дээр шүүх (4 сонголттой л байх ёстой)
         let validQs = qRes.rows.filter(q => {
           let ch = q.choices;
           if (typeof ch === 'string') {
@@ -408,13 +407,26 @@ module.exports = async (req, res) => {
         const limit = Math.min(parseInt(questionCount) || 10, allQs.length);
         const selected = allQs.slice(0, limit);
         if (!selected.length) return res.json({ ok: false, error: 'Сонгосон хичээлүүдэд асуулт байхгүй' });
-        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        // 6 оронтой тоо (давхцлыг шалгана)
         let code = '';
-        for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+        for (let attempt = 0; attempt < 5; attempt++) {
+          let c = '';
+          for (let i = 0; i < 6; i++) c += String(Math.floor(Math.random() * 10));
+          const ex = await pool.query('SELECT 1 FROM tournaments WHERE room_code=$1', [c]);
+          if (!ex.rows.length) { code = c; break; }
+        }
+        if (!code) {
+          let c = '';
+          for (let i = 0; i < 6; i++) c += String(Math.floor(Math.random() * 10));
+          code = c;
+        }
+        const seconds = parseInt(secondsPerQuestion) || 30;
+        // seconds_per_question багана нэмэгдсэн эсэхийг шалгах
+        try { await pool.query(`ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS seconds_per_question INT DEFAULT 30`); } catch(e) {}
         const r = await pool.query(
-          `INSERT INTO tournaments (room_code, teacher_email, classroom_id, title, questions, prize_xp, status, current_question, current_phase)
-           VALUES ($1, $2, $3, $4, $5, $6, 'lobby', 0, 'waiting') RETURNING *`,
-          [code, email, classroomId, title || 'Mathlet тэмцээн', JSON.stringify(selected), JSON.stringify(prizeXp || {1:100,2:50,3:25})]
+          `INSERT INTO tournaments (room_code, teacher_email, classroom_id, title, questions, prize_xp, status, current_question, current_phase, seconds_per_question)
+           VALUES ($1, $2, $3, $4, $5, $6, 'lobby', 0, 'waiting', $7) RETURNING *`,
+          [code, email, classroomId, title || 'Mathlet тэмцээн', JSON.stringify(selected), JSON.stringify(prizeXp || {1:100,2:50,3:25}), seconds]
         );
         return res.json({ ok: true, tournament: r.rows[0] });
       }
