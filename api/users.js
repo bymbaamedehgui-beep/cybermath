@@ -389,8 +389,9 @@ module.exports = async (req, res) => {
       // ===== MATHLET TOURNAMENT =====
       // Багш Room үүсгэх
       if (action === 'createTournament') {
-        const { classroomId, title, lessons, questionCount, prizeXp, secondsPerQuestion } = req.body || {};
+        const { classroomId, title, lessons, questionCount, prizeXp, secondsPerQuestion, mode } = req.body || {};
         if (!classroomId || !lessons || !lessons.length) return res.json({ ok: false, error: 'Missing fields' });
+        const tournamentMode = (mode === 'paper') ? 'paper' : 'phone';
         const qRes = await pool.query(
           `SELECT id, text, choices, correct, image, hint, node_id, type FROM questions
            WHERE node_id = ANY($1::int[])
@@ -422,14 +423,78 @@ module.exports = async (req, res) => {
           code = c;
         }
         const seconds = parseInt(secondsPerQuestion) || 30;
-        // seconds_per_question багана нэмэгдсэн эсэхийг шалгах
+        // seconds_per_question + mode баганууд нэмэгдсэн эсэхийг шалгах
         try { await pool.query(`ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS seconds_per_question INT DEFAULT 30`); } catch(e) {}
+        try { await pool.query(`ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS mode TEXT DEFAULT 'phone'`); } catch(e) {}
+
+        // Цаасаар горим бол: ангийн бүх сурагчийг автоматаар players-д бөглөнө (нэгдэх шаардлагагүй)
+        let players = {};
+        let scores  = {};
+        if (tournamentMode === 'paper') {
+          const m = await pool.query(`
+            SELECT u.email, u.first_name, u.last_name, u.avatar, u.profile_image
+            FROM class_members cm
+            JOIN users u ON u.email = cm.student_email
+            WHERE cm.classroom_id = $1
+            ORDER BY u.last_name, u.first_name
+          `, [classroomId]);
+          m.rows.forEach((s, idx) => {
+            players[s.email] = {
+              email: s.email,
+              name: ((s.last_name || '') + ' ' + (s.first_name || '')).trim() || s.email,
+              avatar: s.profile_image || s.avatar || 'default',
+              cardNumber: idx + 1,
+              joinedAt: new Date().toISOString()
+            };
+            scores[s.email] = 0;
+          });
+        }
+
         const r = await pool.query(
-          `INSERT INTO tournaments (room_code, teacher_email, classroom_id, title, questions, prize_xp, status, current_question, current_phase, seconds_per_question)
-           VALUES ($1, $2, $3, $4, $5, $6, 'lobby', 0, 'waiting', $7) RETURNING *`,
-          [code, email, classroomId, title || 'Mathlet тэмцээн', JSON.stringify(selected), JSON.stringify(prizeXp || {1:100,2:50,3:25}), seconds]
+          `INSERT INTO tournaments (room_code, teacher_email, classroom_id, title, questions, prize_xp, status, current_question, current_phase, seconds_per_question, mode, players, scores)
+           VALUES ($1, $2, $3, $4, $5, $6, 'lobby', 0, 'waiting', $7, $8, $9, $10) RETURNING *`,
+          [code, email, classroomId, title || 'Mathlet тэмцээн', JSON.stringify(selected), JSON.stringify(prizeXp || {1:100,2:50,3:25}), seconds, tournamentMode, JSON.stringify(players), JSON.stringify(scores)]
         );
         return res.json({ ok: true, tournament: r.rows[0] });
+      }
+
+      // Цаасаар горимд: багш scan-аас тооцсон хариултуудыг batch-аар бичих
+      if (action === 'submitPaperBatch') {
+        const { roomCode, questionIndex, answers: paperAnswers } = req.body || {};
+        if (!roomCode || !Array.isArray(paperAnswers)) return res.json({ ok: false, error: 'Missing fields' });
+        const r = await pool.query('SELECT * FROM tournaments WHERE room_code=$1 AND teacher_email=$2', [roomCode.toUpperCase(), email]);
+        if (!r.rows.length) return res.status(403).json({ ok: false, error: 'Зөвшөөрөлгүй' });
+        const t = r.rows[0];
+        if (t.mode !== 'paper') return res.json({ ok: false, error: 'Зөвхөн цаас горимд' });
+        if (t.current_phase !== 'answering') return res.json({ ok: false, error: 'Хариулт хүлээж байгаа үе биш' });
+        if (parseInt(questionIndex) !== t.current_question) return res.json({ ok: false, error: 'Асуулт солигдсон' });
+
+        const qs = t.questions || [];
+        const q = qs[t.current_question];
+        let choices = q.choices || [];
+        if (typeof choices === 'string') { try { choices = JSON.parse(choices); } catch(e) { choices = []; } }
+        const correctIdx = choices.indexOf(q.correct);
+
+        const answers = t.answers || {};
+        const scores  = t.scores  || {};
+        const players = t.players || {};
+        let countedNew = 0;
+
+        paperAnswers.forEach(a => {
+          const em = (a.email || '').trim();
+          const idx = parseInt(a.answer);
+          if (!em || !players[em] || isNaN(idx) || idx < 0 || idx > 3) return;
+          if (answers[em] !== undefined) return; // нэг удаа л зөвшөөрнө
+          const isCorrect = idx === correctIdx;
+          answers[em] = { answer: idx, isCorrect: isCorrect, time: 0, source: 'paper' };
+          if (isCorrect) {
+            scores[em] = (scores[em] || 0) + 100;
+          }
+          countedNew++;
+        });
+
+        await pool.query('UPDATE tournaments SET answers=$1, scores=$2 WHERE id=$3', [JSON.stringify(answers), JSON.stringify(scores), t.id]);
+        return res.json({ ok: true, countedNew });
       }
 
       // Сурагч room-руу нэгдэх
