@@ -8,7 +8,14 @@ module.exports = async (req, res) => {
 
   try {
     if (req.method === 'GET') {
-      const { topic, grade, node_id } = req.query || {};
+      const { topic, grade, node_id, ids } = req.query || {};
+      // ids=1,2,3 — batch lookup by id
+      if (ids) {
+        const idList = String(ids).split(',').map(function(x){ return parseInt(x); }).filter(function(x){ return !isNaN(x); });
+        if (!idList.length) return res.json({ ok: true, questions: [] });
+        const r0 = await pool.query('SELECT * FROM questions WHERE id = ANY($1::bigint[])', [idList]);
+        return res.json({ ok: true, questions: r0.rows });
+      }
       let q = 'SELECT * FROM questions';
       const conds = [], vals = [];
       if (topic)   { conds.push(`topic=$${vals.length+1}`); vals.push(topic); }
