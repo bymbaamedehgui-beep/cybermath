@@ -92,7 +92,8 @@ module.exports = async (req, res) => {
 
     if (req.method === 'PUT') {
       const { email, action, plan, xp, gems, hearts, streak, avatar, completed_lesson,
-              stars_data, streak_data, current_node_id, hearts_empty_time, profile_image } = req.body || {};
+              stars_data, streak_data, current_node_id, hearts_empty_time, profile_image,
+              first_name, last_name, grade } = req.body || {};
       if (!email) return res.status(400).json({ ok: false, error: 'Missing email' });
 
       // Auth шалгалт — token байвал email-тай таарч байх ёстой
@@ -589,6 +590,9 @@ module.exports = async (req, res) => {
       if (streak_data       !== undefined) { sets.push(`streak_data=$${i++}`);       vals.push(streak_data); }
       if (current_node_id   !== undefined) { sets.push(`current_node_id=$${i++}`);   vals.push(current_node_id); }
       if (profile_image     !== undefined) { sets.push(`profile_image=$${i++}`);     vals.push(profile_image); }
+      if (first_name        !== undefined) { sets.push(`first_name=$${i++}`);        vals.push(String(first_name).trim().slice(0,60)); }
+      if (last_name         !== undefined) { sets.push(`last_name=$${i++}`);         vals.push(String(last_name).trim().slice(0,60)); }
+      if (grade             !== undefined) { sets.push(`grade=$${i++}`);             vals.push(grade); }
       if (hearts_empty_time !== undefined) {
         sets.push(`hearts_empty_time=$${i++}`);
         vals.push(hearts_empty_time === null ? null : new Date(hearts_empty_time));
