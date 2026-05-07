@@ -426,6 +426,7 @@ module.exports = async (req, res) => {
         // seconds_per_question + mode баганууд нэмэгдсэн эсэхийг шалгах
         try { await pool.query(`ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS seconds_per_question INT DEFAULT 30`); } catch(e) {}
         try { await pool.query(`ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS mode TEXT DEFAULT 'phone'`); } catch(e) {}
+        try { await pool.query(`ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS answer_history JSONB DEFAULT '{}'::jsonb`); } catch(e) {}
 
         // Цаасаар горим бол: ангийн бүх сурагчийг автоматаар players-д бөглөнө (нэгдэх шаардлагагүй)
         let players = {};
@@ -567,6 +568,11 @@ module.exports = async (req, res) => {
         } else if (control === 'next') {
           const next = t.current_question + 1;
           const qs = t.questions || [];
+          // Одоогийн асуултын хариултуудыг history-д хуулна
+          let history = t.answer_history || {};
+          if (typeof history === 'string') { try { history = JSON.parse(history); } catch(e) { history = {}; } }
+          history[String(t.current_question)] = t.answers || {};
+          try { await pool.query(`ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS answer_history JSONB DEFAULT '{}'::jsonb`); } catch(e) {}
           if (next >= qs.length) {
             const scores = t.scores || {};
             const prize = t.prize_xp || {1:100,2:50,3:25};
@@ -577,15 +583,19 @@ module.exports = async (req, res) => {
                 await pool.query('UPDATE users SET xp = xp + $1 WHERE email=$2', [xp, ranked[i][0]]);
               }
             }
-            await pool.query(`UPDATE tournaments SET status='finished', current_phase='finished' WHERE id=$1`, [t.id]);
+            await pool.query(`UPDATE tournaments SET status='finished', current_phase='finished', answer_history=$2 WHERE id=$1`, [t.id, JSON.stringify(history)]);
           } else {
             await pool.query(
-              `UPDATE tournaments SET current_question=$1, current_phase='answering', question_started_at=NOW(), answers='{}' WHERE id=$2`,
-              [next, t.id]
+              `UPDATE tournaments SET current_question=$1, current_phase='answering', question_started_at=NOW(), answers='{}', answer_history=$3 WHERE id=$2`,
+              [next, t.id, JSON.stringify(history)]
             );
           }
         } else if (control === 'finish') {
           // Тэмцээнийг яг одоо дуусгаад шагнал хуваарилах (асуулт дуустай биш ч)
+          let history = t.answer_history || {};
+          if (typeof history === 'string') { try { history = JSON.parse(history); } catch(e) { history = {}; } }
+          history[String(t.current_question)] = t.answers || {};
+          try { await pool.query(`ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS answer_history JSONB DEFAULT '{}'::jsonb`); } catch(e) {}
           const scores = t.scores || {};
           const prize = t.prize_xp || {1:100,2:50,3:25};
           const ranked = Object.entries(scores).sort((a, b) => b[1] - a[1]);
@@ -595,7 +605,7 @@ module.exports = async (req, res) => {
               await pool.query('UPDATE users SET xp = xp + $1 WHERE email=$2', [xp, ranked[i][0]]);
             }
           }
-          await pool.query(`UPDATE tournaments SET status='finished', current_phase='finished' WHERE id=$1`, [t.id]);
+          await pool.query(`UPDATE tournaments SET status='finished', current_phase='finished', answer_history=$2 WHERE id=$1`, [t.id, JSON.stringify(history)]);
         } else if (control === 'cancel') {
           await pool.query(`DELETE FROM tournaments WHERE id=$1`, [t.id]);
         }
