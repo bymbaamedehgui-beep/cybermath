@@ -38,20 +38,29 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === 'PUT') {
-      const { id, text, correct, choices, hint, node_id, type, image, grade } = req.body || {};
-      if (!id || !text || !correct) return res.status(400).json({ ok: false, error: 'Missing fields' });
-      // grade талбар оруулсан тохиолдолд шинэчилнэ; эс бөгөөс хадгалагдсан утгыг хэвээр үлдээх
-      if (grade !== undefined) {
-        await pool.query(
-          'UPDATE questions SET text=$2, correct=$3, choices=$4, hint=$5, node_id=$6, type=$7, image=$8, grade=$9 WHERE id=$1',
-          [id, text, correct, choices, hint ? JSON.stringify(hint) : null, node_id || null, type || 'choice', image || null, grade || null]
-        );
-      } else {
-        await pool.query(
-          'UPDATE questions SET text=$2, correct=$3, choices=$4, hint=$5, node_id=$6, type=$7, image=$8 WHERE id=$1',
-          [id, text, correct, choices, hint ? JSON.stringify(hint) : null, node_id || null, type || 'choice', image || null]
-        );
-      }
+      const body = req.body || {};
+      const id = body.id;
+      if (!id) return res.status(400).json({ ok: false, error: 'Missing id' });
+
+      // Partial update — зөвхөн оруулсан талбарыг шинэчлэх
+      const sets = [];
+      const vals = [];
+      let i = 1;
+      const has = function(k) { return Object.prototype.hasOwnProperty.call(body, k); };
+
+      if (has('text'))     { sets.push(`text=$${++i}`);    vals.push(body.text); }
+      if (has('correct'))  { sets.push(`correct=$${++i}`); vals.push(body.correct); }
+      if (has('choices'))  { sets.push(`choices=$${++i}`); vals.push(body.choices); }
+      if (has('hint'))     { sets.push(`hint=$${++i}`);    vals.push(body.hint ? (typeof body.hint === 'string' ? body.hint : JSON.stringify(body.hint)) : null); }
+      if (has('node_id'))  { sets.push(`node_id=$${++i}`); vals.push(body.node_id || null); }
+      if (has('type'))     { sets.push(`type=$${++i}`);    vals.push(body.type || 'choice'); }
+      if (has('image'))    { sets.push(`image=$${++i}`);   vals.push(body.image || null); }
+      if (has('grade'))    { sets.push(`grade=$${++i}`);   vals.push(body.grade || null); }
+
+      if (!sets.length) return res.json({ ok: true, noop: true });
+
+      // $1-ийг id-д ашиглах учир sets-д $2-аас эхэлсэн
+      await pool.query(`UPDATE questions SET ${sets.join(', ')} WHERE id=$1`, [id, ...vals]);
       return res.json({ ok: true });
     }
 
