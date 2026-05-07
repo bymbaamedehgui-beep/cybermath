@@ -121,6 +121,20 @@ module.exports = async (req, res) => {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_cla_classroom_lesson ON classroom_lesson_attempts(classroom_id, lesson_id)`).catch(()=>{});
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_cla_student ON classroom_lesson_attempts(student_email)`).catch(()=>{});
 
+    // Бодлогод алдаа байна гэсэн хэрэглэгчийн мэдэгдэл
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS question_reports (
+        id BIGSERIAL PRIMARY KEY,
+        question_id INT NOT NULL,
+        reporter_email TEXT NOT NULL,
+        reason TEXT,
+        status TEXT NOT NULL DEFAULT 'open',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        resolved_at TIMESTAMPTZ
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_qr_status ON question_reports(status, created_at DESC)`).catch(()=>{});
+
     res.status(200).json({ ok: true, message: 'Tables ready' });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });

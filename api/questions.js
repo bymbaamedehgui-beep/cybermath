@@ -8,7 +8,35 @@ module.exports = async (req, res) => {
 
   try {
     if (req.method === 'GET') {
-      const { topic, grade, node_id, ids } = req.query || {};
+      const { topic, grade, node_id, ids, reports } = req.query || {};
+
+      // /api/questions?reports=open — admin-д нээлттэй мэдэгдлийн жагсаалт
+      if (reports) {
+        try {
+          // Жагсаалт + reporter-ийн нэр + асуултын текст / зөв хариулт-уудыг JOIN-оор
+          const r = await pool.query(`
+            SELECT
+              qr.id, qr.question_id, qr.reporter_email, qr.reason, qr.status,
+              qr.created_at, qr.resolved_at,
+              q.text AS question_text, q.correct AS question_correct, q.choices AS question_choices,
+              u.first_name, u.last_name
+            FROM question_reports qr
+            LEFT JOIN questions q ON q.id = qr.question_id
+            LEFT JOIN users u ON LOWER(u.email) = LOWER(qr.reporter_email)
+            WHERE qr.status = $1
+            ORDER BY qr.created_at DESC
+            LIMIT 200
+          `, [reports]);
+          return res.json({ ok: true, reports: r.rows });
+        } catch(e) {
+          // Хэрэв table байхгүй бол хоосон буцаана (setup ажиллаагүй)
+          if (/relation .+ does not exist/i.test(e.message)) {
+            return res.json({ ok: true, reports: [] });
+          }
+          return res.status(500).json({ ok: false, error: e.message });
+        }
+      }
+
       // ids=1,2,3 — batch lookup by id
       if (ids) {
         const idList = String(ids).split(',').map(function(x){ return parseInt(x); }).filter(function(x){ return !isNaN(x); });
@@ -28,7 +56,45 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === 'POST') {
-      const { text, topic, grade, correct, choices, hint, node_id, type, image } = req.body || {};
+      const body = req.body || {};
+
+      // Хэрэглэгчээс ирсэн "Алдаа мэдэгдэх"
+      if (body.action === 'reportQuestion') {
+        const { question_id, reporter_email, reason } = body;
+        if (!question_id || !reporter_email) return res.status(400).json({ ok: false, error: 'Missing fields' });
+        // Table байхгүй бол үүсгэх (lazy)
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS question_reports (
+            id BIGSERIAL PRIMARY KEY,
+            question_id INT NOT NULL,
+            reporter_email TEXT NOT NULL,
+            reason TEXT,
+            status TEXT NOT NULL DEFAULT 'open',
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            resolved_at TIMESTAMPTZ
+          )
+        `).catch(()=>{});
+        const r = await pool.query(
+          'INSERT INTO question_reports (question_id, reporter_email, reason) VALUES ($1,$2,$3) RETURNING id',
+          [parseInt(question_id), String(reporter_email).toLowerCase(), String(reason || '').slice(0, 500)]
+        );
+        return res.json({ ok: true, id: r.rows[0].id });
+      }
+
+      // Admin: report-ийг шийдсэн / устгасан гэж тэмдэглэх
+      if (body.action === 'resolveReport') {
+        const { id, status } = body;
+        if (!id) return res.status(400).json({ ok: false, error: 'Missing id' });
+        const newStatus = (status === 'dismissed') ? 'dismissed' : 'resolved';
+        await pool.query(
+          'UPDATE question_reports SET status=$1, resolved_at=NOW() WHERE id=$2',
+          [newStatus, parseInt(id)]
+        );
+        return res.json({ ok: true });
+      }
+
+      // Үндсэн POST — асуулт үүсгэх (хуучин логик)
+      const { text, topic, grade, correct, choices, hint, node_id, type, image } = body;
       if (!text || !correct) return res.status(400).json({ ok: false, error: 'Missing fields' });
       const r = await pool.query(
         'INSERT INTO questions (text,topic,grade,correct,choices,hint,node_id,type,image) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',

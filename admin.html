@@ -30,6 +30,10 @@ function admLogin() {
         if (typeof renderNodesList === 'function') renderNodesList();
         if (typeof renderQuestions === 'function') renderQuestions();
         if (typeof loadUsers === 'function') loadUsers();
+        if (typeof refreshReportsBadge === 'function') {
+          refreshReportsBadge();
+          setInterval(refreshReportsBadge, 60000);
+        }
       } else {
         if (err) err.textContent = d.error || 'Нэвтрэх алдаа';
       }
@@ -97,6 +101,96 @@ function showPage(name, btn) {
   if (name === 'nodes') { renderNodesList(); renderSectionLabelsList(); }
   if (name === 'users') loadUsers();
   if (name === 'log') loadLogs();
+  if (name === 'reports') loadQuestionReports();
+}
+
+// Алдааны мэдэгдлүүдийг ачаалж жагсаах
+async function loadQuestionReports() {
+  var listEl = document.getElementById('reports-list');
+  if (!listEl) return;
+  listEl.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--muted);">Уншиж байна...</td></tr>';
+  try {
+    var r = await adminFetch('/api/questions?reports=open');
+    var d = await r.json();
+    var reports = (d && d.reports) || [];
+    document.getElementById('reports-count-info').textContent = reports.length + ' нээлттэй мэдэгдэл';
+    if (!reports.length) {
+      listEl.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:50px;color:var(--muted);">🎉 Нээлттэй мэдэгдэл алга</td></tr>';
+      return;
+    }
+    listEl.innerHTML = reports.map(function(rep){
+      var dt = new Date(rep.created_at);
+      var dtStr = dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0') + ' ' + String(dt.getHours()).padStart(2,'0') + ':' + String(dt.getMinutes()).padStart(2,'0');
+      var reporterName = ((rep.last_name || '') + ' ' + (rep.first_name || '')).trim() || rep.reporter_email;
+      var qText = String(rep.question_text || '').replace(/<[^>]+>/g, '').slice(0, 100);
+      var reasonHtml = rep.reason ? String(rep.reason).slice(0, 200) : '<em style="color:var(--muted);">тайлбаргүй</em>';
+      return '<tr style="cursor:pointer;" onclick="goEditQuestionFromReport(' + rep.question_id + ', ' + rep.id + ')">'
+        + '<td style="font-weight:800;color:var(--purple-light);">#' + rep.question_id + '</td>'
+        + '<td style="max-width:340px;"><div style="font-weight:700;font-size:0.88rem;color:var(--text);">' + qText + '</div><div style="font-size:0.78rem;color:var(--muted);margin-top:3px;">📝 ' + reasonHtml + '</div></td>'
+        + '<td style="font-size:0.85rem;">' + reporterName + '</td>'
+        + '<td style="font-size:0.78rem;color:var(--muted);">' + dtStr + '</td>'
+        + '<td style="text-align:right;">'
+        +   '<button onclick="event.stopPropagation();dismissReport(' + rep.id + ')" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.75rem;font-weight:700;margin-right:4px;">Үл хайхрах</button>'
+        +   '<button onclick="event.stopPropagation();goEditQuestionFromReport(' + rep.question_id + ', ' + rep.id + ')" style="background:var(--purple);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.75rem;font-weight:800;">Засах →</button>'
+        + '</td>'
+        + '</tr>';
+    }).join('');
+  } catch(e) {
+    listEl.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:#dc2626;">Алдаа: ' + (e.message || e) + '</td></tr>';
+  }
+}
+
+// Badge-ийг 60 секунд тутамд шинэчлэх
+async function refreshReportsBadge() {
+  try {
+    var r = await adminFetch('/api/questions?reports=open');
+    var d = await r.json();
+    var n = ((d && d.reports) || []).length;
+    var b = document.getElementById('reports-badge');
+    if (b) {
+      b.style.display = n > 0 ? 'inline-block' : 'none';
+      b.textContent = n > 99 ? '99+' : n;
+    }
+  } catch(e){}
+}
+
+// Мэдэгдэл дээр дарахад → Бодлогууд хуудас руу шилжиж тэр асуултыг засах горимд оруулах
+async function goEditQuestionFromReport(questionId, reportId) {
+  // Reports → Questions хуудас руу шилжих
+  var qNavBtn = document.querySelector('.nav-item[onclick*="\'questions\'"]');
+  showPage('questions', qNavBtn);
+  // Question жагсаалт ачаалагдтал жаахан хүлээгээд editQuestion дуудах
+  for (var i = 0; i < 30; i++) {
+    if (typeof editQuestion === 'function' && document.getElementById('q-list')) break;
+    await new Promise(function(r){ setTimeout(r, 100); });
+  }
+  if (typeof editQuestion === 'function') {
+    try { editQuestion(questionId); } catch(e) { console.warn('editQuestion алдаа:', e); }
+  }
+  // Засах горимд орсон бол мэдэгдэлийг "resolved" гэж тэмдэглэх
+  if (reportId) {
+    setTimeout(function(){
+      adminFetch('/api/questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'resolveReport', id: reportId })
+      }).then(function(){ refreshReportsBadge(); }).catch(function(){});
+    }, 500);
+  }
+}
+
+// Мэдэгдэлийг шууд "үл хайхрах" болгох
+async function dismissReport(reportId) {
+  if (!confirm('Энэ мэдэгдэлийг үл хайхрах уу?')) return;
+  try {
+    await adminFetch('/api/questions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'resolveReport', id: reportId, status: 'dismissed' })
+    });
+    loadQuestionReports();
+    refreshReportsBadge();
+  } catch(e) { alert('Алдаа: ' + (e.message || e)); }
 }
 function toggleAdmPw() {
   var inp = document.getElementById('adm-pass');
@@ -584,6 +678,11 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
         Нууц үг сэргээх
       </button>
       <div class="nav-section">Бусад</div>
+      <button class="nav-item" onclick="showPage('reports',this)" style="position:relative;">
+        <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><line x1="4" y1="22" x2="4" y2="15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Алдааны мэдэгдэл
+        <span id="reports-badge" style="display:none;margin-left:auto;background:#dc2626;color:#fff;border-radius:100px;padding:2px 7px;font-size:0.62rem;font-weight:900;min-width:14px;text-align:center;">0</span>
+      </button>
       <button class="nav-item" onclick="showPage('log',this)">
         <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M9 5H7C5.9 5 5 5.9 5 7V19C5 20.1 5.9 21 7 21H17C18.1 21 19 20.1 19 19V7C19 5.9 18.1 5 17 5H15M9 5C9 5.6 9.4 6 10 6H14C14.6 6 15 5.6 15 5" stroke="currentColor" stroke-width="1.8"/><path d="M9 12H15M9 16H12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
         Хандалтын лог
@@ -947,6 +1046,22 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
           </div>
           <button class="add-btn" onclick="doAdminReset()" style="width:100%;">Нууц үг шинэчлэх</button>
           <div id="reset-result" class="reset-result"></div>
+        </div>
+      </div>
+
+      <!-- Reports -->
+      <div class="page" id="page-reports" style="display:none;">
+        <div class="page-title">Алдааны мэдэгдэл</div>
+        <div class="page-sub">Багш/сурагчдаас илгээсэн бодлогын алдаа. Дарж засах горимд шилжинэ.</div>
+        <div class="table-card">
+          <div class="table-header">
+            <div class="table-title">Нээлттэй мэдэгдлүүд</div>
+            <div id="reports-count-info" style="font-size:0.8rem;color:var(--muted);font-weight:700;">—</div>
+          </div>
+          <table>
+            <thead><tr><th>ID</th><th>Бодлого + Тайлбар</th><th>Илгээгч</th><th>Огноо</th><th style="text-align:right;">Үйлдэл</th></tr></thead>
+            <tbody id="reports-list"></tbody>
+          </table>
         </div>
       </div>
 
