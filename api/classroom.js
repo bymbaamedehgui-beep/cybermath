@@ -201,6 +201,36 @@ module.exports = async (req, res) => {
         return res.json({ ok: true, classroom });
       }
 
+      // Багш сурагчийг бүртгэлтэй имэйлээр шууд ангид нэмэх
+      if (action === 'addStudent') {
+        if (!classroom_id || !teacher_email || !student_email) {
+          return res.status(400).json({ ok: false, error: 'Missing fields' });
+        }
+        // Багшийн ангий эзэмшлийг шалгах
+        const own = await pool.query('SELECT id, name FROM classrooms WHERE id=$1 AND teacher_email=$2', [classroom_id, teacher_email]);
+        if (!own.rows.length) return res.status(403).json({ ok: false, error: 'Эрх байхгүй' });
+        // Сурагч имэйлээр бүртгэлтэй эсэхийг шалгах
+        const cleanEmail = String(student_email).trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+          return res.status(400).json({ ok: false, error: 'Имэйл формат буруу' });
+        }
+        const u = await pool.query('SELECT email, first_name, last_name, avatar, profile_image FROM users WHERE LOWER(email)=$1', [cleanEmail]);
+        if (!u.rows.length) {
+          return res.status(404).json({ ok: false, error: 'Энэ имэйлээр бүртгэлтэй сурагч олдсонгүй' });
+        }
+        const realEmail = u.rows[0].email;
+        // Аль хэдийн ангид байгаа эсэхийг шалгах
+        const existing = await pool.query('SELECT id FROM class_members WHERE classroom_id=$1 AND student_email=$2', [classroom_id, realEmail]);
+        if (existing.rows.length) {
+          return res.json({ ok: true, alreadyMember: true, student: u.rows[0] });
+        }
+        await pool.query(
+          'INSERT INTO class_members (classroom_id, student_email) VALUES ($1,$2) ON CONFLICT DO NOTHING',
+          [classroom_id, realEmail]
+        );
+        return res.json({ ok: true, student: u.rows[0] });
+      }
+
       return res.status(400).json({ ok: false, error: 'Unknown action' });
     }
 
