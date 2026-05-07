@@ -444,6 +444,7 @@ module.exports = async (req, res) => {
               name: ((s.last_name || '') + ' ' + (s.first_name || '')).trim() || s.email,
               avatar: s.profile_image || s.avatar || 'default',
               cardNumber: idx + 1,
+              labelRotation: Math.floor(Math.random() * 4), // 0..3 — ABCD-ийн санамсаргүй эргэлт
               joinedAt: new Date().toISOString()
             };
             scores[s.email] = 0;
