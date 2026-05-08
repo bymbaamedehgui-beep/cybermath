@@ -583,7 +583,8 @@ module.exports = async (req, res) => {
                 await pool.query('UPDATE users SET xp = xp + $1 WHERE email=$2', [xp, ranked[i][0]]);
               }
             }
-            await pool.query(`UPDATE tournaments SET status='finished', current_phase='finished', answer_history=$2 WHERE id=$1`, [t.id, JSON.stringify(history)]);
+            // Тэмцээн дуусахад QR хариулт/scan түүхийг бүрэн устгана
+            await pool.query(`UPDATE tournaments SET status='finished', current_phase='finished', answers='{}', answer_history='{}' WHERE id=$1`, [t.id]);
           } else {
             await pool.query(
               `UPDATE tournaments SET current_question=$1, current_phase='answering', question_started_at=NOW(), answers='{}', answer_history=$3 WHERE id=$2`,
@@ -605,7 +606,8 @@ module.exports = async (req, res) => {
               await pool.query('UPDATE users SET xp = xp + $1 WHERE email=$2', [xp, ranked[i][0]]);
             }
           }
-          await pool.query(`UPDATE tournaments SET status='finished', current_phase='finished', answer_history=$2 WHERE id=$1`, [t.id, JSON.stringify(history)]);
+          // Тэмцээн дуусахад QR хариулт/scan түүхийг бүрэн устгана
+          await pool.query(`UPDATE tournaments SET status='finished', current_phase='finished', answers='{}', answer_history='{}' WHERE id=$1`, [t.id]);
         } else if (control === 'cancel') {
           await pool.query(`DELETE FROM tournaments WHERE id=$1`, [t.id]);
         }
