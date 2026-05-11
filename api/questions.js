@@ -94,11 +94,13 @@ module.exports = async (req, res) => {
       }
 
       // Үндсэн POST — асуулт үүсгэх (хуучин логик)
-      const { text, topic, grade, correct, choices, hint, node_id, type, image } = body;
+      const { text, topic, grade, correct, choices, hint, node_id, type, image, answer_template, time_limit } = body;
       if (!text || !correct) return res.status(400).json({ ok: false, error: 'Missing fields' });
       const r = await pool.query(
-        'INSERT INTO questions (text,topic,grade,correct,choices,hint,node_id,type,image) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',
-        [text, topic, grade, correct, choices, hint ? JSON.stringify(hint) : null, node_id || null, type || 'choice', image || null]
+        'INSERT INTO questions (text,topic,grade,correct,choices,hint,node_id,type,image,answer_template,time_limit) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *',
+        [text, topic, grade, correct, choices, hint ? JSON.stringify(hint) : null, node_id || null, type || 'choice', image || null,
+         answer_template || null,
+         (time_limit != null && time_limit !== '') ? parseInt(time_limit) : null]
       );
       return res.json({ ok: true, question: r.rows[0] });
     }
@@ -122,6 +124,8 @@ module.exports = async (req, res) => {
       if (has('type'))     { sets.push(`type=$${++i}`);    vals.push(body.type || 'choice'); }
       if (has('image'))    { sets.push(`image=$${++i}`);   vals.push(body.image || null); }
       if (has('grade'))    { sets.push(`grade=$${++i}`);   vals.push(body.grade || null); }
+      if (has('answer_template')) { sets.push(`answer_template=$${++i}`); vals.push(body.answer_template || null); }
+      if (has('time_limit')) { sets.push(`time_limit=$${++i}`); vals.push((body.time_limit != null && body.time_limit !== '') ? parseInt(body.time_limit) : null); }
 
       if (!sets.length) return res.json({ ok: true, noop: true });
 

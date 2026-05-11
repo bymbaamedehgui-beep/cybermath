@@ -73,6 +73,10 @@ module.exports = async (req, res) => {
       )
     `);
     await pool.query(`ALTER TABLE questions ADD COLUMN IF NOT EXISTS node_id INT`).catch(()=>{});
+    await pool.query(`ALTER TABLE questions ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'choice'`).catch(()=>{});
+    await pool.query(`ALTER TABLE questions ADD COLUMN IF NOT EXISTS image TEXT`).catch(()=>{});
+    await pool.query(`ALTER TABLE questions ADD COLUMN IF NOT EXISTS answer_template TEXT`).catch(()=>{});
+    await pool.query(`ALTER TABLE questions ADD COLUMN IF NOT EXISTS time_limit INT`).catch(()=>{});
 
     // Nodes table
     await pool.query(`

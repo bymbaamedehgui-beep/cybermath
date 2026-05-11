@@ -927,6 +927,16 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
               <input type="hidden" id="q-fill-answer">
               <div style="font-size:0.72rem;color:var(--muted);margin-top:4px;">Alt+Z → томьёо оруулах | Дарахад виртуал клавиатур нээгдэнэ</div>
             </div>
+            <div class="form-group" style="margin-top:10px;">
+              <label>Хариултын загвар <span style="color:var(--muted);font-weight:600;">(заавал биш)</span></label>
+              <input id="q-answer-template" type="text" class="form-input" placeholder="Жнь: ___ см   эсвэл   ___ * 4 = ___">
+              <div style="font-size:0.72rem;color:var(--muted);margin-top:4px;">Гурван доогуур зураас (<code>___</code>) бүрийг сурагч нөхнө. Олон нөхөх хэсэгтэй бол <code>|</code> -ээр зөв хариултуудаа тусгаарла (жнь: <code>5|20</code>)</div>
+            </div>
+          </div>
+          <!-- Хариулах хугацаа -->
+          <div class="form-group" style="margin-bottom:10px;">
+            <label>⏱ Хариулах хугацаа (сек) <span style="color:var(--muted);font-weight:600;">(заавал биш)</span></label>
+            <input id="q-time-limit" type="number" min="5" max="600" class="form-input" placeholder="Жнь: 30 (хоосон бол хугацаагүй)">
           </div>
           <!-- Бодлогын зураг -->
           <div class="form-group" style="margin-bottom:12px;">
@@ -2785,13 +2795,17 @@ function openEditMathModal(targetId) {
     var msg = document.getElementById('q-msg');
     if (!text) { if(msg){msg.style.color='var(--red)';msg.textContent='Бодлогын текст оруулна уу!';} return; }
     if (!correct) { if(msg){msg.style.color='var(--red)';msg.textContent='Зөв хариулт хоосон байна!';} return; }
+    var atplEl = document.getElementById('q-answer-template');
+    var answerTpl = atplEl ? (atplEl.value || '').trim() : '';
+    var tlEl = document.getElementById('q-time-limit');
+    var timeLimit = (tlEl && tlEl.value) ? parseInt(tlEl.value) : null;
     fetch(API + '/api/questions', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({text, node_id: nodeId?parseInt(nodeId):null, correct, choices: choices, hint: (hint&&(hint.text||hint.embed||hint.image||hint.video))?hint:null, type: qtype, grade: grade})
+      body: JSON.stringify({text, node_id: nodeId?parseInt(nodeId):null, correct, choices: choices, hint: (hint&&(hint.text||hint.embed||hint.image||hint.video))?hint:null, type: qtype, grade: grade, answer_template: answerTpl || null, time_limit: timeLimit})
     }).then(r=>r.json()).then(function(data) {
       if (!data.ok) { if(msg){msg.style.color='var(--red)';msg.textContent='Алдаа: '+data.error;} return; }
       if(msg){msg.style.color='var(--green)';msg.textContent='✓ Амжилттай нэмэгдлээ!';}
-      ['q-a','q-b','q-c','q-d'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+      ['q-a','q-b','q-c','q-d','q-answer-template','q-time-limit'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
       var md = document.getElementById('q-math-display'); if(md) md.value='';
       var ht = document.getElementById('q-hint-text'); if(ht) ht.value='';
       var qEmbed = document.getElementById('q-hint-embed'); if(qEmbed) qEmbed.value='';
