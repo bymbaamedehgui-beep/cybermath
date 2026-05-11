@@ -927,10 +927,34 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
               <input type="hidden" id="q-fill-answer">
               <div style="font-size:0.72rem;color:var(--muted);margin-top:4px;">Alt+Z → томьёо оруулах | Дарахад виртуал клавиатур нээгдэнэ</div>
             </div>
-            <div class="form-group" style="margin-top:10px;">
-              <label>Хариултын загвар <span style="color:var(--muted);font-weight:600;">(заавал биш)</span></label>
-              <input id="q-answer-template" type="text" class="form-input" placeholder="Жнь: ___ см   эсвэл   ___ * 4 = ___">
-              <div style="font-size:0.72rem;color:var(--muted);margin-top:4px;">Гурван доогуур зураас (<code>___</code>) бүрийг сурагч нөхнө. Олон нөхөх хэсэгтэй бол <code>|</code> -ээр зөв хариултуудаа тусгаарла (жнь: <code>5|20</code>)</div>
+            <!-- Хэсэгчилсэн нөхөх (template) -->
+            <div class="form-group" style="margin-top:14px;background:rgba(123,82,238,0.04);border:1.5px dashed rgba(123,82,238,0.35);border-radius:10px;padding:12px;">
+              <label style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+                <span>🎯 Хэсэгчилсэн нөхөх</span>
+                <span style="color:var(--muted);font-weight:600;font-size:0.7rem;">(сурагчид зөвхөн зарим хэсгийг нь нөхүүлэх)</span>
+              </label>
+              <input id="q-template-builder" type="text" class="form-input"
+                placeholder="Жнь: 5 см   эсвэл   5 * 4 = 20"
+                style="margin-bottom:8px;">
+              <div style="font-size:0.72rem;color:var(--muted);margin-bottom:8px;">Бүтэн хариултаа бичээд нөхүүлэх хэсгээ <b>сонгож</b> доорх товчийг дар. Жнь "5 см" гэснээс "5"-г сонгох ⇒ <code>___ см</code> болж сурагч 5 гэж нөхнө.</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                <button type="button" onclick="qTplMakeBlank()" id="q-tpl-blank-btn"
+                  style="background:#7B52EE;border:none;color:#fff;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:0.82rem;font-weight:800;">
+                  🎯 Сонгосон хэсгийг нөхөх болгох
+                </button>
+                <button type="button" onclick="qTplReset()" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:7px 12px;cursor:pointer;font-size:0.82rem;font-weight:800;">↻ Цэвэрлэх</button>
+              </div>
+              <div id="q-tpl-preview" style="margin-top:8px;font-size:0.82rem;display:none;">
+                <div style="background:#fff;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:6px;">
+                  <div style="color:var(--muted);font-weight:700;font-size:0.7rem;margin-bottom:2px;">Загвар (сурагч ийн харна):</div>
+                  <div id="q-tpl-preview-text" style="font-weight:800;color:var(--text);"></div>
+                </div>
+                <div style="color:var(--muted);font-size:0.72rem;">
+                  Нөхөх хариултууд: <b id="q-tpl-preview-vals" style="color:#7B52EE;"></b>
+                </div>
+              </div>
+              <!-- Hidden fields холбож хадгална -->
+              <input type="hidden" id="q-answer-template">
             </div>
           </div>
           <!-- Хариулах хугацаа -->
@@ -1918,6 +1942,72 @@ function closeMathModal() { closeChoiceMathModal(); }
     if (fillWrap) fillWrap.style.display = (type === 'fill' || type === 'number') ? '' : 'none';
   }
 
+  // ═══ TEMPLATE BUILDER ═══
+  // Backing state: бүтэн хариулт болон нөхөх хэсгүүдийн жагсаалт
+  // _qTplBlanks: [{ value: '5' }, { value: '20' }] — дараалал чухал
+  var _qTplBlanks = [];
+  function qTplMakeBlank() {
+    var inp = document.getElementById('q-template-builder');
+    if (!inp) return;
+    var sel = window.getSelection ? null : null;
+    var start = inp.selectionStart, end = inp.selectionEnd;
+    if (start == null || end == null || start === end) {
+      alert('Эхлээд нөхүүлэх хэсгээ сонгоно уу (input дотроос).');
+      return;
+    }
+    var v = inp.value;
+    var picked = v.substring(start, end).trim();
+    if (!picked) { alert('Хоосон зай сонгогдсон байна.'); return; }
+    // Сонголтыг ___ болгоно
+    var before = v.substring(0, start);
+    var after = v.substring(end);
+    inp.value = before + '___' + after;
+    _qTplBlanks.push({ value: picked });
+    qTplUpdateHidden();
+    // Cursor-ийг ___-ийн ард тавина
+    var newPos = (before + '___').length;
+    inp.focus();
+    inp.setSelectionRange(newPos, newPos);
+  }
+  function qTplReset() {
+    _qTplBlanks = [];
+    var inp = document.getElementById('q-template-builder');
+    if (inp) inp.value = '';
+    qTplUpdateHidden();
+  }
+  function qTplUpdateHidden() {
+    var inp = document.getElementById('q-template-builder');
+    var tplHidden = document.getElementById('q-answer-template');
+    var ansHidden = document.getElementById('q-fill-answer');
+    var prev = document.getElementById('q-tpl-preview');
+    var prevText = document.getElementById('q-tpl-preview-text');
+    var prevVals = document.getElementById('q-tpl-preview-vals');
+    if (!inp || !_qTplBlanks.length) {
+      if (tplHidden) tplHidden.value = '';
+      if (prev) prev.style.display = 'none';
+      return;
+    }
+    var tpl = inp.value;
+    if (tplHidden) tplHidden.value = tpl;
+    // Хариултуудыг pipe-аар нэгтгэж q-fill-answer-д
+    var combined = _qTplBlanks.map(function(b){ return b.value; }).join('|');
+    if (ansHidden) ansHidden.value = combined;
+    // Math-field байвал тэр дээрх value-г бас шинэчилнэ
+    var mf = document.getElementById('q-fill-mf');
+    if (mf) {
+      try { mf.value = combined; } catch(e){}
+    }
+    if (prev) {
+      prev.style.display = '';
+      if (prevText) prevText.innerHTML = tpl.replace(/___/g, '<span style="display:inline-block;min-width:36px;border-bottom:2px solid #7B52EE;color:transparent;">_</span>');
+      if (prevVals) prevVals.textContent = combined;
+    }
+  }
+  // Builder input-д бичсэн үед hidden-ыг шинэчлэх
+  document.addEventListener('input', function(e){
+    if (e.target && e.target.id === 'q-template-builder') qTplUpdateHidden();
+  });
+
   function updateChoiceHighlight() {}
 
   // ═════════════════════════════════════════
@@ -2805,7 +2895,10 @@ function openEditMathModal(targetId) {
     }).then(r=>r.json()).then(function(data) {
       if (!data.ok) { if(msg){msg.style.color='var(--red)';msg.textContent='Алдаа: '+data.error;} return; }
       if(msg){msg.style.color='var(--green)';msg.textContent='✓ Амжилттай нэмэгдлээ!';}
-      ['q-a','q-b','q-c','q-d','q-answer-template','q-time-limit'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+      ['q-a','q-b','q-c','q-d','q-answer-template','q-time-limit','q-template-builder'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+      _qTplBlanks = [];
+      var tplPrev = document.getElementById('q-tpl-preview');
+      if (tplPrev) tplPrev.style.display = 'none';
       var md = document.getElementById('q-math-display'); if(md) md.value='';
       var ht = document.getElementById('q-hint-text'); if(ht) ht.value='';
       var qEmbed = document.getElementById('q-hint-embed'); if(qEmbed) qEmbed.value='';
