@@ -8,7 +8,7 @@ module.exports = async (req, res) => {
 
   try {
     if (req.method === 'GET') {
-      const { topic, grade, node_id, ids, reports } = req.query || {};
+      const { topic, grade, max_grade, node_id, ids, reports } = req.query || {};
 
       // /api/questions?reports=open — admin-д нээлттэй мэдэгдлийн жагсаалт
       if (reports) {
@@ -52,6 +52,14 @@ module.exports = async (req, res) => {
       const conds = [], vals = [];
       if (topic)   { conds.push(`topic=$${vals.length+1}`); vals.push(topic); }
       if (grade)   { conds.push(`(grade=$${vals.length+1} OR grade IS NULL OR grade='')`); vals.push(grade); }
+      if (max_grade) {
+        // Анги <= max_grade буюу анги хоосон (бүх ангид зориулсан) бодлогууд
+        const mg = parseInt(max_grade);
+        if (!isNaN(mg)) {
+          conds.push(`(grade IS NULL OR grade='' OR (grade ~ '^[0-9]+$' AND CAST(grade AS INT) <= $${vals.length+1}))`);
+          vals.push(mg);
+        }
+      }
       if (node_id) { conds.push(`node_id=$${vals.length+1}`); vals.push(parseInt(node_id)); }
       if (conds.length) q += ' WHERE ' + conds.join(' AND ');
       q += ' ORDER BY id ASC';
