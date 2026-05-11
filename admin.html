@@ -959,13 +959,13 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
                 }
               </style>
               <div style="font-size:0.72rem;color:var(--muted);margin-bottom:8px;">
-                Бүтэн хариултаа бичээд нөхүүлэх хэсгээ <b>сонгож <kbd style="background:#eee;padding:1px 5px;border-radius:4px;border:1px solid #ccc;font-size:0.7rem;">Ctrl+B</kbd></b> дар. Жнь "5 см" гэснээс "5"-г сонгох ⇒ <code>___ см</code> болно. <br>
-                ___ дээр <b>Ctrl+B</b> дахин дарвал энгийн текст болж буцна. Math оруулахдаа <b>∑ Math</b> товчийг ашиглана.
+                Бүтэн хариултаа бичээд нөхүүлэх хэсгээ <b>сонгож <kbd style="background:#eee;padding:1px 5px;border-radius:4px;border:1px solid #ccc;font-size:0.7rem;">Win+Alt+X</kbd></b> дар (Mac: ⌘+⌥+X эсвэл Alt+X). Жнь "5 см" гэснээс "5"-г сонгох ⇒ улаан зураастай нөхөх хэсэг болно.<br>
+                Нөхөх хэсэг дотор курсор/сонголт байхад дахин <b>Win+Alt+X</b> дарвал энгийн текст болж буцна.
               </div>
               <div style="display:flex;gap:6px;flex-wrap:wrap;">
                 <button type="button" onclick="qTplMakeBlank()" id="q-tpl-blank-btn"
                   style="background:#7B52EE;border:none;color:#fff;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:0.82rem;font-weight:800;">
-                  🎯 Нөхөх ⇄ Текст <kbd style="background:rgba(255,255,255,0.25);padding:1px 5px;border-radius:4px;margin-left:4px;font-size:0.7rem;">Ctrl+B</kbd>
+                  🎯 Нөхөх ⇄ Текст <kbd style="background:rgba(255,255,255,0.25);padding:1px 5px;border-radius:4px;margin-left:4px;font-size:0.7rem;">Win+Alt+X</kbd>
                 </button>
                 <button type="button" onclick="qTplReset()" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:7px 12px;cursor:pointer;font-size:0.82rem;font-weight:800;">↻ Цэвэрлэх</button>
               </div>
@@ -2021,7 +2021,7 @@ function closeMathModal() { closeChoiceMathModal(); }
       return;
     }
     if (range.collapsed) {
-      alert('Эхлээд нөхүүлэх хэсгээ сонгоно уу (Ctrl+B).');
+      alert('Эхлээд нөхүүлэх хэсгээ сонгоно уу (Win+Alt+X эсвэл Alt+X).');
       return;
     }
     var picked = range.toString().trim();
@@ -2041,16 +2041,24 @@ function closeMathModal() { closeChoiceMathModal(); }
     sel.addRange(r2);
     qTplUpdateHidden();
   }
-  // Ctrl/Cmd + B — toggle blank
+  // Win/Cmd + Alt + X — toggle blank
   document.addEventListener('keydown', function(e){
-    if (!(e.ctrlKey || e.metaKey)) return;
-    if ((e.key||'').toLowerCase() !== 'b') return;
     var inp = _qTplCE();
     if (!inp) return;
-    // Document.activeElement contenteditable-ийг таних
-    if (document.activeElement !== inp && !inp.contains(document.activeElement)) return;
-    e.preventDefault();
-    qTplMakeBlank();
+    var inCE = (document.activeElement === inp || inp.contains(document.activeElement));
+    if (!inCE) return;
+    // Browser-ийн bold (Ctrl+B), italic (Ctrl+I), underline (Ctrl+U)-г contenteditable-д блоклоно
+    if ((e.ctrlKey || e.metaKey) && ['b','i','u'].indexOf((e.key||'').toLowerCase()) !== -1) {
+      e.preventDefault();
+      return;
+    }
+    // Үндсэн шошго: Win+Alt+X (Mac: Cmd+Alt+X). Backup: Alt+X
+    var k = (e.key || '').toLowerCase();
+    var isToggle = (k === 'x' && e.altKey && (e.metaKey || e.ctrlKey)) || (k === 'x' && e.altKey);
+    if (isToggle) {
+      e.preventDefault();
+      qTplMakeBlank();
+    }
   });
 
   function qTplReset() {
