@@ -19,6 +19,10 @@ module.exports = async (req, res) => {
               qr.id, qr.question_id, qr.reporter_email, qr.reason, qr.status,
               qr.created_at, qr.resolved_at,
               q.text AS question_text, q.correct AS question_correct, q.choices AS question_choices,
+              q.type AS question_type, q.node_id AS question_node_id,
+              q.image AS question_image, q.hint AS question_hint,
+              q.answer_template AS question_answer_template,
+              q.time_limit AS question_time_limit, q.grade AS question_grade,
               u.first_name, u.last_name
             FROM question_reports qr
             LEFT JOIN questions q ON q.id = qr.question_id

@@ -208,40 +208,125 @@ window.deletePromoCode = async function(id, code) {
   } catch(e) { alert('Алдаа: ' + (e.message || e)); }
 };
 
-// Алдааны мэдэгдлүүдийг ачаалж жагсаах
+// HTML escape helper
+function _esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+// Алдааны мэдэгдлүүдийг ачаалж дэлгэрэнгүйгээр харуулах
 async function loadQuestionReports() {
   var listEl = document.getElementById('reports-list');
   if (!listEl) return;
-  listEl.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--muted);">Уншиж байна...</td></tr>';
+  listEl.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);">Уншиж байна...</div>';
   try {
     var r = await adminFetch('/api/questions?reports=open');
     var d = await r.json();
     var reports = (d && d.reports) || [];
     document.getElementById('reports-count-info').textContent = reports.length + ' нээлттэй мэдэгдэл';
     if (!reports.length) {
-      listEl.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:50px;color:var(--muted);">🎉 Нээлттэй мэдэгдэл алга</td></tr>';
+      listEl.innerHTML = '<div style="text-align:center;padding:50px;color:var(--muted);">🎉 Нээлттэй мэдэгдэл алга</div>';
       return;
     }
     listEl.innerHTML = reports.map(function(rep){
       var dt = new Date(rep.created_at);
       var dtStr = dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0') + ' ' + String(dt.getHours()).padStart(2,'0') + ':' + String(dt.getMinutes()).padStart(2,'0');
       var reporterName = ((rep.last_name || '') + ' ' + (rep.first_name || '')).trim() || rep.reporter_email;
-      var qText = String(rep.question_text || '').replace(/<[^>]+>/g, '').slice(0, 100);
-      var reasonHtml = rep.reason ? String(rep.reason).slice(0, 200) : '<em style="color:var(--muted);">тайлбаргүй</em>';
-      return '<tr style="cursor:pointer;" onclick="goEditQuestionFromReport(' + rep.question_id + ', ' + rep.id + ')">'
-        + '<td style="font-weight:800;color:var(--purple-light);">#' + rep.question_id + '</td>'
-        + '<td style="max-width:340px;"><div style="font-weight:700;font-size:0.88rem;color:var(--text);">' + qText + '</div><div style="font-size:0.78rem;color:var(--muted);margin-top:3px;">📝 ' + reasonHtml + '</div></td>'
-        + '<td style="font-size:0.85rem;">' + reporterName + '</td>'
-        + '<td style="font-size:0.78rem;color:var(--muted);">' + dtStr + '</td>'
-        + '<td style="text-align:right;">'
-        +   '<button onclick="event.stopPropagation();dismissReport(' + rep.id + ')" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.75rem;font-weight:700;margin-right:4px;">Үл хайхрах</button>'
-        +   '<button onclick="event.stopPropagation();goEditQuestionFromReport(' + rep.question_id + ', ' + rep.id + ')" style="background:var(--purple);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.75rem;font-weight:800;">Засах →</button>'
-        + '</td>'
-        + '</tr>';
+      var qText = rep.question_text || '<em style="color:var(--muted);">[бодлого олдсонгүй]</em>';
+      // Choices parse
+      var choices = rep.question_choices;
+      if (typeof choices === 'string') { try { choices = JSON.parse(choices); } catch(e){ choices = []; } }
+      if (!Array.isArray(choices)) choices = [];
+      var correctAns = rep.question_correct || '';
+      var qType = rep.question_type || 'choice';
+      var nodeId = rep.question_node_id || '—';
+      var grade = rep.question_grade || '—';
+      var image = rep.question_image || '';
+      // Reason
+      var reasonHtml = rep.reason ? _esc(rep.reason) : '<em style="color:var(--muted);">тайлбаргүй</em>';
+
+      var choicesHtml = '';
+      if (qType === 'choice' && choices.length) {
+        choicesHtml = '<div style="margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:6px;">'
+          + choices.map(function(ch){
+              var isCorrect = String(ch) === String(correctAns);
+              return '<div style="padding:7px 11px;border-radius:8px;font-size:0.86rem;font-weight:700;'
+                + (isCorrect ? 'background:#58CC0222;color:#58CC02;border:1.5px solid #58CC0260;' : 'background:var(--surface);color:var(--muted);border:1px solid var(--border);')
+                + '">' + (isCorrect ? '✓ ' : '') + _esc(ch||'—') + '</div>';
+            }).join('')
+          + '</div>';
+      } else {
+        choicesHtml = '<div style="margin-top:10px;background:#58CC0222;border:1.5px solid #58CC0260;color:#58CC02;border-radius:8px;padding:8px 12px;font-size:0.88rem;font-weight:700;">'
+          + '<span style="opacity:0.7;font-size:0.74rem;">Зөв хариулт:</span> ' + _esc(correctAns||'—')
+          + '</div>';
+      }
+
+      var imageHtml = image ? '<img src="' + _esc(image) + '" style="max-width:200px;max-height:120px;border-radius:8px;border:1px solid var(--border);margin-top:8px;">' : '';
+
+      return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:12px;">'
+        + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:8px;">'
+        +   '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
+        +     '<span style="background:var(--purple);color:#fff;border-radius:6px;padding:3px 10px;font-weight:900;font-size:0.85rem;">#' + rep.question_id + '</span>'
+        +     '<span style="background:rgba(255,255,255,0.06);border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:3px 8px;font-size:0.74rem;font-weight:700;">' + _esc(qType) + '</span>'
+        +     '<span style="font-size:0.78rem;color:var(--muted);font-weight:700;">Node: ' + _esc(nodeId) + ' · Анги: ' + _esc(grade) + '</span>'
+        +   '</div>'
+        +   '<div style="font-size:0.76rem;color:var(--muted);">' + dtStr + ' · 👤 ' + _esc(reporterName) + '</div>'
+        + '</div>'
+        + '<div class="qreport-text" style="font-size:0.95rem;font-weight:700;color:var(--text);line-height:1.5;margin-bottom:6px;">' + qText + '</div>'
+        + imageHtml
+        + choicesHtml
+        + '<div style="margin-top:10px;background:rgba(255,75,75,0.06);border:1px solid rgba(255,75,75,0.25);border-radius:8px;padding:8px 12px;">'
+        +   '<div style="font-size:0.74rem;color:#FF4B4B;font-weight:800;margin-bottom:3px;">📝 МЭДЭГДСЭН АЛДАА:</div>'
+        +   '<div style="font-size:0.86rem;color:var(--text);">' + reasonHtml + '</div>'
+        + '</div>'
+        + '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">'
+        +   '<button onclick="goEditQuestionFromReport(' + rep.question_id + ', ' + rep.id + ')" style="background:var(--purple);border:none;color:#fff;border-radius:8px;padding:7px 14px;cursor:pointer;font-weight:800;font-size:0.85rem;">✏ Засах →</button>'
+        +   '<button onclick="findQuestionById(' + rep.question_id + ')" style="background:rgba(123,82,238,0.15);border:1.5px solid var(--purple);color:var(--purple-light);border-radius:8px;padding:7px 14px;cursor:pointer;font-weight:800;font-size:0.85rem;">🔍 ID-аар хайх</button>'
+        +   '<button onclick="dismissReport(' + rep.id + ')" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:7px 14px;cursor:pointer;font-weight:700;font-size:0.85rem;">Үл хайхрах</button>'
+        + '</div>'
+        + '</div>';
     }).join('');
+    // KaTeX render
+    if (window.renderMathInElement) {
+      try {
+        document.querySelectorAll('.qreport-text').forEach(function(el){
+          renderMathInElement(el, { delimiters: [
+            {left:'$$', right:'$$', display:true},
+            {left:'$', right:'$', display:false}
+          ], throwOnError: false });
+        });
+      } catch(e){}
+    }
   } catch(e) {
-    listEl.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:#dc2626;">Алдаа: ' + (e.message || e) + '</td></tr>';
+    listEl.innerHTML = '<div style="text-align:center;padding:30px;color:#dc2626;">Алдаа: ' + (e.message || e) + '</div>';
   }
+}
+
+// ID-аар асуултыг хайж тэр чигээр нь questions хуудсанд ачаалах
+async function findQuestionById(id) {
+  try {
+    var r = await fetch(API + '/api/questions?ids=' + parseInt(id));
+    var d = await r.json();
+    var q = (d.questions || [])[0];
+    if (!q) { alert('ID ' + id + ' бүхий бодлого олдсонгүй'); return; }
+    var qNavBtn = document.querySelector('.nav-item[onclick*="\'questions\'"]');
+    showPage('questions', qNavBtn);
+    // node-selector-ыг тухайн node руу шилжүүлж renderQuestions хийнэ
+    for (var i = 0; i < 30; i++) {
+      if (document.getElementById('q-node')) break;
+      await new Promise(function(r){ setTimeout(r, 80); });
+    }
+    var nodeSel = document.getElementById('q-node');
+    if (nodeSel && q.node_id) nodeSel.value = q.node_id;
+    if (typeof renderQuestions === 'function') renderQuestions();
+    // Тухайн question-ы edit form-ыг нээх
+    for (var j = 0; j < 30; j++) {
+      if (document.getElementById('qedit-' + q.id)) break;
+      await new Promise(function(r){ setTimeout(r, 100); });
+    }
+    if (typeof editQuestion === 'function') editQuestion(q.id);
+    setTimeout(function(){
+      var blk = document.getElementById('qblock-' + q.id);
+      if (blk) blk.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 300);
+  } catch(e) { alert('Алдаа: ' + (e.message || e)); }
 }
 
 // Badge-ийг 60 секунд тутамд шинэчлэх
@@ -260,17 +345,34 @@ async function refreshReportsBadge() {
 
 // Мэдэгдэл дээр дарахад → Бодлогууд хуудас руу шилжиж тэр асуултыг засах горимд оруулах
 async function goEditQuestionFromReport(questionId, reportId) {
-  // Reports → Questions хуудас руу шилжих
-  var qNavBtn = document.querySelector('.nav-item[onclick*="\'questions\'"]');
-  showPage('questions', qNavBtn);
-  // Question жагсаалт ачаалагдтал жаахан хүлээгээд editQuestion дуудах
-  for (var i = 0; i < 30; i++) {
-    if (typeof editQuestion === 'function' && document.getElementById('q-list')) break;
-    await new Promise(function(r){ setTimeout(r, 100); });
-  }
-  if (typeof editQuestion === 'function') {
-    try { editQuestion(questionId); } catch(e) { console.warn('editQuestion алдаа:', e); }
-  }
+  // Tухайн асуултын дэлгэрэнгүйг авч node_id-аар сонгоно
+  try {
+    var r0 = await fetch(API + '/api/questions?ids=' + parseInt(questionId));
+    var d0 = await r0.json();
+    var q = (d0.questions || [])[0];
+    var qNavBtn = document.querySelector('.nav-item[onclick*="\'questions\'"]');
+    showPage('questions', qNavBtn);
+    for (var i = 0; i < 30; i++) {
+      if (document.getElementById('q-node')) break;
+      await new Promise(function(r){ setTimeout(r, 100); });
+    }
+    if (q && q.node_id) {
+      var nodeSel = document.getElementById('q-node');
+      if (nodeSel) nodeSel.value = q.node_id;
+    }
+    if (typeof renderQuestions === 'function') renderQuestions();
+    for (var j = 0; j < 30; j++) {
+      if (document.getElementById('qedit-' + questionId)) break;
+      await new Promise(function(r){ setTimeout(r, 100); });
+    }
+    if (typeof editQuestion === 'function') {
+      try { editQuestion(questionId); } catch(e) {}
+    }
+    setTimeout(function(){
+      var blk = document.getElementById('qblock-' + questionId);
+      if (blk) blk.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 300);
+  } catch(e) { console.warn(e); }
   // Засах горимд орсон бол мэдэгдэлийг "resolved" гэж тэмдэглэх
   if (reportId) {
     setTimeout(function(){
@@ -663,6 +765,7 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
 </style>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
@@ -1278,16 +1381,17 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
       <!-- Reports -->
       <div class="page" id="page-reports" style="display:none;">
         <div class="page-title">Алдааны мэдэгдэл</div>
-        <div class="page-sub">Багш/сурагчдаас илгээсэн бодлогын алдаа. Дарж засах горимд шилжинэ.</div>
-        <div class="table-card">
-          <div class="table-header">
+        <div class="page-sub">Багш/сурагчдаас илгээсэн бодлогын алдаа. Дэлгэрэнгүй мэдээлэл + шууд засах боломжтой.</div>
+        <div class="table-card" style="padding:14px 16px;">
+          <div class="table-header" style="margin-bottom:14px;">
             <div class="table-title">Нээлттэй мэдэгдлүүд</div>
-            <div id="reports-count-info" style="font-size:0.8rem;color:var(--muted);font-weight:700;">—</div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <input id="report-find-id" type="number" placeholder="ID-аар хайх..." style="background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text);width:140px;font-weight:700;outline:none;font-size:0.85rem;">
+              <button onclick="var v=document.getElementById('report-find-id').value;if(v)findQuestionById(parseInt(v))" style="background:var(--purple);border:none;color:#fff;border-radius:8px;padding:6px 14px;cursor:pointer;font-weight:800;font-size:0.85rem;">🔍 Хайх</button>
+              <div id="reports-count-info" style="font-size:0.8rem;color:var(--muted);font-weight:700;">—</div>
+            </div>
           </div>
-          <table>
-            <thead><tr><th>ID</th><th>Бодлого + Тайлбар</th><th>Илгээгч</th><th>Огноо</th><th style="text-align:right;">Үйлдэл</th></tr></thead>
-            <tbody id="reports-list"></tbody>
-          </table>
+          <div id="reports-list"></div>
         </div>
       </div>
 
