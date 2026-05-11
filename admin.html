@@ -260,10 +260,52 @@ async function loadQuestionReports() {
 
       var imageHtml = image ? '<img src="' + _esc(image) + '" style="max-width:200px;max-height:120px;border-radius:8px;border:1px solid var(--border);margin-top:8px;">' : '';
 
-      return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:12px;">'
+      var qid = rep.question_id;
+      // Inline edit form (initially hidden)
+      var choicesInputs = '';
+      if (qType === 'choice') {
+        var letters = ['А','Б','В','Г'];
+        var keys = ['a','b','c','d'];
+        var arr = choices.slice(0, 4);
+        while (arr.length < 4) arr.push('');
+        choicesInputs = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">'
+          + arr.map(function(ch, ci){
+              var isCorr = String(ch) === String(correctAns);
+              return '<div style="background:var(--surface);border:1.5px solid ' + (isCorr ? '#58CC02' : 'var(--border)') + ';border-radius:8px;padding:8px 10px;">'
+                + '<label style="display:flex;align-items:center;gap:6px;font-size:0.78rem;font-weight:800;color:var(--muted);margin-bottom:4px;">'
+                +   '<input type="radio" name="rqe-correct-' + qid + '" value="' + ci + '"' + (isCorr ? ' checked' : '') + '> ' + letters[ci]
+                + '</label>'
+                + '<input id="rqe-ch-' + qid + '-' + ci + '" type="text" value="' + _esc(ch) + '" style="width:100%;background:transparent;border:none;color:var(--text);outline:none;font-weight:700;font-size:0.9rem;box-sizing:border-box;">'
+                + '</div>';
+            }).join('')
+          + '</div>';
+      } else {
+        choicesInputs = '<div style="margin-top:8px;">'
+          + '<label style="font-size:0.78rem;font-weight:800;color:var(--muted);display:block;margin-bottom:4px;">Зөв хариулт</label>'
+          + '<input id="rqe-correct-' + qid + '" type="text" value="' + _esc(correctAns) + '" style="width:100%;background:var(--surface);border:1.5px solid #58CC02;border-radius:8px;padding:8px 10px;color:#58CC02;font-weight:800;outline:none;box-sizing:border-box;">'
+          + '</div>';
+      }
+      var rawText = (rep.question_text || '').replace(/<\/?[^>]+>/g, '');
+
+      var editForm = '<div id="rqe-form-' + qid + '" style="display:none;margin-top:12px;padding:14px;background:var(--surface);border:1.5px dashed var(--purple);border-radius:10px;">'
+        + '<div style="font-size:0.78rem;color:var(--purple-light);font-weight:800;margin-bottom:8px;">✏ ШУУД ЗАСАХ</div>'
+        + '<label style="font-size:0.74rem;font-weight:800;color:var(--muted);display:block;margin-bottom:4px;">Бодлогын текст</label>'
+        + '<div style="position:relative;">'
+        +   '<textarea id="rqe-text-' + qid + '" rows="3" style="width:100%;background:var(--surface2);border:1.5px solid var(--border);border-radius:8px;padding:8px 70px 8px 10px;color:var(--text);font-weight:700;resize:vertical;outline:none;box-sizing:border-box;font-size:0.9rem;">' + _esc(rawText) + '</textarea>'
+        +   '<button onclick="openChoiceMathModal(\'rqe-text-' + qid + '\')" style="position:absolute;top:6px;right:6px;background:#7B52EE;border:none;color:#fff;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:0.72rem;font-weight:800;">∑ Math</button>'
+        + '</div>'
+        + choicesInputs
+        + '<div style="display:flex;gap:8px;margin-top:10px;">'
+        +   '<button onclick="saveReportEdit(' + qid + ', ' + rep.id + ', \'' + qType + '\')" style="background:#58CC02;border:none;color:#fff;border-radius:8px;padding:7px 14px;cursor:pointer;font-weight:800;font-size:0.85rem;">💾 Хадгалах</button>'
+        +   '<button onclick="toggleReportEdit(' + qid + ')" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:7px 14px;cursor:pointer;font-weight:700;font-size:0.85rem;">Болих</button>'
+        +   '<button onclick="deleteQuestionFromReport(' + qid + ', ' + rep.id + ')" style="background:#FF4B4B22;border:1px solid #FF4B4B55;color:#FF4B4B;border-radius:8px;padding:7px 14px;cursor:pointer;font-weight:700;font-size:0.85rem;margin-left:auto;">🗑 Бодлогыг устгах</button>'
+        + '</div>'
+        + '</div>';
+
+      return '<div id="rqe-card-' + qid + '" style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:12px;">'
         + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:8px;">'
         +   '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
-        +     '<span style="background:var(--purple);color:#fff;border-radius:6px;padding:3px 10px;font-weight:900;font-size:0.85rem;">#' + rep.question_id + '</span>'
+        +     '<span style="background:var(--purple);color:#fff;border-radius:6px;padding:3px 10px;font-weight:900;font-size:0.85rem;">#' + qid + '</span>'
         +     '<span style="background:rgba(255,255,255,0.06);border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:3px 8px;font-size:0.74rem;font-weight:700;">' + _esc(qType) + '</span>'
         +     '<span style="font-size:0.78rem;color:var(--muted);font-weight:700;">Node: ' + _esc(nodeId) + ' · Анги: ' + _esc(grade) + '</span>'
         +   '</div>'
@@ -277,10 +319,11 @@ async function loadQuestionReports() {
         +   '<div style="font-size:0.86rem;color:var(--text);">' + reasonHtml + '</div>'
         + '</div>'
         + '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">'
-        +   '<button onclick="goEditQuestionFromReport(' + rep.question_id + ', ' + rep.id + ')" style="background:var(--purple);border:none;color:#fff;border-radius:8px;padding:7px 14px;cursor:pointer;font-weight:800;font-size:0.85rem;">✏ Засах →</button>'
-        +   '<button onclick="findQuestionById(' + rep.question_id + ')" style="background:rgba(123,82,238,0.15);border:1.5px solid var(--purple);color:var(--purple-light);border-radius:8px;padding:7px 14px;cursor:pointer;font-weight:800;font-size:0.85rem;">🔍 ID-аар хайх</button>'
+        +   '<button onclick="toggleReportEdit(' + qid + ')" style="background:var(--purple);border:none;color:#fff;border-radius:8px;padding:7px 14px;cursor:pointer;font-weight:800;font-size:0.85rem;">✏ Шууд засах</button>'
+        +   '<button onclick="findQuestionById(' + qid + ')" style="background:rgba(123,82,238,0.15);border:1.5px solid var(--purple);color:var(--purple-light);border-radius:8px;padding:7px 14px;cursor:pointer;font-weight:800;font-size:0.85rem;">🔍 Бүтэн form-ыг нээх</button>'
         +   '<button onclick="dismissReport(' + rep.id + ')" style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:7px 14px;cursor:pointer;font-weight:700;font-size:0.85rem;">Үл хайхрах</button>'
         + '</div>'
+        + editForm
         + '</div>';
     }).join('');
     // KaTeX render
@@ -297,6 +340,75 @@ async function loadQuestionReports() {
   } catch(e) {
     listEl.innerHTML = '<div style="text-align:center;padding:30px;color:#dc2626;">Алдаа: ' + (e.message || e) + '</div>';
   }
+}
+
+// Report card-ийн доторх inline edit form-ыг toggle хийх
+function toggleReportEdit(qid) {
+  var f = document.getElementById('rqe-form-' + qid);
+  if (!f) return;
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+
+// Inline-ээр асуултыг засаад серверт хадгалах
+async function saveReportEdit(qid, reportId, qType) {
+  try {
+    var textEl = document.getElementById('rqe-text-' + qid);
+    var newText = textEl ? textEl.value.trim() : '';
+    if (!newText) { alert('Бодлогын текст хоосон'); return; }
+    var body = { id: qid, text: newText };
+    if (qType === 'choice') {
+      var chs = [];
+      for (var i = 0; i < 4; i++) {
+        var c = document.getElementById('rqe-ch-' + qid + '-' + i);
+        chs.push(c ? c.value.trim() : '');
+      }
+      var radio = document.querySelector('input[name="rqe-correct-' + qid + '"]:checked');
+      var correctIdx = radio ? parseInt(radio.value) : 0;
+      body.choices = chs;
+      body.correct = chs[correctIdx] || '';
+    } else {
+      var ce = document.getElementById('rqe-correct-' + qid);
+      body.correct = ce ? ce.value.trim() : '';
+    }
+    var r = await adminFetch('/api/questions', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    var d = await r.json();
+    if (!d.ok) { alert('Алдаа: ' + (d.error || '?')); return; }
+    // Мэдэгдэлийг resolved болгоно
+    if (reportId) {
+      await adminFetch('/api/questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'resolveReport', id: reportId })
+      });
+    }
+    loadQuestionReports();
+    refreshReportsBadge();
+  } catch(e) { alert('Алдаа: ' + (e.message || e)); }
+}
+
+// Report-аас бодлогыг устгах
+async function deleteQuestionFromReport(qid, reportId) {
+  if (!confirm('Бодлого #' + qid + '-ийг бүрэн устгах уу?')) return;
+  try {
+    await adminFetch('/api/questions', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: qid })
+    });
+    if (reportId) {
+      await adminFetch('/api/questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'resolveReport', id: reportId })
+      });
+    }
+    loadQuestionReports();
+    refreshReportsBadge();
+  } catch(e) { alert('Алдаа: ' + (e.message || e)); }
 }
 
 // ID-аар асуултыг хайж тэр чигээр нь questions хуудсанд ачаалах
