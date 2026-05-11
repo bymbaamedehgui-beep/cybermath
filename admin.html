@@ -102,7 +102,111 @@ function showPage(name, btn) {
   if (name === 'users') loadUsers();
   if (name === 'log') loadLogs();
   if (name === 'reports') loadQuestionReports();
+  if (name === 'promo') loadPromoCodes();
 }
+
+// ─── Промо код ───
+window.generateRandomCode = function() {
+  var chars = 'ABCDEFGHIJKLMNPQRSTUVWXYZ23456789';
+  var code = '';
+  for (var i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  document.getElementById('pr-code').value = code;
+};
+
+window.createPromoCode = async function() {
+  var code = (document.getElementById('pr-code').value || '').trim().toUpperCase();
+  var type = document.getElementById('pr-type').value;
+  var amount = parseInt(document.getElementById('pr-amount').value) || 0;
+  var max = document.getElementById('pr-max').value;
+  var desc = document.getElementById('pr-desc').value.trim();
+  var expires = document.getElementById('pr-expires').value;
+  var msg = document.getElementById('pr-msg');
+  if (!code) { msg.textContent = 'Код оруулна уу'; msg.style.color = '#dc2626'; return; }
+  if (amount <= 0) { msg.textContent = 'Шагналын хэмжээ 1-ээс их байх ёстой'; msg.style.color = '#dc2626'; return; }
+  msg.textContent = 'Үүсгэж байна...'; msg.style.color = '#FFC800';
+  try {
+    var r = await adminFetch('/api/promo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'create',
+        code: code,
+        reward_type: type,
+        reward_amount: amount,
+        max_uses: max ? parseInt(max) : null,
+        description: desc || null,
+        expires_at: expires || null
+      })
+    });
+    var d = await r.json();
+    if (!d.ok) { msg.textContent = '✗ ' + (d.error || 'Алдаа'); msg.style.color = '#dc2626'; return; }
+    msg.innerHTML = '✓ Код "<b>' + code + '</b>" амжилттай үүслээ. Хэрэглэгчдэд хуваалцана уу.'; msg.style.color = '#22c55e';
+    document.getElementById('pr-code').value = '';
+    document.getElementById('pr-amount').value = 100;
+    document.getElementById('pr-max').value = '';
+    document.getElementById('pr-desc').value = '';
+    document.getElementById('pr-expires').value = '';
+    loadPromoCodes();
+  } catch(e) { msg.textContent = '✗ ' + (e.message || e); msg.style.color = '#dc2626'; }
+};
+
+window.loadPromoCodes = async function() {
+  var body = document.getElementById('promo-list');
+  if (!body) return;
+  body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--muted);">Уншиж байна...</td></tr>';
+  try {
+    var r = await adminFetch('/api/promo');
+    var d = await r.json();
+    var codes = (d && d.codes) || [];
+    if (!codes.length) {
+      body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:50px;color:var(--muted);">Хараахан код алга. Дээрх формоос үүсгэнэ үү.</td></tr>';
+      return;
+    }
+    var typeIcon = { xp: '⚡', gems: '💎', hearts: '❤', premium: '⭐' };
+    body.innerHTML = codes.map(function(c){
+      var expired = c.expires_at && new Date(c.expires_at) < new Date();
+      var depleted = c.max_uses && c.used_count >= c.max_uses;
+      var status = expired ? '<span style="color:#dc2626;font-weight:800;font-size:0.75rem;">Дууссан</span>'
+                  : depleted ? '<span style="color:#FF9600;font-weight:800;font-size:0.75rem;">Дүүрсэн</span>'
+                  : '<span style="color:#22c55e;font-weight:800;font-size:0.75rem;">Идэвхтэй</span>';
+      var expDate = c.expires_at ? new Date(c.expires_at).toLocaleDateString('mn-MN') : '∞';
+      return '<tr>'
+        + '<td><b style="color:var(--purple-light);letter-spacing:0.08rem;">' + c.code + '</b><br>' + status + '</td>'
+        + '<td>' + (typeIcon[c.reward_type] || '') + ' <b>+' + c.reward_amount + '</b><br><span style="color:var(--muted);font-size:0.78rem;">' + c.reward_type + '</span></td>'
+        + '<td><b>' + c.used_count + '</b>' + (c.max_uses ? ' / ' + c.max_uses : ' / ∞') + '</td>'
+        + '<td style="font-size:0.85rem;">' + expDate + '</td>'
+        + '<td style="font-size:0.82rem;max-width:200px;">' + (c.description || '<em style="color:var(--muted);">—</em>') + '</td>'
+        + '<td style="text-align:right;">'
+        +   '<button onclick="copyPromoCode(\'' + c.code + '\')" style="background:transparent;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.75rem;font-weight:700;margin-right:4px;">📋</button>'
+        +   '<button onclick="deletePromoCode(' + c.id + ', \'' + c.code + '\')" style="background:transparent;border:1px solid #dc2626;color:#dc2626;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.75rem;font-weight:700;">🗑</button>'
+        + '</td>'
+        + '</tr>';
+    }).join('');
+  } catch(e) {
+    body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:#dc2626;">Алдаа: ' + (e.message || e) + '</td></tr>';
+  }
+};
+
+window.copyPromoCode = function(code) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(code).then(function(){
+      var msg = document.getElementById('pr-msg');
+      if (msg) { msg.innerHTML = '✓ "<b>' + code + '</b>" clipboard-д хуулагдлаа'; msg.style.color = '#22c55e'; }
+    }).catch(function(){});
+  }
+};
+
+window.deletePromoCode = async function(id, code) {
+  if (!confirm('"' + code + '" кодыг устгах уу?')) return;
+  try {
+    await adminFetch('/api/promo', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: id })
+    });
+    loadPromoCodes();
+  } catch(e) { alert('Алдаа: ' + (e.message || e)); }
+};
 
 // Алдааны мэдэгдлүүдийг ачаалж жагсаах
 async function loadQuestionReports() {
@@ -683,6 +787,10 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
         Алдааны мэдэгдэл
         <span id="reports-badge" style="display:none;margin-left:auto;background:#dc2626;color:#fff;border-radius:100px;padding:2px 7px;font-size:0.62rem;font-weight:900;min-width:14px;text-align:center;">0</span>
       </button>
+      <button class="nav-item" onclick="showPage('promo',this)">
+        <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M20 12V22H4V12M22 7H2V12H22V7M12 22V7M12 7H7.5C6.83696 7 6.20107 6.73661 5.73223 6.26777C5.26339 5.79893 5 5.16304 5 4.5C5 3.83696 5.26339 3.20107 5.73223 2.73223C6.20107 2.26339 6.83696 2 7.5 2C11 2 12 7 12 7M12 7H16.5C17.163 7 17.7989 6.73661 18.2678 6.26777C18.7366 5.79893 19 5.16304 19 4.5C19 3.83696 18.7366 3.20107 18.2678 2.73223C17.7989 2.26339 17.163 2 16.5 2C13 2 12 7 12 7Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Промо код
+      </button>
       <button class="nav-item" onclick="showPage('log',this)">
         <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M9 5H7C5.9 5 5 5.9 5 7V19C5 20.1 5.9 21 7 21H17C18.1 21 19 20.1 19 19V7C19 5.9 18.1 5 17 5H15M9 5C9 5.6 9.4 6 10 6H14C14.6 6 15 5.6 15 5" stroke="currentColor" stroke-width="1.8"/><path d="M9 12H15M9 16H12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
         Хандалтын лог
@@ -1046,6 +1154,65 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
           </div>
           <button class="add-btn" onclick="doAdminReset()" style="width:100%;">Нууц үг шинэчлэх</button>
           <div id="reset-result" class="reset-result"></div>
+        </div>
+      </div>
+
+      <!-- Promo codes -->
+      <div class="page" id="page-promo" style="display:none;">
+        <div class="page-title">Промо код</div>
+        <div class="page-sub">Хэрэглэгчдэд бэлэг шагнал өгөх кодуудыг үүсгэх, удирдах</div>
+
+        <!-- Create form -->
+        <div class="q-form" style="margin-bottom:20px;">
+          <div class="q-form-title">+ Шинэ код үүсгэх</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px;">
+            <div>
+              <label style="font-size:0.78rem;font-weight:800;color:var(--muted);display:block;margin-bottom:4px;">Код</label>
+              <input id="pr-code" type="text" placeholder="WELCOME2026" style="width:100%;padding:10px 12px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-family:'Unbounded',monospace;font-weight:900;letter-spacing:0.15rem;outline:none;box-sizing:border-box;text-transform:uppercase;" oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9_-]/g,'').slice(0,30)">
+            </div>
+            <div>
+              <label style="font-size:0.78rem;font-weight:800;color:var(--muted);display:block;margin-bottom:4px;">Шагналын төрөл</label>
+              <select id="pr-type" style="width:100%;padding:10px 12px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-weight:700;outline:none;box-sizing:border-box;">
+                <option value="xp">⚡ XP</option>
+                <option value="gems">💎 Gems</option>
+                <option value="hearts">❤ Hearts</option>
+                <option value="premium">⭐ Premium (хоног)</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:0.78rem;font-weight:800;color:var(--muted);display:block;margin-bottom:4px;">Шагналын хэмжээ</label>
+              <input id="pr-amount" type="number" min="1" value="100" style="width:100%;padding:10px 12px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-weight:700;outline:none;box-sizing:border-box;">
+            </div>
+            <div>
+              <label style="font-size:0.78rem;font-weight:800;color:var(--muted);display:block;margin-bottom:4px;">Хэдэн хүн ашиглах вэ? <span style="color:var(--muted);font-weight:600;">(заавал биш)</span></label>
+              <input id="pr-max" type="number" min="1" placeholder="Хязгааргүй" style="width:100%;padding:10px 12px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-weight:700;outline:none;box-sizing:border-box;">
+            </div>
+            <div style="grid-column:1/-1;">
+              <label style="font-size:0.78rem;font-weight:800;color:var(--muted);display:block;margin-bottom:4px;">Тайлбар <span style="color:var(--muted);font-weight:600;">(сонголтоор)</span></label>
+              <input id="pr-desc" type="text" placeholder="Жнь: 9-р ангийн шинэ хичээлийн бэлэг" style="width:100%;padding:10px 12px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-weight:700;outline:none;box-sizing:border-box;">
+            </div>
+            <div>
+              <label style="font-size:0.78rem;font-weight:800;color:var(--muted);display:block;margin-bottom:4px;">Дуусах хугацаа <span style="color:var(--muted);font-weight:600;">(заавал биш)</span></label>
+              <input id="pr-expires" type="date" style="width:100%;padding:10px 12px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-weight:700;outline:none;box-sizing:border-box;">
+            </div>
+            <div style="display:flex;align-items:flex-end;gap:8px;">
+              <button onclick="generateRandomCode()" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);border-radius:10px;padding:10px 14px;font-family:inherit;font-weight:800;cursor:pointer;font-size:0.85rem;">🎲 Random</button>
+              <button onclick="createPromoCode()" class="add-btn" style="flex:1;">Үүсгэх ✓</button>
+            </div>
+          </div>
+          <div id="pr-msg" style="margin-top:10px;font-size:0.85rem;font-weight:800;min-height:20px;"></div>
+        </div>
+
+        <!-- List -->
+        <div class="table-card">
+          <div class="table-header">
+            <div class="table-title">Бүх кодууд</div>
+            <button class="btn-sm" onclick="loadPromoCodes()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 12px;cursor:pointer;font-weight:700;">↻ Шинэчлэх</button>
+          </div>
+          <table>
+            <thead><tr><th>Код</th><th>Шагнал</th><th>Ашигласан</th><th>Дуусах</th><th>Тайлбар</th><th></th></tr></thead>
+            <tbody id="promo-list"></tbody>
+          </table>
         </div>
       </div>
 
