@@ -934,14 +934,30 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
                 <span style="color:var(--muted);font-weight:600;font-size:0.7rem;">(сурагчид зөвхөн зарим хэсгийг нь нөхүүлэх)</span>
               </label>
               <div style="position:relative;margin-bottom:8px;">
-                <!-- Overlay: ___ хэсгүүдийг улаанаар будна -->
-                <div id="q-tpl-overlay" style="position:absolute;top:0;left:0;right:0;bottom:0;padding:10px 84px 10px 12px;font-family:inherit;font-size:0.92rem;line-height:1.45;pointer-events:none;white-space:pre-wrap;overflow:hidden;color:#1a1030;font-weight:700;letter-spacing:normal;box-sizing:border-box;z-index:1;"></div>
-                <input id="q-template-builder" type="text" class="form-input"
-                  placeholder="Жнь: 5 см   эсвэл   5 * 4 = 20"
-                  style="padding-right:80px;color:transparent;caret-color:#1a1030;background:transparent;position:relative;z-index:2;font-weight:700;font-family:inherit;">
+                <div id="q-template-builder" contenteditable="true" spellcheck="false"
+                  data-placeholder="Жнь: 5 см   эсвэл   5 * 4 = 20"
+                  class="form-input tpl-builder-ce"
+                  style="padding:10px 84px 10px 12px;font-weight:700;min-height:42px;white-space:pre-wrap;line-height:1.55;font-size:0.95rem;cursor:text;"></div>
                 <button type="button" onclick="openTplMathInsert()"
                   style="position:absolute;top:6px;right:6px;background:#7B52EE;border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.74rem;font-weight:800;z-index:3;">∑ Math</button>
               </div>
+              <style>
+                .tpl-builder-ce:empty::before {
+                  content: attr(data-placeholder);
+                  color: #888;
+                  font-weight: 400;
+                  pointer-events: none;
+                }
+                .tpl-builder-ce:focus { outline: 2px solid rgba(123,82,238,0.4); }
+                .tpl-blank-mark {
+                  color: #dc2626 !important;
+                  text-decoration: underline;
+                  text-decoration-color: #dc2626;
+                  text-underline-offset: 3px;
+                  font-weight: 900;
+                  padding: 0 2px;
+                }
+              </style>
               <div style="font-size:0.72rem;color:var(--muted);margin-bottom:8px;">
                 Бүтэн хариултаа бичээд нөхүүлэх хэсгээ <b>сонгож <kbd style="background:#eee;padding:1px 5px;border-radius:4px;border:1px solid #ccc;font-size:0.7rem;">Ctrl+B</kbd></b> дар. Жнь "5 см" гэснээс "5"-г сонгох ⇒ <code>___ см</code> болно. <br>
                 ___ дээр <b>Ctrl+B</b> дахин дарвал энгийн текст болж буцна. Math оруулахдаа <b>∑ Math</b> товчийг ашиглана.
@@ -1951,140 +1967,142 @@ function closeMathModal() { closeChoiceMathModal(); }
     if (fillWrap) fillWrap.style.display = (type === 'fill' || type === 'number') ? '' : 'none';
   }
 
-  // ═══ TEMPLATE BUILDER ═══
-  // Backing state: бүтэн хариулт болон нөхөх хэсгүүдийн жагсаалт
-  // _qTplBlanks: [{ value: '5' }, { value: '20' }] — дараалал чухал
-  var _qTplBlanks = [];
+  // ═══ TEMPLATE BUILDER (contenteditable WYSIWYG) ═══
+  // Үндсэн зарчим: contenteditable дотор blank-уудыг .tpl-blank-mark span-аар хадгална.
+  // Сonтентэас template+утгуудыг тэрхүү DOM-аас уншаад q-answer-template / q-fill-answer-ыг шинэчилнэ.
+  function _qTplCE() { return document.getElementById('q-template-builder'); }
+
+  // DOM-аас template (___) болон утгуудыг авна
+  function qTplExtract() {
+    var inp = _qTplCE();
+    if (!inp) return { tpl: '', values: [] };
+    var tpl = '';
+    var values = [];
+    function walk(node) {
+      if (node.nodeType === 3) { // text
+        tpl += node.textContent;
+      } else if (node.nodeType === 1) {
+        if (node.classList && node.classList.contains('tpl-blank-mark')) {
+          tpl += '___';
+          values.push(node.textContent);
+        } else if (node.tagName === 'BR') {
+          tpl += '\n';
+        } else {
+          for (var i = 0; i < node.childNodes.length; i++) walk(node.childNodes[i]);
+        }
+      }
+    }
+    for (var i = 0; i < inp.childNodes.length; i++) walk(inp.childNodes[i]);
+    return { tpl: tpl, values: values };
+  }
+
   // Toggle: сонгосон хэсгийг нөхөх ↔ энгийн текст
   function qTplMakeBlank() {
-    var inp = document.getElementById('q-template-builder');
+    var inp = _qTplCE();
     if (!inp) return;
-    var start = inp.selectionStart, end = inp.selectionEnd;
-    if (start == null || end == null) return;
-    var v = inp.value;
-    var picked = v.substring(start, end);
-
-    // Сонголтод ___ багтсан бол — UN-blank (нөхөх биш энгийн текст болгоно)
-    if (picked.indexOf('___') !== -1) {
-      var localIdx = picked.indexOf('___');
-      var realStart = start + localIdx;
-      var realEnd = realStart + 3;
-      // Хэдэн дэх ___ бэ — өмнө нь хэдэн ___ байгаа вэ
-      var before0 = v.substring(0, realStart);
-      var blankPos = (before0.match(/_{3,}/g) || []).length;
-      var restored = (_qTplBlanks[blankPos] && _qTplBlanks[blankPos].value) || '';
-      _qTplBlanks.splice(blankPos, 1);
-      inp.value = v.substring(0, realStart) + restored + v.substring(realEnd);
-      qTplUpdateHidden();
-      var newP = realStart + restored.length;
-      inp.focus();
-      inp.setSelectionRange(newP, newP);
-      return;
-    }
-
-    // Эс бөгөөс — нөхөх болгоно
-    if (start === end) {
-      alert('Эхлээд нөхүүлэх хэсгээ сонгоно уу (Ctrl+B). Аль хэдийн нөхсөн ___ дээр Ctrl+B дарвал энгийн текст болж буцна.');
-      return;
-    }
-    picked = picked.trim();
-    if (!picked) return;
-    var before = v.substring(0, start);
-    var after = v.substring(end);
-    inp.value = before + '___' + after;
-    // Зөв дарааллаар splice — өмнө нь байсан ___ тоогоор
-    var blanksBefore = (before.match(/_{3,}/g) || []).length;
-    _qTplBlanks.splice(blanksBefore, 0, { value: picked });
-    qTplUpdateHidden();
-    var newPos = (before + '___').length;
     inp.focus();
-    inp.setSelectionRange(newPos, newPos);
+    var sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    var range = sel.getRangeAt(0);
+    // Сонгосон/курсор байгаа хэсэг blank доторх юу шалгана
+    var node = range.commonAncestorContainer;
+    var pEl = (node.nodeType === 3 ? node.parentElement : node);
+    var blankEl = pEl && pEl.closest ? pEl.closest('.tpl-blank-mark') : null;
+    if (blankEl) {
+      // UN-blank: span-ийг устгаж текстээр сольно
+      var tn = document.createTextNode(blankEl.textContent);
+      blankEl.replaceWith(tn);
+      var r = document.createRange();
+      r.setStart(tn, tn.length);
+      r.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(r);
+      qTplUpdateHidden();
+      return;
+    }
+    if (range.collapsed) {
+      alert('Эхлээд нөхүүлэх хэсгээ сонгоно уу (Ctrl+B).');
+      return;
+    }
+    var picked = range.toString().trim();
+    if (!picked) return;
+    // Хэсэгчилсэн blank доторх сонголтыг хязгаарлахын тулд commonAncestor-ийг шалгасан
+    // Сонголтыг устгаад span-ээр сольно
+    var span = document.createElement('span');
+    span.className = 'tpl-blank-mark';
+    span.textContent = picked;
+    range.deleteContents();
+    range.insertNode(span);
+    // Cursor span-ийн араар
+    var r2 = document.createRange();
+    r2.setStartAfter(span);
+    r2.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(r2);
+    qTplUpdateHidden();
   }
   // Ctrl/Cmd + B — toggle blank
   document.addEventListener('keydown', function(e){
     if (!(e.ctrlKey || e.metaKey)) return;
     if ((e.key||'').toLowerCase() !== 'b') return;
-    var inp = document.getElementById('q-template-builder');
-    if (!inp || document.activeElement !== inp) return;
+    var inp = _qTplCE();
+    if (!inp) return;
+    // Document.activeElement contenteditable-ийг таних
+    if (document.activeElement !== inp && !inp.contains(document.activeElement)) return;
     e.preventDefault();
     qTplMakeBlank();
   });
+
   function qTplReset() {
-    _qTplBlanks = [];
-    var inp = document.getElementById('q-template-builder');
-    if (inp) inp.value = '';
+    var inp = _qTplCE();
+    if (inp) inp.innerHTML = '';
     qTplUpdateHidden();
   }
-  // Input-ын текстийг overlay-д харуулна, ___ хэсгүүдийг улаанаар будна
-  function _qTplSyncOverlay() {
-    var inp = document.getElementById('q-template-builder');
-    var ov = document.getElementById('q-tpl-overlay');
-    if (!inp || !ov) return;
-    var text = inp.value || '';
-    if (!text) {
-      ov.innerHTML = '<span style="color:#888;font-weight:400;">' + (inp.placeholder || '').replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }) + '</span>';
-      return;
-    }
-    ov.innerHTML = text.split(/(_{3,})/).map(function(p){
-      if (/^_{3,}$/.test(p)) {
-        return '<span style="color:#dc2626;font-weight:900;background:rgba(220,38,38,0.12);padding:0 3px;border-radius:4px;letter-spacing:2px;">' + p + '</span>';
-      }
-      var d = document.createElement('div');
-      d.textContent = p;
-      return d.innerHTML;
-    }).join('');
-  }
+
   function qTplUpdateHidden() {
-    var inp = document.getElementById('q-template-builder');
+    var inp = _qTplCE();
     var tplHidden = document.getElementById('q-answer-template');
     var ansHidden = document.getElementById('q-fill-answer');
     var prev = document.getElementById('q-tpl-preview');
     var prevText = document.getElementById('q-tpl-preview-text');
     var prevVals = document.getElementById('q-tpl-preview-vals');
-    _qTplSyncOverlay();
-    if (!inp || !_qTplBlanks.length) {
+    var data = qTplExtract();
+    if (!inp || !data.values.length) {
       if (tplHidden) tplHidden.value = '';
       if (prev) prev.style.display = 'none';
       return;
     }
-    var tpl = inp.value;
-    if (tplHidden) tplHidden.value = tpl;
-    // Хариултуудыг pipe-аар нэгтгэж q-fill-answer-д
-    var combined = _qTplBlanks.map(function(b){ return b.value; }).join('|');
+    if (tplHidden) tplHidden.value = data.tpl;
+    var combined = data.values.join('|');
     if (ansHidden) ansHidden.value = combined;
-    // Math-field байвал тэр дээрх value-г бас шинэчилнэ
     var mf = document.getElementById('q-fill-mf');
-    if (mf) {
-      try { mf.value = combined; } catch(e){}
-    }
+    if (mf) { try { mf.value = combined; } catch(e){} }
     if (prev) {
       prev.style.display = '';
-      if (prevText) prevText.innerHTML = tpl.replace(/___/g, '<span style="display:inline-block;min-width:36px;border-bottom:2px solid #7B52EE;color:transparent;">_</span>');
+      if (prevText) prevText.innerHTML = data.tpl.replace(/___/g, '<span style="display:inline-block;min-width:36px;border-bottom:2px solid #7B52EE;color:transparent;">_</span>');
       if (prevVals) prevVals.textContent = combined;
     }
   }
-  // Анх ачаалахад overlay-г placeholder харуулахаар идэвхжүүлэх
-  document.addEventListener('DOMContentLoaded', function(){ _qTplSyncOverlay(); });
-  // Scroll sync — input-ын scroll байрлалд тааруулах
-  document.addEventListener('scroll', function(e){
-    if (e.target && e.target.id === 'q-template-builder') {
-      var ov = document.getElementById('q-tpl-overlay');
-      if (ov) ov.scrollLeft = e.target.scrollLeft;
-    }
-  }, true);
-  // Builder input-д бичсэн үед hidden-ыг шинэчлэх
+  // Contenteditable дотор input гарвал hidden шинэчлэх
   document.addEventListener('input', function(e){
     if (e.target && e.target.id === 'q-template-builder') qTplUpdateHidden();
   });
 
-  // Cursor байрлалд $...$ LaTeX оруулна (template builder input-д тусгайлан)
+  // Cursor байрлалд $...$ LaTeX оруулна (template builder contenteditable-д тусгайлан)
   window.openTplMathInsert = function() {
-    var inp = document.getElementById('q-template-builder');
+    var inp = _qTplCE();
     if (!inp) return;
-    var cs = inp.selectionStart != null ? inp.selectionStart : inp.value.length;
-    var ce = inp.selectionEnd != null ? inp.selectionEnd : inp.value.length;
-    window._tplMathCursor = { start: cs, end: ce };
-    // Math modal-ыг нээнэ — confirm дээр _tplMathFinish дуудна
+    inp.focus();
+    var sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      window._tplMathRange = sel.getRangeAt(0).cloneRange();
+    } else {
+      // Сүүлд нэмэх range үүсгэх
+      var r = document.createRange();
+      r.selectNodeContents(inp);
+      r.collapse(false);
+      window._tplMathRange = r;
+    }
     var modal = document.getElementById('choice-math-modal');
     var card = document.getElementById('choice-math-card');
     if (modal) modal.style.display = 'flex';
@@ -2096,7 +2114,7 @@ function closeMathModal() { closeChoiceMathModal(); }
       mf.focus();
       if (window.mathVirtualKeyboard) window.mathVirtualKeyboard.show({animate:true});
     }, 200);
-    _currentChoiceTarget = '__tpl__'; // тусгай тэмдэг
+    _currentChoiceTarget = '__tpl__';
   };
 
   // confirmChoiceMath-ыг өргөтгөж '__tpl__' үед cursor-д оруулна
@@ -2104,22 +2122,31 @@ function closeMathModal() { closeChoiceMathModal(); }
   window.confirmChoiceMath = function() {
     if (_currentChoiceTarget === '__tpl__') {
       var mf = document.getElementById('choice-math-field');
-      var inp = document.getElementById('q-template-builder');
+      var inp = _qTplCE();
       if (mf && inp) {
         var val = ((mf.value || (mf.getValue && mf.getValue()) || '')).trim();
         var insert = val ? ('$' + val + '$') : '';
-        var c = window._tplMathCursor || { start: inp.value.length, end: inp.value.length };
-        inp.value = inp.value.slice(0, c.start) + insert + inp.value.slice(c.end);
-        // Cursor-ыг insert-ийн ард тавина
-        var pos = c.start + insert.length;
-        try { inp.focus(); inp.setSelectionRange(pos, pos); } catch(e){}
-        qTplUpdateHidden();
+        if (insert && window._tplMathRange) {
+          var range = window._tplMathRange;
+          try { range.deleteContents(); } catch(e){}
+          var tn = document.createTextNode(insert);
+          try { range.insertNode(tn); } catch(e) {
+            inp.appendChild(tn);
+          }
+          var r2 = document.createRange();
+          r2.setStartAfter(tn);
+          r2.collapse(true);
+          var s = window.getSelection();
+          s.removeAllRanges();
+          s.addRange(r2);
+          inp.focus();
+          qTplUpdateHidden();
+        }
       }
-      // modal хаах
       var modal = document.getElementById('choice-math-modal');
       if (modal) modal.style.display = 'none';
       _currentChoiceTarget = null;
-      window._tplMathCursor = null;
+      window._tplMathRange = null;
       if (window.mathVirtualKeyboard) window.mathVirtualKeyboard.hide();
       return;
     }
@@ -3013,8 +3040,13 @@ function openEditMathModal(targetId) {
     }).then(r=>r.json()).then(function(data) {
       if (!data.ok) { if(msg){msg.style.color='var(--red)';msg.textContent='Алдаа: '+data.error;} return; }
       if(msg){msg.style.color='var(--green)';msg.textContent='✓ Амжилттай нэмэгдлээ!';}
-      ['q-a','q-b','q-c','q-d','q-answer-template','q-time-limit','q-template-builder'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
-      _qTplBlanks = [];
+      ['q-a','q-b','q-c','q-d','q-answer-template','q-time-limit'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+      // Template builder contenteditable бол innerHTML цэвэрлэнэ
+      var tplCe = document.getElementById('q-template-builder');
+      if (tplCe) {
+        if (tplCe.isContentEditable || tplCe.getAttribute('contenteditable') === 'true') tplCe.innerHTML = '';
+        else tplCe.value = '';
+      }
       var tplPrev = document.getElementById('q-tpl-preview');
       if (tplPrev) tplPrev.style.display = 'none';
       var md = document.getElementById('q-math-display'); if(md) md.value='';
