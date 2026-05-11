@@ -933,10 +933,14 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
                 <span>🎯 Хэсэгчилсэн нөхөх</span>
                 <span style="color:var(--muted);font-weight:600;font-size:0.7rem;">(сурагчид зөвхөн зарим хэсгийг нь нөхүүлэх)</span>
               </label>
-              <input id="q-template-builder" type="text" class="form-input"
-                placeholder="Жнь: 5 см   эсвэл   5 * 4 = 20"
-                style="margin-bottom:8px;">
-              <div style="font-size:0.72rem;color:var(--muted);margin-bottom:8px;">Бүтэн хариултаа бичээд нөхүүлэх хэсгээ <b>сонгож</b> доорх товчийг дар. Жнь "5 см" гэснээс "5"-г сонгох ⇒ <code>___ см</code> болж сурагч 5 гэж нөхнө.</div>
+              <div style="position:relative;margin-bottom:8px;">
+                <input id="q-template-builder" type="text" class="form-input"
+                  placeholder="Жнь: 5 см   эсвэл   5 * 4 = 20"
+                  style="padding-right:80px;">
+                <button type="button" onclick="openTplMathInsert()"
+                  style="position:absolute;top:6px;right:6px;background:#7B52EE;border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.74rem;font-weight:800;">∑ Math</button>
+              </div>
+              <div style="font-size:0.72rem;color:var(--muted);margin-bottom:8px;">Бүтэн хариултаа бичээд нөхүүлэх хэсгээ <b>сонгож</b> доорх товчийг дар. Жнь "5 см" гэснээс "5"-г сонгох ⇒ <code>___ см</code> болж сурагч 5 гэж нөхнө. Math оруулахдаа дээрх <b>∑ Math</b> товчийг ашиглана.</div>
               <div style="display:flex;gap:6px;flex-wrap:wrap;">
                 <button type="button" onclick="qTplMakeBlank()" id="q-tpl-blank-btn"
                   style="background:#7B52EE;border:none;color:#fff;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:0.82rem;font-weight:800;">
@@ -2007,6 +2011,55 @@ function closeMathModal() { closeChoiceMathModal(); }
   document.addEventListener('input', function(e){
     if (e.target && e.target.id === 'q-template-builder') qTplUpdateHidden();
   });
+
+  // Cursor байрлалд $...$ LaTeX оруулна (template builder input-д тусгайлан)
+  window.openTplMathInsert = function() {
+    var inp = document.getElementById('q-template-builder');
+    if (!inp) return;
+    var cs = inp.selectionStart != null ? inp.selectionStart : inp.value.length;
+    var ce = inp.selectionEnd != null ? inp.selectionEnd : inp.value.length;
+    window._tplMathCursor = { start: cs, end: ce };
+    // Math modal-ыг нээнэ — confirm дээр _tplMathFinish дуудна
+    var modal = document.getElementById('choice-math-modal');
+    var card = document.getElementById('choice-math-card');
+    if (modal) modal.style.display = 'flex';
+    if (card) { card.style.position = 'relative'; card.style.left = ''; card.style.top = ''; }
+    var mf = document.getElementById('choice-math-field');
+    setTimeout(function(){
+      if (!mf) return;
+      mf.value = '';
+      mf.focus();
+      if (window.mathVirtualKeyboard) window.mathVirtualKeyboard.show({animate:true});
+    }, 200);
+    _currentChoiceTarget = '__tpl__'; // тусгай тэмдэг
+  };
+
+  // confirmChoiceMath-ыг өргөтгөж '__tpl__' үед cursor-д оруулна
+  var _origConfirmChoiceMath = window.confirmChoiceMath;
+  window.confirmChoiceMath = function() {
+    if (_currentChoiceTarget === '__tpl__') {
+      var mf = document.getElementById('choice-math-field');
+      var inp = document.getElementById('q-template-builder');
+      if (mf && inp) {
+        var val = ((mf.value || (mf.getValue && mf.getValue()) || '')).trim();
+        var insert = val ? ('$' + val + '$') : '';
+        var c = window._tplMathCursor || { start: inp.value.length, end: inp.value.length };
+        inp.value = inp.value.slice(0, c.start) + insert + inp.value.slice(c.end);
+        // Cursor-ыг insert-ийн ард тавина
+        var pos = c.start + insert.length;
+        try { inp.focus(); inp.setSelectionRange(pos, pos); } catch(e){}
+        qTplUpdateHidden();
+      }
+      // modal хаах
+      var modal = document.getElementById('choice-math-modal');
+      if (modal) modal.style.display = 'none';
+      _currentChoiceTarget = null;
+      window._tplMathCursor = null;
+      if (window.mathVirtualKeyboard) window.mathVirtualKeyboard.hide();
+      return;
+    }
+    return _origConfirmChoiceMath ? _origConfirmChoiceMath.apply(this, arguments) : null;
+  };
 
   function updateChoiceHighlight() {}
 
