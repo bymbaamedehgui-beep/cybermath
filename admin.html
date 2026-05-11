@@ -940,11 +940,14 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
                 <button type="button" onclick="openTplMathInsert()"
                   style="position:absolute;top:6px;right:6px;background:#7B52EE;border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.74rem;font-weight:800;">∑ Math</button>
               </div>
-              <div style="font-size:0.72rem;color:var(--muted);margin-bottom:8px;">Бүтэн хариултаа бичээд нөхүүлэх хэсгээ <b>сонгож</b> доорх товчийг дар. Жнь "5 см" гэснээс "5"-г сонгох ⇒ <code>___ см</code> болж сурагч 5 гэж нөхнө. Math оруулахдаа дээрх <b>∑ Math</b> товчийг ашиглана.</div>
+              <div style="font-size:0.72rem;color:var(--muted);margin-bottom:8px;">
+                Бүтэн хариултаа бичээд нөхүүлэх хэсгээ <b>сонгож <kbd style="background:#eee;padding:1px 5px;border-radius:4px;border:1px solid #ccc;font-size:0.7rem;">Ctrl+B</kbd></b> дар. Жнь "5 см" гэснээс "5"-г сонгох ⇒ <code>___ см</code> болно. <br>
+                ___ дээр <b>Ctrl+B</b> дахин дарвал энгийн текст болж буцна. Math оруулахдаа <b>∑ Math</b> товчийг ашиглана.
+              </div>
               <div style="display:flex;gap:6px;flex-wrap:wrap;">
                 <button type="button" onclick="qTplMakeBlank()" id="q-tpl-blank-btn"
                   style="background:#7B52EE;border:none;color:#fff;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:0.82rem;font-weight:800;">
-                  🎯 Сонгосон хэсгийг нөхөх болгох
+                  🎯 Нөхөх ⇄ Текст <kbd style="background:rgba(255,255,255,0.25);padding:1px 5px;border-radius:4px;margin-left:4px;font-size:0.7rem;">Ctrl+B</kbd>
                 </button>
                 <button type="button" onclick="qTplReset()" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:7px 12px;cursor:pointer;font-size:0.82rem;font-weight:800;">↻ Цэвэрлэх</button>
               </div>
@@ -1950,29 +1953,60 @@ function closeMathModal() { closeChoiceMathModal(); }
   // Backing state: бүтэн хариулт болон нөхөх хэсгүүдийн жагсаалт
   // _qTplBlanks: [{ value: '5' }, { value: '20' }] — дараалал чухал
   var _qTplBlanks = [];
+  // Toggle: сонгосон хэсгийг нөхөх ↔ энгийн текст
   function qTplMakeBlank() {
     var inp = document.getElementById('q-template-builder');
     if (!inp) return;
-    var sel = window.getSelection ? null : null;
     var start = inp.selectionStart, end = inp.selectionEnd;
-    if (start == null || end == null || start === end) {
-      alert('Эхлээд нөхүүлэх хэсгээ сонгоно уу (input дотроос).');
+    if (start == null || end == null) return;
+    var v = inp.value;
+    var picked = v.substring(start, end);
+
+    // Сонголтод ___ багтсан бол — UN-blank (нөхөх биш энгийн текст болгоно)
+    if (picked.indexOf('___') !== -1) {
+      var localIdx = picked.indexOf('___');
+      var realStart = start + localIdx;
+      var realEnd = realStart + 3;
+      // Хэдэн дэх ___ бэ — өмнө нь хэдэн ___ байгаа вэ
+      var before0 = v.substring(0, realStart);
+      var blankPos = (before0.match(/_{3,}/g) || []).length;
+      var restored = (_qTplBlanks[blankPos] && _qTplBlanks[blankPos].value) || '';
+      _qTplBlanks.splice(blankPos, 1);
+      inp.value = v.substring(0, realStart) + restored + v.substring(realEnd);
+      qTplUpdateHidden();
+      var newP = realStart + restored.length;
+      inp.focus();
+      inp.setSelectionRange(newP, newP);
       return;
     }
-    var v = inp.value;
-    var picked = v.substring(start, end).trim();
-    if (!picked) { alert('Хоосон зай сонгогдсон байна.'); return; }
-    // Сонголтыг ___ болгоно
+
+    // Эс бөгөөс — нөхөх болгоно
+    if (start === end) {
+      alert('Эхлээд нөхүүлэх хэсгээ сонгоно уу (Ctrl+B). Аль хэдийн нөхсөн ___ дээр Ctrl+B дарвал энгийн текст болж буцна.');
+      return;
+    }
+    picked = picked.trim();
+    if (!picked) return;
     var before = v.substring(0, start);
     var after = v.substring(end);
     inp.value = before + '___' + after;
-    _qTplBlanks.push({ value: picked });
+    // Зөв дарааллаар splice — өмнө нь байсан ___ тоогоор
+    var blanksBefore = (before.match(/_{3,}/g) || []).length;
+    _qTplBlanks.splice(blanksBefore, 0, { value: picked });
     qTplUpdateHidden();
-    // Cursor-ийг ___-ийн ард тавина
     var newPos = (before + '___').length;
     inp.focus();
     inp.setSelectionRange(newPos, newPos);
   }
+  // Ctrl/Cmd + B — toggle blank
+  document.addEventListener('keydown', function(e){
+    if (!(e.ctrlKey || e.metaKey)) return;
+    if ((e.key||'').toLowerCase() !== 'b') return;
+    var inp = document.getElementById('q-template-builder');
+    if (!inp || document.activeElement !== inp) return;
+    e.preventDefault();
+    qTplMakeBlank();
+  });
   function qTplReset() {
     _qTplBlanks = [];
     var inp = document.getElementById('q-template-builder');
