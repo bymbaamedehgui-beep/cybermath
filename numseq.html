@@ -1,0 +1,3084 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="theme-color" content="#7c3aed">
+<title>Number Sequence Puzzle — CyberMath</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   DESIGN TOKENS
+   ============================================================ */
+:root {
+  --primary: #7c3aed;
+  --primary-light: #a78bfa;
+  --primary-dark: #6d28d9;
+  --primary-glow: rgba(124, 58, 237, 0.4);
+  --accent: #fbbf24;
+  --accent-light: #fcd34d;
+  --accent-dark: #f59e0b;
+  --success: #10b981;
+  --success-light: #34d399;
+  --danger: #ef4444;
+  --danger-light: #f87171;
+  --info: #3b82f6;
+  --warning: #f97316;
+
+  --bg: #faf5ff;
+  --bg-grad-1: #faf5ff;
+  --bg-grad-2: #ede9fe;
+  --card: #ffffff;
+  --card-2: #f5f3ff;
+  --text: #1f2937;
+  --text-soft: #6b7280;
+  --text-faint: #9ca3af;
+  --border: #e5e7eb;
+  --border-soft: #f3f4f6;
+
+  --shadow-sm: 0 1px 2px rgba(124, 58, 237, 0.06);
+  --shadow: 0 4px 12px rgba(124, 58, 237, 0.10);
+  --shadow-lg: 0 10px 30px rgba(124, 58, 237, 0.18);
+  --shadow-xl: 0 20px 50px rgba(124, 58, 237, 0.25);
+
+  --radius-sm: 8px;
+  --radius: 16px;
+  --radius-lg: 24px;
+  --radius-xl: 32px;
+
+  --font: 'Baloo 2', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+
+  --easing: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+[data-theme="dark"] {
+  --bg: #0f0a1e;
+  --bg-grad-1: #0f0a1e;
+  --bg-grad-2: #1a1130;
+  --card: #1c1535;
+  --card-2: #261b42;
+  --text: #f3f4f6;
+  --text-soft: #d1d5db;
+  --text-faint: #9ca3af;
+  --border: #3b2d5a;
+  --border-soft: #2d2247;
+  --primary-light: #c4b5fd;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+
+/* ============================================================
+   RESET & BASE
+   ============================================================ */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: var(--font);
+  background: linear-gradient(135deg, var(--bg-grad-1) 0%, var(--bg-grad-2) 100%);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+  overflow-x: hidden;
+}
+button { font-family: inherit; border: none; cursor: pointer; background: none; color: inherit; }
+input { font-family: inherit; }
+[hidden] { display: none !important; }
+
+button:focus-visible, .choice:focus-visible, .keypad-key:focus-visible, .diff-pill:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   LAYOUT
+   ============================================================ */
+.app {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 100vh;
+}
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 4px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.brand-icon {
+  width: 44px; height: 44px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+  display: grid; place-items: center;
+  box-shadow: var(--shadow);
+  flex-shrink: 0;
+}
+.brand-icon svg { width: 28px; height: 28px; }
+.brand-title {
+  font-weight: 800;
+  font-size: 19px;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+.brand-sub {
+  font-size: 12px;
+  color: var(--text-soft);
+  font-weight: 500;
+}
+.header-actions { display: flex; gap: 6px; }
+.icon-btn {
+  width: 40px; height: 40px;
+  border-radius: 12px;
+  background: var(--card);
+  display: grid; place-items: center;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+  color: var(--text-soft);
+}
+.icon-btn:hover { transform: translateY(-1px); box-shadow: var(--shadow); color: var(--primary); }
+.icon-btn:active { transform: translateY(0); }
+.icon-btn svg { width: 20px; height: 20px; }
+
+/* ============================================================
+   DIFFICULTY SELECTOR
+   ============================================================ */
+.diff-row {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 2px;
+  scrollbar-width: none;
+}
+.diff-row::-webkit-scrollbar { display: none; }
+.diff-pill {
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--text-soft);
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.15s, color 0.15s, background 0.15s;
+  flex-shrink: 0;
+  border: 2px solid transparent;
+}
+.diff-pill:hover { color: var(--primary); }
+.diff-pill.active {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+  color: white;
+  box-shadow: 0 4px 14px var(--primary-glow);
+  border-color: transparent;
+}
+.diff-pill[data-id="genius"].active {
+  background: linear-gradient(135deg, var(--accent-dark) 0%, var(--accent) 100%);
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4);
+}
+
+/* ============================================================
+   STATS BAR
+   ============================================================ */
+.stats-bar {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 14px;
+  align-items: center;
+  box-shadow: var(--shadow-sm);
+}
+.lives {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.heart {
+  width: 22px;
+  height: 22px;
+  transition: transform 0.3s var(--easing), opacity 0.3s;
+}
+.heart.lost {
+  opacity: 0.25;
+  transform: scale(0.85);
+}
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+.stat-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+  font-weight: 600;
+}
+.stat-value {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.stat-value.score { color: var(--primary); }
+.stat-value.streak { color: var(--accent-dark); }
+.stat-value.timer { font-family: var(--font-mono); font-size: 15px; }
+.stat-flame { font-size: 14px; }
+.stats-bar > .stat-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+/* ============================================================
+   GAME CARD
+   ============================================================ */
+.game-card {
+  background: var(--card);
+  border-radius: var(--radius-lg);
+  padding: 20px 18px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 360px;
+}
+.puzzle-chip-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  min-height: 26px;
+}
+.puzzle-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--card-2);
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.3s, transform 0.3s;
+}
+.puzzle-chip.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.puzzle-chip svg { width: 14px; height: 14px; }
+.daily-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(135deg, var(--accent-dark), var(--accent));
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.3);
+}
+
+/* ============================================================
+   SEQUENCE DISPLAY
+   ============================================================ */
+.sequence {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 4px;
+  user-select: none;
+}
+.seq-term {
+  background: linear-gradient(135deg, var(--card-2) 0%, var(--bg-grad-2) 100%);
+  color: var(--text);
+  font-size: 28px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  padding: 10px 16px;
+  min-width: 56px;
+  text-align: center;
+  border-radius: var(--radius);
+  box-shadow: inset 0 0 0 2px var(--border-soft);
+  animation: pop-in 0.4s var(--easing) backwards;
+}
+.seq-term.unknown {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+  color: white;
+  box-shadow: 0 6px 18px var(--primary-glow);
+  animation: pop-in 0.4s var(--easing) backwards, pulse-glow 2s ease-in-out 0.5s infinite;
+}
+.seq-term.unknown.has-input {
+  font-size: 28px;
+}
+.seq-term.unknown.has-input .qmark { display: none; }
+.seq-arrow {
+  color: var(--text-faint);
+  font-size: 20px;
+  font-weight: 600;
+}
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.6) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 6px 18px var(--primary-glow); }
+  50% { box-shadow: 0 8px 28px var(--primary-glow), 0 0 0 6px rgba(124, 58, 237, 0.08); }
+}
+
+/* ============================================================
+   ANSWER AREA - MULTIPLE CHOICE
+   ============================================================ */
+.choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.choice {
+  background: var(--card-2);
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  padding: 16px 12px;
+  border-radius: var(--radius);
+  border: 2px solid transparent;
+  transition: transform 0.15s, border-color 0.15s, background 0.15s;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.choice:hover { transform: translateY(-2px); border-color: var(--primary-light); }
+.choice:active { transform: translateY(0); }
+.choice.selected {
+  border-color: var(--primary);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+  color: white;
+}
+.choice.correct {
+  border-color: var(--success);
+  background: linear-gradient(135deg, var(--success) 0%, var(--success-light) 100%);
+  color: white;
+  animation: bounce-in 0.5s var(--easing);
+}
+.choice.wrong {
+  border-color: var(--danger);
+  background: linear-gradient(135deg, var(--danger) 0%, var(--danger-light) 100%);
+  color: white;
+  animation: shake 0.4s;
+}
+@keyframes bounce-in {
+  0% { transform: scale(0.9); }
+  50% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-6px); }
+  80% { transform: translateX(6px); }
+}
+
+/* ============================================================
+   ANSWER AREA - OPEN ENDED
+   ============================================================ */
+.open-input-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+.open-input {
+  font-family: var(--font-mono);
+  font-size: 36px;
+  font-weight: 700;
+  text-align: center;
+  width: 100%;
+  max-width: 240px;
+  background: var(--card-2);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  color: var(--text);
+  transition: border-color 0.2s, box-shadow 0.2s;
+  outline: none;
+  -moz-appearance: textfield;
+}
+.open-input::-webkit-outer-spin-button,
+.open-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.open-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.15);
+}
+.open-input.feedback-correct {
+  border-color: var(--success);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(52, 211, 153, 0.15) 100%);
+  color: var(--success);
+  animation: bounce-in 0.5s var(--easing);
+}
+.open-input.feedback-wrong {
+  border-color: var(--danger);
+  color: var(--danger);
+  animation: shake 0.4s;
+}
+.keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  width: 100%;
+  max-width: 280px;
+}
+.keypad-key {
+  background: var(--card-2);
+  font-size: 22px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  padding: 14px;
+  border-radius: var(--radius);
+  color: var(--text);
+  transition: transform 0.1s, background 0.15s;
+  min-height: 52px;
+}
+.keypad-key:hover { background: var(--bg-grad-2); }
+.keypad-key:active { transform: scale(0.95); }
+.keypad-key.special {
+  background: var(--primary);
+  color: white;
+}
+.keypad-key.special:hover { background: var(--primary-dark); }
+.keypad-key.minus {
+  background: var(--card);
+  color: var(--text-soft);
+}
+
+/* ============================================================
+   HINT AREA
+   ============================================================ */
+.hint-area {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.hint-card {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(252, 211, 77, 0.18) 100%);
+  border: 2px dashed var(--accent);
+  color: var(--text);
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  animation: slide-down 0.3s var(--easing) backwards;
+}
+.hint-card svg { flex-shrink: 0; width: 18px; height: 18px; color: var(--accent-dark); margin-top: 1px; }
+.hint-card-title {
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent-dark);
+  margin-bottom: 2px;
+}
+.hint-card-text { line-height: 1.45; }
+.hint-card .mono { font-family: var(--font-mono); font-weight: 700; }
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================================
+   ACTION ROW
+   ============================================================ */
+.actions {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 8px;
+}
+.btn {
+  border-radius: var(--radius);
+  font-weight: 700;
+  font-size: 15px;
+  padding: 14px 18px;
+  transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 50px;
+}
+.btn svg { width: 18px; height: 18px; }
+.btn.primary {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+  color: white;
+  box-shadow: 0 4px 14px var(--primary-glow);
+}
+.btn.primary:hover { transform: translateY(-2px); box-shadow: 0 6px 18px var(--primary-glow); }
+.btn.primary:active { transform: translateY(0); }
+.btn.primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.btn.secondary {
+  background: var(--card);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+.btn.secondary:hover { background: var(--card-2); }
+.btn.warn {
+  background: var(--card);
+  color: var(--accent-dark);
+  box-shadow: var(--shadow-sm);
+}
+.btn.warn:hover { background: rgba(251, 191, 36, 0.1); }
+.btn.danger {
+  background: var(--card);
+  color: var(--danger);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ============================================================
+   SECONDARY ROW
+   ============================================================ */
+.sec-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.sec-btn {
+  background: var(--card);
+  color: var(--text-soft);
+  border-radius: var(--radius);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 10px 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: var(--shadow-sm);
+  transition: color 0.15s, background 0.15s, transform 0.15s;
+  min-height: 40px;
+}
+.sec-btn:hover { color: var(--primary); background: var(--card-2); }
+.sec-btn:active { transform: scale(0.98); }
+.sec-btn svg { width: 16px; height: 16px; }
+.sec-btn.daily {
+  background: linear-gradient(135deg, var(--accent-dark) 0%, var(--accent) 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.25);
+}
+.sec-btn.daily:hover { color: white; }
+.sec-btn.daily.done {
+  background: linear-gradient(135deg, var(--success) 0%, var(--success-light) 100%);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+}
+
+/* ============================================================
+   TOAST
+   ============================================================ */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--text);
+  color: var(--card);
+  padding: 12px 20px;
+  border-radius: var(--radius);
+  font-weight: 600;
+  font-size: 14px;
+  box-shadow: var(--shadow-xl);
+  opacity: 0;
+  transition: opacity 0.3s, transform 0.3s var(--easing);
+  pointer-events: none;
+  z-index: 200;
+  max-width: 90vw;
+  text-align: center;
+}
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.toast.success { background: var(--success); color: white; }
+.toast.error { background: var(--danger); color: white; }
+.toast.combo {
+  background: linear-gradient(135deg, var(--accent-dark) 0%, var(--accent) 100%);
+  color: white;
+}
+
+/* ============================================================
+   MODAL
+   ============================================================ */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 10, 30, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: grid;
+  place-items: center;
+  z-index: 100;
+  padding: 16px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s;
+}
+.modal-backdrop.open { opacity: 1; pointer-events: auto; }
+.modal {
+  background: var(--card);
+  border-radius: var(--radius-xl);
+  padding: 24px;
+  max-width: 480px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-xl);
+  transform: scale(0.92);
+  transition: transform 0.3s var(--easing);
+}
+.modal-backdrop.open .modal { transform: scale(1); }
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.modal-title {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.modal-close {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  color: var(--text-soft);
+  background: var(--card-2);
+  transition: background 0.15s;
+}
+.modal-close:hover { background: var(--bg-grad-2); }
+.modal-close svg { width: 18px; height: 18px; }
+
+/* Win / Game Over modal */
+.result-modal-body {
+  text-align: center;
+  padding: 8px 0;
+}
+.result-emoji {
+  font-size: 64px;
+  line-height: 1;
+  margin-bottom: 8px;
+  animation: bounce-in 0.6s var(--easing);
+}
+.result-title {
+  font-size: 24px;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+.result-sub {
+  color: var(--text-soft);
+  margin-bottom: 18px;
+}
+.result-rule-card {
+  background: linear-gradient(135deg, var(--accent-light) 0%, var(--accent) 100%);
+  color: #5a3c00;
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  text-align: left;
+}
+.result-rule-label {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+  opacity: 0.85;
+}
+.result-rule-text { font-weight: 700; font-size: 16px; line-height: 1.4; }
+.result-rule-text .mono { font-family: var(--font-mono); }
+.result-explanation {
+  background: var(--card-2);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  text-align: left;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-soft);
+}
+.result-explanation strong { color: var(--text); font-weight: 700; }
+.result-explanation .mono { font-family: var(--font-mono); color: var(--primary); font-weight: 700; }
+.result-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.result-stat {
+  background: var(--card-2);
+  border-radius: var(--radius);
+  padding: 10px 6px;
+}
+.result-stat-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.result-stat-value {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text);
+  font-family: var(--font-mono);
+}
+.result-stat-value.gain { color: var(--success); }
+.modal-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.modal-actions.single { grid-template-columns: 1fr; }
+
+/* Menu tabs */
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  background: var(--card-2);
+  padding: 4px;
+  border-radius: 12px;
+}
+.tab {
+  flex: 1;
+  padding: 8px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-soft);
+  transition: background 0.15s, color 0.15s;
+}
+.tab.active {
+  background: var(--card);
+  color: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+.setting-row:last-child { border-bottom: none; }
+.setting-label { font-weight: 600; font-size: 14px; }
+.setting-desc { font-size: 12px; color: var(--text-faint); margin-top: 2px; }
+
+.switch {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  background: var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+.switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: white;
+  transition: left 0.2s var(--easing);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+.switch.on { background: var(--primary); }
+.switch.on::after { left: 22px; }
+
+.seg-control {
+  display: flex;
+  background: var(--card-2);
+  border-radius: 10px;
+  padding: 2px;
+}
+.seg-option {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-soft);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.seg-option.active {
+  background: var(--card);
+  color: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Stats */
+.stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.stat-card {
+  background: var(--card-2);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+.stat-card-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.stat-card-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text);
+  font-family: var(--font-mono);
+}
+.stat-card-sub {
+  font-size: 12px;
+  color: var(--text-soft);
+  margin-top: 2px;
+}
+.diff-stats { margin-top: 12px; }
+.diff-stats-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+.diff-stat-row {
+  display: grid;
+  grid-template-columns: 80px 1fr 50px;
+  gap: 8px;
+  align-items: center;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+.diff-stat-name { font-weight: 600; }
+.diff-stat-bar-wrap {
+  background: var(--border-soft);
+  border-radius: 999px;
+  height: 8px;
+  overflow: hidden;
+}
+.diff-stat-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--primary-light));
+  border-radius: 999px;
+  transition: width 0.6s var(--easing);
+}
+.diff-stat-pct { text-align: right; font-family: var(--font-mono); font-weight: 700; color: var(--text-soft); }
+
+/* Achievements */
+.ach-list { display: flex; flex-direction: column; gap: 8px; }
+.ach-item {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--card-2);
+  transition: background 0.2s;
+}
+.ach-item.locked { opacity: 0.5; filter: grayscale(0.7); }
+.ach-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  font-size: 24px;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, var(--accent-dark) 0%, var(--accent) 100%);
+  box-shadow: 0 4px 10px rgba(245, 158, 11, 0.25);
+}
+.ach-item.locked .ach-icon { background: var(--border); box-shadow: none; }
+.ach-info { min-width: 0; flex: 1; }
+.ach-name { font-weight: 700; font-size: 14px; }
+.ach-desc { font-size: 12px; color: var(--text-soft); }
+
+/* How-to-play */
+.howto-section { margin-bottom: 14px; }
+.howto-section h4 {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  color: var(--primary);
+}
+.howto-section p { font-size: 13px; line-height: 1.5; color: var(--text-soft); }
+.howto-section ul { list-style: none; padding: 0; margin: 4px 0; }
+.howto-section li {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-soft);
+  padding-left: 18px;
+  position: relative;
+}
+.howto-section li::before {
+  content: '✦';
+  position: absolute;
+  left: 0;
+  color: var(--accent-dark);
+}
+
+/* ============================================================
+   CONFETTI
+   ============================================================ */
+#confetti-canvas {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 150;
+}
+
+/* ============================================================
+   COMBO BURST
+   ============================================================ */
+.combo-burst {
+  position: fixed;
+  top: 30%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.5);
+  font-size: 64px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--accent-dark);
+  text-shadow: 0 4px 20px rgba(245, 158, 11, 0.6);
+  z-index: 175;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s, transform 0.5s var(--easing);
+}
+.combo-burst.show {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+.combo-burst .combo-label {
+  display: block;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--primary);
+  text-shadow: 0 2px 8px rgba(124, 58, 237, 0.3);
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 480px) {
+  .app { padding: 12px; gap: 12px; }
+  .brand-title { font-size: 17px; }
+  .brand-sub { font-size: 11px; }
+  .seq-term { font-size: 22px; padding: 8px 12px; min-width: 44px; }
+  .seq-arrow { font-size: 16px; }
+  .game-card { padding: 16px 14px; min-height: 320px; }
+  .stats-bar { padding: 10px; gap: 10px; }
+  .stat-value { font-size: 16px; }
+  .heart { width: 19px; height: 19px; }
+  .btn { padding: 12px 14px; font-size: 14px; min-height: 46px; }
+  .choice { font-size: 19px; padding: 14px 8px; }
+  .modal { padding: 20px; }
+  .result-emoji { font-size: 52px; }
+  .result-title { font-size: 20px; }
+  .open-input { font-size: 30px; }
+  .combo-burst { font-size: 48px; }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+  .seq-term.unknown { animation: none; }
+}
+
+/* Print */
+@media print {
+  .header-actions, .sec-row, .actions, .toast, .modal-backdrop, #confetti-canvas, .combo-burst { display: none !important; }
+  body { background: white; color: black; }
+  .game-card { box-shadow: none; border: 1px solid #ccc; }
+  .seq-term { background: white; color: black; box-shadow: inset 0 0 0 2px #ccc; }
+  .seq-term.unknown { background: white; color: black; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===== HEADER ===== -->
+  <header class="header">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3 17l4-4 4 4 4-8 6 6" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="7" cy="13" r="1.5" fill="white"/>
+          <circle cx="11" cy="17" r="1.5" fill="white"/>
+          <circle cx="15" cy="9" r="1.5" fill="white"/>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-title" data-i18n="title">Тоон дарааллын таавар</div>
+        <div class="brand-sub" data-i18n="subtitle">Загвар олох тоглоом</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="icon-btn" id="btn-howto" aria-label="How to play" title="How to play">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-theme" aria-label="Toggle theme" title="Toggle theme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="icon-theme"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-menu" aria-label="Menu" title="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ===== DIFFICULTY ===== -->
+  <div class="diff-row" id="diff-row" role="tablist" aria-label="Difficulty"></div>
+
+  <!-- ===== STATS BAR ===== -->
+  <div class="stats-bar">
+    <div class="lives" id="lives" aria-label="Lives"></div>
+    <div></div>
+    <div class="stat">
+      <div class="stat-label" data-i18n="score">Оноо</div>
+      <div class="stat-value score" id="stat-score">0</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label" data-i18n="streak">Цуврал</div>
+      <div class="stat-value streak"><span class="stat-flame">🔥</span><span id="stat-streak">0</span></div>
+    </div>
+  </div>
+
+  <!-- ===== GAME CARD ===== -->
+  <div class="game-card">
+    <div class="puzzle-chip-row">
+      <span class="puzzle-chip" id="puzzle-chip">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2zM22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>
+        <span id="chip-text">—</span>
+      </span>
+      <span class="puzzle-chip" style="background:transparent;color:var(--text-faint);font-family:var(--font-mono)" id="timer-chip">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span id="stat-timer">0:00</span>
+      </span>
+    </div>
+
+    <div class="sequence" id="sequence" aria-live="polite"></div>
+
+    <div id="answer-area"></div>
+
+    <div class="hint-area" id="hint-area"></div>
+  </div>
+
+  <!-- ===== ACTIONS ===== -->
+  <div class="actions">
+    <button class="btn warn" id="btn-hint" data-i18n-label="hint">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21h6M12 17a7 7 0 100-14 7 7 0 000 14zM9.5 13a4 4 0 015 0"/></svg>
+      <span data-i18n="hint">Санамж</span>
+    </button>
+    <button class="btn secondary" id="btn-skip" data-i18n-label="skip">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+      <span data-i18n="skip">Алгасах</span>
+    </button>
+    <button class="btn primary" id="btn-submit" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      <span data-i18n="submit">Шалгах</span>
+    </button>
+  </div>
+
+  <!-- ===== SECONDARY ROW ===== -->
+  <div class="sec-row">
+    <button class="sec-btn" id="btn-new">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+      <span data-i18n="newGame">Шинэ тоглоом</span>
+    </button>
+    <button class="sec-btn daily" id="btn-daily">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"/></svg>
+      <span data-i18n="dailyChallenge">Өдрийн сорил</span>
+    </button>
+  </div>
+
+</div>
+
+<canvas id="confetti-canvas"></canvas>
+<div class="combo-burst" id="combo-burst"></div>
+<div class="toast" id="toast"></div>
+
+<!-- ============================================================
+     SCRIPT
+     ============================================================ -->
+<script>
+'use strict';
+/* eslint-disable */
+
+/* ============================================================
+   CONSTANTS
+   ============================================================ */
+const STORAGE_KEY = 'cybermath_numseq_v1';
+
+const DIFFICULTIES = [
+  { id: 'beginner', basePoints: 50,   grade: '3-5',  types: ['arithmetic_small', 'arithmetic_desc_small'] },
+  { id: 'easy',     basePoints: 100,  grade: '4-6',  types: ['geometric', 'geometric_desc', 'arithmetic_mid'] },
+  { id: 'medium',   basePoints: 200,  grade: '5-8',  types: ['squares', 'alternating', 'triangular', 'cubes_small'] },
+  { id: 'hard',     basePoints: 400,  grade: '7-10', types: ['fibonacci', 'fibonacci_variant', 'recursive_mul_add'] },
+  { id: 'expert',   basePoints: 800,  grade: '9-12', types: ['quadratic_nn1', 'recursive_mul_add_large', 'cubes', 'odd_differences'] },
+  { id: 'genius',   basePoints: 1500, grade: 'IQ',   types: ['factorial', 'arithmetic_diffs', 'primes', 'mixed_complex'] },
+];
+
+const HINT_PENALTY = 0.25; // 25% per hint level
+
+const ACHIEVEMENTS_LIST = [
+  { id: 'first_solve',      emoji: '🎯', cond: p => p.totalSolved >= 1 },
+  { id: 'streak_10',        emoji: '🔥', cond: p => p.bestStreak >= 10 },
+  { id: 'no_hint_20',       emoji: '🧠', cond: p => p.noHintSolves >= 20 },
+  { id: 'fibonacci_expert', emoji: '🌀', cond: p => (p.byType.fibonacci || 0) + (p.byType.fibonacci_variant || 0) >= 10 },
+  { id: 'genius_solver',    emoji: '👑', cond: p => (p.byDifficulty.genius?.solved || 0) >= 5 },
+  { id: 'speed_demon',      emoji: '⚡', cond: p => p.fastestSolveMs > 0 && p.fastestSolveMs < 5000 },
+  { id: 'centurion',        emoji: '💯', cond: p => p.totalSolved >= 100 },
+  { id: 'perfect_session',  emoji: '🏆', cond: p => p.bestPerfectSession >= 10 },
+];
+
+const I18N = {
+  en: {
+    title: 'Number Sequence Puzzle',
+    subtitle: 'Pattern recognition game',
+    newGame: 'New Game',
+    hint: 'Hint',
+    skip: 'Skip',
+    submit: 'Submit',
+    dailyChallenge: 'Daily Challenge',
+    score: 'Score',
+    lives: 'Lives',
+    streak: 'Streak',
+    timer: 'Time',
+    correct: 'Correct!',
+    incorrect: 'Incorrect',
+    rule: 'Rule',
+    explanation: 'Explanation',
+    nextNumber: 'Enter the next number',
+    selectAnswer: 'Choose the next number',
+    next: 'Next',
+    playAgain: 'Play again',
+    gameOver: 'Game Over',
+    sessionEnd: 'Session ended',
+    points: 'pts',
+    seconds: 's',
+    settings: 'Settings',
+    statistics: 'Statistics',
+    achievements: 'Achievements',
+    howToPlay: 'How to play',
+    language: 'Language',
+    theme: 'Theme',
+    sound: 'Sound',
+    answerMode: 'Answer mode',
+    multipleChoice: 'Multiple choice',
+    openEnded: 'Open ended',
+    light: 'Light',
+    dark: 'Dark',
+    auto: 'Auto',
+    totalSolved: 'Total solved',
+    accuracy: 'Accuracy',
+    bestStreak: 'Best streak',
+    bestScore: 'Best score',
+    avgTime: 'Avg. time',
+    byDifficulty: 'By difficulty',
+    locked: 'Locked',
+    dailyDone: 'Done today',
+    dailyStarted: 'Daily challenge started',
+    dailyFinished: 'Daily challenge complete! 🎉',
+    dailyAlready: "You've already done today's daily!",
+    hintCategory: 'Pattern category',
+    hintMid: 'Look closer',
+    hintFull: 'The rule',
+    skippedRule: 'You skipped — the rule was',
+    wrongAnswer: 'The correct answer was',
+    keepGoing: 'Keep going!',
+    streakBonus: 'Streak bonus!',
+    perfect: 'Perfect!',
+    timeBonus: 'Speed bonus',
+    confirmNew: 'Start a new game? Current progress will be lost.',
+    yes: 'Yes',
+    cancel: 'Cancel',
+    plays: 'plays',
+    pattern: 'Pattern',
+    grade: 'Grade',
+    examples: 'Similar examples',
+    nothingYet: 'Nothing here yet — start solving!',
+    howto1: 'What is this?',
+    howto1text: 'You see a number sequence with a missing term. Find the pattern and enter the next number.',
+    howto2: 'Scoring',
+    howto2text: 'Earn points faster, without hints, and with longer streaks to score higher.',
+    howto2list: [
+      'Correct answer = base points × speed × hint penalty × streak multiplier',
+      'Streak ×1.25 at 3 in a row, ×1.5 at 5, ×2.0 at 10+',
+      'Each hint level reduces points by 25%',
+    ],
+    howto3: 'Lives',
+    howto3text: 'You start each session with 3 hearts. A wrong answer costs one. Skipping does not cost a life but resets your streak.',
+    howto4: 'Difficulties',
+    howto4text: 'Beginner uses simple addition. Genius requires factorials, prime numbers, and mixed rules. Pick your level from the top bar.',
+    howto5: 'Shortcuts',
+    howto5list: ['Enter — submit answer', 'H — request a hint', 'S — skip', 'Ctrl+N — new game', '0–9 — type digits (open-ended mode)'],
+    diff_beginner: 'Beginner',
+    diff_easy: 'Easy',
+    diff_medium: 'Medium',
+    diff_hard: 'Hard',
+    diff_expert: 'Expert',
+    diff_genius: 'Genius',
+    rule_arithmetic: 'Arithmetic sequence: add {diff} each time.',
+    rule_arithmetic_desc: 'Arithmetic sequence: subtract {diff} each time.',
+    rule_geometric: 'Geometric sequence: multiply by {ratio} each time.',
+    rule_geometric_desc: 'Geometric sequence: divide by {ratio} each time.',
+    rule_squares: 'Square numbers: each term is n².',
+    rule_cubes: 'Cube numbers: each term is n³.',
+    rule_triangular: 'Triangular numbers: T(n) = n(n+1)/2.',
+    rule_fibonacci: 'Fibonacci-type: each term is the sum of the two previous terms.',
+    rule_factorial: 'Factorials: n! = 1·2·3·…·n.',
+    rule_alternating: 'Alternating: add {a}, then subtract {b}, repeating.',
+    rule_quadratic_nn1: 'Quadratic rule: a(n) = n² + n.',
+    rule_recursive_mul_add: 'Each term = previous × {mul} + {add}.',
+    rule_odd_differences: 'Differences are consecutive odd numbers (1, 3, 5, 7…).',
+    rule_arithmetic_diffs: 'The differences themselves form an arithmetic sequence.',
+    rule_primes: 'Prime numbers in order: 2, 3, 5, 7, 11, 13…',
+    rule_mixed_complex: 'Mixed rule combining arithmetic and recursion.',
+    hint_cat_arithmetic: 'This is an arithmetic pattern — look at the differences.',
+    hint_cat_geometric: 'This is a geometric pattern — look at the ratios.',
+    hint_cat_special: 'These are a special sequence (squares, cubes, primes, etc.).',
+    hint_cat_recursive: 'Each term depends on the previous one(s).',
+    hint_cat_alternating: 'Two operations alternate.',
+    hint_cat_quadratic: 'The rule involves n² somewhere.',
+    hint_cat_differences: 'Look at how the differences themselves change.',
+    hint_mid_arithmetic: 'Difference between consecutive terms: {diff}.',
+    hint_mid_arithmetic_desc: 'Each term decreases by {diff}.',
+    hint_mid_geometric: 'Ratio of consecutive terms: ×{ratio}.',
+    hint_mid_geometric_desc: 'Each term is divided by {ratio}.',
+    hint_mid_squares: 'Try the square roots: {roots}.',
+    hint_mid_cubes: 'Try the cube roots: {roots}.',
+    hint_mid_triangular: 'Differences: 2, 3, 4, 5… (the natural numbers).',
+    hint_mid_fibonacci: 'Try adding two adjacent terms.',
+    hint_mid_factorial: 'Each term equals previous × n.',
+    hint_mid_alternating: 'The differences cycle: +{a}, −{b}, +{a}, −{b}…',
+    hint_mid_quadratic_nn1: 'Try n(n+1) for n = {startN}, {startN1}, …',
+    hint_mid_recursive_mul_add: 'Multiply the previous term then add a small number.',
+    hint_mid_odd_differences: 'Differences: 1, 3, 5, 7…',
+    hint_mid_arithmetic_diffs: 'Differences: {d1}, {d2}, {d3}…  ← these grow steadily.',
+    hint_mid_primes: 'They are all only divisible by 1 and themselves.',
+    hint_mid_mixed_complex: 'Multiple operations combine — try difference and ratio together.',
+    explain_arithmetic: 'Every step adds the same amount ({diff}). Start at {start}, so the {nth} term is {start} + {diff} × {idx} = {answer}.',
+    explain_arithmetic_desc: 'Every step subtracts {diff}. Starting at {start}, the {nth} term is {start} − {diff} × {idx} = {answer}.',
+    explain_geometric: 'Every step multiplies by {ratio}. The {nth} term is {prev} × {ratio} = {answer}.',
+    explain_geometric_desc: 'Every step divides by {ratio}. The {nth} term is {prev} ÷ {ratio} = {answer}.',
+    explain_squares: 'These are {startN}², {startN1}², …, {n}². The next is {next}² = {answer}.',
+    explain_cubes: 'These are {startN}³, {startN1}³, … The next is {next}³ = {answer}.',
+    explain_triangular: 'T(n) = n(n+1)/2. The next is T({next}) = {next} × {next1} / 2 = {answer}.',
+    explain_fibonacci: 'Each term = sum of the previous two. {prev2} + {prev1} = {answer}.',
+    explain_factorial: '{next}! = {next} × {prev}! = {next} × {prevVal} = {answer}.',
+    explain_alternating: 'Add {a}, subtract {b}, repeat. The {nth} step is {op}: {prev} {sym} {val} = {answer}.',
+    explain_quadratic_nn1: 'a(n) = n² + n. For n = {next}: {next}² + {next} = {sq} + {next} = {answer}.',
+    explain_recursive_mul_add: 'Each term = previous × {mul} + {add}. So {prev} × {mul} + {add} = {answer}.',
+    explain_odd_differences: 'Differences are 1, 3, 5, 7, 9… The next difference is {d}, so {prev} + {d} = {answer}.',
+    explain_arithmetic_diffs: 'Differences form their own arithmetic sequence: {d1}, {d2}, {d3}… The next difference is {nextD}, so {prev} + {nextD} = {answer}.',
+    explain_primes: 'After {prev} comes the next prime, {answer}.',
+    explain_mixed_complex: 'The next difference is {d}, so {prev} + {d} = {answer}.',
+    ach_first_solve_name: 'First Pattern',
+    ach_first_solve_desc: 'Solve your first puzzle.',
+    ach_streak_10_name: '10 in a Row',
+    ach_streak_10_desc: 'Hit a streak of 10 correct answers.',
+    ach_no_hint_20_name: 'No-Hint Master',
+    ach_no_hint_20_desc: 'Solve 20 puzzles without using a single hint.',
+    ach_fibonacci_expert_name: 'Fibonacci Expert',
+    ach_fibonacci_expert_desc: 'Solve 10 Fibonacci-type puzzles.',
+    ach_genius_solver_name: 'Genius Solver',
+    ach_genius_solver_desc: 'Solve 5 Genius-level puzzles.',
+    ach_speed_demon_name: 'Speed Demon',
+    ach_speed_demon_desc: 'Solve a puzzle in under 5 seconds.',
+    ach_centurion_name: 'Centurion',
+    ach_centurion_desc: 'Solve 100 puzzles total.',
+    ach_perfect_session_name: 'Perfect Session',
+    ach_perfect_session_desc: 'Solve 10 puzzles in a row in one session.',
+  },
+  mn: {
+    title: 'Тоон дарааллын таавар',
+    subtitle: 'Загвар олох тоглоом',
+    newGame: 'Шинэ тоглоом',
+    hint: 'Санамж',
+    skip: 'Алгасах',
+    submit: 'Шалгах',
+    dailyChallenge: 'Өдрийн сорил',
+    score: 'Оноо',
+    lives: 'Амь',
+    streak: 'Цуврал',
+    timer: 'Хугацаа',
+    correct: 'Зөв!',
+    incorrect: 'Буруу',
+    rule: 'Дүрэм',
+    explanation: 'Тайлбар',
+    nextNumber: 'Дараагийн тоог оруул',
+    selectAnswer: 'Дараагийн тоог сонгоно уу',
+    next: 'Дараах',
+    playAgain: 'Дахин эхлэх',
+    gameOver: 'Тоглоом дууссан',
+    sessionEnd: 'Тоглолт дууслаа',
+    points: 'оноо',
+    seconds: 'сек',
+    settings: 'Тохиргоо',
+    statistics: 'Статистик',
+    achievements: 'Амжилтууд',
+    howToPlay: 'Хэрхэн тоглох',
+    language: 'Хэл',
+    theme: 'Загвар',
+    sound: 'Дуу',
+    answerMode: 'Хариултын горим',
+    multipleChoice: 'Сонголттой',
+    openEnded: 'Чөлөөт',
+    light: 'Цайвар',
+    dark: 'Бараан',
+    auto: 'Авто',
+    totalSolved: 'Нийт шийдсэн',
+    accuracy: 'Зөв хариултын хувь',
+    bestStreak: 'Хамгийн урт цуврал',
+    bestScore: 'Дээд оноо',
+    avgTime: 'Дундаж хугацаа',
+    byDifficulty: 'Түвшин тус бүрээр',
+    locked: 'Түгжээтэй',
+    dailyDone: 'Өнөөдөр дууссан',
+    dailyStarted: 'Өдрийн сорил эхэллээ',
+    dailyFinished: 'Өдрийн сорил амжилттай! 🎉',
+    dailyAlready: 'Та өнөөдрийн сорилыг хийсэн байна!',
+    hintCategory: 'Загварын төрөл',
+    hintMid: 'Анхааралтай ажигла',
+    hintFull: 'Дүрэм',
+    skippedRule: 'Та алгасав — дүрэм нь:',
+    wrongAnswer: 'Зөв хариулт нь',
+    keepGoing: 'Үргэлжлүүл!',
+    streakBonus: 'Цуврал шагнал!',
+    perfect: 'Маш сайн!',
+    timeBonus: 'Хурдны шагнал',
+    confirmNew: 'Шинэ тоглоом эхлүүлэх үү? Одоогийн ахиц алдагдана.',
+    yes: 'Тийм',
+    cancel: 'Болих',
+    plays: 'тоглолт',
+    pattern: 'Загвар',
+    grade: 'Анги',
+    examples: 'Адил жишээ',
+    nothingYet: 'Хараахан юу ч алга — эхэл!',
+    howto1: 'Энэ юу вэ?',
+    howto1text: 'Та нэг гишүүн нь дутуу тоон дарааллыг харна. Тогтсон дүрмийг олж дараагийн тоог оруулна уу.',
+    howto2: 'Оноо',
+    howto2text: 'Хурдан, санамжгүй, цуврал зөв хариулж өндөр оноо аваарай.',
+    howto2list: [
+      'Оноо = суурь × хурд × санамжийн торгууль × цувралын үржвэр',
+      'Цуврал 3-аас 1.25х, 5-аас 1.5х, 10-аас 2.0х',
+      'Санамж тус бүр 25% оноо хасна',
+    ],
+    howto3: 'Амь',
+    howto3text: 'Тоглолт эхлэхэд 3 зүрх байна. Буруу хариулт нэг зүрх хасна. Алгасах нь амийг хасахгүй ч цувралыг тэглэнэ.',
+    howto4: 'Түвшнүүд',
+    howto4text: 'Анхан шат нь энгийн нэмэх үйлдэл, Суут түвшин нь факториал, анхны тоо, нийлмэл дүрэмтэй. Дээд талд байгаа баруудаас сонго.',
+    howto5: 'Товчлуурууд',
+    howto5list: ['Enter — хариулт шалгах', 'H — санамж', 'S — алгасах', 'Ctrl+N — шинэ тоглоом', '0–9 — тоо оруулах (чөлөөт горимд)'],
+    diff_beginner: 'Анхан',
+    diff_easy: 'Хялбар',
+    diff_medium: 'Дунд',
+    diff_hard: 'Хүнд',
+    diff_expert: 'Мэргэжил',
+    diff_genius: 'Суут',
+    rule_arithmetic: 'Арифметик дараалал: тус бүр {diff} нэмэгдэнэ.',
+    rule_arithmetic_desc: 'Арифметик дараалал: тус бүр {diff} хасагдана.',
+    rule_geometric: 'Геометр дараалал: тус бүр {ratio} дахин үржигдэнэ.',
+    rule_geometric_desc: 'Геометр дараалал: тус бүр {ratio}-д хуваагдана.',
+    rule_squares: 'Квадрат тоонууд: гишүүн бүр n².',
+    rule_cubes: 'Куб тоонууд: гишүүн бүр n³.',
+    rule_triangular: 'Гурвалжин тоонууд: T(n) = n(n+1)/2.',
+    rule_fibonacci: 'Фибоначчи төрөл: гишүүн бүр өмнөх хоёрын нийлбэр.',
+    rule_factorial: 'Факториал: n! = 1·2·3·…·n.',
+    rule_alternating: 'Ээлжлэн: {a} нэмэх, дараа нь {b} хасах, давтагдана.',
+    rule_quadratic_nn1: 'Квадрат дүрэм: a(n) = n² + n.',
+    rule_recursive_mul_add: 'Гишүүн бүр = өмнөх × {mul} + {add}.',
+    rule_odd_differences: 'Зөрүү нь дараалсан сондгой тоонууд (1, 3, 5, 7…).',
+    rule_arithmetic_diffs: 'Зөрүү нь өөрөө арифметик дараалал үүсгэнэ.',
+    rule_primes: 'Анхны тоонууд эрэмбээр: 2, 3, 5, 7, 11, 13…',
+    rule_mixed_complex: 'Арифметик ба рекурсын нэгдсэн дүрэм.',
+    hint_cat_arithmetic: 'Энэ нь арифметик загвар — зөрүүг хар.',
+    hint_cat_geometric: 'Энэ нь геометр загвар — харьцааг хар.',
+    hint_cat_special: 'Энэ нь онцгой дараалал (квадрат, куб, анхны тоо г.м.).',
+    hint_cat_recursive: 'Гишүүн бүр өмнөх гишүүдээс хамаарна.',
+    hint_cat_alternating: 'Хоёр үйлдэл ээлжлэнэ.',
+    hint_cat_quadratic: 'Дүрэмд n² оролцоно.',
+    hint_cat_differences: 'Зөрүүнүүд хэрхэн өөрчлөгдөж байгааг ажигла.',
+    hint_mid_arithmetic: 'Дараалсан гишүүдийн зөрүү: {diff}.',
+    hint_mid_arithmetic_desc: 'Гишүүн бүр {diff}-ээр буурна.',
+    hint_mid_geometric: 'Дараалсан гишүүдийн харьцаа: ×{ratio}.',
+    hint_mid_geometric_desc: 'Гишүүн бүр {ratio}-д хуваагдана.',
+    hint_mid_squares: 'Язгуурыг нь хар: {roots}.',
+    hint_mid_cubes: 'Куб язгуурыг нь хар: {roots}.',
+    hint_mid_triangular: 'Зөрүү: 2, 3, 4, 5… (натурал тоонууд).',
+    hint_mid_fibonacci: 'Зэргэлдээ хоёр гишүүнийг нэмж үз.',
+    hint_mid_factorial: 'Гишүүн бүр = өмнөх × n.',
+    hint_mid_alternating: 'Зөрүү ээлжилнэ: +{a}, −{b}, +{a}, −{b}…',
+    hint_mid_quadratic_nn1: 'n(n+1)-ийг {startN}, {startN1}, … гэж тооцоод үз.',
+    hint_mid_recursive_mul_add: 'Өмнөх гишүүнийг үржүүлээд жижиг тоо нэмнэ.',
+    hint_mid_odd_differences: 'Зөрүү: 1, 3, 5, 7…',
+    hint_mid_arithmetic_diffs: 'Зөрүү: {d1}, {d2}, {d3}…  ← тогтмол өсөн нэмэгдэнэ.',
+    hint_mid_primes: 'Зөвхөн 1 ба өөрөөсөө хуваагдах тоонууд.',
+    hint_mid_mixed_complex: 'Олон үйлдэл нэгдсэн — зөрүү ба харьцааг хосоор нь үз.',
+    explain_arithmetic: 'Алхам бүрт {diff} нэмнэ. {start}-аас эхэлсэн тул {nth}-р гишүүн = {start} + {diff} × {idx} = {answer}.',
+    explain_arithmetic_desc: 'Алхам бүрт {diff} хасна. {start}-аас эхэлсэн тул {nth}-р гишүүн = {start} − {diff} × {idx} = {answer}.',
+    explain_geometric: 'Алхам бүрт {ratio}-аар үржинэ. {nth}-р гишүүн = {prev} × {ratio} = {answer}.',
+    explain_geometric_desc: 'Алхам бүрт {ratio}-д хуваагдана. {nth}-р гишүүн = {prev} ÷ {ratio} = {answer}.',
+    explain_squares: 'Эдгээр нь {startN}², {startN1}², …, {n}². Дараагийнх = {next}² = {answer}.',
+    explain_cubes: 'Эдгээр нь {startN}³, {startN1}³, … Дараагийнх = {next}³ = {answer}.',
+    explain_triangular: 'T(n) = n(n+1)/2. Дараагийнх = T({next}) = {next} × {next1} / 2 = {answer}.',
+    explain_fibonacci: 'Гишүүн бүр = өмнөх хоёрын нийлбэр. {prev2} + {prev1} = {answer}.',
+    explain_factorial: '{next}! = {next} × {prev}! = {next} × {prevVal} = {answer}.',
+    explain_alternating: '{a} нэмэх, {b} хасах ээлжилнэ. {nth}-р алхам = {op}: {prev} {sym} {val} = {answer}.',
+    explain_quadratic_nn1: 'a(n) = n² + n. n = {next} үед: {next}² + {next} = {sq} + {next} = {answer}.',
+    explain_recursive_mul_add: 'Гишүүн бүр = өмнөх × {mul} + {add}. Тэгэхээр {prev} × {mul} + {add} = {answer}.',
+    explain_odd_differences: 'Зөрүү нь 1, 3, 5, 7, 9… Дараагийн зөрүү {d}, тэгэхээр {prev} + {d} = {answer}.',
+    explain_arithmetic_diffs: 'Зөрүү нь өөрөө арифметик: {d1}, {d2}, {d3}… Дараагийн зөрүү {nextD}, тэгэхээр {prev} + {nextD} = {answer}.',
+    explain_primes: '{prev}-ийн дараагийн анхны тоо {answer}.',
+    explain_mixed_complex: 'Дараагийн зөрүү {d}, тэгэхээр {prev} + {d} = {answer}.',
+    ach_first_solve_name: 'Анхны амжилт',
+    ach_first_solve_desc: 'Эхний тааврыг шийдэх.',
+    ach_streak_10_name: '10 удаа дараалан',
+    ach_streak_10_desc: '10 зөв хариултыг дараалан өгөх.',
+    ach_no_hint_20_name: 'Санамжгүй мастер',
+    ach_no_hint_20_desc: 'Санамж ашиглахгүйгээр 20 таавар шийдэх.',
+    ach_fibonacci_expert_name: 'Фибоначчи мэргэжилтэн',
+    ach_fibonacci_expert_desc: '10 Фибоначчи төрлийн таавар шийдэх.',
+    ach_genius_solver_name: 'Суут шийдвэрлэгч',
+    ach_genius_solver_desc: '5 Суут түвшний таавар шийдэх.',
+    ach_speed_demon_name: 'Хурдан хүн',
+    ach_speed_demon_desc: '5 секундээс бага хугацаанд таавар шийдэх.',
+    ach_centurion_name: 'Зуутчин',
+    ach_centurion_desc: 'Нийт 100 таавар шийдэх.',
+    ach_perfect_session_name: 'Төгс тоглолт',
+    ach_perfect_session_desc: 'Нэг тоглолтын дотор 10 таавар дараалан зөв шийдэх.',
+  },
+};
+
+/* ============================================================
+   STATE
+   ============================================================ */
+const state = {
+  difficulty: 'easy',
+  mode: 'multiple_choice', // or 'open_ended'
+  isDaily: false,
+  puzzle: null,           // { sequence, answer, type, ruleKey, params, hintCategory, choices? }
+  startedAt: 0,
+  elapsedAtSubmit: 0,
+  lives: 3,
+  score: 0,
+  streak: 0,
+  hintLevel: 0,           // 0 = none, 1 = category, 2 = mid, 3 = full
+  hintsUsedThisPuzzle: 0,
+  inputValue: '',
+  selectedChoice: null,
+  locked: false,          // input locked while showing feedback
+  gameOver: false,
+  perfectSessionCount: 0, // current streak within session
+};
+
+const defaultPersisted = () => ({
+  lang: 'mn',
+  theme: 'light',
+  sound: true,
+  mode: 'multiple_choice',
+  difficulty: 'easy',
+  totalSolved: 0,
+  totalAttempted: 0,
+  bestStreak: 0,
+  bestScore: 0,
+  totalScore: 0,
+  totalSolveTimeMs: 0,
+  fastestSolveMs: 0,
+  noHintSolves: 0,
+  bestPerfectSession: 0,
+  byDifficulty: {},       // { id: { attempted, solved, totalTimeMs, bestStreak } }
+  byType: {},             // { type: count }
+  achievements: {},       // { id: { unlockedAt } }
+  dailyLastDate: '',
+  dailyHistory: [],       // [{date, difficulty, solved, score, timeMs}]
+  errorPatterns: {},      // { type: count } — for teacher analytics
+});
+let persisted = defaultPersisted();
+
+/* ============================================================
+   UTILITIES
+   ============================================================ */
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = a;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const randInt = (rng, min, max) => Math.floor(rng() * (max - min + 1)) + min;
+const pick = (rng, arr) => arr[Math.floor(rng() * arr.length)];
+function shuffleInPlace(rng, arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+function formatTime(ms) {
+  const total = Math.floor(ms / 1000);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return m + ':' + String(s).padStart(2, '0');
+}
+function getDateKey(d = new Date()) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function getDailySeed(d = new Date()) {
+  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+}
+function t(key, params) {
+  const lang = persisted.lang || 'mn';
+  let s = (I18N[lang] && I18N[lang][key]);
+  if (s == null) s = I18N.en[key] != null ? I18N.en[key] : key;
+  if (typeof s === 'string' && params) {
+    for (const k in params) s = s.replace(new RegExp('\\{' + k + '\\}', 'g'), params[k]);
+  }
+  return s;
+}
+function ordinal(n) {
+  // English ordinal helper, Mongolian uses just the digit + "-р"
+  if (persisted.lang === 'mn') return n + '-р';
+  const s = ['th','st','nd','rd'], v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+/* ============================================================
+   PATTERN GENERATORS
+   Each returns { sequence, answer, type, ruleKey, params, hintCategory }
+   or null if the seed produces an invalid puzzle.
+   ============================================================ */
+const Gen = {
+  arithmetic_small(rng) {
+    const start = randInt(rng, 1, 12);
+    const diff = randInt(rng, 1, 4);
+    const len = 5;
+    const seq = []; for (let i = 0; i < len; i++) seq.push(start + diff * i);
+    return { sequence: seq, answer: start + diff * len, type: 'arithmetic',
+      ruleKey: 'arithmetic', params: { start, diff }, hintCategory: 'arithmetic' };
+  },
+  arithmetic_desc_small(rng) {
+    const diff = randInt(rng, 1, 4);
+    const len = 5;
+    const start = randInt(rng, diff * len + 3, diff * len + 25);
+    const seq = []; for (let i = 0; i < len; i++) seq.push(start - diff * i);
+    return { sequence: seq, answer: start - diff * len, type: 'arithmetic_desc',
+      ruleKey: 'arithmetic_desc', params: { start, diff }, hintCategory: 'arithmetic' };
+  },
+  arithmetic_mid(rng) {
+    const start = randInt(rng, 2, 25);
+    const diff = randInt(rng, 3, 12);
+    const len = 5;
+    const seq = []; for (let i = 0; i < len; i++) seq.push(start + diff * i);
+    return { sequence: seq, answer: start + diff * len, type: 'arithmetic',
+      ruleKey: 'arithmetic', params: { start, diff }, hintCategory: 'arithmetic' };
+  },
+  geometric(rng) {
+    const start = randInt(rng, 1, 4);
+    const ratio = randInt(rng, 2, 4);
+    const len = 5;
+    const seq = []; let v = start;
+    for (let i = 0; i < len; i++) { seq.push(v); v *= ratio; }
+    const answer = start * Math.pow(ratio, len);
+    if (answer > 100000) return null;
+    return { sequence: seq, answer, type: 'geometric',
+      ruleKey: 'geometric', params: { start, ratio }, hintCategory: 'geometric' };
+  },
+  geometric_desc(rng) {
+    const ratio = randInt(rng, 2, 3);
+    const len = 5;
+    const startMult = randInt(rng, 1, 3);
+    const start = startMult * Math.pow(ratio, len);
+    const seq = []; let v = start;
+    for (let i = 0; i < len; i++) {
+      if (!Number.isInteger(v) || v <= 0) return null;
+      seq.push(v); v = v / ratio;
+    }
+    const answer = start / Math.pow(ratio, len);
+    if (!Number.isInteger(answer) || answer <= 0) return null;
+    return { sequence: seq, answer, type: 'geometric_desc',
+      ruleKey: 'geometric_desc', params: { ratio }, hintCategory: 'geometric' };
+  },
+  squares(rng) {
+    const startN = randInt(rng, 1, 4);
+    const len = 5;
+    const seq = []; for (let i = 0; i < len; i++) seq.push((startN + i) * (startN + i));
+    return { sequence: seq, answer: (startN + len) * (startN + len),
+      type: 'squares', ruleKey: 'squares', params: { startN }, hintCategory: 'special' };
+  },
+  cubes_small(rng) {
+    const startN = randInt(rng, 1, 2);
+    const len = 4;
+    const seq = []; for (let i = 0; i < len; i++) seq.push(Math.pow(startN + i, 3));
+    return { sequence: seq, answer: Math.pow(startN + len, 3),
+      type: 'cubes', ruleKey: 'cubes', params: { startN }, hintCategory: 'special' };
+  },
+  cubes(rng) {
+    const startN = randInt(rng, 2, 4);
+    const len = 4;
+    const seq = []; for (let i = 0; i < len; i++) seq.push(Math.pow(startN + i, 3));
+    return { sequence: seq, answer: Math.pow(startN + len, 3),
+      type: 'cubes', ruleKey: 'cubes', params: { startN }, hintCategory: 'special' };
+  },
+  triangular(rng) {
+    const startN = randInt(rng, 1, 5);
+    const len = 5;
+    const tri = n => n * (n + 1) / 2;
+    const seq = []; for (let i = 0; i < len; i++) seq.push(tri(startN + i));
+    return { sequence: seq, answer: tri(startN + len),
+      type: 'triangular', ruleKey: 'triangular', params: { startN }, hintCategory: 'special' };
+  },
+  fibonacci(rng) {
+    const a = randInt(rng, 1, 3);
+    const b = randInt(rng, a, a + 2);
+    const len = 6;
+    const seq = [a, b];
+    for (let i = 2; i < len; i++) seq.push(seq[i-1] + seq[i-2]);
+    const answer = seq[len-1] + seq[len-2];
+    return { sequence: seq, answer, type: 'fibonacci',
+      ruleKey: 'fibonacci', params: { a, b }, hintCategory: 'recursive' };
+  },
+  fibonacci_variant(rng) {
+    const a = randInt(rng, 2, 5);
+    const b = randInt(rng, a + 1, a + 5);
+    const len = 6;
+    const seq = [a, b];
+    for (let i = 2; i < len; i++) seq.push(seq[i-1] + seq[i-2]);
+    const answer = seq[len-1] + seq[len-2];
+    if (answer > 5000) return null;
+    return { sequence: seq, answer, type: 'fibonacci_variant',
+      ruleKey: 'fibonacci', params: { a, b }, hintCategory: 'recursive' };
+  },
+  factorial(rng) {
+    const startN = randInt(rng, 1, 2);
+    const len = 5;
+    const fact = n => { let r = 1; for (let i = 2; i <= n; i++) r *= i; return r; };
+    const seq = []; for (let i = 0; i < len; i++) seq.push(fact(startN + i));
+    return { sequence: seq, answer: fact(startN + len),
+      type: 'factorial', ruleKey: 'factorial', params: { startN }, hintCategory: 'special' };
+  },
+  alternating(rng) {
+    const start = randInt(rng, 1, 12);
+    const a = randInt(rng, 2, 5);
+    const b = randInt(rng, 1, a - 1);
+    const len = 6;
+    const seq = [start];
+    for (let i = 1; i < len; i++) {
+      if (i % 2 === 1) seq.push(seq[i-1] + a);
+      else seq.push(seq[i-1] - b);
+    }
+    const answer = len % 2 === 1 ? seq[len-1] + a : seq[len-1] - b;
+    if (seq.some(x => x < 0) || answer < 0) return null;
+    return { sequence: seq, answer, type: 'alternating',
+      ruleKey: 'alternating', params: { a, b, start }, hintCategory: 'alternating' };
+  },
+  quadratic_nn1(rng) {
+    const startN = randInt(rng, 1, 4);
+    const len = 5;
+    const f = n => n * n + n;
+    const seq = []; for (let i = 0; i < len; i++) seq.push(f(startN + i));
+    return { sequence: seq, answer: f(startN + len),
+      type: 'quadratic_nn1', ruleKey: 'quadratic_nn1', params: { startN }, hintCategory: 'quadratic' };
+  },
+  recursive_mul_add(rng) {
+    const mul = 2;
+    const add = randInt(rng, 1, 3);
+    const start = randInt(rng, 1, 5);
+    const len = 5;
+    const seq = [start];
+    for (let i = 1; i < len; i++) seq.push(seq[i-1] * mul + add);
+    const answer = seq[len-1] * mul + add;
+    if (answer > 50000) return null;
+    return { sequence: seq, answer, type: 'recursive_mul_add',
+      ruleKey: 'recursive_mul_add', params: { mul, add, start }, hintCategory: 'recursive' };
+  },
+  recursive_mul_add_large(rng) {
+    const mul = randInt(rng, 2, 3);
+    const add = randInt(rng, 1, 6);
+    const start = randInt(rng, 1, 6);
+    const len = 5;
+    const seq = [start];
+    for (let i = 1; i < len; i++) seq.push(seq[i-1] * mul + add);
+    const answer = seq[len-1] * mul + add;
+    if (answer > 50000) return null;
+    return { sequence: seq, answer, type: 'recursive_mul_add',
+      ruleKey: 'recursive_mul_add', params: { mul, add, start }, hintCategory: 'recursive' };
+  },
+  odd_differences(rng) {
+    const start = randInt(rng, 1, 6);
+    const len = 6;
+    const seq = [start]; let curr = start; let d = 1;
+    for (let i = 1; i < len; i++) { curr += d; seq.push(curr); d += 2; }
+    return { sequence: seq, answer: curr + d, type: 'odd_differences',
+      ruleKey: 'odd_differences', params: { start }, hintCategory: 'differences' };
+  },
+  arithmetic_diffs(rng) {
+    const start = randInt(rng, 1, 5);
+    const d1 = randInt(rng, 1, 4);
+    const dd = randInt(rng, 1, 3);
+    const len = 5;
+    const seq = [start]; let curr = start; let d = d1;
+    for (let i = 1; i < len; i++) { curr += d; seq.push(curr); d += dd; }
+    return { sequence: seq, answer: curr + d, type: 'arithmetic_diffs',
+      ruleKey: 'arithmetic_diffs', params: { d1, dd, start }, hintCategory: 'differences' };
+  },
+  primes(rng) {
+    const primes = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71];
+    const startIdx = randInt(rng, 0, 8);
+    const seq = primes.slice(startIdx, startIdx + 5);
+    return { sequence: seq, answer: primes[startIdx + 5],
+      type: 'primes', ruleKey: 'primes', params: { startIdx }, hintCategory: 'special' };
+  },
+  mixed_complex(rng) {
+    // a(n+1) = a(n) + (n*c + k)  where differences grow as a*n + b
+    const start = randInt(rng, 1, 5);
+    const c = randInt(rng, 1, 3);
+    const k = randInt(rng, 1, 4);
+    const len = 6;
+    const seq = [start]; let curr = start;
+    for (let i = 1; i < len; i++) { curr += i * c + k; seq.push(curr); }
+    const answer = curr + len * c + k;
+    return { sequence: seq, answer, type: 'mixed_complex',
+      ruleKey: 'mixed_complex', params: { c, k, start }, hintCategory: 'differences' };
+  },
+};
+
+/* Generate a puzzle for a given difficulty, with optional seed for reproducibility. */
+function generatePuzzle(difficulty, seedNumber) {
+  const cfg = DIFFICULTIES.find(d => d.id === difficulty) || DIFFICULTIES[1];
+  const rng = mulberry32(seedNumber || (Date.now() ^ (Math.random() * 0x7fffffff)));
+  // Try up to 20 times in case of null returns
+  for (let i = 0; i < 20; i++) {
+    const typeName = pick(rng, cfg.types);
+    const puzzle = Gen[typeName] && Gen[typeName](rng);
+    if (puzzle) {
+      puzzle.difficulty = difficulty;
+      return puzzle;
+    }
+  }
+  // Hard fallback
+  return Gen.arithmetic_small(rng);
+}
+
+function generateChoices(rng, puzzle) {
+  const correct = puzzle.answer;
+  const seq = puzzle.sequence;
+  const last = seq[seq.length - 1];
+  const secondLast = seq[seq.length - 2];
+
+  const candidates = new Set();
+  // Common error: assume arithmetic
+  candidates.add(last + (last - secondLast));
+  // Common error: assume doubling
+  if (last > 0) candidates.add(last * 2);
+  // Off-by-some
+  candidates.add(correct + Math.max(1, Math.floor(correct * 0.1)));
+  candidates.add(correct - Math.max(1, Math.floor(correct * 0.1)));
+  // Slight offsets
+  candidates.add(correct + 1);
+  candidates.add(correct - 1);
+  candidates.add(correct + Math.max(2, Math.floor(correct * 0.2)));
+  candidates.add(Math.floor(correct * 1.3));
+  candidates.add(Math.floor(correct * 0.7));
+  candidates.add(last + (last - secondLast) + 1);
+
+  const filtered = [...candidates].filter(c => c > 0 && c !== correct && c < correct * 10 + 50);
+  shuffleInPlace(rng, filtered);
+
+  const choices = [correct];
+  for (const c of filtered) {
+    if (!choices.includes(c)) choices.push(c);
+    if (choices.length >= 4) break;
+  }
+  // Pad if not enough
+  while (choices.length < 4) {
+    const v = correct + randInt(rng, -10, 20);
+    if (v > 0 && !choices.includes(v)) choices.push(v);
+  }
+  shuffleInPlace(rng, choices);
+  return choices;
+}
+
+/* ============================================================
+   PERSISTENCE
+   ============================================================ */
+function loadPersisted() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    persisted = { ...defaultPersisted(), ...parsed,
+      byDifficulty: { ...defaultPersisted().byDifficulty, ...(parsed.byDifficulty || {}) },
+      byType: { ...defaultPersisted().byType, ...(parsed.byType || {}) },
+      achievements: { ...defaultPersisted().achievements, ...(parsed.achievements || {}) },
+      errorPatterns: { ...defaultPersisted().errorPatterns, ...(parsed.errorPatterns || {}) },
+    };
+  } catch (e) {
+    persisted = defaultPersisted();
+  }
+}
+function savePersisted() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted)); } catch (e) {}
+}
+
+/* ============================================================
+   AUDIO
+   ============================================================ */
+let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) {
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch (e) { return null; }
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+function playSound(kind) {
+  if (!persisted.sound) return;
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  const playNote = (freq, start, dur, type = 'sine', gain = 0.12) => {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, now + start);
+    g.gain.setValueAtTime(0, now + start);
+    g.gain.linearRampToValueAtTime(gain, now + start + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.001, now + start + dur);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(now + start); o.stop(now + start + dur + 0.05);
+  };
+  switch (kind) {
+    case 'correct':
+      playNote(523.25, 0, 0.12, 'sine', 0.12);
+      playNote(659.25, 0.08, 0.16, 'sine', 0.12);
+      playNote(783.99, 0.16, 0.22, 'sine', 0.12);
+      break;
+    case 'wrong':
+      playNote(311.13, 0, 0.18, 'sawtooth', 0.10);
+      playNote(220, 0.10, 0.20, 'sawtooth', 0.10);
+      break;
+    case 'streak':
+      playNote(659.25, 0, 0.08, 'triangle', 0.10);
+      playNote(783.99, 0.06, 0.08, 'triangle', 0.10);
+      playNote(987.77, 0.12, 0.08, 'triangle', 0.10);
+      playNote(1318.51, 0.18, 0.18, 'triangle', 0.10);
+      break;
+    case 'gameover':
+      playNote(440, 0, 0.18, 'sine', 0.10);
+      playNote(349.23, 0.15, 0.18, 'sine', 0.10);
+      playNote(261.63, 0.30, 0.32, 'sine', 0.10);
+      break;
+    case 'achievement':
+      playNote(523.25, 0, 0.10, 'square', 0.08);
+      playNote(659.25, 0.08, 0.10, 'square', 0.08);
+      playNote(783.99, 0.16, 0.10, 'square', 0.08);
+      playNote(1046.5, 0.24, 0.28, 'square', 0.10);
+      break;
+    case 'click':
+      playNote(800, 0, 0.04, 'sine', 0.05);
+      break;
+  }
+}
+
+/* ============================================================
+   TOAST
+   ============================================================ */
+let toastTimeout = null;
+function showToast(msg, kind, ms) {
+  const el = document.getElementById('toast');
+  el.className = 'toast' + (kind ? ' ' + kind : '');
+  el.textContent = msg;
+  void el.offsetWidth;
+  el.classList.add('show');
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => el.classList.remove('show'), ms || 2400);
+}
+
+/* ============================================================
+   RENDERING
+   ============================================================ */
+function applyI18n() {
+  document.documentElement.lang = persisted.lang;
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const k = el.getAttribute('data-i18n');
+    const v = t(k);
+    if (typeof v === 'string') el.textContent = v;
+  });
+  document.querySelectorAll('[data-i18n-label]').forEach(el => {
+    const k = el.getAttribute('data-i18n-label');
+    el.setAttribute('aria-label', t(k));
+  });
+  document.title = t('title') + ' — CyberMath';
+  renderDiffRow();
+}
+
+function applyTheme() {
+  document.documentElement.setAttribute('data-theme', persisted.theme);
+  const iconEl = document.getElementById('icon-theme');
+  if (persisted.theme === 'dark') {
+    iconEl.innerHTML = '<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" fill="currentColor" stroke="none"/>';
+  } else {
+    iconEl.innerHTML = '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>';
+  }
+}
+
+function renderDiffRow() {
+  const row = document.getElementById('diff-row');
+  row.innerHTML = '';
+  DIFFICULTIES.forEach(d => {
+    const btn = document.createElement('button');
+    btn.className = 'diff-pill' + (state.difficulty === d.id ? ' active' : '');
+    btn.setAttribute('data-id', d.id);
+    btn.setAttribute('role', 'tab');
+    btn.setAttribute('aria-selected', state.difficulty === d.id ? 'true' : 'false');
+    btn.textContent = t('diff_' + d.id);
+    btn.addEventListener('click', () => {
+      if (state.difficulty === d.id && !state.gameOver) return;
+      state.difficulty = d.id;
+      persisted.difficulty = d.id;
+      savePersisted();
+      renderDiffRow();
+      startNewGame();
+    });
+    row.appendChild(btn);
+  });
+}
+
+function renderLives() {
+  const el = document.getElementById('lives');
+  el.innerHTML = '';
+  for (let i = 0; i < 3; i++) {
+    const heart = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    heart.setAttribute('viewBox', '0 0 24 24');
+    heart.setAttribute('class', 'heart' + (i >= state.lives ? ' lost' : ''));
+    heart.innerHTML = '<path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" fill="#ef4444" stroke="none"/>';
+    el.appendChild(heart);
+  }
+}
+
+function renderStats() {
+  document.getElementById('stat-score').textContent = state.score;
+  document.getElementById('stat-streak').textContent = state.streak;
+  renderLives();
+}
+
+let timerInterval = null;
+function startTimer() {
+  stopTimer();
+  state.startedAt = Date.now();
+  updateTimerDisplay();
+  timerInterval = setInterval(updateTimerDisplay, 500);
+}
+function stopTimer() {
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+}
+function updateTimerDisplay() {
+  const el = document.getElementById('stat-timer');
+  if (!el || !state.startedAt) return;
+  el.textContent = formatTime(Date.now() - state.startedAt);
+}
+
+function renderSequence() {
+  const wrap = document.getElementById('sequence');
+  wrap.innerHTML = '';
+  if (!state.puzzle) return;
+  const seq = state.puzzle.sequence;
+  seq.forEach((n, i) => {
+    const term = document.createElement('div');
+    term.className = 'seq-term';
+    term.textContent = n;
+    term.style.animationDelay = (i * 50) + 'ms';
+    wrap.appendChild(term);
+    if (i < seq.length) {
+      const arrow = document.createElement('span');
+      arrow.className = 'seq-arrow';
+      arrow.textContent = '→';
+      arrow.style.animationDelay = (i * 50 + 25) + 'ms';
+      wrap.appendChild(arrow);
+    }
+  });
+  const unknown = document.createElement('div');
+  unknown.className = 'seq-term unknown';
+  unknown.id = 'seq-unknown';
+  unknown.innerHTML = '<span class="qmark">?</span>';
+  unknown.style.animationDelay = (seq.length * 50) + 'ms';
+  wrap.appendChild(unknown);
+}
+
+function renderAnswerArea() {
+  const wrap = document.getElementById('answer-area');
+  wrap.innerHTML = '';
+  if (!state.puzzle) return;
+  if (state.mode === 'multiple_choice') {
+    renderChoices(wrap);
+  } else {
+    renderOpenInput(wrap);
+  }
+}
+
+function renderChoices(wrap) {
+  const card = document.createElement('div');
+  card.className = 'choices';
+  card.setAttribute('role', 'radiogroup');
+  card.setAttribute('aria-label', t('selectAnswer'));
+  state.puzzle.choices.forEach((c, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'choice';
+    btn.textContent = c;
+    btn.setAttribute('role', 'radio');
+    btn.setAttribute('aria-checked', 'false');
+    btn.setAttribute('data-value', c);
+    btn.addEventListener('click', () => {
+      if (state.locked) return;
+      state.selectedChoice = c;
+      document.querySelectorAll('.choice').forEach(b => {
+        b.classList.remove('selected');
+        b.setAttribute('aria-checked', 'false');
+      });
+      btn.classList.add('selected');
+      btn.setAttribute('aria-checked', 'true');
+      document.getElementById('btn-submit').disabled = false;
+      playSound('click');
+    });
+    card.appendChild(btn);
+  });
+  wrap.appendChild(card);
+}
+
+function renderOpenInput(wrap) {
+  const ow = document.createElement('div');
+  ow.className = 'open-input-wrap';
+  const input = document.createElement('input');
+  input.className = 'open-input';
+  input.id = 'open-input';
+  input.type = 'tel'; // numeric keyboard on mobile, no spinner
+  input.inputMode = 'numeric';
+  input.autocomplete = 'off';
+  input.placeholder = '?';
+  input.value = state.inputValue;
+  input.setAttribute('aria-label', t('nextNumber'));
+  input.addEventListener('input', (e) => {
+    if (state.locked) { e.target.value = state.inputValue; return; }
+    // accept only digits + optional leading minus
+    const raw = e.target.value.replace(/[^\-0-9]/g, '');
+    const cleaned = raw.replace(/(?!^)-/g, '');
+    e.target.value = cleaned;
+    state.inputValue = cleaned;
+    document.getElementById('btn-submit').disabled = cleaned === '' || cleaned === '-';
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); submitAnswer(); }
+  });
+  ow.appendChild(input);
+
+  // Keypad for mobile
+  const keypad = document.createElement('div');
+  keypad.className = 'keypad';
+  const keys = ['1','2','3','4','5','6','7','8','9','-','0','⌫'];
+  keys.forEach(k => {
+    const key = document.createElement('button');
+    key.className = 'keypad-key';
+    if (k === '-') key.classList.add('minus');
+    if (k === '⌫') key.classList.add('special');
+    key.textContent = k;
+    key.setAttribute('aria-label', k === '⌫' ? 'Backspace' : k);
+    key.addEventListener('click', () => {
+      if (state.locked) return;
+      if (k === '⌫') state.inputValue = state.inputValue.slice(0, -1);
+      else if (k === '-') {
+        if (state.inputValue === '') state.inputValue = '-';
+      } else {
+        state.inputValue += k;
+      }
+      const inp = document.getElementById('open-input');
+      if (inp) inp.value = state.inputValue;
+      document.getElementById('btn-submit').disabled = state.inputValue === '' || state.inputValue === '-';
+      playSound('click');
+    });
+    keypad.appendChild(key);
+  });
+  ow.appendChild(keypad);
+  wrap.appendChild(ow);
+
+  setTimeout(() => {
+    const inp = document.getElementById('open-input');
+    if (inp && window.innerWidth > 600) inp.focus();
+  }, 100);
+}
+
+function renderHintArea() {
+  const wrap = document.getElementById('hint-area');
+  wrap.innerHTML = '';
+  if (state.hintLevel >= 1) wrap.appendChild(buildHintCard(1));
+  if (state.hintLevel >= 2) wrap.appendChild(buildHintCard(2));
+  if (state.hintLevel >= 3) wrap.appendChild(buildHintCard(3));
+}
+
+function buildHintCard(level) {
+  const card = document.createElement('div');
+  card.className = 'hint-card';
+  card.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21h6M12 17a7 7 0 100-14 7 7 0 000 14z"/></svg>';
+  const body = document.createElement('div');
+  const title = document.createElement('div');
+  title.className = 'hint-card-title';
+  const text = document.createElement('div');
+  text.className = 'hint-card-text';
+
+  if (level === 1) {
+    title.textContent = t('hintCategory');
+    text.textContent = t('hint_cat_' + state.puzzle.hintCategory);
+  } else if (level === 2) {
+    title.textContent = t('hintMid');
+    text.innerHTML = buildMidHintText(state.puzzle);
+  } else {
+    title.textContent = t('hintFull');
+    text.innerHTML = buildFullRuleText(state.puzzle);
+  }
+  body.appendChild(title);
+  body.appendChild(text);
+  card.appendChild(body);
+  return card;
+}
+
+function buildMidHintText(p) {
+  const params = { ...p.params };
+  if (p.type === 'squares') {
+    const roots = [];
+    for (let i = 0; i < p.sequence.length; i++) roots.push(params.startN + i);
+    return t('hint_mid_squares', { roots: roots.join(', ') });
+  }
+  if (p.type === 'cubes') {
+    const roots = [];
+    for (let i = 0; i < p.sequence.length; i++) roots.push(params.startN + i);
+    return t('hint_mid_cubes', { roots: roots.join(', ') });
+  }
+  if (p.type === 'arithmetic_diffs') {
+    return t('hint_mid_arithmetic_diffs', { d1: params.d1, d2: params.d1 + params.dd, d3: params.d1 + 2 * params.dd });
+  }
+  if (p.type === 'quadratic_nn1') {
+    return t('hint_mid_quadratic_nn1', { startN: params.startN, startN1: params.startN + 1 });
+  }
+  return t('hint_mid_' + p.type, params);
+}
+
+function buildFullRuleText(p) {
+  return t('rule_' + p.ruleKey, p.params);
+}
+
+function updateChipText() {
+  const chip = document.getElementById('puzzle-chip');
+  const txt = document.getElementById('chip-text');
+  if (state.isDaily) {
+    chip.classList.add('visible');
+    chip.style.background = 'linear-gradient(135deg, var(--accent-dark), var(--accent))';
+    chip.style.color = 'white';
+    txt.textContent = t('dailyChallenge');
+  } else {
+    chip.classList.remove('visible');
+    chip.style.background = '';
+    chip.style.color = '';
+  }
+}
+
+/* ============================================================
+   GAME LOGIC
+   ============================================================ */
+function startNewGame(opts) {
+  opts = opts || {};
+  if (timerInterval) stopTimer();
+  state.lives = 3;
+  state.score = 0;
+  state.streak = 0;
+  state.gameOver = false;
+  state.perfectSessionCount = 0;
+  state.isDaily = !!opts.daily;
+  if (opts.difficulty) state.difficulty = opts.difficulty;
+  state.locked = false;
+  renderStats();
+  newPuzzle(opts.daily ? getDailySeed() : null);
+}
+
+function newPuzzle(seed) {
+  state.puzzle = generatePuzzle(state.difficulty, seed);
+  if (state.mode === 'multiple_choice') {
+    const rng = mulberry32(seed || (Date.now() ^ (Math.random() * 0x7fffffff)));
+    state.puzzle.choices = generateChoices(rng, state.puzzle);
+  }
+  state.hintLevel = 0;
+  state.hintsUsedThisPuzzle = 0;
+  state.inputValue = '';
+  state.selectedChoice = null;
+  state.locked = false;
+  state.elapsedAtSubmit = 0;
+  renderSequence();
+  renderAnswerArea();
+  renderHintArea();
+  document.getElementById('btn-submit').disabled = true;
+  document.getElementById('btn-hint').disabled = false;
+  document.getElementById('btn-skip').disabled = false;
+  updateChipText();
+  startTimer();
+}
+
+function submitAnswer() {
+  if (state.locked || !state.puzzle) return;
+  let userAns;
+  if (state.mode === 'multiple_choice') {
+    if (state.selectedChoice == null) return;
+    userAns = state.selectedChoice;
+  } else {
+    if (state.inputValue === '' || state.inputValue === '-') return;
+    userAns = parseInt(state.inputValue, 10);
+    if (isNaN(userAns)) return;
+  }
+  state.locked = true;
+  stopTimer();
+  state.elapsedAtSubmit = Date.now() - state.startedAt;
+  const correct = userAns === state.puzzle.answer;
+  persisted.totalAttempted += 1;
+  const dKey = state.difficulty;
+  if (!persisted.byDifficulty[dKey]) persisted.byDifficulty[dKey] = { attempted: 0, solved: 0, totalTimeMs: 0 };
+  persisted.byDifficulty[dKey].attempted += 1;
+
+  if (correct) {
+    onCorrect();
+  } else {
+    onWrong(userAns);
+  }
+}
+
+function onCorrect() {
+  const cfg = DIFFICULTIES.find(d => d.id === state.difficulty);
+  const elapsedSec = state.elapsedAtSubmit / 1000;
+  const timeFactor = Math.max(0.3, 1 - elapsedSec / 60);
+  const hintFactor = Math.max(0.25, 1 - HINT_PENALTY * state.hintLevel);
+  state.streak += 1;
+  const combo = state.streak >= 10 ? 2.0 : state.streak >= 5 ? 1.5 : state.streak >= 3 ? 1.25 : 1.0;
+  const earned = Math.round(cfg.basePoints * timeFactor * hintFactor * combo);
+  state.score += earned;
+  state.perfectSessionCount += 1;
+
+  // Highlight choice
+  if (state.mode === 'multiple_choice') {
+    const sel = document.querySelector('.choice.selected');
+    if (sel) { sel.classList.remove('selected'); sel.classList.add('correct'); }
+  } else {
+    const inp = document.getElementById('open-input');
+    if (inp) inp.classList.add('feedback-correct');
+  }
+
+  // Update persistence
+  persisted.totalSolved += 1;
+  persisted.totalScore += earned;
+  persisted.totalSolveTimeMs += state.elapsedAtSubmit;
+  if (state.elapsedAtSubmit > 0 && (persisted.fastestSolveMs === 0 || state.elapsedAtSubmit < persisted.fastestSolveMs)) {
+    persisted.fastestSolveMs = state.elapsedAtSubmit;
+  }
+  if (state.streak > persisted.bestStreak) persisted.bestStreak = state.streak;
+  if (state.score > persisted.bestScore) persisted.bestScore = state.score;
+  if (state.perfectSessionCount > persisted.bestPerfectSession) persisted.bestPerfectSession = state.perfectSessionCount;
+  const dKey = state.difficulty;
+  persisted.byDifficulty[dKey].solved += 1;
+  persisted.byDifficulty[dKey].totalTimeMs += state.elapsedAtSubmit;
+  persisted.byType[state.puzzle.type] = (persisted.byType[state.puzzle.type] || 0) + 1;
+  if (state.hintsUsedThisPuzzle === 0) persisted.noHintSolves += 1;
+
+  if (state.isDaily) {
+    const today = getDateKey();
+    persisted.dailyLastDate = today;
+    persisted.dailyHistory.push({ date: today, difficulty: state.difficulty, solved: true, score: earned, timeMs: state.elapsedAtSubmit });
+  }
+  savePersisted();
+
+  playSound('correct');
+  fireConfetti(state.streak >= 5 ? 60 : 30);
+
+  // Streak burst
+  if (state.streak >= 3 && state.streak % 3 === 0) {
+    showComboBurst(state.streak);
+    if (state.streak >= 5) setTimeout(() => playSound('streak'), 200);
+  }
+
+  // Check achievements
+  const newAch = checkAchievements();
+
+  // Show result modal
+  setTimeout(() => {
+    showResultModal('correct', earned, newAch);
+  }, 800);
+}
+
+function onWrong(userAns) {
+  state.lives -= 1;
+  state.streak = 0;
+  state.perfectSessionCount = 0;
+  persisted.errorPatterns[state.puzzle.type] = (persisted.errorPatterns[state.puzzle.type] || 0) + 1;
+  savePersisted();
+
+  // Highlight
+  if (state.mode === 'multiple_choice') {
+    const sel = document.querySelector('.choice.selected');
+    if (sel) { sel.classList.remove('selected'); sel.classList.add('wrong'); }
+    // Also reveal correct
+    document.querySelectorAll('.choice').forEach(b => {
+      if (parseInt(b.getAttribute('data-value'), 10) === state.puzzle.answer) {
+        b.classList.add('correct');
+      }
+    });
+  } else {
+    const inp = document.getElementById('open-input');
+    if (inp) inp.classList.add('feedback-wrong');
+  }
+
+  playSound('wrong');
+  renderStats();
+
+  if (state.lives <= 0) {
+    setTimeout(() => {
+      state.gameOver = true;
+      showResultModal('gameover', 0, []);
+      playSound('gameover');
+    }, 900);
+  } else {
+    setTimeout(() => {
+      showResultModal('wrong', 0, []);
+    }, 900);
+  }
+}
+
+function useHint() {
+  if (state.locked || !state.puzzle) return;
+  if (state.hintLevel >= 3) {
+    showToast(t('hintFull') + ' — ' + buildFullRuleText(state.puzzle), null, 3000);
+    return;
+  }
+  state.hintLevel += 1;
+  state.hintsUsedThisPuzzle += 1;
+  renderHintArea();
+  playSound('click');
+}
+
+function skipPuzzle() {
+  if (state.locked || !state.puzzle) return;
+  state.locked = true;
+  stopTimer();
+  state.streak = 0;
+  state.perfectSessionCount = 0;
+  persisted.totalAttempted += 1;
+  const dKey = state.difficulty;
+  if (!persisted.byDifficulty[dKey]) persisted.byDifficulty[dKey] = { attempted: 0, solved: 0, totalTimeMs: 0 };
+  persisted.byDifficulty[dKey].attempted += 1;
+  savePersisted();
+  renderStats();
+  showResultModal('skipped', 0, []);
+}
+
+function checkAchievements() {
+  const newly = [];
+  ACHIEVEMENTS_LIST.forEach(a => {
+    if (!persisted.achievements[a.id] && a.cond(persisted)) {
+      persisted.achievements[a.id] = { unlockedAt: Date.now() };
+      newly.push(a);
+    }
+  });
+  if (newly.length) {
+    savePersisted();
+    setTimeout(() => {
+      playSound('achievement');
+      newly.forEach((a, i) => {
+        setTimeout(() => showToast('🏆 ' + t('ach_' + a.id + '_name'), 'combo', 2400), i * 600);
+      });
+    }, 1200);
+  }
+  return newly;
+}
+
+function showComboBurst(streak) {
+  const el = document.getElementById('combo-burst');
+  const text = streak >= 10 ? '×2.0' : streak >= 5 ? '×1.5' : '×1.25';
+  el.innerHTML = '<span class="combo-label">' + t('streakBonus') + '</span>' + text;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 1100);
+}
+
+/* ============================================================
+   RESULT MODAL (correct / wrong / skipped / gameover)
+   ============================================================ */
+function showResultModal(kind, earned, newAch) {
+  const p = state.puzzle;
+  const ruleText = buildFullRuleText(p);
+  const explanation = buildExplanation(p);
+
+  let emoji, title, sub;
+  if (kind === 'correct') {
+    emoji = state.streak >= 10 ? '🔥' : state.streak >= 5 ? '⭐' : '✨';
+    title = t('correct');
+    sub = `+${earned} ${t('points')}` + (state.streak > 1 ? ` · 🔥 ${state.streak}` : '');
+  } else if (kind === 'wrong') {
+    emoji = '❌';
+    title = t('incorrect');
+    sub = `${t('wrongAnswer')}: ${p.answer}`;
+  } else if (kind === 'skipped') {
+    emoji = '⏭️';
+    title = t('skip');
+    sub = `${t('skippedRule')}: ${p.answer}`;
+  } else if (kind === 'gameover') {
+    emoji = '💔';
+    title = t('gameOver');
+    sub = `${t('totalSolved')}: ${state.perfectSessionCount} · ${t('score')}: ${state.score}`;
+  }
+
+  const elapsedSec = (state.elapsedAtSubmit / 1000).toFixed(1);
+  const statsHtml = (kind === 'correct')
+    ? `<div class="result-stats">
+        <div class="result-stat">
+          <div class="result-stat-label">${t('timer')}</div>
+          <div class="result-stat-value">${elapsedSec}s</div>
+        </div>
+        <div class="result-stat">
+          <div class="result-stat-label">${t('streak')}</div>
+          <div class="result-stat-value">🔥 ${state.streak}</div>
+        </div>
+        <div class="result-stat">
+          <div class="result-stat-label">${t('points')}</div>
+          <div class="result-stat-value gain">+${earned}</div>
+        </div>
+      </div>` : '';
+
+  const actionLabel = (kind === 'gameover') ? t('playAgain') : t('next');
+
+  const body = `
+    <div class="result-modal-body">
+      <div class="result-emoji">${emoji}</div>
+      <div class="result-title">${title}</div>
+      <div class="result-sub">${sub}</div>
+      ${statsHtml}
+      <div class="result-rule-card">
+        <div class="result-rule-label">${t('rule')}</div>
+        <div class="result-rule-text">${ruleText}</div>
+      </div>
+      <div class="result-explanation">${explanation}</div>
+    </div>
+    <div class="modal-actions ${kind === 'gameover' ? 'single' : ''}">
+      ${kind !== 'gameover' ? `<button class="btn secondary" id="modal-close-btn">${t('cancel')}</button>` : ''}
+      <button class="btn primary" id="modal-next-btn">${actionLabel}</button>
+    </div>
+  `;
+  openModal(t(kind === 'correct' ? 'correct' : kind === 'wrong' ? 'incorrect' : kind === 'skipped' ? 'skip' : 'gameOver'), body);
+
+  setTimeout(() => {
+    const nextBtn = document.getElementById('modal-next-btn');
+    const closeBtn = document.getElementById('modal-close-btn');
+    if (nextBtn) {
+      nextBtn.addEventListener('click', () => {
+        closeModal();
+        if (kind === 'gameover') {
+          startNewGame();
+        } else {
+          newPuzzle();
+        }
+      });
+    }
+    if (closeBtn) closeBtn.addEventListener('click', () => closeModal());
+  }, 50);
+}
+
+function buildExplanation(p) {
+  const params = { ...p.params };
+  const seq = p.sequence;
+  const next = seq.length + (params.startN !== undefined ? params.startN - 1 : 0);
+  // type-specific param fillers
+  if (p.type === 'arithmetic') {
+    return t('explain_arithmetic', { ...params, nth: ordinal(seq.length + 1), idx: seq.length, answer: p.answer });
+  }
+  if (p.type === 'arithmetic_desc') {
+    return t('explain_arithmetic_desc', { ...params, nth: ordinal(seq.length + 1), idx: seq.length, answer: p.answer });
+  }
+  if (p.type === 'geometric') {
+    return t('explain_geometric', { ...params, nth: ordinal(seq.length + 1), prev: seq[seq.length - 1], answer: p.answer });
+  }
+  if (p.type === 'geometric_desc') {
+    return t('explain_geometric_desc', { ...params, nth: ordinal(seq.length + 1), prev: seq[seq.length - 1], answer: p.answer });
+  }
+  if (p.type === 'squares') {
+    const sn = params.startN;
+    return t('explain_squares', { startN: sn, startN1: sn + 1, n: sn + seq.length - 1, next: sn + seq.length, answer: p.answer });
+  }
+  if (p.type === 'cubes') {
+    const sn = params.startN;
+    return t('explain_cubes', { startN: sn, startN1: sn + 1, next: sn + seq.length, answer: p.answer });
+  }
+  if (p.type === 'triangular') {
+    const nextN = params.startN + seq.length;
+    return t('explain_triangular', { next: nextN, next1: nextN + 1, answer: p.answer });
+  }
+  if (p.type === 'fibonacci' || p.type === 'fibonacci_variant') {
+    return t('explain_fibonacci', { prev2: seq[seq.length - 2], prev1: seq[seq.length - 1], answer: p.answer });
+  }
+  if (p.type === 'factorial') {
+    const nextN = params.startN + seq.length;
+    return t('explain_factorial', { next: nextN, prev: nextN - 1, prevVal: seq[seq.length - 1], answer: p.answer });
+  }
+  if (p.type === 'alternating') {
+    const idx = seq.length;
+    const isAdd = idx % 2 === 1;
+    return t('explain_alternating', { ...params, nth: ordinal(idx + 1),
+      op: isAdd ? '+' + params.a : '−' + params.b, sym: isAdd ? '+' : '−',
+      val: isAdd ? params.a : params.b, prev: seq[seq.length - 1], answer: p.answer });
+  }
+  if (p.type === 'quadratic_nn1') {
+    const n = params.startN + seq.length;
+    return t('explain_quadratic_nn1', { next: n, sq: n * n, answer: p.answer });
+  }
+  if (p.type === 'recursive_mul_add') {
+    return t('explain_recursive_mul_add', { ...params, prev: seq[seq.length - 1], answer: p.answer });
+  }
+  if (p.type === 'odd_differences') {
+    const d = 2 * seq.length - 1; // next odd
+    return t('explain_odd_differences', { d, prev: seq[seq.length - 1], answer: p.answer });
+  }
+  if (p.type === 'arithmetic_diffs') {
+    const d1 = params.d1, dd = params.dd;
+    const nextD = d1 + (seq.length - 1) * dd;
+    return t('explain_arithmetic_diffs', { d1, d2: d1 + dd, d3: d1 + 2 * dd, nextD, prev: seq[seq.length - 1], answer: p.answer });
+  }
+  if (p.type === 'primes') {
+    return t('explain_primes', { prev: seq[seq.length - 1], answer: p.answer });
+  }
+  if (p.type === 'mixed_complex') {
+    const d = seq.length * params.c + params.k;
+    return t('explain_mixed_complex', { d, prev: seq[seq.length - 1], answer: p.answer });
+  }
+  return '';
+}
+
+/* ============================================================
+   CONFETTI
+   ============================================================ */
+const confettiState = { particles: [], running: false };
+function fireConfetti(count) {
+  const canvas = document.getElementById('confetti-canvas');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  const colors = ['#7c3aed', '#a78bfa', '#fbbf24', '#10b981', '#ef4444', '#3b82f6'];
+  for (let i = 0; i < count; i++) {
+    confettiState.particles.push({
+      x: canvas.width / 2 + (Math.random() - 0.5) * 80,
+      y: canvas.height / 2 - 100,
+      vx: (Math.random() - 0.5) * 14,
+      vy: -Math.random() * 14 - 4,
+      g: 0.5,
+      r: Math.random() * 5 + 2,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      life: 0, maxLife: 80 + Math.random() * 40,
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.3,
+    });
+  }
+  if (!confettiState.running) animateConfetti();
+}
+function animateConfetti() {
+  const canvas = document.getElementById('confetti-canvas');
+  const ctx = canvas.getContext('2d');
+  confettiState.running = true;
+  function step() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    confettiState.particles = confettiState.particles.filter(p => p.life < p.maxLife);
+    confettiState.particles.forEach(p => {
+      p.vy += p.g;
+      p.x += p.vx; p.y += p.vy;
+      p.rot += p.vr;
+      p.life++;
+      const alpha = Math.max(0, 1 - p.life / p.maxLife);
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.r, -p.r * 0.4, p.r * 2, p.r * 0.8);
+      ctx.restore();
+    });
+    if (confettiState.particles.length) requestAnimationFrame(step);
+    else { confettiState.running = false; ctx.clearRect(0, 0, canvas.width, canvas.height); }
+  }
+  requestAnimationFrame(step);
+}
+
+/* ============================================================
+   MODALS
+   ============================================================ */
+let modalEl = null;
+function openModal(title, bodyHtml) {
+  closeModal();
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <div class="modal-title">${title}</div>
+        <button class="modal-close" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">${bodyHtml}</div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  modalEl = backdrop;
+  setTimeout(() => backdrop.classList.add('open'), 10);
+  backdrop.querySelector('.modal-close').addEventListener('click', closeModal);
+  backdrop.addEventListener('click', (e) => {
+    if (e.target === backdrop) closeModal();
+  });
+}
+function closeModal() {
+  if (!modalEl) return;
+  modalEl.classList.remove('open');
+  const el = modalEl;
+  setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 250);
+  modalEl = null;
+}
+
+/* How to play */
+function openHowTo() {
+  const lang = persisted.lang || 'mn';
+  const dict = I18N[lang];
+  const list2 = (dict.howto2list || []).map(x => `<li>${x}</li>`).join('');
+  const list5 = (dict.howto5list || []).map(x => `<li>${x}</li>`).join('');
+  const body = `
+    <div class="howto-section">
+      <h4>${t('howto1')}</h4>
+      <p>${t('howto1text')}</p>
+    </div>
+    <div class="howto-section">
+      <h4>${t('howto2')}</h4>
+      <p>${t('howto2text')}</p>
+      <ul>${list2}</ul>
+    </div>
+    <div class="howto-section">
+      <h4>${t('howto3')}</h4>
+      <p>${t('howto3text')}</p>
+    </div>
+    <div class="howto-section">
+      <h4>${t('howto4')}</h4>
+      <p>${t('howto4text')}</p>
+    </div>
+    <div class="howto-section">
+      <h4>${t('howto5')}</h4>
+      <ul>${list5}</ul>
+    </div>
+  `;
+  openModal(t('howToPlay'), body);
+}
+
+/* Menu (settings / stats / achievements) */
+function openMenu(initialTab) {
+  const tab = initialTab || 'settings';
+  const tabsHtml = `
+    <div class="tabs" role="tablist">
+      <button class="tab ${tab==='settings'?'active':''}" data-tab="settings" role="tab">${t('settings')}</button>
+      <button class="tab ${tab==='stats'?'active':''}" data-tab="stats" role="tab">${t('statistics')}</button>
+      <button class="tab ${tab==='achievements'?'active':''}" data-tab="achievements" role="tab">${t('achievements')}</button>
+    </div>
+    <div id="tab-content"></div>
+  `;
+  openModal(t('settings'), tabsHtml);
+  setTimeout(() => {
+    document.querySelectorAll('[data-tab]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-tab]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        renderTab(btn.getAttribute('data-tab'));
+      });
+    });
+    renderTab(tab);
+  }, 60);
+}
+
+function renderTab(tab) {
+  const wrap = document.getElementById('tab-content');
+  if (tab === 'settings') wrap.innerHTML = renderSettingsHtml();
+  else if (tab === 'stats') wrap.innerHTML = renderStatsHtml();
+  else if (tab === 'achievements') wrap.innerHTML = renderAchievementsHtml();
+  if (tab === 'settings') bindSettings();
+}
+
+function renderSettingsHtml() {
+  return `
+    <div class="setting-row">
+      <div>
+        <div class="setting-label">${t('language')}</div>
+      </div>
+      <div class="seg-control" id="seg-lang">
+        <div class="seg-option ${persisted.lang==='mn'?'active':''}" data-val="mn">MN</div>
+        <div class="seg-option ${persisted.lang==='en'?'active':''}" data-val="en">EN</div>
+      </div>
+    </div>
+    <div class="setting-row">
+      <div>
+        <div class="setting-label">${t('theme')}</div>
+      </div>
+      <div class="seg-control" id="seg-theme">
+        <div class="seg-option ${persisted.theme==='light'?'active':''}" data-val="light">${t('light')}</div>
+        <div class="seg-option ${persisted.theme==='dark'?'active':''}" data-val="dark">${t('dark')}</div>
+      </div>
+    </div>
+    <div class="setting-row">
+      <div>
+        <div class="setting-label">${t('answerMode')}</div>
+      </div>
+      <div class="seg-control" id="seg-mode">
+        <div class="seg-option ${persisted.mode==='multiple_choice'?'active':''}" data-val="multiple_choice">${t('multipleChoice')}</div>
+        <div class="seg-option ${persisted.mode==='open_ended'?'active':''}" data-val="open_ended">${t('openEnded')}</div>
+      </div>
+    </div>
+    <div class="setting-row">
+      <div>
+        <div class="setting-label">${t('sound')}</div>
+      </div>
+      <div class="switch ${persisted.sound?'on':''}" id="sw-sound" role="switch" aria-checked="${persisted.sound}"></div>
+    </div>
+  `;
+}
+
+function bindSettings() {
+  document.querySelectorAll('#seg-lang .seg-option').forEach(el => {
+    el.addEventListener('click', () => {
+      persisted.lang = el.getAttribute('data-val');
+      savePersisted();
+      applyI18n();
+      renderTab('settings');
+      // Re-render game card
+      renderAnswerArea();
+      renderHintArea();
+    });
+  });
+  document.querySelectorAll('#seg-theme .seg-option').forEach(el => {
+    el.addEventListener('click', () => {
+      persisted.theme = el.getAttribute('data-val');
+      savePersisted();
+      applyTheme();
+      renderTab('settings');
+    });
+  });
+  document.querySelectorAll('#seg-mode .seg-option').forEach(el => {
+    el.addEventListener('click', () => {
+      const newMode = el.getAttribute('data-val');
+      if (newMode === persisted.mode) return;
+      persisted.mode = newMode;
+      state.mode = newMode;
+      savePersisted();
+      renderTab('settings');
+      // Regenerate the current puzzle's answer-area shape
+      if (state.puzzle && state.mode === 'multiple_choice' && !state.puzzle.choices) {
+        state.puzzle.choices = generateChoices(mulberry32(Date.now()), state.puzzle);
+      }
+      renderAnswerArea();
+    });
+  });
+  const sw = document.getElementById('sw-sound');
+  if (sw) sw.addEventListener('click', () => {
+    persisted.sound = !persisted.sound;
+    savePersisted();
+    sw.classList.toggle('on', persisted.sound);
+    sw.setAttribute('aria-checked', persisted.sound);
+  });
+}
+
+function renderStatsHtml() {
+  const totalSolved = persisted.totalSolved || 0;
+  const totalAttempted = persisted.totalAttempted || 0;
+  const accuracy = totalAttempted ? Math.round(totalSolved / totalAttempted * 100) : 0;
+  const avgTime = totalSolved ? Math.round(persisted.totalSolveTimeMs / totalSolved / 100) / 10 : 0;
+  const bestStreak = persisted.bestStreak || 0;
+  const bestScore = persisted.bestScore || 0;
+
+  let diffRows = '';
+  DIFFICULTIES.forEach(d => {
+    const data = persisted.byDifficulty[d.id] || { attempted: 0, solved: 0, totalTimeMs: 0 };
+    const pct = data.attempted ? Math.round(data.solved / data.attempted * 100) : 0;
+    diffRows += `
+      <div class="diff-stat-row">
+        <div class="diff-stat-name">${t('diff_' + d.id)}</div>
+        <div class="diff-stat-bar-wrap"><div class="diff-stat-bar" style="width:${pct}%"></div></div>
+        <div class="diff-stat-pct">${pct}%</div>
+      </div>
+    `;
+  });
+
+  if (totalSolved === 0) {
+    return `<div style="text-align:center; padding:32px 8px; color: var(--text-soft);">${t('nothingYet')}</div>`;
+  }
+
+  return `
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-card-label">${t('totalSolved')}</div>
+        <div class="stat-card-value">${totalSolved}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-label">${t('accuracy')}</div>
+        <div class="stat-card-value">${accuracy}%</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-label">${t('bestStreak')}</div>
+        <div class="stat-card-value">🔥 ${bestStreak}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-label">${t('bestScore')}</div>
+        <div class="stat-card-value">${bestScore}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-label">${t('avgTime')}</div>
+        <div class="stat-card-value">${avgTime}s</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-label">${t('plays')}</div>
+        <div class="stat-card-value">${totalAttempted}</div>
+      </div>
+    </div>
+    <div class="diff-stats">
+      <div class="diff-stats-title">${t('byDifficulty')}</div>
+      ${diffRows}
+    </div>
+  `;
+}
+
+function renderAchievementsHtml() {
+  let html = '<div class="ach-list">';
+  ACHIEVEMENTS_LIST.forEach(a => {
+    const unlocked = !!persisted.achievements[a.id];
+    html += `
+      <div class="ach-item ${unlocked ? 'unlocked' : 'locked'}">
+        <div class="ach-icon">${a.emoji}</div>
+        <div class="ach-info">
+          <div class="ach-name">${t('ach_' + a.id + '_name')}</div>
+          <div class="ach-desc">${unlocked ? t('ach_' + a.id + '_desc') : t('locked') + ' — ' + t('ach_' + a.id + '_desc')}</div>
+        </div>
+      </div>
+    `;
+  });
+  html += '</div>';
+  return html;
+}
+
+/* ============================================================
+   DAILY CHALLENGE
+   ============================================================ */
+function tryDailyChallenge() {
+  const today = getDateKey();
+  if (persisted.dailyLastDate === today) {
+    showToast(t('dailyAlready'), 'success', 2400);
+    return;
+  }
+  startNewGame({ daily: true, difficulty: getDailyDifficulty() });
+  showToast(t('dailyStarted'), 'combo', 2200);
+}
+
+function getDailyDifficulty() {
+  // Rotate daily through difficulties so students see variety
+  const seed = getDailySeed();
+  const idx = seed % DIFFICULTIES.length;
+  return DIFFICULTIES[idx].id;
+}
+
+function updateDailyButton() {
+  const btn = document.getElementById('btn-daily');
+  if (!btn) return;
+  const today = getDateKey();
+  if (persisted.dailyLastDate === today) {
+    btn.classList.add('done');
+  } else {
+    btn.classList.remove('done');
+  }
+}
+
+/* ============================================================
+   EVENT BINDINGS
+   ============================================================ */
+function bindEvents() {
+  document.getElementById('btn-submit').addEventListener('click', submitAnswer);
+  document.getElementById('btn-hint').addEventListener('click', useHint);
+  document.getElementById('btn-skip').addEventListener('click', skipPuzzle);
+  document.getElementById('btn-new').addEventListener('click', () => {
+    if (state.gameOver || state.score === 0) {
+      startNewGame();
+    } else {
+      // Confirm
+      const body = `
+        <p style="margin-bottom: 18px; color: var(--text-soft);">${t('confirmNew')}</p>
+        <div class="modal-actions">
+          <button class="btn secondary" id="confirm-cancel">${t('cancel')}</button>
+          <button class="btn primary" id="confirm-yes">${t('yes')}</button>
+        </div>
+      `;
+      openModal(t('newGame'), body);
+      setTimeout(() => {
+        document.getElementById('confirm-cancel').addEventListener('click', closeModal);
+        document.getElementById('confirm-yes').addEventListener('click', () => {
+          closeModal();
+          startNewGame();
+        });
+      }, 50);
+    }
+  });
+  document.getElementById('btn-daily').addEventListener('click', tryDailyChallenge);
+  document.getElementById('btn-howto').addEventListener('click', openHowTo);
+  document.getElementById('btn-theme').addEventListener('click', () => {
+    persisted.theme = persisted.theme === 'dark' ? 'light' : 'dark';
+    savePersisted();
+    applyTheme();
+  });
+  document.getElementById('btn-menu').addEventListener('click', () => openMenu());
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    // Skip when in an input that's not our open-input on the page
+    const tgt = e.target;
+    const inOurInput = tgt && tgt.id === 'open-input';
+    if (e.key === 'Escape') {
+      if (modalEl) closeModal();
+      return;
+    }
+    if (modalEl) return;
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const sb = document.getElementById('btn-submit');
+      if (sb && !sb.disabled) sb.click();
+      return;
+    }
+    if (e.ctrlKey && e.key.toLowerCase() === 'n') {
+      e.preventDefault();
+      document.getElementById('btn-new').click();
+      return;
+    }
+    if (!inOurInput) {
+      if (e.key.toLowerCase() === 'h') {
+        e.preventDefault();
+        useHint();
+        return;
+      }
+      if (e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        skipPuzzle();
+        return;
+      }
+    }
+    // Digit keys for keypad in open-ended mode (when not focused on input)
+    if (state.mode === 'open_ended' && !inOurInput && !state.locked) {
+      if (/^[0-9]$/.test(e.key)) {
+        state.inputValue += e.key;
+        const inp = document.getElementById('open-input');
+        if (inp) inp.value = state.inputValue;
+        document.getElementById('btn-submit').disabled = state.inputValue === '';
+        playSound('click');
+      } else if (e.key === 'Backspace' && state.inputValue.length) {
+        state.inputValue = state.inputValue.slice(0, -1);
+        const inp = document.getElementById('open-input');
+        if (inp) inp.value = state.inputValue;
+        document.getElementById('btn-submit').disabled = state.inputValue === '';
+      } else if (e.key === '-' && state.inputValue === '') {
+        state.inputValue = '-';
+        const inp = document.getElementById('open-input');
+        if (inp) inp.value = state.inputValue;
+      }
+    }
+  });
+
+  // Resize canvas on resize
+  window.addEventListener('resize', () => {
+    const canvas = document.getElementById('confetti-canvas');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  });
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+function init() {
+  loadPersisted();
+  state.mode = persisted.mode || 'multiple_choice';
+  state.difficulty = persisted.difficulty || 'easy';
+  applyTheme();
+  applyI18n();
+  renderDiffRow();
+  bindEvents();
+  startNewGame();
+  updateDailyButton();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+</script>
+</body>
+</html>
