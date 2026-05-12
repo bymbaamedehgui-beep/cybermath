@@ -132,6 +132,15 @@ module.exports = async (req, res) => {
         return res.json({ ok: true, xp: r.rows[0].xp });
       }
 
+      if (action === 'addGems') {
+        const { amount } = req.body || {};
+        const a = parseInt(amount) || 0;
+        if (a <= 0) return res.json({ ok: false });
+        const r = await pool.query('UPDATE users SET gems = COALESCE(gems,0) + $1 WHERE email=$2 RETURNING gems', [a, email]);
+        if (!r.rows.length) return res.json({ ok: false });
+        return res.json({ ok: true, gems: r.rows[0].gems });
+      }
+
       if (action === 'heartbeat') {
         const { screen } = req.body || {};
         if (screen !== undefined) {
