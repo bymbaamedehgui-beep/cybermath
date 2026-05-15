@@ -51,6 +51,47 @@ module.exports = async (req, res) => {
         return res.json({ ok: true, game: r.rows[0], asColor: 'white' });
       }
 
+      // Олон тоглогчтой өрөөнд нэгдэх (SBH гэх мэт 3-5 тоглогч)
+      if (action === 'joinMulti') {
+        const { email, name, code } = body;
+        if (!email || !code) return res.status(400).json({ ok: false, error: 'Missing fields' });
+        const cleanCode = String(code).replace(/\D/g, '').slice(0, 6);
+        const r = await pool.query(`SELECT * FROM online_games WHERE room_code=$1 AND status<>'finished' ORDER BY id DESC LIMIT 1`, [cleanCode]);
+        if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Код олдсонгүй' });
+        const g = r.rows[0];
+        let st = g.state || {};
+        if (typeof st === 'string') { try { st = JSON.parse(st); } catch(e){ st = {}; } }
+        const players = Array.isArray(st.players) ? st.players : [];
+        const isHost = (g.white_email === email);
+        // Host нь автоматаар 1-р тоглогч (хэрэв state-д байхгүй бол нэмнэ)
+        if (isHost && !players.find(p => p && p.email === email)) {
+          players.unshift({ email: g.white_email, name: g.white_name || email, isHost: true });
+        }
+        let myIdx = players.findIndex(p => p && p.email === email);
+        if (myIdx === -1) {
+          const maxPlayers = st.expectedPlayers || 5;
+          if (players.length >= maxPlayers) return res.json({ ok: false, error: 'Өрөө дүүрсэн' });
+          players.push({ email: email, name: String(name || email).slice(0, 60), isHost: false });
+          myIdx = players.length - 1;
+        }
+        st.players = players;
+        const needBlack = (players.length >= 2 && !g.black_email);
+        const status = (players.length >= (st.expectedPlayers || 2)) ? 'playing' : 'waiting';
+        let r2;
+        if (needBlack) {
+          r2 = await pool.query(
+            `UPDATE online_games SET black_email=$1, black_name=$2, state=$3, status=$4, updated_at=NOW() WHERE id=$5 RETURNING *`,
+            [players[1].email, players[1].name, JSON.stringify(st), status, g.id]
+          );
+        } else {
+          r2 = await pool.query(
+            `UPDATE online_games SET state=$1, status=$2, updated_at=NOW() WHERE id=$3 RETURNING *`,
+            [JSON.stringify(st), status, g.id]
+          );
+        }
+        return res.json({ ok: true, game: r2.rows[0], playerIndex: myIdx, isHost: isHost });
+      }
+
       // Өрөөнд нэгдэх (joiner = хар)
       if (action === 'join') {
         const { email, name, code } = body;
@@ -67,6 +108,24 @@ module.exports = async (req, res) => {
           [email, String(name || email).slice(0, 60), g.id]
         );
         return res.json({ ok: true, game: r2.rows[0], asColor: 'black' });
+      }
+
+      // 'move' action хэрэгцээтэй (мөн state-д finished илгээх) — multi-player API ашиглавал permission шалгахдаа state.players-аас шалгана
+      if (action === 'moveMulti') {
+        const { email, code, state } = body;
+        if (!email || !code || !state) return res.status(400).json({ ok: false });
+        const r = await pool.query(`SELECT * FROM online_games WHERE room_code=$1 ORDER BY id DESC LIMIT 1`, [String(code).replace(/\D/g, '').slice(0, 6)]);
+        if (!r.rows.length) return res.status(404).json({ ok: false });
+        const g = r.rows[0];
+        let st = g.state || {};
+        if (typeof st === 'string') { try { st = JSON.parse(st); } catch(e){ st = {}; } }
+        const players = Array.isArray(st.players) ? st.players : [];
+        if (!players.find(p => p && p.email === email) && g.white_email !== email) return res.status(403).json({ ok: false });
+        const r2 = await pool.query(
+          `UPDATE online_games SET state=$1, updated_at=NOW() WHERE id=$2 RETURNING *`,
+          [JSON.stringify(state), g.id]
+        );
+        return res.json({ ok: true, game: r2.rows[0] });
       }
 
       // Polling — state татах
