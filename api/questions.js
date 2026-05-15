@@ -90,6 +90,23 @@ module.exports = async (req, res) => {
           'INSERT INTO question_reports (question_id, reporter_email, reason) VALUES ($1,$2,$3) RETURNING id',
           [parseInt(question_id), String(reporter_email).toLowerCase(), String(reason || '').slice(0, 500)]
         );
+        // Telegram notification (fire-and-forget)
+        try {
+          const { sendTelegram } = require('./_telegram');
+          const qq = await pool.query('SELECT text, correct FROM questions WHERE id=$1', [parseInt(question_id)]);
+          const qtext = qq.rows[0] ? String(qq.rows[0].text || '').slice(0, 300) : '?';
+          const qcorrect = qq.rows[0] ? String(qq.rows[0].correct || '').slice(0, 100) : '?';
+          const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          const msg =
+            '🚨 <b>Шинэ алдааны мэдэгдэл</b>\n\n' +
+            '<b>Хэрэглэгч:</b> ' + esc(reporter_email) + '\n' +
+            '<b>Асуулт ID:</b> ' + question_id + '\n' +
+            '<b>Асуулт:</b> ' + esc(qtext) + '\n' +
+            '<b>Зөв хариулт:</b> ' + esc(qcorrect) + '\n' +
+            '<b>Шалтгаан:</b> ' + esc(reason || '—') + '\n' +
+            '<b>Report ID:</b> ' + r.rows[0].id;
+          sendTelegram(msg).catch(() => {});
+        } catch (_) {}
         return res.json({ ok: true, id: r.rows[0].id });
       }
 
