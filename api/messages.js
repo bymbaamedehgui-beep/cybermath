@@ -21,9 +21,11 @@ module.exports = async (req, res) => {
         receiver_email TEXT NOT NULL,
         text TEXT NOT NULL,
         read BOOLEAN DEFAULT FALSE,
+        reactions JSONB NOT NULL DEFAULT '{}'::jsonb,
         created_at TIMESTAMPTZ DEFAULT NOW()
       )
     `);
+    await pool.query(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS reactions JSONB NOT NULL DEFAULT '{}'::jsonb`).catch(()=>{});
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_cm_pair ON chat_messages(sender_email, receiver_email, id DESC)`).catch(()=>{});
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_cm_unread ON chat_messages(receiver_email, read)`).catch(()=>{});
 
@@ -55,7 +57,7 @@ module.exports = async (req, res) => {
       const since = body.since ? parseInt(body.since) : 0;
       if (!u1 || !u2) return res.status(400).json({ ok: false });
       const r = await pool.query(
-        `SELECT id, sender_email, receiver_email, text, read, created_at
+        `SELECT id, sender_email, receiver_email, text, read, reactions, created_at
          FROM chat_messages
          WHERE ((sender_email=$1 AND receiver_email=$2) OR (sender_email=$2 AND receiver_email=$1))
            AND ($3::bigint = 0 OR id > $3::bigint)
@@ -63,6 +65,39 @@ module.exports = async (req, res) => {
         [u1, u2, since]
       );
       return res.json({ ok: true, messages: r.rows });
+    }
+
+    // Reaction нэмэх / устгах (toggle логиктой: ижил emoji дарвал устгана)
+    if (action === 'react') {
+      const email = String(body.email || '').toLowerCase();
+      const messageId = parseInt(body.messageId);
+      const emoji = String(body.emoji || '').slice(0, 16);
+      if (!email || !messageId) return res.status(400).json({ ok: false });
+      // Зорилго: chat_messages.reactions JSONB key=email value=emoji
+      // Ижил emoji дахин дарвал устгана; өөр emoji дарвал солино
+      const cur = await pool.query(`SELECT reactions FROM chat_messages WHERE id=$1`, [messageId]);
+      if (!cur.rows.length) return res.status(404).json({ ok: false });
+      let rx = cur.rows[0].reactions || {};
+      if (typeof rx === 'string') { try { rx = JSON.parse(rx); } catch (_) { rx = {}; } }
+      if (rx[email] === emoji || !emoji) delete rx[email];
+      else rx[email] = emoji;
+      await pool.query(`UPDATE chat_messages SET reactions=$1::jsonb WHERE id=$2`, [JSON.stringify(rx), messageId]);
+      return res.json({ ok: true, reactions: rx });
+    }
+
+    // Чат-н тодорхой үед-ээс хойш бүх мессеж + reaction-ийг refresh-эх
+    if (action === 'refresh') {
+      const u1 = String(body.user1 || '').toLowerCase();
+      const u2 = String(body.user2 || '').toLowerCase();
+      if (!u1 || !u2) return res.status(400).json({ ok: false });
+      const r = await pool.query(
+        `SELECT id, sender_email, receiver_email, text, read, reactions, created_at
+         FROM chat_messages
+         WHERE ((sender_email=$1 AND receiver_email=$2) OR (sender_email=$2 AND receiver_email=$1))
+         ORDER BY id DESC LIMIT 200`,
+        [u1, u2]
+      );
+      return res.json({ ok: true, messages: r.rows.reverse() });
     }
 
     if (action === 'unread') {
