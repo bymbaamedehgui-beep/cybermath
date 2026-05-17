@@ -43,23 +43,23 @@ module.exports = async (req, res) => {
       await pool.query(`UPDATE audience_polls SET expires_at=NOW() WHERE asker_email=$1 AND expires_at > NOW()`, [email]);
       const r = await pool.query(
         `INSERT INTO audience_polls (asker_email, question, options, expires_at)
-         VALUES ($1, $2, $3, NOW() + INTERVAL '30 seconds') RETURNING id, expires_at`,
+         VALUES ($1, $2, $3, NOW() + INTERVAL '60 seconds') RETURNING id, expires_at`,
         [email, String(question).slice(0, 1500), JSON.stringify(options.slice(0, 4).map(o => String(o).slice(0, 500)))]
       );
       return res.json({ ok: true, pollId: r.rows[0].id, expiresAt: r.rows[0].expires_at });
     }
 
     if (action === 'active') {
-      const { email } = body;
+      const emailLc = body.email ? String(body.email).toLowerCase() : null;
       // Бусдын идэвхтэй санал асуулгыг сонгох (хэрэв нэвтэрсэн бол өөрийгөө хасна, мөн саналаа өгөгсдийг хасна)
       const r = await pool.query(
         `SELECT id, asker_email, question, options, expires_at
          FROM audience_polls
          WHERE expires_at > NOW()
-           AND ($1::text IS NULL OR asker_email <> $1)
+           AND ($1::text IS NULL OR LOWER(asker_email) <> $1)
            AND ($1::text IS NULL OR NOT (voters::jsonb ? $1))
          ORDER BY id DESC LIMIT 1`,
-        [email || null]
+        [emailLc]
       );
       if (!r.rows.length) return res.json({ ok: true, poll: null });
       return res.json({ ok: true, poll: r.rows[0] });
@@ -68,17 +68,27 @@ module.exports = async (req, res) => {
     if (action === 'vote') {
       const { email, pollId, optionIdx } = body;
       const idx = parseInt(optionIdx);
-      if (!email || !pollId || isNaN(idx) || idx < 0 || idx > 3) return res.status(400).json({ ok: false });
-      // Atomic increment + voter-list append, only if not yet voted and not expired
+      if (!email) return res.status(400).json({ ok: false, error: 'Нэвтрэн орно уу' });
+      if (!pollId) return res.status(400).json({ ok: false, error: 'pollId дутуу' });
+      if (isNaN(idx) || idx < 0 || idx > 3) return res.status(400).json({ ok: false, error: 'optionIdx буруу' });
+      // Эхлээд шалгах: poll байгаа эсэх, expire болсон эсэх, voter өмнө нь өгсөн эсэх
+      const check = await pool.query(
+        `SELECT id, expires_at < NOW() AS expired, (voters::jsonb ? $2) AS voted FROM audience_polls WHERE id=$1`,
+        [pollId, String(email).toLowerCase()]
+      );
+      if (!check.rows.length) return res.json({ ok: false, error: 'Санал асуулга олдсонгүй' });
+      if (check.rows[0].expired) return res.json({ ok: false, error: 'Хугацаа дууссан' });
+      if (check.rows[0].voted) return res.json({ ok: false, error: 'Та аль хэдийн санал өгсөн' });
+      // Атомик нэмж voter-ийг бүртгэх (email-ийг үргэлж lowercase-аар хадгална)
       const r = await pool.query(
         `UPDATE audience_polls
          SET votes = jsonb_set(votes, ARRAY[$2::text], to_jsonb((votes->>$2)::int + 1)),
              voters = voters || to_jsonb($3::text)
          WHERE id=$1 AND expires_at > NOW() AND NOT (voters::jsonb ? $3)
          RETURNING id`,
-        [pollId, String(idx), email]
+        [pollId, String(idx), String(email).toLowerCase()]
       );
-      if (!r.rows.length) return res.json({ ok: false, error: 'already voted or expired' });
+      if (!r.rows.length) return res.json({ ok: false, error: 'Бүртгэгдэхэд алдаа гарлаа' });
       return res.json({ ok: true });
     }
 
