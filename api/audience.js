@@ -87,9 +87,16 @@ module.exports = async (req, res) => {
       if (!pollId) return res.status(400).json({ ok: false });
       const r = await pool.query(`SELECT votes, voters, expires_at FROM audience_polls WHERE id=$1`, [pollId]);
       if (!r.rows.length) return res.status(404).json({ ok: false });
-      const votes = r.rows[0].votes;
-      const voters = r.rows[0].voters || [];
-      const total = Array.isArray(votes) ? votes.reduce((a, b) => a + (parseInt(b) || 0), 0) : 0;
+      // Defensive: pg jsonb-уудыг string-аар буцаах магадлал бий, JSON parse хийе
+      let votes = r.rows[0].votes;
+      let voters = r.rows[0].voters;
+      if (typeof votes === 'string') { try { votes = JSON.parse(votes); } catch (_) { votes = [0,0,0,0]; } }
+      if (typeof voters === 'string') { try { voters = JSON.parse(voters); } catch (_) { voters = []; } }
+      if (!Array.isArray(votes)) votes = [0,0,0,0];
+      if (!Array.isArray(voters)) voters = [];
+      // votes-ийн утгуудыг тоо болгож хатуу tab-руу хөрвүүлэх
+      votes = votes.map(v => parseInt(v) || 0);
+      const total = votes.reduce((a, b) => a + b, 0);
       return res.json({ ok: true, votes, totalVotes: total, voters: voters.length, expiresAt: r.rows[0].expires_at });
     }
 
