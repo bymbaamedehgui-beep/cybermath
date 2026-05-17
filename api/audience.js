@@ -28,6 +28,11 @@ module.exports = async (req, res) => {
         created_at TIMESTAMPTZ DEFAULT NOW()
       )
     `);
+    // Хуучин схемийн NULL утгуудыг засах migration (idempotent)
+    await pool.query(`ALTER TABLE audience_polls ALTER COLUMN votes SET DEFAULT '[0,0,0,0]'::jsonb`).catch(()=>{});
+    await pool.query(`ALTER TABLE audience_polls ALTER COLUMN voters SET DEFAULT '[]'::jsonb`).catch(()=>{});
+    await pool.query(`UPDATE audience_polls SET votes='[0,0,0,0]'::jsonb WHERE votes IS NULL`).catch(()=>{});
+    await pool.query(`UPDATE audience_polls SET voters='[]'::jsonb WHERE voters IS NULL`).catch(()=>{});
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_ap_expires ON audience_polls(expires_at DESC)`).catch(()=>{});
 
     if (req.method !== 'POST') return res.status(405).end();
@@ -79,12 +84,16 @@ module.exports = async (req, res) => {
       if (!check.rows.length) return res.json({ ok: false, error: 'Санал асуулга олдсонгүй' });
       if (check.rows[0].expired) return res.json({ ok: false, error: 'Хугацаа дууссан' });
       if (check.rows[0].voted) return res.json({ ok: false, error: 'Та аль хэдийн санал өгсөн' });
-      // Атомик нэмж voter-ийг бүртгэх (email-ийг үргэлж lowercase-аар хадгална)
+      // Атомик нэмж voter-ийг бүртгэх (NULL-аас сэргийлэхийн тулд COALESCE)
       const r = await pool.query(
         `UPDATE audience_polls
-         SET votes = jsonb_set(votes, ARRAY[$2::text], to_jsonb((votes->>$2)::int + 1)),
-             voters = voters || to_jsonb($3::text)
-         WHERE id=$1 AND expires_at > NOW() AND NOT (voters::jsonb ? $3)
+         SET votes = jsonb_set(
+               COALESCE(votes, '[0,0,0,0]'::jsonb),
+               ARRAY[$2::text],
+               to_jsonb((COALESCE(votes, '[0,0,0,0]'::jsonb)->>$2)::int + 1)
+             ),
+             voters = COALESCE(voters, '[]'::jsonb) || to_jsonb($3::text)
+         WHERE id=$1 AND expires_at > NOW() AND NOT (COALESCE(voters, '[]'::jsonb)::jsonb ? $3)
          RETURNING id`,
         [pollId, String(idx), String(email).toLowerCase()]
       );
