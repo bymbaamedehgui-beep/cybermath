@@ -76,28 +76,28 @@ module.exports = async (req, res) => {
       if (!email) return res.status(400).json({ ok: false, error: 'Нэвтрэн орно уу' });
       if (!pollId) return res.status(400).json({ ok: false, error: 'pollId дутуу' });
       if (isNaN(idx) || idx < 0 || idx > 3) return res.status(400).json({ ok: false, error: 'optionIdx буруу' });
-      // Эхлээд шалгах: poll байгаа эсэх, expire болсон эсэх, voter өмнө нь өгсөн эсэх
-      const check = await pool.query(
-        `SELECT id, expires_at < NOW() AS expired, (voters::jsonb ? $2) AS voted FROM audience_polls WHERE id=$1`,
-        [pollId, String(email).toLowerCase()]
+      const emailLc = String(email).toLowerCase();
+      // SELECT current state
+      const cur = await pool.query(
+        `SELECT votes, voters, expires_at < NOW() AS expired FROM audience_polls WHERE id=$1`,
+        [pollId]
       );
-      if (!check.rows.length) return res.json({ ok: false, error: 'Санал асуулга олдсонгүй' });
-      if (check.rows[0].expired) return res.json({ ok: false, error: 'Хугацаа дууссан' });
-      if (check.rows[0].voted) return res.json({ ok: false, error: 'Та аль хэдийн санал өгсөн' });
-      // Атомик нэмж voter-ийг бүртгэх (NULL-аас сэргийлэхийн тулд COALESCE)
-      const r = await pool.query(
-        `UPDATE audience_polls
-         SET votes = jsonb_set(
-               COALESCE(votes, '[0,0,0,0]'::jsonb),
-               ARRAY[$2::text],
-               to_jsonb((COALESCE(votes, '[0,0,0,0]'::jsonb)->>$2)::int + 1)
-             ),
-             voters = COALESCE(voters, '[]'::jsonb) || to_jsonb($3::text)
-         WHERE id=$1 AND expires_at > NOW() AND NOT (COALESCE(voters, '[]'::jsonb)::jsonb ? $3)
-         RETURNING id`,
-        [pollId, String(idx), String(email).toLowerCase()]
+      if (!cur.rows.length) return res.json({ ok: false, error: 'Санал асуулга олдсонгүй' });
+      if (cur.rows[0].expired) return res.json({ ok: false, error: 'Хугацаа дууссан' });
+      let votes = cur.rows[0].votes;
+      let voters = cur.rows[0].voters;
+      if (typeof votes === 'string') { try { votes = JSON.parse(votes); } catch (_) { votes = null; } }
+      if (typeof voters === 'string') { try { voters = JSON.parse(voters); } catch (_) { voters = null; } }
+      if (!Array.isArray(votes) || votes.length !== 4) votes = [0, 0, 0, 0];
+      if (!Array.isArray(voters)) voters = [];
+      if (voters.includes(emailLc)) return res.json({ ok: false, error: 'Та аль хэдийн санал өгсөн' });
+      votes[idx] = (parseInt(votes[idx]) || 0) + 1;
+      voters.push(emailLc);
+      const upd = await pool.query(
+        `UPDATE audience_polls SET votes=$1::jsonb, voters=$2::jsonb WHERE id=$3 AND expires_at > NOW() RETURNING id`,
+        [JSON.stringify(votes), JSON.stringify(voters), pollId]
       );
-      if (!r.rows.length) return res.json({ ok: false, error: 'Бүртгэгдэхэд алдаа гарлаа' });
+      if (!upd.rows.length) return res.json({ ok: false, error: 'Бүртгэгдэхэд алдаа гарлаа' });
       return res.json({ ok: true });
     }
 
