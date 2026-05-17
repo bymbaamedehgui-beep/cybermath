@@ -46,10 +46,11 @@ module.exports = async (req, res) => {
       }
       // Хуучин идэвхтэй санал асуулгуудаа дуусгана (нэг asker нэг л идэвхтэй санал асуулгатай)
       await pool.query(`UPDATE audience_polls SET expires_at=NOW() WHERE asker_email=$1 AND expires_at > NOW()`, [email]);
+      // slice хязгаарыг өргөн (KaTeX HTML 1 фракц ~800 char-тай тул өмнө нь тасрах байсан)
       const r = await pool.query(
         `INSERT INTO audience_polls (asker_email, question, options, expires_at)
          VALUES ($1, $2, $3, NOW() + INTERVAL '60 seconds') RETURNING id, expires_at`,
-        [email, String(question).slice(0, 1500), JSON.stringify(options.slice(0, 4).map(o => String(o).slice(0, 500)))]
+        [email, String(question).slice(0, 50000), JSON.stringify(options.slice(0, 4).map(o => String(o).slice(0, 10000)))]
       );
       return res.json({ ok: true, pollId: r.rows[0].id, expiresAt: r.rows[0].expires_at });
     }
