@@ -103,7 +103,161 @@ function showPage(name, btn) {
   if (name === 'log') loadLogs();
   if (name === 'reports') loadQuestionReports();
   if (name === 'promo') loadPromoCodes();
+  if (name === 'grouprequest') loadGroupRequests();
 }
+
+// ─── Багц хүсэлт ───
+window.loadGroupRequests = async function() {
+  var body = document.getElementById('grouprequest-list');
+  if (!body) return;
+  body.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);">Уншиж байна...</div>';
+  try {
+    var status = document.getElementById('gr-filter-status').value;
+    var r = await adminFetch('/api/grouprequest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'list', status: status || null })
+    });
+    var d = await r.json();
+    if (!d.ok) { body.innerHTML = '<div style="text-align:center;padding:30px;color:#dc2626;">Алдаа: ' + (d.error || '') + '</div>'; return; }
+    var rows = d.requests || [];
+    // Badge — pending тоо
+    try {
+      var pendingResp = await adminFetch('/api/grouprequest', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'list', status: 'pending' })
+      });
+      var pd = await pendingResp.json();
+      var badge = document.getElementById('grpreq-badge');
+      if (badge && pd.ok) {
+        var cnt = (pd.requests || []).length;
+        if (cnt > 0) { badge.textContent = cnt; badge.style.display = ''; }
+        else badge.style.display = 'none';
+      }
+    } catch(_){}
+    if (!rows.length) { body.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);">Хүсэлт байхгүй байна</div>'; return; }
+    var html = '';
+    rows.forEach(function(r){
+      var date = new Date(r.created_at).toLocaleString('mn-MN', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+      var typeLabel = r.type === 'school' ? '🏫 Сургууль' : '👥 Найзууд';
+      var statusBadge = '';
+      if (r.status === 'pending') statusBadge = '<span style="background:#fef3c7;color:#b45309;padding:3px 10px;border-radius:100px;font-weight:800;font-size:0.72rem;">⏳ Шинэ</span>';
+      else if (r.status === 'quoted') statusBadge = '<span style="background:#d1fae5;color:#065f46;padding:3px 10px;border-radius:100px;font-weight:800;font-size:0.72rem;">💬 Хариу өгсөн</span>';
+      else if (r.status === 'declined') statusBadge = '<span style="background:#fee2e2;color:#991b1b;padding:3px 10px;border-radius:100px;font-weight:800;font-size:0.72rem;">✕ Татгалзсан</span>';
+      html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;">'
+        + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px;flex-wrap:wrap;">'
+        +   '<div>'
+        +     '<div style="font-weight:900;font-size:0.95rem;color:var(--text);margin-bottom:2px;">' + typeLabel + ' · #' + r.id + '</div>'
+        +     '<div style="font-size:0.75rem;color:var(--muted);font-weight:700;">' + date + '</div>'
+        +   '</div>'
+        +   statusBadge
+        + '</div>'
+        + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-bottom:10px;font-size:0.82rem;">'
+        +   kv('Имэйл', r.requester_email)
+        +   kv('Нэр', r.contact_name)
+        +   kv('Утас', r.phone)
+        +   (r.school_name ? kv('Сургууль', r.school_name) : '')
+        +   kv('Хэрэглэгч', r.user_count + ' хүн')
+        + '</div>'
+        + (r.note ? '<div style="background:var(--surface2);border-radius:8px;padding:8px 10px;font-size:0.82rem;color:var(--text);margin-bottom:10px;"><b style="color:var(--muted);">Тайлбар:</b> ' + escHtml(r.note) + '</div>' : '')
+        + (r.promo_code || r.price_quote || r.admin_note
+          ? '<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:8px 10px;font-size:0.82rem;margin-bottom:10px;">'
+            + (r.promo_code ? '<div><b>Промо код:</b> <code style="background:#fff;padding:2px 8px;border-radius:6px;font-weight:900;letter-spacing:1px;">' + escHtml(r.promo_code) + '</code></div>' : '')
+            + (r.price_quote ? '<div><b>Үнэ:</b> ₮' + Number(r.price_quote).toLocaleString() + '</div>' : '')
+            + (r.admin_note ? '<div><b>Тэмдэглэл:</b> ' + escHtml(r.admin_note) + '</div>' : '')
+            + '</div>'
+          : '')
+        + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+        +   '<button onclick="openQuoteForm(' + r.id + ',' + r.user_count + ')" style="background:var(--purple);border:none;color:#fff;border-radius:8px;padding:7px 14px;cursor:pointer;font-weight:800;font-size:0.82rem;">' + (r.status === 'pending' ? '💬 Хариу + Промо' : '✏️ Засах') + '</button>'
+        +   (r.status === 'pending' ? '<button onclick="declineGroupRequest(' + r.id + ')" style="background:#fee2e2;border:1px solid #fecaca;color:#991b1b;border-radius:8px;padding:7px 14px;cursor:pointer;font-weight:800;font-size:0.82rem;">Татгалзах</button>' : '')
+        +   '<button onclick="deleteGroupRequest(' + r.id + ')" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:7px 14px;cursor:pointer;font-weight:700;font-size:0.78rem;margin-left:auto;">🗑 Устгах</button>'
+        + '</div>'
+        + '</div>';
+    });
+    body.innerHTML = html;
+  } catch(e) {
+    body.innerHTML = '<div style="text-align:center;padding:30px;color:#dc2626;">✗ ' + (e.message || e) + '</div>';
+  }
+};
+
+function kv(k, v) {
+  if (v == null || v === '') return '';
+  return '<div><div style="color:var(--muted);font-weight:700;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.5px;">' + k + '</div><div style="color:var(--text);font-weight:800;word-break:break-word;">' + escHtml(String(v)) + '</div></div>';
+}
+function escHtml(s) {
+  return String(s).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; });
+}
+
+window.openQuoteForm = async function(id, userCount) {
+  // Inline prompt-form — promo код + үнэ
+  var randomCode = 'CM' + Math.random().toString(36).slice(2, 8).toUpperCase();
+  var defaultDays = 30;
+  var promoCode = prompt('Промо код (хэрэглэгчид өгөх):', randomCode);
+  if (!promoCode) return;
+  promoCode = promoCode.trim().toUpperCase();
+  if (!/^[A-Z0-9_-]{3,30}$/.test(promoCode)) { alert('Код 3-30 тэмдэгт (A-Z 0-9 _ -)'); return; }
+  var days = prompt('Premium хоног (хэдэн хоног идэвхтэй байх):', defaultDays);
+  if (!days) return;
+  days = parseInt(days, 10);
+  if (!days || days < 1) { alert('Хоног буруу'); return; }
+  var price = prompt('Үнийн санал (₮):', '');
+  if (price === null) return;
+  price = parseInt(price, 10) || null;
+  var note = prompt('Захиалагчид илгээх тэмдэглэл (заавал биш):', '');
+
+  try {
+    // 1) Промо код үүсгэх (premium reward, max_uses = userCount)
+    var pr = await adminFetch('/api/promo', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'create', code: promoCode, reward_type: 'premium',
+        reward_amount: days, max_uses: userCount,
+        description: 'Багц хүсэлт #' + id + ' (' + userCount + ' хүн × ' + days + ' хоног)'
+      })
+    });
+    var pd = await pr.json();
+    if (!pd.ok) {
+      // Код давхардсан байж магадгүй — хэрэглэгчээс баталгаажуулах
+      if (!confirm('Промо код үүсгэх амжилтгүй (' + (pd.error || '') + '). Тэр кодыг хэрэглэн хариу хадгалах уу?')) return;
+    }
+    // 2) Хүсэлтийн status шинэчлэх
+    var qr = await adminFetch('/api/grouprequest', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'quote', id: id, promo_code: promoCode,
+        price_quote: price, admin_note: note || null, status: 'quoted'
+      })
+    });
+    var qd = await qr.json();
+    if (!qd.ok) { alert('Хүсэлт шинэчлэхэд алдаа: ' + (qd.error || '')); return; }
+    alert('✓ Промо код "' + promoCode + '" үүслээ. ' + userCount + ' хүн × ' + days + ' хоног.');
+    loadGroupRequests();
+  } catch(e) {
+    alert('Алдаа: ' + (e.message || e));
+  }
+};
+
+window.declineGroupRequest = async function(id) {
+  if (!confirm('Энэ хүсэлтийг татгалзах уу?')) return;
+  try {
+    await adminFetch('/api/grouprequest', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'quote', id: id, status: 'declined' })
+    });
+    loadGroupRequests();
+  } catch(e) { alert('Алдаа: ' + e.message); }
+};
+
+window.deleteGroupRequest = async function(id) {
+  if (!confirm('Хүсэлтийг бүрмөсөн устгах уу?')) return;
+  try {
+    await adminFetch('/api/grouprequest', {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: id })
+    });
+    loadGroupRequests();
+  } catch(e) { alert('Алдаа: ' + e.message); }
+};
 
 // ─── Промо код ───
 window.generateRandomCode = function() {
@@ -1006,6 +1160,11 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
         <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M20 12V22H4V12M22 7H2V12H22V7M12 22V7M12 7H7.5C6.83696 7 6.20107 6.73661 5.73223 6.26777C5.26339 5.79893 5 5.16304 5 4.5C5 3.83696 5.26339 3.20107 5.73223 2.73223C6.20107 2.26339 6.83696 2 7.5 2C11 2 12 7 12 7M12 7H16.5C17.163 7 17.7989 6.73661 18.2678 6.26777C18.7366 5.79893 19 5.16304 19 4.5C19 3.83696 18.7366 3.20107 18.2678 2.73223C17.7989 2.26339 17.163 2 16.5 2C13 2 12 7 12 7Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
         Промо код
       </button>
+      <button class="nav-item" onclick="showPage('grouprequest',this)" style="position:relative;">
+        <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M17 21V19C17 17.9 16.6 16.8 15.8 16C15 15.2 13.9 14.8 12.8 14.8H5.2C4.1 14.8 3 15.2 2.2 16C1.4 16.8 1 17.9 1 19V21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M23 21V19C23 18 22.3 17 21.5 16.4C20.6 15.8 19.5 15.5 18.5 15.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M16 3.13C16.9 3.4 17.7 3.9 18.3 4.6C18.9 5.4 19.2 6.3 19.2 7.3C19.2 8.3 18.9 9.2 18.3 10C17.7 10.7 16.9 11.2 16 11.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Багц хүсэлт
+        <span id="grpreq-badge" style="display:none;margin-left:auto;background:#dc2626;color:#fff;border-radius:100px;padding:2px 7px;font-size:0.62rem;font-weight:900;min-width:14px;text-align:center;">0</span>
+      </button>
       <button class="nav-item" onclick="showPage('log',this)">
         <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M9 5H7C5.9 5 5 5.9 5 7V19C5 20.1 5.9 21 7 21H17C18.1 21 19 20.1 19 19V7C19 5.9 18.1 5 17 5H15M9 5C9 5.6 9.4 6 10 6H14C14.6 6 15 5.6 15 5" stroke="currentColor" stroke-width="1.8"/><path d="M9 12H15M9 16H12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
         Хандалтын лог
@@ -1495,6 +1654,26 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
             <thead><tr><th>Код</th><th>Шагнал</th><th>Ашигласан</th><th>Дуусах</th><th>Тайлбар</th><th></th></tr></thead>
             <tbody id="promo-list"></tbody>
           </table>
+        </div>
+      </div>
+
+      <!-- Group plan requests -->
+      <div class="page" id="page-grouprequest" style="display:none;">
+        <div class="page-title">Багц хүсэлт</div>
+        <div class="page-sub">Найзууд / Сургуулийн багц хүссэн хэрэглэгчдийн жагсаалт. Үнийн санал болон промо код илгээнэ.</div>
+
+        <div class="table-card" style="padding:14px 16px;">
+          <div class="table-header" style="margin-bottom:14px;display:flex;gap:10px;align-items:center;">
+            <div class="table-title" style="flex:1;">Хүсэлтүүд</div>
+            <select id="gr-filter-status" onchange="loadGroupRequests()" style="background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text);font-weight:700;outline:none;font-size:0.85rem;">
+              <option value="">Бүгд</option>
+              <option value="pending" selected>⏳ Шинэ</option>
+              <option value="quoted">💬 Хариу өгсөн</option>
+              <option value="declined">✕ Татгалзсан</option>
+            </select>
+            <button class="btn-sm" onclick="loadGroupRequests()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 12px;cursor:pointer;font-weight:700;">↻ Шинэчлэх</button>
+          </div>
+          <div id="grouprequest-list"></div>
         </div>
       </div>
 
