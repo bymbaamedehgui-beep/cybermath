@@ -128,6 +128,31 @@ module.exports = async (req, res) => {
         return res.json({ ok: true, game: r2.rows[0] });
       }
 
+      // SBH-ийн race-to-answer-д атомик answer merge (хэрэглэгчид нэгэн зэрэг хариулахад
+      // overwrite асуудлаас сэргийлэхийн тулд jsonb path update ашиглана)
+      if (action === 'sbhAnswer') {
+        const { email, code, idx, correct, ts } = body;
+        if (!email || !code) return res.status(400).json({ ok: false });
+        const cleanCode = String(code).replace(/\D/g, '').slice(0, 6);
+        const safeEmail = String(email).toLowerCase().replace(/[^a-z0-9@._-]/g, '');
+        const answerObj = JSON.stringify({ idx: parseInt(idx) || 0, ts: parseInt(ts) || Date.now(), correct: !!correct });
+        const r = await pool.query(
+          `UPDATE online_games
+           SET state = jsonb_set(
+                 state,
+                 ARRAY['currentQuestion','answers',$2],
+                 $3::jsonb,
+                 true
+               ),
+               updated_at = NOW()
+           WHERE room_code=$1 AND state ? 'currentQuestion'
+           RETURNING *`,
+          [cleanCode, safeEmail, answerObj]
+        );
+        if (!r.rows.length) return res.json({ ok: false, error: 'No active question' });
+        return res.json({ ok: true, game: r.rows[0] });
+      }
+
       // Polling — state татах
       if (action === 'get') {
         const { code } = body;
