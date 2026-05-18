@@ -28,7 +28,8 @@ async function sendTelegramNotification(message) {
 function userPayload(u, token) {
   return {
     email: u.email, firstName: u.first_name, lastName: u.last_name,
-    grade: u.grade, plan: u.plan, xp: u.xp || 0, gems: u.gems || 340,
+    grade: u.grade, plan: u.plan, premium_expiry: u.premium_expiry || null,
+    xp: u.xp || 0, gems: u.gems || 340,
     hearts: u.hearts == null ? 5 : u.hearts, streak: u.streak || 0,
     avatar: u.avatar || 'default',
     profile_image: u.profile_image || null,
