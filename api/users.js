@@ -1,5 +1,6 @@
 const pool = require('./_db');
 const { sendPremiumEmail, sendFreeEmail } = require('./_email');
+const { ensureExpiryCheck } = require('./_premium');
 const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'cybermath-default-secret-change-in-prod';
@@ -73,8 +74,9 @@ module.exports = async (req, res) => {
         const email = String(req.query.me).toLowerCase();
         const r = await pool.query('SELECT * FROM users WHERE LOWER(email)=LOWER($1)', [email]);
         if (!r.rows.length) return res.json({ ok: false, error: 'User олдсонгүй' });
-        const u = r.rows[0];
-        // premium_expiry buyu premium_until — аль ажиллаж байгаагаас аль нэгийг нь авна (backward compat)
+        let u = r.rows[0];
+        // Premium хугацаа дууссан эсэхийг шалгаж free болгох
+        u = await ensureExpiryCheck(u);
         const premExp = u.premium_expiry || u.premium_until || null;
         return res.json({
           ok: true,

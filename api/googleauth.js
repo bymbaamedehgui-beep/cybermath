@@ -1,5 +1,6 @@
 const pool = require('./_db');
 const jwt = require('jsonwebtoken');
+const { ensureExpiryCheck } = require('./_premium');
 
 // Google ID token-ийг шалгахын тулд Google-ийн public certs-аас баталгаажуулна.
 // Тиймээс jose эсвэл google-auth-library ашиглах хэрэгтэй. Vercel-д аль аль нь
@@ -52,6 +53,8 @@ module.exports = async (req, res) => {
         await pool.query('UPDATE users SET profile_image=$1 WHERE id=$2', [picture, user.id]);
         user.profile_image = picture;
       }
+      // Premium хугацаа дууссан эсэхийг шалгаж free болгох
+      user = await ensureExpiryCheck(user);
     } else {
       // Шинэ хэрэглэгч — Google-аар бүртгэнэ
       const ins = await pool.query(

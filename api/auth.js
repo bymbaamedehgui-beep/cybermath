@@ -1,5 +1,6 @@
 const pool = require('./_db');
 const { sendVerifyEmail } = require('./_email');
+const { ensureExpiryCheck } = require('./_premium');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
@@ -70,7 +71,7 @@ module.exports = async (req, res) => {
     if (action === 'login') {
       const r = await pool.query('SELECT * FROM users WHERE LOWER(email)=LOWER($1)', [email]);
       if (!r.rows.length) return res.status(401).json({ ok: false, error: 'И-мэйл эсвэл нууц үг буруу' });
-      const u = r.rows[0];
+      let u = r.rows[0];
       const isValid = await verifyPassword(pass, u.pass);
       if (!isValid) return res.status(401).json({ ok: false, error: 'И-мэйл эсвэл нууц үг буруу' });
       if (u.verified === false) {
@@ -81,6 +82,8 @@ module.exports = async (req, res) => {
         const newHash = await bcrypt.hash(pass, BCRYPT_ROUNDS);
         await pool.query('UPDATE users SET pass=$1 WHERE LOWER(email)=LOWER($2)', [newHash, email]);
       }
+      // Premium хугацаа дууссан эсэхийг шалгаж free болгох
+      u = await ensureExpiryCheck(u);
       const token = signToken(u.email, u.role || (u.grade === 'teacher' ? 'teacher' : 'student'));
       return res.json({ ok: true, user: userPayload(u, token) });
     }
