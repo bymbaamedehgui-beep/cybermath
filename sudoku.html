@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Судоку · CyberMath</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { overscroll-behavior: contain; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Baloo 2', sans-serif;
+    background: #f4efe6;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 10px max(20px, env(safe-area-inset-bottom));
+    color: #1c1a14;
+    user-select: none;
+  }
+  .topbar {
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .title {
+    font-family: Georgia, serif;
+    font-weight: 700;
+    font-size: 1.4rem;
+    letter-spacing: 0.05em;
+  }
+  .diff-pill {
+    background: #fff;
+    border: 1.5px solid #1c1a14;
+    color: #1c1a14;
+    padding: 4px 12px;
+    border-radius: 100px;
+    font-weight: 800;
+    font-size: 0.78rem;
+    cursor: pointer;
+  }
+  .new-btn {
+    background: #1c1a14;
+    color: #f4efe6;
+    border: none;
+    padding: 7px 14px;
+    border-radius: 8px;
+    font-weight: 800;
+    font-size: 0.82rem;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .grid-wrap {
+    width: 100%;
+    max-width: 480px;
+    aspect-ratio: 1 / 1;
+    background: #fbf7ef;
+    border: 3px solid #1c1a14;
+    border-radius: 10px;
+    padding: 4px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+  }
+  .grid {
+    width: 100%;
+    height: 100%;
+    display: grid;
+    grid-template-columns: repeat(9, 1fr);
+    gap: 0;
+  }
+  .cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-right: 1px solid #d8cebd;
+    border-bottom: 1px solid #d8cebd;
+    font-family: Georgia, serif;
+    font-size: clamp(1rem, 5.5vw, 1.8rem);
+    font-weight: 600;
+    color: #1c1a14;
+    cursor: pointer;
+    transition: background 0.12s;
+    background: #fbf7ef;
+  }
+  .cell.given { background: #f0e9da; color: #1c1a14; cursor: default; }
+  .cell.user { color: #e26a4a; font-weight: 700; }
+  .cell.selected { background: #ffe9a8 !important; }
+  .cell.related { background: #fcf4dc; }
+  .cell.conflict { background: #ffd6d6 !important; color: #b91c1c !important; }
+  /* 3×3 thick borders */
+  .cell[data-col="2"], .cell[data-col="5"] { border-right: 2.5px solid #1c1a14; }
+  .cell[data-col="8"] { border-right: none; }
+  .cell[data-row="2"], .cell[data-row="5"] { border-bottom: 2.5px solid #1c1a14; }
+  .cell[data-row="8"] { border-bottom: none; }
+
+  .num-panel {
+    width: 100%;
+    max-width: 480px;
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: repeat(9, 1fr);
+    gap: 6px;
+  }
+  .num-btn {
+    aspect-ratio: 1 / 1;
+    background: #fff;
+    border: 1.5px solid #1c1a14;
+    border-radius: 10px;
+    font-family: Georgia, serif;
+    font-size: clamp(1.1rem, 5vw, 1.5rem);
+    font-weight: 700;
+    color: #1c1a14;
+    cursor: pointer;
+    transition: transform 0.1s;
+  }
+  .num-btn:active { transform: scale(0.92); background: #ffe9a8; }
+  .num-btn.disabled { opacity: 0.3; pointer-events: none; }
+  .num-btn.erase {
+    background: #1c1a14;
+    color: #fff;
+    grid-column: span 1;
+  }
+  .actions {
+    width: 100%;
+    max-width: 480px;
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+  }
+  .act-btn {
+    background: #fff;
+    border: 1.5px solid #1c1a14;
+    border-radius: 100px;
+    padding: 8px 16px;
+    font-weight: 800;
+    font-size: 0.85rem;
+    cursor: pointer;
+    font-family: inherit;
+    color: #1c1a14;
+  }
+  .act-btn.erase { color: #b91c1c; border-color: #b91c1c; }
+
+  /* Challenge modal */
+  .modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 18, 12, 0.85);
+    backdrop-filter: blur(6px);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+  }
+  .modal.show { display: flex; }
+  .modal-card {
+    background: #fbf7ef;
+    border: 2px solid #1c1a14;
+    border-radius: 18px;
+    width: 100%;
+    max-width: 420px;
+    padding: 22px 20px;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+  }
+  .modal-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .modal-title {
+    font-family: Georgia, serif;
+    font-weight: 700;
+    font-size: 1.1rem;
+  }
+  .modal-num {
+    background: #1c1a14;
+    color: #fff;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: Georgia, serif;
+    font-weight: 800;
+    font-size: 1.2rem;
+  }
+  .q-text {
+    background: #fff;
+    border: 1.5px solid #d8cebd;
+    border-radius: 12px;
+    padding: 14px 14px;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: #1c1a14;
+    margin-bottom: 12px;
+    min-height: 60px;
+    overflow-x: auto;
+  }
+  .q-text img { max-width: 100%; height: auto; }
+  .choices { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .choice {
+    background: #fff;
+    border: 1.5px solid #d8cebd;
+    border-radius: 10px;
+    padding: 11px 14px;
+    font-size: 0.95rem;
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+    color: #1c1a14;
+    transition: background 0.12s;
+  }
+  .choice:active { background: #ffe9a8; }
+  .choice.correct { background: #d1fae5; border-color: #10b981; }
+  .choice.wrong { background: #fee2e2; border-color: #dc2626; }
+  .q-input-wrap {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .q-input {
+    flex: 1;
+    background: #fff;
+    border: 1.5px solid #d8cebd;
+    border-radius: 10px;
+    padding: 11px 14px;
+    font-family: inherit;
+    font-size: 0.95rem;
+    outline: none;
+  }
+  .q-input:focus { border-color: #1c1a14; }
+  .q-submit {
+    background: #1c1a14;
+    border: none;
+    color: #fff;
+    border-radius: 10px;
+    padding: 11px 18px;
+    font-family: inherit;
+    font-weight: 800;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  .modal-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+  .modal-msg { font-size: 0.85rem; font-weight: 700; flex: 1; }
+  .modal-msg.ok { color: #10b981; }
+  .modal-msg.err { color: #dc2626; }
+  .modal-cancel {
+    background: transparent;
+    border: 1.5px solid #1c1a14;
+    border-radius: 100px;
+    padding: 7px 14px;
+    font-family: inherit;
+    font-weight: 800;
+    font-size: 0.82rem;
+    color: #1c1a14;
+    cursor: pointer;
+  }
+
+  /* Win overlay */
+  .win {
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 18, 12, 0.92);
+    z-index: 200;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .win.show { display: flex; }
+  .win-card {
+    background: #fbf7ef;
+    border: 2.5px solid #1c1a14;
+    border-radius: 22px;
+    padding: 32px 24px;
+    text-align: center;
+    max-width: 360px;
+    width: 100%;
+  }
+  .win-emoji { font-size: 4rem; margin-bottom: 10px; }
+  .win-title { font-family: Georgia, serif; font-weight: 700; font-size: 1.5rem; margin-bottom: 6px; }
+  .win-sub { color: #666; font-size: 0.92rem; margin-bottom: 18px; }
+  .win-btn {
+    background: #1c1a14;
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 12px 28px;
+    font-family: inherit;
+    font-weight: 800;
+    font-size: 0.95rem;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="title">Судоку</div>
+  <div style="display:flex;gap:6px;align-items:center;">
+    <div class="diff-pill" id="diff-pill" onclick="cycleDiff()">Дунд</div>
+    <button class="new-btn" onclick="newGame()">↻ Шинэ</button>
+  </div>
+</div>
+
+<div class="grid-wrap">
+  <div class="grid" id="grid"></div>
+</div>
+
+<div class="num-panel" id="num-panel"></div>
+
+<div class="actions">
+  <button class="act-btn erase" onclick="eraseCell()">⌫ Арилгах</button>
+  <div style="flex:1;text-align:center;font-weight:800;font-size:0.85rem;align-self:center;" id="status-text">—</div>
+</div>
+
+<!-- Challenge modal -->
+<div class="modal" id="ch-modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="modal-title">Бодлого бод</div>
+      <div class="modal-num" id="ch-num">?</div>
+    </div>
+    <div class="q-text" id="ch-text">Уншиж байна...</div>
+    <div class="choices" id="ch-choices" style="display:none;"></div>
+    <div class="q-input-wrap" id="ch-input-wrap" style="display:none;">
+      <input id="ch-input" class="q-input" type="text" placeholder="Хариу...">
+      <button class="q-submit" onclick="submitInput()">✓</button>
+    </div>
+    <div class="modal-foot">
+      <div class="modal-msg" id="ch-msg">Зөв хариулбал тоо нь нүдэнд орно</div>
+      <button class="modal-cancel" onclick="closeChallenge()">Болих</button>
+    </div>
+  </div>
+</div>
+
+<!-- Win overlay -->
+<div class="win" id="win">
+  <div class="win-card">
+    <div class="win-emoji">🎉</div>
+    <div class="win-title">Амжилттай!</div>
+    <div class="win-sub" id="win-stats">Та судокуг шийдлээ</div>
+    <button class="win-btn" onclick="newGame(); document.getElementById('win').classList.remove('show');">Шинэ тоглоом</button>
+  </div>
+</div>
+
+<script>
+// ═══ Pre-defined Sudoku puzzles ═══
+// Format: puzzle / solution — 81 char string, '.' = empty
+var PUZZLES = {
+  easy: [
+    { p: "53..7....6..195....98....6.8...6...34..8.3..17...2...6.6....28....419..5....8..79", s: "534678912672195348198342567859761423426853791713924856961537284287419635345286179" },
+    { p: ".94...13..............76..2.8..1.....32.........2...6.....5.4.......8..7..63.4..8", s: "794582136268931745153476982487319651932658417615247398369125874521874369847693521" },
+    { p: "1....7.9..3..2...8..96..5....53..9...1..8...26....4...3......1..4......7..7...3..", s: "162857493534129678789643521475312986913586742628794135356478219241935867897261354" },
+    { p: ".2.6.8...58...97......4....37....5..6.......4..8....13....2......98...36...3.6.9.", s: "123678945584239761967415328372894156691572834458361297836941572219785463745326819" }
+  ],
+  medium: [
+    { p: ".....1.3..5..2.7..6.9..4..2.7.....6.8.4...2.7.6.....5.4..6..1.7..2.1..6..7.5.....", s: "742681539359427718619534862173258694854396127962173485438962571285711346716843259".substring(0,81).replace(/(.{9})/g,'$1') }, // placeholder
+    { p: "..2.3...8.....8....31.2.....6..5.27..1.....5.2.4.6..31....8.6.5.......13..531.4..", s: "672435198549178362831629547368951274917243856254867931193784625486592713725316489" },
+    { p: ".......2143...6....78.......2.....3..1..4.5.6..7.9.8...3.....17.5.....2..9.81...." , s: "986571324143826957578934261821645793319742586657193842432689175764315892295817643".substring(0,81) }
+  ],
+  hard: [
+    { p: "8..........36......7..9.2...5...7.......457.....1...3...1....68..85...1..9....4..", s: "812753649943682175675491283154237896369845721287169534521974368438526917796318452" }
+  ]
+};
+
+// medium-1 placeholder тооцоо — fallback-аар backtracking solver
+// Solution-ыг runtime-д тооцоолно (солвер)
+var DIFFS = ['easy','medium','hard'];
+var DIFF_LABELS = ['Хялбар','Дунд','Хүнд'];
+var curDiff = 1; // medium
+
+var board = [];        // 9x9 current state (0 = empty)
+var fixed = [];        // 9x9 true = pre-filled
+var solution = [];     // 9x9 correct answers
+var selRow = -1, selCol = -1;
+var startTime = 0;
+var questionsBank = [];   // кэшлэгдсэн бодлогууд
+var bankIdx = 0;
+var pendingNum = 0;       // challenge-д тавиx гэж байгаа тоо
+var curQuestion = null;
+
+function strToBoard(s) {
+  var b = [];
+  for (var r = 0; r < 9; r++) {
+    var row = [];
+    for (var c = 0; c < 9; c++) {
+      var ch = s.charAt(r*9+c);
+      row.push(ch === '.' || ch === '0' ? 0 : parseInt(ch));
+    }
+    b.push(row);
+  }
+  return b;
+}
+
+// Sudoku solver (backtracking) — solution тооцоолоход
+function solveSudoku(b) {
+  function findEmpty() {
+    for (var r=0;r<9;r++) for (var c=0;c<9;c++) if (b[r][c]===0) return [r,c];
+    return null;
+  }
+  function isValid(r,c,n) {
+    for (var i=0;i<9;i++) if (b[r][i]===n || b[i][c]===n) return false;
+    var br = Math.floor(r/3)*3, bc = Math.floor(c/3)*3;
+    for (var i=0;i<3;i++) for (var j=0;j<3;j++) if (b[br+i][bc+j]===n) return false;
+    return true;
+  }
+  function backtrack() {
+    var e = findEmpty();
+    if (!e) return true;
+    var r = e[0], c = e[1];
+    for (var n=1;n<=9;n++) {
+      if (isValid(r,c,n)) {
+        b[r][c] = n;
+        if (backtrack()) return true;
+        b[r][c] = 0;
+      }
+    }
+    return false;
+  }
+  backtrack();
+  return b;
+}
+
+function deepCopy(b) {
+  return b.map(function(r){ return r.slice(); });
+}
+
+function cycleDiff() {
+  curDiff = (curDiff + 1) % 3;
+  document.getElementById('diff-pill').textContent = DIFF_LABELS[curDiff];
+  newGame();
+}
+
+function newGame() {
+  var pool = PUZZLES[DIFFS[curDiff]] || PUZZLES.medium;
+  var pick = pool[Math.floor(Math.random() * pool.length)];
+  board = strToBoard(pick.p);
+  fixed = board.map(function(r){ return r.map(function(v){ return v !== 0; }); });
+  // Solve to get authoritative solution
+  solution = solveSudoku(deepCopy(board));
+  selRow = -1; selCol = -1;
+  startTime = Date.now();
+  renderGrid();
+  renderNumPanel();
+  document.getElementById('status-text').textContent = '0/' + countRemaining() + ' нүд бөглөгдсөн';
+  // Бодлогын банкийг refresh хийе (нэг тоглоомд олон удаа дуудна)
+  shuffleBank();
+}
+
+function countRemaining() {
+  var n = 0;
+  for (var r=0;r<9;r++) for (var c=0;c<9;c++) if (!fixed[r][c]) n++;
+  return n;
+}
+
+function renderGrid() {
+  var g = document.getElementById('grid');
+  g.innerHTML = '';
+  for (var r=0;r<9;r++) {
+    for (var c=0;c<9;c++) {
+      var cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.setAttribute('data-row', r);
+      cell.setAttribute('data-col', c);
+      var v = board[r][c];
+      if (v) cell.textContent = v;
+      if (fixed[r][c]) cell.classList.add('given');
+      else if (v) cell.classList.add('user');
+      // Conflict check (Sudoku rule violation)
+      if (v && !isCellValid(r, c, v)) cell.classList.add('conflict');
+      if (r === selRow && c === selCol) cell.classList.add('selected');
+      else if (selRow >= 0 && (r === selRow || c === selCol || (Math.floor(r/3) === Math.floor(selRow/3) && Math.floor(c/3) === Math.floor(selCol/3)))) {
+        cell.classList.add('related');
+      }
+      cell.addEventListener('click', (function(rr, cc){ return function(){ selectCell(rr, cc); }; })(r, c));
+      g.appendChild(cell);
+    }
+  }
+}
+
+function isCellValid(r, c, n) {
+  for (var i=0;i<9;i++) {
+    if (i !== c && board[r][i] === n) return false;
+    if (i !== r && board[i][c] === n) return false;
+  }
+  var br = Math.floor(r/3)*3, bc = Math.floor(c/3)*3;
+  for (var i=0;i<3;i++) for (var j=0;j<3;j++) {
+    if ((br+i !== r || bc+j !== c) && board[br+i][bc+j] === n) return false;
+  }
+  return true;
+}
+
+function selectCell(r, c) {
+  if (fixed[r][c]) {
+    // Бөглөсөн pre-filled нүд — selected highlight л үзүүлнэ
+    selRow = r; selCol = c;
+    renderGrid();
+    return;
+  }
+  selRow = r; selCol = c;
+  renderGrid();
+}
+
+function renderNumPanel() {
+  var p = document.getElementById('num-panel');
+  p.innerHTML = '';
+  for (var n=1;n<=9;n++) {
+    var b = document.createElement('button');
+    b.className = 'num-btn';
+    b.textContent = n;
+    b.addEventListener('click', (function(num){ return function(){ tapNumber(num); }; })(n));
+    p.appendChild(b);
+  }
+}
+
+function tapNumber(n) {
+  if (selRow < 0 || selCol < 0) {
+    document.getElementById('status-text').textContent = '⚠️ Эхлээд нүд сонгоно уу';
+    return;
+  }
+  if (fixed[selRow][selCol]) {
+    document.getElementById('status-text').textContent = '⚠️ Анхны нүдийг өөрчилж болохгүй';
+    return;
+  }
+  // Бодлого бодсон үед л тоо орох
+  openChallenge(n);
+}
+
+function eraseCell() {
+  if (selRow < 0 || selCol < 0) return;
+  if (fixed[selRow][selCol]) return;
+  board[selRow][selCol] = 0;
+  renderGrid();
+  updateStatus();
+}
+
+function updateStatus() {
+  var filled = 0, remaining = countRemaining();
+  for (var r=0;r<9;r++) for (var c=0;c<9;c++) {
+    if (!fixed[r][c] && board[r][c] !== 0) filled++;
+  }
+  document.getElementById('status-text').textContent = filled + '/' + remaining + ' нүд бөглөгдсөн';
+  if (filled === remaining) checkWin();
+}
+
+function checkWin() {
+  for (var r=0;r<9;r++) for (var c=0;c<9;c++) {
+    if (board[r][c] !== solution[r][c]) {
+      // Алдаатай шийдэл
+      document.getElementById('status-text').textContent = '⚠️ Шалгана уу — буруу тоо байна';
+      return;
+    }
+  }
+  var sec = Math.floor((Date.now() - startTime) / 1000);
+  var min = Math.floor(sec / 60), s = sec % 60;
+  document.getElementById('win-stats').textContent = 'Хугацаа: ' + min + ':' + (s<10?'0':'') + s;
+  document.getElementById('win').classList.add('show');
+  // Parent-руу мэдэгдэх (XP олгох signal)
+  try { parent.postMessage({ type: 'sudoku-win', seconds: sec, difficulty: DIFFS[curDiff] }, '*'); } catch(_){}
+}
+
+// ═══ Бодлогын challenge ═══
+function shuffleBank() {
+  for (var i = questionsBank.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = questionsBank[i]; questionsBank[i] = questionsBank[j]; questionsBank[j] = t;
+  }
+  bankIdx = 0;
+}
+
+async function loadQuestionBank() {
+  try {
+    var r = await fetch('/api/questions?max_grade=10');
+    var d = await r.json();
+    var qs = (d && d.questions) || [];
+    // Шүүлт: choice эсвэл text-input түвшний бодлого
+    questionsBank = qs.filter(function(q){
+      if (q.type === 'choice') {
+        var ch = q.choices;
+        if (typeof ch === 'string') { try { ch = JSON.parse(ch); } catch(_){ ch = []; } }
+        return Array.isArray(ch) && ch.length >= 2 && q.correct;
+      }
+      // text answer (input) — correct must exist
+      return !!q.correct;
+    });
+    shuffleBank();
+  } catch(e) {
+    questionsBank = [];
+  }
+}
+
+function nextQuestion() {
+  if (!questionsBank.length) return null;
+  if (bankIdx >= questionsBank.length) shuffleBank();
+  return questionsBank[bankIdx++];
+}
+
+function renderTex(s) {
+  s = String(s == null ? '' : s);
+  if (!window.katex) return s;
+  return s.replace(/\$([^$]+)\$/g, function(_, expr){
+    try { return window.katex.renderToString(expr, { throwOnError: false, output: 'html' }); }
+    catch(e) { return expr; }
+  });
+}
+
+function openChallenge(num) {
+  pendingNum = num;
+  var q = nextQuestion();
+  if (!q) {
+    // Fallback — энгийн арифметик
+    q = generateMathQuestion();
+  }
+  curQuestion = q;
+  document.getElementById('ch-num').textContent = num;
+  document.getElementById('ch-msg').textContent = 'Зөв хариулбал ' + num + ' нүдэнд орно';
+  document.getElementById('ch-msg').className = 'modal-msg';
+  document.getElementById('ch-text').innerHTML = renderTex(q.text || '');
+  var ch = q.choices;
+  if (typeof ch === 'string') { try { ch = JSON.parse(ch); } catch(_){ ch = []; } }
+  var chWrap = document.getElementById('ch-choices');
+  var inputWrap = document.getElementById('ch-input-wrap');
+  if (q.type === 'choice' && Array.isArray(ch) && ch.length >= 2) {
+    chWrap.style.display = 'flex';
+    inputWrap.style.display = 'none';
+    chWrap.innerHTML = '';
+    ch.forEach(function(opt, i){
+      var b = document.createElement('button');
+      b.className = 'choice';
+      b.innerHTML = renderTex(String(opt));
+      b.addEventListener('click', function(){ submitChoice(opt, b); });
+      chWrap.appendChild(b);
+    });
+  } else {
+    chWrap.style.display = 'none';
+    inputWrap.style.display = 'flex';
+    document.getElementById('ch-input').value = '';
+    setTimeout(function(){ document.getElementById('ch-input').focus(); }, 80);
+  }
+  document.getElementById('ch-modal').classList.add('show');
+}
+
+function submitChoice(opt, btn) {
+  if (!curQuestion) return;
+  var correct = String(opt).trim() === String(curQuestion.correct).trim();
+  if (correct) {
+    btn.classList.add('correct');
+    onChallengeOk();
+  } else {
+    btn.classList.add('wrong');
+    document.getElementById('ch-msg').textContent = 'Буруу. Дахин оролд эсвэл Болих дар';
+    document.getElementById('ch-msg').className = 'modal-msg err';
+  }
+}
+
+function submitInput() {
+  if (!curQuestion) return;
+  var v = (document.getElementById('ch-input').value || '').trim();
+  if (!v) return;
+  var correct = false;
+  var expect = String(curQuestion.correct).trim();
+  // Numerical normalize
+  var nv = parseFloat(v.replace(',','.'));
+  var ne = parseFloat(expect.replace(',','.'));
+  if (!isNaN(nv) && !isNaN(ne)) correct = Math.abs(nv - ne) < 0.0001;
+  else correct = v.toLowerCase() === expect.toLowerCase();
+  if (correct) onChallengeOk();
+  else {
+    document.getElementById('ch-msg').textContent = 'Буруу. Дахин оролд';
+    document.getElementById('ch-msg').className = 'modal-msg err';
+  }
+}
+
+function onChallengeOk() {
+  document.getElementById('ch-msg').textContent = '✓ Зөв! Тоо нэмэгдэв';
+  document.getElementById('ch-msg').className = 'modal-msg ok';
+  setTimeout(function(){
+    board[selRow][selCol] = pendingNum;
+    renderGrid();
+    updateStatus();
+    closeChallenge();
+  }, 500);
+}
+
+function closeChallenge() {
+  document.getElementById('ch-modal').classList.remove('show');
+  curQuestion = null;
+}
+
+// Fallback — энгийн арифметик
+function generateMathQuestion() {
+  var ops = ['+','-','*'];
+  var op = ops[Math.floor(Math.random()*ops.length)];
+  var a, b, ans;
+  if (op === '+') { a = 10+Math.floor(Math.random()*40); b = 10+Math.floor(Math.random()*40); ans = a+b; }
+  else if (op === '-') { a = 20+Math.floor(Math.random()*60); b = 5+Math.floor(Math.random()*Math.min(a-1,30)); ans = a-b; }
+  else { a = 3+Math.floor(Math.random()*11); b = 3+Math.floor(Math.random()*11); ans = a*b; }
+  return { text: a + ' ' + (op==='*'?'×':op) + ' ' + b + ' = ?', correct: String(ans), type: 'text' };
+}
+
+// ═══ Init ═══
+loadQuestionBank().then(newGame);
+document.addEventListener('keydown', function(e){
+  if (selRow < 0 || selCol < 0) return;
+  if (e.key >= '1' && e.key <= '9') tapNumber(parseInt(e.key));
+  else if (e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') eraseCell();
+});
+</script>
+</body>
+</html>
