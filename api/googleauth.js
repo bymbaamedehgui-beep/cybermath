@@ -69,6 +69,9 @@ module.exports = async (req, res) => {
       { expiresIn: '30d' }
     );
 
+    // auth.js-н userPayload-той ижил бүх field-ыг буцаах — progress, gems, hearts,
+    // completed_lessons, stars_data зэргийг хадгалсан байвал хэрэглэгч "шинэ" гэж
+    // мэдрэхгүй
     return res.json({
       ok: true,
       token,
@@ -80,12 +83,23 @@ module.exports = async (req, res) => {
         grade: user.grade,
         plan: user.plan,
         xp: user.xp || 0,
-        gems: user.gems || 0,
-        hearts: user.hearts || 5,
+        gems: user.gems == null ? 340 : user.gems,
+        hearts: user.hearts == null ? 5 : user.hearts,
         streak: user.streak || 0,
         avatar: user.avatar || 'default',
-        profile_image: user.profile_image,
-        role: user.role || (user.grade === 'teacher' ? 'teacher' : 'student')
+        profile_image: user.profile_image || null,
+        current_node_id: user.current_node_id || null,
+        lesson_progress: user.lesson_progress || null,
+        role: user.role || (user.grade === 'teacher' ? 'teacher' : 'student'),
+        school: user.school || null,
+        aimag: user.aimag || null,
+        sum: user.sum || null,
+        phone: user.phone || null,
+        completedLessons: user.completed_lessons || [],
+        stars_data: user.stars_data || null,
+        streak_data: user.streak_data || null,
+        hearts_empty_time: user.hearts_empty_time || null,
+        token: token
       }
     });
   } catch (e) {

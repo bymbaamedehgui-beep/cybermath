@@ -60,11 +60,14 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const { action, email, pass, firstName, lastName, grade, plan, newPass, code } = req.body || {};
+  let { action, email, pass, firstName, lastName, grade, plan, newPass, code } = req.body || {};
+  // Email-ыг бүхэлд нь normalize — trim + lowercase. Case sensitivity-аас үүсэх
+  // "хуучин account-руу нэвтрэхэд шинэ үүсдэг" асуудлыг арилгана.
+  if (email) email = String(email).trim().toLowerCase();
 
   try {
     if (action === 'login') {
-      const r = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
+      const r = await pool.query('SELECT * FROM users WHERE LOWER(email)=LOWER($1)', [email]);
       if (!r.rows.length) return res.status(401).json({ ok: false, error: 'И-мэйл эсвэл нууц үг буруу' });
       const u = r.rows[0];
       const isValid = await verifyPassword(pass, u.pass);
@@ -75,7 +78,7 @@ module.exports = async (req, res) => {
       // Хуучин plain text password бол bcrypt-ээр шинэчлэх
       if (!u.pass.startsWith('$2')) {
         const newHash = await bcrypt.hash(pass, BCRYPT_ROUNDS);
-        await pool.query('UPDATE users SET pass=$1 WHERE email=$2', [newHash, email]);
+        await pool.query('UPDATE users SET pass=$1 WHERE LOWER(email)=LOWER($2)', [newHash, email]);
       }
       const token = signToken(u.email, u.role || (u.grade === 'teacher' ? 'teacher' : 'student'));
       return res.json({ ok: true, user: userPayload(u, token) });
@@ -84,10 +87,10 @@ module.exports = async (req, res) => {
     if (action === 'register') {
       const { aimag, sum, school, phone, role } = req.body || {};
       await pool.query(`DELETE FROM users WHERE verified=false AND verify_expiry < NOW()`).catch(() => {});
-      const exists = await pool.query('SELECT id, verified FROM users WHERE email=$1', [email]);
+      const exists = await pool.query('SELECT id, verified FROM users WHERE LOWER(email)=LOWER($1)', [email]);
       if (exists.rows.length) {
         if (exists.rows[0].verified === false) {
-          await pool.query('DELETE FROM users WHERE email=$1 AND verified=false', [email]);
+          await pool.query('DELETE FROM users WHERE LOWER(email)=LOWER($1) AND verified=false', [email]);
         } else {
           return res.status(400).json({ ok: false, error: 'И-мэйл бүртгэлтэй байна' });
         }
@@ -103,7 +106,7 @@ module.exports = async (req, res) => {
       const finalGrade = (role === 'teacher') ? 'teacher' : grade;
 
       await pool.query(
-        'INSERT INTO users (email,pass,first_name,last_name,grade,plan,xp,gems,hearts,streak,avatar,verified,verify_code,verify_expiry,aimag,sum,school,phone,role) VALUES ($1,$2,$3,$4,$5,$6,0,340,5,0,$7,false,$8,$9,$10,$11,$12,$13,$14)',
+        'INSERT INTO users (email,pass,first_name,last_name,grade,plan,xp,gems,hearts,streak,avatar,verified,verify_code,verify_expiry,aimag,sum,school,phone,role) VALUES (LOWER($1),$2,$3,$4,$5,$6,0,340,5,0,$7,false,$8,$9,$10,$11,$12,$13,$14)',
         [email, hashedPass, firstName, lastName, finalGrade, plan || 'free', 'default', verifyCode, codeExpiry, aimag||null, sum||null, school||null, phone||null, role || 'student']
       );
       await sendVerifyEmail(email, verifyCode, firstName);
@@ -111,13 +114,13 @@ module.exports = async (req, res) => {
     }
 
     if (action === 'verify') {
-      const r = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
+      const r = await pool.query('SELECT * FROM users WHERE LOWER(email)=LOWER($1)', [email]);
       if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Хэрэглэгч олдсонгүй' });
       const u = r.rows[0];
       if (u.verified) return res.json({ ok: true, alreadyVerified: true });
       if (u.verify_code !== code) return res.status(400).json({ ok: false, error: 'Код буруу байна' });
       if (new Date(u.verify_expiry) < new Date()) return res.status(400).json({ ok: false, error: 'Кодын хугацаа дууссан' });
-      await pool.query('UPDATE users SET verified=true, verify_code=NULL, verify_expiry=NULL WHERE email=$1', [email]);
+      await pool.query('UPDATE users SET verified=true, verify_code=NULL, verify_expiry=NULL WHERE LOWER(email)=LOWER($1)', [email]);
       const isT = u.role === 'teacher' || u.grade === 'teacher';
       const msg = `✅ <b>Шинэ хэрэглэгч баталгаажлаа</b>\n\n👤 ${(u.last_name||'')} ${(u.first_name||'')}\n📧 ${email}\n${isT ? '👨‍🏫 Багш' : '🎓 ' + u.grade + '-р анги'}${u.school ? '\n🏫 ' + u.school : ''}`;
       sendTelegramNotification(msg).catch(()=>{});
@@ -126,19 +129,19 @@ module.exports = async (req, res) => {
     }
 
     if (action === 'resend') {
-      const r = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
+      const r = await pool.query('SELECT * FROM users WHERE LOWER(email)=LOWER($1)', [email]);
       if (!r.rows.length) return res.status(404).json({ ok: false });
       if (r.rows[0].verified) return res.json({ ok: true, alreadyVerified: true });
       const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
       const codeExpiry = new Date(Date.now() + 10 * 60 * 1000);
-      await pool.query('UPDATE users SET verify_code=$1, verify_expiry=$2 WHERE email=$3', [verifyCode, codeExpiry, email]);
+      await pool.query('UPDATE users SET verify_code=$1, verify_expiry=$2 WHERE LOWER(email)=LOWER($3)', [verifyCode, codeExpiry, email]);
       await sendVerifyEmail(email, verifyCode, r.rows[0].first_name);
       return res.json({ ok: true });
     }
 
     if (action === 'verifyResetCode') {
       // Forgot password flow — кодыг л шалгана (нууц үг шинэчилэхгүй)
-      const r = await pool.query('SELECT verify_code, verify_expiry FROM users WHERE email=$1', [email]);
+      const r = await pool.query('SELECT verify_code, verify_expiry FROM users WHERE LOWER(email)=LOWER($1)', [email]);
       if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Хэрэглэгч олдсонгүй' });
       const u = r.rows[0];
       if (u.verify_code !== code) return res.status(400).json({ ok: false, error: 'Код буруу байна' });
@@ -149,7 +152,7 @@ module.exports = async (req, res) => {
     if (action === 'reset') {
       // Код шалгаад л нууц үг шинэчлэх
       if (!newPass || newPass.length < 6) return res.status(400).json({ ok: false, error: 'Нууц үг 6+ тэмдэгт' });
-      const r = await pool.query('SELECT verify_code, verify_expiry FROM users WHERE email=$1', [email]);
+      const r = await pool.query('SELECT verify_code, verify_expiry FROM users WHERE LOWER(email)=LOWER($1)', [email]);
       if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Хэрэглэгч олдсонгүй' });
       const u = r.rows[0];
       // Хэрэв код илгээсэн бол шалгана. Verify хийгдсэн талаар trust хийе.
@@ -158,34 +161,34 @@ module.exports = async (req, res) => {
         if (new Date(u.verify_expiry) < new Date()) return res.status(400).json({ ok: false, error: 'Кодын хугацаа дууссан' });
       }
       const hashedPass = await bcrypt.hash(newPass, BCRYPT_ROUNDS);
-      await pool.query('UPDATE users SET pass=$1, verify_code=NULL, verify_expiry=NULL WHERE email=$2', [hashedPass, email]);
+      await pool.query('UPDATE users SET pass=$1, verify_code=NULL, verify_expiry=NULL WHERE LOWER(email)=LOWER($2)', [hashedPass, email]);
       return res.json({ ok: true });
     }
 
     if (action === 'forgot' || action === 'sendResetCode') {
       // Forgot password — code илгээх
-      const r = await pool.query('SELECT first_name FROM users WHERE email=$1', [email]);
+      const r = await pool.query('SELECT first_name FROM users WHERE LOWER(email)=LOWER($1)', [email]);
       if (!r.rows.length) {
         // Аюулгүйн үүднээс хэрэглэгч байгаа эсэхийг хэлэхгүй
         return res.json({ ok: true });
       }
       const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
       const codeExpiry = new Date(Date.now() + 10 * 60 * 1000);
-      await pool.query('UPDATE users SET verify_code=$1, verify_expiry=$2 WHERE email=$3', [verifyCode, codeExpiry, email]);
+      await pool.query('UPDATE users SET verify_code=$1, verify_expiry=$2 WHERE LOWER(email)=LOWER($3)', [verifyCode, codeExpiry, email]);
       await sendVerifyEmail(email, verifyCode, r.rows[0].first_name);
       return res.json({ ok: true });
     }
 
     if (action === 'resetWithCode') {
       // Forgot password flow — code-оор баталгаажуулж password шинэчлэх
-      const r = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
+      const r = await pool.query('SELECT * FROM users WHERE LOWER(email)=LOWER($1)', [email]);
       if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Хэрэглэгч олдсонгүй' });
       const u = r.rows[0];
       if (u.verify_code !== code) return res.status(400).json({ ok: false, error: 'Код буруу' });
       if (new Date(u.verify_expiry) < new Date()) return res.status(400).json({ ok: false, error: 'Кодын хугацаа дууссан' });
       if (!newPass || newPass.length < 6) return res.status(400).json({ ok: false, error: 'Нууц үг 6+ тэмдэгт' });
       const hashedPass = await bcrypt.hash(newPass, BCRYPT_ROUNDS);
-      await pool.query('UPDATE users SET pass=$1, verify_code=NULL, verify_expiry=NULL WHERE email=$2', [hashedPass, email]);
+      await pool.query('UPDATE users SET pass=$1, verify_code=NULL, verify_expiry=NULL WHERE LOWER(email)=LOWER($2)', [hashedPass, email]);
       return res.json({ ok: true });
     }
 
