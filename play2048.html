@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>2048 · CyberMath</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { overscroll-behavior: contain; touch-action: pan-y; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Baloo 2', sans-serif;
+    background: #f4efe6;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 10px max(20px, env(safe-area-inset-bottom));
+    color: #1c1a14;
+    user-select: none;
+  }
+  .topbar {
+    width: 100%;
+    max-width: 460px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .title {
+    font-family: Georgia, serif;
+    font-weight: 700;
+    font-size: 1.6rem;
+    letter-spacing: 0.04em;
+    color: #1c1a14;
+  }
+  .scores { display: flex; gap: 8px; }
+  .score-box {
+    background: #ded4ba;
+    color: #1c1a14;
+    padding: 6px 14px;
+    border-radius: 8px;
+    text-align: center;
+    min-width: 70px;
+  }
+  .score-label { font-size: 0.62rem; font-weight: 800; letter-spacing: 0.1em; opacity: 0.7; }
+  .score-val { font-family: Georgia, serif; font-weight: 700; font-size: 1.05rem; }
+  .new-btn {
+    background: #1c1a14;
+    color: #f4efe6;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: 800;
+    font-size: 0.85rem;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .progress {
+    width: 100%;
+    max-width: 460px;
+    background: #ebe4d4;
+    border-radius: 100px;
+    overflow: hidden;
+    height: 8px;
+    margin-bottom: 10px;
+    position: relative;
+  }
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #d9a441, #e26a4a);
+    width: 0%;
+    transition: width 0.25s;
+  }
+  .progress-label {
+    font-size: 0.72rem;
+    color: #6b5d44;
+    margin-bottom: 8px;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  .board-wrap {
+    width: 100%;
+    max-width: 460px;
+    aspect-ratio: 1 / 1;
+    background: #ded4ba;
+    border-radius: 12px;
+    padding: 8px;
+    position: relative;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+  }
+  .board {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(4, 1fr);
+    gap: 8px;
+  }
+  .bg-cell { background: rgba(28,26,20,0.08); border-radius: 8px; }
+  .tiles-layer {
+    position: absolute;
+    inset: 8px;
+    pointer-events: none;
+  }
+  .tile {
+    position: absolute;
+    width: calc((100% - 24px) / 4);
+    height: calc((100% - 24px) / 4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    font-family: Georgia, serif;
+    font-weight: 700;
+    font-size: clamp(1.2rem, 7vw, 2.4rem);
+    transition: transform 0.13s ease, opacity 0.13s ease;
+  }
+  .tile-2    { background: #ebe4d4; color: #1c1a14; }
+  .tile-4    { background: #f0e4cf; color: #1c1a14; }
+  .tile-8    { background: #f0b078; color: #fbf7ef; }
+  .tile-16   { background: #f0904a; color: #fbf7ef; }
+  .tile-32   { background: #e26a4a; color: #fbf7ef; }
+  .tile-64   { background: #e2543a; color: #fbf7ef; }
+  .tile-128  { background: #f0c850; color: #fbf7ef; font-size: clamp(1rem, 6vw, 2rem); }
+  .tile-256  { background: #f0c040; color: #fbf7ef; font-size: clamp(1rem, 6vw, 2rem); }
+  .tile-512  { background: #f0b830; color: #fbf7ef; font-size: clamp(1rem, 6vw, 2rem); }
+  .tile-1024 { background: #f0a820; color: #fbf7ef; font-size: clamp(0.85rem, 5.2vw, 1.7rem); }
+  .tile-2048 { background: #d9a441; color: #fbf7ef; font-size: clamp(0.85rem, 5.2vw, 1.7rem); box-shadow: 0 0 0 3px #d9a441, 0 0 18px rgba(217,164,65,0.6); }
+  .tile-super { background: #1c1a14; color: #fbf7ef; font-size: clamp(0.85rem, 5.2vw, 1.7rem); }
+  .tile.new { animation: pop 0.18s ease; }
+  .tile.merged { animation: merge 0.18s ease; }
+  @keyframes pop { from { transform: scale(0); } to { transform: scale(1); } }
+  @keyframes merge { 0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
+
+  .hint {
+    margin-top: 12px;
+    font-size: 0.78rem;
+    color: #6b5d44;
+    text-align: center;
+    font-weight: 700;
+    max-width: 460px;
+  }
+
+  /* Challenge modal */
+  .modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 18, 12, 0.88);
+    backdrop-filter: blur(6px);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+  }
+  .modal.show { display: flex; }
+  .modal-card {
+    background: #fbf7ef;
+    border: 2px solid #1c1a14;
+    border-radius: 18px;
+    width: 100%;
+    max-width: 420px;
+    padding: 22px 20px;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+  }
+  .modal-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .modal-title {
+    font-family: Georgia, serif;
+    font-weight: 700;
+    font-size: 1.1rem;
+  }
+  .modal-badge {
+    background: linear-gradient(135deg, #d9a441, #e26a4a);
+    color: #fbf7ef;
+    padding: 5px 12px;
+    border-radius: 100px;
+    font-weight: 800;
+    font-size: 0.75rem;
+  }
+  .q-text {
+    background: #fff;
+    border: 1.5px solid #d8cebd;
+    border-radius: 12px;
+    padding: 14px 14px;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: #1c1a14;
+    margin-bottom: 12px;
+    min-height: 60px;
+    overflow-x: auto;
+  }
+  .q-text img { max-width: 100%; height: auto; }
+  .choices { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .choice {
+    background: #fff;
+    border: 1.5px solid #d8cebd;
+    border-radius: 10px;
+    padding: 11px 14px;
+    font-size: 0.95rem;
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+    color: #1c1a14;
+    transition: background 0.12s;
+  }
+  .choice:active { background: #ffe9a8; }
+  .choice.correct { background: #d1fae5; border-color: #10b981; }
+  .choice.wrong { background: #fee2e2; border-color: #dc2626; }
+  .q-input-wrap { display: flex; gap: 6px; margin-bottom: 12px; }
+  .q-input {
+    flex: 1;
+    background: #fff;
+    border: 1.5px solid #d8cebd;
+    border-radius: 10px;
+    padding: 11px 14px;
+    font-family: inherit;
+    font-size: 0.95rem;
+    outline: none;
+  }
+  .q-submit {
+    background: #1c1a14;
+    border: none;
+    color: #fff;
+    border-radius: 10px;
+    padding: 11px 18px;
+    font-family: inherit;
+    font-weight: 800;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  .modal-msg { font-size: 0.85rem; font-weight: 700; margin-top: 6px; }
+  .modal-msg.ok { color: #10b981; }
+  .modal-msg.err { color: #dc2626; }
+  .lock-note {
+    text-align: center;
+    font-size: 0.75rem;
+    color: #6b5d44;
+    font-weight: 700;
+    margin-top: 6px;
+  }
+
+  /* Game over / Win */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 247, 230, 0.92);
+    border-radius: 12px;
+    z-index: 5;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    text-align: center;
+    padding: 20px;
+  }
+  .overlay.show { display: flex; }
+  .overlay-emoji { font-size: 3rem; margin-bottom: 8px; }
+  .overlay-title { font-family: Georgia, serif; font-weight: 700; font-size: 1.4rem; margin-bottom: 6px; color: #1c1a14; }
+  .overlay-sub { color: #6b5d44; font-size: 0.9rem; margin-bottom: 14px; }
+  .overlay-btn {
+    background: #1c1a14;
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 10px 22px;
+    font-family: inherit;
+    font-weight: 800;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="title">2048</div>
+  <div style="display:flex;gap:6px;align-items:center;">
+    <div class="score-box">
+      <div class="score-label">ОНОО</div>
+      <div class="score-val" id="score">0</div>
+    </div>
+    <div class="score-box">
+      <div class="score-label">ШИЛДЭГ</div>
+      <div class="score-val" id="best">0</div>
+    </div>
+    <button class="new-btn" onclick="newGame()">↻</button>
+  </div>
+</div>
+
+<div class="progress-label" id="prog-label">Дараагийн бодлого хүртэл: 4 шилжүүлэлт</div>
+<div class="progress">
+  <div class="progress-bar" id="prog-bar"></div>
+</div>
+
+<div class="board-wrap" id="board-wrap">
+  <div class="board" id="board"></div>
+  <div class="tiles-layer" id="tiles"></div>
+  <div class="overlay" id="overlay">
+    <div class="overlay-emoji" id="ov-emoji">🎉</div>
+    <div class="overlay-title" id="ov-title">—</div>
+    <div class="overlay-sub" id="ov-sub">—</div>
+    <button class="overlay-btn" onclick="newGame()">Шинэ тоглоом</button>
+  </div>
+</div>
+
+<div class="hint">Шилжүүлэх: ↑ ↓ ← → эсвэл хуруугаараа татаарай</div>
+
+<!-- Challenge modal -->
+<div class="modal" id="ch-modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="modal-title">Бодлого бод</div>
+      <div class="modal-badge">4 шилжүүлэлтийн дараа</div>
+    </div>
+    <div class="q-text" id="ch-text">Уншиж байна...</div>
+    <div class="choices" id="ch-choices" style="display:none;"></div>
+    <div class="q-input-wrap" id="ch-input-wrap" style="display:none;">
+      <input id="ch-input" class="q-input" type="text" placeholder="Хариу...">
+      <button class="q-submit" onclick="submitInput()">✓</button>
+    </div>
+    <div class="modal-msg" id="ch-msg">Зөв шийдэхгүй бол шилжүүлж болохгүй</div>
+    <div class="lock-note">⚠️ Бодлого зөв шийдэх хүртэл тоглож болохгүй</div>
+  </div>
+</div>
+
+<script>
+// ═══ 2048 GAME ═══
+var SIZE = 4;
+var MOVES_BEFORE_CHALLENGE = 4;
+var grid = [];          // 4x4 → tile object {value, id, row, col}
+var tilesMap = {};      // id → DOM element
+var nextId = 1;
+var score = 0;
+var best = parseInt(localStorage.getItem('p2048_best') || '0');
+var movesSinceChallenge = 0;
+var challengeOpen = false;
+var gameOver = false;
+var wonAcknowledged = false;
+var questionsBank = [];
+var bankIdx = 0;
+var curQuestion = null;
+
+function initGrid() {
+  grid = [];
+  for (var r = 0; r < SIZE; r++) {
+    grid.push([null, null, null, null]);
+  }
+  document.getElementById('tiles').innerHTML = '';
+  tilesMap = {};
+  nextId = 1;
+}
+
+function newGame() {
+  initGrid();
+  score = 0;
+  movesSinceChallenge = 0;
+  challengeOpen = false;
+  gameOver = false;
+  wonAcknowledged = false;
+  document.getElementById('overlay').classList.remove('show');
+  document.getElementById('ch-modal').classList.remove('show');
+  spawnTile();
+  spawnTile();
+  render();
+  updateStatus();
+}
+
+function spawnTile() {
+  var empties = [];
+  for (var r = 0; r < SIZE; r++) {
+    for (var c = 0; c < SIZE; c++) {
+      if (!grid[r][c]) empties.push([r, c]);
+    }
+  }
+  if (!empties.length) return false;
+  var pick = empties[Math.floor(Math.random() * empties.length)];
+  var value = Math.random() < 0.9 ? 2 : 4;
+  var t = { value: value, id: nextId++, row: pick[0], col: pick[1], isNew: true };
+  grid[pick[0]][pick[1]] = t;
+  return true;
+}
+
+function renderBg() {
+  var b = document.getElementById('board');
+  if (b.children.length) return;
+  for (var i = 0; i < SIZE * SIZE; i++) {
+    var d = document.createElement('div');
+    d.className = 'bg-cell';
+    b.appendChild(d);
+  }
+}
+
+function render() {
+  renderBg();
+  var layer = document.getElementById('tiles');
+  // Collect existing tile IDs
+  var existing = {};
+  for (var id in tilesMap) existing[id] = true;
+  // Track which IDs we render this frame
+  var rendered = {};
+  for (var r = 0; r < SIZE; r++) {
+    for (var c = 0; c < SIZE; c++) {
+      var t = grid[r][c];
+      if (!t) continue;
+      rendered[t.id] = true;
+      var el = tilesMap[t.id];
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'tile';
+        layer.appendChild(el);
+        tilesMap[t.id] = el;
+      }
+      el.textContent = t.value;
+      var v = t.value;
+      var cls = v <= 2048 ? 'tile-' + v : 'tile-super';
+      el.className = 'tile ' + cls + (t.isNew ? ' new' : '') + (t.merged ? ' merged' : '');
+      // Position via transform — percentage-аар
+      var pctX = c * (100 / SIZE);
+      var pctY = r * (100 / SIZE);
+      // gap-ийг calc-аар нөхөх — total inner width = 100%, gap=8px x 3 — magic-ийн оронд CSS translate-аар тооцоолно
+      el.style.transform = 'translate(calc(' + pctX + '% + ' + (c * 8) + 'px), calc(' + pctY + '% + ' + (r * 8) + 'px))';
+      t.isNew = false;
+      t.merged = false;
+    }
+  }
+  // Remove tiles that are no longer in grid
+  for (var id in existing) {
+    if (!rendered[id]) {
+      var el2 = tilesMap[id];
+      if (el2) {
+        el2.style.opacity = '0';
+        setTimeout((function(e){ return function(){ if (e && e.parentNode) e.parentNode.removeChild(e); }; })(el2), 120);
+      }
+      delete tilesMap[id];
+    }
+  }
+}
+
+function updateStatus() {
+  document.getElementById('score').textContent = score;
+  if (score > best) { best = score; localStorage.setItem('p2048_best', String(best)); }
+  document.getElementById('best').textContent = best;
+  var pct = Math.min(100, (movesSinceChallenge / MOVES_BEFORE_CHALLENGE) * 100);
+  document.getElementById('prog-bar').style.width = pct + '%';
+  var left = MOVES_BEFORE_CHALLENGE - movesSinceChallenge;
+  document.getElementById('prog-label').textContent = left > 0
+    ? 'Дараагийн бодлого хүртэл: ' + left + ' шилжүүлэлт'
+    : 'Бодлого ирлээ! Зөв шийд!';
+}
+
+// ═══ Move logic ═══
+function move(direction) {
+  if (challengeOpen || gameOver) return false;
+  // Бодлого ирэх ёстой бол шилжүүлж болохгүй
+  if (movesSinceChallenge >= MOVES_BEFORE_CHALLENGE) {
+    openChallenge();
+    return false;
+  }
+  // direction: 'left','right','up','down'
+  var moved = false;
+  var newGrid = deepClone(grid);
+  // Tile-уудын merged flag-ыг reset
+  for (var r = 0; r < SIZE; r++) for (var c = 0; c < SIZE; c++) {
+    if (newGrid[r][c]) newGrid[r][c].merged = false;
+  }
+  // Direction-аас хамаарч row/col-уудаар traverse
+  var dr = 0, dc = 0;
+  var rStart, rEnd, rStep, cStart, cEnd, cStep;
+  if (direction === 'left')  { dc = -1; rStart = 0; rEnd = SIZE; rStep = 1; cStart = 0; cEnd = SIZE; cStep = 1; }
+  else if (direction === 'right') { dc = 1; rStart = 0; rEnd = SIZE; rStep = 1; cStart = SIZE-1; cEnd = -1; cStep = -1; }
+  else if (direction === 'up')    { dr = -1; rStart = 0; rEnd = SIZE; rStep = 1; cStart = 0; cEnd = SIZE; cStep = 1; }
+  else if (direction === 'down')  { dr = 1; rStart = SIZE-1; rEnd = -1; rStep = -1; cStart = 0; cEnd = SIZE; cStep = 1; }
+  else return false;
+
+  for (var r = rStart; r !== rEnd; r += rStep) {
+    for (var c = cStart; c !== cEnd; c += cStep) {
+      var tile = newGrid[r][c];
+      if (!tile) continue;
+      var nr = r, nc = c;
+      while (true) {
+        var pr = nr + dr, pc = nc + dc;
+        if (pr < 0 || pr >= SIZE || pc < 0 || pc >= SIZE) break;
+        var next = newGrid[pr][pc];
+        if (!next) {
+          newGrid[pr][pc] = tile;
+          newGrid[nr][nc] = null;
+          tile.row = pr; tile.col = pc;
+          nr = pr; nc = pc;
+          moved = true;
+        } else if (next.value === tile.value && !next.merged && !tile.merged) {
+          // Merge
+          newGrid[pr][pc] = { value: tile.value * 2, id: nextId++, row: pr, col: pc, merged: true };
+          newGrid[nr][nc] = null;
+          score += tile.value * 2;
+          moved = true;
+          // Win check
+          if (tile.value * 2 === 2048 && !wonAcknowledged) {
+            wonAcknowledged = true;
+            setTimeout(showWin, 320);
+          }
+          break;
+        } else {
+          break;
+        }
+      }
+    }
+  }
+  if (moved) {
+    grid = newGrid;
+    movesSinceChallenge++;
+    spawnTile();
+    render();
+    updateStatus();
+    if (isGameOver()) setTimeout(showGameOver, 320);
+    else if (movesSinceChallenge >= MOVES_BEFORE_CHALLENGE) setTimeout(openChallenge, 280);
+  }
+  return moved;
+}
+
+function deepClone(g) {
+  return g.map(function(row){
+    return row.map(function(t){ return t ? { value: t.value, id: t.id, row: t.row, col: t.col, merged: t.merged || false } : null; });
+  });
+}
+
+function isGameOver() {
+  // Хоосон cell байна — over биш
+  for (var r = 0; r < SIZE; r++) for (var c = 0; c < SIZE; c++) {
+    if (!grid[r][c]) return false;
+  }
+  // Merge боломжтой эсэх
+  for (var r = 0; r < SIZE; r++) for (var c = 0; c < SIZE; c++) {
+    var v = grid[r][c].value;
+    if (r+1 < SIZE && grid[r+1][c] && grid[r+1][c].value === v) return false;
+    if (c+1 < SIZE && grid[r][c+1] && grid[r][c+1].value === v) return false;
+  }
+  return true;
+}
+
+function showGameOver() {
+  gameOver = true;
+  document.getElementById('ov-emoji').textContent = '💔';
+  document.getElementById('ov-title').textContent = 'Тоглоом дууссан';
+  document.getElementById('ov-sub').textContent = 'Оноо: ' + score;
+  document.getElementById('overlay').classList.add('show');
+  // Parent-руу мэдэгдэх
+  try { parent.postMessage({ type: 'p2048-end', score: score, won: false }, '*'); } catch(_){}
+}
+function showWin() {
+  document.getElementById('ov-emoji').textContent = '🏆';
+  document.getElementById('ov-title').textContent = 'Та 2048-руу хүрлээ!';
+  document.getElementById('ov-sub').textContent = 'Оноо: ' + score + ' · Үргэлжлүүлэх боломжтой';
+  document.getElementById('overlay').classList.add('show');
+  try { parent.postMessage({ type: 'p2048-win', score: score }, '*'); } catch(_){}
+}
+
+// ═══ Input handlers ═══
+document.addEventListener('keydown', function(e){
+  if (challengeOpen) return;
+  var dir = null;
+  if (e.key === 'ArrowLeft')  dir = 'left';
+  else if (e.key === 'ArrowRight') dir = 'right';
+  else if (e.key === 'ArrowUp')    dir = 'up';
+  else if (e.key === 'ArrowDown')  dir = 'down';
+  if (dir) { e.preventDefault(); move(dir); }
+});
+
+// Touch / swipe
+var touchStartX = 0, touchStartY = 0, touchActive = false;
+var board = document.getElementById('board-wrap');
+board.addEventListener('touchstart', function(e){
+  if (challengeOpen) return;
+  if (e.touches.length !== 1) return;
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+  touchActive = true;
+}, { passive: true });
+board.addEventListener('touchend', function(e){
+  if (!touchActive || challengeOpen) return;
+  touchActive = false;
+  var dx = (e.changedTouches[0].clientX - touchStartX);
+  var dy = (e.changedTouches[0].clientY - touchStartY);
+  var absX = Math.abs(dx), absY = Math.abs(dy);
+  if (Math.max(absX, absY) < 24) return; // нэг tap биш
+  if (absX > absY) move(dx > 0 ? 'right' : 'left');
+  else            move(dy > 0 ? 'down'  : 'up');
+}, { passive: true });
+board.addEventListener('touchmove', function(e){
+  // Хувилбараас pull-to-refresh-ыг саатуулна
+  if (touchActive) e.preventDefault();
+}, { passive: false });
+
+// ═══ Бодлогын challenge ═══
+function shuffleBank() {
+  for (var i = questionsBank.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = questionsBank[i]; questionsBank[i] = questionsBank[j]; questionsBank[j] = t;
+  }
+  bankIdx = 0;
+}
+
+async function loadQuestionBank() {
+  try {
+    var r = await fetch('/api/questions?max_grade=10');
+    var d = await r.json();
+    var qs = (d && d.questions) || [];
+    questionsBank = qs.filter(function(q){
+      if (q.type === 'choice') {
+        var ch = q.choices;
+        if (typeof ch === 'string') { try { ch = JSON.parse(ch); } catch(_){ ch = []; } }
+        return Array.isArray(ch) && ch.length >= 2 && q.correct;
+      }
+      return !!q.correct;
+    });
+    shuffleBank();
+  } catch(e) { questionsBank = []; }
+}
+
+function nextQuestion() {
+  if (!questionsBank.length) return null;
+  if (bankIdx >= questionsBank.length) shuffleBank();
+  return questionsBank[bankIdx++];
+}
+
+function renderTex(s) {
+  s = String(s == null ? '' : s);
+  if (!window.katex) return s;
+  return s.replace(/\$([^$]+)\$/g, function(_, expr){
+    try { return window.katex.renderToString(expr, { throwOnError: false, output: 'html' }); }
+    catch(e) { return expr; }
+  });
+}
+
+function openChallenge() {
+  if (challengeOpen) return;
+  challengeOpen = true;
+  var q = nextQuestion() || generateMathQuestion();
+  curQuestion = q;
+  document.getElementById('ch-msg').textContent = 'Зөв шийдэхгүй бол шилжүүлж болохгүй';
+  document.getElementById('ch-msg').className = 'modal-msg';
+  document.getElementById('ch-text').innerHTML = renderTex(q.text || '');
+  var ch = q.choices;
+  if (typeof ch === 'string') { try { ch = JSON.parse(ch); } catch(_){ ch = []; } }
+  var chWrap = document.getElementById('ch-choices');
+  var inputWrap = document.getElementById('ch-input-wrap');
+  if (q.type === 'choice' && Array.isArray(ch) && ch.length >= 2) {
+    chWrap.style.display = 'flex';
+    inputWrap.style.display = 'none';
+    chWrap.innerHTML = '';
+    ch.forEach(function(opt){
+      var b = document.createElement('button');
+      b.className = 'choice';
+      b.innerHTML = renderTex(String(opt));
+      b.addEventListener('click', function(){ submitChoice(opt, b); });
+      chWrap.appendChild(b);
+    });
+  } else {
+    chWrap.style.display = 'none';
+    inputWrap.style.display = 'flex';
+    document.getElementById('ch-input').value = '';
+    setTimeout(function(){ document.getElementById('ch-input').focus(); }, 80);
+  }
+  document.getElementById('ch-modal').classList.add('show');
+}
+
+function submitChoice(opt, btn) {
+  if (!curQuestion) return;
+  var correct = String(opt).trim() === String(curQuestion.correct).trim();
+  if (correct) {
+    btn.classList.add('correct');
+    onChallengeOk();
+  } else {
+    btn.classList.add('wrong');
+    document.getElementById('ch-msg').textContent = 'Буруу. Дахин оролд (заавал зөв шийд)';
+    document.getElementById('ch-msg').className = 'modal-msg err';
+  }
+}
+
+function submitInput() {
+  if (!curQuestion) return;
+  var v = (document.getElementById('ch-input').value || '').trim();
+  if (!v) return;
+  var correct = false;
+  var expect = String(curQuestion.correct).trim();
+  var nv = parseFloat(v.replace(',','.'));
+  var ne = parseFloat(expect.replace(',','.'));
+  if (!isNaN(nv) && !isNaN(ne)) correct = Math.abs(nv - ne) < 0.0001;
+  else correct = v.toLowerCase() === expect.toLowerCase();
+  if (correct) onChallengeOk();
+  else {
+    document.getElementById('ch-msg').textContent = 'Буруу. Дахин оролд';
+    document.getElementById('ch-msg').className = 'modal-msg err';
+  }
+}
+
+function onChallengeOk() {
+  document.getElementById('ch-msg').textContent = '✓ Зөв! Үргэлжлүүлэх боломжтой';
+  document.getElementById('ch-msg').className = 'modal-msg ok';
+  setTimeout(function(){
+    challengeOpen = false;
+    movesSinceChallenge = 0;
+    document.getElementById('ch-modal').classList.remove('show');
+    curQuestion = null;
+    updateStatus();
+  }, 450);
+}
+
+// Input-н Enter дарагдвал submit
+document.addEventListener('keydown', function(e){
+  if (!challengeOpen) return;
+  if (e.key === 'Enter') {
+    var inp = document.getElementById('ch-input');
+    if (inp && document.activeElement === inp) submitInput();
+  }
+});
+
+function generateMathQuestion() {
+  var ops = ['+','-','*'];
+  var op = ops[Math.floor(Math.random()*ops.length)];
+  var a, b, ans;
+  if (op === '+') { a = 10+Math.floor(Math.random()*40); b = 10+Math.floor(Math.random()*40); ans = a+b; }
+  else if (op === '-') { a = 20+Math.floor(Math.random()*60); b = 5+Math.floor(Math.random()*Math.min(a-1,30)); ans = a-b; }
+  else { a = 3+Math.floor(Math.random()*11); b = 3+Math.floor(Math.random()*11); ans = a*b; }
+  return { text: a + ' ' + (op==='*'?'×':op) + ' ' + b + ' = ?', correct: String(ans), type: 'text' };
+}
+
+// ═══ Init ═══
+loadQuestionBank().then(newGame);
+</script>
+</body>
+</html>
