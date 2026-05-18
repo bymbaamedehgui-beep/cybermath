@@ -292,6 +292,14 @@
       <div class="score-label">ШИЛДЭГ</div>
       <div class="score-val" id="best">0</div>
     </div>
+    <div class="score-box" style="background:#d1fae5;">
+      <div class="score-label" style="color:#065f46;">✓ ЗӨВ</div>
+      <div class="score-val" id="stat-ok" style="color:#065f46;">0</div>
+    </div>
+    <div class="score-box" style="background:#fee2e2;">
+      <div class="score-label" style="color:#991b1b;">✗ АЛДСАН</div>
+      <div class="score-val" id="stat-err" style="color:#991b1b;">0</div>
+    </div>
     <button class="new-btn" onclick="newGame()">↻</button>
   </div>
 </div>
@@ -345,6 +353,9 @@ var movesSinceChallenge = 0;
 var challengeOpen = false;
 var gameOver = false;
 var wonAcknowledged = false;
+var statOk = 0;       // Энэ session-н зөв бодсон
+var statErr = 0;      // Энэ session-н алдсан оролдлого
+var challengeAttempts = 0; // Одоогийн challenge-н дотор хичнээн алдсан
 var questionsBank = [];
 var bankIdx = 0;
 var curQuestion = null;
@@ -366,6 +377,9 @@ function newGame() {
   challengeOpen = false;
   gameOver = false;
   wonAcknowledged = false;
+  statOk = 0;
+  statErr = 0;
+  challengeAttempts = 0;
   document.getElementById('overlay').classList.remove('show');
   document.getElementById('ch-modal').classList.remove('show');
   spawnTile();
@@ -447,6 +461,8 @@ function updateStatus() {
   document.getElementById('score').textContent = score;
   if (score > best) { best = score; localStorage.setItem('p2048_best', String(best)); }
   document.getElementById('best').textContent = best;
+  var so = document.getElementById('stat-ok'); if (so) so.textContent = statOk;
+  var se = document.getElementById('stat-err'); if (se) se.textContent = statErr;
   var pct = Math.min(100, (movesSinceChallenge / MOVES_BEFORE_CHALLENGE) * 100);
   document.getElementById('prog-bar').style.width = pct + '%';
   var left = MOVES_BEFORE_CHALLENGE - movesSinceChallenge;
@@ -544,21 +560,26 @@ function isGameOver() {
   return true;
 }
 
+function statSummary() {
+  var total = statOk + statErr;
+  var pct = total > 0 ? Math.round((statOk / total) * 100) : 0;
+  return 'Бодлого: ✓ ' + statOk + ' зөв · ✗ ' + statErr + ' алдсан · ' + pct + '% нарийвчлал';
+}
+
 function showGameOver() {
   gameOver = true;
   document.getElementById('ov-emoji').textContent = '💔';
   document.getElementById('ov-title').textContent = 'Тоглоом дууссан';
-  document.getElementById('ov-sub').textContent = 'Оноо: ' + score;
+  document.getElementById('ov-sub').innerHTML = 'Оноо: <b>' + score + '</b><br>' + statSummary();
   document.getElementById('overlay').classList.add('show');
-  // Parent-руу мэдэгдэх
-  try { parent.postMessage({ type: 'p2048-end', score: score, won: false }, '*'); } catch(_){}
+  try { parent.postMessage({ type: 'p2048-end', score: score, won: false, stat_ok: statOk, stat_err: statErr }, '*'); } catch(_){}
 }
 function showWin() {
   document.getElementById('ov-emoji').textContent = '🏆';
   document.getElementById('ov-title').textContent = 'Та 2048-руу хүрлээ!';
-  document.getElementById('ov-sub').textContent = 'Оноо: ' + score + ' · Үргэлжлүүлэх боломжтой';
+  document.getElementById('ov-sub').innerHTML = 'Оноо: <b>' + score + '</b><br>' + statSummary() + '<br>Үргэлжлүүлэх боломжтой';
   document.getElementById('overlay').classList.add('show');
-  try { parent.postMessage({ type: 'p2048-win', score: score }, '*'); } catch(_){}
+  try { parent.postMessage({ type: 'p2048-win', score: score, stat_ok: statOk, stat_err: statErr }, '*'); } catch(_){}
 }
 
 // ═══ Input handlers ═══
@@ -678,7 +699,10 @@ function submitChoice(opt, btn) {
     onChallengeOk();
   } else {
     btn.classList.add('wrong');
-    document.getElementById('ch-msg').textContent = 'Буруу. Дахин оролд (заавал зөв шийд)';
+    statErr++;
+    challengeAttempts++;
+    updateStatus();
+    document.getElementById('ch-msg').textContent = 'Буруу (' + challengeAttempts + ' алдаа). Дахин оролд';
     document.getElementById('ch-msg').className = 'modal-msg err';
   }
 }
@@ -695,12 +719,18 @@ function submitInput() {
   else correct = v.toLowerCase() === expect.toLowerCase();
   if (correct) onChallengeOk();
   else {
-    document.getElementById('ch-msg').textContent = 'Буруу. Дахин оролд';
+    statErr++;
+    challengeAttempts++;
+    updateStatus();
+    document.getElementById('ch-msg').textContent = 'Буруу (' + challengeAttempts + ' алдаа). Дахин оролд';
     document.getElementById('ch-msg').className = 'modal-msg err';
+    document.getElementById('ch-input').value = '';
   }
 }
 
 function onChallengeOk() {
+  statOk++;
+  challengeAttempts = 0;
   document.getElementById('ch-msg').textContent = '✓ Зөв! Үргэлжлүүлэх боломжтой';
   document.getElementById('ch-msg').className = 'modal-msg ok';
   setTimeout(function(){
