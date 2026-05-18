@@ -82,7 +82,7 @@ module.exports = async (req, res) => {
         lastName: user.last_name,
         grade: user.grade,
         plan: user.plan,
-        premium_expiry: user.premium_expiry || null,
+        premium_expiry: user.premium_expiry || user.premium_until || null,
         xp: user.xp || 0,
         gems: user.gems == null ? 340 : user.gems,
         hearts: user.hearts == null ? 5 : user.hearts,

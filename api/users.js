@@ -68,6 +68,35 @@ module.exports = async (req, res) => {
         const r = await pool.query('SELECT id,first_name,last_name,xp,avatar,profile_image,grade,plan FROM users WHERE xp>0 ORDER BY xp DESC LIMIT 20');
         return res.json({ ok: true, users: r.rows });
       }
+      // ?me=email — нэг хэрэглэгчийн profile-ыг refresh хийх
+      if (req.query && req.query.me) {
+        const email = String(req.query.me).toLowerCase();
+        const r = await pool.query('SELECT * FROM users WHERE LOWER(email)=LOWER($1)', [email]);
+        if (!r.rows.length) return res.json({ ok: false, error: 'User олдсонгүй' });
+        const u = r.rows[0];
+        // premium_expiry buyu premium_until — аль ажиллаж байгаагаас аль нэгийг нь авна (backward compat)
+        const premExp = u.premium_expiry || u.premium_until || null;
+        return res.json({
+          ok: true,
+          user: {
+            email: u.email,
+            firstName: u.first_name,
+            lastName: u.last_name,
+            grade: u.grade,
+            plan: u.plan,
+            premium_expiry: premExp,
+            xp: u.xp || 0,
+            gems: u.gems == null ? 340 : u.gems,
+            hearts: u.hearts == null ? 5 : u.hearts,
+            streak: u.streak || 0,
+            avatar: u.avatar || 'default',
+            profile_image: u.profile_image || null,
+            role: u.role || (u.grade === 'teacher' ? 'teacher' : 'student'),
+            school: u.school || null,
+            phone: u.phone || null
+          }
+        });
+      }
       // Бүх хэрэглэгчдийн жагсаалт — зөвхөн админ
       const adminCheck = requireAdmin(req);
       if (!adminCheck.ok) return res.status(403).json({ ok: false, error: 'Зөвхөн админ' });
@@ -691,11 +720,13 @@ module.exports = async (req, res) => {
         sets.push(`plan=$${i++}`);
         vals.push(plan);
         if (plan === 'premium') {
-          const { premium_until } = req.body || {};
-          sets.push(`premium_until=$${i++}`);
-          vals.push(premium_until ? new Date(premium_until) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
+          // premium_until (legacy field name)-ийг premium_expiry (authoritative)-руу бичих
+          const { premium_until, premium_expiry } = req.body || {};
+          const expVal = premium_expiry || premium_until;
+          sets.push(`premium_expiry=$${i++}`);
+          vals.push(expVal ? new Date(expVal) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
         } else if (plan === 'free') {
-          sets.push(`premium_until=$${i++}`);
+          sets.push(`premium_expiry=$${i++}`);
           vals.push(null);
         }
       }
