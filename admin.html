@@ -2668,26 +2668,15 @@ function closeMathModal() { closeChoiceMathModal(); }
         return s.nodes.some(function(n){ return byNode[n.id] && byNode[n.id].length; });
       });
 
-      // Parent document-руу visible div ашиглах — html2canvas нь зурахын тулд
-      // элемент visible байх ёстой (off-screen iframe цагаан render хийдэг).
-      // Дээр нь overlay-аар хучин хэрэглэгчид "PDF үүсгэж байна" мэдэгдэнэ.
-      var html = buildPdfHtml(sections, byNode, withAnswers, gradeFilter);
-
-      // HTML-ийг parse хийж зөвхөн body + styles-ыг гаргаж авах
-      var parser = new DOMParser();
-      var parsedDoc = parser.parseFromString(html, 'text/html');
+      // Шинэ buildSimplePdfBody — inline-styles, минимал HTML.
+      // (Хуучин buildPdfHtml-н Том cover-page + complex CSS html2pdf-аар цагаан рендер
+      //  хийдэг байсан учир replaced.)
+      var bodyHtml = buildSimplePdfBody(sections, byNode, withAnswers, gradeFilter);
 
       var container = document.createElement('div');
       container.id = 'pdf-container-' + Date.now();
-      container.style.cssText = 'position:fixed;top:0;left:0;width:800px;background:#fff;z-index:99998;color:#000;';
-      // styles-ыг container-руу хуулах (no-print товчуудыг хасна)
-      var styles = parsedDoc.head.querySelectorAll('style, link[rel="stylesheet"]');
-      var stylesHtml = '';
-      styles.forEach(function(s){ stylesHtml += s.outerHTML; });
-      // body content (no-print товчуудыг хасах)
-      var bodyHtml = parsedDoc.body.innerHTML.replace(/<div class="no-print"[\s\S]*?<\/div>/g, '');
-      bodyHtml = bodyHtml.replace(/<script[\s\S]*?<\/script>/g, '');
-      container.innerHTML = stylesHtml + bodyHtml;
+      container.style.cssText = 'position:fixed;top:0;left:0;width:800px;background:#fff;z-index:99998;color:#000;font-family:Times New Roman,Georgia,serif;';
+      container.innerHTML = bodyHtml;
       document.body.appendChild(container);
 
       // Overlay — хэрэглэгчид feedback + container-ыг визуалаар хучна
@@ -2817,6 +2806,76 @@ function closeMathModal() { closeChoiceMathModal(); }
 
   // Сарнай SVG (worksheet хавтсанд ашиглах)
   var SARNAI_SVG_BIG = '<svg width="100%" height="100%" viewBox="0 0 1089 1260" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"> <path d="M522.05 124.878C606.576 127.226 801.336 167.596 904.162 310.296C1032.69 488.671 1068.14 695.201 980.012 851.907C909.508 977.272 576.102 988.336 418.211 978.198C293.926 977.332 42.7346 927.426 32.2582 734.732C21.7818 542.038 119.692 364.706 169.956 300.126C209.536 247.02 335.366 137.621 522.05 124.878Z" fill="#FFF587"/> <path d="M593.386 719.881C593.386 721.433 593.385 723.021 593.385 724.644C584.55 752.367 564.656 785.378 526.449 785.365C492.966 785.353 465.669 760.157 457.115 724.596C457.116 723.538 457.117 720.363 457.117 719.305" fill="#CF7828"/> <path d="M593.103 721.43L524.594 761.669L456.834 721.383L524.986 669.219L593.103 721.43Z" fill="#FDD300"/> <path d="M745.432 431.961C710.188 431.948 675.732 442.548 646.421 462.42C617.109 482.291 594.259 510.542 580.761 543.6C567.262 576.657 563.72 613.037 570.584 648.138C577.448 683.239 594.409 715.485 619.321 740.798C644.234 766.112 675.98 783.355 710.545 790.349C745.11 797.343 780.941 793.772 813.507 780.089C846.073 766.405 873.912 743.223 893.502 713.475C913.093 683.727 923.556 648.748 923.569 612.961C923.585 564.973 904.827 518.944 871.42 485C838.013 451.056 792.694 431.977 745.432 431.961ZM745.316 772.591C713.927 772.58 683.246 763.116 657.156 745.395C631.066 727.675 610.739 702.495 598.746 673.041C586.754 643.587 583.635 611.183 589.785 579.929C595.934 548.675 611.075 519.975 633.293 497.461C655.51 474.947 683.805 459.63 714.598 453.448C745.391 447.266 777.298 450.497 806.282 462.733C835.266 474.968 860.024 495.658 877.424 522.185C894.824 548.711 904.084 579.882 904.032 611.754C903.963 654.444 887.209 695.362 857.449 725.518C827.69 755.675 787.359 772.606 745.316 772.591Z" fill="#5AC5F1"/> <path d="M306.485 431.809C270.982 431.796 236.272 442.396 206.745 462.268C177.218 482.139 154.2 510.39 140.603 543.447C127.005 576.505 123.437 612.884 130.352 647.985C137.266 683.086 154.351 715.333 179.447 740.646C204.543 765.96 236.523 783.203 271.342 790.197C306.161 797.191 342.255 793.62 375.06 779.937C407.866 766.253 435.909 743.072 455.644 713.324C475.379 683.575 485.919 648.596 485.932 612.81C485.948 564.822 467.051 518.793 433.399 484.849C399.746 450.904 354.094 431.825 306.485 431.809ZM306.368 772.439C274.746 772.438 243.835 762.983 217.546 745.268C191.257 727.554 170.773 702.378 158.684 672.925C146.595 643.472 143.446 611.067 149.635 579.809C155.823 548.551 171.072 519.847 193.451 497.327C215.829 474.808 244.332 459.486 275.353 453.3C306.374 447.114 338.518 450.342 367.718 462.576C396.918 474.81 421.861 495.5 439.391 522.028C456.922 548.555 466.251 579.729 466.199 611.602C466.13 654.284 449.26 695.193 419.293 725.348C389.326 755.504 348.712 772.44 306.368 772.439Z" fill="#5AC5F1"/> <path d="M698.778 688.163C733.78 688.175 762.165 659.584 762.177 624.303C762.189 589.022 733.824 560.411 698.822 560.399C663.82 560.387 635.435 588.978 635.423 624.259C635.411 659.54 663.776 688.15 698.778 688.163Z" fill="#211C54"/> <path d="M353.536 688.944C388.538 688.956 416.923 660.365 416.935 625.084C416.947 589.803 388.582 561.193 353.58 561.18C318.578 561.168 290.193 589.759 290.181 625.04C290.169 660.321 318.534 688.932 353.536 688.944Z" fill="#211C54"/> <path d="M573.83 0.156325C573.83 0.156325 501.255 54.4832 489.586 89.8828L525.655 83.2705C525.655 83.2705 495.824 132.483 489.56 166.282C489.56 166.282 550.173 73.698 573.812 53.155L531.421 59.0171L573.83 0.156325Z" fill="url(#paint0_radial_132_9682)"/> <path d="M566.17 628.48C524.017 590.296 484.323 628.452 484.323 628.452L480.69 648.466C480.69 648.466 528.881 603.797 569.79 648.498L566.17 628.48Z" fill="#5AC5F1"/> <path d="M391.791 288.743C404.657 339.042 483.791 375.316 483.791 375.316L431.791 360.016C447.944 381.67 502.943 424.532 593.721 422.746C582.7 410.145 565.228 377.152 583.51 345.991C583.677 355.957 588.856 378.07 608.242 386.791C608.961 368.006 625.533 321.395 686.074 285.236L728.553 248.706L346.234 233.854L391.791 288.743Z" fill="url(#paint1_linear_132_9682)"/> <path d="M350.741 970.15C321.937 1024.83 278.569 1140.36 335.526 1165.01C406.723 1195.83 466.913 1199.28 535.248 1199.4C589.917 1199.5 687.293 1182.32 729.147 1173.72C757.64 1162.29 795.534 1104.53 719.161 964.93L350.741 970.15Z" fill="url(#paint2_radial_132_9682)"/> <path d="M536.18 1020.45C583.114 1020.97 676.73 1054.92 675.718 1186.54C634.371 1199.89 519.122 1217.84 388.9 1182.86C390.443 1129.91 422.059 1023.29 536.18 1020.45Z" fill="url(#paint3_linear_132_9682)"/> <path d="M317.259 972.127C299.434 983.084 262.828 1009.15 258.998 1025.74C255.168 1042.33 259.1 1041.69 261.544 1039.29C256.655 1044.08 246.947 1055.54 247.226 1063.01C247.505 1070.48 252.101 1071.05 254.363 1070.4C252.444 1071.97 247.948 1076.36 245.317 1081.4C242.03 1087.69 246.926 1129.37 308.977 1102.72C310.93 1083.89 322.756 1030.87 354.429 969.406L327.062 966.521L317.259 972.127Z" fill="#FFF587"/> <path d="M752.999 967.688C770.823 978.646 807.429 1004.71 811.258 1021.3C815.088 1037.9 811.156 1037.25 808.711 1034.85C813.6 1039.65 823.309 1051.11 823.029 1058.57C822.75 1066.04 818.154 1066.61 815.892 1065.96C817.811 1067.53 822.307 1071.93 824.937 1076.96C828.225 1083.26 823.327 1124.94 761.278 1098.28C759.324 1079.45 747.5 1026.43 715.829 964.966L743.195 962.081L752.999 967.688Z" fill="#FFF587"/> <rect width="128.408" height="50.1871" rx="15.7406" transform="matrix(0.999614 0.0277841 -0.027347 0.999626 394.305 1205.13)" fill="#FFC113"/> <rect width="128.408" height="50.1871" rx="15.7406" transform="matrix(0.999674 -0.025551 0.0251489 0.999684 545.555 1208.95)" fill="#FFC113"/> <path d="M816.331 814.789C815.462 823.546 807.079 832.416 809.735 841.783C811.46 847.871 829.898 832.744 831.766 831.012C842.265 821.285 853.479 812.336 865.012 803.885C867.744 801.883 874.993 795.104 879.787 797.037C886.446 799.722 881.023 823.26 880.513 829.683C880.371 831.475 879.429 836.816 882.162 837.262C890.7 838.658 904.739 825.506 910.79 820.707C921.642 812.099 932.306 801.352 944.299 794.444C956.331 787.513 950.972 808.6 950.499 814.789" stroke="url(#paint4_linear_132_9682)" stroke-width="5.24686" stroke-linecap="round"/> <path d="M263.63 814.789C264.499 823.546 272.882 832.416 270.226 841.783C268.501 847.871 250.063 832.744 248.195 831.012C237.696 821.285 226.482 812.336 214.949 803.885C212.217 801.883 204.968 795.104 200.174 797.037C193.514 799.722 198.938 823.26 199.448 829.683C199.59 831.475 200.532 836.816 197.799 837.262C189.261 838.658 175.222 825.506 169.171 820.707C158.319 812.099 147.655 801.352 135.662 794.444C123.63 787.513 128.989 808.6 129.462 814.789" stroke="url(#paint5_linear_132_9682)" stroke-width="5.24686" stroke-linecap="round"/> <path d="M260.133 1033.44C261.006 1033.44 261.568 1033.36 262.426 1033.06C270.797 1030.09 279.457 1026.19 286.562 1021.44C290.207 1019.01 294.846 1015.88 296.821 1012.3" stroke="url(#paint6_linear_132_9682)" stroke-width="5.24686" stroke-linecap="round"/> <path d="M809.195 1030.8C808.322 1030.8 807.76 1030.72 806.902 1030.42C798.531 1027.45 789.871 1023.54 782.766 1018.8C779.121 1016.37 774.482 1013.24 772.507 1009.66" stroke="url(#paint7_linear_132_9682)" stroke-width="5.24686" stroke-linecap="round"/> <path d="M253.648 1065.06C254.522 1065.06 255.084 1064.99 255.941 1064.68C264.312 1061.71 272.972 1057.81 280.077 1053.07C283.723 1050.64 288.361 1047.5 290.336 1043.93" stroke="url(#paint8_linear_132_9682)" stroke-width="5.24686" stroke-linecap="round"/> <path d="M815.711 1062.42C814.838 1062.42 814.275 1062.35 813.418 1062.04C805.047 1059.07 796.387 1055.17 789.282 1050.43C785.637 1048 780.998 1044.86 779.023 1041.29" stroke="url(#paint9_linear_132_9682)" stroke-width="5.24686" stroke-linecap="round"/> <path d="M347.997 581.811C338.563 580.754 321.355 593.697 313.93 600.301C325.46 591.848 344.94 590.616 353.238 591.057C355.422 588.415 357.431 582.868 347.997 581.811Z" fill="white"/> <path d="M706.198 581.811C715.632 580.754 732.841 593.697 740.266 600.301C728.735 591.848 709.256 590.616 700.957 591.057C698.773 588.415 696.764 582.868 706.198 581.811Z" fill="white"/> <path d="M304.47 621.784C302.835 617.402 308.812 607.401 312.004 602.948C308.132 609.62 309.451 619.129 310.595 623.049C309.235 624.454 306.105 626.167 304.47 621.784Z" fill="white"/> <path d="M749.725 621.784C751.36 617.402 745.384 607.401 742.191 602.948C746.064 609.62 744.744 619.129 743.6 623.049C744.96 624.454 748.09 626.167 749.725 621.784Z" fill="white"/> <defs> <radialGradient id="paint0_radial_132_9682" cx="0" cy="0" r="1" gradientTransform="matrix(65.4202 0.0228174 -0.0226446 65.9634 531.695 83.1658)" gradientUnits="userSpaceOnUse"> <stop stop-color="#FDD300"/> <stop offset="1" stop-color="#F9EC31"/> </radialGradient> <linearGradient id="paint1_linear_132_9682" x1="537.394" y1="241.28" x2="524.515" y2="551.196" gradientUnits="userSpaceOnUse"> <stop offset="0.115" stop-color="#FFF587"/> <stop offset="1" stop-color="#FFC113"/> </linearGradient> <radialGradient id="paint2_radial_132_9682" cx="0" cy="0" r="1" gradientTransform="matrix(5.24113 -163.769 296.607 9.90843 517.007 865.705)" gradientUnits="userSpaceOnUse"> <stop stop-color="#FFC113"/> <stop offset="1" stop-color="#FFF587"/> </radialGradient> <linearGradient id="paint3_linear_132_9682" x1="549.04" y1="1021.32" x2="514.417" y2="1338.41" gradientUnits="userSpaceOnUse"> <stop stop-color="#FFF587"/> <stop offset="1" stop-color="#FFC113"/> </linearGradient> <linearGradient id="paint4_linear_132_9682" x1="828.603" y1="743.908" x2="830.695" y2="933.488" gradientUnits="userSpaceOnUse"> <stop offset="0.115" stop-color="#FFF587"/> <stop offset="1" stop-color="#FFC113"/> </linearGradient> <linearGradient id="paint5_linear_132_9682" x1="251.358" y1="743.908" x2="249.266" y2="933.488" gradientUnits="userSpaceOnUse"> <stop offset="0.115" stop-color="#FFF587"/> <stop offset="1" stop-color="#FFC113"/> </linearGradient> <linearGradient id="paint6_linear_132_9682" x1="278.477" y1="1012.3" x2="278.356" y2="1048.8" gradientUnits="userSpaceOnUse"> <stop offset="0.115" stop-color="#FFF587"/> <stop offset="1" stop-color="#FFC113"/> </linearGradient> <linearGradient id="paint7_linear_132_9682" x1="790.851" y1="1009.66" x2="790.972" y2="1046.16" gradientUnits="userSpaceOnUse"> <stop offset="0.115" stop-color="#FFF587"/> <stop offset="1" stop-color="#FFC113"/> </linearGradient> <linearGradient id="paint8_linear_132_9682" x1="271.992" y1="1043.93" x2="271.871" y2="1080.42" gradientUnits="userSpaceOnUse"> <stop offset="0.115" stop-color="#FFF587"/> <stop offset="1" stop-color="#FFC113"/> </linearGradient> <linearGradient id="paint9_linear_132_9682" x1="797.367" y1="1041.29" x2="797.488" y2="1077.78" gradientUnits="userSpaceOnUse"> <stop offset="0.115" stop-color="#FFF587"/> <stop offset="1" stop-color="#FFC113"/> </linearGradient> </defs> </svg>';
+
+  // html2pdf-руу зориулсан минимал, inline-style body content (parent document-руу
+  // direct insert хийгээд html2canvas-аар capture хийдэг). buildPdfHtml-н Том cover
+  // page + complex @page rule-ууд html2canvas-аар ажиллахгүй учир тус тусдаа.
+  function buildSimplePdfBody(sections, byNode, withAnswers, gradeFilter) {
+    var html = '<div style="padding:24px;font-family:Times New Roman,Georgia,serif;color:#000;background:#fff;line-height:1.55;">';
+    // Title page
+    html += '<div style="text-align:center;padding:80px 20px 100px;page-break-after:always;">';
+    html += '<div style="font-size:42pt;font-weight:900;color:#7B52EE;margin-bottom:14px;letter-spacing:2px;">CyberMath</div>';
+    html += '<div style="width:60px;height:3px;background:linear-gradient(90deg,#7B52EE,#FFC800);margin:18px auto;"></div>';
+    html += '<div style="font-size:24pt;font-weight:800;color:#1a1040;margin-bottom:10px;">' + (withAnswers ? 'Бодлогын цуглуулга' : 'Дасгалын дэвтэр') + '</div>';
+    if (gradeFilter) html += '<div style="font-size:16pt;color:#666;font-weight:700;margin-top:14px;">' + gradeFilter + '-р анги</div>';
+    html += '<div style="margin-top:60px;border-top:1px dashed #ddd;padding-top:30px;text-align:left;max-width:340px;margin-left:auto;margin-right:auto;">';
+    html += '<div style="font-size:12pt;font-weight:800;color:#7B52EE;margin-bottom:14px;text-align:center;">СУРАГЧИЙН МЭДЭЭЛЭЛ</div>';
+    html += '<div style="margin-bottom:14px;"><b>Нэр:</b> <span style="display:inline-block;border-bottom:1.5px solid #999;min-width:200px;height:18px;"></span></div>';
+    html += '<div style="margin-bottom:14px;"><b>Анги:</b> <span style="display:inline-block;border-bottom:1.5px solid #999;min-width:200px;height:18px;"></span></div>';
+    html += '</div>';
+    html += '<div style="margin-top:80px;font-size:11pt;color:#999;">' + new Date().getFullYear() + ' он · cyber-math.com</div>';
+    html += '</div>';
+
+    // Nodes + questions
+    sections.forEach(function(section) {
+      section.nodes.forEach(function(node) {
+        var qs = byNode[node.id] || [];
+        if (!qs.length) return;
+        html += '<div class="node-header" style="background:#f5f0ff;border-left:5px solid #7B52EE;padding:14px 18px;margin:24px 0 14px;page-break-after:avoid;page-break-inside:avoid;border-radius:6px;">';
+        html += '<div style="font-size:10pt;color:#7B52EE;font-weight:800;letter-spacing:1px;text-transform:uppercase;">Хичээл #' + node.id + '</div>';
+        html += '<div style="font-size:16pt;color:#1a1040;font-weight:900;margin-top:2px;">' + escapeHtml(node.name || ('Хичээл ' + node.id)) + '</div>';
+        html += '<div style="font-size:10pt;color:#888;font-weight:600;margin-top:2px;">' + qs.length + ' бодлого</div>';
+        html += '</div>';
+        var nQ = 1;
+        qs.forEach(function(q) {
+          var choices = q.choices;
+          if (typeof choices === 'string') { try { choices = JSON.parse(choices); } catch(e){ choices = []; } }
+          var diffBadge = '';
+          if (q.difficulty === 'easy') diffBadge = ' <span style="background:#d1fae5;color:#065f46;padding:1px 7px;border-radius:100px;font-size:9pt;font-weight:800;">🟢 Хялбар</span>';
+          else if (q.difficulty === 'hard') diffBadge = ' <span style="background:#fee2e2;color:#991b1b;padding:1px 7px;border-radius:100px;font-size:9pt;font-weight:800;">🔴 Ахисан</span>';
+          else if (q.difficulty === 'medium') diffBadge = ' <span style="background:#fef3c7;color:#92400e;padding:1px 7px;border-radius:100px;font-size:9pt;font-weight:800;">🟡 Дунд</span>';
+
+          html += '<div class="q-block" style="margin-bottom:14px;padding:6px 0;page-break-inside:avoid;">';
+          html += '<div style="font-size:12pt;line-height:1.6;"><span style="font-weight:900;color:#7B52EE;display:inline-block;min-width:24px;">' + nQ + '.</span> ' + processMath(q.text || '') + diffBadge + '</div>';
+          var isFill = (q.type === 'fill');
+          if (!isFill && Array.isArray(choices) && choices.length) {
+            html += '<div style="margin:5px 0 0 28px;font-size:11pt;line-height:1.85;">';
+            var MN = ['а','б','в','г','д','е'];
+            choices.forEach(function(c, idx) {
+              if (!c && c !== 0) return;
+              var letter = MN[idx] || ('?' + idx);
+              var isCorrect = withAnswers && (q.correct === idx || q.correct === String(idx));
+              html += '<div style="margin-bottom:2px;' + (isCorrect ? 'color:#16a34a;font-weight:800;' : '') + '"><b>' + letter + '.</b> ' + processMath(c) + (isCorrect ? ' <span style="color:#16a34a;">✓</span>' : '') + '</div>';
+            });
+            html += '</div>';
+            if (!withAnswers) {
+              html += '<div style="margin:6px 0 0 28px;height:18mm;border:1.5px solid #333;border-radius:4px;background-image:linear-gradient(#aaa 0.5px,transparent 0.5px),linear-gradient(90deg,#aaa 0.5px,transparent 0.5px);background-size:5mm 5mm;"></div>';
+            }
+          } else {
+            if (withAnswers && q.correct) {
+              html += '<div style="background:#f0fdf4;border-left:3px solid #16a34a;padding:6px 12px;margin:6px 0 0 28px;font-size:11pt;border-radius:0 4px 4px 0;"><b>Зөв:</b> ' + processMath(q.correct) + '</div>';
+            } else {
+              html += '<div style="margin:6px 0 0 28px;height:30mm;border:1.5px solid #333;border-radius:4px;background-image:linear-gradient(#aaa 0.5px,transparent 0.5px),linear-gradient(90deg,#aaa 0.5px,transparent 0.5px);background-size:5mm 5mm;"></div>';
+            }
+          }
+          html += '</div>';
+          nQ++;
+        });
+      });
+    });
+    html += '</div>';
+    return html;
+  }
 
   function buildPdfHtml(sections, byNode, withAnswers, gradeFilter) {
     var titleDate = new Date().getFullYear() + ' он';
