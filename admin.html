@@ -1450,6 +1450,7 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
                 <option value="11">11-р анги</option>
                 <option value="12">12-р анги</option>
               </select>
+              <button onclick="autoAssignDifficulty(event)" style="padding:6px 12px;background:linear-gradient(135deg,#10b981,#059669);border:none;border-radius:8px;color:white;font-size:0.85rem;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:5px;" title="Бүх бодлогуудыг id-аар sort хийгээд 40/30/30 харьцаагаар easy/medium/hard болгоно">🎯 Авто түвшин</button>
               <button onclick="downloadQuestionsPdf(true, event)" style="padding:6px 12px;background:linear-gradient(135deg,#7B52EE,#A855F7);border:none;border-radius:8px;color:white;font-size:0.85rem;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:5px;" title="Бодлого + хариу + тайлбар">📄 Бүрэн PDF</button>
               <button onclick="downloadQuestionsPdf(false, event)" style="padding:6px 12px;background:linear-gradient(135deg,#1CB0F6,#0EA5E9);border:none;border-radius:8px;color:white;font-size:0.85rem;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:5px;" title="Зөвхөн бодлого">📋 Зөвхөн бодлого</button>
               <input type="text" placeholder="Хайх..." style="padding:6px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:0.85rem;width:200px;" oninput="renderQuestions(this.value)">
@@ -2578,6 +2579,30 @@ function closeMathModal() { closeChoiceMathModal(); }
   // ═════════════════════════════════════════
   // PDF татах — бүх бодлогуудыг сэдвээр бүлэглэн
   // ═════════════════════════════════════════
+  window.autoAssignDifficulty = function(evt) {
+    var btn = (evt && (evt.currentTarget || evt.target)) || null;
+    if (!confirm('Бүх хичээлийн бодлогуудыг id-аар sort хийгээд 40/30/30 харьцаагаар easy/medium/hard болгох уу?\n\nЖишээ:\n• 10 бодлого → 4 хялбар + 3 дунд + 3 ахисан\n• 20 бодлого → 8 хялбар + 6 дунд + 6 ахисан')) return;
+    var origText = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Тохируулж байна...'; }
+    fetch(API + '/api/questions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'autoAssignDifficulty' })
+    }).then(function(r){ return r.json(); }).then(function(d){
+      if (btn) { btn.disabled = false; btn.innerHTML = origText; }
+      if (!d.ok) { alert('Алдаа: ' + (d.error || '')); return; }
+      var s = d.stats || {};
+      alert('✓ Амжилттай!\n\nШинэчилсэн: ' + d.updated + ' бодлого\n\n'
+        + '🟢 Хялбар: ' + (s.easy || 0) + '\n'
+        + '🟡 Дунд: ' + (s.medium || 0) + '\n'
+        + '🔴 Ахисан: ' + (s.hard || 0));
+      if (typeof renderQuestions === 'function') renderQuestions();
+    }).catch(function(e){
+      if (btn) { btn.disabled = false; btn.innerHTML = origText; }
+      alert('Сүлжээний алдаа: ' + (e.message || e));
+    });
+  };
+
   window.downloadQuestionsPdf = function(withAnswers, evt) {
     var btn = (evt && (evt.currentTarget || evt.target)) || null;
     var origText = btn ? btn.innerHTML : '';
