@@ -2675,9 +2675,14 @@ function closeMathModal() { closeChoiceMathModal(); }
 
       var container = document.createElement('div');
       container.id = 'pdf-container-' + Date.now();
-      container.style.cssText = 'position:fixed;top:0;left:0;width:800px;background:#fff;z-index:99998;color:#000;font-family:Times New Roman,Georgia,serif;';
+      // STATIC layout (position:fixed биш) — html2canvas нь viewport-аас гадуурх
+      // content-ийг auto-page-break-аар үүсгэхэд static height-тэй байх ёстой
+      container.style.cssText = 'position:relative;width:800px;background:#fff;color:#000;font-family:"Times New Roman",Georgia,serif;line-height:1.55;margin:0;padding:0;';
       container.innerHTML = bodyHtml;
-      document.body.appendChild(container);
+      // body-ын эхэнд insert хийж visible хадгална
+      document.body.insertBefore(container, document.body.firstChild);
+      // Scroll-аар бүх content render-долсон эсэхийг баталгаажуулна
+      window.scrollTo(0, 0);
 
       // Overlay — хэрэглэгчид feedback + container-ыг визуалаар хучна
       var overlay = document.createElement('div');
@@ -2701,14 +2706,17 @@ function closeMathModal() { closeChoiceMathModal(); }
         filename: fname,
         image: { type: 'jpeg', quality: 0.92 },
         html2canvas: {
-          scale: 1.5,
+          scale: 1.4,
           useCORS: true,
           logging: false,
           backgroundColor: '#ffffff',
-          letterRendering: true
+          letterRendering: true,
+          windowWidth: 800,
+          scrollY: 0
         },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
-        pagebreak: { mode: ['css', 'legacy'], avoid: ['.q-block', '.node-header'] }
+        // 'css' mode + 'avoid-all' нэмэх — auto page break q-block, node-header дунд
+        pagebreak: { mode: ['css', 'legacy', 'avoid-all'], before: '.page-break', avoid: '.q-block' }
       };
 
       var cleanup = function() {
