@@ -1441,8 +1441,8 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
                 <option value="11">11-р анги</option>
                 <option value="12">12-р анги</option>
               </select>
-              <button onclick="downloadQuestionsPdf(true)" style="padding:6px 12px;background:linear-gradient(135deg,#7B52EE,#A855F7);border:none;border-radius:8px;color:white;font-size:0.85rem;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:5px;" title="Бодлого + хариу + тайлбар">📄 Бүрэн PDF</button>
-              <button onclick="downloadQuestionsPdf(false)" style="padding:6px 12px;background:linear-gradient(135deg,#1CB0F6,#0EA5E9);border:none;border-radius:8px;color:white;font-size:0.85rem;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:5px;" title="Зөвхөн бодлого">📋 Зөвхөн бодлого</button>
+              <button onclick="downloadQuestionsPdf(true, event)" style="padding:6px 12px;background:linear-gradient(135deg,#7B52EE,#A855F7);border:none;border-radius:8px;color:white;font-size:0.85rem;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:5px;" title="Бодлого + хариу + тайлбар">📄 Бүрэн PDF</button>
+              <button onclick="downloadQuestionsPdf(false, event)" style="padding:6px 12px;background:linear-gradient(135deg,#1CB0F6,#0EA5E9);border:none;border-radius:8px;color:white;font-size:0.85rem;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:5px;" title="Зөвхөн бодлого">📋 Зөвхөн бодлого</button>
               <input type="text" placeholder="Хайх..." style="padding:6px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:0.85rem;width:200px;" oninput="renderQuestions(this.value)">
             </div>
           </div>
@@ -2569,11 +2569,10 @@ function closeMathModal() { closeChoiceMathModal(); }
   // ═════════════════════════════════════════
   // PDF татах — бүх бодлогуудыг сэдвээр бүлэглэн
   // ═════════════════════════════════════════
-  window.downloadQuestionsPdf = function(withAnswers) {
-    var btn = event.target;
-    var origText = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '⏳ Бэлдэж байна...';
+  window.downloadQuestionsPdf = function(withAnswers, evt) {
+    var btn = (evt && (evt.currentTarget || evt.target)) || null;
+    var origText = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Бэлдэж байна...'; }
 
     // Ангиар шүүх (хоосон = бүх анги)
     var gradeFilterEl = document.getElementById('pdf-grade-filter');
@@ -2592,8 +2591,7 @@ function closeMathModal() { closeChoiceMathModal(); }
 
       if (!questions.length) {
         alert('Бодлого байхгүй байна');
-        btn.disabled = false;
-        btn.innerHTML = origText;
+        if (btn) { btn.disabled = false; btn.innerHTML = origText; }
         return;
       }
 
@@ -2657,7 +2655,7 @@ function closeMathModal() { closeChoiceMathModal(); }
 
       // PDF window нээх
       var pw = window.open('', '_blank', 'width=900,height=700');
-      if (!pw) { alert('Popup блоклогдсон. Popup-ыг зөвшөөрнө үү.'); btn.disabled = false; btn.innerHTML = origText; return; }
+      if (!pw) { alert('Popup блоклогдсон. Popup-ыг зөвшөөрнө үү.'); if (btn) { btn.disabled = false; btn.innerHTML = origText; } return; }
 
       var html = buildPdfHtml(sections, byNode, withAnswers, gradeFilter);
       pw.document.write(html);
@@ -2669,15 +2667,13 @@ function closeMathModal() { closeChoiceMathModal(); }
           renderKatexInWindow(pw);
           setTimeout(function() {
             pw.print();
-            btn.disabled = false;
-            btn.innerHTML = origText;
+            if (btn) { btn.disabled = false; btn.innerHTML = origText; }
           }, 500);
         }, 200);
       };
     }).catch(function(err){
       alert('Алдаа: ' + err.message);
-      btn.disabled = false;
-      btn.innerHTML = origText;
+      if (btn) { btn.disabled = false; btn.innerHTML = origText; }
     });
   };
 
