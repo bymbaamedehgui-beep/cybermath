@@ -2673,16 +2673,20 @@ function closeMathModal() { closeChoiceMathModal(); }
       //  хийдэг байсан учир replaced.)
       var bodyHtml = buildSimplePdfBody(sections, byNode, withAnswers, gradeFilter);
 
-      var container = document.createElement('div');
-      container.id = 'pdf-container-' + Date.now();
-      // STATIC layout (position:fixed биш) — html2canvas нь viewport-аас гадуурх
-      // content-ийг auto-page-break-аар үүсгэхэд static height-тэй байх ёстой
-      container.style.cssText = 'position:relative;width:800px;background:#fff;color:#000;font-family:"Times New Roman",Georgia,serif;line-height:1.55;margin:0;padding:0;';
-      container.innerHTML = bodyHtml;
-      // body-ын эхэнд insert хийж visible хадгална
-      document.body.insertBefore(container, document.body.firstChild);
-      // Scroll-аар бүх content render-долсон эсэхийг баталгаажуулна
-      window.scrollTo(0, 0);
+      // Visible iframe — parent CSS-аас тусгаарлагдсан clean context. Overlay-аар хучна.
+      var container = document.createElement('iframe');
+      container.id = 'pdf-iframe-' + Date.now();
+      container.style.cssText = 'position:fixed;top:0;left:0;width:820px;height:100vh;border:none;background:#fff;z-index:99998;';
+      document.body.appendChild(container);
+
+      var idoc = container.contentDocument || container.contentWindow.document;
+      idoc.open();
+      idoc.write('<!doctype html><html><head><meta charset="utf-8">'
+        + '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">'
+        + '<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"><\/script>'
+        + '<style>html,body{margin:0;padding:0;background:#fff;color:#000;font-family:"Times New Roman",Georgia,serif;line-height:1.55;}</style>'
+        + '</head><body>' + bodyHtml + '</body></html>');
+      idoc.close();
 
       // Overlay — хэрэглэгчид feedback + container-ыг визуалаар хучна
       var overlay = document.createElement('div');
@@ -2691,14 +2695,20 @@ function closeMathModal() { closeChoiceMathModal(); }
       overlay.innerHTML = '<div style="font-size:3rem;">📄</div><div style="font-size:1.2rem;font-weight:800;color:#7B52EE;">PDF үүсгэж байна...</div><div style="font-size:0.85rem;color:#888;">Хүлээнэ үү (10-30 секунд)</div>';
       document.body.appendChild(overlay);
 
-      // KaTeX render container дотроос
-      try {
-        var texEls = container.querySelectorAll('.tex, [data-tex]');
-        texEls.forEach(function(el){
-          var src = el.getAttribute('data-tex') || el.textContent;
-          try { katex.render(src, el, { throwOnError: false, displayMode: false }); } catch(e){}
-        });
-      } catch(_){}
+      // KaTeX render iframe-н доторх (iframe-ын window.katex 200ms-н дараа ачаалагдсан)
+      setTimeout(function(){
+        try {
+          var iwin = container.contentWindow;
+          var iKatex = iwin && iwin.katex;
+          if (iKatex) {
+            var texEls = idoc.querySelectorAll('.tex, [data-tex]');
+            texEls.forEach(function(el){
+              var src = el.getAttribute('data-tex') || el.textContent;
+              try { iKatex.render(src, el, { throwOnError: false, displayMode: false }); } catch(e){}
+            });
+          }
+        } catch(_){}
+      }, 300);
 
       var fname = (withAnswers ? 'bodlogo-buren' : 'bodlogo') + (gradeFilter ? '-' + gradeFilter + 'r-angi' : '') + '.pdf';
       var opt = {
@@ -2725,10 +2735,11 @@ function closeMathModal() { closeChoiceMathModal(); }
         if (btn) { btn.disabled = false; btn.innerHTML = origText; }
       };
 
-      // Image, font, KaTeX render-уудыг хүлээх
+      // Image, font, KaTeX render-уудыг хүлээх (iframe-н load + KaTeX-ийн дараа)
       setTimeout(function() {
         try {
-          html2pdf().set(opt).from(container).save().then(cleanup).catch(function(err){
+          // Iframe-н body-аас capture (parent CSS-аас тусгаарлагдсан clean context)
+          html2pdf().set(opt).from(idoc.body).save().then(cleanup).catch(function(err){
             console.error('html2pdf err:', err);
             alert('PDF үүсгэхэд алдаа: ' + (err && (err.message || err.toString()) || 'тодорхойгүй'));
             cleanup();
@@ -2738,7 +2749,7 @@ function closeMathModal() { closeChoiceMathModal(); }
           alert('PDF үүсгэхэд алдаа: ' + (e.message || e));
           cleanup();
         }
-      }, 1500);
+      }, 2000);
     }).catch(function(err){
       alert('Алдаа: ' + err.message);
       if (btn) { btn.disabled = false; btn.innerHTML = origText; }
