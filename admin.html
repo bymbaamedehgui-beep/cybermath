@@ -2574,6 +2574,16 @@ function closeMathModal() { closeChoiceMathModal(); }
     var origText = btn ? btn.innerHTML : '';
     if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Бэлдэж байна...'; }
 
+    // ЭХЛЭЭД popup нээх — user gesture context хадгалагдана (browser popup block-аас зайлсхийнэ)
+    var pw = window.open('', '_blank', 'width=900,height=700');
+    if (!pw) {
+      alert('Popup блоклогдсон. Browser-ийн popup зөвшөөрөл идэвхжүүлнэ үү.');
+      if (btn) { btn.disabled = false; btn.innerHTML = origText; }
+      return;
+    }
+    pw.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Бэлдэж байна...</title><style>body{font-family:sans-serif;text-align:center;padding:60px;color:#666;}h2{font-weight:400;}</style></head><body><h2>⏳ Бодлого ачаалж байна...</h2></body></html>');
+    pw.document.close();
+
     // Ангиар шүүх (хоосон = бүх анги)
     var gradeFilterEl = document.getElementById('pdf-grade-filter');
     var gradeFilter = gradeFilterEl ? (gradeFilterEl.value || '').trim() : '';
@@ -2591,6 +2601,7 @@ function closeMathModal() { closeChoiceMathModal(); }
 
       if (!questions.length) {
         alert('Бодлого байхгүй байна');
+        if (pw) pw.close();
         if (btn) { btn.disabled = false; btn.innerHTML = origText; }
         return;
       }
@@ -2653,26 +2664,37 @@ function closeMathModal() { closeChoiceMathModal(); }
         return s.nodes.some(function(n){ return byNode[n.id] && byNode[n.id].length; });
       });
 
-      // PDF window нээх
-      var pw = window.open('', '_blank', 'width=900,height=700');
-      if (!pw) { alert('Popup блоклогдсон. Popup-ыг зөвшөөрнө үү.'); if (btn) { btn.disabled = false; btn.innerHTML = origText; } return; }
-
+      // Popup-ийн контентыг шинэчлэх (popup аль хэдийн нээгдсэн)
       var html = buildPdfHtml(sections, byNode, withAnswers, gradeFilter);
-      pw.document.write(html);
-      pw.document.close();
+      try {
+        pw.document.open();
+        pw.document.write(html);
+        pw.document.close();
+      } catch(e) {
+        alert('Popup-руу бичих алдаа: ' + e.message);
+        if (btn) { btn.disabled = false; btn.innerHTML = origText; }
+        return;
+      }
 
       // KaTeX render хийсний дараа print хийнэ
-      pw.onload = function() {
+      var doPrint = function() {
+        try { renderKatexInWindow(pw); } catch(_){}
         setTimeout(function() {
-          renderKatexInWindow(pw);
-          setTimeout(function() {
-            pw.print();
-            if (btn) { btn.disabled = false; btn.innerHTML = origText; }
-          }, 500);
-        }, 200);
+          try { pw.print(); } catch(_){}
+          if (btn) { btn.disabled = false; btn.innerHTML = origText; }
+        }, 600);
       };
+      // onload магадгүй өмнө дуудагдсан (sync write) — readyState шалгах
+      if (pw.document.readyState === 'complete') {
+        setTimeout(doPrint, 400);
+      } else {
+        pw.onload = function(){ setTimeout(doPrint, 400); };
+        // Backup: 3 секунд хүлээгээд print хийх
+        setTimeout(function(){ if (btn && btn.disabled) doPrint(); }, 3000);
+      }
     }).catch(function(err){
       alert('Алдаа: ' + err.message);
+      if (pw) try { pw.close(); } catch(_){}
       if (btn) { btn.disabled = false; btn.innerHTML = origText; }
     });
   };
