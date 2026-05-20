@@ -7,6 +7,9 @@ module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
+    // Lazy migration — difficulty column нэмэх
+    await pool.query(`ALTER TABLE questions ADD COLUMN IF NOT EXISTS difficulty TEXT DEFAULT 'medium'`).catch(()=>{});
+
     if (req.method === 'GET') {
       const { topic, grade, max_grade, node_id, ids, reports } = req.query || {};
 
@@ -123,13 +126,15 @@ module.exports = async (req, res) => {
       }
 
       // Үндсэн POST — асуулт үүсгэх (хуучин логик)
-      const { text, topic, grade, correct, choices, hint, node_id, type, image, answer_template, time_limit } = body;
+      const { text, topic, grade, correct, choices, hint, node_id, type, image, answer_template, time_limit, difficulty } = body;
       if (!text || !correct) return res.status(400).json({ ok: false, error: 'Missing fields' });
+      const validDiff = ['easy','medium','hard'].indexOf(difficulty) >= 0 ? difficulty : 'medium';
       const r = await pool.query(
-        'INSERT INTO questions (text,topic,grade,correct,choices,hint,node_id,type,image,answer_template,time_limit) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *',
+        'INSERT INTO questions (text,topic,grade,correct,choices,hint,node_id,type,image,answer_template,time_limit,difficulty) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *',
         [text, topic, grade, correct, choices, hint ? JSON.stringify(hint) : null, node_id || null, type || 'choice', image || null,
          answer_template || null,
-         (time_limit != null && time_limit !== '') ? parseInt(time_limit) : null]
+         (time_limit != null && time_limit !== '') ? parseInt(time_limit) : null,
+         validDiff]
       );
       return res.json({ ok: true, question: r.rows[0] });
     }
@@ -155,6 +160,10 @@ module.exports = async (req, res) => {
       if (has('grade'))    { sets.push(`grade=$${++i}`);   vals.push(body.grade || null); }
       if (has('answer_template')) { sets.push(`answer_template=$${++i}`); vals.push(body.answer_template || null); }
       if (has('time_limit')) { sets.push(`time_limit=$${++i}`); vals.push((body.time_limit != null && body.time_limit !== '') ? parseInt(body.time_limit) : null); }
+      if (has('difficulty')) {
+        var d = ['easy','medium','hard'].indexOf(body.difficulty) >= 0 ? body.difficulty : 'medium';
+        sets.push(`difficulty=$${++i}`); vals.push(d);
+      }
 
       if (!sets.length) return res.json({ ok: true, noop: true });
 
