@@ -2668,26 +2668,43 @@ function closeMathModal() { closeChoiceMathModal(); }
         return s.nodes.some(function(n){ return byNode[n.id] && byNode[n.id].length; });
       });
 
-      // Parent document-руу hidden iframe үүсгэх — popup-аас илүү найдвартай
-      // (popup нь background-д унтсан үед html2canvas цагаан render хийдэг)
-      var iframe = document.createElement('iframe');
-      iframe.id = 'pdf-iframe-' + Date.now();
-      // Visible context хадгалах — page-н гадуур биш, тогтсон хэмжээтэй
-      iframe.style.cssText = 'position:fixed;left:-99999px;top:0;width:800px;height:1200px;border:none;background:#fff;z-index:-1;';
-      document.body.appendChild(iframe);
-
+      // Parent document-руу visible div ашиглах — html2canvas нь зурахын тулд
+      // элемент visible байх ёстой (off-screen iframe цагаан render хийдэг).
+      // Дээр нь overlay-аар хучин хэрэглэгчид "PDF үүсгэж байна" мэдэгдэнэ.
       var html = buildPdfHtml(sections, byNode, withAnswers, gradeFilter);
+
+      // HTML-ийг parse хийж зөвхөн body + styles-ыг гаргаж авах
+      var parser = new DOMParser();
+      var parsedDoc = parser.parseFromString(html, 'text/html');
+
+      var container = document.createElement('div');
+      container.id = 'pdf-container-' + Date.now();
+      container.style.cssText = 'position:fixed;top:0;left:0;width:800px;background:#fff;z-index:99998;color:#000;';
+      // styles-ыг container-руу хуулах (no-print товчуудыг хасна)
+      var styles = parsedDoc.head.querySelectorAll('style, link[rel="stylesheet"]');
+      var stylesHtml = '';
+      styles.forEach(function(s){ stylesHtml += s.outerHTML; });
+      // body content (no-print товчуудыг хасах)
+      var bodyHtml = parsedDoc.body.innerHTML.replace(/<div class="no-print"[\s\S]*?<\/div>/g, '');
+      bodyHtml = bodyHtml.replace(/<script[\s\S]*?<\/script>/g, '');
+      container.innerHTML = stylesHtml + bodyHtml;
+      document.body.appendChild(container);
+
+      // Overlay — хэрэглэгчид feedback + container-ыг визуалаар хучна
+      var overlay = document.createElement('div');
+      overlay.id = 'pdf-overlay-' + Date.now();
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(255,255,255,0.97);z-index:99999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;font-family:sans-serif;';
+      overlay.innerHTML = '<div style="font-size:3rem;">📄</div><div style="font-size:1.2rem;font-weight:800;color:#7B52EE;">PDF үүсгэж байна...</div><div style="font-size:0.85rem;color:#888;">Хүлээнэ үү (10-30 секунд)</div>';
+      document.body.appendChild(overlay);
+
+      // KaTeX render container дотроос
       try {
-        var doc = iframe.contentDocument || iframe.contentWindow.document;
-        doc.open();
-        doc.write(html);
-        doc.close();
-      } catch(e) {
-        alert('Iframe-руу бичих алдаа: ' + e.message);
-        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
-        if (btn) { btn.disabled = false; btn.innerHTML = origText; }
-        return;
-      }
+        var texEls = container.querySelectorAll('.tex, [data-tex]');
+        texEls.forEach(function(el){
+          var src = el.getAttribute('data-tex') || el.textContent;
+          try { katex.render(src, el, { throwOnError: false, displayMode: false }); } catch(e){}
+        });
+      } catch(_){}
 
       var fname = (withAnswers ? 'bodlogo-buren' : 'bodlogo') + (gradeFilter ? '-' + gradeFilter + 'r-angi' : '') + '.pdf';
       var opt = {
@@ -2699,41 +2716,32 @@ function closeMathModal() { closeChoiceMathModal(); }
           useCORS: true,
           logging: false,
           backgroundColor: '#ffffff',
-          letterRendering: true,
-          windowWidth: 800
+          letterRendering: true
         },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
         pagebreak: { mode: ['css', 'legacy'], avoid: ['.q-block', '.node-header'] }
       };
 
       var cleanup = function() {
-        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+        if (container.parentNode) container.parentNode.removeChild(container);
+        if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
         if (btn) { btn.disabled = false; btn.innerHTML = origText; }
       };
 
-      // Iframe-руу KaTeX, контент ачаалагдсаны дараа PDF үүсгэх
-      var runPdf = function() {
+      // Image, font, KaTeX render-уудыг хүлээх
+      setTimeout(function() {
         try {
-          var doc = iframe.contentDocument || iframe.contentWindow.document;
-          // KaTeX iframe доторх рендер хийгдсэн эсэхийг шалгах — `<script>` нь iframe-д ачаалагдсан байна
-          // Хэрэглэгчид feedback
-          if (btn) btn.innerHTML = '⏳ PDF үүсгэж байна...';
-          html2pdf().set(opt).from(doc.body).save().then(function() {
-            cleanup();
-          }).catch(function(err) {
+          html2pdf().set(opt).from(container).save().then(cleanup).catch(function(err){
             console.error('html2pdf err:', err);
             alert('PDF үүсгэхэд алдаа: ' + (err && (err.message || err.toString()) || 'тодорхойгүй'));
             cleanup();
           });
         } catch(e) {
-          console.error('runPdf throw:', e);
+          console.error('html2pdf throw:', e);
           alert('PDF үүсгэхэд алдаа: ' + (e.message || e));
           cleanup();
         }
-      };
-
-      // KaTeX + image-ийг хүлээх — 2 секунд хангалттай
-      setTimeout(runPdf, 2000);
+      }, 1500);
     }).catch(function(err){
       alert('Алдаа: ' + err.message);
       if (btn) { btn.disabled = false; btn.innerHTML = origText; }
