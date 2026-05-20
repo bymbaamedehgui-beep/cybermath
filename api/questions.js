@@ -113,32 +113,6 @@ module.exports = async (req, res) => {
         return res.json({ ok: true, id: r.rows[0].id });
       }
 
-      // Admin: бүх бодлогуудыг node-н дотор id-аар нь sort хийгээд харьцаагаар
-      // difficulty-ийг бөглөх (40% easy, 30% medium, 30% hard).
-      // 10 бодлого → 4-3-3, 20 → 8-6-6 гэх мэт.
-      if (body.action === 'autoAssignDifficulty') {
-        var r = await pool.query(
-          'WITH ranked AS (' +
-          '  SELECT id, node_id,' +
-          '    ROW_NUMBER() OVER (PARTITION BY node_id ORDER BY id) - 1 AS rn,' +
-          '    COUNT(*) OVER (PARTITION BY node_id) AS total' +
-          '  FROM questions WHERE node_id IS NOT NULL' +
-          ') ' +
-          "UPDATE questions q SET difficulty = CASE " +
-          "  WHEN ranked.rn < ROUND(ranked.total::numeric * 0.4) THEN 'easy' " +
-          "  WHEN ranked.rn < ROUND(ranked.total::numeric * 0.7) THEN 'medium' " +
-          "  ELSE 'hard' END " +
-          "FROM ranked WHERE q.id = ranked.id"
-        );
-        // Статистик: түвшин бүрд хэдэн бодлого байгаа
-        var stats = await pool.query(
-          "SELECT difficulty, COUNT(*) AS cnt FROM questions WHERE node_id IS NOT NULL GROUP BY difficulty"
-        );
-        var statMap = {};
-        stats.rows.forEach(function(row){ statMap[row.difficulty || 'unset'] = parseInt(row.cnt); });
-        return res.json({ ok: true, updated: r.rowCount, stats: statMap });
-      }
-
       // Admin: report-ийг шийдсэн / устгасан гэж тэмдэглэх
       if (body.action === 'resolveReport') {
         const { id, status } = body;
