@@ -37,7 +37,7 @@ module.exports = async (req, res) => {
       if (action === 'submit') {
         const { type, email, contact_name, phone, school_name, user_count, note } = body;
         if (!type || !email || !user_count) {
-          return res.status(400).json({ ok: false, error: 'Хүссэн талбар дутуу' });
+          return res.status(400).json({ ok: false, error: 'Шаардлагатай талбар дутуу' });
         }
         if (['friends', 'school'].indexOf(type) === -1) {
           return res.status(400).json({ ok: false, error: 'Багцын төрөл буруу' });

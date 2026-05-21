@@ -14,7 +14,7 @@ function checkUserAccess(req, requestedEmail, options) {
   options = options || {};
   const decoded = verifyToken(req);
   if (options.strict) {
-    if (!decoded) return { ok: false, error: 'Унтраалга буруу. Дахин нэвтэрнэ үү.' };
+    if (!decoded) return { ok: false, error: 'Нэвтрэх эрх буруу. Дахин нэвтэрнэ үү.' };
     if (decoded.admin) return { ok: true, isAdmin: true };
     if (decoded.email !== requestedEmail) return { ok: false, error: 'Зөвхөн өөрийнхөө өгөгдлийг харна' };
     return { ok: true, email: decoded.email, role: decoded.role };
