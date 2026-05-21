@@ -9,6 +9,8 @@ module.exports = async (req, res) => {
   try {
     // Lazy migration — difficulty column нэмэх
     await pool.query(`ALTER TABLE questions ADD COLUMN IF NOT EXISTS difficulty TEXT DEFAULT 'medium'`).catch(()=>{});
+    // is_exam — шалгалтын бодлого эсэхийг тэмдэглэх
+    await pool.query(`ALTER TABLE questions ADD COLUMN IF NOT EXISTS is_exam BOOLEAN DEFAULT false`).catch(()=>{});
 
     if (req.method === 'GET') {
       const { topic, grade, max_grade, node_id, ids, reports } = req.query || {};
@@ -53,6 +55,11 @@ module.exports = async (req, res) => {
       }
       let q = 'SELECT * FROM questions';
       const conds = [], vals = [];
+      // exam=1 → зөвхөн шалгалтын бодлого. exam=0 эсвэл undefined → зөвхөн хичээлийн бодлого
+      // exam=all → бүгд
+      const examParam = req.query.exam;
+      if (examParam === '1') conds.push('is_exam = true');
+      else if (examParam !== 'all') conds.push('(is_exam = false OR is_exam IS NULL)');
       if (topic)   { conds.push(`topic=$${vals.length+1}`); vals.push(topic); }
       if (grade)   { conds.push(`(grade=$${vals.length+1} OR grade IS NULL OR grade='')`); vals.push(grade); }
       if (max_grade) {
@@ -126,15 +133,16 @@ module.exports = async (req, res) => {
       }
 
       // Үндсэн POST — асуулт үүсгэх (хуучин логик)
-      const { text, topic, grade, correct, choices, hint, node_id, type, image, answer_template, time_limit, difficulty } = body;
+      const { text, topic, grade, correct, choices, hint, node_id, type, image, answer_template, time_limit, difficulty, is_exam } = body;
       if (!text || !correct) return res.status(400).json({ ok: false, error: 'Missing fields' });
       const validDiff = ['easy','medium','hard'].indexOf(difficulty) >= 0 ? difficulty : 'medium';
       const r = await pool.query(
-        'INSERT INTO questions (text,topic,grade,correct,choices,hint,node_id,type,image,answer_template,time_limit,difficulty) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *',
+        'INSERT INTO questions (text,topic,grade,correct,choices,hint,node_id,type,image,answer_template,time_limit,difficulty,is_exam) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *',
         [text, topic, grade, correct, choices, hint ? JSON.stringify(hint) : null, node_id || null, type || 'choice', image || null,
          answer_template || null,
          (time_limit != null && time_limit !== '') ? parseInt(time_limit) : null,
-         validDiff]
+         validDiff,
+         !!is_exam]
       );
       return res.json({ ok: true, question: r.rows[0] });
     }
@@ -164,6 +172,7 @@ module.exports = async (req, res) => {
         var d = ['easy','medium','hard'].indexOf(body.difficulty) >= 0 ? body.difficulty : 'medium';
         sets.push(`difficulty=$${++i}`); vals.push(d);
       }
+      if (has('is_exam')) { sets.push(`is_exam=$${++i}`); vals.push(!!body.is_exam); }
 
       if (!sets.length) return res.json({ ok: true, noop: true });
 

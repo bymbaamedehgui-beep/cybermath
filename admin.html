@@ -1260,6 +1260,13 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
                 <option value="hard">🔴 Ахисан (35-40 XP)</option>
               </select>
             </div>
+            <div class="form-group">
+              <label>Зориулалт</label>
+              <label style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;cursor:pointer;font-weight:700;color:var(--text);">
+                <input id="q-is-exam" type="checkbox" style="width:18px;height:18px;cursor:pointer;accent-color:#7B52EE;">
+                <span style="font-size:0.88rem;">📝 Түвшин тогтоох шалгалтын бодлого</span>
+              </label>
+            </div>
           </div>
           <!-- Бодлогын текст -->
           <div class="form-group" style="margin-bottom:12px;">
@@ -1442,6 +1449,11 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
           <div class="table-header">
             <div class="table-title" id="q-list-title">Бодлогууд</div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <select id="q-exam-filter" onchange="renderQuestions()" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:0.85rem;font-weight:700;outline:none;" title="Зориулалтаар шүүх">
+                <option value="lesson">📚 Хичээлийн</option>
+                <option value="exam">📝 Шалгалтын</option>
+                <option value="all">Бүгд</option>
+              </select>
               <select id="pdf-grade-filter" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:0.85rem;font-weight:700;outline:none;" title="PDF татахдаа ангиар шүүх">
                 <option value="">Бүх анги</option>
                 <option value="8">8-р анги</option>
@@ -3200,8 +3212,10 @@ function closeMathModal() { closeChoiceMathModal(); }
     var titleEl = document.getElementById('q-list-title');
     if (titleEl) titleEl.textContent = nodeId ? ('Node ' + nodeId + ': ' + nodeName + ' — бодлогууд') : 'Бүх бодлого';
     el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted);">Уншиж байна...</div>';
-    var url = API + '/api/questions';
-    if (nodeId) url += '?node_id=' + nodeId;
+    var examFilterEl = document.getElementById('q-exam-filter');
+    var examFilter = examFilterEl ? examFilterEl.value : 'lesson';
+    var url = API + '/api/questions?exam=' + encodeURIComponent(examFilter);
+    if (nodeId) url += '&node_id=' + nodeId;
     fetch(url).then(r=>r.json()).then(function(data) {
       var qs = data.questions || [];
       if (search) qs = qs.filter(function(q){ return q.text && q.text.toLowerCase().includes(search.toLowerCase()); });
@@ -3584,9 +3598,11 @@ function openEditMathModal(targetId) {
     var timeLimit = (tlEl && tlEl.value) ? parseInt(tlEl.value) : null;
     var diffEl = document.getElementById('q-difficulty');
     var difficulty = diffEl ? (diffEl.value || 'medium') : 'medium';
+    var isExamEl = document.getElementById('q-is-exam');
+    var isExam = isExamEl ? !!isExamEl.checked : false;
     fetch(API + '/api/questions', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({text, node_id: nodeId?parseInt(nodeId):null, correct, choices: choices, hint: (hint&&(hint.text||hint.embed||hint.image||hint.video))?hint:null, type: qtype, grade: grade, answer_template: answerTpl || null, time_limit: timeLimit, difficulty: difficulty})
+      body: JSON.stringify({text, node_id: nodeId?parseInt(nodeId):null, correct, choices: choices, hint: (hint&&(hint.text||hint.embed||hint.image||hint.video))?hint:null, type: qtype, grade: grade, answer_template: answerTpl || null, time_limit: timeLimit, difficulty: difficulty, is_exam: isExam})
     }).then(r=>r.json()).then(function(data) {
       if (!data.ok) { if(msg){msg.style.color='var(--red)';msg.textContent='Алдаа: '+data.error;} return; }
       if(msg){msg.style.color='var(--green)';msg.textContent='✓ Амжилттай нэмэгдлээ!';}
