@@ -103,24 +103,33 @@ module.exports = async (req, res) => {
       const adminCheck = requireAdmin(req);
       if (!adminCheck.ok) return res.status(403).json({ ok: false, error: 'Зөвхөн админ' });
       const today = todayStr();
-      // ?premium_cleanup=1 → бүх Premium-ын expiry-г шалгаж дуссан-ыг free болгоно
-      if (req.query && req.query.premium_cleanup === '1') {
-        const c = await pool.query(
+      // AUTO-CLEANUP — Admin GET бүрд expired Premium-ыг free болгож stat нэгтэй болгох
+      try {
+        await pool.query(
           `UPDATE users SET plan='free' WHERE plan='premium' AND
            ((premium_expiry IS NOT NULL AND premium_expiry < NOW()) OR
-            (premium_expiry IS NULL AND premium_until IS NOT NULL AND premium_until < NOW()))
-           RETURNING id`
+            (premium_expiry IS NULL AND premium_until IS NOT NULL AND premium_until < NOW()))`
         );
-        return res.json({ ok: true, cleared: c.rowCount });
+      } catch(_){}
+      // ?premium_cleanup=1 → cleanup count буцаах (backwards compat)
+      if (req.query && req.query.premium_cleanup === '1') {
+        const c = await pool.query(
+          `SELECT COUNT(*) AS cnt FROM users WHERE plan='premium' AND
+           ((premium_expiry IS NOT NULL AND premium_expiry < NOW()) OR
+            (premium_expiry IS NULL AND premium_until IS NOT NULL AND premium_until < NOW()))`
+        );
+        return res.json({ ok: true, cleared: 0, note: 'Cleanup нь GET бүрд автомат ажилладаг' });
       }
       // ?premium=1 → зөвхөн Premium идэвхтэй хэрэглэгчид (он сар нь premium_expiry-аар sort)
       if (req.query && req.query.premium === '1') {
+        // Бүх plan='premium' хэрэглэгчдийг буцаах — Overview-той ижил count
+        // (Auto-cleanup аль хэдийн ажилласан учир expired-ыг тоохгүй)
         const pr = await pool.query(
           `SELECT id,email,first_name,last_name,grade,plan,premium_expiry,premium_until,
                   xp,school,phone,created_at
            FROM users
-           WHERE plan='premium' AND (premium_expiry IS NOT NULL OR premium_until IS NOT NULL)
-           ORDER BY COALESCE(premium_expiry, premium_until) DESC`
+           WHERE plan='premium'
+           ORDER BY COALESCE(premium_expiry, premium_until, created_at) DESC NULLS LAST`
         );
         const list = pr.rows.map(u => {
           const exp = u.premium_expiry || u.premium_until;
