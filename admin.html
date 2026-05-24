@@ -181,6 +181,24 @@ function summaryCard(label, val, color) {
     + '</div>';
 }
 
+window.cleanupExpiredPremium = async function(evt) {
+  if (!confirm('Хугацаа дуссан БҮХ Premium хэрэглэгчдийг free болгох уу?\n\nЭнэ нь:\n• plan=premium → free\n• premium_expiry-н хугацаа < одоо\n\nЭргэж сэргээх боломжгүй.')) return;
+  var btn = evt && (evt.currentTarget || evt.target);
+  var orig = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Цэвэрлэж байна...'; }
+  try {
+    var r = await adminFetch('/api/users?premium_cleanup=1');
+    var d = await r.json();
+    if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+    if (!d.ok) { alert('Алдаа: ' + (d.error || '')); return; }
+    alert('✓ Цэвэрлэгдсэн: ' + (d.cleared || 0) + ' хэрэглэгчийн plan free болов.');
+    loadPremiumUsers();
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+    alert('Алдаа: ' + (e.message || e));
+  }
+};
+
 function monNameMn(yyyymm) {
   var parts = yyyymm.split('-');
   var mn = ['1-р сар','2-р сар','3-р сар','4-р сар','5-р сар','6-р сар','7-р сар','8-р сар','9-р сар','10-р сар','11-р сар','12-р сар'];
@@ -1769,8 +1787,9 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
         <div class="page-sub">Premium худалдан авсан сурагчдын жагсаалт он сараар бүлэглэгдсэн</div>
         <div id="premium-summary" style="margin-bottom:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;"></div>
         <div class="table-card" style="padding:14px 16px;">
-          <div class="table-header" style="margin-bottom:14px;">
-            <div class="table-title">Жагсаалт</div>
+          <div class="table-header" style="margin-bottom:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <div class="table-title" style="flex:1;">Жагсаалт</div>
+            <button onclick="cleanupExpiredPremium(event)" style="background:linear-gradient(135deg,#dc2626,#991b1b);border:none;color:#fff;border-radius:8px;padding:6px 12px;cursor:pointer;font-weight:800;font-size:0.82rem;" title="Хугацаа дуссан Premium-уудыг free болгох (нэг дор бүгдийг)">🔒 Дусссанг хаах</button>
             <button class="btn-sm" onclick="loadPremiumUsers()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 12px;cursor:pointer;font-weight:700;">↻ Шинэчлэх</button>
           </div>
           <div id="premium-list"></div>

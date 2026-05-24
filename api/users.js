@@ -103,6 +103,16 @@ module.exports = async (req, res) => {
       const adminCheck = requireAdmin(req);
       if (!adminCheck.ok) return res.status(403).json({ ok: false, error: 'Зөвхөн админ' });
       const today = todayStr();
+      // ?premium_cleanup=1 → бүх Premium-ын expiry-г шалгаж дуссан-ыг free болгоно
+      if (req.query && req.query.premium_cleanup === '1') {
+        const c = await pool.query(
+          `UPDATE users SET plan='free' WHERE plan='premium' AND
+           ((premium_expiry IS NOT NULL AND premium_expiry < NOW()) OR
+            (premium_expiry IS NULL AND premium_until IS NOT NULL AND premium_until < NOW()))
+           RETURNING id`
+        );
+        return res.json({ ok: true, cleared: c.rowCount });
+      }
       // ?premium=1 → зөвхөн Premium идэвхтэй хэрэглэгчид (он сар нь premium_expiry-аар sort)
       if (req.query && req.query.premium === '1') {
         const pr = await pool.query(
