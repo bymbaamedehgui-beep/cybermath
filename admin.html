@@ -206,6 +206,41 @@ function summaryCard(label, val, color) {
     + '</div>';
 }
 
+window.grantPremium = async function(evt) {
+  var btn = evt && (evt.currentTarget || evt.target);
+  var orig = btn ? btn.innerHTML : '';
+  var msg = document.getElementById('pm-msg');
+  var email = (document.getElementById('pm-email').value || '').trim().toLowerCase();
+  var dur = document.getElementById('pm-duration').value;
+  if (!email) { msg.textContent = 'И-мэйл оруулна уу'; msg.style.color = '#dc2626'; return; }
+  // Хугацаа → хоног
+  var days = 30;
+  if (dur === '1d') days = 1;
+  else if (dur === '7d') days = 7;
+  else if (/^(\d+)m$/.test(dur)) days = parseInt(dur) * 30;
+  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Олгож байна...'; }
+  msg.textContent = '';
+  try {
+    var expiry = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+    var r = await adminFetch('/api/users', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email, plan: 'premium', premium_expiry: expiry, action: 'grantPremium' })
+    });
+    var d = await r.json();
+    if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+    if (!d.ok) { msg.textContent = '✗ ' + (d.error || 'Алдаа'); msg.style.color = '#dc2626'; return; }
+    msg.innerHTML = '✓ <b>' + email + '</b> хэрэглэгчид <b>' + days + ' хоног</b> Premium олгогдлоо (' + new Date(expiry).toLocaleDateString('mn-MN') + ' хүртэл).';
+    msg.style.color = '#10b981';
+    document.getElementById('pm-email').value = '';
+    loadPremiumUsers();
+    setTimeout(function(){ msg.textContent = ''; }, 5000);
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+    msg.textContent = '✗ ' + (e.message || e); msg.style.color = '#dc2626';
+  }
+};
+
 window.cleanupExpiredPremium = async function(evt) {
   if (!confirm('Хугацаа дуссан БҮХ Premium хэрэглэгчдийг free болгох уу?\n\nЭнэ нь:\n• plan=premium → free\n• premium_expiry-н хугацаа < одоо\n\nЭргэж сэргээх боломжгүй.')) return;
   var btn = evt && (evt.currentTarget || evt.target);
@@ -1810,6 +1845,39 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
       <div class="page" id="page-premium" style="display:none;">
         <div class="page-title">Premium хэрэглэгчид</div>
         <div class="page-sub">Premium худалдан авсан сурагчдын жагсаалт он сараар бүлэглэгдсэн</div>
+
+        <!-- Manual Premium grant form -->
+        <div class="q-form" style="margin-bottom:18px;">
+          <div class="q-form-title" style="display:flex;align-items:center;gap:6px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Premium гар олгох</div>
+          <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:10px;margin-top:10px;align-items:end;">
+            <div>
+              <label style="font-size:0.78rem;font-weight:800;color:var(--muted);display:block;margin-bottom:4px;">Хэрэглэгчийн и-мэйл</label>
+              <input id="pm-email" type="email" placeholder="example@gmail.com" style="width:100%;padding:9px 12px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-weight:700;outline:none;box-sizing:border-box;">
+            </div>
+            <div>
+              <label style="font-size:0.78rem;font-weight:800;color:var(--muted);display:block;margin-bottom:4px;">Хугацаа</label>
+              <select id="pm-duration" style="width:100%;padding:9px 12px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-weight:700;outline:none;box-sizing:border-box;">
+                <option value="1d">1 хоног</option>
+                <option value="7d">7 хоног</option>
+                <option value="1m" selected>1 сар</option>
+                <option value="2m">2 сар</option>
+                <option value="3m">3 сар</option>
+                <option value="4m">4 сар</option>
+                <option value="5m">5 сар</option>
+                <option value="6m">6 сар</option>
+                <option value="7m">7 сар</option>
+                <option value="8m">8 сар</option>
+                <option value="9m">9 сар</option>
+                <option value="10m">10 сар</option>
+                <option value="11m">11 сар</option>
+                <option value="12m">12 сар (1 жил)</option>
+              </select>
+            </div>
+            <button onclick="grantPremium(event)" class="add-btn" style="height:38px;">⭐ Олгох</button>
+          </div>
+          <div id="pm-msg" style="margin-top:8px;font-size:0.85rem;font-weight:800;min-height:18px;"></div>
+        </div>
+
         <div id="premium-summary" style="margin-bottom:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;"></div>
         <div class="table-card" style="padding:14px 16px;">
           <div class="table-header" style="margin-bottom:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
