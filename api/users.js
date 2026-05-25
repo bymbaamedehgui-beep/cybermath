@@ -199,10 +199,15 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === 'PUT') {
-      const { email, action, plan, xp, gems, hearts, streak, avatar, completed_lesson,
+      let { email, action, plan, xp, gems, hearts, streak, avatar, completed_lesson,
               stars_data, streak_data, current_node_id, hearts_empty_time, profile_image,
               first_name, last_name, grade } = req.body || {};
       if (!email) return res.status(400).json({ ok: false, error: 'Missing email' });
+      // Email-ыг normalize — case-insensitive lookup (saveLessonProgress г.м case-sensitive
+      // WHERE email=$1 query-ууд DB-н lowercase email-тай нийцэхгүй байсныг засав)
+      email = String(email).trim().toLowerCase();
+      // body-руу буцаах — дараах query-ууд req.body.email ашиглаж байгаа бол
+      req.body.email = email;
 
       // Auth шалгалт — token байвал email-тай таарч байх ёстой
       const access = checkUserAccess(req, email, { strict: false });
