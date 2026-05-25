@@ -1566,6 +1566,7 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
               <input type="file" id="q-image-file" accept="image/*" onchange="loadQImage(this)" style="flex:1;padding:7px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:0.82rem;">
               <button type="button" onclick="clearQImage()" style="padding:6px 10px;background:#FF4B4B22;border:1px solid #FF4B4B55;color:#FF4B4B;border-radius:8px;cursor:pointer;font-size:0.78rem;font-weight:800;">🗑</button>
             </div>
+            <div onclick="document.getElementById('q-image-paste-zone').focus()" id="q-image-paste-zone" tabindex="0" style="margin-top:8px;padding:14px;border:2px dashed var(--border);border-radius:10px;text-align:center;color:var(--muted);font-size:0.82rem;cursor:pointer;outline:none;transition:all 0.15s;" onfocus="this.style.borderColor='#7B52EE';this.style.background='rgba(123,82,238,0.05)';this.textContent='📋 Ctrl+V дарж зургийг paste хийнэ үү...'" onblur="this.style.borderColor='var(--border)';this.style.background='transparent';this.textContent='📋 Энд дараад Ctrl+V (paste)'">📋 Энд дараад Ctrl+V (paste)</div>
             <input type="hidden" id="q-image">
             <div id="q-image-preview" style="margin-top:8px;display:none;"><img id="q-img-el" style="max-width:100%;max-height:160px;border-radius:8px;border:1px solid var(--border);"></div>
           </div>
@@ -4496,6 +4497,38 @@ function openEditMathModal(targetId) {
     var h=document.getElementById('q-image');if(h)h.value='';
     var p=document.getElementById('q-image-preview');if(p)p.style.display='none';
   }
+  // Зураг paste handler — clipboard-аас image data авах
+  function _handleImagePaste(e) {
+    var items = (e.clipboardData || e.originalEvent && e.originalEvent.clipboardData || window.clipboardData).items;
+    if (!items) return;
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].type && items[i].type.indexOf('image') === 0) {
+        e.preventDefault();
+        var file = items[i].getAsFile();
+        if (!file) continue;
+        var r = new FileReader();
+        r.onload = function(ev) {
+          var h = document.getElementById('q-image'); if (h) h.value = ev.target.result;
+          var p = document.getElementById('q-image-preview');
+          var img = document.getElementById('q-img-el');
+          if (p && img) { img.src = ev.target.result; p.style.display = 'block'; }
+          // Toast
+          var zone = document.getElementById('q-image-paste-zone');
+          if (zone) { zone.textContent = '✓ Зураг paste хийгдлээ!'; zone.style.color = '#10b981'; zone.style.borderColor = '#10b981'; setTimeout(function(){ zone.textContent = '📋 Энд дараад Ctrl+V (paste)'; zone.style.color = ''; zone.style.borderColor = ''; }, 2000); }
+        };
+        r.readAsDataURL(file);
+        return;
+      }
+    }
+  }
+  // Paste-ыг зөвхөн focus paste-zone-ийн дотор listen хийнэ
+  document.addEventListener('DOMContentLoaded', function(){
+    var zone = document.getElementById('q-image-paste-zone');
+    if (zone) zone.addEventListener('paste', _handleImagePaste);
+    // Бас бодлогын текст-руу focus хийсэн үед paste handle хийе
+    var qText = document.getElementById('q-text-main');
+    if (qText) qText.addEventListener('paste', _handleImagePaste);
+  });
   // Clock + close outside click
   document.addEventListener('DOMContentLoaded', function(){
   // Auto-grow textarea
