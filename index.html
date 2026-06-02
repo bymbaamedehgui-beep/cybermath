@@ -50304,14 +50304,18 @@ function toggleAvatarSection() {
       if (isDone) diffStat[diff].d++;
     });
 
-    // Сурагчийн өөрийн төлөвлөгөө merge
+    // Сурагчийн өөрийн төлөвлөгөө merge — node ID-аар completed эсэхийг шалгана
     var personal = (typeof _getPersonalPlan === 'function') ? _getPersonalPlan() : [];
+    var _doneSet = {};
+    done.forEach(function(x){ _doneSet[String(x)] = true; });
     personal.forEach(function(p){
-      if (!p || !p.date) return;
+      if (!p || !p.date || !p.nodeId) return;
       if (!lessonMap[p.date]) lessonMap[p.date] = [];
-      var pd = p.diff || 'med';
-      lessonMap[p.date].push({ personal: true, id: p.id, title: p.title || '', diff: pd, done: !!p.done });
-      if (diffStat[pd]) { diffStat[pd].t++; if (p.done) diffStat[pd].d++; }
+      var _DBY = ['easy','med','hard'];
+      var pd = _DBY[(parseInt(p.nodeId)||0) % 3];
+      var isDone = !!_doneSet[String(p.nodeId)];
+      lessonMap[p.date].push({ personal: true, id: p.id, title: p.nodeName || ('Хичээл #'+p.nodeId), diff: pd, done: isDone });
+      if (diffStat[pd]) { diffStat[pd].t++; if (isDone) diffStat[pd].d++; }
     });
 
     var totalDone = diffStat.easy.d + diffStat.med.d + diffStat.hard.d;
@@ -50467,93 +50471,210 @@ function toggleAvatarSection() {
     try { localStorage.setItem('cm_my_plan', JSON.stringify(arr)); } catch(e) {}
   }
 
+  // Хичээлийн жагсаалт grade-ээр шүүж дараалуулна
+  function _calGetOrderedLessons() {
+    var nodes = [];
+    try { nodes = JSON.parse(localStorage.getItem('cm_nodes') || '[]'); } catch(e) {}
+    nodes = (nodes || []).filter(function(n){ return n && n.type === 'lesson'; });
+    var grade = (typeof _currentUser !== 'undefined' && _currentUser && _currentUser.grade) ? String(_currentUser.grade) : null;
+    if (grade && grade !== 'teacher') {
+      var g = nodes.filter(function(n){ return String(n.grade) === grade; });
+      if (g.length) nodes = g;
+    }
+    nodes.sort(function(a, b){ return (parseInt(a.id)||0) - (parseInt(b.id)||0); });
+    return nodes;
+  }
+
   window._calAddPersonal = function(dateKey) {
     var existing = document.getElementById('cmcal-modal');
     if (existing) existing.remove();
+
+    var nodes = _calGetOrderedLessons();
+    if (!nodes.length) {
+      if (typeof showToast === 'function') showToast('Хичээлийн жагсаалт олдсонгүй');
+      else alert('Хичээлийн жагсаалт олдсонгүй');
+      return;
+    }
+
+    var completed = [];
+    try { completed = JSON.parse(localStorage.getItem('cm_completed') || '[]'); } catch(e) {}
+    var completedSet = {};
+    completed.forEach(function(x){ completedSet[String(x)] = true; });
+    var plan = _getPersonalPlan();
+
+    var dateLabel = (function(){
+      var parts = dateKey.split('-');
+      return parts[0] + '/' + parts[1] + '/' + parts[2];
+    })();
+
     var modal = document.createElement('div');
     modal.id = 'cmcal-modal';
     modal.style.cssText = 'position:fixed;inset:0;background:rgba(43,37,66,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:18px;';
-    modal.innerHTML = '<div style="background:#fff;border-radius:18px;padding:20px;max-width:340px;width:100%;font-family:\'Baloo 2\',sans-serif;box-shadow:0 20px 60px rgba(0,0,0,0.25);">'
-      + '<div style="font-family:Caveat,cursive;font-size:1.7rem;color:#2B2542;margin-bottom:14px;font-weight:700;">Шинэ төлөвлөгөө</div>'
-      + '<div style="font-size:0.72rem;color:#7A6E5C;font-weight:800;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Гарчиг</div>'
-      + '<input id="cmcal-modal-title" type="text" placeholder="Жишээ: Алгебр давталт" style="width:100%;padding:11px 12px;border:1px solid #ECE4D8;border-radius:12px;font-family:inherit;font-size:0.92rem;outline:none;box-sizing:border-box;color:#2B2542;" maxlength="40"/>'
-      + '<div style="font-size:0.72rem;color:#7A6E5C;font-weight:800;margin:14px 0 6px;text-transform:uppercase;letter-spacing:0.5px;">Төрөл</div>'
-      + '<div id="cmcal-modal-diff" style="display:flex;gap:8px;">'
-      +   '<button data-diff="easy" data-c="#3FB37A" type="button" style="flex:1;padding:9px 4px;border:1.5px solid #3FB37A;background:#fff;border-radius:11px;cursor:pointer;font-family:inherit;font-weight:800;font-size:0.78rem;color:#3FB37A;">Хялбар</button>'
-      +   '<button data-diff="med" data-c="#5B8DEF" type="button" style="flex:1;padding:9px 4px;border:1.5px solid #5B8DEF;background:#fff;border-radius:11px;cursor:pointer;font-family:inherit;font-weight:800;font-size:0.78rem;color:#5B8DEF;">Дунд</button>'
-      +   '<button data-diff="hard" data-c="#E45A6B" type="button" style="flex:1;padding:9px 4px;border:1.5px solid #E45A6B;background:#fff;border-radius:11px;cursor:pointer;font-family:inherit;font-weight:800;font-size:0.78rem;color:#E45A6B;">Хүнд</button>'
-      + '</div>'
-      + '<div style="display:flex;gap:8px;margin-top:18px;">'
-      +   '<button id="cmcal-modal-cancel" type="button" style="flex:1;padding:11px;background:#fff;border:1.5px solid #ECE4D8;border-radius:12px;cursor:pointer;font-family:inherit;font-weight:800;color:#7A6E5C;font-size:0.88rem;">Болих</button>'
-      +   '<button id="cmcal-modal-save" type="button" style="flex:1;padding:11px;background:#2B2542;color:#fff;border:none;border-radius:12px;cursor:pointer;font-family:inherit;font-weight:800;font-size:0.88rem;">Хадгалах</button>'
-      + '</div>'
-      + '</div>';
     document.body.appendChild(modal);
-    var sel = 'med';
-    var diffBtns = modal.querySelectorAll('#cmcal-modal-diff button');
-    function applySel() {
-      diffBtns.forEach(function(bb){
-        var df = bb.getAttribute('data-diff');
-        var c = bb.getAttribute('data-c');
-        if (df === sel) { bb.style.background = c; bb.style.color = '#fff'; }
-        else { bb.style.background = '#fff'; bb.style.color = c; }
+
+    function buildStates() {
+      var pn = {};
+      plan.forEach(function(p){ if (p && p.nodeId) pn[p.nodeId] = p; });
+      var st = [];
+      var foundAvail = false;
+      for (var i=0; i<nodes.length; i++) {
+        var n = nodes[i];
+        if (completedSet[String(n.id)]) {
+          st.push({ node:n, status:'done' });
+        } else if (pn[n.id]) {
+          st.push({ node:n, status:'planned', planDate:pn[n.id].date, planItemId:pn[n.id].id });
+        } else if (!foundAvail) {
+          st.push({ node:n, status:'available' });
+          foundAvail = true;
+        } else {
+          st.push({ node:n, status:'locked' });
+        }
+      }
+      return st;
+    }
+
+    function renderList() {
+      var states = buildStates();
+      var rowsHtml = states.map(function(s){
+        var n = s.node;
+        var nm = n.name || ('Хичээл #' + n.id);
+        var icon, badge, action, opacity, cursor, bg, border;
+        if (s.status === 'done') {
+          icon = '<span style="width:24px;height:24px;border-radius:50%;background:#10b981;color:#fff;display:flex;align-items:center;justify-content:center;font-size:0.72rem;flex-shrink:0;">✓</span>';
+          badge = '<span style="font-size:0.66rem;color:#10b981;font-weight:800;white-space:nowrap;">Дууссан</span>';
+          action = ''; opacity = '0.7'; cursor = 'default';
+          bg = '#F0FDF4'; border = '#86EFAC';
+        } else if (s.status === 'planned') {
+          var pd = (s.planDate||'').split('-');
+          icon = '<span style="width:24px;height:24px;border-radius:50%;background:#6B5BFF;color:#fff;display:flex;align-items:center;justify-content:center;font-size:0.8rem;flex-shrink:0;">📅</span>';
+          badge = '<span style="font-size:0.66rem;color:#6B5BFF;font-weight:800;white-space:nowrap;">'+(pd[1]||'')+'/'+(pd[2]||'')+'</span>';
+          action = 'planned-' + s.planItemId; opacity = '1'; cursor = 'pointer';
+          bg = '#F0EEFF'; border = '#C7BFFF';
+        } else if (s.status === 'available') {
+          icon = '<span style="width:24px;height:24px;border-radius:50%;background:#fff;border:1.5px solid #6B5BFF;color:#6B5BFF;display:flex;align-items:center;justify-content:center;font-size:0.86rem;font-weight:800;flex-shrink:0;">+</span>';
+          badge = '<span style="font-size:0.66rem;color:#6B5BFF;font-weight:800;white-space:nowrap;">Сонгох</span>';
+          action = 'add-' + n.id; opacity = '1'; cursor = 'pointer';
+          bg = '#fff'; border = '#6B5BFF';
+        } else {
+          icon = '<span style="width:24px;height:24px;border-radius:50%;background:#ECE4D8;color:#A89B85;display:flex;align-items:center;justify-content:center;font-size:0.7rem;flex-shrink:0;">🔒</span>';
+          badge = '<span style="font-size:0.66rem;color:#A89B85;font-weight:800;white-space:nowrap;">Түгжээтэй</span>';
+          action = ''; opacity = '0.55'; cursor = 'not-allowed';
+          bg = '#FAF6EE'; border = '#ECE4D8';
+        }
+        return '<div data-act="'+action+'" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:'+bg+';border:1px solid '+border+';border-radius:12px;margin-bottom:6px;opacity:'+opacity+';cursor:'+cursor+';">'
+          + icon
+          + '<div style="flex:1;min-width:0;">'
+          +   '<div style="font-weight:800;font-size:0.84rem;color:#2B2542;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:\'Baloo 2\',sans-serif;">'+nm+'</div>'
+          + '</div>'
+          + badge
+          + '</div>';
+      }).join('');
+
+      modal.innerHTML = '<div style="background:#fff;border-radius:18px;padding:18px 16px 14px;max-width:380px;width:100%;font-family:\'Baloo 2\',sans-serif;box-shadow:0 20px 60px rgba(0,0,0,0.25);max-height:88vh;display:flex;flex-direction:column;">'
+        + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px;">'
+        +   '<div>'
+        +     '<div style="font-family:Caveat,cursive;font-size:1.7rem;color:#2B2542;font-weight:700;line-height:1;">Хичээл сонгох</div>'
+        +     '<div style="font-size:0.72rem;color:#7A6E5C;font-weight:700;margin-top:2px;">'+dateLabel+' өдөрт төлөвлөнө</div>'
+        +   '</div>'
+        +   '<button id="cmcal-modal-x" type="button" style="background:#FAF6EE;border:none;border-radius:50%;width:30px;height:30px;cursor:pointer;color:#7A6E5C;font-size:1rem;font-weight:800;flex-shrink:0;">✕</button>'
+        + '</div>'
+        + '<div style="font-size:0.7rem;color:#7A6E5C;font-weight:700;margin:6px 0 10px;padding:8px 10px;background:#FAF6EE;border-radius:10px;border-left:3px solid #6B5BFF;line-height:1.4;">Хичээлийг дарааллаар нь хийнэ. Өмнөх хичээлээ дуусгаагүй бол дараагийнх нь түгжээтэй.</div>'
+        + '<div id="cmcal-list" style="overflow-y:auto;flex:1;min-height:200px;padding-right:4px;">'+rowsHtml+'</div>'
+        + '</div>';
+
+      modal.querySelector('#cmcal-modal-x').onclick = function(){ modal.remove(); };
+      modal.querySelector('#cmcal-list').addEventListener('click', function(e){
+        var row = e.target.closest('[data-act]');
+        if (!row) return;
+        var act = row.getAttribute('data-act') || '';
+        if (!act) return;
+        if (act.indexOf('add-') === 0) {
+          var nodeId = parseInt(act.slice(4));
+          var node = null;
+          for (var i=0; i<nodes.length; i++) if (nodes[i].id === nodeId) { node = nodes[i]; break; }
+          if (!node) return;
+          plan.push({
+            id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
+            date: dateKey,
+            nodeId: nodeId,
+            nodeName: node.name || ('Хичээл #' + nodeId)
+          });
+          _savePersonalPlan(plan);
+          modal.remove();
+          window._calNavMonth(0);
+        } else if (act.indexOf('planned-') === 0) {
+          var pid = act.slice(8);
+          if (confirm('Энэ төлөвлөгөөг устгах уу?')) {
+            plan = plan.filter(function(x){ return x.id !== pid; });
+            _savePersonalPlan(plan);
+            renderList();
+          }
+        }
       });
     }
-    diffBtns.forEach(function(b){
-      b.addEventListener('click', function(){ sel = b.getAttribute('data-diff'); applySel(); });
-    });
-    applySel();
+
+    renderList();
     modal.addEventListener('click', function(e){ if (e.target === modal) modal.remove(); });
-    modal.querySelector('#cmcal-modal-cancel').onclick = function(){ modal.remove(); };
-    modal.querySelector('#cmcal-modal-save').onclick = function(){
-      var title = (modal.querySelector('#cmcal-modal-title').value || '').trim();
-      if (!title) { modal.querySelector('#cmcal-modal-title').focus(); return; }
-      var arr = _getPersonalPlan();
-      arr.push({
-        id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
-        date: dateKey,
-        title: title,
-        diff: sel,
-        done: false
-      });
-      _savePersonalPlan(arr);
-      modal.remove();
-      window._calNavMonth(0);
-    };
-    var inp = modal.querySelector('#cmcal-modal-title');
-    inp.addEventListener('keydown', function(e){
-      if (e.key === 'Enter') modal.querySelector('#cmcal-modal-save').click();
-      if (e.key === 'Escape') modal.querySelector('#cmcal-modal-cancel').click();
-    });
-    setTimeout(function(){ inp.focus(); }, 30);
   };
 
   window._calClickPersonal = function(id) {
     var arr = _getPersonalPlan();
     var item = null;
     for (var i=0; i<arr.length; i++) if (arr[i].id === id) { item = arr[i]; break; }
-    if (!item) return;
+    if (!item || !item.nodeId) return;
+
+    var ordered = _calGetOrderedLessons();
+    var completed = [];
+    try { completed = JSON.parse(localStorage.getItem('cm_completed') || '[]'); } catch(e) {}
+    var doneSet = {};
+    completed.forEach(function(x){ doneSet[String(x)] = true; });
+
+    var thisIdx = -1;
+    for (var i=0; i<ordered.length; i++) if (ordered[i].id === item.nodeId) { thisIdx = i; break; }
+
+    var blockerName = null;
+    if (thisIdx > 0) {
+      for (var j=0; j<thisIdx; j++) {
+        if (!doneSet[String(ordered[j].id)]) {
+          blockerName = ordered[j].name || ('Хичээл #' + ordered[j].id);
+          break;
+        }
+      }
+    }
+    var isDone = !!doneSet[String(item.nodeId)];
+
     var existing = document.getElementById('cmcal-modal');
     if (existing) existing.remove();
     var modal = document.createElement('div');
     modal.id = 'cmcal-modal';
     modal.style.cssText = 'position:fixed;inset:0;background:rgba(43,37,66,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:18px;';
-    modal.innerHTML = '<div style="background:#fff;border-radius:18px;padding:20px;max-width:300px;width:100%;font-family:\'Baloo 2\',sans-serif;box-shadow:0 20px 60px rgba(0,0,0,0.25);">'
-      + '<div style="font-family:Caveat,cursive;font-size:1.5rem;color:#2B2542;margin-bottom:14px;font-weight:700;text-align:center;line-height:1.1;">'+ (item.title||'') +'</div>'
-      + '<button id="cm-toggle" type="button" style="width:100%;padding:12px;background:#2B2542;color:#fff;border:none;border-radius:12px;cursor:pointer;font-family:inherit;font-weight:800;margin-bottom:8px;font-size:0.9rem;">'+ (item.done?'Дуусаагүй болгох':'✓ Дуусгасан болгох') +'</button>'
-      + '<button id="cm-del" type="button" style="width:100%;padding:12px;background:#fff;color:#E45A6B;border:1.5px solid #E45A6B;border-radius:12px;cursor:pointer;font-family:inherit;font-weight:800;margin-bottom:8px;font-size:0.86rem;">Устгах</button>'
+
+    var openBtnHtml = '';
+    if (isDone) {
+      openBtnHtml = '<div style="text-align:center;padding:10px;background:#F0FDF4;border:1px solid #86EFAC;border-radius:12px;margin-bottom:10px;color:#10b981;font-weight:800;font-size:0.86rem;">✓ Энэ хичээлийг дуусгасан</div>';
+    } else if (blockerName) {
+      openBtnHtml = '<div style="text-align:center;padding:10px;background:#FFF5F2;border:1px solid #FFCFC2;border-radius:12px;margin-bottom:10px;color:#E45A6B;font-weight:800;font-size:0.78rem;line-height:1.4;">🔒 Эхлээд<br><span style="color:#2B2542;">"'+blockerName+'"</span><br>хичээлийг хий</div>';
+    } else {
+      openBtnHtml = '<button id="cm-open" type="button" style="width:100%;padding:12px;background:linear-gradient(135deg,#6B5BFF,#A855F7);color:#fff;border:none;border-radius:12px;cursor:pointer;font-family:inherit;font-weight:800;margin-bottom:8px;font-size:0.92rem;">▶ Хичээлээ эхлүүлэх</button>';
+    }
+
+    modal.innerHTML = '<div style="background:#fff;border-radius:18px;padding:20px;max-width:320px;width:100%;font-family:\'Baloo 2\',sans-serif;box-shadow:0 20px 60px rgba(0,0,0,0.25);">'
+      + '<div style="font-family:Caveat,cursive;font-size:1.4rem;color:#2B2542;margin-bottom:4px;font-weight:700;text-align:center;line-height:1.1;">'+ (item.nodeName || item.title || 'Хичээл') +'</div>'
+      + '<div style="font-size:0.7rem;color:#7A6E5C;font-weight:700;text-align:center;margin-bottom:14px;">'+(item.date||'')+'</div>'
+      + openBtnHtml
+      + '<button id="cm-del" type="button" style="width:100%;padding:11px;background:#fff;color:#E45A6B;border:1.5px solid #E45A6B;border-radius:12px;cursor:pointer;font-family:inherit;font-weight:800;margin-bottom:8px;font-size:0.84rem;">Төлөвлөгөөнөөс хасах</button>'
       + '<button id="cm-cancel" type="button" style="width:100%;padding:10px;background:transparent;border:none;color:#7A6E5C;cursor:pointer;font-family:inherit;font-weight:700;font-size:0.84rem;">Болих</button>'
       + '</div>';
     document.body.appendChild(modal);
     modal.addEventListener('click', function(e){ if (e.target === modal) modal.remove(); });
     modal.querySelector('#cm-cancel').onclick = function(){ modal.remove(); };
-    modal.querySelector('#cm-toggle').onclick = function(){
-      var a = _getPersonalPlan();
-      for (var i=0; i<a.length; i++) if (a[i].id === id) { a[i].done = !a[i].done; break; }
-      _savePersonalPlan(a);
-      modal.remove();
-      window._calNavMonth(0);
-    };
+    var openBtn = modal.querySelector('#cm-open');
+    if (openBtn) {
+      openBtn.onclick = function(){
+        modal.remove();
+        if (typeof openLesson === 'function') openLesson(item.nodeId);
+      };
+    }
     modal.querySelector('#cm-del').onclick = function(){
       var a = _getPersonalPlan();
       a = a.filter(function(x){ return x.id !== id; });
