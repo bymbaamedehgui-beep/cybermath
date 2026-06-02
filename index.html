@@ -50255,7 +50255,7 @@ function toggleAvatarSection() {
         + '.cmcal-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px;}'
         + '.cmcal-dow div{text-align:center;font-size:0.66rem;color:var(--ink2);font-weight:800;text-transform:uppercase;letter-spacing:0.5px;padding:4px 0;}'
         + '.cmcal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}'
-        + '.cmcal-cell{min-height:84px;border:1px solid var(--line);border-radius:12px;padding:5px;background:#FAF6EE;display:flex;flex-direction:column;gap:3px;overflow:hidden;}'
+        + '.cmcal-cell{position:relative;min-height:84px;border:1px solid var(--line);border-radius:12px;padding:5px;background:#FAF6EE;display:flex;flex-direction:column;gap:3px;overflow:hidden;}'
         + '.cmcal-cell.in-month{background:var(--card);}'
         + '.cmcal-cell.today{background:var(--ink);border-color:var(--ink);}'
         + '.cmcal-cell.today .cmcal-dn{color:#fff;}'
@@ -50270,6 +50270,10 @@ function toggleAvatarSection() {
         + '.cmcal-check{width:12px;height:12px;border-radius:50%;border:1.4px solid #D8CFBE;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:8px;color:#fff;background:#fff;}'
         + '.cmcal-chip.done .cmcal-check{background:#10b981;border-color:#10b981;}'
         + '.cmcal-more{font-size:0.6rem;color:var(--ink2);font-weight:800;padding:0 4px;}'
+        + '.cmcal-add{position:absolute;top:3px;right:3px;width:16px;height:16px;border-radius:50%;background:transparent;border:1px dashed #D8CFBE;color:#A89B85;font-size:0.75rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;font-weight:800;opacity:0.55;padding:0;}'
+        + '.cmcal-add:hover{opacity:1;border-color:var(--accent);color:var(--accent);border-style:solid;}'
+        + '.cmcal-cell.today .cmcal-add{border-color:rgba(255,255,255,0.4);color:rgba(255,255,255,0.75);}'
+        + '.cmcal-chip.personal{border-left-style:dashed;}'
         ;
       document.head.appendChild(st);
     }
@@ -50298,6 +50302,16 @@ function toggleAvatarSection() {
       lessonMap[key].push({ lesson: L, idx: i, diff: diff, done: isDone });
       diffStat[diff].t++;
       if (isDone) diffStat[diff].d++;
+    });
+
+    // Сурагчийн өөрийн төлөвлөгөө merge
+    var personal = (typeof _getPersonalPlan === 'function') ? _getPersonalPlan() : [];
+    personal.forEach(function(p){
+      if (!p || !p.date) return;
+      if (!lessonMap[p.date]) lessonMap[p.date] = [];
+      var pd = p.diff || 'med';
+      lessonMap[p.date].push({ personal: true, id: p.id, title: p.title || '', diff: pd, done: !!p.done });
+      if (diffStat[pd]) { diffStat[pd].t++; if (p.done) diffStat[pd].d++; }
     });
 
     var totalDone = diffStat.easy.d + diffStat.med.d + diffStat.hard.d;
@@ -50389,14 +50403,18 @@ function toggleAvatarSection() {
       var items = lessonMap[key2] || [];
 
       var cls = 'cmcal-cell' + (inMonth ? ' in-month':'') + (isToday ? ' today':'');
+      var addBtn = inMonth ? '<button class="cmcal-add" type="button" onclick="window._calAddPersonal(\''+key2+'\')" aria-label="Нэмэх">+</button>' : '';
       mainHtml += '<div class="'+cls+'">'
-        + '<div class="cmcal-dn">'+dn+'</div>';
+        + '<div class="cmcal-dn">'+dn+'</div>'
+        + addBtn;
       var shown = items.slice(0,3);
       shown.forEach(function(it){
-        var nm = (it.lesson.name || 'Хичээл');
+        var nm = it.personal ? (it.title || '') : (it.lesson && it.lesson.name ? it.lesson.name : 'Хичээл');
         if (nm.length > 14) nm = nm.slice(0,13) + '…';
         var doneCls = it.done ? ' done' : '';
-        mainHtml += '<div class="cmcal-chip '+it.diff+doneCls+'" onclick="window.openClassroomLesson('+it.idx+')">'
+        var personalCls = it.personal ? ' personal' : '';
+        var oh = it.personal ? ('window._calClickPersonal(\''+it.id+'\')') : ('window.openClassroomLesson('+it.idx+')');
+        mainHtml += '<div class="cmcal-chip '+it.diff+doneCls+personalCls+'" onclick="'+oh+'">'
           + '<span class="cmcal-chip-name">'+nm+'</span>'
           + '<span class="cmcal-check">'+(it.done?'✓':'')+'</span>'
           + '</div>';
@@ -50438,6 +50456,111 @@ function toggleAvatarSection() {
     var tt = new Date();
     window._calNav = { y: tt.getFullYear(), m: tt.getMonth() };
     window._calNavMonth(0);
+  };
+
+  // ===== Сурагчийн өөрийн төлөвлөгөө (localStorage) =====
+  function _getPersonalPlan() {
+    try { return JSON.parse(localStorage.getItem('cm_my_plan') || '[]'); }
+    catch(e) { return []; }
+  }
+  function _savePersonalPlan(arr) {
+    try { localStorage.setItem('cm_my_plan', JSON.stringify(arr)); } catch(e) {}
+  }
+
+  window._calAddPersonal = function(dateKey) {
+    var existing = document.getElementById('cmcal-modal');
+    if (existing) existing.remove();
+    var modal = document.createElement('div');
+    modal.id = 'cmcal-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(43,37,66,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:18px;';
+    modal.innerHTML = '<div style="background:#fff;border-radius:18px;padding:20px;max-width:340px;width:100%;font-family:\'Baloo 2\',sans-serif;box-shadow:0 20px 60px rgba(0,0,0,0.25);">'
+      + '<div style="font-family:Caveat,cursive;font-size:1.7rem;color:#2B2542;margin-bottom:14px;font-weight:700;">Шинэ төлөвлөгөө</div>'
+      + '<div style="font-size:0.72rem;color:#7A6E5C;font-weight:800;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Гарчиг</div>'
+      + '<input id="cmcal-modal-title" type="text" placeholder="Жишээ: Алгебр давталт" style="width:100%;padding:11px 12px;border:1px solid #ECE4D8;border-radius:12px;font-family:inherit;font-size:0.92rem;outline:none;box-sizing:border-box;color:#2B2542;" maxlength="40"/>'
+      + '<div style="font-size:0.72rem;color:#7A6E5C;font-weight:800;margin:14px 0 6px;text-transform:uppercase;letter-spacing:0.5px;">Төрөл</div>'
+      + '<div id="cmcal-modal-diff" style="display:flex;gap:8px;">'
+      +   '<button data-diff="easy" data-c="#3FB37A" type="button" style="flex:1;padding:9px 4px;border:1.5px solid #3FB37A;background:#fff;border-radius:11px;cursor:pointer;font-family:inherit;font-weight:800;font-size:0.78rem;color:#3FB37A;">Хялбар</button>'
+      +   '<button data-diff="med" data-c="#5B8DEF" type="button" style="flex:1;padding:9px 4px;border:1.5px solid #5B8DEF;background:#fff;border-radius:11px;cursor:pointer;font-family:inherit;font-weight:800;font-size:0.78rem;color:#5B8DEF;">Дунд</button>'
+      +   '<button data-diff="hard" data-c="#E45A6B" type="button" style="flex:1;padding:9px 4px;border:1.5px solid #E45A6B;background:#fff;border-radius:11px;cursor:pointer;font-family:inherit;font-weight:800;font-size:0.78rem;color:#E45A6B;">Хүнд</button>'
+      + '</div>'
+      + '<div style="display:flex;gap:8px;margin-top:18px;">'
+      +   '<button id="cmcal-modal-cancel" type="button" style="flex:1;padding:11px;background:#fff;border:1.5px solid #ECE4D8;border-radius:12px;cursor:pointer;font-family:inherit;font-weight:800;color:#7A6E5C;font-size:0.88rem;">Болих</button>'
+      +   '<button id="cmcal-modal-save" type="button" style="flex:1;padding:11px;background:#2B2542;color:#fff;border:none;border-radius:12px;cursor:pointer;font-family:inherit;font-weight:800;font-size:0.88rem;">Хадгалах</button>'
+      + '</div>'
+      + '</div>';
+    document.body.appendChild(modal);
+    var sel = 'med';
+    var diffBtns = modal.querySelectorAll('#cmcal-modal-diff button');
+    function applySel() {
+      diffBtns.forEach(function(bb){
+        var df = bb.getAttribute('data-diff');
+        var c = bb.getAttribute('data-c');
+        if (df === sel) { bb.style.background = c; bb.style.color = '#fff'; }
+        else { bb.style.background = '#fff'; bb.style.color = c; }
+      });
+    }
+    diffBtns.forEach(function(b){
+      b.addEventListener('click', function(){ sel = b.getAttribute('data-diff'); applySel(); });
+    });
+    applySel();
+    modal.addEventListener('click', function(e){ if (e.target === modal) modal.remove(); });
+    modal.querySelector('#cmcal-modal-cancel').onclick = function(){ modal.remove(); };
+    modal.querySelector('#cmcal-modal-save').onclick = function(){
+      var title = (modal.querySelector('#cmcal-modal-title').value || '').trim();
+      if (!title) { modal.querySelector('#cmcal-modal-title').focus(); return; }
+      var arr = _getPersonalPlan();
+      arr.push({
+        id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
+        date: dateKey,
+        title: title,
+        diff: sel,
+        done: false
+      });
+      _savePersonalPlan(arr);
+      modal.remove();
+      window._calNavMonth(0);
+    };
+    var inp = modal.querySelector('#cmcal-modal-title');
+    inp.addEventListener('keydown', function(e){
+      if (e.key === 'Enter') modal.querySelector('#cmcal-modal-save').click();
+      if (e.key === 'Escape') modal.querySelector('#cmcal-modal-cancel').click();
+    });
+    setTimeout(function(){ inp.focus(); }, 30);
+  };
+
+  window._calClickPersonal = function(id) {
+    var arr = _getPersonalPlan();
+    var item = null;
+    for (var i=0; i<arr.length; i++) if (arr[i].id === id) { item = arr[i]; break; }
+    if (!item) return;
+    var existing = document.getElementById('cmcal-modal');
+    if (existing) existing.remove();
+    var modal = document.createElement('div');
+    modal.id = 'cmcal-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(43,37,66,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:18px;';
+    modal.innerHTML = '<div style="background:#fff;border-radius:18px;padding:20px;max-width:300px;width:100%;font-family:\'Baloo 2\',sans-serif;box-shadow:0 20px 60px rgba(0,0,0,0.25);">'
+      + '<div style="font-family:Caveat,cursive;font-size:1.5rem;color:#2B2542;margin-bottom:14px;font-weight:700;text-align:center;line-height:1.1;">'+ (item.title||'') +'</div>'
+      + '<button id="cm-toggle" type="button" style="width:100%;padding:12px;background:#2B2542;color:#fff;border:none;border-radius:12px;cursor:pointer;font-family:inherit;font-weight:800;margin-bottom:8px;font-size:0.9rem;">'+ (item.done?'Дуусаагүй болгох':'✓ Дуусгасан болгох') +'</button>'
+      + '<button id="cm-del" type="button" style="width:100%;padding:12px;background:#fff;color:#E45A6B;border:1.5px solid #E45A6B;border-radius:12px;cursor:pointer;font-family:inherit;font-weight:800;margin-bottom:8px;font-size:0.86rem;">Устгах</button>'
+      + '<button id="cm-cancel" type="button" style="width:100%;padding:10px;background:transparent;border:none;color:#7A6E5C;cursor:pointer;font-family:inherit;font-weight:700;font-size:0.84rem;">Болих</button>'
+      + '</div>';
+    document.body.appendChild(modal);
+    modal.addEventListener('click', function(e){ if (e.target === modal) modal.remove(); });
+    modal.querySelector('#cm-cancel').onclick = function(){ modal.remove(); };
+    modal.querySelector('#cm-toggle').onclick = function(){
+      var a = _getPersonalPlan();
+      for (var i=0; i<a.length; i++) if (a[i].id === id) { a[i].done = !a[i].done; break; }
+      _savePersonalPlan(a);
+      modal.remove();
+      window._calNavMonth(0);
+    };
+    modal.querySelector('#cm-del').onclick = function(){
+      var a = _getPersonalPlan();
+      a = a.filter(function(x){ return x.id !== id; });
+      _savePersonalPlan(a);
+      modal.remove();
+      window._calNavMonth(0);
+    };
   };
 
   // Ангийн нууц хичээлийг lesson runner-аар нээх
