@@ -50304,18 +50304,26 @@ function toggleAvatarSection() {
       if (isDone) diffStat[diff].d++;
     });
 
-    // Сурагчийн өөрийн төлөвлөгөө merge — node ID-аар completed эсэхийг шалгана
+    // Сурагчийн өөрийн төлөвлөгөө merge — хичээл-холбогдсон ба чөлөөт хувийн зүйл хоёул
     var personal = (typeof _getPersonalPlan === 'function') ? _getPersonalPlan() : [];
     var _doneSet = {};
     done.forEach(function(x){ _doneSet[String(x)] = true; });
     personal.forEach(function(p){
-      if (!p || !p.date || !p.nodeId) return;
+      if (!p || !p.date) return;
       if (!lessonMap[p.date]) lessonMap[p.date] = [];
-      var _DBY = ['easy','med','hard'];
-      var pd = _DBY[(parseInt(p.nodeId)||0) % 3];
-      var isDone = !!_doneSet[String(p.nodeId)];
-      lessonMap[p.date].push({ personal: true, id: p.id, title: p.nodeName || ('Хичээл #'+p.nodeId), diff: pd, done: isDone });
-      if (diffStat[pd]) { diffStat[pd].t++; if (isDone) diffStat[pd].d++; }
+      if (p.nodeId) {
+        // Хичээл-төлөвлөгөө
+        var _DBY = ['easy','med','hard'];
+        var pd = _DBY[(parseInt(p.nodeId)||0) % 3];
+        var isDone = !!_doneSet[String(p.nodeId)];
+        lessonMap[p.date].push({ personal: true, id: p.id, title: p.nodeName || ('Хичээл #'+p.nodeId), diff: pd, done: isDone });
+        if (diffStat[pd]) { diffStat[pd].t++; if (isDone) diffStat[pd].d++; }
+      } else if (p.title) {
+        // Чөлөөт хувийн төлөвлөгөө
+        var fd = p.diff || 'med';
+        lessonMap[p.date].push({ personal: true, custom: true, id: p.id, title: p.title, diff: fd, done: !!p.done });
+        if (diffStat[fd]) { diffStat[fd].t++; if (p.done) diffStat[fd].d++; }
+      }
     });
 
     var totalDone = diffStat.easy.d + diffStat.med.d + diffStat.hard.d;
@@ -50570,17 +50578,66 @@ function toggleAvatarSection() {
           + '</div>';
       }).join('');
 
-      modal.innerHTML = '<div style="background:#fff;border-radius:18px;padding:18px 16px 14px;max-width:380px;width:100%;font-family:\'Baloo 2\',sans-serif;box-shadow:0 20px 60px rgba(0,0,0,0.25);max-height:88vh;display:flex;flex-direction:column;">'
-        + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px;">'
+      var customPane = ''
+        + '<div data-pane="custom" style="display:none;flex-direction:column;gap:10px;padding-top:4px;">'
         +   '<div>'
-        +     '<div style="font-family:Caveat,cursive;font-size:1.7rem;color:#2B2542;font-weight:700;line-height:1;">Хичээл сонгох</div>'
-        +     '<div style="font-size:0.72rem;color:#7A6E5C;font-weight:700;margin-top:2px;">'+dateLabel+' өдөрт төлөвлөнө</div>'
+        +     '<div style="font-size:0.7rem;color:#7A6E5C;font-weight:800;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Гарчиг</div>'
+        +     '<input id="cmcal-custom-title" type="text" placeholder="Жишээ: Геометр давталт" maxlength="40" style="width:100%;padding:11px 12px;border:1px solid #ECE4D8;border-radius:12px;font-family:\'Baloo 2\',sans-serif;font-size:0.92rem;outline:none;box-sizing:border-box;color:#2B2542;"/>'
+        +   '</div>'
+        +   '<div>'
+        +     '<div style="font-size:0.7rem;color:#7A6E5C;font-weight:800;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Төрөл</div>'
+        +     '<div id="cmcal-custom-diff" style="display:flex;gap:8px;">'
+        +       '<button data-diff="easy" data-c="#3FB37A" type="button" style="flex:1;padding:9px 4px;border:1.5px solid #3FB37A;background:#fff;border-radius:11px;cursor:pointer;font-family:\'Baloo 2\',sans-serif;font-weight:800;font-size:0.78rem;color:#3FB37A;">Хялбар</button>'
+        +       '<button data-diff="med" data-c="#5B8DEF" type="button" style="flex:1;padding:9px 4px;border:1.5px solid #5B8DEF;background:#fff;border-radius:11px;cursor:pointer;font-family:\'Baloo 2\',sans-serif;font-weight:800;font-size:0.78rem;color:#5B8DEF;">Дунд</button>'
+        +       '<button data-diff="hard" data-c="#E45A6B" type="button" style="flex:1;padding:9px 4px;border:1.5px solid #E45A6B;background:#fff;border-radius:11px;cursor:pointer;font-family:\'Baloo 2\',sans-serif;font-weight:800;font-size:0.78rem;color:#E45A6B;">Хүнд</button>'
+        +     '</div>'
+        +   '</div>'
+        +   '<button id="cmcal-custom-save" type="button" style="margin-top:6px;padding:12px;background:#2B2542;color:#fff;border:none;border-radius:12px;cursor:pointer;font-family:\'Baloo 2\',sans-serif;font-weight:800;font-size:0.9rem;">Хадгалах</button>'
+        + '</div>';
+
+      modal.innerHTML = '<div style="background:#fff;border-radius:18px;padding:18px 16px 14px;max-width:380px;width:100%;font-family:\'Baloo 2\',sans-serif;box-shadow:0 20px 60px rgba(0,0,0,0.25);max-height:88vh;display:flex;flex-direction:column;">'
+        + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:10px;">'
+        +   '<div>'
+        +     '<div style="font-family:Caveat,cursive;font-size:1.7rem;color:#2B2542;font-weight:700;line-height:1;">Шинэ төлөвлөгөө</div>'
+        +     '<div style="font-size:0.72rem;color:#7A6E5C;font-weight:700;margin-top:2px;">'+dateLabel+' өдөрт</div>'
         +   '</div>'
         +   '<button id="cmcal-modal-x" type="button" style="background:#FAF6EE;border:none;border-radius:50%;width:30px;height:30px;cursor:pointer;color:#7A6E5C;font-size:1rem;font-weight:800;flex-shrink:0;">✕</button>'
         + '</div>'
-        + '<div style="font-size:0.7rem;color:#7A6E5C;font-weight:700;margin:6px 0 10px;padding:8px 10px;background:#FAF6EE;border-radius:10px;border-left:3px solid #6B5BFF;line-height:1.4;">Хичээлийг дарааллаар нь хийнэ. Өмнөх хичээлээ дуусгаагүй бол дараагийнх нь түгжээтэй.</div>'
-        + '<div id="cmcal-list" style="overflow-y:auto;flex:1;min-height:200px;padding-right:4px;">'+rowsHtml+'</div>'
+        // Tabs
+        + '<div style="display:flex;background:#FAF6EE;border-radius:12px;padding:4px;gap:4px;margin-bottom:12px;">'
+        +   '<button data-tab="lesson" type="button" style="flex:1;padding:8px;background:#fff;border:none;border-radius:9px;cursor:pointer;font-family:\'Baloo 2\',sans-serif;font-weight:800;font-size:0.8rem;color:#2B2542;box-shadow:0 1px 3px rgba(0,0,0,0.06);">📚 Хичээл</button>'
+        +   '<button data-tab="custom" type="button" style="flex:1;padding:8px;background:transparent;border:none;border-radius:9px;cursor:pointer;font-family:\'Baloo 2\',sans-serif;font-weight:800;font-size:0.8rem;color:#7A6E5C;">✏️ Хувийн</button>'
+        + '</div>'
+        // Lesson pane
+        + '<div data-pane="lesson" style="display:flex;flex-direction:column;min-height:0;">'
+        +   '<div style="font-size:0.7rem;color:#7A6E5C;font-weight:700;margin-bottom:10px;padding:8px 10px;background:#FAF6EE;border-radius:10px;border-left:3px solid #6B5BFF;line-height:1.4;">Хичээлийг дарааллаар нь хийнэ. Өмнөх хичээлээ дуусгаагүй бол дараагийнх нь түгжээтэй.</div>'
+        +   '<div id="cmcal-list" style="overflow-y:auto;flex:1;min-height:200px;padding-right:4px;">'+rowsHtml+'</div>'
+        + '</div>'
+        // Custom pane
+        + customPane
         + '</div>';
+
+      // Tabs handling
+      var tabBtns = modal.querySelectorAll('[data-tab]');
+      var panes = modal.querySelectorAll('[data-pane]');
+      tabBtns.forEach(function(tb){
+        tb.addEventListener('click', function(){
+          var tabKey = tb.getAttribute('data-tab');
+          tabBtns.forEach(function(b){
+            if (b === tb) {
+              b.style.background = '#fff'; b.style.color = '#2B2542';
+              b.style.boxShadow = '0 1px 3px rgba(0,0,0,0.06)';
+            } else {
+              b.style.background = 'transparent'; b.style.color = '#7A6E5C';
+              b.style.boxShadow = 'none';
+            }
+          });
+          panes.forEach(function(p){
+            var pk = p.getAttribute('data-pane');
+            p.style.display = (pk === tabKey) ? 'flex' : 'none';
+          });
+        });
+      });
 
       modal.querySelector('#cmcal-modal-x').onclick = function(){ modal.remove(); };
       modal.querySelector('#cmcal-list').addEventListener('click', function(e){
@@ -50611,6 +50668,42 @@ function toggleAvatarSection() {
           }
         }
       });
+
+      // Custom pane logic
+      var sel = 'med';
+      var diffBtns = modal.querySelectorAll('#cmcal-custom-diff button');
+      function applySel() {
+        diffBtns.forEach(function(bb){
+          var df = bb.getAttribute('data-diff');
+          var c = bb.getAttribute('data-c');
+          if (df === sel) { bb.style.background = c; bb.style.color = '#fff'; }
+          else { bb.style.background = '#fff'; bb.style.color = c; }
+        });
+      }
+      diffBtns.forEach(function(b){
+        b.addEventListener('click', function(){ sel = b.getAttribute('data-diff'); applySel(); });
+      });
+      applySel();
+      var customInp = modal.querySelector('#cmcal-custom-title');
+      function saveCustom(){
+        var title = (customInp.value || '').trim();
+        if (!title) { customInp.focus(); return; }
+        plan.push({
+          id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
+          date: dateKey,
+          title: title,
+          diff: sel,
+          done: false
+        });
+        _savePersonalPlan(plan);
+        modal.remove();
+        window._calNavMonth(0);
+      }
+      modal.querySelector('#cmcal-custom-save').onclick = saveCustom;
+      customInp.addEventListener('keydown', function(e){
+        if (e.key === 'Enter') saveCustom();
+        if (e.key === 'Escape') modal.remove();
+      });
     }
 
     renderList();
@@ -50621,7 +50714,41 @@ function toggleAvatarSection() {
     var arr = _getPersonalPlan();
     var item = null;
     for (var i=0; i<arr.length; i++) if (arr[i].id === id) { item = arr[i]; break; }
-    if (!item || !item.nodeId) return;
+    if (!item) return;
+
+    // Чөлөөт хувийн item (nodeId байхгүй) — toggle done + delete
+    if (!item.nodeId) {
+      var existing0 = document.getElementById('cmcal-modal');
+      if (existing0) existing0.remove();
+      var modal0 = document.createElement('div');
+      modal0.id = 'cmcal-modal';
+      modal0.style.cssText = 'position:fixed;inset:0;background:rgba(43,37,66,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:18px;';
+      modal0.innerHTML = '<div style="background:#fff;border-radius:18px;padding:20px;max-width:300px;width:100%;font-family:\'Baloo 2\',sans-serif;box-shadow:0 20px 60px rgba(0,0,0,0.25);">'
+        + '<div style="font-family:Caveat,cursive;font-size:1.5rem;color:#2B2542;margin-bottom:4px;font-weight:700;text-align:center;line-height:1.1;">'+ (item.title || '') +'</div>'
+        + '<div style="font-size:0.7rem;color:#7A6E5C;font-weight:700;text-align:center;margin-bottom:14px;">'+(item.date||'')+'</div>'
+        + '<button id="cm-toggle" type="button" style="width:100%;padding:12px;background:#2B2542;color:#fff;border:none;border-radius:12px;cursor:pointer;font-family:inherit;font-weight:800;margin-bottom:8px;font-size:0.9rem;">'+ (item.done?'Дуусаагүй болгох':'✓ Дуусгасан болгох') +'</button>'
+        + '<button id="cm-del" type="button" style="width:100%;padding:11px;background:#fff;color:#E45A6B;border:1.5px solid #E45A6B;border-radius:12px;cursor:pointer;font-family:inherit;font-weight:800;margin-bottom:8px;font-size:0.84rem;">Устгах</button>'
+        + '<button id="cm-cancel" type="button" style="width:100%;padding:10px;background:transparent;border:none;color:#7A6E5C;cursor:pointer;font-family:inherit;font-weight:700;font-size:0.84rem;">Болих</button>'
+        + '</div>';
+      document.body.appendChild(modal0);
+      modal0.addEventListener('click', function(e){ if (e.target === modal0) modal0.remove(); });
+      modal0.querySelector('#cm-cancel').onclick = function(){ modal0.remove(); };
+      modal0.querySelector('#cm-toggle').onclick = function(){
+        var a = _getPersonalPlan();
+        for (var i=0; i<a.length; i++) if (a[i].id === id) { a[i].done = !a[i].done; break; }
+        _savePersonalPlan(a);
+        modal0.remove();
+        window._calNavMonth(0);
+      };
+      modal0.querySelector('#cm-del').onclick = function(){
+        var a = _getPersonalPlan();
+        a = a.filter(function(x){ return x.id !== id; });
+        _savePersonalPlan(a);
+        modal0.remove();
+        window._calNavMonth(0);
+      };
+      return;
+    }
 
     var ordered = _calGetOrderedLessons();
     var completed = [];
