@@ -50274,6 +50274,10 @@ function toggleAvatarSection() {
         + '.cmcal-add:hover{opacity:1;border-color:var(--accent);color:var(--accent);border-style:solid;}'
         + '.cmcal-cell.today .cmcal-add{border-color:rgba(255,255,255,0.4);color:rgba(255,255,255,0.75);}'
         + '.cmcal-chip.personal{border-left-style:dashed;}'
+        + '.cmcal-chip.kind-review{border-left-color:#3FB37A;}'
+        + '.cmcal-chip.kind-new{border-left-color:#5B8DEF;}'
+        + '.cmcal-chip.kind-hw{border-left-color:#A86CE4;}'
+        + '.cmcal-chip.kind-exam{border-left-color:#E45A6B;}'
         ;
       document.head.appendChild(st);
     }
@@ -50319,10 +50323,19 @@ function toggleAvatarSection() {
         lessonMap[p.date].push({ personal: true, id: p.id, title: p.nodeName || ('Хичээл #'+p.nodeId), diff: pd, done: isDone });
         if (diffStat[pd]) { diffStat[pd].t++; if (isDone) diffStat[pd].d++; }
       } else if (p.title) {
-        // Чөлөөт хувийн төлөвлөгөө
-        var fd = p.diff || 'med';
-        lessonMap[p.date].push({ personal: true, custom: true, id: p.id, title: p.title, diff: fd, done: !!p.done });
-        if (diffStat[fd]) { diffStat[fd].t++; if (p.done) diffStat[fd].d++; }
+        // Чөлөөт хувийн төлөвлөгөө — kind-ээр chip class, stat bucket тогтооно
+        var chipCls, statBucket;
+        if (p.kind) {
+          var K2C = { review:'kind-review', new:'kind-new', hw:'kind-hw', exam:'kind-exam' };
+          var K2B = { review:'easy', new:'med', hw:'med', exam:'hard' };
+          chipCls = K2C[p.kind] || 'kind-new';
+          statBucket = K2B[p.kind] || 'med';
+        } else {
+          chipCls = p.diff || 'med';
+          statBucket = p.diff || 'med';
+        }
+        lessonMap[p.date].push({ personal: true, custom: true, id: p.id, title: p.title, diff: chipCls, done: !!p.done });
+        if (diffStat[statBucket]) { diffStat[statBucket].t++; if (p.done) diffStat[statBucket].d++; }
       }
     });
 
@@ -50355,11 +50368,15 @@ function toggleAvatarSection() {
       +   '</div>'
       + '</div>'
       + '<div class="cmcal-card">'
-      +   '<div class="cmcal-h">Түвшин</div>'
-      +   DIFFS.map(function(dk){
+      +   '<div class="cmcal-h">Тэмдэглэгээ</div>'
+      +   [
+            { label:'Давталт', icon:'📖', color:'#3FB37A' },
+            { label:'Шинэ хичээл', icon:'⚡', color:'#5B8DEF' },
+            { label:'Гэрийн', icon:'📝', color:'#A86CE4' },
+            { label:'Шалгалт', icon:'🎯', color:'#E45A6B' }
+          ].map(function(k){
             return '<div class="cmcal-pill">'
-              + '<div class="cmcal-pill-l"><span class="cmcal-pill-d" style="background:'+DIFF_COLOR[dk]+';"></span>'+DIFF_NAME[dk]+'</div>'
-              + '<div class="cmcal-pill-c">'+diffStat[dk].d+'/'+diffStat[dk].t+'</div>'
+              + '<div class="cmcal-pill-l"><span class="cmcal-pill-d" style="background:'+k.color+';"></span>'+k.icon+' '+k.label+'</div>'
               + '</div>';
           }).join('')
       + '</div>'
@@ -50585,11 +50602,12 @@ function toggleAvatarSection() {
         +     '<input id="cmcal-custom-title" type="text" placeholder="Жишээ: Геометр давталт" maxlength="40" style="width:100%;padding:11px 12px;border:1px solid #ECE4D8;border-radius:12px;font-family:\'Baloo 2\',sans-serif;font-size:0.92rem;outline:none;box-sizing:border-box;color:#2B2542;"/>'
         +   '</div>'
         +   '<div>'
-        +     '<div style="font-size:0.7rem;color:#7A6E5C;font-weight:800;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Төрөл</div>'
-        +     '<div id="cmcal-custom-diff" style="display:flex;gap:8px;">'
-        +       '<button data-diff="easy" data-c="#3FB37A" type="button" style="flex:1;padding:9px 4px;border:1.5px solid #3FB37A;background:#fff;border-radius:11px;cursor:pointer;font-family:\'Baloo 2\',sans-serif;font-weight:800;font-size:0.78rem;color:#3FB37A;">Хялбар</button>'
-        +       '<button data-diff="med" data-c="#5B8DEF" type="button" style="flex:1;padding:9px 4px;border:1.5px solid #5B8DEF;background:#fff;border-radius:11px;cursor:pointer;font-family:\'Baloo 2\',sans-serif;font-weight:800;font-size:0.78rem;color:#5B8DEF;">Дунд</button>'
-        +       '<button data-diff="hard" data-c="#E45A6B" type="button" style="flex:1;padding:9px 4px;border:1.5px solid #E45A6B;background:#fff;border-radius:11px;cursor:pointer;font-family:\'Baloo 2\',sans-serif;font-weight:800;font-size:0.78rem;color:#E45A6B;">Хүнд</button>'
+        +     '<div style="font-size:0.7rem;color:#7A6E5C;font-weight:800;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Үйл ажиллагаа</div>'
+        +     '<div id="cmcal-custom-kind" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
+        +       '<button data-kind="review" data-c="#3FB37A" type="button" style="padding:10px 6px;border:1.5px solid #3FB37A;background:#fff;border-radius:11px;cursor:pointer;font-family:\'Baloo 2\',sans-serif;font-weight:800;font-size:0.78rem;color:#3FB37A;">📖 Давталт</button>'
+        +       '<button data-kind="new" data-c="#5B8DEF" type="button" style="padding:10px 6px;border:1.5px solid #5B8DEF;background:#fff;border-radius:11px;cursor:pointer;font-family:\'Baloo 2\',sans-serif;font-weight:800;font-size:0.78rem;color:#5B8DEF;">⚡ Шинэ хичээл</button>'
+        +       '<button data-kind="hw" data-c="#A86CE4" type="button" style="padding:10px 6px;border:1.5px solid #A86CE4;background:#fff;border-radius:11px;cursor:pointer;font-family:\'Baloo 2\',sans-serif;font-weight:800;font-size:0.78rem;color:#A86CE4;">📝 Гэрийн</button>'
+        +       '<button data-kind="exam" data-c="#E45A6B" type="button" style="padding:10px 6px;border:1.5px solid #E45A6B;background:#fff;border-radius:11px;cursor:pointer;font-family:\'Baloo 2\',sans-serif;font-weight:800;font-size:0.78rem;color:#E45A6B;">🎯 Шалгалт</button>'
         +     '</div>'
         +   '</div>'
         +   '<button id="cmcal-custom-save" type="button" style="margin-top:6px;padding:12px;background:#2B2542;color:#fff;border:none;border-radius:12px;cursor:pointer;font-family:\'Baloo 2\',sans-serif;font-weight:800;font-size:0.9rem;">Хадгалах</button>'
@@ -50669,19 +50687,19 @@ function toggleAvatarSection() {
         }
       });
 
-      // Custom pane logic
-      var sel = 'med';
-      var diffBtns = modal.querySelectorAll('#cmcal-custom-diff button');
+      // Custom pane logic — kind (үйл ажиллагаа) сонгох
+      var sel = 'new';
+      var diffBtns = modal.querySelectorAll('#cmcal-custom-kind button');
       function applySel() {
         diffBtns.forEach(function(bb){
-          var df = bb.getAttribute('data-diff');
+          var df = bb.getAttribute('data-kind');
           var c = bb.getAttribute('data-c');
           if (df === sel) { bb.style.background = c; bb.style.color = '#fff'; }
           else { bb.style.background = '#fff'; bb.style.color = c; }
         });
       }
       diffBtns.forEach(function(b){
-        b.addEventListener('click', function(){ sel = b.getAttribute('data-diff'); applySel(); });
+        b.addEventListener('click', function(){ sel = b.getAttribute('data-kind'); applySel(); });
       });
       applySel();
       var customInp = modal.querySelector('#cmcal-custom-title');
@@ -50692,7 +50710,7 @@ function toggleAvatarSection() {
           id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
           date: dateKey,
           title: title,
-          diff: sel,
+          kind: sel,
           done: false
         });
         _savePersonalPlan(plan);
