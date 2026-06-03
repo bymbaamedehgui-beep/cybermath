@@ -105,6 +105,7 @@ function showPage(name, btn) {
   if (name === 'promo') loadPromoCodes();
   if (name === 'grouprequest') loadGroupRequests();
   if (name === 'premium') loadPremiumUsers();
+  if (name === 'stats') loadAllStats();
 }
 
 // ─── Premium хэрэглэгчид ───
@@ -1212,6 +1213,7 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 </head>
 <body>
 
@@ -1351,6 +1353,10 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
       <button class="nav-item" onclick="showPage('log',this)">
         <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M9 5H7C5.9 5 5 5.9 5 7V19C5 20.1 5.9 21 7 21H17C18.1 21 19 20.1 19 19V7C19 5.9 18.1 5 17 5H15M9 5C9 5.6 9.4 6 10 6H14C14.6 6 15 5.6 15 5" stroke="currentColor" stroke-width="1.8"/><path d="M9 12H15M9 16H12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
         Хандалтын лог
+      </button>
+      <button class="nav-item" onclick="showPage('stats',this)">
+        <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M3 3v18h18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M7 14l4-4 4 4 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Тоон үзүүлэлт
       </button>
     </div>
 
@@ -1983,6 +1989,21 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
             <button class="btn-sm btn-danger" onclick="clearLog()">Цэвэрлэх</button>
           </div>
           <div id="log-list" style="padding:0 20px;"></div>
+        </div>
+      </div>
+
+      <!-- Тоон үзүүлэлт -->
+      <div class="page" id="page-stats" style="display:none;">
+        <div class="page-title">Тоон үзүүлэлт</div>
+        <div class="page-sub">Бүх метрикүүдийн live тойм + PPT татах</div>
+        <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+          <button class="btn-sm btn-purple" onclick="loadAllStats()">↻ Шинэчлэх</button>
+          <button class="btn-sm btn-success" onclick="downloadStatsPPT()" id="dl-pptx-btn" disabled>📊 PPT татах</button>
+          <button class="btn-sm" onclick="copyStatsJSON()" id="copy-stats-btn" disabled style="background:#fff;border:1px solid var(--border);color:var(--ink);">📋 JSON хуулах</button>
+          <div id="stats-updated" style="margin-left:auto;font-size:0.78rem;color:var(--muted);align-self:center;"></div>
+        </div>
+        <div id="stats-container" style="display:flex;flex-direction:column;gap:18px;">
+          <div style="text-align:center;padding:40px;color:var(--muted);">Тоо ачаалж байна...</div>
         </div>
       </div>
 
@@ -4424,6 +4445,331 @@ function openEditMathModal(targetId) {
     initMathKb();
     setInterval(updatePreview, 150);
   });
+
+// ═══════════════════════════════════════════
+// ТООН ҮЗҮҮЛЭЛТ — load + PPT татах
+// ═══════════════════════════════════════════
+window._lastStats = null;
+
+window.loadAllStats = async function() {
+  var box = document.getElementById('stats-container');
+  if (!box) return;
+  box.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);">Тоо ачаалж байна...</div>';
+  document.getElementById('dl-pptx-btn').disabled = true;
+  document.getElementById('copy-stats-btn').disabled = true;
+  try {
+    var r = await adminFetch('/api/stats', { method:'GET' });
+    var d = await r.json();
+    if (!d.ok) { box.innerHTML = '<div style="color:#dc2626;padding:20px;">Алдаа: '+(d.error||'?')+'</div>'; return; }
+    window._lastStats = d.stats;
+    renderStats(d.stats);
+    document.getElementById('dl-pptx-btn').disabled = false;
+    document.getElementById('copy-stats-btn').disabled = false;
+    document.getElementById('stats-updated').textContent = 'Шинэчилсэн: ' + new Date(d.generated_at).toLocaleString('mn-MN');
+  } catch (e) {
+    box.innerHTML = '<div style="color:#dc2626;padding:20px;">Network алдаа: '+e.message+'</div>';
+  }
+};
+
+function _fmtN(n) {
+  if (n === null || n === undefined) return '—';
+  return Number(n).toLocaleString('mn-MN');
+}
+
+function renderStats(s) {
+  var box = document.getElementById('stats-container');
+  if (!s) { box.innerHTML = ''; return; }
+  function card(label, value, color) {
+    return '<div style="background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px;flex:1;min-width:140px;border-left:4px solid '+color+';">'
+      + '<div style="font-size:1.8rem;font-weight:900;color:'+color+';line-height:1;">'+_fmtN(value)+'</div>'
+      + '<div style="font-size:0.74rem;color:var(--muted);margin-top:4px;font-weight:700;">'+label+'</div>'
+      + '</div>';
+  }
+  function section(title, icon, cards) {
+    return '<div class="table-card" style="padding:16px;">'
+      + '<div style="font-size:1rem;font-weight:900;color:var(--ink);margin-bottom:12px;">'+icon+' '+title+'</div>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:10px;">'+cards.join('')+'</div>'
+      + '</div>';
+  }
+  function gradeTable(rows, color) {
+    if (!rows || !rows.length) return '<div style="color:var(--muted);font-size:0.82rem;">Өгөгдөл байхгүй</div>';
+    var html = '<div style="display:flex;flex-wrap:wrap;gap:8px;">';
+    rows.forEach(function(r){
+      html += '<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px 12px;min-width:80px;text-align:center;border-bottom:3px solid '+color+';">'
+        + '<div style="font-size:1.1rem;font-weight:900;color:var(--ink);line-height:1;">'+_fmtN(r.count)+'</div>'
+        + '<div style="font-size:0.7rem;color:var(--muted);font-weight:700;">'+r.grade+'-р анги</div>'
+        + '</div>';
+    });
+    html += '</div>';
+    return html;
+  }
+
+  var html = '';
+  // Users
+  html += section('Хэрэглэгчид', '👥', [
+    card('Нийт (verified)', s.users.total, '#7B52EE'),
+    card('Premium', s.users.premium, '#F5A623'),
+    card('Free', s.users.free, '#5B8DEF'),
+    card('Багш', s.users.teachers, '#10B981'),
+    card('Админ', s.users.admins, '#2B2542'),
+    card('Verified бус', s.users.unverified, '#9CA3AF'),
+    card('Өнөөдөр', s.users.today, '#3FB37A'),
+    card('7 хоног', s.users.this_week, '#A86CE4'),
+    card('30 хоног', s.users.this_month, '#E45A6B'),
+    card('Нийт XP', s.users.total_xp, '#FBBF24'),
+    card('Дундаж XP', s.users.avg_xp, '#F59E0B'),
+    card('Хамгийн их XP', s.users.max_xp, '#D97706'),
+    card('Нийт Gem', s.users.total_gems, '#06B6D4'),
+    card('Нийт Streak', s.users.total_streak, '#F97316')
+  ]);
+  // By grade
+  html += '<div class="table-card" style="padding:16px;">'
+    + '<div style="font-size:1rem;font-weight:900;color:var(--ink);margin-bottom:12px;">🎓 Анги дагуу хэрэглэгчид</div>'
+    + gradeTable(s.users.by_grade, '#7B52EE')
+    + '</div>';
+
+  // Nodes
+  html += section('Хичээл (Нод)', '📚', [
+    card('Нийт нод', s.nodes.total, '#7B52EE'),
+    card('Хичээл', s.nodes.lessons, '#5B8DEF'),
+    card('Танилцуулгатай', s.nodes.with_intro, '#3FB37A')
+  ]);
+  html += '<div class="table-card" style="padding:16px;">'
+    + '<div style="font-size:1rem;font-weight:900;color:var(--ink);margin-bottom:12px;">📖 Анги дагуу хичээл</div>'
+    + gradeTable(s.nodes.by_grade, '#5B8DEF')
+    + '</div>';
+
+  // Questions
+  html += section('Бодлого', '❓', [
+    card('Нийт бодлого', s.questions.total, '#7B52EE'),
+    card('Зурагтай', s.questions.with_image, '#A86CE4'),
+    card('Графиктай', s.questions.with_chart, '#5B8DEF'),
+    card('Алдаа мэдэгдэл', s.questions.reports, '#E45A6B')
+  ]);
+  if (s.questions.by_difficulty && s.questions.by_difficulty.length) {
+    var dh = '<div class="table-card" style="padding:16px;">'
+      + '<div style="font-size:1rem;font-weight:900;color:var(--ink);margin-bottom:12px;">📊 Хүндрэлийн зэргээр</div>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:8px;">';
+    s.questions.by_difficulty.forEach(function(d){
+      var c = d.difficulty === 'easy' ? '#3FB37A' : d.difficulty === 'medium' ? '#5B8DEF' : d.difficulty === 'hard' ? '#E45A6B' : '#9CA3AF';
+      dh += '<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px 14px;border-bottom:3px solid '+c+';">'
+        + '<div style="font-size:1.1rem;font-weight:900;color:var(--ink);">'+_fmtN(d.count)+'</div>'
+        + '<div style="font-size:0.7rem;color:var(--muted);font-weight:700;">'+d.difficulty+'</div>'
+        + '</div>';
+    });
+    dh += '</div></div>';
+    html += dh;
+  }
+
+  // Classrooms
+  html += section('Анги (Classroom)', '🏫', [
+    card('Нийт анги', s.classrooms.total, '#7B52EE'),
+    card('Гишүүд', s.classrooms.members, '#5B8DEF'),
+    card('Тэмцээнтэй', s.classrooms.competition, '#F5A623'),
+    card('Хичээл оролдлого', s.classrooms.lesson_attempts, '#3FB37A')
+  ]);
+
+  // Group requests
+  html += section('Багц хүсэлт', '📦', [
+    card('Нийт', s.group_requests.total, '#7B52EE'),
+    card('Хүлээгдэж буй', s.group_requests.pending, '#F5A623'),
+    card('Хариу өгсөн', s.group_requests.quoted, '#5B8DEF'),
+    card('Төлсөн', s.group_requests.paid, '#10B981')
+  ]);
+
+  // Promo
+  html += section('Промо код', '🎟️', [
+    card('Нийт', s.promo.total, '#7B52EE'),
+    card('Идэвхтэй', s.promo.active, '#10B981'),
+    card('Ашигласан', s.promo.redemptions, '#5B8DEF')
+  ]);
+
+  // Friendships
+  html += section('Нөхөрлөл', '🤝', [
+    card('Хүлээн авсан', s.friendships.accepted, '#10B981'),
+    card('Хүлээгдэж буй', s.friendships.pending, '#F5A623')
+  ]);
+
+  // Chat
+  html += section('Чат', '💬', [
+    card('Нийт мэссэж', s.chat.messages_total, '#7B52EE'),
+    card('Өнөөдөр', s.chat.messages_today, '#5B8DEF')
+  ]);
+
+  // Pets + games
+  html += section('Бусад', '🎮', [
+    card('Тэжээвэр амьтад', s.pets.total, '#A86CE4'),
+    card('Online тоглоом', s.online_games.total, '#5B8DEF'),
+    card('Лог (нийт)', s.logs.total, '#7B52EE'),
+    card('Лог (өнөөдөр)', s.logs.today, '#3FB37A')
+  ]);
+
+  box.innerHTML = html;
+}
+
+window.copyStatsJSON = function() {
+  if (!window._lastStats) return;
+  var txt = JSON.stringify(window._lastStats, null, 2);
+  navigator.clipboard.writeText(txt).then(function(){
+    alert('✓ JSON clipboard-руу хуулагдсан');
+  }).catch(function(){
+    // Fallback
+    var ta = document.createElement('textarea');
+    ta.value = txt;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+    alert('✓ JSON хуулагдсан');
+  });
+};
+
+window.downloadStatsPPT = function() {
+  if (!window._lastStats) { alert('Эхлээд тоо татна уу'); return; }
+  if (typeof PptxGenJS === 'undefined') { alert('PPT library ачаалагдаагүй байна'); return; }
+  var s = window._lastStats;
+  var pptx = new PptxGenJS();
+  pptx.layout = 'LAYOUT_WIDE';
+  pptx.title = 'CyberMath — Тоон үзүүлэлт';
+  pptx.author = 'CyberMath';
+
+  var ACCENT = '7B52EE';
+  var INK = '2B2542';
+  var MUTED = '7A6E5C';
+  var nowStr = new Date().toLocaleDateString('mn-MN');
+
+  function fmt(n) {
+    if (n === null || n === undefined) return '—';
+    return Number(n).toLocaleString('mn-MN');
+  }
+
+  // ── SLIDE 1: Title ──
+  var slide = pptx.addSlide();
+  slide.background = { color: ACCENT };
+  slide.addText('CyberMath', { x:0.5, y:2.3, w:12.3, h:1.3, fontSize:72, color:'FFFFFF', bold:true, align:'center', fontFace:'Arial' });
+  slide.addText('Тоон үзүүлэлтийн тайлан', { x:0.5, y:3.6, w:12.3, h:0.7, fontSize:32, color:'F0E6FF', align:'center', fontFace:'Arial' });
+  slide.addText(nowStr, { x:0.5, y:5.0, w:12.3, h:0.5, fontSize:20, color:'FFFFFF', align:'center', fontFace:'Arial' });
+
+  // Helper: add stat-card grid slide
+  function statsSlide(title, items) {
+    var sl = pptx.addSlide();
+    sl.background = { color: 'F8F6FC' };
+    sl.addText(title, { x:0.5, y:0.3, w:12.3, h:0.7, fontSize:30, color:INK, bold:true, fontFace:'Arial' });
+    var cols = 4;
+    var cardW = 2.95, cardH = 1.7;
+    var startX = 0.5, startY = 1.3;
+    var gap = 0.15;
+    items.forEach(function(it, i) {
+      var col = i % cols;
+      var row = Math.floor(i / cols);
+      var x = startX + col*(cardW+gap);
+      var y = startY + row*(cardH+gap);
+      sl.addShape(pptx.ShapeType.roundRect, {
+        x:x, y:y, w:cardW, h:cardH, fill:{color:'FFFFFF'},
+        line:{color:it.color || ACCENT, width:1.5}, rectRadius:0.1
+      });
+      sl.addText(fmt(it.value), {
+        x:x, y:y+0.15, w:cardW, h:0.85,
+        fontSize:36, color:it.color || ACCENT, bold:true, align:'center', fontFace:'Arial'
+      });
+      sl.addText(it.label, {
+        x:x+0.1, y:y+1.05, w:cardW-0.2, h:0.55,
+        fontSize:11, color:MUTED, align:'center', fontFace:'Arial'
+      });
+    });
+  }
+
+  // ── SLIDE 2: Хэрэглэгчид ──
+  statsSlide('👥 Хэрэглэгчид', [
+    { label:'Нийт (verified)', value:s.users.total, color:'7B52EE' },
+    { label:'Premium', value:s.users.premium, color:'F5A623' },
+    { label:'Free', value:s.users.free, color:'5B8DEF' },
+    { label:'Багш', value:s.users.teachers, color:'10B981' },
+    { label:'Админ', value:s.users.admins, color:'2B2542' },
+    { label:'Verified бус', value:s.users.unverified, color:'9CA3AF' },
+    { label:'Өнөөдөр шинэ', value:s.users.today, color:'3FB37A' },
+    { label:'7 хоног шинэ', value:s.users.this_week, color:'A86CE4' },
+    { label:'30 хоног шинэ', value:s.users.this_month, color:'E45A6B' },
+    { label:'Нийт XP', value:s.users.total_xp, color:'FBBF24' },
+    { label:'Дундаж XP', value:s.users.avg_xp, color:'F59E0B' },
+    { label:'Нийт Gem', value:s.users.total_gems, color:'06B6D4' }
+  ]);
+
+  // ── SLIDE 3: Хичээл ба бодлого ──
+  statsSlide('📚 Хичээл ба бодлого', [
+    { label:'Нийт нод', value:s.nodes.total, color:'7B52EE' },
+    { label:'Хичээл', value:s.nodes.lessons, color:'5B8DEF' },
+    { label:'Танилцуулгатай', value:s.nodes.with_intro, color:'3FB37A' },
+    { label:'Нийт бодлого', value:s.questions.total, color:'A86CE4' },
+    { label:'Зурагтай бодлого', value:s.questions.with_image, color:'F5A623' },
+    { label:'Графиктай', value:s.questions.with_chart, color:'06B6D4' },
+    { label:'Алдааны мэдэгдэл', value:s.questions.reports, color:'E45A6B' },
+    { label:'Нийт Streak', value:s.users.total_streak, color:'F97316' }
+  ]);
+
+  // ── SLIDE 4: Ангиуд + Багц + Промо ──
+  statsSlide('🏫 Анги, багц, промо', [
+    { label:'Нийт анги', value:s.classrooms.total, color:'7B52EE' },
+    { label:'Ангийн гишүүд', value:s.classrooms.members, color:'5B8DEF' },
+    { label:'Тэмцээнтэй анги', value:s.classrooms.competition, color:'F5A623' },
+    { label:'Хичээл оролдлого', value:s.classrooms.lesson_attempts, color:'3FB37A' },
+    { label:'Багц хүсэлт нийт', value:s.group_requests.total, color:'A86CE4' },
+    { label:'Хүлээгдэж буй', value:s.group_requests.pending, color:'F5A623' },
+    { label:'Хариу өгсөн', value:s.group_requests.quoted, color:'5B8DEF' },
+    { label:'Төлсөн', value:s.group_requests.paid, color:'10B981' },
+    { label:'Промо нийт', value:s.promo.total, color:'7B52EE' },
+    { label:'Идэвхтэй промо', value:s.promo.active, color:'10B981' },
+    { label:'Промо ашиглалт', value:s.promo.redemptions, color:'5B8DEF' }
+  ]);
+
+  // ── SLIDE 5: Нөхөрлөл, чат, бусад ──
+  statsSlide('🤝 Нөхөрлөл, чат, бусад', [
+    { label:'Нөхөрлөл (хүлээн авсан)', value:s.friendships.accepted, color:'10B981' },
+    { label:'Нөхөрлөл (хүлээгдэж буй)', value:s.friendships.pending, color:'F5A623' },
+    { label:'Чат мэссэж нийт', value:s.chat.messages_total, color:'7B52EE' },
+    { label:'Чат мэссэж (өнөөдөр)', value:s.chat.messages_today, color:'5B8DEF' },
+    { label:'Тэжээвэр амьтад', value:s.pets.total, color:'A86CE4' },
+    { label:'Online тоглоом', value:s.online_games.total, color:'06B6D4' },
+    { label:'Лог нийт', value:s.logs.total, color:'7B52EE' },
+    { label:'Лог (өнөөдөр)', value:s.logs.today, color:'3FB37A' }
+  ]);
+
+  // ── SLIDE 6: Анги дагуу хэрэглэгчид (table) ──
+  if (s.users.by_grade && s.users.by_grade.length) {
+    var sl6 = pptx.addSlide();
+    sl6.background = { color: 'F8F6FC' };
+    sl6.addText('🎓 Анги дагуу хэрэглэгчид', { x:0.5, y:0.3, w:12.3, h:0.7, fontSize:30, color:INK, bold:true, fontFace:'Arial' });
+    var rows = [['Анги', 'Хэрэглэгчийн тоо']];
+    s.users.by_grade.forEach(function(r){ rows.push([String(r.grade), fmt(r.count)]); });
+    var lessonRows = s.nodes.by_grade || [];
+    sl6.addTable(rows, {
+      x:0.5, y:1.3, w:6, colW:[2.5, 3.5],
+      fontSize:14, fontFace:'Arial', color:INK,
+      border:{type:'solid', color:'E5E5E5', pt:1},
+      fill:{color:'FFFFFF'}
+    });
+    if (lessonRows.length) {
+      sl6.addText('📖 Анги дагуу хичээл', { x:7, y:1.0, w:6, h:0.5, fontSize:18, color:INK, bold:true, fontFace:'Arial' });
+      var lrows = [['Анги', 'Хичээл тоо']];
+      lessonRows.forEach(function(r){ lrows.push([String(r.grade), fmt(r.count)]); });
+      sl6.addTable(lrows, {
+        x:7, y:1.6, w:6, colW:[2.5, 3.5],
+        fontSize:14, fontFace:'Arial', color:INK,
+        border:{type:'solid', color:'E5E5E5', pt:1},
+        fill:{color:'FFFFFF'}
+      });
+    }
+  }
+
+  // ── SLIDE 7: Footer ──
+  var slF = pptx.addSlide();
+  slF.background = { color: INK };
+  slF.addText('CyberMath', { x:0.5, y:2.5, w:12.3, h:1.2, fontSize:60, color:'FFFFFF', bold:true, align:'center', fontFace:'Arial' });
+  slF.addText('Баярлалаа', { x:0.5, y:3.8, w:12.3, h:0.7, fontSize:32, color:'F0E6FF', align:'center', fontFace:'Arial' });
+  slF.addText(nowStr, { x:0.5, y:5.0, w:12.3, h:0.4, fontSize:16, color:'BBBBBB', align:'center', fontFace:'Arial' });
+
+  pptx.writeFile({ fileName: 'cybermath-stats-' + new Date().toISOString().slice(0,10) + '.pptx' });
+};
 
 </script>
 
