@@ -331,34 +331,45 @@
     z-index:10;
   }
 
-  /* Distractor "шувуунууд" — анхаарал сарьнуулах */
+  /* Distractor шувуунууд — хаа хамаагүй гарна */
   .distractor {
     position:fixed;
     pointer-events:none;
     z-index:3;
-    will-change:transform;
+    will-change:transform, opacity;
     user-select:none;
-    filter:drop-shadow(0 4px 8px rgba(0,0,0,0.2));
+    filter:drop-shadow(0 6px 12px rgba(0,0,0,0.25));
+  }
+  .distractor svg { display:block; width:100%; height:100%; }
+
+  @keyframes popFade {
+    0% { opacity:0; transform:scale(0) rotate(var(--r0)); }
+    20% { opacity:1; transform:scale(1.25) rotate(var(--r1)); }
+    50% { opacity:1; transform:scale(1) rotate(var(--r2)); }
+    100% { opacity:0; transform:scale(0.8) rotate(var(--r3)); }
   }
   @keyframes flyLR {
-    from { transform:translateX(-150px) translateY(0) rotate(0deg); }
-    to { transform:translateX(calc(100vw + 150px)) translateY(var(--dy)) rotate(var(--rot)); }
+    from { transform:translateX(-180px) translateY(0) rotate(0); }
+    to { transform:translateX(calc(100vw + 180px)) translateY(var(--dy)) rotate(var(--rot)); }
   }
   @keyframes flyRL {
-    from { transform:translateX(calc(100vw + 150px)) translateY(0) rotate(0deg); }
-    to { transform:translateX(-150px) translateY(var(--dy)) rotate(var(--rot)); }
+    from { transform:translateX(180px) translateY(0) rotate(0); }
+    to { transform:translateX(calc(-100vw - 180px)) translateY(var(--dy)) rotate(var(--rot)); }
   }
   @keyframes flyTB {
-    from { transform:translateY(-150px) translateX(0) rotate(0deg); }
-    to { transform:translateY(calc(100vh + 150px)) translateX(var(--dx)) rotate(var(--rot)); }
+    from { transform:translateY(-180px) translateX(0) rotate(0); }
+    to { transform:translateY(calc(100vh + 180px)) translateX(var(--dx)) rotate(var(--rot)); }
   }
-  @keyframes wobble {
-    0%,100% { transform:translateY(0); }
-    50% { transform:translateY(-30px); }
+  @keyframes bounceJump {
+    0%,100% { transform:translateY(0) rotate(var(--r0)); }
+    50% { transform:translateY(-60px) rotate(var(--r1)); }
   }
-  .distractor.bird-fly {
-    animation:flyLR 4s linear forwards, wobble 0.6s ease-in-out infinite;
-  }
+  .d-pop { animation:popFade 2.6s ease-in-out forwards; }
+  .d-fly-lr { animation:flyLR 3.5s linear forwards; }
+  .d-fly-rl { animation:flyRL 3.5s linear forwards; }
+  .d-fly-tb { animation:flyTB 3.5s linear forwards; }
+  .d-bounce { animation:bounceJump 1.4s ease-in-out 2; }
+
   .num-flash, .countdown {
     position:relative;
     z-index:6;
@@ -615,26 +626,145 @@ const NOTES = [261.63, 293.66, 329.63, 392.0, 440.0, 523.25, 587.33, 659.25, 783
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// ─── Distractor — анхаарлыг сарьнуулах нисдэг зүйлс ───
-const DISTRACTORS = ['🐦','🦅','🦋','🐝','🦜','🐧','🦆','🐤','🐬','🦄','🦊','🐢','🎈','🎉','✨','⭐','🌟','💫','🦉','🐔'];
+// ─── Distractor — профайл маягийн нүдгэлтэй шувуунууд хаа хамаагүй гарна ───
+function chickSVG(opts) {
+  opts = opts || {};
+  // body өнгө variant: yellow, pink, blue
+  const bodyA = opts.bodyA || '#FFE85E';
+  const bodyB = opts.bodyB || '#FFC113';
+  const beak = opts.beak || '#FF9A1F';
+  const eyeRing = opts.eyeRing || '#3DA9E0';
+  // expression: 0=normal, 1=happy, 2=surprised, 3=sleepy
+  const expr = opts.expr != null ? opts.expr : Math.floor(Math.random() * 4);
+  let eyes;
+  if (expr === 0) {
+    eyes = '<circle cx="36" cy="51" r="5" fill="#241a44"/><circle cx="64" cy="51" r="5" fill="#241a44"/>'
+         + '<circle cx="37.5" cy="49.5" r="1.5" fill="#fff"/><circle cx="65.5" cy="49.5" r="1.5" fill="#fff"/>';
+  } else if (expr === 1) {
+    // happy ^_^
+    eyes = '<path d="M30 50 Q36 45 42 50" stroke="#241a44" stroke-width="3" fill="none" stroke-linecap="round"/>'
+         + '<path d="M58 50 Q64 45 70 50" stroke="#241a44" stroke-width="3" fill="none" stroke-linecap="round"/>';
+  } else if (expr === 2) {
+    // surprised
+    eyes = '<circle cx="36" cy="50" r="6" fill="#241a44"/><circle cx="64" cy="50" r="6" fill="#241a44"/>'
+         + '<circle cx="37.5" cy="48" r="1.6" fill="#fff"/><circle cx="65.5" cy="48" r="1.6" fill="#fff"/>';
+  } else {
+    // sleepy
+    eyes = '<path d="M28 50 L44 50" stroke="#241a44" stroke-width="3" stroke-linecap="round"/>'
+         + '<path d="M56 50 L72 50" stroke="#241a44" stroke-width="3" stroke-linecap="round"/>';
+  }
+  // beak — нэг бол доорын, нэг бол нээлттэй
+  const beakHtml = (expr === 2)
+    ? '<ellipse cx="50" cy="68" rx="5" ry="6" fill="' + beak + '"/>'
+    : '<path d="M45 65 L55 65 L50 73 Z" fill="' + beak + '"/>';
+  // glasses (most variants have them)
+  const glasses = opts.noGlasses ? '' : (
+    '<circle cx="36" cy="50" r="15" fill="none" stroke="' + eyeRing + '" stroke-width="3"/>'
+    + '<circle cx="64" cy="50" r="15" fill="none" stroke="' + eyeRing + '" stroke-width="3"/>'
+    + '<line x1="48" y1="50" x2="52" y2="50" stroke="' + eyeRing + '" stroke-width="3"/>'
+  );
+  // sclera (white behind)
+  const sclera = '<circle cx="36" cy="50" r="10" fill="#fff"/><circle cx="64" cy="50" r="10" fill="#fff"/>';
+  // random extra: tuft, bolt, hat
+  const extras = [
+    '<path d="M50 22 Q47 8 50 6 Q53 8 50 22" fill="#FFB800"/>', // simple tuft
+    '<path d="M52 8 L48 22 L54 22 L50 32 L60 18 L54 18 L58 6 Z" fill="#F5A623"/>', // lightning bolt
+    '<path d="M44 20 L56 20 L52 8 L48 8 Z" fill="#FFB800"/>', // small hair
+  ];
+  const extra = extras[Math.floor(Math.random() * extras.length)];
+  // wings
+  const wings = '<ellipse cx="14" cy="65" rx="6" ry="11" fill="' + bodyB + '" transform="rotate(-25 14 65)"/>'
+              + '<ellipse cx="86" cy="65" rx="6" ry="11" fill="' + bodyB + '" transform="rotate(25 86 65)"/>';
+  // feet
+  const feet = '<ellipse cx="40" cy="100" rx="6" ry="2.8" fill="#FF7E36"/>'
+             + '<ellipse cx="60" cy="100" rx="6" ry="2.8" fill="#FF7E36"/>';
+  const gradId = 'g' + Math.random().toString(36).slice(2, 8);
+  return '<svg viewBox="0 0 100 110" xmlns="http://www.w3.org/2000/svg" style="overflow:visible;">'
+    + '<defs><radialGradient id="' + gradId + '" cx="0.5" cy="0.3" r="0.7">'
+    +   '<stop offset="0" stop-color="' + bodyA + '"/>'
+    +   '<stop offset="1" stop-color="' + bodyB + '"/>'
+    + '</radialGradient></defs>'
+    + feet
+    + wings
+    + '<ellipse cx="50" cy="58" rx="40" ry="38" fill="url(#' + gradId + ')"/>'
+    + extra
+    + sclera
+    + glasses
+    + eyes
+    + beakHtml
+    + '</svg>';
+}
+
+const CHICK_VARIANTS = [
+  { bodyA:'#FFE85E', bodyB:'#FFC113', beak:'#FF9A1F', eyeRing:'#3DA9E0' }, // classic yellow + blue glasses (Нарлаг)
+  { bodyA:'#FFF2A6', bodyB:'#F5A623', beak:'#FF7E36', eyeRing:'#5B8DEF' }, // Аянга
+  { bodyA:'#FFD9C2', bodyB:'#FFA869', beak:'#FF6B3A', eyeRing:'#3FB37A' }, // peach
+  { bodyA:'#C9F0FF', bodyB:'#5B8DEF', beak:'#FF9A1F', eyeRing:'#3DA9E0', noGlasses:true }, // Цэнхэр
+  { bodyA:'#FFB8E0', bodyB:'#E45A6B', beak:'#FF6B3A', eyeRing:'#A86CE4' }, // pink
+  { bodyA:'#D4F5C9', bodyB:'#3FB37A', beak:'#FF9A1F', eyeRing:'#5B8DEF' }, // Сарнай green
+];
+
 let _distractorTimer = null;
 function spawnDistractor() {
   const el = document.createElement('div');
-  el.className = 'distractor bird-fly';
-  el.textContent = DISTRACTORS[Math.floor(Math.random() * DISTRACTORS.length)];
-  el.style.top = (Math.random() * 80 + 5) + '%';
-  el.style.left = '0';
-  el.style.fontSize = (2.5 + Math.random() * 3) + 'rem';
-  el.style.setProperty('--dy', ((Math.random() - 0.5) * 300) + 'px');
-  el.style.setProperty('--rot', ((Math.random() - 0.5) * 720) + 'deg');
-  el.style.animationDuration = (3 + Math.random() * 2.5) + 's, 0.6s';
+  const variant = CHICK_VARIANTS[Math.floor(Math.random() * CHICK_VARIANTS.length)];
+  el.innerHTML = chickSVG(variant);
+
+  // Тоо, хэлбэр variant
+  const size = 70 + Math.random() * 140; // 70..210px
+  el.style.width = size + 'px';
+  el.style.height = size + 'px';
+
+  // Animation төрөл — 4 төрлөөс санамсаргүй
+  const mode = Math.random();
+  if (mode < 0.45) {
+    // Pop in random position
+    el.className = 'distractor d-pop';
+    el.style.left = (Math.random() * 90) + '%';
+    el.style.top = (Math.random() * 80 + 5) + '%';
+    el.style.setProperty('--r0', ((Math.random()-0.5)*60) + 'deg');
+    el.style.setProperty('--r1', ((Math.random()-0.5)*120) + 'deg');
+    el.style.setProperty('--r2', ((Math.random()-0.5)*120) + 'deg');
+    el.style.setProperty('--r3', ((Math.random()-0.5)*240) + 'deg');
+  } else if (mode < 0.65) {
+    // Fly left → right
+    el.className = 'distractor d-fly-lr';
+    el.style.top = (Math.random() * 80 + 5) + '%';
+    el.style.left = '0';
+    el.style.setProperty('--dy', ((Math.random()-0.5)*200) + 'px');
+    el.style.setProperty('--rot', ((Math.random()-0.5)*720) + 'deg');
+  } else if (mode < 0.8) {
+    // Fly right → left
+    el.className = 'distractor d-fly-rl';
+    el.style.top = (Math.random() * 80 + 5) + '%';
+    el.style.right = '0';
+    el.style.setProperty('--dy', ((Math.random()-0.5)*200) + 'px');
+    el.style.setProperty('--rot', ((Math.random()-0.5)*720) + 'deg');
+  } else if (mode < 0.92) {
+    // Fall top → bottom
+    el.className = 'distractor d-fly-tb';
+    el.style.left = (Math.random() * 85 + 2) + '%';
+    el.style.top = '0';
+    el.style.setProperty('--dx', ((Math.random()-0.5)*200) + 'px');
+    el.style.setProperty('--rot', ((Math.random()-0.5)*720) + 'deg');
+  } else {
+    // Bounce in place
+    el.className = 'distractor d-bounce';
+    el.style.left = (Math.random() * 90) + '%';
+    el.style.top = (Math.random() * 80 + 5) + '%';
+    el.style.setProperty('--r0', ((Math.random()-0.5)*40) + 'deg');
+    el.style.setProperty('--r1', ((Math.random()-0.5)*120) + 'deg');
+  }
+
   document.body.appendChild(el);
-  setTimeout(() => el.remove(), 6000);
+  setTimeout(() => el.remove(), 5500);
 }
 function startDistractors() {
   stopDistractors();
-  _distractorTimer = setInterval(spawnDistractor, 400);
-  for (let i = 0; i < 3; i++) setTimeout(spawnDistractor, i * 120);
+  // Эхэндээ хэд хэдэн дороор гаргах
+  for (let i = 0; i < 6; i++) setTimeout(spawnDistractor, i * 150);
+  // Дараа нь тогтмол интервалаар
+  _distractorTimer = setInterval(spawnDistractor, 280);
 }
 function stopDistractors() {
   if (_distractorTimer) { clearInterval(_distractorTimer); _distractorTimer = null; }
