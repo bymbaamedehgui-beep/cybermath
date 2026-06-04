@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>CyberMath — Уралдаан</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;700;800;900&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body {
+    height:100%;
+    font-family:'Baloo 2', sans-serif;
+    background:linear-gradient(135deg, #7B52EE 0%, #A855F7 100%);
+    color:#2B2542;
+    overflow-x:hidden;
+  }
+  .center {
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+  }
+  .card {
+    background:#fff;
+    border-radius:24px;
+    padding:32px;
+    box-shadow:0 24px 60px rgba(43,37,66,0.25);
+    max-width:500px;
+    width:100%;
+  }
+  .card h1 {
+    font-size:1.6rem;
+    font-weight:900;
+    color:#2B2542;
+    margin-bottom:6px;
+    text-align:center;
+  }
+  .card .sub {
+    font-size:0.86rem;
+    color:#6B6280;
+    text-align:center;
+    margin-bottom:20px;
+    font-weight:700;
+  }
+  .form-label {
+    font-size:0.78rem;
+    color:#7A6E5C;
+    font-weight:800;
+    margin-bottom:6px;
+    text-transform:uppercase;
+    letter-spacing:0.5px;
+  }
+  .form-group { margin-bottom:14px; }
+  .form-input, .form-textarea {
+    width:100%;
+    padding:12px 14px;
+    border:1.5px solid #ECE6F8;
+    border-radius:12px;
+    font-family:inherit;
+    font-size:1rem;
+    outline:none;
+    color:#2B2542;
+    background:#FAF8FE;
+    box-sizing:border-box;
+  }
+  .form-input:focus, .form-textarea:focus {
+    border-color:#7B52EE;
+    background:#fff;
+  }
+  .form-textarea {
+    min-height:80px;
+    resize:vertical;
+  }
+  .btn {
+    width:100%;
+    padding:14px;
+    background:linear-gradient(135deg, #7B52EE, #A855F7);
+    color:#fff;
+    border:none;
+    border-radius:12px;
+    font-family:inherit;
+    font-weight:900;
+    font-size:1.05rem;
+    cursor:pointer;
+    letter-spacing:0.3px;
+    box-shadow:0 4px 14px rgba(123,82,238,0.35);
+  }
+  .btn:disabled { opacity:0.5; cursor:not-allowed; }
+  .btn-alt {
+    background:#fff;
+    color:#7B52EE;
+    border:1.5px solid #7B52EE;
+    box-shadow:none;
+  }
+  .btn-danger {
+    background:#E45A6B;
+    color:#fff;
+    box-shadow:0 4px 14px rgba(228,90,107,0.35);
+  }
+  .btn-row { display:flex; gap:8px; }
+
+  /* ── PRESENTER VIEW ── */
+  .presenter {
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    padding:30px 20px;
+    color:#fff;
+    text-align:center;
+  }
+  .pres-title {
+    font-size:2rem;
+    font-weight:900;
+    margin-bottom:6px;
+    letter-spacing:0.5px;
+  }
+  .pres-sub {
+    font-size:1rem;
+    opacity:0.9;
+    font-weight:700;
+    margin-bottom:30px;
+  }
+  .qr-wrap {
+    background:#fff;
+    border-radius:24px;
+    padding:24px;
+    box-shadow:0 24px 60px rgba(0,0,0,0.3);
+    margin-bottom:28px;
+  }
+  .qr-wrap canvas, .qr-wrap img { display:block; }
+  .pres-instr {
+    font-size:1.3rem;
+    font-weight:800;
+    margin-bottom:12px;
+    background:rgba(255,255,255,0.15);
+    padding:14px 28px;
+    border-radius:14px;
+    backdrop-filter:blur(10px);
+  }
+  .pres-question {
+    font-size:1rem;
+    color:#FFF;
+    opacity:0.85;
+    max-width:680px;
+    margin:16px auto 0;
+    padding:14px 22px;
+    border:1.5px dashed rgba(255,255,255,0.4);
+    border-radius:14px;
+    font-weight:700;
+  }
+  .pres-count {
+    margin-top:24px;
+    font-size:0.94rem;
+    font-weight:700;
+    opacity:0.9;
+  }
+  .pres-count strong {
+    font-size:1.2rem;
+    color:#FFE9A8;
+  }
+
+  /* ── WINNER REVEAL ── */
+  .winner-reveal {
+    text-align:center;
+    color:#fff;
+    animation:winSlide 0.7s ease-out;
+  }
+  @keyframes winSlide {
+    from { opacity:0; transform:translateY(40px) scale(0.85); }
+    to { opacity:1; transform:translateY(0) scale(1); }
+  }
+  .winner-trophy {
+    font-size:8rem;
+    line-height:1;
+    margin-bottom:20px;
+    animation:bounce 1.6s ease-in-out infinite;
+  }
+  @keyframes bounce {
+    0%,100% { transform:translateY(0) rotate(-5deg); }
+    50% { transform:translateY(-20px) rotate(5deg); }
+  }
+  .winner-label {
+    font-size:1.5rem;
+    font-weight:900;
+    margin-bottom:10px;
+    letter-spacing:1px;
+    text-transform:uppercase;
+  }
+  .winner-name {
+    font-size:5rem;
+    font-weight:900;
+    line-height:1.1;
+    margin-bottom:14px;
+    color:#FFE9A8;
+    text-shadow:0 4px 24px rgba(0,0,0,0.3);
+    word-break:break-word;
+  }
+  .winner-msg {
+    font-size:1.4rem;
+    font-weight:800;
+    opacity:0.95;
+    margin-bottom:30px;
+  }
+  .confetti {
+    position:fixed;
+    pointer-events:none;
+    top:0; left:0; width:100%; height:100%;
+    overflow:hidden;
+    z-index:9;
+  }
+  .confetti span {
+    position:absolute;
+    width:12px; height:12px;
+    background:#FFE9A8;
+    top:-20px;
+    animation:fall 5s linear infinite;
+  }
+  @keyframes fall {
+    to { transform:translateY(110vh) rotate(720deg); }
+  }
+
+  /* ── PLAYER VIEW ── */
+  .player-card .result-msg {
+    text-align:center;
+    padding:28px 20px;
+    border-radius:16px;
+    font-size:1.2rem;
+    font-weight:900;
+    margin-bottom:14px;
+  }
+  .result-msg.win {
+    background:linear-gradient(135deg, #10B981, #059669);
+    color:#fff;
+  }
+  .result-msg.lose {
+    background:linear-gradient(135deg, #E45A6B, #DC2626);
+    color:#fff;
+  }
+  .result-msg.late {
+    background:#FAF6EE;
+    color:#7A6E5C;
+    border:1px solid #ECE4D8;
+  }
+
+  .question-box {
+    background:#F5F0FF;
+    border:1.5px solid #ECE6F8;
+    border-left:5px solid #7B52EE;
+    border-radius:12px;
+    padding:14px 18px;
+    margin-bottom:18px;
+  }
+  .question-box .qlbl {
+    font-size:0.74rem;
+    color:#7B52EE;
+    font-weight:800;
+    text-transform:uppercase;
+    letter-spacing:0.5px;
+    margin-bottom:4px;
+  }
+  .question-box .qtxt {
+    font-size:1.15rem;
+    color:#2B2542;
+    font-weight:800;
+    line-height:1.4;
+  }
+
+  @media (max-width:520px) {
+    .winner-name { font-size:3rem; }
+    .winner-trophy { font-size:6rem; }
+    .pres-title { font-size:1.5rem; }
+    .pres-instr { font-size:1rem; padding:10px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="confetti-host"></div>
+<div id="root" class="center"></div>
+
+<script>
+const API = '/api/contest';
+const root = document.getElementById('root');
+const params = new URLSearchParams(location.search);
+
+const view = (params.has('presenter')) ? 'presenter'
+           : (params.has('id') || params.has('contest')) ? 'player'
+           : 'setup';
+
+if (view === 'setup') renderSetup();
+else if (view === 'presenter') renderPresenter(parseInt(params.get('presenter')));
+else renderPlayer(parseInt(params.get('id') || params.get('contest')));
+
+// ═══════════════════════════════════════════
+// SETUP — Админ уралдаан үүсгэх
+// ═══════════════════════════════════════════
+async function renderSetup() {
+  // Шалгах: одоо идэвхтэй уралдаан байна уу?
+  let active = null;
+  try {
+    const r = await fetch(API);
+    const d = await r.json();
+    if (d.ok && d.contest && d.contest.active) active = d.contest;
+  } catch(e) {}
+
+  if (active) {
+    root.innerHTML = `
+      <div class="card">
+        <h1>Идэвхтэй уралдаан байна</h1>
+        <div class="sub">"${esc(active.title)}" #${active.id}</div>
+        <div class="question-box">
+          <div class="qlbl">Асуулт</div>
+          <div class="qtxt">${esc(active.question)}</div>
+        </div>
+        <div style="background:#F0FDF4;border:1px solid #86EFAC;border-radius:10px;padding:10px;font-size:0.84rem;color:#065F46;font-weight:700;margin-bottom:14px;">
+          ${active.winner_name ? '🏆 Ялагч: <b>' + esc(active.winner_name) + '</b>' : 'Хариу хүлээж байна...'}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <button class="btn" onclick="location.href='?presenter=${active.id}'">📺 Том дэлгэцэн дээр үргэлжлүүлэх</button>
+          <button class="btn btn-alt" onclick="resetContest(${active.id})">↻ Уралдааныг шинээр эхлүүлэх</button>
+          <button class="btn btn-danger" onclick="closeContest(${active.id})">✕ Уралдааныг бүрэн дуусгах</button>
+        </div>
+      </div>`;
+    return;
+  }
+
+  root.innerHTML = `
+    <div class="card">
+      <h1>🏆 Эцэг эхийн уралдаан</h1>
+      <div class="sub">Хамгийн анх зөв хариулсан хүнийг ялагч болгоно</div>
+      <div class="form-group">
+        <div class="form-label">Уралдааны нэр</div>
+        <input id="title" class="form-input" placeholder="Эцэг эхийн өдөрлөг 2026" value="Эцэг эхийн өдөрлөг 2026"/>
+      </div>
+      <div class="form-group">
+        <div class="form-label">Асуулт</div>
+        <textarea id="q" class="form-textarea" placeholder="Жишээ: CyberMath апп нь хэдэн жилд бүтсэн бэ?"></textarea>
+      </div>
+      <div class="form-group">
+        <div class="form-label">Зөв хариу</div>
+        <input id="a" class="form-input" placeholder="Хариу — нэг үг/тоо илүү тохиромжтой"/>
+        <div style="font-size:0.72rem;color:#9C95B1;margin-top:5px;font-weight:600;">Том/жижиг үсэг, цэг таслал ялгахгүй</div>
+      </div>
+      <button class="btn" onclick="createContest()">🎯 Уралдаан эхлүүлэх</button>
+    </div>`;
+}
+
+async function createContest() {
+  const title = document.getElementById('title').value.trim();
+  const q = document.getElementById('q').value.trim();
+  const a = document.getElementById('a').value.trim();
+  if (!q || !a) { alert('Асуулт болон хариу оруулна уу'); return; }
+  try {
+    const r = await fetch(API, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ action:'create', title, question:q, answer:a })
+    });
+    const d = await r.json();
+    if (!d.ok) { alert('Алдаа: ' + (d.error||'?')); return; }
+    location.href = '?presenter=' + d.contest.id;
+  } catch(e) { alert('Network: ' + e.message); }
+}
+
+async function resetContest(id) {
+  if (!confirm('Ялагчийг устгаад уралдааныг шинээр эхлүүлэх үү?')) return;
+  await fetch(API, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ action:'reset', id })
+  });
+  location.href = '?presenter=' + id;
+}
+
+async function closeContest(id) {
+  if (!confirm('Уралдааныг бүрэн дуусгаж шинээр эхлэх үү?')) return;
+  await fetch(API, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ action:'close', id })
+  });
+  location.href = '/contest';
+}
+
+// ═══════════════════════════════════════════
+// PRESENTER — Том дэлгэц (QR + Live winner)
+// ═══════════════════════════════════════════
+let _pollTimer = null;
+async function renderPresenter(id) {
+  // Initial fetch
+  const r = await fetch(API + '?id=' + id);
+  const d = await r.json();
+  if (!d.ok || !d.contest) {
+    root.innerHTML = '<div class="card"><h1>Уралдаан олдсонгүй</h1><button class="btn" onclick="location.href=\'/contest\'">Шинээр үүсгэх</button></div>';
+    return;
+  }
+  showPresenterScreen(d.contest);
+  // Polling
+  if (_pollTimer) clearInterval(_pollTimer);
+  _pollTimer = setInterval(async () => {
+    try {
+      const r2 = await fetch(API + '?id=' + id);
+      const d2 = await r2.json();
+      if (d2.ok && d2.contest) showPresenterScreen(d2.contest);
+    } catch(e) {}
+  }, 1500);
+}
+
+function showPresenterScreen(contest) {
+  const presenterRoot = document.body;
+  presenterRoot.style.background = 'linear-gradient(135deg, #7B52EE 0%, #A855F7 100%)';
+
+  if (contest.winner_name) {
+    // Winner view
+    if (root.dataset.state !== 'winner') {
+      root.dataset.state = 'winner';
+      root.classList.remove('center');
+      root.className = 'presenter';
+      root.innerHTML = `
+        <div class="winner-reveal">
+          <div class="winner-trophy">🏆</div>
+          <div class="winner-label">Ялагч</div>
+          <div class="winner-name">${esc(contest.winner_name)}</div>
+          <div class="winner-msg">🎉 Баяр хүргэе! Та хамгийн анх зөв хариулсан байна!</div>
+          <div style="margin-top:30px;font-size:0.9rem;opacity:0.7;">"${esc(contest.title || 'Уралдаан')}"</div>
+        </div>`;
+      makeConfetti();
+      if (_pollTimer) clearInterval(_pollTimer);
+    }
+    return;
+  }
+
+  // Waiting view (with QR)
+  if (root.dataset.state !== 'waiting') {
+    root.dataset.state = 'waiting';
+    root.classList.remove('center');
+    root.className = 'presenter';
+    const playerUrl = location.origin + '/contest?id=' + contest.id;
+    root.innerHTML = `
+      <div class="pres-title">🏆 ${esc(contest.title || 'Эцэг эхийн уралдаан')}</div>
+      <div class="pres-sub">Хамгийн анх зөв хариулсан хүн ялна</div>
+      <div class="qr-wrap" id="qr-canvas"></div>
+      <div class="pres-instr">📱 QR-ыг утсаараа уншуулна уу</div>
+      <div class="pres-question">${esc(contest.question)}</div>
+      <div class="pres-count">Оролдсон тоо: <strong id="atc">${contest.attempt_count || 0}</strong></div>
+      <div style="position:fixed;bottom:14px;right:18px;font-size:0.74rem;color:#fff;opacity:0.5;">#${contest.id}</div>`;
+    new QRCode(document.getElementById('qr-canvas'), {
+      text: playerUrl,
+      width: 280, height: 280,
+      colorDark : '#2B2542',
+      colorLight : '#ffffff',
+      correctLevel : QRCode.CorrectLevel.H
+    });
+  } else {
+    const atc = document.getElementById('atc');
+    if (atc) atc.textContent = contest.attempt_count || 0;
+  }
+}
+
+function makeConfetti() {
+  const host = document.getElementById('confetti-host');
+  host.innerHTML = '<div class="confetti" id="cf"></div>';
+  const cf = document.getElementById('cf');
+  const colors = ['#FFE9A8','#FF8FA3','#5B8DEF','#3FB37A','#A855F7','#F5A623'];
+  for (let i=0; i<80; i++) {
+    const sp = document.createElement('span');
+    sp.style.left = (Math.random()*100) + '%';
+    sp.style.background = colors[i % colors.length];
+    sp.style.animationDelay = (Math.random()*5) + 's';
+    sp.style.animationDuration = (3 + Math.random()*3) + 's';
+    sp.style.width = sp.style.height = (8 + Math.random()*8) + 'px';
+    sp.style.borderRadius = (Math.random()>0.5 ? '50%' : '2px');
+    cf.appendChild(sp);
+  }
+}
+
+// ═══════════════════════════════════════════
+// PLAYER — Эцэг эх хариулах
+// ═══════════════════════════════════════════
+async function renderPlayer(id) {
+  const r = await fetch(API + '?id=' + id);
+  const d = await r.json();
+  if (!d.ok || !d.contest) {
+    root.innerHTML = '<div class="card"><h1>Уралдаан олдсонгүй</h1><div class="sub">QR хүчингүй эсвэл дууссан.</div></div>';
+    return;
+  }
+  const c = d.contest;
+  if (!c.active) {
+    root.innerHTML = `<div class="card player-card">
+      <h1>Уралдаан дууссан</h1>
+      ${c.winner_name ? '<div class="result-msg win">🏆 Ялагч: ' + esc(c.winner_name) + '</div>' : '<div class="sub">Ялагч тогтоогдоогүй</div>'}
+    </div>`;
+    return;
+  }
+  if (c.winner_name) {
+    // Already someone won
+    root.innerHTML = `<div class="card player-card">
+      <h1>Хэн нэгэн түрүүлсэн</h1>
+      <div class="result-msg late">⏱️ Ялагч: <b>${esc(c.winner_name)}</b><br>Дараагийн уралдаанд амжилт хүсье!</div>
+    </div>`;
+    return;
+  }
+  // Show form
+  root.innerHTML = `
+    <div class="card player-card">
+      <h1>🏆 ${esc(c.title || 'Уралдаан')}</h1>
+      <div class="sub">Хамгийн анх зөв хариулсан нь ялагч</div>
+      <div class="question-box">
+        <div class="qlbl">Асуулт</div>
+        <div class="qtxt">${esc(c.question)}</div>
+      </div>
+      <div class="form-group">
+        <div class="form-label">Таны нэр</div>
+        <input id="p-name" class="form-input" placeholder="Овог нэр" maxlength="80" autofocus/>
+      </div>
+      <div class="form-group">
+        <div class="form-label">Утасны дугаар (нэмэлт)</div>
+        <input id="p-phone" class="form-input" placeholder="9911-2233" inputmode="tel" maxlength="20"/>
+      </div>
+      <div class="form-group">
+        <div class="form-label">Таны хариу</div>
+        <input id="p-ans" class="form-input" placeholder="Хариу" maxlength="120"/>
+      </div>
+      <button class="btn" id="p-submit" onclick="submitAnswer(${c.id})">🚀 Илгээх</button>
+      <div style="text-align:center;margin-top:10px;font-size:0.74rem;color:#9C95B1;font-weight:600;">⚠️ Нэг л оролдох боломжтой</div>
+    </div>`;
+  document.getElementById('p-ans').addEventListener('keydown', function(e){
+    if (e.key === 'Enter') submitAnswer(c.id);
+  });
+}
+
+async function submitAnswer(id) {
+  const name = document.getElementById('p-name').value.trim();
+  const phone = document.getElementById('p-phone').value.trim();
+  const ans = document.getElementById('p-ans').value.trim();
+  if (!name) { alert('Нэрээ оруулна уу'); return; }
+  if (!ans) { alert('Хариу оруулна уу'); return; }
+  const btn = document.getElementById('p-submit');
+  btn.disabled = true;
+  btn.textContent = 'Илгээж байна...';
+  try {
+    const r = await fetch(API, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ action:'submit', id, name, phone, answer: ans })
+    });
+    const d = await r.json();
+    if (!d.ok) {
+      alert(d.error || 'Алдаа гарлаа');
+      btn.disabled = false; btn.textContent = '🚀 Илгээх';
+      return;
+    }
+    showResult(d, name);
+  } catch(e) {
+    alert('Network: ' + e.message);
+    btn.disabled = false; btn.textContent = '🚀 Илгээх';
+  }
+}
+
+function showResult(d, myName) {
+  if (d.correct && d.winner) {
+    root.innerHTML = `<div class="card player-card">
+      <div class="result-msg win" style="font-size:1.4rem;padding:36px 20px;">
+        🏆<br>ТА ЯЛЛАА!<br>
+        <span style="font-size:1rem;opacity:0.9;display:block;margin-top:8px;font-weight:700;">Та хамгийн анх зөв хариулсан байна.</span>
+      </div>
+      <div style="text-align:center;font-size:0.94rem;color:#7A6E5C;font-weight:700;margin-top:14px;">Нэрээ том дэлгэцээс харна уу 🎉</div>
+    </div>`;
+  } else if (d.correct && !d.winner) {
+    root.innerHTML = `<div class="card player-card">
+      <div class="result-msg late">
+        ✓ Зөв хариулт<br>
+        <span style="font-size:0.94rem;display:block;margin-top:6px;">Гэвч "<b>${esc(d.winner_name || 'хэн нэгэн')}</b>" Танаас түрүүлсэн.</span>
+      </div>
+    </div>`;
+  } else {
+    root.innerHTML = `<div class="card player-card">
+      <div class="result-msg lose">
+        ✕ Хариулт буруу<br>
+        <span style="font-size:0.94rem;display:block;margin-top:6px;">Дахин оролдох боломжгүй.</span>
+      </div>
+    </div>`;
+  }
+}
+
+function esc(s) {
+  return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+</script>
+</body>
+</html>
