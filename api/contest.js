@@ -35,6 +35,11 @@ module.exports = async (req, res) => {
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_ca_contest ON contest_attempts(contest_id, submitted_at DESC)`).catch(()=>{});
 
+    // Нийлбэр-уралдаан зориулсан багана нэмэх (idempotent)
+    await pool.query(`ALTER TABLE contests ADD COLUMN IF NOT EXISTS numbers JSONB`).catch(()=>{});
+    await pool.query(`ALTER TABLE contests ADD COLUMN IF NOT EXISTS numbers_shown_at TIMESTAMPTZ`).catch(()=>{});
+    await pool.query(`ALTER TABLE contests ADD COLUMN IF NOT EXISTS contest_type TEXT DEFAULT 'qa'`).catch(()=>{});
+
     // ── GET — Live state буцаах (polling) ──
     if (req.method === 'GET') {
       const id = parseInt(req.query.id || '0');
@@ -58,22 +63,51 @@ module.exports = async (req, res) => {
 
       // Шинэ уралдаан үүсгэх (админ)
       if (action === 'create') {
-        const { title, question, answer } = body;
-        if (!question || !answer) return res.status(400).json({ ok: false, error: 'Асуулт болон хариу заавал' });
+        const { title, question, answer, contest_type, count, max_num } = body;
+        let type = contest_type === 'sum' ? 'sum' : 'qa';
+        let q = question;
+        let a = answer;
+        let numbers = null;
+
+        if (type === 'sum') {
+          const n = Math.min(20, Math.max(2, parseInt(count) || 10));
+          const m = Math.min(99, Math.max(2, parseInt(max_num) || 20));
+          numbers = [];
+          let sum = 0;
+          for (let i = 0; i < n; i++) {
+            const v = 1 + Math.floor(Math.random() * m);
+            numbers.push(v);
+            sum += v;
+          }
+          q = (q && q.trim()) || (n + ' тооны нийлбэрийг оруулна уу');
+          a = String(sum);
+        }
+
+        if (!q || !a) return res.status(400).json({ ok: false, error: 'Асуулт болон хариу заавал' });
+
         // Бусад идэвхтэй уралдааныг хаах
         await pool.query('UPDATE contests SET active=false WHERE active=true');
         const r = await pool.query(
-          'INSERT INTO contests (title, question, answer) VALUES ($1, $2, $3) RETURNING *',
-          [title || 'Эцэг эхийн уралдаан', question.trim(), String(answer).trim()]
+          'INSERT INTO contests (title, question, answer, contest_type, numbers) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+          [title || 'Эцэг эхийн уралдаан', q.trim(), String(a).trim(), type, numbers ? JSON.stringify(numbers) : null]
         );
         return res.json({ ok: true, contest: r.rows[0] });
       }
 
-      // Дахин эхлүүлэх (winner reset, attempts хадгалагдсан хэвээр)
+      // Тоон уралдааны animation эхлүүлсэн гэж тэмдэглэх
+      if (action === 'start') {
+        const { id } = body;
+        if (!id) return res.status(400).json({ ok: false });
+        await pool.query('UPDATE contests SET numbers_shown_at=NOW() WHERE id=$1 AND numbers_shown_at IS NULL', [id]);
+        const r = await pool.query('SELECT * FROM contests WHERE id=$1', [id]);
+        return res.json({ ok: true, contest: r.rows[0] });
+      }
+
+      // Дахин эхлүүлэх (winner + numbers_shown_at reset, attempts арилгана)
       if (action === 'reset') {
         const { id } = body;
         if (!id) return res.status(400).json({ ok: false });
-        await pool.query('UPDATE contests SET winner_name=NULL, winner_phone=NULL, winner_at=NULL WHERE id=$1', [id]);
+        await pool.query('UPDATE contests SET winner_name=NULL, winner_phone=NULL, winner_at=NULL, numbers_shown_at=NULL WHERE id=$1', [id]);
         await pool.query('DELETE FROM contest_attempts WHERE contest_id=$1', [id]);
         const r = await pool.query('SELECT * FROM contests WHERE id=$1', [id]);
         return res.json({ ok: true, contest: r.rows[0] });
@@ -104,9 +138,20 @@ module.exports = async (req, res) => {
         if (!contest) return res.json({ ok: false, error: 'Уралдаан олдсонгүй' });
         if (!contest.active) return res.json({ ok: false, error: 'Уралдаан дууссан' });
 
-        // Хариулт зөв эсэх (case-insensitive, тэмдэгтгүй харьцуулалт)
-        const normalize = (s) => String(s).toLowerCase().replace(/[\s\.,;:!\?\-_]+/g, '').trim();
-        const isCorrect = normalize(cleanAnswer) === normalize(contest.answer);
+        // Тоон уралдаан хараахан эхлээгүй бол хариу хүлээж авахгүй
+        if (contest.contest_type === 'sum' && !contest.numbers_shown_at) {
+          return res.json({ ok: false, error: 'Уралдаан эхлэх хүртэл хүлээнэ үү' });
+        }
+
+        // Хариулт зөв эсэх — sum бол зөвхөн тоо, бусад нь тэмдэгтгүй
+        let isCorrect;
+        if (contest.contest_type === 'sum') {
+          const numOnly = (s) => String(s).replace(/[^0-9\-]/g, '');
+          isCorrect = numOnly(cleanAnswer) === numOnly(contest.answer);
+        } else {
+          const normalize = (s) => String(s).toLowerCase().replace(/[\s\.,;:!\?\-_]+/g, '').trim();
+          isCorrect = normalize(cleanAnswer) === normalize(contest.answer);
+        }
 
         // attempt бүртгэх
         await pool.query(
