@@ -328,6 +328,40 @@
     color:#fff;
     opacity:0.7;
     letter-spacing:2px;
+    z-index:10;
+  }
+
+  /* Distractor "шувуунууд" — анхаарал сарьнуулах */
+  .distractor {
+    position:fixed;
+    pointer-events:none;
+    z-index:3;
+    will-change:transform;
+    user-select:none;
+    filter:drop-shadow(0 4px 8px rgba(0,0,0,0.2));
+  }
+  @keyframes flyLR {
+    from { transform:translateX(-150px) translateY(0) rotate(0deg); }
+    to { transform:translateX(calc(100vw + 150px)) translateY(var(--dy)) rotate(var(--rot)); }
+  }
+  @keyframes flyRL {
+    from { transform:translateX(calc(100vw + 150px)) translateY(0) rotate(0deg); }
+    to { transform:translateX(-150px) translateY(var(--dy)) rotate(var(--rot)); }
+  }
+  @keyframes flyTB {
+    from { transform:translateY(-150px) translateX(0) rotate(0deg); }
+    to { transform:translateY(calc(100vh + 150px)) translateX(var(--dx)) rotate(var(--rot)); }
+  }
+  @keyframes wobble {
+    0%,100% { transform:translateY(0); }
+    50% { transform:translateY(-30px); }
+  }
+  .distractor.bird-fly {
+    animation:flyLR 4s linear forwards, wobble 0.6s ease-in-out infinite;
+  }
+  .num-flash, .countdown {
+    position:relative;
+    z-index:6;
   }
   @media (max-width:520px) {
     .countdown { font-size:10rem; }
@@ -389,76 +423,37 @@ async function renderSetup() {
 
   root.innerHTML = `
     <div class="card">
-      <h1>🏆 Шинэ уралдаан</h1>
-      <div class="sub">Хамгийн анх зөв хариулсан хүнийг ялагч болгоно</div>
-      <div style="display:flex;background:#F5F0FF;border-radius:11px;padding:4px;gap:4px;margin-bottom:18px;">
-        <button data-tab="sum" type="button" onclick="switchTab('sum')" id="tab-sum"
-          style="flex:1;padding:10px;background:#7B52EE;color:#fff;border:none;border-radius:9px;cursor:pointer;font-family:inherit;font-weight:800;font-size:0.86rem;">🔢 Тоон нийлбэр</button>
-        <button data-tab="qa" type="button" onclick="switchTab('qa')" id="tab-qa"
-          style="flex:1;padding:10px;background:transparent;color:#7B52EE;border:none;border-radius:9px;cursor:pointer;font-family:inherit;font-weight:800;font-size:0.86rem;">📝 Асуулт-хариу</button>
+      <h1 style="font-size:1.4rem;line-height:1.2;">⚡ ХЭН ХАМГИЙН ХУРДАН БОДОХ ВЭ?</h1>
+      <div class="sub" style="text-align:left;background:#F5F0FF;border-left:4px solid #7B52EE;border-radius:10px;padding:12px 14px;font-size:0.86rem;color:#2B2542;font-weight:700;line-height:1.5;margin-bottom:18px;">
+        Дэлгэцэнд <b>10 тоо</b> дараалан гарна. Түүнийг <b>цээжээр</b> хамгийн түрүүнд зөв бодсон оролцогч ялагч болж <b>CYBERMATH платформын бүтэн жилийн эрх</b> авна.
       </div>
-
       <div class="form-group">
         <div class="form-label">Уралдааны нэр</div>
         <input id="title" class="form-input" placeholder="Эцэг эхийн өдөрлөг 2026" value="Эцэг эхийн өдөрлөг 2026"/>
       </div>
-
-      <!-- SUM mode -->
-      <div id="mode-sum">
-        <div style="background:#F5F0FF;border-left:4px solid #7B52EE;border-radius:10px;padding:12px 14px;font-size:0.84rem;color:#2B2542;font-weight:700;margin-bottom:14px;line-height:1.4;">
-          ℹ️ Дэлгэцэнд тоонууд дуу гарган дараалан гарна. Эцэг эх нь нийлбэрийг бичиж илгээнэ. Анх зөв нь ялна.
+      <div style="display:flex;gap:10px;">
+        <div class="form-group" style="flex:1;">
+          <div class="form-label">Тооны тоо</div>
+          <input id="num-count" class="form-input" type="number" min="2" max="20" value="10"/>
         </div>
-        <div style="display:flex;gap:10px;">
-          <div class="form-group" style="flex:1;">
-            <div class="form-label">Тооны тоо</div>
-            <input id="num-count" class="form-input" type="number" min="2" max="20" value="10"/>
-          </div>
-          <div class="form-group" style="flex:1;">
-            <div class="form-label">Хамгийн их</div>
-            <input id="num-max" class="form-input" type="number" min="2" max="99" value="20"/>
-          </div>
+        <div class="form-group" style="flex:1;">
+          <div class="form-label">Хамгийн их</div>
+          <input id="num-max" class="form-input" type="number" min="2" max="99" value="20"/>
         </div>
-        <button class="btn" onclick="createContest('sum')">🔢 Тоон уралдаан үүсгэх</button>
       </div>
-
-      <!-- QA mode -->
-      <div id="mode-qa" style="display:none;">
-        <div class="form-group">
-          <div class="form-label">Асуулт</div>
-          <textarea id="q" class="form-textarea" placeholder="Жишээ: CyberMath апп нь хэдэн жилд бүтсэн бэ?"></textarea>
-        </div>
-        <div class="form-group">
-          <div class="form-label">Зөв хариу</div>
-          <input id="a" class="form-input" placeholder="Хариу — нэг үг/тоо илүү тохиромжтой"/>
-          <div style="font-size:0.72rem;color:#9C95B1;margin-top:5px;font-weight:600;">Том/жижиг үсэг, цэг таслал ялгахгүй</div>
-        </div>
-        <button class="btn" onclick="createContest('qa')">🎯 Уралдаан эхлүүлэх</button>
-      </div>
+      <button class="btn" onclick="createContest()">🔢 Уралдаан үүсгэх</button>
     </div>`;
 }
 
-function switchTab(t) {
-  document.getElementById('tab-sum').style.background = t==='sum' ? '#7B52EE' : 'transparent';
-  document.getElementById('tab-sum').style.color = t==='sum' ? '#fff' : '#7B52EE';
-  document.getElementById('tab-qa').style.background = t==='qa' ? '#7B52EE' : 'transparent';
-  document.getElementById('tab-qa').style.color = t==='qa' ? '#fff' : '#7B52EE';
-  document.getElementById('mode-sum').style.display = t==='sum' ? 'block' : 'none';
-  document.getElementById('mode-qa').style.display = t==='qa' ? 'block' : 'none';
-}
-
-async function createContest(type) {
+async function createContest() {
   const title = document.getElementById('title').value.trim();
-  const body = { action:'create', title, contest_type: type };
-  if (type === 'sum') {
-    body.count = parseInt(document.getElementById('num-count').value) || 10;
-    body.max_num = parseInt(document.getElementById('num-max').value) || 20;
-  } else {
-    const q = document.getElementById('q').value.trim();
-    const a = document.getElementById('a').value.trim();
-    if (!q || !a) { alert('Асуулт болон хариу оруулна уу'); return; }
-    body.question = q;
-    body.answer = a;
-  }
+  const body = {
+    action:'create',
+    title,
+    contest_type: 'sum',
+    count: parseInt(document.getElementById('num-count').value) || 10,
+    max_num: parseInt(document.getElementById('num-max').value) || 20
+  };
   try {
     const r = await fetch(API, {
       method:'POST', headers:{'Content-Type':'application/json'},
@@ -529,7 +524,11 @@ function showPresenterScreen(contest) {
           <div class="winner-label">Ялагч</div>
           <div class="winner-name">${esc(contest.winner_name)}</div>
           <div class="winner-msg">🎉 Баяр хүргэе! Та хамгийн анх зөв хариулсан байна!</div>
-          <div style="margin-top:30px;font-size:0.9rem;opacity:0.7;">"${esc(contest.title || 'Уралдаан')}"</div>
+          <div style="margin-top:18px;background:rgba(255,233,168,0.18);border:2px solid rgba(255,233,168,0.5);border-radius:14px;padding:14px 22px;display:inline-block;">
+            <div style="font-size:0.78rem;opacity:0.8;letter-spacing:1px;margin-bottom:4px;">🎁 ШАГНАЛ</div>
+            <div style="font-size:1.3rem;font-weight:900;color:#FFE9A8;">CYBERMATH платформын бүтэн жилийн эрх</div>
+          </div>
+          <div style="margin-top:24px;font-size:0.86rem;opacity:0.7;">"${esc(contest.title || 'Уралдаан')}"</div>
         </div>`;
       makeConfetti();
       if (_pollTimer) clearInterval(_pollTimer);
@@ -545,10 +544,10 @@ function showPresenterScreen(contest) {
       root.classList.remove('center');
       root.className = 'presenter';
       root.innerHTML = `
-        <div class="pres-title">🔢 ${esc(contest.title || 'Тоон уралдаан')}</div>
-        <div class="pres-sub">Дэлгэцэнд ${numbers.length} тоо дуутайгаар гарна. Анхаарал төвлөрүүлээрэй.</div>
+        <div class="pres-title" style="font-size:2.4rem;">⚡ ХЭН ХАМГИЙН ХУРДАН БОДОХ ВЭ?</div>
+        <div class="pres-sub" style="max-width:760px;font-size:1.1rem;line-height:1.5;">Дэлгэцэнд <b>${numbers.length} тоо</b> дараалан гарна. Түүнийг <b>цээжээр</b> хамгийн түрүүнд зөв бодсон оролцогч <b>CYBERMATH платформын бүтэн жилийн эрх</b> авна.</div>
         <button class="start-btn-huge" onclick="playSumAnimation(${contest.id})">▶ ЭХЛҮҮЛЭХ</button>
-        <div style="margin-top:24px;font-size:0.84rem;opacity:0.7;">⚠️ Эхэлсний дараа тооны нийлбэрийг утсаараа илгээнэ</div>
+        <div style="margin-top:24px;font-size:0.84rem;opacity:0.7;">⚠️ Эхэлсний дараа тооноос нь сарьнуулах зүйлс гарах болно</div>
         <div style="position:fixed;bottom:14px;right:18px;font-size:0.74rem;color:#fff;opacity:0.5;">#${contest.id}</div>`;
     }
     return;
@@ -561,11 +560,11 @@ function showPresenterScreen(contest) {
     root.className = 'presenter';
     const playerUrl = location.origin + '/contest?id=' + contest.id;
     root.innerHTML = `
-      <div class="pres-title">🏆 ${esc(contest.title || 'Уралдаан')}</div>
-      <div class="pres-sub">Хамгийн анх зөв хариулсан хүн ялна</div>
+      <div class="pres-title">⚡ ХЭН ХАМГИЙН ХУРДАН БОДОХ ВЭ?</div>
+      <div class="pres-sub">Нийлбэрийг хамгийн түрүүнд зөв бодсон хүн ялагч</div>
       <div class="qr-wrap" id="qr-canvas"></div>
-      <div class="pres-instr">📱 QR-ыг утсаараа уншуулна уу</div>
-      <div class="pres-question">${esc(contest.question)}</div>
+      <div class="pres-instr">📱 QR-ыг утсаараа уншиж нийлбэрийг илгээ</div>
+      <div style="margin-top:14px;background:rgba(255,233,168,0.18);border:2px solid rgba(255,233,168,0.5);border-radius:14px;padding:10px 18px;color:#FFE9A8;font-weight:800;font-size:1rem;">🎁 Шагнал: CYBERMATH платформын бүтэн жилийн эрх</div>
       <div class="pres-count">Оролдсон тоо: <strong id="atc">${contest.attempt_count || 0}</strong></div>
       <div style="position:fixed;bottom:14px;right:18px;font-size:0.74rem;color:#fff;opacity:0.5;">#${contest.id}</div>`;
     new QRCode(document.getElementById('qr-canvas'), {
@@ -616,6 +615,32 @@ const NOTES = [261.63, 293.66, 329.63, 392.0, 440.0, 523.25, 587.33, 659.25, 783
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+// ─── Distractor — анхаарлыг сарьнуулах нисдэг зүйлс ───
+const DISTRACTORS = ['🐦','🦅','🦋','🐝','🦜','🐧','🦆','🐤','🐬','🦄','🦊','🐢','🎈','🎉','✨','⭐','🌟','💫','🦉','🐔'];
+let _distractorTimer = null;
+function spawnDistractor() {
+  const el = document.createElement('div');
+  el.className = 'distractor bird-fly';
+  el.textContent = DISTRACTORS[Math.floor(Math.random() * DISTRACTORS.length)];
+  el.style.top = (Math.random() * 80 + 5) + '%';
+  el.style.left = '0';
+  el.style.fontSize = (2.5 + Math.random() * 3) + 'rem';
+  el.style.setProperty('--dy', ((Math.random() - 0.5) * 300) + 'px');
+  el.style.setProperty('--rot', ((Math.random() - 0.5) * 720) + 'deg');
+  el.style.animationDuration = (3 + Math.random() * 2.5) + 's, 0.6s';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 6000);
+}
+function startDistractors() {
+  stopDistractors();
+  _distractorTimer = setInterval(spawnDistractor, 400);
+  for (let i = 0; i < 3; i++) setTimeout(spawnDistractor, i * 120);
+}
+function stopDistractors() {
+  if (_distractorTimer) { clearInterval(_distractorTimer); _distractorTimer = null; }
+  document.querySelectorAll('.distractor').forEach(d => d.remove());
+}
+
 window.playSumAnimation = async function(id) {
   // Сервер хуудсан POST start
   try {
@@ -647,6 +672,9 @@ window.playSumAnimation = async function(id) {
   beep(880, 0.4);
   await sleep(700);
 
+  // Distractor шувуудыг эхлүүлэх
+  startDistractors();
+
   // Тоон animation
   for (let i = 0; i < numbers.length; i++) {
     const v = numbers[i];
@@ -656,6 +684,9 @@ window.playSumAnimation = async function(id) {
     beep(NOTES[i % NOTES.length], 0.28);
     await sleep(1400);
   }
+
+  // Distractor-ыг зогсоох
+  stopDistractors();
 
   // Дууссан — QR харагдах төлөв
   root.innerHTML = '<div style="font-size:8rem;color:#FFE9A8;font-weight:900;animation:cntPop 0.6s;">📱</div>'
@@ -720,7 +751,7 @@ async function renderPlayer(id) {
   }
 
   // Тоон уралдаан — хараахан эхлээгүй бол хүлээх + polling
-  if (c.contest_type === 'sum' && !c.numbers_shown_at) {
+  if (!c.numbers_shown_at) {
     root.innerHTML = `
       <div class="card player-card" style="text-align:center;">
         <div style="font-size:4rem;margin-bottom:10px;animation:bounce 1.6s ease-in-out infinite;">⏳</div>
@@ -732,27 +763,20 @@ async function renderPlayer(id) {
     return;
   }
 
-  // Form
-  const isSum = c.contest_type === 'sum';
+  // Form — нэр + нийлбэр (утас байхгүй)
   root.innerHTML = `
     <div class="card player-card">
-      <h1>${isSum ? '🔢' : '🏆'} ${esc(c.title || 'Уралдаан')}</h1>
-      <div class="sub">${isSum ? 'Тоонуудын нийлбэрийг анх зөв оруулсан нь ялагч' : 'Хамгийн анх зөв хариулсан нь ялагч'}</div>
-      <div class="question-box">
-        <div class="qlbl">${isSum ? 'Даалгавар' : 'Асуулт'}</div>
-        <div class="qtxt">${esc(c.question)}</div>
+      <h1 style="font-size:1.3rem;line-height:1.2;">⚡ ХЭН ХАМГИЙН ХУРДАН БОДОХ ВЭ?</h1>
+      <div class="sub" style="text-align:left;background:#F5F0FF;border-left:4px solid #7B52EE;border-radius:10px;padding:10px 12px;font-size:0.82rem;color:#2B2542;font-weight:700;line-height:1.5;margin-bottom:18px;">
+        Дэлгэцэнд гарсан <b>10 тоо</b>-ны нийлбэрийг хамгийн түрүүнд зөв оруулсан хүн <b>CYBERMATH платформын бүтэн жилийн эрх</b> авна.
       </div>
       <div class="form-group">
         <div class="form-label">Таны нэр</div>
         <input id="p-name" class="form-input" placeholder="Овог нэр" maxlength="80" autofocus/>
       </div>
       <div class="form-group">
-        <div class="form-label">Утасны дугаар (нэмэлт)</div>
-        <input id="p-phone" class="form-input" placeholder="9911-2233" inputmode="tel" maxlength="20"/>
-      </div>
-      <div class="form-group">
-        <div class="form-label">${isSum ? 'Нийлбэр' : 'Таны хариу'}</div>
-        <input id="p-ans" class="form-input" placeholder="${isSum ? 'Жишээ: 87' : 'Хариу'}" maxlength="120" ${isSum ? 'inputmode="numeric" type="number"' : ''}/>
+        <div class="form-label">Нийлбэр</div>
+        <input id="p-ans" class="form-input" placeholder="Жишээ: 87" maxlength="6" inputmode="numeric" pattern="[0-9]*" type="number"/>
       </div>
       <button class="btn" id="p-submit" onclick="submitAnswer(${c.id})">🚀 Илгээх</button>
       <div style="text-align:center;margin-top:10px;font-size:0.74rem;color:#9C95B1;font-weight:600;">⚠️ Нэг л оролдох боломжтой</div>
@@ -764,17 +788,16 @@ async function renderPlayer(id) {
 
 async function submitAnswer(id) {
   const name = document.getElementById('p-name').value.trim();
-  const phone = document.getElementById('p-phone').value.trim();
   const ans = document.getElementById('p-ans').value.trim();
   if (!name) { alert('Нэрээ оруулна уу'); return; }
-  if (!ans) { alert('Хариу оруулна уу'); return; }
+  if (!ans) { alert('Нийлбэрээ оруулна уу'); return; }
   const btn = document.getElementById('p-submit');
   btn.disabled = true;
   btn.textContent = 'Илгээж байна...';
   try {
     const r = await fetch(API, {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ action:'submit', id, name, phone, answer: ans })
+      body: JSON.stringify({ action:'submit', id, name, answer: ans })
     });
     const d = await r.json();
     if (!d.ok) {
@@ -794,9 +817,13 @@ function showResult(d, myName) {
     root.innerHTML = `<div class="card player-card">
       <div class="result-msg win" style="font-size:1.4rem;padding:36px 20px;">
         🏆<br>ТА ЯЛЛАА!<br>
-        <span style="font-size:1rem;opacity:0.9;display:block;margin-top:8px;font-weight:700;">Та хамгийн анх зөв хариулсан байна.</span>
+        <span style="font-size:1rem;opacity:0.9;display:block;margin-top:8px;font-weight:700;">Та хамгийн анх зөв нийлбэрийг бодсон байна.</span>
       </div>
-      <div style="text-align:center;font-size:0.94rem;color:#7A6E5C;font-weight:700;margin-top:14px;">Нэрээ том дэлгэцээс харна уу 🎉</div>
+      <div style="background:#FFF5E0;border:2px solid #F5A623;border-radius:14px;padding:14px;text-align:center;margin-top:14px;">
+        <div style="font-size:0.74rem;font-weight:800;color:#7A6E5C;letter-spacing:1px;margin-bottom:4px;">🎁 ТАНЫ ШАГНАЛ</div>
+        <div style="font-size:1.05rem;font-weight:900;color:#2B2542;line-height:1.3;">CYBERMATH платформын<br>бүтэн жилийн эрх</div>
+      </div>
+      <div style="text-align:center;font-size:0.86rem;color:#7A6E5C;font-weight:700;margin-top:14px;">Нэрээ том дэлгэцээс харна уу 🎉</div>
     </div>`;
   } else if (d.correct && !d.winner) {
     root.innerHTML = `<div class="card player-card">
