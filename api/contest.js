@@ -39,6 +39,7 @@ module.exports = async (req, res) => {
     await pool.query(`ALTER TABLE contests ADD COLUMN IF NOT EXISTS numbers JSONB`).catch(()=>{});
     await pool.query(`ALTER TABLE contests ADD COLUMN IF NOT EXISTS numbers_shown_at TIMESTAMPTZ`).catch(()=>{});
     await pool.query(`ALTER TABLE contests ADD COLUMN IF NOT EXISTS contest_type TEXT DEFAULT 'qa'`).catch(()=>{});
+    await pool.query(`ALTER TABLE contests ADD COLUMN IF NOT EXISTS answer_deadline TIMESTAMPTZ`).catch(()=>{});
 
     // ── GET — Live state буцаах (polling) ──
     if (req.method === 'GET') {
@@ -103,11 +104,25 @@ module.exports = async (req, res) => {
         return res.json({ ok: true, contest: r.rows[0] });
       }
 
-      // Дахин эхлүүлэх (winner + numbers_shown_at reset, attempts арилгана)
+      // QR гарсны дараа хариулах 60 секунд эхлэх
+      if (action === 'beginAnswering') {
+        const { id, seconds } = body;
+        if (!id) return res.status(400).json({ ok: false });
+        const sec = Math.min(600, Math.max(10, parseInt(seconds) || 60));
+        await pool.query(
+          `UPDATE contests SET answer_deadline = NOW() + (INTERVAL '1 second' * $2)
+           WHERE id=$1 AND answer_deadline IS NULL`,
+          [id, sec]
+        );
+        const r = await pool.query('SELECT * FROM contests WHERE id=$1', [id]);
+        return res.json({ ok: true, contest: r.rows[0] });
+      }
+
+      // Дахин эхлүүлэх (winner + numbers_shown_at + deadline reset, attempts арилгана)
       if (action === 'reset') {
         const { id } = body;
         if (!id) return res.status(400).json({ ok: false });
-        await pool.query('UPDATE contests SET winner_name=NULL, winner_phone=NULL, winner_at=NULL, numbers_shown_at=NULL WHERE id=$1', [id]);
+        await pool.query('UPDATE contests SET winner_name=NULL, winner_phone=NULL, winner_at=NULL, numbers_shown_at=NULL, answer_deadline=NULL WHERE id=$1', [id]);
         await pool.query('DELETE FROM contest_attempts WHERE contest_id=$1', [id]);
         const r = await pool.query('SELECT * FROM contests WHERE id=$1', [id]);
         return res.json({ ok: true, contest: r.rows[0] });
@@ -141,6 +156,10 @@ module.exports = async (req, res) => {
         // Тоон уралдаан хараахан эхлээгүй бол хариу хүлээж авахгүй
         if (contest.contest_type === 'sum' && !contest.numbers_shown_at) {
           return res.json({ ok: false, error: 'Уралдаан эхлэх хүртэл хүлээнэ үү' });
+        }
+        // Хариулах хугацаа дууссан бол хүлээж авахгүй
+        if (contest.answer_deadline && new Date(contest.answer_deadline) < new Date()) {
+          return res.json({ ok: false, error: 'Хариулах хугацаа дууссан' });
         }
 
         // Хариулт зөв эсэх — sum бол зөвхөн тоо, бусад нь тэмдэгтгүй

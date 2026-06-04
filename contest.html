@@ -339,11 +339,8 @@
     will-change:transform, opacity;
     user-select:none;
     filter:drop-shadow(0 6px 12px rgba(0,0,0,0.3));
-    background:radial-gradient(circle at 40% 35%, #FFE85E 0%, #FFC113 70%, transparent 100%);
-    border-radius:50%;
-    min-height:60px;
   }
-  .distractor img, .distractor svg { display:block; width:100%; height:auto; }
+  .distractor svg, .distractor img { display:block; width:100%; height:auto; }
 
   @keyframes popFade {
     0% { opacity:0; transform:scale(0) rotate(var(--r0)); }
@@ -567,7 +564,24 @@ function showPresenterScreen(contest) {
     return;
   }
 
-  // Waiting view (QR + асуулт)
+  // Хариулах хугацаа дууссан — ялагчгүй
+  const deadline = contest.answer_deadline ? new Date(contest.answer_deadline).getTime() : 0;
+  const remaining = deadline ? Math.max(0, Math.floor((deadline - Date.now()) / 1000)) : null;
+  if (deadline && remaining === 0 && !contest.winner_name) {
+    if (root.dataset.state !== 'expired') {
+      root.dataset.state = 'expired';
+      root.className = 'presenter';
+      root.innerHTML = `
+        <div style="font-size:7rem;line-height:1;margin-bottom:14px;">⏰</div>
+        <div class="pres-title">Хугацаа дууссан</div>
+        <div class="pres-sub" style="margin-top:8px;">Хариулсан хүн алга. Дахин уралдаан зохион байгуулаарай.</div>
+        <div style="margin-top:20px;background:rgba(255,233,168,0.18);border:2px solid rgba(255,233,168,0.5);border-radius:14px;padding:10px 18px;color:#FFE9A8;font-weight:800;font-size:0.9rem;">"${esc(contest.title || 'Уралдаан')}"</div>`;
+      if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+    }
+    return;
+  }
+
+  // Waiting view (QR + countdown)
   if (root.dataset.state !== 'waiting') {
     root.dataset.state = 'waiting';
     root.classList.remove('center');
@@ -578,7 +592,8 @@ function showPresenterScreen(contest) {
       <div class="pres-sub">Нийлбэрийг хамгийн түрүүнд зөв бодсон хүн ялагч</div>
       <div class="qr-wrap" id="qr-canvas"></div>
       <div class="pres-instr">📱 QR-ыг утсаараа уншиж нийлбэрийг илгээ</div>
-      <div style="margin-top:14px;background:rgba(255,233,168,0.18);border:2px solid rgba(255,233,168,0.5);border-radius:14px;padding:10px 18px;color:#FFE9A8;font-weight:800;font-size:1rem;">🎁 Шагнал: CYBERMATH платформын бүтэн жилийн эрх</div>
+      <div id="pres-timer" style="margin-top:14px;font-size:3.5rem;font-weight:900;color:#FFE9A8;line-height:1;text-shadow:0 4px 24px rgba(0,0,0,0.3);"></div>
+      <div style="margin-top:8px;background:rgba(255,233,168,0.18);border:2px solid rgba(255,233,168,0.5);border-radius:14px;padding:10px 18px;color:#FFE9A8;font-weight:800;font-size:0.95rem;">🎁 Шагнал: CYBERMATH платформын бүтэн жилийн эрх</div>
       <div class="pres-count">Оролдсон тоо: <strong id="atc">${contest.attempt_count || 0}</strong></div>
       <div style="position:fixed;bottom:14px;right:18px;font-size:0.74rem;color:#fff;opacity:0.5;">#${contest.id}</div>`;
     new QRCode(document.getElementById('qr-canvas'), {
@@ -591,6 +606,26 @@ function showPresenterScreen(contest) {
   } else {
     const atc = document.getElementById('atc');
     if (atc) atc.textContent = contest.attempt_count || 0;
+  }
+
+  // Countdown timer-ыг 1 сек тутамд update хийх
+  if (deadline) {
+    if (window._presTimerInt) clearInterval(window._presTimerInt);
+    const tick = () => {
+      const r = Math.max(0, Math.floor((deadline - Date.now()) / 1000));
+      const tEl = document.getElementById('pres-timer');
+      if (tEl) {
+        tEl.textContent = '⏱ ' + r + ' сек';
+        if (r <= 10) tEl.style.color = '#FF7E36';
+        if (r <= 5) tEl.style.color = '#FF4A4A';
+        if (r === 0) {
+          clearInterval(window._presTimerInt);
+          // Polling-аар expired view рүү шилжинэ
+        }
+      }
+    };
+    tick();
+    window._presTimerInt = setInterval(tick, 1000);
   }
 }
 
@@ -629,20 +664,73 @@ const NOTES = [261.63, 293.66, 329.63, 392.0, 440.0, 523.25, 587.33, 659.25, 783
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// ─── Distractor — assets/chicks-ийн SVG шувууд хаа хамаагүй гарна ───
-const CHICK_SRCS = [
-  'assets/chicks/chick-1.svg',
-  'assets/chicks/chick-2.svg',
-  'assets/chicks/chick-3.svg',
-  'assets/chicks/chick-4.svg',
-  'assets/chicks/chick-5.svg'
+// ─── Distractor — нүдгэлтэй шар шувуунууд (inline SVG) хаа хамаагүй гарна ───
+function chickSVG(opts) {
+  opts = opts || {};
+  const bodyA = opts.bodyA || '#FFE85E';
+  const bodyB = opts.bodyB || '#FFC113';
+  const beak = opts.beak || '#FF9A1F';
+  const eyeRing = opts.eyeRing || '#3DA9E0';
+  const expr = opts.expr != null ? opts.expr : Math.floor(Math.random() * 4);
+  let eyes;
+  if (expr === 0) {
+    eyes = '<circle cx="36" cy="51" r="5" fill="#241a44"/><circle cx="64" cy="51" r="5" fill="#241a44"/>'
+         + '<circle cx="37.5" cy="49.5" r="1.5" fill="#fff"/><circle cx="65.5" cy="49.5" r="1.5" fill="#fff"/>';
+  } else if (expr === 1) {
+    eyes = '<path d="M30 50 Q36 45 42 50" stroke="#241a44" stroke-width="3" fill="none" stroke-linecap="round"/>'
+         + '<path d="M58 50 Q64 45 70 50" stroke="#241a44" stroke-width="3" fill="none" stroke-linecap="round"/>';
+  } else if (expr === 2) {
+    eyes = '<circle cx="36" cy="50" r="6" fill="#241a44"/><circle cx="64" cy="50" r="6" fill="#241a44"/>'
+         + '<circle cx="37.5" cy="48" r="1.6" fill="#fff"/><circle cx="65.5" cy="48" r="1.6" fill="#fff"/>';
+  } else {
+    eyes = '<path d="M28 50 L44 50" stroke="#241a44" stroke-width="3" stroke-linecap="round"/>'
+         + '<path d="M56 50 L72 50" stroke="#241a44" stroke-width="3" stroke-linecap="round"/>';
+  }
+  const beakHtml = (expr === 2)
+    ? '<ellipse cx="50" cy="68" rx="5" ry="6" fill="' + beak + '"/>'
+    : '<path d="M45 65 L55 65 L50 73 Z" fill="' + beak + '"/>';
+  const glasses = opts.noGlasses ? '' : (
+    '<circle cx="36" cy="50" r="15" fill="none" stroke="' + eyeRing + '" stroke-width="3"/>'
+    + '<circle cx="64" cy="50" r="15" fill="none" stroke="' + eyeRing + '" stroke-width="3"/>'
+    + '<line x1="48" y1="50" x2="52" y2="50" stroke="' + eyeRing + '" stroke-width="3"/>'
+  );
+  const sclera = '<circle cx="36" cy="50" r="10" fill="#fff"/><circle cx="64" cy="50" r="10" fill="#fff"/>';
+  const extras = [
+    '<path d="M50 22 Q47 8 50 6 Q53 8 50 22" fill="#FFB800"/>',
+    '<path d="M52 8 L48 22 L54 22 L50 32 L60 18 L54 18 L58 6 Z" fill="#F5A623"/>',
+    '<path d="M44 20 L56 20 L52 8 L48 8 Z" fill="#FFB800"/>'
+  ];
+  const extra = extras[Math.floor(Math.random() * extras.length)];
+  const wings = '<ellipse cx="14" cy="65" rx="6" ry="11" fill="' + bodyB + '" transform="rotate(-25 14 65)"/>'
+              + '<ellipse cx="86" cy="65" rx="6" ry="11" fill="' + bodyB + '" transform="rotate(25 86 65)"/>';
+  const feet = '<ellipse cx="40" cy="100" rx="6" ry="2.8" fill="#FF7E36"/>'
+             + '<ellipse cx="60" cy="100" rx="6" ry="2.8" fill="#FF7E36"/>';
+  const gradId = 'g' + Math.random().toString(36).slice(2, 8);
+  return '<svg viewBox="0 0 100 110" xmlns="http://www.w3.org/2000/svg" style="display:block;width:100%;height:auto;overflow:visible;">'
+    + '<defs><radialGradient id="' + gradId + '" cx="0.5" cy="0.3" r="0.7">'
+    +   '<stop offset="0" stop-color="' + bodyA + '"/>'
+    +   '<stop offset="1" stop-color="' + bodyB + '"/>'
+    + '</radialGradient></defs>'
+    + feet + wings
+    + '<ellipse cx="50" cy="58" rx="40" ry="38" fill="url(#' + gradId + ')"/>'
+    + extra + sclera + glasses + eyes + beakHtml
+    + '</svg>';
+}
+
+const CHICK_VARIANTS = [
+  { bodyA:'#FFE85E', bodyB:'#FFC113', beak:'#FF9A1F', eyeRing:'#3DA9E0' },
+  { bodyA:'#FFF2A6', bodyB:'#F5A623', beak:'#FF7E36', eyeRing:'#5B8DEF' },
+  { bodyA:'#FFD9C2', bodyB:'#FFA869', beak:'#FF6B3A', eyeRing:'#3FB37A' },
+  { bodyA:'#C9F0FF', bodyB:'#5B8DEF', beak:'#FF9A1F', eyeRing:'#3DA9E0', noGlasses:true },
+  { bodyA:'#FFB8E0', bodyB:'#E45A6B', beak:'#FF6B3A', eyeRing:'#A86CE4' },
+  { bodyA:'#D4F5C9', bodyB:'#3FB37A', beak:'#FF9A1F', eyeRing:'#5B8DEF' }
 ];
 
 let _distractorTimer = null;
 function spawnDistractor() {
   const el = document.createElement('div');
-  const src = CHICK_SRCS[Math.floor(Math.random() * CHICK_SRCS.length)];
-  el.innerHTML = '<img src="' + src + '" style="display:block;width:100%;height:auto;" alt=""/>';
+  const variant = CHICK_VARIANTS[Math.floor(Math.random() * CHICK_VARIANTS.length)];
+  el.innerHTML = chickSVG(variant);
 
   // Хэмжээ — өргөнд тулгуурлана, өндөр нь aspect-ийн дагуу
   const size = 90 + Math.random() * 170; // 90..260px
@@ -757,6 +845,12 @@ window.playSumAnimation = async function(id) {
     + '<div style="font-size:1.5rem;color:#fff;margin-top:14px;font-weight:800;">QR ачаалж байна...</div>';
   await sleep(900);
 
+  // 60 секундын хариулах хугацаа эхлэх
+  try {
+    await fetch(API, { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ action:'beginAnswering', id, seconds: 60 }) });
+  } catch(e) {}
+
   // State-ыг waiting болгож polling-ыг сэргээх
   root.dataset.state = '';
   const r2 = await fetch(API + '?id=' + id);
@@ -827,13 +921,29 @@ async function renderPlayer(id) {
     return;
   }
 
+  // Хариулах хугацаа дууссан эсэх
+  const deadline = c.answer_deadline ? new Date(c.answer_deadline).getTime() : 0;
+  const remaining = deadline ? Math.max(0, Math.floor((deadline - Date.now()) / 1000)) : null;
+  if (deadline && remaining === 0) {
+    root.innerHTML = `<div class="card player-card" style="text-align:center;">
+      <div style="font-size:4rem;margin-bottom:10px;">⏰</div>
+      <h1>Хугацаа дууссан</h1>
+      <div class="sub">Хариулах боломжгүй боллоо.</div>
+    </div>`;
+    return;
+  }
+
   // Form — нэр + нийлбэр (утас байхгүй)
+  const timerLine = (remaining != null)
+    ? '<div id="pl-timer" style="text-align:center;margin-bottom:14px;padding:10px;background:#FFF5E0;border:1.5px solid #F5A623;border-radius:12px;font-size:1.4rem;font-weight:900;color:#F5A623;">⏱ '+remaining+' сек үлдсэн</div>'
+    : '';
   root.innerHTML = `
     <div class="card player-card">
       <h1 style="font-size:1.3rem;line-height:1.2;">⚡ ХЭН ХАМГИЙН ХУРДАН БОДОХ ВЭ?</h1>
-      <div class="sub" style="text-align:left;background:#F5F0FF;border-left:4px solid #7B52EE;border-radius:10px;padding:10px 12px;font-size:0.82rem;color:#2B2542;font-weight:700;line-height:1.5;margin-bottom:18px;">
+      <div class="sub" style="text-align:left;background:#F5F0FF;border-left:4px solid #7B52EE;border-radius:10px;padding:10px 12px;font-size:0.82rem;color:#2B2542;font-weight:700;line-height:1.5;margin-bottom:14px;">
         Дэлгэцэнд гарсан <b>10 тоо</b>-ны нийлбэрийг хамгийн түрүүнд зөв оруулсан хүн <b>CYBERMATH платформын бүтэн жилийн эрх</b> авна.
       </div>
+      ${timerLine}
       <div class="form-group">
         <div class="form-label">Таны нэр</div>
         <input id="p-name" class="form-input" placeholder="Овог нэр" maxlength="80" autofocus/>
@@ -848,6 +958,23 @@ async function renderPlayer(id) {
   document.getElementById('p-ans').addEventListener('keydown', function(e){
     if (e.key === 'Enter') submitAnswer(c.id);
   });
+
+  // Locally хугацаа тоолох — 1 сек тутамд update
+  if (deadline) {
+    if (window._plTimerInt) clearInterval(window._plTimerInt);
+    window._plTimerInt = setInterval(() => {
+      const r = Math.max(0, Math.floor((deadline - Date.now()) / 1000));
+      const tEl = document.getElementById('pl-timer');
+      if (tEl) {
+        tEl.textContent = '⏱ ' + r + ' сек үлдсэн';
+        if (r <= 10) { tEl.style.color = '#E45A6B'; tEl.style.borderColor = '#E45A6B'; tEl.style.background = '#FFF0EF'; }
+      }
+      if (r === 0) {
+        clearInterval(window._plTimerInt);
+        renderPlayer(id);
+      }
+    }, 1000);
+  }
 }
 
 async function submitAnswer(id) {
