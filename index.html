@@ -49897,8 +49897,9 @@ function toggleAvatarSection() {
     div.onclick = function(e){ if (e.target === div) div.remove(); };
     div.innerHTML = ''
       + '<div style="position:relative;width:100%;max-width:1200px;margin:auto;">'
-      + '<div style="position:fixed;top:16px;right:16px;z-index:10;display:flex;gap:8px;">'
-      +   '<button onclick="downloadCompetitionPosterPDF()" id="comp-pdf-btn" style="background:#fbbf24;color:#0a0a0f;border:none;border-radius:8px;font-family:\'JetBrains Mono\',monospace;font-weight:900;font-size:0.82rem;padding:10px 16px;cursor:pointer;letter-spacing:0.1em;box-shadow:0 4px 16px rgba(251,191,36,0.3);">📥 PDF ТАТАХ</button>'
+      + '<div style="position:fixed;top:16px;right:16px;z-index:10;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">'
+      +   '<button onclick="downloadCompetitionPosterPDF(\'portrait\')" id="comp-pdf-btn" style="background:#fbbf24;color:#0a0a0f;border:none;border-radius:8px;font-family:\'JetBrains Mono\',monospace;font-weight:900;font-size:0.78rem;padding:10px 14px;cursor:pointer;letter-spacing:0.08em;box-shadow:0 4px 16px rgba(251,191,36,0.3);">📥 PDF (БОСОО)</button>'
+      +   '<button onclick="downloadCompetitionPosterPDF(\'landscape\')" id="comp-pdf-btn-ls" style="background:#fef2f2;color:#0a0a0f;border:none;border-radius:8px;font-family:\'JetBrains Mono\',monospace;font-weight:900;font-size:0.78rem;padding:10px 14px;cursor:pointer;letter-spacing:0.08em;box-shadow:0 4px 16px rgba(254,242,242,0.25);">📥 PDF (ХЭВТЭЭ)</button>'
       +   '<button onclick="document.getElementById(\'competition-modal\').remove()" style="width:44px;height:44px;border-radius:50%;border:1px solid rgba(248,113,113,0.5);background:rgba(10,10,15,0.85);cursor:pointer;color:#f87171;font-weight:900;font-size:1.3rem;backdrop-filter:blur(8px);">✕</button>'
       + '</div>'
       + renderArenaPoster(comp)
@@ -49936,9 +49937,12 @@ function toggleAvatarSection() {
     document.head.appendChild(st);
   })();
 
-  // Ангийн уралдааны постер PDF татах (A3 portrait)
-  window.downloadCompetitionPosterPDF = async function() {
-    var btn = document.getElementById('comp-pdf-btn');
+  // Ангийн уралдааны постер PDF татах — orientation: 'portrait' | 'landscape'
+  window.downloadCompetitionPosterPDF = async function(orientation) {
+    orientation = orientation === 'landscape' ? 'landscape' : 'portrait';
+    var btnId = orientation === 'landscape' ? 'comp-pdf-btn-ls' : 'comp-pdf-btn';
+    var btn = document.getElementById(btnId);
+    var origText = btn ? btn.textContent : '';
     if (btn) { btn.disabled = true; btn.textContent = '⏳ БЭЛДЭЖ БАЙНА...'; }
     try {
       var posterEl = document.querySelector('.arena-poster');
@@ -49946,7 +49950,7 @@ function toggleAvatarSection() {
       if (typeof html2canvas !== 'function') { alert('html2canvas ачаалагдаагүй'); return; }
       if (!window.jspdf || !window.jspdf.jsPDF) { alert('jsPDF ачаалагдаагүй'); return; }
 
-      // 2x scale-ээр PDF чанартай canvas
+      // 2x scale-ээр canvas (босоо постер)
       var canvas = await html2canvas(posterEl, {
         scale: 2,
         backgroundColor: '#0a0a0f',
@@ -49955,14 +49959,29 @@ function toggleAvatarSection() {
         windowWidth: posterEl.scrollWidth,
         windowHeight: posterEl.scrollHeight
       });
-      var imgData = canvas.toDataURL('image/jpeg', 0.95);
 
-      // A3 portrait: 297×420mm
-      var pageW = 297, pageH = 420;
-      var pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a3', orientation: 'portrait' });
+      // Landscape бол canvas-ыг 90° эргүүлэх
+      var finalCanvas = canvas;
+      if (orientation === 'landscape') {
+        finalCanvas = document.createElement('canvas');
+        finalCanvas.width = canvas.height;
+        finalCanvas.height = canvas.width;
+        var ctx = finalCanvas.getContext('2d');
+        ctx.fillStyle = '#0a0a0f';
+        ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+        ctx.translate(finalCanvas.width / 2, finalCanvas.height / 2);
+        ctx.rotate(Math.PI / 2);
+        ctx.drawImage(canvas, -canvas.width / 2, -canvas.height / 2);
+      }
+      var imgData = finalCanvas.toDataURL('image/jpeg', 0.95);
 
-      // Постерийн aspect ratio тооцоо
-      var imgRatio = canvas.height / canvas.width;
+      // A3 хуудасны хэмжээ
+      var pageW = orientation === 'landscape' ? 420 : 297;
+      var pageH = orientation === 'landscape' ? 297 : 420;
+      var pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a3', orientation: orientation });
+
+      // Aspect ratio тооцоо
+      var imgRatio = finalCanvas.height / finalCanvas.width;
       var imgW = pageW;
       var imgH = imgW * imgRatio;
       if (imgH > pageH) {
@@ -49974,13 +49993,14 @@ function toggleAvatarSection() {
 
       pdf.addImage(imgData, 'JPEG', xOff, yOff, imgW, imgH);
       var comp = window._posterCompCache || {};
-      var fname = 'CyberMath-XP-Cup-' + (comp.grade || '').replace(/\s+/g, '') + (comp.grade ? '-анги' : '') + '.pdf';
+      var suffix = orientation === 'landscape' ? '-хэвтээ' : '';
+      var fname = 'CyberMath-XP-Cup-' + (comp.grade || '').replace(/\s+/g, '') + (comp.grade ? '-анги' : '') + suffix + '.pdf';
       pdf.save(fname);
     } catch (e) {
       console.error('[pdf]', e);
       alert('PDF үүсгэхэд алдаа: ' + e.message);
     } finally {
-      if (btn) { btn.disabled = false; btn.textContent = '📥 PDF ТАТАХ'; }
+      if (btn) { btn.disabled = false; btn.textContent = origText; }
     }
   };
 
@@ -50029,8 +50049,9 @@ function toggleAvatarSection() {
     window._posterCompCache = comp;
     div.innerHTML = ''
       + '<div style="position:relative;width:100%;max-width:1200px;margin:auto;">'
-      + '<div style="position:fixed;top:16px;right:16px;z-index:10;display:flex;gap:8px;">'
-      +   '<button onclick="downloadCompetitionPosterPDF()" id="comp-pdf-btn" style="background:#fbbf24;color:#0a0a0f;border:none;border-radius:8px;font-family:\'JetBrains Mono\',monospace;font-weight:900;font-size:0.82rem;padding:10px 16px;cursor:pointer;letter-spacing:0.1em;box-shadow:0 4px 16px rgba(251,191,36,0.3);">📥 PDF ТАТАХ</button>'
+      + '<div style="position:fixed;top:16px;right:16px;z-index:10;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">'
+      +   '<button onclick="downloadCompetitionPosterPDF(\'portrait\')" id="comp-pdf-btn" style="background:#fbbf24;color:#0a0a0f;border:none;border-radius:8px;font-family:\'JetBrains Mono\',monospace;font-weight:900;font-size:0.78rem;padding:10px 14px;cursor:pointer;letter-spacing:0.08em;box-shadow:0 4px 16px rgba(251,191,36,0.3);">📥 PDF (БОСОО)</button>'
+      +   '<button onclick="downloadCompetitionPosterPDF(\'landscape\')" id="comp-pdf-btn-ls" style="background:#fef2f2;color:#0a0a0f;border:none;border-radius:8px;font-family:\'JetBrains Mono\',monospace;font-weight:900;font-size:0.78rem;padding:10px 14px;cursor:pointer;letter-spacing:0.08em;box-shadow:0 4px 16px rgba(254,242,242,0.25);">📥 PDF (ХЭВТЭЭ)</button>'
       +   '<button onclick="document.getElementById(\'competition-preview-modal\').remove()" style="width:44px;height:44px;border-radius:50%;border:1px solid rgba(248,113,113,0.5);background:rgba(10,10,15,0.9);cursor:pointer;color:#f87171;font-weight:900;font-size:1.3rem;backdrop-filter:blur(8px);">✕</button>'
       + '</div>'
       + renderArenaPoster(comp)
