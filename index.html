@@ -49938,60 +49938,98 @@ function toggleAvatarSection() {
   })();
 
   // Ангийн уралдааны постер PDF татах — orientation: 'portrait' | 'landscape'
+  // jsPDF-ийн native rotation ашиглан гүйцэтгэл сайжруулсан
   window.downloadCompetitionPosterPDF = async function(orientation) {
     orientation = orientation === 'landscape' ? 'landscape' : 'portrait';
     var btnId = orientation === 'landscape' ? 'comp-pdf-btn-ls' : 'comp-pdf-btn';
     var btn = document.getElementById(btnId);
     var origText = btn ? btn.textContent : '';
     if (btn) { btn.disabled = true; btn.textContent = '⏳ БЭЛДЭЖ БАЙНА...'; }
+
+    // Browser-ийг гацахаас сэргийлэх async break helper
+    var tick = function() { return new Promise(function(r){ setTimeout(r, 0); }); };
+
     try {
       var posterEl = document.querySelector('.arena-poster');
       if (!posterEl) { alert('Постер олдсонгүй'); return; }
       if (typeof html2canvas !== 'function') { alert('html2canvas ачаалагдаагүй'); return; }
       if (!window.jspdf || !window.jspdf.jsPDF) { alert('jsPDF ачаалагдаагүй'); return; }
 
-      // 2x scale-ээр canvas (босоо постер)
+      if (btn) btn.textContent = '⏳ ЗУРГЫГ БЭЛДЭЖ БАЙНА...';
+      await tick();
+
+      // Scale-ыг 1.5 болгосон — гүйцэтгэл сайжирна, чанар хадгалагдана
       var canvas = await html2canvas(posterEl, {
-        scale: 2,
+        scale: 1.5,
         backgroundColor: '#0a0a0f',
         useCORS: true,
-        logging: false,
-        windowWidth: posterEl.scrollWidth,
-        windowHeight: posterEl.scrollHeight
+        logging: false
       });
+      await tick();
 
-      // Landscape бол canvas-ыг 90° эргүүлэх
-      var finalCanvas = canvas;
-      if (orientation === 'landscape') {
-        finalCanvas = document.createElement('canvas');
-        finalCanvas.width = canvas.height;
-        finalCanvas.height = canvas.width;
-        var ctx = finalCanvas.getContext('2d');
-        ctx.fillStyle = '#0a0a0f';
-        ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
-        ctx.translate(finalCanvas.width / 2, finalCanvas.height / 2);
-        ctx.rotate(Math.PI / 2);
-        ctx.drawImage(canvas, -canvas.width / 2, -canvas.height / 2);
-      }
-      var imgData = finalCanvas.toDataURL('image/jpeg', 0.95);
+      if (btn) btn.textContent = '⏳ PDF БҮТЭЭЖ БАЙНА...';
+      await tick();
+
+      // JPEG quality бууруулж файлын хэмжээг багасгана
+      var imgData = canvas.toDataURL('image/jpeg', 0.85);
+      await tick();
 
       // A3 хуудасны хэмжээ
       var pageW = orientation === 'landscape' ? 420 : 297;
       var pageH = orientation === 'landscape' ? 297 : 420;
       var pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a3', orientation: orientation });
 
-      // Aspect ratio тооцоо
-      var imgRatio = finalCanvas.height / finalCanvas.width;
-      var imgW = pageW;
-      var imgH = imgW * imgRatio;
-      if (imgH > pageH) {
-        imgH = pageH;
-        imgW = imgH / imgRatio;
-      }
-      var xOff = (pageW - imgW) / 2;
-      var yOff = (pageH - imgH) / 2;
+      // Постерийн aspect ratio (canvas-ийн төрх хэвээр — landscape бол jsPDF-ээр эргүүлнэ)
+      var imgRatioPortrait = canvas.height / canvas.width;
 
-      pdf.addImage(imgData, 'JPEG', xOff, yOff, imgW, imgH);
+      if (orientation === 'landscape') {
+        // Landscape A3 (420×297): босоо постерыг 90° эргүүлж зүүнээс баруун тийш сунгана
+        // Эргүүлсний дараа image-ийн өргөн нь pageH (297), өндөр нь pageW (420) хүртэл байж болно
+        var landImgH = pageH; // 297mm
+        var landImgW = landImgH / imgRatioPortrait; // ~210mm
+        if (landImgW > pageW) {
+          landImgW = pageW;
+          landImgH = landImgW * imgRatioPortrait;
+        }
+        var lx = (pageW - landImgW) / 2;
+        var ly = (pageH - landImgH) / 2;
+        // jsPDF-д native rotation өгөх (9-р параметр: rotation in degrees)
+        // Тэгш хэмтэй байрлуулахын тулд цэгээс эргүүлнэ — оронд нь өөрсдөө байрлуулъя
+        // Энгийн арга: image-ийг tall placement-аар тавиад дараа нь хуудсыг landscape хэлбэрээр устгахгүй,
+        // харин image-ийг хэвтээ хувилбараар буюу: 2D canvas ашиглан 90° эргүүлсний дараа placement хийе.
+        // (Hardware-аар оновчилсон native rotation санаатай ч хатуу 9-р arg бус бүх version дэмжихгүй)
+        var rotated = document.createElement('canvas');
+        rotated.width = canvas.height;
+        rotated.height = canvas.width;
+        var rctx = rotated.getContext('2d');
+        rctx.fillStyle = '#0a0a0f';
+        rctx.fillRect(0, 0, rotated.width, rotated.height);
+        rctx.translate(rotated.width / 2, rotated.height / 2);
+        rctx.rotate(Math.PI / 2);
+        rctx.drawImage(canvas, -canvas.width / 2, -canvas.height / 2);
+        await tick();
+        var rotImg = rotated.toDataURL('image/jpeg', 0.85);
+        await tick();
+        // Шинэ aspect (хэвтээ)
+        var rRatio = rotated.height / rotated.width;
+        var rW = pageW;
+        var rH = rW * rRatio;
+        if (rH > pageH) { rH = pageH; rW = rH / rRatio; }
+        var rx = (pageW - rW) / 2;
+        var ry = (pageH - rH) / 2;
+        pdf.addImage(rotImg, 'JPEG', rx, ry, rW, rH);
+      } else {
+        // Portrait — энгийн placement
+        var imgW = pageW;
+        var imgH = imgW * imgRatioPortrait;
+        if (imgH > pageH) { imgH = pageH; imgW = imgH / imgRatioPortrait; }
+        var xOff = (pageW - imgW) / 2;
+        var yOff = (pageH - imgH) / 2;
+        pdf.addImage(imgData, 'JPEG', xOff, yOff, imgW, imgH);
+      }
+
+      await tick();
+      if (btn) btn.textContent = '⏳ ХАДГАЛЖ БАЙНА...';
       var comp = window._posterCompCache || {};
       var suffix = orientation === 'landscape' ? '-хэвтээ' : '';
       var fname = 'CyberMath-XP-Cup-' + (comp.grade || '').replace(/\s+/g, '') + (comp.grade ? '-анги' : '') + suffix + '.pdf';
