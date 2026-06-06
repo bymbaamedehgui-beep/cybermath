@@ -573,10 +573,38 @@ window.XPDROP_QUESTIONS = {
       <span>👤 <b id="g-name">—</b></span>
     </div>
     <div class="info">
+      <span style="font-family:ui-monospace,monospace;color:#9adcff;">🎯 <span id="g-rounds">0</span>/10</span>
       <span style="font-family:ui-monospace,monospace;color:#f0c14b;">💎 <span id="g-pool">0</span> XP</span>
     </div>
   </div>
   <iframe id="game-frame"></iframe>
+</div>
+
+<!-- 5.5) DONE — гишүүн өөрөө дуусаад бусдыг хүлээх -->
+<div class="center-wrap hidden" id="done-screen">
+  <div class="title-main">✅ Та дууслаа</div>
+  <div class="card-box">
+    <div style="text-align:center;font-size:0.74rem;letter-spacing:3px;color:#9adcff;font-weight:800;margin-bottom:6px;">ТАНЫ ОНОО</div>
+    <div style="text-align:center;font-family:ui-monospace,monospace;font-size:3rem;color:#f0c14b;font-weight:900;line-height:1;margin-bottom:14px;" id="d-total">0</div>
+
+    <div style="background:rgba(154,220,255,0.06);border:1px solid rgba(154,220,255,0.18);border-radius:10px;padding:12px;margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;font-size:0.86rem;padding:4px 0;color:#fff;font-weight:700;">
+        <span>💎 Үлдсэн pool</span>
+        <span style="font-family:ui-monospace,monospace;color:#f0c14b;" id="d-pool">0 XP</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:0.86rem;padding:4px 0;color:#fff;font-weight:700;">
+        <span>🎯 <span id="d-passed">0</span> үе давсан bonus</span>
+        <span style="font-family:ui-monospace,monospace;color:#3ad689;" id="d-bonus">+0 XP</span>
+      </div>
+    </div>
+
+    <div style="font-size:0.78rem;color:#9adcff;font-weight:700;text-align:center;margin-bottom:10px;">
+      Бусад гишүүдийг хүлээж байна
+    </div>
+    <div id="d-status"></div>
+
+    <button class="btn alt" onclick="exitToHome()" style="margin-top:14px;">🏠 Эхлэл рүү буцах</button>
+  </div>
 </div>
 
 <!-- 6) LEADERBOARD -->
@@ -589,10 +617,7 @@ window.XPDROP_QUESTIONS = {
     <div style="font-size:0.78rem;color:#9adcff;font-weight:700;margin-top:14px;text-align:center;">
       Багийн нийт оноо: <span style="color:#f0c14b;font-size:1.2rem;font-family:ui-monospace,monospace;" id="lb-total">0</span> XP
     </div>
-    <div id="lb-host-end" class="hidden">
-      <button class="btn" onclick="resetGame()" style="margin-top:14px;">↻ Шинээр тоглох</button>
-    </div>
-    <button class="btn alt" onclick="exitToHome()" style="margin-top:8px;">🏠 Эхлэл рүү буцах</button>
+    <button class="btn alt" onclick="exitToHome()" style="margin-top:14px;">🏠 Эхлэл рүү буцах</button>
   </div>
 </div>
 
@@ -606,11 +631,13 @@ window.XPDROP_QUESTIONS = {
     poll: null,
     submitted: false,
     pendingPool: 0,
+    roundsShown: 0,
+    finalBreakdown: null,
     questions: null
   };
 
   function showScreen(id) {
-    ['mode-screen','create-screen','join-screen','lobby-screen','game-screen','lb-screen'].forEach(function(s){
+    ['mode-screen','create-screen','join-screen','lobby-screen','game-screen','done-screen','lb-screen'].forEach(function(s){
       var el = document.getElementById(s);
       if (!el) return;
       if (s === 'game-screen') {
@@ -715,6 +742,8 @@ window.XPDROP_QUESTIONS = {
     var teamNameEl = document.getElementById('lb-team-name');
     if (teamNameEl) teamNameEl.textContent = game.team_name || '';
     document.getElementById('lb-count').textContent = players.length;
+    var me = players.find(function(p){ return p.id === STATE.playerId; }) || null;
+
     // Lobby
     if (game.state === 'lobby') {
       renderLobbyPlayers(players);
@@ -724,18 +753,52 @@ window.XPDROP_QUESTIONS = {
     }
     // Playing
     if (game.state === 'playing') {
+      // Хэрэв энэ гишүүн аль хэдийн тоглож дууссан бол → done screen
+      if (me && me.finished_at) {
+        if (!document.getElementById('done-screen') || document.getElementById('done-screen').classList.contains('hidden')) {
+          enterDone(me, players);
+        } else {
+          updateDoneStatus(players);
+        }
+        return;
+      }
+      // Бусад тохиолдолд тоглоом эхлүүлэх
       if (!document.getElementById('game-screen').style.display || document.getElementById('game-screen').style.display === 'none') {
         enterGame(players);
       }
-      // Update pool counter in topbar
       var poolEl = document.getElementById('g-pool');
       if (poolEl) poolEl.textContent = STATE.pendingPool;
+      var rEl = document.getElementById('g-rounds');
+      if (rEl) rEl.textContent = STATE.roundsShown;
       return;
     }
     // Finished
     if (game.state === 'finished') {
       enterLeaderboard(game, players);
     }
+  }
+
+  function enterDone(me, players) {
+    showScreen('done-screen');
+    var b = STATE.finalBreakdown || { pool: me.score || 0, bonus: 0, total: me.score || 0 };
+    document.getElementById('d-total').textContent = b.total + ' XP';
+    document.getElementById('d-pool').textContent = b.pool + ' XP';
+    document.getElementById('d-passed').textContent = me.rounds_played || 0;
+    document.getElementById('d-bonus').textContent = '+' + b.bonus + ' XP';
+    updateDoneStatus(players);
+  }
+
+  function updateDoneStatus(players) {
+    var el = document.getElementById('d-status');
+    if (!el) return;
+    el.innerHTML = players.map(function(p){
+      var done = !!p.finished_at;
+      return '<div class="lb-row' + (p.id === STATE.playerId ? ' me' : '') + '" style="padding:8px 12px;">'
+        + '<div class="lb-rank" style="background:' + (done ? '#3ad689' : '#1a1a1d') + ';color:' + (done ? '#020a0a' : '#9adcff') + ';">' + (done ? '✓' : '⏳') + '</div>'
+        + '<div class="player-name">' + esc(p.name) + (p.id === STATE.playerId ? ' (Та)' : '') + '</div>'
+        + '<div class="player-score">' + (done ? (p.score + ' XP') : '—') + '</div>'
+        + '</div>';
+    }).join('');
   }
 
   function renderLobbyPlayers(players) {
@@ -766,6 +829,9 @@ window.XPDROP_QUESTIONS = {
     showScreen('game-screen');
     STATE.submitted = false;
     STATE.pendingPool = 0;
+    STATE.roundsShown = 0;
+    var rE = document.getElementById('g-rounds'); if (rE) rE.textContent = '0';
+    var pE = document.getElementById('g-pool'); if (pE) pE.textContent = '500';
     var f = document.getElementById('game-frame');
     f.src = 'xpdrop.html';
     f.onload = function(){
@@ -836,16 +902,25 @@ window.XPDROP_QUESTIONS = {
         f.contentWindow.postMessage({ type: 'xpdrop-questions', rounds: buildRounds() }, '*');
       }
     }
-    // Pool update messages — track latest pool
+    // Үе бүр шинэ асуулт гарах үед тоолох
+    if (d.type === 'xpdrop-question-shown') {
+      STATE.roundsShown = Math.min(10, STATE.roundsShown + 1);
+      var rEl = document.getElementById('g-rounds');
+      if (rEl) rEl.textContent = STATE.roundsShown;
+    }
+    if (d.type === 'xpdrop-reset') {
+      STATE.roundsShown = 0;
+      var rEl2 = document.getElementById('g-rounds');
+      if (rEl2) rEl2.textContent = '0';
+    }
+    // Pool update — track latest pool
     if (d.type === 'xpdrop-pool-update' && typeof d.pool === 'number') {
       STATE.pendingPool = d.pool;
       var el = document.getElementById('g-pool');
       if (el) el.textContent = d.pool;
     }
     if (d.type === 'xpdrop-game-end') {
-      // d may have pool/won
       var pool = (typeof d.pool === 'number') ? d.pool : (typeof d.won === 'number' ? d.won : STATE.pendingPool);
-      // Final iframe DOM check for "lost" text
       try {
         var fr = document.getElementById('game-frame');
         if (fr && fr.contentDocument && fr.contentDocument.body) {
@@ -853,18 +928,32 @@ window.XPDROP_QUESTIONS = {
           if (txt.indexOf('мөнгөгүй') !== -1 || txt.indexOf('унасан') !== -1) pool = 0;
         }
       } catch(_){}
-      await submitScore(pool);
+      await submitScore(pool, STATE.roundsShown);
     }
   });
 
-  async function submitScore(score) {
+  async function submitScore(poolRemaining, roundsPassed) {
     if (STATE.submitted) return;
     STATE.submitted = true;
     try {
-      await fetch(API, {
+      var r = await fetch(API, {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ action:'submit', player_id: STATE.playerId, score: Math.max(0, score|0), rounds_played: 10 })
+        body: JSON.stringify({
+          action: 'submit',
+          player_id: STATE.playerId,
+          pool_remaining: Math.max(0, poolRemaining|0),
+          rounds_passed: Math.max(0, roundsPassed|0)
+        })
       });
+      var resp = await r.json();
+      if (resp && resp.ok && resp.breakdown) {
+        STATE.finalBreakdown = resp.breakdown;
+      } else {
+        STATE.finalBreakdown = { pool: Math.max(0, poolRemaining|0), bonus: roundsPassed * 10, total: Math.max(0, poolRemaining|0) + roundsPassed * 10 };
+      }
+      // Game frame-ийг хаах (давтлагагүй)
+      var f = document.getElementById('game-frame');
+      if (f) f.src = 'about:blank';
       pollOnce();
     } catch(e) {
       STATE.submitted = false;
@@ -889,32 +978,22 @@ window.XPDROP_QUESTIONS = {
     ) : '';
     document.getElementById('lb-rank-list').innerHTML = sorted.map(function(p, i){
       var cls = 'lb-row' + (i === 0 ? ' first' : '') + (p.id === STATE.playerId ? ' me' : '');
+      var bonus = (p.rounds_played || 0) * 10;
+      var pool = Math.max(0, (p.score || 0) - bonus);
       return '<div class="' + cls + '">'
         + '<div class="lb-rank">' + (i+1) + '</div>'
-        + '<div class="player-name">' + esc(p.name) + (p.id === STATE.playerId ? ' (Та)' : '') + '</div>'
+        + '<div style="flex:1;min-width:0;">'
+        +   '<div class="player-name">' + esc(p.name) + (p.id === STATE.playerId ? ' (Та)' : '') + '</div>'
+        +   '<div style="font-size:0.66rem;color:#9adcff;opacity:0.7;font-weight:700;">💎 ' + pool + ' + 🎯 ' + (p.rounds_played || 0) + '×10</div>'
+        + '</div>'
         + '<div class="player-score">' + (p.score || 0) + '</div>'
         + '</div>';
     }).join('');
-    document.getElementById('lb-host-end').classList.toggle('hidden', !STATE.isHost);
-  }
-
-  async function resetGame() {
-    if (!STATE.isHost) return;
-    var r = await fetch(API, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ action:'reset', code: STATE.code })
-    });
-    var d = await r.json();
-    if (d.ok) {
-      STATE.submitted = false;
-      STATE.pendingPool = 0;
-      enterLobby();
-    }
   }
 
   function leaveGame() {
     if (STATE.poll) clearInterval(STATE.poll);
-    STATE = { code:null, playerId:null, isHost:false, grade:6, poll:null, submitted:false, pendingPool:0, questions:null };
+    STATE = { code:null, playerId:null, isHost:false, grade:6, poll:null, submitted:false, pendingPool:0, roundsShown:0, finalBreakdown:null, questions:null };
     showScreen('mode-screen');
   }
 

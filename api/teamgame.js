@@ -117,18 +117,27 @@ module.exports = async (req, res) => {
         return res.json({ ok: true, game: gr.rows[0] });
       }
 
-      // 4) Гишүүн өөрийн оноог илгээх
+      // 4) Гишүүн өөрийн оноог илгээх — ганц удаа
       if (action === 'submit') {
-        const { player_id, score, rounds_played } = body;
+        const { player_id, pool_remaining, rounds_passed } = body;
         if (!player_id) return res.status(400).json({ ok: false });
+        // Аль хэдийн илгээсэн бол дахин хүлээж авахгүй
+        const check = await pool.query('SELECT * FROM team_players WHERE id=$1', [player_id]);
+        if (!check.rows.length) return res.json({ ok: false, error: 'Гишүүн олдсонгүй' });
+        if (check.rows[0].finished_at) {
+          return res.json({ ok: false, error: 'Та аль хэдийн тоглож дууссан байна', player: check.rows[0] });
+        }
+        const remaining = Math.max(0, parseInt(pool_remaining) || 0);
+        const passed = Math.max(0, parseInt(rounds_passed) || 0);
+        const totalScore = remaining + (passed * 10);
         await pool.query(
           'UPDATE team_players SET score=$2, rounds_played=$3, finished_at=NOW() WHERE id=$1 AND finished_at IS NULL',
-          [player_id, Math.max(0, parseInt(score) || 0), parseInt(rounds_played) || 0]
+          [player_id, totalScore, passed]
         );
         const pr = await pool.query('SELECT * FROM team_players WHERE id=$1', [player_id]);
         if (!pr.rows.length) return res.json({ ok: false });
         const player = pr.rows[0];
-        // Бүх гишүүн дууссан бол state='finished' болгох
+        // Бүх гишүүн дууссан бол state='finished'
         const all = await pool.query(
           'SELECT COUNT(*) AS total, COUNT(finished_at) AS done FROM team_players WHERE game_id=$1',
           [player.game_id]
@@ -136,7 +145,7 @@ module.exports = async (req, res) => {
         if (parseInt(all.rows[0].total) > 0 && parseInt(all.rows[0].total) === parseInt(all.rows[0].done)) {
           await pool.query("UPDATE team_games SET state='finished', finished_at=NOW() WHERE id=$1", [player.game_id]);
         }
-        return res.json({ ok: true, player });
+        return res.json({ ok: true, player, breakdown: { pool: remaining, bonus: passed * 10, total: totalScore } });
       }
 
       // 5) Host албадан дуусгах (хүлээж байсан хүн байсан ч)
@@ -151,18 +160,7 @@ module.exports = async (req, res) => {
         return res.json({ ok: true, game: gr.rows[0] });
       }
 
-      // 6) Шинэчилж дахин эхлүүлэх (host)
-      if (action === 'reset') {
-        const { code } = body;
-        if (!code) return res.status(400).json({ ok: false });
-        const gr = await pool.query('SELECT * FROM team_games WHERE code=$1', [code]);
-        if (!gr.rows.length) return res.json({ ok: false });
-        const game = gr.rows[0];
-        await pool.query('UPDATE team_players SET score=0, rounds_played=0, finished_at=NULL WHERE game_id=$1', [game.id]);
-        await pool.query("UPDATE team_games SET state='lobby', started_at=NULL, finished_at=NULL WHERE id=$1", [game.id]);
-        const ng = await pool.query('SELECT * FROM team_games WHERE id=$1', [game.id]);
-        return res.json({ ok: true, game: ng.rows[0] });
-      }
+      // (reset action хасагдсан — ганц удаагийн тоглолт)
 
       return res.status(400).json({ ok: false, error: 'Unknown action' });
     }
