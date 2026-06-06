@@ -1886,6 +1886,8 @@ window.XPDROP_QUESTIONS = {
   var QUESTIONS = null; // {6:[...], 7:[...], 8:[...], 9:[...]}
   var CURRENT_GRADE = null;
   var CURRENT_ROUNDS = [];
+  var CURRENT_IMAGES = [];
+  var CURRENT_ROUND_IDX = -1;
 
   // KaTeX-аар $...$-ийг HTML render
   function renderTex(s) {
@@ -1954,14 +1956,34 @@ window.XPDROP_QUESTIONS = {
     if (!pool.length) {
       return [{ text: g + '-р ангийн бодлогын сан хоосон байна.', options: ['—','—','—','—'], correctIdx: 0 }];
     }
+    CURRENT_IMAGES = pool.map(function(p){ return p.image || null; });
+    CURRENT_ROUND_IDX = -1;
     return pool.map(function(q){
-      var imgTag = q.image ? '<img src="/' + q.image + '" style="max-height:140px;max-width:100%;display:block;margin:0 auto 8px;border-radius:8px;background:#fff;padding:4px;">' : '';
       return {
-        text: imgTag + renderTex(q.text),
+        text: renderTex(q.text),
         options: q.options.slice(0, 4).map(function(o){ return renderTex(o); }),
         correctIdx: q.correctIdx
       };
     });
+  }
+
+  // Bundle React-аас HTML escape хийдэг учир зургийг шууд DOM-руу нэмэх
+  function injectImageIntoFrame() {
+    var f = document.getElementById('game-frame');
+    if (!f || !f.contentDocument) return;
+    var doc = f.contentDocument;
+    var qEl = doc.querySelector('.q-text');
+    if (!qEl) return;
+    var img = CURRENT_IMAGES && CURRENT_IMAGES[CURRENT_ROUND_IDX];
+    var oldImg = doc.getElementById('xp-injected-img');
+    if (oldImg) oldImg.remove();
+    if (img) {
+      var imgEl = doc.createElement('img');
+      imgEl.id = 'xp-injected-img';
+      imgEl.src = '/' + img;
+      imgEl.style.cssText = 'max-height:140px;max-width:100%;display:block;margin:0 auto 8px;border-radius:8px;background:#fff;padding:4px;';
+      qEl.insertBefore(imgEl, qEl.firstChild);
+    }
   }
 
   function startGame(grade) {
@@ -2022,12 +2044,19 @@ window.XPDROP_QUESTIONS = {
     var d = e && e.data;
     if (!d) return;
     if (d.type === 'xpdrop-need-questions') {
-      // Iframe-р дахин асуулт хүсэх (replay) — мөн адил рандом 10
       CURRENT_ROUNDS = buildRoundsForGrade(CURRENT_GRADE);
       var f = document.getElementById('game-frame');
       if (f && f.contentWindow) {
         f.contentWindow.postMessage({ type: 'xpdrop-questions', rounds: CURRENT_ROUNDS }, '*');
       }
+    }
+    if (d.type === 'xpdrop-question-shown') {
+      CURRENT_ROUND_IDX++;
+      setTimeout(injectImageIntoFrame, 150);
+      setTimeout(injectImageIntoFrame, 500);
+    }
+    if (d.type === 'xpdrop-reset') {
+      CURRENT_ROUND_IDX = -1;
     }
   });
 
