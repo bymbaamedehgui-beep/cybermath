@@ -39,9 +39,9 @@ module.exports = async (req, res) => {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_tg_code ON team_games(code)`).catch(()=>{});
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_tp_game ON team_players(game_id)`).catch(()=>{});
 
-    // Багш-уралдаан (олон баг хянах)
+    // Багш-уралдаан (олон баг хянах) — өвөрмөц нэр (Neon DB хуваалцсан учир)
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS tournaments (
+      CREATE TABLE IF NOT EXISTS cm_team_tournaments (
         id BIGSERIAL PRIMARY KEY,
         code TEXT UNIQUE NOT NULL,
         name TEXT,
@@ -52,6 +52,14 @@ module.exports = async (req, res) => {
         ended_at TIMESTAMPTZ
       )
     `);
+    // Хуучин хүснэгт байсан тохиолдолд багана дутагдвал нөхөх
+    await pool.query(`ALTER TABLE cm_team_tournaments ADD COLUMN IF NOT EXISTS code TEXT`).catch(()=>{});
+    await pool.query(`ALTER TABLE cm_team_tournaments ADD COLUMN IF NOT EXISTS name TEXT`).catch(()=>{});
+    await pool.query(`ALTER TABLE cm_team_tournaments ADD COLUMN IF NOT EXISTS grade INT`).catch(()=>{});
+    await pool.query(`ALTER TABLE cm_team_tournaments ADD COLUMN IF NOT EXISTS teacher_name TEXT`).catch(()=>{});
+    await pool.query(`ALTER TABLE cm_team_tournaments ADD COLUMN IF NOT EXISTS state TEXT DEFAULT 'open'`).catch(()=>{});
+    await pool.query(`ALTER TABLE cm_team_tournaments ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()`).catch(()=>{});
+    await pool.query(`ALTER TABLE cm_team_tournaments ADD COLUMN IF NOT EXISTS ended_at TIMESTAMPTZ`).catch(()=>{});
     await pool.query(`ALTER TABLE team_games ADD COLUMN IF NOT EXISTS tournament_code TEXT`).catch(()=>{});
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_tg_tournament ON team_games(tournament_code)`).catch(()=>{});
 
@@ -62,7 +70,7 @@ module.exports = async (req, res) => {
 
       // Багшийн уралдаан хайх — бүх багуудаа цуглуулна
       if (tourCode) {
-        const tr = await pool.query('SELECT * FROM tournaments WHERE code=$1', [tourCode]);
+        const tr = await pool.query('SELECT * FROM cm_team_tournaments WHERE code=$1', [tourCode]);
         if (!tr.rows.length) return res.json({ ok: false, error: 'Уралдаан олдсонгүй' });
         const games = await pool.query('SELECT * FROM team_games WHERE tournament_code=$1 ORDER BY id', [tourCode]);
         const teams = [];
@@ -97,7 +105,7 @@ module.exports = async (req, res) => {
         let tc = null;
         if (tournament_code) {
           // Уралдаанд багтаах — байгаа эсэхийг шалгана
-          const tt = await pool.query('SELECT code, grade, state FROM tournaments WHERE code=$1', [tournament_code]);
+          const tt = await pool.query('SELECT code, grade, state FROM cm_team_tournaments WHERE code=$1', [tournament_code]);
           if (!tt.rows.length) return res.json({ ok: false, error: 'Уралдааны код буруу' });
           if (tt.rows[0].state !== 'open') return res.json({ ok: false, error: 'Уралдаан хаагдсан байна' });
           tc = tt.rows[0].code;
@@ -130,12 +138,12 @@ module.exports = async (req, res) => {
         const { name, grade, teacher_name } = body;
         let code = generateCode();
         for (let i = 0; i < 10; i++) {
-          const existing = await pool.query('SELECT id FROM tournaments WHERE code=$1', [code]);
+          const existing = await pool.query('SELECT id FROM cm_team_tournaments WHERE code=$1', [code]);
           if (!existing.rows.length) break;
           code = generateCode();
         }
         const t = await pool.query(
-          'INSERT INTO tournaments (code, name, grade, teacher_name) VALUES ($1, $2, $3, $4) RETURNING *',
+          'INSERT INTO cm_team_tournaments (code, name, grade, teacher_name) VALUES ($1, $2, $3, $4) RETURNING *',
           [code, (name || 'CyberMath уралдаан').trim().slice(0, 60), parseInt(grade) || 6, (teacher_name || '').trim().slice(0, 40)]
         );
         return res.json({ ok: true, tournament: t.rows[0] });
@@ -154,8 +162,8 @@ module.exports = async (req, res) => {
           );
           await pool.query("UPDATE team_games SET state='finished', finished_at=NOW() WHERE id=$1 AND state<>'finished'", [g.id]);
         }
-        await pool.query("UPDATE tournaments SET state='ended', ended_at=NOW() WHERE code=$1", [tournament_code]);
-        const tr = await pool.query('SELECT * FROM tournaments WHERE code=$1', [tournament_code]);
+        await pool.query("UPDATE cm_team_tournaments SET state='ended', ended_at=NOW() WHERE code=$1", [tournament_code]);
+        const tr = await pool.query('SELECT * FROM cm_team_tournaments WHERE code=$1', [tournament_code]);
         return res.json({ ok: true, tournament: tr.rows[0] });
       }
 
