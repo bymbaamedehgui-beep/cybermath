@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="/assets/xpdrop-questions.js"></script>
 <style>
   *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
   body {
@@ -231,21 +232,24 @@
     });
   }
 
-  // Бодлогын санг ачаалах — absolute path + cache bust
+  // Бодлогын санг embedded script-ээс ачаалах (fetch хэрэггүй)
   async function loadQuestions() {
-    var url = '/assets/xpdrop-questions.json?v=' + Date.now();
-    try {
-      var r = await fetch(url, { cache: 'no-store' });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      QUESTIONS = await r.json();
-      console.log('[xpdrop] loaded', { 6: (QUESTIONS['6']||[]).length, 7: (QUESTIONS['7']||[]).length, 8: (QUESTIONS['8']||[]).length, 9: (QUESTIONS['9']||[]).length });
-    } catch(e) {
-      console.error('[xpdrop] load error', e);
-      var rules = document.querySelector('.rules');
-      if (rules) {
-        rules.innerHTML = '<span style="color:#f87171;">⚠️ Бодлогын сан ачаалагдсангүй: ' + e.message + '<br>URL: ' + url + '</span>';
+    if (window.XPDROP_QUESTIONS) {
+      QUESTIONS = window.XPDROP_QUESTIONS;
+      console.log('[xpdrop] embedded loaded', { 6: (QUESTIONS['6']||[]).length, 7: (QUESTIONS['7']||[]).length, 8: (QUESTIONS['8']||[]).length, 9: (QUESTIONS['9']||[]).length });
+    } else {
+      // Fallback: fetch JSON
+      try {
+        var r = await fetch('/assets/xpdrop-questions.json?v=' + Date.now(), { cache: 'no-store' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        QUESTIONS = await r.json();
+      } catch(e) {
+        var rules = document.querySelector('.rules');
+        if (rules) {
+          rules.innerHTML = '<span style="color:#f87171;">⚠️ Бодлогын сан ачаалагдсангүй: ' + e.message + '</span>';
+        }
+        QUESTIONS = { 6:[], 7:[], 8:[], 9:[] };
       }
-      QUESTIONS = { 6:[], 7:[], 8:[], 9:[] };
     }
     renderGradeCards();
   }
