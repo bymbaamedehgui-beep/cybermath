@@ -54,6 +54,11 @@ module.exports = async (req, res) => {
       max_xp: await q1(`SELECT COALESCE(MAX(xp),0) AS c FROM users`),
       total_gems: await q1(`SELECT COALESCE(SUM(gems),0) AS c FROM users`),
       total_streak: await q1(`SELECT COALESCE(SUM(streak),0) AS c FROM users`),
+      total_minutes: await q1(`
+        SELECT COALESCE(SUM((val)::numeric), 0)::bigint AS c
+        FROM users, jsonb_each_text(COALESCE(activity_log, '{}'::jsonb)) AS j(k, val)
+        WHERE val ~ '^[0-9]+(\\.[0-9]+)?$'
+      `),
     };
 
     // ── НОД (хичээл/бүлэг) ──
