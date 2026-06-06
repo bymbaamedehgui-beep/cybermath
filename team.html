@@ -834,8 +834,14 @@ window.XPDROP_QUESTIONS = {
       if (rEl) rEl.textContent = STATE.roundsShown;
       return;
     }
-    // Finished
+    // Finished — багш бүгдийг finalize хийсэн ч байж болно
     if (game.state === 'finished') {
+      // Хэрэв тоглож байсан бол iframe-ыг хаах
+      var f = document.getElementById('game-frame');
+      if (f && f.src && f.src.indexOf('xpdrop') !== -1) {
+        f.src = 'about:blank';
+        STATE.submitted = true;
+      }
       enterLeaderboard(game, players);
     }
   }
@@ -964,11 +970,18 @@ window.XPDROP_QUESTIONS = {
         f.contentWindow.postMessage({ type: 'xpdrop-questions', rounds: buildRounds() }, '*');
       }
     }
-    // Үе бүр шинэ асуулт гарах үед тоолох
+    // Үе бүр шинэ асуулт гарах үед тоолох + сервер дээр явц шинэчлэх
     if (d.type === 'xpdrop-question-shown') {
       STATE.roundsShown = Math.min(10, STATE.roundsShown + 1);
       var rEl = document.getElementById('g-rounds');
       if (rEl) rEl.textContent = STATE.roundsShown;
+      // Багш дуусгахад rounds_played × 10 авахын тулд real-time бүртгэх
+      if (STATE.playerId && !STATE.submitted) {
+        fetch(API, {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ action:'progress', player_id: STATE.playerId, rounds_passed: STATE.roundsShown })
+        }).catch(function(){});
+      }
     }
     if (d.type === 'xpdrop-reset') {
       STATE.roundsShown = 0;
@@ -1142,18 +1155,39 @@ window.XPDROP_QUESTIONS = {
     }
     document.getElementById('td-count').textContent = teams.length;
     var html = teams.map(function(t){
-      var total = t.players.reduce(function(s,p){ return s + (p.score||0); }, 0);
+      var liveTotal = t.players.reduce(function(s,p){
+        // Дуусаагүй бол одоогийн rounds × 10, дууссан бол score
+        var pv = p.finished_at ? (p.score||0) : ((p.rounds_played||0) * 10);
+        return s + pv;
+      }, 0);
       var done = t.players.filter(function(p){ return !!p.finished_at; }).length;
       var stateLabel = '';
       if (t.game.state === 'lobby') stateLabel = '<span style="color:#fbbf24;">⏳ Бэлдэж байна</span>';
       else if (t.game.state === 'playing') stateLabel = '<span style="color:#3ad689;">▶ Тоглож байна (' + done + '/' + t.players.length + ' дууссан)</span>';
       else stateLabel = '<span style="color:#9adcff;">✓ Дууссан</span>';
-      return '<div class="lb-row" style="background:rgba(168,108,228,0.06);border-color:rgba(168,108,228,0.18);">'
-        + '<div style="flex:1;min-width:0;">'
-        +   '<div class="player-name" style="display:flex;align-items:center;gap:8px;">' + esc(t.game.team_name || 'Баг') + ' <span style="font-family:ui-monospace,monospace;font-size:0.74rem;color:#A86CE4;background:rgba(168,108,228,0.15);padding:2px 6px;border-radius:4px;">#' + t.game.code + '</span></div>'
-        +   '<div style="font-size:0.7rem;color:#9adcff;opacity:0.85;font-weight:700;margin-top:2px;">' + stateLabel + ' · ' + t.players.length + ' гишүүн</div>'
+
+      var playersHtml = t.players.map(function(p){
+        var liveScore = p.finished_at ? (p.score||0) : ((p.rounds_played||0) * 10);
+        var statusIcon = p.finished_at ? '✓' : '▶';
+        var statusColor = p.finished_at ? '#3ad689' : '#fbbf24';
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:0.74rem;font-weight:700;color:#fff;">'
+          + '<span><span style="color:' + statusColor + ';margin-right:4px;">' + statusIcon + '</span>' + (p.is_host ? '👑 ' : '') + esc(p.name) + '</span>'
+          + '<span style="color:#9adcff;font-family:ui-monospace,monospace;">'
+          +   '🎯 <span style="color:#A86CE4;">' + (p.rounds_played||0) + '</span>/10 · '
+          +   '<span style="color:#f0c14b;">' + liveScore + ' XP</span>'
+          + '</span>'
+          + '</div>';
+      }).join('');
+
+      return '<div style="background:rgba(168,108,228,0.06);border:1px solid rgba(168,108,228,0.18);border-radius:10px;padding:10px 12px;margin-bottom:8px;">'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+        +   '<div style="flex:1;min-width:0;">'
+        +     '<div style="font-weight:900;color:#fff;font-size:0.92rem;display:flex;align-items:center;gap:8px;">' + esc(t.game.team_name || 'Баг') + ' <span style="font-family:ui-monospace,monospace;font-size:0.72rem;color:#A86CE4;background:rgba(168,108,228,0.15);padding:2px 6px;border-radius:4px;">#' + t.game.code + '</span></div>'
+        +     '<div style="font-size:0.68rem;color:#9adcff;opacity:0.85;font-weight:700;margin-top:2px;">' + stateLabel + ' · ' + t.players.length + ' гишүүн</div>'
+        +   '</div>'
+        +   '<div style="font-family:ui-monospace,monospace;font-weight:900;color:#A86CE4;font-size:1.1rem;">' + liveTotal + '</div>'
         + '</div>'
-        + '<div class="player-score" style="color:#A86CE4;">' + total + '</div>'
+        + (t.players.length ? '<div style="border-top:1px dashed rgba(168,108,228,0.2);padding-top:6px;">' + playersHtml + '</div>' : '')
         + '</div>';
     }).join('') || '<div style="opacity:0.6;font-size:0.84rem;text-align:center;padding:14px;">Багууд хүлээгдэж байна...</div>';
     document.getElementById('td-teams').innerHTML = html;

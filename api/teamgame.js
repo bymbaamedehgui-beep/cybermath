@@ -149,15 +149,16 @@ module.exports = async (req, res) => {
         return res.json({ ok: true, tournament: t.rows[0] });
       }
 
-      // 1.6) Багшийн уралдаан дуусгах — бүх багуудыг finished болгоно
+      // 1.6) Багшийн уралдаан дуусгах — бүх багуудыг finished болгож,
+      //      дуусаагүй гишүүдийн оноог үе × 10 болгож finalize
       if (action === 'endTournament') {
         const { tournament_code } = body;
         if (!tournament_code) return res.status(400).json({ ok: false });
-        // Дуусаагүй гишүүдийн score-ыг 0 болгож finalize
         const games = await pool.query('SELECT id FROM team_games WHERE tournament_code=$1', [tournament_code]);
         for (const g of games.rows) {
+          // Тоглож байсан гишүүд: score = rounds_played × 10
           await pool.query(
-            "UPDATE team_players SET finished_at=NOW() WHERE game_id=$1 AND finished_at IS NULL",
+            "UPDATE team_players SET score = COALESCE(rounds_played,0) * 10, finished_at=NOW() WHERE game_id=$1 AND finished_at IS NULL",
             [g.id]
           );
           await pool.query("UPDATE team_games SET state='finished', finished_at=NOW() WHERE id=$1 AND state<>'finished'", [g.id]);
@@ -165,6 +166,17 @@ module.exports = async (req, res) => {
         await pool.query("UPDATE cm_team_tournaments SET state='ended', ended_at=NOW() WHERE code=$1", [tournament_code]);
         const tr = await pool.query('SELECT * FROM cm_team_tournaments WHERE code=$1', [tournament_code]);
         return res.json({ ok: true, tournament: tr.rows[0] });
+      }
+
+      // 1.7) Гишүүний явц шинэчлэх (хэдэн үе давсныг real-time бүртгэх)
+      if (action === 'progress') {
+        const { player_id, rounds_passed } = body;
+        if (!player_id) return res.status(400).json({ ok: false });
+        await pool.query(
+          'UPDATE team_players SET rounds_played=$2 WHERE id=$1 AND finished_at IS NULL',
+          [player_id, Math.max(0, parseInt(rounds_passed) || 0)]
+        );
+        return res.json({ ok: true });
       }
 
       // 2) Кодоор нэгдэх
