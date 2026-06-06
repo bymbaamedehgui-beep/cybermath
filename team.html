@@ -2096,6 +2096,9 @@ window.XPDROP_QUESTIONS = {
       <span style="font-family:ui-monospace,monospace;color:#f0c14b;">💎 <span id="g-pool">0</span> XP</span>
     </div>
   </div>
+  <div id="round-img-wrap" style="display:none;background:#020a0a;padding:10px;border-bottom:1px solid rgba(154,220,255,0.2);justify-content:center;align-items:center;flex-shrink:0;">
+    <img id="round-img" alt="" style="max-height:130px;max-width:90%;background:#fff;padding:6px;border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,0.3);"/>
+  </div>
   <iframe id="game-frame"></iframe>
 </div>
 
@@ -2477,25 +2480,21 @@ window.XPDROP_QUESTIONS = {
     });
   }
 
-  // Iframe-ын q-text дотор зураг шууд DOM-аар оруулах
-  function injectImageIntoIframe() {
-    var f = document.getElementById('game-frame');
-    if (!f || !f.contentDocument) return;
-    var doc = f.contentDocument;
-    var qEl = doc.querySelector('.q-text');
-    if (!qEl) return;
-    // Идэвхтэй үеийн зураг
-    var img = STATE.images && STATE.images[STATE.currentRoundIdx];
-    // Хуучин зураг устгах
-    var oldImg = doc.getElementById('xp-injected-img');
-    if (oldImg) oldImg.remove();
-    if (img) {
-      var imgEl = doc.createElement('img');
-      imgEl.id = 'xp-injected-img';
-      imgEl.src = '/' + img;
-      imgEl.style.cssText = 'max-height:140px;max-width:100%;display:block;margin:0 auto 8px;border-radius:8px;background:#fff;padding:4px;';
-      qEl.insertBefore(imgEl, qEl.firstChild);
-    }
+  // Зургийг parent page-ийн panel-д харуулах (React bundle-ыг битгий цохь)
+  function showRoundImage() {
+    try {
+      var wrap = document.getElementById('round-img-wrap');
+      var imgEl = document.getElementById('round-img');
+      var img = STATE.images && STATE.images[STATE.currentRoundIdx];
+      if (!wrap || !imgEl) return;
+      if (img) {
+        imgEl.src = '/' + img;
+        wrap.style.display = 'flex';
+      } else {
+        wrap.style.display = 'none';
+        imgEl.src = '';
+      }
+    } catch(e) { console.warn('[img]', e); }
   }
 
   // Iframe-аас ирэх postMessage сонсох
@@ -2514,9 +2513,7 @@ window.XPDROP_QUESTIONS = {
       STATE.currentRoundIdx = (STATE.currentRoundIdx == null ? -1 : STATE.currentRoundIdx) + 1;
       var rEl = document.getElementById('g-rounds');
       if (rEl) rEl.textContent = STATE.roundsShown;
-      // Зургийг асуулт гарсны дараа DOM-руу шууд оруулах
-      setTimeout(injectImageIntoIframe, 150);
-      setTimeout(injectImageIntoIframe, 500);
+      showRoundImage();
       if (STATE.playerId && !STATE.submitted) {
         fetch(API, {
           method:'POST', headers:{'Content-Type':'application/json'},
@@ -2526,8 +2523,10 @@ window.XPDROP_QUESTIONS = {
     }
     if (d.type === 'xpdrop-reset') {
       STATE.roundsShown = 0;
+      STATE.currentRoundIdx = -1;
       var rEl2 = document.getElementById('g-rounds');
       if (rEl2) rEl2.textContent = '0';
+      showRoundImage();
     }
     // Pool update — track latest pool
     if (d.type === 'xpdrop-pool-update' && typeof d.pool === 'number') {
