@@ -2461,31 +2461,28 @@ window.XPDROP_QUESTIONS = {
   }
 
   // Зургийг parent page-ийн panel-д харуулах
+  // Зургийг iframe-ийн q-text-ийн доор оруулна
   function showRoundImage() {
     try {
       var wrap = document.getElementById('round-img-wrap');
-      var imgEl = document.getElementById('round-img');
+      if (wrap) wrap.style.display = 'none';
+
+      var f = document.getElementById('game-frame');
+      if (!f || !f.contentDocument) return;
+      var doc = f.contentDocument;
+      var qEl = doc.querySelector('.q-text');
+      if (!qEl) return;
+      var oldImg = doc.getElementById('xp-injected-img');
+      if (oldImg) oldImg.remove();
       var img = STATE.images && STATE.images[STATE.currentRoundIdx];
-      if (!wrap || !imgEl) return;
       if (img) {
-        var src = (img.startsWith('/') ? '' : '/') + img;
-        imgEl.onload = function(){ wrap.style.display = 'flex'; };
-        imgEl.onerror = function(){
-          console.warn('[img-load-fail]', src);
-          if (!imgEl.dataset.retried) {
-            imgEl.dataset.retried = '1';
-            imgEl.src = img;
-          } else {
-            wrap.style.display = 'none';
-          }
-        };
-        imgEl.dataset.retried = '';
-        imgEl.src = src;
-      } else {
-        wrap.style.display = 'none';
-        imgEl.src = '';
+        var imgEl = doc.createElement('img');
+        imgEl.id = 'xp-injected-img';
+        imgEl.src = img;
+        imgEl.style.cssText = 'display:block;max-width:90%;max-height:170px;margin:10px auto;background:#fff;padding:6px;border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,0.3);';
+        qEl.appendChild(imgEl);
       }
-    } catch(e) { console.warn('[img]', e); }
+    } catch(e) { console.warn('[inject-img]', e); }
   }
 
   // Iframe-аас ирэх postMessage сонсох
@@ -2504,7 +2501,8 @@ window.XPDROP_QUESTIONS = {
       STATE.currentRoundIdx = (STATE.currentRoundIdx == null ? -1 : STATE.currentRoundIdx) + 1;
       var rEl = document.getElementById('g-rounds');
       if (rEl) rEl.textContent = STATE.roundsShown;
-      showRoundImage();
+      setTimeout(showRoundImage, 100);
+      setTimeout(showRoundImage, 400);
       if (STATE.playerId && !STATE.submitted) {
         fetch(API, {
           method:'POST', headers:{'Content-Type':'application/json'},
