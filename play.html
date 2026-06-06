@@ -1970,7 +1970,7 @@ window.XPDROP_QUESTIONS = {
     });
   }
 
-  // Зургийг iframe-ээс гадуур, parent page-д харуулна (React bundle-ыг битгий цохь)
+  // Зургийг iframe-ээс гадуур, parent page-д харуулна
   function showRoundImage() {
     try {
       var wrap = document.getElementById('round-img-wrap');
@@ -1978,8 +1978,21 @@ window.XPDROP_QUESTIONS = {
       var img = CURRENT_IMAGES && CURRENT_IMAGES[CURRENT_ROUND_IDX];
       if (!wrap || !imgEl) return;
       if (img) {
-        imgEl.src = '/' + img;
-        wrap.style.display = 'flex';
+        // Multiple path attempts in case Vercel routing has changed
+        var src = (img.startsWith('/') ? '' : '/') + img;
+        imgEl.onload = function(){ wrap.style.display = 'flex'; };
+        imgEl.onerror = function(){
+          console.warn('[img-load-fail]', src);
+          // Бусад замаар оролдох
+          if (!imgEl.dataset.retried) {
+            imgEl.dataset.retried = '1';
+            imgEl.src = img; // relative path
+          } else {
+            wrap.style.display = 'none';
+          }
+        };
+        imgEl.dataset.retried = '';
+        imgEl.src = src;
       } else {
         wrap.style.display = 'none';
         imgEl.src = '';
