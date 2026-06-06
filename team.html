@@ -490,9 +490,14 @@ window.XPDROP_QUESTIONS = {
       <button class="mode-card" type="button" onclick="goToJoin()">
         <div class="mode-icon">🔑</div>
         <div class="mode-title">Кодоор нэгдэх</div>
-        <div class="mode-sub">Найзынхаа кодыг бичих</div>
+        <div class="mode-sub">Багийн кодоор</div>
       </button>
     </div>
+    <button class="mode-card" type="button" onclick="goToTeacherSetup()" style="margin-top:14px;width:100%;background:linear-gradient(135deg,#1a1233,#0d0a1d);border-color:rgba(168,108,228,0.4);">
+      <div class="mode-icon" style="color:#A86CE4;">👨‍🏫</div>
+      <div class="mode-title" style="color:#c4a3e8;">Багшийн самбар</div>
+      <div class="mode-sub">Олон баг хянах + уралдаан зохион байгуулах</div>
+    </button>
     <button class="btn alt" type="button" onclick="location.href='/play'" style="margin-top:16px;">← Ганцаараа тоглох</button>
   </div>
 </div>
@@ -580,6 +585,61 @@ window.XPDROP_QUESTIONS = {
   <iframe id="game-frame"></iframe>
 </div>
 
+<!-- T1) TEACHER SETUP -->
+<div class="center-wrap hidden" id="t-setup-screen">
+  <div class="title-main" style="color:#A86CE4;">👨‍🏫 Багшийн уралдаан</div>
+  <div class="card-box" style="border-color:rgba(168,108,228,0.4);">
+    <div class="form-label">Уралдааны нэр</div>
+    <input id="ts-name" class="form-input" placeholder="Жишээ: 6-р ангийн математикийн ралли" maxlength="60" value="CyberMath уралдаан"/>
+    <div class="form-label">Багшийн нэр</div>
+    <input id="ts-teacher" class="form-input" placeholder="Овог нэр" maxlength="40"/>
+    <div class="form-label">Анги</div>
+    <div class="grade-row" id="ts-grades">
+      <button type="button" class="grade-chip active" data-grade="6">6</button>
+      <button type="button" class="grade-chip" data-grade="7">7</button>
+      <button type="button" class="grade-chip" data-grade="8">8</button>
+      <button type="button" class="grade-chip" data-grade="9">9</button>
+    </div>
+    <div class="error-msg" id="ts-err"></div>
+    <button class="btn" style="background:linear-gradient(135deg,#A86CE4,#7B52EE);color:#fff;" onclick="createTournament()">✓ Уралдаан үүсгэх</button>
+    <button class="btn alt" onclick="showScreen('mode-screen')" style="margin-top:8px;">← Буцах</button>
+  </div>
+</div>
+
+<!-- T2) TEACHER DASHBOARD -->
+<div class="center-wrap hidden" id="t-dash-screen">
+  <div class="lobby-code-label" style="color:#c4a3e8;">УРАЛДААНЫ КОД</div>
+  <div class="lobby-code" id="td-code" style="color:#A86CE4;text-shadow:0 0 30px rgba(168,108,228,0.4);">000000</div>
+  <div style="font-size:0.84rem;color:#c4a3e8;font-weight:700;margin-bottom:4px;" id="td-name">Уралдаан</div>
+  <div style="font-size:0.74rem;opacity:0.7;letter-spacing:2px;" id="td-grade">6-Р АНГИ</div>
+
+  <div class="card-box" style="margin-top:14px;border-color:rgba(168,108,228,0.4);max-width:540px;">
+    <div style="display:flex;gap:14px;align-items:center;justify-content:center;margin-bottom:14px;">
+      <div class="qr-box" id="td-qr"></div>
+      <div style="text-align:left;font-size:0.78rem;color:#c4a3e8;font-weight:700;line-height:1.5;flex:1;">
+        Багийн ахлагч нар QR-аар нэвтэрч эсвэл <b>/team</b> хуудсаар орж <b style="color:#A86CE4;" id="td-code-mini">000000</b> кодыг оруулна.
+      </div>
+    </div>
+
+    <div class="form-label">Багууд (<span id="td-count">0</span>)</div>
+    <div id="td-teams" style="max-height:55vh;overflow-y:auto;"></div>
+
+    <button class="btn" style="background:linear-gradient(135deg,#E45A6B,#A33345);color:#fff;margin-top:14px;" onclick="endTournament()">🏁 Уралдааныг дуусгах</button>
+    <button class="btn alt" onclick="exitToHome()" style="margin-top:8px;">🏠 Эхлэл</button>
+  </div>
+</div>
+
+<!-- T3) TEACHER RESULT -->
+<div class="center-wrap hidden" id="t-result-screen">
+  <div class="title-main">🏆 УРАЛДААНЫ ҮР ДҮН</div>
+  <div class="card-box" style="max-width:560px;">
+    <div id="tr-winner-area"></div>
+    <div class="form-label">Бүх багуудын байр</div>
+    <div id="tr-teams" style="max-height:50vh;overflow-y:auto;"></div>
+    <button class="btn alt" onclick="exitToHome()" style="margin-top:14px;">🏠 Эхлэл рүү буцах</button>
+  </div>
+</div>
+
 <!-- 5.5) DONE — гишүүн өөрөө дуусаад бусдыг хүлээх -->
 <div class="center-wrap hidden" id="done-screen">
   <div class="title-main">✅ Та дууслаа</div>
@@ -637,7 +697,7 @@ window.XPDROP_QUESTIONS = {
   };
 
   function showScreen(id) {
-    ['mode-screen','create-screen','join-screen','lobby-screen','game-screen','done-screen','lb-screen'].forEach(function(s){
+    ['mode-screen','create-screen','join-screen','lobby-screen','game-screen','done-screen','lb-screen','t-setup-screen','t-dash-screen','t-result-screen'].forEach(function(s){
       var el = document.getElementById(s);
       if (!el) return;
       if (s === 'game-screen') {
@@ -670,9 +730,11 @@ window.XPDROP_QUESTIONS = {
     var max = parseInt(document.getElementById('cr-max').value) || 5;
     if (!host_name) { document.getElementById('cr-err').textContent = '⚠️ Нэрээ оруулна уу'; return; }
     try {
+      var tcInput = document.getElementById('cr-tournament');
+      var tournament_code = tcInput ? (tcInput.value || '').trim() : null;
       var r = await fetch(API, {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ action:'create', team_name, host_name, grade: STATE.grade, max_players: max })
+        body: JSON.stringify({ action:'create', team_name, host_name, grade: STATE.grade, max_players: max, tournament_code: tournament_code || undefined })
       });
       var d = await r.json();
       if (!d.ok) { document.getElementById('cr-err').textContent = '⚠️ ' + (d.error || ''); return; }
@@ -1008,10 +1070,175 @@ window.XPDROP_QUESTIONS = {
     });
   }
 
+  // ─── БАГШИЙН ХЭСЭГ ───
+  var TSTATE = { code: null, grade: 6, poll: null };
+
+  function goToTeacherSetup() {
+    showScreen('t-setup-screen');
+  }
+
+  document.querySelectorAll('#ts-grades .grade-chip').forEach(function(b){
+    b.onclick = function(){
+      document.querySelectorAll('#ts-grades .grade-chip').forEach(function(x){ x.classList.remove('active'); });
+      b.classList.add('active');
+      TSTATE.grade = parseInt(b.getAttribute('data-grade'));
+    };
+  });
+
+  async function createTournament() {
+    var name = document.getElementById('ts-name').value.trim() || 'CyberMath уралдаан';
+    var teacher = document.getElementById('ts-teacher').value.trim();
+    if (!teacher) { document.getElementById('ts-err').textContent = '⚠️ Багшийн нэрээ оруулна уу'; return; }
+    try {
+      var r = await fetch(API, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ action:'createTournament', name, teacher_name: teacher, grade: TSTATE.grade })
+      });
+      var d = await r.json();
+      if (!d.ok) { document.getElementById('ts-err').textContent = '⚠️ ' + (d.error || ''); return; }
+      TSTATE.code = d.tournament.code;
+      TSTATE.grade = d.tournament.grade;
+      enterTeacherDashboard(d.tournament);
+    } catch(e) { document.getElementById('ts-err').textContent = '⚠️ ' + e.message; }
+  }
+
+  function enterTeacherDashboard(tournament) {
+    showScreen('t-dash-screen');
+    document.getElementById('td-code').textContent = tournament.code;
+    document.getElementById('td-code-mini').textContent = tournament.code;
+    document.getElementById('td-name').textContent = tournament.name || '';
+    document.getElementById('td-grade').textContent = (tournament.grade || TSTATE.grade) + '-Р АНГИ';
+    var qrEl = document.getElementById('td-qr');
+    qrEl.innerHTML = '';
+    new QRCode(qrEl, {
+      text: location.origin + '/team?tournament=' + tournament.code,
+      width: 140, height: 140,
+      colorDark: '#020a0a', colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.H
+    });
+    startTeacherPoll();
+  }
+
+  function startTeacherPoll() {
+    if (TSTATE.poll) clearInterval(TSTATE.poll);
+    pollTeacherOnce();
+    TSTATE.poll = setInterval(pollTeacherOnce, 2500);
+  }
+
+  async function pollTeacherOnce() {
+    if (!TSTATE.code) return;
+    try {
+      var r = await fetch(API + '?tournament=' + TSTATE.code);
+      var d = await r.json();
+      if (!d.ok) return;
+      onTournamentUpdate(d.tournament, d.teams || []);
+    } catch(e) {}
+  }
+
+  function onTournamentUpdate(tournament, teams) {
+    if (tournament.state === 'ended') {
+      enterTeacherResult(tournament, teams);
+      return;
+    }
+    document.getElementById('td-count').textContent = teams.length;
+    var html = teams.map(function(t){
+      var total = t.players.reduce(function(s,p){ return s + (p.score||0); }, 0);
+      var done = t.players.filter(function(p){ return !!p.finished_at; }).length;
+      var stateLabel = '';
+      if (t.game.state === 'lobby') stateLabel = '<span style="color:#fbbf24;">⏳ Бэлдэж байна</span>';
+      else if (t.game.state === 'playing') stateLabel = '<span style="color:#3ad689;">▶ Тоглож байна (' + done + '/' + t.players.length + ' дууссан)</span>';
+      else stateLabel = '<span style="color:#9adcff;">✓ Дууссан</span>';
+      return '<div class="lb-row" style="background:rgba(168,108,228,0.06);border-color:rgba(168,108,228,0.18);">'
+        + '<div style="flex:1;min-width:0;">'
+        +   '<div class="player-name" style="display:flex;align-items:center;gap:8px;">' + esc(t.game.team_name || 'Баг') + ' <span style="font-family:ui-monospace,monospace;font-size:0.74rem;color:#A86CE4;background:rgba(168,108,228,0.15);padding:2px 6px;border-radius:4px;">#' + t.game.code + '</span></div>'
+        +   '<div style="font-size:0.7rem;color:#9adcff;opacity:0.85;font-weight:700;margin-top:2px;">' + stateLabel + ' · ' + t.players.length + ' гишүүн</div>'
+        + '</div>'
+        + '<div class="player-score" style="color:#A86CE4;">' + total + '</div>'
+        + '</div>';
+    }).join('') || '<div style="opacity:0.6;font-size:0.84rem;text-align:center;padding:14px;">Багууд хүлээгдэж байна...</div>';
+    document.getElementById('td-teams').innerHTML = html;
+  }
+
+  async function endTournament() {
+    if (!confirm('Уралдааныг дуусгах уу? Тоглож байгаа гишүүд оноо бүртгүүлэхгүй.')) return;
+    try {
+      var r = await fetch(API, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ action:'endTournament', tournament_code: TSTATE.code })
+      });
+      var d = await r.json();
+      if (d.ok) pollTeacherOnce();
+    } catch(e) {}
+  }
+
+  function enterTeacherResult(tournament, teams) {
+    if (TSTATE.poll) clearInterval(TSTATE.poll);
+    showScreen('t-result-screen');
+    // Багуудыг нийт оноогоор эрэмбэлэх
+    var ranked = teams.map(function(t){
+      var total = t.players.reduce(function(s,p){ return s + (p.score||0); }, 0);
+      return { team_name: t.game.team_name, code: t.game.code, players: t.players, total: total };
+    }).sort(function(a,b){ return b.total - a.total; });
+
+    var winner = ranked[0];
+    document.getElementById('tr-winner-area').innerHTML = winner ? (
+      '<div class="winner-card" style="background:linear-gradient(135deg,#A86CE4,#7B52EE);color:#fff;">'
+      + '<div class="winner-trophy">🏆</div>'
+      + '<div class="winner-label" style="opacity:0.85;">ЯЛАГЧ БАГ</div>'
+      + '<div class="winner-name">' + esc(winner.team_name) + '</div>'
+      + '<div class="winner-score" style="margin-bottom:10px;">' + winner.total + ' XP</div>'
+      + '<div style="background:rgba(255,255,255,0.15);border-radius:10px;padding:10px;text-align:left;">'
+      +   '<div style="font-size:0.7rem;font-weight:900;letter-spacing:2px;opacity:0.85;margin-bottom:4px;">ГИШҮҮД</div>'
+      +   winner.players.sort(function(a,b){ return (b.score||0)-(a.score||0); }).map(function(p){
+            return '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:0.92rem;font-weight:800;">'
+              + '<span>' + (p.is_host ? '👑 ' : '') + esc(p.name) + '</span>'
+              + '<span style="font-family:ui-monospace,monospace;">' + (p.score||0) + ' XP</span>'
+              + '</div>';
+          }).join('')
+      + '</div>'
+      + '</div>'
+    ) : '<div style="color:#9adcff;text-align:center;padding:20px;">Багууд бүртгэгдээгүй</div>';
+
+    document.getElementById('tr-teams').innerHTML = ranked.map(function(t, i){
+      var cls = 'lb-row' + (i === 0 ? ' first' : '');
+      return '<div class="' + cls + '">'
+        + '<div class="lb-rank">' + (i+1) + '</div>'
+        + '<div style="flex:1;min-width:0;">'
+        +   '<div class="player-name">' + esc(t.team_name) + '</div>'
+        +   '<div style="font-size:0.66rem;color:#9adcff;opacity:0.7;font-weight:700;">'
+        +     t.players.length + ' гишүүн · ' + t.players.map(function(p){ return esc(p.name); }).join(', ')
+        +   '</div>'
+        + '</div>'
+        + '<div class="player-score">' + t.total + '</div>'
+        + '</div>';
+    }).join('');
+  }
+
   // URL-аас код ирвэл шууд join screen-руу
   (function init(){
     var p = new URLSearchParams(location.search);
     if (p.get('code')) goToJoin();
+    else if (p.get('tournament')) {
+      // Багийн ахлагч → шууд create screen (tournament_code-той)
+      var tcode = p.get('tournament');
+      goToCreate();
+      // Tournament input нэмэх
+      var box = document.querySelector('#create-screen .card-box');
+      if (box && !document.getElementById('cr-tournament')) {
+        var label = document.createElement('div');
+        label.className = 'form-label';
+        label.textContent = 'Уралдааны код';
+        var inp = document.createElement('input');
+        inp.id = 'cr-tournament';
+        inp.className = 'form-input';
+        inp.value = tcode;
+        inp.style.fontFamily = 'ui-monospace,monospace';
+        inp.style.letterSpacing = '3px';
+        inp.readOnly = true;
+        box.insertBefore(label, box.firstChild);
+        box.insertBefore(inp, label.nextSibling);
+      }
+    }
     else showScreen('mode-screen');
   })();
 </script>
