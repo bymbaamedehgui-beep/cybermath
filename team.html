@@ -2074,6 +2074,7 @@ window.XPDROP_QUESTIONS = {
     <div class="info">
       <span style="font-family:ui-monospace,monospace;color:#9adcff;">🎯 <span id="g-rounds">0</span>/10</span>
       <span style="font-family:ui-monospace,monospace;color:#f0c14b;">💎 <span id="g-pool">0</span> XP</span>
+      <span id="q-timer" style="background:rgba(248,113,113,0.15);border:1px solid rgba(248,113,113,0.4);color:#f87171;padding:3px 10px;border-radius:6px;font-family:ui-monospace,monospace;font-weight:900;letter-spacing:1px;font-size:0.82rem;">⏱ 90с</span>
     </div>
   </div>
   <div id="round-img-wrap" style="display:none;background:#020a0a;padding:10px;border-bottom:1px solid rgba(154,220,255,0.2);justify-content:center;align-items:center;flex-shrink:0;">
@@ -2488,6 +2489,46 @@ window.XPDROP_QUESTIONS = {
     } catch(e) { console.warn('[inject-img]', e); }
   }
 
+  // ─── Бодлогын 90 секундын timer ───
+  var Q_TIMER_INTERVAL = null;
+  var Q_TIMER_SECONDS = 90;
+
+  function startQuestionTimer() {
+    stopQuestionTimer();
+    Q_TIMER_SECONDS = 90;
+    updateTimerDisplay();
+    Q_TIMER_INTERVAL = setInterval(function(){
+      Q_TIMER_SECONDS--;
+      updateTimerDisplay();
+      if (Q_TIMER_SECONDS <= 0) {
+        stopQuestionTimer();
+        onTimeUp();
+      }
+    }, 1000);
+  }
+
+  function stopQuestionTimer() {
+    if (Q_TIMER_INTERVAL) { clearInterval(Q_TIMER_INTERVAL); Q_TIMER_INTERVAL = null; }
+  }
+
+  function updateTimerDisplay() {
+    var el = document.getElementById('q-timer');
+    if (!el) return;
+    el.textContent = '⏱ ' + Q_TIMER_SECONDS + 'с';
+    if (Q_TIMER_SECONDS <= 10) {
+      el.style.background = 'rgba(248,113,113,0.3)';
+      el.style.color = '#ff5050';
+    } else {
+      el.style.background = 'rgba(248,113,113,0.15)';
+      el.style.color = '#f87171';
+    }
+  }
+
+  async function onTimeUp() {
+    // Цаг дуусгаад: одоогийн оноог илгээх (pool + rounds*10) → done-screen
+    await submitScore(STATE.pendingPool || 0, STATE.roundsShown || 0);
+  }
+
   function resizeIframeToContent() {
     try {
       var f = document.getElementById('game-frame');
@@ -2520,6 +2561,7 @@ window.XPDROP_QUESTIONS = {
       if (rEl) rEl.textContent = STATE.roundsShown;
       setTimeout(showRoundImage, 100);
       setTimeout(showRoundImage, 400);
+      startQuestionTimer();
       if (STATE.playerId && !STATE.submitted) {
         fetch(API, {
           method:'POST', headers:{'Content-Type':'application/json'},
@@ -2533,6 +2575,7 @@ window.XPDROP_QUESTIONS = {
       var rEl2 = document.getElementById('g-rounds');
       if (rEl2) rEl2.textContent = '0';
       showRoundImage();
+      stopQuestionTimer();
     }
     // Pool update — track latest pool
     if (d.type === 'xpdrop-pool-update' && typeof d.pool === 'number') {
@@ -2556,6 +2599,7 @@ window.XPDROP_QUESTIONS = {
   async function submitScore(poolRemaining, roundsPassed) {
     if (STATE.submitted) return;
     STATE.submitted = true;
+    stopQuestionTimer();
     try {
       var r = await fetch(API, {
         method:'POST', headers:{'Content-Type':'application/json'},
