@@ -129,13 +129,19 @@
         <div class="tab" data-tab="topic" onclick="setTab('topic')">📚 Өдрийн сэдэв</div>
         <div class="tab" data-tab="students" onclick="setTab('students')">👥 Сурагчид</div>
       </div>
-      <div style="display:flex;align-items:center;gap:6px">
-        <label class="muted" style="font-weight:700">Групп:</label>
-        <select id="grpFilter" onchange="setGroupFilter()" style="width:auto">
-          <option value="">Бүгд</option>
-          <option value="1">1-р групп</option>
-          <option value="2">2-р групп</option>
-        </select>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div style="position:relative">
+          <span style="position:absolute;left:11px;top:50%;transform:translateY(-50%);opacity:.5;pointer-events:none">🔍</span>
+          <input id="search" oninput="setSearch()" placeholder="Сурагч хайх..." style="width:200px;padding-left:32px" />
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <label class="muted" style="font-weight:700">Групп:</label>
+          <select id="grpFilter" onchange="setGroupFilter()" style="width:auto">
+            <option value="">Бүгд</option>
+            <option value="1">1-р групп</option>
+            <option value="2">2-р групп</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -281,14 +287,26 @@ let EXAMS = [];
 let CUR_EXAM = null;
 let CUR_SCORES = {};    // student_id -> [scores]
 let GROUP_FILTER = '';  // '' | '1' | '2'  — идэвхтэй групп
+let SEARCH = '';        // нэрээр хайх
 
-// Идэвхтэй группээр шүүсэн сурагчид
-function vis(){return GROUP_FILTER?STUDENTS.filter(s=>String(s.grp||'')===GROUP_FILTER):STUDENTS;}
+function matchSearch(s){
+  if(!SEARCH)return true;
+  return ((s.first_name||'')+' '+(s.last_name||'')+' '+(s.klass||'')).toLowerCase().includes(SEARCH);
+}
+// Идэвхтэй групп + хайлтаар шүүсэн сурагчид
+function vis(){return STUDENTS.filter(s=>(!GROUP_FILTER||String(s.grp||'')===GROUP_FILTER)&&matchSearch(s));}
+function rerenderAll(){
+  renderAtt();renderSummary();renderTpStudents();loadStudents();if(CUR_EXAM)renderScores();else renderNoExam();
+}
 function setGroupFilter(val){
   GROUP_FILTER = (val!=null)?String(val):document.getElementById('grpFilter').value;
   // Бүх группын сонгогчийг ижил утгатай байлгана (дээд + ирц табынх)
   ['grpFilter','attGrp'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=GROUP_FILTER;});
-  renderAtt();loadSummary();renderTpStudents();if(CUR_EXAM)renderScores();else renderNoExam();
+  rerenderAll();
+}
+function setSearch(){
+  SEARCH = document.getElementById('search').value.trim().toLowerCase();
+  rerenderAll();
 }
 
 function esc(s){return (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
@@ -366,11 +384,16 @@ async function saveAtt(){
   if(j.ok){flash('attOk','✓ Хадгаллаа');loadSummary();}else alert('Алдаа');
 }
 
+let SUMMARY={map:{},days:0};
 async function loadSummary(){
   const j = await api({action:'attendanceSummary'});
   if(!j.ok)return;
-  const totalDays = (j.days||[]).length;
   const m={}; j.items.forEach(r=>m[r.student_id]=r);
+  SUMMARY={map:m,days:(j.days||[]).length};
+  renderSummary();
+}
+function renderSummary(){
+  const {map:m,days:totalDays}=SUMMARY;
   document.getElementById('sumRows').innerHTML = vis().map(s=>{
     const r = m[s.id]||{present:0,late:0,excused:0,absent:0};
     const attended = r.present + r.late;
@@ -524,7 +547,8 @@ function loadStudents(){
   document.getElementById('stCount').textContent=STUDENTS.length;
   const g1=STUDENTS.filter(s=>s.grp===1).length, g2=STUDENTS.filter(s=>s.grp===2).length;
   document.getElementById('grpCount').textContent=`· 1-р групп: ${g1} · 2-р групп: ${g2} · хуваарилаагүй: ${STUDENTS.length-g1-g2}`;
-  document.getElementById('stRows').innerHTML=STUDENTS.map(s=>{
+  const rows=STUDENTS.filter(matchSearch);
+  document.getElementById('stRows').innerHTML=rows.map(s=>{
     const LBL={'':'—',1:'1-р групп',2:'2-р групп'};
     const opt=v=>`<option value="${v}" ${String(s.grp||'')===String(v)?'selected':''}>${LBL[v]}</option>`;
     return `<tr><td>${s.ord||''}</td><td>${esc(s.last_name||'')}</td><td><b>${esc(s.first_name)}</b></td>
