@@ -147,10 +147,8 @@
             <div><label class="muted">Гарчиг</label><input id="exTitle" placeholder="Жишээ: Түвшин тогтоох сорил" /></div>
             <div><label class="muted">Огноо</label><input type="date" id="exDate" /></div>
           </div>
-          <label class="muted">Хэсгүүд (нэр ба хамгийн өндөр оноо)</label>
-          <div id="secList" style="margin-top:6px"></div>
-          <button class="btn ghost sm" onclick="addSecRow()">+ Хэсэг нэмэх</button>
-          <div style="margin-top:12px;text-align:right"><button class="btn green" onclick="createExam()">Шалгалт үүсгэх</button></div>
+          <div style="margin-bottom:12px;max-width:200px"><label class="muted">Хамгийн өндөр оноо</label><input id="exMax" type="number" value="100" /></div>
+          <div style="text-align:right"><button class="btn green" onclick="createExam()">Шалгалт үүсгэх</button></div>
         </div>
       </div>
 
@@ -336,36 +334,22 @@ function renderNoExam(){
   ).join('');
   // Эхний удаа орвол шинэ шалгалт үүсгэх форм автоматаар нээгдэнэ
   const f=document.getElementById('newExamForm');
-  if(f.style.display==='none'){
-    f.style.display='block';
-    if(!document.getElementById('secList').children.length){addSecRow('Бодлого 1',10);addSecRow('Бодлого 2',10);}
-  }
+  if(f.style.display==='none') f.style.display='block';
 }
 function toggleNewExam(){
   const f=document.getElementById('newExamForm');
   f.style.display = f.style.display==='none'?'block':'none';
-  if(f.style.display==='block' && !document.getElementById('secList').children.length){
-    addSecRow('Бодлого 1',10); addSecRow('Бодлого 2',10);
-  }
-}
-function addSecRow(name='',max=10){
-  const d=document.createElement('div');d.className='sec-row';
-  d.innerHTML=`<input placeholder="Хэсгийн нэр" value="${esc(name)}"/>
-    <input class="mx" type="number" placeholder="Оноо" value="${max}"/>
-    <button class="btn danger sm" onclick="this.parentElement.remove()">✕</button>`;
-  document.getElementById('secList').appendChild(d);
 }
 async function createExam(){
   const title=document.getElementById('exTitle').value.trim();
   const date=document.getElementById('exDate').value;
-  const rows=[...document.querySelectorAll('#secList .sec-row')];
-  const sections=rows.map(r=>({name:r.children[0].value.trim()||'Хэсэг',max:Number(r.children[1].value)||0}));
+  const max=Number(document.getElementById('exMax').value)||100;
   if(!title){alert('Гарчиг оруулна уу');return;}
-  if(!sections.length){alert('Дор хаяж нэг хэсэг');return;}
+  // Нэг л оноо — backend нэг "хэсэг"-ээр хадгална
+  const sections=[{name:'Оноо',max}];
   const j=await api({action:'examCreate',title,date,sections});
   if(j.ok){
     document.getElementById('exTitle').value='';
-    document.getElementById('secList').innerHTML='';
     document.getElementById('newExamForm').style.display='none';
     await loadExams();
     document.getElementById('examSel').value=j.item.id;
@@ -389,31 +373,24 @@ async function loadScores(){
   renderScores();
 }
 function renderScores(){
-  const secs=CUR_EXAM.sections||[];
-  const maxTotal=secs.reduce((a,s)=>a+(Number(s.max)||0),0);
+  const max=Number((CUR_EXAM.sections&&CUR_EXAM.sections[0]&&CUR_EXAM.sections[0].max)||100);
   document.getElementById('scoreCard').style.display='block';
-  document.getElementById('scoreTitle').textContent=`${CUR_EXAM.title} — оноо (нийт ${maxTotal})`;
+  document.getElementById('scoreTitle').textContent=`${CUR_EXAM.title} — оноо оруулах`;
   document.getElementById('scoreHead').innerHTML =
-    `<th>№</th><th>Сурагч</th>`+secs.map(s=>`<th>${esc(s.name)}<div class="muted">/${s.max}</div></th>`).join('')+`<th>Нийт</th>`;
+    `<th>№</th><th>Сурагч</th><th>Оноо <span class="muted">/${max}</span></th><th>%</th>`;
   document.getElementById('scoreRows').innerHTML = STUDENTS.map(s=>{
     const arr=CUR_SCORES[s.id]||[];
-    let tot=0,has=false;
-    const cells=secs.map((sec,i)=>{
-      const v=arr[i];
-      if(v!=null&&v!==''){tot+=Number(v)||0;has=true;}
-      return `<td><input class="score-in" type="number" min="0" max="${sec.max}" value="${v==null?'':v}"
-        onchange="setScore(${s.id},${i},this.value)"/></td>`;
-    }).join('');
-    return `<tr><td>${s.ord||''}</td><td><b>${esc(s.first_name)}</b></td>${cells}<td class="total-cell" id="tot-${s.id}">${has?tot:''}</td></tr>`;
+    const v=arr[0];
+    const pct=(v!=null&&v!=='')?Math.round(Number(v)/max*100)+'%':'';
+    return `<tr><td>${s.ord||''}</td><td><b>${esc(s.first_name)}</b> <span class="muted">${esc(s.last_name||'')}</span></td>
+      <td><input class="score-in" type="number" min="0" max="${max}" value="${v==null?'':v}" onchange="setScore(${s.id},this.value)"/></td>
+      <td class="total-cell" id="pct-${s.id}">${pct}</td></tr>`;
   }).join('');
 }
-function setScore(id,i,v){
-  const secs=CUR_EXAM.sections||[];
-  if(!CUR_SCORES[id])CUR_SCORES[id]=new Array(secs.length).fill('');
-  CUR_SCORES[id][i]=v;
-  let tot=0,has=false;
-  secs.forEach((s,k)=>{const x=CUR_SCORES[id][k];if(x!=null&&x!==''){tot+=Number(x)||0;has=true;}});
-  document.getElementById('tot-'+id).textContent=has?tot:'';
+function setScore(id,v){
+  const max=Number((CUR_EXAM.sections&&CUR_EXAM.sections[0]&&CUR_EXAM.sections[0].max)||100);
+  CUR_SCORES[id]=[v];
+  document.getElementById('pct-'+id).textContent=(v!==''&&v!=null)?Math.round(Number(v)/max*100)+'%':'';
 }
 async function saveScores(){
   let n=0;
