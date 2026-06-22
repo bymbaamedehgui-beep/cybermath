@@ -223,6 +223,11 @@ module.exports = async (req, res) => {
       const r = await pool.query('SELECT student_id, scores FROM mc_score WHERE exam_id=$1', [b.exam_id]);
       return res.json({ ok: true, items: r.rows });
     }
+    // Бүх шалгалтын бүх оноо (самбар, ахиц, эрэмбэ, карт-д)
+    if (action === 'allScores') {
+      const r = await pool.query('SELECT exam_id, student_id, scores FROM mc_score');
+      return res.json({ ok: true, items: r.rows });
+    }
     if (action === 'scoreSet') {
       const { exam_id, student_id, scores } = b;
       if (!exam_id || !student_id || !Array.isArray(scores)) return res.status(400).json({ ok: false });
