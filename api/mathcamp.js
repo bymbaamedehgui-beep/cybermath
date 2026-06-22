@@ -77,12 +77,15 @@ async function ensure() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS mc_topic (
       id BIGSERIAL PRIMARY KEY,
+      student_id BIGINT REFERENCES mc_students(id) ON DELETE CASCADE,
       d DATE NOT NULL,
       title TEXT NOT NULL,
       detail TEXT,
       duration INT DEFAULT 90,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )`);
+  // Сурагч бүрд тусдаа сэдэв — хуучин хүснэгтэд багана нэмнэ
+  await pool.query(`ALTER TABLE mc_topic ADD COLUMN IF NOT EXISTS student_id BIGINT REFERENCES mc_students(id) ON DELETE CASCADE`).catch(()=>{});
 
   // Сурагч хоосон бол seed хийнэ.
   const c = await pool.query('SELECT COUNT(*)::int AS n FROM mc_students');
@@ -215,19 +218,32 @@ module.exports = async (req, res) => {
       return res.json({ ok: true });
     }
 
-    // ---------- Өдрийн сэдэв ----------
+    // ---------- Сэдэв (сурагч бүрд тусдаа) ----------
     if (action === 'topicList') {
-      const r = await pool.query('SELECT * FROM mc_topic ORDER BY d DESC, id DESC');
+      const sid = b.student_id || null;
+      const r = sid
+        ? await pool.query('SELECT * FROM mc_topic WHERE student_id=$1 ORDER BY d DESC, id DESC', [sid])
+        : await pool.query('SELECT * FROM mc_topic ORDER BY d DESC, id DESC');
       return res.json({ ok: true, items: r.rows });
     }
     if (action === 'topicCreate') {
       const { date, title, detail, duration } = b;
+      // Нэг буюу олон сурагчид нэг дор оноож болно
+      const ids = Array.isArray(b.student_ids) ? b.student_ids : (b.student_id ? [b.student_id] : []);
       if (!date || !title) return res.status(400).json({ ok: false, error: 'Огноо ба гарчиг' });
-      const r = await pool.query(
-        'INSERT INTO mc_topic (d,title,detail,duration) VALUES ($1,$2,$3,$4) RETURNING *',
-        [date, String(title).slice(0, 200), detail ? String(detail).slice(0, 2000) : null, Number(duration) || 90]
-      );
-      return res.json({ ok: true, item: r.rows[0] });
+      if (!ids.length) return res.status(400).json({ ok: false, error: 'Сурагч сонгоно уу' });
+      const t = String(title).slice(0, 200);
+      const d = detail ? String(detail).slice(0, 2000) : null;
+      const dur = Number(duration) || 90;
+      const out = [];
+      for (const sid of ids) {
+        const r = await pool.query(
+          'INSERT INTO mc_topic (student_id,d,title,detail,duration) VALUES ($1,$2,$3,$4,$5) RETURNING *',
+          [sid, date, t, d, dur]
+        );
+        out.push(r.rows[0]);
+      }
+      return res.json({ ok: true, items: out });
     }
     if (action === 'topicDelete') {
       if (!b.id) return res.status(400).json({ ok: false });

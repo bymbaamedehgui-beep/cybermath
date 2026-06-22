@@ -170,17 +170,27 @@
     <!-- СЭДЭВ -->
     <section id="tab-topic" style="display:none">
       <div class="card">
-        <h2>📚 Өдрийн сэдэв нэмэх</h2>
+        <h2>📚 Сэдэв оноох <span class="muted" style="font-weight:500">(сурагч бүрд тусдаа)</span></h2>
         <div class="grid2" style="margin-bottom:12px">
           <div><label class="muted">Огноо</label><input type="date" id="tpDate" /></div>
           <div><label class="muted">Үргэлжлэх (мин)</label><input type="number" id="tpDur" value="90" /></div>
         </div>
         <div style="margin-bottom:12px"><label class="muted">Сэдэв</label><input id="tpTitle" placeholder="Жишээ: Тэгшитгэл бодох" /></div>
         <div style="margin-bottom:12px"><label class="muted">Дэлгэрэнгүй / тэмдэглэл</label><textarea id="tpDetail" rows="3" placeholder="Үзсэн жишээ, даалгавар, тэмдэглэл..."></textarea></div>
-        <div style="text-align:right"><button class="btn green" onclick="addTopic()">+ Хадгалах</button></div>
+        <div style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <label class="muted">Аль сурагчид? (нэг буюу хэд хэдэн)</label>
+          <div><button class="btn ghost sm" type="button" onclick="tpAll(true)">Бүгд</button>
+            <button class="btn ghost sm" type="button" onclick="tpAll(false)">Цэвэрлэх</button></div>
+        </div>
+        <div id="tpStudents" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;border:1px solid var(--line);border-radius:12px;padding:10px;max-height:240px;overflow:auto"></div>
+        <div style="text-align:right;margin-top:12px"><button class="btn green" onclick="addTopic()">+ Хадгалах</button></div>
       </div>
       <div class="card">
         <h2>🗓 Хичээлийн түүх</h2>
+        <div class="toolbar">
+          <label>Сурагч:</label>
+          <select id="tpFilter" onchange="loadTopics()" style="width:auto;min-width:200px"><option value="">Бүгд</option></select>
+        </div>
         <div id="topicList"></div>
       </div>
     </section>
@@ -253,6 +263,7 @@ async function start(){
   const j = await api({action:'students'});
   if(!j.ok){if(j.error==='Нэвтрэх эрхгүй')return logout();return;}
   STUDENTS = j.items;
+  renderTpStudents();
   loadAtt(); loadSummary(); loadStudents(); loadExams(); loadTopics();
 }
 
@@ -403,27 +414,42 @@ async function saveScores(){
   flash('scoreOk',`✓ ${n} сурагчийн оноо хадгаллаа`);
 }
 
-/* ---------- СЭДЭВ ---------- */
+/* ---------- СЭДЭВ (сурагч бүрд тусдаа) ---------- */
+function renderTpStudents(){
+  document.getElementById('tpStudents').innerHTML = STUDENTS.map(s=>
+    `<label style="display:flex;gap:6px;align-items:center;font-size:.9rem;cursor:pointer">
+      <input type="checkbox" class="tp-st" value="${s.id}" style="width:auto"/> ${esc(s.first_name)}</label>`
+  ).join('');
+  const f=document.getElementById('tpFilter');
+  f.innerHTML='<option value="">Бүгд</option>'+STUDENTS.map(s=>`<option value="${s.id}">${esc(s.first_name)} ${esc(s.last_name||'')}</option>`).join('');
+}
+function tpAll(on){document.querySelectorAll('.tp-st').forEach(c=>c.checked=on);}
 async function addTopic(){
   const date=document.getElementById('tpDate').value;
   const title=document.getElementById('tpTitle').value.trim();
   const detail=document.getElementById('tpDetail').value.trim();
   const duration=document.getElementById('tpDur').value;
+  const student_ids=[...document.querySelectorAll('.tp-st:checked')].map(c=>Number(c.value));
   if(!date||!title){alert('Огноо ба сэдэв шаардлагатай');return;}
-  const j=await api({action:'topicCreate',date,title,detail,duration});
-  if(j.ok){document.getElementById('tpTitle').value='';document.getElementById('tpDetail').value='';loadTopics();}
-  else alert('Алдаа');
+  if(!student_ids.length){alert('Дор хаяж нэг сурагч сонгоно уу');return;}
+  const j=await api({action:'topicCreate',date,title,detail,duration,student_ids});
+  if(j.ok){
+    document.getElementById('tpTitle').value='';document.getElementById('tpDetail').value='';
+    tpAll(false);loadTopics();
+  }else alert('Алдаа: '+(j.error||''));
 }
 async function loadTopics(){
-  const j=await api({action:'topicList'});
+  const student_id=document.getElementById('tpFilter').value||null;
+  const j=await api({action:'topicList',student_id});
   if(!j.ok)return;
   const el=document.getElementById('topicList');
   if(!j.items.length){el.innerHTML='<div class="empty">Хичээл бүртгээгүй байна.</div>';return;}
+  const nameOf={};STUDENTS.forEach(s=>nameOf[s.id]=s.first_name);
   el.innerHTML=j.items.map(t=>`
     <div style="border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;display:flex;justify-content:space-between;gap:12px">
       <div>
         <div style="font-weight:800;color:var(--forest)">${esc(t.title)}</div>
-        <div class="muted">${fmtDate(t.d)} · ${t.duration||90} мин</div>
+        <div class="muted">👤 ${esc(nameOf[t.student_id]||'—')} · ${fmtDate(t.d)} · ${t.duration||90} мин</div>
         ${t.detail?`<div style="margin-top:6px;font-size:.9rem;white-space:pre-wrap">${esc(t.detail)}</div>`:''}
       </div>
       <button class="btn danger sm" onclick="delTopic(${t.id})" style="align-self:start">🗑</button>
@@ -463,7 +489,7 @@ async function delStudent(id){
 }
 async function refreshStudents(){
   const j=await api({action:'students'});
-  if(j.ok){STUDENTS=j.items;loadStudents();renderAtt();loadSummary();if(CUR_EXAM)renderScores();}
+  if(j.ok){STUDENTS=j.items;loadStudents();renderAtt();loadSummary();renderTpStudents();loadTopics();if(CUR_EXAM)renderScores();}
 }
 
 function flash(id,msg){const el=document.getElementById(id);el.textContent=msg;setTimeout(()=>el.textContent='',2500);}
