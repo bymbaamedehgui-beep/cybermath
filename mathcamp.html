@@ -92,11 +92,21 @@
   </header>
 
   <div class="wrap">
-    <div class="tabs">
-      <div class="tab active" data-tab="att" onclick="setTab('att')">📋 Ирц</div>
-      <div class="tab" data-tab="exam" onclick="setTab('exam')">📝 Шалгалт / Оноо</div>
-      <div class="tab" data-tab="topic" onclick="setTab('topic')">📚 Өдрийн сэдэв</div>
-      <div class="tab" data-tab="students" onclick="setTab('students')">👥 Сурагчид</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+      <div class="tabs">
+        <div class="tab active" data-tab="att" onclick="setTab('att')">📋 Ирц</div>
+        <div class="tab" data-tab="exam" onclick="setTab('exam')">📝 Шалгалт / Оноо</div>
+        <div class="tab" data-tab="topic" onclick="setTab('topic')">📚 Өдрийн сэдэв</div>
+        <div class="tab" data-tab="students" onclick="setTab('students')">👥 Сурагчид</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <label class="muted" style="font-weight:700">Групп:</label>
+        <select id="grpFilter" onchange="setGroupFilter()" style="width:auto">
+          <option value="">Бүгд</option>
+          <option value="1">1-р групп</option>
+          <option value="2">2-р групп</option>
+        </select>
+      </div>
     </div>
 
     <!-- ИРЦ -->
@@ -212,10 +222,10 @@
         <div style="text-align:right"><button class="btn green" onclick="addStudent()">+ Нэмэх</button></div>
       </div>
       <div class="card">
-        <h2>📜 Бүртгэлтэй сурагчид (<span id="stCount">0</span>)</h2>
+        <h2>📜 Бүртгэлтэй сурагчид (<span id="stCount">0</span>) <span class="muted" id="grpCount" style="font-weight:500"></span></h2>
         <div class="tbl-wrap">
           <table>
-            <thead><tr><th>№</th><th>Овог</th><th>Нэр</th><th>Нас</th><th>Хүйс</th><th></th></tr></thead>
+            <thead><tr><th>№</th><th>Овог</th><th>Нэр</th><th>Нас</th><th>Хүйс</th><th>Групп</th><th></th></tr></thead>
             <tbody id="stRows"></tbody>
           </table>
         </div>
@@ -233,6 +243,14 @@ let CUR_ATT = {};       // student_id -> {status, note}
 let EXAMS = [];
 let CUR_EXAM = null;
 let CUR_SCORES = {};    // student_id -> [scores]
+let GROUP_FILTER = '';  // '' | '1' | '2'  — идэвхтэй групп
+
+// Идэвхтэй группээр шүүсэн сурагчид
+function vis(){return GROUP_FILTER?STUDENTS.filter(s=>String(s.grp||'')===GROUP_FILTER):STUDENTS;}
+function setGroupFilter(){
+  GROUP_FILTER=document.getElementById('grpFilter').value;
+  renderAtt();loadSummary();renderTpStudents();if(CUR_EXAM)renderScores();else renderNoExam();
+}
 
 function esc(s){return (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function today(){return new Date().toISOString().slice(0,10);}
@@ -282,8 +300,9 @@ async function loadAtt(){
 }
 function renderAtt(){
   const tb = document.getElementById('attRows');
+  const list = vis();
   let present=0;
-  tb.innerHTML = STUDENTS.map(s=>{
+  tb.innerHTML = list.map(s=>{
     const cur = CUR_ATT[s.id] || {};
     if(cur.status==='present')present++;
     const segs = ATT_ORDER.map(k=>`<button class="${cur.status===k?'on-'+k:''}" onclick="setAtt(${s.id},'${k}')">${ATT_LABEL[k]}</button>`).join('');
@@ -295,11 +314,11 @@ function renderAtt(){
       <td><input value="${esc(cur.note||'')}" onchange="setAttNote(${s.id},this.value)" placeholder="..." style="min-width:140px"/></td>
     </tr>`;
   }).join('');
-  document.getElementById('attCount').textContent = `Ирсэн: ${present}/${STUDENTS.length}`;
+  document.getElementById('attCount').textContent = `Ирсэн: ${present}/${list.length}`;
 }
 function setAtt(id,st){CUR_ATT[id]={...(CUR_ATT[id]||{}),status:st};renderAtt();}
 function setAttNote(id,v){CUR_ATT[id]={...(CUR_ATT[id]||{status:'present'}),note:v};}
-function markAll(st){STUDENTS.forEach(s=>CUR_ATT[s.id]={...(CUR_ATT[s.id]||{}),status:st});renderAtt();}
+function markAll(st){vis().forEach(s=>CUR_ATT[s.id]={...(CUR_ATT[s.id]||{}),status:st});renderAtt();}
 async function saveAtt(){
   const date = document.getElementById('attDate').value;
   const items = STUDENTS.filter(s=>CUR_ATT[s.id]&&CUR_ATT[s.id].status)
@@ -313,7 +332,7 @@ async function loadSummary(){
   if(!j.ok)return;
   const totalDays = (j.days||[]).length;
   const m={}; j.items.forEach(r=>m[r.student_id]=r);
-  document.getElementById('sumRows').innerHTML = STUDENTS.map(s=>{
+  document.getElementById('sumRows').innerHTML = vis().map(s=>{
     const r = m[s.id]||{present:0,late:0,excused:0,absent:0};
     const attended = r.present + r.late;
     const pct = totalDays? Math.round(attended/totalDays*100):0;
@@ -340,7 +359,7 @@ function renderNoExam(){
   document.getElementById('scoreCard').style.display='block';
   document.getElementById('scoreTitle').textContent='Сурагчид (шалгалт сонгоно уу)';
   document.getElementById('scoreHead').innerHTML='<th>№</th><th>Сурагч</th><th>Нас</th>';
-  document.getElementById('scoreRows').innerHTML = STUDENTS.map(s=>
+  document.getElementById('scoreRows').innerHTML = vis().map(s=>
     `<tr><td>${s.ord||''}</td><td><b>${esc(s.first_name)}</b> <span class="muted">${esc(s.last_name||'')}</span></td><td class="muted">${s.age||''}</td></tr>`
   ).join('');
   // Эхний удаа орвол шинэ шалгалт үүсгэх форм автоматаар нээгдэнэ
@@ -389,7 +408,7 @@ function renderScores(){
   document.getElementById('scoreTitle').textContent=`${CUR_EXAM.title} — оноо оруулах`;
   document.getElementById('scoreHead').innerHTML =
     `<th>№</th><th>Сурагч</th><th>Оноо <span class="muted">/${max}</span></th><th>%</th>`;
-  document.getElementById('scoreRows').innerHTML = STUDENTS.map(s=>{
+  document.getElementById('scoreRows').innerHTML = vis().map(s=>{
     const arr=CUR_SCORES[s.id]||[];
     const v=arr[0];
     const pct=(v!=null&&v!=='')?Math.round(Number(v)/max*100)+'%':'';
@@ -416,7 +435,7 @@ async function saveScores(){
 
 /* ---------- СЭДЭВ (сурагч бүрд тусдаа) ---------- */
 function renderTpStudents(){
-  document.getElementById('tpStudents').innerHTML = STUDENTS.map(s=>
+  document.getElementById('tpStudents').innerHTML = vis().map(s=>
     `<label style="display:flex;gap:6px;align-items:center;font-size:.9rem;cursor:pointer">
       <input type="checkbox" class="tp-st" value="${s.id}" style="width:auto"/> ${esc(s.first_name)}</label>`
   ).join('');
@@ -464,10 +483,20 @@ async function delTopic(id){
 /* ---------- СУРАГЧИД ---------- */
 function loadStudents(){
   document.getElementById('stCount').textContent=STUDENTS.length;
-  document.getElementById('stRows').innerHTML=STUDENTS.map(s=>`
-    <tr><td>${s.ord||''}</td><td>${esc(s.last_name||'')}</td><td><b>${esc(s.first_name)}</b></td>
+  const g1=STUDENTS.filter(s=>s.grp===1).length, g2=STUDENTS.filter(s=>s.grp===2).length;
+  document.getElementById('grpCount').textContent=`· 1-р групп: ${g1} · 2-р групп: ${g2} · хуваарилаагүй: ${STUDENTS.length-g1-g2}`;
+  document.getElementById('stRows').innerHTML=STUDENTS.map(s=>{
+    const opt=v=>`<option value="${v}" ${String(s.grp||'')===String(v)?'selected':''}>${v||'—'}</option>`;
+    return `<tr><td>${s.ord||''}</td><td>${esc(s.last_name||'')}</td><td><b>${esc(s.first_name)}</b></td>
     <td>${s.age||''}</td><td><span class="pill g-${esc(s.gender)}">${esc(s.gender||'')}</span></td>
-    <td><button class="btn danger sm" onclick="delStudent(${s.id})">🗑</button></td></tr>`).join('');
+    <td><select onchange="setStudentGroup(${s.id},this.value)" style="padding:.3rem;width:auto">${opt('')}${opt(1)}${opt(2)}</select></td>
+    <td><button class="btn danger sm" onclick="delStudent(${s.id})">🗑</button></td></tr>`;
+  }).join('');
+}
+async function setStudentGroup(id,grp){
+  const j=await api({action:'setGroup',id,grp:Number(grp)||null});
+  if(j.ok){const s=STUDENTS.find(x=>String(x.id)===String(id));if(s)s.grp=Number(grp)||null;loadStudents();}
+  else alert('Алдаа');
 }
 async function addStudent(){
   const first_name=document.getElementById('stFirst').value.trim();

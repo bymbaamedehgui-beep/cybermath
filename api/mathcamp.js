@@ -46,8 +46,11 @@ async function ensure() {
       first_name TEXT NOT NULL,
       age INT,
       gender TEXT,
+      grp INT,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )`);
+  // Группын багана (хуучин хүснэгтэд нэмнэ)
+  await pool.query(`ALTER TABLE mc_students ADD COLUMN IF NOT EXISTS grp INT`).catch(()=>{});
   await pool.query(`
     CREATE TABLE IF NOT EXISTS mc_attendance (
       id BIGSERIAL PRIMARY KEY,
@@ -133,6 +136,13 @@ module.exports = async (req, res) => {
     if (action === 'delStudent') {
       if (!b.id) return res.status(400).json({ ok: false });
       await pool.query('DELETE FROM mc_students WHERE id=$1', [b.id]);
+      return res.json({ ok: true });
+    }
+    if (action === 'setGroup') {
+      const { id } = b;
+      const grp = (b.grp === 1 || b.grp === 2) ? b.grp : null;
+      if (!id) return res.status(400).json({ ok: false });
+      await pool.query('UPDATE mc_students SET grp=$2 WHERE id=$1', [id, grp]);
       return res.json({ ok: true });
     }
 
