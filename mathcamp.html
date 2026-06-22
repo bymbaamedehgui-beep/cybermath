@@ -114,11 +114,11 @@
       <div class="card">
         <h2>📋 Ирц бүртгэл</h2>
         <div class="toolbar">
-          <label>Анги:</label>
+          <label>Групп:</label>
           <select id="attGrp" onchange="setGroupFilter(this.value)" style="width:auto">
             <option value="">Бүгд</option>
-            <option value="1">1-р анги</option>
-            <option value="2">2-р анги</option>
+            <option value="1">1-р групп</option>
+            <option value="2">2-р групп</option>
           </select>
           <label>Огноо:</label>
           <input type="date" id="attDate" onchange="loadAtt()" style="width:auto" />
@@ -225,13 +225,14 @@
             <select id="stGender"><option value="эрэгтэй">эрэгтэй</option><option value="эмэгтэй">эмэгтэй</option></select>
           </div>
         </div>
+        <div style="margin-bottom:12px;max-width:240px"><label class="muted">Анги</label><input id="stClass" placeholder="Жишээ: 9-р анги" /></div>
         <div style="text-align:right"><button class="btn green" onclick="addStudent()">+ Нэмэх</button></div>
       </div>
       <div class="card">
         <h2>📜 Бүртгэлтэй сурагчид (<span id="stCount">0</span>) <span class="muted" id="grpCount" style="font-weight:500"></span></h2>
         <div class="tbl-wrap">
           <table>
-            <thead><tr><th>№</th><th>Овог</th><th>Нэр</th><th>Нас</th><th>Хүйс</th><th>Анги</th><th></th></tr></thead>
+            <thead><tr><th>№</th><th>Овог</th><th>Нэр</th><th>Нас</th><th>Хүйс</th><th>Анги</th><th>Групп</th><th></th></tr></thead>
             <tbody id="stRows"></tbody>
           </table>
         </div>
@@ -492,15 +493,21 @@ async function delTopic(id){
 function loadStudents(){
   document.getElementById('stCount').textContent=STUDENTS.length;
   const g1=STUDENTS.filter(s=>s.grp===1).length, g2=STUDENTS.filter(s=>s.grp===2).length;
-  document.getElementById('grpCount').textContent=`· 1-р анги: ${g1} · 2-р анги: ${g2} · хуваарилаагүй: ${STUDENTS.length-g1-g2}`;
+  document.getElementById('grpCount').textContent=`· 1-р групп: ${g1} · 2-р групп: ${g2} · хуваарилаагүй: ${STUDENTS.length-g1-g2}`;
   document.getElementById('stRows').innerHTML=STUDENTS.map(s=>{
-    const LBL={'':'—',1:'1-р анги',2:'2-р анги'};
+    const LBL={'':'—',1:'1-р групп',2:'2-р групп'};
     const opt=v=>`<option value="${v}" ${String(s.grp||'')===String(v)?'selected':''}>${LBL[v]}</option>`;
     return `<tr><td>${s.ord||''}</td><td>${esc(s.last_name||'')}</td><td><b>${esc(s.first_name)}</b></td>
     <td>${s.age||''}</td><td><span class="pill g-${esc(s.gender)}">${esc(s.gender||'')}</span></td>
+    <td><input value="${esc(s.klass||'')}" onchange="setStudentClass(${s.id},this.value)" placeholder="анги" style="width:100px;padding:.3rem"/></td>
     <td><select onchange="setStudentGroup(${s.id},this.value)" style="padding:.3rem;width:auto">${opt('')}${opt(1)}${opt(2)}</select></td>
     <td><button class="btn danger sm" onclick="delStudent(${s.id})">🗑</button></td></tr>`;
   }).join('');
+}
+async function setStudentClass(id,klass){
+  const j=await api({action:'setClass',id,klass});
+  if(j.ok){const s=STUDENTS.find(x=>String(x.id)===String(id));if(s)s.klass=klass;}
+  else alert('Алдаа');
 }
 async function setStudentGroup(id,grp){
   const j=await api({action:'setGroup',id,grp:Number(grp)||null});
@@ -514,9 +521,10 @@ async function addStudent(){
     last_name:document.getElementById('stLast').value.trim(),
     first_name,
     age:Number(document.getElementById('stAge').value)||null,
-    gender:document.getElementById('stGender').value});
+    gender:document.getElementById('stGender').value,
+    klass:document.getElementById('stClass').value.trim()});
   if(j.ok){
-    document.getElementById('stLast').value='';document.getElementById('stFirst').value='';document.getElementById('stAge').value='';
+    document.getElementById('stLast').value='';document.getElementById('stFirst').value='';document.getElementById('stAge').value='';document.getElementById('stClass').value='';
     await refreshStudents();
   }else alert('Алдаа');
 }

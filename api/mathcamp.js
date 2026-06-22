@@ -47,10 +47,12 @@ async function ensure() {
       age INT,
       gender TEXT,
       grp INT,
+      klass TEXT,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )`);
-  // Группын багана (хуучин хүснэгтэд нэмнэ)
+  // Групп (зуслангийн 1/2 хуваалт) ба Анги (сурагчийн жинхэнэ анги) баганууд
   await pool.query(`ALTER TABLE mc_students ADD COLUMN IF NOT EXISTS grp INT`).catch(()=>{});
+  await pool.query(`ALTER TABLE mc_students ADD COLUMN IF NOT EXISTS klass TEXT`).catch(()=>{});
   await pool.query(`
     CREATE TABLE IF NOT EXISTS mc_attendance (
       id BIGSERIAL PRIMARY KEY,
@@ -124,14 +126,19 @@ module.exports = async (req, res) => {
       return res.json({ ok: true, items: r.rows });
     }
     if (action === 'addStudent') {
-      const { last_name, first_name, age, gender } = b;
+      const { last_name, first_name, age, gender, klass } = b;
       if (!first_name) return res.status(400).json({ ok: false, error: 'Нэр шаардлагатай' });
       const mx = await pool.query('SELECT COALESCE(MAX(ord),0)+1 AS n FROM mc_students');
       const r = await pool.query(
-        'INSERT INTO mc_students (ord,last_name,first_name,age,gender) VALUES ($1,$2,$3,$4,$5) RETURNING *',
-        [mx.rows[0].n, last_name || '', first_name, age || null, gender || null]
+        'INSERT INTO mc_students (ord,last_name,first_name,age,gender,klass) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
+        [mx.rows[0].n, last_name || '', first_name, age || null, gender || null, klass ? String(klass).slice(0, 40) : null]
       );
       return res.json({ ok: true, item: r.rows[0] });
+    }
+    if (action === 'setClass') {
+      if (!b.id) return res.status(400).json({ ok: false });
+      await pool.query('UPDATE mc_students SET klass=$2 WHERE id=$1', [b.id, b.klass ? String(b.klass).slice(0, 40) : null]);
+      return res.json({ ok: true });
     }
     if (action === 'delStudent') {
       if (!b.id) return res.status(400).json({ ok: false });
