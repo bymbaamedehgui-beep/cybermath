@@ -3,7 +3,7 @@
 const pool = require('./_db');
 
 const ADMIN_PASS = process.env.MATHCAMP_PASS || process.env.CAMP_ADMIN_PASS || 'mathcamp2026';
-const ATT = ['present', 'absent', 'late', 'excused']; // ирсэн / тасалсан / хоцорсон / чөлөөтэй
+const ATT = ['present', 'absent', 'late', 'excused', 'notcame']; // ирсэн / тасалсан / хоцорсон / чөлөөтэй / ирээгүй
 
 // Анх удаа DB хоосон бол энэ жагсаалтаар сурагчдыг суулгана.
 const SEED = [
@@ -191,7 +191,8 @@ module.exports = async (req, res) => {
           COUNT(*) FILTER (WHERE status='present')::int AS present,
           COUNT(*) FILTER (WHERE status='late')::int AS late,
           COUNT(*) FILTER (WHERE status='excused')::int AS excused,
-          COUNT(*) FILTER (WHERE status='absent')::int AS absent
+          COUNT(*) FILTER (WHERE status='absent')::int AS absent,
+          COUNT(*) FILTER (WHERE status='notcame')::int AS notcame
         FROM mc_attendance GROUP BY student_id`);
       const days = await pool.query('SELECT DISTINCT d FROM mc_attendance ORDER BY d');
       return res.json({ ok: true, items: r.rows, days: days.rows.map(x => x.d) });
