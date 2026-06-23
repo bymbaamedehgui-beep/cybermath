@@ -109,19 +109,18 @@
   .login .badge .ic{width:34px;height:34px;stroke:#fff;stroke-width:1.6}
   .pill{display:inline-block;padding:.2rem .6rem;border-radius:999px;font-size:.74rem;font-weight:800}
   .g-эрэгтэй{background:var(--blue-bg);color:var(--blue)} .g-эмэгтэй{background:#fbe6f1;color:#a32366}
-  .pill.s-present{background:var(--green-bg);color:var(--green)} .pill.s-late{background:var(--blue-bg);color:var(--blue)}
+  .pill.s-present{background:var(--green-bg);color:var(--green)} .pill.s-sick{background:var(--blue-bg);color:var(--blue)}
   .pill.s-excused{background:var(--amber-bg);color:var(--amber)} .pill.s-absent{background:var(--red-bg);color:var(--red)}
-  .pill.s-notcame{background:#eceff1;color:#51606b}
   /* attendance seg buttons */
   .seg{display:inline-flex;border:1.5px solid var(--line-2);border-radius:12px;overflow:hidden;background:#fff}
   .seg button{border:0;background:#fff;padding:.36rem .7rem;font-size:.8rem;font-weight:700;cursor:pointer;color:var(--ink-soft);font-family:inherit;transition:background .12s,color .12s}
   .seg button:hover{background:#f3faf6}
   .seg button+button{border-left:1px solid var(--line)}
+  .seg button{min-width:38px;text-align:center}
   .seg button.on-present{background:var(--green-bg);color:var(--green);box-shadow:inset 0 -2px 0 var(--green)}
-  .seg button.on-late{background:var(--blue-bg);color:var(--blue);box-shadow:inset 0 -2px 0 var(--blue)}
+  .seg button.on-sick{background:var(--blue-bg);color:var(--blue);box-shadow:inset 0 -2px 0 var(--blue)}
   .seg button.on-excused{background:var(--amber-bg);color:var(--amber);box-shadow:inset 0 -2px 0 var(--amber)}
   .seg button.on-absent{background:var(--red-bg);color:var(--red);box-shadow:inset 0 -2px 0 var(--red)}
-  .seg button.on-notcame{background:#eceff1;color:#51606b;box-shadow:inset 0 -2px 0 #8a99a5}
   .seg button.on-present .ic{stroke-width:2.6}
   .score-in{width:66px;text-align:center;padding:.34rem;border-radius:10px}
   .total-cell{font-weight:800;color:var(--forest)}
@@ -261,7 +260,7 @@
         <h2><svg class="ic" viewBox="0 0 24 24"><path d="M3 21h18"/><rect x="5" y="11" width="3" height="7" rx="1"/><rect x="10.5" y="6" width="3" height="12" rx="1"/><rect x="16" y="9" width="3" height="9" rx="1"/></svg> Ирцийн нэгдсэн дүн</h2>
         <div class="tbl-wrap">
           <table>
-            <thead><tr><th>№</th><th>Сурагч</th><th>Ирсэн</th><th>Хоцорсон</th><th>Чөлөөтэй</th><th>Тасалсан</th><th>Ирээгүй</th><th>%</th></tr></thead>
+            <thead><tr><th>№</th><th>Сурагч</th><th>Ирсэн</th><th>Өвчтэй</th><th>Чөлөөтэй</th><th>Тасалсан</th><th>%</th></tr></thead>
             <tbody id="sumRows"></tbody>
           </table>
         </div>
@@ -379,8 +378,9 @@ const ICON = {
   arrowUp:'<svg class="ic" viewBox="0 0 24 24" style="width:13px;height:13px;vertical-align:-1px"><path d="M12 19V6M6 12l6-6 6 6"/></svg>',
   arrowDown:'<svg class="ic" viewBox="0 0 24 24" style="width:13px;height:13px;vertical-align:-1px"><path d="M12 5v13M6 12l6 6 6-6"/></svg>',
 };
-const ATT_LABEL = {present:'Ирсэн',late:'Хоцорсон',excused:'Чөлөөтэй',absent:'Тасалсан',notcame:'Ирээгүй'};
-const ATT_ORDER = ['present','late','excused','absent','notcame'];
+const ATT_LABEL = {present:'Ирсэн',excused:'Чөлөөтэй',sick:'Өвчтэй',absent:'Тасалсан'};
+const ATT_ABBR = {present:'Ирсэн',excused:'Ч',sick:'Ө',absent:'Т'};
+const ATT_ORDER = ['present','sick','excused','absent'];
 let PASS = sessionStorage.getItem('mc_pass') || '';
 let STUDENTS = [];
 let CUR_ATT = {};       // student_id -> {status, note}
@@ -469,7 +469,7 @@ function renderAtt(){
   tb.innerHTML = list.map((s,i)=>{
     const cur = CUR_ATT[s.id] || {};
     if(cur.status==='present')present++;
-    const segs = ATT_ORDER.map(k=>`<button class="${cur.status===k?'on-'+k:''}" onclick="setAtt(${s.id},'${k}')">${k==='present'?ICON.check+' ':''}${ATT_LABEL[k]}</button>`).join('');
+    const segs = ATT_ORDER.map(k=>`<button class="${cur.status===k?'on-'+k:''}" title="${ATT_LABEL[k]}" onclick="setAtt(${s.id},'${k}')">${k==='present'?ICON.check+' Ирсэн':ATT_ABBR[k]}</button>`).join('');
     return `<tr>
       <td>${i+1}</td>
       <td><span class="name-link" onclick="openCard(${s.id})">${esc(s.first_name)}</span> <span class="muted">${esc(s.last_name||'')}</span></td>
@@ -502,11 +502,10 @@ async function loadSummary(){
 function renderSummary(){
   const {map:m,days:totalDays}=SUMMARY;
   document.getElementById('sumRows').innerHTML = vis().map((s,i)=>{
-    const r = m[s.id]||{present:0,late:0,excused:0,absent:0,notcame:0};
-    const attended = r.present + r.late;
-    const pct = totalDays? Math.round(attended/totalDays*100):0;
+    const r = m[s.id]||{present:0,sick:0,excused:0,absent:0};
+    const pct = totalDays? Math.round(r.present/totalDays*100):0;
     return `<tr><td>${i+1}</td><td><span class="name-link" onclick="openCard(${s.id})">${esc(s.first_name)}</span></td>
-      <td>${r.present}</td><td>${r.late}</td><td>${r.excused}</td><td>${r.absent}</td><td>${r.notcame||0}</td>
+      <td>${r.present}</td><td>${r.sick||0}</td><td>${r.excused}</td><td>${r.absent}</td>
       <td class="total-cell">${pct}%</td></tr>`;
   }).join('');
 }
@@ -716,7 +715,7 @@ async function renderDashboard(){
   let att={};
   const j=await api({action:'attendanceGet',date});
   if(j.ok)j.items.forEach(r=>att[r.student_id]=r.status);
-  const present=list.filter(s=>att[s.id]==='present'||att[s.id]==='late').length;
+  const present=list.filter(s=>att[s.id]==='present').length;
   const exs=examsByDate();
   const lastEx=exs[exs.length-1];
   let avg='—';
@@ -778,8 +777,8 @@ function renderProgress(){
 /* ---------- СУРАГЧИЙН КАРТ ---------- */
 function openCard(sid){
   const s=studentById(sid);if(!s)return;
-  const r=(SUMMARY.map&&SUMMARY.map[sid])||{present:0,late:0,excused:0,absent:0,notcame:0};
-  const days=SUMMARY.days||0;const pct=days?Math.round((r.present+r.late)/days*100):0;
+  const r=(SUMMARY.map&&SUMMARY.map[sid])||{present:0,sick:0,excused:0,absent:0};
+  const days=SUMMARY.days||0;const pct=days?Math.round(r.present/days*100):0;
   const exs=examsByDate();
   const rows=exs.map(e=>({e,v:rawScore(e.id,s.id),mx:examMax(e)})).filter(x=>x.v!=null);
   const scoreHtml=rows.length?rows.map(x=>`<div class="row-line"><span>${esc(x.e.title)} <span class="muted">${x.e.d?fmtDate(x.e.d):''}</span></span><b>${x.v}/${x.mx} · ${Math.round(x.v/x.mx*100)}%</b></div>`).join(''):'<div class="muted">Оноо алга.</div>';
@@ -792,10 +791,9 @@ function openCard(sid){
     <div class="mini-grid">
       <div class="mini"><b>${pct}%</b><span>Ирц</span></div>
       <div class="mini"><b>${r.present}</b><span>Ирсэн</span></div>
-      <div class="mini"><b>${r.late}</b><span>Хоцорсон</span></div>
+      <div class="mini"><b>${r.sick||0}</b><span>Өвчтэй</span></div>
       <div class="mini"><b>${r.excused}</b><span>Чөлөөтэй</span></div>
       <div class="mini"><b>${r.absent}</b><span>Тасалсан</span></div>
-      <div class="mini"><b>${r.notcame||0}</b><span>Ирээгүй</span></div>
     </div>
     <div class="sec-title">Шалгалтын оноо</div>${scoreHtml}
     <div class="sec-title">Үзсэн сэдвүүд</div><div id="cardTopics" class="muted">Ачааллаж байна...</div>`;
@@ -815,10 +813,10 @@ function downloadCSV(name,rows){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();
 }
 function exportAttendance(){
-  const rows=[['№','Овог','Нэр','Анги','Групп','Ирсэн','Хоцорсон','Чөлөө','Тасалсан','Ирц %']];
+  const rows=[['№','Овог','Нэр','Анги','Групп','Ирсэн','Өвчтэй','Чөлөөтэй','Тасалсан','Ирц %']];
   const days=SUMMARY.days||0;
-  vis().forEach(s=>{const r=(SUMMARY.map&&SUMMARY.map[s.id])||{present:0,late:0,excused:0,absent:0};const pct=days?Math.round((r.present+r.late)/days*100):0;
-    rows.push([s.ord,s.last_name,s.first_name,s.klass,s.grp,r.present,r.late,r.excused,r.absent,pct+'%']);});
+  vis().forEach((s,i)=>{const r=(SUMMARY.map&&SUMMARY.map[s.id])||{present:0,sick:0,excused:0,absent:0};const pct=days?Math.round(r.present/days*100):0;
+    rows.push([i+1,s.last_name,s.first_name,s.klass,s.grp,r.present,r.sick||0,r.excused,r.absent,pct+'%']);});
   downloadCSV('irts.csv',rows);
 }
 function exportScores(){
