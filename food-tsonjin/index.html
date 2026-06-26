@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Цонжин Кибер Боардинг — Хоолны систем</title>
+<script src="/qrcode.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js';document.head.appendChild(s);"></script>
+<style>
+  :root{
+    --navy:#0f2c4c; --navy2:#16395f; --accent:#2563eb; --accent-d:#1d4ed8;
+    --bg:#eef2f7; --card:#ffffff; --line:#e2e8f0; --line2:#cbd5e1;
+    --text:#1e293b; --muted:#64748b; --ok:#15803d; --ok-bg:#dcfce7;
+    --warn:#b45309; --warn-bg:#fef3c7; --bad:#b91c1c; --bad-bg:#fee2e2;
+    --radius:12px; --shadow:0 1px 3px rgba(15,44,76,.08),0 1px 2px rgba(15,44,76,.06);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);font-size:15px}
+  button{font-family:inherit;cursor:pointer}
+  input,select,textarea{font-family:inherit;font-size:14px}
+  .hidden{display:none!important}
+  svg.ic{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px}
+
+  /* ---- Login ---- */
+  #login{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f2c4c,#1e3a5f);z-index:100}
+  #login .box{background:#fff;padding:36px 32px;border-radius:16px;width:340px;box-shadow:0 20px 50px rgba(0,0,0,.3);text-align:center}
+  #login .logo{width:56px;height:56px;border-radius:14px;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;margin:0 auto 16px}
+  #login h1{font-size:18px;margin:0 0 4px}
+  #login p{color:var(--muted);font-size:13px;margin:0 0 22px}
+  #login input{width:100%;padding:11px 14px;border:1px solid var(--line2);border-radius:10px;margin-bottom:12px}
+  #login button{width:100%;padding:11px;background:var(--accent-d);color:#fff;border:none;border-radius:10px;font-weight:600}
+  #login .err{color:var(--bad);font-size:13px;height:18px;margin-bottom:6px}
+
+  /* ---- Shell ---- */
+  header{background:var(--navy);color:#fff;display:flex;align-items:center;padding:0 20px;height:58px;gap:14px;position:sticky;top:0;z-index:20}
+  header .brand{display:flex;align-items:center;gap:10px;font-weight:600}
+  header .brand .mk{width:34px;height:34px;border-radius:9px;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center}
+  header .sub{font-size:12px;color:#a9bdd6;font-weight:400}
+  nav{display:flex;gap:4px;margin-left:18px;flex:1;overflow-x:auto}
+  nav button{background:none;border:none;color:#bcd0e6;padding:8px 14px;border-radius:8px;font-size:14px;display:flex;align-items:center;gap:7px;white-space:nowrap}
+  nav button:hover{background:rgba(255,255,255,.08);color:#fff}
+  nav button.active{background:var(--accent);color:#fff}
+  header .logout{background:rgba(255,255,255,.1);border:none;color:#dbe7f3;padding:8px 12px;border-radius:8px;display:flex;align-items:center;gap:6px}
+  main{max-width:1180px;margin:0 auto;padding:24px 20px 60px}
+  .page-title{font-size:20px;font-weight:600;margin:0 0 18px;display:flex;align-items:center;gap:9px}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .btn{border:1px solid var(--line2);background:#fff;color:var(--text);padding:8px 14px;border-radius:9px;font-size:14px;display:inline-flex;align-items:center;gap:7px;font-weight:500}
+  .btn:hover{background:#f8fafc}
+  .btn.primary{background:var(--accent-d);border-color:var(--accent-d);color:#fff}
+  .btn.primary:hover{background:var(--accent)}
+  .btn.sm{padding:6px 10px;font-size:13px}
+  .btn.danger{color:var(--bad);border-color:#fecaca}
+  .btn.danger:hover{background:var(--bad-bg)}
+  .field{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
+  .field label{font-size:13px;font-weight:600;color:var(--muted)}
+  .field input,.field select,.field textarea{padding:9px 12px;border:1px solid var(--line2);border-radius:9px;width:100%}
+  .field textarea{resize:vertical;min-height:62px}
+
+  /* ---- Dashboard ---- */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+  .stat{padding:18px 20px}
+  .stat .lbl{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:7px}
+  .stat .val{font-size:30px;font-weight:700;margin-top:8px;color:var(--navy)}
+  .stat .val.warn{color:var(--warn)} .stat .val.bad{color:var(--bad)}
+
+  /* ---- Scan ---- */
+  .scan-wrap{display:grid;grid-template-columns:380px 1fr;gap:24px}
+  .scan-input-card{padding:26px}
+  .scan-input-card h3{margin:0 0 6px;font-size:16px}
+  .scan-input-card p{color:var(--muted);font-size:13px;margin:0 0 18px}
+  #scanInput{font-size:18px;padding:14px 16px;border:2px solid var(--accent);border-radius:11px;width:100%;text-align:center;letter-spacing:1px}
+  .scan-result{min-height:420px;display:flex;align-items:center;justify-content:center;padding:24px}
+  .scan-empty{color:var(--muted);text-align:center}
+  .scan-empty svg{width:64px;height:64px;stroke:#cbd5e1;margin-bottom:14px}
+  .profile{width:100%;max-width:440px;text-align:center;animation:pop .25s ease}
+  @keyframes pop{from{transform:scale(.94);opacity:0}to{transform:scale(1);opacity:1}}
+  .profile .pic{width:140px;height:140px;border-radius:50%;object-fit:cover;margin:0 auto;border:5px solid #fff;box-shadow:0 6px 20px rgba(0,0,0,.15);background:#e2e8f0;display:flex;align-items:center;justify-content:center;font-size:48px;font-weight:700;color:#94a3b8}
+  .profile .pname{font-size:26px;font-weight:700;margin:16px 0 4px}
+  .profile .pgrade{font-size:16px;color:var(--muted);margin-bottom:18px}
+  .profile .balbox{display:inline-block;padding:16px 34px;border-radius:14px;font-weight:700}
+  .profile .balbox .num{font-size:42px;line-height:1}
+  .profile .balbox .cap{font-size:14px;font-weight:500;opacity:.85}
+  .b-ok{background:var(--ok-bg);color:var(--ok)} .b-warn{background:var(--warn-bg);color:var(--warn)} .b-bad{background:var(--bad-bg);color:var(--bad)}
+  .profile .status{margin-top:16px;font-size:15px;font-weight:600}
+  .scan-flash{position:fixed;inset:0;pointer-events:none;z-index:5;opacity:0}
+  .recent{margin-top:20px}
+  .recent h4{font-size:14px;color:var(--muted);margin:0 0 8px}
+
+  /* ---- Tables ---- */
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th{text-align:left;padding:11px 14px;color:var(--muted);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--line)}
+  td{padding:11px 14px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  .thumb{width:38px;height:38px;border-radius:9px;object-fit:cover;background:#e2e8f0;display:inline-flex;align-items:center;justify-content:center;font-weight:700;color:#94a3b8;font-size:14px}
+  .pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:13px;font-weight:600}
+  .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+  .toolbar input.search{padding:9px 12px;border:1px solid var(--line2);border-radius:9px;min-width:220px}
+  .spacer{flex:1}
+  .row-actions{display:flex;gap:6px;justify-content:flex-end}
+
+  /* ---- Menu ---- */
+  .menu-week{display:grid;grid-template-columns:repeat(7,1fr);gap:12px}
+  .day-card{padding:0;overflow:hidden;display:flex;flex-direction:column}
+  .day-card .dh{padding:9px 12px;background:var(--navy);color:#fff;font-size:13px;font-weight:600;display:flex;justify-content:space-between}
+  .day-card.today .dh{background:var(--accent-d)}
+  .day-card .dh .wd{color:#aecbed}
+  .day-card .meal{padding:9px 12px;border-bottom:1px solid #f1f5f9;font-size:13px}
+  .day-card .meal:last-child{border-bottom:none}
+  .day-card .meal .mt{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;margin-bottom:3px}
+  .day-card .meal .mv{white-space:pre-wrap;min-height:16px;color:#334155}
+  .day-card .edit{margin:auto 10px 10px;}
+  .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+  .cal .cell{min-height:84px;border:1px solid var(--line);border-radius:10px;padding:7px 9px;background:#fff;cursor:pointer;font-size:12px}
+  .cal .cell:hover{border-color:var(--accent);background:#f8faff}
+  .cal .cell.empty{background:transparent;border:none;cursor:default}
+  .cal .cell.today{border-color:var(--accent-d);box-shadow:0 0 0 1px var(--accent-d)}
+  .cal .cell .d{font-weight:700;color:var(--navy)}
+  .cal .cell .l{margin-top:4px;color:var(--muted);overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+  .cal-head{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:6px}
+  .cal-head div{font-size:12px;color:var(--muted);font-weight:600;text-align:center}
+  .navbar{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+  .navbar .label{font-weight:600;min-width:200px;text-align:center}
+
+  /* ---- Modal ---- */
+  .overlay{position:fixed;inset:0;background:rgba(15,23,42,.5);display:flex;align-items:center;justify-content:center;z-index:60;padding:20px}
+  .modal{background:#fff;border-radius:14px;width:100%;max-width:440px;max-height:90vh;overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+  .modal.wide{max-width:560px}
+  .modal .mh{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+  .modal .mh h3{margin:0;font-size:17px}
+  .modal .mh .x{background:none;border:none;color:var(--muted);font-size:22px;line-height:1}
+  .modal .mb{padding:22px}
+  .modal .mf{padding:14px 22px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end}
+
+  .photo-pick{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+  .photo-pick .prev{width:72px;height:72px;border-radius:12px;object-fit:cover;background:#e2e8f0;display:flex;align-items:center;justify-content:center;color:#94a3b8}
+
+  /* ---- QR print ---- */
+  .qrcard{text-align:center;padding:6px}
+  .qrcard .qh{font-weight:700;font-size:18px;margin-bottom:2px}
+  .qrcard .qg{color:var(--muted);margin-bottom:14px}
+  #qrbox{display:flex;justify-content:center;margin:0 auto 12px;width:200px;height:200px}
+  .qrcard .qt{font-size:12px;color:var(--muted);letter-spacing:1px}
+
+  @media print{
+    body *{visibility:hidden}
+    #printArea,#printArea *{visibility:visible}
+    #printArea{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+  }
+  @media(max-width:900px){.stats{grid-template-columns:repeat(2,1fr)}.scan-wrap{grid-template-columns:1fr}.menu-week{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div id="login">
+  <div class="box">
+    <div class="logo"><svg class="ic" style="width:28px;height:28px" viewBox="0 0 24 24"><path d="M3 11h18M5 11V7a2 2 0 012-2h10a2 2 0 012 2v4M4 11h16v8a2 2 0 01-2 2H6a2 2 0 01-2-2z"/></svg></div>
+    <h1>Цонжин Кибер Боардинг</h1>
+    <p>Хоолны карт удирдлагын систем</p>
+    <div class="err" id="loginErr"></div>
+    <input type="password" id="loginPass" placeholder="Нууц үг" autocomplete="current-password">
+    <button onclick="doLogin()">Нэвтрэх</button>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app" class="hidden">
+<header>
+  <div class="brand">
+    <div class="mk"><svg class="ic" viewBox="0 0 24 24"><path d="M3 11h18M5 11V7a2 2 0 012-2h10a2 2 0 012 2v4M4 11h16v8a2 2 0 01-2 2H6a2 2 0 01-2-2z"/></svg></div>
+    <div>Цонжин Кибер Боардинг<div class="sub">Хоолны систем</div></div>
+  </div>
+  <nav id="nav"></nav>
+  <button class="logout" onclick="logout()"><svg class="ic" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>Гарах</button>
+</header>
+<main id="view"></main>
+</div>
+
+<!-- modal mount + print area -->
+<div id="modalMount"></div>
+<div id="printArea" style="display:none"></div>
+
+<script>
+const PASS_KEY='food_pass';
+const STUDENT_URL='https://food-tsonjin.vercel.app/student?qr=';
+// QR-аас токен ялгах (URL эсвэл цэвэр токен аль аль нь болно)
+function extractQR(v){
+  if(!v) return '';
+  const m=v.match(/[?&]qr=([^&\s]+)/);
+  if(m) return decodeURIComponent(m[1]);
+  return v.trim();
+}
+let PASS = sessionStorage.getItem(PASS_KEY) || '';
+let TAB = 'dash';
+let STUDENTS = [];
+
+const ICONS = {
+  dash:'<path d="M3 13h8V3H3zM13 21h8V3h-8zM3 21h8v-6H3z"/>',
+  scan:'<path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2M7 12h10"/>',
+  menu:'<path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z"/>',
+  users:'<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>',
+  bed:'<path d="M2 4v16M2 8h18a2 2 0 012 2v10M2 17h20M6 8V6h6v2"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  print:'<path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/>',
+  edit:'<path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z"/>',
+  trash:'<path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>',
+  coin:'<path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>',
+  hist:'<path d="M3 3v5h5M3.05 13A9 9 0 106 5.3L3 8M12 7v5l4 2"/>',
+  search:'<path d="M11 19a8 8 0 100-16 8 8 0 000 16zM21 21l-4.35-4.35"/>',
+  check:'<path d="M20 6L9 17l-5-5"/>',
+  report:'<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M8 13h8M8 17h8M8 9h2"/>',
+  sms:'<path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>',
+  gear:'<path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>',
+};
+function icon(n,cls){return `<svg class="ic ${cls||''}" viewBox="0 0 24 24">${ICONS[n]||''}</svg>`}
+
+/* ---------- API ---------- */
+async function api(action, data={}){
+  const r = await fetch('/api/food',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action, pass:PASS, ...data})});
+  return r.json();
+}
+
+/* ---------- Login ---------- */
+async function doLogin(){
+  const p = document.getElementById('loginPass').value;
+  const r = await fetch('/api/food',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action:'login', pass:p})});
+  const j = await r.json();
+  if(j.ok){ PASS=p; sessionStorage.setItem(PASS_KEY,p); startApp(); }
+  else document.getElementById('loginErr').textContent='Нууц үг буруу байна';
+}
+document.getElementById('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
+function logout(){ sessionStorage.removeItem(PASS_KEY); location.reload(); }
+
+const TABS=[
+  {id:'dash',name:'Самбар',icon:'dash'},
+  {id:'scan',name:'Уншуулах',icon:'scan'},
+  {id:'menu',name:'Меню',icon:'menu'},
+  {id:'students',name:'Сурагчид',icon:'users'},
+  {id:'weekend',name:'Амралт',icon:'bed'},
+  {id:'report',name:'Тайлан',icon:'report'},
+];
+function startApp(){
+  document.getElementById('login').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  document.getElementById('nav').innerHTML = TABS.map(t=>
+    `<button data-tab="${t.id}" onclick="go('${t.id}')">${icon(t.icon)}${t.name}</button>`).join('');
+  go('scan');
+}
+function go(tab){
+  TAB=tab;
+  document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
+  ({dash:renderDash,scan:renderScan,menu:renderMenu,students:renderStudents,weekend:renderWeekend,report:renderReport}[tab])();
+}
+
+/* ---------- date helpers ---------- */
+function ymd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function parseYmd(s){const[a,b,c]=s.split('-').map(Number);return new Date(a,b-1,c)}
+function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x}
+function startOfWeek(d){const x=new Date(d);const wd=(x.getDay()+6)%7;return addDays(x,-wd)} // Monday
+const WD=['Даваа','Мягмар','Лхагва','Пүрэв','Баасан','Бямба','Ням'];
+const MONTHS=['1-р сар','2-р сар','3-р сар','4-р сар','5-р сар','6-р сар','7-р сар','8-р сар','9-р сар','10-р сар','11-р сар','12-р сар'];
+const today = ()=>ymd(new Date());
+
+/* ---------- Dashboard ---------- */
+async function renderDash(){
+  const v=document.getElementById('view');
+  v.innerHTML=`<h2 class="page-title">${icon('dash')}Самбар</h2><div class="stats" id="stats"></div>`;
+  const d=await api('dashboard',{today:today()});
+  document.getElementById('stats').innerHTML=`
+    ${stat('scan','Өнөөдрийн хоол','val',d.scansToday)}
+    ${stat('users','Нийт сурагч','val',d.students)}
+    ${stat('coin','Эрх багатай (≤3)','val warn',d.lowBalance)}
+    ${stat('bed','Амралт төлбөр (төлөгдөөгүй)','val bad',(d.weekendUnpaid||0).toLocaleString()+'₮')}`;
+}
+function stat(ic,lbl,cls,val){return `<div class="card stat"><div class="lbl">${icon(ic)}${lbl}</div><div class="${cls}">${val}</div></div>`}
+
+/* ---------- Scan ---------- */
+let recentScans=[];
+function renderScan(){
+  const v=document.getElementById('view');
+  v.innerHTML=`<h2 class="page-title">${icon('scan')}Карт уншуулах</h2>
+    <div class="scan-wrap">
+      <div>
+        <div class="card scan-input-card">
+          <h3>Картаа уншуулна уу</h3>
+          <p>QR сканнераар уншуулах эсвэл кодыг гараар оруулна.</p>
+          <input id="scanInput" placeholder="QR код..." autocomplete="off">
+        </div>
+        <div class="card recent" style="padding:16px;margin-top:16px">
+          <h4>Сүүлийн уншуулалт</h4>
+          <div id="recentList"><div style="color:var(--muted);font-size:13px">Хоосон</div></div>
+        </div>
+      </div>
+      <div class="card scan-result" id="scanResult">
+        <div class="scan-empty">${icon('scan')}<div>Карт хүлээж байна...</div></div>
+      </div>
+    </div>`;
+  const inp=document.getElementById('scanInput');
+  inp.focus();
+  inp.addEventListener('keydown',e=>{ if(e.key==='Enter'){ const q=extractQR(inp.value.trim()); inp.value=''; if(q) doScan(q); }});
+  document.addEventListener('click',refocusScan);
+  drawRecent();
+}
+function refocusScan(){ if(TAB==='scan'){ const i=document.getElementById('scanInput'); if(i&&document.activeElement!==i) i.focus(); } }
+async function doScan(qr){
+  const box=document.getElementById('scanResult');
+  const j=await api('scan',{qr});
+  if(!j.ok){
+    box.innerHTML=`<div class="profile"><div class="balbox b-bad"><div class="cap">Алдаа</div><div class="status">${j.error||'Олдсонгүй'}</div></div></div>`;
+    return;
+  }
+  const s=j.student, after=j.after;
+  let cls='b-ok', stat='Хоолоо авна уу', scls='', icn=icon('check');
+  if(after<0){ cls='b-bad'; stat='Эрх дууссан — өргүй байна'; }
+  else if(after===0){ cls='b-warn'; stat='Сүүлийн эрхээ ашиглалаа'; }
+  else if(after<=3){ cls='b-warn'; stat='Эрх дуусч байна, цэнэглэнэ үү'; }
+  box.innerHTML=`<div class="profile">
+    ${photoEl(s,'pic')}
+    <div class="pname">${esc(s.name)}</div>
+    <div class="pgrade">${esc(s.grade||'')} анги</div>
+    <div class="balbox ${cls}"><div class="num">${after}</div><div class="cap">үлдсэн эрх</div></div>
+    <div class="status" style="color:inherit">${stat}</div>
+  </div>`;
+  recentScans.unshift({name:s.name,grade:s.grade,after,t:new Date()});
+  recentScans=recentScans.slice(0,8);
+  drawRecent();
+}
+function drawRecent(){
+  const el=document.getElementById('recentList'); if(!el)return;
+  if(!recentScans.length){ el.innerHTML='<div style="color:var(--muted);font-size:13px">Хоосон</div>'; return; }
+  el.innerHTML=recentScans.map(r=>{
+    const c=r.after<0?'b-bad':r.after<=3?'b-warn':'b-ok';
+    const tm=String(r.t.getHours()).padStart(2,'0')+':'+String(r.t.getMinutes()).padStart(2,'0');
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f1f5f9">
+      <div><b>${esc(r.name)}</b> <span style="color:var(--muted)">${esc(r.grade||'')}</span></div>
+      <div style="display:flex;gap:8px;align-items:center"><span class="pill ${c}">${r.after}</span><span style="color:var(--muted);font-size:12px">${tm}</span></div></div>`;
+  }).join('');
+}
+
+/* ---------- Students ---------- */
+async function loadStudents(){ const j=await api('students.list'); STUDENTS=j.students||[]; return STUDENTS; }
+async function renderStudents(){
+  const v=document.getElementById('view');
+  v.innerHTML=`<h2 class="page-title">${icon('users')}Сурагчид ба карт</h2>
+    <div class="toolbar">
+      <input class="search" id="stSearch" placeholder="Нэр / ангиар хайх..." oninput="drawStudents()">
+      <div class="spacer"></div>
+      <button class="btn primary" onclick="openStudentModal()">${icon('plus')}Шинэ сурагч</button>
+    </div>
+    <div class="card"><table><thead><tr>
+      <th></th><th>Нэр</th><th>Анги</th><th>Үлдсэн эрх</th><th>QR код</th><th></th>
+    </tr></thead><tbody id="stBody"></tbody></table></div>`;
+  await loadStudents();
+  drawStudents();
+}
+function drawStudents(){
+  const q=(document.getElementById('stSearch')?.value||'').toLowerCase();
+  const list=STUDENTS.filter(s=>(s.name+' '+(s.grade||'')).toLowerCase().includes(q));
+  const b=document.getElementById('stBody');
+  if(!list.length){ b.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:30px">Сурагч алга</td></tr>'; return; }
+  b.innerHTML=list.map(s=>{
+    const c=s.balance<0?'b-bad':s.balance<=3?'b-warn':'b-ok';
+    return `<tr>
+      <td>${photoEl(s,'thumb')}</td>
+      <td><b>${esc(s.name)}</b></td>
+      <td>${esc(s.grade||'-')}</td>
+      <td><span class="pill ${c}">${s.balance} удаа</span></td>
+      <td style="font-family:monospace;font-size:12px;color:var(--muted)">${esc(s.qr)}</td>
+      <td><div class="row-actions">
+        <button class="btn sm" onclick="openRecharge(${s.id})">${icon('coin')}Цэнэглэх</button>
+        <button class="btn sm" onclick="openQR(${s.id})">${icon('print')}QR</button>
+        <button class="btn sm" onclick="openStudentModal(${s.id})">${icon('edit')}</button>
+        <button class="btn sm" onclick="openHistory(${s.id})">${icon('hist')}</button>
+        <button class="btn sm danger" onclick="delStudent(${s.id})">${icon('trash')}</button>
+      </div></td></tr>`;
+  }).join('');
+}
+function findStudent(id){return STUDENTS.find(s=>String(s.id)===String(id))}
+
+let editPhoto=undefined; // undefined=unchanged, string=new
+function openStudentModal(id){
+  const s=id?findStudent(id):null; editPhoto=undefined;
+  showModal(`${s?'Сурагч засах':'Шинэ сурагч'}`,`
+    <div class="photo-pick">
+      <div class="prev" id="photoPrev">${s&&s.photo?`<img src="${s.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:12px">`:icon('users')}</div>
+      <div><input type="file" id="photoFile" accept="image/*" onchange="pickPhoto(event)">
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">Сурагчийн зураг</div></div>
+    </div>
+    <div class="field"><label>Нэр</label><input id="fName" value="${s?esc(s.name):''}"></div>
+    <div class="field"><label>Анги</label><input id="fGrade" value="${s?esc(s.grade||''):''}" placeholder="ж: 10А"></div>
+    <div class="field"><label>Эцэг эхийн утас</label><input id="fPhone" value="${s?esc(s.parent_phone||''):''}" placeholder="ж: 99112233"></div>
+    ${s?'':'<div class="field"><label>Эхний эрх (удаа)</label><input id="fBalance" type="number" value="0"></div>'}
+  `,`<button class="btn" onclick="closeModal()">Болих</button>
+     <button class="btn primary" onclick="saveStudent(${id||0})">Хадгалах</button>`);
+}
+function pickPhoto(e){
+  const f=e.target.files[0]; if(!f)return;
+  fileToDataUrl(f,url=>{ editPhoto=url;
+    document.getElementById('photoPrev').innerHTML=`<img src="${url}" style="width:100%;height:100%;object-fit:cover;border-radius:12px">`; });
+}
+async function saveStudent(id){
+  const name=document.getElementById('fName').value.trim();
+  if(!name){ alert('Нэр оруулна уу'); return; }
+  const grade=document.getElementById('fGrade').value.trim();
+  const parent_phone=document.getElementById('fPhone').value.trim();
+  if(id){
+    await api('students.update',{id,name,grade,parent_phone,photo:editPhoto});
+  }else{
+    const balance=+document.getElementById('fBalance').value||0;
+    await api('students.add',{name,grade,parent_phone,photo:editPhoto,balance});
+  }
+  closeModal(); await loadStudents(); drawStudents();
+}
+async function delStudent(id){
+  const s=findStudent(id);
+  if(!confirm(`"${s.name}"-г устгах уу? Бүх түүх устана.`))return;
+  await api('students.delete',{id}); await loadStudents(); drawStudents();
+}
+function openRecharge(id){
+  const s=findStudent(id);
+  showModal('Карт цэнэглэх',`
+    <p style="margin:0 0 14px;color:var(--muted)"><b>${esc(s.name)}</b> — одоогийн эрх: <b>${s.balance}</b> удаа</p>
+    <div class="field"><label>Нэмэх удаа (хасахдаа сөрөг тоо)</label><input id="rcAmount" type="number" value="20"></div>
+    <div class="field"><label>Тэмдэглэл (заавал биш)</label><input id="rcNote" placeholder="ж: 6 сарын төлбөр"></div>
+  `,`<button class="btn" onclick="closeModal()">Болих</button>
+     <button class="btn primary" onclick="doRecharge(${id})">Цэнэглэх</button>`);
+}
+async function doRecharge(id){
+  const amount=parseInt(document.getElementById('rcAmount').value,10);
+  if(!amount){ alert('Тоо оруулна уу'); return; }
+  const note=document.getElementById('rcNote').value.trim();
+  await api('recharge',{id,amount,note});
+  closeModal(); await loadStudents(); drawStudents();
+}
+async function openHistory(id){
+  const s=findStudent(id);
+  showModal('Түүх — '+esc(s.name),'<div id="histBody" style="color:var(--muted)">Уншиж байна...</div>','',true);
+  const j=await api('students.history',{id});
+  const ev=[
+    ...(j.recharges||[]).map(r=>({t:r.created_at,txt:(r.amount>0?'+':'')+r.amount+' удаа цэнэглэв'+(r.note?' ('+esc(r.note)+')':''),c:r.amount>0?'b-ok':'b-bad'})),
+    ...(j.scans||[]).map(r=>({t:r.scanned_at,txt:'Хоол авав → үлдсэн '+r.balance_after,c:'b-warn'})),
+  ].sort((a,b)=>new Date(b.t)-new Date(a.t));
+  const body=document.getElementById('histBody');
+  body.innerHTML = ev.length? ev.map(e=>{
+    const d=new Date(e.t); const ds=ymd(d)+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+    return `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f1f5f9;font-size:14px">
+      <span>${e.txt}</span><span style="color:var(--muted);font-size:12px">${ds}</span></div>`;
+  }).join('') : '<div style="color:var(--muted)">Түүх алга</div>';
+}
+function openQR(id){
+  const s=findStudent(id);
+  showModal('QR карт хэвлэх',`
+    <div class="qrcard" id="qrcard">
+      <div class="qh">${esc(s.name)}</div>
+      <div class="qg">${esc(s.grade||'')} анги</div>
+      <div id="qrbox"></div>
+      <div class="qt">${esc(s.qr)}</div>
+    </div>`,
+    `<button class="btn" onclick="closeModal()">Хаах</button>
+     <button class="btn primary" onclick="printQR(${id})">${icon('print')}Хэвлэх</button>`);
+  if(typeof QRCode==='undefined'){ document.getElementById('qrbox').innerHTML='<div style="color:var(--bad);font-size:13px;text-align:center">QR номын сан ачаалагдсангүй.<br>Сүлжээгээ шалгаад дахин оролдоно уу.</div>'; return; }
+  new QRCode(document.getElementById('qrbox'),{text:STUDENT_URL+s.qr,width:200,height:200,correctLevel:QRCode.CorrectLevel.H});
+}
+function printQR(id){
+  const s=findStudent(id);
+  const pa=document.getElementById('printArea');
+  pa.style.display='block';
+  pa.innerHTML=`<div style="text-align:center;font-family:Segoe UI,sans-serif;border:2px solid #0f2c4c;border-radius:16px;padding:28px 40px">
+    <div style="font-size:13px;letter-spacing:1px;color:#0f2c4c;font-weight:600;margin-bottom:10px">ЦОНЖИН КИБЕР БОАРДИНГ</div>
+    <div style="font-size:24px;font-weight:700">${esc(s.name)}</div>
+    <div style="color:#64748b;margin-bottom:16px">${esc(s.grade||'')} анги</div>
+    <div id="paqr" style="display:flex;justify-content:center"></div>
+    <div style="font-family:monospace;color:#64748b;margin-top:10px;letter-spacing:1px">${esc(s.qr)}</div>
+    <div style="font-size:12px;color:#94a3b8;margin-top:6px">Хоолны карт</div>
+  </div>`;
+  new QRCode(document.getElementById('paqr'),{text:STUDENT_URL+s.qr,width:230,height:230,correctLevel:QRCode.CorrectLevel.H});
+  setTimeout(()=>{ window.print(); pa.style.display='none'; },300);
+}
+
+/* ---------- Menu ---------- */
+let menuMode='week', menuAnchor=new Date(), menuData={};
+async function renderMenu(){
+  const v=document.getElementById('view');
+  v.innerHTML=`<h2 class="page-title">${icon('menu')}Хоолны меню</h2>
+    <div class="toolbar">
+      <button class="btn ${menuMode==='week'?'primary':''}" id="mWeek" onclick="setMenuMode('week')">7 хоног</button>
+      <button class="btn ${menuMode==='month'?'primary':''}" id="mMonth" onclick="setMenuMode('month')">Сараар</button>
+      <div class="spacer"></div>
+      <div class="navbar" style="margin:0">
+        <button class="btn sm" onclick="menuNav(-1)">‹</button>
+        <span class="label" id="menuLabel"></span>
+        <button class="btn sm" onclick="menuNav(1)">›</button>
+        <button class="btn sm" onclick="menuToday()">Өнөөдөр</button>
+      </div>
+    </div>
+    <div id="menuBody"></div>`;
+  await drawMenu();
+}
+function setMenuMode(m){menuMode=m;renderMenu()}
+function menuToday(){menuAnchor=new Date();drawMenu()}
+function menuNav(dir){
+  if(menuMode==='week') menuAnchor=addDays(menuAnchor,7*dir);
+  else menuAnchor=new Date(menuAnchor.getFullYear(),menuAnchor.getMonth()+dir,1);
+  drawMenu();
+}
+async function fetchMenu(from,to){
+  const j=await api('menu.range',{from,to}); menuData={};
+  (j.menu||[]).forEach(m=>menuData[m.date]=m);
+}
+async function drawMenu(){
+  if(menuMode==='week') return drawMenuWeek();
+  return drawMenuMonth();
+}
+async function drawMenuWeek(){
+  const start=startOfWeek(menuAnchor);
+  const days=[...Array(7)].map((_,i)=>addDays(start,i));
+  await fetchMenu(ymd(days[0]),ymd(days[6]));
+  document.getElementById('menuLabel').textContent=`${ymd(days[0])} — ${ymd(days[6])}`;
+  const tod=today();
+  document.getElementById('menuBody').innerHTML='<div class="menu-week">'+days.map((d,i)=>{
+    const k=ymd(d); const m=menuData[k]||{};
+    return `<div class="card day-card ${k===tod?'today':''}">
+      <div class="dh"><span>${d.getMonth()+1}/${d.getDate()}</span><span class="wd">${WD[i]}</span></div>
+      <div class="meal"><div class="mt">Өглөө</div><div class="mv">${esc(m.breakfast||'')}</div></div>
+      <div class="meal"><div class="mt">Өдөр</div><div class="mv">${esc(m.lunch||'')}</div></div>
+      <div class="meal"><div class="mt">Орой</div><div class="mv">${esc(m.dinner||'')}</div></div>
+      <button class="btn sm edit" onclick="openDayEditor('${k}')">${icon('edit')}Засах</button>
+    </div>`;
+  }).join('')+'</div>';
+}
+async function drawMenuMonth(){
+  const y=menuAnchor.getFullYear(), mo=menuAnchor.getMonth();
+  const first=new Date(y,mo,1), last=new Date(y,mo+1,0);
+  await fetchMenu(ymd(first),ymd(last));
+  document.getElementById('menuLabel').textContent=`${y} он ${MONTHS[mo]}`;
+  const lead=(first.getDay()+6)%7; const tod=today();
+  let cells='';
+  for(let i=0;i<lead;i++) cells+='<div class="cell empty"></div>';
+  for(let dnum=1;dnum<=last.getDate();dnum++){
+    const k=ymd(new Date(y,mo,dnum)); const m=menuData[k]||{};
+    cells+=`<div class="cell ${k===tod?'today':''}" onclick="openDayEditor('${k}')">
+      <div class="d">${dnum}</div><div class="l">${esc(m.lunch||'')}</div></div>`;
+  }
+  document.getElementById('menuBody').innerHTML=
+    '<div class="cal-head">'+WD.map(w=>`<div>${w.slice(0,2)}</div>`).join('')+'</div>'+
+    '<div class="cal">'+cells+'</div>';
+}
+function openDayEditor(k){
+  const m=menuData[k]||{};
+  const d=parseYmd(k);
+  showModal(`${k} (${WD[(d.getDay()+6)%7]})`,`
+    <div class="field"><label>Өглөөний хоол</label><textarea id="meB">${esc(m.breakfast||'')}</textarea></div>
+    <div class="field"><label>Өдрийн хоол</label><textarea id="meL">${esc(m.lunch||'')}</textarea></div>
+    <div class="field"><label>Оройн хоол</label><textarea id="meD">${esc(m.dinner||'')}</textarea></div>
+  `,`<button class="btn" onclick="closeModal()">Болих</button>
+     <button class="btn primary" onclick="saveDay('${k}')">Хадгалах</button>`);
+}
+async function saveDay(k){
+  await api('menu.set',{date:k,
+    breakfast:document.getElementById('meB').value,
+    lunch:document.getElementById('meL').value,
+    dinner:document.getElementById('meD').value});
+  closeModal(); drawMenu();
+}
+
+/* ---------- Weekend ---------- */
+let wkFrom, wkTo;
+async function renderWeekend(){
+  const now=new Date();
+  if(!wkFrom){ wkFrom=ymd(new Date(now.getFullYear(),now.getMonth(),1)); wkTo=ymd(new Date(now.getFullYear(),now.getMonth()+1,0)); }
+  const v=document.getElementById('view');
+  v.innerHTML=`<h2 class="page-title">${icon('bed')}Амралтын өдөр үлдсэн сурагчид</h2>
+    <p style="color:var(--muted);margin:-8px 0 18px">Амралтын өдрөөр үлдсэн сурагч өдрийн <b>30,000₮</b> төлнө.</p>
+    <div class="toolbar">
+      <label style="font-size:13px;color:var(--muted)">Хугацаа:</label>
+      <input type="date" id="wkF" value="${wkFrom}" onchange="wkRange()">
+      <span>—</span>
+      <input type="date" id="wkT" value="${wkTo}" onchange="wkRange()">
+      <div class="spacer"></div>
+      <button class="btn primary" onclick="openWeekendAdd()">${icon('plus')}Үлдсэн сурагч нэмэх</button>
+    </div>
+    <div class="stats" style="grid-template-columns:repeat(3,1fr)" id="wkStats"></div>
+    <div class="card"><table><thead><tr>
+      <th>Огноо</th><th>Нэр</th><th>Анги</th><th>Төлбөр</th><th>Төлсөн эсэх</th><th></th>
+    </tr></thead><tbody id="wkBody"></tbody></table></div>`;
+  await loadStudents();
+  drawWeekend();
+}
+function wkRange(){ wkFrom=document.getElementById('wkF').value; wkTo=document.getElementById('wkT').value; drawWeekend(); }
+async function drawWeekend(){
+  const j=await api('weekend.range',{from:wkFrom,to:wkTo});
+  const rows=j.rows||[];
+  let tot=0,paid=0;
+  rows.forEach(r=>{ tot+=r.amount; if(r.paid)paid+=r.amount; });
+  document.getElementById('wkStats').innerHTML=
+    stat('bed','Нийт үлдсэн (бүртгэл)','val',rows.length)+
+    stat('coin','Нийт төлбөр','val',tot.toLocaleString()+'₮')+
+    stat('coin','Үлдэгдэл (төлөгдөөгүй)','val bad',(tot-paid).toLocaleString()+'₮');
+  const b=document.getElementById('wkBody');
+  if(!rows.length){ b.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:30px">Бүртгэл алга</td></tr>'; return; }
+  b.innerHTML=rows.map(r=>`<tr>
+    <td>${r.stay_date}</td><td><b>${esc(r.name)}</b></td><td>${esc(r.grade||'-')}</td>
+    <td>${r.amount.toLocaleString()}₮</td>
+    <td><span class="pill ${r.paid?'b-ok':'b-warn'}">${r.paid?'Төлсөн':'Төлөөгүй'}</span></td>
+    <td><div class="row-actions">
+      <button class="btn sm" onclick="wkPay(${r.id},${!r.paid})">${r.paid?'Цуцлах':icon('check')+'Төлсөн'}</button>
+      <button class="btn sm danger" onclick="wkDel(${r.id})">${icon('trash')}</button>
+    </div></td></tr>`).join('');
+}
+function openWeekendAdd(){
+  const opts=STUDENTS.map(s=>`<option value="${s.id}">${esc(s.name)} — ${esc(s.grade||'')}</option>`).join('');
+  showModal('Амралтаар үлдсэн сурагч',`
+    <div class="field"><label>Сурагч</label><select id="wkStudent">${opts}</select></div>
+    <div class="field"><label>Огноо</label><input type="date" id="wkDate" value="${today()}"></div>
+    <div class="field"><label>Төлбөр (₮)</label><input type="number" id="wkAmount" value="30000"></div>
+  `,`<button class="btn" onclick="closeModal()">Болих</button>
+     <button class="btn primary" onclick="doWeekendAdd()">Нэмэх</button>`);
+}
+async function doWeekendAdd(){
+  const student_id=+document.getElementById('wkStudent').value;
+  const date=document.getElementById('wkDate').value;
+  const amount=+document.getElementById('wkAmount').value||30000;
+  if(!student_id||!date){ alert('Сурагч ба огноо сонгоно уу'); return; }
+  await api('weekend.add',{student_id,date,amount});
+  closeModal(); drawWeekend();
+}
+async function wkPay(id,paid){ await api('weekend.pay',{id,paid}); drawWeekend(); }
+async function wkDel(id){ if(!confirm('Устгах уу?'))return; await api('weekend.delete',{id}); drawWeekend(); }
+
+/* ---------- Report / Settings ---------- */
+let rpYear, rpMonth, rpData=null, rpSettings={meal_price:27000,weekend_fee:30000};
+async function renderReport(){
+  const now=new Date();
+  if(!rpYear){ rpYear=now.getFullYear(); rpMonth=now.getMonth()+1; }
+  const s=await api('settings.get'); rpSettings={meal_price:s.meal_price,weekend_fee:s.weekend_fee};
+  const v=document.getElementById('view');
+  const yopts=[...Array(3)].map((_,i)=>{const y=now.getFullYear()-1+i;return `<option value="${y}" ${y===rpYear?'selected':''}>${y} он</option>`}).join('');
+  const mopts=MONTHS.map((m,i)=>`<option value="${i+1}" ${i+1===rpMonth?'selected':''}>${m}</option>`).join('');
+  v.innerHTML=`<h2 class="page-title">${icon('report')}Сарын төлбөрийн тайлан</h2>
+    <div class="card" style="padding:16px;margin-bottom:18px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;font-weight:600">${icon('gear')}Тохиргоо</div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:end">
+        <div class="field" style="margin:0;max-width:180px"><label>1 удаа хоолны үнэ (₮)</label><input type="number" id="setMeal" value="${rpSettings.meal_price}"></div>
+        <div class="field" style="margin:0;max-width:180px"><label>Амралтын өдрийн төлбөр (₮)</label><input type="number" id="setWk" value="${rpSettings.weekend_fee}"></div>
+        <button class="btn primary" onclick="saveSettings()">Хадгалах</button>
+      </div>
+    </div>
+    <div class="toolbar">
+      <select id="rpYear" onchange="rpPick()">${yopts}</select>
+      <select id="rpMonth" onchange="rpPick()">${mopts}</select>
+      <div class="spacer"></div>
+      <button class="btn" onclick="exportReport()">${icon('report')}CSV татах</button>
+    </div>
+    <div class="card" style="padding:14px;margin-bottom:16px;background:#fffbeb;border-color:#fde68a">
+      <div style="display:flex;gap:10px;align-items:start">${icon('sms')}
+      <div style="font-size:13px;color:#92400e">
+        <b>SMS мэдэгдэл:</b> Сар бүрийн 5–10-ны хооронд эцэг эхэд автомат SMS илгээх боломжтой.
+        Үүний тулд SMS gateway бүртгэл хэрэгтэй (доорх "SMS текст" товчоор илгээх мессежийг урьдчилан харна).
+      </div></div>
+    </div>
+    <div class="card"><table><thead><tr>
+      <th>Нэр</th><th>Анги</th><th>Эцэг эхийн утас</th><th>Идсэн</th><th>Хоолны төлбөр</th><th>Амралт</th><th>Нийт төлбөр</th><th></th>
+    </tr></thead><tbody id="rpBody"></tbody><tfoot id="rpFoot"></tfoot></table></div>`;
+  await drawReport();
+}
+function rpPick(){ rpYear=+document.getElementById('rpYear').value; rpMonth=+document.getElementById('rpMonth').value; drawReport(); }
+async function saveSettings(){
+  const meal_price=+document.getElementById('setMeal').value||27000;
+  const weekend_fee=+document.getElementById('setWk').value||30000;
+  await api('settings.set',{meal_price,weekend_fee});
+  rpSettings={meal_price,weekend_fee};
+  drawReport();
+}
+async function drawReport(){
+  const j=await api('report.month',{year:rpYear,month:rpMonth});
+  rpData=j;
+  const rows=j.rows||[];
+  const b=document.getElementById('rpBody');
+  b.innerHTML=rows.length? rows.map(r=>`<tr>
+    <td><b>${esc(r.name)}</b></td><td>${esc(r.grade||'-')}</td>
+    <td>${r.parent_phone?esc(r.parent_phone):'<span style="color:var(--bad)">утасгүй</span>'}</td>
+    <td>${r.meals}</td><td>${r.mealAmount.toLocaleString()}₮</td>
+    <td>${r.weekendDays?r.weekendDays+'хн / '+r.weekendAmount.toLocaleString()+'₮':'-'}</td>
+    <td><b>${r.total.toLocaleString()}₮</b></td>
+    <td><button class="btn sm" onclick="smsPreview(${r.id})">${icon('sms')}SMS текст</button></td>
+  </tr>`).join('') : '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">Мэдээлэл алга</td></tr>';
+  const tot=rows.reduce((a,r)=>a+r.total,0);
+  document.getElementById('rpFoot').innerHTML=`<tr style="font-weight:700;background:#f8fafc">
+    <td colspan="6" style="text-align:right">Нийт дүн:</td><td>${tot.toLocaleString()}₮</td><td></td></tr>`;
+}
+function smsText(r){
+  return `Сайн байна уу. ${rpYear} оны ${rpMonth}-р сарын хоолны төлбөр: ${r.name} (${r.grade||''}) — ${r.meals} удаа хоол, амралт ${r.weekendDays} хоног. Нийт төлбөр: ${r.total.toLocaleString()}₮. Цонжин Кибер Боардинг.`;
+}
+function smsPreview(id){
+  const r=(rpData.rows||[]).find(x=>String(x.id)===String(id));
+  showModal('SMS текст урьдчилан харах',`
+    <p style="color:var(--muted);margin:0 0 8px">Хүлээн авагч: <b>${r.parent_phone||'утас оруулаагүй'}</b></p>
+    <textarea readonly style="width:100%;min-height:120px;padding:10px;border:1px solid var(--line2);border-radius:9px">${esc(smsText(r))}</textarea>
+    <p style="color:var(--muted);font-size:12px;margin-top:10px">SMS gateway тохируулсны дараа энэ мессеж автоматаар илгээгдэнэ.</p>
+  `,`<button class="btn" onclick="closeModal()">Хаах</button>`);
+}
+function exportReport(){
+  if(!rpData||!rpData.rows.length){ alert('Мэдээлэл алга'); return; }
+  const head=['Нэр','Анги','Эцэг эхийн утас','Идсэн удаа','Хоолны төлбөр','Амралт хоног','Амралт төлбөр','Нийт төлбөр'];
+  const lines=[head.join(',')];
+  rpData.rows.forEach(r=>lines.push([
+    '"'+r.name+'"', '"'+(r.grade||'')+'"', '"'+(r.parent_phone||'')+'"',
+    r.meals, r.mealAmount, r.weekendDays, r.weekendAmount, r.total].join(',')));
+  const blob=new Blob(['﻿'+lines.join('\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=`tailan_${rpYear}_${rpMonth}.csv`; a.click();
+}
+
+/* ---------- Modal / utils ---------- */
+function showModal(title,body,footer,wide){
+  document.getElementById('modalMount').innerHTML=`
+    <div class="overlay" onclick="if(event.target===this)closeModal()">
+      <div class="modal ${wide?'wide':''}">
+        <div class="mh"><h3>${title}</h3><button class="x" onclick="closeModal()">×</button></div>
+        <div class="mb">${body}</div>
+        ${footer?`<div class="mf">${footer}</div>`:''}
+      </div></div>`;
+}
+function closeModal(){ document.getElementById('modalMount').innerHTML=''; }
+document.addEventListener('keydown',e=>{ if(e.key==='Escape')closeModal(); });
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function photoEl(s,cls){
+  if(s.photo) return `<img class="${cls}" src="${s.photo}" alt="">`;
+  const ini=(s.name||'?').trim().charAt(0).toUpperCase();
+  return `<div class="${cls}">${ini}</div>`;
+}
+function fileToDataUrl(file,cb){
+  const r=new FileReader();
+  r.onload=e=>{ const img=new Image();
+    img.onload=()=>{ const max=320; let w=img.width,h=img.height;
+      const sc=Math.min(1,max/Math.max(w,h)); w=Math.round(w*sc); h=Math.round(h*sc);
+      const c=document.createElement('canvas'); c.width=w; c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h); cb(c.toDataURL('image/jpeg',0.82)); };
+    img.src=e.target.result; };
+  r.readAsDataURL(file);
+}
+
+/* ---------- boot ---------- */
+if(PASS){ startApp(); } else { document.getElementById('loginPass').focus(); }
+</script>
+</body>
+</html>
