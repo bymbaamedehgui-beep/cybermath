@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Дасгалын төв — CyberMath</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<style>
+  :root{--purple:#7B52EE;--purple2:#A855F7;--ink:#1a1030;--soft:#7a7390;--line:#e7ddff;--green:#16a34a}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:var(--ink);background:#eceaf3;padding:20px;line-height:1.5}
+  .wrap{max-width:960px;margin:0 auto}
+  h1{font-size:1.5rem;color:#5a32d6;text-align:center;margin-bottom:4px}
+  .sub{text-align:center;color:var(--soft);font-size:.9rem;margin-bottom:20px}
+  h2{font-size:1.05rem;color:#5a32d6;margin:22px 0 12px;display:flex;align-items:center;gap:8px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 15px;display:flex;justify-content:space-between;align-items:center;gap:8px;box-shadow:0 6px 18px -12px rgba(123,82,238,.5)}
+  .card .t{font-weight:700;font-size:.9rem}
+  .open{flex-shrink:0;font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.4rem .8rem;font-size:.8rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2));text-decoration:none}
+  .saved{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .srow{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid #f1ecfb}
+  .srow:last-child{border-bottom:0}
+  .srow .code{font-weight:800;color:var(--purple);min-width:46px}
+  .srow .ti{flex:1;font-weight:700;font-size:.92rem}
+  .srow .dt{color:var(--soft);font-size:.8rem}
+  .srow .cnt{color:var(--soft);font-size:.8rem}
+  .mini{font-weight:800;border:0;cursor:pointer;border-radius:8px;padding:.35rem .7rem;font-size:.8rem}
+  .mini.v{background:#e1f4e9;color:var(--green)} .mini.d{background:#fdecec;color:#b3261e}
+  .empty{padding:24px;text-align:center;color:var(--soft)}
+  /* modal */
+  .modal{position:fixed;inset:0;z-index:50;background:rgba(20,15,40,.5);display:none;place-items:center;padding:18px}
+  .modal.on{display:grid}
+  .mbox{background:#fff;border-radius:16px;max-width:780px;width:100%;max-height:88vh;overflow:auto;padding:22px;position:relative}
+  .mbox h3{color:#5a32d6;margin-bottom:4px}.mbox .msub{color:var(--soft);font-size:.82rem;margin-bottom:14px}
+  .x{position:absolute;top:12px;right:12px;border:0;background:#f0ecfb;width:32px;height:32px;border-radius:999px;cursor:pointer;font-weight:800}
+  .qrow{display:flex;gap:10px;padding:7px 0;border-bottom:1px dashed #eee;font-size:14px}
+  .qrow .qn{font-weight:800;color:var(--purple);min-width:26px}
+  .qrow .ans{color:var(--green);font-weight:700;margin-left:auto;white-space:nowrap}
+  .toolbar{display:flex;gap:10px;justify-content:flex-end;margin-bottom:10px}
+  .btn{font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.45rem 1rem;font-size:.85rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2))}
+  .btn.g{background:#fff;color:var(--purple);box-shadow:inset 0 0 0 1.5px var(--line)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📚 Дасгалын төв</h1>
+  <div class="sub">Дасгалын хуудас сонгож хэвлэх · хадгалсан бодлогын хариуг шалгах</div>
+
+  <h2>📝 Дасгалын жагсаалт</h2>
+  <div class="cards" id="cards"></div>
+
+  <h2>💾 Хадгалсан хуудаснууд <span style="font-weight:500;color:var(--soft);font-size:.82rem">(хэвлэхдээ "Хадгалах" дарсан)</span></h2>
+  <div class="saved" id="saved"><div class="empty">Уншиж байна...</div></div>
+</div>
+
+<div class="modal" id="modal" onclick="if(event.target===this)closeM()">
+  <div class="mbox">
+    <button class="x" onclick="closeM()">✕</button>
+    <h3 id="mTitle"></h3><div class="msub" id="mSub"></div>
+    <div class="toolbar"><button class="btn g" id="toggleA" onclick="toggleAns()">Хариу нуух</button></div>
+    <div id="mBody"></div>
+  </div>
+</div>
+
+<script>
+var LIST=[
+  ['Тоо · арифметик',[
+    ['urjver-3x2-20.html','3 × 2 оронтой үржвэр'],
+    ['negativ-too-100.html','Сөрөг тоо нэмэх/хасах (100)'],
+    ['temdegt-urjhuv-20.html','Эерэг сөрөг үржих/хуваах'],
+    ['temdegt-ilerhiilel-20.html','Эерэг сөрөг илэрхийлэл'],
+    ['kvadrat-zereg-20.html','Квадрат зэрэг'],
+    ['kvadrat-yazguur-20.html','Квадрат язгуур'],
+  ]],
+  ['Рационал ба иррационал',[
+    ['ratsional-nemeh-hasah-20.html','Рационал нэмэх/хасах'],
+    ['ratsional-urjih-huvaah-20.html','Рационал үржих/хуваах'],
+    ['ratsional-yazguur-20.html','Рационал тооны язгуур'],
+    ['irratsional-ilerhiilel-20.html','Иррационал илэрхийлэл'],
+    ['zereg-yazguur-ilerhiilel-20.html','Квадрат зэрэг ба язгууртай'],
+    ['zereg-chanar-30.html','Зэргийн чанарууд (30)'],
+  ]],
+  ['Алгебр · илэрхийлэл',[
+    ['neg-olon-gishuunt-20.html','Нэг × олон гишүүнт'],
+    ['olon-gishuunt-emhetgel-20.html','Олон гишүүнт хялбаржуулах'],
+    ['niitleg-uurjigdehuun-20.html','Ерөнхий үржигдэхүүн хаалтнаас'],
+    ['niilber-kvadrat-20.html','Нийлбэрийн квадрат'],
+    ['yalgavar-kvadrat-20.html','Ялгаврын квадрат'],
+    ['kvadratuud-ylgavar-20.html','Квадратуудын ялгавар'],
+    ['kvadrat-tegshitgel-20.html','Квадрат тэгшитгэл'],
+    ['matrits-2x2-20.html','2×2 матриц (тодорхойлогч/урвуу)'],
+  ]],
+];
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function renderCards(){
+  var h='';
+  LIST.forEach(function(grp){
+    h+='<div style="grid-column:1/-1;font-weight:800;color:#7a7390;font-size:.82rem;margin-top:6px">'+grp[0]+'</div>';
+    grp[1].forEach(function(w){
+      h+='<div class="card"><span class="t">'+esc(w[1])+'</span><a class="open" href="/'+w[0]+'" target="_blank">Нээх ▸</a></div>';
+    });
+  });
+  document.getElementById('cards').innerHTML=h;
+}
+function loadSaved(){
+  fetch('/api/worksheets').then(function(r){return r.json();}).then(function(d){
+    var el=document.getElementById('saved');
+    var s=(d&&d.sets)||[];
+    if(!s.length){el.innerHTML='<div class="empty">Хадгалсан хуудас алга. Дасгал хэвлэхдээ "💾 Хадгалах" дарна уу.</div>';return;}
+    el.innerHTML=s.map(function(x){
+      var dt=new Date(x.created_at);var ds=isNaN(dt)?'':dt.toLocaleString('mn-MN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+      return '<div class="srow"><span class="code">#'+x.id+'</span><span class="ti">'+esc(x.title)+'</span>'
+        +'<span class="cnt">'+x.count+' бод.</span><span class="dt">'+ds+'</span>'
+        +'<button class="mini v" onclick="viewSet('+x.id+')">Харах</button>'
+        +'<button class="mini d" onclick="delSet('+x.id+')">Устгах</button></div>';
+    }).join('');
+  }).catch(function(e){document.getElementById('saved').innerHTML='<div class="empty">Алдаа: '+e.message+'</div>';});
+}
+var SHOW_ANS=true;
+function viewSet(code){
+  fetch('/api/worksheets?code='+code).then(function(r){return r.json();}).then(function(d){
+    var st=d&&d.set; if(!st){alert('Олдсонгүй');return;}
+    document.getElementById('mTitle').textContent=st.title;
+    var dt=new Date(st.created_at);
+    document.getElementById('mSub').textContent='#'+st.id+' · '+(isNaN(dt)?'':dt.toLocaleString('mn-MN'))+' · '+st.items.length+' бодлого';
+    var body=st.items.map(function(it,i){
+      return '<div class="qrow"><span class="qn">'+(i+1)+'.</span><span class="qq">$'+it.q+'$</span>'
+        +'<span class="ans">$'+it.a+'$</span></div>';
+    }).join('');
+    document.getElementById('mBody').innerHTML=body;
+    SHOW_ANS=true; document.getElementById('toggleA').textContent='Хариу нуух';
+    document.getElementById('modal').classList.add('on');
+    try{renderMathInElement(document.getElementById('mBody'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
+  });
+}
+function toggleAns(){
+  SHOW_ANS=!SHOW_ANS;
+  document.querySelectorAll('#mBody .ans').forEach(function(a){a.style.visibility=SHOW_ANS?'visible':'hidden';});
+  document.getElementById('toggleA').textContent=SHOW_ANS?'Хариу нуух':'Хариу харах';
+}
+function delSet(code){
+  if(!confirm('#'+code+' хадгалсан хуудсыг устгах уу?'))return;
+  fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',code:code})})
+    .then(function(r){return r.json();}).then(function(){loadSaved();});
+}
+function closeM(){document.getElementById('modal').classList.remove('on');}
+renderCards();loadSaved();
+</script>
+</body>
+</html>
