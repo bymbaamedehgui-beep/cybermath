@@ -1653,6 +1653,7 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
               </select>
               <button onclick="downloadQuestionsPdf(true, event)" style="padding:6px 12px;background:linear-gradient(135deg,#7B52EE,#A855F7);border:none;border-radius:8px;color:white;font-size:0.85rem;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:5px;" title="Бодлого + хариу + тайлбар">📄 Бүрэн PDF</button>
               <button onclick="downloadQuestionsPdf(false, event)" style="padding:6px 12px;background:linear-gradient(135deg,#1CB0F6,#0EA5E9);border:none;border-radius:8px;color:white;font-size:0.85rem;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:5px;" title="Зөвхөн бодлого">📋 Зөвхөн бодлого</button>
+              <button onclick="(function(){var s=document.getElementById('q-node');if(!s||!s.value){alert('Эхлээд node сонгоно уу');return;}nodeWorksheet(parseInt(s.value));})()" style="padding:6px 12px;background:linear-gradient(135deg,#16a34a,#22c55e);border:none;border-radius:8px;color:white;font-size:0.85rem;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:5px;" title="Сонгосон хичээлийн бодлогуудыг A4 дасгалын хуудас болгох">📄 Worksheet (A4)</button>
               <input type="text" placeholder="Хайх..." style="padding:6px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:0.85rem;width:200px;" oninput="renderQuestions(this.value)">
             </div>
           </div>
@@ -2865,6 +2866,103 @@ function closeMathModal() { closeChoiceMathModal(); }
   };
 
   function updateChoiceHighlight() {}
+
+  // ═════════════════════════════════════════
+  // Нэг node-ийн A4 worksheet (хэвлэхэд бэлэн)
+  // ═════════════════════════════════════════
+  window.nodeWorksheet = function(nodeId) {
+    var nodes = (typeof getNodes === 'function') ? getNodes() : [];
+    var node = nodes.filter(function(n){ return n.id === nodeId; })[0] || { id: nodeId, name: '' };
+    var nodeName = node.name || ('Node ' + nodeId);
+
+    var pw = window.open('', '_blank', 'width=900,height=750');
+    if (!pw) { alert('Popup блоклогдсон. Зөвшөөрөл идэвхжүүлнэ үү.'); return; }
+    pw.document.write('<!doctype html><meta charset="utf-8"><body style="font-family:sans-serif;text-align:center;padding:80px;color:#666;"><h2 style="font-weight:400;">⏳ Бодлого ачаалж байна...</h2></body>');
+    pw.document.close();
+
+    fetch(API + '/api/questions?node_id=' + nodeId + '&exam=all')
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var qs = (d.questions || []).slice(0, 20);
+        if (!qs.length) { pw.document.body.innerHTML = '<div style="padding:60px;text-align:center;font-family:sans-serif;color:#888;">Энэ хичээлд бодлого алга байна.</div>'; return; }
+        pw.document.open();
+        pw.document.write(buildWorksheetHtml(nodeId, nodeName, qs));
+        pw.document.close();
+      })
+      .catch(function(e){ pw.document.body.innerHTML = '<div style="padding:60px;font-family:sans-serif;color:#c00;">Алдаа: ' + e.message + '</div>'; });
+  };
+
+  function _wsEsc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  function buildWorksheetHtml(nodeId, nodeName, qs) {
+    var LETT = ['А','Б','В','Г','Д','Е'];
+    var probs = '', answs = '';
+    qs.forEach(function(q, i){
+      var n = i + 1;
+      var isChoice = (q.type === 'choice') && q.choices;
+      var body = '<div class="q"><div class="qh"><span class="qn">' + n + '.</span><span class="qt">' + _wsEsc(q.text) + '</span></div>';
+      if (q.image) body += '<div class="qimg"><img src="' + _wsEsc(q.image) + '"></div>';
+      if (isChoice) {
+        var ch = q.choices; if (typeof ch === 'string') { try { ch = JSON.parse(ch); } catch(e){ ch = []; } }
+        body += '<ul class="ch">';
+        ch.forEach(function(c, ci){ body += '<li><b>' + LETT[ci] + '.</b> ' + _wsEsc(c) + '</li>'; });
+        body += '</ul>';
+      } else {
+        body += '<div class="work"></div>';
+      }
+      body += '</div>';
+      probs += body;
+      answs += '<div class="a"><span class="an">' + n + '.</span> ' + _wsEsc(q.correct) + '</div>';
+    });
+
+    return '<!DOCTYPE html><html lang="mn"><head><meta charset="UTF-8">'
+      + '<title>' + _wsEsc(nodeName) + ' — дасгал</title>'
+      + '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">'
+      + '<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"><\/script>'
+      + '<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"><\/script>'
+      + '<style>'
+      + '*{box-sizing:border-box;margin:0;padding:0}'
+      + 'body{font-family:"Segoe UI",Arial,sans-serif;color:#16241c;background:#e9ecef;padding:16px;line-height:1.5}'
+      + '.bar{max-width:800px;margin:0 auto 14px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap}'
+      + '.btn{font-weight:700;border:0;cursor:pointer;border-radius:999px;padding:.55rem 1.2rem;background:#7B52EE;color:#fff;font-size:.9rem}'
+      + '.btn.g{background:#fff;color:#7B52EE;box-shadow:inset 0 0 0 1.5px #d8ccff}'
+      + '.bar label{font-weight:700;color:#7B52EE;display:flex;align-items:center;gap:6px;font-size:.88rem}'
+      + '.sheet{background:#fff;width:210mm;min-height:297mm;margin:0 auto;padding:14mm;box-shadow:0 10px 40px -16px rgba(0,0,0,.3)}'
+      + '.head{text-align:center;border-bottom:2.5px solid #7B52EE;padding-bottom:8px;margin-bottom:6px}'
+      + '.head h1{font-size:19px;color:#5a32d6;font-weight:800}'
+      + '.head .sub{font-size:11.5px;color:#888;margin-top:2px}'
+      + '.meta{display:flex;justify-content:space-between;font-size:12px;margin:9px 2px 14px}'
+      + '.meta span{border-bottom:1px dotted #aaa;padding:0 30px 2px 4px}'
+      + '.q{break-inside:avoid;page-break-inside:avoid;margin-bottom:13px;padding-bottom:6px;border-bottom:1px dashed #eee}'
+      + '.qh{display:flex;gap:8px;align-items:flex-start}'
+      + '.qn{font-weight:800;color:#7B52EE;min-width:22px}'
+      + '.qt{font-size:14px;font-weight:600}'
+      + '.qimg{margin:6px 0 0 30px}.qimg img{max-width:70%;max-height:150px;border:1px solid #eee;border-radius:6px}'
+      + '.ch{list-style:none;margin:6px 0 0 30px;display:flex;flex-wrap:wrap;gap:5px 22px}'
+      + '.ch li{font-size:13px;display:inline-flex;align-items:center;gap:5px}.ch b{color:#555}'
+      + '.work{margin:8px 0 0 30px;height:24mm;border:1.4px solid #bbb;border-radius:5px;background-image:linear-gradient(#eee 1px,transparent 1px);background-size:100% 6mm}'
+      + '.ans-page{margin-top:9mm;border-top:2px dashed #ccc;padding-top:7mm}'
+      + '.ans-page h2{font-size:15px;color:#5a32d6;margin-bottom:8px}'
+      + '.ans-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px 14px;font-size:13px}'
+      + '.ans-grid .an{color:#888;font-weight:800}'
+      + '#answers{display:none}'
+      + '@media print{body{background:#fff;padding:0}.bar{display:none}.sheet{box-shadow:none;width:auto;min-height:auto;padding:0;margin:0}@page{size:A4;margin:12mm}.ans-page{break-before:page}}'
+      + '</style></head><body>'
+      + '<div class="bar">'
+      + '<button class="btn" onclick="window.print()">🖨 Хэвлэх / PDF</button>'
+      + '<label><input type="checkbox" id="sa" onchange="document.getElementById(\'answers\').style.display=this.checked?\'block\':\'none\'"> Хариу хавсаргах</label>'
+      + '</div>'
+      + '<div class="sheet">'
+      + '<div class="head"><h1>' + _wsEsc(nodeName) + '</h1>'
+      + '<div class="sub">Дасгалын хуудас · ' + qs.length + ' бодлого · CyberMath</div></div>'
+      + '<div class="meta"><span>Нэр: </span><span>Огноо: </span><span>Оноо: </span></div>'
+      + probs
+      + '<div class="ans-page" id="answers"><h2>Хариунууд</h2><div class="ans-grid">' + answs + '</div></div>'
+      + '</div>'
+      + '<script>function R(){try{renderMathInElement(document.body,{delimiters:[{left:"$$",right:"$$",display:true},{left:"$",right:"$",display:false}],throwOnError:false})}catch(e){}}'
+      + 'if(document.readyState!=="loading")R();else document.addEventListener("DOMContentLoaded",R);window.addEventListener("load",R);<\/script>'
+      + '</body></html>';
+  }
 
   // ═════════════════════════════════════════
   // PDF татах — бүх бодлогуудыг сэдвээр бүлэглэн
@@ -4165,7 +4263,8 @@ function openEditMathModal(targetId) {
         + '<button onclick="saveNodeName('+n.id+')" style="padding:5px 10px;background:var(--purple);border:none;border-radius:8px;color:white;font-weight:700;font-size:0.75rem;cursor:pointer;flex-shrink:0;">💾</button>'
         + '<div style="position:relative;" id="menu-wrap-'+n.id+'">'
         + '<button onclick="toggleNodeMenu('+n.id+')" style="padding:5px 9px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:1rem;cursor:pointer;font-weight:900;">⋯</button>'
-        + '<div id="node-menu-'+n.id+'" style="display:none;position:absolute;right:0;top:110%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;min-width:150px;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,0.3);overflow:hidden;">'
+        + '<div id="node-menu-'+n.id+'" style="display:none;position:absolute;right:0;top:110%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;min-width:170px;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,0.3);overflow:hidden;">'
+        + '<button onclick="nodeWorksheet('+n.id+');toggleNodeMenu('+n.id+')" style="width:100%;padding:10px 16px;background:none;border:none;border-bottom:1px solid var(--border);color:#7B52EE;font-size:0.85rem;font-weight:700;cursor:pointer;text-align:left;">📄 Worksheet (A4)</button>'
         + '<button onclick="clearNodeName('+n.id+');toggleNodeMenu('+n.id+')" style="width:100%;padding:10px 16px;background:none;border:none;border-bottom:1px solid var(--border);color:var(--text);font-size:0.85rem;cursor:pointer;text-align:left;">🗑️ Нэр устгах</button>'
         + '<button onclick="deleteNode('+n.id+')" style="width:100%;padding:10px 16px;background:none;border:none;color:#ff4b4b;font-size:0.85rem;cursor:pointer;text-align:left;">❌ Хичээл устгах</button>'
         + '</div></div>'
