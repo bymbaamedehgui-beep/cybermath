@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Сөрөг тоо — 100 бодлого</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root{--ink:#16241c;--soft:#5a7064;--line:#cfe0d6;--forest:#13502e}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Manrope',system-ui,sans-serif;color:var(--ink);background:#e9f1ec;padding:18px}
+  .bar{max-width:800px;margin:0 auto 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center}
+  .btn{font-family:inherit;font-weight:700;border:0;cursor:pointer;border-radius:999px;padding:.6rem 1.3rem;background:var(--forest);color:#fff;font-size:.92rem}
+  .btn.ghost{background:#fff;color:var(--forest);box-shadow:inset 0 0 0 1.5px var(--line)}
+  .bar label{font-weight:700;color:var(--forest);display:flex;align-items:center;gap:6px;font-size:.9rem}
+
+  .sheet{background:#fff;width:210mm;min-height:297mm;margin:0 auto;padding:14mm 14mm 12mm;box-shadow:0 10px 40px -16px rgba(0,0,0,.3)}
+  .head{text-align:center;border-bottom:2.5px solid var(--forest);padding-bottom:8px;margin-bottom:6px}
+  .head h1{font-size:20px;color:var(--forest);font-weight:800}
+  .head .sub{font-size:12px;color:var(--soft);margin-top:2px}
+  .meta{display:flex;justify-content:space-between;font-size:12.5px;color:var(--ink);margin:10px 2px 14px}
+  .meta span{border-bottom:1px dotted #9bb3a6;padding:0 40px 2px 4px}
+
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);column-gap:10px;row-gap:10px}
+  .q{display:flex;align-items:baseline;gap:5px;font-size:15px;font-weight:600;white-space:nowrap}
+  .q .n{color:var(--soft);font-size:11px;font-weight:700;min-width:22px;text-align:right}
+  .q .exp{font-weight:700}
+  .q .blank{display:inline-block;min-width:34px;border-bottom:1.4px solid #6f8a7c;height:1em}
+
+  .ans-page{margin-top:10mm;border-top:2px dashed var(--line);padding-top:8mm}
+  .ans-page h2{font-size:15px;color:var(--forest);margin-bottom:8px}
+  .ans-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px 8px;font-size:12px;color:var(--ink)}
+  .ans-grid .a .n{color:var(--soft);font-weight:700}
+  #answers{display:none}
+
+  @media print{
+    body{background:#fff;padding:0}
+    .bar{display:none}
+    .sheet{box-shadow:none;width:auto;min-height:auto;padding:0;margin:0}
+    @page{size:A4;margin:12mm}
+    .ans-page{break-before:page}
+  }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <button class="btn" onclick="window.print()">🖨 Хэвлэх / PDF</button>
+  <button class="btn ghost" onclick="gen()">↻ Шинэ бодлого</button>
+  <label><input type="checkbox" id="showAns" onchange="toggleAns()" /> Хариу хавсаргах</label>
+</div>
+
+<div class="sheet">
+  <div class="head">
+    <h1>Сөрөг тоо — нэмэх, хасах</h1>
+    <div class="sub">Тооцоолж, хариуг зурааны дээр бичнэ үү · 1–100 хүртэлх тоо · 100 бодлого</div>
+  </div>
+  <div class="meta">
+    <span>Нэр: </span>
+    <span>Огноо: </span>
+    <span>Оноо: </span>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <div class="ans-page" id="answers">
+    <h2>Хариунууд</h2>
+    <div class="ans-grid" id="ansGrid"></div>
+  </div>
+</div>
+
+<script>
+let PROBLEMS=[];
+const rnd=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
+const M='−'; // математик хасах тэмдэг
+
+// Бодлогын хэлбэрүүд (1–100 хүртэлх тоо). −a−b болон эерэг үр дүнтэй a−b-г хассан.
+const FORMS=[
+  ()=>{const a=rnd(1,100),b=rnd(1,100);return{t:`${M}${a} + ${b}`,v:-a+b};},        // -a+b
+  ()=>{const a=rnd(1,100),b=rnd(1,100);return{t:`${M}${a} + ${b}`,v:-a+b};},        // -a+b (давтамж)
+  ()=>{const a=rnd(1,99),b=rnd(a+1,100);return{t:`${a} ${M} ${b}`,v:a-b};},         //  a-b, a<b → сөрөг
+];
+
+function gen(){
+  PROBLEMS=[];
+  for(let i=0;i<100;i++){const f=FORMS[rnd(0,FORMS.length-1)]();PROBLEMS.push(f);}
+  render();
+}
+function render(){
+  document.getElementById('grid').innerHTML=PROBLEMS.map((p,i)=>
+    `<div class="q"><span class="n">${i+1}.</span><span class="exp">${p.t} =</span><span class="blank"></span></div>`
+  ).join('');
+  document.getElementById('ansGrid').innerHTML=PROBLEMS.map((p,i)=>
+    `<div class="a"><span class="n">${i+1}.</span> ${fmt(p.v)}</div>`
+  ).join('');
+}
+function fmt(v){return v<0?M+Math.abs(v):String(v);}
+function toggleAns(){document.getElementById('answers').style.display=document.getElementById('showAns').checked?'block':'none';}
+
+gen();
+</script>
+</body>
+</html>
