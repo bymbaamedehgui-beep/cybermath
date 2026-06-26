@@ -40,7 +40,7 @@
     var b=document.createElement('button');
     b.className='btn ws-save'; b.type='button';
     b.style.background='linear-gradient(135deg,#0ea5e9,#1d6c8c)';
-    b.textContent='💾 Хадгалах';
+    b.textContent='📤 Санах руу илгээх';
     b.onclick=function(){window.wsSaveCurrent(b);};
     bar.appendChild(b);
   }
