@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Дасгалын хуудас — CyberMath</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<style>
+  :root{--purple:#7B52EE;--purple2:#A855F7;--ink:#1a1030;--soft:#7a7390;--line:#ece6fb;--green:#16a34a}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:var(--ink);background:#eceaf3;padding:16px;line-height:1.5}
+  .bar{max-width:820px;margin:0 auto 14px;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
+  .btn{font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.6rem 1.3rem;font-size:.9rem;color:#fff;
+    background:linear-gradient(135deg,var(--purple),var(--purple2));box-shadow:0 6px 16px -6px rgba(123,82,238,.6)}
+  .btn:hover{filter:brightness(1.06)}
+  .btn.g{background:#fff;color:var(--purple);box-shadow:inset 0 0 0 1.6px #d8ccff}
+  .btn.refresh{background:linear-gradient(135deg,#16a34a,#22c55e)}
+  .bar label{font-weight:700;color:var(--purple);display:flex;align-items:center;gap:6px;font-size:.88rem}
+  .bar select{font-family:inherit;font-weight:700;color:var(--purple);border:1.6px solid #d8ccff;border-radius:8px;padding:.4rem .6rem;background:#fff}
+
+  .sheet{background:#fff;width:210mm;max-width:100%;min-height:297mm;margin:0 auto;padding:14mm;box-shadow:0 12px 44px -18px rgba(0,0,0,.35)}
+  .head{text-align:center;border-bottom:2.5px solid var(--purple);padding-bottom:8px;margin-bottom:6px}
+  .head h1{font-size:20px;color:#5a32d6;font-weight:800}
+  .head .sub{font-size:11.5px;color:var(--soft);margin-top:2px}
+  .meta{display:flex;justify-content:space-between;font-size:12px;margin:9px 2px 14px}
+  .meta span{border-bottom:1px dotted #b3a9cf;padding:0 30px 2px 4px}
+  .loading{text-align:center;padding:60px;color:var(--soft);font-weight:600}
+
+  .q{break-inside:avoid;page-break-inside:avoid;margin-bottom:13px;padding-bottom:7px;border-bottom:1px dashed #efeaff}
+  .qh{display:flex;gap:8px;align-items:flex-start}
+  .qn{font-weight:800;color:var(--purple);min-width:24px}
+  .qt{font-size:14px;font-weight:600}
+  .qimg{margin:6px 0 0 32px}.qimg img{max-width:68%;max-height:150px;border:1px solid #eee;border-radius:6px}
+  .ch{list-style:none;margin:6px 0 0 32px;display:flex;flex-wrap:wrap;gap:5px 24px}
+  .ch li{font-size:13px;display:inline-flex;align-items:center;gap:5px}.ch b{color:#555}
+  .work{margin:8px 0 0 32px;height:24mm;border:1.4px solid #c7bce8;border-radius:6px;
+    background-image:linear-gradient(#eee 1px,transparent 1px);background-size:100% 6mm}
+  .work.sm{height:14mm}
+
+  .ans-page{margin-top:9mm;border-top:2px dashed #ddd;padding-top:7mm}
+  .ans-page h2{font-size:15px;color:#5a32d6;margin-bottom:8px}
+  .ans-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px 14px;font-size:13px}
+  .ans-grid .an{color:var(--soft);font-weight:800}
+  #answers{display:none}
+
+  @media print{
+    body{background:#fff;padding:0}
+    .bar{display:none}
+    .sheet{box-shadow:none;width:auto;min-height:auto;padding:0;margin:0}
+    @page{size:A4;margin:12mm}
+    .ans-page{break-before:page}
+  }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <button class="btn refresh" onclick="build()">↻ Шинэчлэх</button>
+  <label>Бодлого:
+    <select id="count" onchange="build()">
+      <option value="10" selected>10</option>
+      <option value="15">15</option>
+      <option value="20">20</option>
+      <option value="0">Бүгд</option>
+    </select>
+  </label>
+  <label><input type="checkbox" id="sa" onchange="toggleAns()"> Хариу хавсаргах</label>
+  <button class="btn" onclick="window.print()">🖨 Хэвлэх / PDF</button>
+</div>
+
+<div class="sheet" id="sheet">
+  <div class="loading">⏳ Бодлого ачаалж байна...</div>
+</div>
+
+<script>
+var LETT = ['А','Б','В','Г','Д','Е','Ж'];
+var POOL = [];          // node-ийн бүх бодлого
+var NODE_NAME = '';
+var NODE_ID = null;
+
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function qs(name){return new URLSearchParams(location.search).get(name);}
+function shuffle(a){a=a.slice();for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}return a;}
+
+function renderMath(){
+  try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
+}
+function toggleAns(){var a=document.getElementById('answers');if(a)a.style.display=document.getElementById('sa').checked?'block':'none';}
+
+// "Шинэчлэх" — бодлогуудыг холиж, дэд олонлог сонгож, сонголтуудыг ч холино
+function build(){
+  if(!POOL.length){document.getElementById('sheet').innerHTML='<div class="loading">Энэ хичээлд бодлого алга байна.</div>';return;}
+  var want=parseInt(document.getElementById('count').value)||0;
+  var picked=shuffle(POOL);
+  if(want>0)picked=picked.slice(0,want);
+
+  var probs='',answs='';
+  picked.forEach(function(q,i){
+    var n=i+1;
+    var isChoice=(q.type==='choice')&&q.choices;
+    var h='<div class="q"><div class="qh"><span class="qn">'+n+'.</span><span class="qt">'+esc(q.text)+'</span></div>';
+    if(q.image)h+='<div class="qimg"><img src="'+esc(q.image)+'"></div>';
+    if(isChoice){
+      var ch=q.choices;if(typeof ch==='string'){try{ch=JSON.parse(ch);}catch(e){ch=[];}}
+      ch=shuffle(ch); // сонголтуудыг холих
+      h+='<ul class="ch">';
+      ch.forEach(function(c,ci){h+='<li><b>'+LETT[ci]+'.</b> '+esc(c)+'</li>';});
+      h+='</ul>';
+    }else{
+      h+='<div class="work'+((q.type==='number')?' sm':'')+'"></div>';
+    }
+    h+='</div>';
+    probs+=h;
+    answs+='<div class="a"><span class="an">'+n+'.</span> '+esc(q.correct)+'</div>';
+  });
+
+  document.getElementById('sheet').innerHTML=
+    '<div class="head"><h1>'+esc(NODE_NAME)+'</h1>'
+    +'<div class="sub">Дасгалын хуудас · '+picked.length+' бодлого · CyberMath</div></div>'
+    +'<div class="meta"><span>Нэр: </span><span>Огноо: </span><span>Оноо: </span></div>'
+    +probs
+    +'<div class="ans-page" id="answers"><h2>Хариунууд</h2><div class="ans-grid">'+answs+'</div></div>';
+  toggleAns();
+  renderMath();
+}
+
+(function init(){
+  NODE_ID=parseInt(qs('node'));
+  NODE_NAME=qs('name')||'';
+  if(!NODE_ID){document.getElementById('sheet').innerHTML='<div class="loading">node параметр алга.</div>';return;}
+  var pNodes=NODE_NAME?Promise.resolve():fetch('/api/nodes').then(function(r){return r.json();}).then(function(d){
+    var nn=(d.nodes||[]).filter(function(n){return n.id===NODE_ID;})[0];NODE_NAME=nn?nn.name:('Хичээл '+NODE_ID);
+  }).catch(function(){NODE_NAME='Хичээл '+NODE_ID;});
+  var pQ=fetch('/api/questions?node_id='+NODE_ID+'&exam=all').then(function(r){return r.json();}).then(function(d){POOL=d.questions||[];}).catch(function(){POOL=[];});
+  Promise.all([pNodes,pQ]).then(build);
+})();
+</script>
+</body>
+</html>
