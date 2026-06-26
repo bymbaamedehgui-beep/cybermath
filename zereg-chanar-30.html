@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Зэргийн чанарууд — 30 бодлого</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<style>
+  :root{--purple:#7B52EE;--purple2:#A855F7;--ink:#1a1030;--soft:#7a7390;--green:#16a34a}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:var(--ink);background:#eceaf3;padding:16px;line-height:1.5}
+  .bar{max-width:820px;margin:0 auto 14px;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
+  .btn{font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.6rem 1.3rem;font-size:.9rem;color:#fff;
+    background:linear-gradient(135deg,var(--purple),var(--purple2));box-shadow:0 6px 16px -6px rgba(123,82,238,.6)}
+  .btn:hover{filter:brightness(1.06)}
+  .btn.refresh{background:linear-gradient(135deg,#16a34a,#22c55e)}
+  .bar label{font-weight:700;color:var(--purple);display:flex;align-items:center;gap:6px;font-size:.88rem}
+
+  .sheet{background:#fff;width:210mm;max-width:100%;min-height:297mm;margin:0 auto;padding:14mm;box-shadow:0 12px 44px -18px rgba(0,0,0,.35)}
+  .head{text-align:center;border-bottom:2.5px solid var(--purple);padding-bottom:8px;margin-bottom:6px}
+  .head h1{font-size:20px;color:#5a32d6;font-weight:800}
+  .head .sub{font-size:11.5px;color:var(--soft);margin-top:2px}
+  .meta{display:flex;justify-content:space-between;font-size:12px;margin:9px 2px 12px}
+  .meta span{border-bottom:1px dotted #b3a9cf;padding:0 30px 2px 4px}
+
+  .laws{font-size:10.5px;color:#5a32d6;background:#f6f2ff;border:1px solid #e7dcff;border-radius:8px;padding:8px 10px;margin-bottom:12px;line-height:1.9;text-align:center}
+
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px 18px}
+  .q{break-inside:avoid;page-break-inside:avoid;padding:6px 4px 7px;border-bottom:1px dashed #efeaff}
+  .qline{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+  .qn{font-weight:800;color:var(--purple);min-width:24px}
+  .qm{font-size:15px}
+  .blank{flex:1;min-width:70px;border-bottom:1.4px solid #b9accf;height:1.05em;align-self:flex-end}
+
+  .ans-page{margin-top:9mm;border-top:2px dashed #ddd;padding-top:7mm}
+  .ans-page h2{font-size:15px;color:#5a32d6;margin-bottom:10px}
+  .ans-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px 18px;font-size:12.5px}
+  .ans-grid .a{display:flex;gap:6px;align-items:baseline}
+  .ans-grid .an{color:var(--soft);font-weight:800;min-width:24px}
+  #answers{display:none}
+
+  @media print{
+    body{background:#fff;padding:0}
+    .bar{display:none}
+    .sheet{box-shadow:none;width:auto;min-height:auto;padding:0;margin:0}
+    @page{size:A4;margin:12mm}
+    .ans-page{break-before:page}
+  }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <button class="btn refresh" onclick="build()">↻ Шинэ бодлого</button>
+  <label><input type="checkbox" id="sa" onchange="toggleAns()"> Хариу хавсаргах</label>
+  <button class="btn" onclick="window.print()">🖨 Хэвлэх / PDF</button>
+</div>
+
+<div class="sheet" id="sheet"></div>
+
+<script>
+function rnd(a,b){return a+Math.floor(Math.random()*(b-a+1));}
+function shuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}return a;}
+var BASES=['a','b','x','y','c','k','m','p'];
+function pick(){return BASES[rnd(0,BASES.length-1)];}
+function pick2(){var a=pick(),b=pick();while(b===a)b=pick();return [a,b];}
+function P(b,e){return b+'^{'+e+'}';}                 // асуултын зэрэг (өгсөн)
+function T(b,e){return e===0?'1':e===1?b:b+'^{'+e+'}';} // хялбарчилсан гишүүн
+
+// ── Генераторууд: зэргийн чанар бүр ──
+var GEN=[
+  function(){var b=pick(),m=rnd(2,6),n=rnd(2,6);return{q:P(b,m)+'\\cdot '+P(b,n),a:T(b,m+n)};},                       // a^m·a^n
+  function(){var b=pick(),m=rnd(5,9),n=rnd(2,4);return{q:'\\dfrac{'+P(b,m)+'}{'+P(b,n)+'}',a:T(b,m-n)};},             // a^m/a^n
+  function(){var b=pick(),m=rnd(2,5),n=rnd(2,3);return{q:'\\left('+P(b,m)+'\\right)^{'+n+'}',a:T(b,m*n)};},           // (a^m)^n
+  function(){var p=pick2(),n=rnd(2,4);return{q:'\\left('+p[0]+p[1]+'\\right)^{'+n+'}',a:T(p[0],n)+T(p[1],n)};},       // (ab)^n
+  function(){var p=pick2(),n=rnd(2,4);return{q:'\\left(\\dfrac{'+p[0]+'}{'+p[1]+'}\\right)^{'+n+'}',a:'\\dfrac{'+T(p[0],n)+'}{'+T(p[1],n)+'}'};}, // (a/b)^n
+  function(){var b=pick(),k=rnd(2,9);return{q:'\\left('+k+b+'\\right)^{0}',a:'1'};},                                  // (ka)^0
+  function(){var b=pick(),n=rnd(2,5);return{q:b+'^{-'+n+'}',a:'\\dfrac{1}{'+T(b,n)+'}'};},                            // a^(-n)
+  function(){var base=[2,3][rnd(0,1)],m=rnd(2,4),n=rnd(1,2),s=m+n,v=Math.pow(base,s);return{q:P(base,m)+'\\cdot '+P(base,n),a:base+'^{'+s+'}='+v};}, // 2^m·2^n=тоо
+  function(){var b=pick(),m=rnd(2,4),n=rnd(2,4),k=rnd(2,3);return{q:'\\dfrac{'+P(b,m)+'\\cdot '+P(b,n)+'}{'+P(b,k)+'}',a:T(b,m+n-k)};}, // a^m·a^n/a^k
+  function(){var b=pick(),c=rnd(2,3),m=rnd(2,3),n=rnd(2,3);return{q:'\\left('+c+P(b,m)+'\\right)^{'+n+'}',a:Math.pow(c,n)+T(b,m*n)};}, // (ca^m)^n
+  function(){var p=pick2(),m=rnd(1,4),k=rnd(1,4),n=rnd(1,4),l=rnd(1,4);return{q:P(p[0],m)+P(p[1],k)+'\\cdot '+P(p[0],n)+P(p[1],l),a:T(p[0],m+n)+T(p[1],k+l)};}, // a^m b^k · a^n b^l
+  function(){var p=pick2(),m=rnd(2,3),n=rnd(2,3),q=rnd(2,3);return{q:'\\left('+P(p[0],m)+P(p[1],n)+'\\right)^{'+q+'}',a:T(p[0],m*q)+T(p[1],n*q)};} // (a^m b^n)^p
+];
+
+function toggleAns(){var el=document.getElementById('answers');if(el)el.style.display=document.getElementById('sa').checked?'block':'none';}
+
+function build(){
+  // чанар бүрийг дор хаяж нэг удаа, дараа нь 30 хүртэл дүүргэж холино
+  var order=[];
+  for(var i=0;i<GEN.length;i++)order.push(i);
+  while(order.length<30)order.push(rnd(0,GEN.length-1));
+  shuffle(order);
+
+  var probs='',answs='';
+  order.forEach(function(gi,idx){
+    var item=GEN[gi]();
+    var n=idx+1;
+    probs+='<div class="q"><div class="qline"><span class="qn">'+n+'.</span>'
+      +'<span class="qm">$'+item.q+'=$</span><span class="blank"></span></div></div>';
+    answs+='<div class="a"><span class="an">'+n+'.</span><span>$'+item.q+'='+item.a+'$</span></div>';
+  });
+
+  document.getElementById('sheet').innerHTML=
+    '<div class="head"><h1>Зэргийн чанарууд — хялбарчлах</h1>'
+    +'<div class="sub">Зэргийн чанаруудыг ашиглан илэрхийллийг хялбарчил · 30 бодлого</div></div>'
+    +'<div class="meta"><span>Нэр: </span><span>Огноо: </span><span>Оноо: </span></div>'
+    +'<div class="laws">$a^{m}\\cdot a^{n}=a^{m+n}$ &nbsp;·&nbsp; $\\dfrac{a^{m}}{a^{n}}=a^{m-n}$ &nbsp;·&nbsp; $(a^{m})^{n}=a^{mn}$ &nbsp;·&nbsp; $(ab)^{n}=a^{n}b^{n}$ &nbsp;·&nbsp; $\\left(\\dfrac{a}{b}\\right)^{n}=\\dfrac{a^{n}}{b^{n}}$ &nbsp;·&nbsp; $a^{0}=1$ &nbsp;·&nbsp; $a^{-n}=\\dfrac{1}{a^{n}}$</div>'
+    +'<div class="grid">'+probs+'</div>'
+    +'<div class="ans-page" id="answers"><h2>Хариунууд</h2><div class="ans-grid">'+answs+'</div></div>';
+  toggleAns();
+  try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
+}
+build();
+</script>
+</body>
+</html>
