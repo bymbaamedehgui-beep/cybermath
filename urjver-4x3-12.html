@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>4 × 3 оронтой үржвэр — 12 бодлого</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Roboto+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<style>
+  :root{--ink:#16241c;--soft:#5a7064;--line:#cfe0d6;--forest:#13502e;--rule:#2f4a3b;--box:#9fb6a8;--shade:#eef3f0}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Manrope',system-ui,sans-serif;color:var(--ink);background:#e9f1ec;padding:18px}
+  .bar{max-width:800px;margin:0 auto 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center}
+  .btn{font-family:inherit;font-weight:700;border:0;cursor:pointer;border-radius:999px;padding:.6rem 1.3rem;background:var(--forest);color:#fff;font-size:.92rem}
+  .btn.ghost{background:#fff;color:var(--forest);box-shadow:inset 0 0 0 1.5px var(--line)}
+  .bar label{font-weight:700;color:var(--forest);display:flex;align-items:center;gap:6px;font-size:.9rem}
+  .sheet{background:#fff;width:210mm;min-height:297mm;margin:0 auto;padding:13mm;box-shadow:0 10px 40px -16px rgba(0,0,0,.3)}
+  .head{text-align:center;border-bottom:2.5px solid var(--forest);padding-bottom:7px;margin-bottom:5px}
+  .head h1{font-size:19px;color:var(--forest);font-weight:800}
+  .head .sub{font-size:11.5px;color:var(--soft);margin-top:2px}
+  .meta{display:flex;justify-content:space-between;font-size:12px;margin:8px 2px 12px}
+  .meta span{border-bottom:1px dotted #9bb3a6;padding:0 30px 2px 4px}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);column-gap:8px;row-gap:12px}
+  .q{break-inside:avoid;padding-top:2px}
+  .q .n{font-size:11px;font-weight:700;color:var(--soft);margin-bottom:3px}
+  /* баганан загвар: 7 баганатай нүдэн тор */
+  .col{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;width:172px;margin:0 auto;font-family:'Roboto Mono',monospace;font-weight:700}
+  .cell{height:22px;display:grid;place-items:center;font-size:15px}
+  .cell.given{color:var(--forest)}
+  .cell.op{color:var(--soft);font-size:14px}
+  .cell.box{border:1.4px solid var(--box);border-radius:4px}
+  .cell.shade{border:1.4px dashed #c4d3ca;border-radius:4px;background:var(--shade)}
+  .ln{grid-column:1/-1;border-bottom:2.2px solid var(--rule);height:0;margin:2px 0}
+  .ans-page{margin-top:8mm;border-top:2px dashed var(--line);padding-top:7mm}
+  .ans-page h2{font-size:15px;color:var(--forest);margin-bottom:8px}
+  .ans-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px 10px;font-size:13px}
+  .ans-grid .a .n{color:var(--soft);font-weight:700}
+  #answers{display:none}
+  @media print{body{background:#fff;padding:0}.bar{display:none}.sheet{box-shadow:none;width:auto;min-height:auto;padding:0;margin:0}@page{size:A4;margin:11mm}.ans-page{break-before:page}}
+</style>
+</head>
+<body>
+<div class="bar">
+  <button class="btn" onclick="window.print()">🖨 Хэвлэх / PDF</button>
+  <button class="btn ghost" onclick="gen()">↻ Шинэ бодлого</button>
+  <label><input type="checkbox" id="showAns" onchange="toggleAns()" /> Хариу хавсаргах</label>
+</div>
+<div class="sheet">
+  <div class="head">
+    <h1>Үржвэр — 4 оронтой × 3 оронтой</h1>
+    <div class="sub">Баганан бичлэгээр бод: хоосон нүднүүдэд 3 хэсгийн үржвэр ба хариугаа бич · 12 бодлого</div>
+  </div>
+  <div class="meta"><span>Нэр: </span><span>Огноо: </span><span>Оноо: </span></div>
+  <div class="grid" id="grid"></div>
+  <div class="ans-page" id="answers"><h2>Хариунууд</h2><div class="ans-grid" id="ansGrid"></div></div>
+</div>
+<script>
+let PROBLEMS=[];
+const rnd=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
+function gen(){
+  PROBLEMS=[];
+  for(let i=0;i<12;i++){
+    const a=rnd(1000,9999);
+    let b=rnd(111,999);
+    while(String(b).indexOf('0')>=0)b=rnd(111,999); // 3 хэсэг бүрэн байхын тулд 0 оронгүй
+    PROBLEMS.push({a,b,v:a*b});
+  }
+  render();
+}
+function block(p){
+  const A=String(p.a).split(''); // 4 орон
+  const B=String(p.b).split(''); // 3 орон
+  const g=document.createElement('div');g.className='col';
+  const cell=(cls,txt)=>{const d=document.createElement('div');d.className='cell '+cls;if(txt!=null)d.textContent=txt;return d;};
+  const blank=()=>cell('','');
+  const box=()=>cell('box');
+  const shade=()=>cell('shade');
+  const line=()=>{const l=document.createElement('div');l.className='ln';return l;};
+  // дээд үржигдэхүүн (4 орон): _ _ _ A A A A
+  g.append(blank(),blank(),blank(),cell('given',A[0]),cell('given',A[1]),cell('given',A[2]),cell('given',A[3]));
+  // × үржигч (3 орон): _ _ × _ B B B
+  g.append(blank(),blank(),cell('op','×'),blank(),cell('given',B[0]),cell('given',B[1]),cell('given',B[2]));
+  g.append(line());
+  // 1-р хэсэг (нэгжээр): _ _ □ □ □ □ □
+  g.append(blank(),blank(),box(),box(),box(),box(),box());
+  // 2-р хэсэг (аравтаар, 1 зүүн): _ □ □ □ □ □ ▒
+  g.append(blank(),box(),box(),box(),box(),box(),shade());
+  // 3-р хэсэг (зуутаар, 2 зүүн): □ □ □ □ □ ▒ ▒
+  g.append(box(),box(),box(),box(),box(),shade(),shade());
+  g.append(line());
+  // хариу: □×7
+  for(let k=0;k<7;k++)g.append(box());
+  return g;
+}
+function render(){
+  const grid=document.getElementById('grid');grid.innerHTML='';
+  PROBLEMS.forEach((p,i)=>{
+    const q=document.createElement('div');q.className='q';
+    const n=document.createElement('div');n.className='n';n.textContent=(i+1)+'.';
+    q.append(n,block(p));grid.append(q);
+  });
+  document.getElementById('ansGrid').innerHTML=PROBLEMS.map((p,i)=>
+    `<div class="a"><span class="n">${i+1}.</span> ${p.a} × ${p.b} = <b>${p.v}</b></div>`
+  ).join('');
+  window.WS_ITEMS=PROBLEMS.map(p=>({q:p.a+' \\times '+p.b+' =',a:''+p.v}));
+  window.WS_TITLE='Үржвэр 4 оронтой × 3 оронтой';
+}
+function toggleAns(){document.getElementById('answers').style.display=document.getElementById('showAns').checked?'block':'none';}
+gen();
+</script>
+<script src="/ws-store.js"></script>
+</body>
+</html>
