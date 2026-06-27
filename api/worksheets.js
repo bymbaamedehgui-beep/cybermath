@@ -13,8 +13,10 @@ module.exports = async (req, res) => {
         id BIGSERIAL PRIMARY KEY,
         title TEXT NOT NULL,
         items JSONB NOT NULL DEFAULT '[]',
+        note TEXT,
         created_at TIMESTAMPTZ DEFAULT NOW()
       )`);
+    await pool.query(`ALTER TABLE ws_sets ADD COLUMN IF NOT EXISTS note TEXT`).catch(()=>{});
 
     // GET — жагсаалт эсвэл нэг багц
     if (req.method === 'GET') {
@@ -25,7 +27,7 @@ module.exports = async (req, res) => {
         return res.json({ ok: true, set: r.rows[0] || null });
       }
       const r = await pool.query(
-        `SELECT id, title, created_at, jsonb_array_length(items) AS count
+        `SELECT id, title, note, created_at, jsonb_array_length(items) AS count
          FROM ws_sets ORDER BY id DESC LIMIT 200`);
       return res.json({ ok: true, sets: r.rows });
     }
@@ -34,11 +36,12 @@ module.exports = async (req, res) => {
       const b = req.body || {};
       if (b.action === 'save') {
         const title = String(b.title || 'Дасгал').slice(0, 160);
+        const note = b.note ? String(b.note).slice(0, 500) : null;
         const items = Array.isArray(b.items) ? b.items.slice(0, 200) : [];
         if (!items.length) return res.status(400).json({ ok: false, error: 'Бодлого алга' });
         const r = await pool.query(
-          'INSERT INTO ws_sets (title, items) VALUES ($1,$2) RETURNING id, created_at',
-          [title, JSON.stringify(items)]
+          'INSERT INTO ws_sets (title, items, note) VALUES ($1,$2,$3) RETURNING id, created_at',
+          [title, JSON.stringify(items), note]
         );
         return res.json({ ok: true, code: r.rows[0].id });
       }

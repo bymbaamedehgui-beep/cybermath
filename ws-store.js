@@ -24,9 +24,12 @@
     if(!items.length){alert('Хадгалах бодлого алга. Эхлээд "Шинэ бодлого" дарна уу.');return;}
     var h1=document.querySelector('#sheet .head h1, .head h1');
     var title=window.WS_TITLE||(h1&&h1.textContent)||document.title||'Дасгал';
+    // Тэмдэглэл бичих (хүсвэл) — Cancel дарвал хадгалахгүй
+    var note=window.prompt('Тэмдэглэл бичнэ үү (жнь: 9А анги, гэрийн даалгавар):', '');
+    if(note===null)return;
     if(btn){btn.disabled=true;var ot=btn.textContent;btn.textContent='⏳ Хадгалж байна...';}
     fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({action:'save',title:title,items:items})})
+      body:JSON.stringify({action:'save',title:title,items:items,note:note})})
       .then(function(r){return r.json();})
       .then(function(d){
         if(d&&d.ok){alert('💾 Хадгаллаа!  Код: #'+d.code+'\n\nАдмин → "Дасгалын төв" → Хадгалсан хэсгээс хариуг нь шалгана.');}
