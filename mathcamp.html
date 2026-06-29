@@ -395,8 +395,8 @@ function matchSearch(s){
   if(!SEARCH)return true;
   return ((s.first_name||'')+' '+(s.last_name||'')+' '+(s.klass||'')).toLowerCase().includes(SEARCH);
 }
-// Идэвхтэй групп + хайлтаар шүүсэн сурагчид
-function vis(){return STUDENTS.filter(s=>(!GROUP_FILTER||String(s.grp||'')===GROUP_FILTER)&&matchSearch(s));}
+// Идэвхтэй групп + хайлтаар шүүсэн сурагчид (дууссан сурагчдыг хасна)
+function vis(){return STUDENTS.filter(s=>!s.done&&(!GROUP_FILTER||String(s.grp||'')===GROUP_FILTER)&&matchSearch(s));}
 function rerenderAll(){
   renderAtt();renderSummary();renderTpStudents();loadStudents();if(CUR_EXAM)renderScores();else renderNoExam();
   if(document.getElementById('tab-stats').style.display!=='none')renderStats();
@@ -654,17 +654,29 @@ async function delTopic(id){
 function loadStudents(){
   document.getElementById('stCount').textContent=STUDENTS.length;
   const g1=STUDENTS.filter(s=>s.grp===1).length, g2=STUDENTS.filter(s=>s.grp===2).length;
-  document.getElementById('grpCount').textContent=`· 1-р групп: ${g1} · 2-р групп: ${g2} · хуваарилаагүй: ${STUDENTS.length-g1-g2}`;
+  const doneN=STUDENTS.filter(s=>s.done).length;
+  document.getElementById('grpCount').textContent=`· 1-р групп: ${g1} · 2-р групп: ${g2} · хуваарилаагүй: ${STUDENTS.length-g1-g2}`+(doneN?` · дууссан: ${doneN}`:'');
   const rows=STUDENTS.filter(matchSearch);
   document.getElementById('stRows').innerHTML=rows.map((s,i)=>{
     const LBL={'':'—',1:'1-р групп',2:'2-р групп'};
     const opt=v=>`<option value="${v}" ${String(s.grp||'')===String(v)?'selected':''}>${LBL[v]}</option>`;
-    return `<tr><td>${i+1}</td><td>${esc(s.last_name||'')}</td><td><span class="name-link" onclick="openCard(${s.id})">${esc(s.first_name)}</span></td>
+    const doneBtn=s.done
+      ? `<button class="btn ghost sm" onclick="setStudentDone(${s.id},false)" title="Идэвхтэй болгох">↩</button>`
+      : `<button class="btn ghost sm" onclick="setStudentDone(${s.id},true)" title="Дууссан гэж тэмдэглэх">✓ Дууссан</button>`;
+    const nameCell=s.done
+      ? `<span class="name-link" onclick="openCard(${s.id})">${esc(s.first_name)}</span> <span class="pill" style="background:#eceff1;color:#51606b">дууссан</span>`
+      : `<span class="name-link" onclick="openCard(${s.id})">${esc(s.first_name)}</span>`;
+    return `<tr style="${s.done?'opacity:.6':''}"><td>${i+1}</td><td>${esc(s.last_name||'')}</td><td>${nameCell}</td>
     <td>${s.age||''}</td><td><span class="pill g-${esc(s.gender)}">${esc(s.gender||'')}</span></td>
     <td><input value="${esc(s.klass||'')}" onchange="setStudentClass(${s.id},this.value)" placeholder="анги" style="width:100px;padding:.3rem"/></td>
     <td><select onchange="setStudentGroup(${s.id},this.value)" style="padding:.3rem;width:auto">${opt('')}${opt(1)}${opt(2)}</select></td>
-    <td><button class="btn danger sm" onclick="delStudent(${s.id})">${ICON.trash}</button></td></tr>`;
+    <td><div style="display:flex;gap:5px">${doneBtn}<button class="btn danger sm" onclick="delStudent(${s.id})">${ICON.trash}</button></div></td></tr>`;
   }).join('');
+}
+async function setStudentDone(id,done){
+  const j=await api({action:'setDone',id,done});
+  if(j.ok){const s=STUDENTS.find(x=>String(x.id)===String(id));if(s)s.done=done;rerenderAll();}
+  else alert('Алдаа');
 }
 async function setStudentClass(id,klass){
   const j=await api({action:'setClass',id,klass});

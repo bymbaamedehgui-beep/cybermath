@@ -53,6 +53,7 @@ async function ensure() {
   // Групп (зуслангийн 1/2 хуваалт) ба Анги (сурагчийн жинхэнэ анги) баганууд
   await pool.query(`ALTER TABLE mc_students ADD COLUMN IF NOT EXISTS grp INT`).catch(()=>{});
   await pool.query(`ALTER TABLE mc_students ADD COLUMN IF NOT EXISTS klass TEXT`).catch(()=>{});
+  await pool.query(`ALTER TABLE mc_students ADD COLUMN IF NOT EXISTS done BOOLEAN DEFAULT false`).catch(()=>{});
   await pool.query(`
     CREATE TABLE IF NOT EXISTS mc_attendance (
       id BIGSERIAL PRIMARY KEY,
@@ -150,6 +151,11 @@ module.exports = async (req, res) => {
       const grp = (b.grp === 1 || b.grp === 2) ? b.grp : null;
       if (!id) return res.status(400).json({ ok: false });
       await pool.query('UPDATE mc_students SET grp=$2 WHERE id=$1', [id, grp]);
+      return res.json({ ok: true });
+    }
+    if (action === 'setDone') {
+      if (!b.id) return res.status(400).json({ ok: false });
+      await pool.query('UPDATE mc_students SET done=$2 WHERE id=$1', [b.id, !!b.done]);
       return res.json({ ok: true });
     }
 
