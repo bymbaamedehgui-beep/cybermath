@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Систем — урвуу матрицын арга (11-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<style>
+  :root{--purple:#7B52EE;--purple2:#A855F7;--ink:#1a1030;--soft:#7a7390;--amber:#9a6300;--green:#16a34a}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:var(--ink);background:#eceaf3;padding:16px;line-height:1.5}
+  .bar{max-width:820px;margin:0 auto 14px;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
+  .btn{font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.6rem 1.3rem;font-size:.9rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2));box-shadow:0 6px 16px -6px rgba(123,82,238,.6)}
+  .btn:hover{filter:brightness(1.06)} .btn.refresh{background:linear-gradient(135deg,#16a34a,#22c55e)}
+  .bar label{font-weight:700;color:var(--purple);display:flex;align-items:center;gap:6px;font-size:.88rem}
+  .sheet{background:#fff;width:210mm;max-width:100%;min-height:297mm;margin:0 auto;padding:14mm;box-shadow:0 12px 44px -18px rgba(0,0,0,.35)}
+  .head{text-align:center;border-bottom:2.5px solid var(--purple);padding-bottom:8px;margin-bottom:8px}
+  .head h1{font-size:20px;color:#5a32d6;font-weight:800}.head .sub{font-size:11.5px;color:var(--soft);margin-top:2px}
+  .meta{display:flex;justify-content:space-between;font-size:12px;margin:8px 2px 12px}.meta span{border-bottom:1px dotted #b3a9cf;padding:0 30px 2px 4px}
+  .rule{font-size:12px;color:var(--amber);background:#fff7e6;border:1px solid #f3dca6;border-radius:8px;padding:9px 13px;margin-bottom:14px}
+  .rule b{color:#7a4f00}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px 22px}
+  .q{break-inside:avoid;page-break-inside:avoid;padding:5px 4px 7px;border-bottom:1px dashed #efeaff}
+  .qeq{display:flex;gap:6px;align-items:flex-start}.qn{font-weight:800;color:var(--purple);min-width:24px}.qm{font-size:14.5px}
+  .bl{display:block;min-width:110px;border-bottom:1.4px solid #b9accf;height:1.05em;margin-top:14px}
+  .ans-page{margin-top:9mm;border-top:2px dashed #ddd;padding-top:7mm}.ans-page h2{font-size:15px;color:#5a32d6;margin-bottom:10px}
+  .sol{break-inside:avoid;page-break-inside:avoid;padding:8px 10px;margin-bottom:8px;border:1px solid #eee;border-left:3px solid var(--purple);border-radius:8px;font-size:12.5px}
+  .sol .sn{font-weight:800;color:var(--purple);margin-right:5px}
+  .sol .st{margin:5px 0 2px;color:#2a2340}
+  .sol .fin{color:var(--green);font-weight:800}
+  #answers{display:none}
+  @media print{body{background:#fff;padding:0}.bar{display:none}.sheet{box-shadow:none;width:auto;min-height:auto;padding:0;margin:0}@page{size:A4;margin:12mm}.ans-page{break-before:page}}
+</style>
+</head>
+<body>
+<div class="bar">
+  <button class="btn refresh" onclick="build()">↻ Шинэ бодлого</button>
+  <label><input type="checkbox" id="sa" onchange="toggleAns()"> Бодолт хавсаргах</label>
+  <button class="btn" onclick="window.print()">🖨 Хэвлэх / PDF</button>
+</div>
+<div class="sheet" id="sheet"></div>
+<script>
+function rnd(a,b){return a+Math.floor(Math.random()*(b-a+1));}
+function toggleAns(){var el=document.getElementById('answers');if(el)el.style.display=document.getElementById('sa').checked?'block':'none';}
+function termList(terms){var s='',first=true;for(var i=0;i<terms.length;i++){var co=terms[i][0],sym=terms[i][1];if(co===0)continue;var sign=co<0?'-':'+',a=Math.abs(co),body=(sym==='')?(''+a):((a===1?'':a)+sym);if(first){s+=(co<0?'-':'')+body;first=false;}else{s+=' '+sign+' '+body;}}return s===''?'0':s;}
+function mat2(a,b,c,d){return '\\begin{pmatrix}'+a+' & '+b+' \\\\ '+c+' & '+d+'\\end{pmatrix}';}
+function col2(p,q){return '\\begin{pmatrix}'+p+' \\\\ '+q+'\\end{pmatrix}';}
+
+function makeSys(){
+  var a,b,c,d,det,x0,y0,B1,B2,t=0;
+  while(true){
+    a=rnd(-3,3);b=rnd(-3,3);c=rnd(-3,3);d=rnd(-3,3);det=a*d-b*c;
+    if(Math.abs(det)<1||Math.abs(det)>6){if(++t>500)break;continue;}
+    x0=rnd(-4,4);y0=rnd(-4,4); if(x0===0&&y0===0)continue;
+    B1=a*x0+b*y0;B2=c*x0+d*y0; if(Math.abs(B1)>30||Math.abs(B2)>30)continue;
+    if(a===0&&c===0)continue; // x багана бүхэлдээ 0 болохоос сэргийл
+    break;
+  }
+  var eq1=termList([[a,'x'],[b,'y']])+' = '+B1;
+  var eq2=termList([[c,'x'],[d,'y']])+' = '+B2;
+  var q='\\begin{cases}'+eq1+' \\\\ '+eq2+'\\end{cases}';
+  // бодолт
+  var num1=d+'\\cdot('+B1+')-('+b+')\\cdot('+B2+')';
+  var num2='-('+c+')\\cdot('+B1+')+('+a+')\\cdot('+B2+')';
+  var sol='Матриц хэлбэрт бичвэл $A X = B$, $A='+mat2(a,b,c,d)+',\\ B='+col2(B1,B2)+'$.'
+    +'<div class="st">$\\det A = ('+a+')('+d+')-('+b+')('+c+') = '+det+'\\ (\\ne 0)$.</div>'
+    +'<div class="st">$A^{-1}=\\dfrac{1}{'+det+'}'+mat2(d,-b,-c,a)+'$.</div>'
+    +'<div class="st">$X=A^{-1}B=\\dfrac{1}{'+det+'}'+col2(num1,num2)+'=\\dfrac{1}{'+det+'}'+col2(det*x0,det*y0)+'='+col2(x0,y0)+'$.</div>';
+  return {q:q, ans:'x = '+x0+',\\ y = '+y0, sol:sol};
+}
+
+function build(){
+  var probs='',sols='',WS=[];
+  for(var i=0;i<12;i++){
+    var p=makeSys(),n=i+1;
+    probs+='<div class="q"><div class="qeq"><span class="qn">'+n+'.</span><span class="qm">$'+p.q+'$</span></div><div class="bl"></div></div>';
+    sols+='<div class="sol"><span class="sn">'+n+'.</span><span>$'+p.q+'$</span>'
+      +'<div class="st">'+p.sol+'</div><div class="fin">Хариу: $'+p.ans+'$</div></div>';
+    WS.push({q:p.q,a:p.ans});
+  }
+  document.getElementById('sheet').innerHTML=
+    '<div class="head"><h1>Систем — урвуу матрицын арга</h1><div class="sub">11-р анги · $AX=B \\Rightarrow X=A^{-1}B$ · 12 бодлого</div></div>'
+    +'<div class="meta"><span>Нэр: </span><span>Огноо: </span><span>Оноо: </span></div>'
+    +'<div class="rule"><b>Арга:</b> системийг $A X = B$ матриц хэлбэрт бичнэ. $2\\times2$ матрицын урвуу нь '
+    +'$A^{-1}=\\dfrac{1}{\\det A}\\begin{pmatrix}d & -b \\\\ -c & a\\end{pmatrix}$, эндээс $X=A^{-1}B$. '
+    +'$\\det A \\ne 0$ байвал ганц шийдтэй.</div>'
+    +'<div class="grid">'+probs+'</div>'
+    +'<div class="ans-page" id="answers"><h2>Бодолт ба хариу</h2>'+sols+'</div>';
+  toggleAns();
+  window.WS_ITEMS=WS; window.WS_TITLE='Систем — урвуу матрицын арга (11-р анги)';
+  try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
+}
+build();
+</script>
+<script src="/ws-store.js"></script>
+</body>
+</html>
