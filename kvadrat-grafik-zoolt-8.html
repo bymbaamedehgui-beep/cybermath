@@ -45,6 +45,7 @@
 <script>
 function rnd(a,b){return a+Math.floor(Math.random()*(b-a+1));}
 function nz(a,b){var v;do{v=rnd(a,b);}while(v===0);return v;}
+function pick(arr){return arr[rnd(0,arr.length-1)];}
 function toggleAns(){var el=document.getElementById('answers');if(el)el.style.display=document.getElementById('sa').checked?'block':'none';}
 function sgn(v,sym){ // "+ 3", "- 3x" хэлбэрийн нэмэлт гишүүн
   if(v===0)return '';
@@ -53,7 +54,7 @@ function sgn(v,sym){ // "+ 3", "- 3x" хэлбэрийн нэмэлт гишүү
 }
 
 /* ---------- координатын тор (SVG) ---------- */
-function svgGraph(h,k,draw){
+function svgGraph(a,h,k,draw){
   var xmin=-6,xmax=6,ymin=-4,ymax=9,UN=11;
   var W=(xmax-xmin)*UN,H=(ymax-ymin)*UN;
   function PX(x){return ((x-xmin)*UN).toFixed(1);}
@@ -68,7 +69,7 @@ function svgGraph(h,k,draw){
   s+='<text x="'+(+PX(0)+3)+'" y="9" font-size="7" fill="#6b5fb0">y</text>';
   if(draw){
     var pts='';
-    for(var x=xmin;x<=xmax+0.001;x+=0.2){var y=(x-h)*(x-h)+k;if(y<ymin-0.4||y>ymax+0.4)continue;pts+=PX(x)+','+PY(y)+' ';}
+    for(var x=xmin;x<=xmax+0.001;x+=0.1){var y=a*(x-h)*(x-h)+k;if(y<ymin-0.4||y>ymax+0.4)continue;pts+=PX(x)+','+PY(y)+' ';}
     s+='<polyline points="'+pts+'" fill="none" stroke="#7B52EE" stroke-width="2"/>';
     s+='<circle cx="'+PX(h)+'" cy="'+PY(k)+'" r="2.4" fill="#e11d48"/>';
     s+='<text x="'+(+PX(h)+4)+'" y="'+(+PY(k)+(k<=0?-4:11))+'" font-size="6.5" fill="#e11d48">('+h+','+k+')</text>';
@@ -83,26 +84,34 @@ function dirText(h,k){
   return t.join(', ');
 }
 
+/* ---------- тэргүүлэх коэффициент a ---------- */
+var A_SET=[[1,1],[-1,1],[2,1],[-2,1],[1,2],[-1,2],[3,1],[-3,1],[1,3],[-1,3]];
+var A_CS =[[1,1],[-1,1],[2,1],[-2,1],[1,2],[-1,2]];
+function aTexMul(a){var n=a[0],d=a[1];if(d===1){if(n===1)return '';if(n===-1)return '-';return ''+n;}return (n<0?'-':'')+'\\frac{'+Math.abs(n)+'}{'+d+'}';}
+function aTex(a){var n=a[0],d=a[1];if(d===1)return ''+n;return (n<0?'-':'')+'\\frac{'+Math.abs(n)+'}{'+d+'}';}
+function aVal(a){return a[0]/a[1];}
+function aEffect(a){var v=aVal(a);var dir=v<0?'доош нээлттэй (толилуулсан)':'дээш нээлттэй';var w=Math.abs(v)>1?'нарийссан':(Math.abs(v)<1?'өргөссөн':'$y=x^2$-тэй ижил өргөн');return dir+', '+w;}
+
 /* ---------- 4 төрөл ---------- */
-function tVert(){var k=nz(-3,4);
-  return {func:'y = x^2'+sgn(k,''), h:0, k:k,
-    sol:'Суурь $y=x^2$-ийг '+dirText(0,k)+' зөөв. Орой $(0,'+k+')$.'};}
-function tHoriz(){var h=nz(-3,3);
-  return {func:'y = (x'+sgn(-h,'')+')^2', h:h, k:0,
-    sol:'Суурь $y=x^2$-ийг '+dirText(h,0)+' зөөв. Орой $('+h+',0)$.'};}
-function tBoth(){var h=nz(-2,2),k=nz(-2,3);
-  return {func:'y = (x'+sgn(-h,'')+')^2'+sgn(k,''), h:h, k:k,
-    sol:'Суурь $y=x^2$-ийг '+dirText(h,k)+' зөөв. Орой $('+h+','+k+')$.'};}
-function tComplete(){var h=nz(-2,2),k=rnd(-2,2),b=-2*h,c=k+h*h;
-  return {func:'y = x^2'+sgn(b,'x')+sgn(c,''), h:h, k:k,
-    sol:'Бүтэн квадрат ялгавал $x^2'+sgn(b,'x')+sgn(c,'')+'=(x'+sgn(-h,'')+')^2'+sgn(k,'')+'$. '
-        +'Орой $('+h+','+k+')$, суурь параболыг '+dirText(h,k)+' зөөв.'};}
+function tVert(){var a=pick(A_SET),k=nz(-3,4);
+  return {a:a,av:aVal(a),func:'y = '+aTexMul(a)+'x^2'+sgn(k,''), h:0, k:k,
+    sol:'$y=x^2$ суурь. $a='+aTex(a)+'$ тул '+aEffect(a)+'. Дараа нь '+dirText(0,k)+' зөөв. Орой $(0,'+k+')$.'};}
+function tHoriz(){var a=pick(A_SET),h=nz(-3,3);
+  return {a:a,av:aVal(a),func:'y = '+aTexMul(a)+'(x'+sgn(-h,'')+')^2', h:h, k:0,
+    sol:'$a='+aTex(a)+'$ тул '+aEffect(a)+'. '+dirText(h,0)+' зөөв. Орой $('+h+',0)$.'};}
+function tBoth(){var a=pick(A_SET),h=nz(-2,2),k=nz(-2,3);
+  return {a:a,av:aVal(a),func:'y = '+aTexMul(a)+'(x'+sgn(-h,'')+')^2'+sgn(k,''), h:h, k:k,
+    sol:'$a='+aTex(a)+'$ тул '+aEffect(a)+'. '+dirText(h,k)+' зөөв. Орой $('+h+','+k+')$.'};}
+function tComplete(){var a=pick(A_CS),n=a[0],d=a[1],m=nz(-1,1),h=d*m,k=rnd(-2,2),b=-2*n*m,c=n*d+k;
+  return {a:a,av:aVal(a),func:'y = '+aTexMul(a)+'x^2'+sgn(b,'x')+sgn(c,''), h:h, k:k,
+    sol:'Бүтэн квадрат ялгавал $'+aTexMul(a)+'x^2'+sgn(b,'x')+sgn(c,'')+'='+aTexMul(a)+'(x'+sgn(-h,'')+')^2'+sgn(k,'')+'$. '
+        +'Орой $('+h+','+k+')$, '+aEffect(a)+', '+dirText(h,k)+' зөөв.'};}
 
 var TYPES=[
-  {name:'Дээш · доош зөөх', note:'$y=x^2+k$: $k>0$ бол дээш, $k<0$ бол доош k нэгж. Орой $(0,k)$.', gen:tVert},
-  {name:'Баруун · зүүн зөөх', note:'$y=(x-h)^2$: $h>0$ бол баруун, $h<0$ бол зүүн h нэгж. Орой $(h,0)$.', gen:tHoriz},
-  {name:'Бүх тийш зөөх', note:'$y=(x-h)^2+k$: хэвтээгээр h, босоогоор k зөөв. Орой $(h,k)$.', gen:tBoth},
-  {name:'Бүтэн квадрат ялгаж байгуулах', note:'$y=x^2+bx+c$-г $(x-h)^2+k$ болгож хувиргаад зөөв. Орой $(h,k)$.', gen:tComplete},
+  {name:'Дээш · доош зөөх', note:'$y=ax^2+k$: $k>0$ дээш, $k<0$ доош. $a$ нээлт/өргөнийг өөрчилнө. Орой $(0,k)$.', gen:tVert},
+  {name:'Баруун · зүүн зөөх', note:'$y=a(x-h)^2$: $h>0$ баруун, $h<0$ зүүн. Орой $(h,0)$.', gen:tHoriz},
+  {name:'Бүх тийш зөөх', note:'$y=a(x-h)^2+k$: хэвтээгээр h, босоогоор k зөөв. Орой $(h,k)$.', gen:tBoth},
+  {name:'Бүтэн квадрат ялгаж байгуулах', note:'$y=ax^2+bx+c$-г $a(x-h)^2+k$ болгож хувиргаад зөөв. Орой $(h,k)$.', gen:tComplete},
 ];
 
 function build(){
@@ -111,20 +120,21 @@ function build(){
     var T=TYPES[t], qs='';
     for(var j=0;j<2;j++){
       n++; var p=T.gen();
-      qs+='<div class="q"><div class="qh"><span class="qn">'+n+'.</span><span class="qm">$'+p.func+'$</span></div>'+svgGraph(p.h,p.k,false)+'</div>';
+      qs+='<div class="q"><div class="qh"><span class="qn">'+n+'.</span><span class="qm">$'+p.func+'$</span></div>'+svgGraph(p.av,p.h,p.k,false)+'</div>';
       sols+='<div class="sol"><div style="flex:1"><div><span class="sn">'+n+'.</span> $'+p.func+'$</div>'
         +'<div style="margin:3px 0">'+p.sol+'</div><div class="fin">Орой: ('+p.h+', '+p.k+')</div></div>'
-        +'<div style="width:120px;flex-shrink:0">'+svgGraph(p.h,p.k,true)+'</div></div>';
+        +'<div style="width:120px;flex-shrink:0">'+svgGraph(p.av,p.h,p.k,true)+'</div></div>';
       WS.push({q:'\\text{График байгуул: }'+p.func,a:'\\text{орой }('+p.h+','+p.k+')'});
     }
     groups+='<div class="grp"><div class="gh"><span class="tag">'+(t+1)+'</span>'+T.name+'</div>'
       +'<div class="rule" style="margin-bottom:6px">'+T.note+'</div><div class="grid">'+qs+'</div></div>';
   }
   document.getElementById('sheet').innerHTML=
-    '<div class="head"><h1>Квадрат график — зөөлтийн аргаар байгуулах</h1><div class="sub">10-р анги · $y=x^2$ параболыг зөөж байгуул · 4 төрөл · 8 бодлого</div></div>'
+    '<div class="head"><h1>Квадрат график — зөөлтийн аргаар байгуулах</h1><div class="sub">10-р анги · $y=a(x-h)^2+k$ параболыг зөөж байгуул · $a=\\pm1,\\pm2,\\tfrac12,\\dots$ · 4 төрөл · 8 бодлого</div></div>'
     +'<div class="meta"><span>Нэр: </span><span>Огноо: </span><span>Оноо: </span></div>'
-    +'<div class="rule"><b>Арга:</b> $y=x^2$ суурь параболыг зөөнө. $y=(x-h)^2+k$ хэлбэрийн орой нь $(h,k)$: '
-    +'$h$ — хэвтээ (баруун+/зүүн−), $k$ — босоо (дээш+/доош−) зөөлт. Оройг тавьж, хажуугийн цэгүүдийг ($\\pm1{:}+1,\\ \\pm2{:}+4$) буулгаж байгуул.</div>'
+    +'<div class="rule"><b>Арга:</b> $y=a(x-h)^2+k$ хэлбэрийн орой нь $(h,k)$: $h$ — хэвтээ (баруун+/зүүн−), $k$ — босоо (дээш+/доош−) зөөлт. '
+    +'<b>$a$</b> нь нээлт ба өргөнийг тодорхойлно: $a>0$ дээш, $a<0$ доош нээлттэй; $|a|>1$ нарийн, $|a|<1$ өргөн. '
+    +'Оройгоос хажуу тийш $\\pm1$ алхахад $a$, $\\pm2$ алхахад $4a$ өндөр өөрчлөгдөнө.</div>'
     +groups
     +'<div class="ans-page" id="answers"><h2>Бодолт ба байгуулсан график</h2>'+sols+'</div>';
   toggleAns();
