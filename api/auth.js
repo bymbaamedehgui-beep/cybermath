@@ -1,5 +1,7 @@
 const pool = require('./_db');
 const { sendVerifyEmail } = require('./_email');
+const { sendVerifySMS, isValidMongolianPhone, normalizePhone } = require('./_sms');
+const { validateEmail } = require('./_email_validate');
 const { ensureExpiryCheck } = require('./_premium');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -24,6 +26,43 @@ async function sendTelegramNotification(message) {
   } catch (e) {
     console.log('Telegram error (non-fatal):', e.message);
   }
+}
+
+// ═══ Админ урилгын хүснэгт (шаардлагатай бол автомат үүсгэнэ) ═══
+let _inviteTableReady = false;
+async function ensureInviteTable() {
+  if (_inviteTableReady) return;
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS admin_invites (
+      token VARCHAR(64) PRIMARY KEY,
+      created_by VARCHAR(255),
+      grade VARCHAR(20),
+      school VARCHAR(255),
+      max_uses INT DEFAULT 1,
+      uses INT DEFAULT 0,
+      expires_at TIMESTAMPTZ,
+      note VARCHAR(255),
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `).catch(()=>{});
+  _inviteTableReady = true;
+}
+
+function requireAdminAuth(req) {
+  const auth = req.headers.authorization || req.headers.Authorization || '';
+  if (!auth.startsWith('Bearer ')) return null;
+  try {
+    const decoded = jwt.verify(auth.slice(7), JWT_SECRET);
+    if (decoded && decoded.admin) return decoded;
+    return null;
+  } catch (e) { return null; }
+}
+
+function randomToken(len) {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 0, O, I, 1 хассан
+  let out = '';
+  for (let i = 0; i < (len || 12); i++) out += chars[Math.floor(Math.random() * chars.length)];
+  return out;
 }
 
 function userPayload(u, token) {
@@ -89,8 +128,43 @@ module.exports = async (req, res) => {
     }
 
     if (action === 'register') {
-      const { aimag, sum, school, phone, role } = req.body || {};
+      const { aimag, sum, school, phone, role, inviteToken } = req.body || {};
+
+      // Админ урилгын token — байвал шалгаж verify алгасана
+      let inviteRow = null;
+      if (inviteToken) {
+        await ensureInviteTable();
+        const ir = await pool.query(
+          `SELECT * FROM admin_invites WHERE token=$1 AND (expires_at IS NULL OR expires_at > NOW()) AND uses < max_uses`,
+          [inviteToken]
+        );
+        if (!ir.rows.length) {
+          return res.status(400).json({ ok: false, error: 'Урилгын token хүчингүй эсвэл ашиглалт хэтэрсэн байна' });
+        }
+        inviteRow = ir.rows[0];
+      }
+
+      // Бодит и-мэйл шалгалт — код илгээхгүйгээр DNS + disposable list шалгах
+      const emailCheck = await validateEmail(email);
+      if (!emailCheck.ok) {
+        return res.status(400).json({ ok: false, error: emailCheck.error, code: emailCheck.code });
+      }
+
+      // Утас — Invite-тэй сурагчид сонголтоор, бусад тохиолдолд заавал
+      let normalizedPhone = null;
+      if (phone) {
+        if (!isValidMongolianPhone(phone)) {
+          return res.status(400).json({ ok: false, error: 'Утасны дугаар буруу байна (жишээ: 99112233)' });
+        }
+        normalizedPhone = normalizePhone(phone);
+      } else if (!inviteRow) {
+        return res.status(400).json({ ok: false, error: 'Утасны дугаараа оруулна уу' });
+      }
+
+      // Хугацаа дууссан баталгаажаагүй бүртгэлүүдийг цэвэрлэх
       await pool.query(`DELETE FROM users WHERE verified=false AND verify_expiry < NOW()`).catch(() => {});
+
+      // И-мэйл давхацсан эсэх
       const exists = await pool.query('SELECT id, verified FROM users WHERE LOWER(email)=LOWER($1)', [email]);
       if (exists.rows.length) {
         if (exists.rows[0].verified === false) {
@@ -99,6 +173,15 @@ module.exports = async (req, res) => {
           return res.status(400).json({ ok: false, error: 'И-мэйл бүртгэлтэй байна' });
         }
       }
+
+      // Утас давхацсан эсэх (зөвхөн утас өгсөн бол)
+      if (normalizedPhone) {
+        const phoneExists = await pool.query('SELECT id FROM users WHERE phone=$1 AND verified=true', [normalizedPhone]);
+        if (phoneExists.rows.length) {
+          return res.status(400).json({ ok: false, error: 'Энэ утасны дугаар бүртгэлтэй байна' });
+        }
+      }
+
       if (!grade && role !== 'teacher') return res.status(400).json({ ok: false, error: 'Ангиа сонгоно уу' });
       if (!pass || pass.length < 6) return res.status(400).json({ ok: false, error: 'Нууц үг 6+ тэмдэгт байх ёстой' });
 
@@ -109,12 +192,40 @@ module.exports = async (req, res) => {
       // Багш бол grade-ийг 'teacher' болгох
       const finalGrade = (role === 'teacher') ? 'teacher' : grade;
 
+      // Invite-тэй сурагч → verified=true шууд
+      const isInvited = !!inviteRow;
+      const finalGradeUsed = (isInvited && inviteRow.grade && role !== 'teacher') ? inviteRow.grade : finalGrade;
+      const finalSchoolUsed = (isInvited && inviteRow.school && !school) ? inviteRow.school : (school || null);
+
       await pool.query(
-        'INSERT INTO users (email,pass,first_name,last_name,grade,plan,xp,gems,hearts,streak,avatar,verified,verify_code,verify_expiry,aimag,sum,school,phone,role) VALUES (LOWER($1),$2,$3,$4,$5,$6,0,340,5,0,$7,false,$8,$9,$10,$11,$12,$13,$14)',
-        [email, hashedPass, firstName, lastName, finalGrade, plan || 'free', 'default', verifyCode, codeExpiry, aimag||null, sum||null, school||null, phone||null, role || 'student']
+        'INSERT INTO users (email,pass,first_name,last_name,grade,plan,xp,gems,hearts,streak,avatar,verified,verify_code,verify_expiry,aimag,sum,school,phone,role) VALUES (LOWER($1),$2,$3,$4,$5,$6,0,340,5,0,$7,$8,$9,$10,$11,$12,$13,$14,$15)',
+        [email, hashedPass, firstName, lastName, finalGradeUsed, plan || 'free', 'default',
+         isInvited, isInvited ? null : verifyCode, isInvited ? null : codeExpiry,
+         aimag||null, sum||null, finalSchoolUsed, normalizedPhone, role || 'student']
       );
-      await sendVerifyEmail(email, verifyCode, firstName);
-      return res.json({ ok: true, needVerify: true, email });
+
+      // Invite-тэй бол SMS илгээхгүй, шууд login болгож буцаана
+      if (isInvited) {
+        await pool.query('UPDATE admin_invites SET uses = uses + 1 WHERE token=$1', [inviteToken]).catch(()=>{});
+
+        const r2 = await pool.query('SELECT * FROM users WHERE LOWER(email)=LOWER($1)', [email]);
+        const u = r2.rows[0];
+        const isT2 = u.role === 'teacher' || u.grade === 'teacher';
+        const msg = `✅ <b>Шинэ хэрэглэгч (Урилгаар)</b>\n\n👤 ${(u.last_name||'')} ${(u.first_name||'')}\n📧 ${email}\n${isT2 ? '👨‍🏫 Багш' : '🎓 ' + u.grade + '-р анги'}${u.school ? '\n🏫 ' + u.school : ''}\n🎫 ${inviteToken.slice(0, 8)}…`;
+        sendTelegramNotification(msg).catch(()=>{});
+        const token = signToken(u.email, u.role || (u.grade === 'teacher' ? 'teacher' : 'student'));
+        return res.json({ ok: true, invited: true, user: userPayload({ ...u, verified: true }, token) });
+      }
+
+      // Ердийн бүртгэл → SMS-ээр код илгээх
+      const smsRes = await sendVerifySMS(normalizedPhone, verifyCode, firstName);
+      if (!smsRes.ok) {
+        // SMS амжилтгүй бол бүртгэлийг устгаад алдаа буцаана
+        await pool.query('DELETE FROM users WHERE LOWER(email)=LOWER($1) AND verified=false', [email]).catch(()=>{});
+        return res.status(500).json({ ok: false, error: 'SMS илгээхэд алдаа гарлаа: ' + smsRes.error });
+      }
+
+      return res.json({ ok: true, needVerify: true, email, phone: normalizedPhone, mock: smsRes.mock || false });
     }
 
     if (action === 'verify') {
@@ -139,8 +250,16 @@ module.exports = async (req, res) => {
       const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
       const codeExpiry = new Date(Date.now() + 10 * 60 * 1000);
       await pool.query('UPDATE users SET verify_code=$1, verify_expiry=$2 WHERE LOWER(email)=LOWER($3)', [verifyCode, codeExpiry, email]);
+
+      // SMS дахин илгээх (утас байгаа бол)
+      if (r.rows[0].phone) {
+        const smsRes = await sendVerifySMS(r.rows[0].phone, verifyCode, r.rows[0].first_name);
+        if (!smsRes.ok) return res.status(500).json({ ok: false, error: 'SMS илгээхэд алдаа: ' + smsRes.error });
+        return res.json({ ok: true, via: 'sms', mock: smsRes.mock || false });
+      }
+      // Утасгүй хуучин бүртгэлд имэйл fallback
       await sendVerifyEmail(email, verifyCode, r.rows[0].first_name);
-      return res.json({ ok: true });
+      return res.json({ ok: true, via: 'email' });
     }
 
     if (action === 'verifyResetCode') {
@@ -193,6 +312,67 @@ module.exports = async (req, res) => {
       if (!newPass || newPass.length < 6) return res.status(400).json({ ok: false, error: 'Нууц үг 6+ тэмдэгт' });
       const hashedPass = await bcrypt.hash(newPass, BCRYPT_ROUNDS);
       await pool.query('UPDATE users SET pass=$1, verify_code=NULL, verify_expiry=NULL WHERE LOWER(email)=LOWER($2)', [hashedPass, email]);
+      return res.json({ ok: true });
+    }
+
+    // ═══ АДМИНЫ УРИЛГЫН ЗАХИРАМЖ ═══
+    if (action === 'createInvite') {
+      const admin = requireAdminAuth(req);
+      if (!admin) return res.status(401).json({ ok: false, error: 'Зөвхөн админ үүсгэнэ' });
+      await ensureInviteTable();
+
+      const { grade: g, school: sch, maxUses, expiresInDays, note } = req.body || {};
+      const token = randomToken(10);
+      const maxU = Math.max(1, parseInt(maxUses) || 1);
+      const days = parseInt(expiresInDays);
+      const expiresAt = (days > 0) ? new Date(Date.now() + days * 24 * 60 * 60 * 1000) : null;
+
+      await pool.query(
+        `INSERT INTO admin_invites (token, created_by, grade, school, max_uses, expires_at, note) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [token, 'admin', g || null, sch || null, maxU, expiresAt, note || null]
+      );
+      return res.json({ ok: true, token, grade: g || null, school: sch || null, maxUses: maxU, expiresAt, note: note || null });
+    }
+
+    if (action === 'getInvite') {
+      // Хэрэглэгч бүртгүүлэхийн өмнө урилга хүчинтэй эсэхийг шалгах (нээлттэй endpoint)
+      const t = req.body?.token || req.query?.token;
+      if (!t) return res.status(400).json({ ok: false, error: 'token заавал' });
+      await ensureInviteTable();
+      const r = await pool.query(
+        `SELECT token, grade, school, max_uses, uses, expires_at, note FROM admin_invites WHERE token=$1`,
+        [t]
+      );
+      if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Урилга олдсонгүй' });
+      const inv = r.rows[0];
+      if (inv.expires_at && new Date(inv.expires_at) < new Date()) {
+        return res.status(400).json({ ok: false, error: 'Урилгын хугацаа дууссан' });
+      }
+      if (inv.uses >= inv.max_uses) {
+        return res.status(400).json({ ok: false, error: 'Урилгын ашиглалт хэтэрсэн' });
+      }
+      return res.json({ ok: true, invite: {
+        token: inv.token, grade: inv.grade, school: inv.school,
+        remaining: inv.max_uses - inv.uses, expires_at: inv.expires_at, note: inv.note,
+      }});
+    }
+
+    if (action === 'listInvites') {
+      const admin = requireAdminAuth(req);
+      if (!admin) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
+      await ensureInviteTable();
+      const r = await pool.query(
+        `SELECT token, grade, school, max_uses, uses, expires_at, note, created_at FROM admin_invites ORDER BY created_at DESC LIMIT 200`
+      );
+      return res.json({ ok: true, invites: r.rows });
+    }
+
+    if (action === 'deleteInvite') {
+      const admin = requireAdminAuth(req);
+      if (!admin) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
+      const t = req.body?.token;
+      if (!t) return res.status(400).json({ ok: false, error: 'token заавал' });
+      await pool.query(`DELETE FROM admin_invites WHERE token=$1`, [t]);
       return res.json({ ok: true });
     }
 

@@ -17,6 +17,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@700;800;900&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@600;700;800&display=swap" rel="stylesheet">
+<script src="assets/learning-paths.js"></script>
 <style>
 /* ═══ Mystery Box — wooden crate reveal ═══ */
 .mb-stage { position:relative;height:240px;display:flex;align-items:center;justify-content:center;perspective:900px; }
@@ -2954,6 +2955,138 @@ document.addEventListener('DOMContentLoaded', function(){
   }
 });
 window.applyNodeNamesToMap = applyNodeNamesToMap;
+
+// ═══ Админ урилгын QR/линк — ?invite=TOKEN ═══
+// URL-д invite parameter байвал шалгаж, зөв бол баннер + баталгаажуулалт алгасана.
+(function() {
+  try {
+    var url = new URL(window.location.href);
+    var token = url.searchParams.get('invite');
+    if (!token) return;
+    // localStorage-т хадгалж хуудсыг цэвэрлэнэ (F5-т үлдэнэ)
+    fetch('/api/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'getInvite', token: token })
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      if (!d.ok || !d.invite) {
+        window._inviteBannerErr = d.error || 'Урилга буруу байна';
+        showInviteBanner();
+        return;
+      }
+      window._inviteToken = token;
+      window._inviteData = d.invite;
+      // URL цэвэрлэх — token URL-т үлдэхгүй
+      try {
+        url.searchParams.delete('invite');
+        window.history.replaceState({}, '', url.toString());
+      } catch(e) {}
+      showInviteBanner();
+      // Automatic бүртгэлийн modal нээх
+      setTimeout(function() {
+        if (typeof openAuthModal === 'function') openAuthModal('register');
+        // Grade / school pre-fill
+        setTimeout(function() {
+          var grEl = document.getElementById('reg-grade');
+          if (grEl && d.invite.grade) { grEl.value = d.invite.grade; }
+          var schEl = document.getElementById('reg-school');
+          if (schEl && d.invite.school) { schEl.value = d.invite.school; }
+        }, 300);
+      }, 700);
+    }).catch(function() {
+      window._inviteBannerErr = 'Сервертэй холбогдоход алдаа';
+      showInviteBanner();
+    });
+  } catch(e) { console.warn('invite parse error:', e); }
+
+  function showInviteBanner() {
+    if (document.getElementById('invite-banner')) return;
+    var b = document.createElement('div');
+    b.id = 'invite-banner';
+    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;padding:12px 18px;text-align:center;font-family:sans-serif;font-weight:700;font-size:14px;color:#1a1035;background:linear-gradient(135deg,#FFC800,#FF9600);box-shadow:0 4px 16px rgba(0,0,0,0.25)';
+    if (window._inviteBannerErr) {
+      b.style.background = 'linear-gradient(135deg,#FF4B4B,#dc2626)';
+      b.style.color = '#fff';
+      b.innerHTML = '⚠  ' + window._inviteBannerErr;
+    } else if (window._inviteData) {
+      var d = window._inviteData;
+      b.innerHTML = '🎫  Админы урилгаар бүртгүүлж байна' +
+        (d.grade ? '  ·  ' + d.grade + '-р анги' : '') +
+        (d.school ? '  ·  ' + d.school : '') +
+        '  ·  <span style="opacity:0.75">SMS-гүй шууд нэвтэрнэ</span>';
+    }
+    document.body.appendChild(b);
+    setTimeout(function() { b.style.transition = 'opacity 0.4s'; b.style.opacity = '0.85'; }, 5000);
+  }
+})();
+
+// ═══ 6-12 ангиудын хичээлийн зам — CyberMathPaths ашиглан ═══
+// 9-р ангийн зам HTML-д hardcoded байгаа. Бусад ангид байгаа хэрэглэгч
+// орж ирвэл path-svg + lessons объектыг дахин бүтээж солино.
+window._appliedGradePath = null;
+window.applyGradePath = function(gradeInput) {
+  try {
+    var grade = null;
+    if (gradeInput != null) grade = String(gradeInput);
+    else if (window._currentUser && window._currentUser.grade != null) grade = String(window._currentUser.grade);
+    if (!grade) return false;
+    if (window._appliedGradePath === grade) return true; // давхар render хийхгүй
+    if (grade === '9' || grade === 'teacher') {
+      window._appliedGradePath = grade;
+      return true; // үндсэн 9-р ангийн SVG-г ашиглана
+    }
+    var g = parseInt(grade, 10);
+    if (isNaN(g)) return false;
+    if (!window.CyberMathPaths || !window.CyberMathPaths.CURRICULA || !window.CyberMathPaths.CURRICULA[g]) return false;
+
+    var out = window.CyberMathPaths.renderPath(g);
+    if (!out || !out.svg) return false;
+
+    var oldSvg = document.getElementById('path-svg');
+    if (!oldSvg) return false;
+
+    // Гаднах <svg …> tag хасаж, дотоод контентыг л авна
+    var innerMatch = out.svg.match(/<svg[^>]*>([\s\S]*)<\/svg>/);
+    if (!innerMatch) return false;
+
+    // viewBox шинэчлэх (шинэ өндөр)
+    var viewBoxMatch = out.svg.match(/viewBox="([^"]+)"/);
+    if (viewBoxMatch) oldSvg.setAttribute('viewBox', viewBoxMatch[1]);
+
+    oldSvg.innerHTML = innerMatch[1];
+
+    // Global lessons объектыг солих (openLesson доторх lessons[id]-д хэрэглэгддэг)
+    try { window.lessons = out.lessons; } catch(e) {}
+    try { lessons = out.lessons; } catch(e) {}
+
+    window._appliedGradePath = grade;
+
+    // Node нэр, дүрслэлийг шинэчлэх
+    setTimeout(function(){
+      try { if (typeof updateNodeVisuals === 'function') updateNodeVisuals(); } catch(e) {}
+    }, 100);
+
+    return true;
+  } catch(e) {
+    console.warn('applyGradePath алдаа:', e);
+    return false;
+  }
+};
+
+// DOMContentLoaded дээр хэрэглэгчийн ангид тохируулан зам солих
+document.addEventListener('DOMContentLoaded', function() {
+  // Хэдэн удаа оролдох — _currentUser нэвтэрсэний дараа localStorage-с уншигдана
+  var tries = 0;
+  function tryApply() {
+    tries++;
+    if (window._currentUser && window._currentUser.grade) {
+      window.applyGradePath();
+      return;
+    }
+    if (tries < 30) setTimeout(tryApply, 300);
+  }
+  tryApply();
+});
 
 function applySectionLabels() {
   var DEFAULT_LABELS = [
@@ -44355,7 +44488,7 @@ document.head.appendChild(cmStyle);
   }
 
 
-  const lessons = {
+  var lessons = {
     1: {
       title: "Бүхэл тооны зэрэг, шинж чанар",
       questions: [
@@ -54648,6 +54781,8 @@ function toggleAvatarSection() {
       if (_currentUser.token) {
         localStorage.setItem('cm_token', _currentUser.token);
       }
+      // 6-12 ангийн learning path — хэрэглэгчийн ангид тохируулж солих
+      try { if (typeof window.applyGradePath === 'function') window.applyGradePath(); } catch(e) {}
     } else {
       localStorage.removeItem('cm_current');
       localStorage.removeItem('cm_token');
@@ -55075,20 +55210,49 @@ function toggleAvatarSection() {
     var err = document.getElementById('auth-error-register') || document.getElementById('auth-error');
     if (!lastName || !firstName) { err.textContent = 'Овог, нэрээ оруулна уу.'; return; }
     if (!email || !email.includes('@')) { err.textContent = 'Зөв и-мэйл оруулна уу.'; return; }
+
+    // Урилгын token байвал утас, SMS шат алгасана
+    var inviteToken = window._inviteToken || null;
+
+    // Утасны шалгалт — invite-той бол сонголтоор, бусад тохиолдолд заавал
+    if (!inviteToken) {
+      var phoneDigits = (phone || '').replace(/\D+/g, '').replace(/^976/, '').replace(/^0/, '');
+      if (phoneDigits.length !== 8 || !/^[5-9]/.test(phoneDigits)) {
+        err.textContent = 'Утасны дугаар буруу байна (жишээ: 99112233).'; return;
+      }
+    } else if (phone) {
+      // Invite-тэй ч утас оруулсан бол шалгах
+      var phoneDigits2 = phone.replace(/\D+/g, '').replace(/^976/, '').replace(/^0/, '');
+      if (phoneDigits2.length !== 8 || !/^[5-9]/.test(phoneDigits2)) {
+        err.textContent = 'Утасны дугаар буруу байна (жишээ: 99112233).'; return;
+      }
+    }
     if (pass.length < 6) { err.textContent = 'Нууц үг хамгийн багадаа 6 тэмдэгт байх ёстой.'; return; }
     if (!isTeacher && !grade) { err.textContent = 'Ангиа сонгоно уу.'; return; }
 
-    err.textContent = 'Баталгаажуулах код илгээж байна...';
+    err.textContent = inviteToken ? 'Бүртгэж байна...' : 'SMS код илгээж байна...';
+    var payload = { action: 'register', email, pass, firstName, lastName, grade, plan: isTeacher ? 'free' : plan, role: isTeacher ? 'teacher' : 'student', phone, aimag, sum, school };
+    if (inviteToken) payload.inviteToken = inviteToken;
+
     fetch('/api/auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'register', email, pass, firstName, lastName, grade, plan: isTeacher ? 'free' : plan, role: isTeacher ? 'teacher' : 'student', phone, aimag, sum, school })
+      body: JSON.stringify(payload)
     }).then(function(r){ return r.json(); }).then(function(d){
       if (!d.ok) { err.textContent = d.error || 'Алдаа гарлаа'; return; }
       err.textContent = '';
+      // Invite-тэй бол шууд нэвтрэх — verify алгасана
+      if (d.invited && d.user) {
+        _currentUser = d.user;
+        _saveCurrentUser();
+        closeAuthModal();
+        _onLogin();
+        try { window._inviteToken = null; } catch(e) {}
+        return;
+      }
       if (d.needVerify) {
         closeAuthModal();
-        showVerifyModal(d.email, plan);
+        showVerifyModal(d.email, plan, d.phone);
         return;
       }
       // Шууд нэвтрэх (verification байхгүй үед)
@@ -55103,14 +55267,23 @@ function toggleAvatarSection() {
     }).catch(function(){ err.textContent = 'Сервертэй холбогдоход алдаа гарлаа.'; });
   }
 
-  function showVerifyModal(email, plan) {
+  function showVerifyModal(email, plan, phone) {
     window._verifyEmail = email;
+    window._verifyPhone = phone || '';
     window._verifyPlan = plan;
     openAuthModal('register');
-    setTimeout(function(){ showVerifyStep(email); }, 100);
+    setTimeout(function(){ showVerifyStep(email, phone); }, 100);
   }
 
-  function showVerifyStep(email) {
+  function _fmtPhoneDisplay(p) {
+    if (!p) return '';
+    var d = String(p).replace(/\D+/g, '').replace(/^976/, '');
+    if (d.length !== 8) return p;
+    // 99-12-34-56 хэлбэрээр
+    return d.slice(0,2) + '-' + d.slice(2,4) + '-' + d.slice(4,6) + '-' + d.slice(6,8);
+  }
+
+  function showVerifyStep(email, phone) {
     // Register form-ийг нуугаад verify div харуулна
     var form = document.getElementById('auth-form-register');
     var verifyDiv = document.getElementById('auth-verify-section');
@@ -55122,17 +55295,18 @@ function toggleAvatarSection() {
       var regTab = document.getElementById('auth-register-tab');
       if (regTab) regTab.appendChild(verifyDiv);
     }
+    var phoneDisplay = _fmtPhoneDisplay(phone || window._verifyPhone || '');
     verifyDiv.style.display = 'block';
     verifyDiv.innerHTML = '<div style="text-align:center;padding:8px 0;">'
       + '<div style="text-align:left;margin-bottom:16px;"><button onclick="hideVerifyStep()" style="background:none;border:none;cursor:pointer;display:flex;align-items:center;gap:6px;color:#7B52EE;font-weight:800;font-size:0.9rem;font-family:\'Baloo 2\',sans-serif;padding:0;"><svg width="9" height="14" viewBox="0 0 9 14"><path d="M7 12L2 7L7 2" stroke="#7B52EE" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Буцах</button></div>'
-      + '<div style="font-size:2.5rem;margin-bottom:8px;">📧</div>'
+      + '<div style="font-size:2.5rem;margin-bottom:8px;">📱</div>'
       + '<div style="font-weight:900;font-size:1.1rem;color:#7B52EE;margin-bottom:4px;">Баталгаажуулах код</div>'
-      + '<div style="font-size:0.85rem;color:#888;margin-bottom:20px;line-height:1.5;"><b>' + email + '</b><br>хаягт 6 оронтой код илгээлээ</div>'
-      + '<input id="verify-code-input" type="text" maxlength="6" placeholder="000000" autofocus'
+      + '<div style="font-size:0.85rem;color:#888;margin-bottom:20px;line-height:1.5;"><b>' + phoneDisplay + '</b><br>дугаарт 6 оронтой SMS илгээлээ</div>'
+      + '<input id="verify-code-input" type="text" inputmode="numeric" maxlength="6" placeholder="000000" autofocus'
       + ' style="width:100%;padding:16px;font-size:1.8rem;font-weight:900;letter-spacing:10px;text-align:center;border:2px solid #7B52EE;border-radius:12px;margin-bottom:12px;box-sizing:border-box;">'
       + '<div id="verify-err" style="color:#dc2626;font-size:0.82rem;min-height:20px;margin-bottom:8px;"></div>'
       + '<button onclick="submitVerifyCode()" style="width:100%;padding:14px;background:linear-gradient(135deg,#7B52EE,#A855F7);border:none;border-radius:100px;font-weight:900;font-size:1rem;color:white;cursor:pointer;margin-bottom:8px;">✓ Баталгаажуулах</button>'
-      + '<button onclick="resendVerifyCode(\'' + email + '\')" style="width:100%;padding:8px;background:none;border:1px solid #ddd;border-radius:8px;color:#888;font-size:0.82rem;cursor:pointer;margin-bottom:6px;">📨 Дахин код илгээх</button>'
+      + '<button onclick="resendVerifyCode(\'' + email + '\')" style="width:100%;padding:8px;background:none;border:1px solid #ddd;border-radius:8px;color:#888;font-size:0.82rem;cursor:pointer;margin-bottom:6px;">📱 SMS дахин илгээх</button>'
       + '</div>';
   }
 
@@ -55144,15 +55318,22 @@ function toggleAvatarSection() {
   }
 
   function resendVerifyCode(email) {
+    var errEl = document.getElementById('verify-err');
+    if (errEl) { errEl.style.color = '#888'; errEl.textContent = 'Дахин илгээж байна...'; }
     fetch('/api/auth', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({action: 'resend', email: email})
     }).then(r=>r.json()).then(function(d){
-      var errEl = document.getElementById('verify-err');
       if(errEl) errEl.style.color = d.ok ? '#16a34a' : '#dc2626';
-      if(errEl) errEl.textContent = d.ok ? '✓ Код дахин илгээгдлээ!' : (d.error||'Алдаа');
-    });
+      if(errEl) {
+        if (d.ok) {
+          errEl.textContent = d.via === 'email' ? '✓ И-мэйлээр код дахин илгээлээ!' : '✓ SMS дахин илгээлээ!';
+        } else {
+          errEl.textContent = d.error || 'Алдаа';
+        }
+      }
+    }).catch(function(){ if(errEl){errEl.style.color='#dc2626';errEl.textContent='Сүлжээний алдаа';} });
   }
 
   function submitVerifyCode() {
@@ -59810,8 +59991,8 @@ function sendAppChat(text) {
         </div>
 
         <div class="auth-input-group">
-          <label class="auth-input-label">Утасны дугаар</label>
-          <input id="reg-phone" type="tel" class="auth-input" placeholder="99XXXXXX" maxlength="8">
+          <label class="auth-input-label">Утасны дугаар <span style="color:#dc2626;">*</span> <span style="color:#888;font-weight:400;font-size:0.8em;">(SMS-ээр код авна)</span></label>
+          <input id="reg-phone" type="tel" inputmode="numeric" class="auth-input" placeholder="99112233" maxlength="8" required>
         </div>
         <div class="auth-input-group">
           <label class="auth-input-label">Аймаг / Нийслэл</label>
