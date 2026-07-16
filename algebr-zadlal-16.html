@@ -48,21 +48,48 @@ function mul(f,g){return [f[0]*g[0], f[0]*g[1]+g[0]*f[1], f[1]*g[1]];}
 function quad(Q){return tl([[Q[0],'x^2'],[Q[1],'x'],[Q[2],'']]);}
 function fp(a){return pick({2:[[1,2],[2,1]],3:[[1,3],[3,1]],4:[[2,2],[1,4],[4,1]],5:[[1,5],[5,1]],6:[[2,3],[3,2]]}[a]);}
 
-function tCommon(){var c=rnd(2,6),d=rnd(2,5),e=nz(-6,6);
-  var Q=tl([[c*d,'x^2'],[c*e,'x']]); return {q:Q,ans:c+'x('+lin([d,e])+')',sol:'Ерөнхий үржигдэхүүн $'+c+'x$: $'+c+'x('+lin([d,e])+')$'};}
-function tDiff(){var p=rnd(1,4),q=rnd(2,7);var Q=tl([[p*p,'x^2'],[-q*q,'']]);
-  return {q:Q,ans:'('+lin([p,-q])+')('+lin([p,q])+')',sol:'Квадратуудын ялгавар: $('+lin([p,-q])+')('+lin([p,q])+')$'};}
+function term(co,sym){if(co===0)return '';var a=Math.abs(co),body=(sym==='')?(''+a):((a===1?'':a)+sym);return (co<0?' - ':' + ')+body;}
+function tCommon(){ // ерөнхий үржигдэхүүн (нэг гишүүнт, зарим нь радикалтай)
+  if(rnd(0,1)){var c=rnd(2,6),d=rnd(2,5),e=nz(-6,6);
+    return {q:tl([[c*d,'x^2'],[c*e,'x']]),ans:c+'x('+lin([d,e])+')',sol:'Ерөнхий үржигдэхүүн $'+c+'x$: $'+c+'x('+lin([d,e])+')$'};}
+  var c=rnd(2,5),v=pick(['m','n','a']),d=pick([2,3,5]),e=pick([2,3,5]); // gcd(d,e)=1 болгоно
+  while(d===e||(d%e===0)||(e%d===0))e=pick([2,3,4,5,7]);
+  var cf=c+'x'+v; // максимал ерөнхий үржигдэхүүн
+  return {q:(c*d)+'x^3'+v+' - '+(c*e)+'x'+v+'^3',ans:cf+'('+d+'x^2 - '+e+v+'^2)',
+    sol:'Ерөнхий үржигдэхүүн $'+cf+'$: $'+cf+'('+d+'x^2 - '+e+v+'^2)$'};}
+function tGroup(){ // бүлэглэх арга: (x+m)(x - n√v)
+  var m=rnd(2,5),n=rnd(2,5),v=pick(['y','z','a']);
+  var q='x^2'+term(m,'x')+' - '+(n===1?'':n)+'x\\sqrt{'+v+'} - '+(m*n)+'\\sqrt{'+v+'}';
+  var ans='(x'+term(m,'')+')(x - '+(n===1?'':n)+'\\sqrt{'+v+'})';
+  return {q:q,ans:ans,sol:'Бүлэглэвэл $x(x'+term(m,'')+') - '+(n===1?'':n)+'\\sqrt{'+v+'}(x'+term(m,'')+')='+ans+'$'};}
+function tDiff2v(){ // квадратуудын ялгавар (2 хувьсагч)
+  var p=rnd(1,4),q=rnd(2,6),v=pick(['y','b']);
+  var Q=(p*p===1?'':p*p)+'x^2 - '+(q*q===1?'':q*q)+v+'^2';
+  var f1=(p===1?'':p)+'x - '+(q===1?'':q)+v,f2=(p===1?'':p)+'x + '+(q===1?'':q)+v;
+  return {q:Q,ans:'('+f1+')('+f2+')',sol:'Квадратуудын ялгавар: $('+f1+')('+f2+')$'};}
+function tDiffFrac(){ // бутархай илтгэгчтэй ялгавар
+  var k=pick([3,5,9]),q=rnd(2,4);
+  var base='x^{\\frac{1}{'+k+'}}',sq='x^{\\frac{2}{'+k+'}}';
+  return {q:sq+' - '+(q*q),ans:'('+base+' - '+q+')('+base+' + '+q+')',
+    sol:'Квадратуудын ялгавар (бутархай илтгэгч, $'+base+'$-ыг суурь болгож): $('+base+' - '+q+')('+base+' + '+q+')$'};}
 function tPerf(){var p=rnd(1,4),q=rnd(2,6),s=pick([1,-1]);var Q=quad(mul([p,s*q],[p,s*q]));
   return {q:Q,ans:'('+lin([p,s*q])+')^2',sol:(s>0?'Нийлбэрийн':'Ялгаврын')+' квадрат: $('+lin([p,s*q])+')^2$'};}
 function tTri(){var a=pick([2,3,4,5,6]),lp=fp(a),F=[lp[0],nz(-4,4)],G=[lp[1],nz(-4,4)];
   while(F[0]*G[1]===G[0]*F[1]){G=[lp[1],nz(-4,4)];}
-  var Q=quad(mul(F,G));return {q:Q,ans:'('+lin(F)+')('+lin(G)+')',sol:'$a='+a+'$ бүхий гурван гишүүнт: $('+lin(F)+')('+lin(G)+')$'};}
+  var Q=quad(mul(F,G));return {q:Q,ans:'('+lin(F)+')('+lin(G)+')',sol:'$a='+a+'$ бүхий гурван гишүүнт (гүйцэд квадрат ялгах): $('+lin(F)+')('+lin(G)+')$'};}
+function tSubRoot(){ // √x орлуулгатай гурван гишүүнт: (√x+a)(√x+b)
+  var a=nz(-5,5),b=nz(-5,5);while(a===b)b=nz(-5,5);var s=a+b,p=a*b;
+  var q='x'+term(s,'\\sqrt{x}')+term(p,'');
+  var f1='\\sqrt{x}'+(a<0?' - '+(-a):' + '+a),f2='\\sqrt{x}'+(b<0?' - '+(-b):' + '+b);
+  return {q:q,ans:'('+f1+')('+f2+')',sol:'$\\sqrt{x}=t$ гэвэл $t^2'+term(s,'t')+term(p,'')+'$-г задлаад буцаана: $('+f1+')('+f2+')$'};}
 
 var SEC=[
   {name:'Ерөнхий үржигдэхүүн гаргах',gen:tCommon},
-  {name:'Квадратуудын ялгавар',gen:tDiff},
+  {name:'Бүлэглэх арга',gen:tGroup},
+  {name:'Квадратуудын ялгавар (хувьсагч/бутархай илтгэгч)',gen:function(){return rnd(0,1)?tDiff2v():tDiffFrac();}},
   {name:'Нийлбэр/ялгаврын квадрат',gen:tPerf},
   {name:'ax²+bx+c задлах (a=2..6)',gen:tTri},
+  {name:'√x орлуулгатай гурван гишүүнт',gen:tSubRoot},
 ];
 function build(){
   var groups='',answs='',WS=[],n=0;
@@ -75,7 +102,7 @@ function build(){
     groups+='<div class="grp"><div class="gh"><span class="tag">'+(s+1)+'</span>'+SEC[s].name+'</div><div class="grid">'+qs+'</div></div>';
   }
   document.getElementById('sheet').innerHTML=
-    '<div class="head"><h1>Алгебрын илэрхийллийг үржигдэхүүнд задлах</h1><div class="sub">10-р анги · 3.2 · ерөнхий үржигдэхүүн · задлалын томьёо · ax²+bx+c · 8 бодлого</div></div>'
+    '<div class="head"><h1>Алгебрын илэрхийллийг үржигдэхүүнд задлах</h1><div class="sub">10-р анги · 3.2 · ерөнхий үржигдэхүүн · бүлэглэх · ялгавар (хувьсагч/бутархай илтгэгч) · ax²+bx+c · √x орлуулга · 12 бодлого</div></div>'
     +'<div class="meta"><span>Нэр: </span><span>Огноо: </span><span>Оноо: </span></div>'
     +groups
     +'<div class="ans-page" id="answers"><h2>Бодолт ба хариу</h2><div class="ans-grid">'+answs+'</div></div>';
