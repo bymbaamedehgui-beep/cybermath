@@ -361,6 +361,15 @@
           </table>
         </div>
       </div>
+      <div class="card" id="archiveCard" style="display:none">
+        <h2><svg class="ic" viewBox="0 0 24 24"><path d="M3 7h18v4H3zM5 11v9h14v-9M9 15h6"/></svg> Архив — дууссан сурагчид (<span id="arCount">0</span>)</h2>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>№</th><th>Овог</th><th>Нэр</th><th>Анги</th><th>Групп</th><th></th></tr></thead>
+            <tbody id="arRows"></tbody>
+          </table>
+        </div>
+      </div>
     </section>
   </div>
 
@@ -656,27 +665,32 @@ async function delTopic(id){
 
 /* ---------- СУРАГЧИД ---------- */
 function loadStudents(){
-  document.getElementById('stCount').textContent=STUDENTS.length;
-  const g1=STUDENTS.filter(s=>s.grp===1).length, g2=STUDENTS.filter(s=>s.grp===2).length;
-  const g3=STUDENTS.filter(s=>s.grp===3).length, g4=STUDENTS.filter(s=>s.grp===4).length;
-  const doneN=STUDENTS.filter(s=>s.done).length;
-  document.getElementById('grpCount').textContent=`· 1-р групп: ${g1} · 2-р групп: ${g2} · 3-р групп: ${g3} · 4-р групп: ${g4} · хуваарилаагүй: ${STUDENTS.length-g1-g2-g3-g4}`+(doneN?` · дууссан: ${doneN}`:'');
-  const rows=STUDENTS.filter(matchSearch);
+  const active=STUDENTS.filter(s=>!s.done);
+  const archived=STUDENTS.filter(s=>s.done);
+  document.getElementById('stCount').textContent=active.length;
+  const g1=active.filter(s=>s.grp===1).length, g2=active.filter(s=>s.grp===2).length;
+  const g3=active.filter(s=>s.grp===3).length, g4=active.filter(s=>s.grp===4).length;
+  document.getElementById('grpCount').textContent=`· 1-р групп: ${g1} · 2-р групп: ${g2} · 3-р групп: ${g3} · 4-р групп: ${g4} · хуваарилаагүй: ${active.length-g1-g2-g3-g4}`;
+  const rows=active.filter(matchSearch);
   document.getElementById('stRows').innerHTML=rows.map((s,i)=>{
     const LBL={'':'—',1:'1-р групп',2:'2-р групп',3:'3-р групп',4:'4-р групп'};
     const opt=v=>`<option value="${v}" ${String(s.grp||'')===String(v)?'selected':''}>${LBL[v]}</option>`;
-    const doneBtn=s.done
-      ? `<button class="btn ghost sm" onclick="setStudentDone(${s.id},false)" title="Идэвхтэй болгох">↩</button>`
-      : `<button class="btn ghost sm" onclick="setStudentDone(${s.id},true)" title="Дууссан гэж тэмдэглэх">✓ Дууссан</button>`;
-    const nameCell=s.done
-      ? `<span class="name-link" onclick="openCard(${s.id})">${esc(s.first_name)}</span> <span class="pill" style="background:#eceff1;color:#51606b">дууссан</span>`
-      : `<span class="name-link" onclick="openCard(${s.id})">${esc(s.first_name)}</span>`;
-    return `<tr style="${s.done?'opacity:.6':''}"><td>${i+1}</td><td>${esc(s.last_name||'')}</td><td>${nameCell}</td>
+    return `<tr><td>${i+1}</td><td>${esc(s.last_name||'')}</td>
+    <td><span class="name-link" onclick="openCard(${s.id})">${esc(s.first_name)}</span></td>
     <td>${s.age||''}</td><td><span class="pill g-${esc(s.gender)}">${esc(s.gender||'')}</span></td>
     <td><input value="${esc(s.klass||'')}" onchange="setStudentClass(${s.id},this.value)" placeholder="анги" style="width:100px;padding:.3rem"/></td>
     <td><select onchange="setStudentGroup(${s.id},this.value)" style="padding:.3rem;width:auto">${opt('')}${opt(1)}${opt(2)}${opt(3)}${opt(4)}</select></td>
-    <td><div style="display:flex;gap:5px">${doneBtn}<button class="btn danger sm" onclick="delStudent(${s.id})">${ICON.trash}</button></div></td></tr>`;
+    <td><div style="display:flex;gap:5px"><button class="btn ghost sm" onclick="setStudentDone(${s.id},true)" title="Дууссан гэж тэмдэглэх">✓ Дууссан</button><button class="btn danger sm" onclick="delStudent(${s.id})">${ICON.trash}</button></div></td></tr>`;
   }).join('');
+  // Архив — дууссан сурагчид
+  document.getElementById('archiveCard').style.display=archived.length?'block':'none';
+  document.getElementById('arCount').textContent=archived.length;
+  document.getElementById('arRows').innerHTML=archived.map((s,i)=>
+    `<tr style="opacity:.75"><td>${i+1}</td><td>${esc(s.last_name||'')}</td>
+    <td><span class="name-link" onclick="openCard(${s.id})">${esc(s.first_name)}</span></td>
+    <td>${esc(s.klass||'')}</td><td>${s.grp?s.grp+'-р групп':'—'}</td>
+    <td><div style="display:flex;gap:5px"><button class="btn ghost sm" onclick="setStudentDone(${s.id},false)" title="Идэвхтэй болгох">↩ Сэргээх</button><button class="btn danger sm" onclick="delStudent(${s.id})">${ICON.trash}</button></div></td></tr>`
+  ).join('');
 }
 async function setStudentDone(id,done){
   const j=await api({action:'setDone',id,done});
