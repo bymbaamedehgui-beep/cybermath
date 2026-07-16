@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Крамерын дүрэм — 3 хувьсагчтай систем</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<style>
+  :root{--purple:#7B52EE;--purple2:#A855F7;--ink:#1a1030;--soft:#7a7390;--amber:#9a6300}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:var(--ink);background:#eceaf3;padding:16px;line-height:1.5}
+  .bar{max-width:820px;margin:0 auto 14px;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
+  .btn{font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.6rem 1.3rem;font-size:.9rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2));box-shadow:0 6px 16px -6px rgba(123,82,238,.6)}
+  .btn:hover{filter:brightness(1.06)} .btn.refresh{background:linear-gradient(135deg,#16a34a,#22c55e)}
+  .bar label{font-weight:700;color:var(--purple);display:flex;align-items:center;gap:6px;font-size:.88rem}
+  .sheet{background:#fff;width:210mm;max-width:100%;min-height:297mm;margin:0 auto;padding:14mm;box-shadow:0 12px 44px -18px rgba(0,0,0,.35)}
+  .head{text-align:center;border-bottom:2.5px solid var(--purple);padding-bottom:8px;margin-bottom:8px}
+  .head h1{font-size:19px;color:#5a32d6;font-weight:800}.head .sub{font-size:11.5px;color:var(--soft);margin-top:2px}
+  .meta{display:flex;justify-content:space-between;font-size:12px;margin:8px 2px 12px}.meta span{border-bottom:1px dotted #b3a9cf;padding:0 30px 2px 4px}
+  .guide{background:#f6f2ff;border:1px solid #e2d6ff;border-radius:12px;padding:12px 16px;margin-bottom:14px;font-size:12.5px}
+  .guide h3{font-size:13px;color:#5a32d6;margin-bottom:6px}
+  .guide ol{margin:4px 0 4px 18px}.guide li{margin:4px 0}
+  .guide .fml{text-align:center;margin:8px 0;font-size:13px}
+  .cols{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;font-size:12px;margin-top:6px}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px 18px}
+  .q{break-inside:avoid;page-break-inside:avoid;padding:7px 4px 8px;border-bottom:1px dashed #efeaff}
+  .qh{display:flex;gap:8px;align-items:flex-start}.qn{font-weight:800;color:var(--purple);min-width:24px}.qm{font-size:13.5px}
+  .work{margin:6px 0 4px 30px;height:34mm;border:1.3px solid #cdbfee;border-radius:6px;background-image:linear-gradient(#eee 1px,transparent 1px);background-size:100% 6mm}
+  .ans2{margin-left:30px;font-size:12.5px;font-weight:700}.ans2 .bl{display:inline-block;min-width:38px;border-bottom:1.4px solid #b9accf;height:1.05em;margin:0 10px 0 4px}
+  .ans-page{margin-top:9mm;border-top:2px dashed #ddd;padding-top:7mm}.ans-page h2{font-size:15px;color:#5a32d6;margin-bottom:10px}
+  .ans-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px 18px;font-size:12px}.ans-grid .a{display:flex;gap:6px;align-items:baseline}.ans-grid .an{color:var(--soft);font-weight:800;min-width:24px}
+  #answers{display:none}
+  @media print{body{background:#fff;padding:0}.bar{display:none}.sheet{box-shadow:none;width:auto;min-height:auto;padding:0;margin:0}@page{size:A4;margin:12mm}.ans-page{break-before:page}}
+</style>
+</head>
+<body>
+<div class="bar">
+  <button class="btn refresh" onclick="build()">↻ Шинэ бодлого</button>
+  <label><input type="checkbox" id="sa" onchange="toggleAns()"> Хариу хавсаргах</label>
+  <button class="btn" onclick="window.print()">🖨 Хэвлэх / PDF</button>
+</div>
+<div class="sheet" id="sheet"></div>
+<script>
+function rnd(a,b){return a+Math.floor(Math.random()*(b-a+1));}
+function nz(lo,hi){var v=0;while(v===0)v=rnd(lo,hi);return v;}
+function toggleAns(){var el=document.getElementById('answers');if(el)el.style.display=document.getElementById('sa').checked?'block':'none';}
+function ft(co,v){return co===1?v:co===-1?'-'+v:co+v;}
+function at(co,v){return co>0?' + '+(co===1?v:co+v):' - '+(co===-1?v:(-co)+v);}
+function line(a,b,c,r){return ft(a,'x')+at(b,'y')+at(c,'z')+' = '+r;}
+function det3(m){return m[0][0]*(m[1][1]*m[2][2]-m[1][2]*m[2][1])
+  -m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0])
+  +m[0][2]*(m[1][0]*m[2][1]-m[1][1]*m[2][0]);}
+function replaceCol(M,col,R){return M.map(function(row,i){return row.map(function(v,j){return j===col?R[i]:v;});});}
+function build(){
+  var probs='',answs='',ITEMS=[];
+  for(var i=0;i<6;i++){
+    var x0=nz(-4,4),y0=nz(-4,4),z0=nz(-4,4);
+    var M=[[nz(-3,3),nz(-3,3),nz(-3,3)],[nz(-3,3),nz(-3,3),nz(-3,3)],[nz(-3,3),nz(-3,3),nz(-3,3)]];
+    var D=det3(M); if(D===0){i--;continue;}
+    var R=M.map(function(r){return r[0]*x0+r[1]*y0+r[2]*z0;});
+    var Dx=det3(replaceCol(M,0,R)),Dy=det3(replaceCol(M,1,R)),Dz=det3(replaceCol(M,2,R));
+    var q='\\begin{cases}'+line(M[0][0],M[0][1],M[0][2],R[0])+'\\\\ '+line(M[1][0],M[1][1],M[1][2],R[1])+'\\\\ '+line(M[2][0],M[2][1],M[2][2],R[2])+'\\end{cases}';
+    var n=i+1;
+    probs+='<div class="q"><div class="qh"><span class="qn">'+n+'.</span><span class="qm">$'+q+'$</span></div>'
+      +'<div class="work"></div><div class="ans2">x:<span class="bl"></span>y:<span class="bl"></span>z:<span class="bl"></span></div></div>';
+    answs+='<div class="a"><span class="an">'+n+'.</span><span>$D='+D+',\\ D_x='+Dx+',\\ D_y='+Dy+',\\ D_z='+Dz+'$ → $x='+x0+',\\ y='+y0+',\\ z='+z0+'$</span></div>';
+    ITEMS.push({q:q,a:'x='+x0+',\\ y='+y0+',\\ z='+z0});
+  }
+  document.getElementById('sheet').innerHTML=
+    '<div class="head"><h1>Крамерын дүрэм — 3 хувьсагчтай систем</h1><div class="sub">Тодорхойлогчдыг бодож x, y, z-г ол · 6 бодлого</div></div>'
+    +'<div class="meta"><span>Нэр: </span><span>Огноо: </span><span>Оноо: </span></div>'
+    +'<div class="guide"><h3>📋 Крамерын дүрэм — алхам алхмаар</h3>'
+    + '<div><b>Бодлого:</b> коэффициентүүдээс <b>4 тодорхойлогч</b> бодоод, тэдгээрийг хувааж $x,y,z$-г олно.</div>'
+    + '<ol>'
+    +   '<li><b>$D$ (үндсэн):</b> $x,y,z$-ийн коэффициентүүдээс тогтоно. $D\\ne0$ байх ёстой.</li>'
+    +   '<li><b>$D_x$:</b> $D$-ийн <b>x-ийн багана</b>-г чөлөөт гишүүдээр $(d_1,d_2,d_3)$ сольж бодно.</li>'
+    +   '<li><b>$D_y$, $D_z$:</b> мөн адил <b>y, z-ийн багана</b>-г чөлөөт гишүүдээр сольж бодно.</li>'
+    +   '<li><b>Хариу:</b> $x=\\dfrac{D_x}{D},\\;\\; y=\\dfrac{D_y}{D},\\;\\; z=\\dfrac{D_z}{D}$</li>'
+    + '</ol>'
+    + '<div style="margin-top:6px"><b>3×3 тодорхойлогчийг Сарюсын (диагональ) аргаар:</b> эхний 2 баганыг баруун талд давтаж бичээд, <span style="color:#0b6b2e;font-weight:700">↘ гурван диагональ</span>-ийн үржвэрийг <b>нэм</b>, <span style="color:#b3261e;font-weight:700">↙ гурван диагональ</span>-ийнхыг <b>хас</b>.</div>'
+    + '<div class="fml">$\\begin{vmatrix}a_1&b_1&c_1\\\\a_2&b_2&c_2\\\\a_3&b_3&c_3\\end{vmatrix}'
+    +   '=\\underbrace{a_1b_2c_3+b_1c_2a_3+c_1a_2b_3}_{\\textstyle\\color{#0b6b2e}{\\text{нэмэх }\\searrow}}'
+    +   '-\\underbrace{c_1b_2a_3+a_1c_2b_3+b_1a_2c_3}_{\\textstyle\\color{#b3261e}{\\text{хасах }\\swarrow}}$</div>'
+    + '</div>'
+    +'<div class="grid">'+probs+'</div>'
+    +'<div class="ans-page" id="answers"><h2>Хариунууд</h2><div class="ans-grid">'+answs+'</div></div>';
+  toggleAns();
+  window.WS_ITEMS=ITEMS; window.WS_TITLE='Крамерын дүрэм (3 хувьсагч)';
+  try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
+}
+build();
+</script>
+<script src="/ws-store.js"></script>
+</body>
+</html>

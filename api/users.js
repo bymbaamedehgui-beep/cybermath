@@ -14,7 +14,7 @@ function checkUserAccess(req, requestedEmail, options) {
   options = options || {};
   const decoded = verifyToken(req);
   if (options.strict) {
-    if (!decoded) return { ok: false, error: 'Унтраалга буруу. Дахин нэвтэрнэ үү.' };
+    if (!decoded) return { ok: false, error: 'Нэвтрэх эрх буруу. Дахин нэвтэрнэ үү.' };
     if (decoded.admin) return { ok: true, isAdmin: true };
     if (decoded.email !== requestedEmail) return { ok: false, error: 'Зөвхөн өөрийнхөө өгөгдлийг харна' };
     return { ok: true, email: decoded.email, role: decoded.role };
@@ -103,6 +103,83 @@ module.exports = async (req, res) => {
       const adminCheck = requireAdmin(req);
       if (!adminCheck.ok) return res.status(403).json({ ok: false, error: 'Зөвхөн админ' });
       const today = todayStr();
+      // AUTO-CLEANUP — Admin GET бүрд:
+      // 1) Expired Premium → free
+      // 2) Expiry хоосон Premium (огноо тогтоогдоогүй) → free
+      try {
+        await pool.query(
+          `UPDATE users SET plan='free' WHERE plan='premium' AND (
+              (premium_expiry IS NOT NULL AND premium_expiry < NOW())
+           OR (premium_expiry IS NULL AND premium_until IS NOT NULL AND premium_until < NOW())
+           OR (premium_expiry IS NULL AND premium_until IS NULL)
+          )`
+        );
+      } catch(_){}
+      // ?premium_cleanup=1 → cleanup count буцаах (backwards compat)
+      if (req.query && req.query.premium_cleanup === '1') {
+        const c = await pool.query(
+          `SELECT COUNT(*) AS cnt FROM users WHERE plan='premium' AND
+           ((premium_expiry IS NOT NULL AND premium_expiry < NOW()) OR
+            (premium_expiry IS NULL AND premium_until IS NOT NULL AND premium_until < NOW()))`
+        );
+        return res.json({ ok: true, cleared: 0, note: 'Cleanup нь GET бүрд автомат ажилладаг' });
+      }
+      // ?premium=1 → зөвхөн Premium идэвхтэй хэрэглэгчид (он сар нь premium_expiry-аар sort)
+      if (req.query && req.query.premium === '1') {
+        // Бүх plan='premium' хэрэглэгчдийг буцаах — Overview-той ижил count
+        // (Auto-cleanup аль хэдийн ажилласан учир expired-ыг тоохгүй)
+        const pr = await pool.query(
+          `SELECT id,email,first_name,last_name,grade,plan,premium_expiry,premium_until,
+                  xp,school,phone,created_at
+           FROM users
+           WHERE plan='premium'
+           ORDER BY COALESCE(premium_expiry, premium_until, created_at) DESC NULLS LAST`
+        );
+        // Архив — өмнө Premium байсан хэрэглэгчид (plan='free' гэхдээ premium_expiry тэмдэглэгдсэн)
+        const ar = await pool.query(
+          `SELECT id,email,first_name,last_name,grade,plan,premium_expiry,premium_until,
+                  xp,school,phone,created_at
+           FROM users
+           WHERE plan='free' AND (premium_expiry IS NOT NULL OR premium_until IS NOT NULL)
+           ORDER BY COALESCE(premium_expiry, premium_until) DESC NULLS LAST LIMIT 200`
+        );
+        const list = pr.rows.map(u => {
+          const exp = u.premium_expiry || u.premium_until;
+          // Premium эхэлсэн огноо = exp - 30 хоног (default sub period). Үнэн утга байхгүй учир approximate.
+          const started = exp ? new Date(new Date(exp).getTime() - 30 * 24 * 60 * 60 * 1000) : null;
+          const daysLeft = exp ? Math.max(0, Math.ceil((new Date(exp).getTime() - Date.now()) / (24 * 60 * 60 * 1000))) : 0;
+          return {
+            id: u.id, email: u.email,
+            first_name: u.first_name, last_name: u.last_name,
+            grade: u.grade, xp: u.xp || 0,
+            school: u.school, phone: u.phone,
+            premium_expiry: exp,
+            premium_started: started ? started.toISOString() : null,
+            days_left: daysLeft,
+            month: started ? (started.getFullYear() + '-' + String(started.getMonth() + 1).padStart(2, '0')) : null
+          };
+        });
+        // Сар тус бүрд группэлэх (он-сараар)
+        const byMonth = {};
+        list.forEach(u => {
+          const key = u.month || 'тогтоогүй';
+          if (!byMonth[key]) byMonth[key] = [];
+          byMonth[key].push(u);
+        });
+        // Архив list
+        const archive = ar.rows.map(u => {
+          const exp = u.premium_expiry || u.premium_until;
+          return {
+            id: u.id, email: u.email,
+            first_name: u.first_name, last_name: u.last_name,
+            grade: u.grade, xp: u.xp || 0,
+            school: u.school, phone: u.phone,
+            premium_expiry: exp,
+            ended_at: exp ? new Date(exp).toISOString() : null
+          };
+        });
+        return res.json({ ok: true, users: list, by_month: byMonth, total: list.length, archive: archive });
+      }
       const r = await pool.query(
         `SELECT id,email,first_name,last_name,grade,plan,xp,gems,hearts,streak,avatar,
                 completed_lessons,created_at,current_node_id,activity_log,hearts_empty_time,verified,role,
@@ -122,10 +199,15 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === 'PUT') {
-      const { email, action, plan, xp, gems, hearts, streak, avatar, completed_lesson,
+      let { email, action, plan, xp, gems, hearts, streak, avatar, completed_lesson,
               stars_data, streak_data, current_node_id, hearts_empty_time, profile_image,
               first_name, last_name, grade } = req.body || {};
       if (!email) return res.status(400).json({ ok: false, error: 'Missing email' });
+      // Email-ыг normalize — case-insensitive lookup (saveLessonProgress г.м case-sensitive
+      // WHERE email=$1 query-ууд DB-н lowercase email-тай нийцэхгүй байсныг засав)
+      email = String(email).trim().toLowerCase();
+      // body-руу буцаах — дараах query-ууд req.body.email ашиглаж байгаа бол
+      req.body.email = email;
 
       // Auth шалгалт — token байвал email-тай таарч байх ёстой
       const access = checkUserAccess(req, email, { strict: false });

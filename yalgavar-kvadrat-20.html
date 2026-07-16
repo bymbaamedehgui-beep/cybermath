@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Ялгаврын квадрат — 20 бодлого</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<style>
+  :root{--purple:#7B52EE;--purple2:#A855F7;--ink:#1a1030;--soft:#7a7390;--blue:#1d6c8c;--rose:#c0367a;--amber:#9a6300}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:var(--ink);background:#eceaf3;padding:16px;line-height:1.5}
+  .bar{max-width:820px;margin:0 auto 14px;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
+  .btn{font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.6rem 1.3rem;font-size:.9rem;color:#fff;
+    background:linear-gradient(135deg,var(--purple),var(--purple2));box-shadow:0 6px 16px -6px rgba(123,82,238,.6)}
+  .btn:hover{filter:brightness(1.06)}
+  .btn.refresh{background:linear-gradient(135deg,#16a34a,#22c55e)}
+  .bar label{font-weight:700;color:var(--purple);display:flex;align-items:center;gap:6px;font-size:.88rem}
+
+  .sheet{background:#fff;width:210mm;max-width:100%;min-height:297mm;margin:0 auto;padding:14mm;box-shadow:0 12px 44px -18px rgba(0,0,0,.35)}
+  .head{text-align:center;border-bottom:2.5px solid var(--purple);padding-bottom:8px;margin-bottom:8px}
+  .head h1{font-size:20px;color:#5a32d6;font-weight:800}
+  .head .sub{font-size:11.5px;color:var(--soft);margin-top:2px}
+  .meta{display:flex;justify-content:space-between;font-size:12px;margin:8px 2px 12px}
+  .meta span{border-bottom:1px dotted #b3a9cf;padding:0 30px 2px 4px}
+
+  /* Загварын тайлбар карт */
+  .guide{background:#f6f2ff;border:1px solid #e2d6ff;border-radius:12px;padding:14px 16px;margin-bottom:14px;text-align:center}
+  .guide .formula{font-size:20px;margin-bottom:10px}
+  .guide .labels{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;font-size:11px;font-weight:700}
+  .lab{padding:5px 10px;border-radius:8px;line-height:1.35}
+  .lab.l1{background:#e1f0f6;color:var(--blue)}
+  .lab.l2{background:#fdeaf2;color:var(--rose)}
+  .lab.l3{background:#e1f4e9;color:#0b6b2e}
+  .lab b{display:block;font-size:13px}
+
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px 18px}
+  .q{break-inside:avoid;page-break-inside:avoid;padding:7px 4px 8px;border-bottom:1px dashed #efeaff}
+  .qn{font-weight:800;color:var(--purple);min-width:22px;display:inline-block}
+  .qm{font-size:14.5px}
+  .scaf{font-size:14px;color:#6a5fa3;margin:5px 0 0 26px}
+  .bl{margin:7px 0 2px 26px;border-bottom:1.4px solid #b9accf;height:1.05em}
+
+  .ans-page{margin-top:9mm;border-top:2px dashed #ddd;padding-top:7mm}
+  .ans-page h2{font-size:15px;color:#5a32d6;margin-bottom:10px}
+  .ans-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px 18px;font-size:12px}
+  .ans-grid .a{display:flex;gap:6px;align-items:baseline}
+  .ans-grid .an{color:var(--soft);font-weight:800;min-width:22px}
+  #answers{display:none}
+
+  @media print{
+    body{background:#fff;padding:0}
+    .bar{display:none}
+    .sheet{box-shadow:none;width:auto;min-height:auto;padding:0;margin:0}
+    @page{size:A4;margin:12mm}
+    .ans-page{break-before:page}
+  }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <button class="btn refresh" onclick="build()">↻ Шинэ бодлого</button>
+  <label><input type="checkbox" id="sa" onchange="toggleAns()"> Хариу хавсаргах</label>
+  <button class="btn" onclick="window.print()">🖨 Хэвлэх / PDF</button>
+</div>
+
+<div class="sheet" id="sheet"></div>
+
+<script>
+function rnd(a,b){return a+Math.floor(Math.random()*(b-a+1));}
+function shuffle(a){for(var i=a.length-1;i>0;i--){var j=rnd(0,i);var t=a[i];a[i]=a[j];a[j]=t;}return a;}
+
+// Монгол гишүүн {c, v:{x:e,...}} → LaTeX
+function ms(m){
+  var vs=Object.keys(m.v).filter(function(k){return m.v[k];})
+    .map(function(k){return m.v[k]===1?k:k+'^{'+m.v[k]+'}';}).join('');
+  if(!vs)return ''+m.c;
+  if(m.c===1)return vs;
+  return m.c+vs;
+}
+function mul(a,b){var v={};[a,b].forEach(function(m){for(var k in m.v)v[k]=(v[k]||0)+m.v[k];});return {c:a.c*b.c,v:v};}
+function sq(m){return mul(m,m);}
+
+function mk(A,B){
+  var A2=sq(A), B2=sq(B), AB=mul(A,B);
+  var mid={c:2*AB.c, v:AB.v};
+  return {
+    q:'\\left('+ms(A)+'-'+ms(B)+'\\right)^{2}',
+    a:ms(A2)+'-'+ms(mid)+'+'+ms(B2)
+  };
+}
+var FORMS=[
+  function(){return mk({c:1,v:{x:1}},{c:rnd(2,9),v:{}});},                 // (x−b)²
+  function(){return mk({c:rnd(2,6),v:{x:1}},{c:rnd(2,9),v:{}});},          // (ax−b)²
+  function(){return mk({c:rnd(2,6),v:{x:1}},{c:rnd(2,6),v:{y:1}});},       // (ax−by)²
+  function(){return mk({c:1,v:{x:2}},{c:rnd(2,7),v:{}});}                  // (x²−b)²
+];
+
+function toggleAns(){var el=document.getElementById('answers');if(el)el.style.display=document.getElementById('sa').checked?'block':'none';}
+
+function build(){
+  var order=[];for(var i=0;i<20;i++)order.push(i%FORMS.length);shuffle(order);
+  var probs='',answs='';
+  order.forEach(function(fi,idx){
+    var it=FORMS[fi]();
+    var n=idx+1;
+    probs+='<div class="q">'
+      +'<span class="qn">'+n+'.</span> <span class="qm">$'+it.q+'$</span>'
+      +'<div class="scaf">$=\\;\\square^{2}\\;-\\;2\\cdot\\square\\cdot\\square\\;+\\;\\square^{2}$</div>'
+      +'<div class="bl"></div></div>';
+    answs+='<div class="a"><span class="an">'+n+'.</span><span>$'+it.q+'='+it.a+'$</span></div>';
+  });
+
+  document.getElementById('sheet').innerHTML=
+    '<div class="head"><h1>Ялгаврын квадрат</h1>'
+    +'<div class="sub">$(a-b)^2$-г задлах · доорх загвараар нүд бүрд юу бичихээ хараарай · 20 бодлого</div></div>'
+    +'<div class="meta"><span>Нэр: </span><span>Огноо: </span><span>Оноо: </span></div>'
+    +'<div class="guide">'
+    + '<div class="formula">$\\left(\\,a\\;-\\;b\\,\\right)^{2}\\;=\\;a^{2}\\;-\\;2ab\\;+\\;b^{2}$</div>'
+    + '<div class="labels">'
+    +   '<span class="lab l1"><b>$a^{2}$</b>1-р гишүүний квадрат</span>'
+    +   '<span class="lab l2"><b>$-\\,2ab$</b>2 × хоёр гишүүний үржвэр (хасах)</span>'
+    +   '<span class="lab l3"><b>$+\\,b^{2}$</b>2-р гишүүний квадрат</span>'
+    + '</div></div>'
+    +'<div class="grid">'+probs+'</div>'
+    +'<div class="ans-page" id="answers"><h2>Хариунууд</h2><div class="ans-grid">'+answs+'</div></div>';
+  toggleAns();
+  ;(function(){try{var as=document.querySelectorAll("#answers .ans-grid .a");var ps=document.querySelectorAll("#sheet .grid .q");var st=function(s){return (s||"").replace(/\$/g,"").trim();};var arr=[];for(var i=0;i<as.length;i++){var ae=as[i],asp=ae.querySelector("span:last-child");var av=st(asp?asp.textContent:ae.textContent);var qv="";var pe=ps[i];if(pe){var qm=pe.querySelector(".qm");qv=st(qm?qm.textContent:"");}qv=qv.replace(/=\s*$/,"").trim();if(av.indexOf("=")>=0)arr.push({q:av,a:""});else arr.push({q:qv,a:av});}window.WS_ITEMS=arr;var h1=document.querySelector("#sheet .head h1");window.WS_TITLE=h1?h1.textContent:document.title;}catch(e){}})();
+      try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
+}
+build();
+</script>
+<script src="/ws-store.js"></script>
+</body>
+</html>

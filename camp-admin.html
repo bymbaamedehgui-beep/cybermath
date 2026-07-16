@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title>SUMMER CAMP — Админ</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root{--forest:#15512f;--leaf:#3fae6b;--ink:#14241b;--ink-soft:#41594c;--line:#dceee3;--paper:#fff;--paper-2:#f4faf6;--sun:#f4b740}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Manrope',system-ui,sans-serif;background:var(--paper-2);color:var(--ink);line-height:1.5}
+  .wrap{max-width:1100px;margin:0 auto;padding:20px}
+  /* login */
+  .login{min-height:100vh;display:grid;place-items:center;padding:20px}
+  .login .box{background:var(--paper);border:1px solid var(--line);border-radius:20px;padding:34px;width:100%;max-width:360px;box-shadow:0 18px 50px -22px rgba(21,81,47,.45);text-align:center}
+  .login h1{color:var(--forest);font-size:1.4rem;margin-bottom:.3rem}
+  .login p{color:var(--ink-soft);font-size:.9rem;margin-bottom:1.2rem}
+  input,select{font-family:inherit;font-size:1rem;padding:.7rem .9rem;border:1.5px solid var(--line);border-radius:10px;background:var(--paper-2);width:100%}
+  input:focus,select:focus{outline:none;border-color:var(--leaf);background:#fff}
+  .btn{font-family:inherit;font-weight:700;border:0;cursor:pointer;border-radius:999px;padding:.7rem 1.3rem;background:var(--sun);color:#3a2a00;transition:.15s}
+  .btn:hover{transform:translateY(-1px)}
+  .btn.sm{padding:.4rem .8rem;font-size:.82rem}
+  .btn.ghost{background:#eef5f0;color:var(--forest)}
+  .btn.danger{background:#fdecec;color:#b3261e}
+  /* header */
+  header{background:var(--forest);color:#fff;padding:16px 0}
+  header .wrap{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+  header h1{font-size:1.15rem;display:flex;align-items:center;gap:.5rem}
+  /* stats */
+  .stats{display:flex;gap:12px;flex-wrap:wrap;margin:18px 0}
+  .stat{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:12px 18px;min-width:110px}
+  .stat b{display:block;font-size:1.6rem;color:var(--forest)}
+  .stat span{font-size:.8rem;color:var(--ink-soft)}
+  .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+  .toolbar select{width:auto}
+  /* table */
+  .tbl-wrap{background:var(--paper);border:1px solid var(--line);border-radius:16px;overflow:auto}
+  table{width:100%;border-collapse:collapse;font-size:.9rem;min-width:760px}
+  th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:var(--paper-2);color:var(--forest);font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;position:sticky;top:0}
+  tr:hover td{background:#fafdfb}
+  .badge{display:inline-block;padding:.2rem .6rem;border-radius:999px;font-size:.75rem;font-weight:700}
+  .s-new{background:#fff3d6;color:#8a5a00}
+  .s-contacted{background:#e3f1f7;color:#1d6c8c}
+  .s-confirmed{background:#e6f8ee;color:#15512f}
+  .s-paid{background:#dff3e6;color:#0b6b2e}
+  .s-cancelled{background:#fdecec;color:#b3261e}
+  .muted{color:var(--ink-soft);font-size:.82rem}
+  td a{color:var(--forest)}
+  .empty{text-align:center;padding:40px;color:var(--ink-soft)}
+  .row-actions{display:flex;gap:6px;flex-wrap:wrap}
+  @media(max-width:560px){.stat{flex:1;min-width:0}}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login" id="loginView">
+  <div class="box">
+    <h1>🏕 SUMMER CAMP</h1>
+    <p>Админ нэвтрэх</p>
+    <form onsubmit="return doLogin(event)">
+      <input type="password" id="pass" placeholder="Нууц үг" autocomplete="current-password" required />
+      <button class="btn" style="width:100%;margin-top:12px">Нэвтрэх</button>
+      <p id="loginErr" style="color:#b3261e;display:none;margin-top:10px">Нууц үг буруу байна</p>
+    </form>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="appView" style="display:none">
+  <header>
+    <div class="wrap">
+      <h1>🏕 SUMMER CAMP — Бүртгэлийн удирдлага</h1>
+      <div style="display:flex;gap:8px">
+        <button class="btn ghost sm" onclick="load()">🔄 Шинэчлэх</button>
+        <button class="btn ghost sm" onclick="exportCsv()">⬇ CSV</button>
+        <button class="btn ghost sm" onclick="logout()">Гарах</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="stats" id="stats"></div>
+
+    <div class="toolbar">
+      <label class="muted">Статус:</label>
+      <select id="filter" onchange="load()">
+        <option value="">Бүгд</option>
+        <option value="new">Шинэ</option>
+        <option value="contacted">Холбогдсон</option>
+        <option value="confirmed">Баталгаажсан</option>
+        <option value="paid">Төлсөн</option>
+        <option value="cancelled">Цуцалсан</option>
+      </select>
+      <span class="muted" id="count"></span>
+    </div>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Сурагч</th><th>Эцэг эх</th><th>Утас</th>
+            <th>Ээлж</th><th>Тэмдэглэл</th><th>Огноо</th><th>Статус</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="empty" id="empty" style="display:none">Бүртгэл алга байна.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const STATUS_LABEL = {new:'Шинэ',contacted:'Холбогдсон',confirmed:'Баталгаажсан',paid:'Төлсөн',cancelled:'Цуцалсан'};
+let PASS = sessionStorage.getItem('camp_admin_pass') || '';
+let DATA = [];
+
+function esc(s){return (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+async function api(payload){
+  const r = await fetch('/api/camp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,pass:PASS})});
+  return r.json();
+}
+
+async function doLogin(e){
+  e.preventDefault();
+  const pass = document.getElementById('pass').value;
+  const r = await fetch('/api/camp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'login',pass})});
+  const j = await r.json();
+  if(j.ok){
+    PASS = pass;
+    sessionStorage.setItem('camp_admin_pass',pass);
+    showApp();
+  }else{
+    document.getElementById('loginErr').style.display='block';
+  }
+  return false;
+}
+
+function logout(){sessionStorage.removeItem('camp_admin_pass');location.reload();}
+
+function showApp(){
+  document.getElementById('loginView').style.display='none';
+  document.getElementById('appView').style.display='block';
+  load();
+}
+
+async function load(){
+  const status = document.getElementById('filter').value;
+  const j = await api({action:'list',status});
+  if(!j.ok){
+    if(j.error==='Нэвтрэх эрхгүй'){logout();return;}
+    alert('Алдаа: '+(j.error||''));return;
+  }
+  DATA = j.items;
+  renderStats(j.stats);
+  renderRows(j.items);
+}
+
+function renderStats(stats){
+  const m = {}; (stats||[]).forEach(s=>m[s.status]=s.c);
+  const total = Object.values(m).reduce((a,b)=>a+b,0);
+  const order = ['new','contacted','confirmed','paid','cancelled'];
+  let html = `<div class="stat"><b>${total}</b><span>Нийт</span></div>`;
+  order.forEach(s=>{html+=`<div class="stat"><b>${m[s]||0}</b><span>${STATUS_LABEL[s]}</span></div>`;});
+  document.getElementById('stats').innerHTML = html;
+}
+
+function renderRows(items){
+  const tb = document.getElementById('rows');
+  document.getElementById('count').textContent = items.length+' бүртгэл';
+  document.getElementById('empty').style.display = items.length?'none':'block';
+  tb.innerHTML = items.map(r=>{
+    const opts = Object.keys(STATUS_LABEL).map(s=>`<option value="${s}" ${s===r.status?'selected':''}>${STATUS_LABEL[s]}</option>`).join('');
+    const d = new Date(r.created_at);
+    const date = isNaN(d)?'':d.toLocaleString('mn-MN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+    return `<tr>
+      <td>${r.id}</td>
+      <td><b>${esc(r.child_name)}</b><div class="muted">${esc(r.grade||'')}</div></td>
+      <td>${esc(r.parent_name)}${r.email?`<div class="muted">${esc(r.email)}</div>`:''}</td>
+      <td><a href="tel:${esc(r.phone)}">${esc(r.phone)}</a></td>
+      <td class="muted">${esc(r.stream||'')}</td>
+      <td class="muted" style="max-width:200px">${esc(r.note||'')}</td>
+      <td class="muted">${date}</td>
+      <td><span class="badge s-${r.status}">${STATUS_LABEL[r.status]||r.status}</span></td>
+      <td><div class="row-actions">
+        <select class="sm" onchange="setStatus(${r.id},this.value)" style="padding:.3rem;font-size:.8rem">${opts}</select>
+        <button class="btn danger sm" onclick="del(${r.id})">🗑</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+async function setStatus(id,status){
+  const j = await api({action:'setStatus',id,status});
+  if(j.ok) load(); else alert('Алдаа: '+(j.error||''));
+}
+
+async function del(id){
+  if(!confirm('#'+id+' бүртгэлийг устгах уу?'))return;
+  const j = await api({action:'delete',id});
+  if(j.ok) load(); else alert('Алдаа: '+(j.error||''));
+}
+
+function exportCsv(){
+  if(!DATA.length){alert('Өгөгдөл алга');return;}
+  const head = ['id','child_name','grade','parent_name','phone','email','stream','note','status','created_at'];
+  const lines = [head.join(',')];
+  DATA.forEach(r=>{
+    lines.push(head.map(k=>`"${String(r[k]==null?'':r[k]).replace(/"/g,'""')}"`).join(','));
+  });
+  const blob = new Blob(['﻿'+lines.join('\n')],{type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'summer-camp-burtgel.csv';
+  a.click();
+}
+
+// auto-login if session has pass
+if(PASS){ showApp(); }
+</script>
+</body>
+</html>
