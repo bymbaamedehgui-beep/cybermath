@@ -2955,6 +2955,68 @@ document.addEventListener('DOMContentLoaded', function(){
 });
 window.applyNodeNamesToMap = applyNodeNamesToMap;
 
+// ═══ Админ урилгын QR/линк — ?invite=TOKEN ═══
+// Хэрэглэгч урилгын линкээр орж ирвэл token-ыг шалгаж, бүртгэлийн үед verify алгасана.
+(function() {
+  try {
+    var url = new URL(window.location.href);
+    var token = url.searchParams.get('invite');
+    if (!token) return;
+
+    fetch('/api/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'getInvite', token: token })
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      if (!d.ok || !d.invite) {
+        window._inviteBannerErr = d.error || 'Урилга буруу байна';
+        _showInviteBanner();
+        return;
+      }
+      window._inviteToken = token;
+      window._inviteData = d.invite;
+      try {
+        url.searchParams.delete('invite');
+        window.history.replaceState({}, '', url.toString());
+      } catch(e) {}
+      _showInviteBanner();
+      // Register modal автомат нээх ба анги/сургууль pre-fill
+      setTimeout(function() {
+        if (typeof openAuthModal === 'function') openAuthModal('register');
+        setTimeout(function() {
+          var grEl = document.getElementById('reg-grade');
+          if (grEl && d.invite.grade) { grEl.value = d.invite.grade; }
+          var schEl = document.getElementById('reg-school');
+          if (schEl && d.invite.school) { schEl.value = d.invite.school; }
+        }, 300);
+      }, 700);
+    }).catch(function() {
+      window._inviteBannerErr = 'Сервертэй холбогдоход алдаа';
+      _showInviteBanner();
+    });
+  } catch(e) { console.warn('invite parse error:', e); }
+
+  function _showInviteBanner() {
+    if (document.getElementById('invite-banner')) return;
+    var b = document.createElement('div');
+    b.id = 'invite-banner';
+    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;padding:12px 18px;text-align:center;font-family:sans-serif;font-weight:700;font-size:14px;color:#1a1035;background:linear-gradient(135deg,#FFC800,#FF9600);box-shadow:0 4px 16px rgba(0,0,0,0.25)';
+    if (window._inviteBannerErr) {
+      b.style.background = 'linear-gradient(135deg,#FF4B4B,#dc2626)';
+      b.style.color = '#fff';
+      b.innerHTML = '⚠  ' + window._inviteBannerErr;
+    } else if (window._inviteData) {
+      var d = window._inviteData;
+      b.innerHTML = '🎫  Админы урилгаар бүртгүүлж байна' +
+        (d.grade ? '  ·  ' + d.grade + '-р анги' : '') +
+        (d.school ? '  ·  ' + d.school : '') +
+        '  ·  <span style="opacity:0.75">Мэйл кодгүй шууд нэвтэрнэ</span>';
+    }
+    document.body.appendChild(b);
+    setTimeout(function() { b.style.transition = 'opacity 0.4s'; b.style.opacity = '0.85'; }, 5000);
+  }
+})();
+
 function applySectionLabels() {
   var DEFAULT_LABELS = [
     {"id":1,"name":"Spark","afterNode":0},
@@ -56228,14 +56290,27 @@ function toggleAvatarSection() {
     if (pass.length < 6) { err.textContent = 'Нууц үг хамгийн багадаа 6 тэмдэгт байх ёстой.'; return; }
     if (!isTeacher && !grade) { err.textContent = 'Ангиа сонгоно уу.'; return; }
 
-    err.textContent = 'Баталгаажуулах код илгээж байна...';
+    var inviteToken = window._inviteToken || null;
+    err.textContent = inviteToken ? 'Бүртгэж байна...' : 'Баталгаажуулах код илгээж байна...';
+    var payload = { action: 'register', email, pass, firstName, lastName, grade, plan: isTeacher ? 'free' : plan, role: isTeacher ? 'teacher' : 'student', phone, aimag, sum, school };
+    if (inviteToken) payload.inviteToken = inviteToken;
+
     fetch('/api/auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'register', email, pass, firstName, lastName, grade, plan: isTeacher ? 'free' : plan, role: isTeacher ? 'teacher' : 'student', phone, aimag, sum, school })
+      body: JSON.stringify(payload)
     }).then(function(r){ return r.json(); }).then(function(d){
       if (!d.ok) { err.textContent = d.error || 'Алдаа гарлаа'; return; }
       err.textContent = '';
+      // Урилгаар — шууд нэвтрэх, verify алгасана
+      if (d.invited && d.user) {
+        _currentUser = d.user;
+        _saveCurrentUser();
+        closeAuthModal();
+        _onLogin();
+        try { window._inviteToken = null; } catch(e) {}
+        return;
+      }
       if (d.needVerify) {
         closeAuthModal();
         showVerifyModal(d.email, plan);
