@@ -1,5 +1,6 @@
 const pool = require('./_db');
 const { sendVerifyEmail } = require('./_email');
+const { validateEmail } = require('./_email_validate');
 const { ensureExpiryCheck } = require('./_premium');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -127,6 +128,12 @@ module.exports = async (req, res) => {
 
     if (action === 'register') {
       const { aimag, sum, school, phone, role, inviteToken } = req.body || {};
+
+      // Бодит мэйл шалгалт — код илгээхгүйгээр DNS + disposable list
+      const emailCheck = await validateEmail(email);
+      if (!emailCheck.ok) {
+        return res.status(400).json({ ok: false, error: emailCheck.error, code: emailCheck.code });
+      }
 
       // Админ урилгын token — байвал шалгана
       let inviteRow = null;
