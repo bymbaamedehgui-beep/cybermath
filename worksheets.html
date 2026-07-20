@@ -7,64 +7,251 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
-  :root{--purple:#7B52EE;--purple2:#A855F7;--ink:#1a1030;--soft:#7a7390;--line:#e7ddff;--green:#16a34a}
+  :root{
+    --purple:#7B52EE;--purple2:#A855F7;--purple-d:#5a32d6;
+    --ink:#1a1030;--soft:#7c7596;--line:#e7ddff;--green:#16a34a;
+    --amber:#FFC113;--amber-d:#d79f01;--orange:#f97316;--orange-d:#c2410c;
+    --bg:#f1eef8;--card:#ffffff;
+  }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'Segoe UI',Arial,sans-serif;color:var(--ink);background:#eceaf3;padding:20px;line-height:1.5}
-  .wrap{max-width:960px;margin:0 auto}
-  h1{font-size:1.5rem;color:#5a32d6;text-align:center;margin-bottom:4px}
-  .sub{text-align:center;color:var(--soft);font-size:.9rem;margin-bottom:20px}
-  h2{font-size:1.05rem;color:#5a32d6;margin:22px 0 12px;display:flex;align-items:center;gap:8px}
-  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
-  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 15px;display:flex;justify-content:space-between;align-items:center;gap:8px;box-shadow:0 6px 18px -12px rgba(123,82,238,.5)}
-  .card .t{font-weight:700;font-size:.9rem}
-  .open{flex-shrink:0;font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.4rem .8rem;font-size:.8rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2));text-decoration:none}
-  .saved{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
-  .srow{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid #f1ecfb}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:var(--ink);background:
+    radial-gradient(1200px 480px at 15% -8%,#efe7ff 0,rgba(239,231,255,0) 60%),
+    radial-gradient(1000px 420px at 100% 0,#fff2cf 0,rgba(255,242,207,0) 55%),
+    var(--bg);
+    min-height:100vh;padding:0 16px 48px;line-height:1.5}
+  .wrap{max-width:1000px;margin:0 auto}
+  a{color:inherit}
+
+  /* ---- top bar ---- */
+  .topbar{display:flex;align-items:center;gap:10px;padding:16px 0 8px}
+  .back{display:inline-flex;align-items:center;gap:6px;font-weight:800;color:var(--purple-d);text-decoration:none;background:#fff;border:1.5px solid var(--line);border-radius:999px;padding:.5rem 1.05rem;font-size:.86rem;box-shadow:0 6px 16px -12px rgba(90,50,214,.6);transition:.15s}
+  .back:hover{transform:translateY(-1px);box-shadow:0 10px 22px -12px rgba(90,50,214,.7)}
+
+  /* ---- hero ---- */
+  .hero{position:relative;background:linear-gradient(135deg,#7B52EE,#9333ea 60%,#a855f7);border-radius:22px;padding:22px 24px;color:#fff;overflow:hidden;box-shadow:0 22px 50px -26px rgba(90,50,214,.85);display:flex;align-items:center;gap:18px}
+  .hero::after{content:"";position:absolute;right:-40px;top:-60px;width:220px;height:220px;background:radial-gradient(circle,rgba(255,193,19,.35),rgba(255,193,19,0) 70%)}
+  .hero .bird{flex-shrink:0;width:92px;height:92px;filter:drop-shadow(0 8px 14px rgba(0,0,0,.25));animation:bob 3.4s ease-in-out infinite}
+  @keyframes bob{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-7px) rotate(2deg)}}
+  .hero .htext{position:relative;z-index:1}
+  .hero h1{font-size:1.7rem;font-weight:900;letter-spacing:-.5px;line-height:1.1}
+  .hero p{font-size:.92rem;opacity:.92;margin-top:5px;max-width:46ch}
+  .hero .stats{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+  .pill{background:rgba(255,255,255,.16);backdrop-filter:blur(3px);border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:.28rem .7rem;font-size:.78rem;font-weight:800}
+  .pill b{color:var(--amber)}
+
+  /* ---- controls ---- */
+  .controls{position:sticky;top:0;z-index:20;background:rgba(241,238,248,.86);backdrop-filter:blur(8px);margin:16px -16px 0;padding:12px 16px;border-bottom:1px solid #e4ddf3}
+  .search{position:relative;max-width:420px}
+  .search input{width:100%;border:1.6px solid var(--line);background:#fff;border-radius:999px;padding:.66rem 1rem .66rem 2.5rem;font-size:.95rem;color:var(--ink);outline:none;transition:.15s;box-shadow:0 6px 18px -14px rgba(90,50,214,.5)}
+  .search input:focus{border-color:var(--purple);box-shadow:0 0 0 4px rgba(123,82,238,.14)}
+  .search svg{position:absolute;left:.85rem;top:50%;transform:translateY(-50%);width:18px;height:18px;color:var(--soft)}
+  .chips{display:flex;gap:8px;margin-top:10px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{white-space:nowrap;border:1.5px solid var(--line);background:#fff;color:var(--purple-d);font-weight:800;font-size:.82rem;border-radius:999px;padding:.42rem .95rem;cursor:pointer;transition:.14s}
+  .chip:hover{border-color:var(--purple)}
+  .chip.on{background:linear-gradient(135deg,var(--purple),var(--purple2));color:#fff;border-color:transparent;box-shadow:0 8px 18px -10px rgba(123,82,238,.8)}
+  .chip.on.camb{background:linear-gradient(135deg,var(--orange),#fb923c)}
+  .chip.newc{color:#dc2626;border-color:#fecaca}
+  .chip.newc:hover{border-color:#ef4444}
+  .chip.on.newc{background:linear-gradient(135deg,#ef4444,#f97316);color:#fff;border-color:transparent}
+  .newtag{position:absolute;top:-7px;right:-7px;z-index:2;background:linear-gradient(135deg,#ef4444,#f97316);color:#fff;font-size:.58rem;font-weight:900;letter-spacing:.4px;padding:2px 7px;border-radius:999px;box-shadow:0 4px 10px -3px rgba(239,68,68,.7);text-transform:uppercase;animation:newpop .3s ease}
+  @keyframes newpop{from{transform:scale(0)}to{transform:scale(1)}}
+  .newpill{background:rgba(239,68,68,.22);border-color:rgba(255,255,255,.35)}
+  .newpill b{color:#fff}
+  .editbar{display:flex;align-items:center;gap:10px;margin-top:10px}
+  .editbtn{border:1.5px solid var(--line);background:#fff;color:var(--purple-d);font-weight:800;font-size:.82rem;border-radius:999px;padding:.42rem .95rem;cursor:pointer;transition:.14s}
+  .editbtn:hover{border-color:var(--purple)}
+  .editbtn.on{background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;border-color:transparent;box-shadow:0 8px 18px -10px rgba(22,163,74,.8)}
+  .edithint{font-size:.78rem;color:var(--soft);font-weight:700;display:none}
+  body.editing .edithint{display:inline}
+  body.editing .card{cursor:pointer;border-style:dashed;border-color:#c9b6ff}
+  body.editing .camb-wrap .card{border-color:#f9c98c}
+  body.editing .card .go{opacity:0}
+  body.editing .card::after{content:"✏️";position:absolute;top:6px;right:8px;font-size:.75rem;opacity:.65}
+  .card{position:relative}
+  .card.edited .t::after{content:" ·";color:transparent}
+  .card.edited .ico{background:#fff3d6;color:#b45309}
+
+  /* ---- catalog ---- */
+  #catalog{margin-top:18px}
+  .grp{margin-bottom:22px;scroll-margin-top:120px}
+  .grp-head{display:flex;align-items:center;gap:10px;margin:0 2px 11px}
+  .grp-badge{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-weight:900;font-size:.9rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2));box-shadow:0 6px 14px -8px rgba(123,82,238,.9)}
+  .grp-title{font-weight:900;font-size:1.02rem;color:var(--ink)}
+  .grp-count{margin-left:auto;font-size:.76rem;font-weight:800;color:var(--soft);background:#fff;border:1px solid var(--line);border-radius:999px;padding:.16rem .6rem}
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(238px,1fr));gap:11px}
+  .card{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 14px;text-decoration:none;color:var(--ink);box-shadow:0 8px 22px -16px rgba(90,50,214,.55);transition:transform .15s,box-shadow .15s,border-color .15s}
+  .card:hover{transform:translateY(-2px);box-shadow:0 16px 30px -16px rgba(90,50,214,.75);border-color:#d9c9ff}
+  .card .ico{flex-shrink:0;width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:1.05rem;background:#f3eeff;color:var(--purple-d)}
+  .card .t{flex:1;font-weight:700;font-size:.9rem;line-height:1.28}
+  .card .go{flex-shrink:0;font-weight:900;font-size:.95rem;color:var(--purple);opacity:.55;transition:.15s}
+  .card:hover .go{opacity:1;transform:translateX(2px)}
+
+  /* Cambridge block */
+  .camb-wrap{margin:8px 0 22px;background:linear-gradient(135deg,#fff7ed,#fffbeb);border:1.5px solid #fed7aa;border-radius:20px;padding:18px 16px}
+  .camb-wrap .grp{margin-bottom:0}
+  .camb-wrap .grp-badge{background:linear-gradient(135deg,var(--orange),#fb923c)}
+  .camb-head{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+  .camb-head .tag{font-size:.72rem;font-weight:900;letter-spacing:.5px;text-transform:uppercase;color:#fff;background:linear-gradient(135deg,var(--orange),#fb923c);border-radius:999px;padding:.22rem .7rem}
+  .camb-head h2{font-size:1.12rem;font-weight:900;color:var(--orange-d)}
+  .camb-sub{font-size:.84rem;color:#9a5a1f;margin:2px 0 14px}
+  .camb-wrap .card{border-color:#fde3c4}
+  .camb-wrap .card .ico{background:#ffedd5;color:var(--orange-d)}
+  .camb-wrap .card .go{color:var(--orange)}
+  .camb-wrap .card:hover{border-color:#fdba74;box-shadow:0 16px 30px -16px rgba(234,88,12,.6)}
+
+  .noRes{display:none;text-align:center;color:var(--soft);padding:30px;font-weight:700}
+
+  /* ---- saved ---- */
+  .sec-title{display:flex;align-items:center;gap:8px;font-size:1.05rem;font-weight:900;color:var(--purple-d);margin:26px 2px 12px}
+  .sec-title .muted{font-weight:600;color:var(--soft);font-size:.8rem}
+  .saved{background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 10px 26px -20px rgba(90,50,214,.6)}
+  .srow{display:flex;align-items:center;gap:10px;padding:12px 15px;border-bottom:1px solid #f1ecfb}
   .srow:last-child{border-bottom:0}
-  .srow .code{font-weight:800;color:var(--purple);min-width:46px}
+  .srow .code{font-weight:900;color:var(--purple);min-width:46px}
   .srow .ti{flex:1;font-weight:700;font-size:.92rem}
-  .srow .dt{color:var(--soft);font-size:.8rem}
-  .srow .cnt{color:var(--soft);font-size:.8rem}
-  .mini{font-weight:800;border:0;cursor:pointer;border-radius:8px;padding:.35rem .7rem;font-size:.8rem}
+  .srow .dt,.srow .cnt{color:var(--soft);font-size:.8rem}
+  .mini{font-weight:800;border:0;cursor:pointer;border-radius:9px;padding:.38rem .75rem;font-size:.8rem;transition:.14s}
+  .mini:hover{filter:brightness(.97)}
   .mini.v{background:#e1f4e9;color:var(--green)} .mini.d{background:#fdecec;color:#b3261e}
-  .empty{padding:24px;text-align:center;color:var(--soft)}
-  /* modal */
+  .empty{padding:26px;text-align:center;color:var(--soft)}
+
+  /* ---- modal ---- */
   .modal{position:fixed;inset:0;z-index:50;background:rgba(20,15,40,.5);display:none;place-items:center;padding:18px}
   .modal.on{display:grid}
-  .mbox{background:#fff;border-radius:16px;max-width:780px;width:100%;max-height:88vh;overflow:auto;padding:22px;position:relative}
-  .mbox h3{color:#5a32d6;margin-bottom:4px}.mbox .msub{color:var(--soft);font-size:.82rem;margin-bottom:14px}
-  .x{position:absolute;top:12px;right:12px;border:0;background:#f0ecfb;width:32px;height:32px;border-radius:999px;cursor:pointer;font-weight:800}
+  .mbox{background:#fff;border-radius:18px;max-width:780px;width:100%;max-height:88vh;overflow:auto;padding:24px;position:relative}
+  .mbox h3{color:var(--purple-d);margin-bottom:4px}.mbox .msub{color:var(--soft);font-size:.82rem;margin-bottom:14px}
+  .x{position:absolute;top:14px;right:14px;border:0;background:#f0ecfb;width:34px;height:34px;border-radius:999px;cursor:pointer;font-weight:800}
   .qrow{display:flex;gap:10px;padding:7px 0;border-bottom:1px dashed #eee;font-size:14px}
   .qrow .qn{font-weight:800;color:var(--purple);min-width:26px}
   .qrow .ans{color:var(--green);font-weight:700;margin-left:auto;white-space:nowrap}
   .toolbar{display:flex;gap:10px;justify-content:flex-end;margin-bottom:10px}
   .btn{font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.45rem 1rem;font-size:.85rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2))}
   .btn.g{background:#fff;color:var(--purple);box-shadow:inset 0 0 0 1.5px var(--line)}
-  .card{transition:box-shadow .15s,transform .15s}
-  .card[data-href]:hover{box-shadow:0 10px 24px -10px rgba(123,82,238,.7);transform:translateY(-1px);cursor:pointer}
+
   /* hover preview */
   #wpreview{position:fixed;z-index:60;width:380px;height:520px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 50px -12px rgba(40,20,90,.5);overflow:hidden;display:none;pointer-events:none}
-  #wpreview .pvhead{font-weight:800;font-size:.75rem;color:#5a32d6;padding:7px 10px;border-bottom:1px solid #f1ecfb;background:#faf8ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  #wpreview .pvbody{position:relative;width:100%;height:calc(100% - 30px);overflow:hidden;background:#f4f1fb}
+  #wpreview .pvhead{font-weight:800;font-size:.75rem;color:var(--purple-d);padding:8px 11px;border-bottom:1px solid #f1ecfb;background:#faf8ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #wpreview .pvbody{position:relative;width:100%;height:calc(100% - 32px);overflow:hidden;background:#f4f1fb}
   #wpreview iframe{position:absolute;top:0;left:0;border:0;width:840px;height:1140px;transform:scale(.4524);transform-origin:top left;background:#fff}
   #wpreview .pvload{position:absolute;inset:0;display:grid;place-items:center;color:var(--soft);font-size:.82rem}
-  @media (max-width:720px){#wpreview{display:none!important}}
+  @media (max-width:720px){#wpreview{display:none!important}.hero{padding:18px}.hero h1{font-size:1.42rem}.hero .bird{width:74px;height:74px}}
+
+  /* context menu */
+  .ctxmenu{position:fixed;z-index:80;min-width:222px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 20px 50px -14px rgba(40,20,90,.45);padding:6px;display:none;animation:ctxin .12s ease}
+  @keyframes ctxin{from{opacity:0;transform:scale(.96) translateY(-4px)}to{opacity:1;transform:none}}
+  .ctxmenu.on{display:block}
+  .ctxmenu .cxhead{font-size:.74rem;font-weight:800;color:var(--soft);padding:6px 10px 7px;border-bottom:1px solid #f1ecfb;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
+  .ctxmenu button{display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;text-align:left;font-family:inherit;font-weight:700;font-size:.88rem;color:var(--ink);padding:.55rem .7rem;border-radius:9px;cursor:pointer;transition:.1s}
+  .ctxmenu button:hover{background:#f3eeff}
+  .ctxmenu button .cxi{width:20px;text-align:center;flex-shrink:0}
+  .ctxmenu button.danger{color:#b3261e}.ctxmenu button.danger:hover{background:#fdecec}
+  .ctxmenu .sep{height:1px;background:#f1ecfb;margin:4px 0}
+  .ctxmenu button.admin-only{display:none}
+  body.is-admin .ctxmenu button.admin-only{display:flex}
+
+  /* hidden topic (admin edit mode) */
+  body.editing .card.hidden{opacity:.5;filter:grayscale(.5)}
+  .card.hidden::before{content:"нуусан";position:absolute;top:6px;left:8px;font-size:.62rem;font-weight:800;color:#b3261e;background:#fdecec;border-radius:6px;padding:1px 6px}
+  body:not(.editing) .card.hidden{display:none!important}
+
+  /* QR modal */
+  #qrBox{text-align:center}
+  #qrBox .qrc{display:inline-flex;padding:14px;background:#fff;border:1px solid var(--line);border-radius:14px;margin:6px 0 12px}
+  #qrBox .qrc img,#qrBox .qrc canvas{display:block}
+  #qrBox .qrlink{font-size:.8rem;color:var(--soft);word-break:break-all;background:#f7f4ff;border-radius:8px;padding:8px 10px;margin-bottom:12px}
+  #qrBox .qrbtns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+
+  /* toast */
+  #toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:#1a1030;color:#fff;font-weight:700;font-size:.9rem;padding:.7rem 1.2rem;border-radius:999px;box-shadow:0 14px 34px -12px rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:.25s;z-index:90}
+  #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div style="margin-bottom:10px">
-    <a href="/admin.html" style="display:inline-flex;align-items:center;gap:6px;font-weight:800;color:#5a32d6;text-decoration:none;background:#fff;border:1.5px solid #e7ddff;border-radius:999px;padding:.45rem 1rem;font-size:.88rem">← Админ руу буцах</a>
+  <div class="topbar">
+    <a class="back" href="/admin.html">← Админ</a>
   </div>
-  <h1>📚 Дасгалын төв</h1>
-  <div class="sub">Дасгалын хуудас сонгож хэвлэх · хадгалсан бодлогын хариуг шалгах</div>
 
-  <h2>📝 Дасгалын жагсаалт</h2>
-  <div class="cards" id="cards"></div>
+  <div class="hero">
+    <img class="bird" src="/assets/chicks/chick-1.svg" alt="CyberMath шувуу" />
+    <div class="htext">
+      <h1>Дасгалын төв</h1>
+      <p>Анги, сэдвээ сонгоод шинэ хувилбар үүсгэ · хэвлэ · PDF болго. Хариу нь автоматаар бэлддэг.</p>
+      <div class="stats">
+        <span class="pill"><b id="stTotal">0</b> дасгал</span>
+        <span class="pill"><b id="stGrades">0</b> анги</span>
+        <span class="pill">🎓 Cambridge <b id="stCamb">0</b></span>
+        <span class="pill newpill" id="newPill" style="display:none">🆕 <b id="stNew">0</b> шинэ</span>
+      </div>
+    </div>
+  </div>
 
-  <h2>💾 Хадгалсан хуудаснууд <span style="font-weight:500;color:var(--soft);font-size:.82rem">(хэвлэхдээ "Хадгалах" дарсан)</span></h2>
-  <div class="saved" id="saved"><div class="empty">Уншиж байна...</div></div>
+  <div class="controls">
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path></svg>
+      <input id="q" type="search" placeholder="Дасгал хайх… (жиш: бутархай, зэрэг, матриц)" autocomplete="off" />
+    </div>
+    <div class="chips" id="chips"></div>
+    <div class="editbar" id="editBar" style="display:none">
+      <button class="editbtn" id="editToggle" onclick="toggleEdit()">✏️ Нэр засах</button>
+      <span class="edithint" id="editHint">Засварлах сэдвийнхээ нэр дээр дар</span>
+    </div>
+  </div>
+
+  <div id="catalog"></div>
+  <div class="noRes" id="noRes">🔍 Тохирох дасгал олдсонгүй.</div>
+
+  <div class="sec-title">💾 Хадгалсан хуудаснууд <span class="muted">(хэвлэхдээ “Хадгалах” дарсан)</span></div>
+  <div class="saved" id="saved"><div class="empty">Уншиж байна…</div></div>
+</div>
+
+<div class="ctxmenu" id="ctxMenu">
+  <div class="cxhead" id="cxHead"></div>
+  <button data-act="open"><span class="cxi">↗</span> Нээх</button>
+  <button data-act="classroom"><span class="cxi">🟩</span> Google Classroom-д хуваалцах</button>
+  <button data-act="copy"><span class="cxi">🔗</span> Линк хуулах</button>
+  <button data-act="qr"><span class="cxi">🔳</span> QR код үүсгэх</button>
+  <div class="sep admin-only"></div>
+  <button data-act="rename" class="admin-only"><span class="cxi">✏️</span> Нэр өөрчлөх</button>
+  <button data-act="delete" class="admin-only danger"><span class="cxi">🗑</span> Устгах</button>
+</div>
+
+<div class="modal" id="qrModal" onclick="if(event.target===this)closeQr()">
+  <div class="mbox" style="max-width:360px">
+    <button class="x" onclick="closeQr()">✕</button>
+    <h3>QR код</h3>
+    <div class="msub" id="qrTitle"></div>
+    <div id="qrBox">
+      <div class="qrc" id="qrc"></div>
+      <div class="qrlink" id="qrLink"></div>
+      <div class="qrbtns">
+        <button class="btn g" onclick="copyQrLink()">🔗 Линк хуулах</button>
+        <button class="btn" onclick="downloadQr()">⬇ Зураг татах</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<div class="modal" id="renameModal" onclick="if(event.target===this)closeRename()">
+  <div class="mbox" style="max-width:440px">
+    <button class="x" onclick="closeRename()">✕</button>
+    <h3>Сэдвийн нэр засах</h3>
+    <div class="msub" id="rnSlug"></div>
+    <input id="rnInput" type="text" maxlength="160" placeholder="Шинэ нэр…"
+      style="width:100%;border:1.6px solid var(--line);border-radius:12px;padding:.7rem .9rem;font-size:.95rem;color:var(--ink);outline:none;margin:6px 0 14px" />
+    <div style="display:flex;gap:8px;justify-content:space-between;align-items:center">
+      <button class="btn g" id="rnReset" onclick="resetTitle()" style="color:#b3261e;box-shadow:inset 0 0 0 1.5px #f6c9c9">↺ Анхны нэр</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn g" onclick="closeRename()">Болих</button>
+        <button class="btn" onclick="saveTitle()">💾 Хадгалах</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="modal" id="modal" onclick="if(event.target===this)closeM()">
@@ -185,19 +372,178 @@ var LIST=[
     ['kramer-3-6.html','Крамерын дүрэм (3 хувьсагч)'],
   ]],
 ];
+var CAMB=[
+  ['Бүлэг 4 · Бутархай, аравт, хувь',[
+    ['camb-4a-factors.html','4A · Хуваагч ба үржвэр'],
+    ['camb-4b-hcf-lcm.html','4B · ХИЕХ ба ХБЕХ'],
+    ['camb-4d-equiv-fraction.html','4D · Эквивалент/энгийн бутархай'],
+    ['camb-4e-mixed-improper.html','4E · Холимог ↔ энгийн бус бутархай'],
+    ['camb-4f-compare-fraction.html','4F · Бутархай харьцуулах·эрэмбэлэх'],
+    ['camb-4g-decimal-order.html','4G · Аравтын бутархай харьцуулах'],
+    ['camb-4h-round-decimal.html','4H · Аравтын бутархай тойролт'],
+    ['camb-4i-dec-frac.html','4I · Аравт ↔ бутархай хөрвүүлэх'],
+    ['camb-4j-perc-frac-dec.html','4J · Хувь ↔ бутархай ↔ аравт'],
+    ['camb-4k-dec-perc.html','4K · Аравт ↔ хувь хөрвүүлэх'],
+    ['camb-4l-frac-perc.html','4L · Бутархай ↔ хувь хөрвүүлэх'],
+    ['camb-4m-perc-quantity.html','4M · Тооны хувь олох'],
+    ['camb-4n-compare.html','4N · Харьцаа: хэдэн % / ямар бутархай'],
+  ]],
+];
+
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-function renderCards(){
-  var h='';
-  LIST.forEach(function(grp){
-    h+='<div style="grid-column:1/-1;font-weight:800;color:#7a7390;font-size:.82rem;margin-top:6px">'+grp[0]+'</div>';
-    grp[1].forEach(function(w){
-      h+='<div class="card" data-href="/'+w[0]+'" data-title="'+esc(w[1])+'"><span class="t">'+esc(w[1])+'</span><a class="open" href="/'+w[0]+'" target="_blank">Нээх ▸</a></div>';
-    });
-  });
-  document.getElementById('cards').innerHTML=h;
-  initPreview();
+function norm(s){return String(s||'').toLowerCase();}
+
+/* ---- band mapping ---- */
+function bandOf(label){var m=label.match(/^(\d+)/);if(!m)return 'x';var g=+m[1];if(g<=5)return 'bag';if(g<=8)return 'dund';return 'ahlah';}
+var CHIPS=[
+  {k:'all',t:'Бүх'},
+  {k:'new',t:'🆕 Шинэ',isnew:true},
+  {k:'bag',t:'Бага (3–5)'},
+  {k:'dund',t:'Дунд (6–8)'},
+  {k:'ahlah',t:'Ахлах (9–11)'},
+  {k:'camb',t:'🎓 Cambridge',camb:true},
+];
+var activeBand='all';
+
+var OVERRIDES={}, HIDDEN={}, NEWSET={};
+function cardHtml(w,ico){
+  var slug=w[0],orig=w[1],t=OVERRIDES[slug]||orig,edited=OVERRIDES[slug]&&OVERRIDES[slug]!==orig;
+  var hid=HIDDEN[slug]?' hidden':'';
+  var isnew=NEWSET[slug]?' isnew':'';
+  return '<a class="card'+(edited?' edited':'')+hid+isnew+'" href="/'+slug+'" target="_blank" data-href="/'+slug+'" data-slug="'+esc(slug)+'" data-orig="'+esc(orig)+'" data-title="'+esc(t)+'" data-search="'+esc(norm(slug+' '+t+' '+orig))+'">'
+    +(NEWSET[slug]?'<span class="newtag">Шинэ</span>':'')
+    +'<span class="ico">'+ico+'</span>'
+    +'<span class="t">'+esc(t)+'</span>'
+    +'<span class="go">›</span></a>';
 }
-/* ----- Хичээл дээр mouse очиход доторх хуудсыг preview харуулах ----- */
+
+function renderCatalog(){
+  var h='',gradeCount=0,total=0;
+  LIST.forEach(function(grp){
+    gradeCount++;var num=(grp[0].match(/^\d+/)||[''])[0];
+    total+=grp[1].length;
+    h+='<section class="grp" data-band="'+bandOf(grp[0])+'">'
+      +'<div class="grp-head"><span class="grp-badge">'+num+'</span><span class="grp-title">'+esc(grp[0])+'</span><span class="grp-count">'+grp[1].length+'</span></div>'
+      +'<div class="cards">'+grp[1].map(function(w){return cardHtml(w,'📄');}).join('')+'</div></section>';
+  });
+  /* Cambridge block */
+  var cambTotal=0,cambInner='';
+  CAMB.forEach(function(grp){
+    cambTotal+=grp[1].length;total+=grp[1].length;
+    cambInner+='<section class="grp" data-band="camb">'
+      +'<div class="grp-head"><span class="grp-badge">4</span><span class="grp-title">'+esc(grp[0])+'</span><span class="grp-count">'+grp[1].length+'</span></div>'
+      +'<div class="cards">'+grp[1].map(function(w){return cardHtml(w,'🎓');}).join('')+'</div></section>';
+  });
+  h+='<div class="camb-wrap" id="cambWrap">'
+    +'<div class="camb-head"><span class="tag">Cambridge</span><h2>Year 7 · Stage 4</h2></div>'
+    +'<div class="camb-sub">Cambridge Maths NSW сурах бичгийн сэдэв тус бүрээр автоматаар үүсдэг дасгал</div>'
+    +cambInner+'</div>';
+  document.getElementById('catalog').innerHTML=h;
+  document.getElementById('stTotal').textContent=total;
+  document.getElementById('stGrades').textContent=gradeCount;
+  document.getElementById('stCamb').textContent=cambTotal;
+  initPreview('catalog');
+  var cat=document.getElementById('catalog');
+  cat.addEventListener('click',catalogClick);
+  cat.addEventListener('dblclick',function(e){e.preventDefault();});
+  cat.addEventListener('contextmenu',function(e){
+    var c=e.target.closest('.card'); if(!c)return;
+    e.preventDefault(); openMenu(c,e.clientX,e.clientY);
+  });
+}
+var _clickN=0,_clickTmr=null;
+function catalogClick(e){
+  var c=e.target.closest('.card'); if(!c)return;
+  e.preventDefault();
+  _clickN++;
+  if(_clickN===1){
+    _clickTmr=setTimeout(function(){
+      _clickN=0;
+      if(editMode)openRename(c);
+      else{markSeen(c.getAttribute('data-slug'));window.open(c.getAttribute('data-href'),'_blank','noopener');}
+    },240);
+  }else{
+    clearTimeout(_clickTmr);_clickN=0;
+    var r=c.getBoundingClientRect();
+    openMenu(c, e.clientX||(r.left+24), e.clientY||(r.top+20));
+  }
+}
+
+/* ----- "Шинэ" статус (browser бүрээр localStorage-д санана) ----- */
+var SEEN_KEY='ws_seen_v1';
+function allSlugs(){var a=[];LIST.forEach(function(g){g[1].forEach(function(w){a.push(w[0]);});});CAMB.forEach(function(g){g[1].forEach(function(w){a.push(w[0]);});});return a;}
+function computeNew(){
+  var all=allSlugs(),seen=null;
+  try{seen=JSON.parse(localStorage.getItem(SEEN_KEY)||'null');}catch(e){}
+  NEWSET={};
+  if(!seen||!seen.length){ // анх орж байгаа — бүгдийг "үзсэн" болгож тэмдэглэхгүй
+    try{localStorage.setItem(SEEN_KEY,JSON.stringify(all));}catch(e){}
+    return;
+  }
+  var seenSet={};seen.forEach(function(s){seenSet[s]=1;});
+  all.forEach(function(s){if(!seenSet[s])NEWSET[s]=1;});
+}
+function markSeen(slug){
+  if(!NEWSET[slug])return;
+  delete NEWSET[slug];
+  try{var seen=JSON.parse(localStorage.getItem(SEEN_KEY)||'[]');if(seen.indexOf(slug)<0){seen.push(slug);localStorage.setItem(SEEN_KEY,JSON.stringify(seen));}}catch(e){}
+  [].forEach.call(document.querySelectorAll('.card[data-slug="'+slug+'"]'),function(card){
+    card.classList.remove('isnew');var tag=card.querySelector('.newtag');if(tag)tag.remove();
+  });
+  updateNewCount();
+}
+function updateNewCount(){
+  var n=0;for(var k in NEWSET){if(NEWSET.hasOwnProperty(k))n++;}
+  var pill=document.getElementById('newPill');pill.style.display=n?'':'none';
+  document.getElementById('stNew').textContent=n;
+  var chip=document.getElementById('chipNew');
+  if(chip){chip.style.display=n?'':'none';chip.textContent='🆕 Шинэ ('+n+')';}
+  if(!n&&activeBand==='new'){ // шинэ дуусвал "Бүх" руу шилжих
+    activeBand='all';
+    var all=document.querySelector('.chip[data-k="all"]');
+    if(all){[].forEach.call(document.querySelectorAll('#chips .chip'),function(x){x.classList.toggle('on',x===all);});}
+    applyFilters();
+  }
+}
+
+function renderChips(){
+  document.getElementById('chips').innerHTML=CHIPS.map(function(c){
+    var cls='chip'+(c.k==='all'?' on':'')+(c.camb?' camb':'')+(c.isnew?' newc':'');
+    var extra=c.isnew?' id="chipNew" style="display:none"':'';
+    return '<button class="'+cls+'" data-k="'+c.k+'"'+extra+'>'+c.t+'</button>';
+  }).join('');
+  document.getElementById('chips').addEventListener('click',function(e){
+    var b=e.target.closest('.chip');if(!b)return;
+    activeBand=b.getAttribute('data-k');
+    [].forEach.call(this.querySelectorAll('.chip'),function(x){x.classList.toggle('on',x===b);});
+    applyFilters();
+  });
+}
+
+function applyFilters(){
+  var q=norm(document.getElementById('q').value.trim());
+  var anyVisible=false;
+  var wrap=document.getElementById('cambWrap');
+  var cambVisible=0;
+  [].forEach.call(document.querySelectorAll('#catalog .grp'),function(sec){
+    var band=sec.getAttribute('data-band');
+    var bandOk=(activeBand==='all'||activeBand==='new')?true:(activeBand==='camb'?band==='camb':band===activeBand);
+    var vis=0;
+    [].forEach.call(sec.querySelectorAll('.card'),function(c){
+      var isHidden=c.classList.contains('hidden');
+      var newOk=(activeBand!=='new')||c.classList.contains('isnew');
+      var match=bandOk&&newOk&&(!q||c.getAttribute('data-search').indexOf(q)>=0)&&(editMode||!isHidden);
+      c.style.display=match?'':'none';if(match)vis++;
+    });
+    sec.style.display=vis?'':'none';
+    var cnt=sec.querySelector('.grp-count');if(cnt)cnt.textContent=vis;
+    if(vis){anyVisible=true;if(band==='camb')cambVisible++;}
+  });
+  if(wrap)wrap.style.display=cambVisible?'':'none';
+  document.getElementById('noRes').style.display=anyVisible?'none':'block';
+}
+
+/* ----- hover preview ----- */
 var pv,pvIf,pvHead,pvLoad,pvHref='',pvTimer,pvCanHover=(!window.matchMedia||window.matchMedia('(hover:hover)').matches);
 function ensurePv(){
   if(pv)return;
@@ -221,12 +567,13 @@ function positionPv(card){
   pv.style.left=left+'px';pv.style.top=top+'px';
 }
 function hidePv(){clearTimeout(pvTimer);if(pv)pv.style.display='none';}
-function initPreview(){
+function initPreview(elId){
   if(!pvCanHover)return;
-  var el=document.getElementById('cards');
+  var el=document.getElementById(elId||'catalog');
   el.addEventListener('mouseover',function(e){
+    if(editMode)return;
     var c=e.target.closest('.card'); if(!c||!c.getAttribute('data-href'))return;
-    clearTimeout(pvTimer); pvTimer=setTimeout(function(){showPv(c);},160);
+    clearTimeout(pvTimer); pvTimer=setTimeout(function(){showPv(c);},170);
   });
   el.addEventListener('mouseout',function(e){
     var c=e.target.closest('.card'); if(!c)return;
@@ -234,11 +581,13 @@ function initPreview(){
   });
   window.addEventListener('scroll',hidePv,true);
 }
+
+/* ----- saved sets ----- */
 function loadSaved(){
   fetch('/api/worksheets').then(function(r){return r.json();}).then(function(d){
     var el=document.getElementById('saved');
     var s=(d&&d.sets)||[];
-    if(!s.length){el.innerHTML='<div class="empty">Хадгалсан хуудас алга. Дасгал хэвлэхдээ "💾 Хадгалах" дарна уу.</div>';return;}
+    if(!s.length){el.innerHTML='<div class="empty">Хадгалсан хуудас алга. Дасгал хэвлэхдээ “💾 Хадгалах” дарна уу.</div>';return;}
     el.innerHTML=s.map(function(x){
       var dt=new Date(x.created_at);var ds=isNaN(dt)?'':dt.toLocaleString('mn-MN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
       var noteHtml=x.note?'<div style="font-size:.78rem;color:#9a6300;margin-top:2px">📝 '+esc(x.note)+'</div>':'';
@@ -279,7 +628,170 @@ function delSet(code){
     .then(function(r){return r.json();}).then(function(){loadSaved();});
 }
 function closeM(){document.getElementById('modal').classList.remove('on');}
-renderCards();loadSaved();
+
+/* ----- сэдвийн нэр засах (зөвхөн админ) ----- */
+var editMode=false, rnCard=null;
+var ADMIN_TOKEN=null;
+try{ADMIN_TOKEN=localStorage.getItem('cm_admin_token');}catch(e){}
+function isAdmin(){return !!ADMIN_TOKEN;}
+function adminHeaders(){var h={'Content-Type':'application/json'};if(ADMIN_TOKEN)h['Authorization']='Bearer '+ADMIN_TOKEN;return h;}
+function toggleEdit(){
+  editMode=!editMode;
+  document.body.classList.toggle('editing',editMode);
+  var b=document.getElementById('editToggle');
+  b.classList.toggle('on',editMode);
+  b.textContent=editMode?'✓ Дууссан':'✏️ Нэр засах';
+  if(editMode)hidePv();
+  applyFilters();
+}
+function openRename(card){
+  rnCard=card;
+  var slug=card.getAttribute('data-slug');
+  document.getElementById('rnSlug').textContent=slug;
+  var input=document.getElementById('rnInput');
+  input.value=card.getAttribute('data-title');
+  document.getElementById('rnReset').style.display=(OVERRIDES[slug]!=null)?'':'none';
+  document.getElementById('renameModal').classList.add('on');
+  setTimeout(function(){input.focus();input.select();},30);
+}
+function closeRename(){document.getElementById('renameModal').classList.remove('on');rnCard=null;}
+function applyCardTitle(card,t){
+  var slug=card.getAttribute('data-slug'),orig=card.getAttribute('data-orig');
+  card.querySelector('.t').textContent=t;
+  card.setAttribute('data-title',t);
+  card.setAttribute('data-search',norm(slug+' '+t+' '+orig));
+  card.classList.toggle('edited',t!==orig);
+}
+function saveTitle(){
+  if(!rnCard)return;
+  var card=rnCard,slug=card.getAttribute('data-slug'),orig=card.getAttribute('data-orig');
+  var t=document.getElementById('rnInput').value.trim();
+  if(!t){alert('Нэр хоосон байж болохгүй');return;}
+  if(!isAdmin()){alert('Зөвхөн админ нэр өөрчилнө');return;}
+  var reset=(t===orig);
+  fetch('/api/worksheets',{method:'POST',headers:adminHeaders(),
+    body:JSON.stringify(reset?{action:'resetTitle',slug:slug}:{action:'setTitle',slug:slug,title:t})})
+    .then(function(r){if(r.status===401){throw new Error('Зөвхөн админ эрхтэй');}return r.json();}).then(function(d){
+      if(!d||!d.ok){alert('Хадгалахад алдаа гарлаа');return;}
+      if(reset)delete OVERRIDES[slug];else OVERRIDES[slug]=t;
+      applyCardTitle(card,t);closeRename();
+    }).catch(function(e){alert('Алдаа: '+e.message);});
+}
+function resetTitle(){
+  if(!rnCard)return;
+  if(!isAdmin()){alert('Зөвхөн админ нэр өөрчилнө');return;}
+  var card=rnCard,slug=card.getAttribute('data-slug'),orig=card.getAttribute('data-orig');
+  fetch('/api/worksheets',{method:'POST',headers:adminHeaders(),
+    body:JSON.stringify({action:'resetTitle',slug:slug})})
+    .then(function(r){if(r.status===401){throw new Error('Зөвхөн админ эрхтэй');}return r.json();}).then(function(){
+      delete OVERRIDES[slug];applyCardTitle(card,orig);closeRename();
+    }).catch(function(e){alert('Алдаа: '+e.message);});
+}
+document.getElementById('rnInput').addEventListener('keydown',function(e){
+  if(e.key==='Enter'){e.preventDefault();saveTitle();}
+  else if(e.key==='Escape'){closeRename();}
+});
+
+/* ----- контекст цэс (баруун товч / давхар товшилт) ----- */
+var ctxCard=null;
+function absUrl(slug){return location.origin+'/'+slug;}
+function openMenu(card,x,y){
+  ctxCard=card;
+  var menu=document.getElementById('ctxMenu');
+  document.getElementById('cxHead').textContent=card.getAttribute('data-title');
+  var delBtn=menu.querySelector('[data-act="delete"]');
+  var hidden=card.classList.contains('hidden');
+  delBtn.innerHTML=hidden?'<span class="cxi">♻️</span> Дахин харуулах':'<span class="cxi">🗑</span> Устгах';
+  delBtn.classList.toggle('danger',!hidden);
+  menu.classList.add('on');
+  var mw=menu.offsetWidth,mh=menu.offsetHeight;
+  var left=Math.min(x||20,window.innerWidth-mw-8), top=Math.min(y||20,window.innerHeight-mh-8);
+  menu.style.left=Math.max(8,left)+'px';menu.style.top=Math.max(8,top)+'px';
+  hidePv();
+}
+function closeMenu(){document.getElementById('ctxMenu').classList.remove('on');ctxCard=null;}
+document.getElementById('ctxMenu').addEventListener('click',function(e){
+  var b=e.target.closest('button'); if(!b||!ctxCard)return;
+  var act=b.getAttribute('data-act'),card=ctxCard,url=absUrl(card.getAttribute('data-slug'));
+  closeMenu();
+  if(act==='open'){markSeen(card.getAttribute('data-slug'));window.open(url,'_blank','noopener');}
+  else if(act==='classroom')shareClassroom(url);
+  else if(act==='copy')copyText(url,'🔗 Линк хууллаа');
+  else if(act==='qr')openQr(card);
+  else if(act==='rename')openRename(card);
+  else if(act==='delete')toggleHide(card);
+});
+function shareClassroom(url){
+  window.open('https://classroom.google.com/share?url='+encodeURIComponent(url),'_blank','noopener,width=600,height=620');
+}
+function toggleHide(card){
+  if(!isAdmin()){alert('Зөвхөн админ');return;}
+  var slug=card.getAttribute('data-slug'),hidden=card.classList.contains('hidden');
+  if(!hidden&&!confirm('"'+card.getAttribute('data-title')+'" сэдвийг жагсаалтаас нуух уу?\n(Засах горимд дахин харуулж болно)'))return;
+  fetch('/api/worksheets',{method:'POST',headers:adminHeaders(),
+    body:JSON.stringify({action:hidden?'unhideTopic':'hideTopic',slug:slug})})
+    .then(function(r){if(r.status===401)throw new Error('Зөвхөн админ эрхтэй');return r.json();})
+    .then(function(d){if(!d||!d.ok){alert('Алдаа гарлаа');return;}
+      if(hidden){delete HIDDEN[slug];card.classList.remove('hidden');toast('♻️ Дахин харууллаа');}
+      else{HIDDEN[slug]=1;card.classList.add('hidden');toast('🗑 Нууллаа');}
+      applyFilters();
+    }).catch(function(e){alert('Алдаа: '+e.message);});
+}
+
+/* ----- линк хуулах + toast ----- */
+function copyText(t,msg){
+  if(navigator.clipboard&&navigator.clipboard.writeText)
+    navigator.clipboard.writeText(t).then(function(){toast(msg);},function(){fallbackCopy(t,msg);});
+  else fallbackCopy(t,msg);
+}
+function fallbackCopy(t,msg){
+  var ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.left='-9999px';
+  document.body.appendChild(ta);ta.focus();ta.select();
+  try{document.execCommand('copy');toast(msg);}catch(e){toast('Хуулж чадсангүй');}
+  ta.remove();
+}
+var _toastTmr=null;
+function toast(msg){var el=document.getElementById('toast');el.textContent=msg;el.classList.add('on');clearTimeout(_toastTmr);_toastTmr=setTimeout(function(){el.classList.remove('on');},1900);}
+
+/* ----- QR код ----- */
+var _qrUrl='';
+function openQr(card){
+  _qrUrl=absUrl(card.getAttribute('data-slug'));
+  document.getElementById('qrTitle').textContent=card.getAttribute('data-title');
+  document.getElementById('qrLink').textContent=_qrUrl;
+  var box=document.getElementById('qrc');box.innerHTML='';
+  if(window.QRCode){try{new QRCode(box,{text:_qrUrl,width:200,height:200,colorDark:'#1a1030',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});}catch(e){box.textContent='QR үүсгэж чадсангүй';}}
+  else box.textContent='QR сан ачаалагдаагүй';
+  document.getElementById('qrModal').classList.add('on');
+}
+function closeQr(){document.getElementById('qrModal').classList.remove('on');}
+function copyQrLink(){copyText(_qrUrl,'🔗 Линк хууллаа');}
+function downloadQr(){
+  var img=document.querySelector('#qrc img')||document.querySelector('#qrc canvas');
+  if(!img){toast('QR алга');return;}
+  var src=(img.tagName==='IMG')?img.src:img.toDataURL('image/png');
+  var a=document.createElement('a');a.href=src;a.download='qr.png';document.body.appendChild(a);a.click();a.remove();
+}
+
+/* цэс хаах — гадна дарах / гүйлгэх / Esc */
+document.addEventListener('mousedown',function(e){
+  if(document.getElementById('ctxMenu').classList.contains('on')&&!e.target.closest('#ctxMenu'))closeMenu();
+});
+window.addEventListener('scroll',function(){closeMenu();},true);
+document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeMenu();closeQr();}});
+
+/* init */
+renderChips();
+if(isAdmin()){document.body.classList.add('is-admin');document.getElementById('editBar').style.display='flex';}
+document.getElementById('q').addEventListener('input',applyFilters);
+loadSaved();
+fetch('/api/worksheets?titles=1').then(function(r){return r.json();})
+  .then(function(d){
+    if(d&&d.titles)OVERRIDES=d.titles;
+    if(d&&d.hidden)d.hidden.forEach(function(s){HIDDEN[s]=1;});
+  })
+  .catch(function(){})
+  .then(function(){computeNew();renderCatalog();updateNewCount();});
 </script>
 </body>
 </html>
