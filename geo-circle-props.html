@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Тойргийн чанарууд — интерактив</title>
+<style>
+  :root{--purple:#7B52EE;--purple2:#A855F7;--purple-d:#5a32d6;--ink:#1a1030;--soft:#7c7596;--line:#e7ddff;
+        --blue:#2563eb;--green:#16a34a;--orange:#f97316}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:var(--ink);background:
+    radial-gradient(1000px 400px at 12% -6%,#efe7ff 0,rgba(239,231,255,0) 60%),#f1eef8;
+    min-height:100vh;padding:16px;line-height:1.5}
+  .wrap{max-width:760px;margin:0 auto}
+  .back{display:inline-flex;align-items:center;gap:6px;font-weight:800;color:var(--purple-d);text-decoration:none;background:#fff;border:1.5px solid var(--line);border-radius:999px;padding:.45rem 1rem;font-size:.85rem;margin-bottom:12px}
+  .head{text-align:center;margin-bottom:14px}
+  .head h1{font-size:1.4rem;color:var(--purple-d);font-weight:900}
+  .head p{color:var(--soft);font-size:.9rem;margin-top:3px}
+  .panel{background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 16px 40px -24px rgba(90,50,214,.6);overflow:hidden}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid #f1ecfb;background:#faf8ff}
+  .tg{font-weight:800;font-size:.83rem;border:1.5px solid var(--line);background:#fff;color:var(--purple-d);border-radius:999px;padding:.45rem .9rem;cursor:pointer;transition:.14s;display:inline-flex;align-items:center;gap:6px}
+  .tg .dot{width:10px;height:10px;border-radius:50%;background:currentColor;opacity:.35}
+  .tg.on{background:#eafaf0;color:var(--green);border-color:#b3e6c6}
+  .tg.on .dot{opacity:1}
+  .tg.reset{margin-left:auto;color:#b3261e}
+  svg{display:block;width:100%;height:auto;touch-action:none;user-select:none;background:
+    linear-gradient(#f6f3ff 1px,transparent 1px) 0 0/22px 22px,
+    linear-gradient(90deg,#f6f3ff 1px,transparent 1px) 0 0/22px 22px,#fff}
+  .vtx{cursor:grab}.vtx:active{cursor:grabbing}
+  .prop{background:#fff7e6;border:1px solid #f3dca6;border-radius:10px;padding:9px 12px;margin:12px 15px 0;font-size:.84rem;color:#9a6300;text-align:center}
+  .readout{padding:13px 15px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px}
+  .ro{border-radius:12px;padding:10px 12px;text-align:center}
+  .ro b{font-size:.78rem;display:block;opacity:.85}.ro .v{font-weight:900;font-size:1.15rem;margin-top:2px}
+  .ro.cen{background:#fff1e6;color:#c2410c}.ro.ins{background:#eafaf0;color:var(--green)}.ro.rat{background:#f2ecff;color:var(--purple-d)}
+  .hint{text-align:center;color:var(--soft);font-size:.82rem;margin-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="/worksheets.html">← Дасгалын төв</a>
+  <div class="head">
+    <h1>Тойргийн чанарууд</h1>
+    <p>Багтсан өнцгийн теором: <b>төв өнцөг = 2 × багтсан өнцөг</b> · A, B, P-г тойрог дээгүүр чир</p>
+  </div>
+  <div class="panel">
+    <div class="toolbar">
+      <button class="tg reset" id="tgThales" style="margin-left:0;color:var(--purple-d)"><span class="dot"></span>Диаметр (Thales → 90°)</button>
+      <button class="tg reset" id="tgReset">↺ Дахин</button>
+    </div>
+    <svg id="stage" viewBox="0 0 440 380" aria-label="Тойрог"></svg>
+    <div class="prop" id="prop"></div>
+    <div class="readout" id="readout"></div>
+  </div>
+  <div class="hint">💡 P цэгийг хөдөлгөхөд багтсан өнцөг өөрчлөгдөх ч <b>үргэлж төв өнцгийн тал</b> хэвээр байна</div>
+</div>
+
+<script>
+var svg=document.getElementById('stage');
+var O={x:220,y:200},R=132;
+var P={A:ptAt(150),B:ptAt(30),P:ptAt(270)};
+var thales=false;
+
+function ptAt(deg){var a=deg*Math.PI/180;return {x:O.x+R*Math.cos(a),y:O.y+R*Math.sin(a)};}
+function ang(p){return Math.atan2(p.y-O.y,p.x-O.x);}
+function onCircle(p){var a=ang(p);return {x:O.x+R*Math.cos(a),y:O.y+R*Math.sin(a)};}
+function norm(a){a=a%(2*Math.PI);if(a<0)a+=2*Math.PI;return a;}
+function deg(r){return r*180/Math.PI;}
+function fmt(n){return (Math.round(n*10)/10).toFixed(1);}
+
+function L(x1,y1,x2,y2,color,w,dash){return '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+color+'" stroke-width="'+(w||2)+'"'+(dash?' stroke-dasharray="'+dash+'"':'')+' stroke-linecap="round"/>';}
+function dotc(p,r,fill,stroke){return '<circle cx="'+p.x+'" cy="'+p.y+'" r="'+r+'" fill="'+fill+'"'+(stroke?' stroke="'+stroke+'" stroke-width="2"':'')+'/>';}
+function txt(x,y,s,color,size){return '<text x="'+x+'" y="'+y+'" fill="'+color+'" font-size="'+(size||14)+'" font-weight="800" font-family="Segoe UI,Arial">'+s+'</text>';}
+
+function angleBetween(v,p1,p2){ // v оройд p1,p2 хоёрын хоорондох өнцөг (0..180)
+  var a=Math.atan2(p1.y-v.y,p1.x-v.x),b=Math.atan2(p2.y-v.y,p2.x-v.x);
+  var d=Math.abs(a-b);if(d>Math.PI)d=2*Math.PI-d;return d;
+}
+function markArc(center,p1,p2,r,color){
+  var a1=Math.atan2(p1.y-center.y,p1.x-center.x),a2=Math.atan2(p2.y-center.y,p2.x-center.x);
+  var da=a2-a1;while(da<=-Math.PI)da+=2*Math.PI;while(da>Math.PI)da-=2*Math.PI;
+  var sweep=da>0?1:0,large=0;
+  var s={x:center.x+r*Math.cos(a1),y:center.y+r*Math.sin(a1)},e={x:center.x+r*Math.cos(a2),y:center.y+r*Math.sin(a2)};
+  return '<path d="M'+s.x+' '+s.y+' A'+r+' '+r+' 0 '+large+' '+sweep+' '+e.x+' '+e.y+'" fill="none" stroke="'+color+'" stroke-width="2.6"/>';
+}
+
+function draw(){
+  if(thales){P.B={x:2*O.x-P.A.x,y:2*O.y-P.A.y};} // B = A-ийн диаметрийн эсрэг цэг
+  var A=P.A,B=P.B,Pp=P.P;
+  var aA=ang(A),aB=ang(B),aP=ang(Pp);
+  // A→B CCW нумын урт, P мөн адил
+  var dAB=norm(aB-aA), dAP=norm(aP-aA);
+  var pOnCCW=(dAP>0&&dAP<dAB);
+  var arcNotP=pOnCCW?(2*Math.PI-dAB):dAB;   // P-г агуулаагүй нум = төв өнцгийн харгалзах нум
+  var central=deg(arcNotP);
+  var inscribed=deg(angleBetween(Pp,A,B));
+
+  var g='';
+  // тойрог
+  g+='<circle cx="'+O.x+'" cy="'+O.y+'" r="'+R+'" fill="rgba(123,82,238,.04)" stroke="#7B52EE" stroke-width="2.2"/>';
+  // харгалзах нумыг тодруулах (P агуулаагүй тал)
+  var eA={x:O.x+R*Math.cos(aA),y:O.y+R*Math.sin(aA)},eB={x:O.x+R*Math.cos(aB),y:O.y+R*Math.sin(aB)};
+  var large=arcNotP>Math.PI?1:0, sweep=pOnCCW?0:1;
+  g+='<path d="M'+eA.x+' '+eA.y+' A'+R+' '+R+' 0 '+large+' '+sweep+' '+eB.x+' '+eB.y+'" fill="none" stroke="#f97316" stroke-width="5" stroke-linecap="round"/>';
+  // радиусууд (төв өнцөг)
+  g+=L(O.x,O.y,A.x,A.y,'#2563eb',2)+L(O.x,O.y,B.x,B.y,'#2563eb',2);
+  g+=markArc(O,A,B,26,'#c2410c');
+  // багтсан өнцөг (PA, PB)
+  g+=L(Pp.x,Pp.y,A.x,A.y,'#16a34a',2.4)+L(Pp.x,Pp.y,B.x,B.y,'#16a34a',2.4);
+  g+=markArc(Pp,A,B,26,'#16a34a');
+  // хөвчний AB
+  g+=L(A.x,A.y,B.x,B.y,'#b8a9e0',1.6,'5 4');
+  // цэгүүд
+  g+=dotc(O,4,'#7B52EE')+txt(O.x+7,O.y+5,'O','#7B52EE',13);
+  [['A',A,'#c2410c'],['B',B,'#c2410c'],['P',Pp,'#16a34a']].forEach(function(it){
+    g+='<circle class="vtx" data-pt="'+it[0]+'" cx="'+it[1].x+'" cy="'+it[1].y+'" r="17" fill="transparent"/>';
+    g+=dotc(it[1],8,'#fff',it[2])+txt(it[1].x+(it[1].x>O.x?11:-22),it[1].y+(it[1].y>O.y?18:-8),it[0],it[2],14);
+  });
+  svg.innerHTML=g;
+
+  document.getElementById('readout').innerHTML=
+     '<div class="ro cen"><b>Төв өнцөг ∠AOB</b><div class="v">'+fmt(central)+'°</div></div>'
+    +'<div class="ro ins"><b>Багтсан өнцөг ∠APB</b><div class="v">'+fmt(inscribed)+'°</div></div>'
+    +'<div class="ro rat"><b>Харьцаа (төв ÷ багтсан)</b><div class="v">'+fmt(central/inscribed)+'</div></div>';
+  var thal=Math.abs(central-180)<1.5;
+  document.getElementById('prop').innerHTML=thal
+    ? '🟢 <b>AB диаметр байхад</b> багтсан өнцөг ∠APB = <b>90°</b> (Thales-ийн теором) — хагас тойрогт багтсан өнцөг тэгш өнцөг.'
+    : '🟠 Төв өнцөг = 2 × багтсан өнцөг. Ижил нум дээр тулгуурласан бүх багтсан өнцөг тэнцүү.';
+}
+
+/* ---- drag (тойрог дээгүүр) ---- */
+function toSvg(e){var pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;var p=pt.matrixTransform(svg.getScreenCTM().inverse());return {x:p.x,y:p.y};}
+var drag=null;
+svg.addEventListener('pointerdown',function(e){var t=e.target.closest('[data-pt]');if(!t)return;drag=t.getAttribute('data-pt');try{svg.setPointerCapture(e.pointerId);}catch(_){}});
+svg.addEventListener('pointermove',function(e){
+  if(!drag)return; e.preventDefault();
+  if(thales&&drag==='B')drag='A';        // диаметр горимд B-г чирвэл A-г чирнэ
+  P[drag]=onCircle(toSvg(e));
+  draw();
+});
+function endDrag(){drag=null;}
+svg.addEventListener('pointerup',endDrag);svg.addEventListener('pointercancel',endDrag);
+
+/* ---- toggles ---- */
+document.getElementById('tgThales').addEventListener('click',function(){thales=!thales;this.classList.toggle('on',thales);draw();});
+document.getElementById('tgReset').addEventListener('click',function(){thales=false;document.getElementById('tgThales').classList.remove('on');P={A:ptAt(150),B:ptAt(30),P:ptAt(270)};draw();});
+
+draw();
+</script>
+</body>
+</html>
