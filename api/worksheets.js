@@ -40,8 +40,15 @@ module.exports = async (req, res) => {
         slug TEXT PRIMARY KEY,
         created_at TIMESTAMPTZ DEFAULT NOW()
       )`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ws_order (
+        grp TEXT NOT NULL,
+        slug TEXT NOT NULL,
+        pos INT NOT NULL,
+        PRIMARY KEY (grp, slug)
+      )`);
 
-    // GET — жагсаалт эсвэл нэг багц эсвэл сэдвийн нэр/нуусан жагсаалт
+    // GET — жагсаалт эсвэл нэг багц эсвэл сэдвийн нэр/нуусан/дараалал
     if (req.method === 'GET') {
       res.setHeader('Cache-Control', 'no-store');
       if (req.query.titles) {
@@ -49,7 +56,10 @@ module.exports = async (req, res) => {
         const map = {};
         r.rows.forEach(x => { map[x.slug] = x.title; });
         const h = await pool.query('SELECT slug FROM ws_hidden');
-        return res.json({ ok: true, titles: map, hidden: h.rows.map(x => x.slug) });
+        const o = await pool.query('SELECT grp, slug FROM ws_order ORDER BY grp, pos');
+        const order = {};
+        o.rows.forEach(x => { (order[x.grp] = order[x.grp] || []).push(x.slug); });
+        return res.json({ ok: true, titles: map, hidden: h.rows.map(x => x.slug), order: order });
       }
       const code = req.query.code;
       if (code) {
@@ -80,9 +90,20 @@ module.exports = async (req, res) => {
         await pool.query('DELETE FROM ws_sets WHERE id=$1', [parseInt(b.code)]);
         return res.json({ ok: true });
       }
-      // Нэр өөрчлөх / нуух / сэргээх — ЗӨВХӨН АДМИН
-      if (['setTitle', 'resetTitle', 'hideTopic', 'unhideTopic'].indexOf(b.action) >= 0) {
+      // Нэр өөрчлөх / нуух / сэргээх / дараалал — ЗӨВХӨН АДМИН
+      if (['setTitle', 'resetTitle', 'hideTopic', 'unhideTopic', 'setOrder'].indexOf(b.action) >= 0) {
         if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ өөрчилнө' });
+      }
+      if (b.action === 'setOrder') {
+        const grp = String(b.grp || '').slice(0, 120);
+        const slugs = Array.isArray(b.slugs) ? b.slugs.slice(0, 200) : null;
+        if (!grp || !slugs) return res.status(400).json({ ok: false, error: 'grp/slugs дутуу' });
+        await pool.query('DELETE FROM ws_order WHERE grp=$1', [grp]);
+        for (let i = 0; i < slugs.length; i++) {
+          await pool.query('INSERT INTO ws_order (grp, slug, pos) VALUES ($1,$2,$3)',
+            [grp, String(slugs[i]).slice(0, 120), i]);
+        }
+        return res.json({ ok: true });
       }
       if (b.action === 'hideTopic') {
         const slug = String(b.slug || '').slice(0, 120);
