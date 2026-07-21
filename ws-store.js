@@ -47,6 +47,41 @@
     b.onclick=function(){window.wsSaveCurrent(b);};
     bar.appendChild(b);
   }
-  if(document.readyState!=='loading')addBtn();
-  else document.addEventListener('DOMContentLoaded',addBtn);
+  // ─── QR / сурагчийн горим: ?qr=1 бол хариу ба бодолт харагдахгүй ───
+  var IS_QR=/[?&]qr=1(&|$)/.test(location.search);
+  window.WS_QR=IS_QR;
+  // Хариу/бодолтын хэсгийг нуугаад агуулгыг нь DOM-оос цэвэрлэх (шалгаж болохгүй)
+  function stripAnswers(){
+    document.querySelectorAll('#answers, .ans-page').forEach(function(el){
+      el.style.display='none';el.setAttribute('data-qr-hidden','1');
+      if(el.innerHTML)el.innerHTML='';
+    });
+  }
+  function applyQR(){
+    if(!IS_QR)return;
+    // "Хариу хавсаргах" тохиргоог унтрааж нуух
+    var sa=document.getElementById('sa');
+    if(sa){sa.checked=false;var lab=(sa.closest&&sa.closest('label'))||sa.parentNode;if(lab)lab.style.display='none';}
+    // toggleAns()-ийг идэвхгүй болгож хариуг ил гаргахаас сэргийлэх
+    window.toggleAns=function(){stripAnswers();};
+    stripAnswers();
+    // Тэмдэг
+    var bar=document.querySelector('.bar');
+    if(bar&&!bar.querySelector('.qr-badge')){
+      var s=document.createElement('span');s.className='qr-badge';
+      s.textContent='👁 Сурагчийн горим — хариугүй';
+      s.style.cssText='font-weight:800;font-size:.82rem;color:#0f766e;background:#ccfbf1;border:1px solid #99f6e4;border-radius:999px;padding:.42rem .9rem';
+      bar.appendChild(s);
+    }
+  }
+  // build() дахин зурсан ч хариу нуугдсан хэвээр байлгах
+  if(IS_QR){
+    var mo=new MutationObserver(function(){
+      if(document.querySelector('#answers:not([data-qr-hidden]) *, .ans-page:not([data-qr-hidden]) *'))stripAnswers();
+    });
+    try{mo.observe(document.body||document.documentElement,{childList:true,subtree:true});}catch(e){}
+  }
+  function init(){ if(!IS_QR)addBtn(); applyQR(); }
+  if(document.readyState!=='loading')init();
+  else document.addEventListener('DOMContentLoaded',init);
 })();
