@@ -143,10 +143,31 @@
     <h1>Зуслан — Математик</h1>
     <p>Багшийн систем · нэвтрэх</p>
     <form onsubmit="return doLogin(event)">
-      <input type="password" id="pass" placeholder="Нууц үг" autocomplete="current-password" required />
-      <button class="btn" style="width:100%;margin-top:12px">Нэвтрэх</button>
+      <input type="password" id="pass" placeholder="Багшийн нууц үг" autocomplete="current-password" required />
+      <button class="btn" style="width:100%;margin-top:12px">Багшаар нэвтрэх</button>
       <p id="loginErr" style="color:#b3261e;display:none;margin-top:10px">Нууц үг буруу байна</p>
     </form>
+    <div style="margin-top:18px;border-top:1px solid var(--line);padding-top:16px">
+      <p style="font-weight:700;color:var(--forest);margin-bottom:2px">Эцэг эх / Сурагч</p>
+      <p style="font-size:.8rem;color:var(--ink-soft);margin-bottom:10px">Хүүхдийн бүртгэлтэй утасны <b>сүүлийн 4 орон</b>-г оруулна</p>
+      <form onsubmit="return doParentLogin(event)">
+        <input id="parPhone" inputmode="numeric" maxlength="4" placeholder="Жишээ: 2345" required style="text-align:center;letter-spacing:.3em;font-weight:700" />
+        <button class="btn ghost" style="width:100%;margin-top:10px">Хүүхдийн мэдээлэл харах</button>
+        <p id="parErr" style="color:#b3261e;display:none;margin-top:8px"></p>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ЭЦЭГ ЭХ / СУРАГЧИЙН ХАРАГДАЦ -->
+<div id="parentView" style="display:none;min-height:100vh;padding:20px">
+  <div style="max-width:680px;margin:0 auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px">
+      <h1 style="color:var(--forest);font-size:1.2rem"><span id="parName"></span></h1>
+      <button class="btn ghost sm" onclick="parentLogout()">← Гарах</button>
+    </div>
+    <div id="parChildren"></div>
+    <div id="parTopics"></div>
   </div>
 </div>
 
@@ -180,6 +201,8 @@
             <option value="">Бүгд</option>
             <option value="1">1-р групп</option>
             <option value="2">2-р групп</option>
+            <option value="3">3-р групп</option>
+            <option value="4">4-р групп</option>
           </select>
         </div>
       </div>
@@ -239,6 +262,8 @@
             <option value="">Бүгд</option>
             <option value="1">1-р групп</option>
             <option value="2">2-р групп</option>
+            <option value="3">3-р групп</option>
+            <option value="4">4-р групп</option>
           </select>
           <label>Огноо:</label>
           <input type="date" id="attDate" onchange="loadAtt()" style="width:auto" />
@@ -345,15 +370,27 @@
             <select id="stGender"><option value="эрэгтэй">эрэгтэй</option><option value="эмэгтэй">эмэгтэй</option></select>
           </div>
         </div>
-        <div style="margin-bottom:12px;max-width:240px"><label class="muted">Анги</label><input id="stClass" placeholder="Жишээ: 9-р анги" /></div>
+        <div class="grid2" style="margin-bottom:12px">
+          <div><label class="muted">Анги</label><input id="stClass" placeholder="Жишээ: 9-р анги" /></div>
+          <div><label class="muted">Утас (эцэг эх нэвтрэхэд)</label><input id="stPhone" inputmode="tel" placeholder="Жишээ: 8811‑2345" /></div>
+        </div>
         <div style="text-align:right"><button class="btn green" onclick="addStudent()">+ Нэмэх</button></div>
       </div>
       <div class="card">
         <h2><svg class="ic" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg> Бүртгэлтэй сурагчид (<span id="stCount">0</span>) <span class="muted" id="grpCount" style="font-weight:500"></span></h2>
         <div class="tbl-wrap">
           <table>
-            <thead><tr><th>№</th><th>Овог</th><th>Нэр</th><th>Нас</th><th>Хүйс</th><th>Анги</th><th>Групп</th><th></th></tr></thead>
+            <thead><tr><th>№</th><th>Овог</th><th>Нэр</th><th>Нас</th><th>Хүйс</th><th>Анги</th><th>Утас</th><th>Групп</th><th></th></tr></thead>
             <tbody id="stRows"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card" id="archiveCard" style="display:none">
+        <h2><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8M10 12h4"/></svg> Архив — дууссан сурагчид (<span id="arCount">0</span>)</h2>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>№</th><th>Овог</th><th>Нэр</th><th>Анги</th><th>Групп</th><th></th></tr></thead>
+            <tbody id="arRows"></tbody>
           </table>
         </div>
       </div>
@@ -432,6 +469,58 @@ async function doLogin(e){
   return false;
 }
 function logout(){sessionStorage.removeItem('mc_pass');location.reload();}
+
+/* ---------- Эцэг эх / сурагчийн харагдац (утасны сүүлийн 4 орон) ---------- */
+let PAR_LAST4='', PAR_STUDENTS=[];
+function parFullName(s){return ((s.last_name?s.last_name+' ':'')+(s.first_name||'')).trim();}
+async function doParentLogin(e){
+  e.preventDefault();
+  const err=document.getElementById('parErr');
+  const last4=document.getElementById('parPhone').value.replace(/\D/g,'');
+  if(last4.length!==4){err.textContent='4 оронтой тоо оруулна уу';err.style.display='block';return false;}
+  const r=await fetch('/api/mathcamp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'parentLogin',last4})});
+  const j=await r.json();
+  if(!j.ok){err.textContent=j.error||'Тохирох сурагч олдсонгүй';err.style.display='block';return false;}
+  err.style.display='none'; PAR_LAST4=last4; PAR_STUDENTS=j.items;
+  document.getElementById('loginView').style.display='none';
+  document.getElementById('parentView').style.display='block';
+  if(j.items.length===1) openParentChild(j.items[0].id);
+  else renderParentPicker();
+  return false;
+}
+function renderParentPicker(){
+  document.getElementById('parName').textContent='Хүүхдээ сонгоно уу';
+  document.getElementById('parTopics').innerHTML='';
+  document.getElementById('parChildren').innerHTML='<div class="card">'+PAR_STUDENTS.map(s=>
+    `<button class="btn ghost" style="display:block;width:100%;text-align:left;margin-bottom:8px" onclick="openParentChild(${s.id})">👦 ${esc(parFullName(s))}${s.klass?' · '+esc(s.klass):''}</button>`).join('')+'</div>';
+}
+async function openParentChild(id){
+  document.getElementById('parChildren').innerHTML='';
+  document.getElementById('parTopics').innerHTML='<p class="muted">Уншиж байна…</p>';
+  const r=await fetch('/api/mathcamp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'parentTopics',student_id:id,last4:PAR_LAST4})});
+  const j=await r.json();
+  if(!j.ok){document.getElementById('parTopics').innerHTML='<div class="card"><p class="muted">Алдаа гарлаа.</p></div>';return;}
+  const s=j.student;
+  document.getElementById('parName').textContent=parFullName(s)+(s.klass?' · '+s.klass:'');
+  const now=new Date(), today=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  const items=j.items||[];
+  if(!items.length){document.getElementById('parTopics').innerHTML='<div class="card"><p class="muted">Одоогоор бүртгэгдсэн сэдэв алга байна.</p></div>';return;}
+  document.getElementById('parTopics').innerHTML=items.map(t=>{
+    const d=(t.d||'').slice(0,10), isToday=d===today;
+    return `<div class="card" style="margin-bottom:10px;${isToday?'border:2px solid var(--forest)':''}">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">
+        <b style="color:var(--forest)">${esc(t.title)}</b>
+        <span class="muted" style="font-size:.82rem">${d}${isToday?' · <b style="color:var(--forest)">Өнөөдөр</b>':''}</span></div>
+      ${t.detail?`<div style="margin-top:6px;white-space:pre-wrap">${esc(t.detail)}</div>`:''}
+      ${t.duration?`<div class="muted" style="margin-top:5px;font-size:.82rem">⏱ ${t.duration} мин</div>`:''}
+    </div>`;
+  }).join('');
+}
+function parentLogout(){
+  document.getElementById('parentView').style.display='none';
+  document.getElementById('loginView').style.display='grid';
+  document.getElementById('parPhone').value=''; PAR_LAST4=''; PAR_STUDENTS=[];
+}
 
 async function start(){
   document.getElementById('loginView').style.display='none';
@@ -652,26 +741,34 @@ async function delTopic(id){
 
 /* ---------- СУРАГЧИД ---------- */
 function loadStudents(){
-  document.getElementById('stCount').textContent=STUDENTS.length;
-  const g1=STUDENTS.filter(s=>s.grp===1).length, g2=STUDENTS.filter(s=>s.grp===2).length;
-  const doneN=STUDENTS.filter(s=>s.done).length;
-  document.getElementById('grpCount').textContent=`· 1-р групп: ${g1} · 2-р групп: ${g2} · хуваарилаагүй: ${STUDENTS.length-g1-g2}`+(doneN?` · дууссан: ${doneN}`:'');
-  const rows=STUDENTS.filter(matchSearch);
+  const active=STUDENTS.filter(s=>!s.done), archived=STUDENTS.filter(s=>s.done);
+  document.getElementById('stCount').textContent=active.length;
+  const ag1=active.filter(s=>s.grp===1).length, ag2=active.filter(s=>s.grp===2).length, ag3=active.filter(s=>s.grp===3).length, ag4=active.filter(s=>s.grp===4).length;
+  document.getElementById('grpCount').textContent=`· 1-р групп: ${ag1} · 2-р групп: ${ag2} · 3-р групп: ${ag3} · 4-р групп: ${ag4} · хуваарилаагүй: ${active.length-ag1-ag2-ag3-ag4}`;
+  const rows=active.filter(matchSearch);
   document.getElementById('stRows').innerHTML=rows.map((s,i)=>{
-    const LBL={'':'—',1:'1-р групп',2:'2-р групп'};
+    const LBL={'':'—',1:'1-р групп',2:'2-р групп',3:'3-р групп',4:'4-р групп'};
     const opt=v=>`<option value="${v}" ${String(s.grp||'')===String(v)?'selected':''}>${LBL[v]}</option>`;
-    const doneBtn=s.done
-      ? `<button class="btn ghost sm" onclick="setStudentDone(${s.id},false)" title="Идэвхтэй болгох">↩</button>`
-      : `<button class="btn ghost sm" onclick="setStudentDone(${s.id},true)" title="Дууссан гэж тэмдэглэх">✓ Дууссан</button>`;
-    const nameCell=s.done
-      ? `<span class="name-link" onclick="openCard(${s.id})">${esc(s.first_name)}</span> <span class="pill" style="background:#eceff1;color:#51606b">дууссан</span>`
-      : `<span class="name-link" onclick="openCard(${s.id})">${esc(s.first_name)}</span>`;
-    return `<tr style="${s.done?'opacity:.6':''}"><td>${i+1}</td><td>${esc(s.last_name||'')}</td><td>${nameCell}</td>
+    return `<tr><td>${i+1}</td><td>${esc(s.last_name||'')}</td>
+    <td><span class="name-link" onclick="openCard(${s.id})">${esc(s.first_name)}</span></td>
     <td>${s.age||''}</td><td><span class="pill g-${esc(s.gender)}">${esc(s.gender||'')}</span></td>
     <td><input value="${esc(s.klass||'')}" onchange="setStudentClass(${s.id},this.value)" placeholder="анги" style="width:100px;padding:.3rem"/></td>
-    <td><select onchange="setStudentGroup(${s.id},this.value)" style="padding:.3rem;width:auto">${opt('')}${opt(1)}${opt(2)}</select></td>
-    <td><div style="display:flex;gap:5px">${doneBtn}<button class="btn danger sm" onclick="delStudent(${s.id})">${ICON.trash}</button></div></td></tr>`;
+    <td><input value="${esc(s.phone||'')}" onchange="setStudentPhone(${s.id},this.value)" placeholder="утас" style="width:110px;padding:.3rem"/></td>
+    <td><select onchange="setStudentGroup(${s.id},this.value)" style="padding:.3rem;width:auto">${opt('')}${opt(1)}${opt(2)}${opt(3)}${opt(4)}</select></td>
+    <td><div style="display:flex;gap:5px"><button class="btn ghost sm" onclick="setStudentDone(${s.id},true)" title="Дууссан гэж тэмдэглэх">✓ Дууссан</button><button class="btn danger sm" onclick="delStudent(${s.id})">${ICON.trash}</button></div></td></tr>`;
   }).join('');
+  // Архив
+  const arWrap=document.getElementById('archiveCard');
+  if(arWrap){
+    arWrap.style.display=archived.length?'block':'none';
+    document.getElementById('arCount').textContent=archived.length;
+    document.getElementById('arRows').innerHTML=archived.map((s,i)=>
+      `<tr style="opacity:.75"><td>${i+1}</td><td>${esc(s.last_name||'')}</td>
+      <td><span class="name-link" onclick="openCard(${s.id})">${esc(s.first_name)}</span></td>
+      <td>${esc(s.klass||'')}</td><td>${s.grp?s.grp+'-р групп':'—'}</td>
+      <td><div style="display:flex;gap:5px"><button class="btn ghost sm" onclick="setStudentDone(${s.id},false)" title="Идэвхтэй болгох">↩ Сэргээх</button><button class="btn danger sm" onclick="delStudent(${s.id})">${ICON.trash}</button></div></td></tr>`
+    ).join('');
+  }
 }
 async function setStudentDone(id,done){
   const j=await api({action:'setDone',id,done});
@@ -688,6 +785,11 @@ async function setStudentGroup(id,grp){
   if(j.ok){const s=STUDENTS.find(x=>String(x.id)===String(id));if(s)s.grp=Number(grp)||null;loadStudents();}
   else alert('Алдаа');
 }
+async function setStudentPhone(id,phone){
+  const j=await api({action:'setPhone',id,phone});
+  if(j.ok){const s=STUDENTS.find(x=>String(x.id)===String(id));if(s)s.phone=phone;}
+  else alert('Алдаа');
+}
 async function addStudent(){
   const first_name=document.getElementById('stFirst').value.trim();
   if(!first_name){alert('Нэр оруулна уу');return;}
@@ -696,9 +798,10 @@ async function addStudent(){
     first_name,
     age:Number(document.getElementById('stAge').value)||null,
     gender:document.getElementById('stGender').value,
-    klass:document.getElementById('stClass').value.trim()});
+    klass:document.getElementById('stClass').value.trim(),
+    phone:document.getElementById('stPhone').value.trim()});
   if(j.ok){
-    document.getElementById('stLast').value='';document.getElementById('stFirst').value='';document.getElementById('stAge').value='';document.getElementById('stClass').value='';
+    document.getElementById('stLast').value='';document.getElementById('stFirst').value='';document.getElementById('stAge').value='';document.getElementById('stClass').value='';document.getElementById('stPhone').value='';
     await refreshStudents();
   }else alert('Алдаа');
 }

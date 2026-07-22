@@ -54,6 +54,7 @@ async function ensure() {
   await pool.query(`ALTER TABLE mc_students ADD COLUMN IF NOT EXISTS grp INT`).catch(()=>{});
   await pool.query(`ALTER TABLE mc_students ADD COLUMN IF NOT EXISTS klass TEXT`).catch(()=>{});
   await pool.query(`ALTER TABLE mc_students ADD COLUMN IF NOT EXISTS done BOOLEAN DEFAULT false`).catch(()=>{});
+  await pool.query(`ALTER TABLE mc_students ADD COLUMN IF NOT EXISTS phone TEXT`).catch(()=>{});
   await pool.query(`
     CREATE TABLE IF NOT EXISTS mc_attendance (
       id BIGSERIAL PRIMARY KEY,
@@ -119,6 +120,36 @@ module.exports = async (req, res) => {
     const action = b.action;
 
     if (action === 'login') return res.json({ ok: isAdmin(b) });
+
+    // ---------- Эцэг эх / сурагчийн нэвтрэлт (утасны сүүлийн 4 орон) — админ эрхгүй ----------
+    // Сүүлийн 4 оронгоор таарах сурагчдыг буцаана (эцэг эх хүүхдээ сонгоно).
+    if (action === 'parentLogin') {
+      const last4 = String(b.last4 || '').replace(/\D/g, '');
+      if (last4.length !== 4) return res.status(400).json({ ok: false, error: '4 оронтой тоо оруулна уу' });
+      const r = await pool.query(
+        `SELECT id, last_name, first_name, klass FROM mc_students
+         WHERE phone IS NOT NULL AND RIGHT(regexp_replace(phone,'\\D','','g'), 4) = $1
+         ORDER BY ord NULLS LAST, id`,
+        [last4]
+      );
+      if (!r.rows.length) return res.json({ ok: false, error: 'Тохирох сурагч олдсонгүй' });
+      return res.json({ ok: true, items: r.rows });
+    }
+    // Тухайн сурагчийн сэдэв, бодлогуудыг буцаана (сүүлийн 4 оронгоор баталгаажуулна).
+    if (action === 'parentTopics') {
+      const last4 = String(b.last4 || '').replace(/\D/g, '');
+      const id = b.student_id;
+      if (last4.length !== 4 || !id) return res.status(400).json({ ok: false });
+      const chk = await pool.query(
+        `SELECT id, last_name, first_name, klass FROM mc_students
+         WHERE id=$1 AND phone IS NOT NULL AND RIGHT(regexp_replace(phone,'\\D','','g'), 4) = $2`,
+        [id, last4]
+      );
+      if (!chk.rows.length) return res.status(401).json({ ok: false, error: 'Эрх нийцэхгүй' });
+      const t = await pool.query('SELECT id, d, title, detail, duration FROM mc_topic WHERE student_id=$1 ORDER BY d DESC, id DESC', [id]);
+      return res.json({ ok: true, student: chk.rows[0], items: t.rows });
+    }
+
     if (!isAdmin(b)) return res.status(401).json({ ok: false, error: 'Нэвтрэх эрхгүй' });
 
     // ---------- Сурагчид ----------
@@ -127,18 +158,25 @@ module.exports = async (req, res) => {
       return res.json({ ok: true, items: r.rows });
     }
     if (action === 'addStudent') {
-      const { last_name, first_name, age, gender, klass } = b;
+      const { last_name, first_name, age, gender, klass, phone } = b;
       if (!first_name) return res.status(400).json({ ok: false, error: 'Нэр шаардлагатай' });
+      const ph = phone ? String(phone).replace(/[^\d+\- ]/g, '').slice(0, 20) : null;
       const mx = await pool.query('SELECT COALESCE(MAX(ord),0)+1 AS n FROM mc_students');
       const r = await pool.query(
-        'INSERT INTO mc_students (ord,last_name,first_name,age,gender,klass) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
-        [mx.rows[0].n, last_name || '', first_name, age || null, gender || null, klass ? String(klass).slice(0, 40) : null]
+        'INSERT INTO mc_students (ord,last_name,first_name,age,gender,klass,phone) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
+        [mx.rows[0].n, last_name || '', first_name, age || null, gender || null, klass ? String(klass).slice(0, 40) : null, ph]
       );
       return res.json({ ok: true, item: r.rows[0] });
     }
     if (action === 'setClass') {
       if (!b.id) return res.status(400).json({ ok: false });
       await pool.query('UPDATE mc_students SET klass=$2 WHERE id=$1', [b.id, b.klass ? String(b.klass).slice(0, 40) : null]);
+      return res.json({ ok: true });
+    }
+    if (action === 'setPhone') {
+      if (!b.id) return res.status(400).json({ ok: false });
+      const ph = b.phone ? String(b.phone).replace(/[^\d+\- ]/g, '').slice(0, 20) : null;
+      await pool.query('UPDATE mc_students SET phone=$2 WHERE id=$1', [b.id, ph]);
       return res.json({ ok: true });
     }
     if (action === 'delStudent') {
@@ -148,7 +186,7 @@ module.exports = async (req, res) => {
     }
     if (action === 'setGroup') {
       const { id } = b;
-      const grp = (b.grp === 1 || b.grp === 2) ? b.grp : null;
+      const grp = ([1, 2, 3, 4].includes(b.grp)) ? b.grp : null;
       if (!id) return res.status(400).json({ ok: false });
       await pool.query('UPDATE mc_students SET grp=$2 WHERE id=$1', [id, grp]);
       return res.json({ ok: true });
