@@ -37,6 +37,13 @@ function isAdmin(b) {
   return b && typeof b.pass === 'string' && b.pass === ADMIN_PASS;
 }
 
+// Нэрийг далдлах: эхний ба сүүлийн үсэг харагдаж, дундах нь од (*)
+function maskName(n) {
+  n = String(n || '').trim();
+  if (n.length <= 2) return n;
+  return n[0] + '*'.repeat(n.length - 2) + n[n.length - 1];
+}
+
 async function ensure() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS mc_students (
@@ -93,6 +100,7 @@ async function ensure() {
     )`);
   // Сурагч бүрд тусдаа сэдэв — хуучин хүснэгтэд багана нэмнэ
   await pool.query(`ALTER TABLE mc_topic ADD COLUMN IF NOT EXISTS student_id BIGINT REFERENCES mc_students(id) ON DELETE CASCADE`).catch(()=>{});
+  await pool.query(`ALTER TABLE mc_topic ADD COLUMN IF NOT EXISTS material TEXT`).catch(()=>{}); // ажилласан материал (холбоос/нэр)
 
   // Сурагч хоосон бол seed хийнэ.
   const c = await pool.query('SELECT COUNT(*)::int AS n FROM mc_students');
@@ -127,27 +135,31 @@ module.exports = async (req, res) => {
       const last4 = String(b.last4 || '').replace(/\D/g, '');
       if (last4.length !== 4) return res.status(400).json({ ok: false, error: '4 оронтой тоо оруулна уу' });
       const r = await pool.query(
-        `SELECT id, last_name, first_name, klass FROM mc_students
+        `SELECT first_name FROM mc_students
          WHERE phone IS NOT NULL AND RIGHT(regexp_replace(phone,'\\D','','g'), 4) = $1
          ORDER BY ord NULLS LAST, id`,
         [last4]
       );
       if (!r.rows.length) return res.json({ ok: false, error: 'Тохирох сурагч олдсонгүй' });
-      return res.json({ ok: true, items: r.rows });
+      // Зөвхөн далдалсан нэрийн сануулга буцаана (бүтэн нэрийг эцэг эх бичнэ)
+      return res.json({ ok: true, hints: r.rows.map(x => maskName(x.first_name)) });
     }
-    // Тухайн сурагчийн сэдэв, бодлогуудыг буцаана (сүүлийн 4 оронгоор баталгаажуулна).
+    // Тухайн сурагчийн сэдэв, бодлогуудыг буцаана (сүүлийн 4 орон + бүтэн нэрээр баталгаажуулна).
     if (action === 'parentTopics') {
       const last4 = String(b.last4 || '').replace(/\D/g, '');
-      const id = b.student_id;
-      if (last4.length !== 4 || !id) return res.status(400).json({ ok: false });
+      const name = String(b.name || '').trim();
+      if (last4.length !== 4 || !name) return res.status(400).json({ ok: false, error: 'Нэр оруулна уу' });
       const chk = await pool.query(
         `SELECT id, last_name, first_name, klass FROM mc_students
-         WHERE id=$1 AND phone IS NOT NULL AND RIGHT(regexp_replace(phone,'\\D','','g'), 4) = $2`,
-        [id, last4]
+         WHERE phone IS NOT NULL AND RIGHT(regexp_replace(phone,'\\D','','g'), 4) = $1
+           AND lower(btrim(first_name)) = lower(btrim($2))
+         ORDER BY ord NULLS LAST, id LIMIT 1`,
+        [last4, name]
       );
-      if (!chk.rows.length) return res.status(401).json({ ok: false, error: 'Эрх нийцэхгүй' });
-      const t = await pool.query('SELECT id, d, title, detail, duration FROM mc_topic WHERE student_id=$1 ORDER BY d DESC, id DESC', [id]);
-      return res.json({ ok: true, student: chk.rows[0], items: t.rows });
+      if (!chk.rows.length) return res.status(401).json({ ok: false, error: 'Нэр таарахгүй байна' });
+      const s = chk.rows[0];
+      const t = await pool.query('SELECT id, d, title, detail, duration, material FROM mc_topic WHERE student_id=$1 ORDER BY d DESC, id DESC', [s.id]);
+      return res.json({ ok: true, student: s, items: t.rows });
     }
 
     if (!isAdmin(b)) return res.status(401).json({ ok: false, error: 'Нэвтрэх эрхгүй' });
@@ -301,11 +313,16 @@ module.exports = async (req, res) => {
       const t = String(title).slice(0, 200);
       const d = detail ? String(detail).slice(0, 2000) : null;
       const dur = Number(duration) || 90;
+      // Ажилласан материал (дасгалын төвөөс чеклэсэн) — [{title,url}] хэлбэрээр
+      const mats = Array.isArray(b.materials)
+        ? b.materials.map(m => ({ title: String(m.title || '').slice(0, 120), url: String(m.url || '').slice(0, 200) })).filter(m => m.title).slice(0, 40)
+        : [];
+      const matStr = mats.length ? JSON.stringify(mats) : null;
       const out = [];
       for (const sid of ids) {
         const r = await pool.query(
-          'INSERT INTO mc_topic (student_id,d,title,detail,duration) VALUES ($1,$2,$3,$4,$5) RETURNING *',
-          [sid, date, t, d, dur]
+          'INSERT INTO mc_topic (student_id,d,title,detail,duration,material) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
+          [sid, date, t, d, dur, matStr]
         );
         out.push(r.rows[0]);
       }

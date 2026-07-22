@@ -337,7 +337,13 @@
           <div><label class="muted">Үргэлжлэх (мин)</label><input type="number" id="tpDur" value="90" /></div>
         </div>
         <div style="margin-bottom:12px"><label class="muted">Сэдэв</label><input id="tpTitle" placeholder="Жишээ: Тэгшитгэл бодох" /></div>
-        <div style="margin-bottom:12px"><label class="muted">Дэлгэрэнгүй / тэмдэглэл</label><textarea id="tpDetail" rows="3" oninput="autoGrow(this)" placeholder="Үзсэн жишээ, даалгавар, тэмдэглэл..."></textarea></div>
+        <div style="margin-bottom:12px"><label class="muted">Тэмдэглэл (эцэг эхэд харагдана)</label><textarea id="tpDetail" rows="3" oninput="autoGrow(this)" placeholder="Хүүхэд юу ажилласан, анхаарах зүйл, дэвшил..."></textarea></div>
+        <div style="margin-bottom:12px">
+          <label class="muted">Ажилласан материал — дасгалын төвөөс чеклэх</label>
+          <input id="matSearch" oninput="renderMatList()" placeholder="Хайх (анги / сэдэв)..." style="margin-bottom:6px" />
+          <div id="matList" style="max-height:200px;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:8px;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:4px"></div>
+          <div class="muted" style="font-size:.78rem;margin-top:4px">Чеклэсэн материал нь эцэг эхэд холбоосоор харагдана.</div>
+        </div>
         <div style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
           <label class="muted">Аль сурагчид? (нэг буюу хэд хэдэн)</label>
           <div><button class="btn ghost sm" type="button" onclick="tpAll(true)">Бүгд</button>
@@ -470,8 +476,8 @@ async function doLogin(e){
 }
 function logout(){sessionStorage.removeItem('mc_pass');location.reload();}
 
-/* ---------- Эцэг эх / сурагчийн харагдац (утасны сүүлийн 4 орон) ---------- */
-let PAR_LAST4='', PAR_STUDENTS=[];
+/* ---------- Эцэг эх / сурагчийн харагдац (утасны сүүлийн 4 орон + нэр) ---------- */
+let PAR_LAST4='', PAR_HINTS=[];
 function parFullName(s){return ((s.last_name?s.last_name+' ':'')+(s.first_name||'')).trim();}
 async function doParentLogin(e){
   e.preventDefault();
@@ -481,45 +487,68 @@ async function doParentLogin(e){
   const r=await fetch('/api/mathcamp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'parentLogin',last4})});
   const j=await r.json();
   if(!j.ok){err.textContent=j.error||'Тохирох сурагч олдсонгүй';err.style.display='block';return false;}
-  err.style.display='none'; PAR_LAST4=last4; PAR_STUDENTS=j.items;
+  err.style.display='none'; PAR_LAST4=last4; PAR_HINTS=j.hints||[];
   document.getElementById('loginView').style.display='none';
   document.getElementById('parentView').style.display='block';
-  if(j.items.length===1) openParentChild(j.items[0].id);
-  else renderParentPicker();
+  renderNameStep();
   return false;
 }
-function renderParentPicker(){
-  document.getElementById('parName').textContent='Хүүхдээ сонгоно уу';
+function renderNameStep(){
+  document.getElementById('parName').textContent='Хүүхдийн нэрээ оруулна уу';
   document.getElementById('parTopics').innerHTML='';
-  document.getElementById('parChildren').innerHTML='<div class="card">'+PAR_STUDENTS.map(s=>
-    `<button class="btn ghost" style="display:block;width:100%;text-align:left;margin-bottom:8px" onclick="openParentChild(${s.id})">👦 ${esc(parFullName(s))}${s.klass?' · '+esc(s.klass):''}</button>`).join('')+'</div>';
+  const hints=PAR_HINTS.map(h=>`<span style="font-family:'Roboto Mono',monospace;font-weight:800;font-size:1.15rem;letter-spacing:.2em;background:#eef6ef;border-radius:8px;padding:5px 12px;display:inline-block;margin:3px">${esc(h)}</span>`).join('');
+  document.getElementById('parChildren').innerHTML=
+   `<div class="card">
+      <p style="margin-bottom:4px">Энэ дугаартай холбоотой хүүхэд:</p>
+      <div style="margin-bottom:10px">${hints}</div>
+      <div style="background:#fff7e6;border:1px solid #f3dca6;border-radius:8px;padding:8px 12px;font-size:.83rem;color:#8a5a00;margin-bottom:12px">⚠ Хүүхдийн нэрийг <b>Криллээр</b> бүтэн бичнэ үү. (Эхний ба сүүлийн үсэг харагдаж байгаа, дундах нь ✱-аар далдлагдсан.)</div>
+      <form onsubmit="return confirmParentName(event)">
+        <input id="parNameIn" placeholder="Хүүхдийн нэр (Криллээр)" required autocomplete="off" />
+        <button class="btn" style="width:100%;margin-top:10px">Мэдээлэл харах</button>
+        <p id="parNameErr" style="color:#b3261e;display:none;margin-top:8px"></p>
+      </form>
+    </div>`;
+  const inp=document.getElementById('parNameIn'); if(inp) inp.focus();
 }
-async function openParentChild(id){
-  document.getElementById('parChildren').innerHTML='';
-  document.getElementById('parTopics').innerHTML='<p class="muted">Уншиж байна…</p>';
-  const r=await fetch('/api/mathcamp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'parentTopics',student_id:id,last4:PAR_LAST4})});
+async function confirmParentName(e){
+  e.preventDefault();
+  const name=document.getElementById('parNameIn').value.trim();
+  const err=document.getElementById('parNameErr');
+  if(!name){err.textContent='Нэрээ оруулна уу';err.style.display='block';return false;}
+  const r=await fetch('/api/mathcamp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'parentTopics',last4:PAR_LAST4,name})});
   const j=await r.json();
-  if(!j.ok){document.getElementById('parTopics').innerHTML='<div class="card"><p class="muted">Алдаа гарлаа.</p></div>';return;}
-  const s=j.student;
+  if(!j.ok){err.textContent=j.error||'Нэр таарахгүй байна';err.style.display='block';return false;}
+  renderParentTopics(j.student, j.items||[]);
+  return false;
+}
+function renderParentTopics(s, items){
+  document.getElementById('parChildren').innerHTML='';
   document.getElementById('parName').textContent=parFullName(s)+(s.klass?' · '+s.klass:'');
   const now=new Date(), today=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-  const items=j.items||[];
   if(!items.length){document.getElementById('parTopics').innerHTML='<div class="card"><p class="muted">Одоогоор бүртгэгдсэн сэдэв алга байна.</p></div>';return;}
   document.getElementById('parTopics').innerHTML=items.map(t=>{
     const d=(t.d||'').slice(0,10), isToday=d===today;
+    let mats=[]; try{mats=t.material?JSON.parse(t.material):[];}catch(_){mats=[];}
+    const matHtml=(mats&&mats.length)
+      ? `<div style="margin-top:8px"><div class="muted" style="font-size:.8rem;margin-bottom:4px">📎 Ажилласан материал:</div>${mats.map(m=>m.url
+          ? `<a href="${esc(m.url)}" target="_blank" style="display:inline-block;margin:2px 5px 2px 0;padding:3px 10px;background:#eef6ef;border-radius:8px;color:var(--forest);font-weight:600;font-size:.82rem;text-decoration:none">${esc(m.title)} ↗</a>`
+          : `<span style="display:inline-block;margin:2px 5px 2px 0;padding:3px 10px;background:#f1f1f4;border-radius:8px;font-size:.82rem">${esc(m.title)}</span>`).join('')}</div>`
+      : '';
     return `<div class="card" style="margin-bottom:10px;${isToday?'border:2px solid var(--forest)':''}">
       <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">
         <b style="color:var(--forest)">${esc(t.title)}</b>
         <span class="muted" style="font-size:.82rem">${d}${isToday?' · <b style="color:var(--forest)">Өнөөдөр</b>':''}</span></div>
-      ${t.detail?`<div style="margin-top:6px;white-space:pre-wrap">${esc(t.detail)}</div>`:''}
-      ${t.duration?`<div class="muted" style="margin-top:5px;font-size:.82rem">⏱ ${t.duration} мин</div>`:''}
+      ${t.detail?`<div style="margin-top:6px"><div class="muted" style="font-size:.8rem">📝 Тэмдэглэл:</div><div style="white-space:pre-wrap">${esc(t.detail)}</div></div>`:''}
+      ${matHtml}
+      ${t.duration?`<div class="muted" style="margin-top:6px;font-size:.82rem">⏱ ${t.duration} мин</div>`:''}
     </div>`;
   }).join('');
 }
 function parentLogout(){
   document.getElementById('parentView').style.display='none';
   document.getElementById('loginView').style.display='grid';
-  document.getElementById('parPhone').value=''; PAR_LAST4=''; PAR_STUDENTS=[];
+  document.getElementById('parPhone').value=''; PAR_LAST4=''; PAR_HINTS=[];
+  document.getElementById('parChildren').innerHTML=''; document.getElementById('parTopics').innerHTML='';
 }
 
 async function start(){
@@ -532,6 +561,7 @@ async function start(){
   if(!j.ok){if(j.error==='Нэвтрэх эрхгүй')return logout();return;}
   STUDENTS = j.items;
   renderTpStudents();
+  renderMatList();
   await loadAllScores();
   loadAtt(); loadSummary(); loadStudents(); loadExams(); loadTopics(); renderDashboard();
 }
@@ -701,18 +731,51 @@ function renderTpStudents(){
   f.innerHTML='<option value="">Бүгд</option>'+STUDENTS.map(s=>`<option value="${s.id}">${esc(s.first_name)} ${esc(s.last_name||'')}</option>`).join('');
 }
 function tpAll(on){document.querySelectorAll('.tp-st').forEach(c=>c.checked=on);}
+
+/* ---------- Дасгалын төвийн материал каталог (cyber-math.com) ---------- */
+const MAT_BASE='https://cyber-math.com/';
+const CATALOG=[
+  ['3','Үржвэрийн хүрд','urjver-hurd.html'],['3','3×2 үржвэр','urjver-3x2-20.html'],['3','Баганан хуваалт 3÷2','huvaalt-3x2-12.html'],['3','Баганан хуваалт (Монгол)','huvaalt-mongol-12.html'],
+  ['4','4×3 үржвэр','urjver-4x3-12.html'],['4','Хуваалт 4÷2','huvaalt-4x2-12.html'],['4','Хуваалт 4÷3','huvaalt-4x3-12.html'],['4','Хуваалт 5-6÷2-3','huvaalt-tom-12.html'],['4','Өгүүлбэртэй бодлого (хүнд)','uguulber-4-hard.html'],
+  ['5','Хуваалт 5÷2','huvaalt-5x2-12.html'],['5','Хуваалт 5÷3','huvaalt-5x3-12.html'],['5','Хуваалт 6÷3','huvaalt-6x3-12.html'],['5','Хэрчмийн арга','herchim-arga-12.html'],['5','Хурдны бодлого','hurd-bodlogo-12.html'],['5','Зөрүү·харьцуулах','zoruu-bodlogo-12.html'],
+  ['6','Тоон шулуун нэмэх/хасах','numshul-nemeh-hasah-12.html'],['6','Сөрөг тоо нэмэх/хасах','negativ-too-100.html'],['6','Бүхэл тоо нэмэх/хасах','temdegt-nemeh-hasah-60.html'],['6','Эерэг сөрөг үржих/хуваах','temdegt-urjhuv-20.html'],['6','Анхны тоо','anhny-too-100.html'],['6','Анхны задлал','anhny-zadlal-16.html'],['6','ХИЕХ·ХБЕХ','hieh-hbeh-16.html'],['6','Ижил хуваарьт','izil-huvaari-16.html'],['6','Бутархай·аравт·хувь','huvari-arav-protsent-16.html'],
+  ['7','Квадрат зэрэг','kvadrat-zereg-20.html'],['7','Зэргийн чанар','zereg-chanar-30.html'],['7','Рационал нэмэх/хасах','ratsional-nemeh-hasah-20.html'],['7','Рационал үржих/хуваах','ratsional-urjih-huvaah-20.html'],['7','Нэг×олон гишүүнт','neg-olon-gishuunt-20.html'],['7','Олон×олон гишүүнт','olon-olon-gishuunt-16.html'],['7','Гишүүнчлэн үржих','gishuunchlen-urjih-16.html'],['7','Шугаман тэгшитгэл','shugaman-tegshitgel-16.html'],
+  ['8','Квадрат язгуур','kvadrat-yazguur-20.html'],['8','Квадрат язгуур (бүхэл)','kvadrat-yazguur-buhel-20.html'],['8','Куб зэрэг·язгуур','kub-zereg-yazguur-16.html'],['8','Нийлбэрийн квадрат','niilber-kvadrat-20.html'],['8','Ялгаврын квадрат','yalgavar-kvadrat-20.html'],['8','Квадратуудын ялгавар','kvadratuud-ylgavar-20.html'],['8','Алгебр бутархай хураах','algebr-butarhai-16.html'],['8','Алгебр бутархай нэмэх/хасах','algebr-butarhai-nh-16.html'],['8','Алгебр бутархай үржих/хуваах','algebr-butarhai-uh-16.html'],['8','Хоёр хувьсагчт ШТС','shts-2-16.html'],['8','Шулууны график','shuluun-grafik-8.html'],
+  ['9','Квадрат тэгшитгэл','kvadrat-tegshitgel-20.html'],['9','Иррационал илэрхийлэл','irratsional-ilerhiilel-20.html'],['9','Бүх үйлдэл (хүнд)','algebr-buh-4-16.html'],['9','Рационал тэгшитгэл','ratsional-tegshitgel-16.html'],['9','Гурван хувьсагчт ШТС','shts-3-12.html'],['9','Сонгон — хүнд','songon-9-hard.html'],['9','Сонгон — 4 төрөл','songon-9-4torol.html'],['9','Сонгон — язгуур (бодолттой)','songon-yazguur-4torol.html'],
+  ['10','n-р зэргийн язгуур','yazguur-n-16.html'],['10','Стандарт хэлбэрийн тоо','standart-too-16.html'],['10','Үржигдэхүүнд задлах','algebr-zadlal-16.html'],['10','Цэгийн координат','koordinat-tseg-16.html'],['10','Тойргийн тэгшитгэл','toirog-tegshitgel-16.html'],['10','Функцийн муж ба дүр','funkts-muj-16.html'],['10','Квадрат график (зөөлт)','kvadrat-grafik-zoolt-8.html'],['10','y=a/x гипербол','giperbol-grafik-8.html'],['10','y=axⁿ график','zeregt-funkts-grafik-8.html'],['10','y=aˣ график','iltgegch-funkts-grafik-8.html'],['10','Шүргэгч ба налалт','shurgegch-8.html'],
+  ['11','Шугаман бус систем','tegshitgel-sistem-4torol.html'],['11','Урвуу матрицын арга','matrits-urvuu-sistem-12.html'],['11','Илтгэгч тэгшитгэл','iltgegch-tegshitgel-16.html'],['11','2×2 матриц','matrits-2x2-20.html'],['11','3×3 тодорхойлогч','matrits-3x3-det-12.html'],['11','Крамерын дүрэм','kramer-3-6.html'],
+];
+const MAT_CHECKED=new Map(); // file -> {title,url}
+function renderMatList(){
+  const q=(document.getElementById('matSearch').value||'').toLowerCase().trim();
+  const el=document.getElementById('matList');
+  const rows=CATALOG.filter(c=>!q||(c[0]+' '+c[1]).toLowerCase().includes(q));
+  el.innerHTML=rows.map(c=>{
+    const f=c[2], title=c[0]+'-р анги · '+c[1];
+    return `<label style="display:flex;align-items:center;gap:6px;font-size:.82rem;padding:2px 4px;cursor:pointer">
+      <input type="checkbox" ${MAT_CHECKED.has(f)?'checked':''} onchange="toggleMat('${f}',this.checked)" style="width:auto;margin:0" />
+      <span><b style="color:var(--forest)">${c[0]}</b> ${esc(c[1])}</span></label>`;
+  }).join('')||'<span class="muted" style="font-size:.8rem">Олдсонгүй</span>';
+}
+function toggleMat(f,on){
+  const c=CATALOG.find(x=>x[2]===f); if(!c)return;
+  if(on) MAT_CHECKED.set(f,{title:c[0]+'-р анги · '+c[1],url:MAT_BASE+f});
+  else MAT_CHECKED.delete(f);
+}
 async function addTopic(){
   const date=document.getElementById('tpDate').value;
   const title=document.getElementById('tpTitle').value.trim();
   const detail=document.getElementById('tpDetail').value.trim();
   const duration=document.getElementById('tpDur').value;
   const student_ids=[...document.querySelectorAll('.tp-st:checked')].map(c=>Number(c.value));
+  const materials=[...MAT_CHECKED.values()];
   if(!date||!title){alert('Огноо ба сэдэв шаардлагатай');return;}
   if(!student_ids.length){alert('Дор хаяж нэг сурагч сонгоно уу');return;}
-  const j=await api({action:'topicCreate',date,title,detail,duration,student_ids});
+  const j=await api({action:'topicCreate',date,title,detail,duration,student_ids,materials});
   if(j.ok){
     document.getElementById('tpTitle').value='';
     const td=document.getElementById('tpDetail');td.value='';td.style.height='';
+    MAT_CHECKED.clear(); document.getElementById('matSearch').value=''; renderMatList();
     tpAll(false);loadTopics();
   }else alert('Алдаа: '+(j.error||''));
 }
@@ -723,15 +786,19 @@ async function loadTopics(){
   const el=document.getElementById('topicList');
   if(!j.items.length){el.innerHTML='<div class="empty">Хичээл бүртгээгүй байна.</div>';return;}
   const nameOf={};STUDENTS.forEach(s=>nameOf[s.id]=s.first_name);
-  el.innerHTML=j.items.map(t=>`
+  el.innerHTML=j.items.map(t=>{
+    let mats=[]; try{mats=t.material?JSON.parse(t.material):[];}catch(_){mats=[];}
+    const matHtml=(mats&&mats.length)?`<div style="margin-top:6px">${mats.map(m=>`<a href="${esc(m.url||'#')}" target="_blank" style="display:inline-block;margin:2px 5px 2px 0;padding:2px 8px;background:#eef6ef;border-radius:7px;color:var(--forest);font-weight:600;font-size:.78rem;text-decoration:none">📎 ${esc(m.title)}</a>`).join('')}</div>`:'';
+    return `
     <div style="border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;display:flex;justify-content:space-between;gap:12px">
       <div>
         <div style="font-weight:800;color:var(--forest)">${esc(t.title)}</div>
         <div class="muted">${ICON.user} ${esc(nameOf[t.student_id]||'—')} · ${fmtDate(t.d)} · ${t.duration||90} мин</div>
         ${t.detail?`<div style="margin-top:6px;font-size:.9rem;white-space:pre-wrap">${esc(t.detail)}</div>`:''}
+        ${matHtml}
       </div>
       <button class="btn danger sm" onclick="delTopic(${t.id})" style="align-self:start">${ICON.trash}</button>
-    </div>`).join('');
+    </div>`;}).join('');
 }
 async function delTopic(id){
   if(!confirm('Устгах уу?'))return;
