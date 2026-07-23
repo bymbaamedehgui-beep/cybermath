@@ -48,31 +48,46 @@ function toggleAns(){var el=document.getElementById('answers');if(el)el.style.di
 function coef(a){return a===1?'':a===-1?'-':(''+a);}
 function sgn(c){return c>0?' + '+c:c<0?' - '+(-c):'';}
 function sgnIn(h){return h>0?' - '+h:h<0?' + '+(-h):'';} /* (x - h) доторх тэмдэг */
-/* ---- координатын тор ---- */
-var VB=200,XMIN=-4,XMAX=4,YMIN=-8,YMAX=8;
-function X(x){return (x-XMIN)/(XMAX-XMIN)*VB;}
-function Y(y){return VB-(y-YMIN)/(YMAX-YMIN)*VB;}
-function grid(){
-  var g='',xi,yi;
-  for(xi=XMIN;xi<=XMAX;xi++){var px=X(xi);g+='<line x1="'+px+'" y1="0" x2="'+px+'" y2="'+VB+'" stroke="'+(xi===0?'#555':'#e8e2f7')+'" stroke-width="'+(xi===0?1.3:0.7)+'"/>';}
-  for(yi=YMIN;yi<=YMAX;yi+=2){var py=Y(yi);g+='<line x1="0" y1="'+py+'" x2="'+VB+'" y2="'+py+'" stroke="'+(yi===0?'#555':'#e8e2f7')+'" stroke-width="'+(yi===0?1.3:0.7)+'"/>';}
-  for(xi=XMIN;xi<=XMAX;xi+=2){if(xi!==0)g+='<text x="'+(X(xi)+1)+'" y="'+(Y(0)+10)+'" font-size="8" fill="#999">'+xi+'</text>';}
-  for(yi=YMIN;yi<=YMAX;yi+=4){if(yi!==0)g+='<text x="'+(X(0)+3)+'" y="'+(Y(yi)+3)+'" font-size="8" fill="#999">'+yi+'</text>';}
-  g+='<text x="'+(VB-9)+'" y="'+(Y(0)-3)+'" font-size="10" font-style="italic" fill="#666">x</text>';
-  g+='<text x="'+(X(0)+4)+'" y="11" font-size="10" font-style="italic" fill="#666">y</text>';
-  g+='<text x="'+(X(0)-8)+'" y="'+(Y(0)+10)+'" font-size="8" fill="#999">0</text>';
+/* ---- координатын тор (график бүрд тохирсон, x/y тэнцүү масштаб) ---- */
+var VB=200;
+function X(w,x){return (x-w.xmin)/(w.xmax-w.xmin)*VB;}
+function Y(w,y){return VB-(y-w.ymin)/(w.ymax-w.ymin)*VB;}
+/* Орой ба нумыг харуулах, тэнхлэгүүдийг багтаасан, ДӨРВӨЛЖИН (тэнцүү масштаб) цонх */
+function win(f,vx,vy){
+  var arcH=8,up=(f(vx+1)>=vy),wx=2,d;
+  for(d=0.2;d<=15;d+=0.2){ if(Math.abs(f(vx+d)-vy)<=arcH)wx=d; else break; }
+  var xmin=vx-wx,xmax=vx+wx,ymin,ymax;
+  if(up){ymin=vy;ymax=vy+arcH;}else{ymax=vy;ymin=vy-arcH;}
+  xmin=Math.min(xmin,0);xmax=Math.max(xmax,0);ymin=Math.min(ymin,0);ymax=Math.max(ymax,0);
+  xmin-=1;xmax+=1;ymin-=1;ymax+=1;
+  xmin=Math.floor(xmin);xmax=Math.ceil(xmax);ymin=Math.floor(ymin);ymax=Math.ceil(ymax);
+  var rx=xmax-xmin,ry=ymax-ymin,S=Math.max(rx,ry);
+  var ex=S-rx,ey=S-ry;
+  xmin-=Math.floor(ex/2);xmax+=Math.ceil(ex/2);
+  ymin-=Math.floor(ey/2);ymax+=Math.ceil(ey/2);
+  return {xmin:xmin,xmax:xmax,ymin:ymin,ymax:ymax};
+}
+function grid(w){
+  var g='',i,st=(w.xmax-w.xmin)>13?2:1;   /* том цонхонд шошго 2-оор */
+  for(i=w.xmin;i<=w.xmax;i++){var px=X(w,i);g+='<line x1="'+px.toFixed(1)+'" y1="0" x2="'+px.toFixed(1)+'" y2="'+VB+'" stroke="'+(i===0?'#555':'#e8e2f7')+'" stroke-width="'+(i===0?1.3:0.6)+'"/>';}
+  for(i=w.ymin;i<=w.ymax;i++){var py=Y(w,i);g+='<line x1="0" y1="'+py.toFixed(1)+'" x2="'+VB+'" y2="'+py.toFixed(1)+'" stroke="'+(i===0?'#555':'#e8e2f7')+'" stroke-width="'+(i===0?1.3:0.6)+'"/>';}
+  var y0=Y(w,0),x0=X(w,0);
+  for(i=w.xmin;i<=w.xmax;i++){if(i!==0&&i%st===0)g+='<text x="'+(X(w,i)+1).toFixed(1)+'" y="'+(y0+9).toFixed(1)+'" font-size="8" fill="#999">'+i+'</text>';}
+  for(i=w.ymin;i<=w.ymax;i++){if(i!==0&&i%st===0)g+='<text x="'+(x0+3).toFixed(1)+'" y="'+(Y(w,i)+3).toFixed(1)+'" font-size="8" fill="#999">'+i+'</text>';}
+  g+='<text x="'+(VB-9)+'" y="'+(y0-3).toFixed(1)+'" font-size="10" font-style="italic" fill="#666">x</text>';
+  g+='<text x="'+(x0+4).toFixed(1)+'" y="11" font-size="10" font-style="italic" fill="#666">y</text>';
   return g;
 }
-function curve(f){
-  var d='',pen=false;
-  for(var x=XMIN;x<=XMAX+1e-9;x+=0.08){
+function curve(w,f){
+  var d='',pen=false,step=(w.xmax-w.xmin)/240;
+  for(var x=w.xmin;x<=w.xmax+1e-9;x+=step){
     var y=f(x);
-    if(y<YMIN-2||y>YMAX+2){pen=false;continue;}
-    d+=(pen?'L':'M')+X(x).toFixed(1)+' '+Y(y).toFixed(1)+' ';pen=true;
+    if(y<w.ymin-1||y>w.ymax+1){pen=false;continue;}
+    d+=(pen?'L':'M')+X(w,x).toFixed(1)+' '+Y(w,y).toFixed(1)+' ';pen=true;
   }
   return '<path d="'+d+'" fill="none" stroke="var(--curve)" stroke-width="2"/>';
 }
-function vdot(vx,vy){return '<circle cx="'+X(vx)+'" cy="'+Y(vy)+'" r="2.6" fill="var(--curve)"/>';}
+function vdot(w,vx,vy){return '<circle cx="'+X(w,vx).toFixed(1)+'" cy="'+Y(w,vy).toFixed(1)+'" r="2.6" fill="var(--curve)"/>';}
 /* ---- тохиолдол: y = ax² ---- */
 function genOne(){
   var a=pick([-2,-1,1,2]);var h=nz(-3,3);var k=nz(-4,4);
@@ -84,12 +99,12 @@ function genOne(){
 function build(){
   var probs='',answs='',items=[];
   for(var i=0;i<6;i++){
-    var e=genOne();var n=i+1;
+    var e=genOne();var n=i+1;var w=win(e.f,e.vx,e.vy);
     probs+='<div class="q"><div class="qlabel"><span class="qn">'+n+'.</span> $'+e.label+'$</div>'
       +'<div class="hint">Орой ( __ , __ ) · тэнхлэг x = __</div>'
-      +'<svg class="gr" viewBox="0 0 '+VB+' '+VB+'">'+grid()+'</svg></div>';
+      +'<svg class="gr" viewBox="0 0 '+VB+' '+VB+'">'+grid(w)+'</svg></div>';
     answs+='<div class="a"><div class="af"><span class="an">'+n+'.</span> $'+e.label+'$</div>'
-      +'<svg class="grs" viewBox="0 0 '+VB+' '+VB+'">'+grid()+curve(e.f)+vdot(e.vx,e.vy)+'</svg>'
+      +'<svg class="grs" viewBox="0 0 '+VB+' '+VB+'">'+grid(w)+curve(w,e.f)+vdot(w,e.vx,e.vy)+'</svg>'
       +'<div class="ai">'+e.info+'</div></div>';
     items.push({q:e.label,a:e.info});
   }
