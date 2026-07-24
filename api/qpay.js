@@ -1,4 +1,28 @@
 const pool = require('./_db');
+const jwt = require('jsonwebtoken');
+const JWT_SECRET = process.env.JWT_SECRET || 'cybermath-default-secret-change-in-prod';
+const WS_YEAR_PRICE = 39900;   // ажлын хуудсын бүтэн жилийн эрх
+
+// Ажлын хуудсын эрхийн хүснэгт + токеноос имэйл гаргах
+async function ensureWsTable() {
+  await pool.query(`CREATE TABLE IF NOT EXISTS ws_access (
+    email TEXT PRIMARY KEY,
+    expires_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+  )`).catch(()=>{});
+}
+async function grantWsYear(email) {
+  await ensureWsTable();
+  const exp = new Date(); exp.setDate(exp.getDate() + 365);
+  await pool.query(
+    `INSERT INTO ws_access (email, expires_at, updated_at) VALUES ($1,$2,NOW())
+     ON CONFLICT (email) DO UPDATE SET expires_at=GREATEST(ws_access.expires_at, EXCLUDED.expires_at), updated_at=NOW()`,
+    [email, exp.toISOString()]
+  );
+  return exp;
+}
+function wsToken(email) { return jwt.sign({ email: email, ws: true }, JWT_SECRET, { expiresIn: '400d' }); }
+function emailFromToken(tok) { try { var d = jwt.verify(tok, JWT_SECRET); return d && d.email ? String(d.email).toLowerCase() : null; } catch (e) { return null; } }
 
 const QPAY_URL = 'https://merchant.qpay.mn/v2';
 const USERNAME = 'BYAMBADORJ';
@@ -80,6 +104,7 @@ module.exports = async (req, res) => {
       const planParam = plan ? `&plan=${encodeURIComponent(plan)}` : '';
       const desc = plan === 'friends' ? 'CyberMath Найзууд багц (3 хүн)'
                  : plan === 'yearly'  ? 'CyberMath Premium 1 жил'
+                 : plan === 'wsyear'  ? 'CyberMath Ажлын хуудас — 1 жил'
                  : 'CyberMath Premium';
 
       const token = await getToken();
@@ -117,6 +142,11 @@ module.exports = async (req, res) => {
       });
       const result = await checkResp.json();
       if (result.count > 0) {
+        // Ажлын хуудсын жилийн эрх — тусдаа ws_access-д олгоно
+        if (plan === 'wsyear') {
+          const wexp = await grantWsYear(email);
+          return res.json({ ok: true, paid: true, expiry: wexp.toISOString(), ws_token: wsToken(email) });
+        }
         // Төлбөр амжилттай — plan-ээс хамаарч хэрэгжүүлэх
         const months = plan === 'yearly' ? 12 : 1;
         const days = months * 30;
@@ -147,6 +177,11 @@ module.exports = async (req, res) => {
       const email = req.query.email ? decodeURIComponent(req.query.email) : null;
       const plan = req.query.plan ? decodeURIComponent(req.query.plan) : null;
 
+      if (email && plan === 'wsyear') {
+        try { await grantWsYear(email); console.log('[QPay callback] ws-year granted:', email); }
+        catch(err){ console.error('[QPay callback ws]', err.message); }
+        return res.json({ ok: true });
+      }
       if (email) {
         try {
           const months = plan === 'yearly' ? 12 : 1;
@@ -173,6 +208,26 @@ module.exports = async (req, res) => {
         console.warn('[QPay callback] No email in query string');
       }
       return res.json({ ok: true });
+    }
+
+    // Ажлын хуудсын эрх шалгах / сэргээх
+    if (req.query.action === 'wsstatus') {
+      const enabled = process.env.WS_PAYWALL !== 'off';   // серверийн kill-switch
+      if (!enabled) return res.json({ ok: true, enabled: false, active: true });
+      await ensureWsTable();
+      const b = req.body || {};
+      // Имэйлийг найдвартай токеноос (эсвэл сэргээхэд имэйлээр) авах
+      let email = null;
+      if (b.wstoken) email = emailFromToken(b.wstoken);
+      if (!email && b.token) email = emailFromToken(b.token);
+      const byEmail = !email && b.email ? String(b.email).trim().toLowerCase() : null;
+      if (byEmail) email = byEmail;
+      if (!email) return res.json({ ok: true, enabled: true, active: false });
+      const r = await pool.query('SELECT expires_at FROM ws_access WHERE email=$1 AND expires_at > NOW()', [email]);
+      const active = r.rows.length > 0;
+      return res.json({ ok: true, enabled: true, active: active, email: active ? email : null,
+        expires_at: active ? r.rows[0].expires_at : null,
+        ws_token: active ? wsToken(email) : null });
     }
 
     res.status(405).end();
