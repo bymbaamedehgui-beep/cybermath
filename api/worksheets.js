@@ -47,6 +47,17 @@ module.exports = async (req, res) => {
         pos INT NOT NULL,
         PRIMARY KEY (grp, slug)
       )`);
+    // Сэдвийг анги хооронд зөөх / хувилах — байршлын өөрчлөлт
+    // kind='add'  → тухайн бүлэгт нэмж байрлуулсан (зөөсний очих тал эсвэл хувилсан)
+    // kind='remove' → эх бүлгээс хассан (зөөсний гарах тал)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ws_place (
+        grp TEXT NOT NULL,
+        slug TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (grp, slug, kind)
+      )`);
 
     // GET — жагсаалт эсвэл нэг багц эсвэл сэдвийн нэр/нуусан/дараалал
     if (req.method === 'GET') {
@@ -59,7 +70,13 @@ module.exports = async (req, res) => {
         const o = await pool.query('SELECT grp, slug FROM ws_order ORDER BY grp, pos');
         const order = {};
         o.rows.forEach(x => { (order[x.grp] = order[x.grp] || []).push(x.slug); });
-        return res.json({ ok: true, titles: map, hidden: h.rows.map(x => x.slug), order: order });
+        const p = await pool.query('SELECT grp, slug, kind FROM ws_place');
+        const place = { add: {}, remove: {} };
+        p.rows.forEach(x => {
+          const bucket = x.kind === 'remove' ? place.remove : place.add;
+          (bucket[x.grp] = bucket[x.grp] || []).push(x.slug);
+        });
+        return res.json({ ok: true, titles: map, hidden: h.rows.map(x => x.slug), order: order, place: place });
       }
       const code = req.query.code;
       if (code) {
@@ -91,8 +108,35 @@ module.exports = async (req, res) => {
         return res.json({ ok: true });
       }
       // Нэр өөрчлөх / нуух / сэргээх / дараалал — ЗӨВХӨН АДМИН
-      if (['setTitle', 'resetTitle', 'hideTopic', 'unhideTopic', 'setOrder'].indexOf(b.action) >= 0) {
+      if (['setTitle', 'resetTitle', 'hideTopic', 'unhideTopic', 'setOrder',
+           'moveTopic', 'dupTopic', 'removePlacement'].indexOf(b.action) >= 0) {
         if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ өөрчилнө' });
+      }
+      const clip = (s) => String(s || '').slice(0, 120);
+      if (b.action === 'moveTopic') {
+        const slug = clip(b.slug), from = clip(b.from), to = clip(b.to);
+        if (!slug || !from || !to) return res.status(400).json({ ok: false, error: 'slug/from/to дутуу' });
+        if (from === to) return res.json({ ok: true });
+        // эх бүлгээс хас
+        await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'remove') ON CONFLICT DO NOTHING`, [from, slug]);
+        await pool.query(`DELETE FROM ws_place WHERE grp=$1 AND slug=$2 AND kind='add'`, [from, slug]);
+        // очих бүлэгт нэм
+        await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, [to, slug]);
+        await pool.query(`DELETE FROM ws_place WHERE grp=$1 AND slug=$2 AND kind='remove'`, [to, slug]);
+        return res.json({ ok: true });
+      }
+      if (b.action === 'dupTopic') {
+        const slug = clip(b.slug), to = clip(b.to);
+        if (!slug || !to) return res.status(400).json({ ok: false, error: 'slug/to дутуу' });
+        await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, [to, slug]);
+        await pool.query(`DELETE FROM ws_place WHERE grp=$1 AND slug=$2 AND kind='remove'`, [to, slug]);
+        return res.json({ ok: true });
+      }
+      if (b.action === 'removePlacement') {
+        const slug = clip(b.slug), grp = clip(b.grp);
+        if (!slug || !grp) return res.status(400).json({ ok: false, error: 'slug/grp дутуу' });
+        await pool.query(`DELETE FROM ws_place WHERE grp=$1 AND slug=$2 AND kind='add'`, [grp, slug]);
+        return res.json({ ok: true });
       }
       if (b.action === 'setOrder') {
         const grp = String(b.grp || '').slice(0, 120);

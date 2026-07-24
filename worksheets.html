@@ -228,7 +228,18 @@
   <button data-act="qr"><span class="cxi">🔳</span> QR код үүсгэх</button>
   <div class="sep admin-only"></div>
   <button data-act="rename" class="admin-only"><span class="cxi">✏️</span> Нэр өөрчлөх</button>
+  <button data-act="move" class="admin-only"><span class="cxi">↔️</span> Анги хооронд зөөх</button>
+  <button data-act="dup" class="admin-only"><span class="cxi">⧉</span> Хувилах (өөр ангид)</button>
   <button data-act="delete" class="admin-only danger"><span class="cxi">🗑</span> Устгах</button>
+</div>
+
+<div class="modal" id="grpModal" onclick="if(event.target===this)closeGrp()">
+  <div class="mbox" style="max-width:420px">
+    <button class="x" onclick="closeGrp()">✕</button>
+    <h3 id="grpTitle" style="margin:0 0 4px">Анги сонгох</h3>
+    <div id="grpSub" style="font-size:12.5px;color:#7a7390;margin-bottom:12px"></div>
+    <div id="grpList" style="display:flex;flex-direction:column;gap:6px;max-height:52vh;overflow:auto"></div>
+  </div>
 </div>
 
 <div class="modal" id="qrModal" onclick="if(event.target===this)closeQr()">
@@ -463,7 +474,25 @@ var CHIPS=[
 ];
 var activeBand='all';
 
-var OVERRIDES={}, HIDDEN={}, NEWSET={}, ORDER={};
+var OVERRIDES={}, HIDDEN={}, NEWSET={}, ORDER={}, PLACE={add:{},remove:{}};
+/* slug → анхны нэр (LIST+CAMB доторх эхний тохиолдол) */
+var SLUGMAP={}, GROUPS=[];
+[LIST,CAMB].forEach(function(D){D.forEach(function(g){
+  GROUPS.push(g[0]);
+  g[1].forEach(function(w){ if(SLUGMAP[w[0]]==null)SLUGMAP[w[0]]=w[1]; });
+});});
+/* Админ зөөсөн/хувилсан байршлыг тухайн бүлгийн жагсаалтад тусгах */
+function isExtra(slug,grpLabel){var a=PLACE.add[grpLabel];return !!(a&&a.indexOf(slug)>=0);}
+function withPlacements(items,grpLabel){
+  var rm=PLACE.remove[grpLabel]||[];
+  var out=items.filter(function(w){return rm.indexOf(w[0])<0;});
+  var have={}; out.forEach(function(w){have[w[0]]=1;});
+  (PLACE.add[grpLabel]||[]).forEach(function(slug){
+    if(have[slug])return; have[slug]=1;
+    out.push([slug, SLUGMAP[slug]||slug]);
+  });
+  return out;
+}
 /* Хадгалсан дараалал байвал бүлгийн сэдвүүдийг эрэмбэлэх */
 function applyOrder(items,grpLabel){
   var ord=ORDER[grpLabel]; if(!ord||!ord.length)return items;
@@ -483,11 +512,12 @@ var ICONS={
   camb:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M22 9 12 5 2 9l10 4 10-4Z"/><path d="M6 11v5c0 1.1 2.7 2 6 2s6-.9 6-2v-5"/><path d="M22 9v4"/></svg>'
 };
 function iconFor(band){return ICONS[band]||ICONS.bag;}
-function cardHtml(w,ico,tone){
+function cardHtml(w,ico,tone,grpLabel){
   var slug=w[0],orig=w[1],t=OVERRIDES[slug]||orig,edited=OVERRIDES[slug]&&OVERRIDES[slug]!==orig;
   var hid=HIDDEN[slug]?' hidden':'';
   var isnew=NEWSET[slug]?' isnew':'';
-  return '<a class="card'+(edited?' edited':'')+hid+isnew+'" draggable="false" href="/'+slug+'" target="_blank" data-href="/'+slug+'" data-slug="'+esc(slug)+'" data-orig="'+esc(orig)+'" data-title="'+esc(t)+'" data-search="'+esc(norm(slug+' '+t+' '+orig+' '+(w[2]||'')))+'">'
+  var extra=isExtra(slug,grpLabel)?' data-extra="1"':'';
+  return '<a class="card'+(edited?' edited':'')+hid+isnew+'" draggable="false" href="/'+slug+'" target="_blank"'+extra+' data-href="/'+slug+'" data-slug="'+esc(slug)+'" data-orig="'+esc(orig)+'" data-title="'+esc(t)+'" data-search="'+esc(norm(slug+' '+t+' '+orig+' '+(w[2]||'')))+'">'
     +(NEWSET[slug]?'<span class="newtag">Шинэ</span>':'')
     +'<span class="ico '+(tone||'')+'">'+ico+'</span>'
     +'<span class="t">'+esc(t)+'</span>'
@@ -499,20 +529,20 @@ function renderCatalog(){
   LIST.forEach(function(grp){
     gradeCount++;var num=(grp[0].match(/^\d+/)||[''])[0];
     var band=bandOf(grp[0]);
-    total+=grp[1].length;
-    var items=applyOrder(grp[1],grp[0]);
+    var items=applyOrder(withPlacements(grp[1],grp[0]),grp[0]);
+    total+=items.length;
     h+='<section class="grp" data-band="'+band+'">'
-      +'<div class="grp-head"><span class="grp-badge">'+num+'</span><span class="grp-title">'+esc(grp[0])+'</span><span class="grp-count">'+grp[1].length+'</span></div>'
-      +'<div class="cards" data-grp="'+esc(grp[0])+'">'+items.map(function(w){return cardHtml(w,iconFor(band),'ico-'+band);}).join('')+'</div></section>';
+      +'<div class="grp-head"><span class="grp-badge">'+num+'</span><span class="grp-title">'+esc(grp[0])+'</span><span class="grp-count">'+items.length+'</span></div>'
+      +'<div class="cards" data-grp="'+esc(grp[0])+'">'+items.map(function(w){return cardHtml(w,iconFor(band),'ico-'+band,grp[0]);}).join('')+'</div></section>';
   });
   /* Cambridge block */
   var cambTotal=0,cambInner='';
   CAMB.forEach(function(grp){
-    cambTotal+=grp[1].length;total+=grp[1].length;
-    var citems=applyOrder(grp[1],grp[0]);
+    var citems=applyOrder(withPlacements(grp[1],grp[0]),grp[0]);
+    cambTotal+=citems.length;total+=citems.length;
     cambInner+='<section class="grp" data-band="camb">'
-      +'<div class="grp-head"><span class="grp-badge">4</span><span class="grp-title">'+esc(grp[0])+'</span><span class="grp-count">'+grp[1].length+'</span></div>'
-      +'<div class="cards" data-grp="'+esc(grp[0])+'">'+citems.map(function(w){return cardHtml(w,iconFor('camb'),'ico-camb');}).join('')+'</div></section>';
+      +'<div class="grp-head"><span class="grp-badge">4</span><span class="grp-title">'+esc(grp[0])+'</span><span class="grp-count">'+citems.length+'</span></div>'
+      +'<div class="cards" data-grp="'+esc(grp[0])+'">'+citems.map(function(w){return cardHtml(w,iconFor('camb'),'ico-camb',grp[0]);}).join('')+'</div></section>';
   });
   h+='<div class="camb-wrap" id="cambWrap">'
     +'<div class="camb-head"><span class="tag">Cambridge</span><h2>Year 7 · Stage 4</h2></div>'
@@ -522,14 +552,18 @@ function renderCatalog(){
   document.getElementById('stTotal').textContent=total;
   document.getElementById('stGrades').textContent=gradeCount;
   document.getElementById('stCamb').textContent=cambTotal;
-  initPreview('catalog');
   var cat=document.getElementById('catalog');
-  cat.addEventListener('click',catalogClick);
-  cat.addEventListener('dblclick',function(e){e.preventDefault();});
-  cat.addEventListener('contextmenu',function(e){
-    var c=e.target.closest('.card'); if(!c)return;
-    e.preventDefault(); openMenu(c,e.clientX,e.clientY);
-  });
+  if(!cat._bound){                       // listener-үүдийг зөвхөн нэг удаа холбоно (дахин зурахад давхардуулахгүй)
+    cat._bound=1;
+    initPreview('catalog');
+    cat.addEventListener('click',catalogClick);
+    cat.addEventListener('dblclick',function(e){e.preventDefault();});
+    cat.addEventListener('contextmenu',function(e){
+      var c=e.target.closest('.card'); if(!c)return;
+      e.preventDefault(); openMenu(c,e.clientX,e.clientY);
+    });
+  }
+  if(editMode){[].forEach.call(cat.querySelectorAll('.card'),function(c){c.setAttribute('draggable','true');});}
 }
 var _clickN=0,_clickTmr=null;
 function catalogClick(e){
@@ -825,8 +859,9 @@ function openMenu(card,x,y){
   document.getElementById('cxHead').textContent=card.getAttribute('data-title');
   var delBtn=menu.querySelector('[data-act="delete"]');
   var hidden=card.classList.contains('hidden');
-  delBtn.innerHTML=hidden?'<span class="cxi">♻️</span> Дахин харуулах':'<span class="cxi">🗑</span> Устгах';
-  delBtn.classList.toggle('danger',!hidden);
+  var isXtra=card.getAttribute('data-extra')==='1';
+  delBtn.innerHTML=isXtra?'<span class="cxi">🗑</span> Энэ ангиас хасах':(hidden?'<span class="cxi">♻️</span> Дахин харуулах':'<span class="cxi">🗑</span> Устгах');
+  delBtn.classList.toggle('danger',isXtra||!hidden);
   menu.classList.add('on');
   var mw=menu.offsetWidth,mh=menu.offsetHeight;
   var left=Math.min(x||20,window.innerWidth-mw-8), top=Math.min(y||20,window.innerHeight-mh-8);
@@ -843,14 +878,78 @@ document.getElementById('ctxMenu').addEventListener('click',function(e){
   else if(act==='copy')copyText(url,'🔗 Линк хууллаа');
   else if(act==='qr')openQr(card);
   else if(act==='rename')openRename(card);
+  else if(act==='move')openGrpPicker(card,'move');
+  else if(act==='dup')openGrpPicker(card,'dup');
   else if(act==='delete')toggleHide(card);
 });
+
+/* ----- Анги хооронд зөөх / хувилах (зөвхөн админ) ----- */
+var grpCard=null,grpMode='move';
+function curGrp(card){var c=card.closest('.cards');return c?c.getAttribute('data-grp'):'';}
+function openGrpPicker(card,mode){
+  if(!isAdmin()){alert('Зөвхөн админ');return;}
+  grpCard=card;grpMode=mode;
+  var from=curGrp(card),slug=card.getAttribute('data-slug');
+  document.getElementById('grpTitle').textContent=(mode==='move'?'↔️ Зөөх: ':'⧉ Хувилах: ')+card.getAttribute('data-title');
+  document.getElementById('grpSub').textContent=(mode==='move'?'Одоогийн анги: '+from+' → очих ангиа сонго':'Аль ангид хуулбарлахаа сонго');
+  var list=document.getElementById('grpList');
+  list.innerHTML=GROUPS.map(function(g){
+    var here=(g===from);
+    var already=isExtra(slug,g)||(GROUPS.indexOf(g)>=0&&nativeHas(g,slug));
+    var dis=here||(mode==='dup'&&already);
+    var note=here?' (энд байна)':(already&&mode==='dup'?' (аль хэдийн бий)':'');
+    return '<button class="grpopt" data-g="'+esc(g)+'"'+(dis?' disabled':'')+
+      ' style="text-align:left;border:1.4px solid #e2daf5;background:'+(dis?'#f3f0fb':'#fff')+
+      ';color:'+(dis?'#b3a9cf':'#1a1030')+';border-radius:9px;padding:9px 12px;font-size:13.5px;font-weight:600;cursor:'+(dis?'default':'pointer')+'">'+
+      esc(g)+'<span style="color:#7a7390;font-weight:400">'+note+'</span></button>';
+  }).join('');
+  document.getElementById('grpModal').classList.add('on');
+}
+function nativeHas(grpLabel,slug){
+  var found=false;
+  [LIST,CAMB].forEach(function(D){D.forEach(function(g){if(g[0]===grpLabel){g[1].forEach(function(w){if(w[0]===slug)found=true;});}});});
+  return found;
+}
+function closeGrp(){document.getElementById('grpModal').classList.remove('on');grpCard=null;}
+document.getElementById('grpList').addEventListener('click',function(e){
+  var b=e.target.closest('.grpopt'); if(!b||b.disabled||!grpCard)return;
+  var to=b.getAttribute('data-g'),slug=grpCard.getAttribute('data-slug'),from=curGrp(grpCard);
+  var body=grpMode==='move'?{action:'moveTopic',slug:slug,from:from,to:to}:{action:'dupTopic',slug:slug,to:to};
+  b.disabled=true;
+  fetch('/api/worksheets',{method:'POST',headers:adminHeaders(),body:JSON.stringify(body)})
+    .then(function(r){if(r.status===401)throw new Error('Зөвхөн админ');return r.json();})
+    .then(function(d){
+      if(!d||!d.ok)throw new Error((d&&d.error)||'Алдаа');
+      /* локал PLACE-ийг шинэчилж дахин зур */
+      if(grpMode==='move'){
+        pushUniq(PLACE.remove,from,slug);pull(PLACE.add,from,slug);
+        pushUniq(PLACE.add,to,slug);pull(PLACE.remove,to,slug);
+      }else{ pushUniq(PLACE.add,to,slug);pull(PLACE.remove,to,slug); }
+      closeGrp();renderCatalog();applyFilters();
+      toast(grpMode==='move'?'↔️ '+to+' руу зөөлөө':'⧉ '+to+'-д хувиллаа');
+    }).catch(function(e){alert('Алдаа: '+e.message);b.disabled=false;});
+});
+function pushUniq(obj,k,v){obj[k]=obj[k]||[];if(obj[k].indexOf(v)<0)obj[k].push(v);}
+function pull(obj,k,v){if(obj[k]){var i=obj[k].indexOf(v);if(i>=0)obj[k].splice(i,1);}}
 function shareClassroom(url){
   window.open('https://classroom.google.com/share?url='+encodeURIComponent(url),'_blank','noopener,width=600,height=620');
 }
 function toggleHide(card){
   if(!isAdmin()){alert('Зөвхөн админ');return;}
-  var slug=card.getAttribute('data-slug'),hidden=card.classList.contains('hidden');
+  var slug=card.getAttribute('data-slug');
+  /* Хувилсан/зөөж авчирсан карт бол зөвхөн энэ байршлыг устгана (глобал нуухгүй) */
+  if(card.getAttribute('data-extra')==='1'){
+    var grp=curGrp(card);
+    if(!confirm('"'+card.getAttribute('data-title')+'" — '+grp+'-аас энэ хувилбарыг хасах уу?'))return;
+    fetch('/api/worksheets',{method:'POST',headers:adminHeaders(),
+      body:JSON.stringify({action:'removePlacement',slug:slug,grp:grp})})
+      .then(function(r){if(r.status===401)throw new Error('Зөвхөн админ');return r.json();})
+      .then(function(d){if(!d||!d.ok)throw new Error('Алдаа');
+        pull(PLACE.add,grp,slug);renderCatalog();applyFilters();toast('🗑 '+grp+'-аас хаслаа');
+      }).catch(function(e){alert('Алдаа: '+e.message);});
+    return;
+  }
+  var hidden=card.classList.contains('hidden');
   if(!hidden&&!confirm('"'+card.getAttribute('data-title')+'" сэдвийг жагсаалтаас нуух уу?\n(Засах горимд дахин харуулж болно)'))return;
   fetch('/api/worksheets',{method:'POST',headers:adminHeaders(),
     body:JSON.stringify({action:hidden?'unhideTopic':'hideTopic',slug:slug})})
@@ -902,7 +1001,7 @@ document.addEventListener('mousedown',function(e){
   if(document.getElementById('ctxMenu').classList.contains('on')&&!e.target.closest('#ctxMenu'))closeMenu();
 });
 window.addEventListener('scroll',function(){closeMenu();},true);
-document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeMenu();closeQr();}});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeMenu();closeQr();closeGrp();}});
 
 /* init */
 renderChips();
@@ -914,6 +1013,7 @@ fetch('/api/worksheets?titles=1').then(function(r){return r.json();})
     if(d&&d.titles)OVERRIDES=d.titles;
     if(d&&d.hidden)d.hidden.forEach(function(s){HIDDEN[s]=1;});
     if(d&&d.order)ORDER=d.order;
+    if(d&&d.place)PLACE={add:d.place.add||{},remove:d.place.remove||{}};
   })
   .catch(function(){})
   .then(function(){computeNew();renderCatalog();updateNewCount();initReorder();});
