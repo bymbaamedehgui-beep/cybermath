@@ -105,8 +105,9 @@
     var pb=document.querySelector('.bar .btn:not(.refresh)'); // хэвлэх товч (эхнийх refresh)
     var o=document.createElement('div');o.id='wsLock';
     o.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(20,15,40,.62);display:grid;place-items:center;padding:16px;font-family:"Segoe UI",Arial,sans-serif';
-    o.innerHTML='<div style="background:#fff;border-radius:20px;max-width:430px;width:100%;padding:24px;text-align:center;box-shadow:0 24px 60px -18px rgba(0,0,0,.5)">'
-      +'<div style="font-size:2.6rem;line-height:1">🔒</div>'
+    o.innerHTML='<div style="position:relative;background:#fff;border-radius:20px;max-width:430px;width:100%;padding:24px;text-align:center;box-shadow:0 24px 60px -18px rgba(0,0,0,.5)">'
+      +'<button id="wsBack" style="position:absolute;top:14px;left:14px;display:inline-flex;align-items:center;gap:5px;border:1.4px solid #e7ddff;background:#faf7ff;color:#5a32d6;font-weight:800;font-size:.82rem;border-radius:999px;padding:.4rem .8rem;cursor:pointer;font-family:inherit"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>Буцах</button>'
+      +'<div style="width:60px;height:60px;margin:2px auto 4px;background:linear-gradient(135deg,#7B52EE,#A855F7);border-radius:16px;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 18px -6px rgba(123,82,238,.6)"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10.5" rx="2.2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/><circle cx="12" cy="15" r="1.4" fill="#fff" stroke="none"/><path d="M12 16v2.2"/></svg></div>'
       +'<h3 style="color:#5a32d6;font-size:1.25rem;font-weight:900;margin:6px 0 2px">Ажлын хуудсын эрх</h3>'
       +'<p style="color:#7a7390;font-size:.9rem;margin-bottom:12px">Бүх ажлын хуудсыг <b>бүтэн жил</b> хязгааргүй ашиглах</p>'
       +'<div style="font-size:1.8rem;font-weight:900;color:#16a34a;margin-bottom:14px">39,900₮ <span style="font-size:.9rem;color:#7a7390;font-weight:700">/ жил</span></div>'
@@ -118,26 +119,31 @@
       +'</div>';
     document.body.appendChild(o);
     if(pb)pb.style.display='none';
+    o.querySelector('#wsBack').onclick=function(){
+      if(pollT){clearInterval(pollT);pollT=null;}
+      if(document.referrer&&document.referrer.indexOf(location.origin)===0)history.back();
+      else location.href='/worksheets.html';
+    };
     var em=o.querySelector('#wsEmail'); if(ls('cm_last_user'))em.value=ls('cm_last_user');
     var msg=o.querySelector('#wsMsg'),qr=o.querySelector('#wsQr');
     function valid(e){return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);}
     o.querySelector('#wsBuy').onclick=function(){
       var email=(em.value||'').trim().toLowerCase();
       if(!valid(email)){msg.textContent='Зөв имэйл хаяг оруулна уу';return;}
-      this.disabled=true;this.textContent='⏳ Нэхэмжлэх үүсгэж байна...';var btn=this;
+      this.disabled=true;this.textContent='Нэхэмжлэх үүсгэж байна…';var btn=this;
       fetch('/api/qpay?action=create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,amount:WS_PRICE,plan:'wsyear'})})
         .then(function(r){return r.json();}).then(function(d){
           var inv=d&&d.invoice;
           if(!inv||!inv.invoice_id){msg.textContent='Нэхэмжлэх үүсгэж чадсангүй. Дахин оролдоно уу.';btn.disabled=false;btn.textContent='QPay-аар худалдан авах';return;}
           var img=inv.qr_image?('<img src="data:image/png;base64,'+inv.qr_image+'" style="width:190px;height:190px" alt="QPay QR"/>'):'';
-          var link=inv.qPay_shortUrl?('<div style="margin-top:8px"><a href="'+inv.qPay_shortUrl+'" target="_blank" style="color:#5a32d6;font-weight:700;font-size:.85rem">📱 Утаснаас төлөх</a></div>'):'';
+          var link=inv.qPay_shortUrl?('<div style="margin-top:8px"><a href="'+inv.qPay_shortUrl+'" target="_blank" style="display:inline-flex;align-items:center;gap:5px;color:#5a32d6;font-weight:700;font-size:.85rem;text-decoration:none"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg>Утаснаас төлөх</a></div>'):'';
           qr.innerHTML='<div style="font-size:.82rem;color:#7a7390;margin-bottom:6px">QPay аппаар уншуулж төлнө үү</div>'+img+link;
           btn.style.display='none';em.disabled=true;
           msg.textContent='Төлбөрийг хүлээж байна…';
           pollT=setInterval(function(){
             fetch('/api/qpay?action=check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({invoice_id:inv.invoice_id,email:email,plan:'wsyear'})})
               .then(function(r){return r.json();}).then(function(c){
-                if(c&&c.paid){ if(c.ws_token)lset('cm_ws_token',c.ws_token); lset('cm_last_user',email); msg.textContent='✅ Амжилттай! Нээгдэж байна…'; setTimeout(unlockWs,700); }
+                if(c&&c.paid){ if(c.ws_token)lset('cm_ws_token',c.ws_token); lset('cm_last_user',email); msg.style.color='#16a34a';msg.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><polyline points="20 6 9 17 4 12"/></svg>Амжилттай! Нээгдэж байна…'; setTimeout(unlockWs,700); }
               }).catch(function(){});
           },3000);
         }).catch(function(){msg.textContent='Сүлжээний алдаа. Дахин оролдоно уу.';btn.disabled=false;btn.textContent='QPay-аар худалдан авах';});
