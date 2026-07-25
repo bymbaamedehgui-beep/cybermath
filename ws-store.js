@@ -162,13 +162,9 @@
     };
   }
   function enforcePaywall(){
-    var t0=Date.now();
-    checkAccess().then(function(ok){
-      if(ok)return;
-      // Цоожлохоосоо өмнө ажлын хуудсыг 3.5 секунд урьдчилан харуулна
-      var wait=Math.max(0,3500-(Date.now()-t0));
-      setTimeout(showLock,wait);
-    });
+    if(ls('cm_admin_token'))return;                 // админ — цоожгүй, flash-гүй
+    showLock();                                      // нээмэгц шууд төлбөрийн хэсэг харуулна
+    checkAccess().then(function(ok){ if(ok)unlockWs(); }); // эрхтэй/алдаа бол буцааж нээнэ
   }
 
   function init(){ if(!IS_QR)addBtn(); applyQR(); enforcePaywall(); }
