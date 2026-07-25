@@ -2,6 +2,12 @@ const pool = require('./_db');
 const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET || 'cybermath-default-secret-change-in-prod';
 const WS_YEAR_PRICE = 39900;   // ажлын хуудсын бүтэн жилийн эрх
+// Ажлын хуудсын урамшууллын код (20% хөнгөлөлт). Кодыг env-ээр өөрчилж болно.
+const WS_PROMO_PCT = parseInt(process.env.WS_PROMO_PCT || '20', 10);
+const WS_PROMO_CODES = (process.env.WS_PROMO_CODES || 'BAGSH20,ZUN20,CYBER20')
+  .split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+function wsPromoValid(code) { return !!code && WS_PROMO_CODES.indexOf(String(code).trim().toUpperCase()) >= 0; }
+function wsPriceFor(code) { return wsPromoValid(code) ? Math.round(WS_YEAR_PRICE * (100 - WS_PROMO_PCT) / 100) : WS_YEAR_PRICE; }
 
 // Ажлын хуудсын эрхийн хүснэгт + токеноос имэйл гаргах
 async function ensureWsTable() {
@@ -107,6 +113,10 @@ module.exports = async (req, res) => {
                  : plan === 'wsyear'  ? 'CyberMath Ажлын хуудас — 1 жил'
                  : 'CyberMath Premium';
 
+      // Ажлын хуудсын үнэ — серверийн талд эрх мэдэлтэй тооцно (промо код бол 20% хямдруулна)
+      let invAmount = amount || 9900;
+      if (plan === 'wsyear') invAmount = wsPriceFor((req.body || {}).promo);
+
       const token = await getToken();
       const invoiceResp = await fetch(`${QPAY_URL}/invoice`, {
         method: 'POST',
@@ -119,7 +129,7 @@ module.exports = async (req, res) => {
           sender_invoice_no: senderNo,
           invoice_receiver_code: receiverCode,
           invoice_description: desc,
-          amount: amount || 9900,
+          amount: invAmount,
           callback_url: `https://cybermath.vercel.app/api/qpay?action=callback&email=${encodeURIComponent(email)}${planParam}`
         })
       });
@@ -208,6 +218,14 @@ module.exports = async (req, res) => {
         console.warn('[QPay callback] No email in query string');
       }
       return res.json({ ok: true });
+    }
+
+    // Ажлын хуудсын урамшууллын кодыг шалгах (үнэ буцаана)
+    if (req.query.action === 'promocheck') {
+      const code = (req.body && req.body.promo) || '';
+      const valid = wsPromoValid(code);
+      return res.json({ ok: true, valid: valid, pct: valid ? WS_PROMO_PCT : 0,
+        base: WS_YEAR_PRICE, price: wsPriceFor(code) });
     }
 
     // Ажлын хуудсын эрх шалгах / сэргээх

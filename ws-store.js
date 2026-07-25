@@ -110,8 +110,13 @@
       +'<div style="width:60px;height:60px;margin:2px auto 4px;background:linear-gradient(135deg,#7B52EE,#A855F7);border-radius:16px;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 18px -6px rgba(123,82,238,.6)"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10.5" rx="2.2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/><circle cx="12" cy="15" r="1.4" fill="#fff" stroke="none"/><path d="M12 16v2.2"/></svg></div>'
       +'<h3 style="color:#5a32d6;font-size:1.25rem;font-weight:900;margin:6px 0 2px">Ажлын хуудсын эрх</h3>'
       +'<p style="color:#7a7390;font-size:.9rem;margin-bottom:12px">Бүх ажлын хуудсыг <b>бүтэн жил</b> хязгааргүй ашиглах</p>'
-      +'<div style="font-size:1.8rem;font-weight:900;color:#16a34a;margin-bottom:14px">39,900₮ <span style="font-size:.9rem;color:#7a7390;font-weight:700">/ жил</span></div>'
+      +'<div id="wsPriceBox" style="font-size:1.8rem;font-weight:900;color:#16a34a;margin-bottom:14px">39,900₮ <span style="font-size:.9rem;color:#7a7390;font-weight:700">/ жил</span></div>'
       +'<input id="wsEmail" type="email" placeholder="Имэйл хаяг" style="width:100%;border:1.6px solid #e7ddff;border-radius:12px;padding:.7rem .9rem;font-size:.95rem;outline:none;margin-bottom:10px" />'
+      +'<div style="display:flex;gap:6px;margin-bottom:4px">'
+        +'<input id="wsPromo" type="text" placeholder="Урамшууллын код (заавал биш)" style="flex:1;min-width:0;border:1.6px solid #e7ddff;border-radius:12px;padding:.7rem .9rem;font-size:.9rem;outline:none;text-transform:uppercase" />'
+        +'<button id="wsPromoBtn" style="flex-shrink:0;font-weight:800;border:1.6px solid #c9b8ff;background:#f4efff;color:#5a32d6;cursor:pointer;border-radius:12px;padding:0 1rem;font-size:.88rem">Хэрэглэх</button>'
+      +'</div>'
+      +'<div id="wsPromoMsg" style="font-size:.8rem;font-weight:700;margin:2px 0 10px;min-height:.9em"></div>'
       +'<button id="wsBuy" style="width:100%;font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.75rem;font-size:.95rem;color:#fff;background:linear-gradient(135deg,#7B52EE,#A855F7)">QPay-аар худалдан авах</button>'
       +'<div id="wsQr" style="margin-top:14px"></div>'
       +'<div id="wsMsg" style="font-size:.84rem;color:#7a7390;margin-top:10px;min-height:1em"></div>'
@@ -129,11 +134,35 @@
     var em=o.querySelector('#wsEmail'); if(ls('cm_last_user'))em.value=ls('cm_last_user');
     var msg=o.querySelector('#wsMsg'),qr=o.querySelector('#wsQr');
     function valid(e){return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);}
+    function fmt(n){return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,',');}
+    // ─── Урамшууллын код (20% хөнгөлөлт) ───
+    var appliedPromo=null;
+    var priceBox=o.querySelector('#wsPriceBox');
+    var promoIn=o.querySelector('#wsPromo'),promoBtn=o.querySelector('#wsPromoBtn'),promoMsg=o.querySelector('#wsPromoMsg');
+    var PRICE_HTML='39,900₮ <span style="font-size:.9rem;color:#7a7390;font-weight:700">/ жил</span>';
+    promoBtn.onclick=function(){
+      var code=(promoIn.value||'').trim().toUpperCase();
+      if(!code){appliedPromo=null;priceBox.innerHTML=PRICE_HTML;promoMsg.textContent='';promoIn.style.borderColor='#e7ddff';return;}
+      promoBtn.disabled=true;var ot=promoBtn.textContent;promoBtn.textContent='…';
+      fetch('/api/qpay?action=promocheck',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({promo:code,plan:'wsyear'})})
+        .then(function(r){return r.json();}).then(function(d){
+          promoBtn.disabled=false;promoBtn.textContent=ot;
+          if(d&&d.valid){
+            appliedPromo=code;
+            priceBox.innerHTML='<span style="text-decoration:line-through;color:#b3a9cf;font-size:1.15rem;font-weight:800">'+fmt(d.base)+'₮</span> '+fmt(d.price)+'₮ <span style="font-size:.9rem;color:#7a7390;font-weight:700">/ жил</span> <span style="display:inline-block;background:#dcfce7;color:#16a34a;font-size:.72rem;font-weight:800;border-radius:999px;padding:2px 8px;vertical-align:middle">-'+d.pct+'%</span>';
+            promoMsg.style.color='#16a34a';promoMsg.textContent='✓ '+d.pct+'% хөнгөлөлт хэрэгжлээ';promoIn.style.borderColor='#22c55e';
+          }else{
+            appliedPromo=null;priceBox.innerHTML=PRICE_HTML;
+            promoMsg.style.color='#dc2626';promoMsg.textContent='Код буруу эсвэл хүчингүй байна';promoIn.style.borderColor='#fca5a5';
+          }
+        }).catch(function(){promoBtn.disabled=false;promoBtn.textContent=ot;promoMsg.style.color='#dc2626';promoMsg.textContent='Шалгах үед алдаа гарлаа';});
+    };
+    promoIn.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();promoBtn.click();}});
     o.querySelector('#wsBuy').onclick=function(){
       var email=(em.value||'').trim().toLowerCase();
       if(!valid(email)){msg.textContent='Зөв имэйл хаяг оруулна уу';return;}
       this.disabled=true;this.textContent='Нэхэмжлэх үүсгэж байна…';var btn=this;
-      fetch('/api/qpay?action=create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,amount:WS_PRICE,plan:'wsyear'})})
+      fetch('/api/qpay?action=create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,amount:WS_PRICE,plan:'wsyear',promo:appliedPromo})})
         .then(function(r){return r.json();}).then(function(d){
           var inv=d&&d.invoice;
           if(!inv||!inv.invoice_id){msg.textContent='Нэхэмжлэх үүсгэж чадсангүй. Дахин оролдоно уу.';btn.disabled=false;btn.textContent='QPay-аар худалдан авах';return;}
