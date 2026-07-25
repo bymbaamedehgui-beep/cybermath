@@ -177,11 +177,14 @@
     st.textContent=
       '#sheet{position:relative}'+
       '#sheet.cm-branded>*:not(.cm-wm){position:relative;z-index:1}'+
-      '.cm-wm{position:absolute;top:50%;left:50%;z-index:0;pointer-events:none;'+
-        'transform:translate(-50%,-50%) rotate(-24deg);white-space:nowrap;'+
-        "font:900 clamp(64px,15vw,150px)/1 'Segoe UI',Arial,sans-serif;letter-spacing:2px;"+
-        'color:rgba(123,82,238,.055);text-transform:lowercase;'+
+      '.cm-wm{position:absolute;top:50%;left:50%;z-index:0;pointer-events:none;text-align:center;'+
+        'transform:translate(-50%,-50%) rotate(-20deg);'+
         '-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
+      '.cm-wm .cm-bird{display:block;margin:0 auto;width:clamp(150px,30vw,260px);opacity:.07}'+
+      ".cm-wm .cm-word{font:900 clamp(44px,11vw,120px)/1 'Segoe UI',Arial,sans-serif;letter-spacing:2px;"+
+        'color:rgba(123,82,238,.055);text-transform:lowercase;white-space:nowrap}'+
+      ".cm-wm .cm-url{font:800 clamp(16px,4vw,32px)/1 'Segoe UI',Arial,sans-serif;letter-spacing:1px;"+
+        'color:rgba(123,82,238,.07);margin-top:8px;white-space:nowrap}'+
       '.cm-foot{position:relative;z-index:1;text-align:center;margin-top:12px;padding-top:9px;'+
         "border-top:1px solid #eee;font:800 11.5px 'Segoe UI',Arial,sans-serif;color:#8f83b8;"+
         'letter-spacing:.4px;-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
@@ -191,7 +194,10 @@
   function brandSheet(){
     var sh=document.getElementById('sheet'); if(!sh)return;
     if(!sh.querySelector('.cm-wm')){
-      var wm=document.createElement('div'); wm.className='cm-wm'; wm.textContent='cybermath';
+      var wm=document.createElement('div'); wm.className='cm-wm';
+      wm.innerHTML='<img class="cm-bird" src="/assets/cybermath-mascot.svg" alt="" />'+
+        '<div class="cm-word">cybermath</div>'+
+        '<div class="cm-url">cyber-math.com</div>';
       sh.insertBefore(wm, sh.firstChild);
     }
     if(!sh.querySelector('.cm-foot')){
