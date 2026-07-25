@@ -169,7 +169,46 @@
     checkAccess().then(function(ok){ if(ok)unlockWs(); }); // эрхтэй/алдаа бол буцааж нээнэ
   }
 
-  function init(){ if(!IS_QR)addBtn(); applyQR(); enforcePaywall(); }
+  // ─── CyberMath усан тэмдэг (тамга) + сурталчилгааны линк — хэвлэсэн хуудсанд ч гарна ───
+  var WS_PROMO='cyber-math.com/dasgal';
+  function injectBrandCSS(){
+    if(document.getElementById('cm-brand-css'))return;
+    var st=document.createElement('style'); st.id='cm-brand-css';
+    st.textContent=
+      '#sheet{position:relative}'+
+      '#sheet.cm-branded>*:not(.cm-wm){position:relative;z-index:1}'+
+      '.cm-wm{position:absolute;top:50%;left:50%;z-index:0;pointer-events:none;'+
+        'transform:translate(-50%,-50%) rotate(-24deg);white-space:nowrap;'+
+        "font:900 clamp(64px,15vw,150px)/1 'Segoe UI',Arial,sans-serif;letter-spacing:2px;"+
+        'color:rgba(123,82,238,.055);text-transform:lowercase;'+
+        '-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
+      '.cm-foot{position:relative;z-index:1;text-align:center;margin-top:12px;padding-top:9px;'+
+        "border-top:1px solid #eee;font:800 11.5px 'Segoe UI',Arial,sans-serif;color:#8f83b8;"+
+        'letter-spacing:.4px;-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
+      '.cm-foot b{color:#5a32d6}';
+    document.head.appendChild(st);
+  }
+  function brandSheet(){
+    var sh=document.getElementById('sheet'); if(!sh)return;
+    if(!sh.querySelector('.cm-wm')){
+      var wm=document.createElement('div'); wm.className='cm-wm'; wm.textContent='cybermath';
+      sh.insertBefore(wm, sh.firstChild);
+    }
+    if(!sh.querySelector('.cm-foot')){
+      var ft=document.createElement('div'); ft.className='cm-foot';
+      ft.innerHTML='CyberMath Дасгалын төв · <b>'+WS_PROMO+'</b>';
+      sh.appendChild(ft);
+    }
+    sh.classList.add('cm-branded');
+  }
+  function watchSheet(){
+    var sh=document.getElementById('sheet'); if(!sh)return;
+    // "Шинэ бодлого" дарахад #sheet дахин үүсдэг тул тамгыг эргүүлж нэмнэ
+    new MutationObserver(function(){ if(!sh.querySelector('.cm-wm'))brandSheet(); })
+      .observe(sh,{childList:true});
+  }
+
+  function init(){ injectBrandCSS(); brandSheet(); watchSheet(); if(!IS_QR)addBtn(); applyQR(); enforcePaywall(); }
   if(document.readyState!=='loading')init();
   else document.addEventListener('DOMContentLoaded',init);
 })();
