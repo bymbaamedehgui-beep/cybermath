@@ -161,7 +161,15 @@
         }).catch(function(){msg.textContent='Шалгах үед алдаа гарлаа.';});
     };
   }
-  function enforcePaywall(){ checkAccess().then(function(ok){ if(!ok)showLock(); }); }
+  function enforcePaywall(){
+    var t0=Date.now();
+    checkAccess().then(function(ok){
+      if(ok)return;
+      // Цоожлохоосоо өмнө ажлын хуудсыг 3.5 секунд урьдчилан харуулна
+      var wait=Math.max(0,3500-(Date.now()-t0));
+      setTimeout(showLock,wait);
+    });
+  }
 
   function init(){ if(!IS_QR)addBtn(); applyQR(); enforcePaywall(); }
   if(document.readyState!=='loading')init();
