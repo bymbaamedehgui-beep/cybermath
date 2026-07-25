@@ -121,7 +121,9 @@
     if(pb)pb.style.display='none';
     o.querySelector('#wsBack').onclick=function(){
       if(pollT){clearInterval(pollT);pollT=null;}
-      if(document.referrer&&document.referrer.indexOf(location.origin)===0)history.back();
+      // Шинэ табд нээгдсэн бол (history.length<=1) history.back() ажиллахгүй → каталог руу
+      var sameOriginRef=document.referrer&&document.referrer.indexOf(location.origin)===0;
+      if(history.length>1&&sameOriginRef)history.back();
       else location.href='/worksheets.html';
     };
     var em=o.querySelector('#wsEmail'); if(ls('cm_last_user'))em.value=ls('cm_last_user');
