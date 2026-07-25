@@ -161,7 +161,9 @@
         }).catch(function(){msg.textContent='Шалгах үед алдаа гарлаа.';});
     };
   }
+  function inIframe(){ try{return window.top!==window.self;}catch(e){return true;} }
   function enforcePaywall(){
+    if(inIframe())return;                            // iframe доторх урьдчилан харах/танилцуулга — цоожгүй
     if(ls('cm_admin_token'))return;                 // админ — цоожгүй, flash-гүй
     showLock();                                      // нээмэгц шууд төлбөрийн хэсэг харуулна
     checkAccess().then(function(ok){ if(ok)unlockWs(); }); // эрхтэй/алдаа бол буцааж нээнэ
