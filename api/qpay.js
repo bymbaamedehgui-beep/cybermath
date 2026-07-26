@@ -1,7 +1,12 @@
 const pool = require('./_db');
 const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET || 'cybermath-default-secret-change-in-prod';
-const WS_YEAR_PRICE = 39900;   // ажлын хуудсын бүтэн жилийн эрх
+// Ажлын хуудсын шаталсан үнэ (сараар). 3 сараас багагүй.
+const WS_PRICES = { 3: 39900, 6: 69900, 9: 99900, 12: 119900 };
+const WS_MONTHS = [3, 6, 9, 12];
+function wsNormMonths(m) { m = parseInt(m, 10); return WS_MONTHS.indexOf(m) >= 0 ? m : 3; }
+function wsBasePrice(months) { return WS_PRICES[wsNormMonths(months)]; }
+const WS_YEAR_PRICE = WS_PRICES[12];   // хуучин 'wsyear' нийцэл
 // Ажлын хуудсын урамшууллын код (20% хөнгөлөлт). Кодыг env-ээр өөрчилж болно.
 const WS_PROMO_PCT = parseInt(process.env.WS_PROMO_PCT || '20', 10);
 const WS_PROMO_CODES = (process.env.WS_PROMO_CODES || 'BAGSH20,ZUN20,CYBER20')
@@ -16,9 +21,11 @@ async function ensureWsTable() {
     updated_at TIMESTAMPTZ DEFAULT NOW()
   )`).catch(()=>{});
 }
-async function grantWsYear(email) {
+async function grantWsMonths(email, months) {
   await ensureWsTable();
-  const exp = new Date(); exp.setDate(exp.getDate() + 365);
+  months = wsNormMonths(months);
+  const days = months >= 12 ? 365 : months * 30;
+  const exp = new Date(); exp.setDate(exp.getDate() + days);
   await pool.query(
     `INSERT INTO ws_access (email, expires_at, updated_at) VALUES ($1,$2,NOW())
      ON CONFLICT (email) DO UPDATE SET expires_at=GREATEST(ws_access.expires_at, EXCLUDED.expires_at), updated_at=NOW()`,
@@ -26,6 +33,7 @@ async function grantWsYear(email) {
   );
   return exp;
 }
+function grantWsYear(email) { return grantWsMonths(email, 12); }
 function wsToken(email) { return jwt.sign({ email: email, ws: true }, JWT_SECRET, { expiresIn: '400d' }); }
 function emailFromToken(tok) { try { var d = jwt.verify(tok, JWT_SECRET); return d && d.email ? String(d.email).toLowerCase() : null; } catch (e) { return null; } }
 function isAdmin(req) {
@@ -54,8 +62,10 @@ async function ensureWsExtra() {
     amount INT NOT NULL,
     promo TEXT,
     invoice_id TEXT UNIQUE,
+    months INT,
     created_at TIMESTAMPTZ DEFAULT NOW()
   )`).catch(()=>{});
+  await pool.query(`ALTER TABLE ws_purchases ADD COLUMN IF NOT EXISTS months INT`).catch(()=>{});
   wsExtraReady = true;
 }
 // DB промог эхэнд шалгаад, олдохгүй бол env кодоос үзнэ
@@ -76,13 +86,13 @@ async function resolvePromo(code) {
   if (WS_PROMO_CODES.indexOf(c) >= 0) return { valid: true, pct: WS_PROMO_PCT };
   return { valid: false, pct: 0 };
 }
-function priceFromPct(pct) { return pct > 0 ? Math.round(WS_YEAR_PRICE * (100 - pct) / 100) : WS_YEAR_PRICE; }
-async function recordPurchase(email, amount, promo, invoiceId) {
+function priceFromPct(pct, months) { const base = wsBasePrice(months); return pct > 0 ? Math.round(base * (100 - pct) / 100) : base; }
+async function recordPurchase(email, amount, promo, invoiceId, months) {
   await ensureWsExtra();
   const r = await pool.query(
-    `INSERT INTO ws_purchases (email, amount, promo, invoice_id) VALUES ($1,$2,$3,$4)
+    `INSERT INTO ws_purchases (email, amount, promo, invoice_id, months) VALUES ($1,$2,$3,$4,$5)
      ON CONFLICT (invoice_id) DO NOTHING RETURNING id`,
-    [email, amount, promo || null, invoiceId || null]);
+    [email, amount, promo || null, invoiceId || null, months || null]);
   return r.rows.length > 0;
 }
 
@@ -163,17 +173,23 @@ module.exports = async (req, res) => {
       const senderNo = `CM${emailHash}${Date.now()}`; // CM + 12 + 13 = 27 тэмдэгт
       const receiverCode = `cm_${emailHash}`; // 15 тэмдэгт, зөвхөн ASCII
 
-      const planParam = plan ? `&plan=${encodeURIComponent(plan)}` : '';
-      const desc = plan === 'friends' ? 'CyberMath Найзууд багц (3 хүн)'
+      // Ажлын хуудас — шаталсан сарын эрх (3/6/9/12)
+      let wsMonths = null;
+      if (plan === 'wsyear') wsMonths = 12;
+      else if (plan === 'wsmonths') wsMonths = wsNormMonths((req.body || {}).months);
+
+      const planParam = wsMonths != null ? `&plan=wsmonths&months=${wsMonths}`
+                      : plan ? `&plan=${encodeURIComponent(plan)}` : '';
+      const desc = wsMonths != null ? `CyberMath Ажлын хуудас — ${wsMonths} сар`
+                 : plan === 'friends' ? 'CyberMath Найзууд багц (3 хүн)'
                  : plan === 'yearly'  ? 'CyberMath Premium 1 жил'
-                 : plan === 'wsyear'  ? 'CyberMath Ажлын хуудас — 1 жил'
                  : 'CyberMath Premium';
 
-      // Ажлын хуудсын үнэ — серверийн талд эрх мэдэлтэй тооцно (промо код бол хямдруулна)
+      // Үнэ — серверийн талд эрх мэдэлтэй тооцно (промо код бол хямдруулна)
       let invAmount = amount || 9900;
-      if (plan === 'wsyear') {
+      if (wsMonths != null) {
         const pi = await resolvePromo((req.body || {}).promo);
-        invAmount = priceFromPct(pi.pct);
+        invAmount = priceFromPct(pi.pct, wsMonths);
       }
 
       const token = await getToken();
@@ -211,14 +227,15 @@ module.exports = async (req, res) => {
       });
       const result = await checkResp.json();
       if (result.count > 0) {
-        // Ажлын хуудсын жилийн эрх — тусдаа ws_access-д олгоно
-        if (plan === 'wsyear') {
-          const wexp = await grantWsYear(email);
+        // Ажлын хуудсын эрх — сараар тусдаа ws_access-д олгоно
+        if (plan === 'wsyear' || plan === 'wsmonths') {
+          const months = plan === 'wsyear' ? 12 : wsNormMonths((req.body || {}).months);
+          const wexp = await grantWsMonths(email, months);
           // Борлуулалтын бүртгэл + промо ашиглалт (invoice_id-ээр давхардуулахгүй)
           try {
             const promo = ((req.body || {}).promo || '').trim().toUpperCase() || null;
             const pi = promo ? await resolvePromo(promo) : { pct: 0 };
-            const inserted = await recordPurchase(email, priceFromPct(pi.pct), promo, invoice_id);
+            const inserted = await recordPurchase(email, priceFromPct(pi.pct, months), promo, invoice_id, months);
             if (inserted && promo) {
               await pool.query('UPDATE ws_promos SET used_count=used_count+1 WHERE code=$1', [promo]).catch(()=>{});
             }
@@ -255,8 +272,9 @@ module.exports = async (req, res) => {
       const email = req.query.email ? decodeURIComponent(req.query.email) : null;
       const plan = req.query.plan ? decodeURIComponent(req.query.plan) : null;
 
-      if (email && plan === 'wsyear') {
-        try { await grantWsYear(email); console.log('[QPay callback] ws-year granted:', email); }
+      if (email && (plan === 'wsyear' || plan === 'wsmonths')) {
+        const months = plan === 'wsyear' ? 12 : wsNormMonths(req.query.months);
+        try { await grantWsMonths(email, months); console.log('[QPay callback] ws granted:', email, months + 'сар'); }
         catch(err){ console.error('[QPay callback ws]', err.message); }
         return res.json({ ok: true });
       }
@@ -288,12 +306,18 @@ module.exports = async (req, res) => {
       return res.json({ ok: true });
     }
 
-    // Ажлын хуудсын урамшууллын кодыг шалгах (үнэ буцаана)
+    // Ажлын хуудсын үнийн жагсаалт (нээлттэй)
+    if (req.query.action === 'wsprices') {
+      return res.json({ ok: true, prices: WS_PRICES, months: WS_MONTHS });
+    }
+
+    // Ажлын хуудсын урамшууллын кодыг шалгах (сонгосон сарын үнэ буцаана)
     if (req.query.action === 'promocheck') {
       const code = (req.body && req.body.promo) || '';
+      const months = wsNormMonths((req.body && req.body.months) || 3);
       const pi = await resolvePromo(code);
-      return res.json({ ok: true, valid: pi.valid, pct: pi.pct,
-        base: WS_YEAR_PRICE, price: priceFromPct(pi.pct) });
+      return res.json({ ok: true, valid: pi.valid, pct: pi.pct, months: months,
+        base: wsBasePrice(months), price: priceFromPct(pi.pct, months), prices: WS_PRICES });
     }
 
     // ── АДМИН: ажлын хуудсын промо код удирдах + борлуулалт харах ──
@@ -342,7 +366,7 @@ module.exports = async (req, res) => {
         return res.json({ ok: true });
       }
       if (req.query.action === 'ws_purchases_list') {
-        const r = await pool.query('SELECT id,email,amount,promo,invoice_id,created_at FROM ws_purchases ORDER BY created_at DESC LIMIT 500');
+        const r = await pool.query('SELECT id,email,amount,promo,months,invoice_id,created_at FROM ws_purchases ORDER BY created_at DESC LIMIT 500');
         const tot = await pool.query('SELECT COUNT(*)::int AS n, COALESCE(SUM(amount),0)::int AS sum FROM ws_purchases');
         return res.json({ ok: true, purchases: r.rows, count: tot.rows[0].n, total: tot.rows[0].sum });
       }

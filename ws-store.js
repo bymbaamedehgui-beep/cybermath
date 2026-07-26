@@ -99,7 +99,7 @@
       .catch(function(){return true;});                              // API алдаа → түгжихгүй (fail-open)
   }
   var pollT=null;
-  function unlockWs(){ if(pollT){clearInterval(pollT);pollT=null;} var o=document.getElementById('wsLock'); if(o)o.parentNode.removeChild(o); var sh=document.getElementById('sheet'); if(sh){sh.style.filter='';sh.style.pointerEvents='';} }
+  function unlockWs(){ if(pollT){clearInterval(pollT);pollT=null;} var o=document.getElementById('wsLock'); if(o)o.parentNode.removeChild(o); var sh=document.getElementById('sheet'); if(sh){sh.style.filter='';sh.style.pointerEvents='';} /* Хэвлэх/PDF товчийг эргүүлж харуулах */ [].forEach.call(document.querySelectorAll('.bar .btn'),function(b){b.style.display='';}); }
   function showLock(){
     var sh=document.getElementById('sheet'); if(sh){sh.style.filter='blur(6px)';sh.style.pointerEvents='none';}
     var pb=document.querySelector('.bar .btn:not(.refresh)'); // хэвлэх товч (эхнийх refresh)
@@ -109,8 +109,14 @@
       +'<button id="wsBack" style="position:absolute;top:14px;left:14px;display:inline-flex;align-items:center;gap:5px;border:1.4px solid #e7ddff;background:#faf7ff;color:#5a32d6;font-weight:800;font-size:.82rem;border-radius:999px;padding:.4rem .8rem;cursor:pointer;font-family:inherit"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>Буцах</button>'
       +'<div style="width:60px;height:60px;margin:2px auto 4px;background:linear-gradient(135deg,#7B52EE,#A855F7);border-radius:16px;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 18px -6px rgba(123,82,238,.6)"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10.5" rx="2.2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/><circle cx="12" cy="15" r="1.4" fill="#fff" stroke="none"/><path d="M12 16v2.2"/></svg></div>'
       +'<h3 style="color:#5a32d6;font-size:1.25rem;font-weight:900;margin:6px 0 2px">Ажлын хуудсын эрх</h3>'
-      +'<p style="color:#7a7390;font-size:.9rem;margin-bottom:12px">Бүх ажлын хуудсыг <b>бүтэн жил</b> хязгааргүй ашиглах</p>'
-      +'<div id="wsPriceBox" style="font-size:1.8rem;font-weight:900;color:#16a34a;margin-bottom:14px">39,900₮ <span style="font-size:.9rem;color:#7a7390;font-weight:700">/ жил</span></div>'
+      +'<p style="color:#7a7390;font-size:.9rem;margin-bottom:12px">Бүх ажлын хуудсыг сонгосон хугацаанд <b>хязгааргүй</b> ашиглах</p>'
+      +'<div id="wsDur" style="display:flex;gap:6px;margin-bottom:12px">'
+        +'<button type="button" class="wsd" data-m="3">3 сар</button>'
+        +'<button type="button" class="wsd" data-m="6">6 сар</button>'
+        +'<button type="button" class="wsd" data-m="9">9 сар</button>'
+        +'<button type="button" class="wsd" data-m="12">1 жил</button>'
+      +'</div>'
+      +'<div id="wsPriceBox" style="font-size:1.7rem;font-weight:900;color:#16a34a;margin-bottom:14px"></div>'
       +'<input id="wsEmail" type="email" placeholder="Имэйл хаяг" style="width:100%;border:1.6px solid #e7ddff;border-radius:12px;padding:.7rem .9rem;font-size:.95rem;outline:none;margin-bottom:10px" />'
       +'<div style="display:flex;gap:6px;margin-bottom:4px">'
         +'<input id="wsPromo" type="text" placeholder="Урамшууллын код (заавал биш)" style="flex:1;min-width:0;border:1.6px solid #e7ddff;border-radius:12px;padding:.7rem .9rem;font-size:.9rem;outline:none;text-transform:uppercase" />'
@@ -135,24 +141,44 @@
     var msg=o.querySelector('#wsMsg'),qr=o.querySelector('#wsQr');
     function valid(e){return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);}
     function fmt(n){return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,',');}
-    // ─── Урамшууллын код (20% хөнгөлөлт) ───
-    var appliedPromo=null;
+    // ─── Шаталсан үнэ (3/6/9/12 сар) + урамшууллын код ───
+    var WS_PRICES={3:39900,6:69900,9:99900,12:119900};
+    var LABEL={3:'3 сар',6:'6 сар',9:'9 сар',12:'1 жил'};
+    var selMonths=3, appliedPromo=null, curPct=0;
     var priceBox=o.querySelector('#wsPriceBox');
     var promoIn=o.querySelector('#wsPromo'),promoBtn=o.querySelector('#wsPromoBtn'),promoMsg=o.querySelector('#wsPromoMsg');
-    var PRICE_HTML='39,900₮ <span style="font-size:.9rem;color:#7a7390;font-weight:700">/ жил</span>';
+    var durBtns=o.querySelectorAll('#wsDur .wsd');
+    function styleDur(){
+      [].forEach.call(durBtns,function(b){
+        var on=(+b.getAttribute('data-m')===selMonths);
+        b.style.cssText='flex:1;cursor:pointer;font-weight:800;font-size:.82rem;border-radius:11px;padding:.5rem .2rem;transition:.12s;'
+          +(on?'border:1.6px solid #7B52EE;background:linear-gradient(135deg,#7B52EE,#A855F7);color:#fff;box-shadow:0 6px 14px -8px rgba(123,82,238,.9)'
+              :'border:1.6px solid #e7ddff;background:#fff;color:#5a32d6');
+      });
+    }
+    function renderPrice(){
+      var base=WS_PRICES[selMonths], price=curPct>0?Math.round(base*(100-curPct)/100):base;
+      var per='<span style="font-size:.86rem;color:#7a7390;font-weight:700">/ '+LABEL[selMonths]+'</span>';
+      if(curPct>0){
+        priceBox.innerHTML='<span style="text-decoration:line-through;color:#b3a9cf;font-size:1.05rem;font-weight:800">'+fmt(base)+'₮</span> '+fmt(price)+'₮ '+per+' <span style="display:inline-block;background:#dcfce7;color:#16a34a;font-size:.72rem;font-weight:800;border-radius:999px;padding:2px 8px;vertical-align:middle">-'+curPct+'%</span>';
+      } else { priceBox.innerHTML=fmt(base)+'₮ '+per; }
+    }
+    [].forEach.call(durBtns,function(b){ b.onclick=function(){ selMonths=+b.getAttribute('data-m'); styleDur(); renderPrice(); }; });
+    styleDur(); renderPrice();
+    // Серверийн бодит үнийг татаж шинэчлэх
+    fetch('/api/qpay?action=wsprices').then(function(r){return r.json();}).then(function(d){ if(d&&d.prices){WS_PRICES=d.prices;renderPrice();} }).catch(function(){});
     promoBtn.onclick=function(){
       var code=(promoIn.value||'').trim().toUpperCase();
-      if(!code){appliedPromo=null;priceBox.innerHTML=PRICE_HTML;promoMsg.textContent='';promoIn.style.borderColor='#e7ddff';return;}
+      if(!code){appliedPromo=null;curPct=0;renderPrice();promoMsg.textContent='';promoIn.style.borderColor='#e7ddff';return;}
       promoBtn.disabled=true;var ot=promoBtn.textContent;promoBtn.textContent='…';
-      fetch('/api/qpay?action=promocheck',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({promo:code,plan:'wsyear'})})
+      fetch('/api/qpay?action=promocheck',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({promo:code,months:selMonths})})
         .then(function(r){return r.json();}).then(function(d){
           promoBtn.disabled=false;promoBtn.textContent=ot;
           if(d&&d.valid){
-            appliedPromo=code;
-            priceBox.innerHTML='<span style="text-decoration:line-through;color:#b3a9cf;font-size:1.15rem;font-weight:800">'+fmt(d.base)+'₮</span> '+fmt(d.price)+'₮ <span style="font-size:.9rem;color:#7a7390;font-weight:700">/ жил</span> <span style="display:inline-block;background:#dcfce7;color:#16a34a;font-size:.72rem;font-weight:800;border-radius:999px;padding:2px 8px;vertical-align:middle">-'+d.pct+'%</span>';
+            appliedPromo=code;curPct=d.pct;renderPrice();
             promoMsg.style.color='#16a34a';promoMsg.textContent='✓ '+d.pct+'% хөнгөлөлт хэрэгжлээ';promoIn.style.borderColor='#22c55e';
           }else{
-            appliedPromo=null;priceBox.innerHTML=PRICE_HTML;
+            appliedPromo=null;curPct=0;renderPrice();
             promoMsg.style.color='#dc2626';promoMsg.textContent='Код буруу эсвэл хүчингүй байна';promoIn.style.borderColor='#fca5a5';
           }
         }).catch(function(){promoBtn.disabled=false;promoBtn.textContent=ot;promoMsg.style.color='#dc2626';promoMsg.textContent='Шалгах үед алдаа гарлаа';});
@@ -162,7 +188,7 @@
       var email=(em.value||'').trim().toLowerCase();
       if(!valid(email)){msg.textContent='Зөв имэйл хаяг оруулна уу';return;}
       this.disabled=true;this.textContent='Нэхэмжлэх үүсгэж байна…';var btn=this;
-      fetch('/api/qpay?action=create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,amount:WS_PRICE,plan:'wsyear',promo:appliedPromo})})
+      fetch('/api/qpay?action=create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,plan:'wsmonths',months:selMonths,promo:appliedPromo})})
         .then(function(r){return r.json();}).then(function(d){
           var inv=d&&d.invoice;
           if(!inv||!inv.invoice_id){msg.textContent='Нэхэмжлэх үүсгэж чадсангүй. Дахин оролдоно уу.';btn.disabled=false;btn.textContent='QPay-аар худалдан авах';return;}
@@ -172,7 +198,7 @@
           btn.style.display='none';em.disabled=true;
           msg.textContent='Төлбөрийг хүлээж байна…';
           pollT=setInterval(function(){
-            fetch('/api/qpay?action=check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({invoice_id:inv.invoice_id,email:email,plan:'wsyear',promo:appliedPromo})})
+            fetch('/api/qpay?action=check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({invoice_id:inv.invoice_id,email:email,plan:'wsmonths',months:selMonths,promo:appliedPromo})})
               .then(function(r){return r.json();}).then(function(c){
                 if(c&&c.paid){ if(c.ws_token)lset('cm_ws_token',c.ws_token); lset('cm_last_user',email); msg.style.color='#16a34a';msg.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><polyline points="20 6 9 17 4 12"/></svg>Амжилттай! Нээгдэж байна…'; setTimeout(unlockWs,700); }
               }).catch(function(){});
