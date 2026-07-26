@@ -188,6 +188,7 @@
 <div class="wrap">
   <div class="topbar">
     <a class="back" href="/admin.html">← Админ</a>
+    <div id="acctArea" style="margin-left:auto;display:flex;align-items:center;gap:8px"></div>
   </div>
 
   <div class="hero">
@@ -1010,9 +1011,90 @@ document.addEventListener('mousedown',function(e){
 window.addEventListener('scroll',function(){closeMenu();},true);
 document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeMenu();closeQr();closeGrp();}});
 
+/* ── Хэрэглэгчийн нэвтрэлт (худалдан авсан имэйлээр) ── */
+function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+function lsDel(k){try{localStorage.removeItem(k);}catch(e){}}
+var CM_USER=null;
+function renderAcct(){
+  var a=document.getElementById('acctArea'); if(!a)return;
+  if(CM_USER&&CM_USER.email){
+    a.innerHTML='<span style="display:inline-flex;align-items:center;gap:6px;background:#eafff1;color:#16a34a;border:1px solid #b6f0cd;border-radius:999px;padding:.36rem .8rem;font-weight:800;font-size:.82rem"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'+esc(CM_USER.email)+'</span>'
+      +'<button onclick="wsLogout()" style="border:1.4px solid var(--line);background:#fff;color:var(--soft);font-weight:800;font-size:.8rem;border-radius:999px;padding:.36rem .8rem;cursor:pointer">Гарах</button>';
+  } else {
+    a.innerHTML='<button onclick="openLogin(false)" style="border:0;background:linear-gradient(135deg,var(--purple),var(--purple2));color:#fff;font-weight:800;font-size:.82rem;border-radius:999px;padding:.42rem 1rem;cursor:pointer">Нэвтрэх</button>';
+  }
+}
+var PAYWALL_OFF=false;
+function verifyUser(cb){
+  var tok=lsGet('cm_ws_token'),email=lsGet('cm_last_user');
+  if(!tok&&!email){CM_USER=null;renderAcct();if(cb)cb();return;}
+  fetch('/api/qpay?action=wsstatus',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({wstoken:tok,email:email})})
+    .then(function(r){return r.json();}).then(function(d){
+      if(d&&d.enabled===false){PAYWALL_OFF=true;CM_USER=email?{email:email}:null;}
+      else if(d&&d.active){CM_USER={email:d.email||email};if(d.ws_token)lsSet('cm_ws_token',d.ws_token);if(d.email)lsSet('cm_last_user',d.email);}
+      else CM_USER=null;
+      renderAcct();if(cb)cb();
+    }).catch(function(){
+      // Сүлжээний алдаа — өмнө нэвтэрсэн бол хэвээр үлдээнэ (дахиж асуухгүй)
+      if(tok&&email)CM_USER={email:email};
+      renderAcct();if(cb)cb();
+    });
+}
+function wsLogout(){lsDel('cm_ws_token');lsDel('cm_last_user');CM_USER=null;renderAcct();toast('Гарлаа');}
+function firstSlug(){var c=document.querySelector('#catalog .card');return c?c.getAttribute('data-slug'):'butarhai-nemeh-18.html';}
+function openLogin(auto){
+  if(document.getElementById('wsLogin'))return;
+  var o=document.createElement('div');o.id='wsLogin';
+  o.style.cssText='position:fixed;inset:0;z-index:200;background:rgba(20,15,40,.6);display:grid;place-items:center;padding:16px';
+  o.innerHTML='<div style="background:#fff;border-radius:20px;max-width:400px;width:100%;padding:26px;text-align:center;box-shadow:0 24px 60px -18px rgba(0,0,0,.5)">'
+    +'<div style="width:56px;height:56px;margin:0 auto 6px;background:linear-gradient(135deg,var(--purple),var(--purple2));border-radius:15px;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg></div>'
+    +'<h3 style="color:var(--purple-d);font-size:1.2rem;font-weight:900;margin:6px 0 3px">Дасгалын төвд нэвтрэх</h3>'
+    +'<p style="color:var(--soft);font-size:.88rem;margin-bottom:14px">Худалдаж авсан <b>имэйл</b> хаягаараа нэвтэрнэ үү</p>'
+    +'<input id="liEmail" type="email" placeholder="Имэйл хаяг" style="width:100%;border:1.6px solid #e7ddff;border-radius:12px;padding:.72rem .9rem;font-size:.95rem;outline:none;margin-bottom:10px" />'
+    +'<button id="liBtn" style="width:100%;font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.75rem;font-size:.95rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2))">Нэвтрэх</button>'
+    +'<div id="liMsg" style="font-size:.83rem;font-weight:700;margin-top:9px;min-height:1em"></div>'
+    +'<div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">'
+      +'<a id="liBuy" href="#" style="font-size:.83rem;color:var(--purple-d);font-weight:800;text-decoration:none">Эрх байхгүй юу? → худалдаж авах</a>'
+      +'<a id="liGuest" href="#" style="font-size:.8rem;color:var(--soft);font-weight:700;text-decoration:none">Зочноор үзэх</a>'
+    +'</div></div>';
+  document.body.appendChild(o);
+  var em=o.querySelector('#liEmail');if(lsGet('cm_last_user'))em.value=lsGet('cm_last_user');
+  setTimeout(function(){em.focus();},40);
+  var msg=o.querySelector('#liMsg');
+  function ok(e){return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);}
+  function doLogin(){
+    var email=(em.value||'').trim().toLowerCase();
+    if(!ok(email)){msg.style.color='#dc2626';msg.textContent='Зөв имэйл оруулна уу';return;}
+    var b=o.querySelector('#liBtn');b.disabled=true;b.textContent='Шалгаж байна…';
+    fetch('/api/qpay?action=wsstatus',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email})})
+      .then(function(r){return r.json();}).then(function(d){
+        if(d&&d.active){
+          if(d.ws_token)lsSet('cm_ws_token',d.ws_token);lsSet('cm_last_user',email);
+          CM_USER={email:d.email||email};renderAcct();o.remove();toast('✓ Тавтай морил, '+email);
+        }else{
+          b.disabled=false;b.textContent='Нэвтрэх';
+          msg.style.color='#dc2626';msg.innerHTML='Энэ имэйлээр идэвхтэй эрх олдсонгүй.<br>Доорхоос худалдаж авна уу.';
+        }
+      }).catch(function(){b.disabled=false;b.textContent='Нэвтрэх';msg.style.color='#dc2626';msg.textContent='Алдаа гарлаа';});
+  }
+  o.querySelector('#liBtn').onclick=doLogin;
+  em.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();doLogin();}});
+  o.querySelector('#liBuy').onclick=function(e){e.preventDefault();lsSet('cm_ws_dismissed','1');window.open('/'+firstSlug(),'_blank','noopener');};
+  o.querySelector('#liGuest').onclick=function(e){e.preventDefault();lsSet('cm_ws_dismissed','1');o.remove();};
+  o.addEventListener('mousedown',function(e){if(e.target===o&&!auto){lsSet('cm_ws_dismissed','1');o.remove();}});
+}
+
 /* init */
 renderChips();
 if(isAdmin()){document.body.classList.add('is-admin');document.getElementById('editBar').style.display='flex';}
+/* Нэвтрэлт: нэвтэрсэн бол дахиж асуухгүй; анх орж ирэхэд (админ биш) нэг удаа асууна */
+if(!isAdmin()){
+  renderAcct();
+  verifyUser(function(){
+    if(!CM_USER && !PAYWALL_OFF && !lsGet('cm_ws_dismissed')) openLogin(true);
+  });
+}
 document.getElementById('q').addEventListener('input',applyFilters);
 loadSaved();
 fetch('/api/worksheets?titles=1').then(function(r){return r.json();})

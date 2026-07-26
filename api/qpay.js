@@ -297,10 +297,19 @@ module.exports = async (req, res) => {
     }
 
     // ── АДМИН: ажлын хуудсын промо код удирдах + борлуулалт харах ──
-    if (['ws_promo_create','ws_promo_list','ws_promo_update','ws_purchases_list'].indexOf(req.query.action) >= 0) {
+    if (['ws_promo_create','ws_promo_list','ws_promo_update','ws_purchases_list','ws_users_list'].indexOf(req.query.action) >= 0) {
       if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
       await ensureWsExtra();
+      await ensureWsTable();
       const b = req.body || {};
+      // Эрхтэй хэрэглэгчид (ws_access) — бүртгэл админд харагдана
+      if (req.query.action === 'ws_users_list') {
+        const r = await pool.query(
+          `SELECT email, expires_at, updated_at, (expires_at > NOW()) AS active
+           FROM ws_access ORDER BY updated_at DESC LIMIT 1000`);
+        const act = await pool.query('SELECT COUNT(*)::int n FROM ws_access WHERE expires_at > NOW()');
+        return res.json({ ok: true, users: r.rows, total: r.rows.length, active: act.rows[0].n });
+      }
       if (req.query.action === 'ws_promo_list') {
         const r = await pool.query('SELECT code,pct,max_uses,used_count,expires_at,active,note,created_at FROM ws_promos ORDER BY created_at DESC');
         return res.json({ ok: true, promos: r.rows });
