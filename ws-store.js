@@ -27,23 +27,24 @@
     // Тэмдэглэл бичих (хүсвэл) — Cancel дарвал хадгалахгүй
     var note=window.prompt('Тэмдэглэл бичнэ үү (жнь: 9А анги, гэрийн даалгавар):', '');
     if(note===null)return;
-    if(btn){btn.disabled=true;var ot=btn.textContent;btn.textContent='⏳ Хадгалж байна...';}
+    if(btn){btn.disabled=true;var ot=btn.innerHTML;btn.textContent='Хадгалж байна…';}
     fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({action:'save',title:title,items:items,note:note})})
       .then(function(r){return r.json();})
       .then(function(d){
-        if(d&&d.ok){alert('💾 Хадгаллаа!  Код: #'+d.code+'\n\nАдмин → "Дасгалын төв" → Хадгалсан хэсгээс хариуг нь шалгана.');}
+        if(d&&d.ok){alert('✓ Тэмдэглэлээ!  Код: #'+d.code+'\n\n"Дасгалын төв → Хадгалсан хуудаснууд" хэсгээс хариутай нь дахин харж болно.');}
         else alert('Алдаа: '+((d&&d.error)||'хадгалж чадсангүй'));
       })
       .catch(function(e){alert('Сүлжээний алдаа: '+e.message);})
-      .finally(function(){if(btn){btn.disabled=false;btn.textContent=ot;}});
+      .finally(function(){if(btn){btn.disabled=false;btn.innerHTML=ot;}});
   };
+  var ICO_MARK='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>';
   function addBtn(){
     var bar=document.querySelector('.bar'); if(!bar||bar.querySelector('.ws-save'))return;
     var b=document.createElement('button');
     b.className='btn ws-save'; b.type='button';
     b.style.background='linear-gradient(135deg,#0ea5e9,#1d6c8c)';
-    b.textContent='📤 Санах руу илгээх';
+    b.innerHTML=ICO_MARK+'Тэмдэглэх';
     b.onclick=function(){window.wsSaveCurrent(b);};
     bar.appendChild(b);
   }
