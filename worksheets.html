@@ -1080,9 +1080,54 @@ function openLogin(auto){
   }
   o.querySelector('#liBtn').onclick=doLogin;
   em.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();doLogin();}});
-  o.querySelector('#liBuy').onclick=function(e){e.preventDefault();lsSet('cm_ws_dismissed','1');window.open('/'+firstSlug(),'_blank','noopener');};
+  o.querySelector('#liBuy').onclick=function(e){e.preventDefault();o.remove();openBuy();};
   o.querySelector('#liGuest').onclick=function(e){e.preventDefault();lsSet('cm_ws_dismissed','1');o.remove();};
   o.addEventListener('mousedown',function(e){if(e.target===o&&!auto){lsSet('cm_ws_dismissed','1');o.remove();}});
+}
+
+/* ── Худалдан авах цонх (каталог дээр шууд) ── */
+function openBuy(){
+  if(document.getElementById('wsBuyM'))return;
+  var WS_PRICES={3:39900,6:69900,9:99900,12:119900},LABEL={3:'3 сар',6:'6 сар',9:'9 сар',12:'1 жил'};
+  var selMonths=3,appliedPromo=null,curPct=0,pollT=null;
+  function fmt(n){return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,',');}
+  function okEmail(e){return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);}
+  var o=document.createElement('div');o.id='wsBuyM';
+  o.style.cssText='position:fixed;inset:0;z-index:200;background:rgba(20,15,40,.6);display:grid;place-items:center;padding:16px;overflow:auto';
+  o.innerHTML='<div style="position:relative;background:#fff;border-radius:20px;max-width:420px;width:100%;padding:24px;text-align:center;box-shadow:0 24px 60px -18px rgba(0,0,0,.5)">'
+    +'<button id="buBack" style="position:absolute;top:14px;left:14px;display:inline-flex;align-items:center;gap:5px;border:1.4px solid #e7ddff;background:#faf7ff;color:#5a32d6;font-weight:800;font-size:.82rem;border-radius:999px;padding:.4rem .8rem;cursor:pointer"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>Буцах</button>'
+    +'<div style="width:56px;height:56px;margin:2px auto 4px;background:linear-gradient(135deg,var(--purple),var(--purple2));border-radius:15px;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10.5" rx="2.2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg></div>'
+    +'<h3 style="color:var(--purple-d);font-size:1.2rem;font-weight:900;margin:6px 0 2px">Ажлын хуудсын эрх авах</h3>'
+    +'<p style="color:var(--soft);font-size:.88rem;margin-bottom:12px">Бүх ажлын хуудсыг сонгосон хугацаанд <b>хязгааргүй</b></p>'
+    +'<div id="buDur" style="display:flex;gap:6px;margin-bottom:12px"><button type="button" class="wsd" data-m="3">3 сар</button><button type="button" class="wsd" data-m="6">6 сар</button><button type="button" class="wsd" data-m="9">9 сар</button><button type="button" class="wsd" data-m="12">1 жил</button></div>'
+    +'<div id="buPrice" style="font-size:1.7rem;font-weight:900;color:#16a34a;margin-bottom:14px"></div>'
+    +'<input id="buEmail" type="email" placeholder="Имэйл хаяг" style="width:100%;border:1.6px solid #e7ddff;border-radius:12px;padding:.7rem .9rem;font-size:.95rem;outline:none;margin-bottom:10px" />'
+    +'<div style="display:flex;gap:6px;margin-bottom:4px"><input id="buPromo" type="text" placeholder="Урамшууллын код (заавал биш)" style="flex:1;min-width:0;border:1.6px solid #e7ddff;border-radius:12px;padding:.7rem .9rem;font-size:.9rem;outline:none;text-transform:uppercase" /><button id="buPromoBtn" style="flex-shrink:0;font-weight:800;border:1.6px solid #c9b8ff;background:#f4efff;color:#5a32d6;cursor:pointer;border-radius:12px;padding:0 1rem;font-size:.88rem">Хэрэглэх</button></div>'
+    +'<div id="buPromoMsg" style="font-size:.8rem;font-weight:700;margin:2px 0 10px;min-height:.9em"></div>'
+    +'<button id="buBuy" style="width:100%;font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.75rem;font-size:.95rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2))">QPay-аар худалдан авах</button>'
+    +'<div id="buQr" style="margin-top:14px"></div>'
+    +'<div id="buMsg" style="font-size:.84rem;color:var(--soft);margin-top:10px;min-height:1em"></div>'
+    +'</div>';
+  document.body.appendChild(o);
+  var em=o.querySelector('#buEmail');if(lsGet('cm_last_user'))em.value=lsGet('cm_last_user');
+  var priceBox=o.querySelector('#buPrice'),promoIn=o.querySelector('#buPromo'),promoBtn=o.querySelector('#buPromoBtn'),promoMsg=o.querySelector('#buPromoMsg'),msg=o.querySelector('#buMsg'),qr=o.querySelector('#buQr');
+  var durBtns=o.querySelectorAll('#buDur .wsd');
+  function styleDur(){[].forEach.call(durBtns,function(b){var on=(+b.getAttribute('data-m')===selMonths);b.style.cssText='flex:1;cursor:pointer;font-weight:800;font-size:.82rem;border-radius:11px;padding:.5rem .2rem;transition:.12s;'+(on?'border:1.6px solid var(--purple);background:linear-gradient(135deg,var(--purple),var(--purple2));color:#fff;box-shadow:0 6px 14px -8px rgba(123,82,238,.9)':'border:1.6px solid #e7ddff;background:#fff;color:#5a32d6');});}
+  function renderPrice(){var base=WS_PRICES[selMonths],price=curPct>0?Math.round(base*(100-curPct)/100):base,per='<span style="font-size:.86rem;color:var(--soft);font-weight:700">/ '+LABEL[selMonths]+'</span>';if(curPct>0){priceBox.innerHTML='<span style="text-decoration:line-through;color:#b3a9cf;font-size:1.05rem;font-weight:800">'+fmt(base)+'₮</span> '+fmt(price)+'₮ '+per+' <span style="display:inline-block;background:#dcfce7;color:#16a34a;font-size:.72rem;font-weight:800;border-radius:999px;padding:2px 8px;vertical-align:middle">-'+curPct+'%</span>';}else priceBox.innerHTML=fmt(base)+'₮ '+per;}
+  [].forEach.call(durBtns,function(b){b.onclick=function(){selMonths=+b.getAttribute('data-m');styleDur();renderPrice();};});
+  styleDur();renderPrice();
+  fetch('/api/qpay?action=wsprices').then(function(r){return r.json();}).then(function(d){if(d&&d.prices){WS_PRICES=d.prices;renderPrice();}}).catch(function(){});
+  promoBtn.onclick=function(){var code=(promoIn.value||'').trim().toUpperCase();if(!code){appliedPromo=null;curPct=0;renderPrice();promoMsg.textContent='';promoIn.style.borderColor='#e7ddff';return;}promoBtn.disabled=true;var ot=promoBtn.textContent;promoBtn.textContent='…';
+    fetch('/api/qpay?action=promocheck',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({promo:code,months:selMonths})}).then(function(r){return r.json();}).then(function(d){promoBtn.disabled=false;promoBtn.textContent=ot;if(d&&d.valid){appliedPromo=code;curPct=d.pct;renderPrice();promoMsg.style.color='#16a34a';promoMsg.textContent='✓ '+d.pct+'% хөнгөлөлт хэрэгжлээ';promoIn.style.borderColor='#22c55e';}else{appliedPromo=null;curPct=0;renderPrice();promoMsg.style.color='#dc2626';promoMsg.textContent='Код буруу эсвэл хүчингүй байна';promoIn.style.borderColor='#fca5a5';}}).catch(function(){promoBtn.disabled=false;promoBtn.textContent=ot;promoMsg.style.color='#dc2626';promoMsg.textContent='Шалгах үед алдаа гарлаа';});};
+  promoIn.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();promoBtn.click();}});
+  o.querySelector('#buBuy').onclick=function(){var email=(em.value||'').trim().toLowerCase();if(!okEmail(email)){msg.style.color='#dc2626';msg.textContent='Зөв имэйл хаяг оруулна уу';return;}this.disabled=true;this.textContent='Нэхэмжлэх үүсгэж байна…';var btn=this;
+    fetch('/api/qpay?action=create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,plan:'wsmonths',months:selMonths,promo:appliedPromo})}).then(function(r){return r.json();}).then(function(d){var inv=d&&d.invoice;if(!inv||!inv.invoice_id){msg.style.color='#dc2626';msg.textContent='Нэхэмжлэх үүсгэж чадсангүй. Дахин оролдоно уу.';btn.disabled=false;btn.textContent='QPay-аар худалдан авах';return;}
+      var img=inv.qr_image?('<img src="data:image/png;base64,'+inv.qr_image+'" style="width:190px;height:190px" alt="QPay QR"/>'):'';var link=inv.qPay_shortUrl?('<div style="margin-top:8px"><a href="'+inv.qPay_shortUrl+'" target="_blank" style="display:inline-flex;align-items:center;gap:5px;color:var(--purple-d);font-weight:700;font-size:.85rem;text-decoration:none"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg>Утаснаас төлөх</a></div>'):'';
+      qr.innerHTML='<div style="font-size:.82rem;color:var(--soft);margin-bottom:6px">QPay аппаар уншуулж төлнө үү</div>'+img+link;btn.style.display='none';em.disabled=true;o.querySelector('#buDur').style.display='none';msg.style.color='var(--soft)';msg.textContent='Төлбөрийг хүлээж байна…';
+      pollT=setInterval(function(){fetch('/api/qpay?action=check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({invoice_id:inv.invoice_id,email:email,plan:'wsmonths',months:selMonths,promo:appliedPromo})}).then(function(r){return r.json();}).then(function(c){if(c&&c.paid){if(c.ws_token)lsSet('cm_ws_token',c.ws_token);lsSet('cm_last_user',email);clearInterval(pollT);pollT=null;CM_USER={email:email};renderAcct();o.remove();toast('✓ Амжилттай! Тавтай морил');}}).catch(function(){});},3000);
+    }).catch(function(){msg.style.color='#dc2626';msg.textContent='Сүлжээний алдаа. Дахин оролдоно уу.';btn.disabled=false;btn.textContent='QPay-аар худалдан авах';});};
+  o.querySelector('#buBack').onclick=function(){if(pollT){clearInterval(pollT);pollT=null;}o.remove();openLogin(false);};
+  o.addEventListener('mousedown',function(e){if(e.target===o){if(pollT){clearInterval(pollT);pollT=null;}o.remove();}});
 }
 
 /* init */
