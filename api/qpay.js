@@ -321,11 +321,26 @@ module.exports = async (req, res) => {
     }
 
     // ── АДМИН: ажлын хуудсын промо код удирдах + борлуулалт харах ──
-    if (['ws_promo_create','ws_promo_list','ws_promo_update','ws_purchases_list','ws_users_list'].indexOf(req.query.action) >= 0) {
+    if (['ws_promo_create','ws_promo_list','ws_promo_update','ws_purchases_list','ws_users_list','ws_grant','ws_revoke'].indexOf(req.query.action) >= 0) {
       if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
       await ensureWsExtra();
       await ensureWsTable();
       const b = req.body || {};
+      // Админ шууд эрх олгох (хугацаагаар)
+      if (req.query.action === 'ws_grant') {
+        const email = String(b.email || '').trim().toLowerCase();
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ ok: false, error: 'Зөв имэйл оруулна уу' });
+        const months = wsNormMonths(b.months);
+        const exp = await grantWsMonths(email, months);
+        return res.json({ ok: true, email: email, months: months, expires_at: exp.toISOString() });
+      }
+      // Админ эрх цуцлах
+      if (req.query.action === 'ws_revoke') {
+        const email = String(b.email || '').trim().toLowerCase();
+        if (!email) return res.status(400).json({ ok: false, error: 'email дутуу' });
+        await pool.query('DELETE FROM ws_access WHERE email=$1', [email]);
+        return res.json({ ok: true, revoked: email });
+      }
       // Эрхтэй хэрэглэгчид (ws_access) — бүртгэл админд харагдана
       if (req.query.action === 'ws_users_list') {
         const r = await pool.query(

@@ -128,11 +128,18 @@ window.loadWsSales = async function(){
 function renderWsUsers(d){
   var el=document.getElementById('ws-users-list'); if(!el)return;
   var list=d.users||[];
-  if(!list.length){el.innerHTML='<div style="color:var(--muted);padding:10px;">Эрх авсан хэрэглэгч алга.</div>';return;}
-  var h='<div style="font-size:0.78rem;color:var(--muted);font-weight:700;margin-bottom:10px;">Нийт '+wsNum(d.total||list.length)+' · идэвхтэй '+wsNum(d.active||0)+'</div>'
+  var form='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:14px;">'
+    +'<span style="font-weight:800;font-size:0.82rem;color:var(--text);">Шууд эрх олгох:</span>'
+    +'<input id="wsGrantEmail" type="email" placeholder="Имэйл хаяг" style="flex:1;min-width:170px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:0.85rem;" onkeydown="if(event.key===\'Enter\')grantWsAccess()">'
+    +'<select id="wsGrantMonths" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-weight:700;font-size:0.85rem;"><option value="3">3 сар</option><option value="6">6 сар</option><option value="9">9 сар</option><option value="12" selected>1 жил</option></select>'
+    +'<button onclick="grantWsAccess()" style="background:linear-gradient(135deg,#16a34a,#22c55e);border:0;color:#fff;border-radius:8px;padding:8px 16px;cursor:pointer;font-weight:800;font-size:0.85rem;">+ Олгох</button>'
+    +'<span id="wsGrantMsg" style="font-size:0.8rem;font-weight:700;"></span></div>';
+  if(!list.length){el.innerHTML=form+'<div style="color:var(--muted);padding:10px;">Эрх авсан хэрэглэгч алга.</div>';return;}
+  var h=form+'<div style="font-size:0.78rem;color:var(--muted);font-weight:700;margin-bottom:10px;">Нийт '+wsNum(d.total||list.length)+' · идэвхтэй '+wsNum(d.active||0)+'</div>'
     +'<table style="width:100%;border-collapse:collapse;font-size:0.85rem;"><thead><tr>'
     +'<th style="text-align:left;padding:8px;">И-мэйл</th><th style="text-align:left;padding:8px;">Эрх авсан</th>'
-    +'<th style="text-align:left;padding:8px;">Дуусах</th><th style="text-align:left;padding:8px;">Төлөв</th></tr></thead><tbody>';
+    +'<th style="text-align:left;padding:8px;">Дуусах</th><th style="text-align:left;padding:8px;">Төлөв</th>'
+    +'<th style="text-align:right;padding:8px;">Үйлдэл</th></tr></thead><tbody>';
   list.forEach(function(u){
     var st=u.active?'<span style="background:#dcfce7;color:#16a34a;border-radius:100px;padding:2px 9px;font-weight:800;font-size:0.74rem;">Идэвхтэй</span>'
                    :'<span style="background:var(--surface2);color:var(--muted);border-radius:100px;padding:2px 9px;font-weight:800;font-size:0.74rem;">Дууссан</span>';
@@ -141,10 +148,24 @@ function renderWsUsers(d){
       +'<td style="padding:8px;color:var(--muted);white-space:nowrap;">'+wsDate(u.updated_at)+'</td>'
       +'<td style="padding:8px;color:var(--muted);white-space:nowrap;">'+wsDate(u.expires_at)+'</td>'
       +'<td style="padding:8px;">'+st+'</td>'
+      +'<td style="padding:8px;text-align:right;white-space:nowrap;"><button onclick="revokeWsAccess(\''+wsEsc(u.email)+'\')" style="background:rgba(220,38,38,.12);border:1px solid rgba(220,38,38,.3);color:#dc2626;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;">Цуцлах</button></td>'
       +'</tr>';
   });
   el.innerHTML=h+'</tbody></table>';
 }
+window.grantWsAccess=async function(){
+  var email=(document.getElementById('wsGrantEmail').value||'').trim().toLowerCase();
+  var months=document.getElementById('wsGrantMonths').value;
+  var msg=document.getElementById('wsGrantMsg');
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){msg.style.color='#dc2626';msg.textContent='Зөв имэйл оруулна уу';return;}
+  msg.style.color='var(--muted)';msg.textContent='Олгож байна…';
+  try{ var d=await wsPost('ws_grant',{email:email,months:months}); if(d&&d.ok){loadWsSales();} else {msg.style.color='#dc2626';msg.textContent='Алдаа: '+((d&&d.error)||'');} }
+  catch(e){ msg.style.color='#dc2626'; msg.textContent='Алдаа: '+e.message; }
+};
+window.revokeWsAccess=async function(email){
+  if(!confirm('"'+email+'"-ийн ажлын хуудсын эрхийг цуцлах уу?'))return;
+  try{ await wsPost('ws_revoke',{email:email}); loadWsSales(); }catch(e){ alert('Алдаа: '+e.message); }
+};
 function renderWsPromos(list){
   var el=document.getElementById('ws-promo-list'); if(!el)return;
   if(!list.length){el.innerHTML='<div style="color:var(--muted);padding:10px;">Промо код алга. Дээрээс шинээр үүсгэнэ үү.</div>';return;}
