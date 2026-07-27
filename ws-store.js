@@ -245,7 +245,20 @@
       '.cm-foot{position:relative;z-index:1;text-align:center;margin-top:12px;padding-top:9px;'+
         "border-top:1px solid #eee;font:800 11.5px 'Segoe UI',Arial,sans-serif;color:#8f83b8;"+
         'letter-spacing:.4px;-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
-      '.cm-foot b{color:#5a32d6}';
+      '.cm-foot b{color:#5a32d6}'+
+      // ─── Гар утасны тохируулга: хуудас хойшоо гарахгүй болгох (зөвхөн дэлгэц, хэвлэлд нөлөөлөхгүй) ───
+      '@media screen and (max-width:820px){'+
+        'html,body{overflow-x:hidden!important}'+
+        'body{padding:8px!important}'+
+        '#sheet{width:100%!important;max-width:100%!important;padding:9mm 6mm!important}'+
+        '#sheet .grid{gap:10px 12px!important}'+
+      '}'+
+      '@media screen and (max-width:560px){'+
+        '#sheet{padding:7mm 5mm!important}'+
+        '#sheet .grid{grid-template-columns:1fr!important;grid-template-rows:auto!important;grid-auto-flow:row!important;gap:9px!important}'+
+        '#sheet .ans-grid{grid-template-columns:1fr!important}'+
+        '#sheet .katex{white-space:normal}'+
+      '}';
     document.head.appendChild(st);
   }
   function brandSheet(){
