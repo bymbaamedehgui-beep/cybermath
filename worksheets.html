@@ -745,20 +745,18 @@ function toggleAns(){
   document.getElementById('toggleA').textContent=SHOW_ANS?'Хариу нуух':'Хариу харах';
 }
 function delSet(code){
-  if(isAdmin()){
-    if(!confirm('#'+code+' тэмдэглэлийг устгах уу?'))return;
-    fetch('/api/worksheets',{method:'POST',headers:adminHeaders(),body:JSON.stringify({action:'delete',code:code})})
-      .then(function(r){return r.json();}).then(function(){loadSaved();});
-    return;
-  }
-  if(!CM_USER){ alert('Устгахын тулд эхлээд нэвтэрнэ үү.'); openLogin(false); return; }
+  // Устгахад ЗААВАЛ 4 оронтой PIN шаардана (админ ч мөн адил)
   var pin=lsGet('cm_ws_pin');
-  if(!pin){ pin=(prompt('Устгах 4 оронтой PIN-ээ оруулна уу:','')||'').trim(); if(!pin)return; }
+  if(!pin){
+    if(!lsGet('cm_ws_pin_ok')){ openPinCreate(); return; }   // PIN үүсгээгүй бол эхлээд үүсгүүлнэ
+    pin=(prompt('Устгах 4 оронтой PIN-ээ оруулна уу:','')||'').trim();
+    if(!pin)return;
+  }
   if(!/^\d{4}$/.test(pin)){ alert('PIN 4 оронтой тоо байх ёстой'); return; }
   if(!confirm('#'+code+' тэмдэглэлийг устгах уу?'))return;
-  fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',code:code,email:CM_USER.email,pin:pin})})
+  fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',code:code,pin:pin})})
     .then(function(r){return r.json();}).then(function(d){
-      if(d&&d.ok){ lsSet('cm_ws_pin',pin); loadSaved(); }
+      if(d&&d.ok){ lsSet('cm_ws_pin',pin); toast('🗑 Устгалаа'); loadSaved(); }
       else { alert((d&&d.error)||'Устгаж чадсангүй'); if(d&&/PIN/.test(d.error||''))lsDel('cm_ws_pin'); }
     }).catch(function(e){alert('Алдаа: '+e.message);});
 }
@@ -1060,16 +1058,15 @@ function wsLogout(){lsDel('cm_ws_token');lsDel('cm_last_user');lsDel('cm_ws_pin'
 function firstSlug(){var c=document.querySelector('#catalog .card');return c?c.getAttribute('data-slug'):'butarhai-nemeh-18.html';}
 /* ── Устгах PIN (нэг удаа үүсгэнэ) ── */
 function ensurePin(){
-  if(!CM_USER||isAdmin())return;
   if(lsGet('cm_ws_pin')||lsGet('cm_ws_pin_ok')||lsGet('cm_ws_pin_skip'))return;
-  fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'pinStatus',email:CM_USER.email})})
+  fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'pinStatus'})})
     .then(function(r){return r.json();}).then(function(d){
       if(d&&d.hasPin)lsSet('cm_ws_pin_ok','1');   // сервер дээр бий — устгахад л асууна
       else openPinCreate();
     }).catch(function(){});
 }
 function openPinCreate(){
-  if(document.getElementById('wsPin')||!CM_USER)return;
+  if(document.getElementById('wsPin'))return;
   var o=document.createElement('div');o.id='wsPin';
   o.style.cssText='position:fixed;inset:0;z-index:210;background:rgba(20,15,40,.6);display:grid;place-items:center;padding:16px';
   o.innerHTML='<div style="background:#fff;border-radius:20px;max-width:380px;width:100%;padding:26px;text-align:center;box-shadow:0 24px 60px -18px rgba(0,0,0,.5)">'
@@ -1089,7 +1086,7 @@ function openPinCreate(){
     var pin=(inp.value||'').trim();
     if(!/^\d{4}$/.test(pin)){msg.style.color='#dc2626';msg.textContent='4 оронтой тоо оруулна уу';return;}
     var b=o.querySelector('#pinSave');b.disabled=true;b.textContent='Үүсгэж байна…';
-    fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'setPin',email:CM_USER.email,pin:pin})})
+    fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'setPin',pin:pin})})
       .then(function(r){return r.json();}).then(function(d){
         if(d&&d.ok){ lsSet('cm_ws_pin',pin); lsSet('cm_ws_pin_ok','1'); o.remove(); toast(d.existed?'PIN аль хэдийн үүссэн':'✓ PIN үүсгэлээ'); }
         else { b.disabled=false;b.textContent='Үүсгэх'; msg.style.color='#dc2626'; msg.textContent=(d&&d.error)||'Алдаа гарлаа'; }
@@ -1188,13 +1185,13 @@ function openBuy(){
 
 /* init */
 renderChips();
-if(isAdmin()){document.body.classList.add('is-admin');document.getElementById('editBar').style.display='flex';}
+if(isAdmin()){document.body.classList.add('is-admin');document.getElementById('editBar').style.display='flex';ensurePin();}
 /* Нэвтрэлт: нэвтэрсэн бол дахиж асуухгүй; анх орж ирэхэд (админ биш) нэг удаа асууна */
 if(!isAdmin()){
   renderAcct();
   verifyUser(function(){
     if(!CM_USER && !PAYWALL_OFF && !lsGet('cm_ws_dismissed')) openLogin(true);
-    else if(CM_USER) ensurePin();
+    else ensurePin();
   });
 }
 document.getElementById('q').addEventListener('input',applyFilters);
