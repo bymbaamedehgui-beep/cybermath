@@ -34,6 +34,54 @@ async function grantWsMonths(email, months) {
   return exp;
 }
 function grantWsYear(email) { return grantWsMonths(email, 12); }
+async function grantWsUntil(email, exp) {
+  await ensureWsTable();
+  await pool.query(
+    `INSERT INTO ws_access (email, expires_at, updated_at) VALUES ($1,$2,NOW())
+     ON CONFLICT (email) DO UPDATE SET expires_at=GREATEST(ws_access.expires_at, EXCLUDED.expires_at), updated_at=NOW()`,
+    [email, exp.toISOString()]
+  );
+  return exp;
+}
+
+// ── Азтаны хүрд — нэг имэйл нэг эргэлт. Ялагдсан нүд ч эерэг мэндчилгээтэй ──
+const WHEEL = [
+  { label: '1 өдрийн эрх',    type: 'access',   hours: 24,        weight: 5  },
+  { label: 'Баярлалаа ✨',    type: 'none',                       weight: 20 },
+  { label: '5% хөнгөлөлт',    type: 'discount', pct: 5,  days: 7, weight: 16 },
+  { label: 'Амжилт хүсье! 🌟', type: 'none',                      weight: 20 },
+  { label: '40% ЖИЛ 🎁',      type: 'discount', pct: 40, days: 7, weight: 2  },
+  { label: '1 цагийн эрх',    type: 'access',   hours: 1,         weight: 9  },
+  { label: '10% хөнгөлөлт',   type: 'discount', pct: 10, days: 7, weight: 11 },
+  { label: 'Сайхан хоног! 🎈', type: 'none',                      weight: 20 },
+  { label: '20% 6САР 🎯',     type: 'discount', pct: 20, days: 7, weight: 3  },
+  { label: '20% хөнгөлөлт',   type: 'discount', pct: 20, days: 1, weight: 4  },
+];
+function wheelPick() {
+  const total = WHEEL.reduce((s, w) => s + w.weight, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < WHEEL.length; i++) { r -= WHEEL[i].weight; if (r < 0) return i; }
+  return WHEEL.length - 1;
+}
+async function ensureWheel() {
+  await pool.query(`CREATE TABLE IF NOT EXISTS ws_wheel (
+    email TEXT PRIMARY KEY, prize TEXT, code TEXT, created_at TIMESTAMPTZ DEFAULT NOW()
+  )`).catch(()=>{});
+}
+async function createWheelPromo(pct, days) {
+  await ensureWsExtra();
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const exp = new Date(Date.now() + days * 86400000);
+  for (let a = 0; a < 6; a++) {
+    let code = 'LUCKY'; for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    try {
+      await pool.query(`INSERT INTO ws_promos (code, pct, max_uses, expires_at, note) VALUES ($1,$2,1,$3,'Азтаны хүрд')`,
+        [code, pct, exp.toISOString()]);
+      return { code, exp };
+    } catch (e) { if (e.code !== '23505') throw e; }
+  }
+  throw new Error('код үүсгэж чадсангүй');
+}
 function wsToken(email) { return jwt.sign({ email: email, ws: true }, JWT_SECRET, { expiresIn: '400d' }); }
 function emailFromToken(tok) { try { var d = jwt.verify(tok, JWT_SECRET); return d && d.email ? String(d.email).toLowerCase() : null; } catch (e) { return null; } }
 function isAdmin(req) {
@@ -309,6 +357,28 @@ module.exports = async (req, res) => {
     // Ажлын хуудсын үнийн жагсаалт (нээлттэй)
     if (req.query.action === 'wsprices') {
       return res.json({ ok: true, prices: WS_PRICES, months: WS_MONTHS });
+    }
+
+    // Азтаны хүрд — нүднүүдийн шошго (клиент ижил дарааллаар зурна)
+    if (req.query.action === 'wheel_info') {
+      return res.json({ ok: true, segments: WHEEL.map(w => ({ label: w.label, type: w.type })) });
+    }
+    // Азтаны хүрд эргүүлэх — нэг имэйл нэг удаа
+    if (req.query.action === 'wheel_spin') {
+      const email = String((req.body || {}).email || '').trim().toLowerCase();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ ok: false, error: 'Зөв имэйл оруулна уу' });
+      await ensureWheel();
+      const prev = await pool.query('SELECT prize, code FROM ws_wheel WHERE email=$1', [email]);
+      if (prev.rows.length) return res.json({ ok: true, already: true, prize: { label: prev.rows[0].prize, code: prev.rows[0].code } });
+      const idx = wheelPick();
+      const seg = WHEEL[idx];
+      let code = null, detail = '';
+      try {
+        if (seg.type === 'discount') { const p = await createWheelPromo(seg.pct, seg.days); code = p.code; detail = seg.days + ' хоногт хүчинтэй'; }
+        else if (seg.type === 'access') { const exp = new Date(Date.now() + seg.hours * 3600000); await grantWsUntil(email, exp); detail = seg.hours >= 24 ? (seg.hours / 24 + ' өдрийн бүх эрх') : (seg.hours + ' цагийн бүх эрх'); }
+      } catch (e) { console.error('[wheel]', e.message); }
+      await pool.query('INSERT INTO ws_wheel (email, prize, code) VALUES ($1,$2,$3) ON CONFLICT (email) DO NOTHING', [email, seg.label, code]);
+      return res.json({ ok: true, index: idx, prize: { label: seg.label, type: seg.type, pct: seg.pct || 0, code: code, detail: detail } });
     }
 
     // Ажлын хуудсын урамшууллын кодыг шалгах (сонгосон сарын үнэ буцаана)

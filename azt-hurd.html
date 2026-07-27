@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Азтаны хүрд · CyberMath</title>
+<meta name="description" content="CyberMath Азтаны хүрд — нэг удаа эргүүлж хөнгөлөлт, үнэгүй эрх хож аваарай!" />
+<style>
+  :root{--gold:#FFC93C;--ink:#1a1030}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',system-ui,Arial,sans-serif;min-height:100vh;color:#fff;
+    background:linear-gradient(135deg,#3b1e73,#7B52EE 45%,#A855F7 80%,#ec4899);
+    background-size:200% 200%;animation:bg 14s ease infinite;overflow-x:hidden;
+    display:flex;flex-direction:column;align-items:center;padding:18px 16px 40px}
+  @keyframes bg{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+  .brand{display:flex;align-items:center;gap:8px;margin:6px 0 4px;font-weight:900;font-size:1.1rem;opacity:.95}
+  .brand img{height:30px}
+  h1{font-size:1.9rem;font-weight:900;letter-spacing:-.5px;text-align:center;margin:6px 0 2px;text-shadow:0 3px 16px rgba(0,0,0,.3)}
+  .sub{opacity:.9;font-size:.92rem;text-align:center;margin-bottom:14px}
+  .wheel-wrap{position:relative;width:min(90vw,380px);height:min(90vw,380px);margin:6px auto 4px}
+  .pointer{position:absolute;top:-6px;left:50%;transform:translateX(-50%);z-index:5;
+    width:0;height:0;border-left:16px solid transparent;border-right:16px solid transparent;
+    border-top:30px solid var(--gold);filter:drop-shadow(0 3px 4px rgba(0,0,0,.4))}
+  .pointer::after{content:"";position:absolute;top:-30px;left:-7px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 0 0 3px var(--gold)}
+  #wheel{width:100%;height:100%;border-radius:50%;filter:drop-shadow(0 18px 40px rgba(0,0,0,.45));
+    transition:transform 5.4s cubic-bezier(.13,.86,.22,1)}
+  .hub{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:64px;height:64px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,#fff,#ffe9a8 60%,var(--gold));z-index:4;
+    display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,.35),inset 0 0 0 4px #fff;
+    font-weight:900;color:#7B52EE;font-size:.7rem;text-align:center;line-height:1}
+  .panel{background:rgba(255,255,255,.14);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.25);
+    border-radius:20px;padding:16px;width:min(92vw,380px);margin-top:12px;text-align:center}
+  .panel input{width:100%;border:0;border-radius:12px;padding:.8rem 1rem;font-size:1rem;outline:none;color:var(--ink);text-align:center;font-weight:700}
+  .spin-btn{width:100%;margin-top:10px;border:0;cursor:pointer;border-radius:999px;padding:.9rem;font-size:1.05rem;font-weight:900;
+    color:#5a2b00;background:linear-gradient(135deg,#FFD966,var(--gold));box-shadow:0 10px 24px -8px rgba(255,201,60,.8);transition:.15s}
+  .spin-btn:hover{filter:brightness(1.05);transform:translateY(-1px)}
+  .spin-btn:disabled{opacity:.6;cursor:default;transform:none}
+  .note{font-size:.8rem;opacity:.85;margin-top:10px}
+  .msg{font-size:.86rem;font-weight:700;margin-top:8px;min-height:1em}
+  .snd{position:absolute;top:14px;right:16px;background:rgba(255,255,255,.2);border:0;color:#fff;border-radius:999px;width:38px;height:38px;cursor:pointer;font-size:1.1rem}
+  /* Prize modal */
+  #prize{position:fixed;inset:0;z-index:50;background:rgba(20,10,45,.72);display:none;place-items:center;padding:18px}
+  #prize .card{background:#fff;color:var(--ink);border-radius:24px;max-width:360px;width:100%;padding:26px 22px;text-align:center;box-shadow:0 30px 70px -20px rgba(0,0,0,.6);animation:pop .35s cubic-bezier(.2,1.3,.4,1)}
+  @keyframes pop{from{transform:scale(.8);opacity:0}to{transform:none;opacity:1}}
+  #prize .emo{font-size:3rem;line-height:1}
+  #prize h2{font-size:1.5rem;font-weight:900;color:#7B52EE;margin:6px 0 2px}
+  #prize .pdetail{color:#7a7390;font-size:.92rem;margin-bottom:8px}
+  #prize .code{margin:12px 0;background:#f4efff;border:1.6px dashed #A855F7;border-radius:12px;padding:12px;font-size:1.5rem;font-weight:900;letter-spacing:2px;color:#5a32d6;cursor:pointer}
+  #prize .code small{display:block;font-size:.62rem;letter-spacing:1px;color:#9a8fc0;font-weight:800;margin-bottom:3px}
+  #prize .pbtn{margin-top:8px;border:0;cursor:pointer;border-radius:999px;padding:.7rem 1.6rem;font-weight:900;color:#fff;background:linear-gradient(135deg,#7B52EE,#A855F7)}
+  #prize .pbtn2{display:inline-block;margin-top:10px;color:#7a7390;font-weight:700;font-size:.84rem;text-decoration:none}
+  canvas#cf{position:fixed;inset:0;pointer-events:none;z-index:60;display:none}
+</style>
+</head>
+<body>
+  <button class="snd" id="sndBtn" title="Дуу">🔊</button>
+  <div class="brand"><img src="/assets/cybermath-logo.svg" alt="CyberMath" onerror="this.style.display='none'"/></div>
+  <h1>🎡 Азтаны хүрд</h1>
+  <div class="sub">Нэг имэйлээр <b>нэг удаа</b> эргүүлж, шагнал хожоорой!</div>
+
+  <div class="wheel-wrap">
+    <div class="pointer"></div>
+    <svg id="wheel" viewBox="0 0 400 400" aria-label="Азтаны хүрд"></svg>
+    <div class="hub">ЭРГҮҮ<br>ЛЭХ</div>
+  </div>
+
+  <div class="panel">
+    <input id="email" type="email" placeholder="Имэйл хаягаа оруулна уу" autocomplete="email" />
+    <button class="spin-btn" id="spin">Эргүүлэх! 🎯</button>
+    <div class="msg" id="msg"></div>
+    <div class="note">Хожсон хөнгөлөлтөө <b>Дасгалын төв</b>-д худалдан авахдаа ашиглана.</div>
+  </div>
+
+  <div id="prize"><div class="card">
+    <div class="emo" id="pEmo">🎉</div>
+    <h2 id="pTitle"></h2>
+    <div class="pdetail" id="pDetail"></div>
+    <div id="pCodeWrap" style="display:none"><div class="code" id="pCode" title="Хуулах"></div></div>
+    <button class="pbtn" id="pGo">Дасгалын төв рүү</button>
+    <br><a class="pbtn2" href="#" id="pClose">Хаах</a>
+  </div></div>
+  <canvas id="cf"></canvas>
+
+<script>
+var COLORS=['#7C3AED','#DB2777','#F59E0B','#10B981','#0EA5E9','#8B5CF6','#EF4444','#14B8A6'];
+var SEG=[], N=0, spinning=false, soundOn=true;
+var wheel=document.getElementById('wheel');
+
+function splitLabel(t){
+  var w=t.split(' ');
+  if(w.length<=1)return [t];
+  if(w.length===2)return [w[0],w[1]];
+  return [w.slice(0,2).join(' '), w.slice(2).join(' ')];
+}
+function pt(cx,cy,r,aDeg){var a=(aDeg)*Math.PI/180;return [cx+r*Math.sin(a), cy-r*Math.cos(a)];}
+function renderWheel(segs){
+  SEG=segs; N=segs.length; var step=360/N, cx=200,cy=200,R=196, s='';
+  s+='<circle cx="200" cy="200" r="198" fill="#fff"/>';
+  for(var i=0;i<N;i++){
+    var a0=i*step, a1=(i+1)*step, am=a0+step/2;
+    var p0=pt(cx,cy,R,a0), p1=pt(cx,cy,R,a1);
+    var large=step>180?1:0;
+    s+='<path d="M200 200 L'+p0[0].toFixed(1)+' '+p0[1].toFixed(1)+' A'+R+' '+R+' 0 '+large+' 1 '+p1[0].toFixed(1)+' '+p1[1].toFixed(1)+' Z" fill="'+COLORS[i%COLORS.length]+'" stroke="rgba(255,255,255,.55)" stroke-width="2"/>';
+    var lines=splitLabel(segs[i].label), lr=124;
+    var lp=pt(cx,cy,lr,am);
+    var rot=am; if(am>90&&am<270)rot=am+180;   // доод хагасыг эргүүлж унших боломжтой болгоно
+    s+='<g transform="rotate('+rot.toFixed(1)+' '+lp[0].toFixed(1)+' '+lp[1].toFixed(1)+')">';
+    var startY=lp[1]-(lines.length-1)*8.5;
+    for(var k=0;k<lines.length;k++){
+      s+='<text x="'+lp[0].toFixed(1)+'" y="'+(startY+k*17).toFixed(1)+'" fill="#fff" font-size="15" font-weight="800" text-anchor="middle" dominant-baseline="middle" style="paint-order:stroke;stroke:rgba(0,0,0,.18);stroke-width:.6px">'+esc(lines[k])+'</text>';
+    }
+    s+='</g>';
+  }
+  s+='<circle cx="200" cy="200" r="198" fill="none" stroke="#fff" stroke-width="4"/>';
+  // жижиг чийдэн (гоё үзэмж)
+  for(var b=0;b<N*2;b++){var bp=pt(200,200,190,b*(360/(N*2)));s+='<circle cx="'+bp[0].toFixed(1)+'" cy="'+bp[1].toFixed(1)+'" r="4" fill="'+(b%2?'#FFD966':'#fff')+'"/>';}
+  wheel.innerHTML=s;
+}
+function esc(t){return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+
+/* ---- Sound (Web Audio) ---- */
+var AC=null;
+function ac(){ if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}} return AC; }
+function tick(){ if(!soundOn)return; var c=ac(); if(!c)return; var o=c.createOscillator(),g=c.createGain(); o.type='square'; o.frequency.value=900; g.gain.value=.0001; o.connect(g);g.connect(c.destination); var t=c.currentTime; g.gain.setValueAtTime(.14,t); g.gain.exponentialRampToValueAtTime(.0001,t+.05); o.start(t);o.stop(t+.06); }
+function fanfare(){ if(!soundOn)return; var c=ac(); if(!c)return; [523,659,784,1047].forEach(function(f,i){var o=c.createOscillator(),g=c.createGain();o.type='triangle';o.frequency.value=f;o.connect(g);g.connect(c.destination);var t=c.currentTime+i*.12;g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.22,t+.03);g.gain.exponentialRampToValueAtTime(.0001,t+.32);o.start(t);o.stop(t+.34);}); }
+
+/* ---- Spin ---- */
+function curRot(){var st=getComputedStyle(wheel).transform;if(st==='none')return 0;var m=st.match(/matrix\(([^)]+)\)/);if(!m)return 0;var v=m[1].split(',');return Math.atan2(parseFloat(v[1]),parseFloat(v[0]))*180/Math.PI;}
+function tickLoop(){
+  if(!spinning)return;
+  var r=((curRot()%360)+360)%360, idx=Math.floor(r/(360/N));
+  if(idx!==tickLoop._last){tickLoop._last=idx;tick();}
+  requestAnimationFrame(tickLoop);
+}
+function landOn(index){
+  var step=360/N, am=index*step+step/2;
+  var jitter=(Math.random()*2-1)*(step*0.32);
+  var target=360*6 + (360-am) + jitter;      // 6 бүтэн эргэлт + очих нүд
+  spinning=true; tickLoop._last=-1; requestAnimationFrame(tickLoop);
+  wheel.style.transform='rotate('+target+'deg)';
+  setTimeout(function(){ spinning=false; fanfare(); confetti(); showPrize(SEG[index]); }, 5500);
+}
+
+/* ---- API ---- */
+var msg=document.getElementById('msg');
+function okEmail(e){return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);}
+document.getElementById('spin').onclick=function(){
+  if(spinning)return;
+  var email=(document.getElementById('email').value||'').trim().toLowerCase();
+  if(!okEmail(email)){msg.style.color='#ffe08a';msg.textContent='Зөв имэйл хаяг оруулна уу';return;}
+  var btn=this; btn.disabled=true; msg.style.color='#fff'; msg.textContent='';
+  ac(); // sound-ыг товшилтоор идэвхжүүлнэ
+  fetch('/api/qpay?action=wheel_spin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email})})
+    .then(function(r){return r.json();}).then(function(d){
+      if(d&&d.already){ btn.disabled=false; msg.style.color='#ffe08a'; msg.innerHTML='Та энэ имэйлээр аль хэдийн эргүүлсэн байна 🙂'; if(d.prize)showPrize({label:d.prize.label,code:d.prize.code,type:d.prize.code?'discount':'none'},true); return; }
+      if(!d||!d.ok||typeof d.index!=='number'){ btn.disabled=false; msg.style.color='#ffe08a'; msg.textContent=(d&&d.error)||'Алдаа гарлаа'; return; }
+      window.__lastPrize=d.prize;
+      landOn(d.index);
+    }).catch(function(){ btn.disabled=false; msg.style.color='#ffe08a'; msg.textContent='Сүлжээний алдаа'; });
+};
+
+/* ---- Prize modal ---- */
+function showPrize(seg, already){
+  var p=window.__lastPrize||{}; var isWin=(p.type==='discount'||p.type==='access');
+  var box=document.getElementById('prize');
+  document.getElementById('pEmo').textContent = isWin?'🎉':'💜';
+  document.getElementById('pTitle').textContent = seg.label;
+  document.getElementById('pDetail').textContent = isWin ? (p.detail||'') : 'Ажлын амжилт хүсье! Дараа дахин оролдоорой.';
+  var cw=document.getElementById('pCodeWrap'), cc=document.getElementById('pCode');
+  var code=(p&&p.code)||(seg&&seg.code);
+  if(code){ cw.style.display='block'; cc.innerHTML='<small>УРАМШУУЛЛЫН КОД</small>'+code; cc.onclick=function(){navigator.clipboard&&navigator.clipboard.writeText(code);cc.style.background='#dcfce7';}; }
+  else cw.style.display='none';
+  box.style.display='grid';
+}
+document.getElementById('pGo').onclick=function(){location.href='/worksheets.html';};
+document.getElementById('pClose').onclick=function(e){e.preventDefault();document.getElementById('prize').style.display='none';};
+
+/* ---- Confetti ---- */
+function confetti(){
+  var cv=document.getElementById('cf'); cv.style.display='block';
+  cv.width=innerWidth; cv.height=innerHeight; var ctx=cv.getContext('2d');
+  var P=[]; for(var i=0;i<140;i++)P.push({x:Math.random()*cv.width,y:-20-Math.random()*cv.height*.4,r:5+Math.random()*7,c:COLORS[i%COLORS.length],vy:2+Math.random()*4,vx:-2+Math.random()*4,rot:Math.random()*6,vr:-.2+Math.random()*.4});
+  var t0=Date.now();
+  (function fr(){ ctx.clearRect(0,0,cv.width,cv.height);
+    P.forEach(function(o){o.y+=o.vy;o.x+=o.vx;o.rot+=o.vr;ctx.save();ctx.translate(o.x,o.y);ctx.rotate(o.rot);ctx.fillStyle=o.c;ctx.fillRect(-o.r/2,-o.r/2,o.r,o.r*.6);ctx.restore();});
+    if(Date.now()-t0<3200)requestAnimationFrame(fr); else cv.style.display='none';
+  })();
+}
+
+document.getElementById('sndBtn').onclick=function(){soundOn=!soundOn;this.textContent=soundOn?'🔊':'🔈';};
+
+/* ---- init: хүрдний нүднүүдийг серверээс авч зурна ---- */
+fetch('/api/qpay?action=wheel_info').then(function(r){return r.json();}).then(function(d){
+  if(d&&d.segments&&d.segments.length){ renderWheel(d.segments); }
+  else renderWheel([{label:'Баярлалаа'},{label:'5% хөнгөлөлт'},{label:'Амжилт'},{label:'1 цагийн эрх'},{label:'10% хөнгөлөлт'},{label:'Сайхан хоног'},{label:'1 өдрийн эрх'},{label:'20% хөнгөлөлт'}]);
+}).catch(function(){ renderWheel([{label:'Баярлалаа'},{label:'5%'},{label:'Амжилт'},{label:'1 цаг'},{label:'10%'},{label:'Сайхан'},{label:'1 өдөр'},{label:'20%'}]); });
+</script>
+</body>
+</html>
