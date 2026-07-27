@@ -58,6 +58,13 @@ module.exports = async (req, res) => {
         created_at TIMESTAMPTZ DEFAULT NOW(),
         PRIMARY KEY (grp, slug, kind)
       )`);
+    // Багшийн 4 оронтой PIN (имэйлээр) — тэмдэглэл устгах эрх
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ws_pins (
+        email TEXT PRIMARY KEY,
+        pin TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )`);
 
     // GET — жагсаалт эсвэл нэг багц эсвэл сэдвийн нэр/нуусан/дараалал
     if (req.method === 'GET') {
@@ -102,8 +109,32 @@ module.exports = async (req, res) => {
         );
         return res.json({ ok: true, code: r.rows[0].id });
       }
+      // Багшийн PIN — тэмдэглэл устгах эрх (нэг удаа үүсгэнэ)
+      if (b.action === 'pinStatus') {
+        const email = String(b.email || '').trim().toLowerCase();
+        if (!email) return res.json({ ok: true, hasPin: false });
+        const r = await pool.query('SELECT 1 FROM ws_pins WHERE email=$1', [email]);
+        return res.json({ ok: true, hasPin: r.rows.length > 0 });
+      }
+      if (b.action === 'setPin') {
+        const email = String(b.email || '').trim().toLowerCase();
+        const pin = String(b.pin || '');
+        if (!email || !/^\d{4}$/.test(pin)) return res.status(400).json({ ok: false, error: '4 оронтой PIN оруулна уу' });
+        const ex = await pool.query('SELECT pin FROM ws_pins WHERE email=$1', [email]);
+        if (ex.rows.length) return res.json({ ok: true, existed: true });   // нэг удаа үүсгэнэ
+        await pool.query('INSERT INTO ws_pins (email, pin) VALUES ($1,$2)', [email, pin]);
+        return res.json({ ok: true, created: true });
+      }
       if (b.action === 'delete') {
         if (!b.code) return res.status(400).json({ ok: false });
+        // Админ бол чөлөөтэй; бусад тохиолдолд багшийн PIN шаардана
+        if (!isAdmin(req)) {
+          const email = String(b.email || '').trim().toLowerCase();
+          const pin = String(b.pin || '');
+          if (!email || !/^\d{4}$/.test(pin)) return res.status(400).json({ ok: false, error: 'PIN шаардлагатай' });
+          const pr = await pool.query('SELECT pin FROM ws_pins WHERE email=$1', [email]);
+          if (!pr.rows.length || pr.rows[0].pin !== pin) return res.status(403).json({ ok: false, error: 'PIN буруу байна' });
+        }
         await pool.query('DELETE FROM ws_sets WHERE id=$1', [parseInt(b.code)]);
         return res.json({ ok: true });
       }

@@ -745,9 +745,22 @@ function toggleAns(){
   document.getElementById('toggleA').textContent=SHOW_ANS?'Хариу нуух':'Хариу харах';
 }
 function delSet(code){
-  if(!confirm('#'+code+' хадгалсан хуудсыг устгах уу?'))return;
-  fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',code:code})})
-    .then(function(r){return r.json();}).then(function(){loadSaved();});
+  if(isAdmin()){
+    if(!confirm('#'+code+' тэмдэглэлийг устгах уу?'))return;
+    fetch('/api/worksheets',{method:'POST',headers:adminHeaders(),body:JSON.stringify({action:'delete',code:code})})
+      .then(function(r){return r.json();}).then(function(){loadSaved();});
+    return;
+  }
+  if(!CM_USER){ alert('Устгахын тулд эхлээд нэвтэрнэ үү.'); openLogin(false); return; }
+  var pin=lsGet('cm_ws_pin');
+  if(!pin){ pin=(prompt('Устгах 4 оронтой PIN-ээ оруулна уу:','')||'').trim(); if(!pin)return; }
+  if(!/^\d{4}$/.test(pin)){ alert('PIN 4 оронтой тоо байх ёстой'); return; }
+  if(!confirm('#'+code+' тэмдэглэлийг устгах уу?'))return;
+  fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',code:code,email:CM_USER.email,pin:pin})})
+    .then(function(r){return r.json();}).then(function(d){
+      if(d&&d.ok){ lsSet('cm_ws_pin',pin); loadSaved(); }
+      else { alert((d&&d.error)||'Устгаж чадсангүй'); if(d&&/PIN/.test(d.error||''))lsDel('cm_ws_pin'); }
+    }).catch(function(e){alert('Алдаа: '+e.message);});
 }
 function closeM(){document.getElementById('modal').classList.remove('on');}
 
@@ -1043,8 +1056,49 @@ function verifyUser(cb){
       renderAcct();if(cb)cb();
     });
 }
-function wsLogout(){lsDel('cm_ws_token');lsDel('cm_last_user');CM_USER=null;renderAcct();toast('Гарлаа');}
+function wsLogout(){lsDel('cm_ws_token');lsDel('cm_last_user');lsDel('cm_ws_pin');lsDel('cm_ws_pin_ok');CM_USER=null;renderAcct();toast('Гарлаа');}
 function firstSlug(){var c=document.querySelector('#catalog .card');return c?c.getAttribute('data-slug'):'butarhai-nemeh-18.html';}
+/* ── Устгах PIN (нэг удаа үүсгэнэ) ── */
+function ensurePin(){
+  if(!CM_USER||isAdmin())return;
+  if(lsGet('cm_ws_pin')||lsGet('cm_ws_pin_ok')||lsGet('cm_ws_pin_skip'))return;
+  fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'pinStatus',email:CM_USER.email})})
+    .then(function(r){return r.json();}).then(function(d){
+      if(d&&d.hasPin)lsSet('cm_ws_pin_ok','1');   // сервер дээр бий — устгахад л асууна
+      else openPinCreate();
+    }).catch(function(){});
+}
+function openPinCreate(){
+  if(document.getElementById('wsPin')||!CM_USER)return;
+  var o=document.createElement('div');o.id='wsPin';
+  o.style.cssText='position:fixed;inset:0;z-index:210;background:rgba(20,15,40,.6);display:grid;place-items:center;padding:16px';
+  o.innerHTML='<div style="background:#fff;border-radius:20px;max-width:380px;width:100%;padding:26px;text-align:center;box-shadow:0 24px 60px -18px rgba(0,0,0,.5)">'
+    +'<div style="width:56px;height:56px;margin:0 auto 6px;background:linear-gradient(135deg,var(--purple),var(--purple2));border-radius:15px;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3"/></svg></div>'
+    +'<h3 style="color:var(--purple-d);font-size:1.2rem;font-weight:900;margin:6px 0 3px">Устгах PIN үүсгэх</h3>'
+    +'<p style="color:var(--soft);font-size:.88rem;margin-bottom:14px">Тэмдэглэл (хадгалсан хуудас) устгахад ашиглах <b>4 оронтой PIN</b>-ээ нэг удаа үүсгэнэ үү.</p>'
+    +'<input id="pinIn" type="password" inputmode="numeric" maxlength="4" placeholder="••••" style="width:100%;border:1.6px solid #e7ddff;border-radius:12px;padding:.7rem;font-size:1.6rem;letter-spacing:12px;text-align:center;font-weight:900;outline:none;margin-bottom:10px" />'
+    +'<button id="pinSave" style="width:100%;font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.75rem;font-size:.95rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2))">Үүсгэх</button>'
+    +'<div id="pinMsg" style="font-size:.82rem;font-weight:700;margin-top:9px;min-height:1em"></div>'
+    +'<a id="pinSkip" href="#" style="display:inline-block;margin-top:6px;font-size:.8rem;color:var(--soft);font-weight:700;text-decoration:none">Дараа үүсгэх</a>'
+    +'</div>';
+  document.body.appendChild(o);
+  var inp=o.querySelector('#pinIn'),msg=o.querySelector('#pinMsg');
+  inp.addEventListener('input',function(){this.value=this.value.replace(/\D/g,'').slice(0,4);});
+  setTimeout(function(){inp.focus();},40);
+  function save(){
+    var pin=(inp.value||'').trim();
+    if(!/^\d{4}$/.test(pin)){msg.style.color='#dc2626';msg.textContent='4 оронтой тоо оруулна уу';return;}
+    var b=o.querySelector('#pinSave');b.disabled=true;b.textContent='Үүсгэж байна…';
+    fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'setPin',email:CM_USER.email,pin:pin})})
+      .then(function(r){return r.json();}).then(function(d){
+        if(d&&d.ok){ lsSet('cm_ws_pin',pin); lsSet('cm_ws_pin_ok','1'); o.remove(); toast(d.existed?'PIN аль хэдийн үүссэн':'✓ PIN үүсгэлээ'); }
+        else { b.disabled=false;b.textContent='Үүсгэх'; msg.style.color='#dc2626'; msg.textContent=(d&&d.error)||'Алдаа гарлаа'; }
+      }).catch(function(){b.disabled=false;b.textContent='Үүсгэх';msg.style.color='#dc2626';msg.textContent='Сүлжээний алдаа';});
+  }
+  o.querySelector('#pinSave').onclick=save;
+  inp.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();save();}});
+  o.querySelector('#pinSkip').onclick=function(e){e.preventDefault();lsSet('cm_ws_pin_skip','1');o.remove();};
+}
 function openLogin(auto){
   if(document.getElementById('wsLogin'))return;
   var o=document.createElement('div');o.id='wsLogin';
@@ -1073,7 +1127,7 @@ function openLogin(auto){
       .then(function(r){return r.json();}).then(function(d){
         if(d&&d.active){
           if(d.ws_token)lsSet('cm_ws_token',d.ws_token);lsSet('cm_last_user',email);
-          CM_USER={email:d.email||email};renderAcct();o.remove();toast('✓ Тавтай морил, '+email);
+          CM_USER={email:d.email||email};renderAcct();o.remove();toast('✓ Тавтай морил, '+email);ensurePin();
         }else{
           b.disabled=false;b.textContent='Нэвтрэх';
           msg.style.color='#dc2626';msg.innerHTML='Энэ имэйлээр идэвхтэй эрх олдсонгүй.<br>Доорхоос худалдаж авна уу.';
@@ -1126,7 +1180,7 @@ function openBuy(){
     fetch('/api/qpay?action=create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,plan:'wsmonths',months:selMonths,promo:appliedPromo})}).then(function(r){return r.json();}).then(function(d){var inv=d&&d.invoice;if(!inv||!inv.invoice_id){msg.style.color='#dc2626';msg.textContent='Нэхэмжлэх үүсгэж чадсангүй. Дахин оролдоно уу.';btn.disabled=false;btn.textContent='QPay-аар худалдан авах';return;}
       var img=inv.qr_image?('<img src="data:image/png;base64,'+inv.qr_image+'" style="width:190px;height:190px" alt="QPay QR"/>'):'';var link=inv.qPay_shortUrl?('<div style="margin-top:8px"><a href="'+inv.qPay_shortUrl+'" target="_blank" style="display:inline-flex;align-items:center;gap:5px;color:var(--purple-d);font-weight:700;font-size:.85rem;text-decoration:none"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg>Утаснаас төлөх</a></div>'):'';
       qr.innerHTML='<div style="font-size:.82rem;color:var(--soft);margin-bottom:6px">QPay аппаар уншуулж төлнө үү</div>'+img+link;btn.style.display='none';em.disabled=true;o.querySelector('#buDur').style.display='none';msg.style.color='var(--soft)';msg.textContent='Төлбөрийг хүлээж байна…';
-      pollT=setInterval(function(){fetch('/api/qpay?action=check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({invoice_id:inv.invoice_id,email:email,plan:'wsmonths',months:selMonths,promo:appliedPromo})}).then(function(r){return r.json();}).then(function(c){if(c&&c.paid){if(c.ws_token)lsSet('cm_ws_token',c.ws_token);lsSet('cm_last_user',email);clearInterval(pollT);pollT=null;CM_USER={email:email};renderAcct();o.remove();toast('✓ Амжилттай! Тавтай морил');}}).catch(function(){});},3000);
+      pollT=setInterval(function(){fetch('/api/qpay?action=check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({invoice_id:inv.invoice_id,email:email,plan:'wsmonths',months:selMonths,promo:appliedPromo})}).then(function(r){return r.json();}).then(function(c){if(c&&c.paid){if(c.ws_token)lsSet('cm_ws_token',c.ws_token);lsSet('cm_last_user',email);clearInterval(pollT);pollT=null;CM_USER={email:email};renderAcct();o.remove();toast('✓ Амжилттай! Тавтай морил');ensurePin();}}).catch(function(){});},3000);
     }).catch(function(){msg.style.color='#dc2626';msg.textContent='Сүлжээний алдаа. Дахин оролдоно уу.';btn.disabled=false;btn.textContent='QPay-аар худалдан авах';});};
   o.querySelector('#buBack').onclick=function(){if(pollT){clearInterval(pollT);pollT=null;}o.remove();openLogin(false);};
   o.addEventListener('mousedown',function(e){if(e.target===o){if(pollT){clearInterval(pollT);pollT=null;}o.remove();}});
@@ -1140,6 +1194,7 @@ if(!isAdmin()){
   renderAcct();
   verifyUser(function(){
     if(!CM_USER && !PAYWALL_OFF && !lsGet('cm_ws_dismissed')) openLogin(true);
+    else if(CM_USER) ensurePin();
   });
 }
 document.getElementById('q').addEventListener('input',applyFilters);
