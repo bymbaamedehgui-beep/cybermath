@@ -219,6 +219,7 @@
   }
   function inIframe(){ try{return window.top!==window.self;}catch(e){return true;} }
   function enforcePaywall(){
+    if(IS_QR)return;                                 // QR/сурагчийн горим — багшийн хуваалцсан ганц материал, төлбөргүй
     if(inIframe())return;                            // iframe доторх урьдчилан харах/танилцуулга — цоожгүй
     if(ls('cm_admin_token'))return;                 // админ — цоожгүй, flash-гүй
     showLock();                                      // нээмэгц шууд төлбөрийн хэсэг харуулна
