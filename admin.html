@@ -124,7 +124,29 @@ window.loadWsSales = async function(){
   catch(e){ var ul=document.getElementById('ws-purchase-list'); if(ul)ul.innerHTML='<div style="color:#dc2626;padding:10px;">Алдаа: '+wsEsc(e.message)+'</div>'; }
   try{ var us=await wsPost('ws_users_list',{}); renderWsUsers(us||{}); }
   catch(e){ var uu=document.getElementById('ws-users-list'); if(uu)uu.innerHTML='<div style="color:#dc2626;padding:10px;">Алдаа: '+wsEsc(e.message)+'</div>'; }
+  try{ var an=await wsPost('getAnnounce',{}); var ai=document.getElementById('ws-announce'); if(ai)ai.value=(an&&an.announce)||''; }catch(e){}
+  try{ var fb=await wsPost('feedback_list',{}); renderWsFeedback((fb&&fb.feedback)||[]); }
+  catch(e){ var fe=document.getElementById('ws-feedback-list'); if(fe)fe.innerHTML='<div style="color:#dc2626;padding:8px;">Алдаа: '+wsEsc(e.message)+'</div>'; }
 };
+window.saveAnnounce=async function(){
+  var t=(document.getElementById('ws-announce').value||'').trim();
+  var m=document.getElementById('ws-announce-msg');
+  m.style.color='var(--muted)';m.textContent='Хадгалж байна…';
+  try{ await wsPost('setAnnounce',{text:t}); m.style.color='#16a34a'; m.textContent=t?'✓ Идэвхжлээ':'✓ Арилгалаа'; }
+  catch(e){ m.style.color='#dc2626'; m.textContent='Алдаа: '+e.message; }
+};
+function renderWsFeedback(list){
+  var el=document.getElementById('ws-feedback-list'); if(!el)return;
+  if(!list.length){el.innerHTML='<div style="color:var(--muted);padding:8px;">Санал хүсэлт алга.</div>';return;}
+  var h='';
+  list.forEach(function(f){
+    h+='<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;">'
+      +'<div style="white-space:pre-wrap;font-size:0.88rem;color:var(--text);">'+wsEsc(f.message)+'</div>'
+      +'<div style="font-size:0.72rem;color:var(--muted);margin-top:6px;">'+wsDate(f.created_at)+(f.contact?(' · '+wsEsc(f.contact)):'')+'</div>'
+      +'</div>';
+  });
+  el.innerHTML=h;
+}
 function renderWsUsers(d){
   var el=document.getElementById('ws-users-list'); if(!el)return;
   var list=d.users||[];
@@ -2092,6 +2114,22 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
         <div class="page-sub">Дасгалын төвийн урамшууллын код үүсгэх, удирдах ба худалдан авалтын бүртгэл</div>
 
         <div id="ws-summary" style="margin-bottom:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;"></div>
+
+        <!-- Мэдээллийн урсдаг зурвас -->
+        <div class="table-card" style="padding:14px 16px;margin-bottom:18px;">
+          <div class="table-title" style="margin-bottom:10px;">📢 Мэдээллийн зурвас <span style="font-size:0.72rem;color:var(--muted);font-weight:700;">(Дасгалын төвийн дээд талд урсана)</span></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <input id="ws-announce" type="text" maxlength="500" placeholder="Урсах мэдээллээ бичнэ үү… (хоосон бол харагдахгүй)" style="flex:1;min-width:220px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:0.88rem;">
+            <button onclick="saveAnnounce()" style="background:linear-gradient(135deg,#7B52EE,#A855F7);border:0;color:#fff;border-radius:8px;padding:9px 18px;cursor:pointer;font-weight:800;font-size:0.85rem;">Хадгалах</button>
+            <span id="ws-announce-msg" style="font-size:0.8rem;font-weight:700;"></span>
+          </div>
+        </div>
+
+        <!-- Санал хүсэлт -->
+        <div class="table-card" style="padding:14px 16px;margin-bottom:18px;">
+          <div class="table-header" style="margin-bottom:10px;"><div class="table-title">💬 Санал хүсэлт <span style="font-size:0.72rem;color:var(--muted);font-weight:700;">(хэрэглэгчдээс)</span></div></div>
+          <div id="ws-feedback-list"><div style="color:var(--muted);padding:8px;">Ачааллаж байна…</div></div>
+        </div>
 
         <!-- Промо код үүсгэх -->
         <div class="q-form" style="margin-bottom:18px;">

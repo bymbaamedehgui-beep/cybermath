@@ -13,6 +13,19 @@ function isAdmin(req) {
   } catch (e) { return false; }
 }
 
+// Санал хүсэлт ирэхэд Telegram-аар мэдэгдэх (env: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
+async function sendTelegram(text) {
+  const token = process.env.TELEGRAM_BOT_TOKEN, chat = process.env.TELEGRAM_CHAT_ID;
+  if (!token || !chat) return false;
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chat, text: text, parse_mode: 'HTML', disable_web_page_preview: true })
+    });
+    return true;
+  } catch (e) { console.error('[telegram]', e.message); return false; }
+}
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
@@ -65,6 +78,21 @@ module.exports = async (req, res) => {
         pin TEXT NOT NULL,
         created_at TIMESTAMPTZ DEFAULT NOW()
       )`);
+    // Хэрэглэгчийн санал хүсэлт
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ws_feedback (
+        id BIGSERIAL PRIMARY KEY,
+        message TEXT NOT NULL,
+        contact TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )`);
+    // Тохиргоо (announce гэх мэт key/value)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ws_settings (
+        skey TEXT PRIMARY KEY,
+        sval TEXT,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )`);
 
     // GET — жагсаалт эсвэл нэг багц эсвэл сэдвийн нэр/нуусан/дараалал
     if (req.method === 'GET') {
@@ -83,7 +111,9 @@ module.exports = async (req, res) => {
           const bucket = x.kind === 'remove' ? place.remove : place.add;
           (bucket[x.grp] = bucket[x.grp] || []).push(x.slug);
         });
-        return res.json({ ok: true, titles: map, hidden: h.rows.map(x => x.slug), order: order, place: place });
+        const ann = await pool.query(`SELECT sval FROM ws_settings WHERE skey='announce'`);
+        const announce = ann.rows.length ? (ann.rows[0].sval || '') : '';
+        return res.json({ ok: true, titles: map, hidden: h.rows.map(x => x.slug), order: order, place: place, announce: announce });
       }
       const code = req.query.code;
       if (code) {
@@ -132,6 +162,36 @@ module.exports = async (req, res) => {
         if (!pr.rows.length || pr.rows[0].pin !== pin) return res.status(403).json({ ok: false, error: 'PIN буруу байна' });
         await pool.query('DELETE FROM ws_sets WHERE id=$1', [parseInt(b.code)]);
         return res.json({ ok: true });
+      }
+      // Санал хүсэлт — нээлттэй (Telegram-аар мэдэгдэнэ)
+      if (b.action === 'feedback') {
+        const message = String(b.message || '').trim().slice(0, 2000);
+        const contact = b.contact ? String(b.contact).trim().slice(0, 160) : null;
+        if (message.length < 2) return res.status(400).json({ ok: false, error: 'Санал хүсэлтээ бичнэ үү' });
+        await pool.query('INSERT INTO ws_feedback (message, contact) VALUES ($1,$2)', [message, contact]);
+        const tg = '📩 <b>CyberMath — Шинэ санал хүсэлт</b>\n\n' + message +
+          (contact ? ('\n\n👤 ' + contact) : '') + '\n\n<i>cyber-math.com/worksheets</i>';
+        await sendTelegram(tg);
+        return res.json({ ok: true });
+      }
+      // Мэдээллийн зурвас (announce) авах — нээлттэй
+      if (b.action === 'getAnnounce') {
+        const r = await pool.query(`SELECT sval FROM ws_settings WHERE skey='announce'`);
+        return res.json({ ok: true, announce: r.rows.length ? (r.rows[0].sval || '') : '' });
+      }
+      // Мэдээлэл тохируулах + санал хүсэлт харах — ЗӨВХӨН АДМИН
+      if (b.action === 'setAnnounce') {
+        if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
+        const text = String(b.text || '').slice(0, 500);
+        await pool.query(
+          `INSERT INTO ws_settings (skey, sval, updated_at) VALUES ('announce',$1,NOW())
+           ON CONFLICT (skey) DO UPDATE SET sval=EXCLUDED.sval, updated_at=NOW()`, [text]);
+        return res.json({ ok: true, announce: text });
+      }
+      if (b.action === 'feedback_list') {
+        if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
+        const r = await pool.query('SELECT id, message, contact, created_at FROM ws_feedback ORDER BY created_at DESC LIMIT 300');
+        return res.json({ ok: true, feedback: r.rows });
       }
       // Нэр өөрчлөх / нуух / сэргээх / дараалал — ЗӨВХӨН АДМИН
       if (['setTitle', 'resetTitle', 'hideTopic', 'unhideTopic', 'setOrder',

@@ -25,6 +25,12 @@
   a{color:inherit}
 
   /* ---- top bar ---- */
+  /* Мэдээллийн урсдаг зурвас */
+  #annBar{background:linear-gradient(90deg,var(--purple),var(--purple2));color:#fff;overflow:hidden;white-space:nowrap;position:relative}
+  #annBar .ann-inner{display:inline-block;padding:9px 0;padding-left:100%;animation:annScroll 22s linear infinite;font-weight:700;font-size:.9rem;will-change:transform}
+  #annBar:hover .ann-inner{animation-play-state:paused}
+  #annBar #annText::before{content:"📢  ";}
+  @keyframes annScroll{0%{transform:translateX(0)}100%{transform:translateX(-100%)}}
   .topbar{display:flex;align-items:center;gap:10px;padding:16px 0 8px}
   .back{display:inline-flex;align-items:center;gap:6px;font-weight:800;color:var(--purple-d);text-decoration:none;background:#fff;border:1.5px solid var(--line);border-radius:999px;padding:.5rem 1.05rem;font-size:.86rem;box-shadow:0 6px 16px -12px rgba(90,50,214,.6);transition:.15s}
   .back:hover{transform:translateY(-1px);box-shadow:0 10px 22px -12px rgba(90,50,214,.7)}
@@ -185,10 +191,12 @@
 </style>
 </head>
 <body>
+<div id="annBar" style="display:none"><div class="ann-inner"><span id="annText"></span></div></div>
 <div class="wrap">
   <div class="topbar">
     <a class="back" href="/admin.html">← Админ</a>
-    <div id="acctArea" style="margin-left:auto;display:flex;align-items:center;gap:8px"></div>
+    <button id="fbBtn" onclick="openFeedback()" style="margin-left:auto;border:1.4px solid var(--line);background:#fff;color:var(--purple-d);font-weight:800;font-size:.82rem;border-radius:999px;padding:.4rem .9rem;cursor:pointer;display:inline-flex;align-items:center;gap:5px"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Санал хүсэлт</button>
+    <div id="acctArea" style="display:flex;align-items:center;gap:8px"></div>
   </div>
 
   <div class="hero">
@@ -1186,6 +1194,45 @@ function openBuy(){
 /* init */
 renderChips();
 if(isAdmin()){document.body.classList.add('is-admin');document.getElementById('editBar').style.display='flex';ensurePin();}
+/* ── Мэдээллийн урсдаг зурвас (админаас) ── */
+function showAnnounce(text){
+  text=(text||'').trim(); if(!text)return;
+  var bar=document.getElementById('annBar');
+  document.getElementById('annText').textContent=text;
+  bar.style.display='block';
+}
+/* ── Санал хүсэлт (→ Telegram мэдэгдэл) ── */
+function openFeedback(){
+  if(document.getElementById('wsFb'))return;
+  var o=document.createElement('div');o.id='wsFb';
+  o.style.cssText='position:fixed;inset:0;z-index:200;background:rgba(20,15,40,.6);display:grid;place-items:center;padding:16px';
+  o.innerHTML='<div style="position:relative;background:#fff;border-radius:20px;max-width:420px;width:100%;padding:24px;box-shadow:0 24px 60px -18px rgba(0,0,0,.5)">'
+    +'<button onclick="var e=document.getElementById(\'wsFb\');if(e)e.remove()" style="position:absolute;top:12px;right:14px;border:0;background:#f0f0f6;width:30px;height:30px;border-radius:50%;cursor:pointer;font-weight:800;color:#666">✕</button>'
+    +'<div style="text-align:center;margin-bottom:4px"><div style="width:52px;height:52px;margin:0 auto;background:linear-gradient(135deg,var(--purple),var(--purple2));border-radius:14px;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div></div>'
+    +'<h3 style="text-align:center;color:var(--purple-d);font-size:1.2rem;font-weight:900;margin:6px 0 3px">Санал хүсэлт</h3>'
+    +'<p style="text-align:center;color:var(--soft);font-size:.86rem;margin-bottom:12px">Санал, гомдол, шинэ сэдвийн хүсэлтээ бичээрэй.</p>'
+    +'<textarea id="fbMsg" rows="4" placeholder="Таны санал хүсэлт…" style="width:100%;box-sizing:border-box;border:1.6px solid #e7ddff;border-radius:12px;padding:.7rem .9rem;font-size:.95rem;outline:none;resize:vertical;font-family:inherit;margin-bottom:9px"></textarea>'
+    +'<input id="fbContact" type="text" placeholder="Холбоо барих (имэйл/утас) — заавал биш" style="width:100%;box-sizing:border-box;border:1.6px solid #e7ddff;border-radius:12px;padding:.65rem .9rem;font-size:.9rem;outline:none;margin-bottom:10px" />'
+    +'<button id="fbSend" style="width:100%;font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.75rem;font-size:.95rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2))">Илгээх</button>'
+    +'<div id="fbMsgOut" style="font-size:.83rem;font-weight:700;margin-top:9px;min-height:1em;text-align:center"></div>'
+    +'</div>';
+  document.body.appendChild(o);
+  if(lsGet('cm_last_user'))o.querySelector('#fbContact').value=lsGet('cm_last_user');
+  var out=o.querySelector('#fbMsgOut');
+  o.querySelector('#fbSend').onclick=function(){
+    var msg=(o.querySelector('#fbMsg').value||'').trim();
+    if(msg.length<2){out.style.color='#dc2626';out.textContent='Санал хүсэлтээ бичнэ үү';return;}
+    var b=this;b.disabled=true;b.textContent='Илгээж байна…';
+    fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'feedback',message:msg,contact:(o.querySelector('#fbContact').value||'').trim()})})
+      .then(function(r){return r.json();}).then(function(d){
+        if(d&&d.ok){o.querySelector('div').innerHTML='<div style="text-align:center;padding:22px 4px"><div style="font-size:2.6rem;color:#16a34a">✓</div><h3 style="color:#16a34a;font-weight:900;margin:6px 0">Баярлалаа!</h3><p style="color:var(--soft);font-size:.9rem">Таны санал хүсэлт хүлээн авлаа.</p><button onclick="var e=document.getElementById(\'wsFb\');if(e)e.remove()" style="margin-top:12px;border:0;background:linear-gradient(135deg,var(--purple),var(--purple2));color:#fff;font-weight:800;border-radius:999px;padding:.6rem 1.6rem;cursor:pointer">Хаах</button></div>';}
+        else{b.disabled=false;b.textContent='Илгээх';out.style.color='#dc2626';out.textContent=(d&&d.error)||'Алдаа гарлаа';}
+      }).catch(function(){b.disabled=false;b.textContent='Илгээх';out.style.color='#dc2626';out.textContent='Сүлжээний алдаа';});
+  };
+  o.addEventListener('mousedown',function(e){if(e.target===o)o.remove();});
+  setTimeout(function(){o.querySelector('#fbMsg').focus();},40);
+}
+
 /* Нэвтрэлт: нэвтэрсэн бол дахиж асуухгүй; анх орж ирэхэд (админ биш) нэг удаа асууна */
 if(!isAdmin()){
   renderAcct();
@@ -1202,6 +1249,7 @@ fetch('/api/worksheets?titles=1').then(function(r){return r.json();})
     if(d&&d.hidden)d.hidden.forEach(function(s){HIDDEN[s]=1;});
     if(d&&d.order)ORDER=d.order;
     if(d&&d.place)PLACE={add:d.place.add||{},remove:d.place.remove||{}};
+    if(d&&d.announce)showAnnounce(d.announce);
   })
   .catch(function(){})
   .then(function(){computeNew();renderCatalog();updateNewCount();initReorder();});
