@@ -189,6 +189,16 @@ window.grantWsAccess=async function(){
   try{ var d=await wsPost('ws_grant',{email:email,months:months}); if(d&&d.ok){loadWsSales();} else {msg.style.color='#dc2626';msg.textContent='Алдаа: '+((d&&d.error)||'');} }
   catch(e){ msg.style.color='#dc2626'; msg.textContent='Алдаа: '+e.message; }
 };
+window.reconcileWs=async function(){
+  var b=document.getElementById('reconcileBtn'),m=document.getElementById('reconcileMsg');
+  b.disabled=true;var ot=b.textContent;b.textContent='Тулгаж байна…';m.style.color='var(--muted)';m.textContent='';
+  try{
+    var d=await wsPost('ws_reconcile',{});
+    if(d&&d.ok){ m.style.color='#16a34a'; m.textContent='Шалгасан: '+d.checked+' · нөхөж олгосон: '+d.granted_count+(d.granted&&d.granted.length?(' ('+d.granted.map(function(g){return g.email;}).join(', ')+')'):''); loadWsSales(); }
+    else { m.style.color='#dc2626'; m.textContent='Алдаа: '+((d&&d.error)||''); }
+  }catch(e){ m.style.color='#dc2626'; m.textContent='Алдаа: '+e.message; }
+  b.disabled=false;b.textContent=ot;
+};
 window.revokeWsAccess=async function(email){
   if(!confirm('"'+email+'"-ийн ажлын хуудсын эрхийг цуцлах уу?'))return;
   try{ await wsPost('ws_revoke',{email:email}); loadWsSales(); }catch(e){ alert('Алдаа: '+e.message); }
@@ -2180,8 +2190,10 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
 
         <!-- Худалдан авалтын бүртгэл -->
         <div class="table-card" style="padding:14px 16px;">
-          <div class="table-header" style="margin-bottom:12px;">
-            <div class="table-title">Худалдан авалтын бүртгэл</div>
+          <div class="table-header" style="margin-bottom:12px;display:flex;gap:8px;align-items:center;">
+            <div class="table-title" style="flex:1;">Худалдан авалтын бүртгэл</div>
+            <button onclick="reconcileWs()" id="reconcileBtn" title="Төлсөн атлаа олгогдоогүй төлбөрийг QPay-тэй тулгаж нөхөж олгоно" style="background:linear-gradient(135deg,#0ea5e9,#1d6c8c);border:0;color:#fff;border-radius:8px;padding:7px 14px;cursor:pointer;font-weight:800;font-size:0.82rem;">↻ Төлбөр тулгах</button>
+            <span id="reconcileMsg" style="font-size:0.8rem;font-weight:700;"></span>
           </div>
           <div id="ws-purchase-list"></div>
         </div>

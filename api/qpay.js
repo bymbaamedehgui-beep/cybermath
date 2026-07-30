@@ -131,6 +131,16 @@ async function ensureWsExtra() {
     created_at TIMESTAMPTZ DEFAULT NOW()
   )`).catch(()=>{});
   await pool.query(`ALTER TABLE ws_purchases ADD COLUMN IF NOT EXISTS months INT`).catch(()=>{});
+  // Нэхэмжлэх бүрийг хадгалж, төлбөр тулгах (reconcile) — алдагдал гарахгүй болгоно
+  await pool.query(`CREATE TABLE IF NOT EXISTS ws_pending (
+    invoice_id TEXT PRIMARY KEY,
+    email TEXT NOT NULL,
+    months INT NOT NULL,
+    promo TEXT,
+    amount INT,
+    granted BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`).catch(()=>{});
   wsExtraReady = true;
 }
 // DB промог эхэнд шалгаад, олдохгүй бол env кодоос үзнэ
@@ -274,6 +284,17 @@ module.exports = async (req, res) => {
         })
       });
       const invoice = await invoiceResp.json();
+      // Ажлын хуудсын нэхэмжлэхийг хадгална — дараа нь тулгаж нөхөж олгох боломжтой
+      if (wsMonths != null && invoice && invoice.invoice_id) {
+        try {
+          await ensureWsExtra();
+          const promo = ((req.body || {}).promo || '').trim().toUpperCase() || null;
+          await pool.query(
+            `INSERT INTO ws_pending (invoice_id, email, months, promo, amount) VALUES ($1,$2,$3,$4,$5)
+             ON CONFLICT (invoice_id) DO NOTHING`,
+            [invoice.invoice_id, email.trim().toLowerCase(), wsMonths, promo, invAmount]);
+        } catch (e) { console.error('[ws_pending]', e.message); }
+      }
       return res.json({ ok: true, invoice });
     }
 
@@ -304,6 +325,7 @@ module.exports = async (req, res) => {
             if (inserted && promo) {
               await pool.query('UPDATE ws_promos SET used_count=used_count+1 WHERE code=$1', [promo]).catch(()=>{});
             }
+            await pool.query('UPDATE ws_pending SET granted=TRUE WHERE invoice_id=$1', [invoice_id]).catch(()=>{});
           } catch (e) { console.error('[ws purchase]', e.message); }
           return res.json({ ok: true, paid: true, expiry: wexp.toISOString(), ws_token: wsToken(email) });
         }
@@ -410,11 +432,35 @@ module.exports = async (req, res) => {
     }
 
     // ── АДМИН: ажлын хуудсын промо код удирдах + борлуулалт харах ──
-    if (['ws_promo_create','ws_promo_list','ws_promo_update','ws_purchases_list','ws_users_list','ws_grant','ws_revoke'].indexOf(req.query.action) >= 0) {
+    if (['ws_promo_create','ws_promo_list','ws_promo_update','ws_purchases_list','ws_users_list','ws_grant','ws_revoke','ws_reconcile'].indexOf(req.query.action) >= 0) {
       if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
       await ensureWsExtra();
       await ensureWsTable();
       const b = req.body || {};
+      // Төлбөр тулгах — хадгалсан нэхэмжлэхүүдийг QPay-тэй тулгаж, төлсөн атлаа олгогдоогүйг нөхөж олгоно
+      if (req.query.action === 'ws_reconcile') {
+        const pend = await pool.query('SELECT invoice_id, email, months, promo, amount FROM ws_pending WHERE granted=FALSE ORDER BY created_at DESC LIMIT 200');
+        let checked = 0, granted = [];
+        const token = await getToken();
+        for (const row of pend.rows) {
+          checked++;
+          try {
+            const cr = await fetch(`${QPAY_URL}/payment/check`, {
+              method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ object_type: 'INVOICE', object_id: row.invoice_id })
+            });
+            const cd = await cr.json();
+            if (cd && cd.count > 0) {
+              await grantWsMonths(row.email, row.months);
+              const inserted = await recordPurchase(row.email, row.amount || priceFromPct(0, row.months), row.promo, row.invoice_id, row.months);
+              if (inserted && row.promo) await pool.query('UPDATE ws_promos SET used_count=used_count+1 WHERE code=$1', [row.promo]).catch(()=>{});
+              await pool.query('UPDATE ws_pending SET granted=TRUE WHERE invoice_id=$1', [row.invoice_id]);
+              granted.push({ email: row.email, months: row.months, amount: row.amount });
+            }
+          } catch (e) { /* тухайн нэхэмжлэхийг алгасна */ }
+        }
+        return res.json({ ok: true, checked: checked, granted_count: granted.length, granted: granted });
+      }
       // Админ шууд эрх олгох (хугацаагаар)
       if (req.query.action === 'ws_grant') {
         const email = String(b.email || '').trim().toLowerCase();
