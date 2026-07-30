@@ -270,7 +270,7 @@ module.exports = async (req, res) => {
           invoice_receiver_code: receiverCode,
           invoice_description: desc,
           amount: invAmount,
-          callback_url: `https://cybermath.vercel.app/api/qpay?action=callback&email=${encodeURIComponent(email)}${planParam}`
+          callback_url: `https://cyber-math.com/api/qpay?action=callback&email=${encodeURIComponent(email)}${planParam}`
         })
       });
       const invoice = await invoiceResp.json();
