@@ -116,6 +116,11 @@ function wsDate(x){if(!x)return '';var d=new Date(x);if(isNaN(d))return '';retur
 function wsPost(action,body){
   return adminFetch('/api/qpay?action='+action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})}).then(function(r){return r.json();});
 }
+// Санал хүсэлт / мэдээллийн зурвас нь /api/worksheets дээр (action-ыг body-д илгээнэ)
+function wsPostW(action,body){
+  var b=Object.assign({action:action},body||{});
+  return adminFetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(function(r){return r.json();});
+}
 window.loadWsSales = async function(){
   var pl=document.getElementById('ws-promo-list'); if(pl)pl.innerHTML='<div style="color:var(--muted);padding:10px;">Ачааллаж байна…</div>';
   try{ var pr=await wsPost('ws_promo_list',{}); renderWsPromos((pr&&pr.promos)||[]); }
@@ -124,15 +129,15 @@ window.loadWsSales = async function(){
   catch(e){ var ul=document.getElementById('ws-purchase-list'); if(ul)ul.innerHTML='<div style="color:#dc2626;padding:10px;">Алдаа: '+wsEsc(e.message)+'</div>'; }
   try{ var us=await wsPost('ws_users_list',{}); renderWsUsers(us||{}); }
   catch(e){ var uu=document.getElementById('ws-users-list'); if(uu)uu.innerHTML='<div style="color:#dc2626;padding:10px;">Алдаа: '+wsEsc(e.message)+'</div>'; }
-  try{ var an=await wsPost('getAnnounce',{}); var ai=document.getElementById('ws-announce'); if(ai)ai.value=(an&&an.announce)||''; }catch(e){}
-  try{ var fb=await wsPost('feedback_list',{}); renderWsFeedback((fb&&fb.feedback)||[]); }
+  try{ var an=await wsPostW('getAnnounce',{}); var ai=document.getElementById('ws-announce'); if(ai)ai.value=(an&&an.announce)||''; }catch(e){}
+  try{ var fb=await wsPostW('feedback_list',{}); renderWsFeedback((fb&&fb.feedback)||[]); }
   catch(e){ var fe=document.getElementById('ws-feedback-list'); if(fe)fe.innerHTML='<div style="color:#dc2626;padding:8px;">Алдаа: '+wsEsc(e.message)+'</div>'; }
 };
 window.saveAnnounce=async function(){
   var t=(document.getElementById('ws-announce').value||'').trim();
   var m=document.getElementById('ws-announce-msg');
   m.style.color='var(--muted)';m.textContent='Хадгалж байна…';
-  try{ await wsPost('setAnnounce',{text:t}); m.style.color='#16a34a'; m.textContent=t?'✓ Идэвхжлээ':'✓ Арилгалаа'; }
+  try{ await wsPostW('setAnnounce',{text:t}); m.style.color='#16a34a'; m.textContent=t?'✓ Идэвхжлээ':'✓ Арилгалаа'; }
   catch(e){ m.style.color='#dc2626'; m.textContent='Алдаа: '+e.message; }
 };
 function renderWsFeedback(list){

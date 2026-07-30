@@ -46,22 +46,39 @@ async function grantWsUntil(email, exp) {
 
 // ── Азтаны хүрд — нэг имэйл нэг эргэлт. Ялагдсан нүд ч эерэг мэндчилгээтэй ──
 const WHEEL = [
-  { label: '1 өдрийн эрх',    type: 'access',   hours: 24,        weight: 5  },
-  { label: 'Баярлалаа ✨',    type: 'none',                       weight: 20 },
-  { label: '5% хөнгөлөлт',    type: 'discount', pct: 5,  days: 7, weight: 16 },
-  { label: 'Амжилт хүсье! 🌟', type: 'none',                      weight: 20 },
-  { label: '40% ЖИЛ 🎁',      type: 'discount', pct: 40, days: 7, weight: 2  },
-  { label: '1 цагийн эрх',    type: 'access',   hours: 1,         weight: 9  },
-  { label: '10% хөнгөлөлт',   type: 'discount', pct: 10, days: 7, weight: 11 },
-  { label: 'Сайхан хоног! 🎈', type: 'none',                      weight: 20 },
-  { label: '20% 6САР 🎯',     type: 'discount', pct: 20, days: 7, weight: 3  },
-  { label: '20% хөнгөлөлт',   type: 'discount', pct: 20, days: 1, weight: 4  },
+  { label: '1 өдрийн эрх',  type: 'access',   hours: 24,        weight: 5  },
+  { label: 'Нууц',          type: 'mystery',                    weight: 12 },
+  { label: '5% хөнгөлөлт',  type: 'discount', pct: 5,  days: 7, weight: 14 },
+  { label: 'Баярлалаа',     type: 'none',                       weight: 16 },
+  { label: '40% ЖИЛ',       type: 'discount', pct: 40, days: 7, weight: 2  },
+  { label: '1 цагийн эрх',  type: 'access',   hours: 1,         weight: 8  },
+  { label: 'Нууц',          type: 'mystery',                    weight: 12 },
+  { label: '10% хөнгөлөлт', type: 'discount', pct: 10, days: 7, weight: 10 },
+  { label: 'Амжилт хүсье!', type: 'none',                       weight: 16 },
+  { label: '20% 6САР',      type: 'discount', pct: 20, days: 7, weight: 3  },
+  { label: 'Нууц',          type: 'mystery',                    weight: 12 },
+  { label: '20% хөнгөлөлт', type: 'discount', pct: 20, days: 1, weight: 4  },
 ];
-function wheelPick() {
-  const total = WHEEL.reduce((s, w) => s + w.weight, 0);
+// "Нууц" нүд дээр буувал доторх шагнал (ихэвчлэн баярлалаа, хааяа хөнгөлөлт/эрх)
+const MYSTERY = [
+  { type: 'none',     label: 'Баярлалаа',                  weight: 42 },
+  { type: 'discount', pct: 5,  days: 7, label: '5% хөнгөлөлт',  weight: 24 },
+  { type: 'access',   hours: 1,         label: '1 цагийн эрх',  weight: 16 },
+  { type: 'discount', pct: 10, days: 7, label: '10% хөнгөлөлт', weight: 12 },
+  { type: 'discount', pct: 15, days: 7, label: '15% хөнгөлөлт', weight: 6  },
+];
+function pickFrom(arr) {
+  const total = arr.reduce((s, w) => s + w.weight, 0);
   let r = Math.random() * total;
-  for (let i = 0; i < WHEEL.length; i++) { r -= WHEEL[i].weight; if (r < 0) return i; }
-  return WHEEL.length - 1;
+  for (let i = 0; i < arr.length; i++) { r -= arr[i].weight; if (r < 0) return i; }
+  return arr.length - 1;
+}
+function wheelPick() { return pickFrom(WHEEL); }
+async function applyReward(email, r) {
+  let code = null, detail = '';
+  if (r.type === 'discount') { const p = await createWheelPromo(r.pct, r.days); code = p.code; detail = r.days + ' хоногт хүчинтэй'; }
+  else if (r.type === 'access') { const exp = new Date(Date.now() + r.hours * 3600000); await grantWsUntil(email, exp); detail = r.hours >= 24 ? (r.hours / 24 + ' өдрийн бүх эрх') : (r.hours + ' цагийн бүх эрх'); }
+  return { code, detail };
 }
 async function ensureWheel() {
   await pool.query(`CREATE TABLE IF NOT EXISTS ws_wheel (
@@ -372,13 +389,15 @@ module.exports = async (req, res) => {
       if (prev.rows.length) return res.json({ ok: true, already: true, prize: { label: prev.rows[0].prize, code: prev.rows[0].code } });
       const idx = wheelPick();
       const seg = WHEEL[idx];
-      let code = null, detail = '';
-      try {
-        if (seg.type === 'discount') { const p = await createWheelPromo(seg.pct, seg.days); code = p.code; detail = seg.days + ' хоногт хүчинтэй'; }
-        else if (seg.type === 'access') { const exp = new Date(Date.now() + seg.hours * 3600000); await grantWsUntil(email, exp); detail = seg.hours >= 24 ? (seg.hours / 24 + ' өдрийн бүх эрх') : (seg.hours + ' цагийн бүх эрх'); }
-      } catch (e) { console.error('[wheel]', e.message); }
-      await pool.query('INSERT INTO ws_wheel (email, prize, code) VALUES ($1,$2,$3) ON CONFLICT (email) DO NOTHING', [email, seg.label, code]);
-      return res.json({ ok: true, index: idx, prize: { label: seg.label, type: seg.type, pct: seg.pct || 0, code: code, detail: detail } });
+      // "Нууц" нүд бол доторх шагналыг тодорхойлно
+      let reward = seg, mystery = false;
+      if (seg.type === 'mystery') { reward = MYSTERY[pickFrom(MYSTERY)]; mystery = true; }
+      let applied = { code: null, detail: '' };
+      try { applied = await applyReward(email, reward); } catch (e) { console.error('[wheel]', e.message); }
+      await pool.query('INSERT INTO ws_wheel (email, prize, code) VALUES ($1,$2,$3) ON CONFLICT (email) DO NOTHING',
+        [email, (mystery ? 'Нууц → ' : '') + reward.label, applied.code]);
+      return res.json({ ok: true, index: idx, mystery: mystery,
+        prize: { label: reward.label, type: reward.type, pct: reward.pct || 0, code: applied.code, detail: applied.detail } });
     }
 
     // Ажлын хуудсын урамшууллын кодыг шалгах (сонгосон сарын үнэ буцаана)
