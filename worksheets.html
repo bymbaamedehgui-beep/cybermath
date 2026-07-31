@@ -1132,6 +1132,7 @@ function openLogin(auto){
       +'</div></div>'
     // REGISTER
     +'<div id="vRegister" style="display:none">'
+      +'<p style="color:var(--soft);font-size:.82rem;margin-bottom:10px">Аль хэдийн худалдаж авсан бол <b>ижил имэйлээрээ</b> бүртгүүлбэл эрх идэвхжинэ.</p>'
       +'<input id="rgName" type="text" placeholder="Нэр" style="'+iS+'" />'
       +'<input id="rgEmail" type="email" placeholder="Имэйл хаяг" style="'+iS+'" />'
       +'<input id="rgPhone" type="tel" placeholder="Утасны дугаар" style="'+iS+'" />'
@@ -1186,7 +1187,19 @@ function openLogin(auto){
     api('ws_login',{email:email,pass:pass}).then(function(x){
       b.disabled=false;b.textContent='Нэвтрэх';var d=x.d;
       if(x.s===200&&d&&d.token){done(d.token,email);return;}
-      if(x.s===404){m.style.color='#dc2626';m.innerHTML='Бүртгэлгүй имэйл байна. <a href="#" data-go="register" style="color:var(--purple-d);font-weight:800">Бүртгүүлэх</a>';bindGo();return;}
+      if(x.s===404){
+        // Худалдаж авсан ч бүртгэлгүй бол → бүртгэл рүү зөөлөн чиглүүлнэ
+        fetch('/api/qpay?action=wsstatus',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email})})
+          .then(function(r){return r.json();}).then(function(st){
+            if(st&&st.active){
+              q('#rgEmail').value=email; showView('register'); setTimeout(function(){q('#rgName').focus();},40);
+              var rm=q('#rgMsg');rm.style.color='#16a34a';rm.innerHTML='Та эрхээ худалдаж авсан байна ✓ Эхлээд ижил имэйлээрээ бүртгэл үүсгэж нууц үгээ тохируулна уу.';
+            } else {
+              m.style.color='#dc2626';m.innerHTML='Бүртгэлгүй имэйл байна. <a href="#" data-go="register" style="color:var(--purple-d);font-weight:800">Бүртгүүлэх</a>';bindGo();
+            }
+          }).catch(function(){m.style.color='#dc2626';m.innerHTML='Бүртгэлгүй имэйл байна. <a href="#" data-go="register" style="color:var(--purple-d);font-weight:800">Бүртгүүлэх</a>';bindGo();});
+        return;
+      }
       if(d&&d.needVerify){curEmail=email;api('ws_resend',{email:email});q('#vEmail').textContent=email;showView('verify');return;}
       m.style.color='#dc2626';m.textContent=(d&&d.error)||'Нэвтрэх боломжгүй';
     }).catch(function(){b.disabled=false;b.textContent='Нэвтрэх';m.style.color='#dc2626';m.textContent='Сүлжээний алдаа';});
