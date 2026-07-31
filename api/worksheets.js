@@ -1,7 +1,23 @@
 // Хэвлэсэн дасгалын багцыг санах (DB). Хаанаас ч хариуг шалгах боломжтой.
 const pool = require('./_db');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const { sendVerifyEmail } = require('./_email');
 const JWT_SECRET = process.env.JWT_SECRET || 'cybermath-default-secret-change-in-prod';
+
+// Дасгалын төвийн нэвтрэлт — имэйл + нууц үг + баталгаажуулах код (тусдаа ws_login)
+function wsSign(email) { return jwt.sign({ email: String(email).toLowerCase(), ws: true }, JWT_SECRET, { expiresIn: '400d' }); }
+function gen6() { return Math.floor(100000 + Math.random() * 900000).toString(); }
+async function ensureWsLogin() {
+  await pool.query(`CREATE TABLE IF NOT EXISTS ws_login (
+    email TEXT PRIMARY KEY,
+    pass_hash TEXT NOT NULL,
+    verified BOOLEAN NOT NULL DEFAULT FALSE,
+    code TEXT,
+    code_exp TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`).catch(()=>{});
+}
 
 // Зөвхөн админы JWT (admin:true) эсэхийг шалгах
 function isAdmin(req) {
@@ -128,6 +144,54 @@ module.exports = async (req, res) => {
 
     if (req.method === 'POST') {
       const b = req.body || {};
+
+      // ── Дасгалын төвийн нэвтрэлт: бүртгэл → код → баталгаажуулах → нэвтрэх ──
+      if (['ws_register','ws_verify','ws_login','ws_resend'].indexOf(b.action) >= 0) {
+        await ensureWsLogin();
+        const email = String(b.email || '').trim().toLowerCase();
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ ok: false, error: 'Зөв имэйл оруулна уу' });
+
+        if (b.action === 'ws_login') {
+          const r = await pool.query('SELECT pass_hash, verified FROM ws_login WHERE email=$1', [email]);
+          if (!r.rows.length) return res.status(404).json({ ok: false, notFound: true, error: 'Бүртгэлгүй имэйл' });
+          const okp = await bcrypt.compare(String(b.pass || ''), r.rows[0].pass_hash);
+          if (!okp) return res.status(401).json({ ok: false, error: 'Нууц үг буруу' });
+          if (!r.rows[0].verified) return res.status(403).json({ ok: false, needVerify: true, error: 'Имэйл баталгаажаагүй' });
+          return res.json({ ok: true, token: wsSign(email), email: email });
+        }
+        if (b.action === 'ws_register') {
+          const pass = String(b.pass || '');
+          if (pass.length < 6) return res.status(400).json({ ok: false, error: 'Нууц үг 6+ тэмдэгт байх ёстой' });
+          const ex = await pool.query('SELECT verified FROM ws_login WHERE email=$1', [email]);
+          if (ex.rows.length && ex.rows[0].verified) return res.json({ ok: true, existed: true, verified: true });
+          const code = gen6(), exp = new Date(Date.now() + 10 * 60 * 1000), hash = await bcrypt.hash(pass, 10);
+          await pool.query(
+            `INSERT INTO ws_login (email, pass_hash, verified, code, code_exp) VALUES ($1,$2,FALSE,$3,$4)
+             ON CONFLICT (email) DO UPDATE SET pass_hash=EXCLUDED.pass_hash, code=EXCLUDED.code, code_exp=EXCLUDED.code_exp`,
+            [email, hash, code, exp.toISOString()]);
+          try { await sendVerifyEmail(email, code, ''); } catch (e) { console.error('[ws mail]', e.message); }
+          return res.json({ ok: true, needVerify: true });
+        }
+        if (b.action === 'ws_verify') {
+          const r = await pool.query('SELECT code, code_exp, verified FROM ws_login WHERE email=$1', [email]);
+          if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Хэрэглэгч олдсонгүй' });
+          if (r.rows[0].verified) return res.json({ ok: true, token: wsSign(email), email: email });
+          if (String(r.rows[0].code) !== String(b.code || '')) return res.status(400).json({ ok: false, error: 'Код буруу байна' });
+          if (new Date(r.rows[0].code_exp) < new Date()) return res.status(400).json({ ok: false, error: 'Кодын хугацаа дууссан' });
+          await pool.query('UPDATE ws_login SET verified=TRUE, code=NULL WHERE email=$1', [email]);
+          return res.json({ ok: true, token: wsSign(email), email: email });
+        }
+        if (b.action === 'ws_resend') {
+          const r = await pool.query('SELECT verified FROM ws_login WHERE email=$1', [email]);
+          if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Бүртгэлгүй' });
+          if (r.rows[0].verified) return res.json({ ok: true, alreadyVerified: true });
+          const code = gen6(), exp = new Date(Date.now() + 10 * 60 * 1000);
+          await pool.query('UPDATE ws_login SET code=$2, code_exp=$3 WHERE email=$1', [email, code, exp.toISOString()]);
+          try { await sendVerifyEmail(email, code, ''); } catch (e) {}
+          return res.json({ ok: true, needVerify: true });
+        }
+      }
+
       if (b.action === 'save') {
         const title = String(b.title || 'Дасгал').slice(0, 160);
         const note = b.note ? String(b.note).slice(0, 500) : null;
