@@ -110,7 +110,8 @@
       +'<button id="wsBack" style="position:absolute;top:14px;left:14px;display:inline-flex;align-items:center;gap:5px;border:1.4px solid #e7ddff;background:#faf7ff;color:#5a32d6;font-weight:800;font-size:.82rem;border-radius:999px;padding:.4rem .8rem;cursor:pointer;font-family:inherit"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>Буцах</button>'
       +'<div style="width:60px;height:60px;margin:2px auto 4px;background:linear-gradient(135deg,#7B52EE,#A855F7);border-radius:16px;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 18px -6px rgba(123,82,238,.6)"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10.5" rx="2.2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/><circle cx="12" cy="15" r="1.4" fill="#fff" stroke="none"/><path d="M12 16v2.2"/></svg></div>'
       +'<h3 style="color:#5a32d6;font-size:1.25rem;font-weight:900;margin:6px 0 2px">Ажлын хуудсын эрх</h3>'
-      +'<p style="color:#7a7390;font-size:.9rem;margin-bottom:12px">Бүх ажлын хуудсыг сонгосон хугацаанд <b>хязгааргүй</b> ашиглах</p>'
+      +'<p style="color:#7a7390;font-size:.9rem;margin-bottom:8px">Бүх ажлын хуудсыг сонгосон хугацаанд <b>хязгааргүй</b> ашиглах</p>'
+      +'<div style="font-size:.8rem;color:#16a34a;font-weight:700;background:#eafff1;border:1px solid #b6f0cd;border-radius:9px;padding:6px 10px;margin-bottom:12px">Санамж: анги бүрийн <b>эхний хуудас үнэгүй</b> — эхлээд туршаад үзээрэй!</div>'
       +'<div id="wsDur" style="display:flex;gap:6px;margin-bottom:12px">'
         +'<button type="button" class="wsd" data-m="3">3 сар</button>'
         +'<button type="button" class="wsd" data-m="6">6 сар</button>'
@@ -218,9 +219,21 @@
     };
   }
   function inIframe(){ try{return window.top!==window.self;}catch(e){return true;} }
+  // Анги бүрийн хамгийн эхний ажлын хуудас — ҮНЭГҮЙ туршилт
+  var WS_FREE=["urjver-hurd.html","urjver-4x3-12.html","huvaalt-5x2-12.html","numshul-nemeh-hasah-12.html","daraalal-zui-togtol-12.html","zereg-uildel-12.html","troichlen-zadlal-12.html","grafik-ax2.html","kvadrat-tentsbish-grafik.html","camb-4a-factors.html"];
+  function curSlug(){ return (location.pathname.split('/').pop()||'').toLowerCase(); }
+  function isFreeSheet(){ return WS_FREE.indexOf(curSlug())>=0; }
+  function addFreeBadge(){
+    var bar=document.querySelector('.bar'); if(!bar||bar.querySelector('.ws-free'))return;
+    var s=document.createElement('span'); s.className='ws-free';
+    s.style.cssText='display:inline-flex;align-items:center;gap:5px;background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;font-weight:800;font-size:.82rem;border-radius:999px;padding:.4rem .9rem;box-shadow:0 6px 16px -8px rgba(22,163,74,.7)';
+    s.innerHTML='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v10H4V12"/><path d="M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>Үнэгүй туршилт';
+    bar.appendChild(s);
+  }
   function enforcePaywall(){
     if(IS_QR)return;                                 // QR/сурагчийн горим — багшийн хуваалцсан ганц материал, төлбөргүй
     if(inIframe())return;                            // iframe доторх урьдчилан харах/танилцуулга — цоожгүй
+    if(isFreeSheet()){ addFreeBadge(); return; }     // анги бүрийн эхний хуудас — үнэгүй
     if(ls('cm_admin_token'))return;                 // админ — цоожгүй, flash-гүй
     showLock();                                      // нээмэгц шууд төлбөрийн хэсэг харуулна
     checkAccess().then(function(ok){ if(ok)unlockWs(); }); // эрхтэй/алдаа бол буцааж нээнэ
