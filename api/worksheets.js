@@ -15,8 +15,12 @@ async function ensureWsLogin() {
     verified BOOLEAN NOT NULL DEFAULT FALSE,
     code TEXT,
     code_exp TIMESTAMPTZ,
+    name TEXT,
+    phone TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
   )`).catch(()=>{});
+  await pool.query(`ALTER TABLE ws_login ADD COLUMN IF NOT EXISTS name TEXT`).catch(()=>{});
+  await pool.query(`ALTER TABLE ws_login ADD COLUMN IF NOT EXISTS phone TEXT`).catch(()=>{});
 }
 
 // Зөвхөн админы JWT (admin:true) эсэхийг шалгах
@@ -146,7 +150,7 @@ module.exports = async (req, res) => {
       const b = req.body || {};
 
       // ── Дасгалын төвийн нэвтрэлт: бүртгэл → код → баталгаажуулах → нэвтрэх ──
-      if (['ws_register','ws_verify','ws_login','ws_resend'].indexOf(b.action) >= 0) {
+      if (['ws_register','ws_verify','ws_login','ws_resend','ws_forgot','ws_reset'].indexOf(b.action) >= 0) {
         await ensureWsLogin();
         const email = String(b.email || '').trim().toLowerCase();
         if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ ok: false, error: 'Зөв имэйл оруулна уу' });
@@ -161,16 +165,37 @@ module.exports = async (req, res) => {
         }
         if (b.action === 'ws_register') {
           const pass = String(b.pass || '');
+          const name = b.name ? String(b.name).trim().slice(0, 80) : null;
+          const phone = b.phone ? String(b.phone).trim().slice(0, 20) : null;
           if (pass.length < 6) return res.status(400).json({ ok: false, error: 'Нууц үг 6+ тэмдэгт байх ёстой' });
           const ex = await pool.query('SELECT verified FROM ws_login WHERE email=$1', [email]);
-          if (ex.rows.length && ex.rows[0].verified) return res.json({ ok: true, existed: true, verified: true });
+          if (ex.rows.length && ex.rows[0].verified) return res.status(400).json({ ok: false, existed: true, error: 'Энэ имэйл бүртгэлтэй байна. Нэвтэрнэ үү.' });
           const code = gen6(), exp = new Date(Date.now() + 10 * 60 * 1000), hash = await bcrypt.hash(pass, 10);
           await pool.query(
-            `INSERT INTO ws_login (email, pass_hash, verified, code, code_exp) VALUES ($1,$2,FALSE,$3,$4)
-             ON CONFLICT (email) DO UPDATE SET pass_hash=EXCLUDED.pass_hash, code=EXCLUDED.code, code_exp=EXCLUDED.code_exp`,
-            [email, hash, code, exp.toISOString()]);
-          try { await sendVerifyEmail(email, code, ''); } catch (e) { console.error('[ws mail]', e.message); }
+            `INSERT INTO ws_login (email, pass_hash, verified, code, code_exp, name, phone) VALUES ($1,$2,FALSE,$3,$4,$5,$6)
+             ON CONFLICT (email) DO UPDATE SET pass_hash=EXCLUDED.pass_hash, code=EXCLUDED.code, code_exp=EXCLUDED.code_exp, name=EXCLUDED.name, phone=EXCLUDED.phone`,
+            [email, hash, code, exp.toISOString(), name, phone]);
+          try { await sendVerifyEmail(email, code, name || ''); } catch (e) { console.error('[ws mail]', e.message); }
           return res.json({ ok: true, needVerify: true });
+        }
+        if (b.action === 'ws_forgot') {
+          const r = await pool.query('SELECT verified FROM ws_login WHERE email=$1', [email]);
+          if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Бүртгэлгүй имэйл' });
+          const code = gen6(), exp = new Date(Date.now() + 10 * 60 * 1000);
+          await pool.query('UPDATE ws_login SET code=$2, code_exp=$3 WHERE email=$1', [email, code, exp.toISOString()]);
+          try { await sendVerifyEmail(email, code, ''); } catch (e) {}
+          return res.json({ ok: true });
+        }
+        if (b.action === 'ws_reset') {
+          const pass = String(b.pass || '');
+          if (pass.length < 6) return res.status(400).json({ ok: false, error: 'Нууц үг 6+ тэмдэгт байх ёстой' });
+          const r = await pool.query('SELECT code, code_exp FROM ws_login WHERE email=$1', [email]);
+          if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Бүртгэлгүй' });
+          if (String(r.rows[0].code) !== String(b.code || '')) return res.status(400).json({ ok: false, error: 'Код буруу байна' });
+          if (new Date(r.rows[0].code_exp) < new Date()) return res.status(400).json({ ok: false, error: 'Кодын хугацаа дууссан' });
+          const hash = await bcrypt.hash(pass, 10);
+          await pool.query('UPDATE ws_login SET pass_hash=$2, verified=TRUE, code=NULL WHERE email=$1', [email, hash]);
+          return res.json({ ok: true, token: wsSign(email), email: email });
         }
         if (b.action === 'ws_verify') {
           const r = await pool.query('SELECT code, code_exp, verified FROM ws_login WHERE email=$1', [email]);
