@@ -404,8 +404,12 @@ module.exports = async (req, res) => {
     }
     // Азтаны хүрд эргүүлэх — нэг имэйл нэг удаа
     if (req.query.action === 'wheel_spin') {
-      const email = String((req.body || {}).email || '').trim().toLowerCase();
-      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ ok: false, error: 'Зөв имэйл оруулна уу' });
+      // Заавал бүртгэлтэй нэвтэрсэн байх ёстой — имэйлийг токеноос авна (клиентээс биш)
+      const email = emailFromToken((req.body || {}).token);
+      if (!email) return res.status(401).json({ ok: false, error: 'Эхлээд бүртгүүлж нэвтэрнэ үү' });
+      let registered = false;
+      try { const rr = await pool.query('SELECT verified FROM ws_login WHERE email=$1', [email]); registered = rr.rows.length && rr.rows[0].verified === true; } catch (e) {}
+      if (!registered) return res.status(403).json({ ok: false, error: 'Эхлээд бүртгэл үүсгэнэ үү' });
       await ensureWheel();
       const prev = await pool.query('SELECT prize, code FROM ws_wheel WHERE email=$1', [email]);
       if (prev.rows.length) return res.json({ ok: true, already: true, prize: { label: prev.rows[0].prize, code: prev.rows[0].code } });
