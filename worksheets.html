@@ -619,6 +619,13 @@ function computeNew(){
   var seenSet={};seen.forEach(function(s){seenSet[s]=1;});
   all.forEach(function(s){if(!seenSet[s])NEWSET[s]=1;});
 }
+// Бүртгүүлэх агшинд "Шинэ"-ийн суурийг тэмдэглэнэ — үүнээс хойш нэмэгдсэн сэдэв л шинэ болно
+function resetNewBaseline(){
+  try{localStorage.setItem(SEEN_KEY,JSON.stringify(allSlugs()));}catch(e){}
+  NEWSET={};
+  [].forEach.call(document.querySelectorAll('#catalog .card.isnew'),function(c){c.classList.remove('isnew');var t=c.querySelector('.newtag');if(t)t.remove();});
+  if(typeof updateNewCount==='function')updateNewCount();
+}
 function markSeen(slug){
   if(!NEWSET[slug])return;
   delete NEWSET[slug];
@@ -1174,7 +1181,7 @@ function openLogin(auto){
   function api(action,body){ body=body||{}; body.action=action; return fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json().then(function(d){return {s:r.status,d:d};});}); }
   var TITLES={login:'Дасгалын төвд нэвтрэх',register:'Шинэ бүртгэл үүсгэх',verify:'Имэйл баталгаажуулах',forgot:'Нууц үг сэргээх'};
   function showView(v){ ['login','register','verify','forgot'].forEach(function(x){q('#v'+x.charAt(0).toUpperCase()+x.slice(1)).style.display=(x===v)?'block':'none';}); q('#liTitle').textContent=TITLES[v]; }
-  function done(token,email){ if(token)lsSet('cm_ws_token',token); lsSet('cm_last_user',email); CM_USER={email:email}; renderAcct(); o.remove(); toast('✓ Тавтай морил'); ensurePin(); }
+  function done(token,email,fresh){ if(token)lsSet('cm_ws_token',token); lsSet('cm_last_user',email); CM_USER={email:email}; if(fresh)resetNewBaseline(); renderAcct(); o.remove(); toast('✓ Тавтай морил'); ensurePin(); }
   var curEmail='';
   if(lsGet('cm_last_user'))q('#lgEmail').value=lsGet('cm_last_user');
   setTimeout(function(){q('#lgEmail').focus();},40);
@@ -1227,7 +1234,7 @@ function openLogin(auto){
     if(!/^\d{6}$/.test(code)){m.style.color='#dc2626';m.textContent='6 оронтой код оруулна уу';return;}
     var b=q('#vBtn');b.disabled=true;b.textContent='Шалгаж байна…';
     api('ws_verify',{email:curEmail,code:code}).then(function(x){var d=x.d;
-      if(d&&d.ok&&d.token){toast('✓ Бүртгэл амжилттай');done(d.token,curEmail);}
+      if(d&&d.ok&&d.token){toast('✓ Бүртгэл амжилттай');done(d.token,curEmail,true);}
       else{b.disabled=false;b.textContent='Баталгаажуулах';m.style.color='#dc2626';m.textContent=(d&&d.error)||'Код буруу';}
     }).catch(function(){b.disabled=false;b.textContent='Баталгаажуулах';m.style.color='#dc2626';m.textContent='Сүлжээний алдаа';});
   }
