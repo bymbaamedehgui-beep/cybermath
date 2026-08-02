@@ -3,6 +3,8 @@ const pool = require('./_db');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { sendVerifyEmail } = require('./_email');
+let sendTelegram = async () => {};
+try { sendTelegram = require('./_telegram').sendTelegram; } catch (e) {}
 const JWT_SECRET = process.env.JWT_SECRET || 'cybermath-default-secret-change-in-prod';
 
 // Дасгалын төвийн нэвтрэлт — имэйл + нууц үг + баталгаажуулах код (тусдаа ws_login)
@@ -198,12 +200,20 @@ module.exports = async (req, res) => {
           return res.json({ ok: true, token: wsSign(email), email: email });
         }
         if (b.action === 'ws_verify') {
-          const r = await pool.query('SELECT code, code_exp, verified FROM ws_login WHERE email=$1', [email]);
+          const r = await pool.query('SELECT code, code_exp, verified, name, phone FROM ws_login WHERE email=$1', [email]);
           if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Хэрэглэгч олдсонгүй' });
           if (r.rows[0].verified) return res.json({ ok: true, token: wsSign(email), email: email });
           if (String(r.rows[0].code) !== String(b.code || '')) return res.status(400).json({ ok: false, error: 'Код буруу байна' });
           if (new Date(r.rows[0].code_exp) < new Date()) return res.status(400).json({ ok: false, error: 'Кодын хугацаа дууссан' });
           await pool.query('UPDATE ws_login SET verified=TRUE, code=NULL WHERE email=$1', [email]);
+          // Шинэ хэрэглэгч бүртгүүлсэн — Telegram мэдэгдэл
+          try {
+            const u = r.rows[0];
+            const msg = '🆕 <b>Дасгалын төв — шинэ бүртгэл</b>\n\n'
+              + '👤 ' + (u.name || '(нэргүй)') + '\n'
+              + '📧 ' + email + (u.phone ? ('\n📱 ' + u.phone) : '');
+            sendTelegram(msg).catch(() => {});
+          } catch (e) {}
           return res.json({ ok: true, token: wsSign(email), email: email });
         }
         if (b.action === 'ws_resend') {
