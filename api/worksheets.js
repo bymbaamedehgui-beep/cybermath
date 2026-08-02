@@ -3,8 +3,6 @@ const pool = require('./_db');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { sendVerifyEmail } = require('./_email');
-let sendTelegram = async () => {};
-try { sendTelegram = require('./_telegram').sendTelegram; } catch (e) {}
 const JWT_SECRET = process.env.JWT_SECRET || 'cybermath-default-secret-change-in-prod';
 
 // Дасгалын төвийн нэвтрэлт — имэйл + нууц үг + баталгаажуулах код (тусдаа ws_login)
