@@ -141,6 +141,17 @@
     };
     var em=o.querySelector('#wsEmail'); if(ls('cm_last_user'))em.value=ls('cm_last_user');
     var msg=o.querySelector('#wsMsg'),qr=o.querySelector('#wsQr');
+    // ─── Facebook/Messenger доторх browser QPay deeplink-ийг дэмждэггүй ───
+    if(/(fban|fbav|fb_iab|instagram|messenger|micromessenger|line\/|tiktok|twitter|okhttp)/i.test(navigator.userAgent||'')){
+      var wn=document.createElement('div');
+      wn.style.cssText='background:#fff7e6;border:1.4px solid #f3dca6;color:#8a5a00;border-radius:12px;padding:10px 12px;margin-bottom:12px;font-size:.83rem;text-align:left;line-height:1.45';
+      wn.innerHTML='<b>⚠️ Facebook/Messenger доторх browser байна.</b><br>QPay банк руу шилжихэд алдаа гарна. Баруун дээд булан дахь <b>⋯</b> товчийг дараад <b>«Open in browser / Гадаад browser-ээр нээх»</b> (Safari/Chrome) сонгож нээгээрэй.'
+        +'<button id="wsCopyLink" style="margin-top:8px;font-weight:800;border:1.5px solid #e0b45f;background:#fff;color:#8a5a00;cursor:pointer;border-radius:999px;padding:.4rem .9rem;font-size:.8rem">🔗 Холбоос хуулах</button>';
+      o.querySelector('#wsBuy').parentNode.insertBefore(wn,o.querySelector('#wsBuy'));
+      wn.querySelector('#wsCopyLink').onclick=function(){var b=this;var t=location.href;
+        try{navigator.clipboard.writeText(t).then(function(){b.textContent='✓ Хуулагдлаа';},function(){b.textContent=t;});}
+        catch(e){b.textContent=t;}};
+    }
     function valid(e){return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);}
     function fmt(n){return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,',');}
     // ─── Шаталсан үнэ (3/6/9/12 сар) + урамшууллын код ───
