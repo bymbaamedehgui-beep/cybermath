@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Олон өнцөгтийн дотоод өнцгүүдийн нийлбэр (4·5·6 өнцөгт)</title>
+<title>Гурвалжны дотоод өнцгүүдийн нийлбэр 2 · илэрхийллээр</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
@@ -25,7 +25,7 @@
   .dgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px 12px;margin-bottom:11px}
   .q{break-inside:avoid;page-break-inside:avoid;border:1.2px solid #e7e0f7;border-radius:9px;padding:6px 7px 7px;background:linear-gradient(#fff,#fbf9ff)}
   .qh{font-weight:800;color:var(--purple);font-size:12.5px;margin-bottom:1px}
-  .dfig{display:flex;justify-content:center}.dfig svg{width:100%;max-width:170px;height:auto}
+  .dfig{display:flex;justify-content:center}.dfig svg{width:100%;max-width:182px;height:auto}
   .xline{font-size:12.5px;font-weight:700;margin-top:3px}.xline .bl{display:inline-block;min-width:60px;border-bottom:1.3px solid #b9accf;height:1em;vertical-align:-2px;margin-left:4px}
   .wgrid{display:grid;grid-template-columns:1fr;gap:8px}
   .wq{break-inside:avoid;border:1.2px solid #e7e0f7;border-radius:9px;padding:8px 11px;background:linear-gradient(#fff,#fbf9ff);display:flex;gap:9px}
@@ -36,9 +36,10 @@
   .ans-w{margin-top:8px;font-size:12px;display:grid;gap:5px}.ans-w .an{color:var(--soft);font-weight:800}
   #answers{display:none}
   .s-side{fill:none;stroke:#2f6cae;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+  .s-arc{fill:none;stroke:var(--orange);stroke-width:1.5}
   .s-vtx{fill:#3a2d5e}
   .s-ang{font-family:'Segoe UI',Arial,sans-serif;font-weight:700;font-size:10px;fill:#2f6cae}
-  .s-x{fill:var(--orange);font-weight:800;font-style:italic;font-family:Georgia,serif;font-size:12.5px}
+  .s-x{fill:var(--orange);font-weight:800;font-family:'Segoe UI',Arial,sans-serif;font-size:10px}
   @media print{body{background:#fff;padding:0}.bar{display:none}.sheet{box-shadow:none;width:auto;min-height:auto;padding:0;margin:0}@page{size:A4;margin:10mm}.ans-page{break-before:page}}
 </style>
 </head>
@@ -53,33 +54,60 @@
 function rnd(a,b){return a+Math.floor(Math.random()*(b-a+1));}
 function pick(a){return a[rnd(0,a.length-1)];}
 function toggleAns(){var el=document.getElementById('answers');if(el)el.style.display=document.getElementById('sa').checked?'block':'none';}
-var PNAME={4:'дөрвөн',5:'таван',6:'зургаан'};
-function drawPoly(n,labels,rot,rfac){
-  var O=[105,80], rx=80, ry=56, pts=[],i;
-  for(i=0;i<n;i++){var ang=rot+i*2*Math.PI/n, f=rfac[i];pts.push([O[0]+rx*f*Math.cos(ang), O[1]-ry*f*Math.sin(ang)]);}
-  var s='<svg viewBox="0 0 210 160" xmlns="http://www.w3.org/2000/svg">';
-  s+='<path class="s-side" d="M'+pts.map(function(p){return p[0].toFixed(1)+' '+p[1].toFixed(1);}).join(' L')+' Z"/>';
-  for(i=0;i<n;i++){var V=pts[i],d=[O[0]-V[0],O[1]-V[1]],L=Math.hypot(d[0],d[1])||1;
-    var lp=[V[0]+d[0]/L*21, V[1]+d[1]/L*21], isX=(labels[i]==='x');
-    s+='<circle class="s-vtx" cx="'+V[0].toFixed(1)+'" cy="'+V[1].toFixed(1)+'" r="2"/>';
-    s+='<text class="'+(isX?'s-x':'s-ang')+'" x="'+lp[0].toFixed(1)+'" y="'+(lp[1]+3.3).toFixed(1)+'" text-anchor="middle">'+labels[i]+'</text>';}
+function A2(V,P){return Math.atan2(P[1]-V[1],P[0]-V[0]);}
+function PT(V,r,a){return[V[0]+r*Math.cos(a),V[1]+r*Math.sin(a)];}
+function arcPath(V,r,a1,a2){while(a2-a1>Math.PI)a2-=2*Math.PI;while(a2-a1<-Math.PI)a2+=2*Math.PI;var p1=PT(V,r,a1),p2=PT(V,r,a2),sw=a2>a1?1:0;return 'M'+p1[0].toFixed(1)+' '+p1[1].toFixed(1)+' A'+r+' '+r+' 0 0 '+sw+' '+p2[0].toFixed(1)+' '+p2[1].toFixed(1);}
+function fit(pts,pad,W,H){
+  var xs=pts.map(function(p){return p[0];}),ys=pts.map(function(p){return p[1];});
+  var mnx=Math.min.apply(null,xs),mxx=Math.max.apply(null,xs),mny=Math.min.apply(null,ys),mxy=Math.max.apply(null,ys);
+  var s=Math.min((W-2*pad)/((mxx-mnx)||1),(H-2*pad)/((mxy-mny)||1));
+  var ox=pad+((W-2*pad)-(mxx-mnx)*s)/2, oy=pad+((H-2*pad)-(mxy-mny)*s)/2;
+  return pts.map(function(p){return [ox+(p[0]-mnx)*s, oy+(p[1]-mny)*s];});
+}
+function triPts(a,b,c){
+  var B=[0,0],C=[1,0];
+  var s=1/((Math.cos(a*Math.PI/180)+Math.sin(a*Math.PI/180)/Math.tan(c*Math.PI/180)));
+  return [[B[0]+s*Math.cos(a*Math.PI/180), B[1]-s*Math.sin(a*Math.PI/180)],B,C];
+}
+function drawTri(a,b,c,labels){
+  var P=fit(triPts(a,b,c),27,210,150), A=P[0],B=P[1],C=P[2];
+  var cen=[(A[0]+B[0]+C[0])/3,(A[1]+B[1]+C[1])/3];
+  var s='<svg viewBox="0 0 210 150" xmlns="http://www.w3.org/2000/svg">';
+  s+='<path class="s-side" d="M'+A[0].toFixed(1)+' '+A[1].toFixed(1)+' L'+B[0].toFixed(1)+' '+B[1].toFixed(1)+' L'+C[0].toFixed(1)+' '+C[1].toFixed(1)+' Z"/>';
+  var V=[A,B,C], other=[[B,C],[A,C],[A,B]];
+  for(var i=0;i<3;i++){
+    var r=14,a1=A2(V[i],other[i][0]),a2=A2(V[i],other[i][1]);
+    s+='<path class="s-arc" d="'+arcPath(V[i],r,a1,a2)+'"/>';
+    var d=[cen[0]-V[i][0],cen[1]-V[i][1]],L=Math.hypot(d[0],d[1])||1;
+    var lp=[V[i][0]+d[0]/L*28, V[i][1]+d[1]/L*28], isX=/x/i.test(labels[i]);
+    s+='<text class="'+(isX?'s-x':'s-ang')+'" x="'+lp[0].toFixed(1)+'" y="'+(lp[1]+3.3).toFixed(1)+'" text-anchor="middle">'+labels[i]+'</text>';
+  }
   s+='</svg>';return s;
 }
+function exprFor(V,x0){
+  var o=[];
+  if(V===x0)o.push('x'); if(V===2*x0)o.push('2x'); if(V===3*x0)o.push('3x');
+  if(V>x0)o.push('x+'); if(V<x0&&(x0-V)<=55)o.push('x-'); o.push('kx');
+  var k=pick(o);
+  if(k==='x')return 'x'; if(k==='2x')return '2x'; if(k==='3x')return '3x';
+  if(k==='x+')return 'x+'+(V-x0)+'°'; if(k==='x-')return 'x−'+(x0-V)+'°';
+  return (V+x0)+'°−x';
+}
+function coefOf(l){var m=l.match(/^(\d+)x/);if(m)return +m[1];if(/^x/.test(l))return 1;if(/[−-]x$/.test(l))return -1;return 0;}
 function gen(){
-  var n=pick([4,4,5,5,6,6]), sum=(n-2)*180, angs=[],tot=0,i;
-  for(i=0;i<n-1;i++){var v=rnd(55,150);angs.push(v);tot+=v;}
-  var x=sum-tot; if(x<40||x>155)return gen();
-  var unk=rnd(0,n-1), labels=[], idx=0;
-  for(i=0;i<n;i++){if(i===unk)labels.push('x');else labels.push(angs[idx++]+'°');}
-  var rfac=[];for(i=0;i<n;i++)rfac.push(0.9+rnd(0,16)/100);
-  return {n:n,sum:sum,x:x,labels:labels,rot:Math.PI/2+rnd(-14,14)*Math.PI/180,rfac:rfac,sig:n+':'+angs.join(',')+':'+unk};
+  var a,b,c;do{a=rnd(30,95);b=rnd(30,95);c=180-a-b;}while(c<28||c>118);
+  var x0=rnd(15,54), vals=[a,b,c], numIdx=pick([0,1,2,-1]), labels=[];
+  for(var i=0;i<3;i++)labels.push(i===numIdx?vals[i]+'°':exprFor(vals[i],x0));
+  var tot=labels.reduce(function(s,l){return s+coefOf(l);},0);
+  if(tot===0)return gen();
+  return {a:a,b:b,c:c,labels:labels,x0:x0,sig:vals.join(',')+':'+x0+':'+labels.join('|')};
 }
 function wp(){
+  var x0=rnd(15,50);
   return pick([
-    {t:'<span class="ask">Таван өнцөгтийн (5 өнцөгт) дотоод өнцгүүдийн нийлбэрийг ол.</span>',a:'(5 − 2) × 180° = 3 × 180° = 540°'},
-    {t:'<span class="ask">Зургаан өнцөгтийн дотоод өнцгүүдийн нийлбэрийг ол.</span>',a:'(6 − 2) × 180° = 4 × 180° = 720°'},
-    {t:'Дүрсийн дотоод өнцгүүдийн нийлбэр 1080°. <span class="ask">Хэдэн өнцөгт вэ?</span>',a:'(n − 2)·180° = 1080° → n − 2 = 6 → n = 8 (найман өнцөгт)'},
-    {t:'Дүрмийн зөв зургаан өнцөгтийн бүх өнцөг тэнцүү. <span class="ask">Нэг өнцөг хэд вэ?</span>',a:'720° ÷ 6 = 120°'}
+    {t:'Гурвалжны өнцгүүд <b>x</b>, <b>2x</b>, <b>3x</b>. <span class="ask">x-г ол.</span>',a:'x + 2x + 3x = 180° → 6x = 180° → x = 30°'},
+    (function(){var c=rnd(15,45),d=180-2*x0-c;if(d<20)d=40;return {t:'Гурвалжны өнцгүүд <b>x</b>, <b>x+'+c+'°</b>, <b>'+d+'°</b>. <span class="ask">x-г ол.</span>',a:'x + (x+'+c+'°) + '+d+'° = 180° → 2x = '+(180-c-d)+'° → x = '+((180-c-d)/2)+'°'};})(),
+    (function(){var e=rnd(35,70);return {t:'Адил хажуут гурвалжны суурийн өнцгүүд <b>'+e+'°</b>, оройн өнцөг <b>2x</b>. <span class="ask">x-г ол.</span>',a:'2x + 2·'+e+'° = 180° → 2x = '+(180-2*e)+'° → x = '+((180-2*e)/2)+'°'};})()
   ]);
 }
 
@@ -88,26 +116,25 @@ function build(){
   for(var i=0;i<9;i++){
     var g,tr=0;do{g=gen();tr++;}while(seen[g.sig]&&tr<80);seen[g.sig]=1;
     var n=i+1;
-    cards+='<div class="q"><div class="qh">'+n+'. <span style="font-weight:600;color:#7a7390;font-size:11px">('+PNAME[g.n]+' өнцөгт, нийлбэр '+g.sum+'°)</span></div>'
-      +'<div class="dfig">'+drawPoly(g.n,g.labels,g.rot,g.rfac)+'</div>'
+    cards+='<div class="q"><div class="qh">'+n+'.</div><div class="dfig">'+drawTri(g.a,g.b,g.c,g.labels)+'</div>'
       +'<div class="xline">x =<span class="bl"></span></div></div>';
-    answ+='<div class="a"><span class="an">'+n+'.</span><span>x = '+g.x+'°</span></div>';
-    items.push({q:g.n+' өнцөгтийн өнцөг',a:'x='+g.x+'°'});
+    answ+='<div class="a"><span class="an">'+n+'.</span><span>x = '+g.x0+'°</span></div>';
+    items.push({q:'Гурвалжин (илэрхийлэл)',a:'x='+g.x0+'°'});
   }
-  var W=(function(){var arr=[],s={},t=0;while(arr.length<3&&t<60){var w=wp(),k=w.t.slice(0,20);if(!s[k]){s[k]=1;arr.push(w);}t++;}while(arr.length<3)arr.push(wp());return arr;})();
+  var W=(function(){var arr=[],s={},t=0;while(arr.length<3&&t<60){var w=wp(),k=w.t.slice(0,22);if(!s[k]){s[k]=1;arr.push(w);}t++;}while(arr.length<3)arr.push(wp());return arr;})();
   var wcards='',wans='';
   for(var j=0;j<W.length;j++){var w=W[j],n2=j+10;
     wcards+='<div class="wq"><div class="wn">'+n2+'.</div><div class="wt">'+w.t+'<div class="wans">Хариу:<span class="bl"></span></div></div></div>';
     wans+='<div><span class="an">'+n2+'.</span> '+w.a+'</div>';
     items.push({q:'Бодлого '+n2,a:w.a});}
   document.getElementById('sheet').innerHTML=
-    '<div class="head"><h1>Олон өнцөгтийн дотоод өнцгүүдийн нийлбэр 1</h1><div class="sub">4·5·6 өнцөгт · нийлбэр = (n − 2) × 180° · зурагт дутуу өнцгийг ол · 6·7-р анги</div></div>'
+    '<div class="head"><h1>Гурвалжны дотоод өнцгүүдийн нийлбэр 2</h1><div class="sub">Илэрхийллээр өгсөн өнцгүүд — тэгшитгэл зохиож x-ийг ол · нийлбэр 180° · 6·7-р анги</div></div>'
     +'<div class="meta"><span>Нэр: </span><span>Огноо: </span><span>Оноо: </span></div>'
-    +'<div class="rule">n өнцөгтийн дотоод өнцгүүдийн нийлбэр = <b>(n − 2) × 180°</b> &nbsp;·&nbsp; 4→360° · 5→540° · 6→720°</div>'
-    +'<div class="sec"><b>1</b> Мэдэгдэхгүй байгаа өнцгийг ол</div><div class="dgrid">'+cards+'</div>'
+    +'<div class="rule">Гурвалжны 3 өнцгийн нийлбэр = <b>180°</b> → бүх өнцгийг нэмээд 180°-тэй тэнцүүлж <b>тэгшитгэл</b> зохиогоод x-ийг ол</div>'
+    +'<div class="sec"><b>1</b> Тэгшитгэл зохиож x-ийг ол</div><div class="dgrid">'+cards+'</div>'
     +'<div class="sec"><b>2</b> Бодлого</div><div class="wgrid">'+wcards+'</div>'
     +'<div class="ans-page" id="answers"><h2>Хариунууд</h2><div class="ans-grid">'+answ+'</div><div class="ans-w">'+wans+'</div></div>';
-  window.WS_ITEMS=items;window.WS_TITLE='Олон өнцөгтийн дотоод өнцгийн нийлбэр';
+  window.WS_ITEMS=items;window.WS_TITLE='Гурвалжны дотоод өнцгийн нийлбэр 2';
   toggleAns();
   try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
 }

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Олон өнцөгтийн дотоод өнцгүүдийн нийлбэр (4·5·6 өнцөгт)</title>
+<title>Олон өнцөгтийн дотоод өнцгүүдийн нийлбэр 2 · илэрхийллээр</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
@@ -37,8 +37,8 @@
   #answers{display:none}
   .s-side{fill:none;stroke:#2f6cae;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
   .s-vtx{fill:#3a2d5e}
-  .s-ang{font-family:'Segoe UI',Arial,sans-serif;font-weight:700;font-size:10px;fill:#2f6cae}
-  .s-x{fill:var(--orange);font-weight:800;font-style:italic;font-family:Georgia,serif;font-size:12.5px}
+  .s-ang{font-family:'Segoe UI',Arial,sans-serif;font-weight:700;font-size:9.5px;fill:#2f6cae}
+  .s-x{fill:var(--orange);font-weight:800;font-family:'Segoe UI',Arial,sans-serif;font-size:11px}
   @media print{body{background:#fff;padding:0}.bar{display:none}.sheet{box-shadow:none;width:auto;min-height:auto;padding:0;margin:0}@page{size:A4;margin:10mm}.ans-page{break-before:page}}
 </style>
 </head>
@@ -60,26 +60,39 @@ function drawPoly(n,labels,rot,rfac){
   var s='<svg viewBox="0 0 210 160" xmlns="http://www.w3.org/2000/svg">';
   s+='<path class="s-side" d="M'+pts.map(function(p){return p[0].toFixed(1)+' '+p[1].toFixed(1);}).join(' L')+' Z"/>';
   for(i=0;i<n;i++){var V=pts[i],d=[O[0]-V[0],O[1]-V[1]],L=Math.hypot(d[0],d[1])||1;
-    var lp=[V[0]+d[0]/L*21, V[1]+d[1]/L*21], isX=(labels[i]==='x');
+    var lp=[V[0]+d[0]/L*22, V[1]+d[1]/L*22], isX=/x/i.test(labels[i]);
     s+='<circle class="s-vtx" cx="'+V[0].toFixed(1)+'" cy="'+V[1].toFixed(1)+'" r="2"/>';
-    s+='<text class="'+(isX?'s-x':'s-ang')+'" x="'+lp[0].toFixed(1)+'" y="'+(lp[1]+3.3).toFixed(1)+'" text-anchor="middle">'+labels[i]+'</text>';}
+    s+='<text class="'+(isX?'s-x':'s-ang')+'" x="'+lp[0].toFixed(1)+'" y="'+(lp[1]+3.2).toFixed(1)+'" text-anchor="middle">'+labels[i]+'</text>';}
   s+='</svg>';return s;
 }
+function exprFor(V,x0){
+  var o=[];
+  if(V===x0)o.push('x'); if(V===2*x0)o.push('2x'); if(V===3*x0)o.push('3x');
+  if(V>x0)o.push('x+'); if(V<x0&&(x0-V)<=55)o.push('x-'); o.push('kx');
+  var k=pick(o);
+  if(k==='x')return 'x'; if(k==='2x')return '2x'; if(k==='3x')return '3x';
+  if(k==='x+')return 'x+'+(V-x0)+'°'; if(k==='x-')return 'x−'+(x0-V)+'°';
+  return (V+x0)+'°−x';
+}
+function coefOf(l){var m=l.match(/^(\d+)x/);if(m)return +m[1];if(/^x/.test(l))return 1;if(/[−-]x$/.test(l))return -1;return 0;}
 function gen(){
-  var n=pick([4,4,5,5,6,6]), sum=(n-2)*180, angs=[],tot=0,i;
-  for(i=0;i<n-1;i++){var v=rnd(55,150);angs.push(v);tot+=v;}
-  var x=sum-tot; if(x<40||x>155)return gen();
-  var unk=rnd(0,n-1), labels=[], idx=0;
-  for(i=0;i<n;i++){if(i===unk)labels.push('x');else labels.push(angs[idx++]+'°');}
+  var n=pick([4,4,5,5,6]), sum=(n-2)*180, angs=[],tot=0,i;
+  for(i=0;i<n-1;i++){var v=rnd(60,150);angs.push(v);tot+=v;}
+  var last=sum-tot; if(last<45||last>150)return gen();
+  angs.push(last);
+  var x0=rnd(15,52), numCount=(n>=5?2:1), numSet={};
+  while(Object.keys(numSet).length<numCount)numSet[rnd(0,n-1)]=1;
+  var labels=[];for(i=0;i<n;i++)labels.push(numSet[i]?angs[i]+'°':exprFor(angs[i],x0));
+  if(labels.reduce(function(s,l){return s+coefOf(l);},0)===0)return gen();
   var rfac=[];for(i=0;i<n;i++)rfac.push(0.9+rnd(0,16)/100);
-  return {n:n,sum:sum,x:x,labels:labels,rot:Math.PI/2+rnd(-14,14)*Math.PI/180,rfac:rfac,sig:n+':'+angs.join(',')+':'+unk};
+  return {n:n,sum:sum,x0:x0,labels:labels,rot:Math.PI/2+rnd(-14,14)*Math.PI/180,rfac:rfac,sig:n+':'+angs.join(',')+':'+x0+':'+labels.join('|')};
 }
 function wp(){
+  var x0=rnd(20,50);
   return pick([
-    {t:'<span class="ask">Таван өнцөгтийн (5 өнцөгт) дотоод өнцгүүдийн нийлбэрийг ол.</span>',a:'(5 − 2) × 180° = 3 × 180° = 540°'},
-    {t:'<span class="ask">Зургаан өнцөгтийн дотоод өнцгүүдийн нийлбэрийг ол.</span>',a:'(6 − 2) × 180° = 4 × 180° = 720°'},
-    {t:'Дүрсийн дотоод өнцгүүдийн нийлбэр 1080°. <span class="ask">Хэдэн өнцөгт вэ?</span>',a:'(n − 2)·180° = 1080° → n − 2 = 6 → n = 8 (найман өнцөгт)'},
-    {t:'Дүрмийн зөв зургаан өнцөгтийн бүх өнцөг тэнцүү. <span class="ask">Нэг өнцөг хэд вэ?</span>',a:'720° ÷ 6 = 120°'}
+    {t:'Дөрвөн өнцөгтийн бүх өнцөг тэнцүү, тус бүр <b>x</b>. <span class="ask">x-г ол.</span>',a:'4x = 360° → x = 90°'},
+    {t:'Таван өнцөгтийн бүх өнцөг тэнцүү, тус бүр <b>x</b>. <span class="ask">x-г ол.</span>',a:'5x = 540° → x = 108°'},
+    (function(){var k=360-6*x0;if(k<30){k=60;}return {t:'Дөрвөн өнцөгтийн өнцгүүд <b>x</b>, <b>2x</b>, <b>3x</b>, <b>'+k+'°</b>. <span class="ask">x-г ол.</span>',a:'6x + '+k+'° = 360° → 6x = '+(360-k)+'° → x = '+((360-k)/6)+'°'};})()
   ]);
 }
 
@@ -91,8 +104,8 @@ function build(){
     cards+='<div class="q"><div class="qh">'+n+'. <span style="font-weight:600;color:#7a7390;font-size:11px">('+PNAME[g.n]+' өнцөгт, нийлбэр '+g.sum+'°)</span></div>'
       +'<div class="dfig">'+drawPoly(g.n,g.labels,g.rot,g.rfac)+'</div>'
       +'<div class="xline">x =<span class="bl"></span></div></div>';
-    answ+='<div class="a"><span class="an">'+n+'.</span><span>x = '+g.x+'°</span></div>';
-    items.push({q:g.n+' өнцөгтийн өнцөг',a:'x='+g.x+'°'});
+    answ+='<div class="a"><span class="an">'+n+'.</span><span>x = '+g.x0+'°</span></div>';
+    items.push({q:g.n+' өнцөгт (илэрхийлэл)',a:'x='+g.x0+'°'});
   }
   var W=(function(){var arr=[],s={},t=0;while(arr.length<3&&t<60){var w=wp(),k=w.t.slice(0,20);if(!s[k]){s[k]=1;arr.push(w);}t++;}while(arr.length<3)arr.push(wp());return arr;})();
   var wcards='',wans='';
@@ -101,13 +114,13 @@ function build(){
     wans+='<div><span class="an">'+n2+'.</span> '+w.a+'</div>';
     items.push({q:'Бодлого '+n2,a:w.a});}
   document.getElementById('sheet').innerHTML=
-    '<div class="head"><h1>Олон өнцөгтийн дотоод өнцгүүдийн нийлбэр 1</h1><div class="sub">4·5·6 өнцөгт · нийлбэр = (n − 2) × 180° · зурагт дутуу өнцгийг ол · 6·7-р анги</div></div>'
+    '<div class="head"><h1>Олон өнцөгтийн дотоод өнцгүүдийн нийлбэр 2</h1><div class="sub">Илэрхийллээр өгсөн өнцгүүд — тэгшитгэл зохиож x-ийг ол · (n−2)×180° · 6·7-р анги</div></div>'
     +'<div class="meta"><span>Нэр: </span><span>Огноо: </span><span>Оноо: </span></div>'
-    +'<div class="rule">n өнцөгтийн дотоод өнцгүүдийн нийлбэр = <b>(n − 2) × 180°</b> &nbsp;·&nbsp; 4→360° · 5→540° · 6→720°</div>'
-    +'<div class="sec"><b>1</b> Мэдэгдэхгүй байгаа өнцгийг ол</div><div class="dgrid">'+cards+'</div>'
+    +'<div class="rule">n өнцөгтийн нийлбэр = <b>(n − 2) × 180°</b> (4→360° · 5→540° · 6→720°) → бүх өнцгийг нэмээд тэнцүүлж <b>тэгшитгэл</b> зохио</div>'
+    +'<div class="sec"><b>1</b> Тэгшитгэл зохиож x-ийг ол</div><div class="dgrid">'+cards+'</div>'
     +'<div class="sec"><b>2</b> Бодлого</div><div class="wgrid">'+wcards+'</div>'
     +'<div class="ans-page" id="answers"><h2>Хариунууд</h2><div class="ans-grid">'+answ+'</div><div class="ans-w">'+wans+'</div></div>';
-  window.WS_ITEMS=items;window.WS_TITLE='Олон өнцөгтийн дотоод өнцгийн нийлбэр';
+  window.WS_ITEMS=items;window.WS_TITLE='Олон өнцөгтийн дотоод өнцгийн нийлбэр 2';
   toggleAns();
   try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
 }
