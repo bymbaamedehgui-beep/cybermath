@@ -145,13 +145,30 @@ function renderWsFeedback(list){
   if(!list.length){el.innerHTML='<div style="color:var(--muted);padding:8px;">Санал хүсэлт алга.</div>';return;}
   var h='';
   list.forEach(function(f){
-    h+='<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;">'
+    var isEmail=/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test((f.contact||'').trim());
+    h+='<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:10px;">'
       +'<div style="white-space:pre-wrap;font-size:0.88rem;color:var(--text);">'+wsEsc(f.message)+'</div>'
-      +'<div style="font-size:0.72rem;color:var(--muted);margin-top:6px;">'+wsDate(f.created_at)+(f.contact?(' · '+wsEsc(f.contact)):'')+'</div>'
+      +'<div style="font-size:0.72rem;color:var(--muted);margin-top:6px;">'+wsDate(f.created_at)+(f.contact?(' · '+wsEsc(f.contact)+(isEmail?'':' (имэйлгүй)')):' · хаяггүй')+'</div>';
+    if(f.reply){
+      h+='<div style="margin-top:8px;background:var(--surface2);border-left:3px solid #7B52EE;border-radius:6px;padding:8px 10px;font-size:0.85rem;color:var(--text);white-space:pre-wrap;">↩ '+wsEsc(f.reply)+'<div style="font-size:0.68rem;color:var(--muted);margin-top:4px;">'+wsDate(f.replied_at)+'</div></div>';
+    }
+    h+='<div style="margin-top:8px;display:flex;gap:6px;align-items:flex-start;">'
+      +'<textarea id="fbr'+f.id+'" rows="2" placeholder="'+(f.reply?'Хариу засах…':'Хариу бичих…')+'" style="flex:1;border:1px solid var(--border);border-radius:8px;padding:6px 9px;background:var(--surface);color:var(--text);font-size:0.85rem;font-family:inherit;resize:vertical;">'+wsEsc(f.reply||'')+'</textarea>'
+      +'<button onclick="wsReplyFeedback('+f.id+')" style="flex-shrink:0;background:linear-gradient(135deg,#7B52EE,#A855F7);border:0;color:#fff;border-radius:8px;padding:8px 12px;cursor:pointer;font-weight:800;font-size:0.82rem;">'+(f.reply?'Шинэчлэх':'Илгээх')+'</button>'
+      +'</div><div id="fbrmsg'+f.id+'" style="font-size:0.75rem;font-weight:700;margin-top:4px;"></div>'
       +'</div>';
   });
   el.innerHTML=h;
 }
+window.wsReplyFeedback=async function(id){
+  var ta=document.getElementById('fbr'+id), m=document.getElementById('fbrmsg'+id);
+  var reply=(ta.value||'').trim(); if(reply.length<1){m.style.color='#dc2626';m.textContent='Хариу бичнэ үү';return;}
+  m.style.color='var(--muted)';m.textContent='Илгээж байна…';
+  try{ var d=await wsPostW('feedback_reply',{id:id,reply:reply});
+    m.style.color='#16a34a'; m.textContent=(d&&d.mailed)?'✓ Имэйлээр илгээлээ':'✓ Хадгаллаа (имэйлгүй)';
+    var fb=await wsPostW('feedback_list',{}); renderWsFeedback((fb&&fb.feedback)||[]);
+  }catch(e){ m.style.color='#dc2626'; m.textContent='Алдаа: '+e.message; }
+};
 function renderWsUsers(d){
   var el=document.getElementById('ws-users-list'); if(!el)return;
   var list=d.users||[];

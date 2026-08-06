@@ -74,4 +74,29 @@ function sendFreeEmail(to, firstName) {
   });
 }
 
-module.exports = { sendVerifyEmail, sendPremiumEmail, sendFreeEmail };
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function sendFeedbackReply(to, reply, original) {
+  return sendEmail({
+    to,
+    subject: '💬 CyberMath — Таны санал хүсэлтэд хариу',
+    html: `
+    <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;background:#0d0b1a;color:#f0eeff;border-radius:16px;overflow:hidden;">
+      <div style="background:linear-gradient(135deg,#7B52EE,#A855F7);padding:28px;text-align:center;">
+        <div style="font-size:2rem;">💬</div>
+        <h1 style="margin:8px 0;font-size:1.5rem;color:#fff;">CyberMath</h1>
+        <p style="color:rgba(255,255,255,0.8);margin:0;">Санал хүсэлтийн хариу</p>
+      </div>
+      <div style="padding:28px;">
+        <p style="color:#8880aa;font-size:0.82rem;margin:0 0 5px;">Таны илгээсэн:</p>
+        <div style="background:#16132b;border-radius:10px;padding:12px 14px;color:#c0b8e8;font-size:0.88rem;white-space:pre-wrap;margin-bottom:18px;">${esc(original)}</div>
+        <p style="color:#8880aa;font-size:0.82rem;margin:0 0 5px;">Манай хариу:</p>
+        <div style="background:#1e1a35;border:2px solid #7B52EE;border-radius:12px;padding:16px 18px;color:#f0eeff;font-size:0.95rem;line-height:1.6;white-space:pre-wrap;">${esc(reply)}</div>
+      </div>
+      <div style="background:#16132b;padding:16px;text-align:center;">
+        <p style="color:#8880aa;font-size:0.75rem;margin:0;">cyber-math.com · © 2025 CyberMath</p>
+      </div>
+    </div>`
+  });
+}
+
+module.exports = { sendVerifyEmail, sendPremiumEmail, sendFreeEmail, sendFeedbackReply };

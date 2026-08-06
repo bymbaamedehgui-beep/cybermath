@@ -2,11 +2,12 @@
 const pool = require('./_db');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { sendVerifyEmail } = require('./_email');
+const { sendVerifyEmail, sendFeedbackReply } = require('./_email');
 const JWT_SECRET = process.env.JWT_SECRET || 'cybermath-default-secret-change-in-prod';
 
 // Дасгалын төвийн нэвтрэлт — имэйл + нууц үг + баталгаажуулах код (тусдаа ws_login)
 function wsSign(email) { return jwt.sign({ email: String(email).toLowerCase(), ws: true }, JWT_SECRET, { expiresIn: '400d' }); }
+function wsEmailFromToken(t) { try { const d = jwt.verify(String(t || ''), JWT_SECRET); return (d && d.ws && d.email) ? String(d.email).toLowerCase() : null; } catch (e) { return null; } }
 function gen6() { return Math.floor(100000 + Math.random() * 900000).toString(); }
 async function ensureWsLogin() {
   await pool.query(`CREATE TABLE IF NOT EXISTS ws_login (
@@ -106,6 +107,8 @@ module.exports = async (req, res) => {
         contact TEXT,
         created_at TIMESTAMPTZ DEFAULT NOW()
       )`);
+    await pool.query(`ALTER TABLE ws_feedback ADD COLUMN IF NOT EXISTS reply TEXT`);
+    await pool.query(`ALTER TABLE ws_feedback ADD COLUMN IF NOT EXISTS replied_at TIMESTAMPTZ`);
     // Тохиргоо (announce гэх мэт key/value)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS ws_settings (
@@ -271,6 +274,15 @@ module.exports = async (req, res) => {
         await sendTelegram(tg);
         return res.json({ ok: true });
       }
+      // Хэрэглэгч өөрийн явуулсан хүсэлт + админы хариуг харах (нэвтэрсэн хэрэглэгч)
+      if (b.action === 'feedback_mine') {
+        const email = wsEmailFromToken(b.token);
+        if (!email) return res.json({ ok: true, feedback: [] });
+        const r = await pool.query(
+          'SELECT id, message, reply, replied_at, created_at FROM ws_feedback WHERE lower(contact)=$1 ORDER BY created_at DESC LIMIT 50',
+          [email]);
+        return res.json({ ok: true, feedback: r.rows });
+      }
       // Мэдээллийн зурвас (announce) авах — нээлттэй
       if (b.action === 'getAnnounce') {
         const r = await pool.query(`SELECT sval FROM ws_settings WHERE skey='announce'`);
@@ -287,8 +299,24 @@ module.exports = async (req, res) => {
       }
       if (b.action === 'feedback_list') {
         if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
-        const r = await pool.query('SELECT id, message, contact, created_at FROM ws_feedback ORDER BY created_at DESC LIMIT 300');
+        const r = await pool.query('SELECT id, message, contact, reply, replied_at, created_at FROM ws_feedback ORDER BY created_at DESC LIMIT 300');
         return res.json({ ok: true, feedback: r.rows });
+      }
+      // Санал хүсэлтэд хариу бичих — ЗӨВХӨН АДМИН (имэйлтэй бол имэйлээр илгээнэ)
+      if (b.action === 'feedback_reply') {
+        if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
+        const id = parseInt(b.id, 10);
+        const reply = String(b.reply || '').trim().slice(0, 2000);
+        if (!id || reply.length < 1) return res.status(400).json({ ok: false, error: 'Хариу бичнэ үү' });
+        const r = await pool.query('SELECT contact, message FROM ws_feedback WHERE id=$1', [id]);
+        if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Олдсонгүй' });
+        await pool.query('UPDATE ws_feedback SET reply=$2, replied_at=NOW() WHERE id=$1', [id, reply]);
+        const contact = String(r.rows[0].contact || '').trim();
+        let mailed = false;
+        if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(contact)) {
+          try { await sendFeedbackReply(contact, reply, r.rows[0].message); mailed = true; } catch (e) { console.error('[fb reply mail]', e.message); }
+        }
+        return res.json({ ok: true, mailed: mailed });
       }
       // Нэр өөрчлөх / нуух / сэргээх / дараалал — ЗӨВХӨН АДМИН
       if (['setTitle', 'resetTitle', 'hideTopic', 'unhideTopic', 'setOrder',

@@ -1397,9 +1397,28 @@ function openFeedback(){
     +'<input id="fbContact" type="text" placeholder="Холбоо барих (имэйл/утас) — заавал биш" style="width:100%;box-sizing:border-box;border:1.6px solid #e7ddff;border-radius:12px;padding:.65rem .9rem;font-size:.9rem;outline:none;margin-bottom:10px" />'
     +'<button id="fbSend" style="width:100%;font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.75rem;font-size:.95rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2))">Илгээх</button>'
     +'<div id="fbMsgOut" style="font-size:.83rem;font-weight:700;margin-top:9px;min-height:1em;text-align:center"></div>'
+    +'<div id="fbMine" style="margin-top:12px"></div>'
     +'</div>';
   document.body.appendChild(o);
   if(lsGet('cm_last_user'))o.querySelector('#fbContact').value=lsGet('cm_last_user');
+  (function loadMine(){
+    var tk=lsGet('cm_ws_token'), mn=o.querySelector('#fbMine'); if(!tk||!mn)return;
+    function fbD(s){try{return new Date(s).toLocaleDateString('mn-MN');}catch(e){return '';}}
+    fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'feedback_mine',token:tk})})
+      .then(function(r){return r.json();}).then(function(d){
+        var list=(d&&d.feedback)||[]; if(!list.length)return;
+        var h='<div style="border-top:1px solid #eee;padding-top:12px"><div style="font-weight:800;color:var(--purple-d);font-size:.92rem;margin-bottom:8px">📨 Миний өмнөх хүсэлтүүд</div>';
+        list.forEach(function(f){
+          h+='<div style="border:1px solid #eee;border-radius:12px;padding:9px 11px;margin-bottom:8px">'
+            +'<div style="font-size:.86rem;color:#333;white-space:pre-wrap">'+esc(f.message)+'</div>'
+            +'<div style="font-size:.7rem;color:var(--soft);margin-top:4px">'+fbD(f.created_at)+'</div>';
+          if(f.reply)h+='<div style="margin-top:8px;background:#f4efff;border-left:3px solid var(--purple);border-radius:8px;padding:8px 10px;font-size:.85rem;color:#3a2d5e;white-space:pre-wrap"><b style="color:var(--purple-d)">↩ CyberMath хариу:</b><br>'+esc(f.reply)+'</div>';
+          else h+='<div style="margin-top:6px;font-size:.76rem;color:var(--soft)">⏳ Хариу хүлээгдэж байна</div>';
+          h+='</div>';
+        });
+        mn.innerHTML=h+'</div>';
+      }).catch(function(){});
+  })();
   var out=o.querySelector('#fbMsgOut');
   o.querySelector('#fbSend').onclick=function(){
     var msg=(o.querySelector('#fbMsg').value||'').trim();
