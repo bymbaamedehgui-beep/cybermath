@@ -27,7 +27,7 @@
   .ogrid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
   .q{break-inside:avoid;page-break-inside:avoid;border:1.2px solid #e7e0f7;border-radius:9px;padding:8px 9px;background:linear-gradient(#fff,#fbf9ff)}
   .q .qn{font-weight:800;color:var(--purple);font-size:12.5px;margin-right:4px}
-  .rq{display:flex;gap:8px;align-items:center}.rq .rfig svg{width:132px;height:132px}
+  .rq{display:flex;gap:8px;align-items:center}.rq .rfig svg{width:138px;height:auto}
   .rq .rt{flex:1;font-size:12.5px}
   .expr{font-size:15px;font-weight:700;margin-bottom:5px}
   .work{height:15mm;border:1.2px solid #e2daf5;border-radius:7px;background:linear-gradient(#fff,#fbf9ff)}
@@ -71,13 +71,23 @@ function arw(A,B,col){var ax=gx(A[0]),ay=gy(A[1]),bx=gx(B[0]),by=gy(B[1]);
     +'<path d="M'+bx.toFixed(1)+' '+by.toFixed(1)+' L'+(bx-8*ux+4*px).toFixed(1)+' '+(by-8*uy+4*py).toFixed(1)+' L'+(bx-8*ux-4*px).toFixed(1)+' '+(by-8*uy-4*py).toFixed(1)+' Z" fill="'+col+'"/>';}
 function vlabel(A,B,txt,col){var mx=(gx(A[0])+gx(B[0]))/2,my=(gy(A[1])+gy(B[1]))/2;
   return '<text x="'+(mx+5).toFixed(1)+'" y="'+(my-3).toFixed(1)+'" font-size="11" font-weight="800" font-style="italic" fill="'+col+'">'+txt+'</text>';}
-/* a-г O-оос, b-г a-ийн үзүүрээс (сүүл-үзүүр) — a+b-г зурна */
-function drawAdd(a,b){
-  var O=[0,0],P=[a[0],a[1]],Q=[a[0]+b[0],a[1]+b[1]];
-  return '<svg viewBox="-8 -8 '+(VB+18)+' '+(VB+18)+'" xmlns="http://www.w3.org/2000/svg">'+gridBase()
-    +arw(O,P,'#2f6cae')+vlabel(O,P,'a','#2f6cae')
-    +arw(P,Q,'#16a34a')+vlabel(P,Q,'b','#16a34a')
-    +'</svg>';
+/* Зөвхөн 2 вектор — тэнхлэггүй, сул цэгэн тортой. Сурагч өөрөө нэмж зурна. */
+function vecArrow(V,PX,PY,col,lbl){
+  var ax=PX(V.tail[0]),ay=PY(V.tail[1]),bx=PX(V.tip[0]),by=PY(V.tip[1]);
+  var dx=bx-ax,dy=by-ay,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L,px=-uy,py=ux;
+  var s='<line x1="'+ax.toFixed(1)+'" y1="'+ay.toFixed(1)+'" x2="'+bx.toFixed(1)+'" y2="'+by.toFixed(1)+'" stroke="'+col+'" stroke-width="2.4"/>'
+    +'<path d="M'+bx.toFixed(1)+' '+by.toFixed(1)+' L'+(bx-9*ux+4.5*px).toFixed(1)+' '+(by-9*uy+4.5*py).toFixed(1)+' L'+(bx-9*ux-4.5*px).toFixed(1)+' '+(by-9*uy-4.5*py).toFixed(1)+' Z" fill="'+col+'"/>';
+  var mx=(ax+bx)/2+7*px, my=(ay+by)/2+7*py;
+  s+='<text x="'+mx.toFixed(1)+'" y="'+(my+3).toFixed(1)+'" font-size="13" font-weight="800" font-style="italic" fill="'+col+'" text-anchor="middle">'+lbl+'</text>';
+  return s;
+}
+function drawTwo(v){
+  var W=7,H=6,u=20,pad=14, ww=(W-1)*u+2*pad, hh=(H-1)*u+2*pad;
+  function PX(x){return pad+x*u;} function PY(y){return pad+(H-1-y)*u;}
+  var s='<svg viewBox="0 0 '+ww+' '+hh+'" xmlns="http://www.w3.org/2000/svg">';
+  for(var i=0;i<W;i++)for(var j=0;j<H;j++)s+='<circle cx="'+PX(i)+'" cy="'+PY(j)+'" r="1" fill="#dcd6ef"/>';
+  s+=vecArrow(v.a,PX,PY,'#2f6cae','a')+vecArrow(v.b,PX,PY,'#16a34a','b');
+  s+='</svg>';return s;
 }
 var EXPR=[
  {t:'\\vec a+\\vec b',f:function(a,b){return [a[0]+b[0],a[1]+b[1]];}},
@@ -91,17 +101,20 @@ var EXPR=[
  {t:'\\vec a+3\\vec b',f:function(a,b){return [a[0]+3*b[0],a[1]+3*b[1]];}},
  {t:'-\\vec a+2\\vec b',f:function(a,b){return [-a[0]+2*b[0],-a[1]+2*b[1]];}}
 ];
-function genAdd(){var a=[rnd(1,3),rnd(1,3)],b=[rnd(1,3),rnd(1,3)];
-  if(a[0]+b[0]>6||a[1]+b[1]>6)return genAdd();
-  return {a:a,b:b,sum:[a[0]+b[0],a[1]+b[1]],sig:a.join()+b.join()};}
+function mkVec(W,H){var dx=nz(-4,4),dy=nz(-4,4);if(Math.abs(dx)+Math.abs(dy)<3)return mkVec(W,H);
+  var tx=rnd(Math.max(0,-dx),(W-1)-Math.max(0,dx)),ty=rnd(Math.max(0,-dy),(H-1)-Math.max(0,dy));
+  return {tail:[tx,ty],comp:[dx,dy],tip:[tx+dx,ty+dy]};}
+function genTwo(){var W=7,H=6,a=mkVec(W,H),b,tr=0;
+  do{b=mkVec(W,H);tr++;}while(tr<40 && ((a.comp[0]===b.comp[0]&&a.comp[1]===b.comp[1]) ||
+    Math.hypot((a.tail[0]+a.tip[0])/2-(b.tail[0]+b.tip[0])/2,(a.tail[1]+a.tip[1])/2-(b.tail[1]+b.tip[1])/2)<2.6));
+  return {a:a,b:b,sig:a.comp.join()+'|'+b.comp.join()};}
 
 function build(){
   var d1='',a1='',o='',ao='',items=[],seen={},n=0,i;
-  for(i=0;i<4;i++){var t=0,g;do{g=genAdd();t++;}while(seen[g.sig]&&t<60);seen[g.sig]=1;n++;
-    d1+='<div class="q"><div class="rq"><div class="rfig">'+drawAdd(g.a,g.b)+'</div>'
-      +'<div class="rt"><span class="qn">'+n+'.</span> $\\vec a='+vec(g.a[0],g.a[1])+'$, $\\vec b='+vec(g.b[0],g.b[1])+'$<br>Зурж <b>$\\vec a+\\vec b$</b>-г ол:<div class="ansl">$\\vec a+\\vec b=$ (<span class="bl"></span>,<span class="bl"></span>)</div></div></div></div>';
-    a1+='<div class="a"><span class="an">'+n+'.</span><span>$\\vec a+\\vec b='+vec(g.sum[0],g.sum[1])+'$</span></div>';
-    items.push({q:'Зурж нэмэх',a:'a+b=('+g.sum[0]+','+g.sum[1]+')'});}
+  for(i=0;i<4;i++){var t=0,g;do{g=genTwo();t++;}while(seen[g.sig]&&t<60);seen[g.sig]=1;n++;
+    d1+='<div class="q"><div class="rq"><div class="rfig">'+drawTwo(g)+'</div>'
+      +'<div class="rt"><span class="qn">'+n+'.</span> Өгсөн <span style="color:#2f6cae;font-weight:800">$\\vec a$</span>, <span style="color:#16a34a;font-weight:800">$\\vec b$</span> хоёр векторыг <b>нэмж</b> сүүл-үзүүр аргаар $\\vec a+\\vec b$-г зур.</div></div></div>';
+    items.push({q:'Векторыг зурж нэмэх',a:'сүүл-үзүүр аргаар байгуулна'});}
   var a=[nz(-5,5),nz(-5,5)],b=[nz(-5,5),nz(-5,5)];
   var ex=shuffle(EXPR.slice()).slice(0,8);
   for(i=0;i<ex.length;i++){var e=ex[i],r=e.f(a,b);n++;
