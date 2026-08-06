@@ -37,14 +37,14 @@ function isAdmin(req) {
 // Санал хүсэлт ирэхэд Telegram-аар мэдэгдэх (env: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
 async function sendTelegram(text) {
   const token = process.env.TELEGRAM_BOT_TOKEN, chat = process.env.TELEGRAM_CHAT_ID;
-  if (!token || !chat) return false;
+  if (!token || !chat) return null;
   try {
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: chat, text: text, parse_mode: 'HTML', disable_web_page_preview: true })
     });
-    return true;
-  } catch (e) { console.error('[telegram]', e.message); return false; }
+    return await r.json();   // { ok, result: { message_id, ... } }
+  } catch (e) { console.error('[telegram]', e.message); return null; }
 }
 
 module.exports = async (req, res) => {
@@ -109,6 +109,7 @@ module.exports = async (req, res) => {
       )`);
     await pool.query(`ALTER TABLE ws_feedback ADD COLUMN IF NOT EXISTS reply TEXT`);
     await pool.query(`ALTER TABLE ws_feedback ADD COLUMN IF NOT EXISTS replied_at TIMESTAMPTZ`);
+    await pool.query(`ALTER TABLE ws_feedback ADD COLUMN IF NOT EXISTS tg_msg_id BIGINT`);
     // Тохиргоо (announce гэх мэт key/value)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS ws_settings (
@@ -268,10 +269,14 @@ module.exports = async (req, res) => {
         const message = String(b.message || '').trim().slice(0, 2000);
         const contact = b.contact ? String(b.contact).trim().slice(0, 160) : null;
         if (message.length < 2) return res.status(400).json({ ok: false, error: 'Санал хүсэлтээ бичнэ үү' });
-        await pool.query('INSERT INTO ws_feedback (message, contact) VALUES ($1,$2)', [message, contact]);
+        const ins = await pool.query('INSERT INTO ws_feedback (message, contact) VALUES ($1,$2) RETURNING id', [message, contact]);
+        const fbId = ins.rows[0].id;
         const tg = '📩 <b>CyberMath — Шинэ санал хүсэлт</b>\n\n' + message +
-          (contact ? ('\n\n👤 ' + contact) : '') + '\n\n<i>cyber-math.com/worksheets</i>';
-        await sendTelegram(tg);
+          (contact ? ('\n\n👤 ' + contact) : '') +
+          '\n\n<i>↩ Энэ мессежид Reply бичвэл хэрэглэгчид имэйлээр хариу очно</i>';
+        const tgRes = await sendTelegram(tg);
+        const mid = tgRes && tgRes.result && tgRes.result.message_id;
+        if (mid) { try { await pool.query('UPDATE ws_feedback SET tg_msg_id=$2 WHERE id=$1', [fbId, mid]); } catch (e) {} }
         return res.json({ ok: true });
       }
       // Хэрэглэгч өөрийн явуулсан хүсэлт + админы хариуг харах (нэвтэрсэн хэрэглэгч)
