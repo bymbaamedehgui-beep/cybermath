@@ -23,11 +23,15 @@
   .sec{font-size:12.5px;font-weight:800;color:#5a32d6;margin:6px 0 8px;display:flex;align-items:center;gap:7px}
   .sec b{display:inline-grid;place-items:center;width:19px;height:19px;border-radius:5px;background:var(--purple);color:#fff;font-size:11px}
   .dgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px 12px;margin-bottom:12px}
+  .rgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;margin-bottom:12px}
   .q{break-inside:avoid;page-break-inside:avoid;border:1.2px solid #e7e0f7;border-radius:9px;padding:7px 8px;background:linear-gradient(#fff,#fbf9ff)}
   .q .qn{font-weight:800;color:var(--purple);font-size:12.5px}
   .q .give{font-size:13px;margin-left:4px}
+  .rq{display:flex;gap:8px;align-items:center}.rq .rfig{flex:none}.rq .rt{flex:1}
   .dfig{display:flex;justify-content:center;margin-top:2px}.dfig svg{width:100%;max-width:128px;height:auto}
+  .rfig svg{width:132px;height:132px}
   .ansl{font-size:12px;font-weight:700;margin-top:5px;color:var(--ink)}.ansl .bl{display:inline-block;min-width:56px;border-bottom:1.3px solid #b9accf;height:1em;vertical-align:-2px;margin-left:4px}
+  .vlist{font-size:12.5px;font-weight:700;display:grid;gap:6px}.vlist .bl{display:inline-block;min-width:52px;border-bottom:1.3px solid #b9accf;height:1em;vertical-align:-2px;margin-left:4px}
   .ans-page{margin-top:8mm;border-top:2px dashed #ddd;padding-top:6mm}.ans-page h2{font-size:15px;color:#5a32d6;margin-bottom:9px}
   .ans-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 14px;font-size:12.5px}.ans-grid .a{display:flex;gap:6px;align-items:baseline}.ans-grid .an{color:var(--soft);font-weight:800;min-width:22px}
   #answers{display:none}
@@ -63,24 +67,45 @@ function gridBase(){
   return s;
 }
 function svgOpen(){return '<svg viewBox="-8 -8 '+(VB+18)+' '+(VB+18)+'" xmlns="http://www.w3.org/2000/svg">';}
-function arrow(A,B){
-  var ax=gx(A[0]),ay=gy(A[1]),bx=gx(B[0]),by=gy(B[1]);
-  var dx=bx-ax,dy=by-ay,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L,px=-uy,py=ux;
-  return '<line x1="'+ax.toFixed(1)+'" y1="'+ay.toFixed(1)+'" x2="'+bx.toFixed(1)+'" y2="'+by.toFixed(1)+'" stroke="#2f6cae" stroke-width="2.2"/>'
-    +'<path d="M'+bx.toFixed(1)+' '+by.toFixed(1)+' L'+(bx-9*ux+4.5*px).toFixed(1)+' '+(by-9*uy+4.5*py).toFixed(1)+' L'+(bx-9*ux-4.5*px).toFixed(1)+' '+(by-9*uy-4.5*py).toFixed(1)+' Z" fill="#2f6cae"/>';
-}
+function arrowSvg(a,b){var dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L,px=-uy,py=ux;
+  return '<line x1="'+a[0].toFixed(1)+'" y1="'+a[1].toFixed(1)+'" x2="'+b[0].toFixed(1)+'" y2="'+b[1].toFixed(1)+'" stroke="#2f6cae" stroke-width="2"/>'
+    +'<path d="M'+b[0].toFixed(1)+' '+b[1].toFixed(1)+' L'+(b[0]-8*ux+4*px).toFixed(1)+' '+(b[1]-8*uy+4*py).toFixed(1)+' L'+(b[0]-8*ux-4*px).toFixed(1)+' '+(b[1]-8*uy-4*py).toFixed(1)+' Z" fill="#2f6cae"/>';}
 function dotLbl(A,lbl,dxL,dyL){var ax=gx(A[0]),ay=gy(A[1]);
   return '<circle cx="'+ax.toFixed(1)+'" cy="'+ay.toFixed(1)+'" r="2.2" fill="#1a1030"/><text x="'+(ax+dxL)+'" y="'+(ay+dyL)+'" font-size="9" font-weight="700" font-style="italic" fill="#1a1030">'+lbl+'</text>';}
-/* уншиж бичих: A→B сум зурсан */
-function drawVec(A,B){return svgOpen()+gridBase()+arrow(A,B)+dotLbl(A,'A',-8,11)+dotLbl(B,'B',4,-4)+'</svg>';}
-/* байгуулах: зөвхөн A цэг тэмдэглэсэн, бусад хоосон */
+/* нэг буюу олон вектор: цэгүүдийг дараалан сумаар холбоно (closed бол сүүлээс эхэнд) */
+function drawChain(pts,closed,labels){
+  var sp=pts.map(function(p){return [gx(p[0]),gy(p[1])];});
+  var cx=sp.reduce(function(s,p){return s+p[0];},0)/sp.length, cy=sp.reduce(function(s,p){return s+p[1];},0)/sp.length;
+  var s=svgOpen()+gridBase(), m=closed?pts.length:pts.length-1, i;
+  for(i=0;i<m;i++)s+=arrowSvg(sp[i],sp[(i+1)%pts.length]);
+  for(i=0;i<pts.length;i++){var dx=sp[i][0]-cx,dy=sp[i][1]-cy,L=Math.hypot(dx,dy)||1;
+    s+='<circle cx="'+sp[i][0].toFixed(1)+'" cy="'+sp[i][1].toFixed(1)+'" r="2.2" fill="#1a1030"/>';
+    s+='<text x="'+(sp[i][0]+dx/L*11).toFixed(1)+'" y="'+(sp[i][1]+dy/L*11+3).toFixed(1)+'" font-size="9.5" font-weight="700" font-style="italic" fill="#1a1030" text-anchor="middle">'+labels[i]+'</text>';}
+  return s+'</svg>';
+}
 function drawStart(A){return svgOpen()+gridBase()+dotLbl(A,'A',-8,11)+'</svg>';}
 
-function genRead(){
-  var A=[rnd(1,5),rnd(1,5)],B=[rnd(1,5),rnd(1,5)];
-  if(A[0]===B[0]&&A[1]===B[1])return genRead();
-  return {A:A,B:B,x:B[0]-A[0],y:B[1]-A[1],sig:'r'+(B[0]-A[0])+','+(B[1]-A[1])};
+var LET='ABCDE';
+function genSingle(){var A=[rnd(1,5),rnd(1,5)],B=[rnd(1,5),rnd(1,5)];if(A[0]===B[0]&&A[1]===B[1])return genSingle();
+  return {pts:[A,B],labels:['A','B'],closed:false,vectors:[{name:'AB',x:B[0]-A[0],y:B[1]-A[1]}],sig:'s'+(B[0]-A[0])+','+(B[1]-A[1])};}
+function genPoly(n){
+  var pts,ok,g=0,i;
+  while(g++<300){
+    var used={};pts=[];
+    for(i=0;i<n;i++){var p,h=0;do{p=[rnd(1,5),rnd(1,5)];h++;}while(used[p.join()]&&h<40);used[p.join()]=1;pts.push(p);}
+    var cx=pts.reduce(function(s,q){return s+q[0];},0)/n, cy=pts.reduce(function(s,q){return s+q[1];},0)/n;
+    pts.sort(function(a,b){return Math.atan2(a[1]-cy,a[0]-cx)-Math.atan2(b[1]-cy,b[0]-cx);});
+    ok=true;var area=0;
+    for(i=0;i<n;i++){var A=pts[i],B=pts[(i+1)%n];if(Math.hypot(B[0]-A[0],B[1]-A[1])<1.4)ok=false;area+=A[0]*B[1]-B[0]*A[1];}
+    if(Math.abs(area)/2 < n*0.9)ok=false;
+    if(ok)break;
+  }
+  var labels=[],vectors=[];
+  for(i=0;i<n;i++)labels.push(LET[i]);
+  for(i=0;i<n;i++){var A2=pts[i],B2=pts[(i+1)%n];vectors.push({name:labels[i]+labels[(i+1)%n],x:B2[0]-A2[0],y:B2[1]-A2[1]});}
+  return {pts:pts,labels:labels,closed:true,vectors:vectors,sig:'p'+pts.map(function(p){return p.join('_');}).join(',')};
 }
+function genRead(kind){return kind==='single'?genSingle():genPoly(kind==='tri'?3:4);}
 function genBuild(){
   var A=[rnd(1,4),rnd(1,4)],vx=nz(-3,3),vy=nz(-3,3),B=[A[0]+vx,A[1]+vy];
   if(B[0]<0||B[0]>6||B[1]<0||B[1]>6)return genBuild();
@@ -89,11 +114,13 @@ function genBuild(){
 
 function build(){
   var d1='',d2='',a1='',a2='',items=[],seen={},n=0,i,g;
-  for(i=0;i<6;i++){var t=0;do{g=genRead();t++;}while(seen[g.sig]&&t<60);seen[g.sig]=1;n++;
-    d1+='<div class="q"><span class="qn">'+n+'.</span><div class="dfig">'+drawVec(g.A,g.B)+'</div>'
-      +'<div class="ansl">$\\overrightarrow{AB}=$<span class="bl"></span></div></div>';
-    a1+='<div class="a"><span class="an">'+n+'.</span><span>$'+vec(g.x,g.y)+'$</span></div>';
-    items.push({q:'Зургаас вектор',a:'('+g.x+','+g.y+')'});}
+  var RTYPES=['single','tri','quad','tri','single','quad'];
+  for(i=0;i<RTYPES.length;i++){var t=0;do{g=genRead(RTYPES[i]);t++;}while(seen[g.sig]&&t<80);seen[g.sig]=1;n++;
+    var vl=g.vectors.map(function(v){return '$\\overrightarrow{'+v.name+'}=$<span class="bl"></span>';}).join('');
+    d1+='<div class="q"><div class="rq"><div class="rfig">'+drawChain(g.pts,g.closed,g.labels)+'</div>'
+      +'<div class="rt"><span class="qn">'+n+'.</span> Векторуудыг бич:<div class="vlist">'+vl+'</div></div></div></div>';
+    a1+='<div class="a"><span class="an">'+n+'.</span><span>'+g.vectors.map(function(v){return '$\\overrightarrow{'+v.name+'}='+vec(v.x,v.y)+'$';}).join(',&nbsp; ')+'</span></div>';
+    items.push({q:'Векторуудын координат',a:g.vectors.map(function(v){return v.name+'('+v.x+','+v.y+')';}).join(' ')});}
   for(i=0;i<6;i++){var t2=0;do{g=genBuild();t2++;}while(seen[g.sig]&&t2<60);seen[g.sig]=1;n++;
     d2+='<div class="q"><span class="qn">'+n+'.</span><span class="give">$\\overrightarrow{AB}='+vec(g.x,g.y)+'$</span><div class="dfig">'+drawStart(g.A)+'</div>'
       +'<div class="ansl">B =<span class="bl"></span></div></div>';
@@ -103,7 +130,7 @@ function build(){
     '<div class="head"><h1>Векторын координат 1</h1><div class="sub">Зургаас векторыг бич · өгсөн координатаар вектор байгуул · 9-р анги</div></div>'
     +'<div class="meta"><span>Нэр: </span><span>Огноо: </span><span>Оноо: </span></div>'
     +'<div class="rule">$\\overrightarrow{AB}=\\dbinom{x_2-x_1}{y_2-y_1}$ &nbsp;·&nbsp; x — хэвтээ, y — босоо шилжилт &nbsp;·&nbsp; байгуулахдаа A-аас x нэгж хэвтээ, y нэгж босоо явж B-г тэмдэглэ</div>'
-    +'<div class="sec"><b>1</b> Зургаас векторыг бич</div><div class="dgrid">'+d1+'</div>'
+    +'<div class="sec"><b>1</b> Зургаас векторуудын координатыг бич</div><div class="rgrid">'+d1+'</div>'
     +'<div class="sec"><b>2</b> Өгсөн вектор байгуул (сум зурж, B-г ол)</div><div class="dgrid">'+d2+'</div>'
     +'<div class="ans-page" id="answers"><h2>Хариунууд</h2><div class="ans-grid">'+a1+a2+'</div></div>';
   window.WS_ITEMS=items;window.WS_TITLE='Векторын координат 1';
