@@ -1389,8 +1389,8 @@ function checkFbReplies(){
   var tk=lsGet('cm_ws_token'), btn=document.getElementById('fbBtn'); if(!tk||!btn)return;
   fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'feedback_mine',token:tk})})
     .then(function(r){return r.json();}).then(function(d){
-      var list=(d&&d.feedback)||[], seen=+lsGet('cm_fb_seen_ts')||0;
-      var neu=list.filter(function(f){return f.reply&&f.replied_at&&new Date(f.replied_at).getTime()>seen;}).length;
+      var list=(d&&d.feedback)||[], seen=+lsGet('cm_fb_seen_ts')||0, neu=0;
+      list.forEach(function(f){(f.thread||[]).forEach(function(m){if(m.sender==='admin'&&new Date(m.at).getTime()>seen)neu++;});});
       var old=btn.querySelector('.fbbadge'); if(old)old.remove();
       if(neu>0){btn.style.position='relative';
         var b=document.createElement('span');b.className='fbbadge';
@@ -1417,27 +1417,43 @@ function openFeedback(){
     +'</div>';
   document.body.appendChild(o);
   if(lsGet('cm_last_user'))o.querySelector('#fbContact').value=lsGet('cm_last_user');
-  (function loadMine(){
-    var tk=lsGet('cm_ws_token'), mn=o.querySelector('#fbMine'); if(!tk||!mn)return;
-    function fbD(s){try{return new Date(s).toLocaleDateString('mn-MN');}catch(e){return '';}}
+  function fbD(s){try{return new Date(s).toLocaleDateString('mn-MN',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});}catch(e){return '';}}
+  function refreshMine(){
+    var mn=o.querySelector('#fbMine'), tk=lsGet('cm_ws_token'); if(!tk||!mn)return;
     fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'feedback_mine',token:tk})})
       .then(function(r){return r.json();}).then(function(d){
-        var list=(d&&d.feedback)||[]; if(!list.length)return;
-        var h='<div style="border-top:1px solid #eee;padding-top:12px"><div style="font-weight:800;color:var(--purple-d);font-size:.92rem;margin-bottom:8px">📨 Миний өмнөх хүсэлтүүд</div>';
+        var list=(d&&d.feedback)||[]; if(!list.length){mn.innerHTML='';return;}
+        var h='<div style="border-top:1px solid #eee;padding-top:14px;margin-top:2px"><div style="font-weight:800;color:var(--purple-d);font-size:.95rem;margin-bottom:10px">📨 Миний хүсэлтүүд</div>';
+        var maxTs=0;
         list.forEach(function(f){
-          h+='<div style="border:1px solid #eee;border-radius:12px;padding:9px 11px;margin-bottom:8px">'
-            +'<div style="font-size:.86rem;color:#333;white-space:pre-wrap">'+esc(f.message)+'</div>'
-            +'<div style="font-size:.7rem;color:var(--soft);margin-top:4px">'+fbD(f.created_at)+'</div>';
-          if(f.reply)h+='<div style="margin-top:8px;background:#f4efff;border-left:3px solid var(--purple);border-radius:8px;padding:8px 10px;font-size:.85rem;color:#3a2d5e;white-space:pre-wrap"><b style="color:var(--purple-d)">↩ CyberMath хариу:</b><br>'+esc(f.reply)+'</div>';
-          else h+='<div style="margin-top:6px;font-size:.76rem;color:var(--soft)">⏳ Хариу хүлээгдэж байна</div>';
+          var conv=[{sender:'user',text:f.message,at:f.created_at}].concat(f.thread||[]);
+          h+='<div style="border:1px solid #ece7fb;border-radius:16px;padding:11px 12px;margin-bottom:11px;background:#faf9ff">';
+          conv.forEach(function(m){
+            var mine=(m.sender==='user');
+            if(m.sender==='admin'){var tt=new Date(m.at).getTime(); if(tt>maxTs)maxTs=tt;}
+            h+='<div style="display:flex;justify-content:'+(mine?'flex-end':'flex-start')+';margin-bottom:6px">'
+              +'<div style="max-width:82%;padding:7px 11px;border-radius:13px;font-size:.85rem;line-height:1.4;white-space:pre-wrap;'
+                +(mine?'background:linear-gradient(135deg,#7B52EE,#A855F7);color:#fff;border-bottom-right-radius:4px':'background:#efe9ff;color:#3a2d5e;border-bottom-left-radius:4px')+'">'
+              +esc(m.text)+'<div style="font-size:.6rem;opacity:.72;margin-top:3px;text-align:right">'+(mine?'Та':'CyberMath')+' · '+fbD(m.at)+'</div></div></div>';
+          });
+          h+='<div style="display:flex;gap:6px;margin-top:8px">'
+            +'<input id="fbadd'+f.id+'" placeholder="Дахин бичих…" style="flex:1;min-width:0;border:1.4px solid #e7ddff;border-radius:999px;padding:.5rem .9rem;font-size:.86rem;outline:none">'
+            +'<button data-fb="'+f.id+'" style="flex-shrink:0;border:0;background:linear-gradient(135deg,var(--purple),var(--purple2));color:#fff;font-weight:800;border-radius:999px;padding:0 1.05rem;cursor:pointer;font-size:1rem">→</button></div>';
           h+='</div>';
         });
         mn.innerHTML=h+'</div>';
-        var maxTs=0; list.forEach(function(f){if(f.reply&&f.replied_at){var tt=new Date(f.replied_at).getTime();if(tt>maxTs)maxTs=tt;}});
+        mn.querySelectorAll('button[data-fb]').forEach(function(btn){
+          var id=+btn.getAttribute('data-fb'), inp=o.querySelector('#fbadd'+id);
+          function send(){var txt=(inp.value||'').trim();if(txt.length<1)return;btn.disabled=true;
+            fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'feedback_add',token:lsGet('cm_ws_token'),id:id,text:txt})})
+              .then(function(r){return r.json();}).then(function(){inp.value='';btn.disabled=false;refreshMine();}).catch(function(){btn.disabled=false;});}
+          btn.onclick=send; if(inp)inp.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();send();}});
+        });
         if(maxTs)lsSet('cm_fb_seen_ts',''+maxTs);
         var bt=document.getElementById('fbBtn'), bd=bt&&bt.querySelector('.fbbadge'); if(bd)bd.remove();
       }).catch(function(){});
-  })();
+  }
+  refreshMine();
   var out=o.querySelector('#fbMsgOut');
   o.querySelector('#fbSend').onclick=function(){
     var msg=(o.querySelector('#fbMsg').value||'').trim();

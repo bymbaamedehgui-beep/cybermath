@@ -8,6 +8,20 @@ const JWT_SECRET = process.env.JWT_SECRET || 'cybermath-default-secret-change-in
 // Дасгалын төвийн нэвтрэлт — имэйл + нууц үг + баталгаажуулах код (тусдаа ws_login)
 function wsSign(email) { return jwt.sign({ email: String(email).toLowerCase(), ws: true }, JWT_SECRET, { expiresIn: '400d' }); }
 function wsEmailFromToken(t) { try { const d = jwt.verify(String(t || ''), JWT_SECRET); return (d && d.ws && d.email) ? String(d.email).toLowerCase() : null; } catch (e) { return null; } }
+// Санал хүсэлтийн мөрүүдэд харилцан ярианы thread-ийг нэг багц query-ээр хавсаргана
+async function attachThreads(rows) {
+  const ids = rows.map(f => f.id);
+  let byFb = {};
+  if (ids.length) {
+    const m = await pool.query('SELECT fb_id, sender, text, created_at FROM ws_feedback_msg WHERE fb_id = ANY($1) ORDER BY created_at ASC', [ids]);
+    m.rows.forEach(x => { (byFb[x.fb_id] = byFb[x.fb_id] || []).push({ sender: x.sender, text: x.text, at: x.created_at }); });
+  }
+  return rows.map(f => {
+    let thread = byFb[f.id] || [];
+    if (thread.length === 0 && f.reply) thread = [{ sender: 'admin', text: f.reply, at: f.replied_at }]; // хуучин ганц reply
+    return { id: f.id, message: f.message, contact: f.contact, created_at: f.created_at, replied_at: f.replied_at, thread };
+  });
+}
 function gen6() { return Math.floor(100000 + Math.random() * 900000).toString(); }
 async function ensureWsLogin() {
   await pool.query(`CREATE TABLE IF NOT EXISTS ws_login (
@@ -110,6 +124,14 @@ module.exports = async (req, res) => {
     await pool.query(`ALTER TABLE ws_feedback ADD COLUMN IF NOT EXISTS reply TEXT`);
     await pool.query(`ALTER TABLE ws_feedback ADD COLUMN IF NOT EXISTS replied_at TIMESTAMPTZ`);
     await pool.query(`ALTER TABLE ws_feedback ADD COLUMN IF NOT EXISTS tg_msg_id BIGINT`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS ws_feedback_msg (
+      id BIGSERIAL PRIMARY KEY,
+      fb_id BIGINT NOT NULL,
+      sender TEXT NOT NULL,
+      text TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_fbmsg_fb ON ws_feedback_msg(fb_id)`);
     // Тохиргоо (announce гэх мэт key/value)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS ws_settings (
@@ -284,9 +306,26 @@ module.exports = async (req, res) => {
         const email = wsEmailFromToken(b.token);
         if (!email) return res.json({ ok: true, feedback: [] });
         const r = await pool.query(
-          'SELECT id, message, reply, replied_at, created_at FROM ws_feedback WHERE lower(contact)=$1 ORDER BY created_at DESC LIMIT 50',
+          'SELECT id, message, contact, reply, replied_at, created_at FROM ws_feedback WHERE lower(contact)=$1 ORDER BY created_at DESC LIMIT 50',
           [email]);
-        return res.json({ ok: true, feedback: r.rows });
+        return res.json({ ok: true, feedback: await attachThreads(r.rows) });
+      }
+      // Хэрэглэгч өөрийн санал хүсэлтэд нэмэлт зурвас бичих (нэвтэрсэн)
+      if (b.action === 'feedback_add') {
+        const email = wsEmailFromToken(b.token);
+        if (!email) return res.status(401).json({ ok: false, error: 'Нэвтэрнэ үү' });
+        const id = parseInt(b.id, 10);
+        const text = String(b.text || '').trim().slice(0, 2000);
+        if (!id || text.length < 1) return res.status(400).json({ ok: false, error: 'Зурвасаа бичнэ үү' });
+        const r = await pool.query('SELECT id FROM ws_feedback WHERE id=$1 AND lower(contact)=$2', [id, email]);
+        if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Олдсонгүй' });
+        await pool.query('INSERT INTO ws_feedback_msg (fb_id, sender, text) VALUES ($1,$2,$3)', [id, 'user', text]);
+        const tg = '💬 <b>Хэрэглэгчийн шинэ зурвас</b> (' + email + ')\n\n' + text +
+          '\n\n<i>↩ Энэ мессежид Reply бичээд хариулна уу</i>';
+        const tr = await sendTelegram(tg);
+        const mid = tr && tr.result && tr.result.message_id;
+        if (mid) { try { await pool.query('UPDATE ws_feedback SET tg_msg_id=$2 WHERE id=$1', [id, mid]); } catch (e) {} }
+        return res.json({ ok: true });
       }
       // Мэдээллийн зурвас (announce) авах — нээлттэй
       if (b.action === 'getAnnounce') {
@@ -305,9 +344,9 @@ module.exports = async (req, res) => {
       if (b.action === 'feedback_list') {
         if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
         const r = await pool.query('SELECT id, message, contact, reply, replied_at, created_at FROM ws_feedback ORDER BY created_at DESC LIMIT 300');
-        return res.json({ ok: true, feedback: r.rows });
+        return res.json({ ok: true, feedback: await attachThreads(r.rows) });
       }
-      // Санал хүсэлтэд хариу бичих — ЗӨВХӨН АДМИН (имэйлтэй бол имэйлээр илгээнэ)
+      // Санал хүсэлтэд хариу бичих — ЗӨВХӨН АДМИН (олон зурвас; имэйлтэй бол имэйлээр илгээнэ)
       if (b.action === 'feedback_reply') {
         if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
         const id = parseInt(b.id, 10);
@@ -315,6 +354,7 @@ module.exports = async (req, res) => {
         if (!id || reply.length < 1) return res.status(400).json({ ok: false, error: 'Хариу бичнэ үү' });
         const r = await pool.query('SELECT contact, message FROM ws_feedback WHERE id=$1', [id]);
         if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Олдсонгүй' });
+        await pool.query('INSERT INTO ws_feedback_msg (fb_id, sender, text) VALUES ($1,$2,$3)', [id, 'admin', reply]);
         await pool.query('UPDATE ws_feedback SET reply=$2, replied_at=NOW() WHERE id=$1', [id, reply]);
         const contact = String(r.rows[0].contact || '').trim();
         let mailed = false;

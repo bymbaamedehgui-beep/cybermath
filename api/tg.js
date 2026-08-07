@@ -67,6 +67,7 @@ module.exports = async (req, res) => {
       const r = await pool.query('SELECT id, contact, message FROM ws_feedback WHERE tg_msg_id=$1', [rmid]);
       if (r.rows.length && reply.length >= 1) {
         const fb = r.rows[0];
+        await pool.query('INSERT INTO ws_feedback_msg (fb_id, sender, text) VALUES ($1,$2,$3)', [fb.id, 'admin', reply]);
         await pool.query('UPDATE ws_feedback SET reply=$2, replied_at=NOW() WHERE id=$1', [fb.id, reply]);
         let mailed = false;
         const contact = String(fb.contact || '').trim();
