@@ -147,11 +147,20 @@ function renderWsFeedback(list){
   list.forEach(function(f){
     var isEmail=/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test((f.contact||'').trim());
     var conv=[{sender:'user',text:f.message,at:f.created_at}].concat(f.thread||[]);
-    h+='<div style="border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:12px;background:var(--surface);">'
-      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;font-size:0.72rem;color:var(--muted);gap:8px;">'
-        +'<span style="font-weight:800;color:var(--text);">👤 '+(f.contact?wsEsc(f.contact):'хаяггүй')+(isEmail?'':' (имэйлгүй)')+'</span>'
-        +'<span>'+wsDate(f.created_at)+'</span></div>'
-      +'<div style="display:flex;flex-direction:column;gap:7px;">';
+    var last=conv[conv.length-1]||{text:''};
+    var prev=(last.text||'').replace(/\s+/g,' ').trim(), prevShort=prev.slice(0,46);
+    var who=(f.contact?wsEsc(f.contact):'хаяггүй');
+    h+='<div style="border:1px solid var(--border);border-radius:14px;margin-bottom:10px;background:var(--surface);overflow:hidden;">'
+      +'<div onclick="wsFbToggle('+f.id+')" style="display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;user-select:none;">'
+        +'<span id="fbarr'+f.id+'" style="color:var(--muted);font-size:.72rem;flex-shrink:0;transition:transform .15s;">▶</span>'
+        +'<div style="flex:1;min-width:0;">'
+          +'<div style="font-weight:800;color:var(--text);font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">👤 '+who+(isEmail?'':' (имэйлгүй)')+'</div>'
+          +'<div style="font-size:.72rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;">'+(last.sender==='admin'?'↩ ':'')+wsEsc(prevShort)+(prev.length>46?'…':'')+'</div>'
+        +'</div>'
+        +'<span style="font-size:.7rem;color:var(--muted);flex-shrink:0;">'+wsDate(f.created_at)+'</span>'
+      +'</div>'
+      +'<div id="fbbody'+f.id+'" style="display:none;padding:0 14px 12px;border-top:1px solid var(--border);">'
+        +'<div style="display:flex;flex-direction:column;gap:7px;padding-top:11px;">';
     conv.forEach(function(m){
       var mine=(m.sender==='admin');
       h+='<div style="display:flex;justify-content:'+(mine?'flex-end':'flex-start')+';">'
@@ -164,10 +173,16 @@ function renderWsFeedback(list){
         +'<textarea id="fbr'+f.id+'" rows="1" placeholder="Хариу бичих…" style="flex:1;border:1px solid var(--border);border-radius:10px;padding:8px 11px;background:var(--surface);color:var(--text);font-size:0.85rem;font-family:inherit;resize:vertical;"></textarea>'
         +'<button onclick="wsReplyFeedback('+f.id+')" style="flex-shrink:0;background:linear-gradient(135deg,#7B52EE,#A855F7);border:0;color:#fff;border-radius:10px;padding:8px 15px;cursor:pointer;font-weight:800;font-size:0.82rem;">Илгээх</button>'
       +'</div><div id="fbrmsg'+f.id+'" style="font-size:0.75rem;font-weight:700;margin-top:4px;"></div>'
-      +'</div>';
+      +'</div></div>';
   });
   el.innerHTML=h;
 }
+window.wsFbToggle=function(id){
+  var b=document.getElementById('fbbody'+id), a=document.getElementById('fbarr'+id);
+  if(!b)return; var open=(b.style.display!=='none');
+  b.style.display=open?'none':'block';
+  if(a)a.style.transform=open?'':'rotate(90deg)';
+};
 window.wsReplyFeedback=async function(id){
   var ta=document.getElementById('fbr'+id), m=document.getElementById('fbrmsg'+id);
   var reply=(ta.value||'').trim(); if(reply.length<1){m.style.color='#dc2626';m.textContent='Хариу бичнэ үү';return;}
