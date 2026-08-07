@@ -363,6 +363,15 @@ module.exports = async (req, res) => {
         }
         return res.json({ ok: true, mailed: mailed });
       }
+      // Санал хүсэлт устгах — ЗӨВХӨН АДМИН
+      if (b.action === 'feedback_delete') {
+        if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
+        const id = parseInt(b.id, 10);
+        if (!id) return res.status(400).json({ ok: false, error: 'id дутуу' });
+        await pool.query('DELETE FROM ws_feedback_msg WHERE fb_id=$1', [id]);
+        await pool.query('DELETE FROM ws_feedback WHERE id=$1', [id]);
+        return res.json({ ok: true });
+      }
       // Нэр өөрчлөх / нуух / сэргээх / дараалал — ЗӨВХӨН АДМИН
       if (['setTitle', 'resetTitle', 'hideTopic', 'unhideTopic', 'setOrder',
            'moveTopic', 'dupTopic', 'removePlacement'].indexOf(b.action) >= 0) {
