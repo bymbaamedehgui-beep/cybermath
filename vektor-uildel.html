@@ -101,20 +101,23 @@ var EXPR=[
  {t:'\\vec a+3\\vec b',f:function(a,b){return [a[0]+3*b[0],a[1]+3*b[1]];}},
  {t:'-\\vec a+2\\vec b',f:function(a,b){return [-a[0]+2*b[0],-a[1]+2*b[1]];}}
 ];
-function mkVec(W,H){var dx=nz(-4,4),dy=nz(-4,4);if(Math.abs(dx)+Math.abs(dy)<3)return mkVec(W,H);
-  var tx=rnd(Math.max(0,-dx),(W-1)-Math.max(0,dx)),ty=rnd(Math.max(0,-dy),(H-1)-Math.max(0,dy));
-  return {tail:[tx,ty],comp:[dx,dy],tip:[tx+dx,ty+dy]};}
-function genTwo(){var W=7,H=6,a=mkVec(W,H),b,tr=0;
-  do{b=mkVec(W,H);tr++;}while(tr<40 && ((a.comp[0]===b.comp[0]&&a.comp[1]===b.comp[1]) ||
-    Math.hypot((a.tail[0]+a.tip[0])/2-(b.tail[0]+b.tip[0])/2,(a.tail[1]+a.tip[1])/2-(b.tail[1]+b.tip[1])/2)<2.6));
+function angBetween(a,b){var d=a[0]*b[0]+a[1]*b[1],la=Math.hypot(a[0],a[1]),lb=Math.hypot(b[0],b[1]);return Math.acos(Math.max(-1,Math.min(1,d/((la*lb)||1))))*180/Math.PI;}
+function mkFromTail(ox,oy,W,H){var dx=nz(-4,4),dy=nz(-4,4);
+  if(Math.abs(dx)+Math.abs(dy)<3)return mkFromTail(ox,oy,W,H);
+  var tx=ox+dx,ty=oy+dy; if(tx<0||tx>W-1||ty<0||ty>H-1)return mkFromTail(ox,oy,W,H);
+  return {tail:[ox,oy],comp:[dx,dy],tip:[tx,ty]};}
+/* Хоёр вектор НЭГ цэгээс гарна (нийтлэг эхлэлтэй) */
+function genTwo(){var W=7,H=6,ox=rnd(1,W-2),oy=rnd(1,H-2);
+  var a=mkFromTail(ox,oy,W,H),b,tr=0;
+  do{b=mkFromTail(ox,oy,W,H);tr++;}while(tr<60 && (angBetween(a.comp,b.comp)<25 || angBetween(a.comp,b.comp)>150));
   return {a:a,b:b,sig:a.comp.join()+'|'+b.comp.join()};}
 
 function build(){
   var d1='',a1='',o='',ao='',items=[],seen={},n=0,i;
   for(i=0;i<4;i++){var t=0,g;do{g=genTwo();t++;}while(seen[g.sig]&&t<60);seen[g.sig]=1;n++;
     d1+='<div class="q"><div class="rq"><div class="rfig">'+drawTwo(g)+'</div>'
-      +'<div class="rt"><span class="qn">'+n+'.</span> Өгсөн <span style="color:#2f6cae;font-weight:800">$\\vec a$</span>, <span style="color:#16a34a;font-weight:800">$\\vec b$</span> хоёр векторыг <b>нэмж</b> сүүл-үзүүр аргаар $\\vec a+\\vec b$-г зур.</div></div></div>';
-    items.push({q:'Векторыг зурж нэмэх',a:'сүүл-үзүүр аргаар байгуулна'});}
+      +'<div class="rt"><span class="qn">'+n+'.</span> Өгсөн <span style="color:#2f6cae;font-weight:800">$\\vec a$</span>, <span style="color:#16a34a;font-weight:800">$\\vec b$</span> хоёр векторыг <b>нэмж</b> $\\vec a+\\vec b$-г зур.</div></div></div>';
+    items.push({q:'Векторыг зурж нэмэх',a:'зурж байгуулна'});}
   var a=[nz(-5,5),nz(-5,5)],b=[nz(-5,5),nz(-5,5)];
   var ex=shuffle(EXPR.slice()).slice(0,8);
   for(i=0;i<ex.length;i++){var e=ex[i],r=e.f(a,b);n++;
@@ -125,8 +128,8 @@ function build(){
   document.getElementById('sheet').innerHTML=
     '<div class="head"><h1>Векторын үйлдэл</h1><div class="sub">Векторыг зурж нэмэх · координатаар нэмэх·хасах·тоогоор үржүүлж эмхэтгэх · 9-р анги</div></div>'
     +'<div class="meta"><span>Нэр: </span><span>Огноо: </span><span>Оноо: </span></div>'
-    +'<div class="rule">$\\vec a\\pm\\vec b=\\dbinom{a_1\\pm b_1}{a_2\\pm b_2}$ &nbsp;·&nbsp; $k\\vec a=\\dbinom{k\\,a_1}{k\\,a_2}$ &nbsp;·&nbsp; зурж нэмэхэд сүүл-үзүүр аргаар</div>'
-    +'<div class="sec"><b>1</b> Векторыг зурж нэмэх (сүүл-үзүүр аргаар $\\vec a+\\vec b$-г байгуул)</div><div class="dgrid">'+d1+'</div>'
+    +'<div class="rule">$\\vec a\\pm\\vec b=\\dbinom{a_1\\pm b_1}{a_2\\pm b_2}$ &nbsp;·&nbsp; $k\\vec a=\\dbinom{k\\,a_1}{k\\,a_2}$</div>'
+    +'<div class="sec"><b>1</b> Векторыг зурж нэмэх ($\\vec a+\\vec b$-г байгуул)</div><div class="dgrid">'+d1+'</div>'
     +'<div class="sec"><b>2</b> Координатаар үйлдэл хийж эмхэтгэ</div>'
     +'<div class="given">$\\vec a='+vec(a[0],a[1])+'$ &nbsp;&nbsp; $\\vec b='+vec(b[0],b[1])+'$</div>'
     +'<div class="ogrid">'+o+'</div>'

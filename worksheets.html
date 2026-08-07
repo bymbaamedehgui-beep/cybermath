@@ -1384,6 +1384,21 @@ function showAnnounce(text){
   // Дарж/хүрч түр зогсооно · дахин дарж үргэлжлүүлнэ (утсан дээр ажиллана)
   if(!ab._bound){ab._bound=1;ab.addEventListener('click',function(){ab.classList.toggle('paused');});}
 }
+/* ── Шинэ хариу ирсэн эсэхийг шалгаж "+N" тэмдэг гаргах ── */
+function checkFbReplies(){
+  var tk=lsGet('cm_ws_token'), btn=document.getElementById('fbBtn'); if(!tk||!btn)return;
+  fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'feedback_mine',token:tk})})
+    .then(function(r){return r.json();}).then(function(d){
+      var list=(d&&d.feedback)||[], seen=+lsGet('cm_fb_seen_ts')||0;
+      var neu=list.filter(function(f){return f.reply&&f.replied_at&&new Date(f.replied_at).getTime()>seen;}).length;
+      var old=btn.querySelector('.fbbadge'); if(old)old.remove();
+      if(neu>0){btn.style.position='relative';
+        var b=document.createElement('span');b.className='fbbadge';
+        b.style.cssText='position:absolute;top:-7px;right:-6px;background:#ef4444;color:#fff;font-size:.62rem;font-weight:900;border-radius:999px;padding:1px 6px;box-shadow:0 3px 8px -2px rgba(239,68,68,.7)';
+        b.textContent='+'+neu; btn.appendChild(b);
+      }
+    }).catch(function(){});
+}
 /* ── Санал хүсэлт (→ Telegram мэдэгдэл) ── */
 function openFeedback(){
   if(document.getElementById('wsFb'))return;
@@ -1418,6 +1433,9 @@ function openFeedback(){
           h+='</div>';
         });
         mn.innerHTML=h+'</div>';
+        var maxTs=0; list.forEach(function(f){if(f.reply&&f.replied_at){var tt=new Date(f.replied_at).getTime();if(tt>maxTs)maxTs=tt;}});
+        if(maxTs)lsSet('cm_fb_seen_ts',''+maxTs);
+        var bt=document.getElementById('fbBtn'), bd=bt&&bt.querySelector('.fbbadge'); if(bd)bd.remove();
       }).catch(function(){});
   })();
   var out=o.querySelector('#fbMsgOut');
@@ -1441,6 +1459,7 @@ if(!isAdmin()){
   verifyUser(function(){
     if(!CM_USER && !PAYWALL_OFF && !lsGet('cm_ws_dismissed')) openLogin(true);
     else ensurePin();
+    checkFbReplies();
   });
 }
 document.getElementById('q').addEventListener('input',applyFilters);

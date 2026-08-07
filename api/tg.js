@@ -36,17 +36,32 @@ module.exports = async (req, res) => {
     } catch (e) { return res.status(500).json({ ok: false, error: e.message }); }
   }
 
+  // ── Оношлогоо: webhook бүртгэгдсэн эсэх / орчны хувьсагч шалгах ──
+  if (req.method === 'GET' && (q.info || q.diag)) {
+    if (!SECRET || q.secret !== SECRET) return res.status(403).json({ ok: false, error: 'secret буруу эсвэл TG_WEBHOOK_SECRET тохируулаагүй' });
+    if (q.info) {
+      if (!TOKEN) return res.status(400).json({ ok: false, error: 'TELEGRAM_BOT_TOKEN алга' });
+      try { const r = await fetch(`https://api.telegram.org/bot${TOKEN}/getWebhookInfo`); return res.status(200).json(await r.json()); }
+      catch (e) { return res.status(500).json({ ok: false, error: e.message }); }
+    }
+    let mapped = 0;
+    try { const c = await pool.query('SELECT COUNT(*)::int AS n FROM ws_feedback WHERE tg_msg_id IS NOT NULL'); mapped = c.rows[0].n; } catch (e) {}
+    return res.status(200).json({ ok: true, env: { bot_token: !!TOKEN, chat_id: OWNER || null, webhook_secret: !!SECRET }, feedback_with_tg_msg_id: mapped });
+  }
+
   // ── Webhook update (Telegram POST) ──
   const hsecret = req.headers['x-telegram-bot-api-secret-token'] || '';
   if (SECRET && q.secret !== SECRET && hsecret !== SECRET) return res.status(403).json({ ok: false });
 
-  let body = req.body || {};
+  let body = req.body;
+  if (Buffer.isBuffer(body)) body = body.toString('utf8');
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = {}; } }
+  if (!body || typeof body !== 'object') body = {};
 
   try {
     const msg = body.message || body.edited_message;
-    // Зөвхөн эзний чатаас ирсэн, тодорхой мэдэгдэлд хийсэн Reply-г боловсруулна
-    if (msg && msg.reply_to_message && msg.text && (!OWNER || String(msg.chat && msg.chat.id) === String(OWNER))) {
+    // Аль ч мэдэгдэлд хийсэн Reply-г боловсруулна (tg_msg_id тааруулгаар л эзэнд хамаарна)
+    if (msg && msg.reply_to_message && msg.text) {
       const rmid = msg.reply_to_message.message_id;
       const reply = String(msg.text).trim().slice(0, 2000);
       const r = await pool.query('SELECT id, contact, message FROM ws_feedback WHERE tg_msg_id=$1', [rmid]);
