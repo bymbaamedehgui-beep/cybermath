@@ -271,6 +271,11 @@
         "border-top:1px solid #eee;font:800 11.5px 'Segoe UI',Arial,sans-serif;color:#8f83b8;"+
         'letter-spacing:.4px;-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
       '.cm-foot b{color:#5a32d6}'+
+      // Хэрэгтэй үед хуудсан дээр нэр/огноо шууд бичиж хэвлэх талбарууд
+      '.cm-fill{display:inline-block;min-width:90px;outline:none;font-weight:800;color:#1a1030;cursor:text}'+
+      '.cm-fill:focus{background:#f5efff;border-radius:4px}'+
+      '.cm-fill:empty:not(:focus)::before{content:attr(data-ph);color:#c7bde6;font-weight:600}'+
+      '@media print{.cm-fill{min-width:50px}.cm-fill:empty::before{content:""}}'+
       // ─── Гар утасны тохируулга: хуудас хойшоо гарахгүй болгох (зөвхөн дэлгэц, хэвлэлд нөлөөлөхгүй) ───
       '@media screen and (max-width:820px){'+
         'html,body{overflow-x:hidden!important}'+
@@ -302,10 +307,28 @@
     }
     sh.classList.add('cm-branded');
   }
+  // ─── Нэр/огноо/оноог хуудсан дээр шууд бичиж хэвлэх (contenteditable) ───
+  var savedName=ls('cm_ws_name')||'';
+  function enhanceMeta(){
+    var spans=document.querySelectorAll('#sheet .meta > span'); if(!spans.length)return;
+    [].forEach.call(spans,function(sp){
+      if(sp.classList.contains('cm-fill')||sp.querySelector('.cm-fill'))return;
+      var raw=(sp.textContent||'').trim(), ci=raw.indexOf(':');
+      var label=ci>=0?raw.slice(0,ci+1):raw;
+      var isName=/Нэр/i.test(label);
+      sp.textContent=label+' ';
+      var f=document.createElement('span');
+      f.className='cm-fill'; f.contentEditable='true'; f.spellcheck=false;
+      f.setAttribute('data-ph', isName?'нэр…':' ');
+      if(isName&&savedName)f.textContent=savedName;
+      sp.appendChild(f);
+      f.addEventListener('input',function(){ if(isName){ savedName=(f.textContent||'').replace(/\s+$/,''); lset('cm_ws_name',savedName); } });
+    });
+  }
   function watchSheet(){
     var sh=document.getElementById('sheet'); if(!sh)return;
-    // "Шинэ бодлого" дарахад #sheet дахин үүсдэг тул тамгыг эргүүлж нэмнэ
-    new MutationObserver(function(){ if(!sh.querySelector('.cm-wm'))brandSheet(); })
+    // "Шинэ бодлого" дарахад #sheet дахин үүсдэг тул тамга ба нэрийн талбарыг эргүүлж нэмнэ
+    new MutationObserver(function(){ if(!sh.querySelector('.cm-wm'))brandSheet(); enhanceMeta(); })
       .observe(sh,{childList:true});
   }
 
@@ -394,7 +417,7 @@
     loadSocial(wrap);
   }
 
-  function init(){ injectBrandCSS(); brandSheet(); watchSheet(); if(!IS_QR)addBtn(); applyQR(); enforcePaywall(); injectSocial(); }
+  function init(){ injectBrandCSS(); brandSheet(); watchSheet(); enhanceMeta(); if(!IS_QR)addBtn(); applyQR(); enforcePaywall(); injectSocial(); }
   if(document.readyState!=='loading')init();
   else document.addEventListener('DOMContentLoaded',init);
 })();
