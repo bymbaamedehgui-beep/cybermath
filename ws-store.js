@@ -258,7 +258,8 @@
     st.textContent=
       '#sheet{position:relative}'+
       '#sheet.cm-branded>*:not(.cm-wm){position:relative;z-index:1}'+
-      '.cm-wm{position:absolute;top:50%;left:50%;z-index:0;pointer-events:none;text-align:center;'+
+      // Тамга бодолтын/хариу хайрцгуудын ЦААНА нуугдахгүйн тулд хамгийн дээр (наана) гаргана — сул тул бичихэд саад болохгүй
+      '.cm-wm{position:absolute;top:50%;left:50%;z-index:5;pointer-events:none;text-align:center;'+
         'transform:translate(-50%,-50%) rotate(-20deg);'+
         '-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
       '.cm-wm .cm-bird{display:block;margin:0 auto;width:clamp(150px,30vw,260px);opacity:.07}'+
