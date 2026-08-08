@@ -132,6 +132,27 @@ module.exports = async (req, res) => {
       created_at TIMESTAMPTZ DEFAULT NOW()
     )`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_fbmsg_fb ON ws_feedback_msg(fb_id)`);
+    // Ажлын хуудас бүрийн сэтгэгдэл ба reaction (slug-аар түлхүүрлэнэ)
+    await pool.query(`CREATE TABLE IF NOT EXISTS ws_comments (
+      id BIGSERIAL PRIMARY KEY,
+      slug TEXT NOT NULL,
+      name TEXT,
+      email TEXT,
+      body TEXT NOT NULL,
+      is_admin BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_wsc_slug ON ws_comments(slug)`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS ws_reactions (
+      id BIGSERIAL PRIMARY KEY,
+      slug TEXT NOT NULL,
+      user_key TEXT NOT NULL,
+      reaction TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(slug, user_key)
+    )`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_wsr_slug ON ws_reactions(slug)`);
     // Тохиргоо (announce гэх мэт key/value)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS ws_settings (
@@ -325,6 +346,53 @@ module.exports = async (req, res) => {
         const tr = await sendTelegram(tg);
         const mid = tr && tr.result && tr.result.message_id;
         if (mid) { try { await pool.query('UPDATE ws_feedback SET tg_msg_id=$2 WHERE id=$1', [id, mid]); } catch (e) {} }
+        return res.json({ ok: true });
+      }
+      // ─── Ажлын хуудсын сэтгэгдэл ба reaction (slug-аар) ───
+      const REACTS = ['like', 'love', 'haha', 'wow', 'sad', 'clap'];
+      const clSlug = (s) => String(s || '').slice(0, 120).toLowerCase().replace(/[^a-z0-9._-]/g, '');
+      if (b.action === 'wsc_list') {
+        const slug = clSlug(b.slug);
+        if (!slug) return res.json({ ok: true, comments: [], reactions: { counts: {}, mine: null } });
+        const ukey = String(b.ukey || '').slice(0, 100);
+        const c = await pool.query('SELECT id, name, body, is_admin, created_at FROM ws_comments WHERE slug=$1 ORDER BY created_at ASC LIMIT 400', [slug]);
+        const rc = await pool.query('SELECT reaction, COUNT(*)::int AS n FROM ws_reactions WHERE slug=$1 GROUP BY reaction', [slug]);
+        const counts = {}; rc.rows.forEach(r => { counts[r.reaction] = r.n; });
+        let mine = null;
+        if (ukey) { const m = await pool.query('SELECT reaction FROM ws_reactions WHERE slug=$1 AND user_key=$2', [slug, ukey]); mine = m.rows[0] ? m.rows[0].reaction : null; }
+        return res.json({ ok: true, comments: c.rows.map(x => ({ id: x.id, name: x.name, body: x.body, is_admin: x.is_admin, at: x.created_at })), reactions: { counts, mine } });
+      }
+      if (b.action === 'wsc_add') {
+        const slug = clSlug(b.slug);
+        const body = String(b.body || '').trim().slice(0, 1000);
+        if (!slug || body.length < 1) return res.status(400).json({ ok: false, error: 'Сэтгэгдлээ бичнэ үү' });
+        const email = wsEmailFromToken(b.token);
+        const adminFlag = isAdmin(req);
+        const name = adminFlag ? 'CyberMath ✔' : (email || String(b.name || '').trim().slice(0, 60) || 'Зочин');
+        const ins = await pool.query('INSERT INTO ws_comments (slug, name, email, body, is_admin) VALUES ($1,$2,$3,$4,$5) RETURNING id, created_at', [slug, name, email || null, body, adminFlag]);
+        try { await sendTelegram('💬 <b>Ажлын хуудсанд сэтгэгдэл</b> (' + slug + ')\n\n<b>' + name + ':</b> ' + body); } catch (e) {}
+        return res.json({ ok: true, comment: { id: ins.rows[0].id, name, body, is_admin: adminFlag, at: ins.rows[0].created_at } });
+      }
+      if (b.action === 'wsc_react') {
+        const slug = clSlug(b.slug);
+        const ukey = String(b.ukey || '').slice(0, 100);
+        const reaction = String(b.reaction || '');
+        if (!slug || !ukey) return res.status(400).json({ ok: false });
+        if (!reaction) {
+          await pool.query('DELETE FROM ws_reactions WHERE slug=$1 AND user_key=$2', [slug, ukey]);
+        } else {
+          if (REACTS.indexOf(reaction) < 0) return res.status(400).json({ ok: false, error: 'invalid' });
+          await pool.query('INSERT INTO ws_reactions (slug, user_key, reaction) VALUES ($1,$2,$3) ON CONFLICT (slug, user_key) DO UPDATE SET reaction=EXCLUDED.reaction, updated_at=NOW()', [slug, ukey, reaction]);
+        }
+        const rc = await pool.query('SELECT reaction, COUNT(*)::int AS n FROM ws_reactions WHERE slug=$1 GROUP BY reaction', [slug]);
+        const counts = {}; rc.rows.forEach(r => { counts[r.reaction] = r.n; });
+        return res.json({ ok: true, counts, mine: reaction || null });
+      }
+      if (b.action === 'wsc_delete') {
+        if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
+        const id = parseInt(b.id, 10);
+        if (!id) return res.status(400).json({ ok: false });
+        await pool.query('DELETE FROM ws_comments WHERE id=$1', [id]);
         return res.json({ ok: true });
       }
       // Мэдээллийн зурвас (announce) авах — нээлттэй

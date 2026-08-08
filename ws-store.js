@@ -308,7 +308,92 @@
       .observe(sh,{childList:true});
   }
 
-  function init(){ injectBrandCSS(); brandSheet(); watchSheet(); if(!IS_QR)addBtn(); applyQR(); enforcePaywall(); }
+  // ─── Ажлын хуудас бүрийн reaction + сэтгэгдэл ───
+  var RX=[['like','👍'],['love','❤️'],['haha','😂'],['wow','😮'],['sad','😢'],['clap','👏']];
+  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function uid(){var k=ls('cm_uid');if(!k){k='u'+Math.random().toString(36).slice(2)+Date.now().toString(36);lset('cm_uid',k);}return k;}
+  function ukey(){return ls('cm_last_user')||uid();}
+  function sApi(action,data){data=data||{};data.action=action;var h={'Content-Type':'application/json'};var at=ls('cm_admin_token');if(at)h['Authorization']='Bearer '+at;var wt=ls('cm_ws_token');if(wt)data.token=wt;
+    return fetch('/api/worksheets',{method:'POST',headers:h,body:JSON.stringify(data)}).then(function(r){return r.json();});}
+  function ago(s){try{var t=new Date(s).getTime(),d=(Date.now()-t)/1000;if(d<60)return 'дөнгөж';if(d<3600)return Math.floor(d/60)+' мин';if(d<86400)return Math.floor(d/3600)+' цаг';if(d<2592000)return Math.floor(d/86400)+' хоног';return new Date(s).toLocaleDateString('mn-MN');}catch(e){return '';}}
+  function injectSocialCSS(){
+    if(document.getElementById('cm-social-css'))return;
+    var st=document.createElement('style');st.id='cm-social-css';
+    st.textContent=
+      '.cm-social{max-width:210mm;margin:14px auto 40px;font-family:"Segoe UI",Arial,sans-serif}'+
+      '.cm-card{background:#fff;border:1px solid #ece7fb;border-radius:16px;padding:16px 18px;box-shadow:0 10px 30px -20px rgba(90,50,214,.5)}'+
+      '.cm-rx{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px}'+
+      '.cm-rx button{display:inline-flex;align-items:center;gap:5px;border:1.5px solid #eadffb;background:#faf8ff;border-radius:999px;padding:.4rem .8rem;cursor:pointer;font-size:1rem;font-weight:800;color:#5a32d6;transition:.12s;line-height:1}'+
+      '.cm-rx button:hover{transform:translateY(-2px)}'+
+      '.cm-rx button.on{background:linear-gradient(135deg,#7B52EE,#A855F7);border-color:#7B52EE;color:#fff}'+
+      '.cm-rx button .n{font-size:.82rem;font-weight:800}'+
+      '.cm-ctitle{font-weight:900;color:#5a32d6;font-size:1rem;margin:14px 0 10px;display:flex;align-items:center;gap:7px}'+
+      '.cm-clist{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}'+
+      '.cm-c{background:#faf9ff;border:1px solid #efe9ff;border-radius:12px;padding:9px 12px}'+
+      '.cm-c .h{display:flex;align-items:center;gap:7px;font-size:.8rem;margin-bottom:3px}'+
+      '.cm-c .nm{font-weight:800;color:#3a2d5e}.cm-c .nm.adm{color:#7B52EE}'+
+      '.cm-c .tm{color:#9a92b5;font-weight:600}'+
+      '.cm-c .bd{font-size:.9rem;color:#2c2545;white-space:pre-wrap;line-height:1.45}'+
+      '.cm-c .del{margin-left:auto;border:0;background:transparent;color:#ef4444;cursor:pointer;font-size:.82rem}'+
+      '.cm-empty{color:#9a92b5;font-size:.88rem;padding:4px 2px 10px}'+
+      '.cm-form{display:flex;flex-direction:column;gap:8px}'+
+      '.cm-form input,.cm-form textarea{border:1.5px solid #e7ddff;border-radius:11px;padding:.6rem .85rem;font-size:.9rem;outline:none;font-family:inherit;width:100%;box-sizing:border-box}'+
+      '.cm-form textarea{resize:vertical;min-height:64px}'+
+      '.cm-form .row{display:flex;justify-content:flex-end;gap:8px;align-items:center}'+
+      '.cm-form button{border:0;background:linear-gradient(135deg,#7B52EE,#A855F7);color:#fff;font-weight:800;border-radius:999px;padding:.6rem 1.4rem;cursor:pointer;font-size:.9rem}'+
+      '@media print{.cm-social{display:none!important}}';
+    document.head.appendChild(st);
+  }
+  function renderSocialData(root,d){
+    var counts=(d.reactions&&d.reactions.counts)||{}, mine=(d.reactions&&d.reactions.mine)||null;
+    var rx=root.querySelector('.cm-rx');
+    rx.innerHTML=RX.map(function(p){var n=counts[p[0]]||0;return '<button data-r="'+p[0]+'" class="'+(mine===p[0]?'on':'')+'">'+p[1]+(n?' <span class="n">'+n+'</span>':'')+'</button>';}).join('');
+    [].forEach.call(rx.querySelectorAll('button'),function(b){b.onclick=function(){
+      var r=b.getAttribute('data-r'); var next=(mine===r)?'':r;
+      sApi('wsc_react',{slug:curSlug(),ukey:ukey(),reaction:next}).then(function(res){ if(res&&res.ok)renderSocialData(root,{reactions:{counts:res.counts,mine:res.mine},comments:null}); });
+    };});
+    if(d.comments!==null){
+      var list=root.querySelector('.cm-clist'), cnt=root.querySelector('.cm-ccount');
+      var cs=d.comments||[]; if(cnt)cnt.textContent=cs.length?('('+cs.length+')'):'';
+      var isAdmin=!!ls('cm_admin_token');
+      if(!cs.length){list.innerHTML='<div class="cm-empty">Одоогоор сэтгэгдэл алга. Хамгийн түрүүнд бичээрэй!</div>';}
+      else list.innerHTML=cs.map(function(c){
+        return '<div class="cm-c" data-id="'+c.id+'"><div class="h"><span class="nm'+(c.is_admin?' adm':'')+'">'+esc(c.name)+(c.is_admin?' ✔':'')+'</span><span class="tm">· '+ago(c.at)+'</span>'+(isAdmin?'<button class="del" title="Устгах">🗑</button>':'')+'</div><div class="bd">'+esc(c.body)+'</div></div>';
+      }).join('');
+      if(isAdmin)[].forEach.call(list.querySelectorAll('.del'),function(b){b.onclick=function(){var id=b.closest('.cm-c').getAttribute('data-id');if(!confirm('Сэтгэгдлийг устгах уу?'))return;sApi('wsc_delete',{id:+id}).then(function(){loadSocial(root);});};});
+    }
+  }
+  function loadSocial(root){ sApi('wsc_list',{slug:curSlug(),ukey:ukey()}).then(function(d){ if(d&&d.ok)renderSocialData(root,d); }); }
+  function injectSocial(){
+    if(inIframe()||document.querySelector('.cm-social'))return;
+    injectSocialCSS();
+    var wrap=document.createElement('div');wrap.className='cm-social';
+    var hasEmail=!!ls('cm_last_user');
+    wrap.innerHTML='<div class="cm-card">'
+      +'<div class="cm-rx"></div>'
+      +'<div class="cm-ctitle">💬 Сэтгэгдэл <span class="cm-ccount" style="font-weight:700;color:#9a92b5;font-size:.85rem"></span></div>'
+      +'<div class="cm-clist"></div>'
+      +'<div class="cm-form">'
+        +(hasEmail?'':'<input class="cm-name" type="text" maxlength="60" placeholder="Таны нэр (заавал биш)">')
+        +'<textarea class="cm-body" maxlength="1000" placeholder="Энэ ажлын хуудасны талаар сэтгэгдэл, санал бичих…"></textarea>'
+        +'<div class="row"><button type="button" class="cm-send">Илгээх</button></div>'
+      +'</div></div>';
+    document.body.appendChild(wrap);
+    renderSocialData(wrap,{reactions:{counts:{},mine:null},comments:[]}); // шууд харуулна, дараа нь API-аас шинэчилнэ
+    var send=wrap.querySelector('.cm-send'), bodyIn=wrap.querySelector('.cm-body'), nameIn=wrap.querySelector('.cm-name');
+    send.onclick=function(){
+      var body=(bodyIn.value||'').trim(); if(body.length<1){bodyIn.focus();return;}
+      send.disabled=true;var ot=send.textContent;send.textContent='Илгээж байна…';
+      sApi('wsc_add',{slug:curSlug(),body:body,name:nameIn?(nameIn.value||'').trim():''}).then(function(res){
+        send.disabled=false;send.textContent=ot;
+        if(res&&res.ok){bodyIn.value='';loadSocial(wrap);}
+        else alert((res&&res.error)||'Илгээж чадсангүй');
+      }).catch(function(){send.disabled=false;send.textContent=ot;alert('Сүлжээний алдаа');});
+    };
+    loadSocial(wrap);
+  }
+
+  function init(){ injectBrandCSS(); brandSheet(); watchSheet(); if(!IS_QR)addBtn(); applyQR(); enforcePaywall(); injectSocial(); }
   if(document.readyState!=='loading')init();
   else document.addEventListener('DOMContentLoaded',init);
 })();
