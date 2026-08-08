@@ -132,6 +132,89 @@ window.loadWsSales = async function(){
   try{ var an=await wsPostW('getAnnounce',{}); var ai=document.getElementById('ws-announce'); if(ai)ai.value=(an&&an.announce)||''; }catch(e){}
   try{ var fb=await wsPostW('feedback_list',{}); renderWsFeedback((fb&&fb.feedback)||[]); }
   catch(e){ var fe=document.getElementById('ws-feedback-list'); if(fe)fe.innerHTML='<div style="color:#dc2626;padding:8px;">Алдаа: '+wsEsc(e.message)+'</div>'; }
+  try{ loadEventsAdmin(); }catch(e){}
+};
+window.loadEventsAdmin=async function(){
+  var el=document.getElementById('ev-list'); if(!el)return;
+  try{ var d=await wsPostW('event_list',{}); renderEventsAdmin((d&&d.events)||[]); }
+  catch(e){ el.innerHTML='<div style="color:#dc2626;padding:6px;">Алдаа: '+wsEsc(e.message)+'</div>'; }
+};
+function renderEventsAdmin(list){
+  var el=document.getElementById('ev-list'); if(!el)return;
+  if(!list.length){el.innerHTML='<div style="color:var(--muted);font-size:0.82rem;padding:4px;">Одоогоор сургалт алга.</div>';return;}
+  el.innerHTML='<div style="font-size:0.76rem;font-weight:800;color:var(--muted);margin-bottom:6px;">Зарласан сургалтууд</div>'+list.map(function(e){
+    var slots=(e.slots||[]).join(' · ');
+    return '<div style="border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:8px;background:var(--surface);">'
+      +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
+        +'<span style="font-weight:800;color:var(--text);">'+wsEsc(e.title)+'</span>'
+        +(e.active?'<span style="font-size:.68rem;font-weight:800;background:#eafff1;color:#16a34a;border-radius:999px;padding:1px 8px;">идэвхтэй</span>':'<span style="font-size:.68rem;font-weight:800;background:var(--surface2);color:var(--muted);border-radius:999px;padding:1px 8px;">идэвхгүй</span>')
+        +'<span style="margin-left:auto;font-size:.76rem;color:var(--muted);">💰 '+Number(e.price).toLocaleString()+'₮ · 👥 '+e.paid_count+'/'+e.reg_count+' төлсөн</span>'
+      +'</div>'
+      +(slots?'<div style="font-size:.76rem;color:var(--muted);margin-top:4px;">🕒 '+wsEsc(slots)+'</div>':'')
+      +'<div style="display:flex;gap:6px;margin-top:8px;">'
+        +'<button onclick=\'wsEditEvent('+e.id+')\' style="border:1px solid var(--border);background:var(--surface2);color:var(--text);border-radius:8px;padding:5px 11px;cursor:pointer;font-weight:700;font-size:.78rem;">✏️ Засах</button>'
+        +'<button onclick="wsViewRegs("+e.id+")" style="border:1px solid var(--border);background:var(--surface2);color:var(--text);border-radius:8px;padding:5px 11px;cursor:pointer;font-weight:700;font-size:.78rem;">👥 Бүртгэл ('+e.reg_count+')</button>'
+        +'<button onclick="wsDeleteEvent("+e.id+")" style="border:0;background:transparent;color:#ef4444;cursor:pointer;font-weight:700;font-size:.78rem;margin-left:auto;">🗑 Устгах</button>'
+      +'</div></div>';
+  }).join('');
+  window._EV_ADMIN=list;
+}
+window.wsEditEvent=function(id){
+  var e=(window._EV_ADMIN||[]).filter(function(x){return x.id===id;})[0]; if(!e)return;
+  document.getElementById('ev-id').value=e.id;
+  document.getElementById('ev-title').value=e.title||'';
+  document.getElementById('ev-descr').value=e.descr||'';
+  document.getElementById('ev-price').value=e.price||20000;
+  document.getElementById('ev-active').value=e.active?'1':'0';
+  document.getElementById('ev-slots').value=(e.slots||[]).join('\n');
+  document.getElementById('ev-title').scrollIntoView({behavior:'smooth',block:'center'});
+};
+window.wsResetEventForm=function(){
+  document.getElementById('ev-id').value='';
+  document.getElementById('ev-title').value='';
+  document.getElementById('ev-descr').value='';
+  document.getElementById('ev-price').value='20000';
+  document.getElementById('ev-active').value='1';
+  document.getElementById('ev-slots').value='';
+  document.getElementById('ev-regs').innerHTML='';
+  var m=document.getElementById('ev-msg'); if(m)m.textContent='';
+};
+window.wsSaveEvent=async function(){
+  var m=document.getElementById('ev-msg');
+  var title=(document.getElementById('ev-title').value||'').trim();
+  if(!title){m.style.color='#dc2626';m.textContent='Гарчиг оруулна уу';return;}
+  var body={
+    id:document.getElementById('ev-id').value||undefined,
+    title:title,
+    descr:(document.getElementById('ev-descr').value||'').trim(),
+    price:parseInt(document.getElementById('ev-price').value,10)||20000,
+    slots:(document.getElementById('ev-slots').value||''),
+    active:document.getElementById('ev-active').value==='1'
+  };
+  m.style.color='var(--muted)';m.textContent='Хадгалж байна…';
+  try{ await wsPostW('event_save',body); m.style.color='#16a34a';m.textContent='✓ Хадгаллаа'; wsResetEventForm(); loadEventsAdmin(); }
+  catch(e){ m.style.color='#dc2626';m.textContent='Алдаа: '+e.message; }
+};
+window.wsDeleteEvent=async function(id){
+  if(!confirm('Энэ сургалтыг бүртгэлтэй нь бүрмөсөн устгах уу?'))return;
+  try{ await wsPostW('event_delete',{id:id}); loadEventsAdmin(); document.getElementById('ev-regs').innerHTML=''; }
+  catch(e){ alert('Алдаа: '+e.message); }
+};
+window.wsViewRegs=async function(id){
+  var el=document.getElementById('ev-regs'); el.innerHTML='<div style="color:var(--muted);font-size:0.8rem;padding:6px;">Ачааллаж байна…</div>';
+  try{ var d=await wsPostW('event_regs',{event_id:id}); var regs=(d&&d.regs)||[];
+    if(!regs.length){el.innerHTML='<div style="color:var(--muted);font-size:0.82rem;padding:6px;">Бүртгэл алга.</div>';return;}
+    el.innerHTML='<div style="font-size:0.76rem;font-weight:800;color:var(--muted);margin:4px 0 6px;">Бүртгэгдсэн хүмүүс ('+regs.length+')</div>'
+      +'<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.8rem;"><thead><tr style="color:var(--muted);text-align:left;">'
+      +'<th style="padding:4px 8px;">Төлөв</th><th style="padding:4px 8px;">Нэр/Имэйл</th><th style="padding:4px 8px;">Утас</th><th style="padding:4px 8px;">Цаг</th><th style="padding:4px 8px;">Огноо</th></tr></thead><tbody>'
+      +regs.map(function(r){return '<tr style="border-top:1px solid var(--border);">'
+        +'<td style="padding:5px 8px;">'+(r.paid?'<span style="color:#16a34a;font-weight:800;">✓ Төлсөн</span>':'<span style="color:#f59e0b;font-weight:800;">⏳ Хүлээгдэж</span>')+'</td>'
+        +'<td style="padding:5px 8px;">'+wsEsc(r.name||'')+'<div style="color:var(--muted);font-size:.72rem;">'+wsEsc(r.email)+'</div></td>'
+        +'<td style="padding:5px 8px;">'+wsEsc(r.phone||'')+'</td>'
+        +'<td style="padding:5px 8px;">'+wsEsc(r.slot||'')+'</td>'
+        +'<td style="padding:5px 8px;color:var(--muted);">'+wsDate(r.created_at)+'</td></tr>';}).join('')
+      +'</tbody></table></div>';
+  }catch(e){ el.innerHTML='<div style="color:#dc2626;padding:6px;">Алдаа: '+wsEsc(e.message)+'</div>'; }
 };
 window.saveAnnounce=async function(){
   var t=(document.getElementById('ws-announce').value||'').trim();
@@ -2185,6 +2268,41 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
             <button onclick="saveAnnounce()" style="background:linear-gradient(135deg,#7B52EE,#A855F7);border:0;color:#fff;border-radius:8px;padding:9px 18px;cursor:pointer;font-weight:800;font-size:0.85rem;">Хадгалах</button>
             <span id="ws-announce-msg" style="font-size:0.8rem;font-weight:700;"></span>
           </div>
+        </div>
+
+        <!-- Сургалт (Event) -->
+        <div class="table-card" style="padding:14px 16px;margin-bottom:18px;">
+          <div class="table-header" style="margin-bottom:10px;"><div class="table-title">🎓 Сургалт зарлах <span style="font-size:0.72rem;color:var(--muted);font-weight:700;">(Дасгалын төвд баннераар гарна)</span></div></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+            <div style="grid-column:1/-1;">
+              <label style="font-size:0.76rem;font-weight:800;color:var(--muted);display:block;margin-bottom:4px;">Гарчиг</label>
+              <input id="ev-title" type="text" placeholder="Жнь: Тригонометрийн эрчимжүүлсэн хичээл" style="width:100%;padding:9px 12px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-weight:700;outline:none;box-sizing:border-box;">
+            </div>
+            <div style="grid-column:1/-1;">
+              <label style="font-size:0.76rem;font-weight:800;color:var(--muted);display:block;margin-bottom:4px;">Тайлбар</label>
+              <textarea id="ev-descr" rows="2" placeholder="Товч танилцуулга…" style="width:100%;padding:9px 12px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;outline:none;box-sizing:border-box;resize:vertical;"></textarea>
+            </div>
+            <div>
+              <label style="font-size:0.76rem;font-weight:800;color:var(--muted);display:block;margin-bottom:4px;">Төлбөр (₮)</label>
+              <input id="ev-price" type="number" value="20000" style="width:100%;padding:9px 12px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-weight:700;outline:none;box-sizing:border-box;">
+            </div>
+            <div>
+              <label style="font-size:0.76rem;font-weight:800;color:var(--muted);display:block;margin-bottom:4px;">Идэвхтэй эсэх</label>
+              <select id="ev-active" style="width:100%;padding:9px 12px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-weight:700;outline:none;box-sizing:border-box;"><option value="1">✓ Идэвхтэй (харагдана)</option><option value="0">Идэвхгүй</option></select>
+            </div>
+            <div style="grid-column:1/-1;">
+              <label style="font-size:0.76rem;font-weight:800;color:var(--muted);display:block;margin-bottom:4px;">Цагийн сонголтууд <span style="font-weight:600;">(мөр бүрд нэг)</span></label>
+              <textarea id="ev-slots" rows="3" placeholder="Ням гараг 14:00&#10;Мягмар 19:00&#10;Пүрэв 19:00" style="width:100%;padding:9px 12px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;outline:none;box-sizing:border-box;resize:vertical;"></textarea>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input type="hidden" id="ev-id" value="">
+            <button onclick="wsSaveEvent()" style="background:linear-gradient(135deg,#7B52EE,#A855F7);border:0;color:#fff;border-radius:10px;padding:9px 18px;cursor:pointer;font-weight:800;font-size:0.85rem;">💾 Хадгалах</button>
+            <button onclick="wsResetEventForm()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:9px 14px;cursor:pointer;font-weight:800;font-size:0.85rem;">Цэвэрлэх</button>
+            <span id="ev-msg" style="font-size:0.8rem;font-weight:700;"></span>
+          </div>
+          <div id="ev-list" style="margin-top:14px;"></div>
+          <div id="ev-regs" style="margin-top:12px;"></div>
         </div>
 
         <!-- Санал хүсэлт -->

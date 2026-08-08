@@ -1,6 +1,17 @@
 const pool = require('./_db');
 const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET || 'cybermath-default-secret-change-in-prod';
+// Telegram мэдэгдэл (сургалтын төлбөр гэх мэт)
+async function notifyTelegram(text) {
+  const tok = process.env.TELEGRAM_BOT_TOKEN, chat = process.env.TELEGRAM_CHAT_ID;
+  if (!tok || !chat) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${tok}/sendMessage`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chat, text: text, parse_mode: 'HTML', disable_web_page_preview: true })
+    });
+  } catch (e) { console.error('[qpay tg]', e.message); }
+}
 // Ажлын хуудсын шаталсан үнэ (сараар). 3 сараас багагүй.
 const WS_PRICES = { 3: 39900, 6: 69900, 9: 99900, 12: 119900 };
 const WS_MONTHS = [3, 6, 9, 12];
@@ -253,9 +264,22 @@ module.exports = async (req, res) => {
       if (plan === 'wsyear') wsMonths = 12;
       else if (plan === 'wsmonths') wsMonths = wsNormMonths((req.body || {}).months);
 
+      // Сургалт (Event) — үнийг DB-ээс баталгаатай авна
+      let eventId = null, eventTitle = null, eventPrice = null;
+      if (plan === 'event') {
+        eventId = parseInt((req.body || {}).event_id, 10);
+        try {
+          const ev = await pool.query('SELECT title, price FROM ws_events WHERE id=$1 AND active=TRUE', [eventId]);
+          if (ev.rows.length) { eventTitle = ev.rows[0].title; eventPrice = ev.rows[0].price || 20000; }
+        } catch (e) { console.error('[event price]', e.message); }
+        if (eventPrice == null) return res.status(400).json({ ok: false, error: 'Сургалт олдсонгүй' });
+      }
+
       const planParam = wsMonths != null ? `&plan=wsmonths&months=${wsMonths}`
+                      : plan === 'event' ? `&plan=event&event_id=${eventId}`
                       : plan ? `&plan=${encodeURIComponent(plan)}` : '';
       const desc = wsMonths != null ? `CyberMath Ажлын хуудас — ${wsMonths} сар`
+                 : plan === 'event' ? ('Сургалт — ' + (eventTitle || 'CyberMath')).slice(0, 100)
                  : plan === 'friends' ? 'CyberMath Найзууд багц (3 хүн)'
                  : plan === 'yearly'  ? 'CyberMath Premium 1 жил'
                  : 'CyberMath Premium';
@@ -265,6 +289,8 @@ module.exports = async (req, res) => {
       if (wsMonths != null) {
         const pi = await resolvePromo((req.body || {}).promo);
         invAmount = priceFromPct(pi.pct, wsMonths);
+      } else if (plan === 'event') {
+        invAmount = eventPrice;
       }
 
       const token = await getToken();
@@ -295,6 +321,13 @@ module.exports = async (req, res) => {
             [invoice.invoice_id, email.trim().toLowerCase(), wsMonths, promo, invAmount]);
         } catch (e) { console.error('[ws_pending]', e.message); }
       }
+      // Сургалтын бүртгэлд invoice_id холбоно (event_register аль хэдийн мөр үүсгэсэн)
+      if (plan === 'event' && invoice && invoice.invoice_id && eventId) {
+        try {
+          await pool.query('UPDATE ws_event_regs SET invoice_id=$1, amount=$2 WHERE event_id=$3 AND lower(email)=$4',
+            [invoice.invoice_id, invAmount, eventId, String(email).trim().toLowerCase()]);
+        } catch (e) { console.error('[event invoice link]', e.message); }
+      }
       return res.json({ ok: true, invoice });
     }
 
@@ -313,6 +346,21 @@ module.exports = async (req, res) => {
       });
       const result = await checkResp.json();
       if (result.count > 0) {
+        // Сургалтын төлбөр — бүртгэлийг paid болгоно
+        if (plan === 'event') {
+          try {
+            const em = String(email).trim().toLowerCase();
+            const eid = parseInt((req.body || {}).event_id, 10);
+            const upd = await pool.query('UPDATE ws_event_regs SET paid=TRUE, paid_at=NOW() WHERE event_id=$1 AND lower(email)=$2 AND paid=FALSE RETURNING id, slot', [eid, em]);
+            if (upd.rows.length) {
+              try {
+                const ev = await pool.query('SELECT title FROM ws_events WHERE id=$1', [eid]);
+                await notifyTelegram('✅ <b>Сургалтын төлбөр төлөгдлөө</b> (' + ((ev.rows[0] && ev.rows[0].title) || eid) + ')\n\n👤 ' + em + '\n🕒 ' + (upd.rows[0].slot || '') + '\n💰 төлөгдсөн');
+              } catch (e) {}
+            }
+          } catch (e) { console.error('[event paid]', e.message); }
+          return res.json({ ok: true, paid: true });
+        }
         // Ажлын хуудсын эрх — сараар тусдаа ws_access-д олгоно
         if (plan === 'wsyear' || plan === 'wsmonths') {
           const months = plan === 'wsyear' ? 12 : wsNormMonths((req.body || {}).months);
@@ -363,6 +411,12 @@ module.exports = async (req, res) => {
         const months = plan === 'wsyear' ? 12 : wsNormMonths(req.query.months);
         try { await grantWsMonths(email, months); console.log('[QPay callback] ws granted:', email, months + 'сар'); }
         catch(err){ console.error('[QPay callback ws]', err.message); }
+        return res.json({ ok: true });
+      }
+      if (email && plan === 'event') {
+        const eid = parseInt(req.query.event_id, 10);
+        try { await pool.query('UPDATE ws_event_regs SET paid=TRUE, paid_at=NOW() WHERE event_id=$1 AND lower(email)=$2 AND paid=FALSE', [eid, String(email).trim().toLowerCase()]); }
+        catch(err){ console.error('[QPay callback event]', err.message); }
         return res.json({ ok: true });
       }
       if (email) {

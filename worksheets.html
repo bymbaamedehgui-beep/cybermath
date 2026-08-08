@@ -223,6 +223,8 @@
     </div>
   </div>
 
+  <div id="eventBanner"></div>
+
   <div class="controls">
     <div class="search">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path></svg>
@@ -1220,7 +1222,7 @@ function openLogin(auto){
   function api(action,body){ body=body||{}; body.action=action; return fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json().then(function(d){return {s:r.status,d:d};});}); }
   var TITLES={login:'Дасгалын төвд нэвтрэх',register:'Шинэ бүртгэл үүсгэх',verify:'Имэйл баталгаажуулах',forgot:'Нууц үг сэргээх'};
   function showView(v){ ['login','register','verify','forgot'].forEach(function(x){q('#v'+x.charAt(0).toUpperCase()+x.slice(1)).style.display=(x===v)?'block':'none';}); q('#liTitle').textContent=TITLES[v]; }
-  function done(token,email,fresh){ if(token)lsSet('cm_ws_token',token); lsSet('cm_last_user',email); CM_USER={email:email}; if(fresh)resetNewBaseline(); renderAcct(); o.remove(); toast('✓ Тавтай морил'); ensurePin(); }
+  function done(token,email,fresh){ if(token)lsSet('cm_ws_token',token); lsSet('cm_last_user',email); CM_USER={email:email}; if(fresh)resetNewBaseline(); renderAcct(); o.remove(); toast('✓ Тавтай морил'); ensurePin(); try{loadEvents();}catch(e){} }
   var curEmail='';
   if(lsGet('cm_last_user'))q('#lgEmail').value=lsGet('cm_last_user');
   setTimeout(function(){q('#lgEmail').focus();},40);
@@ -1384,6 +1386,91 @@ function showAnnounce(text){
   // Дарж/хүрч түр зогсооно · дахин дарж үргэлжлүүлнэ (утсан дээр ажиллана)
   if(!ab._bound){ab._bound=1;ab.addEventListener('click',function(){ab.classList.toggle('paused');});}
 }
+/* ── Сургалт (Event) баннер + бүртгэл + төлбөр ── */
+function fmtT(n){return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,',');}
+function loadEvents(){
+  var el=document.getElementById('eventBanner'); if(!el)return;
+  fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'event_active',token:lsGet('cm_ws_token')})})
+    .then(function(r){return r.json();}).then(function(d){
+      var evs=(d&&d.events)||[]; if(!evs.length){el.innerHTML='';return;}
+      window._EVENTS=evs;
+      el.innerHTML=evs.map(function(e){
+        var st;
+        if(e.myreg&&e.myreg.paid) st='<div style="display:inline-flex;align-items:center;gap:6px;background:#eafff1;border:1px solid #a7f0c0;color:#16a34a;font-weight:800;font-size:.86rem;border-radius:999px;padding:.5rem 1rem">✓ Бүртгэгдсэн — '+esc(e.myreg.slot||'')+'</div>';
+        else if(e.myreg) st='<button onclick="openEventModal('+e.id+')" style="border:0;cursor:pointer;background:linear-gradient(135deg,#f59e0b,#f97316);color:#fff;font-weight:900;font-size:.9rem;border-radius:999px;padding:.6rem 1.3rem;box-shadow:0 8px 20px -8px rgba(245,130,11,.8)">⏳ Төлбөрөө төлж дуусгах</button>';
+        else st='<button onclick="openEventModal('+e.id+')" style="border:0;cursor:pointer;background:#fff;color:#7B52EE;font-weight:900;font-size:.92rem;border-radius:999px;padding:.6rem 1.4rem;box-shadow:0 8px 20px -8px rgba(0,0,0,.3)">Бүртгүүлэх →</button>';
+        return '<div style="background:linear-gradient(135deg,#7B52EE,#A855F7);border-radius:18px;padding:16px 18px;margin-bottom:16px;color:#fff;box-shadow:0 16px 40px -18px rgba(123,82,238,.9);display:flex;flex-wrap:wrap;gap:12px 16px;align-items:center">'
+          +'<div style="flex:1;min-width:200px">'
+            +'<div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.22);border-radius:999px;padding:.2rem .7rem;font-size:.72rem;font-weight:900;letter-spacing:.5px;margin-bottom:7px">🎓 СУРГАЛТ</div>'
+            +'<div style="font-size:1.15rem;font-weight:900;line-height:1.25">'+esc(e.title)+'</div>'
+            +(e.descr?'<div style="font-size:.86rem;opacity:.92;margin-top:4px;white-space:pre-wrap">'+esc(e.descr)+'</div>':'')
+            +'<div style="font-size:1.05rem;font-weight:900;margin-top:8px">💰 '+fmtT(e.price)+'₮</div>'
+          +'</div>'
+          +'<div style="display:flex;align-items:center">'+st+'</div>'
+        +'</div>';
+      }).join('');
+    }).catch(function(){});
+}
+function openEventModal(id){
+  var e=(window._EVENTS||[]).filter(function(x){return x.id===id;})[0]; if(!e)return;
+  if(!CM_USER&&!lsGet('cm_ws_token')){toast('Эхлээд нэвтэрнэ үү');openLogin(true);return;}
+  var old=document.getElementById('evModal'); if(old)old.remove();
+  var o=document.createElement('div');o.id='evModal';
+  o.style.cssText='position:fixed;inset:0;z-index:210;background:rgba(20,15,40,.6);display:grid;place-items:center;padding:16px';
+  var slots=(e.slots||[]);
+  var preslot=(e.myreg&&e.myreg.slot)||'';
+  o.innerHTML='<div style="position:relative;background:#fff;border-radius:20px;max-width:430px;width:100%;padding:24px;box-shadow:0 24px 60px -18px rgba(0,0,0,.5);max-height:calc(100vh - 32px);overflow-y:auto">'
+    +'<button onclick="var e=document.getElementById(\'evModal\');if(e)e.remove()" style="position:absolute;top:12px;right:14px;border:0;background:#f0f0f6;width:30px;height:30px;border-radius:50%;cursor:pointer;font-weight:800;color:#666">✕</button>'
+    +'<div style="text-align:center;font-size:1.5rem;margin-bottom:2px">🎓</div>'
+    +'<h3 style="text-align:center;color:var(--purple-d);font-size:1.2rem;font-weight:900;margin:2px 0 3px">'+esc(e.title)+'</h3>'
+    +(e.descr?'<p style="text-align:center;color:var(--soft);font-size:.86rem;margin-bottom:10px;white-space:pre-wrap">'+esc(e.descr)+'</p>':'')
+    +'<div style="font-weight:800;color:var(--purple-d);font-size:.88rem;margin:10px 0 7px">🕒 Цагаа сонгоно уу</div>'
+    +'<div id="evSlots" style="display:flex;flex-direction:column;gap:7px;margin-bottom:12px">'
+      +slots.map(function(s,i){return '<label style="display:flex;align-items:center;gap:9px;border:1.5px solid #e7ddff;border-radius:12px;padding:.6rem .8rem;cursor:pointer;font-size:.92rem;font-weight:700;color:#3a2d5e"><input type="radio" name="evslot" value="'+esc(s)+'"'+((preslot===s||(!preslot&&slots.length===1))?' checked':'')+' style="accent-color:#7B52EE;width:17px;height:17px">'+esc(s)+'</label>';}).join('')
+    +'</div>'
+    +'<input id="evPhone" type="tel" placeholder="Утасны дугаар" style="width:100%;box-sizing:border-box;border:1.6px solid #e7ddff;border-radius:12px;padding:.65rem .9rem;font-size:.92rem;outline:none;margin-bottom:12px">'
+    +'<button id="evPay" style="width:100%;font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.8rem;font-size:.98rem;color:#fff;background:linear-gradient(135deg,#7B52EE,#A855F7)">Төлж баталгаажуулах · '+fmtT(e.price)+'₮</button>'
+    +'<div id="evQr" style="margin-top:14px;text-align:center"></div>'
+    +'<div id="evMsg" style="font-size:.85rem;color:var(--soft);margin-top:10px;text-align:center;min-height:1em"></div>'
+    +'</div>';
+  document.body.appendChild(o);
+  var ph=o.querySelector('#evPhone'); if(lsGet('cm_ev_phone'))ph.value=lsGet('cm_ev_phone');
+  var payBtn=o.querySelector('#evPay'),msg=o.querySelector('#evMsg'),qr=o.querySelector('#evQr'),pollT=null;
+  payBtn.onclick=function(){
+    var sel=o.querySelector('input[name="evslot"]:checked');
+    if(!sel){msg.style.color='#dc2626';msg.textContent='Цагаа сонгоно уу';return;}
+    var slot=sel.value, phone=(ph.value||'').trim();
+    lsSet('cm_ev_phone',phone);
+    payBtn.disabled=true;payBtn.textContent='Түр хүлээнэ үү…';msg.style.color='var(--soft)';msg.textContent='';
+    fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'event_register',token:lsGet('cm_ws_token'),event_id:e.id,slot:slot,phone:phone})})
+      .then(function(r){return r.json();}).then(function(d){
+        if(!d||!d.ok){payBtn.disabled=false;payBtn.textContent='Төлж баталгаажуулах · '+fmtT(e.price)+'₮';msg.style.color='#dc2626';msg.textContent=(d&&d.error)||'Алдаа гарлаа';return;}
+        if(d.already){evPaidDone(o,msg);return;}
+        var email=d.email||lsGet('cm_last_user');
+        fetch('/api/qpay?action=create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,plan:'event',event_id:e.id})})
+          .then(function(r){return r.json();}).then(function(c){
+            var inv=c&&c.invoice;
+            if(!inv||!inv.invoice_id){payBtn.disabled=false;payBtn.textContent='Дахин оролдох';msg.style.color='#dc2626';msg.textContent='Нэхэмжлэл үүсгэж чадсангүй';return;}
+            var img=inv.qr_image?('<img src="data:image/png;base64,'+inv.qr_image+'" style="width:190px;height:190px" alt="QPay QR">'):'';
+            var link=inv.qPay_shortUrl?('<div style="margin-top:6px"><a href="'+inv.qPay_shortUrl+'" target="_blank" style="color:#5a32d6;font-weight:700;font-size:.85rem;text-decoration:none">📱 Утаснаас төлөх</a></div>'):'';
+            qr.innerHTML='<div style="font-size:.82rem;color:var(--soft);margin-bottom:6px">QPay аппаар уншуулж '+fmtT(e.price)+'₮ төлнө үү</div>'+img+link;
+            payBtn.style.display='none';msg.style.color='var(--soft)';msg.textContent='Төлбөрийг хүлээж байна…';
+            pollT=setInterval(function(){
+              fetch('/api/qpay?action=check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({invoice_id:inv.invoice_id,email:email,plan:'event',event_id:e.id})})
+                .then(function(r){return r.json();}).then(function(p){ if(p&&p.paid){clearInterval(pollT);evPaidDone(o,msg);} }).catch(function(){});
+            },3000);
+          }).catch(function(){payBtn.disabled=false;payBtn.textContent='Дахин оролдох';msg.style.color='#dc2626';msg.textContent='Сүлжээний алдаа';});
+      }).catch(function(){payBtn.disabled=false;payBtn.textContent='Төлж баталгаажуулах · '+fmtT(e.price)+'₮';msg.style.color='#dc2626';msg.textContent='Сүлжээний алдаа';});
+  };
+}
+function evPaidDone(o,msg){
+  var qr=o.querySelector('#evQr'),pb=o.querySelector('#evPay');
+  if(pb)pb.style.display='none';
+  if(qr)qr.innerHTML='<div style="font-size:2rem">✅</div><div style="font-weight:900;color:#16a34a;font-size:1.05rem;margin-top:4px">Амжилттай бүртгэгдлээ!</div>';
+  if(msg){msg.style.color='#16a34a';msg.textContent='Тавтай морил — сургалт дээр уулзацгаая!';}
+  loadEvents();
+  setTimeout(function(){var e=document.getElementById('evModal');if(e)e.remove();},2600);
+}
 /* ── Шинэ хариу ирсэн эсэхийг шалгаж "+N" тэмдэг гаргах ── */
 function checkFbReplies(){
   var tk=lsGet('cm_ws_token'), btn=document.getElementById('fbBtn'); if(!tk||!btn)return;
@@ -1484,6 +1571,7 @@ if(!isAdmin()){
 }
 document.getElementById('q').addEventListener('input',applyFilters);
 loadSaved();
+loadEvents();
 fetch('/api/worksheets?titles=1').then(function(r){return r.json();})
   .then(function(d){
     if(d&&d.titles)OVERRIDES=d.titles;

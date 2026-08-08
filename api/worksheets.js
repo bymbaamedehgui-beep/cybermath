@@ -153,6 +153,31 @@ module.exports = async (req, res) => {
       UNIQUE(slug, user_key)
     )`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_wsr_slug ON ws_reactions(slug)`);
+    // Сургалт (Event) — зарлал + бүртгэл + төлбөр
+    await pool.query(`CREATE TABLE IF NOT EXISTS ws_events (
+      id BIGSERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      descr TEXT,
+      price INT DEFAULT 20000,
+      slots JSONB DEFAULT '[]'::jsonb,
+      active BOOLEAN DEFAULT TRUE,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS ws_event_regs (
+      id BIGSERIAL PRIMARY KEY,
+      event_id BIGINT NOT NULL,
+      email TEXT NOT NULL,
+      name TEXT,
+      phone TEXT,
+      slot TEXT,
+      amount INT,
+      paid BOOLEAN DEFAULT FALSE,
+      invoice_id TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      paid_at TIMESTAMPTZ,
+      UNIQUE(event_id, email)
+    )`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_wser_event ON ws_event_regs(event_id)`);
     // Тохиргоо (announce гэх мэт key/value)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS ws_settings (
@@ -394,6 +419,88 @@ module.exports = async (req, res) => {
         if (!id) return res.status(400).json({ ok: false });
         await pool.query('DELETE FROM ws_comments WHERE id=$1', [id]);
         return res.json({ ok: true });
+      }
+      // ─── Сургалт (Event) ───
+      const normSlots = (v) => {
+        let arr = v;
+        if (typeof v === 'string') arr = v.split('\n');
+        if (!Array.isArray(arr)) arr = [];
+        return arr.map(s => String(s || '').trim()).filter(Boolean).slice(0, 20);
+      };
+      // Идэвхтэй сургалт(ууд) + нэвтэрсэн бол миний бүртгэл — НЭЭЛТТЭЙ
+      if (b.action === 'event_active') {
+        const r = await pool.query('SELECT id, title, descr, price, slots FROM ws_events WHERE active=TRUE ORDER BY created_at DESC LIMIT 10');
+        const email = wsEmailFromToken(b.token);
+        let mine = {};
+        if (email && r.rows.length) {
+          const ids = r.rows.map(x => x.id);
+          const m = await pool.query('SELECT event_id, slot, paid FROM ws_event_regs WHERE event_id = ANY($1) AND lower(email)=$2', [ids, email]);
+          m.rows.forEach(x => { mine[x.event_id] = { slot: x.slot, paid: x.paid }; });
+        }
+        return res.json({ ok: true, events: r.rows.map(x => ({ id: x.id, title: x.title, descr: x.descr, price: x.price, slots: x.slots || [], myreg: mine[x.id] || null })) });
+      }
+      // Сургалтад бүртгүүлэх — ЗААВАЛ НЭВТЭРСЭН
+      if (b.action === 'event_register') {
+        const email = wsEmailFromToken(b.token);
+        if (!email) return res.status(401).json({ ok: false, error: 'Эхлээд нэвтэрнэ үү' });
+        const eid = parseInt(b.event_id, 10);
+        const slot = String(b.slot || '').trim().slice(0, 120);
+        const phone = String(b.phone || '').trim().slice(0, 40);
+        const name = String(b.name || '').trim().slice(0, 80) || null;
+        const ev = await pool.query('SELECT id, title, price, slots, active FROM ws_events WHERE id=$1', [eid]);
+        if (!ev.rows.length || !ev.rows[0].active) return res.status(404).json({ ok: false, error: 'Сургалт олдсонгүй' });
+        const slots = (ev.rows[0].slots || []).map(String);
+        if (!slot || slots.indexOf(slot) < 0) return res.status(400).json({ ok: false, error: 'Цагаа сонгоно уу' });
+        const price = ev.rows[0].price || 20000;
+        // Аль хэдийн төлсөн бол дахин бүртгэхгүй
+        const ex = await pool.query('SELECT paid FROM ws_event_regs WHERE event_id=$1 AND lower(email)=$2', [eid, email]);
+        if (ex.rows.length && ex.rows[0].paid) return res.json({ ok: true, already: true });
+        await pool.query(
+          `INSERT INTO ws_event_regs (event_id, email, name, phone, slot, amount)
+           VALUES ($1,$2,$3,$4,$5,$6)
+           ON CONFLICT (event_id, email) DO UPDATE SET name=EXCLUDED.name, phone=EXCLUDED.phone, slot=EXCLUDED.slot, amount=EXCLUDED.amount`,
+          [eid, email, name, phone, slot, price]);
+        try { await sendTelegram('📝 <b>Сургалтын бүртгэл</b> (' + ev.rows[0].title + ')\n\n👤 ' + (name || email) + '\n🕒 ' + slot + (phone ? ('\n📞 ' + phone) : '') + '\n💰 ' + price + '₮ — <i>төлбөр хүлээгдэж байна</i>'); } catch (e) {}
+        return res.json({ ok: true, price: price, title: ev.rows[0].title, email: email });
+      }
+      // ── Админ: сургалт удирдах ──
+      if (b.action === 'event_list') {
+        if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
+        const r = await pool.query(`SELECT e.id, e.title, e.descr, e.price, e.slots, e.active, e.created_at,
+          (SELECT COUNT(*)::int FROM ws_event_regs r WHERE r.event_id=e.id) AS reg_count,
+          (SELECT COUNT(*)::int FROM ws_event_regs r WHERE r.event_id=e.id AND r.paid) AS paid_count
+          FROM ws_events e ORDER BY e.created_at DESC LIMIT 100`);
+        return res.json({ ok: true, events: r.rows });
+      }
+      if (b.action === 'event_save') {
+        if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
+        const title = String(b.title || '').trim().slice(0, 200);
+        if (!title) return res.status(400).json({ ok: false, error: 'Гарчиг оруулна уу' });
+        const descr = String(b.descr || '').trim().slice(0, 3000);
+        const price = Math.max(0, parseInt(b.price, 10) || 20000);
+        const slots = JSON.stringify(normSlots(b.slots));
+        const active = b.active === false ? false : true;
+        const id = parseInt(b.id, 10);
+        if (id) {
+          await pool.query('UPDATE ws_events SET title=$2, descr=$3, price=$4, slots=$5::jsonb, active=$6 WHERE id=$1', [id, title, descr, price, slots, active]);
+          return res.json({ ok: true, id });
+        }
+        const ins = await pool.query('INSERT INTO ws_events (title, descr, price, slots, active) VALUES ($1,$2,$3,$4::jsonb,$5) RETURNING id', [title, descr, price, slots, active]);
+        return res.json({ ok: true, id: ins.rows[0].id });
+      }
+      if (b.action === 'event_delete') {
+        if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
+        const id = parseInt(b.id, 10);
+        if (!id) return res.status(400).json({ ok: false });
+        await pool.query('DELETE FROM ws_event_regs WHERE event_id=$1', [id]);
+        await pool.query('DELETE FROM ws_events WHERE id=$1', [id]);
+        return res.json({ ok: true });
+      }
+      if (b.action === 'event_regs') {
+        if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
+        const eid = parseInt(b.event_id, 10);
+        const r = await pool.query('SELECT id, name, email, phone, slot, paid, created_at, paid_at FROM ws_event_regs WHERE event_id=$1 ORDER BY paid DESC, created_at ASC LIMIT 1000', [eid]);
+        return res.json({ ok: true, regs: r.rows });
       }
       // Мэдээллийн зурвас (announce) авах — нээлттэй
       if (b.action === 'getAnnounce') {
