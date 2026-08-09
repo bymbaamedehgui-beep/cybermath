@@ -422,7 +422,80 @@
     loadSocial(wrap);
   }
 
-  function init(){ injectBrandCSS(); brandSheet(); watchSheet(); enhanceMeta(); if(!IS_QR)addBtn(); applyQR(); enforcePaywall(); injectSocial(); }
+  // ─── Ангиар хэвлэх (олон сурагчийн нэрээр нэг дор) ───
+  function addBatchBtn(){
+    var bar=document.querySelector('.bar'); if(!bar||bar.querySelector('.ws-batch'))return;
+    var b=document.createElement('button');
+    b.className='btn ws-batch'; b.type='button';
+    b.style.background='linear-gradient(135deg,#f59e0b,#f97316)';
+    b.innerHTML='👥 Ангиар хэвлэх';
+    b.onclick=openBatch;
+    bar.appendChild(b);
+  }
+  function openBatch(){
+    if(document.getElementById('cm-batchModal'))return;
+    var o=document.createElement('div');o.id='cm-batchModal';
+    o.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(20,15,40,.6);display:grid;place-items:center;padding:16px;font-family:"Segoe UI",Arial,sans-serif';
+    o.innerHTML='<div style="background:#fff;border-radius:18px;max-width:440px;width:100%;padding:22px;box-shadow:0 24px 60px -18px rgba(0,0,0,.5)">'
+      +'<div style="font-weight:900;color:#5a32d6;font-size:1.12rem;margin-bottom:3px">👥 Ангиар хэвлэх</div>'
+      +'<p style="color:#7a7390;font-size:.85rem;margin-bottom:10px;line-height:1.4">Сурагчдын нэрсийг <b>мөр бүрд нэг</b> хуулж оруулаарай. Нэр бүрд тусдаа хуудас үүсч, бүгд <b>нэг дор</b> хэвлэгдэнэ.</p>'
+      +'<textarea id="cm-batchNames" rows="8" placeholder="Батболд&#10;Сараа&#10;Тэмүүлэн&#10;..." style="width:100%;box-sizing:border-box;border:1.6px solid #e7ddff;border-radius:12px;padding:.7rem .9rem;font-size:.92rem;outline:none;resize:vertical;font-family:inherit"></textarea>'
+      +'<label style="display:flex;align-items:center;gap:7px;margin:11px 0 4px;font-size:.86rem;color:#3a2d5e;font-weight:700;cursor:pointer"><input type="checkbox" id="cm-batchSame"> Бүх сурагчид <b>ижил бодлого</b> (тэгэхгүй бол тус бүр өөр хувилбар)</label>'
+      +'<div id="cm-batchMsg" style="font-size:.82rem;color:#7a7390;margin:8px 0"></div>'
+      +'<div style="display:flex;gap:8px;justify-content:flex-end">'
+        +'<button id="cm-batchCancel" style="border:1.4px solid #e7ddff;background:#faf7ff;color:#5a32d6;font-weight:800;border-radius:999px;padding:.55rem 1.1rem;cursor:pointer;font-family:inherit">Болих</button>'
+        +'<button id="cm-batchGo" style="border:0;background:linear-gradient(135deg,#7B52EE,#A855F7);color:#fff;font-weight:800;border-radius:999px;padding:.55rem 1.3rem;cursor:pointer;font-family:inherit">🖨 Бэлдэж хэвлэх</button>'
+      +'</div></div>';
+    document.body.appendChild(o);
+    var ta=o.querySelector('#cm-batchNames'); try{ta.focus();}catch(e){}
+    o.querySelector('#cm-batchCancel').onclick=function(){o.remove();};
+    o.querySelector('#cm-batchGo').onclick=function(){ runBatch(o); };
+  }
+  function injectBatchPrintCSS(){
+    if(document.getElementById('cm-batch-css'))return;
+    var st=document.createElement('style');st.id='cm-batch-css';
+    st.textContent='@media print{'
+      +'body>*:not(#cm-batch){display:none!important}'
+      +'#cm-batch{display:block!important}'
+      +'.cm-batch-sheet{position:relative;page-break-after:always;box-shadow:none!important;width:auto!important;min-height:auto!important;margin:0!important;padding:0!important;background:#fff}'
+      +'.cm-batch-sheet:last-child{page-break-after:auto}'
+      +'}';
+    document.head.appendChild(st);
+  }
+  function runBatch(modal){
+    var msg=modal.querySelector('#cm-batchMsg');
+    var names=(modal.querySelector('#cm-batchNames').value||'').split(/\r?\n/).map(function(s){return s.trim();}).filter(Boolean);
+    if(!names.length){msg.style.color='#dc2626';msg.textContent='Дор хаяж нэг нэр оруулна уу.';return;}
+    if(names.length>80){names=names.slice(0,80);}
+    var same=modal.querySelector('#cm-batchSame').checked;
+    var sheet=document.getElementById('sheet'); if(!sheet)return;
+    var hasBuild=(typeof window.build==='function');
+    var sa=document.getElementById('sa');
+    // Ангиар хэвлэхэд хариу хавсаргахгүй (сурагчийн хувь)
+    if(sa){ sa.checked=false; if(typeof window.toggleAns==='function')try{window.toggleAns();}catch(e){} }
+    msg.style.color='#7a7390';msg.textContent=names.length+' хуудас бэлдэж байна…';
+    var old=document.getElementById('cm-batch'); if(old)old.remove();
+    var box=document.createElement('div');box.id='cm-batch';box.style.display='none';
+    if(same&&hasBuild){ try{window.build();}catch(e){} brandSheet(); enhanceMeta(); }
+    for(var i=0;i<names.length;i++){
+      if(!same&&hasBuild){ try{window.build();}catch(e){} brandSheet(); enhanceMeta(); }
+      var nf=sheet.querySelector('.meta .cm-fill[data-ph="нэр…"]');
+      if(nf)nf.textContent=names[i];
+      var clone=document.createElement('div');
+      clone.className='sheet cm-batch-sheet';
+      clone.innerHTML=sheet.innerHTML;
+      box.appendChild(clone);
+    }
+    document.body.appendChild(box);
+    injectBatchPrintCSS();
+    modal.remove();
+    function cleanup(){ var bx=document.getElementById('cm-batch'); if(bx)bx.remove(); window.removeEventListener('afterprint',cleanup);
+      if(hasBuild){ try{window.build();}catch(e){} brandSheet(); enhanceMeta(); } }
+    window.addEventListener('afterprint',cleanup);
+    setTimeout(function(){ window.print(); }, 80);
+  }
+
+  function init(){ injectBrandCSS(); brandSheet(); watchSheet(); enhanceMeta(); if(!IS_QR){addBtn();addBatchBtn();} applyQR(); enforcePaywall(); injectSocial(); }
   if(document.readyState!=='loading')init();
   else document.addEventListener('DOMContentLoaded',init);
 })();
