@@ -178,6 +178,22 @@ module.exports = async (req, res) => {
       UNIQUE(event_id, email)
     )`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_wser_event ON ws_event_regs(event_id)`);
+    // Ээлжит хичээлийн төлөвлөгөө (багш бүр өөрийн, хувийн)
+    await pool.query(`CREATE TABLE IF NOT EXISTS lesson_plans (
+      id BIGSERIAL PRIMARY KEY,
+      owner_email TEXT NOT NULL,
+      title TEXT NOT NULL,
+      grade TEXT,
+      ldate TEXT,
+      duration TEXT,
+      objectives TEXT,
+      flow TEXT,
+      homework TEXT,
+      worksheets JSONB DEFAULT '[]'::jsonb,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_lp_owner ON lesson_plans(owner_email)`);
     // Тохиргоо (announce гэх мэт key/value)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS ws_settings (
@@ -501,6 +517,64 @@ module.exports = async (req, res) => {
         const eid = parseInt(b.event_id, 10);
         const r = await pool.query('SELECT id, name, email, phone, slot, paid, created_at, paid_at FROM ws_event_regs WHERE event_id=$1 ORDER BY paid DESC, created_at ASC LIMIT 1000', [eid]);
         return res.json({ ok: true, regs: r.rows });
+      }
+      // ─── Ээлжит хичээлийн төлөвлөгөө (нэвтэрсэн багш, хувийн) ───
+      if (b.action === 'lp_list') {
+        const email = wsEmailFromToken(b.token);
+        if (!email) return res.status(401).json({ ok: false, error: 'Нэвтэрнэ үү' });
+        const r = await pool.query(
+          `SELECT id, title, grade, ldate, updated_at,
+                  COALESCE(jsonb_array_length(worksheets),0) AS ws_count
+           FROM lesson_plans WHERE lower(owner_email)=$1 ORDER BY updated_at DESC LIMIT 300`, [email]);
+        return res.json({ ok: true, plans: r.rows });
+      }
+      if (b.action === 'lp_get') {
+        const email = wsEmailFromToken(b.token);
+        if (!email) return res.status(401).json({ ok: false, error: 'Нэвтэрнэ үү' });
+        const id = parseInt(b.id, 10);
+        const r = await pool.query('SELECT * FROM lesson_plans WHERE id=$1 AND lower(owner_email)=$2', [id, email]);
+        if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Олдсонгүй' });
+        return res.json({ ok: true, plan: r.rows[0] });
+      }
+      if (b.action === 'lp_save') {
+        const email = wsEmailFromToken(b.token);
+        if (!email) return res.status(401).json({ ok: false, error: 'Нэвтэрнэ үү' });
+        const title = String(b.title || '').trim().slice(0, 200);
+        if (!title) return res.status(400).json({ ok: false, error: 'Сэдэв оруулна уу' });
+        const grade = String(b.grade || '').slice(0, 40);
+        const ldate = String(b.ldate || '').slice(0, 40);
+        const duration = String(b.duration || '').slice(0, 40);
+        const objectives = String(b.objectives || '').slice(0, 4000);
+        const flow = String(b.flow || '').slice(0, 8000);
+        const homework = String(b.homework || '').slice(0, 4000);
+        let ws = Array.isArray(b.worksheets) ? b.worksheets : [];
+        ws = ws.slice(0, 40).map(w => ({
+          slug: String((w && w.slug) || '').slice(0, 120),
+          title: String((w && w.title) || '').slice(0, 200),
+          role: (w && w.role === 'homework') ? 'homework' : 'practice'
+        })).filter(w => w.slug);
+        const wsJson = JSON.stringify(ws);
+        const id = parseInt(b.id, 10);
+        if (id) {
+          const upd = await pool.query(
+            `UPDATE lesson_plans SET title=$3, grade=$4, ldate=$5, duration=$6, objectives=$7, flow=$8, homework=$9, worksheets=$10::jsonb, updated_at=NOW()
+             WHERE id=$1 AND lower(owner_email)=$2 RETURNING id`,
+            [id, email, title, grade, ldate, duration, objectives, flow, homework, wsJson]);
+          if (!upd.rows.length) return res.status(404).json({ ok: false, error: 'Олдсонгүй' });
+          return res.json({ ok: true, id: id });
+        }
+        const ins = await pool.query(
+          `INSERT INTO lesson_plans (owner_email, title, grade, ldate, duration, objectives, flow, homework, worksheets)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb) RETURNING id`,
+          [email, title, grade, ldate, duration, objectives, flow, homework, wsJson]);
+        return res.json({ ok: true, id: ins.rows[0].id });
+      }
+      if (b.action === 'lp_delete') {
+        const email = wsEmailFromToken(b.token);
+        if (!email) return res.status(401).json({ ok: false, error: 'Нэвтэрнэ үү' });
+        const id = parseInt(b.id, 10);
+        await pool.query('DELETE FROM lesson_plans WHERE id=$1 AND lower(owner_email)=$2', [id, email]);
+        return res.json({ ok: true });
       }
       // Мэдээллийн зурвас (announce) авах — нээлттэй
       if (b.action === 'getAnnounce') {
