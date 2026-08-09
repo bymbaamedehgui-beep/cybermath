@@ -203,7 +203,7 @@ window.WS_LIST=[
   ]],
   ['12-р анги',[
     ['modul-12.html','Тооны модул (радикал·лог·тригонометр)'],
-    ['modul-tegshitgel-12.html','Модултай тэгшитгэл |ax+b|=c'],
+    ['modul-tegshitgel-12.html','Модултай тэгшитгэл |ax+b|=c'],['modul-tegshitgel-2-12.html','Модултай тэгшитгэл — нийлмэл (|ax+b|=cx+d, давхар, |x²−m|=n)'],
   ]],
 ];
 window.WS_CAMB=[
