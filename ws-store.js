@@ -256,15 +256,15 @@
     if(document.getElementById('cm-brand-css'))return;
     var st=document.createElement('style'); st.id='cm-brand-css';
     st.textContent=
-      '#sheet{position:relative}'+
+      '#sheet{position:relative;overflow:hidden}'+
       '#sheet.cm-branded>*:not(.cm-wm){position:relative;z-index:1}'+
       // Тамга бодолтын/хариу хайрцгуудын ЦААНА нуугдахгүйн тулд хамгийн дээр (наана) гаргана — сул тул бичихэд саад болохгүй
-      '.cm-wm{position:absolute;left:50%;z-index:5;pointer-events:none;text-align:center;width:100%;'+
-        'transform:translate(-50%,-50%) rotate(-14deg);'+
+      '.cm-wm{position:absolute;left:50%;z-index:5;pointer-events:none;text-align:center;width:96%;'+
+        'transform:translate(-50%,-50%) rotate(-9deg);'+
         '-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
       '.cm-wm.mid{top:50%}'+
       '.cm-wm .cm-bird{display:block;margin:0 auto;width:clamp(150px,30vw,250px);opacity:.09}'+
-      ".cm-wm .cm-word{font:900 clamp(52px,20.5vw,165px)/1 'Segoe UI',Arial,sans-serif;letter-spacing:2px;"+
+      ".cm-wm .cm-word{font:900 clamp(42px,16.5vw,136px)/1 'Segoe UI',Arial,sans-serif;letter-spacing:1px;"+
         'color:rgba(123,82,238,.08);text-transform:lowercase;white-space:nowrap}'+
       ".cm-wm .cm-url{font:800 clamp(16px,4vw,32px)/1 'Segoe UI',Arial,sans-serif;letter-spacing:1px;"+
         'color:rgba(123,82,238,.09);margin-top:8px;white-space:nowrap}'+
@@ -437,14 +437,14 @@
     var o=document.createElement('div');o.id='cm-batchModal';
     o.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(20,15,40,.6);display:grid;place-items:center;padding:16px;font-family:"Segoe UI",Arial,sans-serif';
     o.innerHTML='<div style="background:#fff;border-radius:18px;max-width:440px;width:100%;padding:22px;box-shadow:0 24px 60px -18px rgba(0,0,0,.5)">'
-      +'<div style="font-weight:900;color:#5a32d6;font-size:1.12rem;margin-bottom:3px">👥 Ангиар хэвлэх</div>'
+      +'<div style="display:flex;align-items:center;gap:7px;font-weight:900;color:#5a32d6;font-size:1.12rem;margin-bottom:3px"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Ангиар хэвлэх</div>'
       +'<p style="color:#7a7390;font-size:.85rem;margin-bottom:10px;line-height:1.4">Сурагчдын нэрсийг <b>мөр бүрд нэг</b> хуулж оруулаарай. Нэр бүрд тусдаа хуудас үүсч, бүгд <b>нэг дор</b> хэвлэгдэнэ.</p>'
       +'<textarea id="cm-batchNames" rows="8" placeholder="Батболд&#10;Сараа&#10;Тэмүүлэн&#10;..." style="width:100%;box-sizing:border-box;border:1.6px solid #e7ddff;border-radius:12px;padding:.7rem .9rem;font-size:.92rem;outline:none;resize:vertical;font-family:inherit"></textarea>'
       +'<label style="display:flex;align-items:center;gap:7px;margin:11px 0 4px;font-size:.86rem;color:#3a2d5e;font-weight:700;cursor:pointer"><input type="checkbox" id="cm-batchSame"> Бүх сурагчид <b>ижил бодлого</b> (тэгэхгүй бол тус бүр өөр хувилбар)</label>'
       +'<div id="cm-batchMsg" style="font-size:.82rem;color:#7a7390;margin:8px 0"></div>'
       +'<div style="display:flex;gap:8px;justify-content:flex-end">'
         +'<button id="cm-batchCancel" style="border:1.4px solid #e7ddff;background:#faf7ff;color:#5a32d6;font-weight:800;border-radius:999px;padding:.55rem 1.1rem;cursor:pointer;font-family:inherit">Болих</button>'
-        +'<button id="cm-batchGo" style="border:0;background:linear-gradient(135deg,#7B52EE,#A855F7);color:#fff;font-weight:800;border-radius:999px;padding:.55rem 1.3rem;cursor:pointer;font-family:inherit">🖨 Бэлдэж хэвлэх</button>'
+        +'<button id="cm-batchGo" style="display:inline-flex;align-items:center;gap:6px;border:0;background:linear-gradient(135deg,#7B52EE,#A855F7);color:#fff;font-weight:800;border-radius:999px;padding:.55rem 1.3rem;cursor:pointer;font-family:inherit"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>Бэлдэж хэвлэх</button>'
       +'</div></div>';
     document.body.appendChild(o);
     var ta=o.querySelector('#cm-batchNames'); try{ta.focus();}catch(e){}
@@ -457,7 +457,7 @@
     st.textContent='@media print{'
       +'body>*:not(#cm-batch){display:none!important}'
       +'#cm-batch{display:block!important}'
-      +'.cm-batch-sheet{position:relative;page-break-after:always;box-shadow:none!important;width:auto!important;min-height:auto!important;margin:0!important;padding:0!important;background:#fff}'
+      +'.cm-batch-sheet{position:relative;overflow:hidden;page-break-after:always;box-shadow:none!important;width:auto!important;min-height:auto!important;margin:0!important;padding:0!important;background:#fff}'
       +'.cm-batch-sheet:last-child{page-break-after:auto}'
       +'}';
     document.head.appendChild(st);
