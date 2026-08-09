@@ -24,6 +24,12 @@
   .t-item{break-inside:avoid;page-break-inside:avoid;margin-bottom:9px}
   .t-stem{font-size:13.5px;margin-bottom:5px;overflow:hidden}.t-stem .n{font-weight:800;color:var(--purple);margin-right:5px}
   .pt{float:right;color:var(--soft);font-size:11px;font-weight:700;white-space:nowrap;margin-left:10px;border:1px solid #e2daf5;border-radius:20px;padding:0 8px}
+  .ptv,.varv{outline:none;cursor:text;font-weight:800;color:#5a32d6;display:inline-block;text-align:center}
+  .ptv{min-width:13px;border-bottom:1px dotted #b9a9ef}
+  .varv{min-width:26px;border-bottom:1px dotted #b9a9ef}
+  .varv:empty::before,.ptv:empty::before{content:attr(data-ph);color:#c7bde6;font-weight:600}
+  .ptv:focus,.varv:focus{background:#f5efff;border-radius:4px}
+  @media print{.varv:empty::before,.ptv:empty::before{content:""}}
   .grade{break-inside:avoid;page-break-inside:avoid;margin-top:12px;border:1.5px solid #d9cff5;border-radius:9px;padding:9px 11px}
   .gtitle{font-weight:800;color:#5a32d6;font-size:12.5px;margin-bottom:7px}
   .gtbl{border-collapse:collapse;font-size:11.5px;margin-bottom:7px}.gtbl th,.gtbl td{border:1px solid #c9bdec;padding:3px 4px;text-align:center;min-width:26px;height:18px}.gtbl th{background:#f3eefe;color:#5a32d6;font-weight:800;min-width:52px}.gtbl td.lab{font-weight:800;color:var(--purple);background:#faf8ff}
@@ -238,6 +244,12 @@ var FREE=[fEqLin,fIneq,fQuad,fAbsAbs];
 var TEST_PT=1, FREE_PT=[2,2,3,3];
 var ROMAN=['I','II','III','IV','V','VI','VII','VIII','IX','X'];
 function totalPts(){return 10*TEST_PT+FREE_PT.reduce(function(s,v){return s+v;},0);}
+function ptFmt(v){return (Math.round(v*100)/100).toString();}
+function recomputeTotal(){var tot=0;
+  [].forEach.call(document.querySelectorAll('#sheet .ptv'),function(el){var v=parseFloat((el.textContent||'').replace(',','.'));if(!isNaN(v))tot+=v;});
+  var s=ptFmt(tot);
+  [].forEach.call(document.querySelectorAll('#sheet .totmax'),function(el){el.textContent=s;});
+}
 function gen(fn){for(var t=0;t<200;t++){var g=fn();if(g)return g;}return null;}
 function build(){
   window.__TEST=[];window.__FREE=[];
@@ -246,30 +258,32 @@ function build(){
     do{g=gen(TESTS[i]);tr++;}while(g&&seen[g.stem]&&tr<50);
     if(!g)continue;seen[g.stem]=1;window.__TEST.push(g);
     var opts=g.mc.opts.map(function(o,j){return '<div class="opt"><span class="ol">'+OL[j]+'.</span>$'+o.tex+'$</div>';}).join('');
-    testHtml+='<div class="t-item"><div class="t-stem"><span class="pt">'+TEST_PT+' оноо</span><span class="n">'+(i+1)+'.</span>'+g.stem+'</div><div class="opts">'+opts+'</div></div>';
+    testHtml+='<div class="t-item"><div class="t-stem"><span class="pt"><b class="ptv" contenteditable="true">'+TEST_PT+'</b> оноо</span><span class="n">'+(i+1)+'.</span>'+g.stem+'</div><div class="opts">'+opts+'</div></div>';
     akTest+=(i>0?', ':'')+(i+1)+'-'+OL[g.mc.correct];
   }
   var freeHtml='',akFree='';
   for(var f=0;f<4;f++){var fg=gen(FREE[f]);if(!fg)continue;window.__FREE.push(fg);
-    freeHtml+='<div class="free"><div class="fs"><span class="pt">'+FREE_PT[f]+' оноо</span><span class="n">'+(11+f)+'.</span>'+fg.stem+'</div><div class="work"></div></div>';
+    freeHtml+='<div class="free"><div class="fs"><span class="pt"><b class="ptv" contenteditable="true">'+FREE_PT[f]+'</b> оноо</span><span class="n">'+(11+f)+'.</span>'+fg.stem+'</div><div class="work"></div></div>';
     akFree+='<div class="ak"><span class="n">'+(11+f)+')</span> $'+fg.a+'$</div>';
   }
-  var TOTAL=totalPts(), VAR='V'+rnd(101,999);
+  var TOTAL=totalPts();
   var gRoman='<table class="gtbl"><tr><th>Тест</th>'+ROMAN.map(function(r){return '<td class="lab">'+r+'</td>';}).join('')+'</tr><tr><th>Оноо</th>'+ROMAN.map(function(){return '<td></td>';}).join('')+'</tr></table>';
   var gFree='<table class="gtbl"><tr><th>Задгай</th>'+FREE_PT.map(function(_,i){return '<td class="lab">2.'+(i+1)+'</td>';}).join('')+'</tr><tr><th>Оноо</th>'+FREE_PT.map(function(){return '<td></td>';}).join('')+'</tr></table>';
   document.getElementById('sheet').innerHTML=
     '<div class="head"><h1>Модул — Шалгалтын материал</h1><div class="sub">Модул агуулсан тэгшитгэл ба тэнцэтгэл биш · 12-р анги</div></div>'
-    +'<div class="meta"><span>Нэр: </span><span>Анги: </span><span>Хугацаа: </span><div class="score-top">Хувилбар: '+VAR+' · Оноо: <u></u> / '+TOTAL+'</div></div>'
+    +'<div class="meta"><span>Нэр: </span><span>Анги: </span><span>Хугацаа: </span><div class="score-top">Хувилбар: <b class="varv" contenteditable="true" data-ph="А"></b> · Оноо: <u></u> / <b class="totmax">'+TOTAL+'</b></div></div>'
     +'<div class="task">I. Сонголттой тест. Зөв хариуг сонгоно уу. (1–10)</div>'
     +testHtml
     +'<div class="task">II. Задгай даалгавар. Бодолтоо дэлгэрэнгүй бичнэ үү. (11–14)</div>'
     +freeHtml
-    +'<div class="grade"><div class="gtitle">Багшийн засах хүснэгт — авсан оноо</div>'+gRoman+gFree+'<div class="gtot">Нийт авсан оноо: <u></u> / '+TOTAL+' оноо</div></div>'
+    +'<div class="grade"><div class="gtitle">Багшийн засах хүснэгт — авсан оноо</div>'+gRoman+gFree+'<div class="gtot">Нийт авсан оноо: <u></u> / <b class="totmax">'+TOTAL+'</b> оноо</div></div>'
     +'<div class="ans-page" id="answers"><h2>Хариунууд</h2>'
       +'<div class="ak"><span class="n">Тест:</span> '+akTest+'</div>'
       +'<div style="height:6px"></div><div class="ak" style="font-weight:800;color:#5a32d6">Задгай даалгавар:</div>'+akFree
     +'</div>';
   window.WS_ITEMS=[];window.WS_TITLE='Модул — Шалгалтын материал (12-р анги)';
+  [].forEach.call(document.querySelectorAll('#sheet .ptv'),function(el){el.addEventListener('input',recomputeTotal);el.addEventListener('focus',function(){var r=document.createRange();r.selectNodeContents(el);var s=window.getSelection();s.removeAllRanges();s.addRange(r);});});
+  recomputeTotal();
   toggleAns();
   try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
 }
