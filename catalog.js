@@ -208,6 +208,7 @@ window.WS_LIST=[
     ['modul-tentsetgel-bish-2-12.html','Модул агуулсан тэнцэтгэл биш — системээр |ax+b|>cx+d'],
     ['modul-tentsetgel-bish-3-12.html','Модул тэнцэтгэл биш |ax+b|>|cx+d| (хоёр тал модультай, f²>g²)'],
     ['modul-ab-kvadrat-12.html','|a|=|b|⇒a²=b² — тэгшитгэл ба тэнцэтгэл биш холимог (коэффициенттэй)'],
+    ['modul-orluulga-kvadrat-12.html','|x|²=x² орлуулга — квадрат тэгшитгэл ба тэнцэтгэл биш (y=|x|)'],
   ]],
 ];
 window.WS_CAMB=[
