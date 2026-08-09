@@ -104,8 +104,8 @@
       <div class="fg"><label class="f">Огноо</label><input id="f_date" type="date" class="in"></div>
       <div class="fg"><label class="f">Хугацаа</label><input id="f_dur" class="in" placeholder="40 мин"></div>
     </div>
-    <div class="fg"><label class="f flab">Зорилго / зорилт (мэдлэг · чадвар · хандлага)<button type="button" class="ai-btn" id="aiObjBtn" onclick="genObjectives(false)"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" stroke="none"><path d="M12 2l1.9 5.6L19.5 9l-5.6 1.4L12 16l-1.9-5.6L4.5 9l5.6-1.4z"/></svg>AI-аар бөглөх</button></label><textarea id="f_obj" class="in" rows="3"></textarea></div>
-    <div class="fg"><label class="f flab">Хичээлийн явц (сэдэлжүүлэх → шинэ мэдлэг → бататгал → дүгнэлт)<button type="button" class="ai-btn" id="aiFlowBtn" onclick="genFlow()"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" stroke="none"><path d="M12 2l1.9 5.6L19.5 9l-5.6 1.4L12 16l-1.9-5.6L4.5 9l5.6-1.4z"/></svg>AI-аар бөглөх</button></label><textarea id="f_flow" class="in" rows="6"></textarea></div>
+    <div class="fg"><label class="f flab">Зорилго / зорилт (мэдлэг · чадвар · хандлага)<button type="button" class="ai-btn" id="aiObjBtn" onclick="genObjectives(false)"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" stroke="none"><path d="M12 2l1.9 5.6L19.5 9l-5.6 1.4L12 16l-1.9-5.6L4.5 9l5.6-1.4z"/></svg>Автоматаар бөглөх</button></label><textarea id="f_obj" class="in" rows="3"></textarea></div>
+    <div class="fg"><label class="f flab">Хичээлийн явц (сэдэлжүүлэх → шинэ мэдлэг → бататгал → дүгнэлт)<button type="button" class="ai-btn" id="aiFlowBtn" onclick="genFlow()"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" stroke="none"><path d="M12 2l1.9 5.6L19.5 9l-5.6 1.4L12 16l-1.9-5.6L4.5 9l5.6-1.4z"/></svg>Автоматаар бөглөх</button></label><textarea id="f_flow" class="in" rows="6"></textarea></div>
     <div class="fg"><label class="f">Гэрийн даалгавар</label><textarea id="f_hw" class="in" rows="2"></textarea></div>
 
     <div class="sec-t"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>Хавсаргасан ажлын хуудас</div>
@@ -137,38 +137,61 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return
 function api(action,data){data=data||{};data.action=action;data.token=ls('cm_ws_token');
   return fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).then(function(r){return r.json();});}
 var curId=null, curWs=[], FLAT=[];
-// ── AI туслах (api/chat, claude-haiku) ──
-function aiChat(system,user){
-  return fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({system:system,userEmail:ls('cm_last_user'),messages:[{role:'user',content:user}]})})
-    .then(function(r){return r.json();}).then(function(d){return (d&&d.content&&d.content[0]&&d.content[0].text)||'';});
+// ── Локал бөглөгч: сэдвийн түлхүүр үгээр зорилго/зорилт, явцыг шууд бэлдэнэ (AI ашиглахгүй) ──
+var THEMES=[
+ {re:/модул/, know:'Тооны модул (абсолют утга)-ын тодорхойлолт, |a|=a (a≥0) ба |a|=−a (a<0) дүрмийг мэдэх.', skill:'Илэрхийллийн тэмдгийг тодорхойлж модулийг зөв нээх, модультай тэгшитгэл бодох.'},
+ {re:/тэнцэтгэл ?биш|тэнцэт ?бус|тэнцшгүй/, know:'Тэнцэтгэл бишийн шинж чанар, шийдвэрлэх дүрмийг мэдэх.', skill:'Тэнцэтгэл бишийг зөв хувиргаж, шийдийн мужийг олох.'},
+ {re:/тэгшитгэл/, know:'Тэгшитгэлийн ойлголт, шийд, шийдвэрлэх алхмуудыг мэдэх.', skill:'Тэгшитгэлийг зөв хувиргаж, шийдийг олох чадвартай болох.'},
+ {re:/аравт/, know:'Аравтын бутархайн орон, үйлдлийн дүрмийг мэдэх.', skill:'Аравтын бутархайг зөв нэмэх, хасах, үржих, хуваах, шаардвал тоймлох.'},
+ {re:/тоймло/, know:'Тоо тоймлох дүрэм, орны утгыг мэдэх.', skill:'Тоог заасан орон хүртэл зөв тоймлох чадвартай болох.'},
+ {re:/бутархай/, know:'Бутархайн ойлголт, эквивалент болон үйлдлийн дүрмийг мэдэх.', skill:'Бутархай дээр үйлдэл хийж, хамгийн энгийн хэлбэрт хураах.'},
+ {re:/вектор/, know:'Векторын ойлголт, координат, үйлдлийн дүрмийг мэдэх.', skill:'Векторыг координатаар илэрхийлж, нэмэх/хасах, урт олох.'},
+ {re:/тригонометр|синус|косинус|тангенс|\bsin\b|\bcos\b|\btan\b/, know:'Тригонометрийн харьцаа, утгуудыг мэдэх.', skill:'Тригонометрийн харьцааг ашиглан тал, өнцөг олох.'},
+ {re:/язгуур/, know:'Язгуурын ойлголт, шинж чанарыг мэдэх.', skill:'Язгуурт илэрхийллийг хялбарчлах, тооцоолох.'},
+ {re:/зэрэг/, know:'Зэргийн ойлголт, шинж чанар, дүрмийг мэдэх.', skill:'Зэрэгт илэрхийллийг хувиргаж, тооцоолох.'},
+ {re:/логарифм|\bлог\b/, know:'Логарифмын тодорхойлолт, шинж чанарыг мэдэх.', skill:'Логарифмт илэрхийллийг тооцоолж, хувиргах.'},
+ {re:/матриц|тодорхойлогч|детерминант|крамер/, know:'Матриц, тодорхойлогчийн ойлголтыг мэдэх.', skill:'Матрицын үйлдэл хийж, системийг шийдэх.'},
+ {re:/график|функц|налалт|парабол/, know:'Функц ба түүний графикийн ойлголтыг мэдэх.', skill:'Функцийн графикийг байгуулж, шинжийг тодорхойлох.'},
+ {re:/координат/, know:'Координатын хавтгай, аргын ойлголтыг мэдэх.', skill:'Координатын аргаар геометрийн бодлого бодох.'},
+ {re:/бисектрис|медиан|гурвалжин|өнцөг|олон ?өнцөгт|солбисон|гадаад|хамар|босоо/, know:'Гурвалжин/өнцгийн шинж чанар, теоремыг мэдэх.', skill:'Өнцөг, талыг тооцоолж, геометрийн бодлого бодох.'},
+ {re:/прогресс|дараалал/, know:'Тоон дарааллын хууль, гишүүдийг мэдэх.', skill:'Дарааллын гишүүн, нийлбэрийг олох.'},
+ {re:/процент|хувь/, know:'Хувь, харьцааны ойлголтыг мэдэх.', skill:'Хувь бодох, харьцуулах бодлого бодох.'},
+ {re:/анхны|хуваагдах|хиех|хбех|үржигдэхүүн/, know:'Хуваагдах шинж, анхны тоо, ХИЕХ/ХБЕХ-ийн ойлголтыг мэдэх.', skill:'Тоог үржигдэхүүнд задлах, ХИЕХ/ХБЕХ олох.'},
+ {re:/илэрхийлэл|хялбарчла|эмхэтгэ|задлах|хаалт|гишүүн/, know:'Алгебрийн илэрхийллийн хувиргалтын дүрмийг мэдэх.', skill:'Илэрхийллийг задлах, эмхэтгэх, хялбарчлах.'},
+ {re:/үржих|үржвэр/, know:'Үржих үйлдлийн дүрмийг мэдэх.', skill:'Олон оронтой тоо/илэрхийллийг зөв үржүүлэх.'},
+ {re:/хуваа/, know:'Хуваах үйлдлийн дүрмийг мэдэх.', skill:'Баганан хуваалт/хуваахыг зөв гүйцэтгэх.'},
+ {re:/нэмэх|хасах/, know:'Нэмэх, хасах үйлдлийн дүрмийг мэдэх.', skill:'Нэмэх, хасах үйлдлийг зөв гүйцэтгэх.'}
+];
+function themeOf(t){t=(t||'').toLowerCase();for(var i=0;i<THEMES.length;i++){if(THEMES[i].re.test(t))return THEMES[i];}return null;}
+function localObjectives(title){
+  var th=themeOf(title);
+  var know=th?th.know:(title+'-ын үндсэн ойлголт, дүрэм, томьёог мэдэх.');
+  var skill=th?th.skill:(title+'-ын бодлого дасгалыг зөв, бие даан бодох чадвартай болох.');
+  return 'Мэдлэг: '+know+'\nЧадвар: '+skill+'\nХандлага: Математик сэтгэлгээ хөгжүүлж, нямбай, тэвчээртэй, бие даан ажиллах хандлага төлөвшүүлэх.';
+}
+function localFlow(title){
+  var prac=curWs.filter(function(w){return w.role!=='homework';}).map(function(w){return w.title;});
+  var hw=curWs.filter(function(w){return w.role==='homework';}).map(function(w){return w.title;});
+  var s='Сэдэлжүүлэх/сэргээн санах: Өмнөх мэдлэгийг асуулт, богино даалгавраар сэргээж, "'+title+'" сэдэвт хүргэнэ.\n'
+   +'Шинэ мэдлэг: '+title+'-ын ойлголт, дүрэм, жишээг тайлбарлаж, хамтдаа жишээ бодно.\n'
+   +'Бататгах дасгал: '+(prac.length?('«'+prac.join('», «')+'» ажлын хуудсаар бататгана.'):'Ажлын хуудас, дасгалаар сурагчид бие даан бодно.')+'\n'
+   +'Дүгнэлт/үнэлгээ: Гол санааг нэгтгэж, сурагчдын гүйцэтгэлийг үнэлнэ.';
+  if(hw.length)s+='\nГэрийн даалгавар: «'+hw.join('», «')+'».';
+  return s;
 }
 function genObjectives(auto){
   var title=document.getElementById('f_title').value.trim();
   if(!title){ if(!auto)setMsg('Эхлээд сэдвээ бичнэ үү',false); return; }
-  var ta=document.getElementById('f_obj'), btn=document.getElementById('aiObjBtn');
-  if(auto && ta.value.trim()) return;                 // авто: бичсэн зорилгыг дарж бичихгүй
-  var grade=document.getElementById('f_grade').value||'';
-  var prev=ta.value; ta.value='✦ AI зорилго бэлдэж байна…'; ta.disabled=true; if(btn)btn.disabled=true;
-  var sys="Чи бол Монголын ЕБС-ийн туршлагатай математикийн багшийн туслах. Өгсөн сэдэв, ангид тохирсон ээлжит хичээлийн ЗОРИЛГО/ЗОРИЛТыг зөвхөн Монгол хэлээр бич. Яг 3 мөр гарга: 'Мэдлэг: ...', 'Чадвар: ...', 'Хандлага: ...'. Мөр бүр товч, тодорхой, үйл үгээр эхэлсэн байх. Оршил, тайлбар, дугаарлалт, эможи бүү бич — зөвхөн 3 мөр.";
-  aiChat(sys,'Сэдэв: '+title+(grade?('. Анги: '+grade):'')+'.').then(function(txt){
-    ta.disabled=false; if(btn)btn.disabled=false;
-    if(txt && /Мэдлэг|Чадвар|Хандлага/.test(txt)) ta.value=txt.trim();
-    else { ta.value=prev; setMsg(txt?txt.slice(0,140):'AI хариу авсангүй',false); }
-  }).catch(function(){ ta.disabled=false; if(btn)btn.disabled=false; ta.value=prev; setMsg('AI-д холбогдож чадсангүй',false); });
+  var ta=document.getElementById('f_obj');
+  if(auto && ta.value.trim()) return;   // авто: бичсэн зорилгыг дарж бичихгүй
+  ta.value=localObjectives(title);
 }
-function genFlow(){
+function genFlow(auto){
   var title=document.getElementById('f_title').value.trim();
-  if(!title){ setMsg('Эхлээд сэдвээ бичнэ үү',false); return; }
-  var ta=document.getElementById('f_flow'), btn=document.getElementById('aiFlowBtn');
-  var grade=document.getElementById('f_grade').value||'';
-  var prev=ta.value; ta.value='✦ AI хичээлийн явц бэлдэж байна…'; ta.disabled=true; if(btn)btn.disabled=true;
-  var sys="Чи бол Монголын ЕБС-ийн туршлагатай математикийн багшийн туслах. Өгсөн сэдэв, ангид тохирсон 40 минутын ээлжит хичээлийн ЯВЦыг Монголоор бич. Яг дараах 4 үе шатаар, мөр тус бүр 1-2 өгүүлбэр: 'Сэдэлжүүлэх/сэргээн санах: ...', 'Шинэ мэдлэг: ...', 'Бататгах дасгал: ...', 'Дүгнэлт/үнэлгээ: ...'. Оршил, эможи бүү бич.";
-  aiChat(sys,'Сэдэв: '+title+(grade?('. Анги: '+grade):'')+'.').then(function(txt){
-    ta.disabled=false; if(btn)btn.disabled=false;
-    if(txt && /Сэдэлжүүлэх|Шинэ мэдлэг|Бататгах/.test(txt)) ta.value=txt.trim();
-    else { ta.value=prev; setMsg(txt?txt.slice(0,140):'AI хариу авсангүй',false); }
-  }).catch(function(){ ta.disabled=false; if(btn)btn.disabled=false; ta.value=prev; setMsg('AI-д холбогдож чадсангүй',false); });
+  if(!title){ if(!auto)setMsg('Эхлээд сэдвээ бичнэ үү',false); return; }
+  var ta=document.getElementById('f_flow');
+  if(auto && ta.value.trim()) return;
+  ta.value=localFlow(title);
 }
 // каталогийг хавтгайруулах
 (function(){
@@ -181,8 +204,8 @@ function genFlow(){
 function init(){
   if(!ls('cm_ws_token')){ document.getElementById('gate').style.display='block'; return; }
   document.getElementById('app').style.display='grid';
-  // Сэдэв бичиж дуусахад (focus алдахад) зорилго хоосон бол AI автоматаар бөглөнө
-  document.getElementById('f_title').addEventListener('blur',function(){ genObjectives(true); });
+  // Сэдэв бичиж дуусахад (focus алдахад) зорилго ба хичээлийн явц хоосон бол автоматаар бөглөнө
+  document.getElementById('f_title').addEventListener('blur',function(){ genObjectives(true); genFlow(true); });
   loadPlans(); newPlan();
 }
 function loadPlans(){
