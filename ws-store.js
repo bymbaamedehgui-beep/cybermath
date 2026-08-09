@@ -428,7 +428,7 @@
     var b=document.createElement('button');
     b.className='btn ws-batch'; b.type='button';
     b.style.background='linear-gradient(135deg,#f59e0b,#f97316)';
-    b.innerHTML='👥 Ангиар хэвлэх';
+    b.innerHTML='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Ангиар хэвлэх';
     b.onclick=openBatch;
     bar.appendChild(b);
   }
@@ -481,8 +481,10 @@
       if(!same&&hasBuild){ try{window.build();}catch(e){} brandSheet(); enhanceMeta(); }
       var nf=sheet.querySelector('.meta .cm-fill[data-ph="нэр…"]');
       if(nf)nf.textContent=names[i];
+      var z=fitZoomFor(sheet);   // нэг хуудсанд багтаах
       var clone=document.createElement('div');
       clone.className='sheet cm-batch-sheet';
+      if(z<1)clone.style.zoom=z;
       clone.innerHTML=sheet.innerHTML;
       box.appendChild(clone);
     }
@@ -494,6 +496,27 @@
     window.addEventListener('afterprint',cleanup);
     setTimeout(function(){ window.print(); }, 80);
   }
+
+  // ─── Хэвлэхэд нэг A4-д багтаах (шаардвал бага зэрэг жижигрүүлнэ) ───
+  var PRINT_TARGET=1030;   // ~272mm (нэг A4 хуудасны боломжит өндөр, зайтайгаар)
+  // Хэвлэлийн бодит өргөн (210mm)-ээр off-screen хэмжиж, дэлгэцийн өргөнөөс хамаарахгүй болгоно
+  function fitZoomFor(sh){
+    if(!sh)return 1;
+    try{
+      var probe=sh.cloneNode(true);
+      probe.removeAttribute('id');
+      probe.style.cssText='position:absolute;left:-99999px;top:0;width:210mm;max-width:none;min-height:0;margin:0;padding:0;box-shadow:none;zoom:1;transform:none;filter:none';
+      var pa=probe.querySelector('#answers,.ans-page'); if(pa)pa.parentNode.removeChild(pa);  // хариу хуудсыг хасна
+      document.body.appendChild(probe);
+      var h=probe.scrollHeight;
+      document.body.removeChild(probe);
+      return h>PRINT_TARGET ? Math.max(0.7, PRINT_TARGET/h) : 1;
+    }catch(e){ return 1; }
+  }
+  function applyPrintFit(){ var sh=document.getElementById('sheet'); if(sh&&!document.getElementById('cm-batch')) sh.style.zoom=fitZoomFor(sh); }
+  function clearPrintFit(){ var sh=document.getElementById('sheet'); if(sh) sh.style.zoom=''; }
+  window.addEventListener('beforeprint',applyPrintFit);
+  window.addEventListener('afterprint',clearPrintFit);
 
   function init(){ injectBrandCSS(); brandSheet(); watchSheet(); enhanceMeta(); if(!IS_QR){addBtn();addBatchBtn();} applyQR(); enforcePaywall(); injectSocial(); }
   if(document.readyState!=='loading')init();
