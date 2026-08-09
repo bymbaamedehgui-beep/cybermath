@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Хичээлийн төлөвлөгөө — CyberMath</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <style>
   :root{--purple:#7B52EE;--purple2:#A855F7;--purple-d:#5a32d6;--ink:#211C54;--soft:#8a83a8;--line:#e7e0f7;--bg:#f4f2fb}
   *{box-sizing:border-box;margin:0;padding:0}
@@ -58,6 +59,11 @@
   .pk-item:hover{background:#f3eefe}
   .gate{max-width:440px;margin:60px auto;text-align:center;padding:28px}
   #app{display:none}
+  /* дасгалын hover preview */
+  #pkPreview{position:fixed;z-index:400;width:300px;height:412px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 50px -12px rgba(40,20,90,.5);overflow:hidden;display:none;pointer-events:none}
+  #pkPreview iframe{position:absolute;top:0;left:0;border:0;width:794px;height:1090px;transform:scale(.378);transform-origin:top left;background:#fff}
+  #pkPreview .pvl{position:absolute;inset:0;display:grid;place-items:center;color:var(--soft);font-size:.82rem}
+  @media (max-width:820px){#pkPreview{display:none!important}}
   /* ── Хэвлэлт ── */
   #planDoc{display:none}
   @media print{
@@ -73,6 +79,8 @@
     #planDoc .pd-sec{font-weight:800;margin:11px 0 4px;font-size:13px}
     #planDoc .pd-box{border:1px solid #999;border-radius:4px;padding:7px 9px;white-space:pre-wrap;min-height:14mm}
     #planDoc ul{margin:2px 0 0 18px}
+    .cm-ws-page{page-break-before:always}
+    .cm-ws-page .sheet{box-shadow:none!important;width:auto!important;min-height:auto!important;margin:0!important;padding:0!important}
   }
 </style>
 </head>
@@ -128,6 +136,7 @@
   </div>
 </div>
 
+<div id="pkPreview"><iframe id="pkPrevFrame" scrolling="no"></iframe></div>
 <div id="planDoc"></div>
 
 <script src="/catalog.js"></script>
@@ -281,7 +290,23 @@ function renderWs(){
   }).join('');
 }
 function openPicker(){document.getElementById('picker').classList.add('on');document.getElementById('pkSearch').value='';renderPicker();setTimeout(function(){document.getElementById('pkSearch').focus();},50);}
-function closePicker(){document.getElementById('picker').classList.remove('on');}
+function closePicker(){document.getElementById('picker').classList.remove('on');hidePkPreview();}
+// ── Дасгал дээр hover хийхэд preview ──
+function showPkPreview(slug,itemEl){
+  var pv=document.getElementById('pkPreview'),fr=document.getElementById('pkPrevFrame');
+  if(pv._slug!==slug){ pv._slug=slug; fr.src='/'+slug; }
+  var modal=document.querySelector('#picker .picker').getBoundingClientRect();
+  var ir=itemEl.getBoundingClientRect(),w=300,h=412,gap=12;
+  var left=modal.right+gap; if(left+w>window.innerWidth-8) left=modal.left-gap-w; if(left<8)left=8;
+  var top=Math.min(Math.max(ir.top-40,8),window.innerHeight-h-8);
+  pv.style.left=left+'px'; pv.style.top=top+'px'; pv.style.display='block';
+}
+function hidePkPreview(){var pv=document.getElementById('pkPreview');if(pv)pv.style.display='none';}
+(function(){
+  var pb=document.getElementById('pkBody'); if(!pb)return;
+  pb.addEventListener('mouseover',function(e){var it=e.target.closest&&e.target.closest('.pk-item');if(it)showPkPreview(it.getAttribute('data-slug'),it);});
+  pb.addEventListener('mouseleave',hidePkPreview);
+})();
 function renderPicker(){
   var q=(document.getElementById('pkSearch').value||'').toLowerCase().trim();
   var gsel=(document.getElementById('pkGrade')||{}).value||'';
@@ -298,7 +323,7 @@ function renderPicker(){
   order.forEach(function(g){
     h+='<div class="pk-grp">'+esc(g)+'</div>';
     byGrade[g].forEach(function(w){
-      h+='<div class="pk-item" onclick="addWs(\''+esc(w.slug)+'\',\''+esc(w.title).replace(/'/g,"\\'")+'\')">'+esc(w.title)+'</div>';
+      h+='<div class="pk-item" data-slug="'+esc(w.slug)+'" onclick="addWs(\''+esc(w.slug)+'\',\''+esc(w.title).replace(/'/g,"\\'")+'\')">'+esc(w.title)+'</div>';
     });
   });
   body.innerHTML=h;
@@ -340,7 +365,37 @@ function printPlan(){
   }
   doc+=sec('Гэрийн даалгавар', b.homework);
   document.getElementById('planDoc').innerHTML=doc;
-  window.print();
+  // Хавсаргасан ажлын хуудсуудыг хэвлэлд оруулна (тус бүр 1+ хуудас)
+  var slugs=curWs.map(function(w){return w.slug;});
+  if(!slugs.length){ window.print(); return; }
+  var pbtn=document.querySelector('.btn.print');
+  if(pbtn){pbtn.disabled=true;} setMsg('Ажлын хуудсуудыг бэлдэж байна…',true);
+  appendWorksheetPages(slugs,0,function(){ if(pbtn)pbtn.disabled=false; setMsg('',true); window.print(); });
+}
+function stripGlobalCss(css){ return String(css||'').replace(/@page[^{]*\{[^}]*\}/g,'').replace(/\bbody\s*\{[^}]*\}/g,''); }
+function appendWorksheetPages(slugs,i,done){
+  if(i>=slugs.length){ done(); return; }
+  var ifr=document.createElement('iframe');
+  ifr.style.cssText='position:fixed;left:-99999px;top:0;width:820px;height:1200px;border:0';
+  ifr.src='/'+slugs[i];
+  var finished=false;
+  function grab(){
+    if(finished)return; finished=true;
+    try{
+      var d=ifr.contentDocument, sheet=d&&d.getElementById('sheet');
+      if(sheet){
+        var css=''; [].forEach.call(d.querySelectorAll('style'),function(s){css+=stripGlobalCss(s.textContent);});
+        var page=document.createElement('div'); page.className='cm-ws-page';
+        page.innerHTML='<style>'+css+'</style>'+sheet.outerHTML;
+        document.getElementById('planDoc').appendChild(page);
+      }
+    }catch(e){}
+    try{ifr.remove();}catch(e){}
+    appendWorksheetPages(slugs,i+1,done);
+  }
+  ifr.onload=function(){ setTimeout(grab,1200); };   // build() + KaTeX render хүлээнэ
+  setTimeout(grab,6000);                              // fallback (ачаалагдаагүй бол алгасна)
+  document.body.appendChild(ifr);
 }
 init();
 </script>
