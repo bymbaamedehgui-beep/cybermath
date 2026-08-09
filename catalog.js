@@ -206,6 +206,7 @@ window.WS_LIST=[
     ['modul-tegshitgel-12.html','Модултай тэгшитгэл |ax+b|=c'],['modul-tegshitgel-2-12.html','Модултай тэгшитгэл — нийлмэл (|ax+b|=cx+d, давхар, |x²−m|=n)'],['modul-tegshitgel-3-12.html','Модултай тэгшитгэл |f(x)|=|g(x)| (хоёр тал модультай)'],
     ['modul-tentsetgel-bish-12.html','Модул агуулсан тэнцэтгэл биш (шийд — тоон завсар)'],
     ['modul-tentsetgel-bish-2-12.html','Модул агуулсан тэнцэтгэл биш — системээр |ax+b|>cx+d'],
+    ['modul-tentsetgel-bish-3-12.html','Модул тэнцэтгэл биш |ax+b|>|cx+d| (хоёр тал модультай, f²>g²)'],
   ]],
 ];
 window.WS_CAMB=[
