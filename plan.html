@@ -123,7 +123,7 @@
 
 <div class="modal" id="picker">
   <div class="picker">
-    <div class="ph"><input id="pkSearch" class="in" placeholder="Дасгал хайх…" oninput="renderPicker()"><button class="ico-btn" onclick="closePicker()"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+    <div class="ph" style="flex-wrap:wrap"><input id="pkSearch" class="in" placeholder="Дасгал хайх…" oninput="renderPicker()"><select id="pkGrade" class="in" style="flex:0 0 auto;width:auto;min-width:120px" onchange="renderPicker()"></select><button class="ico-btn" onclick="closePicker()"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
     <div class="pb" id="pkBody"></div>
   </div>
 </div>
@@ -199,8 +199,12 @@ function genFlow(auto){
   function add(groups){(groups||[]).forEach(function(g){var grade=g[0];(g[1]||[]).forEach(function(w){FLAT.push({slug:w[0],title:w[1],grade:grade});});});}
   add(window.WS_LIST); add(window.WS_CAMB);
 })();
-// анги сонголт
+// анги сонголт (төлөвлөгөөний талбар)
 (function(){var sel=document.getElementById('f_grade');var o='<option value="">—</option>';for(var i=1;i<=12;i++)o+='<option value="'+i+'-р анги">'+i+'-р анги</option>';sel.innerHTML=o;})();
+// picker дотор анги сонгох dropdown (каталогид байгаа бүх ангиар)
+(function(){var sel=document.getElementById('pkGrade');if(!sel)return;var seen={},opts='<option value="">Бүх анги</option>';
+  FLAT.forEach(function(w){if(w.grade&&!seen[w.grade]){seen[w.grade]=1;opts+='<option value="'+esc(w.grade)+'">'+esc(w.grade)+'</option>';}});
+  sel.innerHTML=opts;})();
 
 function init(){
   if(!ls('cm_ws_token')){ document.getElementById('gate').style.display='block'; return; }
@@ -280,9 +284,11 @@ function openPicker(){document.getElementById('picker').classList.add('on');docu
 function closePicker(){document.getElementById('picker').classList.remove('on');}
 function renderPicker(){
   var q=(document.getElementById('pkSearch').value||'').toLowerCase().trim();
+  var gsel=(document.getElementById('pkGrade')||{}).value||'';
   var body=document.getElementById('pkBody');
   var byGrade={},order=[];
   FLAT.forEach(function(w){
+    if(gsel && w.grade!==gsel)return;
     if(q && (w.title.toLowerCase().indexOf(q)<0 && w.slug.toLowerCase().indexOf(q)<0 && (w.grade||'').toLowerCase().indexOf(q)<0))return;
     if(!byGrade[w.grade]){byGrade[w.grade]=[];order.push(w.grade);}
     byGrade[w.grade].push(w);
@@ -305,8 +311,10 @@ function addWs(slug,title){
   var meta=FLAT.filter(function(w){return w.slug===slug;})[0];
   var fTitle=document.getElementById('f_title'), fGrade=document.getElementById('f_grade'),
       fObj=document.getElementById('f_obj'), fFlow=document.getElementById('f_flow');
+  var fDate=document.getElementById('f_date');
   if(!fTitle.value.trim() && title) fTitle.value=title;
   if(!fGrade.value && meta && meta.grade){ for(var i=0;i<fGrade.options.length;i++){ if(fGrade.options[i].value===meta.grade){ fGrade.value=meta.grade; break; } } }
+  if(!fDate.value){ var d=new Date(); fDate.value=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
   if(!fObj.value.trim()){ var o=(window.WS_OBJECTIVES||{})[slug]; fObj.value = o || localObjectives(fTitle.value.trim()||title); }
   if(!fFlow.value.trim()) fFlow.value=localFlow(fTitle.value.trim()||title);
   renderWs(); closePicker();
