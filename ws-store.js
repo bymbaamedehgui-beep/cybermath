@@ -259,15 +259,15 @@
       '#sheet{position:relative}'+
       '#sheet.cm-branded>*:not(.cm-wm){position:relative;z-index:1}'+
       // Тамга бодолтын/хариу хайрцгуудын ЦААНА нуугдахгүйн тулд хамгийн дээр (наана) гаргана — сул тул бичихэд саад болохгүй
-      '.cm-wm{position:absolute;left:50%;z-index:5;pointer-events:none;text-align:center;'+
-        'transform:translate(-50%,-50%) rotate(-20deg);'+
+      '.cm-wm{position:absolute;left:50%;z-index:5;pointer-events:none;text-align:center;width:100%;'+
+        'transform:translate(-50%,-50%) rotate(-14deg);'+
         '-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
-      '.cm-wm.top{top:17%}.cm-wm.mid{top:50%}.cm-wm.bot{top:83%}'+   // дээд·дунд·доод
-      '.cm-wm .cm-bird{display:block;margin:0 auto;width:clamp(130px,26vw,220px);opacity:.10}'+
-      ".cm-wm .cm-word{font:900 clamp(30px,7vw,78px)/1 'Segoe UI',Arial,sans-serif;letter-spacing:2px;"+
+      '.cm-wm.mid{top:50%}'+
+      '.cm-wm .cm-bird{display:block;margin:0 auto;width:clamp(150px,30vw,250px);opacity:.09}'+
+      ".cm-wm .cm-word{font:900 clamp(52px,20.5vw,165px)/1 'Segoe UI',Arial,sans-serif;letter-spacing:2px;"+
         'color:rgba(123,82,238,.08);text-transform:lowercase;white-space:nowrap}'+
-      ".cm-wm .cm-url{font:800 clamp(12px,2.6vw,22px)/1 'Segoe UI',Arial,sans-serif;letter-spacing:1px;"+
-        'color:rgba(123,82,238,.09);margin-top:6px;white-space:nowrap}'+
+      ".cm-wm .cm-url{font:800 clamp(16px,4vw,32px)/1 'Segoe UI',Arial,sans-serif;letter-spacing:1px;"+
+        'color:rgba(123,82,238,.09);margin-top:8px;white-space:nowrap}'+
       '.cm-foot{position:relative;z-index:1;text-align:center;margin-top:12px;padding-top:9px;'+
         "border-top:1px solid #eee;font:800 11.5px 'Segoe UI',Arial,sans-serif;color:#8f83b8;"+
         'letter-spacing:.4px;-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
@@ -302,8 +302,8 @@
   function brandSheet(){
     var sh=document.getElementById('sheet'); if(!sh)return;
     if(!sh.querySelector('.cm-wm')){
-      // Дээд · дунд · доод гэсэн 3 тамга
-      ['top','mid','bot'].forEach(function(p){ sh.insertBefore(mkWm(p), sh.firstChild); });
+      // Голд нэг том тамга (хоёр талдаа дүүрэн)
+      sh.insertBefore(mkWm('mid'), sh.firstChild);
     }
     if(!sh.querySelector('.cm-foot')){
       var ft=document.createElement('div'); ft.className='cm-foot';
