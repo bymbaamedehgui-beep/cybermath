@@ -131,6 +131,7 @@
 <div id="planDoc"></div>
 
 <script src="/catalog.js"></script>
+<script src="/plan-objectives.js"></script>
 <script>
 function ls(k){try{return localStorage.getItem(k);}catch(e){return null;}}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
@@ -298,7 +299,17 @@ function renderPicker(){
 }
 function addWs(slug,title){
   if(curWs.some(function(w){return w.slug===slug;})){setMsg('Аль хэдийн нэмэгдсэн',false);return;}
-  curWs.push({slug:slug,title:title,role:'practice'}); renderWs(); closePicker();
+  var first=(curWs.length===0);
+  curWs.push({slug:slug,title:title,role:'practice'});
+  // Эхний дасгал нэмэхэд төлөвлөгөөний талбарууд хоосон бол тухайн хуудасны мэдээллээр автоматаар бөглөнө
+  var meta=FLAT.filter(function(w){return w.slug===slug;})[0];
+  var fTitle=document.getElementById('f_title'), fGrade=document.getElementById('f_grade'),
+      fObj=document.getElementById('f_obj'), fFlow=document.getElementById('f_flow');
+  if(!fTitle.value.trim() && title) fTitle.value=title;
+  if(!fGrade.value && meta && meta.grade){ for(var i=0;i<fGrade.options.length;i++){ if(fGrade.options[i].value===meta.grade){ fGrade.value=meta.grade; break; } } }
+  if(!fObj.value.trim()){ var o=(window.WS_OBJECTIVES||{})[slug]; fObj.value = o || localObjectives(fTitle.value.trim()||title); }
+  if(!fFlow.value.trim()) fFlow.value=localFlow(fTitle.value.trim()||title);
+  renderWs(); closePicker();
 }
 function printPlan(){
   var b=gather();
