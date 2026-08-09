@@ -70,7 +70,7 @@
     body{background:#fff}
     .top,.wrap,.modal{display:none!important}
     #planDoc{display:block!important;padding:0;color:#000;font-size:12.5px}
-    @page{size:A4;margin:14mm}
+    @page{size:A4;margin:12mm}
     #planDoc h1{font-size:19px;color:#000;text-align:center;margin-bottom:2px}
     #planDoc .pd-sub{text-align:center;color:#444;font-size:11px;margin-bottom:10px;border-bottom:1.5px solid #000;padding-bottom:7px}
     #planDoc table{width:100%;border-collapse:collapse;margin-bottom:9px}
@@ -376,7 +376,7 @@ function stripGlobalCss(css){ return String(css||'').replace(/@page[^{]*\{[^}]*\
 function appendWorksheetPages(slugs,i,done){
   if(i>=slugs.length){ done(); return; }
   var ifr=document.createElement('iframe');
-  ifr.style.cssText='position:fixed;left:-99999px;top:0;width:820px;height:1200px;border:0';
+  ifr.style.cssText='position:fixed;left:-99999px;top:0;width:900px;height:1400px;border:0';  // >820 → desktop layout (210mm)
   ifr.src='/'+slugs[i];
   var finished=false;
   function grab(){
@@ -384,8 +384,15 @@ function appendWorksheetPages(slugs,i,done){
     try{
       var d=ifr.contentDocument, sheet=d&&d.getElementById('sheet');
       if(sheet){
+        // Нэг A4-д багтаах: хэвлэлийн боломжит өндөр (~273mm @12mm зах) дотор шахна
+        var cs=d.defaultView.getComputedStyle(sheet);
+        var padV=parseFloat(cs.paddingTop||0)+parseFloat(cs.paddingBottom||0);
+        var contentH=sheet.scrollHeight-padV;
+        var TARGET=1020;   // ~270mm; хэтэрвэл жижигрүүлнэ
+        var zoom=contentH>TARGET ? Math.max(0.55, TARGET/contentH) : 1;
         var css=''; [].forEach.call(d.querySelectorAll('style'),function(s){css+=stripGlobalCss(s.textContent);});
         var page=document.createElement('div'); page.className='cm-ws-page';
+        if(zoom<1) page.style.zoom=zoom.toFixed(3);
         page.innerHTML='<style>'+css+'</style>'+sheet.outerHTML;
         document.getElementById('planDoc').appendChild(page);
       }
