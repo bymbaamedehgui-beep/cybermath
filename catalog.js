@@ -189,6 +189,8 @@ window.WS_LIST=[
     ['zereg-teg-sorog-hard-10.html','Тэг ба сөрөг илтгэгчтэй зэрэг — хүндэвтэр (нийлмэл)'],
     ['yazguur-n-zereg-10.html','n зэргийн язгуур ба арифметик язгуур'],
     ['yazguur-n-zereg-hard-10.html','n зэргийн язгуур — хүндэвтэр (нийлмэл, муж, |a|)'],
+    ['zereg-yazguur-chanar-10.html','n зэргийн язгуурын чанар'],
+    ['zereg-yazguur-chanar-hard-10.html','n зэргийн язгуурын чанар-2'],
     ['grafik-ax2.html','Квадрат график: y = ax² (орой эх цэгт)'],
     ['grafik-ax2-c.html','Квадрат график: y = ax² + c (босоо зөөлт)'],
     ['grafik-ax-h2.html','Квадрат график: y = a(x−h)² (хэвтээ зөөлт)'],

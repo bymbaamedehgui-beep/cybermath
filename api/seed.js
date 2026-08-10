@@ -62,6 +62,7 @@ module.exports = async (req, res) => {
         '10-р анги': [
           { name:'Тэг ба сөрөг илтгэгчтэй зэрэг', slugs:['zereg-teg-sorog-10.html','zereg-teg-sorog-hard-10.html'] },
           { name:'n зэргийн язгуур', slugs:['yazguur-n-zereg-10.html','yazguur-n-zereg-hard-10.html'] },
+          { name:'n зэргийн язгуурын чанар', slugs:['zereg-yazguur-chanar-10.html','zereg-yazguur-chanar-hard-10.html'] },
           { name:'Квадрат функцийн график', slugs:['grafik-ax2.html','grafik-ax2-c.html','grafik-ax-h2.html','grafik-oroin-helber.html','grafik-erenhii.html','kvadrat-grafik-zoolt-8.html'] },
         ],
         '11-р анги': [
