@@ -277,6 +277,11 @@
       '.cm-fill:focus{background:#f5efff;border-radius:4px}'+
       '.cm-fill:empty:not(:focus)::before{content:attr(data-ph);color:#c7bde6;font-weight:600}'+
       '@media print{.cm-fill{min-width:50px}.cm-fill:empty::before{content:""}}'+
+      // Багш заавар/тайлбарыг шууд засах талбарууд
+      '.cm-ed{outline:none;transition:background .12s}'+
+      '.cm-ed:hover{background:rgba(123,82,238,.06);border-radius:5px;box-shadow:inset 0 0 0 1px rgba(123,82,238,.22)}'+
+      '.cm-ed:focus{background:rgba(123,82,238,.11);border-radius:5px;box-shadow:inset 0 0 0 1px rgba(123,82,238,.5)}'+
+      '@media print{.cm-ed:hover,.cm-ed:focus{background:none!important;box-shadow:none!important}}'+
       // ─── Гар утасны тохируулга: хуудас хойшоо гарахгүй болгох (зөвхөн дэлгэц, хэвлэлд нөлөөлөхгүй) ───
       '@media screen and (max-width:820px){'+
         'html,body{overflow-x:hidden!important}'+
@@ -330,10 +335,55 @@
       f.addEventListener('input',function(){ if(isName){ savedName=(f.textContent||'').replace(/\s+$/,''); lset('cm_ws_name',savedName); } });
     });
   }
+  // ─── Багш заавар/тайлбарыг шууд засах (зөвхөн энэ төхөөрөмжид локал хадгална) ───
+  var EDIT_SEL='.task, .rule, .head .sub, .gtitle';
+  var editDefaults={};
+  function ekey(i){ return 'cm_wsedit::'+curSlug()+'::'+i; }
+  function applyEdits(){
+    if(IS_QR)return;
+    var sh=document.getElementById('sheet'); if(!sh)return;
+    var els=sh.querySelectorAll(EDIT_SEL);
+    [].forEach.call(els,function(el,i){
+      if(el.getAttribute('data-cm-ed'))return;
+      editDefaults[i]=el.innerHTML;
+      var saved=ls(ekey(i));
+      if(saved!=null&&saved!==el.innerHTML)el.innerHTML=saved;
+      el.setAttribute('data-cm-ed','1');
+      el.setAttribute('contenteditable','true');
+      el.setAttribute('spellcheck','false');
+      el.classList.add('cm-ed');
+      el.title='Багш заавраа энд шууд засаж болно (зөвхөн энэ төхөөрөмжид хадгалагдана)';
+      el.addEventListener('input',function(){ try{lset(ekey(i),el.innerHTML);}catch(e){} refreshEditReset(); });
+    });
+    refreshEditReset();
+  }
+  function slugHasEdits(){
+    try{ for(var k=0;k<localStorage.length;k++){var key=localStorage.key(k); if(key&&key.indexOf('cm_wsedit::'+curSlug()+'::')===0)return true;} }catch(e){}
+    return false;
+  }
+  function resetEdits(){
+    try{ for(var k=localStorage.length-1;k>=0;k--){var key=localStorage.key(k); if(key&&key.indexOf('cm_wsedit::'+curSlug()+'::')===0)localStorage.removeItem(key);} }catch(e){}
+    editDefaults={};
+    refreshEditReset();
+    if(typeof window.build==='function'){ try{window.build();}catch(e){} } else { try{location.reload();}catch(e){} }
+  }
+  function refreshEditReset(){
+    if(IS_QR)return; var bar=document.querySelector('.bar'); if(!bar)return;
+    var b=bar.querySelector('.ws-editreset');
+    if(slugHasEdits()){
+      if(!b){ b=document.createElement('button'); b.type='button'; b.className='ws-editreset';
+        b.style.cssText='font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.55rem 1rem;font-size:.85rem;color:#5a32d6;background:#efe9ff;display:inline-flex;align-items:center;gap:5px';
+        b.innerHTML='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.64-6.36"/><path d="M3 4v6h6"/></svg>Заавар анхандаа';
+        b.onclick=function(){ if(confirm('Засварласан заавар/тайлбарыг анхны хэвэнд нь оруулах уу?'))resetEdits(); };
+        bar.appendChild(b);
+      }
+    } else if(b){ b.remove(); }
+  }
+  window.cmApplyEdits=applyEdits; window.cmResetEdits=resetEdits;
   function watchSheet(){
     var sh=document.getElementById('sheet'); if(!sh)return;
-    // "Шинэ бодлого" дарахад #sheet дахин үүсдэг тул тамга ба нэрийн талбарыг эргүүлж нэмнэ
-    new MutationObserver(function(){ if(!sh.querySelector('.cm-wm'))brandSheet(); enhanceMeta(); })
+    // "Шинэ бодлого" дарахад #sheet дахин үүсдэг тул тамга/талбар/заавар засварыг эргүүлж нэмнэ
+    new MutationObserver(function(){ if(!sh.querySelector('.cm-wm'))brandSheet(); enhanceMeta(); applyEdits(); })
       .observe(sh,{childList:true});
   }
 
@@ -526,7 +576,7 @@
   window.addEventListener('beforeprint',applyPrintFit);
   window.addEventListener('afterprint',clearPrintFit);
 
-  function init(){ injectBrandCSS(); brandSheet(); watchSheet(); enhanceMeta(); if(!IS_QR){addBtn();addBatchBtn();} applyQR(); enforcePaywall(); injectSocial(); }
+  function init(){ injectBrandCSS(); brandSheet(); watchSheet(); enhanceMeta(); applyEdits(); if(!IS_QR){addBtn();addBatchBtn();} applyQR(); enforcePaywall(); injectSocial(); }
   if(document.readyState!=='loading')init();
   else document.addEventListener('DOMContentLoaded',init);
 })();
