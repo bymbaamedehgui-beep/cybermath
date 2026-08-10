@@ -103,34 +103,53 @@ function okChk(f){
 }
 function gen(fn){for(var t=0;t<200;t++){var f=fn();if(okChk(f))return f;}return null;}
 function probeH(sheet){var pr=sheet.cloneNode(true);pr.removeAttribute('id');pr.style.cssText='position:absolute;left:-99999px;top:0;width:210mm;max-width:none;min-height:0;margin:0;padding:0;box-shadow:none;zoom:1';var a=pr.querySelector('#answers,.ans-page');if(a)a.remove();document.body.appendChild(pr);var h=pr.scrollHeight;document.body.removeChild(pr);return h;}
-function trimToFit(sheet,target){var g=0,h=probeH(sheet);while(h>target&&g++<160){var qs=sheet.querySelectorAll('.q');if(qs.length<=6)break;var i=qs.length-1;var ans=sheet.querySelectorAll('#answers .a');if(ans[i])ans[i].parentNode.removeChild(ans[i]);qs[i].parentNode.removeChild(qs[i]);h=probeH(sheet);}}
+// бодлого/хариуг DOM дэс дарааллаар нь дахин дугаарлана
+function relabel(sheet){
+  var qs=sheet.querySelectorAll('.grid .q');
+  for(var i=0;i<qs.length;i++){var el=qs[i].querySelector('.ql');if(el)el.textContent=(LAB[i]||('#'+(i+1)))+')';}
+  var as=sheet.querySelectorAll('#answers .a');
+  for(var j=0;j<as.length;j++){var e2=as[j].querySelector('.an');if(e2)e2.textContent=(LAB[j]||('#'+(j+1)))+')';}
+}
+// хамгийн олон бодлоготой хэсгээс нь тэнцвэртэй хасаж А4-т багтаана (3 хэсэг ижил үлдэнэ)
+function trimToFitBalanced(sheet,target){
+  var guard=0,h=probeH(sheet);
+  while(h>target&&guard++<300){
+    var grids=sheet.querySelectorAll('.grid'),best=-1,bestN=-1;
+    for(var s=grids.length-1;s>=0;s--){var n=grids[s].querySelectorAll('.q').length;if(n>bestN&&n>4){bestN=n;best=s;}}
+    if(best<0)break;
+    var qs=grids[best].querySelectorAll('.q'),last=qs[qs.length-1],k=last.getAttribute('data-k');
+    var ans=sheet.querySelector('#answers .a[data-k="'+k+'"]');if(ans)ans.parentNode.removeChild(ans);
+    last.parentNode.removeChild(last);
+    relabel(sheet);h=probeH(sheet);
+  }
+}
 function build(){
   var WORK=!!window.WS_WORK;
-  var S1=[],S2=[],S3=[],seen={};window.__PROB=[];
-  function fill(arr,fn,n){var c=0,tr=0;while(c<n&&tr<800){tr++;var f=gen(fn);if(!f||seen[f.q])continue;seen[f.q]=1;arr.push(f);window.__PROB.push(f);c++;}}
-  fill(S1,gSum,WORK?12:24);
-  fill(S2,gDomain,WORK?5:9);
-  fill(S3,gAbs,WORK?5:9);
-  var gcls=WORK?'':' cols3';
-  var off=0;
-  function block(arr,cls,noWork){var s=arr.map(function(f,idx){var lb=LAB[off+idx]||('#'+(off+idx+1));
-    return '<div class="q"><div class="qeq"><span class="ql">'+lb+')</span><span class="qm">$'+f.q+'$</span></div>'+((WORK&&!noWork)?'<div class="work '+cls+'"></div>':'')+'</div>';}).join('');off+=arr.length;return s;}
-  function ansAll(){return window.__PROB.map(function(f,idx){var lb=LAB[idx]||('#'+(idx+1));return '<div class="a"><span class="an">'+lb+')</span><span>$'+f.a+'$</span></div>';}).join('');}
+  var S=[[],[],[]],seen={};window.__PROB=[];
+  function fill(idx,fn,n){var c=0,tr=0;while(c<n&&tr<1000){tr++;var f=gen(fn);if(!f||seen[f.q])continue;seen[f.q]=1;S[idx].push(f);c++;}}
+  var per=WORK?9:15;   // 3 хэсэгт ижил тоогоор эхэлж, багтахгүйг тэнцвэртэй хасна
+  fill(0,gSum,per);fill(1,gDomain,per);fill(2,gAbs,per);
+  var gcls=WORK?'':' cols3',K=0;
+  function block(arr,cls,sec,noWork){return arr.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});
+    return '<div class="q" data-k="'+k+'" data-sec="'+sec+'"><div class="qeq"><span class="ql"></span><span class="qm">$'+f.q+'$</span></div>'+((WORK&&!noWork)?'<div class="work '+cls+'"></div>':'')+'</div>';}).join('');}
+  var b1=block(S[0],'md',1,false),b2=block(S[1],'md',2,true),b3=block(S[2],'lg',3,false);
+  function ansAll(){return window.__PROB.map(function(p){return '<div class="a" data-k="'+p.k+'"><span class="an"></span><span>$'+p.f.a+'$</span></div>';}).join('');}
   document.getElementById('sheet').innerHTML=
     '<div class="head"><h1>n зэргийн язгуур — хүндэвтэр</h1><div class="sub">Нийлмэл илэрхийлэл · бодит утгын муж · $\\sqrt{a^2}=|a|$ · 10-р анги</div></div>'
     +'<div class="meta"><span>Нэр: </span><span>Огноо: </span><span>Оноо: </span></div>'
     +'<div class="rule">$\\sqrt[n]{a^{n}}=|a|$ ($n$ тэгш), $=a$ ($n$ сондгой) &nbsp;·&nbsp; тэгш язгуур зөвхөн $a\\ge0$-д бодит &nbsp;·&nbsp; $\\sqrt{a^{2}}=|a|$</div>'
     +'<div class="task">1. Илэрхийллийн утгыг ол.</div>'
-    +'<div class="grid'+gcls+'">'+block(S1,'md',false)+'</div>'
+    +'<div class="grid'+gcls+'" data-sec="1">'+b1+'</div>'
     +'<div class="task">2. Илэрхийлэл бодит утгатай байх x-ийн 3 утгыг ол.</div>'
-    +'<div class="grid'+(WORK?'':'')+'">'+block(S2,'md',true)+'</div>'
+    +'<div class="grid" data-sec="2">'+b2+'</div>'
     +'<div class="task">3. Өгөгдсөн x-ийн хувьд утгыг ол.</div>'
-    +'<div class="grid">'+block(S3,'lg',false)+'</div>'
+    +'<div class="grid" data-sec="3">'+b3+'</div>'
     +'<div class="ans-page" id="answers"><h2>Хариунууд</h2><div class="ans-grid">'+ansAll()+'</div></div>';
   window.WS_ITEMS=[];window.WS_TITLE='n зэргийн язгуур — хүндэвтэр (10-р анги)';
+  relabel(document.getElementById('sheet'));
   toggleAns();
   try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
-  try{trimToFit(document.getElementById('sheet'),1035);}catch(e){}
+  try{trimToFitBalanced(document.getElementById('sheet'),1035);}catch(e){}
 }
 build();
 </script>
