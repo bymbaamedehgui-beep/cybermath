@@ -501,6 +501,7 @@
 
   // ─── Ангиар хэвлэх (олон сурагчийн нэрээр нэг дор) ───
   function addBatchBtn(){
+    if(!isAdminUser())return;   // "Ангиар хэвлэх" — одоохондоо зөвхөн админд
     var bar=document.querySelector('.bar'); if(!bar||bar.querySelector('.ws-batch'))return;
     var b=document.createElement('button');
     b.className='btn ws-batch'; b.type='button';
