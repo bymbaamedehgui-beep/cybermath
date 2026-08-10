@@ -51,6 +51,7 @@
   <button class="btn refresh" onclick="build()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>Шинэ хувилбар</button>
   <label><input type="checkbox" id="sa" onchange="toggleAns()"> Хариу хавсаргах</label>
   <button class="btn" onclick="window.print()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>Хэвлэх / PDF</button>
+  <button class="btn" style="background:linear-gradient(135deg,#0ea5e9,#2563eb)" onclick="openVariantModal()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Олон хувилбар</button>
 </div>
 <div class="sheet" id="sheet"></div>
 <script>
@@ -304,6 +305,84 @@ function build(){
   toggleAns();
   try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
   try{adjustOpts();}catch(e){}
+}
+// ══════ Нэг загвараас олон хувилбар (зөвхөн шалгалтын материал) ══════
+var VLET=['А','Б','В','Г','Д','Е','Ё','Ж','З','И','Й','К','Л','М','Н','О'];
+function hugSpan(){return [].filter.call(document.querySelectorAll('#sheet .meta > span'),function(s){return /Хугацаа/.test(s.textContent);})[0]||null;}
+function getHug(){var sp=hugSpan();if(!sp)return '';var f=sp.querySelector('.cm-fill');return ((f?f.textContent:sp.textContent.replace(/^[^:]*:?\s*/,''))||'').trim();}
+function hugFill(){var sp=hugSpan();return sp?sp.querySelector('.cm-fill'):null;}
+function snapPts(){return [].map.call(document.querySelectorAll('#sheet .ptv'),function(e){return e.textContent;});}
+function injectVBatchCSS(){
+  if(document.getElementById('cm-vbatch-css'))return;
+  var st=document.createElement('style');st.id='cm-vbatch-css';
+  st.textContent='@media print{body>*:not(#cm-vbatch){display:none!important}body>#cm-vbatch{display:block!important}'
+    +'.cm-vsheet{page-break-after:always;box-shadow:none!important;width:auto!important;min-height:auto!important;margin:0!important;padding:0!important;background:#fff;zoom:1!important}'
+    +'.cm-vsheet:last-child{page-break-after:auto}}';
+  document.head.appendChild(st);
+}
+function openVariantModal(){
+  if(document.getElementById('cm-vmodal'))return;
+  var o=document.createElement('div');o.id='cm-vmodal';
+  o.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(20,15,40,.6);display:grid;place-items:center;padding:16px;font-family:"Segoe UI",Arial,sans-serif';
+  o.innerHTML='<div style="background:#fff;border-radius:16px;max-width:410px;width:100%;padding:20px;box-shadow:0 24px 60px -18px rgba(0,0,0,.5)">'
+    +'<div style="font-weight:900;color:#5a32d6;font-size:1.06rem;margin-bottom:4px">Олон хувилбар гаргах</div>'
+    +'<p style="color:#7a7390;font-size:.84rem;margin-bottom:12px;line-height:1.45">Одоогийн <b>загвараас</b> хэдэн хувилбар гаргах вэ? Бодлого нь хувилбар бүрт өөр, харин <b>Хугацаа ба оноо загвар дагуу хэвээр</b>. Хувилбар <b>А, Б, В…</b> автоматаар тавигдана. Бүгд нэг дор хэвлэгдэж, төгсгөлд нь хариун түлхүүр гарна.</p>'
+    +'<label style="display:block;font-size:.85rem;font-weight:700;color:#3a2d5e;margin-bottom:5px">Хувилбарын тоо</label>'
+    +'<input id="cm-vcount" type="number" min="1" max="16" value="4" style="width:100%;box-sizing:border-box;border:1.6px solid #e7ddff;border-radius:10px;padding:.55rem .8rem;font-size:1rem;font-weight:700;outline:none;font-family:inherit;margin-bottom:14px">'
+    +'<div id="cm-vmsg" style="font-size:.82rem;color:#7a7390;margin-bottom:8px"></div>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end">'
+    +'<button id="cm-vcancel" style="border:1.4px solid #e7ddff;background:#faf7ff;color:#5a32d6;font-weight:800;border-radius:999px;padding:.5rem 1rem;cursor:pointer;font-family:inherit">Болих</button>'
+    +'<button id="cm-vgo" style="display:inline-flex;align-items:center;gap:6px;border:0;background:linear-gradient(135deg,#7B52EE,#A855F7);color:#fff;font-weight:800;border-radius:999px;padding:.5rem 1.2rem;cursor:pointer;font-family:inherit">Гаргаж хэвлэх</button>'
+    +'</div></div>';
+  document.body.appendChild(o);
+  var ci=o.querySelector('#cm-vcount');try{ci.focus();ci.select();}catch(e){}
+  o.querySelector('#cm-vcancel').onclick=function(){o.remove();};
+  o.querySelector('#cm-vgo').onclick=function(){var n=parseInt(ci.value,10);if(!n||n<1){o.querySelector('#cm-vmsg').style.color='#dc2626';o.querySelector('#cm-vmsg').textContent='Хувилбарын тоог зөв оруулна уу.';return;}o.remove();genVariants(n);};
+}
+function genVariants(N){
+  if(!N||N<1)return; if(N>16)N=16;
+  var sheet=document.getElementById('sheet');
+  var hug=getHug(), pts=snapPts();
+  var sa=document.getElementById('sa'); if(sa&&sa.checked){sa.checked=false;toggleAns();}
+  var old=document.getElementById('cm-vbatch'); if(old)old.remove();
+  var box=document.createElement('div');box.id='cm-vbatch';box.style.display='none';
+  var keys=[];
+  for(var i=0;i<N;i++){
+    build();
+    var tk=(window.__TEST||[]).map(function(g,idx){return (idx+1)+'-'+OL[g.mc.correct];}).join(', ');
+    var fk=(window.__FREE||[]).map(function(f,idx){return {n:11+idx,a:f.a};});
+    var clone=sheet.cloneNode(true);
+    clone.removeAttribute('id');clone.classList.add('cm-vsheet');
+    var ap=clone.querySelector('#answers,.ans-page');if(ap)ap.parentNode.removeChild(ap);
+    var cptv=clone.querySelectorAll('.ptv'),tot=0;
+    for(var k=0;k<cptv.length;k++){if(pts[k]!=null)cptv[k].textContent=pts[k];var v=parseFloat((cptv[k].textContent||'').replace(',','.'));if(!isNaN(v))tot+=v;cptv[k].removeAttribute('contenteditable');}
+    [].forEach.call(clone.querySelectorAll('.totmax'),function(e){e.textContent=ptFmt(tot);});
+    var hs=[].filter.call(clone.querySelectorAll('.meta > span'),function(s){return /Хугацаа/.test(s.textContent);})[0];
+    if(hs)hs.textContent='Хугацаа: '+hug;
+    var vv=clone.querySelector('.varv');if(vv){vv.textContent=VLET[i]||('#'+(i+1));vv.removeAttribute('contenteditable');}
+    box.appendChild(clone);
+    keys.push({letter:VLET[i]||('#'+(i+1)),tk:tk,fk:fk});
+  }
+  var keyHtml='<div class="sheet cm-vsheet"><div class="head"><h1>Хариун түлхүүр — бүх хувилбар</h1><div class="sub">Модул — Шалгалтын материал · 12-р анги</div></div>';
+  keys.forEach(function(kr){
+    keyHtml+='<div style="margin:9px 0;break-inside:avoid;border-left:3px solid #A855F7;padding-left:9px">'
+      +'<div style="font-weight:800;color:#5a32d6;font-size:13.5px;margin-bottom:3px">Хувилбар '+kr.letter+'</div>'
+      +'<div style="font-size:12px;margin-bottom:3px"><b>Тест:</b> '+kr.tk+'</div>'
+      +'<div style="font-size:12px"><b>Задгай:</b> '+kr.fk.map(function(x){return x.n+') $'+x.a+'$';}).join(' &nbsp;·&nbsp; ')+'</div></div>';
+  });
+  keyHtml+='</div>';
+  box.insertAdjacentHTML('beforeend',keyHtml);
+  document.body.appendChild(box);
+  injectVBatchCSS();
+  try{renderMathInElement(box,{delimiters:[{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
+  function cleanup(){var b=document.getElementById('cm-vbatch');if(b)b.remove();window.removeEventListener('afterprint',cleanup);
+    try{build();}catch(e){}
+    var pv=document.querySelectorAll('#sheet .ptv');for(var k=0;k<pv.length;k++){if(pts[k]!=null)pv[k].textContent=pts[k];}
+    try{recomputeTotal();}catch(e){}
+    setTimeout(function(){var f=hugFill();if(f&&hug)f.textContent=hug;},80);
+  }
+  window.addEventListener('afterprint',cleanup);
+  setTimeout(function(){window.print();},140);
 }
 build();
 window.addEventListener('load',function(){try{adjustOpts();}catch(e){}});
