@@ -75,6 +75,14 @@ module.exports = async (req, res) => {
       };
       for (const grade of Object.keys(SGALL)) {
         const groups = SGALL[grade];
+        // тохиргоонд байхгүй хуучин дэд бүлгийг устгах (давхардлаас сэргийлж)
+        const keepNames = groups.map(g => g.name);
+        const stale = await pool.query('SELECT id FROM ws_subgroups WHERE grade=$1 AND NOT (name = ANY($2::text[]))', [grade, keepNames]);
+        for (const row of stale.rows) {
+          await pool.query(`DELETE FROM ws_place WHERE grp=$1`, ['sg:' + row.id]);
+          await pool.query(`DELETE FROM ws_order WHERE grp=$1`, ['sg:' + row.id]);
+          await pool.query('DELETE FROM ws_subgroups WHERE id=$1', [row.id]);
+        }
         for (let i = 0; i < groups.length; i++) {
           const g = groups[i];
           let sg = await pool.query('SELECT id FROM ws_subgroups WHERE grade=$1 AND name=$2', [grade, g.name]);
