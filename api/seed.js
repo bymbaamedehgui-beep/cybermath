@@ -7,6 +7,22 @@ module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
+    // ── 9-р ангийн "Геометр" дэд бүлэг (нэг удаа тохируулах, idempotent) ──
+    try {
+      await pool.query(`CREATE TABLE IF NOT EXISTS ws_subgroups (id BIGSERIAL PRIMARY KEY, grade TEXT NOT NULL, name TEXT NOT NULL, pos INT DEFAULT 0, created_at TIMESTAMPTZ DEFAULT NOW())`);
+      await pool.query(`CREATE TABLE IF NOT EXISTS ws_place (grp TEXT NOT NULL, slug TEXT NOT NULL, kind TEXT NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW(), PRIMARY KEY (grp, slug, kind))`);
+      const geoSlugs = ['bisektris-chanar.html','median-chanar.html','trig-gar-arga.html','trig-sin.html','trig-cos.html','trig-tan.html','trig-tal-urt.html','trig-ongo-oloh.html','koordinat-arga.html','koordinat-arga-2.html','vektor-koordinat.html','vektor-koordinat-2.html','vektor-uildel.html'];
+      let sg = await pool.query('SELECT id FROM ws_subgroups WHERE grade=$1 AND name=$2', ['9-р анги', 'Геометр']);
+      let sgId;
+      if (sg.rows.length) sgId = Number(sg.rows[0].id);
+      else { const ins = await pool.query('INSERT INTO ws_subgroups (grade, name, pos) VALUES ($1,$2,0) RETURNING id', ['9-р анги', 'Геометр']); sgId = Number(ins.rows[0].id); }
+      const lbl = 'sg:' + sgId;
+      for (const slug of geoSlugs) {
+        await pool.query(`DELETE FROM ws_place WHERE slug=$1 AND kind='add' AND grp LIKE 'sg:%'`, [slug]);
+        await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, [lbl, slug]);
+      }
+    } catch (e) { console.error('[geo subgroup]', e.message); }
+
     // Nodes seed
     const nodes = [
       [1,"Бүхэл тооны зэрэг, шинж чанар","lesson","🔢","8"],
