@@ -191,6 +191,8 @@ window.WS_LIST=[
     ['yazguur-n-zereg-hard-10.html','n зэргийн язгуур — хүндэвтэр (нийлмэл, муж, |a|)'],
     ['zereg-yazguur-chanar-10.html','n зэргийн язгуурын чанар'],
     ['zereg-yazguur-chanar-hard-10.html','n зэргийн язгуурын чанар-2'],
+    ['ratsional-iltgegch-10.html','Рационал тоон илтгэгчтэй зэрэг'],
+    ['ratsional-iltgegch-2-10.html','Рационал тоон илтгэгчтэй зэрэг-2'],
     ['grafik-ax2.html','Квадрат график: y = ax² (орой эх цэгт)'],
     ['grafik-ax2-c.html','Квадрат график: y = ax² + c (босоо зөөлт)'],
     ['grafik-ax-h2.html','Квадрат график: y = a(x−h)² (хэвтээ зөөлт)'],
