@@ -60,6 +60,7 @@ module.exports = async (req, res) => {
           { name:'Геометр', slugs:['bisektris-chanar.html','median-chanar.html','trig-gar-arga.html','trig-sin.html','trig-cos.html','trig-tan.html','trig-tal-urt.html','trig-ongo-oloh.html','koordinat-arga.html','koordinat-arga-2.html','vektor-koordinat.html','vektor-koordinat-2.html','vektor-uildel.html'] },
         ],
         '10-р анги': [
+          { name:'Тэг ба сөрөг илтгэгчтэй зэрэг', slugs:['zereg-teg-sorog-10.html','zereg-teg-sorog-hard-10.html'] },
           { name:'Квадрат функцийн график', slugs:['grafik-ax2.html','grafik-ax2-c.html','grafik-ax-h2.html','grafik-oroin-helber.html','grafik-erenhii.html','kvadrat-grafik-zoolt-8.html'] },
         ],
         '11-р анги': [
