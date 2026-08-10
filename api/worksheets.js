@@ -208,6 +208,15 @@ module.exports = async (req, res) => {
         edits JSONB DEFAULT '{}'::jsonb,
         updated_at TIMESTAMPTZ DEFAULT NOW()
       )`);
+    // Ангийн доторх дэд бүлэг (зөвхөн админ үүсгэнэ, бүгд харна). Гишүүнчлэл нь ws_place(grp='sg:'+id, kind='add')
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ws_subgroups (
+        id BIGSERIAL PRIMARY KEY,
+        grade TEXT NOT NULL,
+        name TEXT NOT NULL,
+        pos INT DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )`);
 
     // GET — жагсаалт эсвэл нэг багц эсвэл сэдвийн нэр/нуусан/дараалал
     if (req.method === 'GET') {
@@ -234,7 +243,12 @@ module.exports = async (req, res) => {
         });
         const ann = await pool.query(`SELECT sval FROM ws_settings WHERE skey='announce'`);
         const announce = ann.rows.length ? (ann.rows[0].sval || '') : '';
-        return res.json({ ok: true, titles: map, hidden: h.rows.map(x => x.slug), order: order, place: place, announce: announce });
+        let subgroups = [];
+        try {
+          const sg = await pool.query('SELECT id, grade, name, pos FROM ws_subgroups ORDER BY grade, pos, id');
+          subgroups = sg.rows.map(x => ({ id: Number(x.id), grade: x.grade, name: x.name, pos: x.pos }));
+        } catch (e) {}
+        return res.json({ ok: true, titles: map, hidden: h.rows.map(x => x.slug), order: order, place: place, announce: announce, subgroups: subgroups });
       }
       const code = req.query.code;
       if (code) {
@@ -657,8 +671,55 @@ module.exports = async (req, res) => {
       }
       // Нэр өөрчлөх / нуух / сэргээх / дараалал — ЗӨВХӨН АДМИН
       if (['setTitle', 'resetTitle', 'hideTopic', 'unhideTopic', 'setOrder',
-           'moveTopic', 'dupTopic', 'removePlacement'].indexOf(b.action) >= 0) {
+           'moveTopic', 'dupTopic', 'removePlacement',
+           'sg_create', 'sg_rename', 'sg_delete', 'sg_assign', 'sg_unassign', 'sg_reorder'].indexOf(b.action) >= 0) {
         if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ өөрчилнө' });
+      }
+      // ── Ангийн доторх дэд бүлэг (админ) ──
+      if (b.action === 'sg_create') {
+        const grade = String(b.grade || '').slice(0, 120), name = String(b.name || '').trim().slice(0, 80);
+        if (!grade || !name) return res.status(400).json({ ok: false, error: 'grade/name дутуу' });
+        const mx = await pool.query('SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade=$1', [grade]);
+        const ins = await pool.query('INSERT INTO ws_subgroups (grade, name, pos) VALUES ($1,$2,$3) RETURNING id', [grade, name, mx.rows[0].p]);
+        return res.json({ ok: true, id: Number(ins.rows[0].id), grade: grade, name: name });
+      }
+      if (b.action === 'sg_rename') {
+        const id = parseInt(b.id, 10), name = String(b.name || '').trim().slice(0, 80);
+        if (!id || !name) return res.status(400).json({ ok: false, error: 'id/name дутуу' });
+        await pool.query('UPDATE ws_subgroups SET name=$2 WHERE id=$1', [id, name]);
+        return res.json({ ok: true });
+      }
+      if (b.action === 'sg_delete') {
+        const id = parseInt(b.id, 10);
+        if (!id) return res.status(400).json({ ok: false, error: 'id дутуу' });
+        const lbl = 'sg:' + id;
+        await pool.query(`DELETE FROM ws_place WHERE grp=$1`, [lbl]);
+        await pool.query(`DELETE FROM ws_order WHERE grp=$1`, [lbl]);
+        await pool.query('DELETE FROM ws_subgroups WHERE id=$1', [id]);
+        return res.json({ ok: true });
+      }
+      // Ажлын хуудсыг дэд бүлэгт оноох — бусад бүх дэд бүлгээс хасч, энэ бүлэгт нэмнэ
+      if (b.action === 'sg_assign') {
+        const id = parseInt(b.id, 10), slug = String(b.slug||'').slice(0,120);
+        if (!id || !slug) return res.status(400).json({ ok: false, error: 'id/slug дутуу' });
+        await pool.query(`DELETE FROM ws_place WHERE slug=$1 AND kind='add' AND grp LIKE 'sg:%'`, [slug]);
+        await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + id, slug]);
+        return res.json({ ok: true });
+      }
+      if (b.action === 'sg_unassign') {
+        const slug = String(b.slug||'').slice(0,120);
+        if (!slug) return res.status(400).json({ ok: false, error: 'slug дутуу' });
+        await pool.query(`DELETE FROM ws_place WHERE slug=$1 AND kind='add' AND grp LIKE 'sg:%'`, [slug]);
+        return res.json({ ok: true });
+      }
+      if (b.action === 'sg_reorder') {
+        const grade = String(b.grade || '').slice(0, 120);
+        const ids = Array.isArray(b.ids) ? b.ids.slice(0, 60) : null;
+        if (!grade || !ids) return res.status(400).json({ ok: false, error: 'grade/ids дутуу' });
+        for (let i = 0; i < ids.length; i++) {
+          await pool.query('UPDATE ws_subgroups SET pos=$3 WHERE id=$1 AND grade=$2', [parseInt(ids[i], 10), grade, i]);
+        }
+        return res.json({ ok: true });
       }
       const clip = (s) => String(s || '').slice(0, 120);
       if (b.action === 'moveTopic') {

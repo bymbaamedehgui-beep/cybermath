@@ -93,6 +93,18 @@
   #catalog{margin-top:18px}
   .grp{margin-bottom:22px;scroll-margin-top:120px}
   .grp-head{display:flex;align-items:center;gap:10px;margin:0 2px 11px}
+  /* Дэд бүлэг (зөвхөн админд товч харагдана) */
+  .sg-add{display:none;align-items:center;gap:4px;margin-left:auto;border:1.4px dashed #b9a9ef;background:#f5f0ff;color:#5a32d6;font-weight:800;font-size:12px;border-radius:999px;padding:4px 11px;cursor:pointer}
+  .sg-add:hover{background:#ece3ff}
+  body.is-admin.editing .sg-add{display:inline-flex}
+  .subgrp{margin:0 2px 12px;border-left:3px solid #c9bdec;padding-left:11px}
+  .subgrp-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .subgrp-title{font-weight:800;color:#5a32d6;font-size:14px}
+  body.is-admin.editing .subgrp-title{cursor:text;border-bottom:1px dotted #b9a9ef}
+  .subgrp-count{font-size:11px;font-weight:800;color:#7a7390;background:#f0ebff;border-radius:999px;padding:1px 8px}
+  .subgrp-del{display:none;align-items:center;justify-content:center;border:0;background:#fff0f0;color:#e54545;border-radius:8px;width:22px;height:22px;cursor:pointer}
+  body.is-admin.editing .subgrp-del{display:inline-flex}
+  body.editing .subcards{min-height:44px;border:1.5px dashed #d9cff5;border-radius:10px;padding:6px}
   .grp-badge{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-weight:900;font-size:.9rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2));box-shadow:0 6px 14px -8px rgba(123,82,238,.9)}
   .grp-title{font-weight:900;font-size:1.02rem;color:var(--ink)}
   .grp-count{margin-left:auto;font-size:.76rem;font-weight:800;color:var(--soft);background:#fff;border:1px solid var(--line);border-radius:999px;padding:.16rem .6rem}
@@ -338,6 +350,12 @@ var OVERRIDES={}, HIDDEN={}, NEWSET={}, ORDER={}, PLACE={add:{},remove:{}};
 // Анги бүрийн эхний ажлын хуудас — ҮНЭГҮЙ туршилт
 var WS_FREE={"urjver-hurd.html":1,"urjver-4x3-12.html":1,"huvaalt-5x2-12.html":1,"numshul-nemeh-hasah-12.html":1,"daraalal-zui-togtol-12.html":1,"zereg-uildel-12.html":1,"troichlen-zadlal-12.html":1,"grafik-ax2.html":1,"kvadrat-tentsbish-grafik.html":1,"camb-4a-factors.html":1};
 var SLUGMAP={}, GROUPS=[];
+var SUBGROUPS=[], SGBY={}, _dragOrigin=null, _dragSection=null;
+function buildSGBY(){SGBY={};SUBGROUPS.forEach(function(s){(SGBY[s.grade]=SGBY[s.grade]||[]).push(s);});Object.keys(SGBY).forEach(function(g){SGBY[g].sort(function(a,b){return (a.pos-b.pos)||(a.id-b.id);});});}
+function sgMembers(id){return (PLACE.add['sg:'+id]||[]).slice();}
+function gradeMemberSet(gradeLabel){var set={};(SGBY[gradeLabel]||[]).forEach(function(s){sgMembers(s.id).forEach(function(sl){set[sl]=1;});});return set;}
+function removeSlugFromAllSg(slug){Object.keys(PLACE.add).forEach(function(k){if(k.indexOf('sg:')===0)pull(PLACE.add,k,slug);});}
+function sgApi(action,data){data=data||{};data.action=action;return fetch('/api/worksheets',{method:'POST',headers:adminHeaders(),body:JSON.stringify(data)}).then(function(r){if(r.status===401)throw new Error('Зөвхөн админ');return r.json();});}
 [LIST,CAMB].forEach(function(D){D.forEach(function(g){
   GROUPS.push(g[0]);
   g[1].forEach(function(w){ if(SLUGMAP[w[0]]==null)SLUGMAP[w[0]]=w[1]; });
@@ -385,6 +403,52 @@ function cardHtml(w,ico,tone,grpLabel){
     +'<span class="go">›</span></a>';
 }
 
+function sgOrderedItems(id,allItems){
+  var mem=sgMembers(id),byslug={};allItems.forEach(function(w){byslug[w[0]]=w;});
+  var ord=ORDER['sg:'+id]||[],seen={},out=[];
+  ord.forEach(function(s){if(mem.indexOf(s)>=0&&byslug[s]&&!seen[s]){seen[s]=1;out.push(byslug[s]);}});
+  mem.forEach(function(s){if(!seen[s]&&byslug[s]){seen[s]=1;out.push(byslug[s]);}});
+  return out;
+}
+function sgBlockHtml(sg,allItems,band){
+  var mi=sgOrderedItems(sg.id,allItems);
+  return '<div class="subgrp" data-sgid="'+sg.id+'">'
+    +'<div class="subgrp-head"><span class="subgrp-title" data-sgid="'+sg.id+'">'+esc(sg.name)+'</span><span class="subgrp-count">'+mi.length+'</span>'
+    +'<button class="subgrp-del" data-sgid="'+sg.id+'" title="Дэд бүлэг устгах"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>'
+    +'<div class="cards subcards" data-grp="sg:'+sg.id+'">'+mi.map(function(w){return cardHtml(w,iconFor(band),'ico-'+band,'sg:'+sg.id);}).join('')+'</div></div>';
+}
+function createSubgroup(grade){
+  if(!isAdmin())return;
+  var name=(prompt('Шинэ дэд бүлгийн нэр (ж: Тэгшитгэл):')||'').trim();
+  if(!name)return;
+  sgApi('sg_create',{grade:grade,name:name}).then(function(d){
+    if(d&&d.ok){SUBGROUPS.push({id:d.id,grade:grade,name:name,pos:9999});buildSGBY();renderCatalog();applyFilters();toast('Дэд бүлэг үүслээ');}
+  }).catch(function(e){alert(e.message);});
+}
+function renameSubgroup(id){
+  var sg=null;SUBGROUPS.forEach(function(s){if(s.id===id)sg=s;});if(!sg)return;
+  var name=(prompt('Дэд бүлгийн нэр:',sg.name)||'').trim();if(!name||name===sg.name)return;
+  sgApi('sg_rename',{id:id,name:name}).then(function(d){if(d&&d.ok){sg.name=name;renderCatalog();applyFilters();}}).catch(function(e){alert(e.message);});
+}
+function deleteSubgroup(id){
+  if(!confirm('Энэ дэд бүлгийг устгах уу? Доторх сэдвүүд ангидаа буцна.'))return;
+  sgApi('sg_delete',{id:id}).then(function(d){if(d&&d.ok){
+    delete PLACE.add['sg:'+id];
+    SUBGROUPS=SUBGROUPS.filter(function(s){return s.id!==id;});buildSGBY();renderCatalog();applyFilters();toast('Дэд бүлэг устлаа');
+  }}).catch(function(e){alert(e.message);});
+}
+function handleCrossMove(card,from,to){
+  var slug=card.getAttribute('data-slug');
+  removeSlugFromAllSg(slug);
+  if(to&&to.indexOf('sg:')===0){
+    pushUniq(PLACE.add,to,slug);
+    sgApi('sg_assign',{id:+to.slice(3),slug:slug}).then(function(){toast('Дэд бүлэгт нэмлээ');}).catch(function(e){toast(e.message);});
+  }else{
+    sgApi('sg_unassign',{slug:slug}).then(function(){toast('Дэд бүлгээс гаргалаа');}).catch(function(e){toast(e.message);});
+  }
+  renderCatalog();applyFilters();
+  if(to&&to.indexOf('sg:')===0){var cont=document.querySelector('.cards[data-grp="'+to+'"]');if(cont)saveOrder(cont);}
+}
 function renderCatalog(){
   var h='',gradeCount=0,total=0;
   LIST.forEach(function(grp){
@@ -392,9 +456,14 @@ function renderCatalog(){
     var band=bandOf(grp[0]);
     var items=applyOrder(withPlacements(grp[1],grp[0]),grp[0]);
     total+=items.length;
+    var memSet=gradeMemberSet(grp[0]);
+    var mainItems=items.filter(function(w){return !memSet[w[0]];});
+    var sgBlocks=(SGBY[grp[0]]||[]).map(function(sg){return sgBlockHtml(sg,items,band);}).join('');
     h+='<section class="grp" data-band="'+band+'">'
-      +'<div class="grp-head"><span class="grp-badge">'+num+'</span><span class="grp-title">'+esc(grp[0])+'</span><span class="grp-count">'+items.length+'</span></div>'
-      +'<div class="cards" data-grp="'+esc(grp[0])+'">'+items.map(function(w){return cardHtml(w,iconFor(band),'ico-'+band,grp[0]);}).join('')+'</div></section>';
+      +'<div class="grp-head"><span class="grp-badge">'+num+'</span><span class="grp-title">'+esc(grp[0])+'</span><span class="grp-count">'+items.length+'</span>'
+      +'<button class="sg-add" data-grade="'+esc(grp[0])+'" title="Дэд бүлэг үүсгэх"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Бүлэг</button></div>'
+      +sgBlocks
+      +'<div class="cards" data-grp="'+esc(grp[0])+'">'+mainItems.map(function(w){return cardHtml(w,iconFor(band),'ico-'+band,grp[0]);}).join('')+'</div></section>';
   });
   /* Cambridge block */
   var cambTotal=0,cambInner='';
@@ -417,6 +486,11 @@ function renderCatalog(){
   if(!cat._bound){                       // listener-үүдийг зөвхөн нэг удаа холбоно (дахин зурахад давхардуулахгүй)
     cat._bound=1;
     initPreview('catalog');
+    cat.addEventListener('click',function(e){
+      var a=e.target.closest('.sg-add'); if(a){e.preventDefault();e.stopPropagation();createSubgroup(a.getAttribute('data-grade'));return;}
+      var dbtn=e.target.closest('.subgrp-del'); if(dbtn){e.preventDefault();e.stopPropagation();deleteSubgroup(+dbtn.getAttribute('data-sgid'));return;}
+      var ttl=e.target.closest('.subgrp-title'); if(ttl&&editMode){e.preventDefault();e.stopPropagation();renameSubgroup(+ttl.getAttribute('data-sgid'));return;}
+    },true);
     cat.addEventListener('click',catalogClick);
     cat.addEventListener('dblclick',function(e){e.preventDefault();});
     cat.addEventListener('contextmenu',function(e){
@@ -649,14 +723,20 @@ function initReorder(){
     if(!editMode)return;
     var c=e.target.closest('.card'); if(!c)return;
     dragCard=c; c.classList.add('dragging');
+    _dragOrigin=c.parentNode?c.parentNode.getAttribute('data-grp'):null;
+    _dragSection=c.closest('.grp');
     try{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',c.getAttribute('data-slug'));}catch(_){}
   });
   cat.addEventListener('dragover',function(e){
     if(!editMode||!dragCard)return;
-    var cont=e.target.closest('.cards'); if(!cont||cont!==dragCard.parentNode)return; // зөвхөн ижил бүлэгт
+    var cont=e.target.closest('.cards'); if(!cont)return;
+    // Зөвхөн ижил ангийн (section) доторх сав руу — гол хэсэг ↔ дэд бүлгүүд
+    if(_dragSection && cont.closest('.grp')!==_dragSection)return;
     e.preventDefault();
     var over=e.target.closest('.card');
-    if(over&&over!==dragCard){
+    if(cont!==dragCard.parentNode){
+      if(over&&over!==dragCard)cont.insertBefore(dragCard,over); else cont.appendChild(dragCard);
+    }else if(over&&over!==dragCard){
       var r=over.getBoundingClientRect();
       var after=(e.clientY-r.top)+(e.clientX-r.left)*0.15 > (r.height+r.width*0.15)/2;
       cont.insertBefore(dragCard, after?over.nextSibling:over);
@@ -666,8 +746,12 @@ function initReorder(){
   cat.addEventListener('dragend',function(){
     if(!dragCard)return;
     dragCard.classList.remove('dragging');
-    saveOrder(dragCard.parentNode);
+    var cont=dragCard.parentNode, newGrp=cont?cont.getAttribute('data-grp'):null;
+    var card=dragCard, origin=_dragOrigin;
     dragCard=null;
+    if(newGrp && origin && newGrp!==origin){ handleCrossMove(card,origin,newGrp); }
+    else { saveOrder(cont); }
+    _dragOrigin=null;_dragSection=null;
   });
 }
 function saveOrder(cont){
@@ -1393,6 +1477,7 @@ fetch('/api/worksheets?titles=1').then(function(r){return r.json();})
     if(d&&d.hidden)d.hidden.forEach(function(s){HIDDEN[s]=1;});
     if(d&&d.order)ORDER=d.order;
     if(d&&d.place)PLACE={add:d.place.add||{},remove:d.place.remove||{}};
+    if(d&&d.subgroups){SUBGROUPS=d.subgroups;buildSGBY();}
     if(d&&d.announce)showAnnounce(d.announce);
   })
   .catch(function(){})
