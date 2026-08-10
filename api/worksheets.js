@@ -201,10 +201,23 @@ module.exports = async (req, res) => {
         sval TEXT,
         updated_at TIMESTAMPTZ DEFAULT NOW()
       )`);
+    // Ажлын хуудасны заавар/тайлбарын ерөнхий загвар (зөвхөн админ засна, бүгд харна)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ws_instr (
+        slug TEXT PRIMARY KEY,
+        edits JSONB DEFAULT '{}'::jsonb,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )`);
 
     // GET — жагсаалт эсвэл нэг багц эсвэл сэдвийн нэр/нуусан/дараалал
     if (req.method === 'GET') {
       res.setHeader('Cache-Control', 'no-store');
+      // Ажлын хуудасны заавар загвар авах — нээлттэй (бүх хэрэглэгч харна)
+      if (req.query.instr) {
+        const slug = String(req.query.instr || '').toLowerCase().slice(0, 120);
+        const r = await pool.query('SELECT edits FROM ws_instr WHERE slug=$1', [slug]);
+        return res.json({ ok: true, edits: r.rows.length ? (r.rows[0].edits || {}) : {} });
+      }
       if (req.query.titles) {
         const r = await pool.query('SELECT slug, title FROM ws_titles');
         const map = {};
@@ -575,6 +588,27 @@ module.exports = async (req, res) => {
         const id = parseInt(b.id, 10);
         await pool.query('DELETE FROM lesson_plans WHERE id=$1 AND lower(owner_email)=$2', [id, email]);
         return res.json({ ok: true });
+      }
+      // Ажлын хуудасны заавар загвар авах — нээлттэй
+      if (b.action === 'instr_get') {
+        const slug = String(b.slug || '').toLowerCase().slice(0, 120);
+        const r = await pool.query('SELECT edits FROM ws_instr WHERE slug=$1', [slug]);
+        return res.json({ ok: true, edits: r.rows.length ? (r.rows[0].edits || {}) : {} });
+      }
+      // Ажлын хуудасны заавар загвар хадгалах — ЗӨВХӨН АДМИН (бүх хэрэглэгчид харагдана)
+      if (b.action === 'instr_save') {
+        if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
+        const slug = String(b.slug || '').toLowerCase().slice(0, 120);
+        if (!slug) return res.status(400).json({ ok: false, error: 'slug дутуу' });
+        let edits = b.edits && typeof b.edits === 'object' ? b.edits : {};
+        // хэт том бичвэрээс хамгаалах
+        const clean = {};
+        Object.keys(edits).slice(0, 60).forEach(k => { clean[String(k).slice(0, 8)] = String(edits[k] == null ? '' : edits[k]).slice(0, 4000); });
+        await pool.query(
+          `INSERT INTO ws_instr (slug, edits, updated_at) VALUES ($1,$2::jsonb,NOW())
+           ON CONFLICT (slug) DO UPDATE SET edits=EXCLUDED.edits, updated_at=NOW()`,
+          [slug, JSON.stringify(clean)]);
+        return res.json({ ok: true, edits: clean });
       }
       // Мэдээллийн зурвас (announce) авах — нээлттэй
       if (b.action === 'getAnnounce') {

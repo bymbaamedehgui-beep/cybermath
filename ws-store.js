@@ -335,46 +335,71 @@
       f.addEventListener('input',function(){ if(isName){ savedName=(f.textContent||'').replace(/\s+$/,''); lset('cm_ws_name',savedName); } });
     });
   }
-  // ─── Багш заавар/тайлбарыг шууд засах (зөвхөн энэ төхөөрөмжид локал хадгална) ───
-  var EDIT_SEL='.task, .rule, .head .sub, .gtitle';
-  var editDefaults={};
-  function ekey(i){ return 'cm_wsedit::'+curSlug()+'::'+i; }
+  // ─── Заавар/тайлбарын ерөнхий загвар (ЗӨВХӨН АДМИН серверт засна, бусад нь харна) ───
+  var EDIT_SEL='.task, .rule, .sec, .hint, .note, .lead, .tip, .desc, .head .sub, .gtitle';
+  var editDefaults={};        // build-ийн анхны бичвэр (индексээр)
+  var serverEdits=null;       // серверээс уншсан загвар {index: html}, ачаалаагүй бол null
+  var saveTimer=null;
+  function isAdminUser(){ return !!ls('cm_admin_token'); }
+  function loadInstr(){
+    fetch('/api/worksheets?instr='+encodeURIComponent(curSlug()))
+      .then(function(r){return r.json();})
+      .then(function(d){ serverEdits=(d&&d.ok&&d.edits)?d.edits:{}; applyEdits(); })
+      .catch(function(){ serverEdits={}; applyEdits(); });
+  }
   function applyEdits(){
-    if(IS_QR)return;
+    if(serverEdits==null)return;                 // загвар ачаалагдтал хүлээнэ
     var sh=document.getElementById('sheet'); if(!sh)return;
+    var admin=isAdminUser();
     var els=sh.querySelectorAll(EDIT_SEL);
     [].forEach.call(els,function(el,i){
-      if(el.getAttribute('data-cm-ed'))return;
-      editDefaults[i]=el.innerHTML;
-      var saved=ls(ekey(i));
-      if(saved!=null&&saved!==el.innerHTML)el.innerHTML=saved;
-      el.setAttribute('data-cm-ed','1');
-      el.setAttribute('contenteditable','true');
-      el.setAttribute('spellcheck','false');
-      el.classList.add('cm-ed');
-      el.title='Багш заавраа энд шууд засаж болно (зөвхөн энэ төхөөрөмжид хадгалагдана)';
-      el.addEventListener('input',function(){ try{lset(ekey(i),el.innerHTML);}catch(e){} refreshEditReset(); });
+      if(editDefaults[i]==null)editDefaults[i]=el.innerHTML;   // анхны хэв
+      var t=serverEdits[i];
+      if(t!=null&&el.innerHTML!==t)el.innerHTML=t;             // загварыг бүгдэд тавина
+      if(admin&&!el.getAttribute('data-cm-ed')){
+        el.setAttribute('data-cm-ed','1');
+        el.setAttribute('contenteditable','true');
+        el.setAttribute('spellcheck','false');
+        el.classList.add('cm-ed');
+        el.title='Админ: заавраа шууд засаж болно — бүх хэрэглэгчид ижил харагдана';
+        el.addEventListener('input',scheduleSave);
+      }
     });
-    refreshEditReset();
+    if(admin)refreshEditReset();
   }
-  function slugHasEdits(){
-    try{ for(var k=0;k<localStorage.length;k++){var key=localStorage.key(k); if(key&&key.indexOf('cm_wsedit::'+curSlug()+'::')===0)return true;} }catch(e){}
-    return false;
+  function collectEdits(){
+    var sh=document.getElementById('sheet'),m={}; if(!sh)return m;
+    var els=sh.querySelectorAll(EDIT_SEL);
+    [].forEach.call(els,function(el,i){ if(editDefaults[i]!=null&&el.innerHTML!==editDefaults[i])m[i]=el.innerHTML; });
+    return m;
   }
+  function scheduleSave(){
+    if(saveTimer)clearTimeout(saveTimer);
+    saveTimer=setTimeout(function(){
+      var m=collectEdits(); serverEdits=m;
+      var b=document.querySelector('.bar .ws-editreset'); if(b)b.querySelector('.lbl').textContent='Хадгалж байна…';
+      sApi('instr_save',{slug:curSlug(),edits:m}).then(function(res){
+        if(res&&res.ok)serverEdits=res.edits||m;
+        var bb=document.querySelector('.bar .ws-editreset'); if(bb)bb.querySelector('.lbl').textContent='Заавар анхандаа';
+        refreshEditReset();
+      }).catch(function(){ var bb=document.querySelector('.bar .ws-editreset'); if(bb)bb.querySelector('.lbl').textContent='Заавар анхандаа'; });
+    },600);
+  }
+  function slugHasEdits(){ return serverEdits&&Object.keys(serverEdits).length>0; }
   function resetEdits(){
-    try{ for(var k=localStorage.length-1;k>=0;k--){var key=localStorage.key(k); if(key&&key.indexOf('cm_wsedit::'+curSlug()+'::')===0)localStorage.removeItem(key);} }catch(e){}
-    editDefaults={};
-    refreshEditReset();
-    if(typeof window.build==='function'){ try{window.build();}catch(e){} } else { try{location.reload();}catch(e){} }
+    sApi('instr_save',{slug:curSlug(),edits:{}}).then(function(){
+      serverEdits={}; editDefaults={}; refreshEditReset();
+      if(typeof window.build==='function'){ try{window.build();}catch(e){} } else { try{location.reload();}catch(e){} }
+    });
   }
   function refreshEditReset(){
     if(IS_QR)return; var bar=document.querySelector('.bar'); if(!bar)return;
     var b=bar.querySelector('.ws-editreset');
-    if(slugHasEdits()){
+    if(isAdminUser()&&slugHasEdits()){
       if(!b){ b=document.createElement('button'); b.type='button'; b.className='ws-editreset';
         b.style.cssText='font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.55rem 1rem;font-size:.85rem;color:#5a32d6;background:#efe9ff;display:inline-flex;align-items:center;gap:5px';
-        b.innerHTML='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.64-6.36"/><path d="M3 4v6h6"/></svg>Заавар анхандаа';
-        b.onclick=function(){ if(confirm('Засварласан заавар/тайлбарыг анхны хэвэнд нь оруулах уу?'))resetEdits(); };
+        b.innerHTML='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.64-6.36"/><path d="M3 4v6h6"/></svg><span class="lbl">Заавар анхандаа</span>';
+        b.onclick=function(){ if(confirm('Заавар/тайлбарын загварыг анхны хэвэнд нь оруулах уу? (бүх хэрэглэгчид нөлөөлнө)'))resetEdits(); };
         bar.appendChild(b);
       }
     } else if(b){ b.remove(); }
@@ -576,7 +601,7 @@
   window.addEventListener('beforeprint',applyPrintFit);
   window.addEventListener('afterprint',clearPrintFit);
 
-  function init(){ injectBrandCSS(); brandSheet(); watchSheet(); enhanceMeta(); applyEdits(); if(!IS_QR){addBtn();addBatchBtn();} applyQR(); enforcePaywall(); injectSocial(); }
+  function init(){ injectBrandCSS(); brandSheet(); watchSheet(); enhanceMeta(); loadInstr(); if(!IS_QR){addBtn();addBatchBtn();} applyQR(); enforcePaywall(); injectSocial(); }
   if(document.readyState!=='loading')init();
   else document.addEventListener('DOMContentLoaded',init);
 })();
