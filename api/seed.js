@@ -7,21 +7,28 @@ module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
-    // ── 9-р ангийн "Геометр" дэд бүлэг (нэг удаа тохируулах, idempotent) ──
+    // ── 9-р ангийн дэд бүлгүүд агуулгаар (нэг удаа тохируулах, idempotent) ──
     try {
       await pool.query(`CREATE TABLE IF NOT EXISTS ws_subgroups (id BIGSERIAL PRIMARY KEY, grade TEXT NOT NULL, name TEXT NOT NULL, pos INT DEFAULT 0, created_at TIMESTAMPTZ DEFAULT NOW())`);
       await pool.query(`CREATE TABLE IF NOT EXISTS ws_place (grp TEXT NOT NULL, slug TEXT NOT NULL, kind TEXT NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW(), PRIMARY KEY (grp, slug, kind))`);
-      const geoSlugs = ['bisektris-chanar.html','median-chanar.html','trig-gar-arga.html','trig-sin.html','trig-cos.html','trig-tan.html','trig-tal-urt.html','trig-ongo-oloh.html','koordinat-arga.html','koordinat-arga-2.html','vektor-koordinat.html','vektor-koordinat-2.html','vektor-uildel.html'];
-      let sg = await pool.query('SELECT id FROM ws_subgroups WHERE grade=$1 AND name=$2', ['9-р анги', 'Геометр']);
-      let sgId;
-      if (sg.rows.length) sgId = Number(sg.rows[0].id);
-      else { const ins = await pool.query('INSERT INTO ws_subgroups (grade, name, pos) VALUES ($1,$2,0) RETURNING id', ['9-р анги', 'Геометр']); sgId = Number(ins.rows[0].id); }
-      const lbl = 'sg:' + sgId;
-      for (const slug of geoSlugs) {
-        await pool.query(`DELETE FROM ws_place WHERE slug=$1 AND kind='add' AND grp LIKE 'sg:%'`, [slug]);
-        await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, [lbl, slug]);
+      const SG9 = [
+        { name:'Алгебр', pos:0, slugs:['troichlen-zadlal-12.html','buleglekh-zadlal-14.html','irratsional-ilerhiilel-20.html','algebr-butarhai-buh-16.html','algebr-butarhai-buh-2-16.html','algebr-butarhai-buh-3-16.html','algebr-buh-4-16.html','alg-7-tomyo-9.html','algebr-butarhai-7tomyo-9.html','algebr-butarhai-abc-9.html','algebr-butarhai-2hyz-9.html','songon-yazguur-4torol.html'] },
+        { name:'Тэгшитгэл', pos:1, slugs:['kvadrat-tegshitgel-20.html','kvadrat-tegshitgel-2-16.html','ratsional-tegshitgel-16.html','shts-3-12.html'] },
+        { name:'Функц', pos:2, slugs:['shugaman-urvuu-12.html'] },
+        { name:'Геометр', pos:3, slugs:['bisektris-chanar.html','median-chanar.html','trig-gar-arga.html','trig-sin.html','trig-cos.html','trig-tan.html','trig-tal-urt.html','trig-ongo-oloh.html','koordinat-arga.html','koordinat-arga-2.html','vektor-koordinat.html','vektor-koordinat-2.html','vektor-uildel.html'] },
+      ];
+      for (const g of SG9) {
+        let sg = await pool.query('SELECT id FROM ws_subgroups WHERE grade=$1 AND name=$2', ['9-р анги', g.name]);
+        let sgId;
+        if (sg.rows.length) { sgId = Number(sg.rows[0].id); await pool.query('UPDATE ws_subgroups SET pos=$2 WHERE id=$1', [sgId, g.pos]); }
+        else { const ins = await pool.query('INSERT INTO ws_subgroups (grade, name, pos) VALUES ($1,$2,$3) RETURNING id', ['9-р анги', g.name, g.pos]); sgId = Number(ins.rows[0].id); }
+        const lbl = 'sg:' + sgId;
+        for (const slug of g.slugs) {
+          await pool.query(`DELETE FROM ws_place WHERE slug=$1 AND kind='add' AND grp LIKE 'sg:%'`, [slug]);
+          await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, [lbl, slug]);
+        }
       }
-    } catch (e) { console.error('[geo subgroup]', e.message); }
+    } catch (e) { console.error('[sg9 subgroups]', e.message); }
 
     // Nodes seed
     const nodes = [
