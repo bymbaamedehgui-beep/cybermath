@@ -56,9 +56,10 @@ function bpow(base,e){var r=bf(1),b=(e<0)?bdiv(bf(1),base):base,k=Math.abs(e),i;
 function bfTex(f){if(f.d===1n)return f.n.toString();var neg=f.n<0n;var nn=(neg?-f.n:f.n);return (neg?'-':'')+'\\dfrac{'+nn.toString()+'}{'+f.d.toString()+'}';}
 function bfNum(f){return Number(f.n)/Number(f.d);}
 function tooBig(f){return (f.n<0n?-f.n:f.n)>200000n||f.d>200000n;}
-function fpw(p,q,e){return '\\left(\\dfrac{'+p+'}{'+q+'}\\right)^{'+e+'}';}
+function fpw(p,q,e){return e===1?('\\dfrac{'+p+'}{'+q+'}'):('\\left(\\dfrac{'+p+'}{'+q+'}\\right)^{'+e+'}');}
+function pe(b,e){return e===1?(''+b):(b+'^{'+e+'}');}   // зэрэг 1 бол бичихгүй
 function ppMap(c){if(c===2)return [[2,1],[4,2],[8,3],[16,4],[32,5]];if(c===3)return [[3,1],[9,2],[27,3],[81,4]];return [[5,1],[25,2],[125,3]];}
-function factorC(c,lo,hi){var pr=pick(ppMap(c));var e=nz(lo,hi);return {base:pr[0],e:e,tex:pr[0]+'^{'+e+'}'};}
+function factorC(c,lo,hi){var pr=pick(ppMap(c));var e=nz(lo,hi);return {base:pr[0],e:e,tex:pe(pr[0],e)};}
 // ── Хүнд генераторууд ──
 // H1: анхны тооны зэргийн нийлмэл бутархай (хариу нь p^A·q^B бутархай)
 function gH1(){
@@ -80,9 +81,9 @@ function gH2(){
   var m=k+dm,n=k+dn;if(m<1||n<1)return null;
   var t1=bmul(bf(c1),bpow(bf(a),dm)),t2=bmul(bf(c2),bpow(bf(a),dn));
   var val=(op==='+')?badd(t1,t2):bsub(t1,t2);if(tooBig(val))return null;
-  var num=(c1===1?'':c1+'\\cdot ')+a+'^{'+m+'} '+op+' '+(c2===1?'':c2+'\\cdot ')+a+'^{'+n+'}';
+  var num=(c1===1?'':c1+'\\cdot ')+pe(a,m)+' '+op+' '+(c2===1?'':c2+'\\cdot ')+pe(a,n);
   var fv=(op==='+'?c1*Math.pow(a,dm)+c2*Math.pow(a,dn):c1*Math.pow(a,dm)-c2*Math.pow(a,dn));
-  return {q:'\\dfrac{'+num+'}{'+a+'^{'+k+'}}',ans:val,fv:fv};
+  return {q:'\\dfrac{'+num+'}{'+pe(a,k)+'}',ans:val,fv:fv};
 }
 // H3: тоологч, хуваарь ижил зэрэгт хүрнэ → коэффициентийн нийлбэр
 function gH3(){
@@ -91,9 +92,9 @@ function gH3(){
   function rp(){var pr=pick(reps);return {base:pr[0],e:S/pr[1]};}
   var t1=rp(),t2=rp(),dd=rp(),c1=rnd(2,9),c2=rnd(2,9),op=pick(['+','-']);
   var val=bf(op==='+'?c1+c2:c1-c2);
-  var num=c1+'\\cdot '+t1.base+'^{'+t1.e+'} '+op+' '+c2+'\\cdot '+t2.base+'^{'+t2.e+'}';
+  var num=c1+'\\cdot '+pe(t1.base,t1.e)+' '+op+' '+c2+'\\cdot '+pe(t2.base,t2.e);
   var fv=(op==='+'?c1+c2:c1-c2);
-  return {q:'\\dfrac{'+num+'}{'+dd.base+'^{'+dd.e+'}}',ans:val,fv:fv};
+  return {q:'\\dfrac{'+num+'}{'+pe(dd.base,dd.e)+'}',ans:val,fv:fv};
 }
 // H4: бутархай суурь ба сөрөг илтгэгч холилдсон нийлмэл бутархай
 function gH4(){
@@ -102,7 +103,7 @@ function gH4(){
   var val=bdiv(bmul(bpow(bf(a),m),bpow(bf(pr[0],pr[1]),-k)),bpow(bf(b),n));
   if(tooBig(val)||val.n===1n&&val.d===1n)return null;
   var fv=Math.pow(a,m)*Math.pow(pr[0]/pr[1],-k)/Math.pow(b,n);
-  return {q:'\\dfrac{'+a+'^{'+m+'} \\cdot '+fpw(pr[0],pr[1],-k)+'}{'+b+'^{'+n+'}}',ans:val,fv:fv};
+  return {q:'\\dfrac{'+pe(a,m)+' \\cdot '+fpw(pr[0],pr[1],-k)+'}{'+pe(b,n)+'}',ans:val,fv:fv};
 }
 function gen(){var fns=[gH1,gH1,gH2,gH2,gH3,gH4];for(var t=0;t<300;t++){var f=pick(fns)();if(f&&Math.abs(bfNum(f.ans)-f.fv)<1e-6)return f;}return null;}
 function probeH(sheet){var pr=sheet.cloneNode(true);pr.removeAttribute('id');pr.style.cssText='position:absolute;left:-99999px;top:0;width:210mm;max-width:none;min-height:0;margin:0;padding:0;box-shadow:none;zoom:1';var a=pr.querySelector('#answers,.ans-page');if(a)a.remove();document.body.appendChild(pr);var h=pr.scrollHeight;document.body.removeChild(pr);return h;}
