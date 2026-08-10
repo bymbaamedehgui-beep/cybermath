@@ -698,18 +698,24 @@ module.exports = async (req, res) => {
         await pool.query('DELETE FROM ws_subgroups WHERE id=$1', [id]);
         return res.json({ ok: true });
       }
-      // Ажлын хуудсыг дэд бүлэгт оноох — бусад бүх дэд бүлгээс хасч, энэ бүлэгт нэмнэ
+      // Ажлын хуудсыг дэд бүлэгт оноох — зөвхөн ТУХАЙН АНГИЙН бусад дэд бүлгээс хасч, энэ бүлэгт нэмнэ (өөр анги дахь ижил хуудсанд хүрэхгүй)
       if (b.action === 'sg_assign') {
         const id = parseInt(b.id, 10), slug = String(b.slug||'').slice(0,120);
         if (!id || !slug) return res.status(400).json({ ok: false, error: 'id/slug дутуу' });
-        await pool.query(`DELETE FROM ws_place WHERE slug=$1 AND kind='add' AND grp LIKE 'sg:%'`, [slug]);
+        await pool.query(`DELETE FROM ws_place WHERE slug=$1 AND kind='add' AND grp IN (SELECT 'sg:'||id FROM ws_subgroups WHERE grade=(SELECT grade FROM ws_subgroups WHERE id=$2))`, [slug, id]);
         await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + id, slug]);
         return res.json({ ok: true });
       }
+      // Дэд бүлгээс хасах — from='sg:ID' өгвөл зөвхөн тэрнээс, эсэхийг тухайн ангийн дэд бүлгүүдээс
       if (b.action === 'sg_unassign') {
-        const slug = String(b.slug||'').slice(0,120);
+        const slug = String(b.slug||'').slice(0,120), from = String(b.from||'').slice(0,120);
         if (!slug) return res.status(400).json({ ok: false, error: 'slug дутуу' });
-        await pool.query(`DELETE FROM ws_place WHERE slug=$1 AND kind='add' AND grp LIKE 'sg:%'`, [slug]);
+        if (/^sg:\d+$/.test(from)) {
+          const fid = parseInt(from.slice(3), 10);
+          await pool.query(`DELETE FROM ws_place WHERE slug=$1 AND kind='add' AND grp IN (SELECT 'sg:'||id FROM ws_subgroups WHERE grade=(SELECT grade FROM ws_subgroups WHERE id=$2))`, [slug, fid]);
+        } else {
+          await pool.query(`DELETE FROM ws_place WHERE slug=$1 AND kind='add' AND grp=$2`, [slug, from]);
+        }
         return res.json({ ok: true });
       }
       if (b.action === 'sg_reorder') {

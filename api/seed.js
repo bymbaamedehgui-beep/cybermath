@@ -7,28 +7,88 @@ module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
-    // ── 9-р ангийн дэд бүлгүүд агуулгаар (нэг удаа тохируулах, idempotent) ──
+    // ── Бүх ангийн дэд бүлгүүд агуулгаар (idempotent; дэд бүлэг тус бүрийг сэргээнэ) ──
     try {
       await pool.query(`CREATE TABLE IF NOT EXISTS ws_subgroups (id BIGSERIAL PRIMARY KEY, grade TEXT NOT NULL, name TEXT NOT NULL, pos INT DEFAULT 0, created_at TIMESTAMPTZ DEFAULT NOW())`);
       await pool.query(`CREATE TABLE IF NOT EXISTS ws_place (grp TEXT NOT NULL, slug TEXT NOT NULL, kind TEXT NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW(), PRIMARY KEY (grp, slug, kind))`);
-      const SG9 = [
-        { name:'Алгебр', pos:0, slugs:['troichlen-zadlal-12.html','buleglekh-zadlal-14.html','irratsional-ilerhiilel-20.html','yazguur-hyalbarchlah-20.html','algebr-butarhai-buh-16.html','algebr-butarhai-buh-2-16.html','algebr-butarhai-buh-3-16.html','algebr-buh-4-16.html','alg-7-tomyo-9.html','algebr-butarhai-7tomyo-9.html','algebr-butarhai-abc-9.html','algebr-butarhai-2hyz-9.html','songon-yazguur-4torol.html'] },
-        { name:'Тэгшитгэл', pos:1, slugs:['kvadrat-tegshitgel-20.html','kvadrat-tegshitgel-2-16.html','ratsional-tegshitgel-16.html','shts-3-12.html'] },
-        { name:'Функц', pos:2, slugs:['shugaman-urvuu-12.html'] },
-        { name:'Геометр', pos:3, slugs:['bisektris-chanar.html','median-chanar.html','trig-gar-arga.html','trig-sin.html','trig-cos.html','trig-tan.html','trig-tal-urt.html','trig-ongo-oloh.html','koordinat-arga.html','koordinat-arga-2.html','vektor-koordinat.html','vektor-koordinat-2.html','vektor-uildel.html'] },
-      ];
-      for (const g of SG9) {
-        let sg = await pool.query('SELECT id FROM ws_subgroups WHERE grade=$1 AND name=$2', ['9-р анги', g.name]);
-        let sgId;
-        if (sg.rows.length) { sgId = Number(sg.rows[0].id); await pool.query('UPDATE ws_subgroups SET pos=$2 WHERE id=$1', [sgId, g.pos]); }
-        else { const ins = await pool.query('INSERT INTO ws_subgroups (grade, name, pos) VALUES ($1,$2,$3) RETURNING id', ['9-р анги', g.name, g.pos]); sgId = Number(ins.rows[0].id); }
-        const lbl = 'sg:' + sgId;
-        for (const slug of g.slugs) {
-          await pool.query(`DELETE FROM ws_place WHERE slug=$1 AND kind='add' AND grp LIKE 'sg:%'`, [slug]);
-          await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, [lbl, slug]);
+      const SGALL = {
+        '3-р анги': [
+          { name:'Үржих, хуваах', slugs:['urjver-hurd.html','urjver-3x2-20.html','huvaalt-3x2-12.html','huvaalt-mongol-12.html'] },
+          { name:'Тэгшитгэл', slugs:['tegshitgel-3.html'] },
+        ],
+        '4-р анги': [
+          { name:'Үржих, хуваах', slugs:['urjver-4x3-12.html','huvaalt-4x2-12.html','huvaalt-4x3-12.html','huvaalt-tom-12.html'] },
+          { name:'Бутархай', slugs:['butarhai-urjih-18.html','butarhai-nemeh-18.html','butarhai-hasah-18.html','butarhai-huvaah-16.html','butarhai-jish-4.html','arav-toymloh-4.html'] },
+          { name:'Тэгшитгэл, бодлого', slugs:['uguulber-4-hard.html','tegshitgel-4.html'] },
+        ],
+        '5-р анги': [
+          { name:'Хуваалт', slugs:['huvaalt-5x2-12.html','huvaalt-5x3-12.html','huvaalt-6x3-12.html'] },
+          { name:'Бодлого', slugs:['herchim-arga-12.html','uguulber-4angi-12.html','hurd-bodlogo-12.html','zoruu-bodlogo-12.html'] },
+          { name:'Энгийн бутархай', slugs:['butarhai-uildluud-10.html','butarhai-urjih-18.html','butarhai-nemeh-18.html','butarhai-hasah-18.html','butarhai-huvaah-16.html','butarhai-hura-18.html','butarhai-holimog-16.html','butarhai-ekvivalent-24.html','butarhai-jish-5.html'] },
+          { name:'Аравтын бутархай', slugs:['arav-butarhai-nemeh-18.html','arav-butarhai-hasah-18.html','arav-butarhai-urjih-18.html','arav-butarhai-huvaah-18.html','arav-butarhai-ilerhiilel-12.html','arav-engiin-holimog-12.html','arav-toymloh-5.html'] },
+          { name:'Тэгшитгэл', slugs:['tegshitgel-5.html'] },
+        ],
+        '6-р анги': [
+          { name:'Аравтын бутархай', slugs:['arav-toymloh-6.html','arav6-nemeh.html','arav6-hasah.html','arav6-urjih.html','arav6-huvaah.html','arav6-ilerhiilel.html','arav6-holimog.html'] },
+          { name:'Сөрөг тоо', slugs:['numshul-nemeh-hasah-12.html','negativ-too-100.html','temdegt-nemeh-hasah-60.html','temdegt-urjhuv-20.html','temdegt-ilerhiilel-20.html'] },
+          { name:'Тоо, хуваагдал', slugs:['anhny-too-100.html','anhny-zadlal-16.html','hieh-hbeh-16.html','izil-huvaari-16.html','huvari-arav-protsent-16.html'] },
+          { name:'Энгийн бутархай', slugs:['butarhai-uildluud-10.html','butarhai-huvaah-16.html','butarhai-hura-18.html','butarhai-holimog-16.html','butarhai-ekvivalent-24.html','butarhai-jish-6.html'] },
+          { name:'Алгебр илэрхийлэл', slugs:['algebr-gishuun-negtgeh-16.html','algebr-haalt-zadlah-16.html','algebr-hyalbarchlah-14.html'] },
+          { name:'Тэгшитгэл', slugs:['tegshitgel-6.html'] },
+          { name:'Геометр (өнцөг)', slugs:['hamar-ongo.html','hamar-ongo-2.html','bosoo-ongo.html','bosoo-ongo-2.html','gurvaljin-ongo.html','gurvaljin-ongo-2.html','olon-ongogt-ongo.html','olon-ongogt-ongo-2.html'] },
+        ],
+        '7-р анги': [
+          { name:'Дараалал, прогресс', slugs:['daraalal-zui-togtol-12.html','arifmetik-progress-12.html'] },
+          { name:'Алгебр илэрхийлэл', slugs:['algebr-gishuun-negtgeh-16.html','algebr-haalt-zadlah-16.html','algebr-hyalbarchlah-14.html'] },
+          { name:'Зэрэг', slugs:['aravt-zereg-16.html','kvadrat-zereg-20.html','zereg-chanar-30.html'] },
+          { name:'Рационал тоо', slugs:['ratsional-nemeh-hasah-20.html','ratsional-urjih-huvaah-20.html','ratsional-toon-ilerhiilel-16.html'] },
+          { name:'Олон гишүүнт', slugs:['neg-olon-gishuunt-20.html','olon-olon-gishuunt-16.html','olon-gishuunt-emhetgel-20.html','standart-emhetgel-16.html','niitleg-uurjigdehuun-20.html','niitleg-monom-16.html','gishuunchlen-urjih-16.html'] },
+          { name:'Тэгшитгэл', slugs:['tegshitgel-7.html','shugaman-tegshitgel-16.html'] },
+          { name:'Геометр (өнцөг)', slugs:['hamar-ongo.html','hamar-ongo-2.html','bosoo-ongo.html','bosoo-ongo-2.html','gurvaljin-ongo.html','gurvaljin-ongo-2.html','olon-ongogt-ongo.html','olon-ongogt-ongo-2.html','solbison-ongo.html','gadaad-ongo.html'] },
+        ],
+        '8-р анги': [
+          { name:'Зэрэг, язгуур', slugs:['zereg-uildel-12.html','zereg-chanar-hard-10.html','yazguur-hyalbarchlah-20.html','rats-zereg-yazguur-ilerhiilel-16.html','rats-zeregt-18.html','rats-yazguur-gargah-18.html','kvadrat-yazguur-20.html','kvadrat-yazguur-buhel-20.html','kub-zereg-yazguur-16.html','ratsional-yazguur-20.html','rats-zereg-yazguur-16.html','zereg-yazguur-ilerhiilel-20.html'] },
+          { name:'Хураах томьёо, задлал', slugs:['niilber-kvadrat-20.html','yalgavar-kvadrat-20.html','kvadratuud-ylgavar-20.html','alg-7-tomyo-9.html','algebr-butarhai-7tomyo-9.html','algebr-butarhai-abc-9.html','algebr-butarhai-2hyz-9.html','niitleg-2-16.html'] },
+          { name:'Алгебрын бутархай', slugs:['algebr-butarhai-16.html','algebr-butarhai-2-16.html','algebr-butarhai-nh-16.html','algebr-butarhai-uh-16.html','algebr-kvadrat-butarhai-16.html','algebr-kvadrat-uh-16.html'] },
+          { name:'Тэгшитгэл, систем', slugs:['shts-2-16.html','shugaman-tents-bish-16.html'] },
+          { name:'Функц, график', slugs:['shuluun-grafik-8.html','shuluun-nalalt-8.html','shts-grafik-8.html','shugaman-urvuu-12.html'] },
+        ],
+        '9-р анги': [
+          { name:'Алгебр', slugs:['troichlen-zadlal-12.html','buleglekh-zadlal-14.html','irratsional-ilerhiilel-20.html','yazguur-hyalbarchlah-20.html','algebr-butarhai-buh-16.html','algebr-butarhai-buh-2-16.html','algebr-butarhai-buh-3-16.html','algebr-buh-4-16.html','alg-7-tomyo-9.html','algebr-butarhai-7tomyo-9.html','algebr-butarhai-abc-9.html','algebr-butarhai-2hyz-9.html','songon-yazguur-4torol.html'] },
+          { name:'Тэгшитгэл', slugs:['kvadrat-tegshitgel-20.html','kvadrat-tegshitgel-2-16.html','ratsional-tegshitgel-16.html','shts-3-12.html'] },
+          { name:'Функц', slugs:['shugaman-urvuu-12.html'] },
+          { name:'Геометр', slugs:['bisektris-chanar.html','median-chanar.html','trig-gar-arga.html','trig-sin.html','trig-cos.html','trig-tan.html','trig-tal-urt.html','trig-ongo-oloh.html','koordinat-arga.html','koordinat-arga-2.html','vektor-koordinat.html','vektor-koordinat-2.html','vektor-uildel.html'] },
+        ],
+        '10-р анги': [
+          { name:'Квадрат функцийн график', slugs:['grafik-ax2.html','grafik-ax2-c.html','grafik-ax-h2.html','grafik-oroin-helber.html','grafik-erenhii.html','kvadrat-grafik-zoolt-8.html'] },
+        ],
+        '11-р анги': [
+          { name:'Тэгшитгэл, тэнцэтгэл биш', slugs:['kvadrat-tentsbish-grafik.html','tegshitgel-sistem-4torol.html','iltgegch-tegshitgel-16.html'] },
+          { name:'Матриц ба систем', slugs:['matrits-urvuu-sistem-12.html','matrits-2x2-20.html','matrits-3x3-det-12.html','kramer-3-6.html'] },
+        ],
+        '12-р анги': [
+          { name:'Модултай тэгшитгэл', slugs:['modul-tegshitgel-12.html','modul-tegshitgel-2-12.html','modul-tegshitgel-3-12.html'] },
+          { name:'Модул тэнцэтгэл биш', slugs:['modul-tentsetgel-bish-12.html','modul-tentsetgel-bish-2-12.html','modul-tentsetgel-bish-3-12.html'] },
+          { name:'Модул — аргууд', slugs:['modul-12.html','modul-ab-kvadrat-12.html','modul-orluulga-kvadrat-12.html','modul-radikal-12.html'] },
+          { name:'Шалгалт', slugs:['modul-shalgalt-12.html','modul-shalgalt-material-12.html'] },
+        ],
+      };
+      for (const grade of Object.keys(SGALL)) {
+        const groups = SGALL[grade];
+        for (let i = 0; i < groups.length; i++) {
+          const g = groups[i];
+          let sg = await pool.query('SELECT id FROM ws_subgroups WHERE grade=$1 AND name=$2', [grade, g.name]);
+          let sgId;
+          if (sg.rows.length) { sgId = Number(sg.rows[0].id); await pool.query('UPDATE ws_subgroups SET pos=$2 WHERE id=$1', [sgId, i]); }
+          else { const ins = await pool.query('INSERT INTO ws_subgroups (grade, name, pos) VALUES ($1,$2,$3) RETURNING id', [grade, g.name, i]); sgId = Number(ins.rows[0].id); }
+          const lbl = 'sg:' + sgId;
+          await pool.query(`DELETE FROM ws_place WHERE grp=$1 AND kind='add'`, [lbl]);
+          for (const slug of g.slugs) {
+            await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, [lbl, slug]);
+          }
         }
       }
-    } catch (e) { console.error('[sg9 subgroups]', e.message); }
+    } catch (e) { console.error('[all subgroups]', e.message); }
 
     // Nodes seed
     const nodes = [
