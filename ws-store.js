@@ -604,7 +604,19 @@
   window.addEventListener('beforeprint',applyPrintFit);
   window.addEventListener('afterprint',clearPrintFit);
 
-  function init(){ injectBrandCSS(); brandSheet(); watchSheet(); enhanceMeta(); loadInstr(); if(!IS_QR){addBtn();addBatchBtn();} applyQR(); enforcePaywall(); injectSocial(); }
+  // ─── "Бодолт хийх" toggle — хуудас WS_HAS_WORK зарлавал л гарна ───
+  function addWorkToggle(){
+    if(!window.WS_HAS_WORK)return;
+    var bar=document.querySelector('.bar'); if(!bar||bar.querySelector('.cm-worktoggle'))return;
+    var lb=document.createElement('label'); lb.className='cm-worktoggle';
+    lb.style.cssText='font-weight:700;color:#5a32d6;display:flex;align-items:center;gap:6px;font-size:.88rem;cursor:pointer';
+    lb.innerHTML='<input type="checkbox" class="cm-work-cb"'+(window.WS_WORK?' checked':'')+'> Бодолт хийх';
+    var saLabel=null; [].forEach.call(bar.querySelectorAll('label'),function(l){ if(/Хариу хавсаргах/.test(l.textContent))saLabel=l; });
+    if(saLabel)bar.insertBefore(lb, saLabel.nextSibling); else bar.appendChild(lb);
+    lb.querySelector('.cm-work-cb').addEventListener('change',function(){ window.WS_WORK=this.checked; try{if(typeof window.build==='function')window.build();}catch(e){} });
+  }
+  window.cmAddWorkToggle=addWorkToggle;
+  function init(){ injectBrandCSS(); brandSheet(); watchSheet(); enhanceMeta(); loadInstr(); if(!IS_QR){addBtn();addBatchBtn();addWorkToggle();} applyQR(); enforcePaywall(); injectSocial(); }
   if(document.readyState!=='loading')init();
   else document.addEventListener('DOMContentLoaded',init);
 })();
