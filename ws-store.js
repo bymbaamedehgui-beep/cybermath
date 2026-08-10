@@ -438,8 +438,11 @@
     o.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(20,15,40,.6);display:grid;place-items:center;padding:16px;font-family:"Segoe UI",Arial,sans-serif';
     o.innerHTML='<div style="background:#fff;border-radius:18px;max-width:440px;width:100%;padding:22px;box-shadow:0 24px 60px -18px rgba(0,0,0,.5)">'
       +'<div style="display:flex;align-items:center;gap:7px;font-weight:900;color:#5a32d6;font-size:1.12rem;margin-bottom:3px"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Ангиар хэвлэх</div>'
-      +'<p style="color:#7a7390;font-size:.85rem;margin-bottom:10px;line-height:1.4">Сурагчдын нэрсийг <b>мөр бүрд нэг</b> хуулж оруулаарай. Нэр бүрд тусдаа хуудас үүсч, бүгд <b>нэг дор</b> хэвлэгдэнэ.</p>'
-      +'<textarea id="cm-batchNames" rows="8" placeholder="Батболд&#10;Сараа&#10;Тэмүүлэн&#10;..." style="width:100%;box-sizing:border-box;border:1.6px solid #e7ddff;border-radius:12px;padding:.7rem .9rem;font-size:.92rem;outline:none;resize:vertical;font-family:inherit"></textarea>'
+      +'<p style="color:#7a7390;font-size:.85rem;margin-bottom:10px;line-height:1.4"><b>Хүүхдийн тоог</b> оруулбал нэр хоосон (сурагч өөрөө бичнэ) хуудсууд үүснэ. Эсвэл доор <b>нэрсийг</b> мөр бүрд бичвэл нэр бүрд тусдаа хуудас. Бүгд <b>нэг дор</b> хэвлэгдэнэ.</p>'
+      +'<label style="display:block;font-size:.86rem;color:#3a2d5e;font-weight:700;margin-bottom:5px">Хүүхдийн тоо</label>'
+      +'<input id="cm-batchCount" type="number" min="1" max="80" value="30" style="width:100%;box-sizing:border-box;border:1.6px solid #e7ddff;border-radius:12px;padding:.6rem .9rem;font-size:.98rem;font-weight:700;outline:none;font-family:inherit;margin-bottom:12px">'
+      +'<div style="font-size:.8rem;color:#9a91b4;text-align:center;margin-bottom:9px">— эсвэл нэрсээр (заавал биш) —</div>'
+      +'<textarea id="cm-batchNames" rows="5" placeholder="Батболд&#10;Сараа&#10;Тэмүүлэн&#10;..." style="width:100%;box-sizing:border-box;border:1.6px solid #e7ddff;border-radius:12px;padding:.7rem .9rem;font-size:.92rem;outline:none;resize:vertical;font-family:inherit"></textarea>'
       +'<label style="display:flex;align-items:center;gap:7px;margin:11px 0 4px;font-size:.86rem;color:#3a2d5e;font-weight:700;cursor:pointer"><input type="checkbox" id="cm-batchSame"> Бүх сурагчид <b>ижил бодлого</b> (тэгэхгүй бол тус бүр өөр хувилбар)</label>'
       +'<div id="cm-batchMsg" style="font-size:.82rem;color:#7a7390;margin:8px 0"></div>'
       +'<div style="display:flex;gap:8px;justify-content:flex-end">'
@@ -447,7 +450,7 @@
         +'<button id="cm-batchGo" style="display:inline-flex;align-items:center;gap:6px;border:0;background:linear-gradient(135deg,#7B52EE,#A855F7);color:#fff;font-weight:800;border-radius:999px;padding:.55rem 1.3rem;cursor:pointer;font-family:inherit"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>Бэлдэж хэвлэх</button>'
       +'</div></div>';
     document.body.appendChild(o);
-    var ta=o.querySelector('#cm-batchNames'); try{ta.focus();}catch(e){}
+    var cn=o.querySelector('#cm-batchCount'); try{cn.focus();cn.select();}catch(e){}
     o.querySelector('#cm-batchCancel').onclick=function(){o.remove();};
     o.querySelector('#cm-batchGo').onclick=function(){ runBatch(o); };
   }
@@ -465,7 +468,12 @@
   function runBatch(modal){
     var msg=modal.querySelector('#cm-batchMsg');
     var names=(modal.querySelector('#cm-batchNames').value||'').split(/\r?\n/).map(function(s){return s.trim();}).filter(Boolean);
-    if(!names.length){msg.style.color='#dc2626';msg.textContent='Дор хаяж нэг нэр оруулна уу.';return;}
+    if(!names.length){
+      var cntEl=modal.querySelector('#cm-batchCount'), cnt=parseInt(cntEl&&cntEl.value,10);
+      if(!cnt||cnt<1){msg.style.color='#dc2626';msg.textContent='Хүүхдийн тоог оруулах эсвэл нэрсийг бичнэ үү.';return;}
+      if(cnt>80)cnt=80;
+      names=[]; for(var c=0;c<cnt;c++)names.push('');   // нэр хоосон — сурагч өөрөө бичнэ
+    }
     if(names.length>80){names=names.slice(0,80);}
     var same=modal.querySelector('#cm-batchSame').checked;
     var sheet=document.getElementById('sheet'); if(!sheet)return;
