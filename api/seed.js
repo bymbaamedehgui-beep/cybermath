@@ -80,34 +80,28 @@ module.exports = async (req, res) => {
           { name:'Шалгалт', slugs:['modul-shalgalt-12.html','modul-shalgalt-material-12.html'] },
         ],
       };
-      for (const grade of Object.keys(SGALL)) {
-        const groups = SGALL[grade];
-        await pool.query(`ALTER TABLE ws_subgroups ADD COLUMN IF NOT EXISTS parent_id BIGINT`).catch(() => {});
-        // тохиргоонд байхгүй хуучин дэд бүлгийг устгах (давхардлаас сэргийлж).
-        // Гэхдээ nest-д оролцсон (эцэгтэй эсвэл хүүхэдтэй) UI-үүсгэсэн бүлгийг хадгална.
-        const keepNames = groups.map(g => g.name);
-        const stale = await pool.query(
-          `SELECT id FROM ws_subgroups WHERE grade=$1 AND NOT (name = ANY($2::text[]))
-             AND parent_id IS NULL
-             AND id NOT IN (SELECT parent_id FROM ws_subgroups WHERE parent_id IS NOT NULL)`,
-          [grade, keepNames]);
-        for (const row of stale.rows) {
-          await pool.query(`DELETE FROM ws_place WHERE grp=$1`, ['sg:' + row.id]);
-          await pool.query(`DELETE FROM ws_order WHERE grp=$1`, ['sg:' + row.id]);
-          await pool.query('DELETE FROM ws_subgroups WHERE id=$1', [row.id]);
-        }
-        for (let i = 0; i < groups.length; i++) {
-          const g = groups[i];
-          let sg = await pool.query('SELECT id FROM ws_subgroups WHERE grade=$1 AND name=$2', [grade, g.name]);
-          let sgId;
-          if (sg.rows.length) { sgId = Number(sg.rows[0].id); await pool.query('UPDATE ws_subgroups SET pos=$2 WHERE id=$1', [sgId, i]); }
-          else { const ins = await pool.query('INSERT INTO ws_subgroups (grade, name, pos) VALUES ($1,$2,$3) RETURNING id', [grade, g.name, i]); sgId = Number(ins.rows[0].id); }
-          const lbl = 'sg:' + sgId;
-          await pool.query(`DELETE FROM ws_place WHERE grp=$1 AND kind='add'`, [lbl]);
-          for (const slug of g.slugs) {
-            await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, [lbl, slug]);
+      await pool.query(`ALTER TABLE ws_subgroups ADD COLUMN IF NOT EXISTS parent_id BIGINT`).catch(() => {});
+      await pool.query(`CREATE TABLE IF NOT EXISTS ws_settings (skey TEXT PRIMARY KEY, sval TEXT)`).catch(() => {});
+      // Дэд бүлгийг ЗӨВХӨН НЭГ УДАА (цоо шинэ DB дээр) bootstrap хийнэ. Дараа нь UI бүрэн эзэмшинэ:
+      // хэрэглэгч устгасан/нэр өөрчилсөн/nest хийсэн бүлгийг seed дахин ҮҮСГЭХГҮЙ.
+      const bootRow = await pool.query(`SELECT sval FROM ws_settings WHERE skey='sg_bootstrapped'`);
+      const bootDone = bootRow.rows.length > 0;
+      const sgCount = Number((await pool.query('SELECT COUNT(*)::int AS n FROM ws_subgroups')).rows[0].n);
+      if (!bootDone && sgCount === 0) {
+        for (const grade of Object.keys(SGALL)) {
+          const groups = SGALL[grade];
+          for (let i = 0; i < groups.length; i++) {
+            const g = groups[i];
+            const ins = await pool.query('INSERT INTO ws_subgroups (grade, name, pos) VALUES ($1,$2,$3) RETURNING id', [grade, g.name, i]);
+            const lbl = 'sg:' + Number(ins.rows[0].id);
+            for (const slug of g.slugs) {
+              await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, [lbl, slug]);
+            }
           }
         }
+      }
+      if (!bootDone) {
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('sg_bootstrapped','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
     } catch (e) { console.error('[all subgroups]', e.message); }
 
