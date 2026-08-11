@@ -105,7 +105,9 @@
   .subgrp.collapsed>.subgrp-body{display:none}
   .subgrp.has-children>.subgrp-head .subgrp-title{color:#4326b0}
   .subgrp.sg-dragging{opacity:.45}
-  .subgrp.sg-drop-target{outline:2px dashed var(--purple);outline-offset:3px;border-radius:10px;background:#f7f4ff}
+  .subgrp.sg-drop-into{outline:2px dashed var(--purple);outline-offset:3px;border-radius:10px;background:#f7f4ff}
+  .subgrp.sg-drop-before>.subgrp-head{box-shadow:0 -3px 0 -1px var(--purple)}
+  .subgrp.sg-drop-after>.subgrp-head{box-shadow:0 3px 0 -1px var(--purple)}
   body.is-admin.editing .subgrp-head{cursor:grab}
   body.is-admin.editing .subgrp-head:active{cursor:grabbing}
   .card .ico.ico-exam{background:linear-gradient(135deg,#fde68a,#fef3c7);color:#92400e}
@@ -766,13 +768,43 @@ function toggleEdit(){
 }
 
 /* ----- чирж дараалал өөрчлөх (зөвхөн админ, editMode) ----- */
-var dragCard=null, dragSg=null, dragSgId=null, dragSgDesc=null, sgDropTarget=null, sgDropIntent=null;
-function setSgParent(id,parent){
+var dragCard=null, dragSg=null, dragSgId=null, dragSgDesc=null, sgDropIntent=null;
+function clearSgMarks(){[].forEach.call(document.querySelectorAll('.sg-drop-into,.sg-drop-before,.sg-drop-after'),function(el){el.classList.remove('sg-drop-into','sg-drop-before','sg-drop-after');});}
+/* Чирж буй дэд бүлгийн зорилтыг тодорхойлно: голд→дотор (nest), дээд/доод зах→өмнө/хойно эрэмбэ, хоосон хэсэг→дээд түвшин */
+function sgDropCompute(e){
+  var grade=dragSg.getAttribute('data-grade');
+  var tgt=e.target.closest('.subgrp');
+  if(tgt&&(tgt===dragSg||dragSgDesc[+tgt.getAttribute('data-sgid')]))return null;
+  if(tgt&&tgt.getAttribute('data-grade')===grade){
+    var tid=+tgt.getAttribute('data-sgid'),T=SGMAP[tid];
+    var head=e.target.closest('.subgrp-head'),zone='nest';
+    if(head&&head.parentNode===tgt){var hr=head.getBoundingClientRect();var rel=(e.clientY-hr.top)/Math.max(1,hr.height);zone=rel<0.32?'before':(rel>0.68?'after':'nest');}
+    if(zone==='nest')return {mode:'nest',target:tgt,parent:tid,beforeId:null};
+    var pid=(T.parent!=null?T.parent:null);
+    var sibs=(pid==null?(SGBY[grade]||[]):(SGCHILD[pid]||[]));
+    if(zone==='before')return {mode:'before',target:tgt,parent:pid,beforeId:tid};
+    var idx=-1;for(var i=0;i<sibs.length;i++)if(sibs[i].id===tid){idx=i;break;}
+    var bId=null;for(var j=idx+1;j<sibs.length;j++){if(sibs[j].id!==dragSgId){bId=sibs[j].id;break;}}
+    return {mode:'after',target:tgt,parent:pid,beforeId:bId};
+  }
+  var sec=e.target.closest('.grp');
+  if(sec&&sec.getAttribute('data-grade')===grade)return {mode:'top',parent:null,beforeId:null};
+  return null;
+}
+/* id-г newParent доор (эсвэл дээд түвшинд) beforeId-ийн өмнө байрлуулна; parent болон дараалал хоёуланг хадгална */
+function moveSg(id,newParent,beforeId){
   if(!isAdmin())return;
-  var s=SGMAP[id]; if(s)s.parent=parent;
-  if(parent){SGCOLLAPSED[parent]=0;saveCollapsed();}   // зөөсөн эцгийг задлаж харуулна
-  sgApi('sg_setparent',{id:id,parent:parent}).then(function(d){if(!d||!d.ok){toast((d&&d.error)||'Алдаа');}else toast(parent?'Бүлэг рүү зөөлөө':'Дээд түвшинд гаргалаа');}).catch(function(e){toast(e.message);});
+  var s=SGMAP[id]; if(!s)return;
+  var grade=s.grade, oldP=(s.parent!=null?s.parent:null); newParent=(newParent!=null?newParent:null);
+  s.parent=newParent; buildSGBY();
+  var sibs=(newParent==null?(SGBY[grade]||[]):(SGCHILD[newParent]||[]));
+  var ids=sibs.map(function(x){return x.id;}).filter(function(x){return x!==id;});
+  if(beforeId==null)ids.push(id); else {var k=ids.indexOf(beforeId); if(k<0)ids.push(id); else ids.splice(k,0,id);}
+  ids.forEach(function(sid,i){if(SGMAP[sid])SGMAP[sid].pos=i;});
+  if(newParent){SGCOLLAPSED[newParent]=0;saveCollapsed();}
   buildSGBY();renderCatalog();applyFilters();
+  var chain=(newParent!==oldP)?sgApi('sg_setparent',{id:id,parent:newParent}):Promise.resolve({ok:true});
+  chain.then(function(d){if(d&&d.ok===false){toast(d.error||'Алдаа');return;}return sgApi('sg_reorder',{grade:grade,ids:ids});}).then(function(r){if(r&&r.ok===false)toast(r.error||'Алдаа');else toast(newParent!==oldP?(newParent?'Бүлэг рүү зөөлөө':'Дээд түвшинд гаргалаа'):'Байрлал шинэчлэв');}).catch(function(e){toast(e.message);});
 }
 function initReorder(){
   var cat=document.getElementById('catalog');
@@ -788,13 +820,14 @@ function initReorder(){
   cat.addEventListener('dragover',function(e){
     if(!editMode)return;
     if(dragSg){
-      if(sgDropTarget){sgDropTarget.classList.remove('sg-drop-target');sgDropTarget=null;}
-      var tgt=e.target.closest('.subgrp');
-      if(tgt&&(tgt===dragSg||dragSgDesc[+tgt.getAttribute('data-sgid')])){sgDropIntent=null;return;}
-      if(tgt&&tgt.getAttribute('data-grade')===dragSg.getAttribute('data-grade')){e.preventDefault();tgt.classList.add('sg-drop-target');sgDropTarget=tgt;sgDropIntent={type:'parent',id:+tgt.getAttribute('data-sgid')};return;}
-      var sec=e.target.closest('.grp');
-      if(sec&&sec.getAttribute('data-grade')===dragSg.getAttribute('data-grade')){e.preventDefault();sgDropIntent={type:'top'};return;}
-      sgDropIntent=null;return;
+      clearSgMarks();
+      var it=sgDropCompute(e); sgDropIntent=it;
+      if(it){e.preventDefault();
+        if(it.mode==='nest')it.target.classList.add('sg-drop-into');
+        else if(it.mode==='before')it.target.classList.add('sg-drop-before');
+        else if(it.mode==='after')it.target.classList.add('sg-drop-after');
+      }
+      return;
     }
     if(!dragCard)return;
     var cont=e.target.closest('.cards'); if(!cont)return;
@@ -812,19 +845,16 @@ function initReorder(){
   cat.addEventListener('drop',function(e){
     if(!editMode)return;
     if(dragSg){e.preventDefault();
-      if(sgDropIntent){var np=sgDropIntent.type==='parent'?sgDropIntent.id:null;
-        var oldP=(SGMAP[dragSgId]&&SGMAP[dragSgId].parent!=null)?SGMAP[dragSgId].parent:null;
-        if(np!==oldP){var did=dragSgId;
-          if(dragSg)dragSg.classList.remove('sg-dragging');if(sgDropTarget)sgDropTarget.classList.remove('sg-drop-target');
-          dragSg=null;dragSgId=null;dragSgDesc=null;sgDropTarget=null;sgDropIntent=null;
-          setSgParent(did,np);return;}
-      }
+      var it=sgDropIntent,did=dragSgId;
+      clearSgMarks();dragSg.classList.remove('sg-dragging');
+      dragSg=null;dragSgId=null;dragSgDesc=null;sgDropIntent=null;
+      if(it)moveSg(did,it.parent,it.beforeId);
       return;
     }
     if(dragCard)e.preventDefault();
   });
   cat.addEventListener('dragend',function(){
-    if(dragSg){dragSg.classList.remove('sg-dragging');if(sgDropTarget)sgDropTarget.classList.remove('sg-drop-target');dragSg=null;dragSgId=null;dragSgDesc=null;sgDropTarget=null;sgDropIntent=null;return;}
+    if(dragSg){dragSg.classList.remove('sg-dragging');clearSgMarks();dragSg=null;dragSgId=null;dragSgDesc=null;sgDropIntent=null;return;}
     if(!dragCard)return;
     dragCard.classList.remove('dragging');
     var cont=dragCard.parentNode, newGrp=cont?cont.getAttribute('data-grp'):null;
