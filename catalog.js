@@ -203,6 +203,8 @@ window.WS_LIST=[
     ['urjigdehuun-zadlah-2-10.html','Үржигдэхүүн болгон задлах 2'],
     ['algebr-butarhai-urjuuleh-1-10.html','Алгебрын бутархайн үржүүлэх, хуваах 1'],
     ['algebr-butarhai-urjuuleh-2-10.html','Алгебрын бутархайн үржүүлэх, хуваах 2'],
+    ['butarhai-nemeh-hasah-1-10.html','Алгебрын бутархайн нэмэх, хасах 1'],
+    ['butarhai-nemeh-hasah-2-10.html','Алгебрын бутархайн нэмэх, хасах 2'],
     ['grafik-ax2.html','Квадрат график: y = ax² (орой эх цэгт)'],
     ['grafik-ax2-c.html','Квадрат график: y = ax² + c (босоо зөөлт)'],
     ['grafik-ax-h2.html','Квадрат график: y = a(x−h)² (хэвтээ зөөлт)'],

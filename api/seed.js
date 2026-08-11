@@ -107,6 +107,7 @@ module.exports = async (req, res) => {
       // Bootstrap-с ХОЙШ нэмэгдсэн дэд бүлгүүд — тус бүрийг ЗӨВХӨН НЭГ УДАА нэмнэ (устгасныг сэргээхгүй)
       const ADDITIONS = [
         { grade: '10-р анги', name: '3.3 Алгебрын бутархайн үржүүлэх, хуваах', slugs: ['algebr-butarhai-urjuuleh-1-10.html', 'algebr-butarhai-urjuuleh-2-10.html'] },
+        { grade: '10-р анги', name: '3.4 Алгебрын бутархайн нэмэх, хасах', slugs: ['butarhai-nemeh-hasah-1-10.html', 'butarhai-nemeh-hasah-2-10.html'] },
       ];
       const seedAddRow = await pool.query(`SELECT sval FROM ws_settings WHERE skey='sg_seeded_add'`);
       let seededAdd = [];
