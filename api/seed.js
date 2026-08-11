@@ -67,6 +67,7 @@ module.exports = async (req, res) => {
           { name:'2.4 Стандарт хэлбэрээр бичсэн тооны үйлдэл', slugs:['standart-helber-uildel-10.html'] },
           { name:'II бүлэг — Жишиг ба шалгалт', slugs:['jishig-daalgavar-zereg-10.html','jishig-daalgavar-2-zereg-10.html','shalgalt-material-zereg-10.html'] },
           { name:'3.1 Рационал илтгэгчтэй алгебрын илэрхийлэл', slugs:['algebr-ratsional-1-10.html','algebr-ratsional-2-10.html'] },
+          { name:'3.2 Үржигдэхүүн болгон задлах', slugs:['urjigdehuun-zadlah-1-10.html','urjigdehuun-zadlah-2-10.html'] },
           { name:'Квадрат функцийн график', slugs:['grafik-ax2.html','grafik-ax2-c.html','grafik-ax-h2.html','grafik-oroin-helber.html','grafik-erenhii.html','kvadrat-grafik-zoolt-8.html'] },
         ],
         '11-р анги': [
