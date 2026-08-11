@@ -69,6 +69,8 @@ function reduceFrac(num,den){
 function polyTex(c,v){c=ptrim(c);var out='',first=true;for(var i=c.length-1;i>=0;i--){var co=Math.round(c[i]);if(co===0)continue;var vp=(i===0)?'':(i===1?v:v+'^{'+i+'}');var mag=Math.abs(co),t=(mag===1&&i>0)?vp:(''+mag+vp);if(first){out+=(co<0?'-':'')+t;first=false;}else out+=(co<0?' - ':' + ')+t;}return first?'0':out;}
 function fracTexP(fr,v){var nt=polyTex(fr.num,v);if(nt==='0')return '0';var dt=polyTex(fr.den,v);return (dt==='1')?nt:('\\dfrac{'+nt+'}{'+dt+'}');}
 function addFrac2(f1,s1,f2,s2){var num=padd(psc(pmul(f1.num,f2.den),s1),psc(pmul(f2.num,f1.den),s2)),den=pmul(f1.den,f2.den);return reduceFrac(num,den);}
+function mulFrac2(f1,f2){return reduceFrac(pmul(f1.num,f2.num),pmul(f1.den,f2.den));}
+function divFrac2(f1,f2){return reduceFrac(pmul(f1.num,f2.den),pmul(f1.den,f2.num));}
 function chkFrac(v,evalLHS,ans){for(var i=0;i<5;i++){var x=1.7+Math.random()*4,a=evalLHS(x),b=pe(ans.num,x)/pe(ans.den,x);if(!isFinite(a)||!isFinite(b)||Math.abs(a-b)>1e-6*Math.max(1,Math.abs(a)))return false;}return true;}
 
 // 1) Олон гишүүнт + бутархай  (v±c ± N/(v-a))
@@ -105,6 +107,22 @@ function gTwoLinDen(){
   if(!chkFrac(v,function(x){return pe(N1,x)/pe(d1,x)+op*pe(N2,x)/pe(d2,x);},ans))return null;
   return {q:q,a:fracTexP(ans,v),ok:true};
 }
+// 3б) Нэмэх/хасах + үржих/хуваах хосолсон:  (N1/(v-a) ± N2/(v-a)) [·/:] f3
+function gCombined(){
+  var v=pick(['x','y','b','a','t','m','p']),a=nz(-6,6),b=nz(-6,6),op1=pick([1,-1]),mul=pick([true,false]);
+  if(a===b)return null;
+  var d1=[-a,1],N1=[nz(-5,5),1],N2=[nz(-6,6)];
+  var innerNum=padd(N1,psc(N2,op1));if(polyTex(innerNum,v)==='0'||pe(innerNum,a)===0)return null;
+  var inner={num:innerNum,den:d1},f3=mul?{num:[-a,1],den:[-b,1]}:{num:[-b,1],den:[-a,1]};
+  var fin=mul?mulFrac2(inner,f3):divFrac2(inner,f3);
+  if(fracTexP(fin,v)==='0')return null;
+  var frac1='\\dfrac{'+polyTex(N1,v)+'}{'+polyTex(d1,v)+'}',frac2='\\dfrac{'+polyTex(N2,v)+'}{'+polyTex(d1,v)+'}',f3tex='\\dfrac{'+polyTex(f3.num,v)+'}{'+polyTex(f3.den,v)+'}';
+  var q='\\left('+frac1+(op1<0?' - ':' + ')+frac2+'\\right)'+(mul?'\\cdot ':' : ')+f3tex;
+  var evalLHS=function(x){var inn=pe(N1,x)/pe(d1,x)+op1*pe(N2,x)/pe(d1,x),f3v=pe(f3.num,x)/pe(f3.den,x);return mul?inn*f3v:inn/f3v;};
+  if(!chkFrac(v,evalLHS,fin))return null;
+  return {q:q,a:fracTexP(fin,v),ok:true};
+}
+function gMix3(){return pick([gCombined,gCombined,gTwoLinDen])();}
 function gen(fn){for(var t=0;t<300;t++){var f=fn();if(f&&f.ok)return f;}return null;}
 function probeH(sheet){var pr=sheet.cloneNode(true);pr.removeAttribute('id');pr.style.cssText='position:absolute;left:-99999px;top:0;width:210mm;max-width:none;min-height:0;margin:0;padding:0;box-shadow:none;zoom:1';var a=pr.querySelector('#answers,.ans-page');if(a)a.remove();document.body.appendChild(pr);var h=pr.scrollHeight;document.body.removeChild(pr);return h;}
 function relabel(sheet){var qs=sheet.querySelectorAll('.grid .q');for(var i=0;i<qs.length;i++){var el=qs[i].querySelector('.ql');if(el)el.textContent=(i+1)+'.';}var as=sheet.querySelectorAll('#answers .a');for(var j=0;j<as.length;j++){var e2=as[j].querySelector('.an');if(e2)e2.textContent=(j+1)+'.';}}
@@ -115,7 +133,7 @@ function build(){
   var S=[[],[],[]],seen={};window.__PROB=[];
   function fill(idx,fn,n){var c=0,tr=0;while(c<n&&tr<1600){tr++;var f=gen(fn);if(!f||seen[f.q])continue;seen[f.q]=1;S[idx].push(f);c++;}}
   var per=WORK?9:15;
-  fill(0,gPolyPlusFrac,per);fill(1,gFactorLCD,per);fill(2,gTwoLinDen,per);
+  fill(0,gPolyPlusFrac,per);fill(1,gFactorLCD,per);fill(2,gMix3,per);
   var K=0;
   function block(arr,cls,sec){return arr.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});
     return '<div class="q" data-k="'+k+'" data-sec="'+sec+'"><div class="qeq"><span class="ql"></span><span class="qm">$'+f.q+'$</span></div>'+(WORK?'<div class="work '+cls+'"></div>':'')+'</div>';}).join('');}
@@ -129,7 +147,7 @@ function build(){
     +'<div class="grid" data-sec="1">'+b1+'</div>'
     +'<div class="task">2. Хуваарийг задалж, ерөнхий хуваарьт оруулан хураа.</div>'
     +'<div class="grid" data-sec="2">'+b2+'</div>'
-    +'<div class="task">3. Хоёр өөр хуваарьтай бутархайг нэмж/хасаж хураа.</div>'
+    +'<div class="task">3. Нэмэх/хасах, үржих/хуваах хосолсон илэрхийллийг хялбарчил.</div>'
     +'<div class="grid" data-sec="3">'+b3+'</div>'
     +'<div class="ans-page" id="answers"><h2>Хариунууд</h2><div class="ans-grid">'+ansAll()+'</div></div>';
   window.WS_ITEMS=[];window.WS_TITLE='Алгебрын бутархайн нэмэх, хасах 2 (10-р анги)';
