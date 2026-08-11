@@ -73,39 +73,33 @@ function fracAns(numM,denM){
 }
 function chkEq(vars,fa,fb){for(var i=0;i<5;i++){var vals={};vars.forEach(function(k){vals[k]=1.3+Math.random()*3;});var a=fa(vals);if(!isFinite(a)||Math.abs(a-fb(vals))>1e-6*Math.max(1,Math.abs(a)))return false;}return true;}
 
-// 1) Квадрат гурван гишүүнтийг задалж хураа
-function gTrinCancel(){
-  var v=pick(['x','y','a','z','m','t']),p=nz(-6,6),q=nz(-6,6),r=nz(-6,6);
-  if(p===q||p===r||q===r)return null;
-  var B=p+q,C=p*q;if(B===0)return null;
-  var tri=v+'^{2}'+(B<0?' - ':' + ')+(Math.abs(B)===1?'':Math.abs(B))+v+(C<0?' - ':' + ')+Math.abs(C);
-  function lin(c){return v+(c<0?' - ':' + ')+Math.abs(c);}
-  var F1='\\dfrac{'+tri+'}{'+lin(r)+'}',F2='\\dfrac{'+lin(r)+'}{'+lin(q)+'}',ans=lin(p);
-  for(var i=0;i<5;i++){var x=9+Math.random()*5;if(Math.abs(((x*x+B*x+C)/(x+r))*((x+r)/(x+q))-(x+p))>1e-6*Math.max(1,Math.abs(x+p)))return null;}
+function linTex(v,r){if(r===0)return v;return v+(r<0?' + '+(-r):' - '+r);}
+function quadTex(v,p,q){var B=-(p+q),C=p*q,s=v+'^{2}';if(B!==0)s+=(B<0?' - ':' + ')+(Math.abs(B)===1?'':Math.abs(B))+v;if(C!==0)s+=(C<0?' - ':' + ')+Math.abs(C);return s;}
+function distinctRoots(n,lo,hi){var rs=[],tr=0;while(rs.length<n&&tr++<400){var r=nz(lo,hi);if(rs.indexOf(r)<0)rs.push(r);}return rs.length<n?null:rs;}
+// 1) Гурван бутархайн үржвэр — бүгдийг задлаж хураа
+function gTripleMul(){
+  var v=pick(['x','y','a','z','m','t']),rs=distinctRoots(7,-6,6);if(!rs)return null;
+  var a=rs[0],b=rs[1],c=rs[2],d=rs[3],e=rs[4],g=rs[5],h=rs[6];
+  var F1='\\dfrac{'+quadTex(v,a,b)+'}{'+quadTex(v,c,d)+'}',F2='\\dfrac{'+quadTex(v,c,e)+'}{'+quadTex(v,a,g)+'}',F3='\\dfrac{'+quadTex(v,d,h)+'}{'+quadTex(v,b,e)+'}';
+  var ans='\\dfrac{'+linTex(v,h)+'}{'+linTex(v,g)+'}';
+  for(var i=0;i<6;i++){var x=8+Math.random()*7,f1=((x-a)*(x-b))/((x-c)*(x-d)),f2=((x-c)*(x-e))/((x-a)*(x-g)),f3=((x-d)*(x-h))/((x-b)*(x-e)),av=(x-h)/(x-g);if(Math.abs(f1*f2*f3-av)>1e-6*Math.max(1,Math.abs(av)))return null;}
+  return {q:F1+'\\cdot '+F2+'\\cdot '+F3,a:ans,ok:true};
+}
+// 2) Ерөнхий үржигдэхүүн + ялгаврын квадрат хосолсон
+function gCommonQuad(){
+  var v=pick(['x','y','a','z','m','t']),m=rnd(2,5),a=rnd(2,6),b=rnd(2,7);if(a===b)return null;
+  var F1='\\dfrac{'+m+v+'^{2} - '+(m*a)+v+'}{'+v+'^{2} - '+(b*b)+'}',F2='\\dfrac{'+v+' + '+b+'}{'+v+' - '+a+'}';
+  var ans='\\dfrac{'+(m===1?'':m)+v+'}{'+v+' - '+b+'}';
+  for(var i=0;i<6;i++){var x=9+Math.random()*5,lhs=((m*x*x-m*a*x)/(x*x-b*b))*((x+b)/(x-a)),av=(m*x)/(x-b);if(Math.abs(lhs-av)>1e-6*Math.max(1,Math.abs(av)))return null;}
   return {q:F1+'\\cdot '+F2,a:ans,ok:true};
 }
-// 2) Хуваах үйлдэл (задалж хураах)
-function gDivCancel(){
-  var v=pick(['x','y','a','z','m','t']),a=rnd(2,7),b=rnd(2,8);if(a===b)return null;var s=pick([1,-1]);
-  var F1='\\dfrac{'+v+'^{2} - '+(a*a)+'}{'+v+' + '+b+'}',F2='\\dfrac{'+v+(s>0?' + ':' - ')+a+'}{'+v+' + '+b+'}',ans=v+(s>0?' - ':' + ')+a;
-  for(var i=0;i<5;i++){var x=9+Math.random()*4;if(Math.abs((((x*x-a*a)/(x+b))/((x+s*a)/(x+b)))-(x-s*a))>1e-6*Math.max(1,Math.abs(x-s*a)))return null;}
+// 3) Тэмдэг эргэх хуваах — ерөнхий үржигдэхүүн + ялгаврын квадрат
+function gHardDivSign(){
+  var v=pick(['x','y','a','z','m','t']),m=rnd(2,5),a=rnd(2,6),b=rnd(2,7);if(a===b)return null;
+  var F1='\\dfrac{'+m+v+'^{2} - '+(m*a)+v+'}{'+v+'^{2} - '+(b*b)+'}',F2='\\dfrac{'+v+' - '+a+'}{'+b+' - '+v+'}';
+  var ans='-\\dfrac{'+(m===1?'':m)+v+'}{'+v+' + '+b+'}';
+  for(var i=0;i<6;i++){var x=9+Math.random()*5,lhs=((m*x*x-m*a*x)/(x*x-b*b))/((x-a)/(b-x)),av=-(m*x)/(x+b);if(Math.abs(lhs-av)>1e-6*Math.max(1,Math.abs(av)))return null;}
   return {q:F1+' : '+F2,a:ans,ok:true};
-}
-// 3) Олон хувьсагчт моном бутархай (үржүүлэх/хуваах)
-function gMonMulti(){
-  var pr=pick([['x','y'],['a','b'],['p','q'],['m','n'],['c','d']]),u=pr[0],w=pr[1];
-  function mk(){var nc=pick([2,3,4,5,6,8]),dc=pick([2,3,4,5,6,9]),nv={},dv={};
-    if(pick([0,1,1]))nv[u]=frac(rnd(1,3),1);if(pick([0,1]))nv[w]=frac(rnd(1,3),1);
-    if(pick([0,1]))dv[u]=frac(rnd(1,3),1);if(pick([0,1,1]))dv[w]=frac(rnd(1,3),1);
-    return {num:{c:nc,vars:nv},den:{c:dc,vars:dv}};}
-  var op=pick(['mul','div']),f1=mk(),f2=mk();
-  if(Object.keys(f1.num.vars).length+Object.keys(f1.den.vars).length===0)return null;
-  if(Object.keys(f2.num.vars).length+Object.keys(f2.den.vars).length===0)return null;
-  var numM,denM;if(op==='mul'){numM=mulMon(f1.num,f2.num);denM=mulMon(f1.den,f2.den);}else{numM=mulMon(f1.num,f2.den);denM=mulMon(f1.den,f2.num);}
-  var ans=fracAns(numM,denM);
-  var lhs=function(vl){var a=monEval(f1.num,vl)/monEval(f1.den,vl),b=monEval(f2.num,vl)/monEval(f2.den,vl);return op==='mul'?a*b:a/b;};
-  if(!chkEq(pr,lhs,ans.eval))return null;
-  return {q:fracInputTex(f1)+(op==='mul'?'\\cdot ':' : ')+fracInputTex(f2),a:ans.tex,ok:true};
 }
 function gen(fn){for(var t=0;t<300;t++){var f=fn();if(f&&f.ok)return f;}return null;}
 function probeH(sheet){var pr=sheet.cloneNode(true);pr.removeAttribute('id');pr.style.cssText='position:absolute;left:-99999px;top:0;width:210mm;max-width:none;min-height:0;margin:0;padding:0;box-shadow:none;zoom:1';var a=pr.querySelector('#answers,.ans-page');if(a)a.remove();document.body.appendChild(pr);var h=pr.scrollHeight;document.body.removeChild(pr);return h;}
@@ -116,8 +110,8 @@ function build(){
   var WORK=!!window.WS_WORK;
   var S=[[],[],[]],seen={};window.__PROB=[];
   function fill(idx,fn,n){var c=0,tr=0;while(c<n&&tr<1500){tr++;var f=gen(fn);if(!f||seen[f.q])continue;seen[f.q]=1;S[idx].push(f);c++;}}
-  var per=WORK?10:18;
-  fill(0,gTrinCancel,per);fill(1,gDivCancel,per);fill(2,gMonMulti,per);
+  var per=WORK?8:14;
+  fill(0,gTripleMul,per);fill(1,gCommonQuad,per);fill(2,gHardDivSign,per);
   var K=0;
   function block(arr,cls,sec){return arr.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});
     return '<div class="q" data-k="'+k+'" data-sec="'+sec+'"><div class="qeq"><span class="ql"></span><span class="qm">$'+f.q+'$</span></div>'+(WORK?'<div class="work '+cls+'"></div>':'')+'</div>';}).join('');}
@@ -127,11 +121,11 @@ function build(){
     '<div class="head"><h1>Алгебрын бутархайн үржүүлэх, хуваах 2</h1><div class="sub">Квадрат гурван гишүүнт задлах · хуваах · олон хувьсагчт моном · 3.3 · 10-р анги</div></div>'
     +'<div class="meta"><span>Нэр: </span><span>Огноо: </span><span>Оноо: </span></div>'
     +'<div class="rule">$\\dfrac{a}{b}\\cdot\\dfrac{c}{d}=\\dfrac{ac}{bd}$ &nbsp;·&nbsp; $\\dfrac{a}{b}:\\dfrac{c}{d}=\\dfrac{a}{b}\\cdot\\dfrac{d}{c}$ &nbsp;·&nbsp; хуваарь, хүртвэрийг задалж хураа &nbsp;·&nbsp; $x>0$</div>'
-    +'<div class="task">1. Квадрат гурван гишүүнтийг задалж, үйлдлийг гүйцэтгэ.</div>'
+    +'<div class="task">1. Гурван бутархайн үржвэрийг задалж хураа.</div>'
     +'<div class="grid" data-sec="1">'+b1+'</div>'
-    +'<div class="task">2. Хуваах үйлдлийг гүйцэтгэ.</div>'
+    +'<div class="task">2. Ерөнхий үржигдэхүүн ба ялгаврын квадратыг задалж хураа.</div>'
     +'<div class="grid" data-sec="2">'+b2+'</div>'
-    +'<div class="task">3. Олон хувьсагчт моном бутархайн үйлдлийг гүйцэтгэ.</div>'
+    +'<div class="task">3. Тэмдгийг анхаарч хуваах үйлдлийг гүйцэтгэ.</div>'
     +'<div class="grid" data-sec="3">'+b3+'</div>'
     +'<div class="ans-page" id="answers"><h2>Хариунууд</h2><div class="ans-grid">'+ansAll()+'</div></div>';
   window.WS_ITEMS=[];window.WS_TITLE='Алгебрын бутархайн үржүүлэх, хуваах 2 (10-р анги)';
