@@ -217,6 +217,8 @@ module.exports = async (req, res) => {
         pos INT DEFAULT 0,
         created_at TIMESTAMPTZ DEFAULT NOW()
       )`);
+    // Бүлэг дотор бүлэг (nest) — эцэг дэд бүлгийн id (null бол дээд түвшин)
+    await pool.query(`ALTER TABLE ws_subgroups ADD COLUMN IF NOT EXISTS parent_id BIGINT`).catch(() => {});
 
     // GET — жагсаалт эсвэл нэг багц эсвэл сэдвийн нэр/нуусан/дараалал
     if (req.method === 'GET') {
@@ -245,8 +247,8 @@ module.exports = async (req, res) => {
         const announce = ann.rows.length ? (ann.rows[0].sval || '') : '';
         let subgroups = [];
         try {
-          const sg = await pool.query('SELECT id, grade, name, pos FROM ws_subgroups ORDER BY grade, pos, id');
-          subgroups = sg.rows.map(x => ({ id: Number(x.id), grade: x.grade, name: x.name, pos: x.pos }));
+          const sg = await pool.query('SELECT id, grade, name, pos, parent_id FROM ws_subgroups ORDER BY grade, pos, id');
+          subgroups = sg.rows.map(x => ({ id: Number(x.id), grade: x.grade, name: x.name, pos: x.pos, parent: x.parent_id != null ? Number(x.parent_id) : null }));
         } catch (e) {}
         return res.json({ ok: true, titles: map, hidden: h.rows.map(x => x.slug), order: order, place: place, announce: announce, subgroups: subgroups });
       }
@@ -695,7 +697,27 @@ module.exports = async (req, res) => {
         const lbl = 'sg:' + id;
         await pool.query(`DELETE FROM ws_place WHERE grp=$1`, [lbl]);
         await pool.query(`DELETE FROM ws_order WHERE grp=$1`, [lbl]);
+        // Хүүхэд дэд бүлгүүдийг дээд түвшинд гаргана (устгахгүй)
+        await pool.query('UPDATE ws_subgroups SET parent_id=NULL WHERE parent_id=$1', [id]).catch(() => {});
         await pool.query('DELETE FROM ws_subgroups WHERE id=$1', [id]);
+        return res.json({ ok: true });
+      }
+      // Дэд бүлгийг өөр дэд бүлэг рүү (эцэг болгох) эсвэл дээд түвшинд гаргах
+      if (b.action === 'sg_setparent') {
+        const id = parseInt(b.id, 10);
+        const parent = (b.parent === null || b.parent === undefined || b.parent === '') ? null : parseInt(b.parent, 10);
+        if (!id) return res.status(400).json({ ok: false, error: 'id дутуу' });
+        if (parent !== null) {
+          if (parent === id) return res.status(400).json({ ok: false, error: 'Өөр лүүгээ зөөх боломжгүй' });
+          const rows = (await pool.query('SELECT id, grade, parent_id FROM ws_subgroups')).rows;
+          const byId = {};
+          rows.forEach(r => { byId[Number(r.id)] = { grade: r.grade, parent: r.parent_id != null ? Number(r.parent_id) : null }; });
+          if (!byId[id] || !byId[parent]) return res.status(400).json({ ok: false, error: 'олдсонгүй' });
+          if (byId[id].grade !== byId[parent].grade) return res.status(400).json({ ok: false, error: 'Өөр ангийн бүлэг' });
+          let cur = parent, guard = 0;
+          while (cur !== null && guard++ < 100) { if (cur === id) return res.status(400).json({ ok: false, error: 'Мөчлөг үүсэхээр байна' }); cur = byId[cur] ? byId[cur].parent : null; }
+        }
+        await pool.query('UPDATE ws_subgroups SET parent_id=$2 WHERE id=$1', [id, parent]);
         return res.json({ ok: true });
       }
       // Ажлын хуудсыг дэд бүлэгт оноох — зөвхөн ТУХАЙН АНГИЙН бусад дэд бүлгээс хасч, энэ бүлэгт нэмнэ (өөр анги дахь ижил хуудсанд хүрэхгүй)

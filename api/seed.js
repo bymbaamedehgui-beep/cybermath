@@ -81,9 +81,15 @@ module.exports = async (req, res) => {
       };
       for (const grade of Object.keys(SGALL)) {
         const groups = SGALL[grade];
-        // тохиргоонд байхгүй хуучин дэд бүлгийг устгах (давхардлаас сэргийлж)
+        await pool.query(`ALTER TABLE ws_subgroups ADD COLUMN IF NOT EXISTS parent_id BIGINT`).catch(() => {});
+        // тохиргоонд байхгүй хуучин дэд бүлгийг устгах (давхардлаас сэргийлж).
+        // Гэхдээ nest-д оролцсон (эцэгтэй эсвэл хүүхэдтэй) UI-үүсгэсэн бүлгийг хадгална.
         const keepNames = groups.map(g => g.name);
-        const stale = await pool.query('SELECT id FROM ws_subgroups WHERE grade=$1 AND NOT (name = ANY($2::text[]))', [grade, keepNames]);
+        const stale = await pool.query(
+          `SELECT id FROM ws_subgroups WHERE grade=$1 AND NOT (name = ANY($2::text[]))
+             AND parent_id IS NULL
+             AND id NOT IN (SELECT parent_id FROM ws_subgroups WHERE parent_id IS NOT NULL)`,
+          [grade, keepNames]);
         for (const row of stale.rows) {
           await pool.query(`DELETE FROM ws_place WHERE grp=$1`, ['sg:' + row.id]);
           await pool.query(`DELETE FROM ws_order WHERE grp=$1`, ['sg:' + row.id]);
