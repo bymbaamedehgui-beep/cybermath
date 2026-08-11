@@ -103,6 +103,7 @@
   .subgrp-caret{display:inline-flex;color:#8b7fc0;flex:none;transition:transform .18s}
   .subgrp:not(.collapsed)>.subgrp-head .subgrp-caret{transform:rotate(90deg)}
   .subgrp.collapsed>.subgrp-body{display:none}
+  body.searching .subgrp.collapsed>.subgrp-body{display:block}
   .subgrp.has-children>.subgrp-head .subgrp-title{color:#4326b0}
   .subgrp.sg-dragging{opacity:.45}
   .subgrp.sg-drop-into{outline:2px dashed var(--purple);outline-offset:3px;border-radius:10px;background:#f7f4ff}
@@ -442,7 +443,7 @@ function sgOrderedItems(id,allItems){
   mem.forEach(function(s){if(!seen[s]&&byslug[s]){seen[s]=1;out.push(byslug[s]);}});
   return out;
 }
-function sgIsCollapsed(sg,hasCh){var v=SGCOLLAPSED[sg.id];if(v===0||v===1)return !!v;return hasCh;/* эцэг бүлэг анхандаа хаалттай, навч задгай */}
+function sgIsCollapsed(sg,hasCh){var v=SGCOLLAPSED[sg.id];if(v===0||v===1)return !!v;return true;/* анхандаа бүх бүлэг хураалттай */}
 function sgBlockHtml(sg,allItems,band){
   var mi=sgOrderedItems(sg.id,allItems);
   var children=SGCHILD[sg.id]||[];
@@ -620,12 +621,15 @@ function renderChips(){
     var b=e.target.closest('.chip');if(!b)return;
     activeBand=b.getAttribute('data-k');
     [].forEach.call(this.querySelectorAll('.chip'),function(x){x.classList.toggle('on',x===b);});
+    SGCOLLAPSED={};saveCollapsed();   // анги руу ороход бүх бүлэг хураалттай
+    [].forEach.call(document.querySelectorAll('#catalog .subgrp'),function(sg){sg.classList.add('collapsed');});
     applyFilters();
   });
 }
 
 function applyFilters(){
   var q=norm(document.getElementById('q').value.trim());
+  var searching=!!q; document.body.classList.toggle('searching',searching);
   var anyVisible=false;
   var wrap=document.getElementById('cambWrap');
   var cambVisible=0;
@@ -639,6 +643,11 @@ function applyFilters(){
       var newOk=(activeBand!=='new')||c.classList.contains('isnew');
       var match=bandOk&&newOk&&(!q||c.getAttribute('data-search').indexOf(q)>=0)&&(editMode||!isHidden);
       c.style.display=match?'':'none';if(match)vis++;
+    });
+    // Хайлт үед: тохирох картгүй дэд бүлгийг нуух (хураалттай биеийг CSS задална). Хайлтгүй үед бүгд харагдана.
+    [].forEach.call(sec.querySelectorAll('.subgrp'),function(sg){
+      if(searching){var has=[].some.call(sg.querySelectorAll('.card'),function(c){return c.style.display!=='none';});sg.style.display=has?'':'none';}
+      else sg.style.display='';
     });
     sec.style.display=vis?'':'none';
     var cnt=sec.querySelector('.grp-count');if(cnt)cnt.textContent=vis;
