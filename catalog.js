@@ -201,6 +201,8 @@ window.WS_LIST=[
     ['algebr-ratsional-2-10.html','Рационал илтгэгчтэй алгебрын илэрхийлэл — Түвшин 2'],
     ['urjigdehuun-zadlah-1-10.html','Үржигдэхүүн болгон задлах 1'],
     ['urjigdehuun-zadlah-2-10.html','Үржигдэхүүн болгон задлах 2'],
+    ['algebr-butarhai-urjuuleh-1-10.html','Алгебрын бутархайн үржүүлэх, хуваах 1'],
+    ['algebr-butarhai-urjuuleh-2-10.html','Алгебрын бутархайн үржүүлэх, хуваах 2'],
     ['grafik-ax2.html','Квадрат график: y = ax² (орой эх цэгт)'],
     ['grafik-ax2-c.html','Квадрат график: y = ax² + c (босоо зөөлт)'],
     ['grafik-ax-h2.html','Квадрат график: y = a(x−h)² (хэвтээ зөөлт)'],

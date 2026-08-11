@@ -104,6 +104,27 @@ module.exports = async (req, res) => {
       if (!bootDone) {
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('sg_bootstrapped','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
+      // Bootstrap-с ХОЙШ нэмэгдсэн дэд бүлгүүд — тус бүрийг ЗӨВХӨН НЭГ УДАА нэмнэ (устгасныг сэргээхгүй)
+      const ADDITIONS = [
+        { grade: '10-р анги', name: '3.3 Алгебрын бутархайн үржүүлэх, хуваах', slugs: ['algebr-butarhai-urjuuleh-1-10.html', 'algebr-butarhai-urjuuleh-2-10.html'] },
+      ];
+      const seedAddRow = await pool.query(`SELECT sval FROM ws_settings WHERE skey='sg_seeded_add'`);
+      let seededAdd = [];
+      try { seededAdd = seedAddRow.rows.length ? (JSON.parse(seedAddRow.rows[0].sval || '[]') || []) : []; } catch (e2) { seededAdd = []; }
+      for (const add of ADDITIONS) {
+        if (seededAdd.indexOf(add.name) >= 0) continue;   // аль хэдийн нэг удаа нэмсэн бол алгасна
+        const ex = await pool.query('SELECT id FROM ws_subgroups WHERE grade=$1 AND name=$2', [add.grade, add.name]);
+        if (!ex.rows.length) {
+          const mx = await pool.query('SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade=$1', [add.grade]);
+          const ins = await pool.query('INSERT INTO ws_subgroups (grade, name, pos) VALUES ($1,$2,$3) RETURNING id', [add.grade, add.name, mx.rows[0].p]);
+          const lbl = 'sg:' + Number(ins.rows[0].id);
+          for (const slug of add.slugs) {
+            await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, [lbl, slug]);
+          }
+        }
+        seededAdd.push(add.name);
+      }
+      await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('sg_seeded_add',$1) ON CONFLICT (skey) DO UPDATE SET sval=$1`, [JSON.stringify(seededAdd)]);
     } catch (e) { console.error('[all subgroups]', e.message); }
 
     // Nodes seed
