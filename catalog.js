@@ -196,6 +196,7 @@ window.WS_LIST=[
     ['standart-helber-uildel-10.html','Стандарт хэлбэрээр бичсэн тооны үйлдэл'],
     ['jishig-daalgavar-zereg-10.html','II бүлэг — Жишиг даалгавар (нэгтгэсэн)'],
     ['jishig-daalgavar-2-zereg-10.html','II бүлэг — Жишиг даалгавар-2 (олон үйлдэлтэй)'],
+    ['shalgalt-material-zereg-10.html','II бүлэг — Шалгалтын материал (тест + задгай, олон хувилбар)'],
     ['grafik-ax2.html','Квадрат график: y = ax² (орой эх цэгт)'],
     ['grafik-ax2-c.html','Квадрат график: y = ax² + c (босоо зөөлт)'],
     ['grafik-ax-h2.html','Квадрат график: y = a(x−h)² (хэвтээ зөөлт)'],
