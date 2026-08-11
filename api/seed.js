@@ -64,6 +64,7 @@ module.exports = async (req, res) => {
           { name:'2.2 n зэргийн язгуур', slugs:['yazguur-n-zereg-10.html','yazguur-n-zereg-hard-10.html'] },
           { name:'2.2 n зэргийн язгуурын чанар', slugs:['zereg-yazguur-chanar-10.html','zereg-yazguur-chanar-hard-10.html'] },
           { name:'2.3 Рационал тоон илтгэгчтэй зэрэг', slugs:['ratsional-iltgegch-10.html','ratsional-iltgegch-2-10.html'] },
+          { name:'2.4 Стандарт хэлбэрээр бичсэн тооны үйлдэл', slugs:['standart-helber-uildel-10.html'] },
           { name:'Квадрат функцийн график', slugs:['grafik-ax2.html','grafik-ax2-c.html','grafik-ax-h2.html','grafik-oroin-helber.html','grafik-erenhii.html','kvadrat-grafik-zoolt-8.html'] },
         ],
         '11-р анги': [
