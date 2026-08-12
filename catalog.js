@@ -214,6 +214,8 @@ window.WS_LIST=[
     ['shuluu-nalalt-2-10.html','Шулууны налалт 2'],
     ['shuluu-tegshitgel-1-10.html','Шулууны тэгшитгэл 1'],
     ['shuluu-tegshitgel-2-10.html','Шулууны тэгшитгэл 2 (графикаас унших)'],
+    ['toirog-tegshitgel-1-10.html','Тойргийн тэгшитгэл 1'],
+    ['toirog-tegshitgel-2-10.html','Тойргийн тэгшитгэл 2 (графикаас унших)'],
     ['grafik-ax2.html','Квадрат график: y = ax² (орой эх цэгт)'],
     ['grafik-ax2-c.html','Квадрат график: y = ax² + c (босоо зөөлт)'],
     ['grafik-ax-h2.html','Квадрат график: y = a(x−h)² (хэвтээ зөөлт)'],
