@@ -212,6 +212,8 @@ window.WS_LIST=[
     ['koordinat-sistem-2-10.html','Координатын систем, цэгийн координат 2'],
     ['shuluu-nalalt-1-10.html','Шулууны налалт 1'],
     ['shuluu-nalalt-2-10.html','Шулууны налалт 2'],
+    ['shuluu-tegshitgel-1-10.html','Шулууны тэгшитгэл 1'],
+    ['shuluu-tegshitgel-2-10.html','Шулууны тэгшитгэл 2 (графикаас унших)'],
     ['grafik-ax2.html','Квадрат график: y = ax² (орой эх цэгт)'],
     ['grafik-ax2-c.html','Квадрат график: y = ax² + c (босоо зөөлт)'],
     ['grafik-ax-h2.html','Квадрат график: y = a(x−h)² (хэвтээ зөөлт)'],
