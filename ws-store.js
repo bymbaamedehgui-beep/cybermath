@@ -348,7 +348,7 @@
   var editDefaults={};        // build-ийн анхны бичвэр (индексээр)
   var serverEdits=null;       // серверээс уншсан загвар {index: html}, ачаалаагүй бол null
   var saveTimer=null;
-  var DEL=' CMDEL ';   // "устгасан" тэмдэг (заавар/хайрцгийг хүрээтэй нь нуух)
+  var DEL='@@CMDEL@@';   // "устгасан" тэмдэг (заавар/хайрцгийг хүрээтэй нь нуух)
   function htmlNoDel(el){var c=el.cloneNode(true);var ds=c.getElementsByClassName('cm-del');while(ds.length)ds[0].parentNode.removeChild(ds[0]);return c.innerHTML;}
   function ensureDelBtn(el,i){
     if(el.getElementsByClassName('cm-del').length)return;
