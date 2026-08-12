@@ -284,6 +284,12 @@
       '.cm-ed:hover{background:rgba(123,82,238,.06);border-radius:5px;box-shadow:inset 0 0 0 1px rgba(123,82,238,.22)}'+
       '.cm-ed:focus{background:rgba(123,82,238,.11);border-radius:5px;box-shadow:inset 0 0 0 1px rgba(123,82,238,.5)}'+
       '@media print{.cm-ed:hover,.cm-ed:focus{background:none!important;box-shadow:none!important}}'+
+      // Заавар/хайрцгийг устгах × товч (зөвхөн админд, hover дээр)
+      '.cm-ed{position:relative}'+
+      '.cm-del{position:absolute;top:-9px;right:-9px;width:21px;height:21px;line-height:20px;text-align:center;border-radius:50%;background:#ef4444;color:#fff;font-weight:900;font-size:15px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.3);opacity:0;transition:opacity .12s,transform .12s;z-index:7;user-select:none}'+
+      '.cm-ed:hover>.cm-del{opacity:1}'+
+      '.cm-del:hover{background:#dc2626;transform:scale(1.1)}'+
+      '@media print{.cm-del{display:none!important}}'+
       // ─── Гар утасны тохируулга: хуудас хойшоо гарахгүй болгох (зөвхөн дэлгэц, хэвлэлд нөлөөлөхгүй) ───
       '@media screen and (max-width:820px){'+
         'html,body{overflow-x:hidden!important}'+
@@ -342,6 +348,20 @@
   var editDefaults={};        // build-ийн анхны бичвэр (индексээр)
   var serverEdits=null;       // серверээс уншсан загвар {index: html}, ачаалаагүй бол null
   var saveTimer=null;
+  var DEL=' CMDEL ';   // "устгасан" тэмдэг (заавар/хайрцгийг хүрээтэй нь нуух)
+  function htmlNoDel(el){var c=el.cloneNode(true);var ds=c.getElementsByClassName('cm-del');while(ds.length)ds[0].parentNode.removeChild(ds[0]);return c.innerHTML;}
+  function ensureDelBtn(el,i){
+    if(el.getElementsByClassName('cm-del').length)return;
+    var d=document.createElement('span');
+    d.className='cm-del';d.setAttribute('contenteditable','false');d.title='Энэ зааврыг устгах';d.textContent='×';
+    d.addEventListener('mousedown',function(ev){ev.preventDefault();});
+    d.addEventListener('click',function(ev){ev.preventDefault();ev.stopPropagation();
+      if(!confirm('Энэ зааврыг хүрээтэй нь устгах уу? (бүх хэрэглэгчид харагдахгүй болно)'))return;
+      el.setAttribute('data-cm-del','1');el.style.display='none';
+      scheduleSave();
+    });
+    el.appendChild(d);
+  }
   function isAdminUser(){ return !!ls('cm_admin_token'); }
   function loadInstr(){
     fetch('/api/worksheets?instr='+encodeURIComponent(curSlug()))
@@ -355,16 +375,21 @@
     var admin=isAdminUser();
     var els=sh.querySelectorAll(EDIT_SEL);
     [].forEach.call(els,function(el,i){
-      if(editDefaults[i]==null)editDefaults[i]=el.innerHTML;   // анхны хэв
+      if(editDefaults[i]==null)editDefaults[i]=htmlNoDel(el);   // анхны хэв (× товчгүйгээр)
       var t=serverEdits[i];
-      if(t!=null&&el.innerHTML!==t)el.innerHTML=t;             // загварыг бүгдэд тавина
-      if(admin&&!el.getAttribute('data-cm-ed')){
-        el.setAttribute('data-cm-ed','1');
-        el.setAttribute('contenteditable','true');
-        el.setAttribute('spellcheck','false');
-        el.classList.add('cm-ed');
-        el.title='Админ: заавраа шууд засаж болно — бүх хэрэглэгчид ижил харагдана';
-        el.addEventListener('input',scheduleSave);
+      if(t===DEL){ el.setAttribute('data-cm-del','1'); el.style.display='none'; return; } // устгасан — хүрээтэй нь нуух
+      if(el.getAttribute('data-cm-del')){ el.removeAttribute('data-cm-del'); el.style.display=''; } // сэргээсэн
+      if(t!=null&&htmlNoDel(el)!==t)el.innerHTML=t;             // засварыг бүгдэд тавина
+      if(admin){
+        if(!el.getAttribute('data-cm-ed')){
+          el.setAttribute('data-cm-ed','1');
+          el.setAttribute('contenteditable','true');
+          el.setAttribute('spellcheck','false');
+          el.classList.add('cm-ed');
+          el.title='Админ: заавраа засаж болно — устгах бол × товч';
+          el.addEventListener('input',scheduleSave);
+        }
+        ensureDelBtn(el,i);
       }
     });
     if(admin)refreshEditReset();
@@ -372,7 +397,10 @@
   function collectEdits(){
     var sh=document.getElementById('sheet'),m={}; if(!sh)return m;
     var els=sh.querySelectorAll(EDIT_SEL);
-    [].forEach.call(els,function(el,i){ if(editDefaults[i]!=null&&el.innerHTML!==editDefaults[i])m[i]=el.innerHTML; });
+    [].forEach.call(els,function(el,i){
+      if(el.getAttribute('data-cm-del')){ m[i]=DEL; return; }   // устгасныг тэмдэглэнэ
+      if(editDefaults[i]!=null&&htmlNoDel(el)!==editDefaults[i])m[i]=htmlNoDel(el);
+    });
     return m;
   }
   function scheduleSave(){
