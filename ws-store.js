@@ -260,6 +260,8 @@
       '#sheet.cm-branded>*:not(.cm-wm){position:relative;z-index:1}'+
       // Гарчгийн доорх дэд тайлбар мөрийг бүх хуудсанд нуух
       '#sheet .head .sub{display:none!important}'+
+      // Заавар/томьёоны сануулга хайрцгийг (.rule) бүх хуудсанд нуух
+      '#sheet .rule{display:none!important}'+
       // Тамга бодолтын/хариу хайрцгуудын ЦААНА нуугдахгүйн тулд хамгийн дээр (наана) гаргана — сул тул бичихэд саад болохгүй
       '.cm-wm{position:absolute;left:50%;z-index:5;pointer-events:none;text-align:center;width:96%;'+
         'transform:translate(-50%,-50%) rotate(-9deg);'+
