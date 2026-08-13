@@ -65,6 +65,13 @@ function gSubstFac(){var a=pick([2,3]),mn=pick([[0,1],[1,2],[0,2]]),m=mn[0],n=mn
 function gSubstRej(){var a=pick([2,3]),m=pick([1,2]),tp=Math.pow(a,m),tn=rnd(1,4),B=-(tp-tn),C=-tp*tn;
   var q=(a*a)+'^{x}'+midTerm(B,a+'^{x}')+cst(C)+' = 0';
   return {q:q,a:'$'+a+'^x=y\\Rightarrow y='+tp+',\\ y=-'+tn+'$ ($y\\gt 0$ тул $-'+tn+'$ гологд.) · $x='+m+'$',ok:true};}
+// Нэгэн төрлийн тэгшитгэл: A·a^{2x} + B·(ab)^x + C·b^{2x}=0, b^{2x}-т хуваа, (a/b)^x=y
+function tcoef(k,base){var m=Math.abs(k);return (m===1?'':m+'\\cdot ')+base;}
+function gHomog(){var pr=pick([[2,3],[2,5],[3,5],[2,7],[3,4],[4,5]]),a=pr[0],b=pr[1],m=pick([1,1,2]),n=rnd(1,3);
+  var A=Math.pow(b,m),B=n*Math.pow(b,m)-Math.pow(a,m),C=-n*Math.pow(a,m);
+  var q=tcoef(A,a+'^{2x}')+' + '+tcoef(B,(a*b)+'^{x}')+' - '+tcoef(Math.abs(C),b+'^{2x}')+' = 0';
+  var quad=A+'y^2'+(B<0?'-':'+')+(Math.abs(B)===1?'':Math.abs(B))+'y'+(C<0?'-':'+')+Math.abs(C);
+  return {q:q,a:'$\\left(\\tfrac{'+a+'}{'+b+'}\\right)^x=y:\\ '+quad+'=0\\Rightarrow x='+m+'$ ($y=-'+n+'$ гологд.)',ok:true};}
 function gen(fn){for(var t=0;t<300;t++){var f=fn();if(f&&f.ok)return f;}return null;}
 function probeH(sheet){var pr=sheet.cloneNode(true);pr.removeAttribute('id');pr.style.cssText='position:absolute;left:-99999px;top:0;width:210mm;max-width:none;min-height:0;margin:0;padding:0;box-shadow:none;zoom:1';var a=pr.querySelector('#answers,.ans-page');if(a)a.remove();document.body.appendChild(pr);var h=pr.scrollHeight;document.body.removeChild(pr);return h;}
 function relabel(sheet){var qs=sheet.querySelectorAll('.grid .q');for(var i=0;i<qs.length;i++){var el=qs[i].querySelector('.ql');if(el)el.textContent=(i+1)+'.';}var as=sheet.querySelectorAll('#answers .a');for(var j=0;j<as.length;j++){var e2=as[j].querySelector('.an');if(e2)e2.textContent=(j+1)+'.';}}
@@ -72,13 +79,13 @@ function trimToFitBalanced(sheet,target){var guard=0,h=probeH(sheet);while(h>tar
 function packColumns(sheet){[].forEach.call(sheet.querySelectorAll('.grid'),function(g){if(g.classList.contains('packed'))return;var qs=[].slice.call(g.children).filter(function(c){return c.classList&&c.classList.contains('q');});if(qs.length<2)return;var half=Math.ceil(qs.length/2),c1=document.createElement('div'),c2=document.createElement('div');c1.className='col';c2.className='col';qs.forEach(function(q,i){(i<half?c1:c2).appendChild(q);});g.appendChild(c1);g.appendChild(c2);g.classList.add('packed');});}
 function build(){
   var WORK=window.WS_WORK!==false;
-  var S=[[],[]],seen={};window.__PROB=[];
+  var S=[[],[],[]],seen={};window.__PROB=[];
   function fill(idx,fns,n){var c=0,tr=0;while(c<n&&tr<3000){tr++;var f=gen(pick(fns));if(!f||seen[f.q])continue;seen[f.q]=1;S[idx].push(f);c++;}}
-  fill(0,[gSubst,gSubstFac],WORK?8:13);fill(1,[gSubst,gSubstRej],WORK?7:11);
+  fill(0,[gSubst,gSubstFac],WORK?7:12);fill(1,[gSubst,gSubstRej],WORK?6:10);fill(2,[gHomog],WORK?4:7);
   var K=0;
   function block(arr,cls){return arr.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});
     return '<div class="q" data-k="'+k+'"><div class="qeq"><span class="ql"></span><span class="qm">$'+f.q+'$</span></div>'+(WORK?'<div class="work '+cls+'"></div>':'')+'</div>';}).join('');}
-  var b1=block(S[0],'md'),b2=block(S[1],'md');
+  var b1=block(S[0],'md'),b2=block(S[1],'md'),b3=block(S[2],'md');
   function ansAll(){return window.__PROB.map(function(p){return '<div class="a" data-k="'+p.k+'"><span class="an"></span><span>'+p.f.a+'</span></div>';}).join('');}
   document.getElementById('sheet').innerHTML=
     '<div class="head"><h1>Илтгэгч тэгшитгэл 2 — шинэ хувьсагч оруулах арга</h1><div class="sub">$a^x=y$ орлуулгаар квадрат тэгшитгэлд шилжүүлэх · 6.5 · 10-р анги</div></div>'
@@ -86,6 +93,7 @@ function build(){
     +'<div class="rule">$a^x=y\\ (y\\gt 0)$ орлуулга хий. $a^{2x}=(a^x)^2=y^2$. Квадрат тэгшитгэлийг бодоод $y$-ийн эерэг утга тус бүрт $a^x=y$-ийг бод. $y\\le 0$ язгуур гологдоно.</div>'
     +'<div class="task">1. Шинэ хувьсагч оруулан бод.</div><div class="grid" data-sec="1">'+b1+'</div>'
     +'<div class="task">2. Дараах тэгшитгэлийг бод (зарим язгуур гологдож болно).</div><div class="grid" data-sec="2">'+b2+'</div>'
+    +'<div class="task">3. Нэгэн төрлийн тэгшитгэл — хоёр талыг $b^{2x}$-т хувааж бод.</div><div class="grid" data-sec="3">'+b3+'</div>'
     +'<div class="ans-page" id="answers"><h2>Хариунууд</h2><div class="ans-grid">'+ansAll()+'</div></div>';
   window.WS_ITEMS=[];window.WS_TITLE='Илтгэгч тэгшитгэл 2 — шинэ хувьсагч оруулах арга (10-р анги)';
   relabel(document.getElementById('sheet'));toggleAns();
