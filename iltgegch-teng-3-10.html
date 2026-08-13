@@ -77,8 +77,8 @@ function lineSq(w,k,b){return '<line x1="'+Xc(w,w.x0).toFixed(1)+'" y1="'+Yc(w,k
 function dropSq(w,x0,yv){return '<line x1="'+Xc(w,x0).toFixed(1)+'" y1="'+Yc(w,yv).toFixed(1)+'" x2="'+Xc(w,x0).toFixed(1)+'" y2="'+Yc(w,0).toFixed(1)+'" stroke="#16a34a" stroke-width="1" stroke-dasharray="3 2"/>'
   +'<circle cx="'+Xc(w,x0).toFixed(1)+'" cy="'+Yc(w,yv).toFixed(1)+'" r="2.4" fill="#16a34a"/>';}
 function svgW(w,inner){return '<svg class="gsvg" viewBox="0 0 '+vbW(w).toFixed(0)+' '+vbH(w).toFixed(0)+'" xmlns="http://www.w3.org/2000/svg">'+inner+'</svg>';}
-function valTable(a,xs){var hx='<tr><td>$x$</td>'+xs.map(function(x){return '<td>$'+x+'$</td>';}).join('')+'</tr>';
-  var hy='<tr><td>$'+a+'^x$</td>'+xs.map(function(x){var v=x>=0?(''+Math.pow(a,x)):('\\tfrac{1}{'+Math.pow(a,-x)+'}');return '<td>$'+v+'$</td>';}).join('')+'</tr>';
+function valTable(a,xs,filled){var hx='<tr><td>$x$</td>'+xs.map(function(x){return '<td>$'+x+'$</td>';}).join('')+'</tr>';
+  var hy='<tr><td>$'+a+'^x$</td>'+xs.map(function(x){if(!filled)return '<td>&nbsp;</td>';var v=x>=0?(''+Math.pow(a,x)):('\\tfrac{1}{'+Math.pow(a,-x)+'}');return '<td>$'+v+'$</td>';}).join('')+'</tr>';
   return '<table class="vtab">'+hx+hy+'</table>';}
 var WINS={2:{win:{x0:-2.4,x1:3.4,y0:0,y1:8.7},xs:[-2,-1,0,1,2,3],exact:[2,4,8],approx:[3,5,6]},
           3:{win:{x0:-1.7,x1:2.4,y0:0,y1:9.7},xs:[-1,0,1,2],exact:[3,9],approx:[2,5,7]}};
@@ -94,7 +94,7 @@ function build(){
     var rows=bl.cs.map(function(c){var k=K++;var xv=logA(bl.a,c),exact=bl.exact.indexOf(c)>=0;
       window.__A.push({k:k,tex:bl.a+'^x='+c,ans:exact?('x='+Math.round(xv)):('x\\approx '+r1(xv))});
       return '<div class="qrow"><span class="ql">'+(k+1)+'.</span><span>$'+bl.a+'^x='+c+'$</span><span class="ans">&nbsp;</span></div>';}).join('');
-    return '<div class="gblock">'+svgW(bl.win,g)+'<div class="panel">'+valTable(bl.a,bl.xs)+'<div class="hint">Хүснэгтээр $y='+bl.a+'^x$ муруйг, шаардлагатай $y=c$ шулуунуудыг өөрөө байгуулж огтлолцлыг ол.</div><div class="qlist">'+rows+'</div></div></div>';
+    return '<div class="gblock">'+svgW(bl.win,g)+'<div class="panel">'+valTable(bl.a,bl.xs,false)+'<div class="hint">Хүснэгтийн $'+bl.a+'^x$ мөрийг нөхөж, $y='+bl.a+'^x$ муруйг, шаардлагатай $y=c$ шулуунуудыг өөрөө байгуулж огтлолцлыг ол.</div><div class="qlist">'+rows+'</div></div></div>';
   }).join('');
   // ── Хэсэг 2: илтгэгч ба шугаман огтлолцол ──
   var elItems=[],eg=0,eseen={};
@@ -104,7 +104,7 @@ function build(){
   var body2=elItems.map(function(e){var qk=K++;var rhs=''+e.b+(e.k===-1?'-x':'-'+(-e.k)+'x');
     window.__A.push({k:qk,tex:e.a+'^x='+rhs,ans:'x='+e.x0});
     var g=gridSq(e.win);
-    return '<div class="gblock">'+svgW(e.win,g)+'<div class="panel">'+valTable(e.a,e.xs)+'<div class="hint">$y='+e.a+'^x$ муруй ба $y='+rhs+'$ шулууныг өөрөө байгуулж, огтлолцлыг ол.</div><div class="qlist"><div class="qrow"><span class="ql">'+(qk+1)+'.</span><span>$'+e.a+'^x='+rhs+'$</span><span class="ans">&nbsp;</span></div></div></div></div>';}).join('');
+    return '<div class="gblock">'+svgW(e.win,g)+'<div class="panel">'+valTable(e.a,e.xs,false)+'<div class="hint">Хүснэгтийг нөхөж, $y='+e.a+'^x$ муруй ба $y='+rhs+'$ шулууныг өөрөө байгуулж, огтлолцлыг ол.</div><div class="qlist"><div class="qrow"><span class="ql">'+(qk+1)+'.</span><span>$'+e.a+'^x='+rhs+'$</span><span class="ans">&nbsp;</span></div></div></div></div>';}).join('');
   // ── Хариу ──
   var ansList='<div class="ans-list">'+window.__A.map(function(a){return '<div class="a"><span class="an">'+(a.k+1)+'.</span><span>$'+a.tex+'\\Rightarrow '+a.ans+'$</span></div>';}).join('')+'</div>';
   var ag1=baseBlocks.map(function(bl){return svgW(bl.win,gridSq(bl.win)+bl.cs.map(function(c){return hlineSq(bl.win,c);}).join('')+bl.cs.map(function(c){return dropSq(bl.win,logA(bl.a,c),c);}).join('')+curveSq(bl.win,bl.a));}).join('');
@@ -115,7 +115,9 @@ function build(){
     +'<div class="rule">Утгын хүснэгтийг ашиглан $y=a^x$ муруйг координатын хавтгайд өөрөө байгуул. Тэгшитгэлийн шийд нь график ба шулууны огтлолцлын цэгийн $x$ координат. Бүхэл зэрэгт нарийн, бусдад $0.1$ ойролцоо ол.</div>'
     +'<div class="task">1. $y=a^x$ графикийг байгуулж, $y=c$ шулуунтай огтлолцуулан тэгшитгэлийг бод.</div>'+body1
     +'<div class="task">2. $y=a^x$ графикийг байгуулж, шугаман функцтэй огтлолцуулан тэгшитгэлийг бод.</div>'+body2
-    +'<div class="ans-page" id="answers"><h2>Хариунууд</h2>'+ansList+'<div class="task" style="margin-top:12px">Байгуулсан график ба огтлолцлын цэгүүд</div><div class="ans-graphs">'+ag1+ag2+'</div></div>';
+    +'<div class="ans-page" id="answers"><h2>Хариунууд</h2>'+ansList
+    +'<div class="task" style="margin-top:12px">Нөхсөн утгын хүснэгт</div><div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:4px">'+baseBlocks.map(function(bl){return valTable(bl.a,bl.xs,true);}).join('')+'</div>'
+    +'<div class="task" style="margin-top:12px">Байгуулсан график ба огтлолцлын цэгүүд</div><div class="ans-graphs">'+ag1+ag2+'</div></div>';
   window.WS_ITEMS=[];window.WS_TITLE='Илтгэгч тэгшитгэл 3 — графикийн арга (10-р анги)';
   toggleAns();
   try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
