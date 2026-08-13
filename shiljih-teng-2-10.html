@@ -75,9 +75,9 @@ function gTravel(){var t=pick(TRIP_S),a1=t[0],b1=t[1],L=t[2],d=b1-a1;
 function gen(fn){for(var t=0;t<400;t++){var f=fn();if(f&&f.ok)return f;}return null;}
 function build(){
   var WORK=window.WS_WORK!==false;
-  var order=[gConsec,gRectPeri,gRightLegs,gRectSides,gSeats,gTour,gTravel];
-  var items=[],seen={};
-  for(var i=0;i<order.length;i++){var f=null,tr=0;while(tr++<500){f=gen(order[i]);if(f&&!seen[f.q]){seen[f.q]=1;break;}f=null;}if(f)items.push(f);}
+  var base=[gConsec,gRectPeri,gRightLegs,gRectSides,gSeats,gTour,gTravel];
+  var target=WORK?8:16,items=[],seen={},gi=0,guard=0;
+  while(items.length<target&&guard++<6000){var fn=base[gi%base.length];gi++;var f=gen(fn);if(f&&!seen[f.q]){seen[f.q]=1;items.push(f);}}
   var K=0;window.__PROB=[];
   var body=items.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});
     return '<div class="q" data-k="'+k+'"><div class="qt"><span class="ql"></span><span class="qx">'+f.q+'</span></div>'+(WORK?'<div class="work"></div>':'')+'</div>';}).join('');
@@ -89,10 +89,15 @@ function build(){
     +'<div class="task">Дараах бодлого бүрийг квадрат тэгшитгэл зохиож бод.</div><div class="plist">'+body+'</div>'
     +'<div class="ans-page" id="answers"><h2>Хариунууд</h2><div class="ans-list">'+ans+'</div></div>';
   window.WS_ITEMS=[];window.WS_TITLE='Квадратад шилждэг тэгшитгэл 2 — бодлого (10-р анги)';
-  var s=document.getElementById('sheet');var qs=s.querySelectorAll('.plist .q');for(var i=0;i<qs.length;i++)qs[i].querySelector('.ql').textContent=(i+1)+'.';var as=s.querySelectorAll('#answers .a');for(var j=0;j<as.length;j++)as[j].querySelector('.an').textContent=(j+1)+'.';
+  var s=document.getElementById('sheet');
   toggleAns();
   try{renderMathInElement(s,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
+  try{trimTail(s,1035);}catch(e){}
+  relabel(s);
 }
+function relabel(s){var qs=s.querySelectorAll('.plist .q');for(var i=0;i<qs.length;i++)qs[i].querySelector('.ql').textContent=(i+1)+'.';var as=s.querySelectorAll('#answers .a');for(var j=0;j<as.length;j++)as[j].querySelector('.an').textContent=(j+1)+'.';}
+function probeH(sheet){var pr=sheet.cloneNode(true);pr.removeAttribute('id');pr.style.cssText='position:absolute;left:-99999px;top:0;width:210mm;max-width:none;min-height:0;margin:0;padding:0;box-shadow:none;zoom:1';var a=pr.querySelector('#answers,.ans-page');if(a)a.remove();document.body.appendChild(pr);var h=pr.scrollHeight;document.body.removeChild(pr);return h;}
+function trimTail(sheet,target){var h=probeH(sheet),g=0;while(h>target&&g++<300){var qs=sheet.querySelectorAll('.plist .q');if(qs.length<=5)break;var last=qs[qs.length-1],k=last.getAttribute('data-k');var a=sheet.querySelector('#answers .a[data-k="'+k+'"]');if(a)a.parentNode.removeChild(a);last.parentNode.removeChild(last);h=probeH(sheet);}}
 build();
 </script>
 <script src="/ws-store.js?v=37"></script>
