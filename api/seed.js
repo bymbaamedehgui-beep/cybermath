@@ -124,28 +124,40 @@ module.exports = async (req, res) => {
         { grade: '10-р анги', name: '6.2 Квадрат тэгшитгэл', slugs: ['kvadrat-teng-bodoh-1-10.html', 'kvadrat-teng-bodoh-2-10.html'] },
         { grade: '10-р анги', name: '6.3 Квадрат тэгшитгэлд шилждэг тэгшитгэл', slugs: ['shiljih-teng-1-10.html', 'shiljih-teng-2-10.html'] },
         { grade: '10-р анги', name: '6.4 Хоёр хувьсагчтай шугаман тэнцэтгэл биш ба систем', slugs: ['shugaman-teng-bish-2huv-10.html', 'shugaman-teng-bish-2huv-2-10.html'] },
+        { grade: '10-р анги', name: '6.5 Илтгэгч тэгшитгэл', slugs: ['iltgegch-teng-1-10.html', 'iltgegch-teng-2-10.html', 'iltgegch-teng-3-10.html'] },
         { grade: '10-р анги', name: 'Квадрат график — графикаас тэгшитгэл', slugs: ['grafik-kvadrat-tegsh.html'] },
       ];
       const seedAddRow = await pool.query(`SELECT sval FROM ws_settings WHERE skey='sg_seeded_add'`);
       let seededAdd = [];
       try { seededAdd = seedAddRow.rows.length ? (JSON.parse(seedAddRow.rows[0].sval || '[]') || []) : []; } catch (e2) { seededAdd = []; }
+      // ── Нэг удаагийн цэвэрлэгээ: idempotent seed-ийн алдаанаас болж дахин үүссэн давхардсан дэд бүлгүүд (id 90-94) ──
+      const cf = await pool.query(`SELECT sval FROM ws_settings WHERE skey='cleanup_dupsg_v1'`);
+      if (!cf.rows.length) {
+        const DUPS = [[90, '4.4 Тойргийн тэгшитгэл'], [91, 'IV бүлэг — Жишиг ба шалгалт'], [92, '5.1 Функц, тодорхойлогдох муж ба дүр'], [93, '5.3 y = a/x функц'], [94, 'Квадрат график — графикаас тэгшитгэл']];
+        for (const [did, nm] of DUPS) {
+          const chk = await pool.query('SELECT id FROM ws_subgroups WHERE id=$1 AND name=$2', [did, nm]);
+          if (chk.rows.length) {
+            const lbl = 'sg:' + did;
+            await pool.query('DELETE FROM ws_place WHERE grp=$1', [lbl]);
+            await pool.query('DELETE FROM ws_order WHERE grp=$1', [lbl]);
+            await pool.query('UPDATE ws_subgroups SET parent_id=NULL WHERE parent_id=$1', [did]).catch(() => {});
+            await pool.query('DELETE FROM ws_subgroups WHERE id=$1', [did]);
+          }
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('cleanup_dupsg_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
       for (const add of ADDITIONS) {
-        // дэд бүлгийг олох эсвэл үүсгэх
-        let sgId;
+        if (seededAdd.indexOf(add.name) >= 0) continue;   // аль хэдийн нэг удаа нэмсэн бол алгасна (устгал/нэр засварыг хүндэтгэнэ)
         const ex = await pool.query('SELECT id FROM ws_subgroups WHERE grade=$1 AND name=$2', [add.grade, add.name]);
-        if (ex.rows.length) {
-          sgId = Number(ex.rows[0].id);
-        } else {
+        if (!ex.rows.length) {
           const mx = await pool.query('SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade=$1', [add.grade]);
           const ins = await pool.query('INSERT INTO ws_subgroups (grade, name, pos) VALUES ($1,$2,$3) RETURNING id', [add.grade, add.name, mx.rows[0].p]);
-          sgId = Number(ins.rows[0].id);
+          const lbl = 'sg:' + Number(ins.rows[0].id);
+          for (const slug of add.slugs) {
+            await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, [lbl, slug]);
+          }
         }
-        // slug бүрийг idempotent-оор байрлуулна (байгаа дэд бүлэгт шинэ slug нэмэгдэнэ)
-        const lbl = 'sg:' + sgId;
-        for (const slug of add.slugs) {
-          await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, [lbl, slug]);
-        }
-        if (seededAdd.indexOf(add.name) < 0) seededAdd.push(add.name);
+        seededAdd.push(add.name);
       }
       await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('sg_seeded_add',$1) ON CONFLICT (skey) DO UPDATE SET sval=$1`, [JSON.stringify(seededAdd)]);
     } catch (e) { console.error('[all subgroups]', e.message); }
