@@ -228,6 +228,8 @@ window.WS_LIST=[
     ['funkts-sqrt-cube-graf-10.html','y = a√x ба y = ax³ функцийн график'],
     ['funkts-exp-graf-10.html','y = aˣ илтгэгч функцийн график'],
     ['funkts-exp-tegsh-10.html','Графикаас илтгэгч функцийн тэгшитгэл'],
+    ['shurgegch-nalalt-1-10.html','Шүргэгчийн налалт 1 — олон гишүүнт'],
+    ['shurgegch-nalalt-2-10.html','Шүргэгчийн налалт 2 — бутархай, язгуурт'],
     ['grafik-kvadrat-tegsh.html','Графикаас квадрат функцийн тэгшитгэл бичих'],
     ['grafik-ax2.html','Квадрат график: y = ax² (орой эх цэгт)'],
     ['grafik-ax2-c.html','Квадрат график: y = ax² + c (босоо зөөлт)'],
