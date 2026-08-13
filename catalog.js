@@ -226,6 +226,8 @@ window.WS_LIST=[
     ['funkts-axn-muj-10.html','y = axⁿ функц: тодорхойлогдох муж ба дүр'],
     ['funkts-ax2inv-graf-10.html','y = a/x² функцийн график'],
     ['funkts-sqrt-cube-graf-10.html','y = a√x ба y = ax³ функцийн график'],
+    ['funkts-exp-graf-10.html','y = aˣ илтгэгч функцийн график'],
+    ['funkts-exp-tegsh-10.html','Графикаас илтгэгч функцийн тэгшитгэл'],
     ['grafik-kvadrat-tegsh.html','Графикаас квадрат функцийн тэгшитгэл бичих'],
     ['grafik-ax2.html','Квадрат график: y = ax² (орой эх цэгт)'],
     ['grafik-ax2-c.html','Квадрат график: y = ax² + c (босоо зөөлт)'],
