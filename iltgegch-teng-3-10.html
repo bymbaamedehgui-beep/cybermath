@@ -68,7 +68,15 @@ function hlineNS(w,c){return '<line x1="'+Xc(w,w.x0).toFixed(1)+'" y1="'+Yc(w,c)
   +'<text x="'+(Xc(w,w.x1)-2).toFixed(1)+'" y="'+(Yc(w,c)-2).toFixed(1)+'" font-size="7" fill="#c2451f" text-anchor="end">'+c+'</text>';}
 function dropNS(w,a,c){var x=logA(a,c);return '<line x1="'+Xc(w,x).toFixed(1)+'" y1="'+Yc(w,c).toFixed(1)+'" x2="'+Xc(w,x).toFixed(1)+'" y2="'+Yc(w,0).toFixed(1)+'" stroke="#16a34a" stroke-width="1" stroke-dasharray="3 2"/>'
   +'<circle cx="'+Xc(w,x).toFixed(1)+'" cy="'+Yc(w,c).toFixed(1)+'" r="2.3" fill="#16a34a"/>';}
+function lineSeg(w,k,b){var y1=k*w.x0+b,y2=k*w.x1+b;return '<line x1="'+Xc(w,w.x0).toFixed(1)+'" y1="'+Yc(w,y1).toFixed(1)+'" x2="'+Xc(w,w.x1).toFixed(1)+'" y2="'+Yc(w,y2).toFixed(1)+'" stroke="#e0562d" stroke-width="1.7"/>';}
+function isectDrop(w,x0,yv){return '<line x1="'+Xc(w,x0).toFixed(1)+'" y1="'+Yc(w,yv).toFixed(1)+'" x2="'+Xc(w,x0).toFixed(1)+'" y2="'+Yc(w,0).toFixed(1)+'" stroke="#16a34a" stroke-width="1" stroke-dasharray="3 2"/>'
+  +'<circle cx="'+Xc(w,x0).toFixed(1)+'" cy="'+Yc(w,yv).toFixed(1)+'" r="2.6" fill="#16a34a"/>';}
 function svgWrap(inner){return '<svg class="gsvg" viewBox="0 0 '+VB+' '+VBY+'" xmlns="http://www.w3.org/2000/svg">'+inner+'</svg>';}
+// Илтгэгч = шугаман: a^x = kx+b, огтлолцол x=x0
+function gExpLine(){var B=pick(BASES),a=B.a,win=B.win,x0=pick([0,1,2]),k=pick([-1,-2]),y0=Math.pow(a,x0),b=y0-k*x0;
+  if(y0>win.y1-0.5)return null;
+  var rhs=''+b+(k===-1?' - x':' - '+(-k)+'x');
+  return {a:a,win:win,k:k,b:b,x0:x0,y0:y0,tex:a+'^x = '+rhs};}
 var BASES=[{a:2,win:{x0:-1.5,x1:3.6,y0:0,y1:9},exact:[2,4,8],approx:[3,5,6,7]},
            {a:3,win:{x0:-1.5,x1:2.4,y0:0,y1:10},exact:[3,9],approx:[2,5,7]}];
 function build(){
@@ -87,14 +95,22 @@ function build(){
     return '<div class="gblock">'+svgWrap(g)+'<div class="qlist"><div style="font-size:11px;color:#8a83a5;margin-bottom:2px">$y='+bl.a+'^x$ график</div>'+rows+'</div></div>';
   }).join('');
   var ansGraphs=blocks.map(function(bl){var g=gridNS(bl.win)+bl.cs.map(function(c){return hlineNS(bl.win,c);}).join('')+bl.cs.map(function(c){return dropNS(bl.win,bl.a,c);}).join('')+curveNS(bl.win,bl.a);return svgWrap(g);}).join('');
+  // Илтгэгч = шугаман хэсэг (2 бодлого)
+  var elItems=[],eguard=0,eseen={};while(elItems.length<2&&eguard++<200){var e=gExpLine();if(!e)continue;var key=e.a+'|'+e.tex;if(eseen[key])continue;eseen[key]=1;elItems.push(e);}
+  var expBody=elItems.map(function(e){var k=K++;e.k=k;window.__A.push({k:k,tex:e.tex,ans:'x='+e.x0});
+    var g=gridNS(e.win)+curveNS(e.win,e.a)+lineSeg(e.win,e.k,e.b);
+    return '<div class="gblock">'+svgWrap(g)+'<div class="qlist"><div style="font-size:11px;color:#8a83a5;margin-bottom:2px">$y='+e.a+'^x$ (ягаан) ба $y='+e.b+(e.k===-1?'-x':'-'+(-e.k)+'x')+'$ (улбар)</div><div class="qrow"><span class="ql">'+(k+1)+'.</span><span>$'+e.tex+'$</span><span class="ans">&nbsp;</span></div></div></div>';}).join('');
+  var expAnsGraphs=elItems.map(function(e){var g=gridNS(e.win)+curveNS(e.win,e.a)+lineSeg(e.win,e.k,e.b)+isectDrop(e.win,e.x0,e.y0);return svgWrap(g);}).join('');
   var ansList='<div class="ans-list">'+window.__A.map(function(a){return '<div class="a"><span class="an">'+(a.k+1)+'.</span><span>$'+a.tex+'\\Rightarrow '+a.ans+'$</span></div>';}).join('')+'</div>';
   document.getElementById('sheet').innerHTML=
     '<div class="head"><h1>Илтгэгч тэгшитгэл 3 — графикийн арга</h1><div class="sub">$a^x=c$ тэгшитгэлийг $y=a^x$ график ба $y=c$ шулууны огтлолцлоор бодох · 6.5 · 10-р анги</div></div>'
     +'<div class="meta"><span>Нэр: </span><span>Огноо: </span><span>Оноо: </span></div>'
     +'<div class="rule">$a^x=c$ тэгшитгэлийн шийд нь $y=a^x$ график ба $y=c$ хэвтээ шулууны огтлолцлын цэгийн абсцисс юм. Бүхэл зэрэгт нарийн, бусад тохиолдолд $0.1$ нарийвчлалтай ойролцоо ол.</div>'
-    +'<div class="task">Графикийг ашиглан тэгшитгэл бүрийн шийдийг ол (шаардлагатай бол ойролцоолол).</div>'
+    +'<div class="task">1. Графикийг ашиглан тэгшитгэл бүрийн шийдийг ол (шаардлагатай бол ойролцоолол).</div>'
     +body
-    +'<div class="ans-page" id="answers"><h2>Хариунууд</h2>'+ansList+'<div class="task" style="margin-top:12px">Огтлолцлын цэгүүд</div><div class="ans-graphs">'+ansGraphs+'</div></div>';
+    +'<div class="task">2. Илтгэгч ба шугаман функцийн графикийн огтлолцлоор тэгшитгэлийн шийдийг ол.</div>'
+    +expBody
+    +'<div class="ans-page" id="answers"><h2>Хариунууд</h2>'+ansList+'<div class="task" style="margin-top:12px">Огтлолцлын цэгүүд</div><div class="ans-graphs">'+ansGraphs+expAnsGraphs+'</div></div>';
   window.WS_ITEMS=[];window.WS_TITLE='Илтгэгч тэгшитгэл 3 — графикийн арга (10-р анги)';
   toggleAns();
   try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
