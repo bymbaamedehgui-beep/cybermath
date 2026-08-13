@@ -87,8 +87,9 @@ function tDomainRecip(){var a=nz(-6,6);
 function tDomainSqrt(){var a=pick([-4,-3,-2,-1,1,2,3,4]),b=nz(-7,7),root=fr(-b,a),ineq=a>0?'\\geq':'\\leq',opp=a>0?'\\leq':'\\geq';
   var mc=makeMC(C('x'+ineq+' '+frTex(root)),[C('x'+opp+' '+frTex(root)),C('x\\neq '+frTex(root)),C('x'+ineq+' '+frTex(fr(b,a)))]);if(!mc)return null;
   return {stem:'$y=\\sqrt{'+linTex(a,b)+'}$ тодорхойлогдох муж:',mc:mc};}
-function tExpVal(){var d=pick([2,3]),k=rnd(1,4),V=Math.pow(d,k);
-  var mc=makeMC(C(''+V),[C(''+(d*k)),C(''+Math.pow(d,k+1)),C(''+Math.pow(d,k-1)),C(''+Math.pow(k,d))]);if(!mc)return null;
+function tExpVal(){var d=pick([2,3]),k=pick([-3,-2,-1,3]),ak=Math.abs(k),pw=Math.pow(d,ak),neg=k<0;
+  var cor=neg?'\\dfrac{1}{'+pw+'}':''+pw;
+  var mc=makeMC(C(cor),[C(''+(d*ak)),C(neg?''+pw:'\\dfrac{1}{'+pw+'}'),C(''+Math.pow(d,ak+1)),C(neg?'-\\dfrac{1}{'+pw+'}':''+(-pw))]);if(!mc)return null;
   return {stem:'$'+d+'^{'+k+'}$ =',mc:mc};}
 function tExpWhich(){var fu=[['2^{x}',1],['3^{x}',1],['4^{x}',1],['\\left(\\tfrac{1}{2}\\right)^{x}',0],['\\left(\\tfrac{1}{3}\\right)^{x}',0],['\\left(\\tfrac{1}{4}\\right)^{x}',0]];
   var up=shuffle(fu.filter(function(f){return f[1];}))[0],dn=shuffle(fu.filter(function(f){return !f[1];})).slice(0,3);
@@ -123,8 +124,16 @@ function free3(){var a=nz(-2,2),b=nz(-4,4),c=nz(-5,5),x0=nz(-3,3),y0=a*x0*x0+b*x
   return {stem:'$y='+quadTex(a,b,c)+'$ функцийн $A('+x0+',\\ '+y0+')$ дээрх шүргэгчийн тэгшитгэлийг бич.',a:lineEq(m,ci)};}
 function free4(){var d=pick([2,3]);
   return {stem:'$y='+d+'^{x}$ функцийн $x=-2,\\ 0,\\ 3$ дахь утгыг ол.',a:'\\dfrac{1}{'+(d*d)+'},\\ 1,\\ '+(d*d*d)};}
-var FREE=[free1,free2,free3,free4];
-var TEST_PT=1,FREE_PT=[2,2,3,3],ROMAN=['I','II','III','IV','V','VI','VII','VIII','IX','X'];
+// График байгуулах (координатын тор)
+var GVB=160;
+function gX(w,x){return (x-w.xmin)/(w.xmax-w.xmin)*GVB;}
+function gY(w,y){return GVB-(y-w.ymin)/(w.ymax-w.ymin)*GVB;}
+function gGrid(w){var g='',i;for(i=Math.ceil(w.xmin);i<=w.xmax;i++){var px=gX(w,i);g+='<line x1="'+px.toFixed(1)+'" y1="0" x2="'+px.toFixed(1)+'" y2="'+GVB+'" stroke="'+(i===0?'#555':'#e8e2f7')+'" stroke-width="'+(i===0?1.2:0.6)+'"/>';}for(i=Math.ceil(w.ymin);i<=w.ymax;i++){var py=gY(w,i);g+='<line x1="0" y1="'+py.toFixed(1)+'" x2="'+GVB+'" y2="'+py.toFixed(1)+'" stroke="'+(i===0?'#555':'#e8e2f7')+'" stroke-width="'+(i===0?1.2:0.6)+'"/>';}var y0=gY(w,0),x0=gX(w,0);for(i=Math.ceil(w.xmin);i<=w.xmax;i++){if(i!==0&&i%2===0)g+='<text x="'+(gX(w,i)+1).toFixed(1)+'" y="'+(y0+8).toFixed(1)+'" font-size="7" fill="#999">'+i+'</text>';}for(i=Math.ceil(w.ymin);i<=w.ymax;i++){if(i!==0&&i%2===0)g+='<text x="'+(x0+2).toFixed(1)+'" y="'+(gY(w,i)+3).toFixed(1)+'" font-size="7" fill="#999">'+i+'</text>';}g+='<text x="'+(GVB-8)+'" y="'+(y0-2).toFixed(1)+'" font-size="9" font-style="italic" fill="#666">x</text><text x="'+(x0+3).toFixed(1)+'" y="10" font-size="9" font-style="italic" fill="#666">y</text>';return g;}
+function gCurve(w,f){var d='',pen=false,step=(w.xmax-w.xmin)/240;for(var x=w.xmin;x<=w.xmax+1e-9;x+=step){var y=f(x);if(!isFinite(y)||y<w.ymin||y>w.ymax){pen=false;continue;}d+=(pen?'L':'M')+gX(w,x).toFixed(1)+' '+gY(w,y).toFixed(1)+' ';pen=true;}return '<path d="'+d+'" fill="none" stroke="#e11d48" stroke-width="1.8"/>';}
+function gGraphFree(){var up=pick([true,false]),a=up?1:-1,c=up?pick([-3,-2,-1,0]):pick([0,1,2,3]);
+  return {stem:'$y='+coefP(a,'x^2')+sgnc(c)+'$ функцийн графикийг байгуул.',win:{xmin:-4,xmax:4,ymin:-4,ymax:4},f:function(x){return a*x*x+c;},isGraph:true,a:'y='+coefP(a,'x^2')+sgnc(c)};}
+var FREE=[free1,free2,free3,free4,gGraphFree];
+var TEST_PT=1,FREE_PT=[2,2,3,3,3],ROMAN=['I','II','III','IV','V','VI','VII','VIII','IX','X'];
 function totalPts(){return 10*TEST_PT+FREE_PT.reduce(function(s,v){return s+v;},0);}
 function ptFmt(v){return (Math.round(v*100)/100).toString();}
 function recomputeTotal(){var tot=0;[].forEach.call(document.querySelectorAll('#sheet .ptv'),function(el){var v=parseFloat((el.textContent||'').replace(',','.'));if(!isNaN(v))tot+=v;});var s=ptFmt(tot);[].forEach.call(document.querySelectorAll('#sheet .totmax'),function(el){el.textContent=s;});}
@@ -138,9 +147,11 @@ function build(){
     testHtml+='<div class="t-item"><div class="t-stem"><span class="pt"><b class="ptv" contenteditable="true">'+TEST_PT+'</b> оноо</span><span class="n">'+(i+1)+'.</span>'+g.stem+'</div><div class="opts">'+opts+'</div></div>';
     akTest+=(i>0?', ':'')+(i+1)+'-'+OL[g.mc.correct];}
   var freeHtml='',akFree='';
-  for(var f=0;f<4;f++){var fg=gen(FREE[f]);if(!fg)continue;window.__FREE.push(fg);
-    freeHtml+='<div class="free"><div class="fs"><span class="pt"><b class="ptv" contenteditable="true">'+FREE_PT[f]+'</b> оноо</span><span class="n">'+(11+f)+'.</span>'+fg.stem+'</div><div class="work"></div></div>';
-    akFree+='<div class="ak"><span class="n">'+(11+f)+')</span> $'+fg.a+'$</div>';}
+  for(var f=0;f<FREE.length;f++){var fg=gen(FREE[f]);if(!fg)continue;window.__FREE.push(fg);
+    var body=fg.isGraph?('<svg viewBox="0 0 '+GVB+' '+GVB+'" style="width:56mm;height:56mm;border:1.2px solid #e2daf5;border-radius:7px;background:#fff">'+gGrid(fg.win)+'</svg>'):'<div class="work"></div>';
+    freeHtml+='<div class="free"><div class="fs"><span class="pt"><b class="ptv" contenteditable="true">'+FREE_PT[f]+'</b> оноо</span><span class="n">'+(11+f)+'.</span>'+fg.stem+'</div>'+body+'</div>';
+    if(fg.isGraph)akFree+='<div class="ak"><span class="n">'+(11+f)+')</span> <svg viewBox="0 0 '+GVB+' '+GVB+'" style="width:36mm;height:36mm;border:1px solid #eee;vertical-align:middle">'+gGrid(fg.win)+gCurve(fg.win,fg.f)+'</svg></div>';
+    else akFree+='<div class="ak"><span class="n">'+(11+f)+')</span> $'+fg.a+'$</div>';}
   var TOTAL=totalPts();
   var gRoman='<table class="gtbl"><tr><th>Тест</th>'+ROMAN.map(function(r){return '<td class="lab">'+r+'</td>';}).join('')+'</tr><tr><th>Оноо</th>'+ROMAN.map(function(){return '<td></td>';}).join('')+'</tr></table>';
   var gFree='<table class="gtbl"><tr><th>Задгай</th>'+FREE_PT.map(function(_,i){return '<td class="lab">2.'+(i+1)+'</td>';}).join('')+'</tr><tr><th>Оноо</th>'+FREE_PT.map(function(){return '<td></td>';}).join('')+'</table>';
@@ -148,7 +159,7 @@ function build(){
     '<div class="head"><h1>V бүлэг — Шалгалтын материал</h1><div class="sub">Функц ба график: муж/дүр · зэрэг · илтгэгч · шүргэгчийн налалт · 10-р анги</div></div>'
     +'<div class="meta"><span>Нэр: </span><span>Анги: </span><span>Хугацаа: </span><div class="score-top">Хувилбар: <b class="varv" contenteditable="true" data-ph="А"></b> · Оноо: <b class="totmax">'+TOTAL+'</b></div></div>'
     +'<div class="task">I. Сонголттой тест. Зөв хариуг сонгоно уу. (1–10)</div>'+testHtml
-    +'<div class="task">II. Задгай даалгавар. Бодолтоо дэлгэрэнгүй бичнэ үү. (11–14)</div>'+freeHtml
+    +'<div class="task">II. Задгай даалгавар. Бодолтоо дэлгэрэнгүй бичнэ үү. (11–15)</div>'+freeHtml
     +'<div class="grade"><div class="gtitle">Багшийн засах хүснэгт — авсан оноо</div>'+gRoman+gFree+'<div class="gtot">Нийт авсан оноо: <u></u> / <b class="totmax">'+TOTAL+'</b> оноо</div></div>'
     +'<div class="ans-page" id="answers"><h2>Хариунууд</h2><div class="ak"><span class="n">Тест:</span> '+akTest+'</div><div style="height:6px"></div><div class="ak" style="font-weight:800;color:#5a32d6">Задгай даалгавар:</div>'+akFree+'</div>';
   window.WS_ITEMS=[];window.WS_TITLE='V бүлэг — Шалгалтын материал (10-р анги)';
