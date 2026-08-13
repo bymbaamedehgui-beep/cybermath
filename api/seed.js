@@ -125,6 +125,7 @@ module.exports = async (req, res) => {
         { grade: '10-р анги', name: '6.3 Квадрат тэгшитгэлд шилждэг тэгшитгэл', slugs: ['shiljih-teng-1-10.html', 'shiljih-teng-2-10.html'] },
         { grade: '10-р анги', name: '6.4 Хоёр хувьсагчтай шугаман тэнцэтгэл биш ба систем', slugs: ['shugaman-teng-bish-2huv-10.html', 'shugaman-teng-bish-2huv-2-10.html'] },
         { grade: '10-р анги', name: '6.5 Илтгэгч тэгшитгэл', slugs: ['iltgegch-teng-1-10.html', 'iltgegch-teng-2-10.html', 'iltgegch-teng-3-10.html'] },
+        { grade: '10-р анги', name: 'VI бүлэг — Жишиг ба шалгалт', slugs: ['jishig-6-1-10.html', 'jishig-6-2-10.html', 'shalgalt-material-6-10.html'] },
         { grade: '10-р анги', name: 'Квадрат график — графикаас тэгшитгэл', slugs: ['grafik-kvadrat-tegsh.html'] },
       ];
       const seedAddRow = await pool.query(`SELECT sval FROM ws_settings WHERE skey='sg_seeded_add'`);
