@@ -258,7 +258,6 @@ window.WS_LIST=[
     ['shurgegch-hovch-onts-10.html','Шүргэгч-хөвчийн өнцөг ба хоёр шүргэгч'],
     ['toirog-ogtlolcson-10.html','Огтлолцсон хөвч, огтлогч, шүргэгчийн чадал'],
     ['hoyor-toirog-bairshil-10.html','Хоёр тойргийн харилцан байршил'],
-    ['hoyor-toirog-shurgelt-10.html','Шүргэлтэт тойрог, шүргэгчийн урт, цагариг'],
     ['grafik-kvadrat-tegsh.html','Графикаас квадрат функцийн тэгшитгэл бичих'],
     ['grafik-ax2.html','Квадрат график: y = ax² (орой эх цэгт)'],
     ['grafik-ax2-c.html','Квадрат график: y = ax² + c (босоо зөөлт)'],
