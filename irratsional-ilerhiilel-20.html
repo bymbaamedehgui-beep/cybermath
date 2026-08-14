@@ -20,6 +20,7 @@
   .head h1{font-size:20px;color:#5a32d6;font-weight:800}.head .sub{font-size:11.5px;color:var(--soft);margin-top:2px}
   .meta{display:flex;justify-content:space-between;font-size:12px;margin:8px 2px 12px}.meta span{border-bottom:1px dotted #b3a9cf;padding:0 30px 2px 4px}
   .rule{font-size:12px;color:var(--amber);background:#fff7e6;border:1px solid #f3dca6;border-radius:8px;padding:8px 12px;margin-bottom:14px;text-align:center}
+  .task{font-weight:800;color:#5a32d6;font-size:13.5px;margin:2px 0 9px;border-left:4px solid var(--purple2);padding-left:9px}
   .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px 18px}
   .q{break-inside:avoid;page-break-inside:avoid;padding:6px 4px 7px;border-bottom:1px dashed #efeaff}
   .qeq{display:flex;gap:8px;align-items:baseline}.qn{font-weight:800;color:var(--purple);min-width:24px}.qm{font-size:14.5px}
@@ -57,16 +58,21 @@ function ansStr(S,d){
   return sign+(mag===1?'':mag)+'\\sqrt{'+d+'}';
 }
 function genOne(){
-  // Бүх гишүүнийг √(k²·d) (k≥2) хэлбэрээр бичнэ — язгуур доорх d-г мэдэгдүүлэхгүй,
-  // сурагч өөрөө бүтэн квадрат үржигдэхүүн гарган хялбарчилна.
+  // Бүх гишүүнийг √(mag²·d) хэлбэрээр (mag≥2) бичнэ — язгуур доорх d-г мэдэгдүүлэхгүй.
+  // Радикалуудыг ЯЛГААТАЙ (mag тус бүр давтагдахгүй) байлгаж, заримд нь коэффициент өгнө.
   var d=SF[rnd(0,SF.length-1)];
-  var n=rnd(4,6);           // 4..6 гишүүн → 3..5 үйлдэл
+  var mags=[2,3,4,5,6];
+  for(var s=mags.length-1;s>0;s--){var j=rnd(0,s),tmp=mags[s];mags[s]=mags[j];mags[j]=tmp;}
+  var n=rnd(4,5);
   var q='',S=0,first=true;
   for(var i=0;i<n;i++){
-    var mag=rnd(2,5),neg=rnd(0,1)===1,k=neg?-mag:mag; S+=k;
-    var val=mag*mag*d;      // бүтэн квадрат × d (композит тоо)
+    var mag=mags[i];
+    var coef=[1,1,1,2,3][rnd(0,4)];      // заримыг нь тоогоор үржүүлнэ
+    var neg=rnd(0,1)===1;
+    S+=(neg?-1:1)*coef*mag;
+    var val=mag*mag*d, cf=(coef===1?'':coef);
     var sign=first?(neg?'-':''):(neg?' - ':' + ');
-    q+=sign+'\\sqrt{'+val+'}';
+    q+=sign+cf+'\\sqrt{'+val+'}';
     first=false;
   }
   return {q:q, a:ansStr(S,d)};
@@ -77,9 +83,10 @@ function build(){
     probs+='<div class="q"><div class="qeq"><span class="qn">'+n+'.</span><span class="qm">$'+it.q+'=$</span></div><div class="bl"></div></div>';
     answs+='<div class="a"><span class="an">'+n+'.</span><span>$'+it.a+'$</span></div>';}
   document.getElementById('sheet').innerHTML=
-    '<div class="head"><h1>Иррационал илэрхийлэл бодох</h1><div class="sub">Ижил язгуурт гишүүдийг хялбарчилж нэгтгэ · 3–5 үйлдэл · 20 бодлого</div></div>'
+    '<div class="head"><h1>Иррационал илэрхийлэл бодох</h1><div class="sub">Бүтэн квадрат үржигдэхүүн гарган ижил язгуурт шилжүүлж хялбарчил · 20 бодлого · 9-р анги · 1.2</div></div>'
     +'<div class="meta"><span>Нэр: </span><span>Огноо: </span><span>Оноо: </span></div>'
     +'<div class="rule">$\\sqrt{a^{2}b}=a\\sqrt{b}$ &nbsp;·&nbsp; $m\\sqrt{b}\\pm n\\sqrt{b}=(m\\pm n)\\sqrt{b}$</div>'
+    +'<div class="task">Илэрхийллийн утгыг ол.</div>'
     +'<div class="grid">'+probs+'</div>'
     +'<div class="ans-page" id="answers"><h2>Хариунууд</h2><div class="ans-grid">'+answs+'</div></div>';
   toggleAns();toggleWork();
