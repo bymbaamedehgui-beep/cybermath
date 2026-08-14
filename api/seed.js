@@ -128,12 +128,16 @@ module.exports = async (req, res) => {
         { grade: '10-р анги', name: 'VI бүлэг — Жишиг ба шалгалт', slugs: ['jishig-6-1-10.html', 'jishig-6-2-10.html', 'shalgalt-material-6-10.html'] },
         { grade: '10-р анги', name: '7.1 Тойрогт багтсан өнцөг', slugs: ['bagtsan-onts-1-10.html', 'bagtsan-onts-2-10.html'] },
         { grade: '10-р анги', name: '7.2 Тойрогт багтсан ба тойрог багтаасан олон өнцөгт', slugs: ['gurv-bagtsan-toirog-10.html', 'gurv-bagtaasan-toirog-10.html', 'toirogt-bagtsan-olon-10.html', 'toirog-bagtaasan-olon-10.html'] },
-        { grade: '10-р анги', name: '7.3 Тойргийн хөвч, шүргэгч, огтлогчийн чанар', slugs: ['toirog-hovch-10.html', 'toirog-shurgegch-10.html', 'shurgegch-hovch-onts-10.html'] },
+        { grade: '10-р анги', name: '7.3 Тойргийн хөвч, шүргэгч, огтлогчийн чанар', slugs: ['toirog-hovch-10.html', 'toirog-shurgegch-10.html', 'shurgegch-hovch-onts-10.html', 'toirog-ogtlolcson-10.html'] },
+        { grade: '10-р анги', name: '7.4 Хоёр тойргийн харилцан байршил', slugs: ['hoyor-toirog-bairshil-10.html', 'hoyor-toirog-shurgelt-10.html'] },
         { grade: '10-р анги', name: 'Квадрат график — графикаас тэгшитгэл', slugs: ['grafik-kvadrat-tegsh.html'] },
       ];
       const seedAddRow = await pool.query(`SELECT sval FROM ws_settings WHERE skey='sg_seeded_add'`);
       let seededAdd = [];
       try { seededAdd = seedAddRow.rows.length ? (JSON.parse(seedAddRow.rows[0].sval || '[]') || []) : []; } catch (e2) { seededAdd = []; }
+      const seedPairRow = await pool.query(`SELECT sval FROM ws_settings WHERE skey='sg_seeded_pairs'`);
+      let seededPairs = [];
+      try { seededPairs = seedPairRow.rows.length ? (JSON.parse(seedPairRow.rows[0].sval || '[]') || []) : []; } catch (e4) { seededPairs = []; }
       // ── Нэг удаагийн цэвэрлэгээ: idempotent seed-ийн алдаанаас болж дахин үүссэн давхардсан дэд бүлгүүд (id 90-94) ──
       const cf = await pool.query(`SELECT sval FROM ws_settings WHERE skey='cleanup_dupsg_v1'`);
       if (!cf.rows.length) {
@@ -150,20 +154,28 @@ module.exports = async (req, res) => {
         }
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('cleanup_dupsg_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
+      // Slug тус бүрээр (name|||slug) хосоор мөрддөг: байгаа дэд бүлэгт шинэ slug орно, гэхдээ
+      // бүхэл дэд бүлгийг устгасан/нэр сольсныг хүндэтгэж дахин үүсгэхгүй.
       for (const add of ADDITIONS) {
-        if (seededAdd.indexOf(add.name) >= 0) continue;   // аль хэдийн нэг удаа нэмсэн бол алгасна (устгал/нэр засварыг хүндэтгэнэ)
+        const nameSeen = seededAdd.indexOf(add.name) >= 0;
         const ex = await pool.query('SELECT id FROM ws_subgroups WHERE grade=$1 AND name=$2', [add.grade, add.name]);
-        if (!ex.rows.length) {
-          const mx = await pool.query('SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade=$1', [add.grade]);
-          const ins = await pool.query('INSERT INTO ws_subgroups (grade, name, pos) VALUES ($1,$2,$3) RETURNING id', [add.grade, add.name, mx.rows[0].p]);
-          const lbl = 'sg:' + Number(ins.rows[0].id);
-          for (const slug of add.slugs) {
-            await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, [lbl, slug]);
+        let sgId = ex.rows.length ? Number(ex.rows[0].id) : null;
+        for (const slug of add.slugs) {
+          const key = add.name + '|||' + slug;
+          if (seededPairs.indexOf(key) >= 0) continue;   // өмнө нэмсэн slug — админы өөрчлөлтийг хүндэтгэнэ
+          if (sgId == null) {
+            if (nameSeen) continue;                       // дэд бүлгийг устгасан → дахин үүсгэхгүй
+            const mx = await pool.query('SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade=$1', [add.grade]);
+            const ins = await pool.query('INSERT INTO ws_subgroups (grade, name, pos) VALUES ($1,$2,$3) RETURNING id', [add.grade, add.name, mx.rows[0].p]);
+            sgId = Number(ins.rows[0].id);
           }
+          await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + sgId, slug]);
+          seededPairs.push(key);
         }
-        seededAdd.push(add.name);
+        if (!nameSeen) seededAdd.push(add.name);
       }
       await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('sg_seeded_add',$1) ON CONFLICT (skey) DO UPDATE SET sval=$1`, [JSON.stringify(seededAdd)]);
+      await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('sg_seeded_pairs',$1) ON CONFLICT (skey) DO UPDATE SET sval=$1`, [JSON.stringify(seededPairs)]);
     } catch (e) { console.error('[all subgroups]', e.message); }
 
     // Nodes seed
