@@ -26,7 +26,7 @@
   .grid.packed .col{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:9px}
   .q{break-inside:avoid;page-break-inside:avoid}
   .qeq{display:flex;gap:7px;align-items:baseline}.ql{font-weight:800;color:var(--purple);font-size:13px;min-width:24px}.qm{font-size:14px}
-  .wk{border:1.1px solid #e2daf5;border-radius:7px;background:linear-gradient(#fff,#fbf9ff);height:13mm;margin-top:5px;display:none}
+  .wk{border:1.1px solid #e2daf5;border-radius:7px;background:linear-gradient(#fff,#fbf9ff);height:13mm;margin-top:5px}
   .ans-page{margin-top:9mm;border-top:2px dashed #ddd;padding-top:7mm}.ans-page h2{font-size:15px;color:#5a32d6;margin-bottom:10px}
   .ans-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 16px;font-size:12px}.ans-grid .a{display:flex;gap:6px;align-items:baseline}.ans-grid .an{color:var(--soft);font-weight:800;min-width:28px}
   #answers{display:none}
@@ -42,11 +42,10 @@
 </div>
 <div class="sheet" id="sheet"></div>
 <script>
-window.WS_HAS_WORK=true;
 function rnd(a,b){return a+Math.floor(Math.random()*(b-a+1));}
 function pick(a){return a[rnd(0,a.length-1)];}
 function toggleAns(){var el=document.getElementById('answers');if(el)el.style.display=document.getElementById('sa').checked?'block':'none';}
-function toggleWork(){var on=document.getElementById('sw').checked;[].forEach.call(document.querySelectorAll('.wk'),function(w){w.style.display=on?'block':'none';});}
+function toggleWork(){layout();}
 function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){var t=a%b;a=b;b=t;}return a;}
 function isPS(n){var r=Math.round(Math.sqrt(n));return r*r===n;}
 function fmt1(x){return (Math.round(x*10)/10).toFixed(1);}
@@ -78,14 +77,18 @@ function relabel(sheet){var grids=sheet.querySelectorAll('.grid'),map={};
   var as=sheet.querySelectorAll('#answers .a');for(var j=0;j<as.length;j++){var an=as[j].querySelector('.an');if(an)an.textContent=map[as[j].getAttribute('data-k')]||'';}}
 function trimToFitBalanced(sheet,target){var guard=0,h=probeH(sheet);while(h>target&&guard++<400){var grids=sheet.querySelectorAll('.grid'),best=-1,bestN=-1;for(var s=grids.length-1;s>=0;s--){var n=grids[s].querySelectorAll('.q').length;if(n>bestN&&n>3){bestN=n;best=s;}}if(best<0)break;var qs=grids[best].querySelectorAll('.q'),last=qs[qs.length-1],k=last.getAttribute('data-k');var ans=sheet.querySelector('#answers .a[data-k="'+k+'"]');if(ans)ans.parentNode.removeChild(ans);last.parentNode.removeChild(last);relabel(sheet);h=probeH(sheet);}}
 function packColumns(sheet){[].forEach.call(sheet.querySelectorAll('.grid'),function(g){if(g.classList.contains('packed'))return;var qs=[].slice.call(g.children).filter(function(c){return c.classList&&c.classList.contains('q');});if(qs.length<2)return;var half=Math.ceil(qs.length/2),c1=document.createElement('div'),c2=document.createElement('div');c1.className='col';c2.className='col';qs.forEach(function(q,i){(i<half?c1:c2).appendChild(q);});g.appendChild(c1);g.appendChild(c2);g.classList.add('packed');});}
-function build(){
-  var S=[[],[],[],[],[]];window.__PROB=[];
-  function fill(idx,fn,n){var seen={},c=0,tr=0;while(c<n&&tr<2500){tr++;var f=gen(fn);if(!f||seen[f.q])continue;seen[f.q]=1;S[idx].push(f);c++;}}
-  fill(0,gFrac,6);fill(1,gApprox,6);fill(2,gCompare,7);fill(3,gClassify,8);fill(4,gSet,6);
+function genPool(){var P=[[],[],[],[],[]];
+  function fill(idx,fn,n){var seen={},c=0,tr=0;while(c<n&&tr<4000){tr++;var f=gen(fn);if(!f||seen[f.q])continue;seen[f.q]=1;P[idx].push(f);c++;}}
+  fill(0,gFrac,14);fill(1,gApprox,14);fill(2,gCompare,16);fill(3,gClassify,18);fill(4,gSet,16);
+  return P;}
+function build(){window.__POOL=genPool();layout();}
+function layout(){
+  var WK=document.getElementById('sw').checked;
+  var S=window.__POOL||(window.__POOL=genPool());window.__PROB=[];
   var K=0;
   function block(arr,work){return arr.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});
     return '<div class="q" data-k="'+k+'"><div class="qeq"><span class="ql"></span><span class="qm">'+f.q+'</span></div>'+(work?'<div class="wk"></div>':'')+'</div>';}).join('');}
-  var b=[block(S[0],true),block(S[1],true),block(S[2],false),block(S[3],false),block(S[4],false)];
+  var b=[block(S[0],WK),block(S[1],WK),block(S[2],false),block(S[3],false),block(S[4],false)];
   function ansAll(){return window.__PROB.map(function(p){return '<div class="a" data-k="'+p.k+'"><span class="an"></span><span>'+p.f.a+'</span></div>';}).join('');}
   document.getElementById('sheet').innerHTML=
     '<div class="head"><h1>Рационал ба иррационал тоо</h1><div class="sub">Бутархай ↔ аравтын бутархай · ойролцоолол · харьцуулалт · рационал/иррационал · тоон олонлог · 9-р анги · 1.1</div></div>'
@@ -98,10 +101,11 @@ function build(){
     +'<div class="task">5. Тоо $\\mathbb{N},\\ \\mathbb{Z},\\ \\mathbb{Q}$-ийн аль олонлогт хамгийн эхэлж багтахыг бич.</div><div class="grid">'+b[4]+'</div>'
     +'<div class="ans-page" id="answers"><h2>Хариунууд</h2><div class="ans-grid">'+ansAll()+'</div></div>';
   window.WS_ITEMS=[];window.WS_TITLE='Рационал ба иррационал тоо (9-р анги)';
-  relabel(document.getElementById('sheet'));toggleAns();toggleWork();
+  relabel(document.getElementById('sheet'));toggleAns();
   try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
   try{trimToFitBalanced(document.getElementById('sheet'),1035);}catch(e){}
   try{packColumns(document.getElementById('sheet'));}catch(e){}
+  try{relabel(document.getElementById('sheet'));}catch(e){}
 }
 build();
 </script>
