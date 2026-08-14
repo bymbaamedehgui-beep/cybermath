@@ -62,8 +62,10 @@ function gMul(){var da=rnd(1,9),db=rnd(1,9),p=rnd(1,4),q=rnd(1,4);
 // 3) Зөв болго (стандарт хэлбэрт оруул)
 function gFix(){var M=mant(),E=rnd(-6,9),s=pick([-2,-1,1,2]),B=buildB(M.digs,s);
   return {q:'$'+B+'\\times10^{'+(E-s)+'}$',a:'$'+M.m+'\\times10^{'+E+'}$',ok:true};}
-// 4) Тоонуудыг харьцуул
-function gCmp(){var A1=mant(),n1=rnd(-6,8),A2=mant(),n2=rnd(-6,8);
+// 4) Тоонуудыг харьцуул (хүнд: ижил эсвэл зэргэлдээ илтгэгч, 2–3 оронтой мантисса)
+function mant2(){var d=rnd(2,3),first=rnd(1,9),digs=''+first;for(var i=1;i<d;i++)digs+=rnd(0,9);if(digs[d-1]==='0')digs=digs.slice(0,d-1)+rnd(1,9);return {m:digs[0]+'.'+digs.slice(1)};}
+function gCmp(){var A1=mant2(),A2=mant2(),n1,n2;
+  if(rnd(0,3)<3){n1=rnd(-4,7);n2=n1;}else{n1=rnd(-3,6);n2=n1+pick([-1,1]);}
   var v1=parseFloat(A1.m)*Math.pow(10,n1),v2=parseFloat(A2.m)*Math.pow(10,n2);if(Math.abs(v1-v2)<1e-12)return null;
   var s=v1>v2?'\\gt':'\\lt';
   return {q:'$'+A1.m+'\\times10^{'+n1+'}$ ба $'+A2.m+'\\times10^{'+n2+'}$',a:'$'+A1.m+'\\times10^{'+n1+'} '+s+' '+A2.m+'\\times10^{'+n2+'}$',ok:true};}
@@ -74,7 +76,7 @@ function relabel(sheet){var grids=sheet.querySelectorAll('.grid'),map={};
   for(var g=0;g<grids.length;g++){var qs=grids[g].querySelectorAll('.q');
     for(var i=0;i<qs.length;i++){var letter=LET[i]||('#'+(i+1));var ql=qs[i].querySelector('.ql');if(ql)ql.textContent=letter+')';map[qs[i].getAttribute('data-k')]=(g+1)+letter+')';}}
   var as=sheet.querySelectorAll('#answers .a');for(var j=0;j<as.length;j++){var an=as[j].querySelector('.an');if(an)an.textContent=map[as[j].getAttribute('data-k')]||'';}}
-function trimToFitBalanced(sheet,target){var guard=0,h=probeH(sheet);while(h>target&&guard++<400){var grids=sheet.querySelectorAll('.grid'),best=-1,bestN=-1;for(var s=grids.length-1;s>=0;s--){var n=grids[s].querySelectorAll('.q').length;if(n>bestN&&n>3){bestN=n;best=s;}}if(best<0)break;var qs=grids[best].querySelectorAll('.q'),last=qs[qs.length-1],k=last.getAttribute('data-k');var ans=sheet.querySelector('#answers .a[data-k="'+k+'"]');if(ans)ans.parentNode.removeChild(ans);last.parentNode.removeChild(last);relabel(sheet);h=probeH(sheet);}}
+function trimToFitBalanced(sheet,target){var guard=0,h=probeH(sheet);while(h>target&&guard++<400){var grids=sheet.querySelectorAll('.grid'),best=-1,bestN=-1;for(var s=grids.length-1;s>=0;s--){var n=grids[s].querySelectorAll('.q').length;if(n>bestN&&n>3){bestN=n;best=s;}}if(best<0)break;var rm=function(){var qs=grids[best].querySelectorAll('.q');if(!qs.length)return;var last=qs[qs.length-1],k=last.getAttribute('data-k');var ans=sheet.querySelector('#answers .a[data-k="'+k+'"]');if(ans)ans.parentNode.removeChild(ans);last.parentNode.removeChild(last);};rm();rm();relabel(sheet);h=probeH(sheet);}}
 function packColumns(sheet){[].forEach.call(sheet.querySelectorAll('.grid'),function(g){if(g.classList.contains('packed'))return;var qs=[].slice.call(g.children).filter(function(c){return c.classList&&c.classList.contains('q');});if(qs.length<2)return;var half=Math.ceil(qs.length/2),c1=document.createElement('div'),c2=document.createElement('div');c1.className='col';c2.className='col';qs.forEach(function(q,i){(i<half?c1:c2).appendChild(q);});g.appendChild(c1);g.appendChild(c2);g.classList.add('packed');});}
 function genPool(){var P=[[],[],[],[]];
   function fill(idx,fn,n){var seen={},c=0,tr=0;while(c<n&&tr<4000){tr++;var f=gen(fn);if(!f||seen[f.q])continue;seen[f.q]=1;P[idx].push(f);c++;}}
