@@ -28,6 +28,11 @@
   .qeq{display:flex;gap:7px;align-items:baseline;margin-bottom:4px}.ql{font-weight:800;color:var(--purple);font-size:13px;min-width:24px}.qm{font-size:13px}
   .work{border:1.1px solid #e2daf5;border-radius:7px;background:linear-gradient(#fff,#fbf9ff)}
   .work.sm{height:13mm}
+  .dgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 12px}
+  .dcard{break-inside:avoid;page-break-inside:avoid;border:1px solid #eee7fb;border-radius:9px;padding:6px 7px;background:linear-gradient(#fff,#fcfbff)}
+  .dcard .dq{font-size:10.5px;margin-bottom:2px;min-height:15px}.dcard .dq b{color:var(--purple)}
+  .dsvg{width:100%;height:auto;display:block}
+  .aline{margin-top:3px;font-size:10.5px;color:var(--soft);text-align:center}.aline b{color:var(--ink);border-bottom:1px solid #cdbff0;padding:0 16px}
   .ans-page{margin-top:9mm;border-top:2px dashed #ddd;padding-top:7mm}.ans-page h2{font-size:15px;color:#5a32d6;margin-bottom:10px}
   .ans-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px 16px;font-size:12px}.ans-grid .a{display:flex;gap:6px;align-items:baseline}.ans-grid .an{color:var(--soft);font-weight:800;min-width:24px}
   #answers{display:none}
@@ -73,32 +78,67 @@ function g6(){var t=rnd(0,3);
   if(t===1)return {q:'$A, B$ цэгээс ижил зайд орших цэгийн геометр байр',a:'$AB$-ийн дундаж перпендикуляр',ok:true};
   if(t===2){var d=rnd(2,8);return {q:'$l$ шулуунаас $'+d+'$ см зайд орших цэгийн геометр байр',a:'$l$-тэй параллель хоёр шулуун',ok:true};}
   return {q:'Огтлолцсон хоёр шулуунаас ижил зайд орших цэгийн геометр байр',a:'Өнцгийн биссектрисүүд',ok:true};}
+// ── Диаграм engine ──
+var VB=130,VBH=118;
+function seg(a,b,col,w){return '<line x1="'+a[0].toFixed(1)+'" y1="'+a[1].toFixed(1)+'" x2="'+b[0].toFixed(1)+'" y2="'+b[1].toFixed(1)+'" stroke="'+col+'" stroke-width="'+(w||1.4)+'"/>';}
+function dt(p,col){return '<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="1.6" fill="'+(col||'#7B52EE')+'"/>';}
+function tx(p,s,col,dx,dy){return '<text x="'+(p[0]+(dx||0)).toFixed(1)+'" y="'+(p[1]+(dy||0)+2).toFixed(1)+'" font-size="8.5" fill="'+(col||'#1a1030')+'" text-anchor="middle" font-weight="700">'+s+'</text>';}
+function rmk(v,pa,pb){function u(p){var dx=p[0]-v[0],dy=p[1]-v[1],L=Math.hypot(dx,dy)||1;return [dx/L,dy/L];}var u1=u(pa),u2=u(pb),m=5.5,p1=[v[0]+u1[0]*m,v[1]+u1[1]*m],p2=[v[0]+(u1[0]+u2[0])*m,v[1]+(u1[1]+u2[1])*m],p3=[v[0]+u2[0]*m,v[1]+u2[1]*m];return '<path d="M'+p1[0].toFixed(1)+' '+p1[1].toFixed(1)+' L '+p2[0].toFixed(1)+' '+p2[1].toFixed(1)+' L '+p3[0].toFixed(1)+' '+p3[1].toFixed(1)+'" fill="none" stroke="#16a34a" stroke-width="1.1"/>';}
+function mid(a,b){return [(a[0]+b[0])/2,(a[1]+b[1])/2];}
+function dist(P,Q){return Math.hypot(P[0]-Q[0],P[1]-Q[1]);}
+function circumc(A,B,C){var ax=A[0],ay=A[1],bx=B[0],by=B[1],cx=C[0],cy=C[1],d=2*(ax*(by-cy)+bx*(cy-ay)+cx*(ay-by));return [((ax*ax+ay*ay)*(by-cy)+(bx*bx+by*by)*(cy-ay)+(cx*cx+cy*cy)*(ay-by))/d,((ax*ax+ay*ay)*(cx-bx)+(bx*bx+by*by)*(ax-cx)+(cx*cx+cy*cy)*(bx-ax))/d];}
+function svgW(g){return '<svg class="dsvg" viewBox="0 0 '+VB+' '+VBH+'" xmlns="http://www.w3.org/2000/svg">'+g+'</svg>';}
+// хөвч
+function figChord(){var t=pick(CHORDT),R=t[0],d=t[1],ak=t[2],CX=65,CY=48,Rpx=44,dpx=d/R*Rpx,hk=Math.sqrt(Rpx*Rpx-dpx*dpx);
+  var O=[CX,CY],K=[CX,CY+dpx],A=[CX-hk,CY+dpx],B=[CX+hk,CY+dpx];
+  var g='<circle cx="'+CX+'" cy="'+CY+'" r="'+Rpx+'" fill="none" stroke="#4a4470" stroke-width="1.3"/>'+seg(A,B,'#1a1030',1.6)+seg(O,A,'#2563eb',1.3)+seg(O,K,'#16a34a',1.3)+rmk(K,O,A)+dt(O,'#4a4470')+dt(A)+dt(B)+tx(O,'O','#4a4470',-4,-2)+tx(A,'A','#1a1030',-6,3)+tx(B,'B','#1a1030',6,3)+tx(mid(O,A),'R','#2563eb',-5,-1)+tx(mid(O,K),''+d,'#16a34a',6,1)+tx(mid(A,K),'?','#c2451f',0,9);
+  return {svg:svgW(g),q:'Радиус $'+R+'$, төвөөс зай $'+d+'$. Хагас хөвч $=?$',a:'$'+ak+'$',key:'ch'+R+'-'+d,ok:true};}
+// шүргэгч
+function figTan(){var t=pick(TANT),r=t[0],pt2=t[1],op=t[2],OX=40,CY=59,OPpx=70,ang=Math.asin(r/op),rpx=OPpx*Math.sin(ang),phi=(90-ang*180/Math.PI)*Math.PI/180;
+  var O=[OX,CY],P=[OX+OPpx,CY],T=[OX+rpx*Math.cos(phi),CY-rpx*Math.sin(phi)];
+  var g='<circle cx="'+OX+'" cy="'+CY+'" r="'+rpx.toFixed(1)+'" fill="none" stroke="#4a4470" stroke-width="1.3"/>'+seg(O,P,'#9a94b5',1.1)+seg(O,T,'#2563eb',1.3)+seg(P,T,'#1a1030',1.6)+rmk(T,O,P)+dt(O,'#4a4470')+dt(P)+dt(T)+tx(O,'O','#4a4470',-5,0)+tx(P,'P','#1a1030',6,3)+tx(T,'T','#1a1030',-1,-4)+tx(mid(O,T),''+r,'#2563eb',-4,-1)+tx(mid(O,P),''+op,'#9a6300',0,10)+tx(mid(P,T),'?','#c2451f',3,-3);
+  return {svg:svgW(g),q:'Радиус $'+r+'$, $OP='+op+'$. Шүргэгч $PT=?$',a:'$'+pt2+'$',key:'tn'+r+'-'+op,ok:true};}
+// огтлолцсон хөвч (чадал)
+function figPow(){for(var tr=0;tr<200;tr++){var pa=rnd(2,8),pb=rnd(2,8),prod=pa*pb,ds=divisors(prod).filter(function(x){return x>=2&&prod/x>=2&&prod/x<=13&&x!==prod/x;});if(!ds.length)continue;var pc=pick(ds),pd=prod/pc;
+  var t1=rnd(0,359)*Math.PI/180,t2=t1+rnd(72,108)*Math.PI/180,u1=[Math.cos(t1),Math.sin(t1)],u2=[Math.cos(t2),Math.sin(t2)],P=[0,0],A=[-pa*u1[0],-pa*u1[1]],B=[pb*u1[0],pb*u1[1]],C=[-pc*u2[0],-pc*u2[1]],D=[pd*u2[0],pd*u2[1]],O0=circumc(A,B,C),r0=dist(O0,A);
+  var pts=[P,A,B,C,D],xs=pts.map(function(p){return p[0];}).concat([O0[0]-r0,O0[0]+r0]),ys=pts.map(function(p){return p[1];}).concat([O0[1]-r0,O0[1]+r0]),minx=Math.min.apply(null,xs),maxx=Math.max.apply(null,xs),miny=Math.min.apply(null,ys),maxy=Math.max.apply(null,ys),W=maxx-minx,H=maxy-miny,pad=14,sc=Math.min((VB-2*pad)/W,(VBH-2*pad)/H),ex=(VB-2*pad-W*sc)/2,ey=(VBH-2*pad-H*sc)/2;
+  function M(p){return [pad+ex+(p[0]-minx)*sc,VBH-pad-ey-(p[1]-miny)*sc];}
+  var Pm=M(P),Am=M(A),Bm=M(B),Cm=M(C),Dm=M(D),Om=M(O0),ce=M(O0);
+  function pl(p,tt){var dx=p[0]-ce[0],dy=p[1]-ce[1],L=Math.hypot(dx,dy)||1;return tx([p[0]+dx/L*7,p[1]+dy/L*7],tt,'#1a1030',0,0);}
+  function sl(a,b,tt,col){var m=mid(a,b),dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy)||1,nx=-dy/L,ny=dx/L,tc=[ce[0]-m[0],ce[1]-m[1]];if(nx*tc[0]+ny*tc[1]>0){nx=-nx;ny=-ny;}return tx([m[0]+nx*6,m[1]+ny*6],tt,col,0,0);}
+  var g='<circle cx="'+Om[0].toFixed(1)+'" cy="'+Om[1].toFixed(1)+'" r="'+(r0*sc).toFixed(1)+'" fill="none" stroke="#4a4470" stroke-width="1.3"/>'+seg(Am,Bm,'#7B52EE',1.4)+seg(Cm,Dm,'#16a34a',1.4)+dt(Pm,'#e0562d')+dt(Am)+dt(Bm)+dt(Cm)+dt(Dm)+pl(Am,'A')+pl(Bm,'B')+pl(Cm,'C')+pl(Dm,'D')+pl(Pm,'P')+sl(Pm,Am,''+pa,'#7B52EE')+sl(Pm,Bm,''+pb,'#7B52EE')+sl(Pm,Cm,''+pc,'#16a34a')+sl(Pm,Dm,'?','#c2451f');
+  return {svg:svgW(g),q:'Огтлолцсон хөвч: $PA='+pa+',\\ PB='+pb+',\\ PC='+pc+'$. $PD=?$',a:'$'+pd+'$',key:'pw'+pa+'-'+pb+'-'+pc,ok:true};}return null;}
 function gen(fn){for(var t=0;t<300;t++){var f=fn();if(f&&f.ok)return f;}return null;}
 function probeH(sheet){var pr=sheet.cloneNode(true);pr.removeAttribute('id');pr.style.cssText='position:absolute;left:-99999px;top:0;width:210mm;max-width:none;min-height:0;margin:0;padding:0;box-shadow:none;zoom:1';var a=pr.querySelector('#answers,.ans-page');if(a)a.remove();document.body.appendChild(pr);var h=pr.scrollHeight;document.body.removeChild(pr);return h;}
-function relabel(sheet){var qs=sheet.querySelectorAll('.grid .q');for(var i=0;i<qs.length;i++){var el=qs[i].querySelector('.ql');if(el)el.textContent=(i+1)+'.';}var as=sheet.querySelectorAll('#answers .a');for(var j=0;j<as.length;j++){var e2=as[j].querySelector('.an');if(e2)e2.textContent=(j+1)+'.';}}
+function relabel(sheet){var i=1;[].forEach.call(sheet.querySelectorAll('.dcard .dn'),function(el){el.textContent=(i++)+'.';});[].forEach.call(sheet.querySelectorAll('.grid .q'),function(q){var el=q.querySelector('.ql');if(el)el.textContent=(i++)+'.';});var as=sheet.querySelectorAll('#answers .a');for(var j=0;j<as.length;j++){var e2=as[j].querySelector('.an');if(e2)e2.textContent=(j+1)+'.';}}
 function trimToFitBalanced(sheet,target){var guard=0,h=probeH(sheet);while(h>target&&guard++<400){var grids=sheet.querySelectorAll('.grid'),best=-1,bestN=-1;for(var s=grids.length-1;s>=0;s--){var n=grids[s].querySelectorAll('.q').length;if(n>bestN&&n>3){bestN=n;best=s;}}if(best<0)break;var qs=grids[best].querySelectorAll('.q'),last=qs[qs.length-1],k=last.getAttribute('data-k');var ans=sheet.querySelector('#answers .a[data-k="'+k+'"]');if(ans)ans.parentNode.removeChild(ans);last.parentNode.removeChild(last);relabel(sheet);h=probeH(sheet);}}
 function packColumns(sheet){[].forEach.call(sheet.querySelectorAll('.grid'),function(g){if(g.classList.contains('packed'))return;var qs=[].slice.call(g.children).filter(function(c){return c.classList&&c.classList.contains('q');});if(qs.length<2)return;var half=Math.ceil(qs.length/2),c1=document.createElement('div'),c2=document.createElement('div');c1.className='col';c2.className='col';qs.forEach(function(q,i){(i<half?c1:c2).appendChild(q);});g.appendChild(c1);g.appendChild(c2);g.classList.add('packed');});}
 function build(){
   var WORK=!!window.WS_WORK;
-  var S=[[],[],[],[],[],[]],seen={};window.__PROB=[];
+  var S=[[],[],[],[],[],[]],D=[],seen={};window.__PROB=[];
   function fill(idx,fn,n){var c=0,tr=0;while(c<n&&tr<2000){tr++;var f=gen(fn);if(!f||seen[f.q])continue;seen[f.q]=1;S[idx].push(f);c++;}}
-  var per=WORK?4:7;
+  var dfns=[figChord,figTan,figPow],dtr=0;while(D.length<3&&dtr++<400){var df=dfns[D.length]();if(!df||seen[df.key])continue;seen[df.key]=1;D.push(df);}
+  var per=WORK?4:6;
   fill(0,g1,per);fill(1,g2,per);fill(2,g3,per);fill(3,g4,per);fill(4,g5,per);fill(5,g6,per);
   var K=0;
   function block(arr){return arr.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});
     return '<div class="q" data-k="'+k+'"><div class="qeq"><span class="ql"></span><span class="qm">'+f.q+'</span></div>'+(WORK?'<div class="work sm"></div>':'')+'</div>';}).join('');}
+  function dblock(arr){return arr.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});
+    return '<div class="dcard"><div class="dq"><b class="dn"></b> '+f.q+'</div>'+f.svg+'<div class="aline">Хариу: <b>&nbsp;</b></div></div>';}).join('');}
+  var bd=dblock(D);
   var b=[block(S[0]),block(S[1]),block(S[2]),block(S[3]),block(S[4]),block(S[5])];
   function ansAll(){return window.__PROB.map(function(p){return '<div class="a" data-k="'+p.k+'"><span class="an"></span><span>'+p.f.a+'</span></div>';}).join('');}
   document.getElementById('sheet').innerHTML=
     '<div class="head"><h1>VII бүлэг — Жишиг даалгавар 2</h1><div class="sub">Хөвч · шүргэгч · шүргэгч-хөвчийн өнцөг · цэгийн чадал · хоёр тойргийн байршил · геометр байр · 10-р анги</div></div>'
     +'<div class="meta"><span>Нэр: </span><span>Огноо: </span><span>Оноо: </span></div>'
     +'<div class="rule">Хагас хөвч $=\\sqrt{R^2-d^2}$ · шүргэгч $=\\sqrt{OP^2-r^2}$ · шүргэгч-хөвчийн өнцөг $=$ багтсан өнцөг · $PA\\cdot PB=PC\\cdot PD$</div>'
-    +'<div class="task">1. Хагас хөвчийн уртыг ол.</div><div class="grid">'+b[0]+'</div>'
-    +'<div class="task">2. Шүргэгчийн уртыг ол.</div><div class="grid">'+b[1]+'</div>'
-    +'<div class="task">3. Шүргэгч-хөвчийн өнцгөөр багтсан өнцгийг ол.</div><div class="grid">'+b[2]+'</div>'
-    +'<div class="task">4. Огтлолцсон хөвчийн дутуу хэрчмийг ол.</div><div class="grid">'+b[3]+'</div>'
-    +'<div class="task">5. Хоёр тойргийн харилцан байршлыг тодорхойл.</div><div class="grid">'+b[4]+'</div>'
-    +'<div class="task">6. Цэгийн геометр байрыг тодорхойл.</div><div class="grid">'+b[5]+'</div>'
+    +'<div class="task">1. Зурагт бодлого: хөвч, шүргэгч, огтлолцсон хөвчийн чадал.</div><div class="dgrid">'+bd+'</div>'
+    +'<div class="task">2. Хагас хөвчийн уртыг ол.</div><div class="grid">'+b[0]+'</div>'
+    +'<div class="task">3. Шүргэгчийн уртыг ол.</div><div class="grid">'+b[1]+'</div>'
+    +'<div class="task">4. Шүргэгч-хөвчийн өнцгөөр багтсан өнцгийг ол.</div><div class="grid">'+b[2]+'</div>'
+    +'<div class="task">5. Огтлолцсон хөвчийн дутуу хэрчмийг ол.</div><div class="grid">'+b[3]+'</div>'
+    +'<div class="task">6. Хоёр тойргийн харилцан байршлыг тодорхойл.</div><div class="grid">'+b[4]+'</div>'
+    +'<div class="task">7. Цэгийн геометр байрыг тодорхойл.</div><div class="grid">'+b[5]+'</div>'
     +'<div class="ans-page" id="answers"><h2>Хариунууд</h2><div class="ans-grid">'+ansAll()+'</div></div>';
   window.WS_ITEMS=[];window.WS_TITLE='VII бүлэг — Жишиг даалгавар 2 (10-р анги)';
   relabel(document.getElementById('sheet'));toggleAns();
