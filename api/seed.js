@@ -133,7 +133,7 @@ module.exports = async (req, res) => {
         { grade: '10-р анги', name: 'VII бүлэг — Жишиг ба шалгалт', slugs: ['jishig-7-1-10.html', 'jishig-7-2-10.html', 'shalgalt-material-7-10.html'] },
         { grade: '10-р анги', name: 'Олонлог ба тоон завсар', slugs: ['olonlog-toon-zavsar-10.html'] },
         { grade: '10-р анги', name: 'Квадрат график — графикаас тэгшитгэл', slugs: ['grafik-kvadrat-tegsh.html'] },
-        { grade: '9-р анги', name: '1.1 Иррационал тоо', slugs: ['rational-too-9-1.html', 'irratsional-too-9-1.html'] },
+        { grade: '9-р анги', name: '1.1 Иррационал тоо', slugs: ['rational-too-9-1.html'] },
       ];
       const seedAddRow = await pool.query(`SELECT sval FROM ws_settings WHERE skey='sg_seeded_add'`);
       let seededAdd = [];
@@ -162,6 +162,12 @@ module.exports = async (req, res) => {
       if (!cfrm.rows.length) {
         await pool.query(`DELETE FROM ws_place WHERE slug='hoyor-toirog-shurgelt-10.html'`);
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('remove_74_ws2_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
+      // ── Нэг удаагийн: 9-1-ийг нэг хуудас болгосон тул irratsional-too-9-1-ийг байрлалаас авах ──
+      const cfr91 = await pool.query(`SELECT sval FROM ws_settings WHERE skey='merge_91_v1'`);
+      if (!cfr91.rows.length) {
+        await pool.query(`DELETE FROM ws_place WHERE slug='irratsional-too-9-1.html'`);
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('merge_91_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
       // Slug тус бүрээр (name|||slug) хосоор мөрддөг: байгаа дэд бүлэгт шинэ slug орно, гэхдээ
       // бүхэл дэд бүлгийг устгасан/нэр сольсныг хүндэтгэж дахин үүсгэхгүй.
