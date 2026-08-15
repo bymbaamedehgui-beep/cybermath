@@ -200,6 +200,9 @@ window.WS_LIST=[
     ['haritsaa-1-9.html','Харьцаа-1'],
     ['haritsaa-2-9.html','Харьцаа-2'],
     ['haritsaa-3-9.html','Харьцаа-3'],
+    ['jishig-2-1-9.html','Жишиг-1'],
+    ['jishig-2-2-9.html','Жишиг-2'],
+    ['shalgalt-material-2-9.html','Шалгалтын материал'],
   ]],
   ['10-р анги',[
     ['zereg-teg-sorog-10.html','Тэг ба сөрөг илтгэгчтэй зэрэг — үнэлгээ'],
