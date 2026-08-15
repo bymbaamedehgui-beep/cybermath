@@ -241,6 +241,9 @@ window.WS_LIST=[
     ['oorogsorih-1-9.html','Өөрийгөө сорих 1'],
     ['oorogsorih-2-9.html','Өөрийгөө сорих 2'],
     ['oorogsorih-3-9.html','Өөрийгөө сорих 3'],
+    ['daraalal-guishuud-9.html','Дараалал — гишүүд олох'],
+    ['daraalal-erunhii-9.html','Дараалал — ерөнхий гишүүн олох'],
+    ['daraalal-rekurrent-9.html','Дараалал — рекуррент томьёо'],
   ]],
   ['10-р анги',[
     ['zereg-teg-sorog-10.html','Тэг ба сөрөг илтгэгчтэй зэрэг — үнэлгээ'],
