@@ -149,7 +149,7 @@ module.exports = async (req, res) => {
         { grade: '9-р анги', name: '4.5 Квадрат тэгшитгэл', slugs: ['khyalbar-kvadrat-9.html', 'buten-kvadrat-yalgah-9.html', 'kvadrat-zadlah-9.html'] },
         { grade: '9-р анги', name: '4.6 Рационал тэгшитгэл', slugs: ['ratsional-bodoh-9.html', 'ratsional-kvadrat-9.html'] },
         { grade: '9-р анги', name: '4.7 Илтгэгч тэгшитгэл', slugs: ['iltgegch-bodoh-9.html', 'iltgegch-niilmel-9.html'] },
-        { grade: '9-р анги', name: 'IV бүлэг (Тэгшитгэл) — Жишиг ба шалгалт', slugs: ['jishig-4-1-9.html', 'jishig-4-2-9.html', 'shalgalt-material-4-1-9.html', 'shalgalt-material-4-2-9.html'] },
+        { grade: '9-р анги', name: 'Өөрийгөө сорих', slugs: ['jishig-4-1-9.html', 'jishig-4-2-9.html', 'shalgalt-material-4-1-9.html', 'shalgalt-material-4-2-9.html'] },
       ];
       const seedAddRow = await pool.query(`SELECT sval FROM ws_settings WHERE skey='sg_seeded_add'`);
       let seededAdd = [];
@@ -184,6 +184,12 @@ module.exports = async (req, res) => {
       if (!cfr91.rows.length) {
         await pool.query(`DELETE FROM ws_place WHERE slug='irratsional-too-9-1.html'`);
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('merge_91_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
+      // ── Нэг удаагийн: IV бүлгийн жишиг/шалгалтын дэд бүлгийг "Өөрийгөө сорих" болгож нэр солих ──
+      const cfros = await pool.query(`SELECT sval FROM ws_settings WHERE skey='rename_os_v1'`);
+      if (!cfros.rows.length) {
+        await pool.query(`UPDATE ws_subgroups SET name='Өөрийгөө сорих' WHERE grade='9-р анги' AND name='IV бүлэг (Тэгшитгэл) — Жишиг ба шалгалт'`);
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('rename_os_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
       // Slug тус бүрээр (name|||slug) хосоор мөрддөг: байгаа дэд бүлэгт шинэ slug орно, гэхдээ
       // бүхэл дэд бүлгийг устгасан/нэр сольсныг хүндэтгэж дахин үүсгэхгүй.
