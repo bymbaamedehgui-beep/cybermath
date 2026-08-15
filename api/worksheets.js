@@ -672,7 +672,7 @@ module.exports = async (req, res) => {
         return res.json({ ok: true });
       }
       // Нэр өөрчлөх / нуух / сэргээх / дараалал — ЗӨВХӨН АДМИН
-      if (['setTitle', 'resetTitle', 'hideTopic', 'unhideTopic', 'setOrder',
+      if (['setTitle', 'resetTitle', 'hideTopic', 'unhideTopic', 'purgeTopic', 'setOrder',
            'moveTopic', 'dupTopic', 'removePlacement',
            'sg_create', 'sg_rename', 'sg_delete', 'sg_assign', 'sg_unassign', 'sg_reorder'].indexOf(b.action) >= 0) {
         if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ өөрчилнө' });
@@ -796,6 +796,17 @@ module.exports = async (req, res) => {
         const slug = String(b.slug || '').slice(0, 120);
         if (!slug) return res.status(400).json({ ok: false });
         await pool.query('DELETE FROM ws_hidden WHERE slug=$1', [slug]);
+        return res.json({ ok: true });
+      }
+      // Бүрмөсөн устгах: бүх байршил, дараалал, нэрийн өөрчлөлтийг устгаж, каталогоос нуух.
+      // seed-ийн sg_seeded_pairs хамгаалалт нь дахин нэмэхээс сэргийлнэ (устгасныг сэргээхгүй).
+      if (b.action === 'purgeTopic') {
+        const slug = String(b.slug || '').slice(0, 120);
+        if (!slug) return res.status(400).json({ ok: false, error: 'slug дутуу' });
+        await pool.query('DELETE FROM ws_place WHERE slug=$1', [slug]);
+        await pool.query('DELETE FROM ws_order WHERE slug=$1', [slug]);
+        await pool.query('DELETE FROM ws_titles WHERE slug=$1', [slug]);
+        await pool.query('INSERT INTO ws_hidden (slug) VALUES ($1) ON CONFLICT (slug) DO NOTHING', [slug]);
         return res.json({ ok: true });
       }
       if (b.action === 'setTitle') {

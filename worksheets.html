@@ -286,6 +286,7 @@
   <button data-act="move" class="admin-only"><span class="cxi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 11 21 7 17 3"/><path d="M21 7H9"/><polyline points="7 21 3 17 7 13"/><path d="M15 17H3"/></svg></span> Анги хооронд зөөх</button>
   <button data-act="dup" class="admin-only"><span class="cxi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></span> Хувилах (өөр ангид)</button>
   <button data-act="delete" class="admin-only danger"><span class="cxi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></span> Устгах</button>
+  <button data-act="purge" class="admin-only danger"><span class="cxi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11l4 4"/><path d="M14 11l-4 4"/></svg></span> Бүрмөсөн устгах</button>
 </div>
 
 <div class="modal" id="grpModal" onclick="if(event.target===this)closeGrp()">
@@ -973,7 +974,21 @@ document.getElementById('ctxMenu').addEventListener('click',function(e){
   else if(act==='move')openGrpPicker(card,'move');
   else if(act==='dup')openGrpPicker(card,'dup');
   else if(act==='delete')toggleHide(card);
+  else if(act==='purge')purgeTopic(card);
 });
+function purgeTopic(card){
+  if(!isAdmin()){alert('Зөвхөн админ');return;}
+  var slug=card.getAttribute('data-slug'),title=card.getAttribute('data-title');
+  if(!confirm('"'+title+'" ажлын хуудсыг БҮРМӨСӨН устгах уу?\nБүх ангиас арилгах бөгөөд сэргээх боломжгүй.'))return;
+  if(!confirm('Дахин баталгаажуулна уу — "'+title+'" бүрмөсөн устгагдана.'))return;
+  fetch('/api/worksheets',{method:'POST',headers:adminHeaders(),body:JSON.stringify({action:'purgeTopic',slug:slug})})
+    .then(function(r){if(r.status===401)throw new Error('Зөвхөн админ');return r.json();})
+    .then(function(d){if(!d||!d.ok)throw new Error((d&&d.error)||'Алдаа');
+      HIDDEN[slug]=1;
+      if(PLACE&&PLACE.add){Object.keys(PLACE.add).forEach(function(g){pull(PLACE.add,g,slug);});}
+      renderCatalog();applyFilters();toast('🗑 Бүрмөсөн устгалаа');
+    }).catch(function(e){alert('Алдаа: '+e.message);});
+}
 
 /* ----- Анги хооронд зөөх / хувилах (зөвхөн админ) ----- */
 var grpCard=null,grpMode='move';
