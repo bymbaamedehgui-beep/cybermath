@@ -246,6 +246,7 @@ window.WS_LIST=[
     ['daraalal-rekurrent-9.html','Дараалал — рекуррент томьёо'],
     ['sistem-grafik-9.html','Систем бодох графикийн арга'],
     ['shuluun-nalalt-9.html','Шулууны налалт'],
+    ['urvuu-funkts-9.html','Шугаман функцийн урвуу функц'],
   ]],
   ['10-р анги',[
     ['zereg-teg-sorog-10.html','Тэг ба сөрөг илтгэгчтэй зэрэг — үнэлгээ'],
