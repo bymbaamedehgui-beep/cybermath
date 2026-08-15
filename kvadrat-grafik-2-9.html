@@ -26,6 +26,7 @@
   .q{break-inside:avoid;page-break-inside:avoid}
   .qeq{display:flex;gap:7px;align-items:baseline}.ql{font-weight:800;color:var(--purple);font-size:13px;min-width:24px}.qm{font-size:14px}
   .qbody{display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding-left:30px;margin-top:5px}
+  .shiid{padding-left:30px;font-size:12.5px;color:#7a7390;margin-top:4px}.shiid u{display:inline-block;min-width:130px;border-bottom:1px dotted #b3a9cf;text-decoration:none}
   .wk{border:1.1px solid #e2daf5;border-radius:7px;background:linear-gradient(#fff,#fbf9ff);height:12mm;margin-top:5px}
   table.vt{border-collapse:collapse;font-size:12.5px}
   table.vt th,table.vt td{border:1px solid #c9bdec;padding:3px 8px;text-align:center;min-width:26px;height:22px}
@@ -53,12 +54,25 @@ function quadStr(b,c){var t='x^2';if(b===1)t+='+x';else if(b===-1)t+='-x';else i
 function valTable(xs,ys,show){var xh='<tr><th>$x$</th>'+xs.map(function(x){return '<td>$'+x+'$</td>';}).join('')+'</tr>';
   var yh='<tr><th>$y$</th>'+xs.map(function(x,i){return show?'<td>$'+ys[i]+'$</td>':'<td class="blank"></td>';}).join('')+'</tr>';
   return '<table class="vt">'+xh+yh+'</table>';}
+function parabolaPlot(r1,r2){var lo=Math.min(r1,r2),hi=Math.max(r1,r2),vy=-(hi-lo)*(hi-lo)/4;
+  var x0=lo-2,x1=hi+2,y0=Math.floor(vy)-1,y1=Math.max(4,y0+Math.ceil(x1-x0));
+  var PW=120,PH=104,mL=16,mT=10,ux=PW/(x1-x0),uy=PH/(y1-y0);
+  function px(x){return mL+(x-x0)*ux;}function py(y){return mT+(y1-y)*uy;}
+  var W=mL+PW+8,H=mT+PH+10,g='';
+  for(var i=Math.ceil(x0);i<=Math.floor(x1);i++)g+='<line x1="'+px(i).toFixed(1)+'" y1="'+mT+'" x2="'+px(i).toFixed(1)+'" y2="'+(mT+PH)+'" stroke="#ede9fa" stroke-width="0.5"/>';
+  for(var j=Math.ceil(y0);j<=Math.floor(y1);j++)g+='<line x1="'+mL+'" y1="'+py(j).toFixed(1)+'" x2="'+(mL+PW)+'" y2="'+py(j).toFixed(1)+'" stroke="#ede9fa" stroke-width="0.5"/>';
+  if(y0<=0&&y1>=0)g+='<line x1="'+mL+'" y1="'+py(0).toFixed(1)+'" x2="'+(mL+PW)+'" y2="'+py(0).toFixed(1)+'" stroke="#555" stroke-width="1"/>';
+  if(x0<=0&&x1>=0)g+='<line x1="'+px(0).toFixed(1)+'" y1="'+mT+'" x2="'+px(0).toFixed(1)+'" y2="'+(mT+PH)+'" stroke="#555" stroke-width="1"/>';
+  var pts='';for(var x=x0;x<=x1+0.001;x+=(x1-x0)/70){var y=(x-r1)*(x-r2);if(y<y0-0.3||y>y1+0.3)continue;pts+=px(x).toFixed(1)+','+py(y).toFixed(1)+' ';}
+  g+='<polyline points="'+pts+'" fill="none" stroke="#7B52EE" stroke-width="1.7"/>';
+  for(var t=Math.ceil(x0);t<=Math.floor(x1);t++){if(t===0)continue;g+='<text x="'+(px(t)-2).toFixed(1)+'" y="'+(py(0)+9).toFixed(1)+'" font-size="7.5" fill="#8a80b0">'+t+'</text>';}
+  return '<svg width="'+W.toFixed(0)+'" height="'+H.toFixed(0)+'" viewBox="0 0 '+W.toFixed(0)+' '+H.toFixed(0)+'" style="flex-shrink:0">'+g+'</svg>';}
 // Section 1: орой ба тэнхлэг + хүснэгт
 function g1(){var xv=rnd(-1,1),m=rnd(-4,2),b=-2*xv,c=xv*xv+m;var xs=[],ys=[];for(var x=xv-3;x<=xv+3;x++){xs.push(x);ys.push((x-xv)*(x-xv)+m);}
   return {q:'$y='+quadStr(b,c)+'$',tbl:valTable(xs,ys,false),a:'$y:\\ '+ys.join(',\\ ')+'$; орой $('+xv+';\\ '+m+')$, тэнхлэг $x='+xv+'$',ok:true};}
 // Section 2: график ашиглан x^2+bx+c=0 бод (бүхэл язгуур)
-function g2(){for(var t=0;t<200;t++){var r1=nz(-6,6),r2=nz(-6,6);if(r1===r2)continue;var b=-(r1+r2),c=r1*r2,lo=Math.min(r1,r2),hi=Math.max(r1,r2);
-  return {q:'$'+quadStr(b,c)+'=0$',a:'$x_1='+lo+',\\ x_2='+hi+'$',ok:true};}return null;}
+function g2(){for(var t=0;t<300;t++){var r1=nz(-6,6),r2=nz(-6,6);if(r1===r2)continue;if(Math.abs(r1-r2)>6)continue;var b=-(r1+r2),c=r1*r2,lo=Math.min(r1,r2),hi=Math.max(r1,r2);
+  return {q:'$'+quadStr(b,c)+'=0$',r1:r1,r2:r2,a:'$x_1='+lo+',\\ x_2='+hi+'$',ok:true};}return null;}
 // Section 3: хамгийн бага утга
 function g3(){var xv=nz(-4,4),m=nz(-6,6),b=-2*xv,c=xv*xv+m;return {q:'$y='+quadStr(b,c)+'$',a:'хамгийн бага $y='+m+'$ ($x='+xv+'$)',ok:true};}
 function gen(fn){for(var t=0;t<300;t++){var f=fn();if(f&&f.ok)return f;}return null;}
@@ -71,12 +85,14 @@ function relabel(sheet){var grids=sheet.querySelectorAll('.grid'),map={};
 function trimSec(sheet,gi,minN,target){var guard=0,h=probeH(sheet);var g=sheet.querySelectorAll('.grid')[gi];while(h>target&&guard++<60){var qs=g.querySelectorAll('.q');if(qs.length<=minN)break;var last=qs[qs.length-1],k=last.getAttribute('data-k');var ans=sheet.querySelector('#answers .a[data-k="'+k+'"]');if(ans)ans.parentNode.removeChild(ans);last.parentNode.removeChild(last);relabel(sheet);h=probeH(sheet);}}
 function build(){window.__S1=[];window.__S2=[];window.__S3=[];
   var seen={};function add(arr,fn,n){var c=0,tr=0;while(c<n&&tr<3000){tr++;var f=gen(fn);if(!f||seen[f.q])continue;seen[f.q]=1;arr.push(f);c++;}}
-  add(window.__S1,g1,3);add(window.__S2,g2,8);add(window.__S3,g3,8);layout();}
+  add(window.__S1,g1,3);add(window.__S2,g2,6);add(window.__S3,g3,8);layout();}
 function layout(){
   window.__PROB=[];var K=0;
   function blk(arr,tbl){return arr.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});
     return '<div class="q" data-k="'+k+'"><div class="qeq"><span class="ql"></span><span class="qm">'+f.q+'</span></div>'+(tbl?'<div class="qbody">'+f.tbl+'</div>':'<div class="wk"></div>')+'</div>';}).join('');}
-  var b1=blk(window.__S1,true),b2=blk(window.__S2,false),b3=blk(window.__S3,false);
+  function blkGraph(arr){return arr.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});
+    return '<div class="q" data-k="'+k+'"><div class="qeq"><span class="ql"></span><span class="qm">'+f.q+'</span></div><div class="qbody">'+parabolaPlot(f.r1,f.r2)+'</div><div class="shiid">Шийд: <u>&nbsp;</u></div></div>';}).join('');}
+  var b1=blk(window.__S1,true),b2=blkGraph(window.__S2),b3=blk(window.__S3,false);
   function ansAll(){return window.__PROB.map(function(p){return '<div class="a" data-k="'+p.k+'"><span class="an"></span><span>'+p.f.a+'</span></div>';}).join('');}
   document.getElementById('sheet').innerHTML=
     '<div class="head"><h1>Квадрат функц — орой, тэгш хэм, шийд</h1><div class="sub">Параболын орой · тэгш хэмийн тэнхлэг · график ашиглан тэгшитгэл бодох · хамгийн бага утга · 9-р анги · 5.3</div></div>'
