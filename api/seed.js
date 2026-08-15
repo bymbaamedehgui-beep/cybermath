@@ -149,7 +149,8 @@ module.exports = async (req, res) => {
         { grade: '9-р анги', name: '4.5 Квадрат тэгшитгэл', slugs: ['khyalbar-kvadrat-9.html', 'buten-kvadrat-yalgah-9.html', 'kvadrat-zadlah-9.html'] },
         { grade: '9-р анги', name: '4.6 Рационал тэгшитгэл', slugs: ['ratsional-bodoh-9.html', 'ratsional-kvadrat-9.html'] },
         { grade: '9-р анги', name: '4.7 Илтгэгч тэгшитгэл', slugs: ['iltgegch-bodoh-9.html', 'iltgegch-niilmel-9.html'] },
-        { grade: '9-р анги', name: 'Өөрийгөө сорих', slugs: ['jishig-4-1-9.html', 'jishig-4-2-9.html', 'shalgalt-material-4-1-9.html', 'shalgalt-material-4-2-9.html'] },
+        { grade: '9-р анги', name: 'IV бүлэг (Тэгшитгэл) — Жишиг ба шалгалт', slugs: ['jishig-4-1-9.html', 'jishig-4-2-9.html', 'shalgalt-material-4-1-9.html', 'shalgalt-material-4-2-9.html'] },
+        { grade: '9-р анги', name: 'Өөрийгөө сорих', slugs: ['oorogsorih-1-9.html', 'oorogsorih-2-9.html', 'oorogsorih-3-9.html'] },
       ];
       const seedAddRow = await pool.query(`SELECT sval FROM ws_settings WHERE skey='sg_seeded_add'`);
       let seededAdd = [];
@@ -190,6 +191,15 @@ module.exports = async (req, res) => {
       if (!cfros.rows.length) {
         await pool.query(`UPDATE ws_subgroups SET name='Өөрийгөө сорих' WHERE grade='9-р анги' AND name='IV бүлэг (Тэгшитгэл) — Жишиг ба шалгалт'`);
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('rename_os_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
+      // ── Нэг удаагийн: буруу нэрлэлтийг буцаах — "Өөрийгөө сорих"-ыг эргүүлж "Жишиг ба шалгалт" болгож,
+      //    "Өөрийгөө сорих" нэрийг тэмдэглэлээс цэвэрлэнэ (доор шинэ тусдаа "Өөрийгөө сорих" бүлэг үүснэ) ──
+      const cfrosv2 = await pool.query(`SELECT sval FROM ws_settings WHERE skey='rename_os_v2'`);
+      if (!cfrosv2.rows.length) {
+        await pool.query(`UPDATE ws_subgroups SET name='IV бүлэг (Тэгшитгэл) — Жишиг ба шалгалт' WHERE grade='9-р анги' AND name='Өөрийгөө сорих'`);
+        seededAdd = seededAdd.filter(n => n !== 'Өөрийгөө сорих');
+        seededPairs = seededPairs.filter(k => String(k).indexOf('Өөрийгөө сорих|||') !== 0);
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('rename_os_v2','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
       // Slug тус бүрээр (name|||slug) хосоор мөрддөг: байгаа дэд бүлэгт шинэ slug орно, гэхдээ
       // бүхэл дэд бүлгийг устгасан/нэр сольсныг хүндэтгэж дахин үүсгэхгүй.
