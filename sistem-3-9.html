@@ -21,6 +21,7 @@
   .meta{display:flex;justify-content:space-between;font-size:11.5px;margin:8px 2px 10px}.meta span{border-bottom:1px dotted #b3a9cf;padding:0 26px 2px 4px}
   .rule{font-size:11.5px;color:var(--amber);background:#fff7e6;border:1px solid #f3dca6;border-radius:8px;padding:9px 12px;margin-bottom:13px}
   .rule ol{margin:4px 0 0 18px}.rule li{margin:1px 0}
+  .method{font-weight:800;color:#5a32d6;font-size:14.5px;margin:14px 0 8px;padding:4px 0 4px 10px;border-left:5px solid var(--purple2)}
   .prob{break-inside:avoid;page-break-inside:avoid;margin-bottom:13px;border:1.4px solid #e2daf5;border-radius:11px;padding:10px 13px}
   .pn{display:inline-block;font-weight:800;color:#fff;background:var(--purple);border-radius:6px;padding:1px 9px;font-size:12px;margin-bottom:6px}
   .step{font-size:13.5px;margin:4px 0 4px 6px;color:#241a3d}
@@ -67,15 +68,38 @@ function solveHtml(S){
   h+=res('$x='+S.x0+',\\ y='+S.y0+'$');
   return h;
 }
+function tS(c,v){if(c===0)return '';return (c<0?'-':'+')+(Math.abs(c)===1?'':Math.abs(c))+v;}
+// Орлуулах аргад тохирсон систем ($x$-ийн коэффициент 1)
+function subSystem(){var x0=nz(-5,5),y0=nz(-5,5),b1=nz(-3,3),a2=rnd(2,4),b2=nz(-3,3);
+  if(b2-a2*b1===0)return null;var c1=x0+b1*y0,c2=a2*x0+b2*y0;
+  return {b1:b1,a2:a2,b2:b2,c1:c1,c2:c2,x0:x0,y0:y0};}
+function solveSubHtml(S){
+  var h='';
+  h+=step('Систем:','$'+sysStr(eqStr(1,S.b1,S.c1)+'\\quad(1)',eqStr(S.a2,S.b2,S.c2)+'\\quad(2)')+'$');
+  var yc=-S.b1,iso=''+S.c1+(yc!==0?((yc<0?'-':'+')+(Math.abs(yc)===1?'':Math.abs(yc))+'y'):'');
+  h+=step('1.','$(1)$-ээс $x$-ийг илэрхийлье: $x='+iso+'$');
+  h+=step('2.','$(2)$-т орлуулбал: $'+S.a2+'\\left('+iso+'\\right)'+tS(S.b2,'y')+'='+S.c2+'$');
+  var yc2=S.b2-S.a2*S.b1,yr=S.c2-S.a2*S.c1;
+  h+=step('','$'+coefT(yc2,'y')+'='+yr+'\\ \\Rightarrow\\ y='+S.y0+'$');
+  h+=step('3.','$y='+S.y0+'$-г орлуулж: $x='+S.x0+'$');
+  h+=res('$x='+S.x0+',\\ y='+S.y0+'$');
+  return h;
+}
 function build(){
-  var arr=[],seen={},tries=0;
-  while(arr.length<5&&tries<400){tries++;var S=makeSystem();if(!S)continue;var key=eqStr(S.a1,S.b1,S.c1)+eqStr(S.a2,S.b2,S.c2);if(seen[key])continue;seen[key]=1;arr.push(S);}
-  var html=arr.map(function(S,i){return '<div class="prob"><span class="pn">Жишээ '+(i+1)+'</span>'+solveHtml(S)+'</div>';}).join('');
+  var subs=[],elims=[],seen={},tr=0;
+  while(subs.length<3&&tr<600){tr++;var Ss=subSystem();if(!Ss)continue;var k1='s'+eqStr(1,Ss.b1,Ss.c1)+eqStr(Ss.a2,Ss.b2,Ss.c2);if(seen[k1])continue;seen[k1]=1;subs.push(Ss);}
+  tr=0;while(elims.length<3&&tr<600){tr++;var Se=makeSystem();if(!Se)continue;var k2='e'+eqStr(Se.a1,Se.b1,Se.c1)+eqStr(Se.a2,Se.b2,Se.c2);if(seen[k2])continue;seen[k2]=1;elims.push(Se);}
+  var subHtml=subs.map(function(S,i){return '<div class="prob"><span class="pn">Жишээ '+(i+1)+'</span>'+solveSubHtml(S)+'</div>';}).join('');
+  var elimHtml=elims.map(function(S,i){return '<div class="prob"><span class="pn">Жишээ '+(i+1)+'</span>'+solveHtml(S)+'</div>';}).join('');
   document.getElementById('sheet').innerHTML=
-    '<div class="head"><h1>Систем бодох — алхам алхмаар (нэмэх арга)</h1><div class="sub">Бодолтыг дагаж, алхам бүрийг гүйцэтгээрэй · 9-р анги · 4.3</div></div>'
+    '<div class="head"><h1>Систем бодох — алхам алхмаар</h1><div class="sub">Орлуулах ба нэмэх арга · бодолтыг дагаж алхам бүрийг гүйцэтгээрэй · 9-р анги · 4.3</div></div>'
     +'<div class="meta"><span>Нэр: </span><span>Огноо: </span><span> </span></div>'
+    +'<div class="method">A. Орлуулах арга</div>'
+    +'<div class="rule"><b>Орлуулах аргын алхмууд:</b><ol><li>Нэг тэгшитгэлээс коэффициент нь $1$ хувьсагчийг илэрхийл (ж: $x=\\ldots$).</li><li>Илэрхийллийг нөгөө тэгшитгэлд орлуулж, нэг хувьсагчтай тэгшитгэл гарган бод.</li><li>Гарсан утгыг $x=\\ldots$-д орлуулж нөгөө хувьсагчийг ол.</li></ol></div>'
+    +subHtml
+    +'<div class="method">Б. Нэмэх арга</div>'
     +'<div class="rule"><b>Нэмэх аргын алхмууд:</b><ol><li>Нэг хувьсагчийн коэффициентийг тохирох тоогоор үржүүлж тэнцүү болго.</li><li>Тэгшитгэлүүдийг хасаж (эсвэл нэмж) уг хувьсагчийг арилга → нэг хувьсагчтай тэгшитгэл бод.</li><li>Гарсан утгыг эхний тэгшитгэлд орлуулж нөгөө хувьсагчийг ол.</li></ol></div>'
-    +html;
+    +elimHtml;
   window.WS_ITEMS=[];window.WS_TITLE='Систем — алхам алхмаар';
   try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
 }
