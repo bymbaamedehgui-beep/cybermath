@@ -52,12 +52,19 @@ function quadStr(b,c){var t='x^2';if(b===1)t+='+x';else if(b===-1)t+='-x';else i
 function valTable(xs,ys,show){var xh='<tr><th>$x$</th>'+xs.map(function(x){return '<td>$'+x+'$</td>';}).join('')+'</tr>';
   var yh='<tr><th>$y$</th>'+xs.map(function(x,i){return show?'<td>$'+ys[i]+'$</td>':'<td class="blank"></td>';}).join('')+'</tr>';
   return '<table class="vt">'+xh+yh+'</table>';}
-function parabGrid(){var ux=13,uy=8,ox=16+4*ux,oy=16+11*uy,W=16+8*ux+8,H=16+16*uy+8,g='';
-  for(var i=-4;i<=4;i++){var px=ox+i*ux;g+='<line x1="'+px+'" y1="16" x2="'+px+'" y2="'+(16+16*uy)+'" stroke="#e8e3f7" stroke-width="0.5"/>';}
-  for(var j=-5;j<=11;j++){var py=oy-j*uy;g+='<line x1="16" y1="'+py+'" x2="'+(16+8*ux)+'" y2="'+py+'" stroke="#e8e3f7" stroke-width="0.5"/>';}
-  g+='<line x1="16" y1="'+oy+'" x2="'+(16+8*ux)+'" y2="'+oy+'" stroke="#555" stroke-width="1"/><line x1="'+ox+'" y1="16" x2="'+ox+'" y2="'+(16+16*uy)+'" stroke="#555" stroke-width="1"/>';
-  g+='<text x="'+(ox+3)+'" y="24" font-size="9" fill="#555">y</text><text x="'+(16+8*ux-6)+'" y="'+(oy-3)+'" font-size="9" fill="#555">x</text>';
-  return '<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" style="flex-shrink:0">'+g+'</svg>';}
+function labeledGrid(x0,x1,y0,y1){var PW=155,PH=150,mL=24,mT=12,ux=PW/(x1-x0),uy=PH/(y1-y0);
+  function px(x){return mL+(x-x0)*ux;}function py(y){return mT+(y1-y)*uy;}
+  var W=mL+PW+8,H=mT+PH+16,g='';
+  for(var i=Math.ceil(x0);i<=Math.floor(x1);i++)g+='<line x1="'+px(i).toFixed(1)+'" y1="'+mT+'" x2="'+px(i).toFixed(1)+'" y2="'+(mT+PH)+'" stroke="#ede9fa" stroke-width="0.5"/>';
+  for(var j=Math.ceil(y0);j<=Math.floor(y1);j++)g+='<line x1="'+mL+'" y1="'+py(j).toFixed(1)+'" x2="'+(mL+PW)+'" y2="'+py(j).toFixed(1)+'" stroke="#ede9fa" stroke-width="0.5"/>';
+  var axY=py(0),axX=px(0);
+  g+='<line x1="'+mL+'" y1="'+axY.toFixed(1)+'" x2="'+(mL+PW)+'" y2="'+axY.toFixed(1)+'" stroke="#555" stroke-width="1"/><line x1="'+axX.toFixed(1)+'" y1="'+mT+'" x2="'+axX.toFixed(1)+'" y2="'+(mT+PH)+'" stroke="#555" stroke-width="1"/>';
+  for(var t=Math.ceil(x0);t<=Math.floor(x1);t++){if(t===0)continue;g+='<text x="'+(px(t)-3).toFixed(1)+'" y="'+(axY+9).toFixed(1)+'" font-size="8" fill="#777">'+t+'</text>';}
+  var yStep=(y1-y0>13)?2:1;
+  for(var s2=Math.ceil(y0);s2<=Math.floor(y1);s2++){if(s2===0||s2%yStep!==0)continue;g+='<text x="'+(axX-14).toFixed(1)+'" y="'+(py(s2)+3).toFixed(1)+'" font-size="8" fill="#777">'+s2+'</text>';}
+  g+='<text x="'+(axX+3).toFixed(1)+'" y="'+(mT+7)+'" font-size="9" fill="#555" font-weight="700">y</text><text x="'+(mL+PW-6)+'" y="'+(axY-3).toFixed(1)+'" font-size="9" fill="#555" font-weight="700">x</text>';
+  return '<svg width="'+W.toFixed(0)+'" height="'+H.toFixed(0)+'" viewBox="0 0 '+W.toFixed(0)+' '+H.toFixed(0)+'" style="flex-shrink:0">'+g+'</svg>';}
+function gridForQuad(xv,m){return labeledGrid(xv-3,xv+3,Math.min(m-1,0),m+10);}
 // y=(x-xv)^2+m ; таблиц x=xv-3..xv+3
 function gq(){var xv=rnd(-1,1),m=rnd(-4,2),b=-2*xv,c=xv*xv+m;var xs=[],ys=[];for(var x=xv-3;x<=xv+3;x++){xs.push(x);ys.push((x-xv)*(x-xv)+m);}
   return {b:b,c:c,xs:xs,ys:ys,xv:xv,m:m};}
@@ -68,7 +75,7 @@ function build(){window.__POOL=[];var seen={},tr=0;while(window.__POOL.length<6&
 function layout(){
   var S=window.__POOL||[];var body='',ak='';
   S.forEach(function(f,i){var stem='$y='+quadStr(f.b,f.c)+'$ функцийн утгын хүснэгтийг нөхөж, графикийг байгуул.';
-    body+='<div class="q" data-k="'+i+'"><div class="qh"><span class="qn">'+(i+1)+'.</span><span class="qm">'+stem+'</span></div><div class="qbody">'+valTable(f.xs,f.ys,false)+parabGrid()+'</div></div>';
+    body+='<div class="q" data-k="'+i+'"><div class="qh"><span class="qn">'+(i+1)+'.</span><span class="qm">'+stem+'</span></div><div class="qbody">'+valTable(f.xs,f.ys,false)+gridForQuad(f.xv,f.m)+'</div></div>';
     ak+='<div class="ak" data-k="'+i+'"><span class="n">'+(i+1)+')</span> $y:\\ '+f.ys.join(',\\ ')+'$; орой $('+f.xv+';\\ '+f.m+')$, тэнхлэг $x='+f.xv+'$</div>';});
   document.getElementById('sheet').innerHTML=
     '<div class="head"><h1>Квадрат функц — утгын хүснэгт ба график</h1><div class="sub">Утгын хүснэгтийг нөхөж, параболыг байгуул · 9-р анги · 5.3</div></div>'
