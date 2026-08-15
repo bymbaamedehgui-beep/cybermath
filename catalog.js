@@ -203,6 +203,10 @@ window.WS_LIST=[
     ['jishig-2-1-9.html','Жишиг-1'],
     ['jishig-2-2-9.html','Жишиг-2'],
     ['shalgalt-material-2-9.html','Шалгалтын материал'],
+    ['magadlal-1-9.html','Магадлал-1'],
+    ['magadlal-2-9.html','Магадлал-2'],
+    ['magadlal-3-9.html','Магадлал-3'],
+    ['magadlal-4-9.html','Магадлал-4'],
   ]],
   ['10-р анги',[
     ['zereg-teg-sorog-10.html','Тэг ба сөрөг илтгэгчтэй зэрэг — үнэлгээ'],
