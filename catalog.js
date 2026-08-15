@@ -197,6 +197,9 @@ window.WS_LIST=[
     ['protsent-2-9.html','Процент-2'],
     ['protsent-3-9.html','Процент-3'],
     ['protsent-4-9.html','Процент-4'],
+    ['haritsaa-1-9.html','Харьцаа-1'],
+    ['haritsaa-2-9.html','Харьцаа-2'],
+    ['haritsaa-3-9.html','Харьцаа-3'],
   ]],
   ['10-р анги',[
     ['zereg-teg-sorog-10.html','Тэг ба сөрөг илтгэгчтэй зэрэг — үнэлгээ'],
