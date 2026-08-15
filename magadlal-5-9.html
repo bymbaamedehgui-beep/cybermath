@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Магадлал-5 (9-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<style>
+  :root{--purple:#7B52EE;--purple2:#A855F7;--ink:#1a1030;--soft:#7a7390;--amber:#9a6300;--green:#16a34a}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:var(--ink);background:#eceaf3;padding:16px;line-height:1.5}
+  .bar{max-width:820px;margin:0 auto 14px;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
+  .btn{font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.6rem 1.3rem;font-size:.9rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2));box-shadow:0 6px 16px -6px rgba(123,82,238,.6)}
+  .btn:hover{filter:brightness(1.06)} .btn.refresh{background:linear-gradient(135deg,#16a34a,#22c55e)}
+  .bar label{font-weight:700;color:var(--purple);display:flex;align-items:center;gap:6px;font-size:.88rem}
+  .sheet{background:#fff;width:210mm;max-width:100%;min-height:297mm;margin:0 auto;padding:12mm 14mm;box-shadow:0 12px 44px -18px rgba(0,0,0,.35)}
+  .head{text-align:center;border-bottom:2.5px solid var(--purple);padding-bottom:7px;margin-bottom:7px}
+  .head h1{font-size:18px;color:#5a32d6;font-weight:800}.head .sub{font-size:11px;color:var(--soft);margin-top:2px}
+  .meta{display:flex;justify-content:space-between;font-size:11.5px;margin:8px 2px 10px}.meta span{border-bottom:1px dotted #b3a9cf;padding:0 26px 2px 4px}
+  .rule{font-size:11.5px;color:var(--amber);background:#fff7e6;border:1px solid #f3dca6;border-radius:8px;padding:8px 12px;margin-bottom:12px;text-align:center}
+  .task{font-weight:800;color:#5a32d6;font-size:13px;margin:6px 0 9px;border-left:4px solid var(--purple2);padding-left:9px}
+  .prob{break-inside:avoid;page-break-inside:avoid;margin-bottom:12px}
+  .pq{font-size:13px;margin-bottom:5px}.pn{font-weight:800;color:var(--purple);margin-right:6px}
+  .ptree{margin:6px 0 4px 18px}
+  .pw{border:1.1px solid #e2daf5;border-radius:7px;background:linear-gradient(#fff,#fbf9ff);height:15mm}
+  .sols-page{margin-top:9mm;border-top:2px dashed #ddd;padding-top:7mm}.sols-page h2{font-size:16px;color:#5a32d6;margin-bottom:12px}
+  .sol{break-inside:avoid;page-break-inside:avoid;margin-bottom:11px;padding-bottom:8px;border-bottom:1px dashed #ece7fb}
+  .sol .sq{font-size:12px;color:#42395e;margin-bottom:4px}.sol .sn{font-weight:800;color:var(--purple);margin-right:6px}
+  .step{font-size:13px;margin:3px 0 3px 20px;color:#241a3d}
+  .res{font-size:13px;font-weight:800;color:var(--green);margin:4px 0 0 20px}
+  #solutions{display:none}
+  @media print{body{background:#fff;padding:0}.bar{display:none}.sheet{box-shadow:none;width:auto;min-height:auto;padding:0;margin:0}@page{size:A4;margin:11mm}.sols-page{break-before:page}}
+</style>
+</head>
+<body>
+<div class="bar">
+  <button class="btn refresh" onclick="build()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>Шинэ бодлого</button>
+  <label><input type="checkbox" id="ss" onchange="toggleSol()"> Бодолт хавсаргах</label>
+  <button class="btn" onclick="window.print()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>Хэвлэх / PDF</button>
+</div>
+<div class="sheet" id="sheet"></div>
+<script>
+function rnd(a,b){return a+Math.floor(Math.random()*(b-a+1));}
+function pick(a){return a[rnd(0,a.length-1)];}
+function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){var t=a%b;a=b;b=t;}return a;}
+function fr(p,q){if(p===0)return {p:0,q:1};var g=gcd(p,q);return {p:p/g,q:q/g};}
+function frT(f){return f.q===1?(''+f.p):('\\dfrac{'+f.p+'}{'+f.q+'}');}
+function d2(h){if(h===0)return '0';if(h===100)return '1';var fp=(h<10?'0'+h:''+h);return ('0.'+fp).replace(/0+$/,'');}
+function toggleSol(){var el=document.getElementById('solutions');if(el)el.style.display=document.getElementById('ss').checked?'block':'none';}
+function step(t){return '<div class="step">'+t+'</div>';}
+function res(t){return '<div class="res">Хариу: '+t+'</div>';}
+// Хоосон салаатай модны схем (сурагч магадлалыг нөхнө)
+function tree(n1t,n1b,leaves){
+  function ln(x1,y1,x2,y2){return '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="#b3a9d6" stroke-width="1.4"/>';}
+  function tx(x,y,t,col,an){return '<text x="'+x+'" y="'+y+'" font-size="10.5" fill="'+col+'"'+(an?' text-anchor="'+an+'"':'')+'>'+t+'</text>';}
+  function bl(x,y){return '<line x1="'+x+'" y1="'+y+'" x2="'+(x+26)+'" y2="'+y+'" stroke="#c4b8e8" stroke-width="1" stroke-dasharray="2.5 2"/>';}
+  var s='<svg viewBox="0 0 480 156" width="100%" style="max-width:450px" xmlns="http://www.w3.org/2000/svg">';
+  s+='<circle cx="24" cy="76" r="3" fill="#7B52EE"/>';
+  s+=ln(24,76,150,38)+ln(24,76,150,114)+ln(150,38,300,20)+ln(150,38,300,56)+ln(150,114,300,96)+ln(150,114,300,132);
+  s+=bl(70,48)+bl(70,102)+bl(212,24)+bl(212,52)+bl(212,100)+bl(212,128);
+  s+=tx(150,32,n1t,'#5a32d6','middle')+tx(150,128,n1b,'#5a32d6','middle');
+  s+=tx(306,24,leaves[0],'#241a3d')+tx(306,60,leaves[1],'#241a3d')+tx(306,100,leaves[2],'#241a3d')+tx(306,136,leaves[3],'#241a3d');
+  s+='</svg>';return '<div class="ptree">'+s+'</div>';}
+// A) Буудагч (үл хамаарах, аравтын магадлал)
+function gMarks(){var a=rnd(2,9),b=rnd(2,9),qtype=pick(['both','neither','exone','atleast']);
+  var tr=tree('А онох','А онохгүй',['Б онох','Б онохгүй','Б онох','Б онохгүй']);
+  var pA='0.'+a,pB='0.'+b,pAn='0.'+(10-a),pBn='0.'+(10-b);
+  if(qtype==='both')return {q:'А, Б хоёр буудагчийн онох магадлал $'+pA+'$ ба $'+pB+'$ байв. Хоёулаа онох магадлалыг ол.'+tr,
+    sol:step('Үл хамаарах: $P='+pA+'\\times'+pB+'='+d2(a*b)+'$')+res('$'+d2(a*b)+'$')};
+  if(qtype==='neither')return {q:'А, Б буудагчийн онох магадлал $'+pA+', '+pB+'$. Аль нь ч оногдуулахгүй байх магадлалыг ол.'+tr,
+    sol:step('$P(\\overline{A})='+pAn+',\\ P(\\overline{B})='+pBn+'$')+step('$P='+pAn+'\\times'+pBn+'='+d2((10-a)*(10-b))+'$')+res('$'+d2((10-a)*(10-b))+'$')};
+  if(qtype==='exone')return {q:'А, Б буудагчийн онох магадлал $'+pA+', '+pB+'$. Яг нэг нь оногдуулах магадлалыг ол.'+tr,
+    sol:step('Таатай: (А онох, Б үгүй) ба (А үгүй, Б онох)')+step('$P='+pA+'\\times'+pBn+'+'+pAn+'\\times'+pB+'='+d2(a*(10-b)+(10-a)*b)+'$')+res('$'+d2(a*(10-b)+(10-a)*b)+'$')};
+  return {q:'А, Б буудагчийн онох магадлал $'+pA+', '+pB+'$. Дор хаяж нэг нь оногдуулах магадлалыг ол.'+tr,
+    sol:step('$P=1-P(\\text{аль нь ч үгүй})=1-'+pAn+'\\times'+pBn+'$')+step('$=1-'+d2((10-a)*(10-b))+'='+d2(100-(10-a)*(10-b))+'$')+res('$'+d2(100-(10-a)*(10-b))+'$')};}
+// B) Зоос ба шоо зэрэг
+function gCoinDice(){if(rnd(0,1)===0){var k=rnd(1,6);return {q:'Зоос ба шоог зэрэг шидэв. Зоос сүлд, шоо $'+k+'$ буух магадлалыг ол.',
+    sol:step('Үл хамаарах: $P=\\dfrac{1}{2}\\times\\dfrac{1}{6}=\\dfrac{1}{12}$')+res('$\\dfrac{1}{12}$')};}
+  return {q:'Зоос ба шоог зэрэг шидэв. Зоос сүлд буугаад шоо тэгш тоо буух магадлалыг ол.',
+    sol:step('Шоо тэгш буух: $\\dfrac{3}{6}=\\dfrac{1}{2}$')+step('$P=\\dfrac{1}{2}\\times\\dfrac{1}{2}=\\dfrac{1}{4}$')+res('$\\dfrac{1}{4}$')};}
+// C) Зоос 3 удаа (гурван үе шат)
+function gThree(){var qtype=pick(['all','extwo','atleast','exone']);
+  if(qtype==='all')return {q:'Зоосыг гурван удаа шидэв. Гурвуулаа сүлд буух магадлалыг ол.',
+    sol:step('Нийт гарц: $2^3=8$; таатай: ССС')+step('$P=\\dfrac{1}{8}$')+res('$\\dfrac{1}{8}$')};
+  if(qtype==='extwo')return {q:'Зоосыг гурван удаа шидэв. Яг хоёр удаа сүлд буух магадлалыг ол.',
+    sol:step('Таатай: ССТ, СТС, ТСС — 3 гарц')+step('$P=\\dfrac{3}{8}$')+res('$\\dfrac{3}{8}$')};
+  if(qtype==='exone')return {q:'Зоосыг гурван удаа шидэв. Яг нэг удаа сүлд буух магадлалыг ол.',
+    sol:step('Таатай: СТТ, ТСТ, ТТС — 3 гарц')+step('$P=\\dfrac{3}{8}$')+res('$\\dfrac{3}{8}$')};
+  return {q:'Зоосыг гурван удаа шидэв. Дор хаяж нэг удаа сүлд буух магадлалыг ол.',
+    sol:step('$P=1-P(\\text{ТТТ})=1-\\dfrac{1}{8}=\\dfrac{7}{8}$')+res('$\\dfrac{7}{8}$')};}
+// D) Хоёр өөр хайрцаг
+function gTwoBox(){var r1=rnd(2,5),w1=rnd(2,5),n1=r1+w1,r2=rnd(2,5),w2=rnd(2,5),n2=r2+w2,qtype=pick(['bothred','onewhite']);
+  if(qtype==='bothred'){var f=fr(r1*r2,n1*n2);return {q:'Нэг хайрцагт $'+r1+'$ улаан, $'+w1+'$ цагаан; нөгөө хайрцагт $'+r2+'$ улаан, $'+w2+'$ цагаан бөмбөг байв. Хайрцаг тус бүрээс нэгийг авахад хоёулаа улаан байх магадлалыг ол.',
+    sol:step('Үл хамаарах: $P=\\dfrac{'+r1+'}{'+n1+'}\\times\\dfrac{'+r2+'}{'+n2+'}=\\dfrac{'+(r1*r2)+'}{'+(n1*n2)+'}'+(f.q!==n1*n2?'='+frT(f):'')+'$')+res('$'+frT(f)+'$')};}
+  var num=r1*w2+w1*r2,f2=fr(num,n1*n2);return {q:'Нэг хайрцагт $'+r1+'$ улаан, $'+w1+'$ цагаан; нөгөө хайрцагт $'+r2+'$ улаан, $'+w2+'$ цагаан бөмбөг байв. Хайрцаг тус бүрээс нэгийг авахад яг нэг нь улаан байх магадлалыг ол.',
+    sol:step('Таатай: (1-рт улаан, 2-рт цагаан) ба (1-рт цагаан, 2-рт улаан)')+step('$P=\\dfrac{'+r1+'}{'+n1+'}\\times\\dfrac{'+w2+'}{'+n2+'}+\\dfrac{'+w1+'}{'+n1+'}\\times\\dfrac{'+r2+'}{'+n2+'}=\\dfrac{'+num+'}{'+(n1*n2)+'}'+(f2.q!==n1*n2?'='+frT(f2):'')+'$')+res('$'+frT(f2)+'$')};}
+function build(){
+  var probs=[],seen={};
+  function add(fn,cnt){var c=0,tr=0;while(c<cnt&&tr<400){tr++;var f=fn();if(!f||seen[f.q])continue;seen[f.q]=1;probs.push(f);c++;}}
+  add(gMarks,2);add(gCoinDice,2);add(gThree,2);add(gTwoBox,2);
+  var pHtml=probs.map(function(p,i){return '<div class="prob"><div class="pq"><span class="pn">'+(i+1)+'.</span>'+p.q+'</div><div class="pw"></div></div>';}).join('');
+  var sHtml=probs.map(function(p,i){return '<div class="sol"><div class="sq"><span class="sn">'+(i+1)+'.</span>'+p.q+'</div>'+p.sol+'</div>';}).join('');
+  document.getElementById('sheet').innerHTML=
+    '<div class="head"><h1>Магадлал — буудагч, олон үе шат</h1><div class="sub">Үл хамаарах (аравтын магадлал) · зоос+шоо · зоос 3 удаа · хоёр хайрцаг · 9-р анги · 3.1</div></div>'
+    +'<div class="meta"><span>Нэр: </span><span>Огноо: </span><span>Оноо: </span></div>'
+    +'<div class="rule">Үл хамаарах: $P(A\\cap B)=P(A)\\cdot P(B)$ · Эсрэг: $P(\\overline{A})=1-P(A)$ · Дор хаяж нэг $=1-P(\\text{аль нь ч үгүй})$ · Яг нэг $=$ таатай салаануудын нийлбэр.</div>'
+    +'<div class="task">Бодлогуудыг бод. (Бодолтоо доор бич)</div>'+pHtml
+    +'<div class="sols-page" id="solutions"><h2>Бодолт ба хариу</h2>'+sHtml+'</div>';
+  window.WS_ITEMS=[];window.WS_TITLE='Магадлал-5';
+  toggleSol();
+  try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
+}
+build();
+</script>
+<script src="/ws-store.js?v=37"></script>
+</body>
+</html>

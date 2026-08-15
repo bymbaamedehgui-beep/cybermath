@@ -207,6 +207,7 @@ window.WS_LIST=[
     ['magadlal-2-9.html','Магадлал-2'],
     ['magadlal-3-9.html','Магадлал-3'],
     ['magadlal-4-9.html','Магадлал-4'],
+    ['magadlal-5-9.html','Магадлал-5'],
   ]],
   ['10-р анги',[
     ['zereg-teg-sorog-10.html','Тэг ба сөрөг илтгэгчтэй зэрэг — үнэлгээ'],
