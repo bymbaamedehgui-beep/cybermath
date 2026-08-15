@@ -29,6 +29,11 @@
   .wk{border:1.1px solid #e2daf5;border-radius:7px;background:linear-gradient(#fff,#fbf9ff);height:12mm;margin-top:5px}
   .ans-page{margin-top:9mm;border-top:2px dashed #ddd;padding-top:7mm}.ans-page h2{font-size:15px;color:#5a32d6;margin-bottom:10px}
   .ans-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px 16px;font-size:12.5px}.ans-grid .a{display:flex;gap:6px;align-items:baseline}.ans-grid .an{color:var(--soft);font-weight:800;min-width:28px}
+  .wtab{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:2px}
+  .wtab th,.wtab td{border:1px solid #cfc4ea;padding:7px 9px;text-align:left;vertical-align:middle}
+  .wtab th{background:#f3eefe;color:#5a32d6;font-weight:800;font-size:11.5px}
+  .wtab td.num,.wtab th.num{width:30px;text-align:center;font-weight:800;color:var(--purple)}
+  .wtab td.fill{width:26%;background:linear-gradient(#fff,#fbf9ff)}
   #answers{display:none}
   @media print{body{background:#fff;padding:0}.bar{display:none}.sheet{box-shadow:none;width:auto;min-height:auto;padding:0;margin:0}@page{size:A4;margin:11mm}.ans-page{break-before:page}}
 </style>
@@ -57,16 +62,16 @@ function gToInt(){var op=pick(['lt','le','gt','ge']),a=nz(-9,9);return {q:'$'+in
 function gFromInt(){var op=pick(['lt','le','gt','ge']),a=nz(-9,9);return {q:'$'+interv(op,a)+'$',a:'$'+ineqAns(op,a)+'$',ok:true};}
 // 3) Үгээр өгсөн олонлог
 var WORDS=[['бага','lt'],['их','gt'],['их биш','le'],['бага биш','ge']];
-function gWord(){var w=pick(WORDS),a=nz(2,20);return {q:'$'+a+'$-аас '+w[0]+' тоонуудын олонлогийг тэнцэтгэл биш ба тоон завсраар бич.',a:'$'+ineqAns(w[1],a)+',\\ '+interv(w[1],a)+'$',ok:true};}
+function gWord(){var w=pick(WORDS),a=nz(2,20);return {q:'$'+a+'$-аас '+w[0]+' тоонуудын олонлог',set:'$'+a+'$-аас '+w[0]+' тоонуудын олонлог',a:'$'+ineqAns(w[1],a)+',\\ '+interv(w[1],a)+'$',ok:true};}
 // 4) Бичиглэл зөв үү? (харьяалал)
 function gMember(){var op=pick(['lt','le','gt','ge']),a=nz(-9,9),v=nz(a-3,a+3);return {q:'$'+v+'\\in '+interv(op,a)+'$ — үнэн үү?',a:opNum(op,v,a)?'Үнэн':'Худал',ok:true};}
 function gen(fn){for(var t=0;t<300;t++){var f=fn();if(f&&f.ok)return f;}return null;}
 function probeH(sheet){var pr=sheet.cloneNode(true);pr.removeAttribute('id');pr.style.cssText='position:absolute;left:-99999px;top:0;width:210mm;max-width:none;min-height:0;margin:0;padding:0;box-shadow:none;zoom:1';var a=pr.querySelector('#answers,.ans-page');if(a)a.remove();document.body.appendChild(pr);var h=pr.scrollHeight;document.body.removeChild(pr);return h;}
 var LET=['а','б','в','г','д','е','ё','ж','з','и','к','л','м','н','о','ө','п','р','с','т','у','ү'];
 function relabel(sheet){var grids=sheet.querySelectorAll('.grid'),map={};
-  for(var g=0;g<grids.length;g++){var qs=grids[g].querySelectorAll('.q');
-    for(var i=0;i<qs.length;i++){var letter=LET[i]||('#'+(i+1));var ql=qs[i].querySelector('.ql');if(ql)ql.textContent=letter+')';map[qs[i].getAttribute('data-k')]=(g+1)+letter+')';}}
-  var as=sheet.querySelectorAll('#answers .a');for(var j=0;j<as.length;j++){var an=as[j].querySelector('.an');if(an)an.textContent=map[as[j].getAttribute('data-k')]||'';}}
+  for(var g=0;g<grids.length;g++){var sec=grids[g].getAttribute('data-sec')||(g+1);var qs=grids[g].querySelectorAll('.q');
+    for(var i=0;i<qs.length;i++){var letter=LET[i]||('#'+(i+1));var ql=qs[i].querySelector('.ql');if(ql)ql.textContent=letter+')';map[qs[i].getAttribute('data-k')]=sec+letter+')';}}
+  var as=sheet.querySelectorAll('#answers .a');for(var j=0;j<as.length;j++){var k=as[j].getAttribute('data-k');if(map[k]!==undefined){var an=as[j].querySelector('.an');if(an)an.textContent=map[k];}}}
 function trimToFitBalanced(sheet,target){var guard=0,h=probeH(sheet);while(h>target&&guard++<400){var grids=sheet.querySelectorAll('.grid'),best=-1,bestN=-1;for(var s=grids.length-1;s>=0;s--){var n=grids[s].querySelectorAll('.q').length;if(n>bestN&&n>3){bestN=n;best=s;}}if(best<0)break;var rm=function(){var qs=grids[best].querySelectorAll('.q');if(!qs.length)return;var last=qs[qs.length-1],k=last.getAttribute('data-k');var ans=sheet.querySelector('#answers .a[data-k="'+k+'"]');if(ans)ans.parentNode.removeChild(ans);last.parentNode.removeChild(last);};rm();rm();relabel(sheet);h=probeH(sheet);}}
 function packColumns(sheet){[].forEach.call(sheet.querySelectorAll('.grid'),function(g){if(g.classList.contains('packed'))return;var qs=[].slice.call(g.children).filter(function(c){return c.classList&&c.classList.contains('q');});if(qs.length<2)return;var half=Math.ceil(qs.length/2),c1=document.createElement('div'),c2=document.createElement('div');c1.className='col';c2.className='col';qs.forEach(function(q,i){(i<half?c1:c2).appendChild(q);});g.appendChild(c1);g.appendChild(c2);g.classList.add('packed');});}
 function genPool(){var P=[[],[],[],[]];
@@ -78,16 +83,20 @@ function layout(){
   var S=window.__POOL||(window.__POOL=genPool());window.__PROB=[];var K=0;
   function block(arr,work){return arr.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});
     return '<div class="q" data-k="'+k+'"><div class="qeq"><span class="ql"></span><span class="qm">'+f.q+'</span></div>'+(work?'<div class="wk"></div>':'')+'</div>';}).join('');}
-  var b=[block(S[0],false),block(S[1],false),block(S[2],WK),block(S[3],false)];
-  function ansAll(){return window.__PROB.map(function(p){return '<div class="a" data-k="'+p.k+'"><span class="an"></span><span>'+p.f.a+'</span></div>';}).join('');}
+  var b0=block(S[0],false),b1=block(S[1],false);
+  var rows3=S[2].map(function(f,i){var k=K++;var letter=LET[i]||('#'+(i+1));window.__PROB.push({f:f,k:k,lbl:'3'+letter+')'});
+    return '<tr><td class="num">'+letter+')</td><td class="set">'+f.set+'</td><td class="fill"></td><td class="fill"></td></tr>';}).join('');
+  var table3='<table class="wtab"><thead><tr><th class="num">№</th><th>Үгээр өгсөн олонлог</th><th>Тэнцэтгэл биш</th><th>Тоон завсар</th></tr></thead><tbody>'+rows3+'</tbody></table>';
+  var b3=block(S[3],false);
+  function ansAll(){return window.__PROB.map(function(p){return '<div class="a" data-k="'+p.k+'"><span class="an">'+(p.lbl||'')+'</span><span>'+p.f.a+'</span></div>';}).join('');}
   document.getElementById('sheet').innerHTML=
     '<div class="head"><h1>Тэнцэтгэл биш ба тоон завсар</h1><div class="sub">Тэнцэтгэл биш ↔ тоон завсар · үгээр өгсөн олонлог · харьяалал · 9-р анги · 4.4</div></div>'
     +'<div class="meta"><span>Нэр: </span><span>Огноо: </span><span>Оноо: </span></div>'
     +'<div class="rule">$x\\lt a:\\ ]-\\infty;a[$ · $x\\leq a:\\ ]-\\infty;a]$ · $x\\gt a:\\ ]a;+\\infty[$ · $x\\geq a:\\ [a;+\\infty[$. Хаалт $[\\ ]$ — тоо орно, $]\\ [$ — орохгүй.</div>'
-    +'<div class="task">1. Тэнцэтгэл бишийг тоон завсраар бич.</div><div class="grid">'+b[0]+'</div>'
-    +'<div class="task">2. Тоон завсрыг тэнцэтгэл бишээр бич.</div><div class="grid">'+b[1]+'</div>'
-    +'<div class="task">3. Үгээр өгсөн олонлогийг тэнцэтгэл биш ба тоон завсраар бич.</div><div class="grid">'+b[2]+'</div>'
-    +'<div class="task">4. Бичиглэл үнэн үү, худал уу?</div><div class="grid">'+b[3]+'</div>'
+    +'<div class="task">1. Тэнцэтгэл бишийг тоон завсраар бич.</div><div class="grid" data-sec="1">'+b0+'</div>'
+    +'<div class="task">2. Тоон завсрыг тэнцэтгэл бишээр бич.</div><div class="grid" data-sec="2">'+b1+'</div>'
+    +'<div class="task">3. Үгээр өгсөн олонлогийг тэнцэтгэл биш ба тоон завсраар бич.</div>'+table3
+    +'<div class="task">4. Бичиглэл үнэн үү, худал уу?</div><div class="grid" data-sec="4">'+b3+'</div>'
     +'<div class="ans-page" id="answers"><h2>Хариунууд</h2><div class="ans-grid">'+ansAll()+'</div></div>';
   window.WS_ITEMS=[];window.WS_TITLE='Тэнцэтгэл биш ба тоон завсар';
   relabel(document.getElementById('sheet'));toggleAns();
