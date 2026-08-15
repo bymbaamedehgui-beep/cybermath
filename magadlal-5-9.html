@@ -52,29 +52,32 @@ function toggleSol(){var el=document.getElementById('solutions');if(el)el.style.
 function step(t){return '<div class="step">'+t+'</div>';}
 function res(t){return '<div class="res">Хариу: '+t+'</div>';}
 // Хоосон салаатай модны схем (сурагч магадлалыг нөхнө)
-function tree(n1t,n1b,leaves){
+function tree(n1t,n1b,leaves,vals){
   function ln(x1,y1,x2,y2){return '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="#b3a9d6" stroke-width="1.4"/>';}
   function tx(x,y,t,col,an){return '<text x="'+x+'" y="'+y+'" font-size="10.5" fill="'+col+'"'+(an?' text-anchor="'+an+'"':'')+'>'+t+'</text>';}
   function bl(x,y){return '<line x1="'+x+'" y1="'+y+'" x2="'+(x+26)+'" y2="'+y+'" stroke="#c4b8e8" stroke-width="1" stroke-dasharray="2.5 2"/>';}
   var s='<svg viewBox="0 0 480 156" width="100%" style="max-width:450px" xmlns="http://www.w3.org/2000/svg">';
   s+='<circle cx="24" cy="76" r="3" fill="#7B52EE"/>';
   s+=ln(24,76,150,38)+ln(24,76,150,114)+ln(150,38,300,20)+ln(150,38,300,56)+ln(150,114,300,96)+ln(150,114,300,132);
-  s+=bl(70,48)+bl(70,102)+bl(212,24)+bl(212,52)+bl(212,100)+bl(212,128);
+  if(vals){s+=tx(72,46,vals[0],'#7B52EE')+tx(72,100,vals[1],'#7B52EE')+tx(212,22,vals[2],'#A855F7')+tx(212,50,vals[3],'#A855F7')+tx(212,98,vals[4],'#A855F7')+tx(212,126,vals[5],'#A855F7');}
+  else{s+=bl(70,48)+bl(70,102)+bl(212,24)+bl(212,52)+bl(212,100)+bl(212,128);}
   s+=tx(150,32,n1t,'#5a32d6','middle')+tx(150,128,n1b,'#5a32d6','middle');
   s+=tx(306,24,leaves[0],'#241a3d')+tx(306,60,leaves[1],'#241a3d')+tx(306,100,leaves[2],'#241a3d')+tx(306,136,leaves[3],'#241a3d');
   s+='</svg>';return '<div class="ptree">'+s+'</div>';}
 // A) Буудагч (үл хамаарах, аравтын магадлал)
 function gMarks(){var a=rnd(2,9),b=rnd(2,9),qtype=pick(['both','neither','exone','atleast']);
-  var tr=tree('А онох','А онохгүй',['Б онох','Б онохгүй','Б онох','Б онохгүй']);
-  var pA='0.'+a,pB='0.'+b,pAn='0.'+(10-a),pBn='0.'+(10-b);
-  if(qtype==='both')return {q:'А, Б хоёр буудагчийн онох магадлал $'+pA+'$ ба $'+pB+'$ байв. Хоёулаа онох магадлалыг ол.'+tr,
+  var pA='0.'+a,pB='0.'+b,pAn='0.'+(10-a),pBn='0.'+(10-b),lv=['Б онох','Б онохгүй','Б онох','Б онохгүй'];
+  var treeB=tree('А онох','А онохгүй',lv,null),treeF=tree('А онох','А онохгүй',lv,[pA,pAn,pB,pBn,pB,pBn]);
+  var r;
+  if(qtype==='both')r={q:'А, Б хоёр буудагчийн онох магадлал $'+pA+'$ ба $'+pB+'$ байв. Хоёулаа онох магадлалыг ол.',
     sol:step('Үл хамаарах: $P='+pA+'\\times'+pB+'='+d2(a*b)+'$')+res('$'+d2(a*b)+'$')};
-  if(qtype==='neither')return {q:'А, Б буудагчийн онох магадлал $'+pA+', '+pB+'$. Аль нь ч оногдуулахгүй байх магадлалыг ол.'+tr,
+  else if(qtype==='neither')r={q:'А, Б буудагчийн онох магадлал $'+pA+', '+pB+'$. Аль нь ч оногдуулахгүй байх магадлалыг ол.',
     sol:step('$P(\\overline{A})='+pAn+',\\ P(\\overline{B})='+pBn+'$')+step('$P='+pAn+'\\times'+pBn+'='+d2((10-a)*(10-b))+'$')+res('$'+d2((10-a)*(10-b))+'$')};
-  if(qtype==='exone')return {q:'А, Б буудагчийн онох магадлал $'+pA+', '+pB+'$. Яг нэг нь оногдуулах магадлалыг ол.'+tr,
+  else if(qtype==='exone')r={q:'А, Б буудагчийн онох магадлал $'+pA+', '+pB+'$. Яг нэг нь оногдуулах магадлалыг ол.',
     sol:step('Таатай: (А онох, Б үгүй) ба (А үгүй, Б онох)')+step('$P='+pA+'\\times'+pBn+'+'+pAn+'\\times'+pB+'='+d2(a*(10-b)+(10-a)*b)+'$')+res('$'+d2(a*(10-b)+(10-a)*b)+'$')};
-  return {q:'А, Б буудагчийн онох магадлал $'+pA+', '+pB+'$. Дор хаяж нэг нь оногдуулах магадлалыг ол.'+tr,
-    sol:step('$P=1-P(\\text{аль нь ч үгүй})=1-'+pAn+'\\times'+pBn+'$')+step('$=1-'+d2((10-a)*(10-b))+'='+d2(100-(10-a)*(10-b))+'$')+res('$'+d2(100-(10-a)*(10-b))+'$')};}
+  else r={q:'А, Б буудагчийн онох магадлал $'+pA+', '+pB+'$. Дор хаяж нэг нь оногдуулах магадлалыг ол.',
+    sol:step('$P=1-P(\\text{аль нь ч үгүй})=1-'+pAn+'\\times'+pBn+'$')+step('$=1-'+d2((10-a)*(10-b))+'='+d2(100-(10-a)*(10-b))+'$')+res('$'+d2(100-(10-a)*(10-b))+'$')};
+  r.treeB=treeB;r.treeF=treeF;return r;}
 // B) Зоос ба шоо зэрэг
 function gCoinDice(){if(rnd(0,1)===0){var k=rnd(1,6);return {q:'Зоос ба шоог зэрэг шидэв. Зоос сүлд, шоо $'+k+'$ буух магадлалыг ол.',
     sol:step('Үл хамаарах: $P=\\dfrac{1}{2}\\times\\dfrac{1}{6}=\\dfrac{1}{12}$')+res('$\\dfrac{1}{12}$')};}
@@ -100,8 +103,8 @@ function build(){
   var probs=[],seen={};
   function add(fn,cnt){var c=0,tr=0;while(c<cnt&&tr<400){tr++;var f=fn();if(!f||seen[f.q])continue;seen[f.q]=1;probs.push(f);c++;}}
   add(gMarks,2);add(gCoinDice,2);add(gThree,2);add(gTwoBox,2);
-  var pHtml=probs.map(function(p,i){return '<div class="prob"><div class="pq"><span class="pn">'+(i+1)+'.</span>'+p.q+'</div><div class="pw"></div></div>';}).join('');
-  var sHtml=probs.map(function(p,i){return '<div class="sol"><div class="sq"><span class="sn">'+(i+1)+'.</span>'+p.q+'</div>'+p.sol+'</div>';}).join('');
+  var pHtml=probs.map(function(p,i){return '<div class="prob"><div class="pq"><span class="pn">'+(i+1)+'.</span>'+p.q+'</div>'+(p.treeB||'')+'<div class="pw"></div></div>';}).join('');
+  var sHtml=probs.map(function(p,i){return '<div class="sol"><div class="sq"><span class="sn">'+(i+1)+'.</span>'+p.q+'</div>'+(p.treeF||'')+p.sol+'</div>';}).join('');
   document.getElementById('sheet').innerHTML=
     '<div class="head"><h1>Магадлал — буудагч, олон үе шат</h1><div class="sub">Үл хамаарах (аравтын магадлал) · зоос+шоо · зоос 3 удаа · хоёр хайрцаг · 9-р анги · 3.1</div></div>'
     +'<div class="meta"><span>Нэр: </span><span>Огноо: </span><span>Оноо: </span></div>'
