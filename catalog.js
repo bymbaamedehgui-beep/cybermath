@@ -227,6 +227,9 @@ window.WS_LIST=[
     ['tentsetgel-zavsar-9.html','Тэнцэтгэл биш ба тоон завсар'],
     ['tentsetgel-bodoh-9.html','Шугаман тэнцэтгэл биш бодох'],
     ['tentsetgel-sistem-9.html','Тэнцэтгэл бишийн систем'],
+    ['khyalbar-kvadrat-9.html','Хялбар квадрат тэгшитгэл'],
+    ['buten-kvadrat-yalgah-9.html','Бүтэн квадрат ялгах арга'],
+    ['kvadrat-zadlah-9.html','Квадрат тэгшитгэлийг үржигдэхүүн болгон задлах'],
   ]],
   ['10-р анги',[
     ['zereg-teg-sorog-10.html','Тэг ба сөрөг илтгэгчтэй зэрэг — үнэлгээ'],

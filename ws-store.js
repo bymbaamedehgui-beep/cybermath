@@ -348,6 +348,7 @@
   // ─── Заавар/тайлбарын ерөнхий загвар (ЗӨВХӨН АДМИН серверт засна, бусад нь харна) ───
   var EDIT_SEL='.task, .rule, .sec, .hint, .note, .lead, .tip, .desc, .head .sub, .gtitle';
   var editDefaults={};        // build-ийн анхны бичвэр (индексээр)
+  var editTitleDefault=null;  // гарчгийн (.head h1) анхны бичвэр
   var serverEdits=null;       // серверээс уншсан загвар {index: html}, ачаалаагүй бол null
   var saveTimer=null;
   var DEL='@@CMDEL@@';   // "устгасан" тэмдэг (заавар/хайрцгийг хүрээтэй нь нуух)
@@ -394,6 +395,21 @@
         ensureDelBtn(el,i);
       }
     });
+    // ─── Гарчиг (.head h1) — тусдаа 'title' түлхүүрээр (индекс шилжүүлэхгүй) ───
+    var h1=sh.querySelector('.head h1');
+    if(h1){
+      if(editTitleDefault==null)editTitleDefault=(h1.textContent||'').trim();
+      var tt=serverEdits['title'];
+      if(tt!=null&&(h1.textContent||'').trim()!==tt)h1.textContent=tt;
+      if(admin&&!h1.getAttribute('data-cm-ed')){
+        h1.setAttribute('data-cm-ed','1');
+        h1.setAttribute('contenteditable','true');
+        h1.setAttribute('spellcheck','false');
+        h1.classList.add('cm-ed');
+        h1.title='Админ: гарчгийг засаж болно';
+        h1.addEventListener('input',scheduleSave);
+      }
+    }
     if(admin)refreshEditReset();
   }
   function collectEdits(){
@@ -403,6 +419,8 @@
       if(el.getAttribute('data-cm-del')){ m[i]=DEL; return; }   // устгасныг тэмдэглэнэ
       if(editDefaults[i]!=null&&htmlNoDel(el)!==editDefaults[i])m[i]=htmlNoDel(el);
     });
+    var h1=sh.querySelector('.head h1');
+    if(h1&&editTitleDefault!=null&&(h1.textContent||'').trim()!==editTitleDefault)m['title']=(h1.textContent||'').trim();
     return m;
   }
   function scheduleSave(){
@@ -420,7 +438,7 @@
   function slugHasEdits(){ return serverEdits&&Object.keys(serverEdits).length>0; }
   function resetEdits(){
     sApi('instr_save',{slug:curSlug(),edits:{}}).then(function(){
-      serverEdits={}; editDefaults={}; refreshEditReset();
+      serverEdits={}; editDefaults={}; editTitleDefault=null; refreshEditReset();
       if(typeof window.build==='function'){ try{window.build();}catch(e){} } else { try{location.reload();}catch(e){} }
     });
   }
