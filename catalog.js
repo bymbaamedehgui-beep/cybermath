@@ -193,6 +193,10 @@ window.WS_LIST=[
     ['jishig-1-9.html','Жишиг-1'],
     ['jishig-2-9.html','Жишиг-2'],
     ['shalgalt-material-1-9.html','Шалгалтын материал'],
+    ['protsent-1-9.html','Процент-1'],
+    ['protsent-2-9.html','Процент-2'],
+    ['protsent-3-9.html','Процент-3'],
+    ['protsent-4-9.html','Процент-4'],
   ]],
   ['10-р анги',[
     ['zereg-teg-sorog-10.html','Тэг ба сөрөг илтгэгчтэй зэрэг — үнэлгээ'],
