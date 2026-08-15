@@ -365,7 +365,8 @@
     });
     el.appendChild(d);
   }
-  function isAdminUser(){ return !!ls('cm_admin_token'); }
+  function jwtExpMs(tok){try{var b=tok.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');var p=JSON.parse(atob(b));return p.exp?p.exp*1000:0;}catch(e){return 0;}}
+  function isAdminUser(){ var t=ls('cm_admin_token'); if(!t)return false; var e=jwtExpMs(t); if(e&&e<Date.now()){ try{lset('cm_admin_token','');}catch(_){} return false; } return true; }
   function loadInstr(){
     fetch('/api/worksheets?instr='+encodeURIComponent(curSlug()))
       .then(function(r){return r.json();})

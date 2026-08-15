@@ -351,7 +351,7 @@ module.exports = async (req, res) => {
           }
         });
       }
-      const token = jwt.sign({ admin: true }, JWT_SECRET, { expiresIn: '24h' });
+      const token = jwt.sign({ admin: true }, JWT_SECRET, { expiresIn: '30d' });
       return res.json({ ok: true, token });
     }
 
