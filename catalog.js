@@ -234,6 +234,8 @@ window.WS_LIST=[
     ['ratsional-kvadrat-9.html','Рационал тэгшитгэл — квадрат тэгшитгэлд шилжих'],
     ['iltgegch-bodoh-9.html','Илтгэгч тэгшитгэл бодох'],
     ['iltgegch-niilmel-9.html','Илтгэгч тэгшитгэл — нийлмэл ба өгүүлбэртэй'],
+    ['jishig-4-1-9.html','IV бүлэг — Жишиг даалгавар 1'],
+    ['jishig-4-2-9.html','IV бүлэг — Жишиг даалгавар 2'],
     ['shalgalt-material-4-1-9.html','IV бүлэг — Шалгалтын материал-1'],
     ['shalgalt-material-4-2-9.html','IV бүлэг — Шалгалтын материал-2'],
   ]],

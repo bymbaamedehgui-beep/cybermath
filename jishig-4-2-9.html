@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>IV бүлэг — Жишиг даалгавар 2 (9-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<style>
+  :root{--purple:#7B52EE;--purple2:#A855F7;--ink:#1a1030;--soft:#7a7390;--amber:#9a6300}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:var(--ink);background:#eceaf3;padding:16px;line-height:1.5}
+  .bar{max-width:820px;margin:0 auto 14px;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
+  .btn{font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.6rem 1.3rem;font-size:.9rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2));box-shadow:0 6px 16px -6px rgba(123,82,238,.6)}
+  .btn:hover{filter:brightness(1.06)} .btn.refresh{background:linear-gradient(135deg,#16a34a,#22c55e)}
+  .bar label{font-weight:700;color:var(--purple);display:flex;align-items:center;gap:6px;font-size:.88rem}
+  .sheet{background:#fff;width:210mm;max-width:100%;min-height:297mm;margin:0 auto;padding:12mm 14mm;box-shadow:0 12px 44px -18px rgba(0,0,0,.35)}
+  .head{text-align:center;border-bottom:2.5px solid var(--purple);padding-bottom:7px;margin-bottom:7px}
+  .head h1{font-size:19px;color:#5a32d6;font-weight:800}.head .sub{font-size:11px;color:var(--soft);margin-top:2px}
+  .meta{display:flex;justify-content:space-between;font-size:11.5px;margin:8px 2px 12px}.meta span{border-bottom:1px dotted #b3a9cf;padding:0 26px 2px 4px}
+  .q{break-inside:avoid;page-break-inside:avoid;margin-bottom:11px}
+  .qh{display:flex;gap:8px;align-items:baseline}.qn{font-weight:800;color:var(--purple);font-size:14px;min-width:22px}.qm{font-size:13.5px}
+  .wk{border:1.1px solid #e2daf5;border-radius:7px;background:linear-gradient(#fff,#fbf9ff);height:14mm;margin-top:5px}
+  .ans-page{margin-top:9mm;border-top:2px dashed #ddd;padding-top:7mm}.ans-page h2{font-size:15px;color:#5a32d6;margin-bottom:10px}
+  .ans-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;font-size:12.5px}.ans-grid .a{display:flex;gap:6px;align-items:baseline}.ans-grid .an{color:var(--soft);font-weight:800;min-width:26px}
+  #answers{display:none}
+  @media print{body{background:#fff;padding:0}.bar{display:none}.sheet{box-shadow:none;width:auto;min-height:auto;padding:0;margin:0}@page{size:A4;margin:11mm}.ans-page{break-before:page}}
+</style>
+</head>
+<body>
+<div class="bar">
+  <button class="btn refresh" onclick="build()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>Шинэ бодлого</button>
+  <label><input type="checkbox" id="sw" onchange="toggleWork()" checked> Бодолтын зай</label>
+  <label><input type="checkbox" id="sa" onchange="toggleAns()"> Хариу хавсаргах</label>
+  <button class="btn" onclick="window.print()">Хэвлэх / PDF</button>
+</div>
+<div class="sheet" id="sheet"></div>
+<script>
+function rnd(a,b){return a+Math.floor(Math.random()*(b-a+1));}
+function nz(a,b){var v;do{v=rnd(a,b);}while(v===0);return v;}
+function pick(a){return a[rnd(0,a.length-1)];}
+function toggleAns(){var el=document.getElementById('answers');if(el)el.style.display=document.getElementById('sa').checked?'block':'none';}
+function toggleWork(){layout();}
+
+function s(a){return a<0?'-'+(-a):'+'+a;}
+function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){var t=a%b;a=b;b=t;}return a||1;}
+function bx(coef){return coef===0?'':coef===1?'+x':coef===-1?'-x':s(coef)+'x';}
+function expr(m,c){var t=(m===1?'x':(m===-1?'-x':m+'x'));if(c>0)t+='+'+c;else if(c<0)t+='-'+(-c);return t;}
+var OPN={lt:'\\lt',le:'\\leq',gt:'\\gt',ge:'\\geq'};
+function interv(op,a){if(op==='lt')return ']-\\infty;'+a+'[';if(op==='le')return ']-\\infty;'+a+']';if(op==='gt')return ']'+a+';+\\infty[';return '['+a+';+\\infty[';}
+function coefx(A,m){var body=(m===1?'x':'x^{'+m+'}');return (A===1?'':A===-1?'-':A)+body;}
+function oj_monomial(){var A=nz(2,6)*pick([1,-1]),B=nz(2,6)*pick([1,-1]),m=rnd(1,4),n=rnd(1,4);
+  return {stem:'Үйлдлийг гүйцэтгэ: $('+coefx(A,m)+')('+coefx(B,n)+')$',a:coefx(A*B,m+n)};}
+function oj_factor(){for(var t=0;t<200;t++){var r1=nz(-6,6),r2=nz(-6,6);if(r1===r2)continue;var g=pick([1,2,3]),b=-(r1+r2),c=r1*r2,gg=(g===1?'':g);
+  return {stem:'Үржигдэхүүн болгон задал: $'+gg+'x^2'+bx(g*b)+s(g*c)+'$',a:gg+'(x'+s(-r1)+')(x'+s(-r2)+')'};}return null;}
+function oj_diffsq(){var a=pick([1,2,3]),b=rnd(2,9);while(a>1&&gcd(a,b)!==1)b=rnd(2,9);var ax=(a===1?'':a)+'x';
+  return {stem:'Задал: $'+(a===1?'':a*a)+'x^2-'+(b*b)+'$',a:'('+ax+'-'+b+')('+ax+'+'+b+')'};}
+function oj_perfsq(){var b=rnd(2,9),sgn=pick([1,-1]);
+  return {stem:'Задал: $x^2'+s(sgn*2*b)+'x+'+(b*b)+'$',a:'(x'+s(sgn*b)+')^2'};}
+function eqXY(a,b,c){var tx=(a===1?'x':a===-1?'-x':a+'x');var ty=(b>0?'+':'-')+(Math.abs(b)===1?'':Math.abs(b))+'y';return tx+ty+'='+c;}
+function oj_system(){for(var t=0;t<200;t++){var x0=nz(-7,7),y0=nz(-7,7),a1=nz(-3,3),b1=nz(-3,3),a2=nz(-3,3),b2=nz(-3,3);if(a1*b2-a2*b1===0)continue;var c1=a1*x0+b1*y0,c2=a2*x0+b2*y0;
+  return {stem:'Системийг бод: $\\begin{cases}'+eqXY(a1,b1,c1)+'\\\\'+eqXY(a2,b2,c2)+'\\end{cases}$',a:'x='+x0+',\\ y='+y0};}return null;}
+function oj_ineq(){var a=rnd(2,5),x0=nz(-6,6),b=nz(-9,9),op=pick(['lt','le','gt','ge']),c=a*x0+b;
+  return {stem:'Тэнцэтгэл бишийг бод: $'+a+'x'+s(b)+OPN[op]+' '+c+'$',a:'x'+OPN[op]+' '+x0+',\\ '+interv(op,x0)};}
+function oj_quad(){for(var t=0;t<200;t++){var r1=nz(-8,8),r2=nz(-8,8);if(r1===r2)continue;var b=-(r1+r2),c=r1*r2,lo=Math.min(r1,r2),hi=Math.max(r1,r2);
+  return {stem:'Тэгшитгэлийг бод: $x^2'+bx(b)+s(c)+'=0$',a:'x_1='+lo+',\\ x_2='+hi};}return null;}
+function oj_rational(){var x0=nz(-9,9),c=nz(-9,9),u=nz(2,6);while(x0+c===0){c=nz(-9,9);}var a=x0*u,b=-u*(x0+c);
+  var t2=(b>=0?'+\\dfrac{'+b+'}{x'+s(c)+'}':'-\\dfrac{'+(-b)+'}{x'+s(c)+'}');
+  return {stem:'Тэгшитгэлийг бод: $\\dfrac{'+a+'}{x}'+t2+'=0$',a:'x='+x0+',\\ x\\ne 0,'+(-c)};}
+function oj_frac(){var a=rnd(2,9);return {stem:'Хураа: $\\dfrac{x^2-'+(a*a)+'}{x^2+'+(2*a)+'x+'+(a*a)+'}$',a:'\\dfrac{x-'+a+'}{x+'+a+'}'};}
+function oj_exp(){var a=pick([2,3,5]),k=rnd(1,{2:6,3:4,5:3}[a]),m=pick([1,2,-1,-2]),x0=nz(-5,5),b=k-m*x0,N=Math.pow(a,k);
+  return {stem:'Тэгшитгэлийг бод: $'+a+'^{'+expr(m,b)+'}='+N+'$',a:'x='+x0};}
+function oj_rect(){var w0=rnd(3,12),d=rnd(2,8),A=w0*(w0+d);
+  return {stem:'Тэгш өнцөгтийн урт нь өргөнөөсөө $'+d+'$ см-ээр урт, талбай нь $'+A+'$ см². Урт, өргөнийг ол.',a:'\\text{өргөн }'+w0+'\\text{ см, урт }'+(w0+d)+'\\text{ см}'};}
+function oj_rword(){var v0=rnd(2,12),d=rnd(1,4),k=rnd(1,2),D=v0*(v0+d)*k,t=d*k;
+  return {stem:'$'+D+'$ км замыг туулахад нэг машин нөгөөгөөсөө цагт $'+d+'$ км-ээр хурдан явж, $'+t+'$ цагаар бага хугацаа зарцуулжээ. Удаан машины хурдыг ол.',a:'x='+v0+'\\text{ км/ц}'};}
+
+var GENS=[oj_monomial,oj_perfsq,oj_factor,oj_system,oj_ineq,oj_quad,oj_rational,oj_frac,oj_exp,oj_rword];
+function gen(fn){for(var t=0;t<250;t++){var g=fn();if(g)return g;}return null;}
+function build(){window.__POOL=GENS.map(function(fn){return gen(fn);});layout();}
+function layout(){
+  var WK=document.getElementById('sw').checked;
+  var S=window.__POOL||(window.__POOL=GENS.map(function(fn){return gen(fn);}));
+  var body=S.map(function(f,i){if(!f)return '';return '<div class="q"><div class="qh"><span class="qn">'+(i+1)+'.</span><span class="qm">'+f.stem+'</span></div>'+(WK?'<div class="wk"></div>':'')+'</div>';}).join('');
+  var ak=S.map(function(f,i){if(!f)return '';return '<div class="a"><span class="an">'+(i+1)+')</span><span>$'+f.a+'$</span></div>';}).join('');
+  document.getElementById('sheet').innerHTML=
+    '<div class="head"><h1>IV бүлэг — Жишиг даалгавар 2</h1><div class="sub">Задлал · бүтэн квадрат · систем · тэнцэтгэл биш · квадрат ба рационал тэгшитгэл · илтгэгч · өгүүлбэртэй · 9-р анги</div></div>'
+    +'<div class="meta"><span>Нэр: </span><span>Анги: </span><span>Огноо: </span></div>'
+    +body
+    +'<div class="ans-page" id="answers"><h2>Хариунууд</h2><div class="ans-grid">'+ak+'</div></div>';
+  window.WS_ITEMS=[];window.WS_TITLE='IV бүлэг — Жишиг даалгавар 2 (9-р анги)';
+  toggleAns();
+  try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
+}
+build();
+</script>
+<script src="/ws-store.js?v=39"></script>
+</body>
+</html>

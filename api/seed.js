@@ -149,7 +149,7 @@ module.exports = async (req, res) => {
         { grade: '9-р анги', name: '4.5 Квадрат тэгшитгэл', slugs: ['khyalbar-kvadrat-9.html', 'buten-kvadrat-yalgah-9.html', 'kvadrat-zadlah-9.html'] },
         { grade: '9-р анги', name: '4.6 Рационал тэгшитгэл', slugs: ['ratsional-bodoh-9.html', 'ratsional-kvadrat-9.html'] },
         { grade: '9-р анги', name: '4.7 Илтгэгч тэгшитгэл', slugs: ['iltgegch-bodoh-9.html', 'iltgegch-niilmel-9.html'] },
-        { grade: '9-р анги', name: 'IV бүлэг — Жишиг ба шалгалт', slugs: ['shalgalt-material-4-1-9.html', 'shalgalt-material-4-2-9.html'] },
+        { grade: '9-р анги', name: 'IV бүлэг (Тэгшитгэл) — Жишиг ба шалгалт', slugs: ['jishig-4-1-9.html', 'jishig-4-2-9.html', 'shalgalt-material-4-1-9.html', 'shalgalt-material-4-2-9.html'] },
       ];
       const seedAddRow = await pool.query(`SELECT sval FROM ws_settings WHERE skey='sg_seeded_add'`);
       let seededAdd = [];
