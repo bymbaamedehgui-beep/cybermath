@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Өөрийгөө сорих 4 (9-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<style>
+  :root{--purple:#7B52EE;--purple2:#A855F7;--ink:#1a1030;--soft:#7a7390}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:var(--ink);background:#eceaf3;padding:16px;line-height:1.5}
+  .bar{max-width:820px;margin:0 auto 14px;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
+  .btn{font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.6rem 1.3rem;font-size:.9rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2));box-shadow:0 6px 16px -6px rgba(123,82,238,.6)}
+  .btn:hover{filter:brightness(1.06)} .btn.refresh{background:linear-gradient(135deg,#16a34a,#22c55e)}
+  .bar label{font-weight:700;color:var(--purple);display:flex;align-items:center;gap:6px;font-size:.88rem}
+  .sheet{background:#fff;width:210mm;max-width:100%;min-height:297mm;margin:0 auto;padding:12mm 14mm;box-shadow:0 12px 44px -18px rgba(0,0,0,.35)}
+  .head{text-align:center;border-bottom:2.5px solid var(--purple);padding-bottom:7px;margin-bottom:7px}
+  .head h1{font-size:19px;color:#5a32d6;font-weight:800}.head .sub{font-size:11px;color:var(--soft);margin-top:2px}
+  .meta{display:flex;justify-content:space-between;font-size:11.5px;margin:8px 2px 12px}.meta span{border-bottom:1px dotted #b3a9cf;padding:0 26px 2px 4px}
+  .q{break-inside:avoid;page-break-inside:avoid;margin-bottom:11px}
+  .qh{display:flex;gap:8px;align-items:baseline}.qn{font-weight:800;color:var(--purple);font-size:14px;min-width:22px}.qm{font-size:13.5px}
+  .qm .p{display:inline-block;margin:1px 16px 1px 0}.qm .pl{font-weight:700;color:var(--purple);margin-right:3px}
+  .tbls{display:flex;gap:14px;flex-wrap:wrap;padding-left:30px;margin-top:6px}
+  table.vt{border-collapse:collapse;font-size:12px}
+  table.vt th,table.vt td{border:1px solid #c9bdec;padding:3px 7px;text-align:center;min-width:24px;height:20px}
+  table.vt th{background:#f3eefe;color:#5a32d6;font-weight:800}
+  table.vt td.blank{background:linear-gradient(#fff,#fbf9ff)}
+  .wk{border:1.1px solid #e2daf5;border-radius:7px;background:linear-gradient(#fff,#fbf9ff);height:12mm;margin-top:5px}
+  .ans-page{margin-top:9mm;border-top:2px dashed #ddd;padding-top:7mm}.ans-page h2{font-size:15px;color:#5a32d6;margin-bottom:10px}
+  .ak{font-size:12.5px;margin-bottom:7px}.ak .n{font-weight:800;color:var(--purple);min-width:24px;display:inline-block}
+  #answers{display:none}
+  @media print{body{background:#fff;padding:0}.bar{display:none}.sheet{box-shadow:none;width:auto;min-height:auto;padding:0;margin:0}@page{size:A4;margin:11mm}.ans-page{break-before:page}}
+</style>
+</head>
+<body>
+<div class="bar">
+  <button class="btn refresh" onclick="build()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>Шинэ бодлого</button>
+  <label><input type="checkbox" id="sw" onchange="layout()" checked> Бодолтын зай</label>
+  <label><input type="checkbox" id="sa" onchange="toggleAns()"> Бодолт хавсаргах</label>
+  <button class="btn" onclick="window.print()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>Хэвлэх / PDF</button>
+</div>
+<div class="sheet" id="sheet"></div>
+<script>
+function rnd(a,b){return a+Math.floor(Math.random()*(b-a+1));}
+function nz(a,b){var v;do{v=rnd(a,b);}while(v===0);return v;}
+function pick(a){return a[rnd(0,a.length-1)];}
+function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){var t=a%b;a=b;b=t;}return a||1;}
+function fracStr(n,d){var sg=(n<0)!==(d<0);n=Math.abs(n);d=Math.abs(d);var g=gcd(n,d);n/=g;d/=g;if(d===1)return (sg?'-':'')+n;return (sg?'-':'')+'\\dfrac{'+n+'}{'+d+'}';}
+function s(a){return a<0?'-'+(-a):'+'+a;}
+function linN(d,c){var t=(d===1?'n':d===-1?'-n':d+'n');if(c>0)t+='+'+c;else if(c<0)t+='-'+(-c);return t;}
+function kxb(k,b){var t;if(k===0)t='';else t=(k===1?'x':k===-1?'-x':k+'x');if(b>0)t+=(t?'+':'')+b;else if(b<0)t+='-'+(-b);else if(t==='')t='0';return t;}
+function quadStr(b,c){var t='x^2';if(b===1)t+='+x';else if(b===-1)t+='-x';else if(b>0)t+='+'+b+'x';else if(b<0)t+='-'+(-b)+'x';if(c>0)t+='+'+c;else if(c<0)t+='-'+(-c);return t;}
+function seqStr(fn,n){var out=[];for(var k=1;k<=n;k++)out.push(fn(k));return out.join(',\\ ')+',\\ \\dots';}
+function vt(xs){return '<table class="vt"><tr><th>$x$</th>'+xs.map(function(x){return '<td>$'+x+'$</td>';}).join('')+'</tr><tr><th>$y$</th>'+xs.map(function(){return '<td class="blank"></td>';}).join('')+'</tr></table>';}
+function toggleAns(){var el=document.getElementById('answers');if(el)el.style.display=document.getElementById('sa').checked?'block':'none';}
+// 1) Дараалын ерөнхий гишүүн + төрөл
+function p1(){var a1=nz(-5,6),d=nz(2,6);var seqA=seqStr(function(k){return a1+(k-1)*d;},4);
+  var g1=pick([2,3]),b1=pick([1,2]);var seqB=seqStr(function(k){return b1*Math.pow(g1,k-1);},4);
+  return {stem:'Дарааллын ерөнхий гишүүний томьёог бич. Энэ ямар дараалал вэ?<span class="p"><span class="pl">а)</span>$'+seqA+'$</span><span class="p"><span class="pl">б)</span>$'+seqB+'$</span>',
+    a:'а) $a_n='+linN(d,a1-d)+'$ (арифметик прогресс). &nbsp;б) $a_n='+(b1===1?'':b1+'\\cdot ')+g1+'^{n-1}$ (геометр прогресс).'};}
+// 2) Рекуррент (геометр) → ерөнхий гишүүн
+function p2(){var a1=pick([1,2,3]),r=pick([2,3]);return {stem:'$a_1='+a1+',\\ a_{n+1}='+r+'a_n$ рекуррент дараалын ерөнхий гишүүний томьёог бич.',a:'$a_n='+(a1===1?'':a1+'\\cdot ')+r+'^{n-1}$'};}
+// 3) Шулуун — утгын хүснэгт + налалт
+function p3(){var arr=[];for(var i=0;i<2;i++){var k=pick([2,3,-1,-2]),b=nz(-4,4);arr.push({k:k,b:b});}var xs=[-4,-2,0,2,4];
+  var parts=arr.map(function(o,j){return '<span class="p"><span class="pl">'+'аб'[j]+')</span>$y='+kxb(o.k,o.b)+'$</span>';}).join('');
+  var tbls='<div class="tbls">'+arr.map(function(){return vt(xs);}).join('')+'</div>';
+  var ans=arr.map(function(o,j){return 'аб'[j]+') $y:\\ '+xs.map(function(x){return o.k*x+o.b;}).join(',\\ ')+'$, налалт $'+o.k+'$';}).join('; &nbsp;');
+  return {stem:'Функцийн графикийг байгуулж, налалтыг ол.'+parts,img:tbls,a:ans};}
+// 4) y=a-x дээр аль цэг орших вэ
+function p4(){var a=nz(-3,4),L='ABCDEF',pts=[],real=[],used={};
+  for(var i=0;i<6;i++){var x,y,key,tr=0;do{x=nz(-4,4);y=(rnd(0,1)===0)?a-x:a-x+pick([1,-1,2,-2]);key=x+','+y;tr++;}while(used[key]&&tr<30);used[key]=1;
+    pts.push('$'+L[i]+'('+x+';'+y+')$');if(a-x===y)real.push(L[i]+'('+x+';'+y+')');}
+  return {stem:'$y='+kxb(-1,a)+'$ функцийн график дээр дараах цэгүүдийн аль нь орших вэ?<br>'+pts.join(',&nbsp; '),
+    a:real.length?'График дээр орших: $'+real.join(',\\ ')+'$':'Аль нь ч биш'};}
+// 5) Квадрат — хүснэгт, шийд, орой, ХБУ
+function p5(){for(var t=0;t<200;t++){var r1=nz(-3,2),r2=nz(-3,2);if(r1===r2)continue;if(((r1+r2)&1)!==0)continue;var b=-(r1+r2),c=r1*r2;var xv=(r1+r2)/2,m=-(r1-r2)*(r1-r2)/4;var xs=[-3,-2,-1,0,1,2,3];
+    return {stem:'$y='+quadStr(b,c)+'$ функцийн график байгуулж, $'+quadStr(b,c)+'=0$ шийд, параболын орой, ХБУ-ыг ол.',img:'<div class="tbls">'+vt(xs)+'</div>',
+      a:'$y:\\ '+xs.map(function(x){return x*x+b*x+c;}).join(',\\ ')+'$; шийд $x_1='+Math.min(r1,r2)+',x_2='+Math.max(r1,r2)+'$; орой $('+xv+';'+m+')$; ХБУ $['+m+';+\\infty['+'$'};}return null;}
+// 6) Утгын хүснэгт зохиох
+function p6(){var a=pick([6,8,10,12]);var xsH=[-a,-a/2,-1,1,a/2,a];for(var t=0;t<200;t++){var r1=nz(-4,1),r2=nz(-4,1);if(r1===r2)continue;var b=-(r1+r2),c=r1*r2;var xs=[-4,-3,-2,-1,0,1];
+    return {stem:'Дараах функцүүдийн утгын хүснэгт зохиож, график байгуул.<span class="p"><span class="pl">а)</span>$y=\\dfrac{'+a+'}{x}$</span><span class="p"><span class="pl">б)</span>$y='+quadStr(b,c)+'$</span>',
+      img:'<div class="tbls"><table class="vt"><tr><th>$x$</th>'+xsH.map(function(x){return '<td>$'+x+'$</td>';}).join('')+'</tr><tr><th>$y$</th>'+xsH.map(function(){return '<td class="blank"></td>';}).join('')+'</tr></table>'+vt(xs)+'</div>',
+      a:'а) $y:\\ '+xsH.map(function(x){return fracStr(a,x);}).join(',\\ ')+'$. &nbsp;б) $y:\\ '+xs.map(function(x){return x*x+b*x+c;}).join(',\\ ')+'$'};}return null;}
+// 7) Цэг + налалтаар тэгшитгэл
+function p7(){var k=nz(-4,4),x0=nz(-5,5),y0=nz(-6,6),b=y0-k*x0;return {stem:'$('+x0+';'+y0+')$ цэгийг дайрсан $'+k+'$ налалттай шулууны тэгшитгэлийг бич.',a:'$y='+kxb(k,b)+'$'};}
+// 8-9) Хоёр цэгээр тэгшитгэл
+function p89(){for(var t=0;t<80;t++){var x1=nz(-5,5),x2=nz(-5,5);if(x1===x2)continue;var k=nz(-3,3),b=nz(-6,6);var y1=k*x1+b,y2=k*x2+b;return {stem:'$A('+x1+';'+y1+')$ ба $B('+x2+';'+y2+')$ цэгүүдийг дайрсан шулууны тэгшитгэлийг бич.',a:'$y='+kxb(k,b)+'$'};}return null;}
+var GENS=[p1,p2,p3,p4,p5,p6,p7,p89,p89];
+function gen(fn){for(var t=0;t<300;t++){var g=fn();if(g)return g;}return null;}
+function build(){window.__POOL=GENS.map(function(fn){return gen(fn);});layout();}
+function layout(){
+  var WK=document.getElementById('sw').checked;var S=window.__POOL||(window.__POOL=GENS.map(function(fn){return gen(fn);}));
+  var body=S.map(function(f,i){if(!f)return '';return '<div class="q"><div class="qh"><span class="qn">'+(i+1)+'.</span><span class="qm">'+f.stem+'</span></div>'+(f.img||'')+(WK?'<div class="wk"></div>':'')+'</div>';}).join('');
+  var ak=S.map(function(f,i){if(!f)return '';return '<div class="ak"><span class="n">'+(i+1)+')</span> '+f.a+'</div>';}).join('');
+  document.getElementById('sheet').innerHTML=
+    '<div class="head"><h1>Өөрийгөө сорих 4</h1><div class="sub">Дараалал · функц · шулууны налалт · парабол · 9-р анги · V бүлэг</div></div>'
+    +'<div class="meta"><span>Нэр: </span><span>Анги: </span><span>Огноо: </span></div>'
+    +body
+    +'<div class="ans-page" id="answers"><h2>Бодолт</h2>'+ak+'</div>';
+  window.WS_ITEMS=[];window.WS_TITLE='Өөрийгөө сорих 4 (9-р анги)';toggleAns();
+  try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
+}
+build();
+</script>
+<script src="/ws-store.js?v=39"></script>
+</body>
+</html>
