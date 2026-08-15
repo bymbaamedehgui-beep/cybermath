@@ -244,6 +244,8 @@ window.WS_LIST=[
     ['daraalal-guishuud-9.html','Дараалал — гишүүд олох'],
     ['daraalal-erunhii-9.html','Дараалал — ерөнхий гишүүн олох'],
     ['daraalal-rekurrent-9.html','Дараалал — рекуррент томьёо'],
+    ['sistem-grafik-9.html','Систем бодох графикийн арга'],
+    ['shuluun-nalalt-9.html','Шулууны налалт'],
   ]],
   ['10-р анги',[
     ['zereg-teg-sorog-10.html','Тэг ба сөрөг илтгэгчтэй зэрэг — үнэлгээ'],
