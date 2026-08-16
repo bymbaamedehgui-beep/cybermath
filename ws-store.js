@@ -19,6 +19,7 @@
     }
     return arr;
   }
+  function wsOwner(){try{var k=localStorage.getItem('cm_ws_owner');if(!k){k='o'+Date.now().toString(36)+Math.random().toString(36).slice(2,10);localStorage.setItem('cm_ws_owner',k);}return k;}catch(e){return '';}}
   window.wsSaveCurrent=function(btn){
     var items=(window.WS_ITEMS&&window.WS_ITEMS.length)?window.WS_ITEMS:scrapeItems();
     if(!items.length){alert('Хадгалах бодлого алга. Эхлээд "Шинэ бодлого" дарна уу.');return;}
@@ -29,7 +30,7 @@
     if(note===null)return;
     if(btn){btn.disabled=true;var ot=btn.innerHTML;btn.textContent='Хадгалж байна…';}
     fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({action:'save',title:title,items:items,note:note})})
+      body:JSON.stringify({action:'save',title:title,items:items,note:note,owner:wsOwner()})})
       .then(function(r){return r.json();})
       .then(function(d){
         if(d&&d.ok){alert('✓ Тэмдэглэлээ!  Код: #'+d.code+'\n\n"Дасгалын төв → Хадгалсан хуудаснууд" хэсгээс хариутай нь дахин харж болно.');}

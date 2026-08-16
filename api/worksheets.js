@@ -77,6 +77,7 @@ module.exports = async (req, res) => {
         created_at TIMESTAMPTZ DEFAULT NOW()
       )`);
     await pool.query(`ALTER TABLE ws_sets ADD COLUMN IF NOT EXISTS note TEXT`).catch(()=>{});
+    await pool.query(`ALTER TABLE ws_sets ADD COLUMN IF NOT EXISTS owner TEXT`).catch(()=>{});
     await pool.query(`
       CREATE TABLE IF NOT EXISTS ws_titles (
         slug TEXT PRIMARY KEY,
@@ -252,14 +253,21 @@ module.exports = async (req, res) => {
         } catch (e) {}
         return res.json({ ok: true, titles: map, hidden: h.rows.map(x => x.slug), order: order, place: place, announce: announce, subgroups: subgroups });
       }
+      const owner = req.query.owner ? String(req.query.owner).slice(0, 80) : null;
       const code = req.query.code;
       if (code) {
         const r = await pool.query('SELECT * FROM ws_sets WHERE id=$1', [parseInt(code)]);
-        return res.json({ ok: true, set: r.rows[0] || null });
+        const row = r.rows[0] || null;
+        // Эзэмшигчтэй тэмдэглэлийг зөвхөн эзэмшигч нь харна (хуучин эзэмшигчгүй нь нээлттэй)
+        if (row && row.owner && row.owner !== owner) return res.json({ ok: true, set: null });
+        return res.json({ ok: true, set: row });
       }
-      const r = await pool.query(
-        `SELECT id, title, note, created_at, jsonb_array_length(items) AS count
-         FROM ws_sets ORDER BY id DESC LIMIT 200`);
+      // Жагсаалт: зөвхөн тухайн төхөөрөмжийн (эзэмшигчийн) хадгалсан хуудсууд
+      const r = owner
+        ? await pool.query(
+            `SELECT id, title, note, created_at, jsonb_array_length(items) AS count
+             FROM ws_sets WHERE owner=$1 ORDER BY id DESC LIMIT 200`, [owner])
+        : { rows: [] };
       return res.json({ ok: true, sets: r.rows });
     }
 
@@ -347,9 +355,10 @@ module.exports = async (req, res) => {
         const note = b.note ? String(b.note).slice(0, 500) : null;
         const items = Array.isArray(b.items) ? b.items.slice(0, 200) : [];
         if (!items.length) return res.status(400).json({ ok: false, error: 'Бодлого алга' });
+        const owner = b.owner ? String(b.owner).slice(0, 80) : null;
         const r = await pool.query(
-          'INSERT INTO ws_sets (title, items, note) VALUES ($1,$2,$3) RETURNING id, created_at',
-          [title, JSON.stringify(items), note]
+          'INSERT INTO ws_sets (title, items, note, owner) VALUES ($1,$2,$3,$4) RETURNING id, created_at',
+          [title, JSON.stringify(items), note, owner]
         );
         return res.json({ ok: true, code: r.rows[0].id });
       }
@@ -374,7 +383,9 @@ module.exports = async (req, res) => {
         if (!/^\d{4}$/.test(pin)) return res.status(400).json({ ok: false, error: 'PIN шаардлагатай' });
         const pr = await pool.query('SELECT pin FROM ws_pins WHERE email=$1', [WS_PIN_KEY]);
         if (!pr.rows.length || pr.rows[0].pin !== pin) return res.status(403).json({ ok: false, error: 'PIN буруу байна' });
-        await pool.query('DELETE FROM ws_sets WHERE id=$1', [parseInt(b.code)]);
+        // Зөвхөн өөрийн (эзэмшигчийн) тэмдэглэлийг устгана; хуучин эзэмшигчгүй нь нээлттэй
+        const owner = b.owner ? String(b.owner).slice(0, 80) : null;
+        await pool.query('DELETE FROM ws_sets WHERE id=$1 AND (owner IS NULL OR owner=$2)', [parseInt(b.code), owner]);
         return res.json({ ok: true });
       }
       // Санал хүсэлт — нээлттэй (Telegram-аар мэдэгдэнэ)

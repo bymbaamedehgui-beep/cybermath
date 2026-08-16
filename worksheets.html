@@ -704,8 +704,9 @@ function initPreview(elId){
 }
 
 /* ----- saved sets ----- */
+function wsOwner(){try{var k=localStorage.getItem('cm_ws_owner');if(!k){k='o'+Date.now().toString(36)+Math.random().toString(36).slice(2,10);localStorage.setItem('cm_ws_owner',k);}return k;}catch(e){return '';}}
 function loadSaved(){
-  fetch('/api/worksheets').then(function(r){return r.json();}).then(function(d){
+  fetch('/api/worksheets?owner='+encodeURIComponent(wsOwner())).then(function(r){return r.json();}).then(function(d){
     var el=document.getElementById('saved');
     var s=(d&&d.sets)||[];
     if(!s.length){el.innerHTML='<div class="empty">Хадгалсан хуудас алга. Дасгал хэвлэхдээ “💾 Хадгалах” дарна уу.</div>';return;}
@@ -722,7 +723,7 @@ function loadSaved(){
 }
 var SHOW_ANS=true;
 function viewSet(code){
-  fetch('/api/worksheets?code='+code).then(function(r){return r.json();}).then(function(d){
+  fetch('/api/worksheets?code='+code+'&owner='+encodeURIComponent(wsOwner())).then(function(r){return r.json();}).then(function(d){
     var st=d&&d.set; if(!st){alert('Олдсонгүй');return;}
     document.getElementById('mTitle').textContent=st.title;
     var dt=new Date(st.created_at);
@@ -753,7 +754,7 @@ function delSet(code){
   }
   if(!/^\d{4}$/.test(pin)){ alert('PIN 4 оронтой тоо байх ёстой'); return; }
   if(!confirm('#'+code+' тэмдэглэлийг устгах уу?'))return;
-  fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',code:code,pin:pin})})
+  fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',code:code,pin:pin,owner:wsOwner()})})
     .then(function(r){return r.json();}).then(function(d){
       if(d&&d.ok){ lsSet('cm_ws_pin',pin); toast('🗑 Устгалаа'); loadSaved(); }
       else { alert((d&&d.error)||'Устгаж чадсангүй'); if(d&&/PIN/.test(d.error||''))lsDel('cm_ws_pin'); }
