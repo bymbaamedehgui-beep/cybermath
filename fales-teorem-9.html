@@ -75,6 +75,27 @@ function thalesSVG(seed){
    +dot(pA)+dot(pB)+dot(pC)+dot(pD)+dot(pE)
    +lab(pA,'A')+lab(pB,'B')+lab(pC,'C')+lab(pD,'D')+lab(pE,'E')
    +'</svg>';}
+// Гурав хуваасан зураг: AA1||BB1||CC1 параллелиуд хоёр огтлогчийг хуваана
+function parSVG(seed){
+  var mu=0.60,ml=0.12,sp=[[0.9,1.8,2.65],[1.0,1.7,2.7],[0.85,1.75,2.55]][seed%3];
+  var x1=sp[0],x2=sp[1],x3=sp[2],xe=x3*1.14;
+  var V=[0,0],A=[x1,mu*x1],B=[x2,mu*x2],C=[x3,mu*x3],A1=[x1,ml*x1],B1=[x2,ml*x2],C1=[x3,ml*x3];
+  var Ue=[xe,mu*xe],Le=[xe,ml*xe];
+  var all=[V,Ue,Le,A,B,C,A1,B1,C1],xs=all.map(function(p){return p[0];}),ys=all.map(function(p){return p[1];});
+  var minX=Math.min.apply(null,xs),maxX=Math.max.apply(null,xs),minY=Math.min.apply(null,ys),maxY=Math.max.apply(null,ys);
+  var W=300,H=132,pad=16,sc=Math.min((W-2*pad)/(maxX-minX),(H-2*pad)/(maxY-minY));
+  function px(p){return (pad+(p[0]-minX)*sc);}function py(p){return (H-pad-(p[1]-minY)*sc);}
+  function line(p,q,col,w){return '<line x1="'+px(p).toFixed(1)+'" y1="'+py(p).toFixed(1)+'" x2="'+px(q).toFixed(1)+'" y2="'+py(q).toFixed(1)+'" stroke="'+col+'" stroke-width="'+w+'"/>';}
+  function dot(p){return '<circle cx="'+px(p).toFixed(1)+'" cy="'+py(p).toFixed(1)+'" r="2.1" fill="#111"/>';}
+  function tU(p,t){return '<text x="'+px(p).toFixed(1)+'" y="'+(py(p)-6).toFixed(1)+'" font-size="11.5" font-weight="700" text-anchor="middle">'+t+'</text>';}
+  function tL(p,t){return '<text x="'+px(p).toFixed(1)+'" y="'+(py(p)+14).toFixed(1)+'" font-size="11.5" font-weight="700" text-anchor="middle">'+t+'</text>';}
+  return '<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" style="flex-shrink:0">'
+   +line(V,Ue,'#2b7fd4',1.6)+line(V,Le,'#2b7fd4',1.6)
+   +line(A,A1,'#7B52EE',1.6)+line(B,B1,'#7B52EE',1.6)+line(C,C1,'#7B52EE',1.6)
+   +dot(A)+dot(B)+dot(C)+dot(A1)+dot(B1)+dot(C1)
+   +tU(A,'A')+tU(B,'B')+tU(C,'C')+tL(A1,'A₁')+tL(B1,'B₁')+tL(C1,'C₁')
+   +'</svg>';}
+function genCond(){var a=rnd(3,8),b=rnd(3,9),k=rnd(2,4),c=a*k,bc=b*k,ac=c+bc;return {a:a,b:b,c:c,k:k,bc:bc,ac:ac,seed:rnd(0,20)};}
 function g1(){for(var t=0;t<300;t++){var AD=rnd(2,9),DB=rnd(2,9),AE=rnd(2,12);if((DB*AE)%AD)continue;var EC=DB*AE/AD;if(EC<1||EC>30)continue;return {q:'$DE\\parallel BC$. $AD='+AD+'$, $DB='+DB+'$, $AE='+AE+'$ бол $EC=?$',a:'$EC=\\dfrac{DB\\cdot AE}{AD}=\\dfrac{'+DB+'\\cdot'+AE+'}{'+AD+'}='+EC+'$',seed:rnd(0,34),ok:true};}return null;}
 function g2(){for(var t=0;t<300;t++){var AD=rnd(2,9),DB=rnd(2,9),EC=rnd(2,12);if((AD*EC)%DB)continue;var AE=AD*EC/DB;if(AE<1||AE>30)continue;return {q:'$DE\\parallel BC$. $AD='+AD+'$, $DB='+DB+'$, $EC='+EC+'$ бол $AE=?$',a:'$AE=\\dfrac{AD\\cdot EC}{DB}=\\dfrac{'+AD+'\\cdot'+EC+'}{'+DB+'}='+AE+'$',seed:rnd(0,34),ok:true};}return null;}
 function g3(){for(var t=0;t<300;t++){var AD=rnd(2,9),AE=rnd(2,10),EC=rnd(2,12);if((AD*EC)%AE)continue;var DB=AD*EC/AE;if(DB<1||DB>30)continue;return {q:'$DE\\parallel BC$. $AD='+AD+'$, $AE='+AE+'$, $EC='+EC+'$ бол $DB=?$',a:'$DB=\\dfrac{AD\\cdot EC}{AE}=\\dfrac{'+AD+'\\cdot'+EC+'}{'+AE+'}='+DB+'$',seed:rnd(0,34),ok:true};}return null;}
@@ -84,12 +105,12 @@ var LET=['а','б','в','г','д','е','ё','ж','з','и','к','л','м','н','
 function relabel(sheet){var grids=sheet.querySelectorAll('.grid'),map={};
   for(var g=0;g<grids.length;g++){var qs=grids[g].querySelectorAll('.q');
     for(var i=0;i<qs.length;i++){var letter=LET[i]||('#'+(i+1));var ql=qs[i].querySelector('.ql');if(ql)ql.textContent=letter+')';map[qs[i].getAttribute('data-k')]=(g+1)+letter+')';}}
-  var as=sheet.querySelectorAll('#answers .a');for(var j=0;j<as.length;j++){var an=as[j].querySelector('.an');if(an)an.textContent=map[as[j].getAttribute('data-k')]||'';}}
+  var as=sheet.querySelectorAll('#answers .a');for(var j=0;j<as.length;j++){if(as[j].getAttribute('data-fixed'))continue;var an=as[j].querySelector('.an');if(an)an.textContent=map[as[j].getAttribute('data-k')]||'';}}
 function trimToFitBalanced(sheet,target){var guard=0,h=probeH(sheet);while(h>target&&guard++<60){var grids=sheet.querySelectorAll('.grid'),best=-1,bestN=-1;for(var s=grids.length-1;s>=0;s--){var n=grids[s].querySelectorAll('.q').length;if(n>bestN&&n>2){bestN=n;best=s;}}if(best<0)break;var qs=grids[best].querySelectorAll('.q');var last=qs[qs.length-1],k=last.getAttribute('data-k');var ans=sheet.querySelector('#answers .a[data-k="'+k+'"]');if(ans)ans.parentNode.removeChild(ans);last.parentNode.removeChild(last);relabel(sheet);h=probeH(sheet);}}
 function genPool(){var P=[[],[],[]];
   function fill(idx,fn,n){var seen={},c=0,tr=0;while(c<n&&tr<6000){tr++;var f=gen(fn);if(!f||seen[f.q])continue;seen[f.q]=1;P[idx].push(f);c++;}}
   fill(0,g1,4);fill(1,g2,4);fill(2,g3,4);return P;}
-function build(){window.__POOL=genPool();layout();}
+function build(){window.__POOL=genPool();window.__S4=genCond();layout();}
 function layout(){
   var WK=document.getElementById('sw').checked;
   var S=window.__POOL||(window.__POOL=genPool());window.__PROB=[];var K=0;
@@ -97,6 +118,15 @@ function layout(){
     return '<div class="q" data-k="'+k+'"><div class="qh"><span class="ql"></span><span class="qm">'+f.q+'</span></div><div class="qfig">'+thalesSVG(f.seed)+(WK?'<div class="wk"></div>':'')+'</div></div>';}).join('');}
   var b=[block(S[0]),block(S[1]),block(S[2])];
   function ansAll(){return window.__PROB.map(function(p){return '<div class="a" data-k="'+p.k+'"><span class="an"></span><span>'+p.f.a+'</span></div>';}).join('');}
+  var c4=window.__S4||(window.__S4=genCond());
+  var s4work=WK?'<div class="wk" style="height:32mm;width:100%;margin-top:8px"></div>':'';
+  var s4html='<div class="task">4. Өгсөн нөхцөлөөр дараах бодлогуудыг бод.</div>'
+   +'<div class="q"><div class="qm"><b>Ерөнхий нөхцөл:</b> $AA_1\\parallel BB_1\\parallel CC_1$, $AB='+c4.a+'$, $BC='+c4.b+'$, $A_1B_1='+c4.c+'$.</div>'
+   +'<div style="display:flex;gap:14px;margin-top:6px;align-items:center">'+parSVG(c4.seed)
+   +'<div style="flex:1;font-size:13.5px;line-height:2.3">а) $B_1C_1=?$<br>б) $A_1C_1=?$<br>в) $AC:A_1C_1=?$</div></div>'+s4work+'</div>';
+  var s4ans='<div class="a" data-fixed="1"><span class="an">4а)</span><span>$B_1C_1=\\dfrac{BC\\cdot A_1B_1}{AB}=\\dfrac{'+c4.b+'\\cdot'+c4.c+'}{'+c4.a+'}='+c4.bc+'$</span></div>'
+   +'<div class="a" data-fixed="1"><span class="an">4б)</span><span>$A_1C_1=A_1B_1+B_1C_1='+c4.c+'+'+c4.bc+'='+c4.ac+'$</span></div>'
+   +'<div class="a" data-fixed="1"><span class="an">4в)</span><span>$AC:A_1C_1=('+c4.a+'+'+c4.b+'):'+c4.ac+'=1:'+c4.k+'$</span></div>';
   document.getElementById('sheet').innerHTML=
     '<div class="head"><h1>Фалесын теорем</h1><div class="sub">Гурвалжны талд параллель шулуун талыг пропорциональ хуваана · $\\dfrac{AD}{DB}=\\dfrac{AE}{EC}$ · 9-р анги · 6.3</div></div>'
     +'<div class="meta"><span>Нэр: </span><span>Огноо: </span><span>Оноо: </span></div>'
@@ -104,7 +134,8 @@ function layout(){
     +'<div class="task">1. Дутуу хэрчмийг ($EC$) ол.</div><div class="grid">'+b[0]+'</div>'
     +'<div class="task">2. Дутуу хэрчмийг ($AE$) ол.</div><div class="grid">'+b[1]+'</div>'
     +'<div class="task">3. Дутуу хэрчмийг ($DB$) ол.</div><div class="grid">'+b[2]+'</div>'
-    +'<div class="ans-page" id="answers"><h2>Хариунууд</h2><div class="ans-grid">'+ansAll()+'</div></div>';
+    +s4html
+    +'<div class="ans-page" id="answers"><h2>Хариунууд</h2><div class="ans-grid">'+ansAll()+s4ans+'</div></div>';
   window.WS_ITEMS=[];window.WS_TITLE='Фалесын теорем';
   relabel(document.getElementById('sheet'));toggleAns();
   try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
