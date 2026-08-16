@@ -262,6 +262,11 @@ window.WS_LIST=[
     ['shurgegch-ogtlogch-9.html','Шүргэгч ба огтлогчийн чанар'],
     ['ogtlogchuud-9.html','Огтлогчуудын чанар'],
     ['fales-teorem-9.html','Фалесын теорем'],
+    ['jishig-6-1-9.html','VI бүлэг — Жишиг даалгавар 1'],
+    ['jishig-6-2-9.html','VI бүлэг — Жишиг даалгавар 2'],
+    ['shalgalt-material-6-1-9.html','VI бүлэг — Шалгалтын материал-1'],
+    ['shalgalt-material-6-2-9.html','VI бүлэг — Шалгалтын материал-2'],
+    ['oorogsorih-5-9.html','Өөрийгөө сорих 5'],
   ]],
   ['10-р анги',[
     ['zereg-teg-sorog-10.html','Тэг ба сөрөг илтгэгчтэй зэрэг — үнэлгээ'],

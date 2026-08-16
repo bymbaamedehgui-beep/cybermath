@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Өөрийгөө сорих 5 (9-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<style>
+  :root{--purple:#7B52EE;--purple2:#A855F7;--ink:#1a1030;--soft:#7a7390;--amber:#9a6300}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:var(--ink);background:#eceaf3;padding:16px;line-height:1.5}
+  .bar{max-width:820px;margin:0 auto 14px;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
+  .btn{font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.6rem 1.3rem;font-size:.9rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2));box-shadow:0 6px 16px -6px rgba(123,82,238,.6)}
+  .btn:hover{filter:brightness(1.06)} .btn.refresh{background:linear-gradient(135deg,#16a34a,#22c55e)}
+  .bar label{font-weight:700;color:var(--purple);display:flex;align-items:center;gap:6px;font-size:.88rem}
+  .sheet{background:#fff;width:210mm;max-width:100%;min-height:297mm;margin:0 auto;padding:12mm 14mm;box-shadow:0 12px 44px -18px rgba(0,0,0,.35)}
+  .head{text-align:center;border-bottom:2.5px solid var(--purple);padding-bottom:7px;margin-bottom:7px}
+  .head h1{font-size:19px;color:#5a32d6;font-weight:800}.head .sub{font-size:11px;color:var(--soft);margin-top:2px}
+  .meta{display:flex;justify-content:space-between;font-size:11.5px;margin:8px 2px 12px}.meta span{border-bottom:1px dotted #b3a9cf;padding:0 26px 2px 4px}
+  .task{font-weight:800;color:#5a32d6;font-size:13px;margin:10px 0 7px;border-left:4px solid var(--purple2);padding-left:9px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 20px}
+  .q{break-inside:avoid;page-break-inside:avoid}
+  .qh{display:flex;gap:7px;align-items:baseline}.ql{font-weight:800;color:var(--purple);font-size:13px;min-width:24px}.qm{font-size:13.5px}
+  .qfig{display:flex;gap:10px;align-items:center;margin-top:4px}
+  .wk{border:1.1px solid #e2daf5;border-radius:7px;background:linear-gradient(#fff,#fbf9ff);height:16mm;margin-top:5px;flex:1}
+  .ans-page{margin-top:9mm;border-top:2px dashed #ddd;padding-top:7mm}.ans-page h2{font-size:15px;color:#5a32d6;margin-bottom:10px}
+  .ak{font-size:12.5px;margin-bottom:8px;padding-bottom:7px;border-bottom:1px dotted #e6e0f5}.ak .an{color:var(--purple);font-weight:800;margin-right:5px}.ak .sol{color:#42345f}
+  #answers{display:none}
+  @media print{body{background:#fff;padding:0}.bar{display:none}.sheet{box-shadow:none;width:auto;min-height:auto;padding:0;margin:0}@page{size:A4;margin:11mm}.ans-page{break-before:page}}
+</style>
+</head>
+<body>
+<div class="bar">
+  <button class="btn refresh" onclick="build()">Шинэ бодлого</button>
+  <label><input type="checkbox" id="sw" onchange="layout()" checked> Бодолтын зай</label>
+  <label><input type="checkbox" id="sa" onchange="toggleAns()"> Хариу хавсаргах</label>
+  <button class="btn" onclick="window.print()">Хэвлэх / PDF</button>
+</div>
+<div class="sheet" id="sheet"></div>
+<script>
+function rnd(a,b){return a+Math.floor(Math.random()*(b-a+1));}
+function pick(a){return a[rnd(0,a.length-1)];}
+function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){var t=a%b;a=b;b=t;}return a||1;}
+function fracStr(n,d){var g=gcd(n,d);n/=g;d/=g;if(d===1)return ''+n;return '\\dfrac{'+n+'}{'+d+'}';}
+function ss(){return rnd(0,40);}
+function toggleAns(){var el=document.getElementById('answers');if(el)el.style.display=document.getElementById('sa').checked?'block':'none';}
+var TRI=[[3,4,5],[6,8,10],[5,12,13],[8,15,17],[9,12,15],[7,24,25],[20,21,29],[10,24,26]];
+// ---- багтсан/төвийн өнцөг ----
+function figInscribed(arc,seed,central){var toR=Math.PI/180;
+  var vx=[150,120,200,90][seed%4];
+  var V=[Math.cos(vx*toR),Math.sin(vx*toR)];
+  var base=vx+180;
+  var P=[Math.cos((base-arc/2)*toR),Math.sin((base-arc/2)*toR)];
+  var Q=[Math.cos((base+arc/2)*toR),Math.sin((base+arc/2)*toR)];
+  var vertex=central?[0,0]:V;
+  var phi=[0,60,120,200,300][seed%5]*toR;
+  function rot(p){return [p[0]*Math.cos(phi)-p[1]*Math.sin(phi),p[0]*Math.sin(phi)+p[1]*Math.cos(phi)];}
+  var pV=rot(vertex),pP=rot(P),pQ=rot(Q),pO=[0,0];
+  var all=[pV,pP,pQ,[1,0],[-1,0],[0,1],[0,-1]];
+  var xs=all.map(function(p){return p[0];}),ys=all.map(function(p){return p[1];});
+  var minX=Math.min.apply(null,xs),maxX=Math.max.apply(null,xs),minY=Math.min.apply(null,ys),maxY=Math.max.apply(null,ys);
+  var W=168,H=132,pad=16,sc=Math.min((W-2*pad)/(maxX-minX),(H-2*pad)/(maxY-minY));
+  function px(p){return (pad+(p[0]-minX)*sc);}function py(p){return (H-pad-(p[1]-minY)*sc);}
+  function line(p,q,col,w){return '<line x1="'+px(p).toFixed(1)+'" y1="'+py(p).toFixed(1)+'" x2="'+px(q).toFixed(1)+'" y2="'+py(q).toFixed(1)+'" stroke="'+col+'" stroke-width="'+w+'"/>';}
+  function dot(p){return '<circle cx="'+px(p).toFixed(1)+'" cy="'+py(p).toFixed(1)+'" r="2" fill="#111"/>';}
+  function lab(p,t){var ox=px(p)-px(pO),oy=py(p)-py(pO),n=Math.max(1,Math.sqrt(ox*ox+oy*oy));return '<text x="'+(px(p)+ox/n*11).toFixed(1)+'" y="'+(py(p)+oy/n*11+4).toFixed(1)+'" font-size="11" font-weight="700" text-anchor="middle">'+t+'</text>';}
+  return '<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" style="flex-shrink:0">'
+   +'<circle cx="'+px(pO).toFixed(1)+'" cy="'+py(pO).toFixed(1)+'" r="'+sc.toFixed(1)+'" fill="none" stroke="#2b7fd4" stroke-width="1.4"/>'
+   +line(pV,pP,'#7B52EE',1.5)+line(pV,pQ,'#7B52EE',1.5)+line(pP,pQ,'#16a34a',1.2)
+   +dot(pV)+dot(pP)+dot(pQ)+lab(pV,central?'O':'A')+lab(pP,'B')+lab(pQ,'C')
+   +'<text x="'+(px(pV)+3).toFixed(1)+'" y="'+(py(pV)-6).toFixed(1)+'" font-size="11" font-weight="800" fill="#7B52EE">x</text>'
+   +'</svg>';}
+// ---- шүргэгч-хөвч ----
+function figTanChord(arc){var toR=Math.PI/180;
+  var C=[0,-1],B=[Math.cos((-90+arc)*toR),Math.sin((-90+arc)*toR)];
+  var A=[C[0]+1.22,C[1]],D=[C[0]-1.22,C[1]];
+  var phi=pick([0,30,-30,70,-70,115,205])*toR;
+  function rot(p){return [p[0]*Math.cos(phi)-p[1]*Math.sin(phi),p[0]*Math.sin(phi)+p[1]*Math.cos(phi)];}
+  var pC=rot(C),pB=rot(B),pA=rot(A),pD=rot(D),pO=[0,0];
+  var all=[pC,pB,pA,pD,[1,0],[-1,0],[0,1],[0,-1]];
+  var xs=all.map(function(p){return p[0];}),ys=all.map(function(p){return p[1];});
+  var minX=Math.min.apply(null,xs),maxX=Math.max.apply(null,xs),minY=Math.min.apply(null,ys),maxY=Math.max.apply(null,ys);
+  var W=168,H=132,pad=16,sc=Math.min((W-2*pad)/(maxX-minX),(H-2*pad)/(maxY-minY));
+  function px(p){return (pad+(p[0]-minX)*sc);}function py(p){return (H-pad-(p[1]-minY)*sc);}
+  function line(p,q,col,w){return '<line x1="'+px(p).toFixed(1)+'" y1="'+py(p).toFixed(1)+'" x2="'+px(q).toFixed(1)+'" y2="'+py(q).toFixed(1)+'" stroke="'+col+'" stroke-width="'+w+'"/>';}
+  function dot(p){return '<circle cx="'+px(p).toFixed(1)+'" cy="'+py(p).toFixed(1)+'" r="2" fill="#111"/>';}
+  function lab(p,t){var ox=px(p)-px(pO),oy=py(p)-py(pO),n=Math.max(1,Math.sqrt(ox*ox+oy*oy));return '<text x="'+(px(p)+ox/n*11).toFixed(1)+'" y="'+(py(p)+oy/n*11+4).toFixed(1)+'" font-size="11" font-weight="700" text-anchor="middle">'+t+'</text>';}
+  return '<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" style="flex-shrink:0">'
+   +'<circle cx="'+px(pO).toFixed(1)+'" cy="'+py(pO).toFixed(1)+'" r="'+sc.toFixed(1)+'" fill="none" stroke="#2b7fd4" stroke-width="1.4"/>'
+   +line(pD,pA,'#16a34a',1.5)+line(pC,pB,'#7B52EE',1.6)
+   +dot(pC)+dot(pB)+dot(pA)+lab(pC,'C')+lab(pB,'B')+lab(pA,'A')
+   +'<text x="'+(px(pC)-4).toFixed(1)+'" y="'+(py(pC)-6).toFixed(1)+'" font-size="11" font-weight="800" fill="#7B52EE">x</text>'
+   +'</svg>';}
+// ---- тэгш өнцөгт гурвалжин (тригонометр) ----
+function rightTriSVG(a,b){var W=170,H=132,pad=20;var sc=Math.min((W-2*pad)/a,(H-2*pad)/b);
+  var Ax=pad,Ay=H-pad;function X(x){return (Ax+x*sc);}function Y(y){return (Ay-y*sc);}
+  var A=[0,0],B=[a,0],Cc=[a,b];
+  return '<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" style="flex-shrink:0">'
+   +'<polygon points="'+X(0)+','+Y(0)+' '+X(a)+','+Y(0)+' '+X(a)+','+Y(b)+'" fill="none" stroke="#2b7fd4" stroke-width="1.5"/>'
+   +'<rect x="'+(X(a)-7).toFixed(1)+'" y="'+(Y(0)-7).toFixed(1)+'" width="7" height="7" fill="none" stroke="#16a34a" stroke-width="0.9"/>'
+   +'<path d="M '+X(0.9)+' '+Y(0)+' A 18 18 0 0 0 '+(X(0)+0.82*Math.cos(Math.atan2(b,a))*sc*1).toFixed(1)+' '+(Y(0)-0.82*Math.sin(Math.atan2(b,a))*sc).toFixed(1)+'" fill="none" stroke="#dc2626" stroke-width="1"/>'
+   +'<text x="'+(X(0)+8).toFixed(1)+'" y="'+(Y(0)-5).toFixed(1)+'" font-size="11" font-weight="800" fill="#dc2626">&#945;</text>'
+   +'<circle cx="'+X(0).toFixed(1)+'" cy="'+Y(0).toFixed(1)+'" r="2" fill="#111"/><circle cx="'+X(a).toFixed(1)+'" cy="'+Y(0).toFixed(1)+'" r="2" fill="#111"/><circle cx="'+X(a).toFixed(1)+'" cy="'+Y(b).toFixed(1)+'" r="2" fill="#111"/>'
+   +'<text x="'+(X(0)-11).toFixed(1)+'" y="'+(Y(0)+5).toFixed(1)+'" font-size="11" font-weight="700">A</text>'
+   +'<text x="'+(X(a)+2).toFixed(1)+'" y="'+(Y(0)+12).toFixed(1)+'" font-size="11" font-weight="700">B</text>'
+   +'<text x="'+(X(a)+3).toFixed(1)+'" y="'+(Y(b)+2).toFixed(1)+'" font-size="11" font-weight="700">C</text>'
+   +'</svg>';}
+// ---- төсөөт гурвалжин (DE||BC) ----
+function simTriSVG(seed){
+  var sh=[{A:[0,1.15],B:[-1,-0.78],C:[1.05,-0.78]},{A:[0.3,1.1],B:[-0.95,-0.8],C:[1.15,-0.55]},{A:[-0.2,1.2],B:[-1.1,-0.6],C:[0.9,-0.9]}][seed%3];
+  var A=sh.A,B=sh.B,C=sh.C,tt=[0.42,0.52,0.46][(seed>>1)%3];
+  var D=[A[0]+tt*(B[0]-A[0]),A[1]+tt*(B[1]-A[1])],E=[A[0]+tt*(C[0]-A[0]),A[1]+tt*(C[1]-A[1])];
+  var cen=[(A[0]+B[0]+C[0])/3,(A[1]+B[1]+C[1])/3],phi=[0,35,-40,200][seed%4]*Math.PI/180;
+  function rot(p){var x=p[0]-cen[0],y=p[1]-cen[1];return [x*Math.cos(phi)-y*Math.sin(phi),x*Math.sin(phi)+y*Math.cos(phi)];}
+  var pA=rot(A),pB=rot(B),pC=rot(C),pD=rot(D),pE=rot(E),pO=[0,0];
+  var all=[pA,pB,pC,pD,pE],xs=all.map(function(p){return p[0];}),ys=all.map(function(p){return p[1];});
+  var minX=Math.min.apply(null,xs),maxX=Math.max.apply(null,xs),minY=Math.min.apply(null,ys),maxY=Math.max.apply(null,ys);
+  var W=170,H=132,pad=18,sc=Math.min((W-2*pad)/(maxX-minX),(H-2*pad)/(maxY-minY));
+  function px(p){return (pad+(p[0]-minX)*sc);}function py(p){return (H-pad-(p[1]-minY)*sc);}
+  function line(p,q,col,w){return '<line x1="'+px(p).toFixed(1)+'" y1="'+py(p).toFixed(1)+'" x2="'+px(q).toFixed(1)+'" y2="'+py(q).toFixed(1)+'" stroke="'+col+'" stroke-width="'+w+'"/>';}
+  function dot(p){return '<circle cx="'+px(p).toFixed(1)+'" cy="'+py(p).toFixed(1)+'" r="2" fill="#111"/>';}
+  function lab(p,t){var ox=px(p)-px(pO),oy=py(p)-py(pO),n=Math.max(1,Math.sqrt(ox*ox+oy*oy));return '<text x="'+(px(p)+ox/n*10).toFixed(1)+'" y="'+(py(p)+oy/n*10+4).toFixed(1)+'" font-size="11" font-weight="700" text-anchor="middle">'+t+'</text>';}
+  return '<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" style="flex-shrink:0">'
+   +line(pA,pB,'#2b7fd4',1.5)+line(pA,pC,'#2b7fd4',1.5)+line(pB,pC,'#2b7fd4',1.5)+line(pD,pE,'#7B52EE',1.7)
+   +dot(pA)+dot(pB)+dot(pC)+dot(pD)+dot(pE)+lab(pA,'A')+lab(pB,'B')+lab(pC,'C')+lab(pD,'D')+lab(pE,'E')
+   +'</svg>';}
+// ===== ГЕНЕРАТОР =====
+// 1. Тойргийн өнцөг
+function g_inscribed(){var arc=pick([50,60,70,80,90,100,110,120,140]),x=arc/2;return {q:'Багтсан $\\angle BAC$ өнцгийн тулсан нум $\\overset{\\frown}{BC}='+arc+'^\\circ$. $x$-ийг ол.',fig:figInscribed(arc,ss(),false),a:'$x='+x+'^\\circ$',sol:'Багтсан өнцөг нумын хагастай тэнцүү: $x=\\dfrac{'+arc+'^\\circ}{2}='+x+'^\\circ$.'};}
+function g_central(){var arc=pick([40,50,60,70,80,90,100,110]),x=arc;return {q:'Төвийн $\\angle BOC$ өнцгийн тулсан нум $\\overset{\\frown}{BC}='+arc+'^\\circ$. $x$-ийг ол.',fig:figInscribed(arc,ss(),true),a:'$x='+x+'^\\circ$',sol:'Төвийн өнцөг нумтайгаа тэнцүү: $x='+x+'^\\circ$.'};}
+function g_tanchord(){var arc=pick([50,60,70,80,90,100,110,120]),x=arc/2;return {q:'Шүргэгч ба $CB$ хөвчийн хоорондох $x$ өнцгийн доторх нум $\\overset{\\frown}{BC}='+arc+'^\\circ$.',fig:figTanChord(arc),a:'$x='+x+'^\\circ$',sol:'Шүргэгч-хөвчийн өнцөг нумын хагастай тэнцүү: $x=\\dfrac{'+arc+'^\\circ}{2}='+x+'^\\circ$.'};}
+// 2. Медиан ба биссектрис (зураггүй)
+function g_median(){var m=pick([6,9,12,15,18,21]);return {q:'Гурвалжны нэг медиан $'+m+'$ см. Медиануудын огтлолцлын цэг уг медианыг ямар урттай хэрчмүүдэд хуваах вэ?',a:'$'+(2*m/3)+'$ см ба $'+(m/3)+'$ см',sol:'Огтлолцлын цэг медианыг оройноос $2:1$ харьцаагаар хуваана: $\\dfrac{2}{3}\\cdot'+m+'='+(2*m/3)+'$ см, $\\dfrac{1}{3}\\cdot'+m+'='+(m/3)+'$ см.'};}
+function g_bisector(){for(var t=0;t<300;t++){var AB=rnd(4,12),BM=rnd(2,8),MC=rnd(2,8);if((AB*MC)%BM)continue;var AC=AB*MC/BM;if(AC<3||AC>24||AC===AB)continue;return {q:'$ABC$ гурвалжны $A$ оройгоос биссектрис татахад $BC$ талыг $M$-д огтолно. $AB='+AB+'$, $BM='+BM+'$, $MC='+MC+'$ см бол $AC$-г ол.',a:'$AC='+AC+'$ см',sol:'Биссектрисийн чанар: $\\dfrac{BM}{MC}=\\dfrac{AB}{AC}$, эндээс $AC=\\dfrac{AB\\cdot MC}{BM}=\\dfrac{'+AB+'\\cdot'+MC+'}{'+BM+'}='+AC+'$ см.'};}return null;}
+// 3. Тригонометр
+function g_trigratio(){var t=pick(TRI),i=rnd(0,1),opp=t[i],adj=t[1-i],hyp=t[2];return {q:'Зурагт $BC='+opp+'$, $AB='+adj+'$, $AC='+hyp+'$ см. $\\alpha$ өнцгийн $\\sin,\\cos,\\tan$ харьцааг бич.',fig:rightTriSVG(adj,opp),a:'$\\sin\\alpha='+fracStr(opp,hyp)+',\\ \\cos\\alpha='+fracStr(adj,hyp)+',\\ \\tan\\alpha='+fracStr(opp,adj)+'$',sol:'$\\sin\\alpha=\\dfrac{\\text{эсрэг}}{\\text{гипотенуз}}=\\dfrac{'+opp+'}{'+hyp+'}='+fracStr(opp,hyp)+'$; $\\cos\\alpha=\\dfrac{'+adj+'}{'+hyp+'}='+fracStr(adj,hyp)+'$; $\\tan\\alpha=\\dfrac{'+opp+'}{'+adj+'}='+fracStr(opp,adj)+'$.'};}
+function g_trigside(){var t=pick(TRI),i=rnd(0,1),a=t[i],b=t[1-i],c=t[2];return {q:'Зурагт тэгш өнцөгт гурвалжны катетууд $AB='+a+'$, $BC='+b+'$ см. Гипотенуз $AC$-г ол.',fig:rightTriSVG(a,b),a:'$AC='+c+'$ см',sol:'Пифагорын теорем: $AC=\\sqrt{AB^2+BC^2}=\\sqrt{'+a+'^2+'+b+'^2}=\\sqrt{'+(a*a+b*b)+'}='+c+'$ см.'};}
+// 4. Төсөө
+function g_similar(){for(var t=0;t<300;t++){var AB=rnd(6,12),AD=rnd(2,AB-1),BC=rnd(3,14);if((BC*AD)%AB)continue;var DE=BC*AD/AB;if(DE<1||DE>14)continue;return {q:'$DE\\parallel BC$ тул $ADE$ ба $ABC$ гурвалжнууд төсөөтэй. $AB='+AB+'$, $AD='+AD+'$, $BC='+BC+'$ см бол $DE$-г ол.',fig:simTriSVG(ss()),a:'$DE='+DE+'$ см',sol:'Төсөөгийн харьцаа: $\\dfrac{DE}{BC}=\\dfrac{AD}{AB}$, эндээс $DE=\\dfrac{BC\\cdot AD}{AB}=\\dfrac{'+BC+'\\cdot'+AD+'}{'+AB+'}='+DE+'$ см.'};}return null;}
+function gen(fn){for(var t=0;t<400;t++){var g=fn();if(g)return g;}return null;}
+var LET=['а','б','в','г','д','е'];
+function genPool(){return {
+  s1:[gen(g_inscribed),gen(g_central),gen(g_tanchord)],
+  s2:[gen(g_median),gen(g_bisector)],
+  s3:[gen(g_trigratio),gen(g_trigside)],
+  s4:[gen(g_similar),gen(g_similar)]};}
+function build(){window.__P=genPool();layout();}
+function layout(){var WK=document.getElementById('sw').checked;var P=window.__P||(window.__P=genPool());var K=0;var AK=[];
+  function fq(f){var k=K++;AK.push(f);var fig=f.fig?('<div class="qfig">'+f.fig+(WK?'<div class="wk"></div>':'')+'</div>'):(WK?'<div class="wk"></div>':'');
+    return '<div class="q" data-k="'+k+'"><div class="qh"><span class="ql"></span><span class="qm">'+f.q+'</span></div>'+fig+'</div>';}
+  function block(arr){return arr.filter(Boolean).map(fq).join('');}
+  var b1=block(P.s1),b2=block(P.s2),b3=block(P.s3),b4=block(P.s4);
+  var akh=AK.map(function(f,i){return '<div class="ak"><span class="an">'+(i+1)+')</span> '+f.a+' <div class="sol">'+f.sol+'</div></div>';}).join('');
+  document.getElementById('sheet').innerHTML='<div class="head"><h1>Өөрийгөө сорих 5</h1><div class="sub">Тойргийн өнцөг · медиан ба биссектрис · тэгш өнцөгт гурвалжны тригонометр · төсөөт гурвалжин · 9-р анги</div></div>'
+    +'<div class="meta"><span>Нэр: </span><span>Анги: </span><span>Огноо: </span></div>'
+    +'<div class="task">1. Зураг ашиглан $x$ өнцгийн хэмжээг ол. Ямар чанар ашигласнаа тайлбарла.</div><div class="grid">'+b1+'</div>'
+    +'<div class="task">2. Медиан ба биссектрисийн чанар.</div><div class="grid">'+b2+'</div>'
+    +'<div class="task">3. Тэгш өнцөгт гурвалжны тригонометр.</div><div class="grid">'+b3+'</div>'
+    +'<div class="task">4. Төсөөт гурвалжнаас $x$ талыг ол.</div><div class="grid">'+b4+'</div>'
+    +'<div class="ans-page" id="answers"><h2>Хариу ба бодолт</h2>'+akh+'</div>';
+  var qs=document.querySelectorAll('#sheet .grid .q'),labs=[];for(var i=0,g=0,c=0,prevGrid=null;i<qs.length;i++){var gr=qs[i].parentNode;if(gr!==prevGrid){g++;c=0;prevGrid=gr;}var lb=g+LET[c]+')';var ql=qs[i].querySelector('.ql');if(ql)ql.textContent=lb;labs.push(lb);c++;}
+  var aks=document.querySelectorAll('#answers .ak .an');for(var j=0;j<aks.length;j++){aks[j].textContent=labs[j]||((j+1)+')');}
+  window.WS_ITEMS=[];window.WS_TITLE='Өөрийгөө сорих 5 (9-р анги)';toggleAns();
+  try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
+}
+build();
+</script>
+<script src="/ws-store.js?v=39"></script>
+</body>
+</html>
