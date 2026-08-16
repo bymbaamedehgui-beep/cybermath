@@ -258,6 +258,10 @@ window.WS_LIST=[
     ['toirog-hovch-9.html','Тойргийн хөвчийн чанар'],
     ['gadna-onts-9.html','Тойргийн гадна оройтой өнцгийн чанар'],
     ['hovch-shurgegch-onts-9.html','Хөвч ба шүргэгчийн хоорондох өнцгийн чанар'],
+    ['ogtlolcson-hovch-9.html','Огтлолцсон хөвчүүдийн чанар'],
+    ['shurgegch-ogtlogch-9.html','Шүргэгч ба огтлогчийн чанар'],
+    ['ogtlogchuud-9.html','Огтлогчуудын чанар'],
+    ['fales-teorem-9.html','Фалесын теорем'],
   ]],
   ['10-р анги',[
     ['zereg-teg-sorog-10.html','Тэг ба сөрөг илтгэгчтэй зэрэг — үнэлгээ'],
