@@ -254,6 +254,8 @@ window.WS_LIST=[
     ['shalgalt-material-5-1-9.html','V бүлэг — Шалгалтын материал-1'],
     ['shalgalt-material-5-2-9.html','V бүлэг — Шалгалтын материал-2'],
     ['oorogsorih-4-9.html','Өөрийгөө сорих 4'],
+    ['toirog-shurgegch-9.html','Тойргийн шүргэгчийн чанар'],
+    ['toirog-hovch-9.html','Тойргийн хөвчийн чанар'],
   ]],
   ['10-р анги',[
     ['zereg-teg-sorog-10.html','Тэг ба сөрөг илтгэгчтэй зэрэг — үнэлгээ'],
