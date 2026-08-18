@@ -506,7 +506,7 @@ module.exports = async (req, res) => {
     }
 
     // ── АДМИН: ажлын хуудсын промо код удирдах + борлуулалт харах ──
-    if (['ws_promo_create','ws_promo_list','ws_promo_update','ws_purchases_list','ws_users_list','ws_grant','ws_revoke','ws_reconcile'].indexOf(req.query.action) >= 0) {
+    if (['ws_promo_create','ws_promo_list','ws_promo_update','ws_purchases_list','ws_users_list','ws_grant','ws_revoke','ws_reconcile','ws_broadcast'].indexOf(req.query.action) >= 0) {
       if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
       await ensureWsExtra();
       await ensureWsTable();
@@ -605,6 +605,34 @@ module.exports = async (req, res) => {
         const r = await pool.query('SELECT id,email,amount,promo,months,invoice_id,created_at FROM ws_purchases ORDER BY created_at DESC LIMIT 500');
         const tot = await pool.query('SELECT COUNT(*)::int AS n, COALESCE(SUM(amount),0)::int AS sum FROM ws_purchases');
         return res.json({ ok: true, purchases: r.rows, count: tot.rows[0].n, total: tot.rows[0].sum });
+      }
+      // Худалдаж аваагүй (идэвхтэй эрхгүй) бүртгэлтэй хэрэглэгчид рүү промо имэйл — багц-багцаар
+      if (req.query.action === 'ws_broadcast') {
+        const { sendPromoEmail } = require('./_email');
+        await pool.query(`CREATE TABLE IF NOT EXISTS ws_broadcast_sent (email TEXT NOT NULL, campaign TEXT NOT NULL, sent_at TIMESTAMPTZ DEFAULT NOW(), PRIMARY KEY(email,campaign))`).catch(()=>{});
+        if (b.test === true) {
+          const to = (b.email && /.+@.+\..+/.test(String(b.email))) ? String(b.email).trim().toLowerCase() : 'cybermath424@gmail.com';
+          const r = await sendPromoEmail(to);
+          return res.json({ ok: !!(r && r.ok), test: true, to, error: r && r.error });
+        }
+        const campaign = String(b.campaign || 'promo').slice(0, 60);
+        const batch = Math.min(25, Math.max(1, parseInt(b.batch, 10) || 18));
+        const audSql = `SELECT DISTINCT LOWER(l.email) AS email, MIN(l.name) AS name FROM ws_login l
+          WHERE l.verified = TRUE
+            AND NOT EXISTS (SELECT 1 FROM ws_access a WHERE LOWER(a.email)=LOWER(l.email) AND a.expires_at > NOW())
+            AND NOT EXISTS (SELECT 1 FROM ws_broadcast_sent s WHERE s.email=LOWER(l.email) AND s.campaign=$1)
+          GROUP BY LOWER(l.email)`;
+        const leftRes = await pool.query(`SELECT COUNT(*)::int AS n FROM (${audSql}) x`, [campaign]);
+        const totalLeft = leftRes.rows[0].n;
+        const aud = await pool.query(audSql + ' LIMIT $2', [campaign, batch]);
+        let sent = 0, failed = 0;
+        for (const row of aud.rows) {
+          const r = await sendPromoEmail(row.email, row.name || '');
+          if (r && r.ok) { sent++; await pool.query('INSERT INTO ws_broadcast_sent (email,campaign) VALUES ($1,$2) ON CONFLICT DO NOTHING', [row.email, campaign]); }
+          else failed++;
+          await new Promise(rs => setTimeout(rs, 300));
+        }
+        return res.json({ ok: true, sent, failed, remaining: Math.max(0, totalLeft - sent), totalLeft });
       }
     }
 

@@ -419,6 +419,31 @@ window.toggleWsPromo = async function(code,active){
 window.setWsPromoWelcome = async function(code,on){
   try{ await wsPost('ws_promo_update',{code:code,welcome:on}); loadWsSales(); }catch(e){ alert('Алдаа: '+e.message); }
 };
+window.wsBroadcastTest = async function(){
+  var to=(document.getElementById('wb-test-email').value||'').trim();
+  var st=document.getElementById('wb-status'); st.style.color='var(--muted)'; st.textContent='Тест илгээж байна…';
+  try{ var d=await wsPost('ws_broadcast',{test:true,email:to});
+    if(d&&d.ok){ st.style.color='#16a34a'; st.textContent='✓ Тест илгээгдлээ → '+d.to+' (имэйлээ шалгана уу)'; }
+    else { st.style.color='#dc2626'; st.textContent='Алдаа: '+((d&&d.error)||'илгээж чадсангүй'); }
+  }catch(e){ st.style.color='#dc2626'; st.textContent='Алдаа: '+e.message; }
+};
+window.wsBroadcastAll = async function(){
+  if(!confirm('Худалдаж аваагүй БҮХ бүртгэлтэй хэрэглэгч рүү промо имэйл илгээх үү?\n\nЭнэ нь буцаах боломжгүй. Эхлээд тест илгээж шалгасан эсэхээ баталгаажуулаарай.'))return;
+  var st=document.getElementById('wb-status'), btn=document.getElementById('wb-send'); btn.disabled=true;
+  var campaign='promo-'+new Date().toISOString().slice(0,10);
+  var totalSent=0,totalFail=0,guard=0;
+  st.style.color='var(--muted)'; st.textContent='Эхэлж байна…';
+  while(guard++<400){
+    var d;
+    try{ d=await wsPost('ws_broadcast',{campaign:campaign,batch:18}); }
+    catch(e){ st.style.color='#dc2626'; st.textContent='Алдаа: '+e.message+' ('+totalSent+' илгээгдсэн)'; btn.disabled=false; return; }
+    totalSent+=(d.sent||0); totalFail+=(d.failed||0);
+    if(!d.remaining){ st.style.color='#16a34a'; st.textContent='✓ Дууслаа — нийт '+totalSent+' имэйл илгээгдлээ'+(totalFail?(' · '+totalFail+' амжилтгүй'):''); break; }
+    st.textContent='Илгээж байна… '+totalSent+' илгээгдсэн'+(totalFail?(' · '+totalFail+' алдаа'):'')+' · '+d.remaining+' үлдсэн';
+    if((d.sent||0)===0 && (d.failed||0)===0){ st.style.color='#dc2626'; st.textContent='Зогслоо ('+totalSent+' илгээгдсэн · '+d.remaining+' үлдсэн — Gmail хязгаар эсвэл алдаа байж магадгүй)'; break; }
+  }
+  btn.disabled=false;
+};
 window.setWsPromoFake = async function(code,cur){
   var v=prompt('«'+code+'» кодыг /promo дээр харуулах ХУУРАМЧ ашиглалт.\nФормат: ашигласан/нийт (жиш: 6/10) эсвэл ганц тоо (8).\nБодит тоог харуулах бол хоосон орхино уу:', cur||'');
   if(v===null)return;
@@ -2388,6 +2413,18 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
             <button class="btn-sm" onclick="loadWsSales()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 12px;cursor:pointer;font-weight:700;">↻ Шинэчлэх</button>
           </div>
           <div id="ws-promo-list"></div>
+        </div>
+
+        <!-- Промо имэйл кампанит ажил -->
+        <div class="table-card" style="padding:14px 16px;margin-bottom:18px;border:1.5px solid rgba(245,158,11,.35);">
+          <div class="q-form-title" style="display:flex;align-items:center;gap:6px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/></svg>Промо имэйл — худалдаж аваагүйд</div>
+          <div style="font-size:0.8rem;color:var(--muted);margin:8px 0 12px;line-height:1.5;">Идэвхтэй эрхгүй, бүртгэлтэй (баталгаажсан) хэрэглэгчид рүү <b>cyber-math.com/promo</b> линктэй хямдралын имэйл илгээнэ. Gmail-ийн өдрийн хязгаар ~500 тул багц-багцаар илгээгдэнэ. <b>Буцаах боломжгүй</b> тул эхлээд тест илгээж шалгаарай.</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+            <input id="wb-test-email" type="email" placeholder="Тест хаяг (хоосон бол cybermath424@gmail.com)" style="flex:1;min-width:220px;padding:8px 11px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-weight:600;outline:none;box-sizing:border-box;">
+            <button onclick="wsBroadcastTest()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:800;">Тест илгээх</button>
+            <button id="wb-send" onclick="wsBroadcastAll()" style="background:linear-gradient(135deg,#f59e0b,#ef7a0b);border:0;color:#fff;border-radius:8px;padding:8px 16px;cursor:pointer;font-weight:800;">Бүгдэд илгээх →</button>
+          </div>
+          <div id="wb-status" style="font-size:0.85rem;font-weight:800;min-height:18px;"></div>
         </div>
 
         <!-- Хэрэглэгчийн бүртгэл (эрх авсан хүмүүс) -->

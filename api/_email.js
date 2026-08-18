@@ -99,4 +99,27 @@ function sendFeedbackReply(to, reply, original) {
   });
 }
 
-module.exports = { sendVerifyEmail, sendPremiumEmail, sendFreeEmail, sendFeedbackReply };
+function sendPromoEmail(to, firstName) {
+  const hi = firstName ? (firstName + ' багшаа, ') : '';
+  return sendEmail({
+    to,
+    subject: 'CyberMath Дасгалын төв — 40% хүртэл хямдрал',
+    html: `<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;background:#0E0B2B;border-radius:16px;overflow:hidden">
+      <div style="background:linear-gradient(135deg,#7B52EE,#A855F7);padding:22px 24px;text-align:center">
+        <div style="font-size:22px;font-weight:900;color:#fff;letter-spacing:.5px">CyberMath</div>
+        <div style="color:#e9e2ff;font-size:13px;margin-top:2px">Дасгалын төв</div>
+      </div>
+      <div style="padding:28px 24px;color:#F3F0FF;text-align:center">
+        <div style="display:inline-block;background:#FFC113;color:#241B00;font-weight:900;font-size:12px;border-radius:999px;padding:5px 15px;margin-bottom:16px">БАГШДАА ЗОРИУЛСАН ОНЦГОЙ САНАЛ</div>
+        <div style="font-size:42px;font-weight:900;color:#FFF587;line-height:1">40% хүртэл</div>
+        <div style="font-size:17px;font-weight:800;color:#fff;margin:6px 0 2px;letter-spacing:1px">ХЯМДРАЛ</div>
+        <p style="color:#c9c0f0;font-size:14px;line-height:1.65;margin:14px 6px 22px">${hi}Дасгалын төвийн бүх ажлын хуудсыг сонгосон хугацаанд <b style="color:#fff">хязгааргүй</b> хэвлээрэй. Урамшууллын кодоо доорх товчоор аваад захиалахад хямдрал автоматаар тооцогдоно.</p>
+        <a href="https://cyber-math.com/promo" style="display:inline-block;background:linear-gradient(135deg,#4ade80,#22c55e);color:#052e16;font-weight:900;font-size:16px;text-decoration:none;border-radius:999px;padding:14px 34px">Хямдралын кодоо авах</a>
+        <p style="color:#8a80b0;font-size:12px;margin:20px 0 0">Хугацаа хязгаартай · cyber-math.com/promo</p>
+      </div>
+      <div style="background:#171243;padding:14px;text-align:center;color:#6d6499;font-size:11px;line-height:1.5">Энэ имэйл нь CyberMath Дасгалын төвд бүртгэлтэй хаягт илгээгдэв.<br>cyber-math.com · © 2026 CyberMath</div>
+    </div>`
+  });
+}
+
+module.exports = { sendEmail, sendVerifyEmail, sendPremiumEmail, sendFreeEmail, sendFeedbackReply, sendPromoEmail };
