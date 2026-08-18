@@ -351,13 +351,14 @@ function renderWsPromos(list){
     var uses=p.used_count+(p.max_uses!=null?(' / '+p.max_uses):'');
     var st=p.active?'<span style="color:#10b981;font-weight:800;">●</span>':'<span style="color:#9ca3af;font-weight:800;">○</span>';
     h+='<tr>'
-      +'<td style="padding:8px;font-weight:900;letter-spacing:.5px;">'+st+' '+wsEsc(p.code)+'</td>'
+      +'<td style="padding:8px;font-weight:900;letter-spacing:.5px;">'+st+' '+wsEsc(p.code)+(p.welcome?' <span style="color:#f59e0b;font-size:.72rem;font-weight:800;" title="Эхний зочны санал">★ Эхний санал</span>':'')+'</td>'
       +'<td style="padding:8px;font-weight:800;color:#16a34a;">-'+p.pct+'%</td>'
       +'<td style="padding:8px;color:var(--muted);">'+({3:'3 сар',6:'6 сар',9:'9 сар',12:'1 жил'}[p.months]||'Аль ч')+'</td>'
       +'<td style="padding:8px;">'+wsEsc(uses)+(p.fake_uses?'<span style="color:#f59e0b;font-weight:800;" title="/promo дээр ийм харагдана"> ▸ '+wsEsc(p.fake_uses)+'</span>':'')+'</td>'
       +'<td style="padding:8px;color:var(--muted);">'+(p.expires_at?wsDate(p.expires_at):'—')+'</td>'
       +'<td style="padding:8px;color:var(--muted);">'+wsEsc(p.note||'')+'</td>'
       +'<td style="padding:8px;text-align:right;white-space:nowrap;">'
+        +'<button onclick="setWsPromoWelcome(\''+wsEsc(p.code)+'\','+(!p.welcome)+')" style="background:'+(p.welcome?'#f59e0b;color:#fff':'rgba(245,158,11,.12);color:#f59e0b')+';border:1px solid rgba(245,158,11,.35);border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;margin-right:5px;" title="Эхний зочны санал болгох/болиулах">★ Эхний санал</button>'
         +'<button onclick="setWsPromoFake(\''+wsEsc(p.code)+'\',\''+wsEsc(p.fake_uses||'')+'\')" style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);color:#f59e0b;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;margin-right:5px;">Хуурамч тоо</button>'
         +'<button onclick="toggleWsPromo(\''+wsEsc(p.code)+'\','+(!p.active)+')" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;margin-right:5px;">'+(p.active?'Идэвхгүй':'Идэвхжүүл')+'</button>'
         +'<button onclick="deleteWsPromo(\''+wsEsc(p.code)+'\')" style="background:rgba(220,38,38,.12);border:1px solid rgba(220,38,38,.3);color:#dc2626;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;">Устгах</button>'
@@ -398,21 +399,25 @@ window.createWsPromo = async function(ev){
   var days=document.getElementById('wsp-days').value.trim();
   var months=document.getElementById('wsp-months').value;
   var fake=document.getElementById('wsp-fake').value.trim();
+  var welcome=document.getElementById('wsp-welcome').checked;
   var note=document.getElementById('wsp-note').value.trim();
   var expires_at=null;
   if(days!==''){var dn=parseInt(days,10);if(dn>0)expires_at=new Date(Date.now()+dn*86400000).toISOString();}
   msg.style.color='var(--muted)';msg.textContent='Үүсгэж байна…';
   try{
-    var d=await wsPost('ws_promo_create',{code:code,pct:pct,max_uses:max===''?null:max,note:note,expires_at:expires_at,months:months===''?null:months,fake_uses:fake===''?null:fake});
+    var d=await wsPost('ws_promo_create',{code:code,pct:pct,max_uses:max===''?null:max,note:note,expires_at:expires_at,months:months===''?null:months,fake_uses:fake===''?null:fake,welcome:welcome});
     if(!d||!d.ok){msg.style.color='#dc2626';msg.textContent=(d&&d.error)||'Алдаа гарлаа';return;}
     var moLbl={3:'3 сар',6:'6 сар',9:'9 сар',12:'1 жил'}[months]||'аль ч багц';
     msg.style.color='#16a34a';msg.textContent='✓ '+d.code+' ('+d.pct+'%'+(days!==''?', '+days+' хоног':'')+', '+moLbl+') үүслээ';
-    document.getElementById('wsp-code').value='';document.getElementById('wsp-max').value='';document.getElementById('wsp-days').value='';document.getElementById('wsp-months').value='';document.getElementById('wsp-fake').value='';document.getElementById('wsp-note').value='';
+    document.getElementById('wsp-code').value='';document.getElementById('wsp-max').value='';document.getElementById('wsp-days').value='';document.getElementById('wsp-months').value='';document.getElementById('wsp-fake').value='';document.getElementById('wsp-welcome').checked=false;document.getElementById('wsp-note').value='';
     loadWsSales();
   }catch(e){msg.style.color='#dc2626';msg.textContent='Алдаа: '+e.message;}
 };
 window.toggleWsPromo = async function(code,active){
   try{ await wsPost('ws_promo_update',{code:code,active:active}); loadWsSales(); }catch(e){ alert('Алдаа: '+e.message); }
+};
+window.setWsPromoWelcome = async function(code,on){
+  try{ await wsPost('ws_promo_update',{code:code,welcome:on}); loadWsSales(); }catch(e){ alert('Алдаа: '+e.message); }
 };
 window.setWsPromoFake = async function(code,cur){
   var v=prompt('«'+code+'» кодыг /promo дээр харуулах ХУУРАМЧ ашиглалт.\nФормат: ашигласан/нийт (жиш: 6/10) эсвэл ганц тоо (8).\nБодит тоог харуулах бол хоосон орхино уу:', cur||'');
@@ -2370,7 +2375,8 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
           <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
             <label style="font-size:0.76rem;font-weight:800;color:var(--muted);white-space:nowrap;">Хуурамч тоо (харагдац, заавал биш):</label>
             <input id="wsp-fake" type="text" placeholder="жиш: 6/10 эсвэл 8" title="Формат: ашигласан/нийт (жиш 6/10). Хоосон бол бодит ашиглалт харагдана" style="width:150px;padding:8px 11px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-weight:700;outline:none;box-sizing:border-box;">
-            <span style="font-size:0.74rem;color:var(--muted);">— /promo дээр ашиглалтын тоог хуурамчаар харуулна (бодит тоонд нөлөөлөхгүй)</span>
+            <span style="font-size:0.74rem;color:var(--muted);">— /promo дээр ашиглалтын тоог хуурамчаар харуулна</span>
+            <label style="display:inline-flex;align-items:center;gap:6px;font-size:0.8rem;font-weight:800;color:var(--text);cursor:pointer;margin-left:6px;"><input type="checkbox" id="wsp-welcome" style="width:16px;height:16px;accent-color:#f59e0b;"> ★ Эхний зочны санал</label>
           </div>
           <div id="wsp-msg" style="margin-top:8px;font-size:0.85rem;font-weight:800;min-height:18px;"></div>
         </div>

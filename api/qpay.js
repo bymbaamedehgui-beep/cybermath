@@ -134,6 +134,7 @@ async function ensureWsExtra() {
   )`).catch(()=>{});
   await pool.query(`ALTER TABLE ws_promos ADD COLUMN IF NOT EXISTS months INT`).catch(()=>{});
   await pool.query(`ALTER TABLE ws_promos ADD COLUMN IF NOT EXISTS fake_uses TEXT`).catch(()=>{});
+  await pool.query(`ALTER TABLE ws_promos ADD COLUMN IF NOT EXISTS welcome BOOLEAN DEFAULT FALSE`).catch(()=>{});
   await pool.query(`CREATE TABLE IF NOT EXISTS ws_purchases (
     id BIGSERIAL PRIMARY KEY,
     email TEXT NOT NULL,
@@ -495,7 +496,7 @@ module.exports = async (req, res) => {
     if (req.query.action === 'ws_promo_public') {
       await ensureWsExtra();
       const r = await pool.query(
-        `SELECT code, pct, max_uses, used_count, expires_at, note, months, fake_uses FROM ws_promos
+        `SELECT code, pct, max_uses, used_count, expires_at, note, months, fake_uses, welcome FROM ws_promos
          WHERE active = TRUE
            AND (expires_at IS NULL OR expires_at > NOW())
            AND (max_uses IS NULL OR used_count < max_uses)
@@ -558,7 +559,7 @@ module.exports = async (req, res) => {
         return res.json({ ok: true, users: r.rows, total: r.rows.length, active: act.rows[0].n });
       }
       if (req.query.action === 'ws_promo_list') {
-        const r = await pool.query('SELECT code,pct,max_uses,used_count,expires_at,active,note,months,fake_uses,created_at FROM ws_promos ORDER BY created_at DESC');
+        const r = await pool.query('SELECT code,pct,max_uses,used_count,expires_at,active,note,months,fake_uses,welcome,created_at FROM ws_promos ORDER BY created_at DESC');
         return res.json({ ok: true, promos: r.rows });
       }
       if (req.query.action === 'ws_promo_create') {
@@ -573,10 +574,12 @@ module.exports = async (req, res) => {
         const note = b.note ? String(b.note).slice(0, 200) : null;
         const mo = [3,6,9,12].indexOf(parseInt(b.months,10)) >= 0 ? parseInt(b.months,10) : null;
         const fake = (b.fake_uses == null || String(b.fake_uses).trim() === '') ? null : String(b.fake_uses).slice(0, 20);
+        const welcome = b.welcome === true || b.welcome === 'true';
+        if (welcome) await pool.query('UPDATE ws_promos SET welcome=FALSE WHERE welcome=TRUE').catch(()=>{});
         try {
           await pool.query(
-            `INSERT INTO ws_promos (code,pct,max_uses,expires_at,note,months,fake_uses) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-            [code, pct, maxUses, expires, note, mo, fake]);
+            `INSERT INTO ws_promos (code,pct,max_uses,expires_at,note,months,fake_uses,welcome) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+            [code, pct, maxUses, expires, note, mo, fake, welcome]);
         } catch (e) {
           if (e.code === '23505') return res.status(409).json({ ok: false, error: 'Ийм код аль хэдийн байна' });
           throw e;
@@ -591,6 +594,10 @@ module.exports = async (req, res) => {
         if (typeof b.fake_uses !== 'undefined') {
           const fv = (b.fake_uses === null || String(b.fake_uses).trim() === '') ? null : String(b.fake_uses).slice(0, 20);
           await pool.query('UPDATE ws_promos SET fake_uses=$2 WHERE code=$1', [code, fv]);
+        }
+        if (typeof b.welcome === 'boolean') {
+          if (b.welcome) await pool.query('UPDATE ws_promos SET welcome=FALSE WHERE welcome=TRUE AND code<>$1', [code]);
+          await pool.query('UPDATE ws_promos SET welcome=$2 WHERE code=$1', [code, b.welcome]);
         }
         return res.json({ ok: true });
       }

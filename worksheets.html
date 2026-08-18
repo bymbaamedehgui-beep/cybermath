@@ -1625,11 +1625,66 @@ function startPromoBuy(){
     else { window.__afterLogin=function(){openBuy(opt);}; openLogin(false); }
   });
 }
+/* ── Эхний зочны онцгой санал (24 цагийн хувийн countdown) ── */
+var WOFF=null; // {code, end}
+function wpad(n){return String(n).padStart(2,'0');}
+function wleft(){if(!WOFF)return 0;return Math.max(0,WOFF.end-Date.now());}
+function wfmt(ms){var s=Math.floor(ms/1000),h=Math.floor(s/3600);s-=h*3600;var m=Math.floor(s/60);s-=m*60;return wpad(h)+':'+wpad(m)+':'+wpad(s);}
+function welcomeOpts(){var c=WOFF.code;return {promo:c.code,months:c.months||0,lockMonths:!!c.months};}
+function welcomeBuy(){var el=document.getElementById('wsWelcome');if(el)el.remove();var ch=document.getElementById('wsWelChip');if(ch)ch.remove();openBuy(welcomeOpts());}
+function welcomeEnd(){WOFF=null;var el=document.getElementById('wsWelcome');if(el)el.remove();var ch=document.getElementById('wsWelChip');if(ch)ch.remove();if(window.__wTimer){clearInterval(window.__wTimer);window.__wTimer=null;}}
+function welcomeTick(){if(!WOFF)return;var ms=wleft();if(ms<=0){welcomeEnd();return;}var t=wfmt(ms);var a=document.getElementById('wTimer');if(a)a.textContent=t;var b=document.getElementById('wChipT');if(b)b.textContent=(ms<3600000?wfmt(ms).slice(3):t);}
+function showWelChip(){if(!WOFF||document.getElementById('wsWelChip'))return;var c=WOFF.code;var d=document.createElement('div');d.id='wsWelChip';d.style.cssText='position:fixed;right:14px;bottom:14px;z-index:180;display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#7B52EE,#A855F7);color:#fff;font-weight:800;font-size:.86rem;border-radius:999px;padding:.6rem 1rem;box-shadow:0 14px 30px -12px rgba(123,82,238,.8);cursor:pointer';d.innerHTML='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Эхний -'+c.pct+'% · <b id="wChipT">'+wfmt(wleft())+'</b>';d.onclick=showWelPopup;document.body.appendChild(d);}
+function showWelPopup(){
+  if(!WOFF||document.getElementById('wsWelcome'))return;
+  lsSet('cm_ws_welcome_popup','1');
+  var ch=document.getElementById('wsWelChip');if(ch)ch.remove();
+  var c=WOFF.code;var LBL={3:'3 сар',6:'6 сар',9:'9 сар',12:'1 жил'};var planTxt=c.months?(LBL[c.months]+'-ын багц'):'сонгосон хугацаанд';
+  var o=document.createElement('div');o.id='wsWelcome';
+  o.style.cssText='position:fixed;inset:0;z-index:200;background:rgba(20,15,40,.62);display:grid;place-items:center;padding:16px;overflow:auto';
+  o.innerHTML='<div style="position:relative;background:#fff;border-radius:22px;max-width:390px;width:100%;padding:26px 24px 22px;text-align:center;box-shadow:0 30px 70px -20px rgba(0,0,0,.6);overflow:hidden">'
+    +'<div style="position:absolute;right:-30px;top:-30px;width:110px;height:110px;border-radius:50%;background:linear-gradient(135deg,#FFC113,#ff9d2e);opacity:.16"></div>'
+    +'<button id="wX" style="position:absolute;top:12px;right:14px;border:0;background:#f4efff;color:#7a7390;width:30px;height:30px;border-radius:50%;font-size:1.1rem;font-weight:800;cursor:pointer;line-height:1">×</button>'
+    +'<div style="display:inline-block;background:linear-gradient(135deg,#FFC113,#ff9d2e);color:#241B00;font-weight:900;font-size:.76rem;border-radius:999px;padding:4px 13px;margin-bottom:12px">★ ЭХНИЙ ЗОЧНЫ ОНЦГОЙ САНАЛ</div>'
+    +'<div style="font-size:3.1rem;font-weight:900;color:#5a32d6;line-height:1;letter-spacing:-1px">-'+c.pct+'%</div>'
+    +'<div style="font-size:.92rem;color:#4a4270;font-weight:700;margin:6px 0 2px">Дасгалын төвийн бүх ажлын хуудас</div>'
+    +'<div style="font-size:.82rem;color:#7a7390;margin-bottom:14px">'+planTxt+' · хязгааргүй хэвлэх</div>'
+    +'<div style="background:#faf7ff;border:1.5px dashed #cbb8ff;border-radius:13px;padding:10px;margin-bottom:14px">'
+      +'<div style="font-size:.72rem;color:#7a7390;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Санал дуусах хүртэл</div>'
+      +'<div id="wTimer" style="font-family:ui-monospace,Menlo,monospace;font-size:1.9rem;font-weight:900;color:#e0342f;letter-spacing:1px">'+wfmt(wleft())+'</div></div>'
+    +'<button id="wGo" style="width:100%;font-weight:900;border:0;cursor:pointer;border-radius:999px;padding:.85rem;font-size:1rem;color:#fff;background:linear-gradient(135deg,#7B52EE,#A855F7);box-shadow:0 12px 26px -10px rgba(123,82,238,.8)">Одоо хямдралтай авах →</button>'
+    +'<a id="wLater" href="#" style="display:inline-block;margin-top:11px;font-size:.82rem;color:#7a7390;font-weight:700;text-decoration:none">Дараа үзье</a>'
+    +'</div>';
+  document.body.appendChild(o);
+  o.querySelector('#wGo').onclick=welcomeBuy;
+  function later(){o.remove();showWelChip();}
+  o.querySelector('#wX').onclick=later;
+  o.querySelector('#wLater').onclick=function(e){e.preventDefault();later();};
+  o.addEventListener('mousedown',function(e){if(e.target===o)later();});
+}
+function initWelcomeOffer(cb){
+  cb=cb||function(){};
+  if(CM_USER){cb(false);return;}
+  var first=parseInt(lsGet('cm_ws_first')||'0',10);
+  if(!first){first=Date.now();lsSet('cm_ws_first',String(first));}
+  var wEnd=first+24*3600*1000;
+  if(Date.now()>=wEnd){cb(false);return;}
+  fetch('/api/qpay?action=ws_promo_public').then(function(r){return r.json();}).then(function(d){
+    var codes=(d&&d.promos)||[],w=null;for(var i=0;i<codes.length;i++){if(codes[i].welcome){w=codes[i];break;}}
+    if(!w){cb(false);return;}
+    var end=wEnd;if(w.expires_at){var ce=new Date(w.expires_at).getTime();if(ce<end)end=ce;}
+    if(Date.now()>=end){cb(false);return;}
+    WOFF={code:w,end:end};
+    if(!window.__wTimer)window.__wTimer=setInterval(welcomeTick,1000);
+    if(!lsGet('cm_ws_welcome_popup'))showWelPopup();else showWelChip();
+    cb(true);
+  }).catch(function(){cb(false);});
+}
 /* Нэвтрэлт: нэвтэрсэн бол дахиж асуухгүй; анх орж ирэхэд (админ биш) нэг удаа асууна */
 if(!isAdmin()){
   renderAcct();
   verifyUser(function(){
-    if(!CM_USER && !PAYWALL_OFF && !lsGet('cm_ws_dismissed') && !PROMO_CODE) openLogin(true);
+    if(!CM_USER && !PAYWALL_OFF && !lsGet('cm_ws_dismissed') && !PROMO_CODE) initWelcomeOffer(function(shown){ if(!shown) openLogin(true); });
     else ensurePin();
     checkFbReplies();
     // 30 секунд тутам шинэ хариу шалгаж +N badge шинэчилнэ (refresh шаардахгүй)
