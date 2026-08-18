@@ -1135,6 +1135,7 @@ function renderAcct(){
         +'<div style="font-size:.68rem;color:var(--soft);font-weight:700;letter-spacing:.3px;margin-bottom:2px">НЭВТЭРСЭН ХАЯГ</div>'
         +'<div style="font-size:.86rem;color:#211C54;font-weight:800;word-break:break-all;margin-bottom:10px">'+esc(CM_USER.email)+'</div>'
         +'<a href="/plan.html" style="display:flex;align-items:center;gap:7px;text-decoration:none;color:var(--purple-d);font-weight:800;font-size:.84rem;border:1.4px solid #e7ddff;background:#faf7ff;border-radius:10px;padding:.5rem;margin-bottom:8px;justify-content:center"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Хичээлийн төлөвлөгөө</a>'
+        +'<button onclick="openRefModal()" style="width:100%;border:1.4px solid #cbb8ff;background:linear-gradient(135deg,#f6f2ff,#efe8ff);color:#5a32d6;font-weight:800;font-size:.84rem;border-radius:10px;padding:.5rem;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;margin-bottom:8px"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="3.2"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Найзаа урих</button>'
         +'<button onclick="wsLogout()" style="width:100%;border:1.4px solid var(--line);background:#fff;color:var(--soft);font-weight:800;font-size:.82rem;border-radius:10px;padding:.5rem;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>Гарах</button>'
       +'</div>';
   } else {
@@ -1161,6 +1162,34 @@ function verifyUser(cb){
     });
 }
 function wsLogout(){lsDel('cm_ws_token');lsDel('cm_last_user');lsDel('cm_ws_pin');lsDel('cm_ws_pin_ok');CM_USER=null;renderAcct();toast('Гарлаа');}
+function openRefModal(){
+  if(document.getElementById('wsRef'))return;
+  closeAcctMenu();
+  var tok=lsGet('cm_ws_token');
+  var o=document.createElement('div');o.id='wsRef';
+  o.style.cssText='position:fixed;inset:0;z-index:210;background:rgba(20,15,40,.6);display:grid;place-items:center;padding:16px;overflow:auto';
+  o.innerHTML='<div style="position:relative;background:#fff;border-radius:20px;max-width:400px;width:100%;padding:24px;text-align:center;box-shadow:0 24px 60px -18px rgba(0,0,0,.5)">'
+    +'<button id="rfX" style="position:absolute;top:12px;right:14px;border:0;background:#f4efff;color:#7a7390;width:30px;height:30px;border-radius:50%;font-size:1.1rem;font-weight:800;cursor:pointer">×</button>'
+    +'<div style="width:54px;height:54px;margin:0 auto 8px;background:linear-gradient(135deg,var(--purple),var(--purple2));border-radius:15px;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="3.2"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>'
+    +'<h3 style="color:var(--purple-d);font-size:1.18rem;font-weight:900;margin:4px 0 6px">Найзаа урьж, хоёулаа хожъё</h3>'
+    +'<p id="rfDesc" style="color:var(--soft);font-size:.86rem;line-height:1.5;margin-bottom:14px">Ачааллаж байна…</p>'
+    +'<div id="rfBox" style="display:none">'
+      +'<div style="display:flex;gap:6px;margin-bottom:8px"><input id="rfLink" readonly style="flex:1;min-width:0;border:1.6px solid #e7ddff;border-radius:10px;padding:.6rem .7rem;font-size:.82rem;background:#faf7ff;color:#3a2d5e;font-weight:700" /><button id="rfCopy" style="flex-shrink:0;font-weight:800;border:0;background:linear-gradient(135deg,var(--purple),var(--purple2));color:#fff;border-radius:10px;padding:0 1rem;cursor:pointer">Хуулах</button></div>'
+      +'<div id="rfStats" style="font-size:.84rem;color:#4a4270;font-weight:700;background:#f6f2ff;border-radius:10px;padding:9px"></div>'
+    +'</div></div>';
+  document.body.appendChild(o);
+  function cls(){o.remove();}
+  o.querySelector('#rfX').onclick=cls;
+  o.addEventListener('mousedown',function(e){if(e.target===o)cls();});
+  fetch('/api/qpay?action=ws_ref',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:tok})}).then(function(r){return r.json();}).then(function(d){
+    if(!d||!d.ok){document.getElementById('rfDesc').textContent=(d&&d.error)||'Уншиж чадсангүй. Дахин нэвтэрнэ үү.';return;}
+    document.getElementById('rfDesc').innerHTML='Линкээ найздаа илгээнэ үү. Тэр захиалбал <b>найз -'+d.refeePct+'%</b> хямдрал, <b>танд +'+d.referrerDays+' хоног</b> нэмэгдэнэ.';
+    var box=document.getElementById('rfBox');box.style.display='block';
+    document.getElementById('rfLink').value=d.link;
+    document.getElementById('rfStats').innerHTML='Таны урьсан: <b>'+d.count+'</b> найз · Нийт хожсон: <b>+'+d.days+' хоног</b>';
+    var cb=document.getElementById('rfCopy');cb.onclick=function(){var i=document.getElementById('rfLink');try{i.select();}catch(e){}var done=function(){cb.textContent='Хууллаа';setTimeout(function(){cb.textContent='Хуулах';},1500);};try{navigator.clipboard.writeText(d.link).then(done,function(){document.execCommand('copy');done();});}catch(e){try{document.execCommand('copy');}catch(_){}done();}};
+  }).catch(function(){document.getElementById('rfDesc').textContent='Сүлжээний алдаа.';});
+}
 function firstSlug(){var c=document.querySelector('#catalog .card');return c?c.getAttribute('data-slug'):'butarhai-nemeh-18.html';}
 /* ── Устгах PIN (нэг удаа үүсгэнэ) ── */
 function ensurePin(){
@@ -1362,7 +1391,7 @@ function openBuy(opts){
   opts=opts||{};
   if(document.getElementById('wsBuyM'))return;
   var WS_PRICES={3:39900,6:69900,9:99900,12:119900},LABEL={3:'3 сар',6:'6 сар',9:'9 сар',12:'1 жил'};
-  var selMonths=3,appliedPromo=null,curPct=0,pollT=null;
+  var selMonths=3,appliedPromo=null,curPct=0,pollT=null,refCode=lsGet('cm_ws_ref')||null,refPct=0;
   function fmt(n){return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,',');}
   function okEmail(e){return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);}
   var o=document.createElement('div');o.id='wsBuyM';
@@ -1394,7 +1423,7 @@ function openBuy(opts){
     wn.querySelector('#buCopyLink').onclick=function(){var b=this;try{navigator.clipboard.writeText(location.href).then(function(){b.textContent='✓ Хуулагдлаа';},function(){b.textContent=location.href;});}catch(e){b.textContent=location.href;}};
   }
   function styleDur(){[].forEach.call(durBtns,function(b){var on=(+b.getAttribute('data-m')===selMonths);b.style.cssText='flex:1;cursor:pointer;font-weight:800;font-size:.82rem;border-radius:11px;padding:.5rem .2rem;transition:.12s;'+(on?'border:1.6px solid var(--purple);background:linear-gradient(135deg,var(--purple),var(--purple2));color:#fff;box-shadow:0 6px 14px -8px rgba(123,82,238,.9)':'border:1.6px solid #e7ddff;background:#fff;color:#5a32d6');});}
-  function renderPrice(){var base=WS_PRICES[selMonths],price=curPct>0?Math.round(base*(100-curPct)/100):base,per='<span style="font-size:.86rem;color:var(--soft);font-weight:700">/ '+LABEL[selMonths]+'</span>';if(curPct>0){priceBox.innerHTML='<span style="text-decoration:line-through;color:#b3a9cf;font-size:1.05rem;font-weight:800">'+fmt(base)+'₮</span> '+fmt(price)+'₮ '+per+' <span style="display:inline-block;background:#dcfce7;color:#16a34a;font-size:.72rem;font-weight:800;border-radius:999px;padding:2px 8px;vertical-align:middle">-'+curPct+'%</span>';}else priceBox.innerHTML=fmt(base)+'₮ '+per;}
+  function renderPrice(){var base=WS_PRICES[selMonths],eff=Math.max(curPct,refPct),price=eff>0?Math.round(base*(100-eff)/100):base,per='<span style="font-size:.86rem;color:var(--soft);font-weight:700">/ '+LABEL[selMonths]+'</span>';if(eff>0){priceBox.innerHTML='<span style="text-decoration:line-through;color:#b3a9cf;font-size:1.05rem;font-weight:800">'+fmt(base)+'₮</span> '+fmt(price)+'₮ '+per+' <span style="display:inline-block;background:#dcfce7;color:#16a34a;font-size:.72rem;font-weight:800;border-radius:999px;padding:2px 8px;vertical-align:middle">-'+eff+'%</span>';}else priceBox.innerHTML=fmt(base)+'₮ '+per;}
   [].forEach.call(durBtns,function(b){b.onclick=function(){selMonths=+b.getAttribute('data-m');styleDur();renderPrice();};});
   styleDur();renderPrice();
   fetch('/api/qpay?action=wsprices').then(function(r){return r.json();}).then(function(d){if(d&&d.prices){WS_PRICES=d.prices;renderPrice();}}).catch(function(){});
@@ -1409,11 +1438,18 @@ function openBuy(opts){
     if(_dd){var lk=document.createElement('div');lk.style.cssText='font-size:.78rem;color:#5a32d6;font-weight:800;background:#f4efff;border:1px solid #e0d4ff;border-radius:9px;padding:6px 10px;margin:-4px 0 12px;text-align:left';lk.innerHTML='<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" style="vertical-align:-2px;margin-right:5px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Энэ код <b>'+(LABEL[selMonths]||selMonths+" сар")+'</b>-ын багцад зориулсан тул хугацаа тогтмол.';_dd.parentNode.insertBefore(lk,_dd.nextSibling);}
   }
   if(opts.promo){promoIn.value=String(opts.promo).toUpperCase();setTimeout(function(){promoBtn.onclick();},80);}
+  // Найзын урилга (?ref) — хүчинтэй бол хямдрал автоматаар тооцно
+  if(refCode){
+    fetch('/api/qpay?action=ws_refcheck',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ref:refCode,email:(em.value||lsGet('cm_last_user')||'')})}).then(function(r){return r.json();}).then(function(d){
+      if(d&&d.valid){refPct=d.pct;renderPrice();if(!appliedPromo){promoMsg.style.color='#16a34a';promoMsg.textContent='Найзын урилгаар -'+d.pct+'% хямдрал хэрэгжинэ';}}
+      else{refCode=null;}
+    }).catch(function(){});
+  }
   o.querySelector('#buBuy').onclick=function(){var email=(em.value||'').trim().toLowerCase();if(!okEmail(email)){msg.style.color='#dc2626';msg.textContent='Зөв имэйл хаяг оруулна уу';return;}this.disabled=true;this.textContent='Нэхэмжлэх үүсгэж байна…';var btn=this;
-    fetch('/api/qpay?action=create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,plan:'wsmonths',months:selMonths,promo:appliedPromo})}).then(function(r){return r.json();}).then(function(d){var inv=d&&d.invoice;if(!inv||!inv.invoice_id){msg.style.color='#dc2626';msg.textContent='Нэхэмжлэх үүсгэж чадсангүй. Дахин оролдоно уу.';btn.disabled=false;btn.textContent='QPay-аар худалдан авах';return;}
+    fetch('/api/qpay?action=create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,plan:'wsmonths',months:selMonths,promo:appliedPromo,ref:refCode})}).then(function(r){return r.json();}).then(function(d){var inv=d&&d.invoice;if(!inv||!inv.invoice_id){msg.style.color='#dc2626';msg.textContent='Нэхэмжлэх үүсгэж чадсангүй. Дахин оролдоно уу.';btn.disabled=false;btn.textContent='QPay-аар худалдан авах';return;}
       var img=inv.qr_image?('<img src="data:image/png;base64,'+inv.qr_image+'" style="width:190px;height:190px" alt="QPay QR"/>'):'';var link=inv.qPay_shortUrl?('<div style="margin-top:8px"><a href="'+inv.qPay_shortUrl+'" target="_blank" style="display:inline-flex;align-items:center;gap:5px;color:var(--purple-d);font-weight:700;font-size:.85rem;text-decoration:none"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg>Утаснаас төлөх</a></div>'):'';
       qr.innerHTML='<div style="font-size:.82rem;color:var(--soft);margin-bottom:6px">QPay аппаар уншуулж төлнө үү</div>'+img+link;btn.style.display='none';em.disabled=true;o.querySelector('#buDur').style.display='none';msg.style.color='var(--soft)';msg.textContent='Төлбөрийг хүлээж байна…';
-      pollT=setInterval(function(){fetch('/api/qpay?action=check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({invoice_id:inv.invoice_id,email:email,plan:'wsmonths',months:selMonths,promo:appliedPromo})}).then(function(r){return r.json();}).then(function(c){if(c&&c.paid){if(c.ws_token)lsSet('cm_ws_token',c.ws_token);lsSet('cm_last_user',email);clearInterval(pollT);pollT=null;CM_USER={email:email};renderAcct();o.remove();toast('✓ Амжилттай! Тавтай морил');ensurePin();}}).catch(function(){});},3000);
+      pollT=setInterval(function(){fetch('/api/qpay?action=check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({invoice_id:inv.invoice_id,email:email,plan:'wsmonths',months:selMonths,promo:appliedPromo,ref:refCode})}).then(function(r){return r.json();}).then(function(c){if(c&&c.paid){if(c.ws_token)lsSet('cm_ws_token',c.ws_token);lsSet('cm_last_user',email);clearInterval(pollT);pollT=null;CM_USER={email:email};renderAcct();o.remove();toast('✓ Амжилттай! Тавтай морил');ensurePin();}}).catch(function(){});},3000);
     }).catch(function(){msg.style.color='#dc2626';msg.textContent='Сүлжээний алдаа. Дахин оролдоно уу.';btn.disabled=false;btn.textContent='QPay-аар худалдан авах';});};
   o.querySelector('#buBack').onclick=function(){if(pollT){clearInterval(pollT);pollT=null;}o.remove();openLogin(false);};
   o.addEventListener('mousedown',function(e){if(e.target===o){if(pollT){clearInterval(pollT);pollT=null;}o.remove();}});
@@ -1614,6 +1650,8 @@ function openFeedback(){
   setTimeout(function(){o.querySelector('#fbMsg').focus();},40);
 }
 
+/* Найзын урилгын код (?ref=CODE) — PROMO-оос өмнө барина (query цэвэрлэгдэхээс өмнө) */
+(function(){var m=location.search.match(/[?&]ref=([A-Za-z0-9]{4,12})/);if(m)lsSet('cm_ws_ref',m[1].toUpperCase());})();
 /* /promo хуудаснаас "АШИГЛАХ" дарж ирсэн промо код (?promo=CODE&months=N) */
 var PROMO_MONTHS=0;
 var PROMO_CODE=(function(){var m=location.search.match(/[?&]promo=([^&?#]+)/);if(!m)return null;var mm=location.search.match(/[?&]months=(\d+)/);if(mm){var v=parseInt(mm[1],10);if([3,6,9,12].indexOf(v)>=0)PROMO_MONTHS=v;}var c=decodeURIComponent(m[1]).toUpperCase().replace(/[^A-Z0-9]/g,'');try{history.replaceState(null,'',location.pathname);}catch(e){}return c||null;})();

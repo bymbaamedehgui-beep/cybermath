@@ -54,6 +54,51 @@ async function grantWsUntil(email, exp) {
   );
   return exp;
 }
+// ── Хоёр талын Referral (Dropbox маягаар) ──
+const REF_PCT  = parseInt(process.env.WS_REF_PCT  || '15', 10);  // шинэ найзын хямдрал %
+const REF_DAYS = parseInt(process.env.WS_REF_DAYS || '30', 10);  // урьсан багшийн урамшуулал (хоног)
+async function grantWsAddDays(email, days) {
+  await ensureWsTable();
+  await pool.query(
+    `INSERT INTO ws_access (email, expires_at, updated_at) VALUES ($1, NOW() + ($2 || ' days')::interval, NOW())
+     ON CONFLICT (email) DO UPDATE SET expires_at = GREATEST(ws_access.expires_at, NOW()) + ($2 || ' days')::interval, updated_at=NOW()`,
+    [String(email).trim().toLowerCase(), String(days)]
+  );
+}
+function genRefCode() { const c = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = 'R'; for (let i = 0; i < 6; i++) s += c[Math.floor(Math.random() * c.length)]; return s; }
+async function getOrCreateRefCode(email) {
+  email = String(email).trim().toLowerCase();
+  await pool.query('ALTER TABLE ws_login ADD COLUMN IF NOT EXISTS ref_code TEXT').catch(()=>{});
+  const r = await pool.query('SELECT ref_code FROM ws_login WHERE lower(email)=$1', [email]).catch(()=>({rows:[]}));
+  if (!r.rows.length) return null;
+  if (r.rows[0].ref_code) return r.rows[0].ref_code;
+  for (let i = 0; i < 10; i++) { const code = genRefCode(); try { await pool.query('UPDATE ws_login SET ref_code=$2 WHERE lower(email)=$1', [email, code]); return code; } catch (e) {} }
+  return null;
+}
+async function refOwner(code) {
+  if (!code) return null;
+  await pool.query('ALTER TABLE ws_login ADD COLUMN IF NOT EXISTS ref_code TEXT').catch(()=>{});
+  const r = await pool.query('SELECT lower(email) AS email FROM ws_login WHERE ref_code=$1 LIMIT 1', [String(code).trim().toUpperCase()]).catch(()=>({rows:[]}));
+  return r.rows.length ? r.rows[0].email : null;
+}
+async function processReferral(refereeEmail, invoiceId) {
+  try {
+    refereeEmail = String(refereeEmail).trim().toLowerCase();
+    const p = await pool.query('SELECT ref FROM ws_pending WHERE invoice_id=$1', [invoiceId]).catch(()=>({rows:[]}));
+    const code = p.rows.length ? p.rows[0].ref : null;
+    if (!code) return;
+    const owner = await refOwner(code);
+    if (!owner || owner === refereeEmail) return;
+    const ins = await pool.query(
+      `INSERT INTO ws_referrals (referee_email, ref_code, referrer_email, invoice_id, reward_days)
+       VALUES ($1,$2,$3,$4,$5) ON CONFLICT (referee_email) DO NOTHING RETURNING referee_email`,
+      [refereeEmail, String(code).toUpperCase(), owner, String(invoiceId), REF_DAYS]);
+    if (ins.rows.length) {
+      await grantWsAddDays(owner, REF_DAYS);
+      try { await notifyTelegram('🎁 <b>Referral</b>\n' + owner + ' → +' + REF_DAYS + ' хоног\n(' + refereeEmail + ' худалдан авав)'); } catch (e) {}
+    }
+  } catch (e) { console.error('[referral]', e.message); }
+}
 
 // ── Азтаны хүрд — нэг имэйл нэг эргэлт. Ялагдсан нүд ч эерэг мэндчилгээтэй ──
 const WHEEL = [
@@ -153,6 +198,16 @@ async function ensureWsExtra() {
     promo TEXT,
     amount INT,
     granted BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`).catch(()=>{});
+  await pool.query(`ALTER TABLE ws_pending ADD COLUMN IF NOT EXISTS ref TEXT`).catch(()=>{});
+  await pool.query(`ALTER TABLE ws_login ADD COLUMN IF NOT EXISTS ref_code TEXT`).catch(()=>{});
+  await pool.query(`CREATE TABLE IF NOT EXISTS ws_referrals (
+    referee_email TEXT PRIMARY KEY,
+    ref_code TEXT,
+    referrer_email TEXT,
+    invoice_id TEXT,
+    reward_days INT,
     created_at TIMESTAMPTZ DEFAULT NOW()
   )`).catch(()=>{});
   wsExtraReady = true;
@@ -289,9 +344,16 @@ module.exports = async (req, res) => {
 
       // Үнэ — серверийн талд эрх мэдэлтэй тооцно (промо код бол хямдруулна)
       let invAmount = amount || 9900;
+      let refStore = null;
       if (wsMonths != null) {
         const pi = await resolvePromo((req.body || {}).promo);
-        invAmount = priceFromPct(pi.pct, wsMonths);
+        let pct = pi.pct;
+        const refIn = ((req.body || {}).ref || '').trim().toUpperCase() || null;
+        if (refIn) {
+          const owner = await refOwner(refIn);
+          if (owner && owner !== email.trim().toLowerCase()) { refStore = refIn; if (REF_PCT > pct) pct = REF_PCT; }
+        }
+        invAmount = priceFromPct(pct, wsMonths);
       } else if (plan === 'event') {
         invAmount = eventPrice;
       }
@@ -319,9 +381,9 @@ module.exports = async (req, res) => {
           await ensureWsExtra();
           const promo = ((req.body || {}).promo || '').trim().toUpperCase() || null;
           await pool.query(
-            `INSERT INTO ws_pending (invoice_id, email, months, promo, amount) VALUES ($1,$2,$3,$4,$5)
+            `INSERT INTO ws_pending (invoice_id, email, months, promo, amount, ref) VALUES ($1,$2,$3,$4,$5,$6)
              ON CONFLICT (invoice_id) DO NOTHING`,
-            [invoice.invoice_id, email.trim().toLowerCase(), wsMonths, promo, invAmount]);
+            [invoice.invoice_id, email.trim().toLowerCase(), wsMonths, promo, invAmount, refStore]);
         } catch (e) { console.error('[ws_pending]', e.message); }
       }
       // Сургалтын бүртгэлд invoice_id холбоно (event_register аль хэдийн мөр үүсгэсэн)
@@ -377,6 +439,7 @@ module.exports = async (req, res) => {
               await pool.query('UPDATE ws_promos SET used_count=used_count+1 WHERE code=$1', [promo]).catch(()=>{});
             }
             await pool.query('UPDATE ws_pending SET granted=TRUE WHERE invoice_id=$1', [invoice_id]).catch(()=>{});
+            await processReferral(email, invoice_id);
           } catch (e) { console.error('[ws purchase]', e.message); }
           return res.json({ ok: true, paid: true, expiry: wexp.toISOString(), ws_token: wsToken(email) });
         }
@@ -505,6 +568,25 @@ module.exports = async (req, res) => {
       return res.json({ ok: true, promos: r.rows });
     }
 
+    // ── Referral: найзын код шалгах (нээлттэй) ──
+    if (req.query.action === 'ws_refcheck') {
+      await ensureWsExtra();
+      const owner = await refOwner((req.body || {}).ref);
+      const self = (req.body || {}).email ? String((req.body).email).trim().toLowerCase() : null;
+      const valid = !!owner && owner !== self;
+      return res.json({ ok: true, valid, pct: valid ? REF_PCT : 0 });
+    }
+    // ── Referral: миний урих код + статистик (ws токен) ──
+    if (req.query.action === 'ws_ref') {
+      await ensureWsExtra();
+      const email = emailFromToken((req.body || {}).token);
+      if (!email) return res.status(401).json({ ok: false, error: 'Нэвтэрнэ үү' });
+      const code = await getOrCreateRefCode(email);
+      if (!code) return res.json({ ok: false, error: 'Бүртгэл олдсонгүй' });
+      const s = await pool.query('SELECT COUNT(*)::int AS n, COALESCE(SUM(reward_days),0)::int AS days FROM ws_referrals WHERE referrer_email=$1', [email]);
+      return res.json({ ok: true, code, link: 'https://cyber-math.com/worksheets?ref=' + code, count: s.rows[0].n, days: s.rows[0].days, refeePct: REF_PCT, referrerDays: REF_DAYS });
+    }
+
     // ── АДМИН: ажлын хуудсын промо код удирдах + борлуулалт харах ──
     if (['ws_promo_create','ws_promo_list','ws_promo_update','ws_purchases_list','ws_users_list','ws_grant','ws_revoke','ws_reconcile','ws_broadcast'].indexOf(req.query.action) >= 0) {
       if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
@@ -529,6 +611,7 @@ module.exports = async (req, res) => {
               const inserted = await recordPurchase(row.email, row.amount || priceFromPct(0, row.months), row.promo, row.invoice_id, row.months);
               if (inserted && row.promo) await pool.query('UPDATE ws_promos SET used_count=used_count+1 WHERE code=$1', [row.promo]).catch(()=>{});
               await pool.query('UPDATE ws_pending SET granted=TRUE WHERE invoice_id=$1', [row.invoice_id]);
+              await processReferral(row.email, row.invoice_id);
               granted.push({ email: row.email, months: row.months, amount: row.amount });
             }
           } catch (e) { /* тухайн нэхэмжлэхийг алгасна */ }
