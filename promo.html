@@ -36,6 +36,8 @@
   .disc{display:inline-flex;align-items:baseline;gap:4px;font-weight:900;color:#241B00;background:var(--yellow);border-radius:9px;padding:3px 10px;margin-bottom:8px}
   .disc b{font-size:1.15rem;line-height:1}
   .disc span{font-size:.72rem;font-weight:800}
+  .plan{display:inline-block;font-size:.68rem;font-weight:800;color:var(--cyan);background:rgba(90,197,241,.14);border:1px solid rgba(90,197,241,.35);border-radius:999px;padding:2px 9px;vertical-align:middle;margin-bottom:8px}
+  .plan.any{color:var(--soft);background:rgba(169,159,224,.12);border-color:rgba(169,159,224,.3)}
   .code{font-family:ui-monospace,'SFMono-Regular',Menlo,monospace;font-size:1.3rem;font-weight:800;color:var(--yellow);letter-spacing:1.5px;word-break:break-all;line-height:1.15}
   .note-t{font-size:.78rem;color:var(--soft);margin-top:4px}
   .cd-wrap{background:#0c0922;border:1px solid var(--line);border-radius:13px;padding:9px 12px;text-align:center}
@@ -89,7 +91,8 @@
 var CODES=[];
 function toast(m){var t=document.getElementById('toast');t.textContent=m;t.classList.add('on');clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove('on');},1600);}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
-function useCode(code){location.href='/worksheets?promo='+encodeURIComponent(code);}
+function moLabel(m){return {3:'3 сар',6:'6 сар',9:'9 сар',12:'1 жил'}[m]||null;}
+function useCode(code,months){var u='/worksheets?promo='+encodeURIComponent(code);if(months)u+='&months='+months;location.href=u;}
 function pad(n){return String(n).padStart(2,'0');}
 function fmtLeft(exp){
   if(!exp)return {kind:'forever',txt:'Хугацаагүй',lbl:'Байнгын код'};
@@ -150,13 +153,15 @@ function render(){
     var uses=(c.max_uses?(c.used_count+' / '+c.max_uses):(c.used_count+' удаа'));
     var pct=c.max_uses?Math.min(100,Math.round(100*c.used_count/c.max_uses)):0;
     var off=(c.active===false)?'<span class="badge-off">Идэвхгүй</span>':'';
+    var mol=moLabel(c.months);
+    var moChip=mol?'<span class="plan">'+mol+' багц</span>':'<span class="plan any">Аль ч багц</span>';
     return '<div class="card'+(dead(c)?' dead':'')+'" data-exp="'+(c.expires_at||'')+'">'
       +'<div class="row1"><div class="qrbox"><canvas class="qc"></canvas></div>'
-      +'<div class="cinfo"><span class="disc"><b>'+c.pct+'%</b><span>ХӨНГӨЛӨЛТ</span></span>'
+      +'<div class="cinfo"><span class="disc"><b>'+c.pct+'%</b><span>ХӨНГӨЛӨЛТ</span></span> '+moChip
       +'<div class="code">'+esc(c.code)+'</div>'+(c.note?'<div class="note-t">'+esc(c.note)+'</div>':'')+'</div></div>'
       +'<div class="cd-wrap"><div class="cd">—</div><div class="cd-lbl">Хугацаа</div></div>'
       +'<div class="meta"><div class="uses">'+uses+(c.max_uses?'<div class="usebar"><i style="width:'+pct+'%"></i></div>':'')+'</div>'+off+'</div>'
-      +'<button class="usebtn" onclick="useCode(\''+esc(c.code)+'\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>АШИГЛАХ · '+c.pct+'% хямдрал авах</button>'
+      +'<button class="usebtn" onclick="useCode(\''+esc(c.code)+'\','+(c.months||0)+')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>АШИГЛАХ'+(mol?' · '+mol:'')+' · '+c.pct+'% авах</button>'
       +'<div class="acts"><button class="act copy" onclick="copyCode(\''+esc(c.code)+'\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Код хуулах</button>'
       +'<button class="act qr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v.01M14 21h.01M17 21h4v-4"/></svg>QR хуулах</button></div>'
       +'</div>';
