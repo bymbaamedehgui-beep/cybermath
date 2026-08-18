@@ -1266,7 +1266,7 @@ function openLogin(auto){
   function api(action,body){ body=body||{}; body.action=action; return fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json().then(function(d){return {s:r.status,d:d};});}); }
   var TITLES={login:'Дасгалын төвд нэвтрэх',register:'Шинэ бүртгэл үүсгэх',verify:'Имэйл баталгаажуулах',forgot:'Нууц үг сэргээх'};
   function showView(v){ ['login','register','verify','forgot'].forEach(function(x){q('#v'+x.charAt(0).toUpperCase()+x.slice(1)).style.display=(x===v)?'block':'none';}); q('#liTitle').textContent=TITLES[v]; }
-  function done(token,email,fresh){ if(token)lsSet('cm_ws_token',token); lsSet('cm_last_user',email); CM_USER={email:email}; if(fresh)resetNewBaseline(); renderAcct(); o.remove(); toast('✓ Тавтай морил'); ensurePin(); try{loadEvents();}catch(e){} }
+  function done(token,email,fresh){ if(token)lsSet('cm_ws_token',token); lsSet('cm_last_user',email); CM_USER={email:email}; if(fresh)resetNewBaseline(); renderAcct(); o.remove(); toast('✓ Тавтай морил'); ensurePin(); try{loadEvents();}catch(e){} if(window.__afterLogin){var _f=window.__afterLogin;window.__afterLogin=null;setTimeout(_f,180);} }
   var curEmail='';
   if(lsGet('cm_last_user'))q('#lgEmail').value=lsGet('cm_last_user');
   setTimeout(function(){q('#lgEmail').focus();},40);
@@ -1358,7 +1358,8 @@ function openLogin(auto){
 }
 
 /* ── Худалдан авах цонх (каталог дээр шууд) ── */
-function openBuy(){
+function openBuy(opts){
+  opts=opts||{};
   if(document.getElementById('wsBuyM'))return;
   var WS_PRICES={3:39900,6:69900,9:99900,12:119900},LABEL={3:'3 сар',6:'6 сар',9:'9 сар',12:'1 жил'};
   var selMonths=3,appliedPromo=null,curPct=0,pollT=null;
@@ -1400,6 +1401,9 @@ function openBuy(){
   promoBtn.onclick=function(){var code=(promoIn.value||'').trim().toUpperCase();if(!code){appliedPromo=null;curPct=0;renderPrice();promoMsg.textContent='';promoIn.style.borderColor='#e7ddff';return;}promoBtn.disabled=true;var ot=promoBtn.textContent;promoBtn.textContent='…';
     fetch('/api/qpay?action=promocheck',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({promo:code,months:selMonths})}).then(function(r){return r.json();}).then(function(d){promoBtn.disabled=false;promoBtn.textContent=ot;if(d&&d.valid){appliedPromo=code;curPct=d.pct;renderPrice();promoMsg.style.color='#16a34a';promoMsg.textContent='✓ '+d.pct+'% хөнгөлөлт хэрэгжлээ';promoIn.style.borderColor='#22c55e';}else{appliedPromo=null;curPct=0;renderPrice();promoMsg.style.color='#dc2626';promoMsg.textContent='Код буруу эсвэл хүчингүй байна';promoIn.style.borderColor='#fca5a5';}}).catch(function(){promoBtn.disabled=false;promoBtn.textContent=ot;promoMsg.style.color='#dc2626';promoMsg.textContent='Шалгах үед алдаа гарлаа';});};
   promoIn.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();promoBtn.click();}});
+  // Промо кодоор шууд орж ирсэн бол — хугацаа сонгож, кодыг нөхөж, хямдралыг автоматаар тооцно
+  if(opts.months&&WS_PRICES[opts.months]){selMonths=opts.months;styleDur();renderPrice();}
+  if(opts.promo){promoIn.value=String(opts.promo).toUpperCase();setTimeout(function(){promoBtn.onclick();},80);}
   o.querySelector('#buBuy').onclick=function(){var email=(em.value||'').trim().toLowerCase();if(!okEmail(email)){msg.style.color='#dc2626';msg.textContent='Зөв имэйл хаяг оруулна уу';return;}this.disabled=true;this.textContent='Нэхэмжлэх үүсгэж байна…';var btn=this;
     fetch('/api/qpay?action=create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,plan:'wsmonths',months:selMonths,promo:appliedPromo})}).then(function(r){return r.json();}).then(function(d){var inv=d&&d.invoice;if(!inv||!inv.invoice_id){msg.style.color='#dc2626';msg.textContent='Нэхэмжлэх үүсгэж чадсангүй. Дахин оролдоно уу.';btn.disabled=false;btn.textContent='QPay-аар худалдан авах';return;}
       var img=inv.qr_image?('<img src="data:image/png;base64,'+inv.qr_image+'" style="width:190px;height:190px" alt="QPay QR"/>'):'';var link=inv.qPay_shortUrl?('<div style="margin-top:8px"><a href="'+inv.qPay_shortUrl+'" target="_blank" style="display:inline-flex;align-items:center;gap:5px;color:var(--purple-d);font-weight:700;font-size:.85rem;text-decoration:none"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg>Утаснаас төлөх</a></div>'):'';
@@ -1605,11 +1609,20 @@ function openFeedback(){
   setTimeout(function(){o.querySelector('#fbMsg').focus();},40);
 }
 
+/* /promo хуудаснаас "АШИГЛАХ" дарж ирсэн промо код (?promo=CODE) */
+var PROMO_CODE=(function(){var m=location.search.match(/[?&]promo=([^&?#]+)/);if(!m)return null;var c=decodeURIComponent(m[1]).toUpperCase().replace(/[^A-Z0-9]/g,'');try{history.replaceState(null,'',location.pathname);}catch(e){}return c||null;})();
+function startPromoBuy(){
+  if(!PROMO_CODE)return;
+  verifyUser(function(){
+    if(CM_USER&&CM_USER.email){ openBuy({promo:PROMO_CODE}); }
+    else { window.__afterLogin=function(){openBuy({promo:PROMO_CODE});}; openLogin(false); }
+  });
+}
 /* Нэвтрэлт: нэвтэрсэн бол дахиж асуухгүй; анх орж ирэхэд (админ биш) нэг удаа асууна */
 if(!isAdmin()){
   renderAcct();
   verifyUser(function(){
-    if(!CM_USER && !PAYWALL_OFF && !lsGet('cm_ws_dismissed')) openLogin(true);
+    if(!CM_USER && !PAYWALL_OFF && !lsGet('cm_ws_dismissed') && !PROMO_CODE) openLogin(true);
     else ensurePin();
     checkFbReplies();
     // 30 секунд тутам шинэ хариу шалгаж +N badge шинэчилнэ (refresh шаардахгүй)
@@ -1621,6 +1634,7 @@ if(!isAdmin()){
 document.getElementById('q').addEventListener('input',applyFilters);
 loadSaved();
 loadEvents();
+startPromoBuy();
 fetch('/api/worksheets?titles=1').then(function(r){return r.json();})
   .then(function(d){
     if(d&&d.titles)OVERRIDES=d.titles;

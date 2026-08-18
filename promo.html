@@ -52,6 +52,9 @@
   .acts{display:flex;gap:8px}
   .act{flex:1;border:0;border-radius:11px;padding:9px 8px;font-size:.78rem;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:5px}
   .act svg{width:14px;height:14px}
+  .usebtn{width:100%;border:0;border-radius:12px;padding:11px;font-size:.9rem;font-weight:900;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;background:linear-gradient(135deg,#4ade80,#22c55e);color:#052e16;box-shadow:0 8px 20px -10px rgba(34,197,94,.8)}
+  .usebtn svg{width:16px;height:16px}
+  .usebtn:active{transform:scale(.98)}
   .act.copy{background:var(--yellow);color:#241B00}
   .act.qr{background:#2c2470;color:var(--ink);border:1px solid #3d349a}
   .act:active{transform:scale(.97)}
@@ -83,10 +86,10 @@
 </div>
 <div class="toast" id="toast"></div>
 <script>
-var CODES=[], FILTER='active';
+var CODES=[];
 function toast(m){var t=document.getElementById('toast');t.textContent=m;t.classList.add('on');clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove('on');},1600);}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
-function adminToken(){try{return localStorage.getItem('cm_admin_token')||'';}catch(e){return '';}}
+function useCode(code){location.href='/worksheets?promo='+encodeURIComponent(code);}
 function pad(n){return String(n).padStart(2,'0');}
 function fmtLeft(exp){
   if(!exp)return {kind:'forever',txt:'Хугацаагүй',lbl:'Байнгын код'};
@@ -134,17 +137,15 @@ function downloadBlob(blob,code){
 }
 function chrome(){
   return '<div class="bar">'
-    +'<span class="chip'+(FILTER==='active'?' on':'')+'" onclick="setFilter(\'active\',this)">Идэвхтэй</span>'
-    +'<span class="chip'+(FILTER==='all'?' on':'')+'" onclick="setFilter(\'all\',this)">Бүгд</span>'
-    +'<span class="chip'+(FILTER==='dead'?' on':'')+'" onclick="setFilter(\'dead\',this)">Дууссан</span>'
+    +'<span class="chip on">'+CODES.length+' идэвхтэй код</span>'
     +'<button class="refresh" onclick="loadPromo(true)"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>Шинэчлэх</button>'
     +'</div>';
 }
 function render(){
   var app=document.getElementById('app');
-  var arr=CODES.filter(function(c){var dc=dead(c);if(FILTER==='active')return !dc;if(FILTER==='dead')return dc;return true;});
+  var arr=CODES;
   var cards;
-  if(!arr.length){cards='<div class="empty">'+(FILTER==='dead'?'Дууссан код алга.':FILTER==='active'?'Идэвхтэй промо код алга.':'Промо код алга.')+'</div>';}
+  if(!arr.length){cards='<div class="empty">Идэвхтэй промо код алга.</div>';}
   else cards='<div class="grid">'+arr.map(function(c){
     var uses=(c.max_uses?(c.used_count+' / '+c.max_uses):(c.used_count+' удаа'));
     var pct=c.max_uses?Math.min(100,Math.round(100*c.used_count/c.max_uses)):0;
@@ -155,12 +156,13 @@ function render(){
       +'<div class="code">'+esc(c.code)+'</div>'+(c.note?'<div class="note-t">'+esc(c.note)+'</div>':'')+'</div></div>'
       +'<div class="cd-wrap"><div class="cd">—</div><div class="cd-lbl">Хугацаа</div></div>'
       +'<div class="meta"><div class="uses">'+uses+(c.max_uses?'<div class="usebar"><i style="width:'+pct+'%"></i></div>':'')+'</div>'+off+'</div>'
+      +'<button class="usebtn" onclick="useCode(\''+esc(c.code)+'\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>АШИГЛАХ · '+c.pct+'% хямдрал авах</button>'
       +'<div class="acts"><button class="act copy" onclick="copyCode(\''+esc(c.code)+'\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Код хуулах</button>'
       +'<button class="act qr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v.01M14 21h.01M17 21h4v-4"/></svg>QR хуулах</button></div>'
       +'</div>';
   }).join('')+'</div>';
   app.innerHTML=chrome()+cards
-    +'<div class="note"><b>QR:</b> сканнердахад промо код гарна. <b>Код хуулах</b> — кодыг, <b>QR хуулах</b> — QR зургийг санах ойд хуулна. Худалдан авагч захиалгын цонхон дээр кодоо оруулахад <b>хямдрал автоматаар</b> тооцогдоно. Хугацаа ба ашиглалт шууд шинэчлэгдэнэ.</div>';
+    +'<div class="note"><b>АШИГЛАХ</b> дарвал Дасгалын төвийн худалдан авах цонх нээгдэж, код автоматаар нөхөгдөж, хямдрал тооцогдоно — бүртгэлгүй бол нэвтэрсний дараа шууд QPay QR үүсгэхэд бэлэн болно. <b>Код хуулах</b>/<b>QR хуулах</b> — кодоо бусадтай хуваалцахад. Хугацаа ба ашиглалт шууд шинэчлэгдэнэ.</div>';
   [].forEach.call(app.querySelectorAll('.card'),function(card){
     var code=card.querySelector('.code').textContent;
     var cv=card.querySelector('.qc');var ok=drawQR(cv,code);
@@ -178,24 +180,12 @@ function tick(){
     if(st.kind==='dead')card.classList.add('dead');
   });
 }
-function setFilter(f,el){FILTER=f;[].forEach.call(document.querySelectorAll('.chip'),function(c){c.classList.toggle('on',c===el);});render();}
-function showGate(msg){
-  document.getElementById('app').innerHTML='<div class="gate"><h2>Админ нэвтрэлт шаардлагатай</h2>'
-    +'<p>'+(msg||'Энэ хуудсыг зөвхөн админ харна. Эхлээд /admin хуудсаар нэвтэрсэн байх ёстой, эсвэл админ токеноо оруулна уу.')+'</p>'
-    +'<input id="gTok" type="password" placeholder="Админ токен (cm_admin_token)" autocomplete="off">'
-    +'<button class="g-btn" onclick="saveTok()">Нэвтрэх</button>'
-    +'<a class="alt" href="/admin">/admin хуудсаар нэвтрэх →</a></div>';
-}
-function saveTok(){var v=(document.getElementById('gTok').value||'').trim();if(!v){toast('Токен оруулна уу');return;}try{localStorage.setItem('cm_admin_token',v);}catch(e){}loadPromo(false);}
 function loadPromo(manual){
-  var tok=adminToken();
-  if(!tok){showGate();return;}
-  fetch('/api/qpay?action=ws_promo_list',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok},body:'{}'})
-    .then(function(r){if(r.status===401)throw {code:401};return r.json();})
+  fetch('/api/qpay?action=ws_promo_public')
+    .then(function(r){return r.json();})
     .then(function(d){
       CODES=(d&&d.promos)||[];
       CODES.sort(function(a,b){
-        var ea=dead(a),eb=dead(b);if(ea!==eb)return ea?1:-1;
         var ta=a.expires_at?new Date(a.expires_at).getTime():Infinity;
         var tb=b.expires_at?new Date(b.expires_at).getTime():Infinity;
         return ta-tb;
@@ -203,13 +193,12 @@ function loadPromo(manual){
       render();
       if(manual)toast('Шинэчиллээ ('+CODES.length+' код)');
     }).catch(function(e){
-      if(e&&e.code===401){showGate('Токен буруу эсвэл хугацаа дууссан байна. Дахин нэвтэрнэ үү.');return;}
       document.getElementById('app').innerHTML=chrome()+'<div class="empty">Алдаа: '+esc((e&&e.message)||'холбогдож чадсангүй')+'</div>';
     });
 }
 function clockTick(){var n=new Date();document.getElementById('now').textContent=pad(n.getHours())+':'+pad(n.getMinutes())+':'+pad(n.getSeconds());}
 setInterval(function(){clockTick();tick();},1000);
-setInterval(function(){if(adminToken())loadPromo(false);},60000);
+setInterval(function(){loadPromo(false);},60000);
 clockTick();loadPromo(false);
 </script>
 </body>

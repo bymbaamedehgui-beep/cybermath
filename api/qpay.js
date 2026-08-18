@@ -489,6 +489,19 @@ module.exports = async (req, res) => {
         base: wsBasePrice(months), price: priceFromPct(pi.pct, months), prices: WS_PRICES });
     }
 
+    // ── Нээлттэй: идэвхтэй промо кодуудын жагсаалт (/promo хуудсанд) ──
+    if (req.query.action === 'ws_promo_public') {
+      await ensureWsExtra();
+      const r = await pool.query(
+        `SELECT code, pct, max_uses, used_count, expires_at, note FROM ws_promos
+         WHERE active = TRUE
+           AND (expires_at IS NULL OR expires_at > NOW())
+           AND (max_uses IS NULL OR used_count < max_uses)
+         ORDER BY (expires_at IS NULL), expires_at ASC
+         LIMIT 100`);
+      return res.json({ ok: true, promos: r.rows });
+    }
+
     // ── АДМИН: ажлын хуудсын промо код удирдах + борлуулалт харах ──
     if (['ws_promo_create','ws_promo_list','ws_promo_update','ws_purchases_list','ws_users_list','ws_grant','ws_revoke','ws_reconcile'].indexOf(req.query.action) >= 0) {
       if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
