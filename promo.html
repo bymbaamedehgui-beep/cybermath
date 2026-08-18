@@ -57,6 +57,8 @@
   .usebtn{width:100%;border:0;border-radius:12px;padding:11px;font-size:.9rem;font-weight:900;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;background:linear-gradient(135deg,#4ade80,#22c55e);color:#052e16;box-shadow:0 8px 20px -10px rgba(34,197,94,.8)}
   .usebtn svg{width:16px;height:16px}
   .usebtn:active{transform:scale(.98)}
+  .usebtn.off{background:#2c2470;color:var(--soft);box-shadow:none;cursor:not-allowed;opacity:.85}
+  .usebtn.off:active{transform:none}
   .act.copy{background:var(--yellow);color:#241B00}
   .act.qr{background:#2c2470;color:var(--ink);border:1px solid #3d349a}
   .act:active{transform:scale(.97)}
@@ -150,17 +152,17 @@ function render(){
   var cards;
   if(!arr.length){cards='<div class="empty">Идэвхтэй промо код алга.</div>';}
   else cards='<div class="grid">'+arr.map(function(c){
-    var uses,pct=0,showBar=false;
+    var uses,pct=0,showBar=false,full=false;
     if(c.fake_uses){
       var fm=String(c.fake_uses).match(/^(\d+)\s*\/\s*(\d+)$/);
-      if(fm){var fu=+fm[1],fx=+fm[2];uses=fu+' / '+fx;pct=fx>0?Math.min(100,Math.round(100*fu/fx)):100;showBar=true;}
-      else if(/^\d+$/.test(String(c.fake_uses))){var v=+c.fake_uses;uses=c.max_uses?(v+' / '+c.max_uses):(v+' удаа');pct=c.max_uses?Math.min(100,Math.round(100*v/c.max_uses)):0;showBar=!!c.max_uses;}
+      if(fm){var fu=+fm[1],fx=+fm[2];uses=fu+' / '+fx;pct=fx>0?Math.min(100,Math.round(100*fu/fx)):100;showBar=true;full=fu>=fx;}
+      else if(/^\d+$/.test(String(c.fake_uses))){var v=+c.fake_uses;uses=c.max_uses?(v+' / '+c.max_uses):(v+' удаа');pct=c.max_uses?Math.min(100,Math.round(100*v/c.max_uses)):0;showBar=!!c.max_uses;full=!!c.max_uses&&v>=c.max_uses;}
       else{uses=String(c.fake_uses);}
     }else{
       uses=(c.max_uses?(c.used_count+' / '+c.max_uses):(c.used_count+' удаа'));
-      pct=c.max_uses?Math.min(100,Math.round(100*c.used_count/c.max_uses)):0;showBar=!!c.max_uses;
+      pct=c.max_uses?Math.min(100,Math.round(100*c.used_count/c.max_uses)):0;showBar=!!c.max_uses;full=!!c.max_uses&&c.used_count>=c.max_uses;
     }
-    var off=(c.active===false)?'<span class="badge-off">Идэвхгүй</span>':'';
+    var off=(c.active===false)?'<span class="badge-off">Идэвхгүй</span>':(full?'<span class="badge-off">Дууссан</span>':'');
     var mol=moLabel(c.months);
     var moChip=mol?'<span class="plan">'+mol+' багц</span>':'<span class="plan any">Аль ч багц</span>';
     return '<div class="card'+(dead(c)?' dead':'')+'" data-exp="'+(c.expires_at||'')+'">'
@@ -169,7 +171,9 @@ function render(){
       +'<div class="code">'+esc(c.code)+'</div>'+(c.note?'<div class="note-t">'+esc(c.note)+'</div>':'')+'</div></div>'
       +'<div class="cd-wrap"><div class="cd">—</div><div class="cd-lbl">Хугацаа</div></div>'
       +'<div class="meta"><div class="uses">'+uses+(showBar?'<div class="usebar"><i style="width:'+pct+'%"></i></div>':'')+'</div>'+off+'</div>'
-      +'<button class="usebtn" onclick="useCode(\''+esc(c.code)+'\','+(c.months||0)+')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>АШИГЛАХ'+(mol?' · '+mol:'')+' · '+c.pct+'% авах</button>'
+      +(full
+        ? '<button class="usebtn off" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Бүх эрх дууссан</button>'
+        : '<button class="usebtn" onclick="useCode(\''+esc(c.code)+'\','+(c.months||0)+')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>АШИГЛАХ'+(mol?' · '+mol:'')+' · '+c.pct+'% авах</button>')
       +'<div class="acts"><button class="act copy" onclick="copyCode(\''+esc(c.code)+'\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Код хуулах</button>'
       +'<button class="act qr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v.01M14 21h.01M17 21h4v-4"/></svg>QR хуулах</button></div>'
       +'</div>';
