@@ -55,8 +55,9 @@ async function grantWsUntil(email, exp) {
   return exp;
 }
 // ── Хоёр талын Referral (Dropbox маягаар) ──
-const REF_PCT  = parseInt(process.env.WS_REF_PCT  || '15', 10);  // шинэ найзын хямдрал %
-const REF_DAYS = parseInt(process.env.WS_REF_DAYS || '30', 10);  // урьсан багшийн урамшуулал (хоног)
+const REF_PCT       = parseInt(process.env.WS_REF_PCT  || '15', 10);  // уригдсан найзын хямдрал %
+const REF_PAIR      = parseInt(process.env.WS_REF_PAIR || '2',  10);  // хэдэн найз захиалбал шагнах вэ
+const REF_PAIR_DAYS = parseInt(process.env.WS_REF_DAYS || '30', 10);  // шагнал (хоног) — 1 сар
 async function grantWsAddDays(email, days) {
   await ensureWsTable();
   await pool.query(
@@ -91,11 +92,16 @@ async function processReferral(refereeEmail, invoiceId) {
     if (!owner || owner === refereeEmail) return;
     const ins = await pool.query(
       `INSERT INTO ws_referrals (referee_email, ref_code, referrer_email, invoice_id, reward_days)
-       VALUES ($1,$2,$3,$4,$5) ON CONFLICT (referee_email) DO NOTHING RETURNING referee_email`,
-      [refereeEmail, String(code).toUpperCase(), owner, String(invoiceId), REF_DAYS]);
-    if (ins.rows.length) {
-      await grantWsAddDays(owner, REF_DAYS);
-      try { await notifyTelegram('🎁 <b>Referral</b>\n' + owner + ' → +' + REF_DAYS + ' хоног\n(' + refereeEmail + ' худалдан авав)'); } catch (e) {}
+       VALUES ($1,$2,$3,$4,0) ON CONFLICT (referee_email) DO NOTHING RETURNING referee_email`,
+      [refereeEmail, String(code).toUpperCase(), owner, String(invoiceId)]);
+    if (!ins.rows.length) return; // энэ найз аль хэдийн бүртгэгдсэн
+    // Урьсан багшийн нийт найз тоологдож, ХЭДЭН НАЙЗ ТУТАМД (REF_PAIR) 1 сар олгоно
+    const cntRes = await pool.query('SELECT COUNT(*)::int AS n FROM ws_referrals WHERE referrer_email=$1', [owner]);
+    const cnt = cntRes.rows[0].n;
+    if (cnt % REF_PAIR === 0) {
+      await grantWsAddDays(owner, REF_PAIR_DAYS);
+      await pool.query('UPDATE ws_referrals SET reward_days=$2 WHERE referee_email=$1', [refereeEmail, REF_PAIR_DAYS]).catch(()=>{});
+      try { await notifyTelegram('🎁 <b>Referral</b>\n' + owner + ' → +' + REF_PAIR_DAYS + ' хоног (' + REF_PAIR + ' найз захиалав)\n(сүүлийн: ' + refereeEmail + ')'); } catch (e) {}
     }
   } catch (e) { console.error('[referral]', e.message); }
 }
@@ -583,8 +589,12 @@ module.exports = async (req, res) => {
       if (!email) return res.status(401).json({ ok: false, error: 'Нэвтэрнэ үү' });
       const code = await getOrCreateRefCode(email);
       if (!code) return res.json({ ok: false, error: 'Бүртгэл олдсонгүй' });
-      const s = await pool.query('SELECT COUNT(*)::int AS n, COALESCE(SUM(reward_days),0)::int AS days FROM ws_referrals WHERE referrer_email=$1', [email]);
-      return res.json({ ok: true, code, link: 'https://cyber-math.com/worksheets?ref=' + code, count: s.rows[0].n, days: s.rows[0].days, refeePct: REF_PCT, referrerDays: REF_DAYS });
+      const s = await pool.query('SELECT COUNT(*)::int AS n FROM ws_referrals WHERE referrer_email=$1', [email]);
+      const cnt = s.rows[0].n, months = Math.floor(cnt / REF_PAIR);
+      return res.json({ ok: true, code, link: 'https://cyber-math.com/worksheets?ref=' + code,
+        count: cnt, months, days: months * REF_PAIR_DAYS,
+        refeePct: REF_PCT, perReward: REF_PAIR, rewardDays: REF_PAIR_DAYS,
+        toNext: REF_PAIR - (cnt % REF_PAIR) });
     }
 
     // ── АДМИН: ажлын хуудсын промо код удирдах + борлуулалт харах ──
