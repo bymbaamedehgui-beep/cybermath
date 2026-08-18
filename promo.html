@@ -39,6 +39,10 @@
   .plan{display:inline-block;font-size:.68rem;font-weight:800;color:var(--cyan);background:rgba(90,197,241,.14);border:1px solid rgba(90,197,241,.35);border-radius:999px;padding:2px 9px;vertical-align:middle;margin-bottom:8px}
   .plan.any{color:var(--soft);background:rgba(169,159,224,.12);border-color:rgba(169,159,224,.3)}
   .code{font-family:ui-monospace,'SFMono-Regular',Menlo,monospace;font-size:1.3rem;font-weight:800;color:var(--yellow);letter-spacing:1.5px;word-break:break-all;line-height:1.15}
+  .price{margin-top:7px;font-size:1rem;font-weight:900;color:var(--yellow2)}
+  .price s{color:#8a80b0;font-weight:700;font-size:.84rem}
+  .price .arr{color:var(--soft);margin:0 3px;font-weight:700}
+  .cdiv{display:none}
   .note-t{font-size:.78rem;color:var(--soft);margin-top:4px}
   .cd-wrap{background:#0c0922;border:1px solid var(--line);border-radius:13px;padding:9px 12px;text-align:center}
   .cd{font-family:ui-monospace,'SFMono-Regular',Menlo,monospace;font-size:1.45rem;font-weight:800;color:var(--yellow2);letter-spacing:1px}
@@ -73,7 +77,7 @@
   .gate a.alt{display:inline-block;margin-top:12px;color:var(--cyan);font-size:.82rem;text-decoration:none;font-weight:700}
   .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--yellow);color:#241B00;font-weight:800;padding:11px 20px;border-radius:999px;font-size:.86rem;opacity:0;pointer-events:none;transition:.25s;z-index:100;box-shadow:0 14px 30px -12px rgba(0,0,0,.6)}
   .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
-  @media(max-width:520px){.grid{grid-template-columns:1fr}h1{font-size:1.25rem}}
+  @media(max-width:520px){.grid{grid-template-columns:1fr;gap:16px}h1{font-size:1.25rem}.cdiv{display:flex;align-items:center;justify-content:center;position:relative}.cdiv::before{content:"";height:1px;width:70%;background:linear-gradient(90deg,transparent,rgba(169,159,224,.4),transparent)}.cdiv::after{content:"";position:absolute;width:6px;height:6px;border-radius:50%;background:var(--yellow);box-shadow:0 0 0 3px var(--bg)}}
 </style>
 </head>
 <body>
@@ -91,6 +95,8 @@
 <div class="toast" id="toast"></div>
 <script>
 var CODES=[];
+var PRICES={3:39900,6:69900,9:99900,12:119900};
+function fmtT(n){return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,',');}
 function toast(m){var t=document.getElementById('toast');t.textContent=m;t.classList.add('on');clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove('on');},1600);}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 function moLabel(m){return {3:'3 сар',6:'6 сар',9:'9 сар',12:'1 жил'}[m]||null;}
@@ -165,10 +171,13 @@ function render(){
     var off=(c.active===false)?'<span class="badge-off">Идэвхгүй</span>':(full?'<span class="badge-off">Дууссан</span>':'');
     var mol=moLabel(c.months);
     var moChip=mol?'<span class="plan">'+mol+' багц</span>':'<span class="plan any">Аль ч багц</span>';
+    var priceLine='';
+    if(c.months&&PRICES[c.months]){var base=PRICES[c.months],disc=Math.round(base*(100-c.pct)/100);priceLine='<div class="price"><s>'+fmtT(base)+'₮</s> <span class="arr">→</span> '+fmtT(disc)+'₮</div>';}
     return '<div class="card'+(dead(c)?' dead':'')+'" data-exp="'+(c.expires_at||'')+'">'
       +'<div class="row1"><div class="qrbox"><canvas class="qc"></canvas></div>'
       +'<div class="cinfo"><span class="disc"><b>'+c.pct+'%</b><span>ХӨНГӨЛӨЛТ</span></span> '+moChip
       +'<div class="code">'+esc(c.code)+'</div>'+(c.note?'<div class="note-t">'+esc(c.note)+'</div>':'')+'</div></div>'
+      +priceLine
       +'<div class="cd-wrap"><div class="cd">—</div><div class="cd-lbl">Хугацаа</div></div>'
       +'<div class="meta"><div class="uses">'+uses+(showBar?'<div class="usebar"><i style="width:'+pct+'%"></i></div>':'')+'</div>'+off+'</div>'
       +(full
@@ -177,7 +186,7 @@ function render(){
       +'<div class="acts"><button class="act copy" onclick="copyCode(\''+esc(c.code)+'\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Код хуулах</button>'
       +'<button class="act qr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v.01M14 21h.01M17 21h4v-4"/></svg>QR хуулах</button></div>'
       +'</div>';
-  }).join('')+'</div>';
+  }).join('<div class="cdiv"></div>')+'</div>';
   app.innerHTML=chrome()+cards
     +'<div class="note"><b>АШИГЛАХ</b> дарвал Дасгалын төвийн худалдан авах цонх нээгдэж, код автоматаар нөхөгдөж, хямдрал тооцогдоно — бүртгэлгүй бол нэвтэрсний дараа шууд QPay QR үүсгэхэд бэлэн болно. <b>Код хуулах</b>/<b>QR хуулах</b> — кодоо бусадтай хуваалцахад. Хугацаа ба ашиглалт шууд шинэчлэгдэнэ.</div>';
   [].forEach.call(app.querySelectorAll('.card'),function(card){
@@ -216,6 +225,7 @@ function loadPromo(manual){
 function clockTick(){var n=new Date();document.getElementById('now').textContent=pad(n.getHours())+':'+pad(n.getMinutes())+':'+pad(n.getSeconds());}
 setInterval(function(){clockTick();tick();},1000);
 setInterval(function(){loadPromo(false);},60000);
+fetch('/api/qpay?action=wsprices').then(function(r){return r.json();}).then(function(d){if(d&&d.prices){PRICES=d.prices;render();}}).catch(function(){});
 clockTick();loadPromo(false);
 </script>
 </body>
