@@ -354,10 +354,11 @@ function renderWsPromos(list){
       +'<td style="padding:8px;font-weight:900;letter-spacing:.5px;">'+st+' '+wsEsc(p.code)+'</td>'
       +'<td style="padding:8px;font-weight:800;color:#16a34a;">-'+p.pct+'%</td>'
       +'<td style="padding:8px;color:var(--muted);">'+({3:'3 сар',6:'6 сар',9:'9 сар',12:'1 жил'}[p.months]||'Аль ч')+'</td>'
-      +'<td style="padding:8px;">'+wsEsc(uses)+'</td>'
+      +'<td style="padding:8px;">'+wsEsc(uses)+(p.fake_uses?'<span style="color:#f59e0b;font-weight:800;" title="/promo дээр ийм харагдана"> ▸ '+wsEsc(p.fake_uses)+'</span>':'')+'</td>'
       +'<td style="padding:8px;color:var(--muted);">'+(p.expires_at?wsDate(p.expires_at):'—')+'</td>'
       +'<td style="padding:8px;color:var(--muted);">'+wsEsc(p.note||'')+'</td>'
       +'<td style="padding:8px;text-align:right;white-space:nowrap;">'
+        +'<button onclick="setWsPromoFake(\''+wsEsc(p.code)+'\',\''+wsEsc(p.fake_uses||'')+'\')" style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);color:#f59e0b;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;margin-right:5px;">Хуурамч тоо</button>'
         +'<button onclick="toggleWsPromo(\''+wsEsc(p.code)+'\','+(!p.active)+')" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;margin-right:5px;">'+(p.active?'Идэвхгүй':'Идэвхжүүл')+'</button>'
         +'<button onclick="deleteWsPromo(\''+wsEsc(p.code)+'\')" style="background:rgba(220,38,38,.12);border:1px solid rgba(220,38,38,.3);color:#dc2626;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;">Устгах</button>'
       +'</td></tr>';
@@ -396,21 +397,27 @@ window.createWsPromo = async function(ev){
   var max=document.getElementById('wsp-max').value.trim();
   var days=document.getElementById('wsp-days').value.trim();
   var months=document.getElementById('wsp-months').value;
+  var fake=document.getElementById('wsp-fake').value.trim();
   var note=document.getElementById('wsp-note').value.trim();
   var expires_at=null;
   if(days!==''){var dn=parseInt(days,10);if(dn>0)expires_at=new Date(Date.now()+dn*86400000).toISOString();}
   msg.style.color='var(--muted)';msg.textContent='Үүсгэж байна…';
   try{
-    var d=await wsPost('ws_promo_create',{code:code,pct:pct,max_uses:max===''?null:max,note:note,expires_at:expires_at,months:months===''?null:months});
+    var d=await wsPost('ws_promo_create',{code:code,pct:pct,max_uses:max===''?null:max,note:note,expires_at:expires_at,months:months===''?null:months,fake_uses:fake===''?null:fake});
     if(!d||!d.ok){msg.style.color='#dc2626';msg.textContent=(d&&d.error)||'Алдаа гарлаа';return;}
     var moLbl={3:'3 сар',6:'6 сар',9:'9 сар',12:'1 жил'}[months]||'аль ч багц';
     msg.style.color='#16a34a';msg.textContent='✓ '+d.code+' ('+d.pct+'%'+(days!==''?', '+days+' хоног':'')+', '+moLbl+') үүслээ';
-    document.getElementById('wsp-code').value='';document.getElementById('wsp-max').value='';document.getElementById('wsp-days').value='';document.getElementById('wsp-months').value='';document.getElementById('wsp-note').value='';
+    document.getElementById('wsp-code').value='';document.getElementById('wsp-max').value='';document.getElementById('wsp-days').value='';document.getElementById('wsp-months').value='';document.getElementById('wsp-fake').value='';document.getElementById('wsp-note').value='';
     loadWsSales();
   }catch(e){msg.style.color='#dc2626';msg.textContent='Алдаа: '+e.message;}
 };
 window.toggleWsPromo = async function(code,active){
   try{ await wsPost('ws_promo_update',{code:code,active:active}); loadWsSales(); }catch(e){ alert('Алдаа: '+e.message); }
+};
+window.setWsPromoFake = async function(code,cur){
+  var v=prompt('«'+code+'» кодыг /promo дээр харуулах ХУУРАМЧ ашиглалт (жиш: 10/6 эсвэл 8).\nБодит тоог харуулах бол хоосон орхино уу:', cur||'');
+  if(v===null)return;
+  try{ await wsPost('ws_promo_update',{code:code,fake_uses:v.trim()}); loadWsSales(); }catch(e){ alert('Алдаа: '+e.message); }
 };
 window.deleteWsPromo = async function(code){
   if(!confirm(code+' кодыг устгах уу?'))return;
@@ -2359,6 +2366,11 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
               <input id="wsp-note" type="text" placeholder="Зуны кампанит ажил" style="width:100%;padding:9px 12px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-weight:700;outline:none;box-sizing:border-box;">
             </div>
             <button onclick="createWsPromo(event)" class="add-btn" style="height:38px;">+ Үүсгэх</button>
+          </div>
+          <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <label style="font-size:0.76rem;font-weight:800;color:var(--muted);white-space:nowrap;">Хуурамч тоо (харагдац, заавал биш):</label>
+            <input id="wsp-fake" type="text" placeholder="жиш: 10/6 эсвэл 8" title="Хоосон бол бодит ашиглалт харагдана" style="width:150px;padding:8px 11px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-weight:700;outline:none;box-sizing:border-box;">
+            <span style="font-size:0.74rem;color:var(--muted);">— /promo дээр ашиглалтын тоог хуурамчаар харуулна (бодит тоонд нөлөөлөхгүй)</span>
           </div>
           <div id="wsp-msg" style="margin-top:8px;font-size:0.85rem;font-weight:800;min-height:18px;"></div>
         </div>
