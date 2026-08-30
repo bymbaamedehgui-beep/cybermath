@@ -154,7 +154,7 @@ async function createWheelPromo(pct, days) {
   for (let a = 0; a < 6; a++) {
     let code = 'LUCKY'; for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
     try {
-      await pool.query(`INSERT INTO ws_promos (code, pct, max_uses, expires_at, note) VALUES ($1,$2,1,$3,'Азтаны хүрд')`,
+      await pool.query(`INSERT INTO ws_promos (code, pct, max_uses, expires_at, note, personal) VALUES ($1,$2,1,$3,'Азтаны хүрд',TRUE)`,
         [code, pct, exp.toISOString()]);
       return { code, exp };
     } catch (e) { if (e.code !== '23505') throw e; }
@@ -186,6 +186,8 @@ async function ensureWsExtra() {
   await pool.query(`ALTER TABLE ws_promos ADD COLUMN IF NOT EXISTS months INT`).catch(()=>{});
   await pool.query(`ALTER TABLE ws_promos ADD COLUMN IF NOT EXISTS fake_uses TEXT`).catch(()=>{});
   await pool.query(`ALTER TABLE ws_promos ADD COLUMN IF NOT EXISTS welcome BOOLEAN DEFAULT FALSE`).catch(()=>{});
+  await pool.query(`ALTER TABLE ws_promos ADD COLUMN IF NOT EXISTS personal BOOLEAN DEFAULT FALSE`).catch(()=>{});
+  await pool.query(`UPDATE ws_promos SET personal=TRUE WHERE personal IS NOT TRUE AND note='Азтаны хүрд'`).catch(()=>{});
   await pool.query(`CREATE TABLE IF NOT EXISTS ws_purchases (
     id BIGSERIAL PRIMARY KEY,
     email TEXT NOT NULL,
@@ -567,6 +569,7 @@ module.exports = async (req, res) => {
       const r = await pool.query(
         `SELECT code, pct, max_uses, used_count, expires_at, note, months, fake_uses, welcome FROM ws_promos
          WHERE active = TRUE
+           AND COALESCE(personal, FALSE) = FALSE
            AND (expires_at IS NULL OR expires_at > NOW())
            AND (max_uses IS NULL OR used_count < max_uses)
          ORDER BY (expires_at IS NULL), expires_at ASC
@@ -652,7 +655,9 @@ module.exports = async (req, res) => {
         return res.json({ ok: true, users: r.rows, total: r.rows.length, active: act.rows[0].n });
       }
       if (req.query.action === 'ws_promo_list') {
-        const r = await pool.query('SELECT code,pct,max_uses,used_count,expires_at,active,note,months,fake_uses,welcome,created_at FROM ws_promos ORDER BY created_at DESC');
+        await pool.query(`CREATE TABLE IF NOT EXISTS ws_wheel (email TEXT PRIMARY KEY, prize TEXT, code TEXT, created_at TIMESTAMPTZ DEFAULT NOW())`).catch(()=>{});
+        const r = await pool.query(`SELECT p.code,p.pct,p.max_uses,p.used_count,p.expires_at,p.active,p.note,p.months,p.fake_uses,p.welcome,p.personal,p.created_at, w.email AS won_by
+          FROM ws_promos p LEFT JOIN ws_wheel w ON w.code=p.code ORDER BY p.created_at DESC`);
         return res.json({ ok: true, promos: r.rows });
       }
       if (req.query.action === 'ws_promo_create') {
