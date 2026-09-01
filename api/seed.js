@@ -161,7 +161,6 @@ module.exports = async (req, res) => {
         { grade: '11-р анги', name: '1.1 Квадрат тэгшитгэл', slugs: ['kvadrat-shinjleh-11.html', 'kvadrat-bodoh-11.html', 'kvadrat-grafik-11.html', 'kvadrat-uguulber-11.html'] },
         { grade: '11-р анги', name: '1.2 Квадрат тэнцэтгэл биш', slugs: ['tentsbish-sistem-11.html', 'tentsbish-interval-11.html', 'tentsbish-holimog-11.html'] },
         { grade: '11-р анги', name: '1.3 Тэнцэтгэл биш — график', slugs: ['tentsbish-lavlah-11.html', 'tentsbish-grafik-unshih-11.html', 'tentsbish-grafik-bodoh-11.html', 'tentsbish-grafik-tusgai-11.html'] },
-        { grade: '11-р анги', name: 'I бүлэг — Жишиг ба шалгалт', slugs: ['buleg1-jishig-1.html', 'buleg1-jishig-2.html', 'buleg1-shalgalt-1.html'] },
       ];
       const seedAddRow = await pool.query(`SELECT sval FROM ws_settings WHERE skey='sg_seeded_add'`);
       let seededAdd = [];
@@ -220,6 +219,25 @@ module.exports = async (req, res) => {
           await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,'tentsbish-lavlah-11.html','add') ON CONFLICT DO NOTHING`, ['sg:' + Number(sglv.rows[0].id)]);
         }
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_lavlah_v2','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
+      // ── Нэг удаагийн: I бүлгийн жишиг/шалгалтын дэд бүлгийг үүсгэж (I БҮЛЭГ парентэд) байрлуулах ──
+      const cfbe = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_buleg1exam_v1'`);
+      if (!cfbe.rows.length) {
+        const par = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='11-р анги' AND name LIKE 'I БҮЛЭГ%' ORDER BY id LIMIT 1`);
+        const parentId = par.rows.length ? Number(par.rows[0].id) : null;
+        let sg = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='11-р анги' AND name='I бүлэг — Жишиг ба шалгалт'`);
+        let sid;
+        if (sg.rows.length) { sid = Number(sg.rows[0].id); }
+        else {
+          const mx = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='11-р анги'`);
+          const ins = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('11-р анги','I бүлэг — Жишиг ба шалгалт',$1,$2) RETURNING id`, [mx.rows[0].p, parentId]);
+          sid = Number(ins.rows[0].id);
+        }
+        const bslugs = ['buleg1-jishig-1.html', 'buleg1-jishig-2.html', 'buleg1-shalgalt-1.html'];
+        for (const slug of bslugs) {
+          await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + sid, slug]);
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_buleg1exam_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
       // Slug тус бүрээр (name|||slug) хосоор мөрддөг: байгаа дэд бүлэгт шинэ slug орно, гэхдээ
       // бүхэл дэд бүлгийг устгасан/нэр сольсныг хүндэтгэж дахин үүсгэхгүй.
