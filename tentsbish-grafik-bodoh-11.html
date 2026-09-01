@@ -54,25 +54,26 @@ function sg(n){return n>=0?'+'+n:''+n;}
 function opD(op){return {'>':'>','<':'<','ge':'\\ge','le':'\\le'}[op];}
 // Тохирсон алхам сонгох
 function niceStep(span,target){var raw=span/target;if(raw<=0)return 1;var pow=Math.pow(10,Math.floor(Math.log(raw)/Math.LN10));var fr=raw/pow;var s=fr<1.5?1:fr<3?2:fr<7?5:10;return s*pow;}
-// Параболдоо тохирсон координатын хавтгай (домэйн автоматаар өөрчлөгдөнө)
-function blankGrid(spec){var W=176,H=152,padL=4,padR=4,padT=4,padB=4;var f,vx,feats;
+// Параболдоо тохирсон, тэнцүү масштабтай (дөрвөлжин нүд) координатын хавтгай
+function blankGrid(spec){var W=152,H=152,pad=6;var f,vx,feats;
   if(spec.kind==='two'){f=function(x){return spec.s*(x-spec.r1)*(x-spec.r2);};vx=(spec.r1+spec.r2)/2;feats=[spec.r1,spec.r2];}
   else if(spec.kind==='one'){f=function(x){return spec.s*(x-spec.r0)*(x-spec.r0);};vx=spec.r0;feats=[spec.r0];}
   else{f=function(x){return spec.s*((x-spec.h)*(x-spec.h)+(spec.d||1));};vx=spec.h;feats=[spec.h];}
-  var xa=feats.concat([0,vx]);var xmin=Math.floor(Math.min.apply(null,xa)-1.5),xmax=Math.ceil(Math.max.apply(null,xa)+1.5);
-  if(xmax-xmin<6){var ext=6-(xmax-xmin);xmin-=Math.ceil(ext/2);xmax+=Math.floor(ext/2);}
-  var ys=[0];for(var x=xmin;x<=xmax+0.001;x+=0.5)ys.push(f(x));
-  var ylo=Math.min.apply(null,ys),yhi=Math.max.apply(null,ys);var yStep=niceStep(Math.max(yhi-ylo,2),6);
-  ylo=Math.floor(ylo/yStep)*yStep-yStep*0.15;yhi=Math.ceil(yhi/yStep)*yStep+yStep*0.15;
-  var xStep=Math.max(1,Math.round(niceStep(xmax-xmin,8)));
-  function PX(x){return padL+(x-xmin)/(xmax-xmin)*(W-padL-padR);}function PY(y){return padT+(yhi-y)/(yhi-ylo)*(H-padT-padB);}
+  var xa=feats.concat([0,vx]);var xlo=Math.min.apply(null,xa)-1,xhi=Math.max.apply(null,xa)+1;
+  var ys=[0];for(var x=xlo;x<=xhi+0.001;x+=0.5)ys.push(f(x));
+  var ylo=Math.min.apply(null,ys),yhi=Math.max.apply(null,ys);var yp=Math.max((yhi-ylo)*0.08,0.6);ylo-=yp;yhi+=yp;
+  var cx=(xlo+xhi)/2,cy=(ylo+yhi)/2,xspan=Math.max(xhi-xlo,2),yspan=Math.max(yhi-ylo,2);
+  var box=W-2*pad,unit=box/Math.max(xspan,yspan),half=Math.max(xspan,yspan)/2;
+  var Xmin=cx-half,Xmax=cx+half,Ymin=cy-half,Ymax=cy+half;
+  var step=Math.max(1,Math.round(niceStep(2*half,7)));
+  function PX(x){return pad+(x-Xmin)*unit;}function PY(y){return pad+(Ymax-y)*unit;}
   var x0=PX(0),y0=PY(0),g='';
-  for(var gx=Math.ceil(xmin/xStep)*xStep;gx<=xmax+0.001;gx+=xStep){var px=PX(gx);g+='<line x1="'+px.toFixed(1)+'" y1="0" x2="'+px.toFixed(1)+'" y2="'+H+'" stroke="#eef" stroke-width="1"/>';}
-  for(var gy=Math.ceil(ylo/yStep)*yStep;gy<=yhi+0.001;gy+=yStep){var py=PY(gy);g+='<line x1="0" y1="'+py.toFixed(1)+'" x2="'+W+'" y2="'+py.toFixed(1)+'" stroke="#eef" stroke-width="1"/>';}
+  for(var gx=Math.ceil(Xmin/step)*step;gx<=Xmax+0.001;gx+=step){var px=PX(gx);g+='<line x1="'+px.toFixed(1)+'" y1="0" x2="'+px.toFixed(1)+'" y2="'+H+'" stroke="#eef" stroke-width="1"/>';}
+  for(var gy=Math.ceil(Ymin/step)*step;gy<=Ymax+0.001;gy+=step){var py=PY(gy);g+='<line x1="0" y1="'+py.toFixed(1)+'" x2="'+W+'" y2="'+py.toFixed(1)+'" stroke="#eef" stroke-width="1"/>';}
   g+='<line x1="0" y1="'+y0.toFixed(1)+'" x2="'+W+'" y2="'+y0.toFixed(1)+'" stroke="#8a86a8" stroke-width="1.3"/><line x1="'+x0.toFixed(1)+'" y1="0" x2="'+x0.toFixed(1)+'" y2="'+H+'" stroke="#8a86a8" stroke-width="1.3"/>';
   g+='<path d="M'+(W-1)+' '+y0.toFixed(1)+' l-5,-3 l0,6 z" fill="#8a86a8"/><path d="M'+x0.toFixed(1)+' 1 l-3,5 l6,0 z" fill="#8a86a8"/>';
-  for(var tx=Math.ceil(xmin/xStep)*xStep;tx<=xmax+0.001;tx+=xStep){if(tx===0)continue;g+='<text x="'+PX(tx).toFixed(1)+'" y="'+(y0+8).toFixed(1)+'" font-size="6.5" fill="#b7b3ca" text-anchor="middle">'+tx+'</text>';}
-  for(var ty=Math.ceil(ylo/yStep)*yStep;ty<=yhi+0.001;ty+=yStep){if(ty===0)continue;g+='<text x="'+(x0-3).toFixed(1)+'" y="'+(PY(ty)+2.4).toFixed(1)+'" font-size="6.5" fill="#b7b3ca" text-anchor="end">'+ty+'</text>';}
+  for(var tx=Math.ceil(Xmin/step)*step;tx<=Xmax+0.001;tx+=step){if(Math.round(tx)===0)continue;g+='<text x="'+PX(tx).toFixed(1)+'" y="'+(y0+8).toFixed(1)+'" font-size="6.5" fill="#b7b3ca" text-anchor="middle">'+tx+'</text>';}
+  for(var ty=Math.ceil(Ymin/step)*step;ty<=Ymax+0.001;ty+=step){if(Math.round(ty)===0)continue;g+='<text x="'+(x0-3).toFixed(1)+'" y="'+(PY(ty)+2.4).toFixed(1)+'" font-size="6.5" fill="#b7b3ca" text-anchor="end">'+ty+'</text>';}
   g+='<text x="'+(W-6)+'" y="'+(y0-4).toFixed(1)+'" font-size="8" fill="#999" font-style="italic">x</text><text x="'+(x0+4).toFixed(1)+'" y="9" font-size="8" fill="#999" font-style="italic">y</text><text x="'+(x0-4).toFixed(1)+'" y="'+(y0+8).toFixed(1)+'" font-size="7" fill="#b7b3ca">O</text>';
   return '<svg width="'+W+'" height="'+H+'" style="display:block;margin:0;border:1px solid #ece7fb;border-radius:6px;background:#fff">'+g+'</svg>';}
 // Босоо утгын хүснэгт (x | y)
