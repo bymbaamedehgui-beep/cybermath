@@ -211,6 +211,15 @@ module.exports = async (req, res) => {
         seededPairs = seededPairs.filter(k => String(k).indexOf('Өөрийгөө сорих|||') !== 0);
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('rename_os_v2','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
+      // ── Нэг удаагийн: 1.3 бүлэгт лавлах хүснэгтийг албадан байрлуулах (хос guard-ийг тойрч) ──
+      const cflav = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_lavlah_v1'`);
+      if (!cflav.rows.length) {
+        const sglv = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='11-р анги' AND name='1.3 Тэнцэтгэл биш — график'`);
+        if (sglv.rows.length) {
+          await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,'tentsbish-lavlah-11.html','add') ON CONFLICT DO NOTHING`, ['sg:' + Number(sglv.rows[0].id)]);
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_lavlah_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
       // Slug тус бүрээр (name|||slug) хосоор мөрддөг: байгаа дэд бүлэгт шинэ slug орно, гэхдээ
       // бүхэл дэд бүлгийг устгасан/нэр сольсныг хүндэтгэж дахин үүсгэхгүй.
       for (const add of ADDITIONS) {
