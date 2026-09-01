@@ -67,27 +67,23 @@ var LET=['а','б','в','г','д','е','ё','ж','з','и','к','л','м','н','
 function relabel(sheet){var blocks=sheet.querySelectorAll('.col1'),map={};
   for(var g=0;g<blocks.length;g++){var qs2=blocks[g].querySelectorAll('.q');for(var i=0;i<qs2.length;i++){var lt=LET[i]||('#'+(i+1));var ql=qs2[i].querySelector('.ql');if(ql)ql.textContent=lt+')';map[qs2[i].getAttribute('data-k')]=(g+1)+lt+')';}}
   var as=sheet.querySelectorAll('#answers .a');for(var j=0;j<as.length;j++){var an=as[j].querySelector('.an');if(an)an.textContent=map[as[j].getAttribute('data-k')]||'';}}
-function trimToFit(sheet,target){var guard=0,h=probeH(sheet);while(h>target&&guard++<80){var blocks=sheet.querySelectorAll('.col1'),best=-1,bestN=-1;for(var s=blocks.length-1;s>=0;s--){var n=blocks[s].querySelectorAll('.q').length;if(n>bestN&&n>2){bestN=n;best=s;}}if(best<0)break;var qs2=blocks[best].querySelectorAll('.q');var last=qs2[qs2.length-1],k=last.getAttribute('data-k');var ans=sheet.querySelector('#answers .a[data-k="'+k+'"]');if(ans)ans.parentNode.removeChild(ans);last.parentNode.removeChild(last);relabel(sheet);h=probeH(sheet);}}
-function genPool(){var P=[[],[],[]];var seen={};
-  function fill(idx,fn,n){var c=0,tr=0;while(c<n&&tr<4000){tr++;var f=gen(fn);if(!f||seen[f.q])continue;seen[f.q]=1;P[idx].push(f);c++;}}
-  fill(0,nNum,4);fill(1,nGeo,4);P[2]=BUBKA.slice();return P;}
+function trimToFit(sheet,target){var guard=0,h=probeH(sheet);while(h>target&&guard++<80){var qs2=sheet.querySelectorAll('#qlist .q');if(qs2.length<=3)break;var last=qs2[qs2.length-1],k=last.getAttribute('data-k');var ans=sheet.querySelector('#answers .a[data-k="'+k+'"]');if(ans)ans.parentNode.removeChild(ans);last.parentNode.removeChild(last);h=probeH(sheet);}}
+function genPool(){var arr=[],seen={};
+  function fill(fn,n){var c=0,tr=0;while(c<n&&tr<4000){tr++;var f=gen(fn);if(!f||seen[f.q])continue;seen[f.q]=1;arr.push(f);c++;}}
+  fill(nNum,4);fill(nGeo,4);BUBKA.forEach(function(b){arr.push(b);});return arr;}
 function build(){window.__POOL=genPool();layout();}
-function layout(){var WK=document.getElementById('sw').checked;var S=window.__POOL||(window.__POOL=genPool());window.__PROB=[];var K=0;
-  function block(arr){return arr.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});return '<div class="q" data-k="'+k+'"><div class="qh"><span class="ql"></span><span class="qm">'+f.q+'</span></div>'+(WK?'<div class="wk"></div>':'')+'</div>';}).join('');}
-  function ansAll(){return window.__PROB.map(function(p){return '<div class="a" data-k="'+p.k+'"><span class="an"></span><span>'+p.f.a+'</span></div>';}).join('');}
+function layout(){var WK=document.getElementById('sw').checked;var S=window.__POOL||(window.__POOL=genPool());window.__PROB=[];
+  var body=S.map(function(f,i){window.__PROB.push({f:f,k:i});return '<div class="q" data-k="'+i+'"><div class="qh"><span class="ql">'+(i+1)+'.</span><span class="qm">'+f.q+'</span></div>'+(WK?'<div class="wk"></div>':'')+'</div>';}).join('');
+  var ans=window.__PROB.map(function(p){return '<div class="a" data-k="'+p.k+'"><span class="an">'+(p.k+1)+')</span><span>'+p.f.a+'</span></div>';}).join('');
   document.getElementById('sheet').innerHTML=
-    '<div class="head"><h1>Квадрат тэгшитгэл зохиож бодох</h1><div class="sub">Тоон · геометр · физик хэрэглээний бодлого · 11-р анги · I бүлэг 1.1</div></div>'
+    '<div class="head"><h1>Квадрат тэгшитгэл зохиож бодох</h1><div class="sub">Квадрат тэгшитгэл зохиож бодох бодлогууд · 11-р анги · I бүлэг 1.1</div></div>'
     +'<div class="meta"><span>Нэр: </span><span>Анги: </span><span>Огноо: </span></div>'
     +'<div class="rule">Бодлогод үл мэдэгдэх хэмжигдэхүүнийг $x$-ээр тэмдэглэж, нөхцөлөөр квадрат тэгшитгэл зохионо. Дараа нь тэгшитгэлийг бодож, бодлогын нөхцөлд тохирох шийдийг сонгоно.</div>'
-    +'<div class="task">1. Тоон бодлого.</div><div class="col1">'+block(S[0])+'</div>'
-    +'<div class="task">2. Геометрийн бодлого.</div><div class="col1">'+block(S[1])+'</div>'
-    +'<div class="task">3. Физик ба хэрэглээний бодлого.</div><div class="col1">'+block(S[2])+'</div>'
-    +'<div class="ans-page" id="answers"><h2>Хариунууд</h2><div class="ans-grid">'+ansAll()+'</div></div>';
-  window.WS_ITEMS=[];window.WS_TITLE='Квадрат тэгшитгэл зохиож бодох';
-  relabel(document.getElementById('sheet'));toggleAns();
+    +'<div class="task">Дараах бодлогуудыг квадрат тэгшитгэл зохиож бод.</div><div class="col1" id="qlist">'+body+'</div>'
+    +'<div class="ans-page" id="answers"><h2>Хариунууд</h2><div class="ans-grid">'+ans+'</div></div>';
+  window.WS_ITEMS=[];window.WS_TITLE='Квадрат тэгшитгэл зохиож бодох';toggleAns();
   try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
   try{trimToFit(document.getElementById('sheet'),1035);}catch(e){}
-  try{relabel(document.getElementById('sheet'));}catch(e){}
 }
 build();
 </script>
