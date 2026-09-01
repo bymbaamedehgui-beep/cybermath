@@ -26,6 +26,10 @@
   .q{break-inside:avoid;page-break-inside:avoid}
   .qh{display:flex;gap:7px;align-items:baseline}.ql{font-weight:800;color:var(--purple);font-size:13px;min-width:24px}.qm{font-size:13.5px}
   .wk{border:1.1px solid #e2daf5;border-radius:7px;background:linear-gradient(#fff,#fbf9ff);height:28mm;margin-top:5px}
+  .wkrow{display:flex;gap:8px;align-items:flex-start;margin-top:5px}
+  .vt{border-collapse:collapse;font-size:9px;flex-shrink:0}
+  .vt th,.vt td{border:1px solid #d9d0f2;width:23px;height:16.5px;text-align:center}
+  .vt th{background:#f3eefe;color:#5a32d6;font-weight:800}
   .ans-page{margin-top:9mm;border-top:2px dashed #ddd;padding-top:7mm}.ans-page h2{font-size:15px;color:#5a32d6;margin-bottom:10px}
   .ans-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px 18px;font-size:12px}.ans-grid .a{padding-bottom:9px;border-bottom:1px dotted #e6e0f5;overflow:hidden;line-height:1.7}.ans-grid .an{color:var(--purple);font-weight:800;margin-right:5px}
   .ask{display:block}.ask svg{float:right;margin:0 0 3px 7px}
@@ -59,6 +63,27 @@ function graphSVG(spec){var W=138,H=102,padL=12,padR=7,padT=7,padB=15;var f,xmin
   g+='<path d="'+d+'" fill="none" stroke="#16a34a" stroke-width="1.8"/>';
   inter.forEach(function(r,idx){var px=PX(r);var lab=(spec.rlabels?spec.rlabels[idx]:r);g+='<circle cx="'+px.toFixed(1)+'" cy="'+y0.toFixed(1)+'" r="2.3" fill="#dc2626"/><text x="'+px.toFixed(1)+'" y="'+(y0+10).toFixed(1)+'" font-size="8" text-anchor="middle" fill="#b91c1c" font-weight="700">'+lab+'</text>';});
   return '<svg width="'+W+'" height="'+H+'" style="vertical-align:middle" class="g">'+g+'</svg>';}
+// Параболдоо тохирсон, тэнцүү масштабтай (дөрвөлжин нүд) хоосон хавтгай
+function niceStep(span,target){var raw=span/target;if(raw<=0)return 1;var pow=Math.pow(10,Math.floor(Math.log(raw)/Math.LN10));var fr=raw/pow;var s=fr<1.5?1:fr<3?2:fr<7?5:10;return s*pow;}
+function blankGrid(spec){var W=152,H=152,pad=6;var a=spec.a,r1=spec.r1,r2=spec.r2;var f=function(x){return a*(x-r1)*(x-r2);};var vx=(r1+r2)/2,feats=[r1,r2];
+  var xa=feats.concat([0,vx]);var xlo=Math.min.apply(null,xa)-1,xhi=Math.max.apply(null,xa)+1;
+  var ys=[0];for(var x=xlo;x<=xhi+0.001;x+=0.5)ys.push(f(x));
+  var ylo=Math.min.apply(null,ys),yhi=Math.max.apply(null,ys);var yp=Math.max((yhi-ylo)*0.08,0.6);ylo-=yp;yhi+=yp;
+  var cx=(xlo+xhi)/2,cy=(ylo+yhi)/2,xspan=Math.max(xhi-xlo,2),yspan=Math.max(yhi-ylo,2);
+  var box=W-2*pad,unit=box/Math.max(xspan,yspan),half=Math.max(xspan,yspan)/2;
+  var Xmin=cx-half,Xmax=cx+half,Ymin=cy-half,Ymax=cy+half;
+  var step=Math.max(1,Math.round(niceStep(2*half,7)));
+  function PX(x){return pad+(x-Xmin)*unit;}function PY(y){return pad+(Ymax-y)*unit;}
+  var x0=PX(0),y0=PY(0),g='';
+  for(var gx=Math.ceil(Xmin/step)*step;gx<=Xmax+0.001;gx+=step){var px=PX(gx);g+='<line x1="'+px.toFixed(1)+'" y1="0" x2="'+px.toFixed(1)+'" y2="'+H+'" stroke="#eef" stroke-width="1"/>';}
+  for(var gy=Math.ceil(Ymin/step)*step;gy<=Ymax+0.001;gy+=step){var py=PY(gy);g+='<line x1="0" y1="'+py.toFixed(1)+'" x2="'+W+'" y2="'+py.toFixed(1)+'" stroke="#eef" stroke-width="1"/>';}
+  g+='<line x1="0" y1="'+y0.toFixed(1)+'" x2="'+W+'" y2="'+y0.toFixed(1)+'" stroke="#8a86a8" stroke-width="1.3"/><line x1="'+x0.toFixed(1)+'" y1="0" x2="'+x0.toFixed(1)+'" y2="'+H+'" stroke="#8a86a8" stroke-width="1.3"/>';
+  g+='<path d="M'+(W-1)+' '+y0.toFixed(1)+' l-5,-3 l0,6 z" fill="#8a86a8"/><path d="M'+x0.toFixed(1)+' 1 l-3,5 l6,0 z" fill="#8a86a8"/>';
+  for(var tx=Math.ceil(Xmin/step)*step;tx<=Xmax+0.001;tx+=step){if(Math.round(tx)===0)continue;g+='<text x="'+PX(tx).toFixed(1)+'" y="'+(y0+8).toFixed(1)+'" font-size="6.5" fill="#b7b3ca" text-anchor="middle">'+tx+'</text>';}
+  for(var ty=Math.ceil(Ymin/step)*step;ty<=Ymax+0.001;ty+=step){if(Math.round(ty)===0)continue;g+='<text x="'+(x0-3).toFixed(1)+'" y="'+(PY(ty)+2.4).toFixed(1)+'" font-size="6.5" fill="#b7b3ca" text-anchor="end">'+ty+'</text>';}
+  g+='<text x="'+(W-6)+'" y="'+(y0-4).toFixed(1)+'" font-size="8" fill="#999" font-style="italic">x</text><text x="'+(x0+4).toFixed(1)+'" y="9" font-size="8" fill="#999" font-style="italic">y</text><text x="'+(x0-4).toFixed(1)+'" y="'+(y0+8).toFixed(1)+'" font-size="7" fill="#b7b3ca">O</text>';
+  return '<svg width="'+W+'" height="'+H+'" style="display:block;margin:0;border:1px solid #ece7fb;border-radius:6px;background:#fff">'+g+'</svg>';}
+function blankTable(rows){rows=rows||6;var r='';for(var i=0;i<rows;i++)r+='<tr><td></td><td></td></tr>';return '<table class="vt"><tr><th>x</th><th>y</th></tr>'+r+'</table>';}
 // интервалын мөр (бүхэл)
 function ivOut(r1,r2,cl){return 'x\\in\\,]{-}\\infty,'+r1+(cl?']':'[')+'\\cup'+(cl?'[':']')+r2+',{+}\\infty[';}
 function ivBtw(r1,r2,cl){return 'x\\in\\,'+(cl?'[':']')+r1+','+r2+(cl?']':'[');}
@@ -73,24 +98,24 @@ function g_fact(){var r1,r2;do{r1=nz(-5,5);r2=nz(-5,5);}while(r1===r2);var lo=Ma
   var coef=pick([1,1,-1,2,3]),op=pick(['>','<','ge','le']),s=coef>0?1:-1;
   var pre=(coef===1?'':coef===-1?'-':coef);
   var q='$'+pre+'(x'+sg(-r1)+')(x'+sg(-r2)+') '+opD(op)+' 0$';
-  return {q:q,a:'Язгуур $x_1='+r1+',\\ x_2='+r2+'$; $'+(coef<0?'a<0':'a>0')+'$ тул '+aTxt(s)+'. '+graphSVG({s:s,r1:r1,r2:r2})+' Шийд: $'+solveGraph2(s,r1,r2,op)+'$',ok:true,key:q};}
+  return {q:q,a:'Язгуур $x_1='+r1+',\\ x_2='+r2+'$; $'+(coef<0?'a<0':'a>0')+'$ тул '+aTxt(s)+'. '+graphSVG({s:s,r1:r1,r2:r2})+' Шийд: $'+solveGraph2(s,r1,r2,op)+'$',ok:true,spec:{a:coef,r1:r1,r2:r2},key:q};}
 // 2a. x^2 - k (ирраци)
 function t_k(){var k=pick([5,6,7,10,11,13]),op=pick(['>','<','ge','le']);var R=Math.sqrt(k);
   var loS='-\\sqrt{'+k+'}',hiS='\\sqrt{'+k+'}';
-  return {q:'$x^2-'+k+' '+opD(op)+' 0$',a:'$x^2 '+opD(op)+' '+k+'$; язгуур $x=\\pm\\sqrt{'+k+'}$; салаа <b>дээш</b>. '+graphSVG({s:1,r1:-R,r2:R,rlabels:['−√'+k,'√'+k]})+' Шийд: $'+symSolve(loS,hiS,op,1)+'$',ok:true,key:'k'+k+op};}
+  return {q:'$x^2-'+k+' '+opD(op)+' 0$',a:'$x^2 '+opD(op)+' '+k+'$; язгуур $x=\\pm\\sqrt{'+k+'}$; салаа <b>дээш</b>. '+graphSVG({s:1,r1:-R,r2:R,rlabels:['−√'+k,'√'+k]})+' Шийд: $'+symSolve(loS,hiS,op,1)+'$',ok:true,spec:{a:1,r1:-R,r2:R},key:'k'+k+op};}
 // 2b. c - a x^2 (доош, бүхэл язгуур)
 function t_dn(){var R=rnd(2,4),a=pick([1,2,3]),op=pick(['>','<','ge','le']);var c=a*R*R;
   var q='$'+c+(a===1?'-x^2':'-'+a+'x^2')+' '+opD(op)+' 0$';
-  return {q:q,a:'$'+(a===1?'x^2':a+'x^2')+' '+opD({'>':'<','<':'>','ge':'le','le':'ge'}[op])+' '+c+'$; язгуур $x=\\pm'+R+'$; салаа <b>доош</b>. '+graphSVG({s:-1,r1:-R,r2:R})+' Шийд: $'+solveGraph2(-1,-R,R,op)+'$',ok:true,key:q};}
+  return {q:q,a:'$'+(a===1?'x^2':a+'x^2')+' '+opD({'>':'<','<':'>','ge':'le','le':'ge'}[op])+' '+c+'$; язгуур $x=\\pm'+R+'$; салаа <b>доош</b>. '+graphSVG({s:-1,r1:-R,r2:R})+' Шийд: $'+solveGraph2(-1,-R,R,op)+'$',ok:true,spec:{a:-a,r1:-R,r2:R},key:q};}
 // 2c. a(x-p)^2 OP q (бүтэн квадрат, бүхэл)
 function t_sq(){var p=rnd(-3,3),m=pick([1,4,9]),a=pick([1,2,3]),op=pick(['>','<','ge','le']);var q=a*m,r=Math.sqrt(m),lo=p-r,hi=p+r;
   var base=(a===1?'':a)+'(x'+sg(-p)+')^2';
-  return {q:'$'+base+' '+opD(op)+' '+q+'$',a:(a===1?'':'$'+a+'$-т хуваавал ')+'$(x'+sg(-p)+')^2 '+opD(op)+' '+m+'$; язгуур $x='+lo+',\\ '+hi+'$; салаа <b>дээш</b>. '+graphSVG({s:1,r1:lo,r2:hi})+' Шийд: $'+solveGraph2(1,lo,hi,op)+'$',ok:true,key:'sq'+p+m+a+op};}
+  return {q:'$'+base+' '+opD(op)+' '+q+'$',a:(a===1?'':'$'+a+'$-т хуваавал ')+'$(x'+sg(-p)+')^2 '+opD(op)+' '+m+'$; язгуур $x='+lo+',\\ '+hi+'$; салаа <b>дээш</b>. '+graphSVG({s:1,r1:lo,r2:hi})+' Шийд: $'+solveGraph2(1,lo,hi,op)+'$',ok:true,spec:{a:a,r1:lo,r2:hi},key:'sq'+p+m+a+op};}
 // 2d. Бүтэн квадрат ирраци язгуур
 function t_cs(){var p=rnd(-3,3),k=pick([2,3,5,6,7]),op=pick(['>','<','ge','le']);var R=Math.sqrt(k),lo=p-R,hi=p+R;
   var b=-2*p,c=p*p-k,poly='x^2'+(b?(b>0?'+'+b:b)+'x':'')+(c?(c>0?'+'+c:c):'');
   var loS=(p===0?'':p)+'-\\sqrt{'+k+'}',hiS=(p===0?'':p)+'+\\sqrt{'+k+'}';
-  return {q:'$'+poly+' '+opD(op)+' 0$',a:'Бүтэн квадрат $(x'+sg(-p)+')^2'+sg(-k)+' '+opD(op)+' 0$; язгуур $x='+(p===0?'':p)+'\\pm\\sqrt{'+k+'}$. '+graphSVG({s:1,r1:lo,r2:hi,rlabels:[(p===0?'':p)+'−√'+k,(p===0?'':p)+'+√'+k]})+' Шийд: $'+symSolve(loS,hiS,op,1)+'$',ok:true,key:poly+op};}
+  return {q:'$'+poly+' '+opD(op)+' 0$',a:'Бүтэн квадрат $(x'+sg(-p)+')^2'+sg(-k)+' '+opD(op)+' 0$; язгуур $x='+(p===0?'':p)+'\\pm\\sqrt{'+k+'}$. '+graphSVG({s:1,r1:lo,r2:hi,rlabels:[(p===0?'':p)+'−√'+k,(p===0?'':p)+'+√'+k]})+' Шийд: $'+symSolve(loS,hiS,op,1)+'$',ok:true,spec:{a:1,r1:lo,r2:hi},key:poly+op};}
 function gen(fn){for(var t=0;t<300;t++){var f=fn();if(f&&f.ok)return f;}return null;}
 function probeH(sheet){var pr=sheet.cloneNode(true);pr.removeAttribute('id');pr.style.cssText='position:absolute;left:-99999px;top:0;width:210mm;max-width:none;min-height:0;margin:0;padding:0;box-shadow:none;zoom:1';var a=pr.querySelector('#answers,.ans-page');if(a)a.remove();document.body.appendChild(pr);var h=pr.scrollHeight;document.body.removeChild(pr);return h;}
 var LET=['а','б','в','г','д','е','ё','ж','з','и','к','л','м','н','о','ө','п','р','с','т','у','ү'];
@@ -98,10 +123,10 @@ function relabel(sheet){var blocks=sheet.querySelectorAll('.grid'),map={};for(va
   var as=sheet.querySelectorAll('#answers .a');for(var j=0;j<as.length;j++){var an=as[j].querySelector('.an');if(an)an.textContent=map[as[j].getAttribute('data-k')]||'';}}
 function trimToFit(sheet,target){var guard=0,h=probeH(sheet);while(h>target&&guard++<80){var blocks=sheet.querySelectorAll('.grid'),best=-1,bestN=-1;for(var s=blocks.length-1;s>=0;s--){var n=blocks[s].querySelectorAll('.q').length;if(n>bestN&&n>2){bestN=n;best=s;}}if(best<0)break;var qs2=blocks[best].querySelectorAll('.q');var last=qs2[qs2.length-1],k=last.getAttribute('data-k');var ans=sheet.querySelector('#answers .a[data-k="'+k+'"]');if(ans)ans.parentNode.removeChild(ans);last.parentNode.removeChild(last);relabel(sheet);h=probeH(sheet);}}
 function genPool(){var P=[[],[]];var seen={};function fill(idx,fns,n){var c=0,tr=0,i=0;while(c<n&&tr<7000){tr++;var f=gen(fns[i%fns.length]);i++;if(!f||seen[f.key])continue;seen[f.key]=1;P[idx].push(f);c++;}}
-  fill(0,[g_fact],10);fill(1,[t_k,t_dn,t_sq,t_cs],12);return P;}
+  fill(0,[g_fact],14);fill(1,[t_k,t_dn,t_sq,t_cs],14);return P;}
 function build(){window.__POOL=genPool();layout();}
 function layout(){var WK=document.getElementById('sw').checked;var S=window.__POOL||(window.__POOL=genPool());window.__PROB=[];var K=0;
-  function block(arr,cap){var use=WK?arr.slice(0,cap):arr;return use.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});return '<div class="q" data-k="'+k+'"><div class="qh"><span class="ql"></span><span class="qm">'+f.q+'</span></div>'+(WK?'<div class="wk"></div>':'')+'</div>';}).join('');}
+  function block(arr,cap){var use=arr;return use.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});return '<div class="q" data-k="'+k+'"><div class="qh"><span class="ql"></span><span class="qm">'+f.q+'</span></div>'+(WK?'<div class="wkrow">'+blankTable()+blankGrid(f.spec)+'</div>':'')+'</div>';}).join('');}
   function ansAll(){return window.__PROB.map(function(p){return '<div class="a" data-k="'+p.k+'"><span class="an"></span><span class="ask">'+p.f.a+'</span></div>';}).join('');}
   document.getElementById('sheet').innerHTML=
     '<div class="head"><h1>Тэнцэтгэл биш — задалсан ба тусгай хэлбэр</h1><div class="sub">Задалсан үржвэр · $x^2=k$ · $a(x-p)^2$ хэлбэрийг график ашиглан бод · 11-р анги · I бүлэг 1.3</div></div>'
@@ -113,7 +138,7 @@ function layout(){var WK=document.getElementById('sw').checked;var S=window.__PO
   window.WS_ITEMS=[];window.WS_TITLE='Тэнцэтгэл биш — задалсан ба тусгай хэлбэр';
   relabel(document.getElementById('sheet'));toggleAns();
   try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
-  try{if(!WK)trimToFit(document.getElementById('sheet'),1035);}catch(e){}
+  try{trimToFit(document.getElementById('sheet'),WK?1010:1035);}catch(e){}
   try{relabel(document.getElementById('sheet'));}catch(e){}
 }
 build();
