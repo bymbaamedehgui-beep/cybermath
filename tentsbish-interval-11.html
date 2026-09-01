@@ -109,6 +109,14 @@ function g_sqrt(){var p=rnd(-3,3),k=pick([2,3,5,6,7]),op=pick(['<','le','>','ge'
   else{shaded=[{lo:NEG,hi:r1v},{lo:r2v,hi:POS}];str='x\\in\\,]{-}\\infty,\\,'+symLo+(incEq?']':'[')+'\\,\\cup\\,'+(incEq?'[':']')+symHi+',\\,{+}\\infty[';}
   return {q:'$'+poly+' '+opD(op)+' 0$',a:'Бүрэн квадрат: $(x'+sg(-p)+')^2'+sg(-k)+' '+opD(op)+' 0$, тэг цэг $x='+(p===0?'':p)+'\\pm\\sqrt{'+k+'}$. '+numLine(R,shaded,incEq)+' Шийд: $'+str+'$',ok:true};}
 function gen(fn){for(var t=0;t<300;t++){var f=fn();if(f&&f.ok)return f;}return null;}
+// Динамик жишээ (Шинэ бодлого дарахад солигдоно)
+function signPatStr(n){var s='';for(var i=0;i<=n;i++)s+=(((n-i)%2===0)?'(+)':'(-)');return s;}
+function exQuad(){var rr=roots2(),r1=rr[0],r2=rr[1],op=pick(['>','ge','<','le']);var b=-(r1+r2),c=r1*r2;
+  var R=[{x:r1,pole:false},{x:r2,pole:false}],sol=solveFactors(R,op),gt=(op==='>'||op==='ge');
+  return '$'+qs(1,b,c)+' '+opD(op)+' 0$. &nbsp;① Задлавал $(x'+sg(-r1)+')(x'+sg(-r2)+') '+opD(op)+' 0$, тэг цэг $x='+r1+',\\ '+r2+'$. &nbsp;② Баруун захаас $(+)$, цэг бүрээр солигдоно: $'+signPatStr(2)+'$. &nbsp;③ '+(gt?'Эерэг тул захын завсрууд':'Сөрөг тул дундах завсар')+'. '+numLine(R,sol.shaded,sol.incEq)+' &nbsp;<b>Хариу:</b> $'+sol.str+'$';}
+function exRat(){for(var t=0;t<200;t++){var z=nz(-6,6),p=nz(-6,6);if(z===p)continue;var op=pick(['<','le','>','ge']);
+  var R=[{x:z,pole:false},{x:p,pole:true}].sort(function(a,b){return a.x-b.x;}),sol=solveFactors(R,op),gt=(op==='>'||op==='ge'),incEq=(op==='ge'||op==='le');
+  return '$\\dfrac{x'+sg(-z)+'}{x'+sg(-p)+'} '+opD(op)+' 0$. &nbsp;① Тэг цэг $x='+z+'$'+(incEq?' (хаалттай)':' (нээлттэй)')+', тодорхойлогдохгүй $x='+p+'$ (нээлттэй). &nbsp;② $'+signPatStr(2)+'$, '+(gt?'эерэг':'сөрөг')+' завсрыг сонгоно. '+numLine(R,sol.shaded,sol.incEq)+' &nbsp;<b>Хариу:</b> $'+sol.str+'$';}return exRat();}
 function probeH(sheet){var pr=sheet.cloneNode(true);pr.removeAttribute('id');pr.style.cssText='position:absolute;left:-99999px;top:0;width:210mm;max-width:none;min-height:0;margin:0;padding:0;box-shadow:none;zoom:1';var a=pr.querySelector('#answers,.ans-page');if(a)a.remove();document.body.appendChild(pr);var h=pr.scrollHeight;document.body.removeChild(pr);return h;}
 var LET=['а','б','в','г','д','е','ё','ж','з','и','к','л','м','н','о','ө','п','р','с','т','у','ү'];
 function relabel(sheet){var blocks=sheet.querySelectorAll('.grid'),map={};for(var g=0;g<blocks.length;g++){var qs2=blocks[g].querySelectorAll('.q');for(var i=0;i<qs2.length;i++){var lt=LET[i]||('#'+(i+1));var ql=qs2[i].querySelector('.ql');if(ql)ql.textContent=lt+')';map[qs2[i].getAttribute('data-k')]=(g+1)+lt+')';}}
@@ -116,12 +124,11 @@ function relabel(sheet){var blocks=sheet.querySelectorAll('.grid'),map={};for(va
 function trimToFit(sheet,target){var guard=0,h=probeH(sheet);while(h>target&&guard++<80){var blocks=sheet.querySelectorAll('.grid'),best=-1,bestN=-1;for(var s=blocks.length-1;s>=0;s--){var n=blocks[s].querySelectorAll('.q').length;if(n>bestN&&n>2){bestN=n;best=s;}}if(best<0)break;var qs2=blocks[best].querySelectorAll('.q');var last=qs2[qs2.length-1],k=last.getAttribute('data-k');var ans=sheet.querySelector('#answers .a[data-k="'+k+'"]');if(ans)ans.parentNode.removeChild(ans);last.parentNode.removeChild(last);relabel(sheet);h=probeH(sheet);}}
 function genPool(){var P=[[],[],[]];var seen={};function fill(idx,fn,n){var c=0,tr=0;while(c<n&&tr<4000){tr++;var f=gen(fn);if(!f||seen[f.q])continue;seen[f.q]=1;P[idx].push(f);c++;}}
   function fillMix(idx,fns,n){var c=0,tr=0,i=0;while(c<n&&tr<8000){tr++;var f=gen(fns[i%fns.length]);i++;if(!f||seen[f.q])continue;seen[f.q]=1;P[idx].push(f);c++;}}
-  fillMix(0,[g_quad,g_sqrt],14);fill(1,g_rat,10);fill(2,g_cubic,10);return P;}
-function exBox(){var R1=[{x:-2,pole:false},{x:3,pole:false}],s1=solveFactors(R1,'>');
-  var R2=[{x:-2,pole:true},{x:1,pole:false}],s2=solveFactors(R2,'le');
+  fillMix(0,[g_quad,g_sqrt],14);fill(1,g_rat,10);fill(2,g_cubic,10);window.__EX={q:exQuad(),r:exRat()};return P;}
+function exBox(){var ex=window.__EX||(window.__EX={q:exQuad(),r:exRat()});
   return '<div class="ex"><h3>Тэмдгийн аргаар бодох 2 жишээ</h3>'
-    +'<div class="exrow"><span class="tag">Жишээ 1</span><span>$x^2-x-6>0$. &nbsp;① Задлавал $(x-3)(x+2)>0$, тэг цэг $x=-2,\\ 3$. &nbsp;② Тоон шулуунд тавиад баруун захаас $(+)$, цэг бүрээр солигдоно: $(+)(-)(+)$. &nbsp;③ Эерэг тул захын завсрууд. '+numLine(R1,s1.shaded,s1.incEq)+' &nbsp;<b>Хариу:</b> $'+s1.str+'$</span></div>'
-    +'<div class="exrow"><span class="tag">Жишээ 2</span><span>$\\dfrac{x-1}{x+2}\\le0$. &nbsp;① Тэг цэг $x=1$ (хаалттай), тодорхойлогдохгүй $x=-2$ (нээлттэй). &nbsp;② $(+)(-)(+)$, сөрөг завсрыг сонгоно (захын цэгүүд: $-2$ авахгүй, $1$ авна). '+numLine(R2,s2.shaded,s2.incEq)+' &nbsp;<b>Хариу:</b> $'+s2.str+'$</span></div></div>';}
+    +'<div class="exrow"><span class="tag">Жишээ 1</span><span>'+ex.q+'</span></div>'
+    +'<div class="exrow"><span class="tag">Жишээ 2</span><span>'+ex.r+'</span></div></div>';}
 function build(){window.__POOL=genPool();layout();}
 function layout(){var WK=document.getElementById('sw').checked;var S=window.__POOL||(window.__POOL=genPool());window.__PROB=[];var K=0;
   function block(arr,cap){var use=WK?arr.slice(0,cap):arr;return use.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});return '<div class="q" data-k="'+k+'"><div class="qh"><span class="ql"></span><span class="qm">'+f.q+'</span></div>'+(WK?'<div class="wk"></div>':'')+'</div>';}).join('');}
