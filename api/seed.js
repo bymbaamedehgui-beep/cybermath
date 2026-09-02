@@ -239,6 +239,24 @@ module.exports = async (req, res) => {
         }
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_buleg1exam_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
+      // ── Нэг удаагийн: II бүлэг 2.1 (шулуун ба муруй) дэд бүлгийг үүсгэж байрлуулах ──
+      const cf21 = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_sistem21_v1'`);
+      if (!cf21.rows.length) {
+        const par2 = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='11-р анги' AND name LIKE 'II БҮЛЭГ%' ORDER BY id LIMIT 1`);
+        const parentId2 = par2.rows.length ? Number(par2.rows[0].id) : null;
+        let sg2 = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='11-р анги' AND name='2.1 Шулуун ба муруйн харилцан байршил'`);
+        let sid2;
+        if (sg2.rows.length) { sid2 = Number(sg2.rows[0].id); }
+        else {
+          const mx2 = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='11-р анги'`);
+          const ins2 = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('11-р анги','2.1 Шулуун ба муруйн харилцан байршил',$1,$2) RETURNING id`, [mx2.rows[0].p, parentId2]);
+          sid2 = Number(ins2.rows[0].id);
+        }
+        for (const slug of ['sistem-parabol-shuluun-11.html', 'sistem-toirog-giperbol-11.html']) {
+          await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + sid2, slug]);
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_sistem21_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
       // Slug тус бүрээр (name|||slug) хосоор мөрддөг: байгаа дэд бүлэгт шинэ slug орно, гэхдээ
       // бүхэл дэд бүлгийг устгасан/нэр сольсныг хүндэтгэж дахин үүсгэхгүй.
       for (const add of ADDITIONS) {
