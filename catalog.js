@@ -372,6 +372,7 @@ window.WS_LIST=[
     ['buleg1-shalgalt-1.html','I бүлэг — Шалгалтын материал (100 оноо)'],
     ['sistem-parabol-shuluun-11.html','Парабол ба шулууны харилцан байршил (график)'],
     ['sistem-toirog-giperbol-11.html','Тойрог, гипербол ба шулууны харилцан байршил (график)'],
+    ['sistem-grafik-arga-11.html','Тэгшитгэлийн системийг графикийн аргаар бод'],
     ['kvadrat-tentsbish-grafik.html','Квадрат тэнцэтгэл биш — графикийн арга'],
     ['tegshitgel-sistem-4torol.html','Шугаман бус тэгшитгэлийн систем (орлуулах·график, бодолттой)'],
     ['matrits-urvuu-sistem-12.html','Систем — урвуу матрицын арга (бодолттой)'],
