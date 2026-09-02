@@ -275,6 +275,30 @@ module.exports = async (req, res) => {
         }
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_sistem22_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
+      // ── Нэг удаагийн: өмнөх "2.2 Систем — орлуулах арга"-г "2.1"-д шилжүүлж нэрлэх (жинхэнэ 2.2 нь урвуу матриц) ──
+      const cfren = await pool.query(`SELECT sval FROM ws_settings WHERE skey='rename_orluulah_v1'`);
+      if (!cfren.rows.length) {
+        await pool.query(`UPDATE ws_subgroups SET name='2.1 Систем бодох — орлуулах арга' WHERE grade='11-р анги' AND name='2.2 Систем — орлуулах арга'`);
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('rename_orluulah_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
+      // ── Нэг удаагийн: II бүлэг 2.2 (урвуу матриц) дэд бүлгийг үүсгэж байрлуулах ──
+      const cfmat = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_urvuumat_v1'`);
+      if (!cfmat.rows.length) {
+        const parM = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='11-р анги' AND name LIKE 'II БҮЛЭГ%' ORDER BY id LIMIT 1`);
+        const parentIdM = parM.rows.length ? Number(parM.rows[0].id) : null;
+        let sgM = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='11-р анги' AND name='2.2 Шугаман систем — урвуу матриц'`);
+        let sidM;
+        if (sgM.rows.length) { sidM = Number(sgM.rows[0].id); }
+        else {
+          const mxM = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='11-р анги'`);
+          const insM = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('11-р анги','2.2 Шугаман систем — урвуу матриц',$1,$2) RETURNING id`, [mxM.rows[0].p, parentIdM]);
+          sidM = Number(insM.rows[0].id);
+        }
+        for (const slug of ['urvuu-matrits-1-11.html', 'urvuu-matrits-2-11.html', 'urvuu-matrits-3-11.html']) {
+          await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + sidM, slug]);
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_urvuumat_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
       // Slug тус бүрээр (name|||slug) хосоор мөрддөг: байгаа дэд бүлэгт шинэ slug орно, гэхдээ
       // бүхэл дэд бүлгийг устгасан/нэр сольсныг хүндэтгэж дахин үүсгэхгүй.
       for (const add of ADDITIONS) {
