@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Гурван хувьсагчтай ШТС — Гаусс 2, хэрэглээ (11-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<style>
+  :root{--purple:#7B52EE;--purple2:#A855F7;--ink:#1a1030;--soft:#7a7390;--amber:#9a6300}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:var(--ink);background:#eceaf3;padding:16px;line-height:1.5}
+  .bar{max-width:820px;margin:0 auto 14px;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
+  .btn{font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.6rem 1.3rem;font-size:.9rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2));box-shadow:0 6px 16px -6px rgba(123,82,238,.6)}
+  .btn:hover{filter:brightness(1.06)} .btn.refresh{background:linear-gradient(135deg,#16a34a,#22c55e)}
+  .bar label{font-weight:700;color:var(--purple);display:flex;align-items:center;gap:6px;font-size:.88rem}
+  .sheet{background:#fff;width:210mm;max-width:100%;min-height:297mm;margin:0 auto;padding:12mm 14mm;box-shadow:0 12px 44px -18px rgba(0,0,0,.35)}
+  .head{text-align:center;border-bottom:2.5px solid var(--purple);padding-bottom:7px;margin-bottom:7px}
+  .head h1{font-size:17px;color:#5a32d6;font-weight:800}.head .sub{font-size:11px;color:var(--soft);margin-top:2px}
+  .meta{display:flex;justify-content:space-between;font-size:11.5px;margin:8px 2px 10px}.meta span{border-bottom:1px dotted #b3a9cf;padding:0 26px 2px 4px}
+  .rule{font-size:11px;color:var(--amber);background:#fff7e6;border:1px solid #f3dca6;border-radius:8px;padding:8px 12px;margin-bottom:11px}
+  .rule b{color:#7a4f00}
+  .task{font-weight:800;color:#5a32d6;font-size:13px;margin:9px 0 7px;border-left:4px solid var(--purple2);padding-left:9px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:11px 20px}
+  .grid.one{grid-template-columns:1fr}
+  .q{break-inside:avoid;page-break-inside:avoid}
+  .qh{display:flex;gap:7px;align-items:baseline}.ql{font-weight:800;color:var(--purple);font-size:13px;min-width:22px}.qm{font-size:13px}
+  .wk{border:1.1px solid #e2daf5;border-radius:7px;background:linear-gradient(#fff,#fbf9ff);height:20mm;margin-top:4px}
+  .ans-page{margin-top:9mm;border-top:2px dashed #ddd;padding-top:7mm}.ans-page h2{font-size:15px;color:#5a32d6;margin-bottom:10px}
+  .ans-grid{display:grid;grid-template-columns:1fr;gap:10px;font-size:12px}.ans-grid .a{padding-bottom:9px;border-bottom:1px dotted #e6e0f5}.ans-grid .an{color:var(--purple);font-weight:800;margin-right:5px}
+  #answers{display:none}
+  @media print{body{background:#fff;padding:0}.bar{display:none}.sheet{box-shadow:none;width:auto;min-height:auto;padding:0;margin:0}@page{size:A4;margin:11mm}.ans-page{break-before:page}}
+</style>
+</head>
+<body>
+<div class="bar">
+  <button class="btn refresh" onclick="build()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>Шинэ бодлого</button>
+  <label><input type="checkbox" id="sw" onchange="layout()" checked> Бодолтын зай</label>
+  <label><input type="checkbox" id="sa" onchange="toggleAns()"> Хариу хавсаргах</label>
+  <button class="btn" onclick="window.print()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>Хэвлэх / PDF</button>
+</div>
+<div class="sheet" id="sheet"></div>
+<script>
+function rnd(a,b){return a+Math.floor(Math.random()*(b-a+1));}
+function nz(a,b){var v;do{v=rnd(a,b);}while(v===0);return v;}
+function pick(a){return a[rnd(0,a.length-1)];}
+function toggleAns(){var el=document.getElementById('answers');if(el)el.style.display=document.getElementById('sa').checked?'block':'none';}
+function lin3(a,b,c,d){var parts=[['x',a],['y',b],['z',c]],s='',started=false;parts.forEach(function(p){var co=p[1];if(co===0)return;var m=Math.abs(co),body=(m===1?'':m)+p[0];if(!started){s+=(co<0?'-':'')+body;started=true;}else{s+=(co<0?'-':'+')+body;}});if(!started)s='0';return s+'='+d;}
+function sys3(R1,R2,R3){return '\\begin{cases}'+lin3.apply(null,R1)+'\\\\ '+lin3.apply(null,R2)+'\\\\ '+lin3.apply(null,R3)+'\\end{cases}';}
+function big(rows){return rows.some(function(r){return r.some(function(v){return Math.abs(v)>15;});});}
+// 1. Гурвалжин хэлбэрийг гүйцээж бод (буцаах орлуулга)
+function g_triangular(){for(var t=0;t<300;t++){var x0=nz(-4,4),y0=nz(-4,4),z0=nz(-4,4);var b1=nz(-3,3),c1=nz(-3,3),c2=nz(-3,3),c3=pick([1,2,3]);
+  var d1=x0+b1*y0+c1*z0,d2=y0+c2*z0,d3=c3*z0;if(big([[b1,c1,d1],[c2,d2],[c3,d3]]))continue;
+  var ans='Буцаах орлуулга: $z='+z0+'$; $y='+y0+'$; $x='+x0+'$. Шийд: $('+x0+','+y0+','+z0+')$';
+  return {q:'$'+sys3([1,b1,c1,d1],[0,1,c2,d2],[0,0,c3,d3])+'$ гурвалжин хэлбэрийг гүйцээж бод.',a:ans,key:'t'+x0+y0+z0+b1+c1+c2+c3};}return null;}
+// 2. Квадрат гишүүнт олох (гурван цэгээр)
+function w_quad(){var a=nz(-3,3),b=nz(-4,4),c=rnd(-4,4);var p=a+b+c,q=4*a+2*b+c,r=9*a+3*b+c;
+  var ans='Систем: $\\begin{cases}a+b+c='+p+'\\\\ 4a+2b+c='+q+'\\\\ 9a+3b+c='+r+'\\end{cases}$. Гауссаар: $a='+a+',\\ b='+b+',\\ c='+c+'$. Гишүүнт: $'+lin3quad(a,b,c)+'$';
+  return {q:'$f(x)=ax^2+bx+c$ квадрат гишүүнт $x=1,2,3$ үед харгалзан $'+p+',\\ '+q+',\\ '+r+'$ утга авдаг бол $a,b,c$-г ол.',a:ans,key:'q'+a+b+c};}
+function lin3quad(a,b,c){var s=(a===1?'x^2':a===-1?'-x^2':a+'x^2');if(b===1)s+='+x';else if(b===-1)s+='-x';else if(b>0)s+='+'+b+'x';else if(b<0)s+='-'+(-b)+'x';if(c>0)s+='+'+c;else if(c<0)s+='-'+(-c);return s;}
+// 3. Гурван тооны өгүүлбэр бодлого
+function w_three(){var x0=rnd(1,9),y0=rnd(1,9),z0=rnd(1,9);var S=x0+y0+z0,d=x0-y0,e=z0-y0;
+  var dw=(d>=0?d+'-аар их':(-d)+'-аар бага'),ew=(e>=0?e+'-аар их':(-e)+'-аар бага');
+  var ans='Систем: $\\begin{cases}x+y+z='+S+'\\\\ x-y='+d+'\\\\ z-y='+e+'\\end{cases}\\Rightarrow x='+x0+',\\ y='+y0+',\\ z='+z0+'$. Тоонууд: $'+x0+',\\ '+y0+',\\ '+z0+'$';
+  return {q:'Гурван тооны нийлбэр нь $'+S+'$. Нэг дэх тоо хоёр дахиасаа '+dw+', гурав дахь тоо хоёр дахиасаа '+ew+' бол тэдгээр тоог ол.',a:ans,key:'w'+x0+y0+z0};}
+// 4. Шийдгүй болохыг харуул
+function g_none(){for(var t=0;t<400;t++){var b1=rnd(-2,2),c1=nz(-2,2),d1=rnd(-4,4);var e2=nz(-2,2),f2=nz(-2,2),g2=rnd(-4,4),k=pick([-2,-1,2,3]),delta=nz(1,3);var g3=k*g2+delta;var m2=pick([1,2,-1]),m3=pick([1,2,-1]);
+  var R1=[1,b1,c1,d1],R2=[m2,m2*b1+e2,m2*c1+f2,m2*d1+g2],R3=[m3,m3*b1+k*e2,m3*c1+k*f2,m3*d1+g3];
+  if(R2[0]===0||R3[0]===0)continue;if(big([R1,R2,R3]))continue;
+  var ans='$x$-ийг зайлуулахад 2, 3-р тэгшитгэл $y,z$-ээр пропорциональ боловч баруун тал зөрчилтэй ($0='+delta+'$) тул систем <b>шийдгүй</b>.';
+  return {q:'$'+sys3(R1,R2,R3)+'$ систем шийдтэй эсэхийг тодорхойл.',a:ans,key:'n'+R1.join()+R2.join()};}return null;}
+var WGEN=[g_triangular,g_triangular,w_quad,w_three,w_three,g_none];
+function gen(){for(var t=0;t<300;t++){var f=pick(WGEN)();if(f)return f;}return null;}
+function probeH(sheet){var pr=sheet.cloneNode(true);pr.removeAttribute('id');pr.style.cssText='position:absolute;left:-99999px;top:0;width:210mm;max-width:none;min-height:0;margin:0;padding:0;box-shadow:none;zoom:1';var a=pr.querySelector('#answers,.ans-page');if(a)a.remove();document.body.appendChild(pr);var h=pr.scrollHeight;document.body.removeChild(pr);return h;}
+function relabel(sheet){var qs=sheet.querySelectorAll('.grid .q');for(var i=0;i<qs.length;i++){var ql=qs[i].querySelector('.ql');if(ql)ql.textContent=(i+1)+'.';}
+  var as=sheet.querySelectorAll('#answers .a');for(var j=0;j<as.length;j++){var an=as[j].querySelector('.an');if(an)an.textContent=(j+1)+'.';}}
+function trimToFit(sheet,target){var guard=0,h=probeH(sheet);while(h>target&&guard++<60){var qs=sheet.querySelectorAll('.grid .q');if(qs.length<=2)break;var last=qs[qs.length-1],k=last.getAttribute('data-k');var ans=sheet.querySelector('#answers .a[data-k="'+k+'"]');if(ans)ans.parentNode.removeChild(ans);last.parentNode.removeChild(last);relabel(sheet);h=probeH(sheet);}}
+function genPool(){var seen={},P=[],tr=0;while(P.length<14&&tr<700){tr++;var f=gen();if(!f||seen[f.key])continue;seen[f.key]=1;P.push(f);}return P;}
+function build(){window.__POOL=genPool();layout();}
+function layout(){var WK=document.getElementById('sw').checked;var S=window.__POOL||(window.__POOL=genPool());var K=0;
+  var qs=S.map(function(f){var k=K++;return '<div class="q" data-k="'+k+'"><div class="qh"><span class="ql"></span><span class="qm">'+f.q+'</span></div>'+(WK?'<div class="wk"></div>':'')+'</div>';}).join('');
+  var ans=S.map(function(f,i){return '<div class="a" data-k="'+i+'"><span class="an"></span>'+f.a+'</div>';}).join('');
+  document.getElementById('sheet').innerHTML=
+    '<div class="head"><h1>Гурван хувьсагчтай систем — гүйцээх, хэрэглээ (2)</h1><div class="sub">Гурвалжин хэлбэр гүйцээх · квадрат гишүүнт · өгүүлбэр бодлого · шийдгүй · 11-р анги · 2.2</div></div>'
+    +'<div class="meta"><span>Нэр: </span><span>Анги: </span><span>Огноо: </span></div>'
+    +'<div class="rule"><b>Санамж:</b> Гурвалжин хэлбэрийг $z\\to y\\to x$ буцаах орлуулгаар гүйцээнэ. Өгүүлбэр бодлогод хайх хэмжигдэхүүнийг $x,y,z$ гэж тэмдэглэж <b>3 тэгшитгэлийн систем</b> зохиож Гауссаар бод. Сүүлийн мөр $0=d\\ (d\\ne0)$ бол шийдгүй.</div>'
+    +'<div class="task">Даалгаврыг гүйцэтгэ (гүйцээх · систем зохиох · шийдгүй эсэхийг тодорхойлох).</div>'
+    +'<div class="grid one">'+qs+'</div>'
+    +'<div class="ans-page" id="answers"><h2>Хариу ба бодолт</h2><div class="ans-grid">'+ans+'</div></div>';
+  window.WS_ITEMS=[];window.WS_TITLE='Гурван хувьсагчтай систем — гүйцээх, хэрэглээ 2';
+  relabel(document.getElementById('sheet'));toggleAns();
+  try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
+  try{trimToFit(document.getElementById('sheet'),WK?1010:1035);}catch(e){}
+  try{relabel(document.getElementById('sheet'));}catch(e){}
+}
+build();
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>
