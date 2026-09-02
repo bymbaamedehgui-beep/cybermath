@@ -257,6 +257,24 @@ module.exports = async (req, res) => {
         }
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_sistem21_v2','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
+      // ── Нэг удаагийн: II бүлэг 2.2 (орлуулах арга) дэд бүлгийг үүсгэж байрлуулах ──
+      const cf22 = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_sistem22_v1'`);
+      if (!cf22.rows.length) {
+        const par22 = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='11-р анги' AND name LIKE 'II БҮЛЭГ%' ORDER BY id LIMIT 1`);
+        const parentId22 = par22.rows.length ? Number(par22.rows[0].id) : null;
+        let sg22 = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='11-р анги' AND name='2.2 Систем — орлуулах арга'`);
+        let sid22;
+        if (sg22.rows.length) { sid22 = Number(sg22.rows[0].id); }
+        else {
+          const mx22 = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='11-р анги'`);
+          const ins22 = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('11-р анги','2.2 Систем — орлуулах арга',$1,$2) RETURNING id`, [mx22.rows[0].p, parentId22]);
+          sid22 = Number(ins22.rows[0].id);
+        }
+        for (const slug of ['orluulah-sistem-1-11.html', 'orluulah-sistem-2-11.html', 'orluulah-sistem-3-11.html']) {
+          await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + sid22, slug]);
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_sistem22_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
       // Slug тус бүрээр (name|||slug) хосоор мөрддөг: байгаа дэд бүлэгт шинэ slug орно, гэхдээ
       // бүхэл дэд бүлгийг устгасан/нэр сольсныг хүндэтгэж дахин үүсгэхгүй.
       for (const add of ADDITIONS) {
