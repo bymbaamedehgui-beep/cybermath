@@ -317,14 +317,17 @@ module.exports = async (req, res) => {
         }
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_gauss_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
-      // ── Нэг удаагийн: Крамерын дүрэм хуудсыг урвуу матрицын дэд бүлэгт нэмэх ──
-      const cfk = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_kramer_v1'`);
+      // ── Нэг удаагийн: Крамерын дүрэм хуудсыг урвуу матрицын дэд бүлэгт нэмэх (2x2, 3x3 тусад нь) ──
+      const cfk = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_kramer_v2'`);
       if (!cfk.rows.length) {
+        await pool.query(`DELETE FROM ws_place WHERE slug='kramer-sistem-11.html'`);
         const sgK = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='11-р анги' AND name LIKE '2.2 %урвуу матриц%' ORDER BY id LIMIT 1`);
         if (sgK.rows.length) {
-          await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,'kramer-sistem-11.html','add') ON CONFLICT DO NOTHING`, ['sg:' + Number(sgK.rows[0].id)]);
+          for (const slug of ['kramer-2x2-11.html', 'kramer-3x3-11.html']) {
+            await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + Number(sgK.rows[0].id), slug]);
+          }
         }
-        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_kramer_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_kramer_v2','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
       // Slug тус бүрээр (name|||slug) хосоор мөрддөг: байгаа дэд бүлэгт шинэ slug орно, гэхдээ
       // бүхэл дэд бүлгийг устгасан/нэр сольсныг хүндэтгэж дахин үүсгэхгүй.
