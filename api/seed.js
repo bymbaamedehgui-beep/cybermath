@@ -317,6 +317,15 @@ module.exports = async (req, res) => {
         }
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_gauss_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
+      // ── Нэг удаагийн: Крамерын дүрэм хуудсыг урвуу матрицын дэд бүлэгт нэмэх ──
+      const cfk = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_kramer_v1'`);
+      if (!cfk.rows.length) {
+        const sgK = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='11-р анги' AND name LIKE '2.2 %урвуу матриц%' ORDER BY id LIMIT 1`);
+        if (sgK.rows.length) {
+          await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,'kramer-sistem-11.html','add') ON CONFLICT DO NOTHING`, ['sg:' + Number(sgK.rows[0].id)]);
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_kramer_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
       // Slug тус бүрээр (name|||slug) хосоор мөрддөг: байгаа дэд бүлэгт шинэ slug орно, гэхдээ
       // бүхэл дэд бүлгийг устгасан/нэр сольсныг хүндэтгэж дахин үүсгэхгүй.
       for (const add of ADDITIONS) {
