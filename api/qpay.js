@@ -172,7 +172,7 @@ function isAdmin(req) {
 // ── Ажлын хуудсын промо код + борлуулалтын бүртгэл (DB) ──
 let wsExtraReady = false;
 async function ensureWsExtra() {
-  if (wsExtraReady) return;
+  if (!wsExtraReady) {
   await pool.query(`CREATE TABLE IF NOT EXISTS ws_promos (
     code TEXT PRIMARY KEY,
     pct INT NOT NULL DEFAULT 20,
@@ -219,6 +219,9 @@ async function ensureWsExtra() {
     created_at TIMESTAMPTZ DEFAULT NOW()
   )`).catch(()=>{});
   wsExtraReady = true;
+  }
+  // Азын хүрдээр эргүүлж авсан, хугацаа нь дууссан промо кодуудыг автоматаар устгах
+  try { await pool.query(`DELETE FROM ws_promos WHERE personal=TRUE AND note='Азтаны хүрд' AND expires_at IS NOT NULL AND expires_at < NOW()`); } catch (e) {}
 }
 // DB промог эхэнд шалгаад, олдохгүй бол env кодоос үзнэ
 async function resolvePromo(code) {
