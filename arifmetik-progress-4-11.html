@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Арифметик прогресс — систем ба хэрэглээ (11-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<style>
+  :root{--purple:#7B52EE;--purple2:#A855F7;--ink:#1a1030;--soft:#7a7390;--amber:#9a6300}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:var(--ink);background:#eceaf3;padding:16px;line-height:1.5}
+  .bar{max-width:820px;margin:0 auto 14px;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
+  .btn{font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.6rem 1.3rem;font-size:.9rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2));box-shadow:0 6px 16px -6px rgba(123,82,238,.6)}
+  .btn:hover{filter:brightness(1.06)} .btn.refresh{background:linear-gradient(135deg,#16a34a,#22c55e)}
+  .bar label{font-weight:700;color:var(--purple);display:flex;align-items:center;gap:6px;font-size:.88rem}
+  .sheet{background:#fff;width:210mm;max-width:100%;min-height:297mm;margin:0 auto;padding:12mm 14mm;box-shadow:0 12px 44px -18px rgba(0,0,0,.35)}
+  .head{text-align:center;border-bottom:2.5px solid var(--purple);padding-bottom:7px;margin-bottom:7px}
+  .head h1{font-size:16px;color:#5a32d6;font-weight:800}.head .sub{font-size:11px;color:var(--soft);margin-top:2px}
+  .meta{display:flex;justify-content:space-between;font-size:11.5px;margin:8px 2px 10px}.meta span{border-bottom:1px dotted #b3a9cf;padding:0 26px 2px 4px}
+  .rule{font-size:11px;color:var(--soft);background:transparent;border-left:3px solid #d9cff5;border-radius:8px;padding:8px 12px;margin-bottom:11px}
+  .rule b{color:#5a32d6}
+  .task{font-weight:800;color:#5a32d6;font-size:12.5px;margin:9px 0 7px;border-left:4px solid var(--purple2);padding-left:9px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:11px 20px}
+  .grid.one{grid-template-columns:1fr}
+  .q{break-inside:avoid;page-break-inside:avoid}
+  .qh{display:flex;gap:7px;align-items:baseline}.ql{font-weight:800;color:var(--purple);font-size:13px;min-width:22px}.qm{font-size:13px}
+  .wk{border:1.1px solid #e2daf5;border-radius:7px;background:linear-gradient(#fff,#fbf9ff);height:26mm;margin-top:5px}
+  .ans-page{margin-top:9mm;border-top:2px dashed #ddd;padding-top:7mm}.ans-page h2{font-size:15px;color:#5a32d6;margin-bottom:10px}
+  .ans-grid{display:grid;grid-template-columns:1fr;gap:9px;font-size:12px}.ans-grid .a{padding-bottom:8px;border-bottom:1px dotted #e6e0f5}.ans-grid .an{color:var(--purple);font-weight:800;margin-right:5px}
+  #answers{display:none}
+  @media print{body{background:#fff;padding:0}.bar{display:none}.sheet{box-shadow:none;width:auto;min-height:auto;padding:0;margin:0}@page{size:A4;margin:11mm}.ans-page{break-before:page}}
+</style>
+</head>
+<body>
+<div class="bar">
+  <button class="btn refresh" onclick="build()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>Шинэ бодлого</button>
+  <label><input type="checkbox" id="sw" onchange="layout()" checked> Бодолтын зай</label>
+  <label><input type="checkbox" id="sa" onchange="toggleAns()"> Хариу хавсаргах</label>
+  <button class="btn" onclick="window.print()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>Хэвлэх / PDF</button>
+</div>
+<div class="sheet" id="sheet"></div>
+<script>
+function rnd(a,b){return a+Math.floor(Math.random()*(b-a+1));}
+function nz(a,b){var v;do{v=rnd(a,b);}while(v===0);return v;}
+function pick(a){return a[rnd(0,a.length-1)];}
+function toggleAns(){var el=document.getElementById('answers');if(el)el.style.display=document.getElementById('sa').checked?'block':'none';}
+function sg(n){return n>=0?'+'+n:''+n;}
+function pn(n){return n<0?'('+n+')':''+n;}
+// 1. Систем (хоёр нийлбэрээс a1,d)
+function g_system(){for(var t=0;t<400;t++){var a1=nz(-5,6),d=nz(-4,5);
+  var idx=pick([[2,4,3,6],[2,5,3,7],[1,4,2,5],[3,5,2,6],[1,5,2,7]]);var p=idx[0],q=idx[1],r=idx[2],s=idx[3];
+  var m1=(p+q-2),m2=(r+s-2);if(m1===m2)continue;
+  var P=2*a1+m1*d,Q=2*a1+m2*d;
+  return {q:'Арифметик прогрессийн $a_{'+p+'}+a_{'+q+'}='+P+',\\ a_{'+r+'}+a_{'+s+'}='+Q+'$ бол $a_1,\\ d$-г ол.',
+   a:'$a_{'+p+'}+a_{'+q+'}=2a_1+'+m1+'d='+P+'$; $a_{'+r+'}+a_{'+s+'}=2a_1+'+m2+'d='+Q+'$. Хасвал $'+(m2-m1)+'d='+(Q-P)+'\\Rightarrow d='+d+'$; $2a_1='+P+'-'+m1+'\\cdot'+pn(d)+'='+(2*a1)+'\\Rightarrow a_1='+a1+'$.',key:'sy'+a1+d+p+q+r+s};}return null;}
+// 2. Үг бодлого
+function g_word(){var mode=pick(['seat','well','salary']);
+ if(mode==='seat'){var A=rnd(12,20),D=rnd(1,3),N=pick([10,12,15]);var aN=A+(N-1)*D,SN=N*(A+aN)/2;
+   return {q:'Танхимын эхний эгнээнд $'+A+'$ суудалтай бөгөөд дараагийн эгнээ бүрд $'+D+'$ суудлаар нэмэгддэг. $'+N+'$-р эгнээнд хэдэн суудал, эхний $'+N+'$ эгнээнд нийт хэдэн суудал байх вэ?',
+    a:'$a_1='+A+',\\ d='+D+'$; $a_{'+N+'}='+A+'+'+(N-1)+'\\cdot'+D+'='+aN+'$ суудал; $S_{'+N+'}=\\dfrac{'+A+'+'+aN+'}{2}\\cdot'+N+'='+SN+'$ суудал.',key:'ws'+A+D+N};}
+ if(mode==='well'){var A2=rnd(8,15),D2=rnd(2,5),n=pick([10,12,15,20]);var an=A2+(n-1)*D2,Sn=n*(A2+an)/2;
+   return {q:'Худаг ухахад эхний метр нь $'+A2+'$ мянган төгрөг, дараагийн метр бүр $'+D2+'$ мянган төгрөгөөр нэмэгддэг. $'+n+'$ метр ухахад нийт хэдэн мянган төгрөг зарцуулах вэ?',
+    a:'$a_1='+A2+',\\ d='+D2+'$; $a_{'+n+'}='+A2+'+'+(n-1)+'\\cdot'+D2+'='+an+'$; $S_{'+n+'}=\\dfrac{'+A2+'+'+an+'}{2}\\cdot'+n+'='+Sn+'$ мянган төгрөг.',key:'ww'+A2+D2+n};}
+ var A3=rnd(40,80),D3=rnd(5,12),k=pick([6,8,10,12]);var ak=A3+(k-1)*D3;
+ return {q:'Ажилтны эхний сарын цалин $'+A3+'$ мянган төгрөг. Сар бүр $'+D3+'$ мянган төгрөгөөр нэмэгддэг бол $'+k+'$ дахь сарын цалин хэд вэ?',
+  a:'$a_1='+A3+',\\ d='+D3+'$; $a_{'+k+'}='+A3+'+'+(k-1)+'\\cdot'+D3+'='+ak+'$ мянган төгрөг.',key:'wc'+A3+D3+k};}
+// 3. Буурах АП нөхцөл
+function g_decrease(){var m=nz(-4,6),dd=pick([1,2,3,4]);var S=3*m,Q=(m-dd)*(m-dd)+m*m+(m+dd)*(m+dd);
+ return {q:'Буурах арифметик прогрессийн эхний гурван гишүүний нийлбэр $'+S+'$, харин тэдгээрийн квадратуудын нийлбэр $'+Q+'$ бол эдгээр гишүүнийг ол.',
+  a:'Гурван гишүүнийг $a_2-d,\\ a_2,\\ a_2+d$ гэвэл: нийлбэр $3a_2='+S+'\\Rightarrow a_2='+m+'$; квадрат нийлбэр $3a_2^2+2d^2='+Q+'\\Rightarrow 2d^2='+(Q-3*m*m)+'\\Rightarrow d^2='+((Q-3*m*m)/2)+'\\Rightarrow d=\\pm'+dd+'$. Буурах тул $d=-'+dd+'$: гишүүд $'+(m+dd)+',\\ '+m+',\\ '+(m-dd)+'$.',key:'dc'+m+dd};}
+function gen(fn){for(var t=0;t<300;t++){var f=fn();if(f)return f;}return null;}
+function probeH(sheet){var pr=sheet.cloneNode(true);pr.removeAttribute('id');pr.style.cssText='position:absolute;left:-99999px;top:0;width:210mm;max-width:none;min-height:0;margin:0;padding:0;box-shadow:none;zoom:1';var a=pr.querySelector('#answers,.ans-page');if(a)a.remove();document.body.appendChild(pr);var h=pr.scrollHeight;document.body.removeChild(pr);return h;}
+var LET=['а','б','в','г','д','е','ё','ж','з','и','к','л','м','н','о','ө','п','р'];
+function relabel(sheet){var blocks=sheet.querySelectorAll('.grid'),map={};for(var g=0;g<blocks.length;g++){var qs2=blocks[g].querySelectorAll('.q');for(var i=0;i<qs2.length;i++){var lt=LET[i]||('#'+(i+1));var ql=qs2[i].querySelector('.ql');if(ql)ql.textContent=lt+')';map[qs2[i].getAttribute('data-k')]=(g+1)+lt+')';}}
+  var as=sheet.querySelectorAll('#answers .a');for(var j=0;j<as.length;j++){var an=as[j].querySelector('.an');if(an)an.textContent=map[as[j].getAttribute('data-k')]||'';}}
+function trimToFit(sheet,target){var guard=0,h=probeH(sheet);while(h>target&&guard++<90){var blocks=sheet.querySelectorAll('.grid'),best=-1,bestN=-1;for(var s=blocks.length-1;s>=0;s--){var n=blocks[s].querySelectorAll('.q').length;if(n>bestN&&n>2){bestN=n;best=s;}}if(best<0)break;var qs2=blocks[best].querySelectorAll('.q');var last=qs2[qs2.length-1],k=last.getAttribute('data-k');var ans=sheet.querySelector('#answers .a[data-k="'+k+'"]');if(ans)ans.parentNode.removeChild(ans);last.parentNode.removeChild(last);relabel(sheet);h=probeH(sheet);}}
+function genPool(){var P=[[],[],[]];var seen={};function fill(idx,fn,n){var c=0,tr=0;while(c<n&&tr<6000){tr++;var f=gen(fn);if(!f||seen[f.key])continue;seen[f.key]=1;P[idx].push(f);c++;}}
+  fill(0,g_system,4);fill(1,g_word,4);fill(2,g_decrease,4);return P;}
+function build(){window.__POOL=genPool();layout();}
+function layout(){var WK=document.getElementById('sw').checked;var S=window.__POOL||(window.__POOL=genPool());window.__PROB=[];var K=0;
+  function block(arr,cap,one){var use=WK?arr.slice(0,cap):arr;return '<div class="grid'+(one?' one':'')+'">'+use.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});return '<div class="q" data-k="'+k+'"><div class="qh"><span class="ql"></span><span class="qm">'+f.q+'</span></div>'+(WK?'<div class="wk"></div>':'')+'</div>';}).join('')+'</div>';}
+  function ansAll(){return window.__PROB.map(function(p){return '<div class="a" data-k="'+p.k+'"><span class="an"></span>'+p.f.a+'</div>';}).join('');}
+  document.getElementById('sheet').innerHTML=
+    '<div class="head"><h1>Арифметик прогресс — систем ба хэрэглээ</h1><div class="sub">Хос нийлбэрийн систем · практик бодлого · буурах АП нөхцөл · IV бүлэг · 4.2 · 11-р анги</div></div>'
+    +'<div class="meta"><span>Нэр: </span><span>Анги: </span><span>Огноо: </span></div>'
+    +'<div class="rule"><b>Санамж:</b> Гишүүдийн нийлбэрийг $a_i=a_1+(i-1)d$-ээр илэрхийлж систем зохионо. Практик бодлогод анхны утга нь $a_1$, тогтмол өөрчлөлт нь $d$ болно; асуултаас $a_n$ эсвэл $S_n$-ийг сонгож бод.</div>'
+    +'<div class="task">1. Хос нийлбэрийн системээс $a_1,\\ d$-г ол.</div>'+block(S[0],4)
+    +'<div class="task">2. Практик (үг) бодлогыг арифметик прогрессээр бод.</div>'+block(S[1],4,true)
+    +'<div class="task">3. Буурах прогрессийн нөхцөлөөс гишүүдийг ол.</div>'+block(S[2],4,true)
+    +'<div class="ans-page" id="answers"><h2>Хариу ба дэлгэрэнгүй бодолт</h2><div class="ans-grid">'+ansAll()+'</div></div>';
+  window.WS_ITEMS=[];window.WS_TITLE='Арифметик прогресс — систем ба хэрэглээ';
+  relabel(document.getElementById('sheet'));toggleAns();
+  try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
+  try{if(!WK)trimToFit(document.getElementById('sheet'),1035);}catch(e){}
+  try{relabel(document.getElementById('sheet'));}catch(e){}
+}
+build();
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>
