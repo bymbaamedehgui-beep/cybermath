@@ -414,6 +414,78 @@ module.exports = async (req, res) => {
         }
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_funkts33_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
+      // ── Нэг удаагийн: 3.4 Давхар функц дэд бүлэг ──
+      const cf34 = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_funkts34_v1'`);
+      if (!cf34.rows.length) {
+        const par3d = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='11-р анги' AND name LIKE 'III БҮЛЭГ%' AND parent_id IS NULL ORDER BY id LIMIT 1`);
+        const parentId3d = par3d.rows.length ? Number(par3d.rows[0].id) : null;
+        let sg34 = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='11-р анги' AND name='3.4 Давхар функц'`);
+        let sid34;
+        if (sg34.rows.length) { sid34 = Number(sg34.rows[0].id); }
+        else {
+          const mx34 = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='11-р анги'`);
+          const ins34 = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('11-р анги','3.4 Давхар функц',$1,$2) RETURNING id`, [mx34.rows[0].p, parentId3d]);
+          sid34 = Number(ins34.rows[0].id);
+        }
+        for (const slug of ['davhar-bodoh-1-11.html', 'davhar-utga-2-11.html', 'davhar-muj-3-11.html']) {
+          await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + sid34, slug]);
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_funkts34_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
+      // ── Нэг удаагийн: 3.5 Урвуу функц дэд бүлэг ──
+      const cf35 = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_funkts35_v1'`);
+      if (!cf35.rows.length) {
+        const par3e = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='11-р анги' AND name LIKE 'III БҮЛЭГ%' AND parent_id IS NULL ORDER BY id LIMIT 1`);
+        const parentId3e = par3e.rows.length ? Number(par3e.rows[0].id) : null;
+        let sg35 = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='11-р анги' AND name='3.5 Урвуу функц'`);
+        let sid35;
+        if (sg35.rows.length) { sid35 = Number(sg35.rows[0].id); }
+        else {
+          const mx35 = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='11-р анги'`);
+          const ins35 = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('11-р анги','3.5 Урвуу функц',$1,$2) RETURNING id`, [mx35.rows[0].p, parentId3e]);
+          sid35 = Number(ins35.rows[0].id);
+        }
+        for (const slug of ['urvuu-baih-1-11.html', 'urvuu-oloh-2-11.html', 'urvuu-chanar-3-11.html']) {
+          await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + sid35, slug]);
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_funkts35_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
+      // ── Нэг удаагийн: 3.6 Өсөх ба буурах функц дэд бүлэг ──
+      const cf36 = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_funkts36_v1'`);
+      if (!cf36.rows.length) {
+        const par3f = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='11-р анги' AND name LIKE 'III БҮЛЭГ%' AND parent_id IS NULL ORDER BY id LIMIT 1`);
+        const parentId3f = par3f.rows.length ? Number(par3f.rows[0].id) : null;
+        let sg36 = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='11-р анги' AND name='3.6 Өсөх ба буурах функц'`);
+        let sid36;
+        if (sg36.rows.length) { sid36 = Number(sg36.rows[0].id); }
+        else {
+          const mx36 = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='11-р анги'`);
+          const ins36 = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('11-р анги','3.6 Өсөх ба буурах функц',$1,$2) RETURNING id`, [mx36.rows[0].p, parentId3f]);
+          sid36 = Number(ins36.rows[0].id);
+        }
+        for (const slug of ['osokh-buurakh-muj-1-11.html', 'osokh-buurakh-graf-2-11.html', 'osokh-buurakh-param-3-11.html']) {
+          await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + sid36, slug]);
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_funkts36_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
+      // ── Нэг удаагийн: 3.7 Тэгш ба сондгой функц дэд бүлэг ──
+      const cf37 = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_funkts37_v1'`);
+      if (!cf37.rows.length) {
+        const par3g = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='11-р анги' AND name LIKE 'III БҮЛЭГ%' AND parent_id IS NULL ORDER BY id LIMIT 1`);
+        const parentId3g = par3g.rows.length ? Number(par3g.rows[0].id) : null;
+        let sg37 = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='11-р анги' AND name='3.7 Тэгш ба сондгой функц'`);
+        let sid37;
+        if (sg37.rows.length) { sid37 = Number(sg37.rows[0].id); }
+        else {
+          const mx37 = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='11-р анги'`);
+          const ins37 = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('11-р анги','3.7 Тэгш ба сондгой функц',$1,$2) RETURNING id`, [mx37.rows[0].p, parentId3g]);
+          sid37 = Number(ins37.rows[0].id);
+        }
+        for (const slug of ['tegsh-sondgoi-1-11.html', 'tegsh-sondgoi-param-2-11.html']) {
+          await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + sid37, slug]);
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_funkts37_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
       // Slug тус бүрээр (name|||slug) хосоор мөрддөг: байгаа дэд бүлэгт шинэ slug орно, гэхдээ
       // бүхэл дэд бүлгийг устгасан/нэр сольсныг хүндэтгэж дахин үүсгэхгүй.
       for (const add of ADDITIONS) {
