@@ -372,6 +372,30 @@ module.exports = async (req, res) => {
         }
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_funkts31_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
+      // ── Нэг удаагийн: 3.1-д босоо шулууны хуудас нэмэх, 3.2 Зэрэгт функц дэд бүлэг үүсгэх ──
+      const cf32 = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_funkts32_v1'`);
+      if (!cf32.rows.length) {
+        const par3b = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='11-р анги' AND name LIKE 'III БҮЛЭГ%' AND parent_id IS NULL ORDER BY id LIMIT 1`);
+        const parentId3b = par3b.rows.length ? Number(par3b.rows[0].id) : null;
+        // 3.1-д босоо шулууны хуудас нэмэх
+        const sg31b = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='11-р анги' AND name='3.1 Функц, функцийг өгөх арга'`);
+        if (sg31b.rows.length) {
+          await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,'graf-funkts-eseh-11.html','add') ON CONFLICT DO NOTHING`, ['sg:' + Number(sg31b.rows[0].id)]);
+        }
+        // 3.2 Зэрэгт функц
+        let sg32 = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='11-р анги' AND name='3.2 Зэрэгт функц'`);
+        let sid32;
+        if (sg32.rows.length) { sid32 = Number(sg32.rows[0].id); }
+        else {
+          const mx32 = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='11-р анги'`);
+          const ins32 = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('11-р анги','3.2 Зэрэгт функц',$1,$2) RETURNING id`, [mx32.rows[0].p, parentId3b]);
+          sid32 = Number(ins32.rows[0].id);
+        }
+        for (const slug of ['zeregt-muj-11.html', 'zeregt-shinj-11.html']) {
+          await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + sid32, slug]);
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_funkts32_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
       // Slug тус бүрээр (name|||slug) хосоор мөрддөг: байгаа дэд бүлэгт шинэ slug орно, гэхдээ
       // бүхэл дэд бүлгийг устгасан/нэр сольсныг хүндэтгэж дахин үүсгэхгүй.
       for (const add of ADDITIONS) {
