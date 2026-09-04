@@ -360,6 +360,9 @@ function renderWsPromos(list){
       +'<td style="padding:8px;text-align:right;white-space:nowrap;">'
         +'<button onclick="setWsPromoWelcome(\''+wsEsc(p.code)+'\','+(!p.welcome)+')" style="background:'+(p.welcome?'#f59e0b;color:#fff':'rgba(245,158,11,.12);color:#f59e0b')+';border:1px solid rgba(245,158,11,.35);border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;margin-right:5px;" title="Эхний зочны санал болгох/болиулах">★ Эхний санал</button>'
         +'<button onclick="setWsPromoFake(\''+wsEsc(p.code)+'\',\''+wsEsc(p.fake_uses||'')+'\')" style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);color:#f59e0b;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;margin-right:5px;">Хуурамч тоо</button>'
+        +'<button onclick="extendWsPromo(\''+wsEsc(p.code)+'\')" style="background:rgba(14,165,233,.12);border:1px solid rgba(14,165,233,.35);color:#0ea5e9;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;margin-right:5px;" title="Дуусах хугацааг сунгах эсвэл тогтоох">Хугацаа</button>'
+        +'<button onclick="setWsPromoMax(\''+wsEsc(p.code)+'\','+(p.max_uses==null?'null':p.max_uses)+')" style="background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.35);color:#7c3aed;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;margin-right:5px;" title="Ашиглалтын дээд тоог өөрчлөх">Тоо</button>'
+        +'<button onclick="editWsPromo(\''+wsEsc(p.code)+'\','+p.pct+','+(p.months||'null')+')" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;margin-right:5px;" title="Хөнгөлөлт ба багцыг засах">Засах</button>'
         +'<button onclick="toggleWsPromo(\''+wsEsc(p.code)+'\','+(!p.active)+')" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;margin-right:5px;">'+(p.active?'Идэвхгүй':'Идэвхжүүл')+'</button>'
         +'<button onclick="deleteWsPromo(\''+wsEsc(p.code)+'\')" style="background:rgba(220,38,38,.12);border:1px solid rgba(220,38,38,.3);color:#dc2626;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;">Устгах</button>'
       +'</td></tr>';
@@ -448,6 +451,31 @@ window.setWsPromoFake = async function(code,cur){
   var v=prompt('«'+code+'» кодыг /promo дээр харуулах ХУУРАМЧ ашиглалт.\nФормат: ашигласан/нийт (жиш: 6/10) эсвэл ганц тоо (8).\nБодит тоог харуулах бол хоосон орхино уу:', cur||'');
   if(v===null)return;
   try{ await wsPost('ws_promo_update',{code:code,fake_uses:v.trim()}); loadWsSales(); }catch(e){ alert('Алдаа: '+e.message); }
+};
+window.extendWsPromo = async function(code){
+  var v=prompt('«'+code+'» кодын дуусах хугацаа.\n• Хэдэн ХОНОГ сунгах бол тоо оруул (жиш: 30)\n• Тодорхой ОГНОО тогтоох бол YYYY-MM-DD (жиш: 2026-12-31)\n• Хугацаагүй болгох бол 0 оруул:', '30');
+  if(v===null)return; v=v.trim(); if(v==='')return;
+  var body={code:code};
+  if(v==='0'){ body.clear_expiry=true; }
+  else if(/^\d{4}-\d{2}-\d{2}/.test(v)){ body.expires_at=v; }
+  else if(/^\d+$/.test(v)){ body.extend_days=parseInt(v,10); }
+  else { alert('Формат буруу. Тоо (хоног), огноо (YYYY-MM-DD) эсвэл 0 оруулна уу.'); return; }
+  try{ await wsPost('ws_promo_update',body); loadWsSales(); }catch(e){ alert('Алдаа: '+e.message); }
+};
+window.setWsPromoMax = async function(code,cur){
+  var v=prompt('«'+code+'» кодын ашиглалтын ДЭЭД тоо (max).\nХязгааргүй болгох бол хоосон орхино уу:', cur==null?'':String(cur));
+  if(v===null)return; v=v.trim();
+  try{ await wsPost('ws_promo_update',{code:code,max_uses:v===''?'':parseInt(v,10)}); loadWsSales(); }catch(e){ alert('Алдаа: '+e.message); }
+};
+window.editWsPromo = async function(code,curPct,curMonths){
+  var p=prompt('«'+code+'» кодын ХӨНГӨЛӨЛТ (%):', String(curPct));
+  if(p===null)return; p=p.trim();
+  var m=prompt('Зориулсан БАГЦ (3/6/9/12 сар). Аль ч багцад бол хоосон орхино уу:', curMonths?String(curMonths):'');
+  if(m===null)return; m=m.trim();
+  var body={code:code};
+  if(p!=='')body.pct=parseInt(p,10);
+  body.months=m===''?'':parseInt(m,10);
+  try{ await wsPost('ws_promo_update',body); loadWsSales(); }catch(e){ alert('Алдаа: '+e.message); }
 };
 window.deleteWsPromo = async function(code){
   if(!confirm(code+' кодыг устгах уу?'))return;

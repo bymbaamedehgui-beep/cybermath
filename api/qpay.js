@@ -697,6 +697,33 @@ module.exports = async (req, res) => {
           if (b.welcome) await pool.query('UPDATE ws_promos SET welcome=FALSE WHERE welcome=TRUE AND code<>$1', [code]);
           await pool.query('UPDATE ws_promos SET welcome=$2 WHERE code=$1', [code, b.welcome]);
         }
+        // ── Засвар: хөнгөлөлт, ашиглалтын тоо, багц, тэмдэглэл, хугацаа ──
+        if (typeof b.pct !== 'undefined' && String(b.pct).trim() !== '') {
+          const pct = Math.max(1, Math.min(100, parseInt(b.pct, 10) || 20));
+          await pool.query('UPDATE ws_promos SET pct=$2 WHERE code=$1', [code, pct]);
+        }
+        if (typeof b.max_uses !== 'undefined') {
+          const mu = (b.max_uses === '' || b.max_uses === null) ? null : Math.max(1, parseInt(b.max_uses, 10));
+          await pool.query('UPDATE ws_promos SET max_uses=$2 WHERE code=$1', [code, mu]);
+        }
+        if (typeof b.months !== 'undefined') {
+          const mo = [3, 6, 9, 12].indexOf(parseInt(b.months, 10)) >= 0 ? parseInt(b.months, 10) : null;
+          await pool.query('UPDATE ws_promos SET months=$2 WHERE code=$1', [code, mo]);
+        }
+        if (typeof b.note !== 'undefined') {
+          const nt = b.note ? String(b.note).slice(0, 200) : null;
+          await pool.query('UPDATE ws_promos SET note=$2 WHERE code=$1', [code, nt]);
+        }
+        if (b.expires_at) {
+          await pool.query('UPDATE ws_promos SET expires_at=$2 WHERE code=$1', [code, new Date(b.expires_at).toISOString()]);
+        }
+        if (b.clear_expiry) {
+          await pool.query('UPDATE ws_promos SET expires_at=NULL WHERE code=$1', [code]);
+        }
+        if (b.extend_days) {
+          const d = parseInt(b.extend_days, 10);
+          if (d) await pool.query(`UPDATE ws_promos SET expires_at = GREATEST(COALESCE(expires_at, NOW()), NOW()) + ($2 || ' days')::interval WHERE code=$1`, [code, d]);
+        }
         return res.json({ ok: true });
       }
       if (req.query.action === 'ws_purchases_list') {
