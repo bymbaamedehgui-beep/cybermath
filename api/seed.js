@@ -560,6 +560,36 @@ module.exports = async (req, res) => {
         }
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_buleg5_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
+      // ── Нэг удаагийн: V БҮЛЭГ 5.2, 5.3 дэд бүлэг (Огторгуйн координат) ──
+      const cf52 = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_buleg52_v1'`);
+      if (!cf52.rows.length) {
+        let par5 = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='11-р анги' AND name LIKE 'V БҮЛЭГ%' AND parent_id IS NULL ORDER BY id LIMIT 1`);
+        let pid5;
+        if (par5.rows.length) { pid5 = Number(par5.rows[0].id); }
+        else {
+          const mxP = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='11-р анги'`);
+          const insP = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('11-р анги','V БҮЛЭГ. КООРДИНАТЫН АРГА',$1,NULL) RETURNING id`, [mxP.rows[0].p]);
+          pid5 = Number(insP.rows[0].id);
+        }
+        const SUBS52 = [
+          { name: '5.2 Огторгуйн координатын систем, цэгийн координат', slugs: ['koord-ogtorgui-1-11.html', 'koord-baiguul-2-11.html', 'koord-moch-3-11.html', 'koord-hawtgai-zai-4-11.html', 'koord-tegsh-hemt-5-11.html', 'koord-bie-6-11.html'] },
+          { name: '5.3 Хоёр цэгийн зай, хэрчмийн дундаж цэг', slugs: ['koord-zai-1-11.html', 'koord-dundaj-2-11.html', 'koord-holimog-3-11.html'] }
+        ];
+        for (const sub of SUBS52) {
+          let sg = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='11-р анги' AND name=$1`, [sub.name]);
+          let sid;
+          if (sg.rows.length) { sid = Number(sg.rows[0].id); }
+          else {
+            const mx = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='11-р анги'`);
+            const ins = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('11-р анги',$1,$2,$3) RETURNING id`, [sub.name, mx.rows[0].p, pid5]);
+            sid = Number(ins.rows[0].id);
+          }
+          for (const slug of sub.slugs) {
+            await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + sid, slug]);
+          }
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_buleg52_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
       // Slug тус бүрээр (name|||slug) хосоор мөрддөг: байгаа дэд бүлэгт шинэ slug орно, гэхдээ
       // бүхэл дэд бүлгийг устгасан/нэр сольсныг хүндэтгэж дахин үүсгэхгүй.
       for (const add of ADDITIONS) {

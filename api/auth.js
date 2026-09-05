@@ -64,6 +64,29 @@ function randomToken(len) {
   return out;
 }
 
+// Идэвхтэй урамшууллын код — баталгаажуулах имэйлд хавсаргах (хугацаа/ашиглалт хүчинтэй)
+function promoRewardText(p) {
+  const a = p.reward_amount;
+  if (p.reward_type === 'premium') return 'Premium ' + (a || 30) + ' хоног';
+  if (p.reward_type === 'gems') return a + ' зоос';
+  if (p.reward_type === 'xp') return a + ' XP';
+  if (p.reward_type === 'hearts') return a + ' зүрх';
+  return p.description || 'Урамшуулал';
+}
+async function getActivePromo() {
+  try {
+    const r = await pool.query(
+      `SELECT code, reward_type, reward_amount, description FROM promo_codes
+       WHERE (expires_at IS NULL OR expires_at > NOW())
+         AND (max_uses IS NULL OR used_count < max_uses)
+       ORDER BY created_at DESC LIMIT 1`
+    );
+    if (!r.rows.length) return null;
+    const p = r.rows[0];
+    return { code: p.code, reward: (p.description || promoRewardText(p)) };
+  } catch (e) { return null; } // promo_codes хүснэгт үүсээгүй бол чимээгүй алгасна
+}
+
 function userPayload(u, token) {
   return {
     email: u.email, firstName: u.first_name, lastName: u.last_name,
@@ -192,8 +215,9 @@ module.exports = async (req, res) => {
         return res.json({ ok: true, invited: true, user: userPayload({ ...u, verified: true }, token) });
       }
 
-      // Ердийн бүртгэл — verify code илгээх
-      await sendVerifyEmail(email, verifyCode, firstName);
+      // Ердийн бүртгэл — verify code + урамшууллын код хамт илгээх
+      const promo = await getActivePromo();
+      await sendVerifyEmail(email, verifyCode, firstName, promo);
       return res.json({ ok: true, needVerify: true, email });
     }
 
@@ -219,7 +243,8 @@ module.exports = async (req, res) => {
       const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
       const codeExpiry = new Date(Date.now() + 10 * 60 * 1000);
       await pool.query('UPDATE users SET verify_code=$1, verify_expiry=$2 WHERE LOWER(email)=LOWER($3)', [verifyCode, codeExpiry, email]);
-      await sendVerifyEmail(email, verifyCode, r.rows[0].first_name);
+      const promoR = await getActivePromo();
+      await sendVerifyEmail(email, verifyCode, r.rows[0].first_name, promoR);
       return res.json({ ok: true });
     }
 

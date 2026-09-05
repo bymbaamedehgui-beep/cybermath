@@ -20,7 +20,15 @@ async function sendEmail({ to, subject, html }) {
   }
 }
 
-function sendVerifyEmail(to, code, firstName) {
+function sendVerifyEmail(to, code, firstName, promo) {
+  const promoBlock = (promo && promo.code) ? `
+        <div style="background:#16132b;border:1.5px dashed #4ade80;border-radius:12px;padding:20px;text-align:center;margin:0 0 24px;">
+          <div style="color:#c0b8e8;font-size:0.82rem;margin-bottom:8px;">Тавтай морилсны бэлэг — урамшууллын код</div>
+          <div style="font-size:1.6rem;font-weight:900;letter-spacing:0.18em;color:#4ade80;">${promo.code}</div>
+          ${promo.reward ? `<div style="color:#8880aa;font-size:0.85rem;margin-top:6px;">${promo.reward}</div>` : ''}
+          <a href="https://cyber-math.com/promo" style="display:inline-block;margin-top:14px;background:linear-gradient(135deg,#4ade80,#22c55e);color:#052e16;text-decoration:none;font-weight:800;font-size:0.85rem;border-radius:999px;padding:10px 22px;">Кодоо ашиглах →</a>
+          <p style="color:#6d6499;font-size:0.72rem;margin:12px 0 0;">Баталгаажуулсны дараа cyber-math.com/promo хуудсанд кодоо оруулна уу.</p>
+        </div>` : '';
   return sendEmail({
     to,
     subject: '🔐 CyberMath - Имэйл баталгаажуулалт',
@@ -38,6 +46,7 @@ function sendVerifyEmail(to, code, firstName) {
           <div style="font-size:2.5rem;font-weight:900;letter-spacing:0.3em;color:#A855F7;">${code}</div>
           <p style="color:#8880aa;font-size:0.85rem;margin:8px 0 0;">10 минутын дотор оруулна уу</p>
         </div>
+        ${promoBlock}
         <p style="color:#8880aa;font-size:0.82rem;">Хэрэв та бүртгүүлээгүй бол энэ имэйлийг үл тоомсорлоно уу.</p>
       </div>
       <div style="background:#16132b;padding:16px;text-align:center;">

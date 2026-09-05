@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Цэг байгуулах ба проекц (11-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<style>
+  :root{--purple:#7B52EE;--purple2:#A855F7;--ink:#1a1030;--soft:#7a7390;--amber:#9a6300}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:var(--ink);background:#eceaf3;padding:16px;line-height:1.5}
+  .bar{max-width:820px;margin:0 auto 14px;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
+  .btn{font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.6rem 1.3rem;font-size:.9rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2));box-shadow:0 6px 16px -6px rgba(123,82,238,.6)}
+  .btn:hover{filter:brightness(1.06)} .btn.refresh{background:linear-gradient(135deg,#16a34a,#22c55e)}
+  .bar label{font-weight:700;color:var(--purple);display:flex;align-items:center;gap:6px;font-size:.88rem}
+  .sheet{background:#fff;width:210mm;max-width:100%;min-height:297mm;margin:0 auto;padding:12mm 14mm;box-shadow:0 12px 44px -18px rgba(0,0,0,.35)}
+  .head{text-align:center;border-bottom:2.5px solid var(--purple);padding-bottom:7px;margin-bottom:7px}
+  .head h1{font-size:16px;color:#5a32d6;font-weight:800}.head .sub{font-size:11px;color:var(--soft);margin-top:2px}
+  .meta{display:flex;justify-content:space-between;font-size:11.5px;margin:8px 2px 10px}.meta span{border-bottom:1px dotted #b3a9cf;padding:0 26px 2px 4px}
+  .rule{font-size:11px;color:var(--soft);background:transparent;border-left:3px solid #d9cff5;border-radius:8px;padding:8px 12px;margin-bottom:11px}
+  .rule b{color:#5a32d6}
+  .task{font-weight:800;color:#5a32d6;font-size:12.5px;margin:9px 0 7px;border-left:4px solid var(--purple2);padding-left:9px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:11px 20px}
+  .q{break-inside:avoid;page-break-inside:avoid}
+  .qh{display:flex;gap:7px;align-items:baseline}.ql{font-weight:800;color:var(--purple);font-size:13px;min-width:22px}.qm{font-size:13px}
+  .fig{text-align:center;margin:4px 0}
+  .wk{border:1.1px solid #e2daf5;border-radius:7px;background:linear-gradient(#fff,#fbf9ff);height:20mm;margin-top:5px}
+  .ans-page{margin-top:9mm;border-top:2px dashed #ddd;padding-top:7mm}.ans-page h2{font-size:15px;color:#5a32d6;margin-bottom:10px}
+  .ans-grid{display:grid;grid-template-columns:1fr;gap:9px;font-size:12px}.ans-grid .a{padding-bottom:8px;border-bottom:1px dotted #e6e0f5}.ans-grid .an{color:var(--purple);font-weight:800;margin-right:5px}
+  #answers{display:none}
+  @media print{body{background:#fff;padding:0}.bar{display:none}.sheet{box-shadow:none;width:auto;min-height:auto;padding:0;margin:0}@page{size:A4;margin:11mm}.ans-page{break-before:page}}
+</style>
+</head>
+<body>
+<div class="bar">
+  <button class="btn refresh" onclick="build()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>Шинэ бодлого</button>
+  <label><input type="checkbox" id="sw" onchange="layout()" checked> Бодолтын зай</label>
+  <label><input type="checkbox" id="sa" onchange="toggleAns()"> Хариу хавсаргах</label>
+  <button class="btn" onclick="window.print()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>Хэвлэх / PDF</button>
+</div>
+<div class="sheet" id="sheet"></div>
+<script>
+function rnd(a,b){return a+Math.floor(Math.random()*(b-a+1));}
+function nz(a,b){var v;do{v=rnd(a,b);}while(v===0);return v;}
+function pick(a){return a[rnd(0,a.length-1)];}
+function toggleAns(){var el=document.getElementById('answers');if(el)el.style.display=document.getElementById('sa').checked?'block':'none';}
+function nm(n,x,y,z){return n+'('+x+',\\ '+y+',\\ '+z+')';}
+function tri(x,y,z){return '('+x+',\\ '+y+',\\ '+z+')';}
+// Цэг байгуулах бүтээлийн зураг (зөвхөн хариунд)
+function axes3dPoint(a,b,c){
+  var u=16, ox=30+Math.round(a*0.5*u), oy=22+c*u, W=64+Math.round(a*0.5*u)+b*u, H=oy+Math.round(a*0.36*u)+26;
+  function P(x,y,z){return [ox+y*u-x*u*0.5, oy-z*u+x*u*0.36];}
+  function L(p,q,col,dash,w){return '<line x1="'+p[0].toFixed(1)+'" y1="'+p[1].toFixed(1)+'" x2="'+q[0].toFixed(1)+'" y2="'+q[1].toFixed(1)+'" stroke="'+col+'" stroke-width="'+(w||1.3)+'"'+(dash?' stroke-dasharray="3.5 3"':'')+'/>';}
+  function arr(tip,from,col){var dx=tip[0]-from[0],dy=tip[1]-from[1],d=Math.hypot(dx,dy);dx/=d;dy/=d;var px=-dy,py=dx,s=6,w=3;return '<polygon points="'+tip[0].toFixed(1)+','+tip[1].toFixed(1)+' '+(tip[0]-dx*s+px*w).toFixed(1)+','+(tip[1]-dy*s+py*w).toFixed(1)+' '+(tip[0]-dx*s-px*w).toFixed(1)+','+(tip[1]-dy*s-py*w).toFixed(1)+'" fill="'+col+'"/>';}
+  var O=P(0,0,0),xp=P(a+0.9,0,0),yp=P(0,b+0.9,0),zp=P(0,0,c+0.9),g='';
+  g+=L(O,xp,'#8a83a8',0,1.5)+L(O,yp,'#8a83a8',0,1.5)+L(O,zp,'#8a83a8',0,1.5);
+  g+=arr(xp,O,'#8a83a8')+arr(yp,O,'#8a83a8')+arr(zp,O,'#8a83a8');
+  var Ax=P(a,0,0),By=P(0,b,0),M1=P(a,b,0),M=P(a,b,c);
+  g+=L(Ax,M1,'#22c55e',1)+L(By,M1,'#22c55e',1)+L(M1,M,'#22c55e',1);
+  g+='<circle cx="'+Ax[0].toFixed(1)+'" cy="'+Ax[1].toFixed(1)+'" r="2" fill="#16a34a"/>';
+  g+='<circle cx="'+By[0].toFixed(1)+'" cy="'+By[1].toFixed(1)+'" r="2" fill="#16a34a"/>';
+  g+='<circle cx="'+M1[0].toFixed(1)+'" cy="'+M1[1].toFixed(1)+'" r="2.3" fill="#16a34a"/>';
+  g+='<circle cx="'+M[0].toFixed(1)+'" cy="'+M[1].toFixed(1)+'" r="3.2" fill="#dc2626"/>';
+  g+='<text x="'+(M[0]+5).toFixed(1)+'" y="'+(M[1]-4).toFixed(1)+'" font-size="10" font-weight="700" fill="#b91c1c">M('+a+','+b+','+c+')</text>';
+  g+='<text x="'+(M1[0]-4).toFixed(1)+'" y="'+(M1[1]+13).toFixed(1)+'" font-size="9" fill="#15803d">M₁</text>';
+  g+='<text x="'+(xp[0]-9).toFixed(1)+'" y="'+(xp[1]+11).toFixed(1)+'" font-size="11" font-style="italic" fill="#6b6488">x</text>';
+  g+='<text x="'+(yp[0]+3).toFixed(1)+'" y="'+(yp[1]+4).toFixed(1)+'" font-size="11" font-style="italic" fill="#6b6488">y</text>';
+  g+='<text x="'+(zp[0]-3).toFixed(1)+'" y="'+(zp[1]-4).toFixed(1)+'" font-size="11" font-style="italic" fill="#6b6488">z</text>';
+  g+='<text x="'+(O[0]-11).toFixed(1)+'" y="'+(O[1]+11).toFixed(1)+'" font-size="10" font-style="italic" fill="#6b6488">O</text>';
+  return '<svg viewBox="0 0 '+W+' '+H+'" width="'+Math.min(210,Math.round(W*0.92))+'">'+g+'</svg>';
+}
+// Хоосон, цэвэрхэн координатын систем — байгуулах бодлогод (асуултад өгнө)
+function axes3dBlank(){
+  var W=232,H=190,ox=96,oy=128,u=22;
+  function P(x,y,z){return [ox+y*u-x*u*0.5, oy-z*u+x*u*0.36];}
+  function L(p,q,col,dash,w){return '<line x1="'+p[0].toFixed(1)+'" y1="'+p[1].toFixed(1)+'" x2="'+q[0].toFixed(1)+'" y2="'+q[1].toFixed(1)+'" stroke="'+col+'" stroke-width="'+(w||1.5)+'"'+(dash?' stroke-dasharray="4 3"':'')+'/>';}
+  function arr(tip,from,col){var dx=tip[0]-from[0],dy=tip[1]-from[1],d=Math.hypot(dx,dy);dx/=d;dy/=d;var px=-dy,py=dx,s=7,w=3.4;return '<polygon points="'+tip[0].toFixed(1)+','+tip[1].toFixed(1)+' '+(tip[0]-dx*s+px*w).toFixed(1)+','+(tip[1]-dy*s+py*w).toFixed(1)+' '+(tip[0]-dx*s-px*w).toFixed(1)+','+(tip[1]-dy*s-py*w).toFixed(1)+'" fill="'+col+'"/>';}
+  var O=P(0,0,0),xp=P(4,0,0),yp=P(5,0,0),zp=P(0,0,4.5),xn=P(-1.2,0,0),yn=P(0,-1.2,0),zn=P(0,0,-1.2),g='';
+  yp=P(0,5,0);
+  g+=L(O,xn,'#c7c0dd',1,1)+L(O,yn,'#c7c0dd',1,1)+L(O,zn,'#c7c0dd',1,1);
+  g+=L(O,xp,'#5a5278',0,1.7)+L(O,yp,'#5a5278',0,1.7)+L(O,zp,'#5a5278',0,1.7);
+  g+=arr(xp,O,'#5a5278')+arr(yp,O,'#5a5278')+arr(zp,O,'#5a5278');
+  var i,t;
+  for(i=1;i<=4;i++){t=P(i,0,0);g+='<circle cx="'+t[0].toFixed(1)+'" cy="'+t[1].toFixed(1)+'" r="1.5" fill="#a99fce"/><text x="'+(t[0]-9).toFixed(1)+'" y="'+(t[1]+4).toFixed(1)+'" font-size="7.5" fill="#9990bb">'+i+'</text>';}
+  for(i=1;i<=5;i++){t=P(0,i,0);g+='<circle cx="'+t[0].toFixed(1)+'" cy="'+t[1].toFixed(1)+'" r="1.5" fill="#a99fce"/><text x="'+(t[0]-2).toFixed(1)+'" y="'+(t[1]+11).toFixed(1)+'" font-size="7.5" fill="#9990bb">'+i+'</text>';}
+  for(i=1;i<=4;i++){t=P(0,0,i);g+='<circle cx="'+t[0].toFixed(1)+'" cy="'+t[1].toFixed(1)+'" r="1.5" fill="#a99fce"/><text x="'+(t[0]-10).toFixed(1)+'" y="'+(t[1]+3).toFixed(1)+'" font-size="7.5" fill="#9990bb">'+i+'</text>';}
+  g+='<text x="'+(xp[0]-10).toFixed(1)+'" y="'+(xp[1]+12).toFixed(1)+'" font-size="12" font-style="italic" fill="#5a5278">x</text>';
+  g+='<text x="'+(yp[0]+4).toFixed(1)+'" y="'+(yp[1]+4).toFixed(1)+'" font-size="12" font-style="italic" fill="#5a5278">y</text>';
+  g+='<text x="'+(zp[0]-4).toFixed(1)+'" y="'+(zp[1]-5).toFixed(1)+'" font-size="12" font-style="italic" fill="#5a5278">z</text>';
+  g+='<text x="'+(O[0]-12).toFixed(1)+'" y="'+(O[1]+12).toFixed(1)+'" font-size="11" font-style="italic" fill="#5a5278">O</text>';
+  return '<svg viewBox="0 0 '+W+' '+H+'" width="228">'+g+'</svg>';
+}
+// 1. Хавтгайд буулгасан проекц
+var PLN=[
+ {n:'$Oxy$', f:function(p){return tri(p[0],p[1],0);}, why:'$z=0$ болно'},
+ {n:'$Oxz$', f:function(p){return tri(p[0],0,p[2]);}, why:'$y=0$ болно'},
+ {n:'$Oyz$', f:function(p){return tri(0,p[1],p[2]);}, why:'$x=0$ болно'}
+];
+function g_projPlane(){var p=[nz(-6,6),nz(-6,6),nz(-6,6)];var pl=pick(PLN);
+  return {q:'$'+nm('M',p[0],p[1],p[2])+'$ цэгээс '+pl.n+' хавтгайд перпендикуляр буулгав. Суурийн координатыг ол.',
+    a:pl.n+' хавтгай дээр '+pl.why+', тул проекц нь $'+pl.f(p)+'$.',
+    key:'pp'+p.join(',')+pl.n};}
+// 2. Тэнхлэгт буулгасан проекц
+var AX=[
+ {n:'$Ox$', f:function(p){return tri(p[0],0,0);}, why:'$y=0,\\ z=0$ болно'},
+ {n:'$Oy$', f:function(p){return tri(0,p[1],0);}, why:'$x=0,\\ z=0$ болно'},
+ {n:'$Oz$', f:function(p){return tri(0,0,p[2]);}, why:'$x=0,\\ y=0$ болно'}
+];
+function g_projAxis(){var p=[nz(-6,6),nz(-6,6),nz(-6,6)];var ax=pick(AX);
+  return {q:'$'+nm('M',p[0],p[1],p[2])+'$ цэгээс '+ax.n+' тэнхлэгт перпендикуляр буулгав. Суурийн координатыг ол.',
+    a:ax.n+' тэнхлэг дээр '+ax.why+', тул проекц нь $'+ax.f(p)+'$.',
+    key:'pa'+p.join(',')+ax.n};}
+// 3. Цэг байгуулах
+function g_construct(){var a=rnd(2,5),b=rnd(2,5),c=rnd(2,5);
+  return {q:'$'+nm('M',a,b,c)+'$ цэгийг доорх огторгуйн координатын системд байгуул.',
+    fig:axes3dBlank(), noWk:true,
+    a:'$Ox$ дээр $'+tri(a,0,0)+'$, $Oy$ дээр $'+tri(0,b,0)+'$ цэгийг тэмдэглэн, тэдгээрээр тэнхлэгүүдтэй параллель шулуун татахад $Oxy$ хавтгай дахь $M_1'+tri(a,b,0)+'$ гарна. $M_1$-ээс $Oz$-тэй параллель дээш $'+c+'$ нэгж татвал $'+nm('M',a,b,c)+'$ цэг тодорхойлогдоно.',
+    afig:axes3dPoint(a,b,c), key:'cn'+a+b+c};}
+function gen(fn){for(var t=0;t<400;t++){var f=fn();if(f)return f;}return null;}
+function probeH(sheet){var pr=sheet.cloneNode(true);pr.removeAttribute('id');pr.style.cssText='position:absolute;left:-99999px;top:0;width:210mm;max-width:none;min-height:0;margin:0;padding:0;box-shadow:none;zoom:1';var a=pr.querySelector('#answers,.ans-page');if(a)a.remove();document.body.appendChild(pr);var h=pr.scrollHeight;document.body.removeChild(pr);return h;}
+var LET=['а','б','в','г','д','е','ё','ж','з','и','к','л','м','н','о','ө','п','р'];
+function relabel(sheet){var blocks=sheet.querySelectorAll('.grid'),map={};for(var g=0;g<blocks.length;g++){var qs2=blocks[g].querySelectorAll('.q');for(var i=0;i<qs2.length;i++){var lt=LET[i]||('#'+(i+1));var ql=qs2[i].querySelector('.ql');if(ql)ql.textContent=lt+')';map[qs2[i].getAttribute('data-k')]=(g+1)+lt+')';}}
+  var as=sheet.querySelectorAll('#answers .a');for(var j=0;j<as.length;j++){var an=as[j].querySelector('.an');if(an)an.textContent=map[as[j].getAttribute('data-k')]||'';}}
+function trimToFit(sheet,target){var guard=0,h=probeH(sheet);while(h>target&&guard++<90){var blocks=sheet.querySelectorAll('.grid'),best=-1,bestN=-1;for(var s=blocks.length-1;s>=0;s--){var n=blocks[s].querySelectorAll('.q').length;if(n>bestN&&n>2){bestN=n;best=s;}}if(best<0)break;var qs2=blocks[best].querySelectorAll('.q');var last=qs2[qs2.length-1],k=last.getAttribute('data-k');var ans=sheet.querySelector('#answers .a[data-k="'+k+'"]');if(ans)ans.parentNode.removeChild(ans);last.parentNode.removeChild(last);relabel(sheet);h=probeH(sheet);}}
+function genPool(){var P=[[],[],[]];var seen={};function fill(idx,fn,n){var c=0,tr=0;while(c<n&&tr<6000){tr++;var f=gen(fn);if(!f||seen[f.key])continue;seen[f.key]=1;P[idx].push(f);c++;}}
+  fill(0,g_projPlane,5);fill(1,g_projAxis,5);fill(2,g_construct,4);return P;}
+function build(){window.__POOL=genPool();layout();}
+function layout(){var WK=document.getElementById('sw').checked;var S=window.__POOL||(window.__POOL=genPool());window.__PROB=[];var K=0;
+  function block(arr,cap){var use=WK?arr.slice(0,cap):arr;return '<div class="grid">'+use.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});return '<div class="q" data-k="'+k+'"><div class="qh"><span class="ql"></span><span class="qm">'+f.q+'</span></div>'+(f.fig?'<div class="fig">'+f.fig+'</div>':'')+((WK&&!f.noWk)?'<div class="wk"></div>':'')+'</div>';}).join('')+'</div>';}
+  function ansAll(){return window.__PROB.map(function(p){return '<div class="a" data-k="'+p.k+'"><span class="an"></span>'+p.f.a+(p.f.afig?'<div class="fig">'+p.f.afig+'</div>':'')+'</div>';}).join('');}
+  document.getElementById('sheet').innerHTML=
+    '<div class="head"><h1>Цэг байгуулах ба проекц</h1><div class="sub">Координатын хавтгай ба тэнхлэгт буулгах · цэг байгуулах · V бүлэг · 5.2 · 11-р анги</div></div>'
+    +'<div class="meta"><span>Нэр: </span><span>Анги: </span><span>Огноо: </span></div>'
+    +'<div class="rule"><b>Санамж:</b> $M(x,y,z)$ цэгээс координатын хавтгайд перпендикуляр буулгахад суурийн харгалзах координат <b>тэг</b> болно: $Oxy\\to(x,y,0)$, $Oxz\\to(x,0,z)$, $Oyz\\to(0,y,z)$. Тэнхлэгт буулгахад <b>хоёр</b> координат тэг болно: $Ox\\to(x,0,0)$, $Oy\\to(0,y,0)$, $Oz\\to(0,0,z)$.</div>'
+    +'<div class="task">1. Цэгийг координатын хавтгайд буулгасан суурийн координатыг ол.</div>'+block(S[0],4)
+    +'<div class="task">2. Цэгийг координатын тэнхлэгт буулгасан суурийн координатыг ол.</div>'+block(S[1],4)
+    +'<div class="task">3. Цэгийг огторгуйн координатын системд байгуул.</div>'+block(S[2],2)
+    +'<div class="ans-page" id="answers"><h2>Хариу ба бодолт</h2><div class="ans-grid">'+ansAll()+'</div></div>';
+  window.WS_ITEMS=[];window.WS_TITLE='Цэг байгуулах ба проекц';
+  relabel(document.getElementById('sheet'));toggleAns();
+  try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
+  try{if(!WK)trimToFit(document.getElementById('sheet'),1035);}catch(e){}
+  try{relabel(document.getElementById('sheet'));}catch(e){}
+}
+build();
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>
