@@ -674,6 +674,37 @@ module.exports = async (req, res) => {
         }
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_g8ch1_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
+      // ── Нэг удаагийн: 8-р анги II БҮЛЭГ (Процент, харьцаа, пропорц) ──
+      const cf8b = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_g8ch2_v1'`);
+      if (!cf8b.rows.length) {
+        let par8b = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='8-р анги' AND name LIKE 'II БҮЛЭГ%' AND parent_id IS NULL ORDER BY id LIMIT 1`);
+        let pid8b;
+        if (par8b.rows.length) { pid8b = Number(par8b.rows[0].id); }
+        else {
+          const mxP = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='8-р анги'`);
+          const insP = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('8-р анги','II БҮЛЭГ. ПРОЦЕНТ, ХАРЬЦАА, ПРОПОРЦ',$1,NULL) RETURNING id`, [mxP.rows[0].p]);
+          pid8b = Number(insP.rows[0].id);
+        }
+        const subs8b = [
+          { name: '2.1 Процент', slugs: ['protsent-1-8.html', 'protsent-2-8.html', 'protsent-3-8.html'] },
+          { name: '2.2 Масштаб', slugs: ['masshtab-1-8.html', 'masshtab-2-8.html'] },
+          { name: '2.3 Урвуу пропорционал хамаарал', slugs: ['urvuu-1-8.html', 'urvuu-2-8.html'] }
+        ];
+        for (const sub of subs8b) {
+          let sgr = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='8-р анги' AND name=$1`, [sub.name]);
+          let sid;
+          if (sgr.rows.length) { sid = Number(sgr.rows[0].id); }
+          else {
+            const mx = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='8-р анги'`);
+            const ins = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('8-р анги',$1,$2,$3) RETURNING id`, [sub.name, mx.rows[0].p, pid8b]);
+            sid = Number(ins.rows[0].id);
+          }
+          for (const slug of sub.slugs) {
+            await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + sid, slug]);
+          }
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_g8ch2_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
       // Slug тус бүрээр (name|||slug) хосоор мөрддөг: байгаа дэд бүлэгт шинэ slug орно, гэхдээ
       // бүхэл дэд бүлгийг устгасан/нэр сольсныг хүндэтгэж дахин үүсгэхгүй.
       for (const add of ADDITIONS) {

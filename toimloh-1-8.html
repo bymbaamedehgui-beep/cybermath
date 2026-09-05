@@ -202,7 +202,49 @@ function g_opStandard(){var pool=[
   ['6.4\\times10^{4}','6.4\\times10^{4}','\\div','1'],
   ['8\\times10^{8}','2\\times10^{3}','\\div','4\\times10^{5}']];var p=pick(pool);
  return {q:'$'+p[0]+'\\ '+p[2]+'\\ '+p[1]+'$-ийн утгыг стандарт хэлбэрт ол.',a:'$='+p[3]+'$',key:'os'+p[0]+p[2]+p[1]};}
-var WSPEC={"title":"Тоог тоймлох — орон ба нарийвчлал","sub":"Тоог тоймлох · I бүлэг · 8-р анги","rule":"<b>Санамж:</b> Өгсөн орон/нарийвчлал руу тоймлохдоо дараагийн цифр $5$ буюу түүнээс их бол дээш, бага бол доош тоймлоно.","ref":"","tasks":[{"label":"Тоог өгсөн орноор тоймло.","fn":"g_roundPlace","cap":4},{"label":"Тоог өгсөн нарийвчлалтай тоймло.","fn":"g_roundDec","cap":4},{"label":"Тоог бүхэл нэгж рүү тоймло.","fn":"g_roundWhole","cap":4}]};
+
+// ════════ ХҮНД генераторууд (олон алхамт) ════════
+function rFr2(lo,hi){return Fr(nz(lo,hi),pick([2,3,4,6,8]));}
+function g_multiStepAddSub(){var n=pick([3,4]),terms=[],ops=[];for(var i=0;i<n;i++)terms.push(rFr2(-8,8));for(var i=0;i<n-1;i++)ops.push(pick(['+','-']));
+ var res=terms[0],qs=fMix(terms[0]);for(var i=0;i<ops.length;i++){res=ops[i]==='+'?fAdd(res,terms[i+1]):fSub(res,terms[i+1]);qs+=ops[i]+pFr(terms[i+1]);}
+ if(Math.abs(res.n)>400)return null;
+ return {q:'$'+qs+'$ үйлдлийг гүйцэтгэ.',a:'$'+qs+'='+fMix(res)+'$',key:'msa'+terms.map(function(t){return t.n+'_'+t.d;}).join()+ops.join(),nv:fVal(res)};}
+function g_multiStepMul(){var form=pick([1,2,3,4]),a=rFr2(-6,6),b=rFr2(-6,6),c=rFr2(-5,5),d=rFr2(-5,5),res,qs;
+ if(form===1){res=fAdd(a,fMul(b,c));qs=fMix(a)+'+'+pFr(b)+'\\times'+pFr(c);}
+ else if(form===2){res=fSub(a,fMul(b,c));qs=fMix(a)+'-'+pFr(b)+'\\times'+pFr(c);}
+ else if(form===3){res=fAdd(fMul(a,b),fMul(c,d));qs=pFr(a)+'\\times'+pFr(b)+'+'+pFr(c)+'\\times'+pFr(d);}
+ else {if(c.n===0)return null;res=fAdd(fDiv(a,b),c);qs=pFr(a)+'\\div'+pFr(b)+'+'+pFr(c);}
+ if(Math.abs(res.n)>400||res.d>200)return null;
+ return {q:'$'+qs+'$ үйлдлийг гүйцэтгэ (үйлдлийн дараалал).',a:'$'+qs+'='+fMix(res)+'$',key:'msm'+form+a.n+a.d+b.n+b.d+c.n+c.d+d.n+d.d,nv:fVal(res)};}
+function g_powerComplex(){var b=pick(['2','3','a','x','5']),m=rnd(3,6),k=rnd(2,4),p=rnd(2,3),r=rnd(2,6);var e=m+k*p-r;if(e<=1)return null;
+ return {q:'$\\dfrac{'+pw(b,m)+'\\cdot\\left('+pw(b,k)+'\\right)^{'+p+'}}{'+pw(b,r)+'}$-г нэг зэрэг хэлбэрт бич.',a:'$=\\dfrac{'+pw(b,m)+'\\cdot'+pw(b,k+'\\cdot'+p)+'}{'+pw(b,r)+'}=\\dfrac{'+pw(b,m+'+'+(k*p))+'}{'+pw(b,r)+'}='+powClean(b,e)+'$',key:'pc'+b+m+k+p+r};}
+var MPR=[
+ {q:'0.2\\times(-5)^2-16\\times\\left(\\dfrac{1}{2}\\right)^4',a:'4',v:4,chk:function(){return 0.2*25-16*(1/16);}},
+ {q:'81\\times\\left(-\\dfrac{1}{3}\\right)^4-0.05\\times(-10)^3',a:'51',v:51,chk:function(){return 81*(1/81)-0.05*(-1000);}},
+ {q:'(-2)^3\\times\\sqrt{12\\dfrac{1}{4}}',a:'-28',v:-28,chk:function(){return Math.pow(-2,3)*Math.sqrt(49/4);}},
+ {q:'\\sqrt{2.25}\\div\\sqrt{1\\dfrac{7}{9}}',a:'\\dfrac{9}{8}',v:9/8,chk:function(){return Math.sqrt(2.25)/Math.sqrt(16/9);}},
+ {q:'\\sqrt[3]{3.375}\\div\\dfrac{3}{4}',a:'2',v:2,chk:function(){return Math.cbrt(3.375)/0.75;}},
+ {q:'\\left((-2)^3+5^2\\right)\\times(-4)',a:'-68',v:-68,chk:function(){return ((-8)+25)*(-4);}},
+ {q:'2.2^2+(-0.2)^2',a:'4.88',v:4.88,chk:function(){return 2.2*2.2+0.04;}},
+ {q:'\\left(-\\dfrac{3}{2}\\right)^2+(-2)^3',a:'-\\dfrac{23}{4}',v:-23/4,chk:function(){return (9/4)-8;}},
+ {q:'\\sqrt{0.09}\\times(-2)^3+1',a:'-1.4',v:-1.4,chk:function(){return 0.3*(-8)+1;}},
+ {q:'\\left(\\dfrac{2}{3}\\right)^2\\times\\dfrac{9}{4}-1',a:'0',v:0,chk:function(){return (4/9)*(9/4)-1;}},
+ {q:'\\sqrt[3]{-0.027}+\\sqrt{1.44}',a:'0.9',v:0.9,chk:function(){return Math.cbrt(-0.027)+1.2;}},
+ {q:'-4^2\\times\\dfrac{1}{24}+\\left(-\\dfrac{2}{3}\\right)^0',a:'\\dfrac{1}{3}',v:1/3,chk:function(){return -16*(1/24)+1;}}
+];
+function g_mixedPowRoot(){var e=pick(MPR);return {q:'$'+e.q+'$ илэрхийллийн утгыг ол.',a:'$'+e.q+'='+e.a+'$',key:'mpr'+e.q,chk:e.chk,av:e.v};}
+var EST=[
+ {q:'(5.73-2.9)^2',c:'(6-3)^2=3^2=9',v:9},
+ {q:'\\sqrt{5.1+6.8}',c:'\\sqrt{5+7}=\\sqrt{12}\\approx3.46',v:3.46},
+ {q:'7.3^2\\times(15.4-7.05)',c:'7^2\\times(15-7)=49\\times8=392',v:392},
+ {q:'(4.57+3.52)\\times(9.32-4.05)',c:'(5+4)\\times(9-4)=9\\times5=45',v:45},
+ {q:'22.3^2+(3.7-5.1)^2',c:'22^2+(4-5)^2=484+1=485',v:485},
+ {q:'(5.61+2.75)^3',c:'(6+3)^3=9^3=729',v:729}
+];
+function g_estComplex(){var e=pick(EST);return {q:'$'+e.q+'$ илэрхийллийг тоонуудыг бүхэлд тоймлон ойролцоогоор ол.',a:'$\\approx'+e.c+'$',key:'ec'+e.q};}
+function g_roundMinMax(){var opt=pick([['0.1',0.1],['0.01',0.01],['1',1]]);var R=Math.round(rnd(15,95)*opt[1]*100)/100;var half=opt[1]/2;var lo=Math.round((R-half)*1000)/1000,hi=Math.round((R+half)*1000)/1000;
+ return {q:'Тоог $'+opt[0]+'$ нарийвчлалтай тоймлоход $'+R+'$ гарчээ. Уг тоо ямар завсарт байж болох вэ?',a:'$'+lo+'\\le x<'+hi+'$',key:'rmm'+R+opt[0]};}
+var WSPEC={"title":"Тоог тоймлох — орон ба нарийвчлал","sub":"Тоог тоймлох · I бүлэг · 8-р анги","rule":"<b>Санамж:</b> Өгсөн орон/нарийвчлал руу тоймлохдоо дараагийн цифр $5$ буюу түүнээс их бол дээш, бага бол доош тоймлоно.","ref":"","tasks":[{"label":"Тоог өгсөн орноор тоймло.","fn":"g_roundPlace","cap":4},{"label":"Тоог өгсөн нарийвчлалтай тоймло.","fn":"g_roundDec","cap":4},{"label":"Тоог бүхэл нэгж рүү тоймло.","fn":"g_roundWhole","cap":3},{"label":"Тоймлолын завсрыг ол (урвуу бодлого).","fn":"g_roundMinMax","cap":3}]};
 
 function toggleAns(){var el=document.getElementById('answers');if(el)el.style.display=document.getElementById('sa').checked?'block':'none';}
 function gen(fn){for(var t=0;t<700;t++){var f=fn();if(f)return f;}return null;}

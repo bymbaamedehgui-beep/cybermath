@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Процент — нийлмэл ба хольцын бодлого (8-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<style>
+  :root{--purple:#7B52EE;--purple2:#A855F7;--ink:#1a1030;--soft:#7a7390}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:var(--ink);background:#eceaf3;padding:16px;line-height:1.5}
+  .bar{max-width:820px;margin:0 auto 14px;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
+  .btn{font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.6rem 1.3rem;font-size:.9rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2));box-shadow:0 6px 16px -6px rgba(123,82,238,.6)}
+  .btn:hover{filter:brightness(1.06)} .btn.refresh{background:linear-gradient(135deg,#16a34a,#22c55e)}
+  .bar label{font-weight:700;color:var(--purple);display:flex;align-items:center;gap:6px;font-size:.88rem}
+  .sheet{background:#fff;width:210mm;max-width:100%;min-height:297mm;margin:0 auto;padding:12mm 14mm;box-shadow:0 12px 44px -18px rgba(0,0,0,.35)}
+  .head{text-align:center;border-bottom:2.5px solid var(--purple);padding-bottom:7px;margin-bottom:7px}
+  .head h1{font-size:16px;color:#5a32d6;font-weight:800}.head .sub{font-size:11px;color:var(--soft);margin-top:2px}
+  .meta{display:flex;justify-content:space-between;font-size:11.5px;margin:8px 2px 10px}.meta span{border-bottom:1px dotted #b3a9cf;padding:0 26px 2px 4px}
+  .rule{font-size:11px;color:var(--soft);background:transparent;border-left:3px solid #d9cff5;border-radius:8px;padding:8px 12px;margin-bottom:11px}
+  .rule b{color:#5a32d6}
+  .task{font-weight:800;color:#5a32d6;font-size:12.5px;margin:9px 0 7px;border-left:4px solid var(--purple2);padding-left:9px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:11px 20px}
+  .q{break-inside:avoid;page-break-inside:avoid}
+  .qh{display:flex;gap:7px;align-items:baseline}.ql{font-weight:800;color:var(--purple);font-size:13px;min-width:22px}.qm{font-size:13px}
+  .fig{text-align:center;margin:4px 0}
+  .wk{border:1.1px solid #e2daf5;border-radius:7px;background:linear-gradient(#fff,#fbf9ff);height:22mm;margin-top:5px}
+  .ans-page{margin-top:9mm;border-top:2px dashed #ddd;padding-top:7mm}.ans-page h2{font-size:15px;color:#5a32d6;margin-bottom:10px}
+  .ans-grid{display:grid;grid-template-columns:1fr;gap:9px;font-size:12px}.ans-grid .a{padding-bottom:8px;border-bottom:1px dotted #e6e0f5}.ans-grid .an{color:var(--purple);font-weight:800;margin-right:5px}
+  #answers{display:none}
+  @media print{body{background:#fff;padding:0}.bar{display:none}.sheet{box-shadow:none;width:auto;min-height:auto;padding:0;margin:0}@page{size:A4;margin:11mm}.ans-page{break-before:page}}
+</style>
+</head>
+<body>
+<div class="bar">
+  <button class="btn refresh" onclick="build()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>Шинэ бодлого</button>
+  <label><input type="checkbox" id="sw" onchange="layout()" checked> Бодолтын зай</label>
+  <label><input type="checkbox" id="sa" onchange="toggleAns()"> Хариу хавсаргах</label>
+  <button class="btn" onclick="window.print()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>Хэвлэх / PDF</button>
+</div>
+<div class="sheet" id="sheet"></div>
+<script>
+// ── 8-р анги II бүлэг (Процент, харьцаа, пропорц) ──
+function rnd(a,b){return a+Math.floor(Math.random()*(b-a+1));}
+function nz(a,b){var v;do{v=rnd(a,b);}while(v===0);return v;}
+function pick(a){return a[rnd(0,a.length-1)];}
+function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){var t=b;b=a%b;a=t;}return a||1;}
+function Fr(n,d){if(d<0){n=-n;d=-d;}var g=gcd(n,d)||1;return {n:n/g,d:d/g};}
+function fVal(a){return a.n/a.d;}
+function fMix(a){if(a.d===1)return ''+a.n;var neg=a.n<0,N=Math.abs(a.n),w=Math.floor(N/a.d),r=N%a.d;if(w===0)return (neg?'-':'')+'\\dfrac{'+r+'}{'+a.d+'}';if(r===0)return (neg?'-':'')+w;return (neg?'-':'')+w+'\\dfrac{'+r+'}{'+a.d+'}';}
+function fTex(a){if(a.d===1)return ''+a.n;if(a.n<0)return '-\\dfrac{'+(-a.n)+'}{'+a.d+'}';return '\\dfrac{'+a.n+'}{'+a.d+'}';}
+function longDiv(n,d){var ip=Math.floor(n/d),rem=n%d,digits=[],seen={},idx=0,pStart=-1;while(rem!==0){if(seen[rem]!==undefined){pStart=seen[rem];break;}seen[rem]=idx;rem*=10;digits.push(Math.floor(rem/d));rem%=d;idx++;if(idx>20)break;}return {ip:ip,digits:digits,pStart:pStart};}
+function isTerm(fr){return longDiv(Math.abs(fr.n),fr.d).pStart<0;}
+function decStr(fr){var r=longDiv(Math.abs(fr.n),fr.d),s=fr.n<0?'-':'';if(r.digits.length===0)return s+r.ip;return s+r.ip+'.'+r.digits.join('');}
+function money(x){return x; }
+
+// ════════ Процент WS1 — хувь ба тоо ════════
+function g_fracToPct(){var pool=[[19,100],[7,10],[4,5],[3,8],[1,3],[9,8],[1,4],[3,4],[7,20],[5,8],[2,3],[1,8]];var t=pick(pool);var fr=Fr(t[0],t[1]);var p=Fr(fr.n*100,fr.d);var pstr=isTerm(p)?decStr(p):fMix(p);
+ return {q:'$'+fTex(fr)+'$ энгийн бутархайг процентоор илэрхийл.',a:'$'+fTex(fr)+'='+fTex(fr)+'\\times100\\%='+pstr+'\\%$',key:'fp'+t[0]+t[1],nv:fVal(fr)*100};}
+function g_pctToFrac(){var pool=[['45',9,20],['24',6,25],['8',2,25],['60',3,5],['112',28,25],['5',1,20],['150',3,2],['32',8,25]];var t=pick(pool);var fr=Fr(t[1],t[2]);
+ return {q:'$'+t[0]+'\\%$ процентыг энгийн бутархайд шилжүүл.',a:'$'+t[0]+'\\%=\\dfrac{'+t[0]+'}{100}='+fMix(fr)+'$',key:'pf'+t[0],nv:fVal(fr)};}
+function g_pctOf(){var pairs=[[400,10,'',40],[300,25,'',75],[500,90,' м',450],[20,40,' кг',8],[50,120,' см',60],[800,15,'',120],[250,40,'',100],[600,35,'',210]];var t=pick(pairs);var r=t[0]*t[1]/100;
+ return {q:'$'+t[0]+t[2]+'$-ийн $'+t[1]+'\\%$-ийг ол.',a:'$'+t[0]+'\\times\\dfrac{'+t[1]+'}{100}='+r+t[2]+'$',key:'po'+t[0]+t[1]+t[2],nv:r};}
+
+// ════════ Процент WS2 — өөрчлөлт ════════
+function g_whatPct(){var pairs=[[8,50],[7,25],[12,20],[28,70],[84,200],[27,30],[24,150],[13,20],[9,15]];var t=pick(pairs);var p=t[0]/t[1]*100;
+ return {q:'$'+t[0]+'$ нь $'+t[1]+'$-ийн хэдэн процент вэ?',a:'$\\dfrac{'+t[0]+'}{'+t[1]+'}\\times100\\%='+(Math.round(p*100)/100)+'\\%$',key:'wp'+t[0]+t[1],nv:p};}
+function g_discount(){var P=pick([12000,25000,36000,48000,60000,80000,150000]),d=pick([10,15,20,25,30,40]);var r=P*(100-d)/100;
+ return {q:'$'+P+'$ төгрөгийн бараа $'+d+'\\%$ хямдарсан бол шинэ үнийг ол.',a:'$'+P+'\\times\\dfrac{'+(100-d)+'}{100}='+r+'$ төгрөг',key:'ds'+P+d,nv:r};}
+function g_increase(){var P=pick([1500000,2000000,800000,1200000,500000]),d=pick([10,20,25,30,50]);var r=P*(100+d)/100;
+ return {q:'$'+P+'$ төгрөгийн эд хөрөнгө $'+d+'\\%$-оор өссөн бол шинэ үнийг ол.',a:'$'+P+'\\times\\dfrac{'+(100+d)+'}{100}='+r+'$ төгрөг',key:'in'+P+d,nv:r};}
+
+// ════════ Процент WS3 — үг ба хольц ════════
+function g_findWhole(){var whole=pick([40,25,30,60,200,50,80]),p=pick([20,25,40,60,10,75]);var part=whole*p/100;if(part!==Math.round(part))return null;
+ return {q:'Аль нэг тооны $'+p+'\\%$ нь $'+part+'$ бол уг тоог ол.',a:'$'+part+'\\div\\dfrac{'+p+'}{100}='+part+'\\times\\dfrac{100}{'+p+'}='+whole+'$',key:'fw'+whole+p,nv:whole};}
+function g_interest(){var P=pick([200000,250000,300000,500000,400000]),r=pick([6,8,10,12]),N=pick([2,3,4,5]);var total=P*(100+r*N)/100;
+ return {q:'$'+P+'$ төгрөгийг жилийн $'+r+'\\%$ энгийн хүүтэйгээр банканд $'+N+'$ жил хадгалав. Нийт хэдэн төгрөг болох вэ?',a:'Хүү: $'+P+'\\times\\dfrac{'+r+'\\times'+N+'}{100}='+(P*r*N/100)+'$; нийт $='+total+'$ төгрөг',key:'int'+P+r+N,nv:total};}
+function g_mixture(){var M=pick([200,300,400,500,600]),p=pick([10,20,25,40,50]),q=pick([5,8,10,15,20]);if(q>=p)return null;var salt=M*p/100;var newTotal=salt/(q/100);if(newTotal!==Math.round(newTotal))return null;var water=newTotal-M;if(water<=0)return null;
+ return {q:'$'+M+'$ г уусмалын $'+p+'\\%$ нь давс байв. Уусмалыг $'+q+'\\%$-ийн болгохын тулд хэдэн г ус нэмэх вэ?',a:'Давс: $'+M+'\\times\\dfrac{'+p+'}{100}='+salt+'$ г. Шинэ уусмал: $'+salt+'\\div\\dfrac{'+q+'}{100}='+newTotal+'$ г. Нэмэх ус: $'+newTotal+'-'+M+'='+water+'$ г',key:'mx'+M+p+q,nv:water,chk:function(){return salt/(M+water);},exp:q/100};}
+
+// ════════ Масштаб WS4 — хөрвүүлэлт ════════
+function g_realToMap(){var scale=pick([100,200,500,1000]),mapcm=pick([2,3,4,5,6,8]);var realcm=mapcm*scale;var realm=realcm/100;
+ return {q:'Масштаб $1:'+scale+'$ бол бодит $'+realm+'$ м зайг зураг дээр хэдэн см-ээр дүрслэх вэ?',a:'$'+realm+'$ м $='+realcm+'$ см; $'+realcm+'\\div'+scale+'='+mapcm+'$ см',key:'rm'+scale+mapcm,nv:mapcm};}
+function g_mapToReal(){var scale=pick([100,200,500,1000]),mapcm=pick([3,4,5,6,7,8]);var realcm=mapcm*scale;var realm=realcm/100;
+ return {q:'Масштаб $1:'+scale+'$-тай зураг дээрх $'+mapcm+'$ см зай бодит байдалд хэдэн метр вэ?',a:'$'+mapcm+'\\times'+scale+'='+realcm+'$ см $='+realm+'$ м',key:'mr'+scale+mapcm,nv:realm};}
+function g_findScale(){var scale=pick([100,500,1000,2000]),mapcm=pick([2,3,4,5]);var realcm=mapcm*scale;var realm=realcm/100;
+ return {q:'Бодит $'+realm+'$ м зайг зураг дээр $'+mapcm+'$ см-ээр дүрсэлжээ. Масштабыг ол.',a:'$'+realm+'$ м $='+realcm+'$ см; $'+realcm+'\\div'+mapcm+'='+scale+'$ тул масштаб $1:'+scale+'$',key:'fs'+scale+mapcm,nv:scale};}
+
+// ════════ Масштаб WS5 — км ба загвар ════════
+function g_scaleKm(){var scale=pick([100000,1000000,500000]),km=pick([5,10,20,30,50]);var cm=km*100000/scale;if(cm!==Math.round(cm*10)/10)return null;
+ return {q:'Масштаб $1:'+scale+'$ бол бодит $'+km+'$ км зайг зураг дээр хэдэн см-ээр дүрслэх вэ?',a:'$'+km+'$ км $='+(km*100000)+'$ см; $'+(km*100000)+'\\div'+scale+'='+cm+'$ см',key:'sk'+scale+km,nv:cm};}
+function g_mapToKm(){var scale=pick([100000,1000000,200000]),cm=pick([3,4.5,5,6,8]);var realcm=cm*scale;var km=realcm/100000;
+ return {q:'Масштаб $1:'+scale+'$-тай газрын зураг дээрх $'+cm+'$ см зай бодит байдалд хэдэн км вэ?',a:'$'+cm+'\\times'+scale+'='+realcm+'$ см $='+km+'$ км',key:'mk'+scale+cm,nv:km};}
+function g_modelScale(){var scale=pick([100,200,500]),modelcm=pick([3,4,5,6]);var realcm=modelcm*scale;var realm=realcm/100;
+ return {q:'Барилгын бодит өндөр $'+realm+'$ м. Загвар нь $'+modelcm+'$ см өндөр бол масштабыг ол.',a:'$'+realm+'$ м $='+realcm+'$ см; $'+realcm+'\\div'+modelcm+'='+scale+'$ тул $1:'+scale+'$',key:'ms'+scale+modelcm,nv:scale};}
+
+// ════════ Урвуу пропорц WS6 — таних ба хүснэгт ════════
+function g_identifyRel(){var mode=pick(['inv','dir','none']);var xs=[1,2,3,4];var ys,label;
+ if(mode==='inv'){var k=pick([12,24,36,60]);ys=xs.map(function(x){return k/x;});label='урвуу пропорционал ($xy='+k+'$ тогтмол)';}
+ else if(mode==='dir'){var m=pick([2,3,5]);ys=xs.map(function(x){return m*x;});label='шууд пропорционал ($\\dfrac{y}{x}='+m+'$ тогтмол)';}
+ else {ys=[2,5,7,10];label='пропорционал хамааралгүй ($xy$ ч, $\\dfrac{y}{x}$ ч тогтмол биш)';}
+ return {q:'$x:\\ '+xs.join(',\\ ')+'$; $\\ y:\\ '+ys.map(function(v){return Math.round(v*100)/100;}).join(',\\ ')+'$ — эдгээр ямар хамааралтай вэ?',a:'Энэ нь <b>'+label+'</b>.',key:'ir'+mode+ys.join()};}
+function g_fillInverse(){var k=pick([12,24,36,48,60,72]),x=pick([2,3,4,6,8]);if(k%x!==0)return null;var y=k/x;
+ return {q:'$x$ ба $y$ урвуу пропорционал ($xy='+k+'$). $x='+x+'$ бол $y=?$',a:'$y=\\dfrac{'+k+'}{x}=\\dfrac{'+k+'}{'+x+'}='+y+'$',key:'fi'+k+x,nv:y};}
+function g_inverseChange(){var k=pick([2,3,4,5]),dir=pick(['их','бага']);
+ return {q:'Урвуу пропорционал хамаарлын нэг хэмжигдэхүүн $'+k+'$ дахин '+(dir==='их'?'ихсэхэд':'багасахад')+' нөгөө нь хэрхэн өөрчлөгдөх вэ?',a:'Нөгөө хэмжигдэхүүн $'+k+'$ дахин '+(dir==='их'?'багасна':'ихэснэ')+'.',key:'ic'+k+dir};}
+
+// ════════ Урвуу пропорц WS7 — үг ════════
+function g_speedTime(){var D=pick([120,240,360,480,600]),v1=pick([40,60,80]),v2=pick([40,60,80,120]);if(v1===v2||D%v1!==0||D%v2!==0)return null;var t1=D/v1,t2=D/v2;
+ return {q:'$'+D+'$ км зайг $'+v1+'$ км/ц хурдтай явахад $'+t1+'$ цаг зарцуулна. $'+v2+'$ км/ц хурдтай явбал хэдэн цаг зарцуулах вэ?',a:'Зам тогтмол тул хурд·хугацаа $='+D+'$; $'+D+'\\div'+v2+'='+t2+'$ цаг',key:'st'+D+v1+v2,nv:t2};}
+function g_workers(){var total=pick([48,72,96,120,144]),w1=pick([6,8,12]),w2=pick([4,6,8,16]);if(w1===w2||total%w1!==0||total%w2!==0)return null;var d1=total/w1,d2=total/w2;
+ return {q:'$'+w1+'$ хүн нэг ажлыг $'+d1+'$ хоногт дуусгадаг. $'+w2+'$ хүн бол хэдэн хоногт дуусгах вэ?',a:'Хүн·хоног $='+total+'$ тогтмол; $'+total+'\\div'+w2+'='+d2+'$ хоног',key:'wk'+total+w1+w2,nv:d2};}
+function g_inverseFind(){var k=pick([24,36,48,60,72,120]),x1=pick([2,3,4,6]),x2=pick([2,3,4,6,8,12]);if(x1===x2||k%x1!==0||k%x2!==0)return null;var y1=k/x1,y2=k/x2;
+ return {q:'$x,\\ y$ урвуу пропорционал. $x_1='+x1+'$ үед $y_1='+y1+'$. $x_2='+x2+'$ үед $y_2=?$',a:'$x_1 y_1=x_2 y_2$: $'+x1+'\\times'+y1+'='+x2+'\\times y_2\\Rightarrow y_2='+y2+'$',key:'if'+k+x1+x2,nv:y2};}
+
+// ════════ ХҮНД генераторууд ════════
+function g_successivePct(){var P=pick([20000,50000,80000,100000,200000,40000]),d1=pick([10,20,25,50]),d2=pick([10,20,25]);var r=P*(100-d1)/100*(100-d2)/100;if(r!==Math.round(r))return null;
+ return {q:'$'+P+'$ төгрөгийн бараа эхлээд $'+d1+'\\%$, дараа нь үлдсэн үнээс $'+d2+'\\%$ хямдарсан бол эцсийн үнийг ол.',a:'$'+P+'\\times\\dfrac{'+(100-d1)+'}{100}\\times\\dfrac{'+(100-d2)+'}{100}='+r+'$ төгрөг',key:'sp2'+P+d1+d2,nv:r};}
+function g_findOriginal(){var orig=pick([40000,50000,80000,120000,200000,500000]),d=pick([20,25,50,60]),mode=pick(['inc','dec']);var after=mode==='inc'?orig*(100+d)/100:orig*(100-d)/100;if(after!==Math.round(after))return null;
+ return {q:'Аль нэг үнэ $'+d+'\\%$-оор '+(mode==='inc'?'нэмэгдээд':'хямдраад')+' $'+after+'$ төгрөг болсон бол анхны үнийг ол.',a:'$'+after+'\\div\\dfrac{'+(mode==='inc'?100+d:100-d)+'}{100}='+after+'\\times\\dfrac{100}{'+(mode==='inc'?100+d:100-d)+'}='+orig+'$ төгрөг',key:'fo'+orig+d+mode,nv:orig};}
+function g_alloyMix(){var M=pick([40,50,60,80,100,120]),p=pick([20,25,30,40]),q=pick([40,50,60,70]);if(q<=p)return null;var cu=M*p/100,x=M*(q-p)/(100-q);if(x!==Math.round(x)||cu!==Math.round(cu))return null;
+ return {q:'$'+M+'$ кг хайлшийн $'+p+'\\%$ нь зэс байв. Зэсийн агууламжийг $'+q+'\\%$ болгохын тулд хэдэн кг цэвэр зэс нэмэх вэ?',a:'Зэс $='+cu+'$ кг. $x$ кг зэс нэмэхэд $\\dfrac{'+cu+'+x}{'+M+'+x}=\\dfrac{'+q+'}{100}$; эндээс $x='+x+'$ кг',key:'am'+M+p+q,nv:x,chk:function(){return (cu+x)/(M+x);},exp:q/100};}
+function g_areaScale(){var n=pick([100,200,500,1000]),Smap=pick([2,4,6,8,10]);var realcm2=Smap*n*n,realm2=realcm2/10000;
+ return {q:'Масштаб $1:'+n+'$-тай зураг дээрх талбай $'+Smap+'$ см$^2$ бол бодит талбай хэдэн м$^2$ вэ?',a:'Уртын масштаб $'+n+'$ дахин тул талбай $'+n+'^2='+(n*n)+'$ дахин ихэснэ: $'+Smap+'\\times'+(n*n)+'='+realcm2+'$ см$^2='+realm2+'$ м$^2$',key:'ars'+n+Smap,nv:realm2};}
+function g_inverseWord2(){var D=pick([120,240,360,480,600,720]),v=pick([40,60,80]);if(D%v!==0)return null;var t=D/v,k=pick([1,2,3]);if(t-k<=0||D%(t-k)!==0)return null;var v2=D/(t-k);if(v2===v)return null;
+ return {q:'$'+D+'$ км замыг $'+v+'$ км/ц хурдтай явахад $'+t+'$ цаг зарцуулна. Хугацааг $'+k+'$ цагаар багасгахын тулд хурдыг хэд болгох вэ?',a:'Шинэ хугацаа $'+t+'-'+k+'='+(t-k)+'$ ц; зам тогтмол тул шинэ хурд $='+D+'\\div'+(t-k)+'='+v2+'$ км/ц',key:'iw2'+D+v+k,nv:v2,chk:function(){return v2*(t-k);},exp:D};}
+var WSPEC={"title":"Процент — нийлмэл ба хольцын бодлого","sub":"Процент · II бүлэг · 8-р анги","rule":"<b>Санамж:</b> Процент нь $100$-гийн хэсэг: $p%=dfrac{p}{100}$. Тооны $p%=$ тоо$\timesdfrac{p}{100}$; $A$ нь $B$-ийн $dfrac{A}{B}\times100%$. $p%$ хямдрахад $\timesdfrac{100-p}{100}$, нэмэгдэхэд $\timesdfrac{100+p}{100}$.","ref":"","tasks":[{"label":"Өөрчлөлтийн дараах утгаас анхны утгыг ол.","fn":"g_findOriginal","cap":3},{"label":"Дараалсан хоёр хямдралын эцсийн үнийг ол.","fn":"g_successivePct","cap":3},{"label":"Уусмал шингэлэх бодлого.","fn":"g_mixture","cap":2},{"label":"Хайлшийн агууламжийг өөрчлөх бодлого.","fn":"g_alloyMix","cap":2}]};
+
+function toggleAns(){var el=document.getElementById('answers');if(el)el.style.display=document.getElementById('sa').checked?'block':'none';}
+function gen(fn){for(var t=0;t<700;t++){var f=fn();if(f)return f;}return null;}
+var LET=['а','б','в','г','д','е','ё','ж','з','и','к','л','м','н','о','ө','п','р','с','т'];
+function probeH(sheet){var pr=sheet.cloneNode(true);pr.removeAttribute('id');pr.style.cssText='position:absolute;left:-99999px;top:0;width:210mm;max-width:none;min-height:0;margin:0;padding:0;box-shadow:none;zoom:1';var a=pr.querySelector('#answers,.ans-page');if(a)a.remove();document.body.appendChild(pr);var h=pr.scrollHeight;document.body.removeChild(pr);return h;}
+function relabel(sheet){var blocks=sheet.querySelectorAll('.grid'),map={};for(var g=0;g<blocks.length;g++){var qs2=blocks[g].querySelectorAll('.q');for(var i=0;i<qs2.length;i++){var lt=LET[i]||('#'+(i+1));var ql=qs2[i].querySelector('.ql');if(ql)ql.textContent=lt+')';map[qs2[i].getAttribute('data-k')]=(g+1)+lt+')';}}
+  var as=sheet.querySelectorAll('#answers .a');for(var j=0;j<as.length;j++){var an=as[j].querySelector('.an');if(an)an.textContent=map[as[j].getAttribute('data-k')]||'';}}
+function trimToFit(sheet,target){var guard=0,h=probeH(sheet);while(h>target&&guard++<90){var blocks=sheet.querySelectorAll('.grid'),best=-1,bestN=-1;for(var s=blocks.length-1;s>=0;s--){var n=blocks[s].querySelectorAll('.q').length;if(n>bestN&&n>2){bestN=n;best=s;}}if(best<0)break;var qs2=blocks[best].querySelectorAll('.q');var last=qs2[qs2.length-1],k=last.getAttribute('data-k');var ans=sheet.querySelector('#answers .a[data-k="'+k+'"]');if(ans)ans.parentNode.removeChild(ans);last.parentNode.removeChild(last);relabel(sheet);h=probeH(sheet);}}
+var TASKS=WSPEC.tasks.map(function(t){return {label:t.label, fn:eval(t.fn), cap:t.cap};});
+function genPool(){var P=TASKS.map(function(){return[];});var seen={};TASKS.forEach(function(t,i){var c=0,tr=0,need=t.cap+3;while(c<need&&tr<9000){tr++;var f=gen(t.fn);if(!f||seen[f.key])continue;seen[f.key]=1;P[i].push(f);c++;}});return P;}
+function build(){window.__POOL=genPool();layout();}
+function layout(){var WK=document.getElementById('sw').checked;var S=window.__POOL||(window.__POOL=genPool());window.__PROB=[];var K=0;
+  function block(arr,cap){var use=WK?arr.slice(0,cap):arr;return '<div class="grid">'+use.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});return '<div class="q" data-k="'+k+'"><div class="qh"><span class="ql"></span><span class="qm">'+f.q+'</span></div>'+(f.fig?'<div class="fig">'+f.fig+'</div>':'')+((WK&&!f.noWk)?'<div class="wk"></div>':'')+'</div>';}).join('')+'</div>';}
+  function ansAll(){return window.__PROB.map(function(p){return '<div class="a" data-k="'+p.k+'"><span class="an"></span>'+p.f.a+'</div>';}).join('');}
+  var html='<div class="head"><h1>'+WSPEC.title+'</h1><div class="sub">'+WSPEC.sub+'</div></div>'
+    +'<div class="meta"><span>Нэр: </span><span>Анги: </span><span>Огноо: </span></div>'
+    +'<div class="rule">'+WSPEC.rule+'</div>'+(WSPEC.ref||'');
+  TASKS.forEach(function(t,i){html+='<div class="task">'+(i+1)+'. '+t.label+'</div>'+block(S[i],t.cap);});
+  html+='<div class="ans-page" id="answers"><h2>Хариу ба бодолт</h2><div class="ans-grid">'+ansAll()+'</div></div>';
+  document.getElementById('sheet').innerHTML=html;
+  window.WS_ITEMS=[];window.WS_TITLE=WSPEC.title;
+  relabel(document.getElementById('sheet'));toggleAns();
+  try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
+  try{if(!WK)trimToFit(document.getElementById('sheet'),1035);}catch(e){}
+  try{relabel(document.getElementById('sheet'));}catch(e){}
+}
+build();
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>
