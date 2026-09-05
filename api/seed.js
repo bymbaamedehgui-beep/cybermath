@@ -608,6 +608,38 @@ module.exports = async (req, res) => {
         }
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_buleg5exam_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
+      // ── Нэг удаагийн: VI БҮЛЭГ (Тригонометр) — parent + 6.1/6.2/6.3 + жишиг/шалгалт ──
+      const cf6 = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_buleg6_v1'`);
+      if (!cf6.rows.length) {
+        let par6 = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='11-р анги' AND name LIKE 'VI БҮЛЭГ%' AND parent_id IS NULL ORDER BY id LIMIT 1`);
+        let pid6;
+        if (par6.rows.length) { pid6 = Number(par6.rows[0].id); }
+        else {
+          const mxP = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='11-р анги'`);
+          const insP = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('11-р анги','VI БҮЛЭГ. ТРИГОНОМЕТР',$1,NULL) RETURNING id`, [mxP.rows[0].p]);
+          pid6 = Number(insP.rows[0].id);
+        }
+        const subs6 = [
+          { name: '6.1 Нэгж радиустай тойрог ба тригонометр функц', slugs: ['trig-ergelt-1-11.html', 'trig-moch-2-11.html', 'trig-temdeg-3-11.html', 'trig-toirog-4-11.html'] },
+          { name: '6.2 Тригонометр функцийн зарим утга', slugs: ['trig-utga-1-11.html', 'trig-ilerhiill-2-11.html', 'trig-zavsar-3-11.html'] },
+          { name: '6.3 Тригонометр адилтгалууд', slugs: ['trig-adiltgal-1-11.html', 'trig-adiltgal-2-11.html'] },
+          { name: 'VI бүлэг — Жишиг ба шалгалт', slugs: ['buleg6-jishig-1.html', 'buleg6-jishig-2.html', 'buleg6-shalgalt-1.html'] }
+        ];
+        for (const sub of subs6) {
+          let sgr = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='11-р анги' AND name=$1`, [sub.name]);
+          let sid;
+          if (sgr.rows.length) { sid = Number(sgr.rows[0].id); }
+          else {
+            const mx = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='11-р анги'`);
+            const ins = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('11-р анги',$1,$2,$3) RETURNING id`, [sub.name, mx.rows[0].p, pid6]);
+            sid = Number(ins.rows[0].id);
+          }
+          for (const slug of sub.slugs) {
+            await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + sid, slug]);
+          }
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_buleg6_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
       // Slug тус бүрээр (name|||slug) хосоор мөрддөг: байгаа дэд бүлэгт шинэ slug орно, гэхдээ
       // бүхэл дэд бүлгийг устгасан/нэр сольсныг хүндэтгэж дахин үүсгэхгүй.
       for (const add of ADDITIONS) {

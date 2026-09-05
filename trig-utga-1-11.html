@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Тусгай ба том өнцгийн утга (11-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<style>
+  :root{--purple:#7B52EE;--purple2:#A855F7;--ink:#1a1030;--soft:#7a7390}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:var(--ink);background:#eceaf3;padding:16px;line-height:1.5}
+  .bar{max-width:820px;margin:0 auto 14px;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
+  .btn{font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.6rem 1.3rem;font-size:.9rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2));box-shadow:0 6px 16px -6px rgba(123,82,238,.6)}
+  .btn:hover{filter:brightness(1.06)} .btn.refresh{background:linear-gradient(135deg,#16a34a,#22c55e)}
+  .bar label{font-weight:700;color:var(--purple);display:flex;align-items:center;gap:6px;font-size:.88rem}
+  .sheet{background:#fff;width:210mm;max-width:100%;min-height:297mm;margin:0 auto;padding:12mm 14mm;box-shadow:0 12px 44px -18px rgba(0,0,0,.35)}
+  .head{text-align:center;border-bottom:2.5px solid var(--purple);padding-bottom:7px;margin-bottom:7px}
+  .head h1{font-size:16px;color:#5a32d6;font-weight:800}.head .sub{font-size:11px;color:var(--soft);margin-top:2px}
+  .meta{display:flex;justify-content:space-between;font-size:11.5px;margin:8px 2px 10px}.meta span{border-bottom:1px dotted #b3a9cf;padding:0 26px 2px 4px}
+  .rule{font-size:11px;color:var(--soft);background:transparent;border-left:3px solid #d9cff5;border-radius:8px;padding:8px 12px;margin-bottom:11px}
+  .rule b{color:#5a32d6}
+  .task{font-weight:800;color:#5a32d6;font-size:12.5px;margin:9px 0 7px;border-left:4px solid var(--purple2);padding-left:9px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:11px 20px}
+  .q{break-inside:avoid;page-break-inside:avoid}
+  .qh{display:flex;gap:7px;align-items:baseline}.ql{font-weight:800;color:var(--purple);font-size:13px;min-width:22px}.qm{font-size:13px}
+  .fig{text-align:center;margin:4px 0}
+  .wk{border:1.1px solid #e2daf5;border-radius:7px;background:linear-gradient(#fff,#fbf9ff);height:18mm;margin-top:5px}
+  .ans-page{margin-top:9mm;border-top:2px dashed #ddd;padding-top:7mm}.ans-page h2{font-size:15px;color:#5a32d6;margin-bottom:10px}
+  .ans-grid{display:grid;grid-template-columns:1fr;gap:9px;font-size:12px}.ans-grid .a{padding-bottom:8px;border-bottom:1px dotted #e6e0f5}.ans-grid .an{color:var(--purple);font-weight:800;margin-right:5px}
+  #answers{display:none}
+  @media print{body{background:#fff;padding:0}.bar{display:none}.sheet{box-shadow:none;width:auto;min-height:auto;padding:0;margin:0}@page{size:A4;margin:11mm}.ans-page{break-before:page}}
+</style>
+</head>
+<body>
+<div class="bar">
+  <button class="btn refresh" onclick="build()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>Шинэ бодлого</button>
+  <label><input type="checkbox" id="sw" onchange="layout()" checked> Бодолтын зай</label>
+  <label><input type="checkbox" id="sa" onchange="toggleAns()"> Хариу хавсаргах</label>
+  <button class="btn" onclick="window.print()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>Хэвлэх / PDF</button>
+</div>
+<div class="sheet" id="sheet"></div>
+<script>
+// ── VI бүлэг тригонометр — хуваалцах генераторын сан ──
+function rnd(a,b){return a+Math.floor(Math.random()*(b-a+1));}
+function nz(a,b){var v;do{v=rnd(a,b);}while(v===0);return v;}
+function pick(a){return a[rnd(0,a.length-1)];}
+function sg(n){return n>=0?'+'+n:''+n;}
+function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){var t=b;b=a%b;a=t;}return a||1;}
+function deg(a){return a+'^\\circ';}
+function fdeg(a){return a<0?'('+deg(a)+')':deg(a);} // тригонометр функцийн аргумент — сөрөг бол хаалттай
+function frTeX(n,d){if(d===0)return null;if(d<0){n=-n;d=-d;}var g=gcd(n,d);n/=g;d/=g;if(d===1)return ''+n;if(n<0)return '-\\dfrac{'+(-n)+'}{'+d+'}';return '\\dfrac{'+n+'}{'+d+'}';}
+function redDeg(a){return ((a%360)+360)%360;}
+function quadOf(a){var r=redDeg(a);if(r%90===0)return 0;if(r<90)return 1;if(r<180)return 2;if(r<270)return 3;return 4;}
+var SINs=[0,1,1,-1,-1], COSs=[0,1,-1,-1,1], TGs=[0,1,-1,1,-1];
+var QINEQ=['','0^\\circ<\\alpha<90^\\circ','90^\\circ<\\alpha<180^\\circ','180^\\circ<\\alpha<270^\\circ','270^\\circ<\\alpha<360^\\circ'];
+var QNAME=['тэнхлэг дээр','I','II','III','IV'];
+function axisName(a){var r=redDeg(a);return r===0?'эерэг $Ox$ тэнхлэг дээр':r===90?'эерэг $Oy$ тэнхлэг дээр':r===180?'сөрөг $Ox$ тэнхлэг дээр':'сөрөг $Oy$ тэнхлэг дээр';}
+// Тусгай өнцгийн утга (латекс + тоон)
+var R2='\\dfrac{\\sqrt2}{2}',R3='\\dfrac{\\sqrt3}{2}',HALF='\\dfrac{1}{2}',IT3='\\dfrac{1}{\\sqrt3}',S3='\\sqrt3';
+var n2=Math.SQRT2/2,n3=Math.sqrt(3)/2,nt3=1/Math.sqrt(3),ns3=Math.sqrt(3);
+var ST={
+0:{s:{t:'0',n:0},c:{t:'1',n:1},tg:{t:'0',n:0}},
+30:{s:{t:HALF,n:.5},c:{t:R3,n:n3},tg:{t:IT3,n:nt3}},
+45:{s:{t:R2,n:n2},c:{t:R2,n:n2},tg:{t:'1',n:1}},
+60:{s:{t:R3,n:n3},c:{t:HALF,n:.5},tg:{t:S3,n:ns3}},
+90:{s:{t:'1',n:1},c:{t:'0',n:0},tg:null},
+120:{s:{t:R3,n:n3},c:{t:'-'+HALF,n:-.5},tg:{t:'-'+S3,n:-ns3}},
+135:{s:{t:R2,n:n2},c:{t:'-'+R2,n:-n2},tg:{t:'-1',n:-1}},
+150:{s:{t:HALF,n:.5},c:{t:'-'+R3,n:-n3},tg:{t:'-'+IT3,n:-nt3}},
+180:{s:{t:'0',n:0},c:{t:'-1',n:-1},tg:{t:'0',n:0}},
+210:{s:{t:'-'+HALF,n:-.5},c:{t:'-'+R3,n:-n3},tg:{t:IT3,n:nt3}},
+225:{s:{t:'-'+R2,n:-n2},c:{t:'-'+R2,n:-n2},tg:{t:'1',n:1}},
+240:{s:{t:'-'+R3,n:-n3},c:{t:'-'+HALF,n:-.5},tg:{t:S3,n:ns3}},
+270:{s:{t:'-1',n:-1},c:{t:'0',n:0},tg:null},
+300:{s:{t:'-'+R3,n:-n3},c:{t:HALF,n:.5},tg:{t:'-'+S3,n:-ns3}},
+315:{s:{t:'-'+R2,n:-n2},c:{t:R2,n:n2},tg:{t:'-1',n:-1}},
+330:{s:{t:'-'+HALF,n:-.5},c:{t:R3,n:n3},tg:{t:'-'+IT3,n:-nt3}}
+};
+function spec(a){return ST[redDeg(a)]||null;}
+var SPEC=[0,30,45,60,90,120,135,150,180,210,225,240,270,300,315,330];
+var SPEC_NZ=[30,45,60,120,135,150,210,225,240,300,315,330]; // мөчид, тэнхлэг биш
+function fracPi(n,d){var g=gcd(n,d);n/=g;d/=g;if(d===1)return (n===1?'':n)+'\\pi';return '\\dfrac{'+(n===1?'':n)+'\\pi}{'+d+'}';}
+// Том/сөрөг тусгай өнцөг үүсгэх
+function bigSpec(){var base=pick(SPEC_NZ),k=pick([-2,-1,1,2,3,4]);return base+k*360;}
+function showRed(a){var r=redDeg(a),k=(a-r)/360;return deg(a)+'='+(k===0?'':(k>0?k+'\\cdot360^\\circ+':'-'+(-k)+'\\cdot360^\\circ+'))+deg(r);}
+
+// ══════ 6.1 ══════
+// WS1: эргэлт/давхацсан
+function g1_reduceCoterminal(){var a=bigSpec();var r=redDeg(a),k=(a-r)/360;
+ return {q:'$'+deg(a)+'$ өнцгийг $[0^\\circ;360^\\circ)$ завсарт багтах давхацсан өнцгөөр илэрхийл.',
+  a:'$'+deg(a)+'='+(k>0?k+'\\cdot360^\\circ':'('+k+')\\cdot360^\\circ')+'+'+deg(r)+'$ тул давхацсан өнцөг нь $'+deg(r)+'$.',key:'rc'+a};}
+function g1_coterminalList(){var a=pick(SPEC_NZ);
+ return {q:'$'+deg(a)+'$ өнцөгтэй давхацах өнцгүүдийг $'+deg(a)+'+360^\\circ\\cdot n$ ($n=-2,-1,0,1,2$) хэлбэрээр бич.',
+  a:'$'+[a-720,a-360,a,a+360,a+720].map(deg).join(',\\ ')+'$',key:'cl'+a};}
+function g1_consecutiveRot(){var al=pick(SPEC_NZ),be=pick(SPEC_NZ);var g=redDeg(al+be);
+ return {q:'$A(1;0)$ цэгийг эхлээд $'+deg(al)+'$, дараа нь $'+deg(be)+'$ өнцгөөр эргүүлэв. Энэ нь $A$-г $\\gamma$ өнцгөөр нэг удаа эргүүлсэнтэй адил бол $[0^\\circ;360^\\circ)$ доторх $\\gamma$-г ол.',
+  a:'$\\gamma='+deg(al)+'+'+deg(be)+'='+deg(al+be)+(al+be>=360?'\\equiv'+deg(g)+'\\ (-360^\\circ)':'')+'$',key:'cr'+al+be};}
+// WS2: мөч
+function g1_quadrantBasic(){var a=pick([25,40,55,75,110,125,130,155,170,200,215,235,250,290,305,320,340,355]);var q=quadOf(a);
+ return {q:'$'+deg(a)+'$ өнцөг аль мөчид орших вэ?',a:'$'+QINEQ[q]+'$ тул $'+deg(a)+'$ нь <b>'+QNAME[q]+'</b> мөчид оршино.',key:'qb'+a};}
+function g1_quadrantReduce(){var a;do{a=pick([510,660,750,930,1150,1170,1380,1470,-30,-150,-210,-300,-580,-765,1650,2050,2205])}while(quadOf(a)===0);var r=redDeg(a),k=(a-r)/360,q=quadOf(a);
+ return {q:'$'+deg(a)+'$ өнцөг аль мөчид орших вэ?',
+  a:'$'+deg(a)+'='+(k>=0?k+'\\cdot360^\\circ':'('+k+')\\cdot360^\\circ')+'+'+deg(r)+'$; $'+QINEQ[q]+'$ тул <b>'+QNAME[q]+'</b> мөч.',key:'qr'+a};}
+function g1_axisOrQuad(){var onAxis=pick([true,false,false]);var a;
+ if(onAxis)a=pick([90,180,270,360,-90,-180,450,540,-270,720]);else a=pick([60,120,210,300,-45,-120,405,500,840,-200]);
+ var q=quadOf(a),r=redDeg(a);
+ return {q:'$'+deg(a)+'$ өнцөг тэнхлэг дээр үү, эсвэл аль мөчид орших вэ?',
+  a:q===0?('$'+deg(a)+'\\equiv'+deg(r)+'$ — '+axisName(a)+' оршино (аль ч мөчид үл хамаарна).'):('$'+deg(a)+'\\equiv'+deg(r)+'$, $'+QINEQ[q]+'$ тул <b>'+QNAME[q]+'</b> мөч.'),key:'aq'+a};}
+// WS3: тэмдэг
+function g1_signsOfAngle(){var a;do{a=pick([40,110,130,156,200,220,250,290,320,340,410,500,-30,-125,-160,-250,930,1380,2050,220])}while(quadOf(a)===0);var q=quadOf(a),r=redDeg(a);
+ function s(x){return x>0?'>0':'<0';}
+ return {q:'$\\alpha='+deg(a)+'$ бол $\\sin\\alpha,\\ \\cos\\alpha,\\ \\operatorname{tg}\\alpha$-ийн тэмдгийг тодорхойл.',
+  a:'$'+deg(a)+'\\equiv'+deg(r)+'$ ('+QNAME[q]+' мөч) тул $\\sin\\alpha'+s(SINs[q])+',\\ \\cos\\alpha'+s(COSs[q])+',\\ \\operatorname{tg}\\alpha'+s(TGs[q])+'$.',key:'so'+a};}
+function g1_quadFromSigns(){var q=rnd(1,4);function s(x){return x>0?'>0':'<0';}
+ return {q:'$\\sin\\alpha'+s(SINs[q])+'$ ба $\\cos\\alpha'+s(COSs[q])+'$ бол $\\alpha$ аль мөчид орших вэ?',
+  a:'$\\sin\\alpha$ нь ординат $(y)$, $\\cos\\alpha$ нь абсцисс $(x)$-ын тэмдгээр тодорхойлогдох тул нөхцөлд тохирох нь <b>'+QNAME[q]+'</b> мөч ($'+QINEQ[q]+'$).',key:'qs'+q};}
+function g1_signProduct(){var fns=['\\sin','\\cos','\\operatorname{tg}'],idx=['s','c','tg'];
+ function val(i,a){var q=quadOf(a);return i==='s'?SINs[q]:i==='c'?COSs[q]:TGs[q];}
+ var i1=pick([0,1,2]),i2=pick([0,1,2]);var a1,a2;do{a1=pick([40,110,130,156,200,220,250,290,320,340,-40,-160,-266,-190,-150,-10,20,170])}while(quadOf(a1)===0);do{a2=pick([40,110,130,156,200,220,250,290,320,340,-40,-160,-266,-190,-150,-10,20,170])}while(quadOf(a2)===0);
+ var v1=val(idx[i1],a1),v2=val(idx[i2],a2),p=v1*v2;
+ return {q:'$'+fns[i1]+fdeg(a1)+'\\cdot'+fns[i2]+fdeg(a2)+'$ илэрхийллийн тэмдгийг ол.',
+  a:'$'+fns[i1]+fdeg(a1)+(v1>0?'>0':'<0')+'$ ('+QNAME[quadOf(a1)]+'), $'+fns[i2]+fdeg(a2)+(v2>0?'>0':'<0')+'$ ('+QNAME[quadOf(a2)]+') тул үржвэр нь $'+(p>0?'>0':'<0')+'$.',key:'sp'+i1+a1+i2+a2};}
+// WS4: координат ба нум/сектор
+function g1_unitCoord(){var a=pick(SPEC);var S=spec(a);
+ return {q:'$A(1;0)$ цэгийг $'+deg(a)+'$ өнцгөөр эргүүлэхэд нэгж тойрог дээр гарах цэгийн координатыг ол.',
+  a:'Координат нь $(\\cos'+deg(a)+';\\ \\sin'+deg(a)+')=\\left('+S.c.t+';\\ '+S.s.t+'\\right)$.',key:'uc'+a};}
+var PT=[[3,4,5],[4,3,5],[6,8,10],[8,6,10],[5,12,13],[12,5,13]];
+function g1_pointTrig(){var T=pick(PT);var x=T[0]*pick([1,-1]),y=T[1]*pick([1,-1]),c=T[2];
+ return {q:'Өнцгийн эцсийн (терминал) талд нь $P('+x+';\\ '+y+')$ цэг оршдог бол $\\sin\\alpha,\\ \\cos\\alpha,\\ \\operatorname{tg}\\alpha$-г ол.',
+  a:'$r=\\sqrt{x^2+y^2}=\\sqrt{'+(x*x+y*y)+'}='+c+'$; $\\sin\\alpha=\\dfrac{y}{r}='+frTeX(y,c)+',\\ \\cos\\alpha=\\dfrac{x}{r}='+frTeX(x,c)+',\\ \\operatorname{tg}\\alpha=\\dfrac{y}{x}='+frTeX(y,x)+'$',
+  key:'ptg'+x+','+y, chk:function(){return {s:y/c,co:x/c};}};}
+function g1_whichCoordZero(){var mode=pick(['zero','range','tgUndef']);
+ if(mode==='zero'){var a=pick([0,90,180,270,360]);var S=spec(a);
+   return {q:'$'+deg(a)+'$ өнцөгт харгалзах нэгж тойргийн цэгийн аль координат нь $0$-тэй тэнцүү вэ?',
+    a:'Цэг $\\left('+S.c.t+';\\ '+S.s.t+'\\right)$ тул '+(S.c.n===0?'абсцисс ($\\cos'+deg(a)+'=0$)':'ординат ($\\sin'+deg(a)+'=0$)')+' нь $0$.',key:'wz'+a};}
+ if(mode==='range'){var fn=pick([['\\sin\\alpha','синус'],['\\cos\\alpha','косинус']]);
+   return {q:'$'+fn[0]+'$ ('+fn[1]+') ямар завсарт утга авах вэ?',a:'$-1\\le '+fn[0]+'\\le 1$, өөрөөр $'+fn[0]+'\\in[-1;1]$.',key:'rg'+fn[1]};}
+ return {q:'$\\operatorname{tg}\\alpha$ аль өнцгүүдэд тодорхойлогдохгүй вэ?',a:'$\\cos\\alpha=0$, өөрөөр $\\alpha=90^\\circ+180^\\circ\\cdot k\\ (k\\in\\mathbb{Z})$ буюу $\\pm90^\\circ,\\pm270^\\circ,\\dots$ үед.',key:'tu'};}
+function g1_arcSector(){var mode=pick(['arc','sec','secR','arcA']);var Rs=[2,3,4,5,6,10,12],As=[30,45,60,90,120,135,150,180];
+ if(mode==='arc'){var R=pick(Rs),a=pick(As);return {q:'$R='+R+'$ радиустай тойргийн $'+deg(a)+'$ төв өнцөгт тохирох нумын уртыг ол.',a:'$l=\\dfrac{\\pi R\\alpha}{180^\\circ}=\\dfrac{\\pi\\cdot'+R+'\\cdot'+a+'}{180}='+fracPi(R*a,180)+'$',key:'arc'+R+a};}
+ if(mode==='sec'){var R=pick(Rs),a=pick(As);return {q:'$R='+R+'$ радиустай тойргийн $'+deg(a)+'$ төв өнцгийн секторын талбайг ол.',a:'$S=\\dfrac{\\pi R^2\\alpha}{360^\\circ}=\\dfrac{\\pi\\cdot'+R*R+'\\cdot'+a+'}{360}='+fracPi(R*R*a,360)+'$',key:'sec'+R+a};}
+ if(mode==='secR'){var R=pick([2,3,4,5,6,10]),a=pick([40,60,90,120,180]);var Sp=R*R*a;if(Sp%360!==0)return null;var Spr=Sp/360;
+   return {q:'Секторын төв өнцөг $'+deg(a)+'$, талбай нь $'+(Spr===1?'':Spr)+'\\pi$ бол тойргийн радиусыг ол.',a:'$\\dfrac{\\pi R^2\\cdot'+a+'}{360}='+(Spr===1?'':Spr)+'\\pi\\Rightarrow R^2='+(360*Spr/a)+'\\Rightarrow R='+Math.sqrt(360*Spr/a)+'$',key:'secR'+R+a};}
+ var R=pick([2,3,4,5,6,10,12]),a=pick([30,45,60,90,120,180]);var Lp=R*a;if(Lp%180!==0)return null;var Lpr=Lp/180;
+ return {q:'$R='+R+'$ радиустай тойргийн нумын урт $'+(Lpr===1?'':Lpr)+'\\pi$ бол төв өнцгийг ($^\\circ$) ол.',a:'$\\dfrac{\\pi\\cdot'+R+'\\cdot\\alpha}{180}='+(Lpr===1?'':Lpr)+'\\pi\\Rightarrow \\alpha=\\dfrac{180\\cdot'+Lpr+'}{'+R+'}='+deg(180*Lpr/R)+'$',key:'arcA'+R+a};}
+
+// ══════ 6.2 ══════
+function g2_specialValue(){var fn=pick(['s','c','tg']);var a;
+ if(fn==='tg'){do{a=bigSpec();}while(spec(a).tg===null);}else a=bigSpec();
+ var S=spec(a),r=redDeg(a),nm={s:'\\sin',c:'\\cos',tg:'\\operatorname{tg}'}[fn],val=S[fn].t;
+ return {q:'$'+nm+fdeg(a)+'$-г ол.',a:'$'+nm+fdeg(a)+'='+nm+deg(r)+'='+val+'$',key:'sv'+fn+a};}
+function g2_bigReduce(){var a;do{a=bigSpec();}while(spec(a).tg===null);var S=spec(a),r=redDeg(a),k=(a-r)/360;
+ return {q:'$\\alpha='+deg(a)+'$ бол $\\sin\\alpha,\\ \\cos\\alpha,\\ \\operatorname{tg}\\alpha$-г ол.',
+  a:'$'+deg(a)+'='+(k>=0?k+'\\cdot360^\\circ':'('+k+')\\cdot360^\\circ')+'+'+deg(r)+'$ тул $\\sin\\alpha='+S.s.t+',\\ \\cos\\alpha='+S.c.t+',\\ \\operatorname{tg}\\alpha='+S.tg.t+'$.',key:'br'+a};}
+function g2_negValue(){var fn=pick(['s','c','tg']);var base=pick(SPEC_NZ),a=-base;
+ if(fn==='tg'&&spec(a).tg===null)return null;
+ var S=spec(a),r=redDeg(a),nm={s:'\\sin',c:'\\cos',tg:'\\operatorname{tg}'}[fn];
+ return {q:'$'+nm+'('+deg(a)+')$-г ол.',a:'$'+nm+'('+deg(a)+')='+nm+deg(r)+'='+S[fn].t+'$',key:'nv'+fn+a};}
+// Илэрхийллийн утга — тоон chk-тэй бүрдүүлсэн сан
+var EXPR=[
+ {q:'4\\sin0^\\circ+5\\cos0^\\circ+3\\operatorname{tg}180^\\circ',a:'5',chk:function(){return 4*Math.sin(0)+5*Math.cos(0)+3*Math.tan(Math.PI);}},
+ {q:'\\operatorname{tg}360^\\circ-\\sin270^\\circ-\\cos180^\\circ',a:'2',chk:function(){return Math.tan(2*Math.PI)-Math.sin(3*Math.PI/2)-Math.cos(Math.PI);}},
+ {q:'2\\sin90^\\circ+3\\cos180^\\circ-\\operatorname{tg}0^\\circ',a:'-1',chk:function(){return 2*Math.sin(Math.PI/2)+3*Math.cos(Math.PI)-Math.tan(0);}},
+ {q:'\\sin30^\\circ+\\cos60^\\circ',a:'1',chk:function(){return Math.sin(Math.PI/6)+Math.cos(Math.PI/3);}},
+ {q:'2\\sin30^\\circ+2\\cos60^\\circ',a:'2',chk:function(){return 2*Math.sin(Math.PI/6)+2*Math.cos(Math.PI/3);}},
+ {q:'4\\operatorname{tg}60^\\circ\\cdot\\sin60^\\circ',a:'6',chk:function(){return 4*Math.tan(Math.PI/3)*Math.sin(Math.PI/3);}},
+ {q:'4\\cos60^\\circ+\\sqrt3\\cos30^\\circ',a:'\\dfrac{7}{2}',chk:function(){return 4*Math.cos(Math.PI/3)+Math.sqrt(3)*Math.cos(Math.PI/6);}},
+ {q:'\\sqrt3\\,\\operatorname{tg}30^\\circ+\\sqrt2\\cos(-45^\\circ)',a:'2',chk:function(){return Math.sqrt(3)*Math.tan(Math.PI/6)+Math.sqrt(2)*Math.cos(-Math.PI/4);}},
+ {q:'\\sin150^\\circ+\\cos120^\\circ+\\operatorname{tg}135^\\circ',a:'-1',chk:function(){return Math.sin(5*Math.PI/6)+Math.cos(2*Math.PI/3)+Math.tan(3*Math.PI/4);}},
+ {q:'6\\sin30^\\circ-4\\operatorname{tg}45^\\circ',a:'-1',chk:function(){return 6*Math.sin(Math.PI/6)-4*Math.tan(Math.PI/4);}},
+ {q:'2\\cos^2 30^\\circ+2\\sin^2 30^\\circ',a:'2',chk:function(){return 2*Math.cos(Math.PI/6)**2+2*Math.sin(Math.PI/6)**2;}},
+ {q:'\\operatorname{tg}120^\\circ\\cdot\\cos60^\\circ+\\sin60^\\circ',a:'0',chk:function(){return Math.tan(2*Math.PI/3)*Math.cos(Math.PI/3)+Math.sin(Math.PI/3);}},
+ {q:'\\sqrt2\\sin45^\\circ+2\\cos180^\\circ',a:'-1',chk:function(){return Math.sqrt(2)*Math.sin(Math.PI/4)+2*Math.cos(Math.PI);}},
+ {q:'\\operatorname{tg}45^\\circ+\\operatorname{tg}135^\\circ',a:'0',chk:function(){return Math.tan(Math.PI/4)+Math.tan(3*Math.PI/4);}}
+];
+function g2_expr(){var e=pick(EXPR);return {q:'$'+e.q+'$ илэрхийллийн утгыг ол.',a:'$'+e.q+'='+e.a+'$',key:'ex'+e.q,chk:e.chk,an:e.a};}
+[0,1,2,3,4,8,9,13].forEach(function(i){EXPR[i].tier=1;});[5,10,11].forEach(function(i){EXPR[i].tier=2;});[6,7,12].forEach(function(i){EXPR[i].tier=3;});
+function exprByTier(tr){var e=pick(EXPR.filter(function(x){return x.tier===tr;}));return {q:'$'+e.q+'$ илэрхийллийн утгыг ол.',a:'$'+e.q+'='+e.a+'$',key:'ex'+e.q,chk:e.chk,an:e.a};}
+function g2_expr1(){return exprByTier(1);}
+function g2_expr2(){return exprByTier(2);}
+function g2_expr3(){return exprByTier(3);}
+function g2_rangePossible(){var fn=pick(['\\sin','\\cos']);var vals=[['\\dfrac{6}{5}',1.2],['\\dfrac{\\sqrt3}{2}',n3],['-\\dfrac{1}{2}',-.5],['\\sqrt3',ns3],['-\\dfrac{\\sqrt{15}}{4}',-Math.sqrt(15)/4],['-6.2',-6.2],['\\dfrac{1-\\sqrt3}{2}',(1-Math.sqrt(3))/2],['\\dfrac{1+\\sqrt3}{2}',(1+Math.sqrt(3))/2],['\\dfrac{1}{\\sqrt2}',1/Math.SQRT2]];var v=pick(vals);var ok=Math.abs(v[1])<=1+1e-9;
+ return {q:'$'+fn+'\\alpha='+v[0]+'$ байж болох уу? Учрыг тайлбарла.',
+  a:ok?('$-1\\le'+fn+'\\alpha\\le1$ ба $\\left|'+v[0]+'\\right|\\le1$ тул <b>болно</b>.'):('$\\left|'+v[0]+'\\right|>1$ тул $'+fn+'\\alpha\\in[-1;1]$ нөхцөлийг зөрчсөн — <b>болохгүй</b>.'),key:'rp'+fn+v[0]};}
+function coefStr(k,term){if(k===1)return term;if(k===-1)return '-'+term;return k+term;}
+function g2_maxMin(){var mode=pick(['lin','coef','sq']),fn=pick(['\\sin','\\cos']),fnv=function(t){return fn==='\\sin'?Math.sin(t):Math.cos(t);};
+ if(mode==='lin'){var b=pick([1,2,3,4,5]),op=pick(['+','-']);
+   return {q:'$'+b+op+fn+'\\alpha$ илэрхийллийн хамгийн их ба хамгийн бага утгыг ол.',
+    a:'$'+fn+'\\alpha\\in[-1;1]$ тул хамгийн их $='+(b+1)+'$, хамгийн бага $='+(b-1)+'$.',key:'mmL'+b+op+fn,mn:b-1,mx:b+1,chk:function(t){return b+(op==='+'?1:-1)*fnv(t);}};}
+ if(mode==='coef'){var k=nz(-4,4),b=nz(-5,5),mx=b+Math.abs(k),mn=b-Math.abs(k);
+   return {q:'$'+coefStr(k,fn+'\\alpha')+sg(b)+'$ илэрхийллийн хамгийн их ба хамгийн бага утгыг ол.',
+    a:'$'+fn+'\\alpha\\in[-1;1]$ тул $'+coefStr(k,fn+'\\alpha')+'\\in[-'+Math.abs(k)+';\\ '+Math.abs(k)+']$ хэлбэлзэх бөгөөд хамгийн их $='+mx+'$, хамгийн бага $='+mn+'$.',key:'mmC'+k+'.'+b+fn,mn:mn,mx:mx,chk:function(t){return k*fnv(t)+b;}};}
+ var a=pick([1,2,3,4]),op=pick(['+','-']),mx=op==='+'?a+1:a,mn=op==='+'?a:a-1;
+ return {q:'$'+a+op+fn+'^2\\alpha$ илэрхийллийн хамгийн их ба хамгийн бага утгыг ол.',
+  a:'$'+fn+'^2\\alpha\\in[0;1]$ тул хамгийн их $='+mx+'$, хамгийн бага $='+mn+'$.',key:'mmS'+a+op+fn,mn:mn,mx:mx,chk:function(t){var v=fnv(t);return a+(op==='+'?1:-1)*v*v;}};}
+function g2_tgPossible(){var vals=[['-2',-2],['\\sqrt3',ns3],['\\dfrac{5}{3}',5/3],['-100',-100],['\\dfrac{1}{\\sqrt3}',nt3]];var v=pick(vals);
+ return {q:'$\\operatorname{tg}\\alpha='+v[0]+'$ байж болох уу?',a:'$\\operatorname{tg}\\alpha$ дурын бодит утга авах тул <b>болно</b> ($\\operatorname{tg}\\alpha\\in(-\\infty;+\\infty)$).',key:'tp'+v[0]};}
+
+// ══════ 6.3 ══════
+var SIMP_B=[
+ {q:'1-\\sin^2\\alpha',a:'\\cos^2\\alpha',chk:function(x){return [1-Math.sin(x)**2,Math.cos(x)**2];}},
+ {q:'\\cos^2\\alpha-1',a:'-\\sin^2\\alpha',chk:function(x){return [Math.cos(x)**2-1,-(Math.sin(x)**2)];}},
+ {q:'\\sin^2\\alpha+2\\cos^2\\alpha-1',a:'\\cos^2\\alpha',chk:function(x){return [Math.sin(x)**2+2*Math.cos(x)**2-1,Math.cos(x)**2];}},
+ {q:'\\cos^2\\alpha+2\\sin^2\\alpha-1',a:'\\sin^2\\alpha',chk:function(x){return [Math.cos(x)**2+2*Math.sin(x)**2-1,Math.sin(x)**2];}},
+ {q:'(1-\\cos\\alpha)(1+\\cos\\alpha)',a:'\\sin^2\\alpha',chk:function(x){return [(1-Math.cos(x))*(1+Math.cos(x)),Math.sin(x)**2];}},
+ {q:'(\\sin\\alpha-1)(\\sin\\alpha+1)',a:'-\\cos^2\\alpha',chk:function(x){return [(Math.sin(x)-1)*(Math.sin(x)+1),-(Math.cos(x)**2)];}},
+ {q:'\\cos^2\\alpha+(1-\\cos^2\\alpha)',a:'1',chk:function(x){return [Math.cos(x)**2+(1-Math.cos(x)**2),1];}}
+];
+var SIMP_T=[
+ {q:'1+\\operatorname{tg}^2\\alpha',a:'\\dfrac{1}{\\cos^2\\alpha}',chk:function(x){return [1+Math.tan(x)**2,1/Math.cos(x)**2];}},
+ {q:'(1-\\operatorname{tg}\\alpha)(1+\\operatorname{tg}\\alpha)',a:'1-\\operatorname{tg}^2\\alpha',chk:function(x){return [(1-Math.tan(x))*(1+Math.tan(x)),1-Math.tan(x)**2];}},
+ {q:'\\cos^2\\alpha\\cdot\\operatorname{tg}^2\\alpha',a:'\\sin^2\\alpha',chk:function(x){return [Math.cos(x)**2*Math.tan(x)**2,Math.sin(x)**2];}},
+ {q:'\\dfrac{\\sin\\alpha}{\\operatorname{tg}\\alpha}',a:'\\cos\\alpha',chk:function(x){return [Math.sin(x)/Math.tan(x),Math.cos(x)];}},
+ {q:'\\operatorname{tg}\\alpha\\cdot\\cos\\alpha',a:'\\sin\\alpha',chk:function(x){return [Math.tan(x)*Math.cos(x),Math.sin(x)];}}
+];
+var SIMP_F=[
+ {q:'\\dfrac{\\cos\\alpha}{1-\\sin^2\\alpha}',a:'\\dfrac{1}{\\cos\\alpha}',chk:function(x){return [Math.cos(x)/(1-Math.sin(x)**2),1/Math.cos(x)];}},
+ {q:'\\dfrac{1-\\cos^2\\alpha}{\\sin\\alpha}',a:'\\sin\\alpha',chk:function(x){return [(1-Math.cos(x)**2)/Math.sin(x),Math.sin(x)];}},
+ {q:'\\dfrac{\\sin^2\\alpha}{1-\\cos\\alpha}',a:'1+\\cos\\alpha',chk:function(x){return [Math.sin(x)**2/(1-Math.cos(x)),1+Math.cos(x)];}},
+ {q:'\\dfrac{(1+\\operatorname{tg}\\alpha)^2-\\operatorname{tg}^2\\alpha}{1+2\\operatorname{tg}\\alpha}',a:'1',chk:function(x){return [((1+Math.tan(x))**2-Math.tan(x)**2)/(1+2*Math.tan(x)),1];}},
+ {q:'1-\\dfrac{\\sin\\alpha\\cos\\alpha}{\\operatorname{tg}\\alpha}',a:'\\sin^2\\alpha',chk:function(x){return [1-(Math.sin(x)*Math.cos(x))/Math.tan(x),Math.sin(x)**2];}},
+ {q:'\\dfrac{\\sin^2\\alpha-\\cos^2\\alpha+1}{\\sin^2\\alpha}',a:'2',chk:function(x){return [(Math.sin(x)**2-Math.cos(x)**2+1)/Math.sin(x)**2,2];}}
+];
+function g3_simpBasic(){var e=pick(SIMP_B);return {q:'$'+e.q+'$ илэрхийллийг хялбарчил.',a:'$'+e.q+'='+e.a+'$',key:'sb'+e.q,chk:e.chk};}
+function g3_simpTg(){var e=pick(SIMP_T);return {q:'$'+e.q+'$ илэрхийллийг хялбарчил.',a:'$'+e.q+'='+e.a+'$',key:'st'+e.q,chk:e.chk};}
+function g3_simpFrac(){var e=pick(SIMP_F);return {q:'$'+e.q+'$ илэрхийллийг хялбарчил.',a:'$'+e.q+'='+e.a+'$',key:'sf'+e.q,chk:e.chk};}
+var TRIP=[[3,4,5],[5,12,13],[8,15,17],[7,24,25],[20,21,29],[9,40,41]];
+function g3_givenValue(){var mode=pick(['sin','cos','tg']);var T=pick(TRIP),a=T[0],b=T[1],c=T[2];var q=rnd(1,4);
+ var sinv=SINs[q]*a/c, cosv=COSs[q]*b/c; // tg=sin/cos
+ var sinT=frTeX(SINs[q]*a,c), cosT=frTeX(COSs[q]*b,c), tgT=frTeX(SINs[q]*a*1, COSs[q]*b*1); // a/b sign
+ // tg = (SINs[q]*a/c)/(COSs[q]*b/c)=SINs[q]*a/(COSs[q]*b)
+ tgT=frTeX(SINs[q]*a, COSs[q]*b);
+ if(mode==='sin'){return {q:'$\\sin\\alpha='+sinT+',\\ '+QINEQ[q]+'$ бол $\\cos\\alpha,\\ \\operatorname{tg}\\alpha$-г ол.',
+   a:'$\\cos\\alpha=\\pm\\sqrt{1-\\sin^2\\alpha}$; '+QNAME[q]+' мөчид $\\cos\\alpha='+cosT+'$, $\\operatorname{tg}\\alpha=\\dfrac{\\sin\\alpha}{\\cos\\alpha}='+tgT+'$.',key:'gv s'+T+q,chk:function(){return {s:sinv,c:cosv};}};}
+ if(mode==='cos'){return {q:'$\\cos\\alpha='+cosT+',\\ '+QINEQ[q]+'$ бол $\\sin\\alpha,\\ \\operatorname{tg}\\alpha$-г ол.',
+   a:'$\\sin\\alpha=\\pm\\sqrt{1-\\cos^2\\alpha}$; '+QNAME[q]+' мөчид $\\sin\\alpha='+sinT+'$, $\\operatorname{tg}\\alpha='+tgT+'$.',key:'gv c'+T+q,chk:function(){return {s:sinv,c:cosv};}};}
+ return {q:'$\\operatorname{tg}\\alpha='+tgT+',\\ '+QINEQ[q]+'$ бол $\\sin\\alpha,\\ \\cos\\alpha$-г ол.',
+   a:''+QNAME[q]+' мөчид $\\cos\\alpha='+cosT+',\\ \\sin\\alpha='+sinT+'$ ($\\sin^2\\alpha+\\cos^2\\alpha=1$).',key:'gv tg'+T+q,chk:function(){return {s:sinv,c:cosv};}};}
+function g3_existCheck(){var yes=pick([true,false]);
+ if(yes){var T=pick(TRIP);var s=frTeX(T[0],T[2]),c=frTeX(T[1],T[2]);
+   return {q:'$\\sin\\alpha='+s+',\\ \\cos\\alpha='+c+'$ байх $\\alpha$ өнцөг олдох уу?',
+    a:'$\\sin^2\\alpha+\\cos^2\\alpha=\\dfrac{'+(T[0]*T[0])+'+'+(T[1]*T[1])+'}{'+(T[2]*T[2])+'}=1$ тул <b>олдоно</b>.',key:'ecY'+T,chk:function(){return (T[0]*T[0]+T[1]*T[1])/(T[2]*T[2]);}};}
+ var q=pick([3,4]),r=pick([1,2]);var sN=q,sD=4,cN=r,cD=4; // sin=q/4, cos=r/4 ; sum q²+r² over 16
+ var sum=(sN*sN+cN*cN);
+ return {q:'$\\sin\\alpha='+frTeX(sN,sD)+',\\ \\cos\\alpha='+frTeX(cN,cD)+'$ байх $\\alpha$ өнцөг олдох уу?',
+   a:'$\\sin^2\\alpha+\\cos^2\\alpha=\\dfrac{'+(sN*sN)+'+'+(cN*cN)+'}{16}=\\dfrac{'+sum+'}{16}\\ne1$ тул <b>олдохгүй</b>.',key:'ecN'+sN+cN,chk:function(){return sum/16;}};}
+function g3_sumProd(){var ps=[[4,5],[3,5],[7,5],[1,5],[6,5]];var P=pick(ps),p=P[0],d=P[1];// s=p/d, |s|<=√2
+ var prodN=p*p-d*d, prodD=2*d*d;
+ return {q:'$\\sin\\alpha+\\cos\\alpha='+frTeX(p,d)+'$ бол $\\sin\\alpha\\cos\\alpha$-г ол.',
+  a:'$(\\sin\\alpha+\\cos\\alpha)^2=1+2\\sin\\alpha\\cos\\alpha$ тул $\\sin\\alpha\\cos\\alpha=\\dfrac{\\left('+frTeX(p,d)+'\\right)^2-1}{2}='+frTeX(prodN,prodD)+'$',key:'spd'+p+d,chk:function(){var s=p/d;return (s*s-1)/2;}};}
+function g3_param(){var a=nz(2,4),b=nz(2,4);if(a===b)b=a+1;
+ return {q:'$x='+a+'\\cos\\alpha,\\ y='+b+'\\sin\\alpha$ бол $x,\\ y$-ийн хамаарлыг ол ($\\alpha$-г зайлуул).',
+  a:'$\\cos\\alpha=\\dfrac{x}{'+a+'},\\ \\sin\\alpha=\\dfrac{y}{'+b+'}$; $\\sin^2\\alpha+\\cos^2\\alpha=1\\Rightarrow \\dfrac{x^2}{'+a*a+'}+\\dfrac{y^2}{'+b*b+'}=1$ буюу $'+b*b+'x^2+'+a*a+'y^2='+a*a*b*b+'$.',key:'pm'+a+b};}
+var PROVE=[
+ {q:'(2+\\sin\\alpha)(2-\\sin\\alpha)+(2-\\cos\\alpha)(2+\\cos\\alpha)=7',a:'Зүүн тал $=4-\\sin^2\\alpha+4-\\cos^2\\alpha=8-(\\sin^2\\alpha+\\cos^2\\alpha)=8-1=7$.',chk:function(x){return (2+Math.sin(x))*(2-Math.sin(x))+(2-Math.cos(x))*(2+Math.cos(x));},v:7},
+ {q:'\\sin^4\\alpha-\\cos^4\\alpha=\\sin^2\\alpha-\\cos^2\\alpha',a:'Зүүн тал $=(\\sin^2\\alpha-\\cos^2\\alpha)(\\sin^2\\alpha+\\cos^2\\alpha)=(\\sin^2\\alpha-\\cos^2\\alpha)\\cdot1$.',chk:function(x){return Math.sin(x)**4-Math.cos(x)**4-(Math.sin(x)**2-Math.cos(x)**2);},v:0},
+ {q:'(\\sin\\alpha+\\cos\\alpha)^2+(\\sin\\alpha-\\cos\\alpha)^2=2',a:'Задлахад $=\\sin^2\\alpha+2\\sin\\alpha\\cos\\alpha+\\cos^2\\alpha+\\sin^2\\alpha-2\\sin\\alpha\\cos\\alpha+\\cos^2\\alpha=2(\\sin^2\\alpha+\\cos^2\\alpha)=2$.',chk:function(x){return (Math.sin(x)+Math.cos(x))**2+(Math.sin(x)-Math.cos(x))**2;},v:2},
+ {q:'(1+\\operatorname{tg}^2\\alpha)\\cos^2\\alpha=1',a:'$1+\\operatorname{tg}^2\\alpha=\\dfrac{1}{\\cos^2\\alpha}$ тул зүүн тал $=\\dfrac{1}{\\cos^2\\alpha}\\cdot\\cos^2\\alpha=1$.',chk:function(x){return (1+Math.tan(x)**2)*Math.cos(x)**2;},v:1},
+ {q:'\\dfrac{\\sin\\alpha}{1+\\cos\\alpha}+\\dfrac{1+\\cos\\alpha}{\\sin\\alpha}=\\dfrac{2}{\\sin\\alpha}',a:'Зүүн тал $=\\dfrac{\\sin^2\\alpha+(1+\\cos\\alpha)^2}{\\sin\\alpha(1+\\cos\\alpha)}=\\dfrac{2+2\\cos\\alpha}{\\sin\\alpha(1+\\cos\\alpha)}=\\dfrac{2(1+\\cos\\alpha)}{\\sin\\alpha(1+\\cos\\alpha)}=\\dfrac{2}{\\sin\\alpha}$.',chk:function(x){return Math.sin(x)/(1+Math.cos(x))+(1+Math.cos(x))/Math.sin(x)-2/Math.sin(x);},v:0}
+];
+function g3_prove(){var e=pick(PROVE);return {q:'$'+e.q+'$ адилтгалыг батал.',a:e.a,key:'pr'+e.q,chk:e.chk,pv:e.v};}
+// Нэгэн төрлийн (homogeneous) илэрхийлэл — tgα-аар
+function hlin(p,q){function tp(k,term){if(k===0)return '';if(k===1)return '+'+term;if(k===-1)return '-'+term;return (k>0?'+':'')+k+term;}var s=tp(p,'\\sin\\alpha')+tp(q,'\\cos\\alpha');return s.replace(/^\+/,'')||'0';}
+function tgLin(p,c){function tp(k,term){if(k===0)return '';if(k===1)return '+'+term;if(k===-1)return '-'+term;return (k>0?'+':'')+k+term;}var s=tp(p,'\\operatorname{tg}\\alpha')+(c>0?'+'+c:c<0?''+c:'');return s.replace(/^\+/,'')||'0';}
+function g3_homogeneous(){var m=nz(-3,3),p=nz(-3,3),q=nz(-3,3),r=nz(-3,3),s=nz(-3,3);var den=r*m+s;if(den===0)return null;var num=p*m+q;
+ return {q:'$\\operatorname{tg}\\alpha='+m+'$ бол $\\dfrac{'+hlin(p,q)+'}{'+hlin(r,s)+'}$-ийн утгыг ол.',
+  a:'Хүртвэр, хуваарийг $\\cos\\alpha$-д хуваавал $\\dfrac{'+tgLin(p,q)+'}{'+tgLin(r,s)+'}$; $\\operatorname{tg}\\alpha='+m+'$ орлуулбал $=\\dfrac{'+num+'}{'+den+'}='+frTeX(num,den)+'$.',
+  key:'hg'+m+'.'+p+q+r+s, chk:function(){var a=Math.atan(m);return (p*Math.sin(a)+q*Math.cos(a))/(r*Math.sin(a)+s*Math.cos(a));}, val:num/den};}
+var WSPEC={"title":"Тусгай ба том өнцгийн утга","sub":"Тригонометр функцийн зарим утга · VI бүлэг · 6.2 · 11-р анги","rule":"<b>Санамж:</b> $\\sin30^\\circ=\\dfrac12,\\ \\cos30^\\circ=\\dfrac{\\sqrt3}{2},\\ \\operatorname{tg}30^\\circ=\\dfrac{1}{\\sqrt3}$; $\\ \\sin45^\\circ=\\cos45^\\circ=\\dfrac{\\sqrt2}{2},\\ \\operatorname{tg}45^\\circ=1$; $\\ \\sin60^\\circ=\\dfrac{\\sqrt3}{2},\\ \\cos60^\\circ=\\dfrac12,\\ \\operatorname{tg}60^\\circ=\\sqrt3$. Том/сөрөг өнцгийг $360^\\circ$-т буулгаж, мөчийн тэмдгээ анхаар.","ref":"","tasks":[{"label":"Тусгай өнцгийн $\\sin/\\cos/\\operatorname{tg}$ утгыг ол.","fn":"g2_specialValue","cap":4},{"label":"Том өнцгийн $\\sin\\alpha,\\ \\cos\\alpha,\\ \\operatorname{tg}\\alpha$-г ол.","fn":"g2_bigReduce","cap":3},{"label":"Сөрөг өнцгийн утгыг ол.","fn":"g2_negValue","cap":4}]};
+
+function toggleAns(){var el=document.getElementById('answers');if(el)el.style.display=document.getElementById('sa').checked?'block':'none';}
+function gen(fn){for(var t=0;t<700;t++){var f=fn();if(f)return f;}return null;}
+var LET=['а','б','в','г','д','е','ё','ж','з','и','к','л','м','н','о','ө','п','р','с','т'];
+function probeH(sheet){var pr=sheet.cloneNode(true);pr.removeAttribute('id');pr.style.cssText='position:absolute;left:-99999px;top:0;width:210mm;max-width:none;min-height:0;margin:0;padding:0;box-shadow:none;zoom:1';var a=pr.querySelector('#answers,.ans-page');if(a)a.remove();document.body.appendChild(pr);var h=pr.scrollHeight;document.body.removeChild(pr);return h;}
+function relabel(sheet){var blocks=sheet.querySelectorAll('.grid'),map={};for(var g=0;g<blocks.length;g++){var qs2=blocks[g].querySelectorAll('.q');for(var i=0;i<qs2.length;i++){var lt=LET[i]||('#'+(i+1));var ql=qs2[i].querySelector('.ql');if(ql)ql.textContent=lt+')';map[qs2[i].getAttribute('data-k')]=(g+1)+lt+')';}}
+  var as=sheet.querySelectorAll('#answers .a');for(var j=0;j<as.length;j++){var an=as[j].querySelector('.an');if(an)an.textContent=map[as[j].getAttribute('data-k')]||'';}}
+function trimToFit(sheet,target){var guard=0,h=probeH(sheet);while(h>target&&guard++<90){var blocks=sheet.querySelectorAll('.grid'),best=-1,bestN=-1;for(var s=blocks.length-1;s>=0;s--){var n=blocks[s].querySelectorAll('.q').length;if(n>bestN&&n>2){bestN=n;best=s;}}if(best<0)break;var qs2=blocks[best].querySelectorAll('.q');var last=qs2[qs2.length-1],k=last.getAttribute('data-k');var ans=sheet.querySelector('#answers .a[data-k="'+k+'"]');if(ans)ans.parentNode.removeChild(ans);last.parentNode.removeChild(last);relabel(sheet);h=probeH(sheet);}}
+var TASKS=WSPEC.tasks.map(function(t){return {label:t.label, fn:eval(t.fn), cap:t.cap};});
+function genPool(){var P=TASKS.map(function(){return[];});var seen={};TASKS.forEach(function(t,i){var c=0,tr=0,need=t.cap+3;while(c<need&&tr<9000){tr++;var f=gen(t.fn);if(!f||seen[f.key])continue;seen[f.key]=1;P[i].push(f);c++;}});return P;}
+function build(){window.__POOL=genPool();layout();}
+function layout(){var WK=document.getElementById('sw').checked;var S=window.__POOL||(window.__POOL=genPool());window.__PROB=[];var K=0;
+  function block(arr,cap){var use=WK?arr.slice(0,cap):arr;return '<div class="grid">'+use.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});return '<div class="q" data-k="'+k+'"><div class="qh"><span class="ql"></span><span class="qm">'+f.q+'</span></div>'+(f.fig?'<div class="fig">'+f.fig+'</div>':'')+((WK&&!f.noWk)?'<div class="wk"></div>':'')+'</div>';}).join('')+'</div>';}
+  function ansAll(){return window.__PROB.map(function(p){return '<div class="a" data-k="'+p.k+'"><span class="an"></span>'+p.f.a+'</div>';}).join('');}
+  var html='<div class="head"><h1>'+WSPEC.title+'</h1><div class="sub">'+WSPEC.sub+'</div></div>'
+    +'<div class="meta"><span>Нэр: </span><span>Анги: </span><span>Огноо: </span></div>'
+    +'<div class="rule">'+WSPEC.rule+'</div>'+(WSPEC.ref||'');
+  TASKS.forEach(function(t,i){html+='<div class="task">'+(i+1)+'. '+t.label+'</div>'+block(S[i],t.cap);});
+  html+='<div class="ans-page" id="answers"><h2>Хариу ба бодолт</h2><div class="ans-grid">'+ansAll()+'</div></div>';
+  document.getElementById('sheet').innerHTML=html;
+  window.WS_ITEMS=[];window.WS_TITLE=WSPEC.title;
+  relabel(document.getElementById('sheet'));toggleAns();
+  try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
+  try{if(!WK)trimToFit(document.getElementById('sheet'),1035);}catch(e){}
+  try{relabel(document.getElementById('sheet'));}catch(e){}
+}
+build();
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>
