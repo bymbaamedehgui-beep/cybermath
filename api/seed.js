@@ -640,6 +640,40 @@ module.exports = async (req, res) => {
         }
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_buleg6_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
+      // ── Нэг удаагийн: 8-р анги I БҮЛЭГ (Тоон олонлог, зэрэг язгуур) ──
+      const cf8a = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_g8ch1_v1'`);
+      if (!cf8a.rows.length) {
+        let par8 = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='8-р анги' AND name LIKE 'I БҮЛЭГ%' AND parent_id IS NULL ORDER BY id LIMIT 1`);
+        let pid8;
+        if (par8.rows.length) { pid8 = Number(par8.rows[0].id); }
+        else {
+          const mxP = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='8-р анги'`);
+          const insP = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('8-р анги','I БҮЛЭГ. ТООН ОЛОНЛОГ, ЗЭРЭГ ЯЗГУУР',$1,NULL) RETURNING id`, [mxP.rows[0].p]);
+          pid8 = Number(insP.rows[0].id);
+        }
+        const subs8a = [
+          { name: '1.1 Рационал тоо', slugs: ['rats-too-1-8.html', 'rats-too-2-8.html'] },
+          { name: '1.2 Тоог тоймлох', slugs: ['toimloh-1-8.html', 'toimloh-2-8.html'] },
+          { name: '1.3 Рационал тооны үйлдэл', slugs: ['rats-uildel-1-8.html', 'rats-uildel-2-8.html'] },
+          { name: '1.4 Натурал илтгэгчтэй зэрэг', slugs: ['natural-zereg-1-8.html', 'natural-zereg-2-8.html'] },
+          { name: '1.5 Зэрэгт дэвшүүлэх ба язгуур гаргах', slugs: ['zeregt-devsh-8.html', 'yazguur-gargah-8.html'] },
+          { name: '1.6 10-ын бүхэл илтгэгчтэй зэрэг', slugs: ['arav-zereg-1-8.html', 'standart-helber-8.html'] }
+        ];
+        for (const sub of subs8a) {
+          let sgr = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='8-р анги' AND name=$1`, [sub.name]);
+          let sid;
+          if (sgr.rows.length) { sid = Number(sgr.rows[0].id); }
+          else {
+            const mx = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='8-р анги'`);
+            const ins = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('8-р анги',$1,$2,$3) RETURNING id`, [sub.name, mx.rows[0].p, pid8]);
+            sid = Number(ins.rows[0].id);
+          }
+          for (const slug of sub.slugs) {
+            await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + sid, slug]);
+          }
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_g8ch1_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
       // Slug тус бүрээр (name|||slug) хосоор мөрддөг: байгаа дэд бүлэгт шинэ slug орно, гэхдээ
       // бүхэл дэд бүлгийг устгасан/нэр сольсныг хүндэтгэж дахин үүсгэхгүй.
       for (const add of ADDITIONS) {
