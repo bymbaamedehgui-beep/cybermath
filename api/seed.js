@@ -590,6 +590,24 @@ module.exports = async (req, res) => {
         }
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_buleg52_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
+      // ── Нэг удаагийн: V бүлэг — Жишиг ба шалгалт ──
+      const cfb5 = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_buleg5exam_v1'`);
+      if (!cfb5.rows.length) {
+        const parB5 = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='11-р анги' AND name LIKE 'V БҮЛЭГ%' AND parent_id IS NULL ORDER BY id LIMIT 1`);
+        const parentIdB5 = parB5.rows.length ? Number(parB5.rows[0].id) : null;
+        let sgB5 = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='11-р анги' AND name='V бүлэг — Жишиг ба шалгалт'`);
+        let sidB5;
+        if (sgB5.rows.length) { sidB5 = Number(sgB5.rows[0].id); }
+        else {
+          const mxB5 = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='11-р анги'`);
+          const insB5 = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('11-р анги','V бүлэг — Жишиг ба шалгалт',$1,$2) RETURNING id`, [mxB5.rows[0].p, parentIdB5]);
+          sidB5 = Number(insB5.rows[0].id);
+        }
+        for (const slug of ['buleg5-jishig-1.html', 'buleg5-jishig-2.html', 'buleg5-shalgalt-1.html']) {
+          await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + sidB5, slug]);
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_buleg5exam_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
       // Slug тус бүрээр (name|||slug) хосоор мөрддөг: байгаа дэд бүлэгт шинэ slug орно, гэхдээ
       // бүхэл дэд бүлгийг устгасан/нэр сольсныг хүндэтгэж дахин үүсгэхгүй.
       for (const add of ADDITIONS) {
