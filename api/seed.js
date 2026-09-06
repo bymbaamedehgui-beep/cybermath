@@ -805,6 +805,39 @@ module.exports = async (req, res) => {
         }
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_g8ch5_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
+      // ── Нэг удаагийн: 8-р анги VI БҮЛЭГ (Өнцөг, дүрс, байгуулалт) ──
+      const cf8f = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_g8ch6_v1'`);
+      if (!cf8f.rows.length) {
+        let par8f = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='8-р анги' AND name LIKE 'VI БҮЛЭГ%' AND parent_id IS NULL ORDER BY id LIMIT 1`);
+        let pid8f;
+        if (par8f.rows.length) { pid8f = Number(par8f.rows[0].id); }
+        else {
+          const mxP = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='8-р анги'`);
+          const insP = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('8-р анги','VI БҮЛЭГ. ӨНЦӨГ, ДҮРС, БАЙГУУЛАЛТ',$1,NULL) RETURNING id`, [mxP.rows[0].p]);
+          pid8f = Number(insP.rows[0].id);
+        }
+        const subs8f = [
+          { name: '6.1 Олон өнцөгтийн дотоод ба гадаад өнцөг', slugs: ['olon-ongogt-1-8.html', 'olon-ongogt-2-8.html'] },
+          { name: '6.2 Гурвалжны дундаж шугам, өндөр, медиан, биссектрис', slugs: ['gurvaljin-shugam-8.html'] },
+          { name: '6.3 Пифагорын теорем', slugs: ['pifagor-1-8.html', 'pifagor-2-8.html'] },
+          { name: '6.4 Тойрог ба өнцөг', slugs: ['toirog-ongog-1-8.html', 'toirog-ongog-2-8.html'] },
+          { name: '6.5 Төсөөтэй дүрсүүд', slugs: ['tosootoi-1-8.html', 'tosootoi-2-8.html'] }
+        ];
+        for (const sub of subs8f) {
+          let sgr = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='8-р анги' AND name=$1`, [sub.name]);
+          let sid;
+          if (sgr.rows.length) { sid = Number(sgr.rows[0].id); }
+          else {
+            const mx = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='8-р анги'`);
+            const ins = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('8-р анги',$1,$2,$3) RETURNING id`, [sub.name, mx.rows[0].p, pid8f]);
+            sid = Number(ins.rows[0].id);
+          }
+          for (const slug of sub.slugs) {
+            await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + sid, slug]);
+          }
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_g8ch6_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
       // Slug тус бүрээр (name|||slug) хосоор мөрддөг: байгаа дэд бүлэгт шинэ slug орно, гэхдээ
       // бүхэл дэд бүлгийг устгасан/нэр сольсныг хүндэтгэж дахин үүсгэхгүй.
       for (const add of ADDITIONS) {
