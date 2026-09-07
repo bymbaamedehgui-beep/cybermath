@@ -879,7 +879,7 @@ module.exports = async (req, res) => {
         if (par_g7c1.rows.length) { pid_g7c1 = Number(par_g7c1.rows[0].id); }
         else {
           const mxP = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='7-р анги'`);
-          const insP = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('7-р анги',"I БҮЛЭГ. БҮХЭЛ ТООН ОЛОНЛОГ, ЗЭРЭГ, ЯЗГУУР",$1,NULL) RETURNING id`, [mxP.rows[0].p]);
+          const insP = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('7-р анги',$2,$1,NULL) RETURNING id`, [mxP.rows[0].p, 'I БҮЛЭГ. БҮХЭЛ ТООН ОЛОНЛОГ, ЗЭРЭГ, ЯЗГУУР']);
           pid_g7c1 = Number(insP.rows[0].id);
         }
         const subs_g7c1 = [
@@ -914,7 +914,7 @@ module.exports = async (req, res) => {
         if (par_g7c2.rows.length) { pid_g7c2 = Number(par_g7c2.rows[0].id); }
         else {
           const mxP = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='7-р анги'`);
-          const insP = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('7-р анги',"II БҮЛЭГ. АРАВТЫН БА ЭНГИЙН БУТАРХАЙ, ПРОЦЕНТ",$1,NULL) RETURNING id`, [mxP.rows[0].p]);
+          const insP = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('7-р анги',$2,$1,NULL) RETURNING id`, [mxP.rows[0].p, 'II БҮЛЭГ. АРАВТЫН БА ЭНГИЙН БУТАРХАЙ, ПРОЦЕНТ']);
           pid_g7c2 = Number(insP.rows[0].id);
         }
         const subs_g7c2 = [
@@ -954,7 +954,7 @@ module.exports = async (req, res) => {
         if (par_g7c3.rows.length) { pid_g7c3 = Number(par_g7c3.rows[0].id); }
         else {
           const mxP = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='7-р анги'`);
-          const insP = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('7-р анги',"III БҮЛЭГ. ХАРЬЦАА, ПРОПОРЦ",$1,NULL) RETURNING id`, [mxP.rows[0].p]);
+          const insP = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('7-р анги',$2,$1,NULL) RETURNING id`, [mxP.rows[0].p, 'III БҮЛЭГ. ХАРЬЦАА, ПРОПОРЦ']);
           pid_g7c3 = Number(insP.rows[0].id);
         }
         const subs_g7c3 = [
@@ -988,7 +988,7 @@ module.exports = async (req, res) => {
         if (par_g7c4.rows.length) { pid_g7c4 = Number(par_g7c4.rows[0].id); }
         else {
           const mxP = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='7-р анги'`);
-          const insP = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('7-р анги',"IV БҮЛЭГ. МАГАДЛАЛ",$1,NULL) RETURNING id`, [mxP.rows[0].p]);
+          const insP = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('7-р анги',$2,$1,NULL) RETURNING id`, [mxP.rows[0].p, 'IV БҮЛЭГ. МАГАДЛАЛ']);
           pid_g7c4 = Number(insP.rows[0].id);
         }
         const subs_g7c4 = [
@@ -1020,7 +1020,7 @@ module.exports = async (req, res) => {
         if (par_g7c5.rows.length) { pid_g7c5 = Number(par_g7c5.rows[0].id); }
         else {
           const mxP = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='7-р анги'`);
-          const insP = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('7-р анги',"V БҮЛЭГ. АЛГЕБРЫН ИЛЭРХИЙЛЭЛ, ТЭГШИТГЭЛ",$1,NULL) RETURNING id`, [mxP.rows[0].p]);
+          const insP = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('7-р анги',$2,$1,NULL) RETURNING id`, [mxP.rows[0].p, 'V БҮЛЭГ. АЛГЕБРЫН ИЛЭРХИЙЛЭЛ, ТЭГШИТГЭЛ']);
           pid_g7c5 = Number(insP.rows[0].id);
         }
         const subs_g7c5 = [
@@ -1055,7 +1055,7 @@ module.exports = async (req, res) => {
         if (par_g7c6.rows.length) { pid_g7c6 = Number(par_g7c6.rows[0].id); }
         else {
           const mxP = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='7-р анги'`);
-          const insP = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('7-р анги',"VI БҮЛЭГ. ДАРААЛАЛ, ФУНКЦ",$1,NULL) RETURNING id`, [mxP.rows[0].p]);
+          const insP = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('7-р анги',$2,$1,NULL) RETURNING id`, [mxP.rows[0].p, 'VI БҮЛЭГ. ДАРААЛАЛ, ФУНКЦ']);
           pid_g7c6 = Number(insP.rows[0].id);
         }
         const subs_g7c6 = [
