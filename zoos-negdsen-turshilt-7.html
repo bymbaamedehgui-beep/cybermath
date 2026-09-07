@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Зоос ба нэгдсэн туршилт (7-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<style>
+  :root{--purple:#7B52EE;--purple2:#A855F7;--ink:#1a1030;--soft:#7a7390}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:var(--ink);background:#eceaf3;padding:16px;line-height:1.5}
+  .bar{max-width:820px;margin:0 auto 14px;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
+  .btn{font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.6rem 1.3rem;font-size:.9rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2));box-shadow:0 6px 16px -6px rgba(123,82,238,.6)}
+  .btn:hover{filter:brightness(1.06)} .btn.refresh{background:linear-gradient(135deg,#16a34a,#22c55e)}
+  .bar label{font-weight:700;color:var(--purple);display:flex;align-items:center;gap:6px;font-size:.88rem}
+  .sheet{background:#fff;width:210mm;max-width:100%;min-height:297mm;margin:0 auto;padding:12mm 14mm;box-shadow:0 12px 44px -18px rgba(0,0,0,.35)}
+  .head{text-align:center;border-bottom:2.5px solid var(--purple);padding-bottom:7px;margin-bottom:7px}
+  .head h1{font-size:16px;color:#5a32d6;font-weight:800}.head .sub{font-size:11px;color:var(--soft);margin-top:2px}
+  .meta{display:flex;justify-content:space-between;font-size:11.5px;margin:8px 2px 10px}.meta span{border-bottom:1px dotted #b3a9cf;padding:0 26px 2px 4px}
+  .rule{font-size:11px;color:var(--soft);background:transparent;border-left:3px solid #d9cff5;border-radius:8px;padding:8px 12px;margin-bottom:11px}
+  .rule b{color:#5a32d6}
+  .task{font-weight:800;color:#5a32d6;font-size:12.5px;margin:9px 0 7px;border-left:4px solid var(--purple2);padding-left:9px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:11px 20px}
+  .q{break-inside:avoid;page-break-inside:avoid}
+  .qh{display:flex;gap:7px;align-items:baseline}.ql{font-weight:800;color:var(--purple);font-size:13px;min-width:22px}.qm{font-size:13px}
+  .fig{text-align:center;margin:4px 0}
+  .wk{border:1.1px solid #e2daf5;border-radius:7px;background:linear-gradient(#fff,#fbf9ff);height:20mm;margin-top:5px}
+  .ans-page{margin-top:9mm;border-top:2px dashed #ddd;padding-top:7mm}.ans-page h2{font-size:15px;color:#5a32d6;margin-bottom:10px}
+  .ans-grid{display:grid;grid-template-columns:1fr;gap:9px;font-size:12px}.ans-grid .a{padding-bottom:8px;border-bottom:1px dotted #e6e0f5}.ans-grid .an{color:var(--purple);font-weight:800;margin-right:5px}
+  #answers{display:none}
+  @media print{body{background:#fff;padding:0}.bar{display:none}.sheet{box-shadow:none;width:auto;min-height:auto;padding:0;margin:0}@page{size:A4;margin:11mm}.ans-page{break-before:page}}
+</style>
+</head>
+<body>
+<div class="bar">
+  <button class="btn refresh" onclick="build()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>Шинэ бодлого</button>
+  <label><input type="checkbox" id="sw" onchange="layout()" checked> Бодолтын зай</label>
+  <label><input type="checkbox" id="sa" onchange="toggleAns()"> Хариу хавсаргах</label>
+  <button class="btn" onclick="window.print()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>Хэвлэх / PDF</button>
+</div>
+<div class="sheet" id="sheet"></div>
+<script>
+// ══════════ g7core.js — 7-р ангийн нийтлэг хөдөлгүүр (бүх бүлэгт залгагдана) ══════════
+function rnd(a,b){return a+Math.floor(Math.random()*(b-a+1));}
+function nz(a,b){var v;do{v=rnd(a,b);}while(v===0);return v;}
+function pick(a){return a[rnd(0,a.length-1)];}
+function shuffle(a){a=a.slice();for(var i=a.length-1;i>0;i--){var j=rnd(0,i),t=a[i];a[i]=a[j];a[j]=t;}return a;}
+function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){var t=b;b=a%b;a=t;}return a||1;}
+function lcm(a,b){return Math.abs(a*b)/gcd(a,b);}
+function sgn(n){return n>=0?'+'+n:''+n;}                 // +5, -3 (тэмдэгтэй)
+function paren(n){return n<0?'('+n+')':''+n;}            // (-3), 5 (сөрөг бол хаалттай)
+// ── Анхны тоо, задаргаа ──
+function isPrime(n){n=Math.abs(n);if(n<2)return false;for(var i=2;i*i<=n;i++)if(n%i===0)return false;return true;}
+function primeFactors(n){n=Math.abs(n);var f=[],d=2;while(d*d<=n){while(n%d===0){f.push(d);n/=d;}d++;}if(n>1)f.push(n);return f;} // [2,2,3]
+function primeFactExp(n){var f=primeFactors(n),out=[],i=0;while(i<f.length){var p=f[i],e=0;while(i<f.length&&f[i]===p){e++;i++;}out.push({p:p,e:e});}return out;} // [{p:2,e:2},{p:3,e:1}]
+function pfTex(n){var pe=primeFactExp(n);return pe.map(function(x){return x.e===1?''+x.p:x.p+'^{'+x.e+'}';}).join('\\cdot ');} // 2^{2}\cdot3
+// ── Бүтэн квадрат/куб ──
+function isqrt(n){if(n<0)return null;var r=Math.round(Math.sqrt(n));return r*r===n?r:null;}       // төгс квадрат бол язгуур, үгүй бол null
+function icbrt(n){var s=n<0?-1:1;n=Math.abs(n);var r=Math.round(Math.cbrt(n));for(var k=r-1;k<=r+1;k++){if(k*k*k===n)return s*k;}return null;} // төгс куб бол куб язгуур, үгүй бол null
+// ── Бутархайн exact хөдөлгүүр ──
+function Fr(n,d){if(d<0){n=-n;d=-d;}var g=gcd(n,d)||1;return {n:n/g,d:d/g};}
+function fAdd(a,b){return Fr(a.n*b.d+b.n*a.d,a.d*b.d);}
+function fSub(a,b){return Fr(a.n*b.d-b.n*a.d,a.d*b.d);}
+function fMul(a,b){return Fr(a.n*b.n,a.d*b.d);}
+function fDiv(a,b){return Fr(a.n*b.d,a.d*b.n);}
+function fVal(a){return a.n/a.d;}
+function fTex(a){if(a.d===1)return ''+a.n;if(a.n<0)return '-\\dfrac{'+(-a.n)+'}{'+a.d+'}';return '\\dfrac{'+a.n+'}{'+a.d+'}';}
+function fMix(a){if(a.d===1)return ''+a.n;var neg=a.n<0,N=Math.abs(a.n),w=Math.floor(N/a.d),r=N%a.d;if(w===0)return (neg?'-':'')+'\\dfrac{'+r+'}{'+a.d+'}';if(r===0)return (neg?'-':'')+w;return (neg?'-':'')+w+'\\dfrac{'+r+'}{'+a.d+'}';}
+function pFr(a){var t=fMix(a);return a.n<0?'\\left('+t+'\\right)':t;}
+function frTeX(n,d){if(d===0)return null;if(d<0){n=-n;d=-d;}var g=gcd(n,d);n/=g;d/=g;if(d===1)return ''+n;if(n<0)return '-\\dfrac{'+(-n)+'}{'+d+'}';return '\\dfrac{'+n+'}{'+d+'}';}
+// ── Аравтын бутархай (урт хуваалт, үет илрүүлэх) ──
+function longDiv(n,d){var ip=Math.floor(n/d),rem=n%d,digits=[],seen={},idx=0,pStart=-1;
+ while(rem!==0){if(seen[rem]!==undefined){pStart=seen[rem];break;}seen[rem]=idx;rem*=10;digits.push(Math.floor(rem/d));rem%=d;idx++;if(idx>40)break;}
+ return {ip:ip,digits:digits,pStart:pStart};}
+function decLatex(fr){var neg=fr.n<0,r=longDiv(Math.abs(fr.n),fr.d),s=(neg?'-':'');
+ if(r.digits.length===0)return s+r.ip;
+ if(r.pStart<0)return s+r.ip+'.'+r.digits.join('');
+ var nonrep=r.digits.slice(0,r.pStart).join(''),rep=r.digits.slice(r.pStart).join('');
+ return s+r.ip+'.'+nonrep+'('+rep+')';}
+function decPlain(fr){var neg=fr.n<0,r=longDiv(Math.abs(fr.n),fr.d),s=(neg?'-':'');
+ if(r.digits.length===0)return s+r.ip;
+ if(r.pStart<0)return s+r.ip+'.'+r.digits.join('');
+ var nonrep=r.digits.slice(0,r.pStart).join(''),rep=r.digits.slice(r.pStart).join('');
+ return s+r.ip+'.'+nonrep+rep+rep+'…';}
+function repToFr(ip,nonrep,rep){var p=nonrep.length,q=rep.length;var Aint=nonrep===''?0:parseInt(nonrep,10);var ABint=parseInt((nonrep+rep)||'0',10);
+ var den=(Math.pow(10,q)-1)*Math.pow(10,p);var num=ABint-Aint;var frac=Fr(num,den);var whole=Fr(ip,1);return fAdd(whole,frac);}
+// ── Тоймлол ──
+function roundPlace(n,place){return Math.round(n/place)*place;}
+function roundDec(x,step){return Math.round(x/step)*step;}
+function fmtDec(x,dec){return x.toFixed(dec);}
+function sigRound(x,k){if(x===0)return {v:0,dec:0};var d=Math.floor(Math.log10(Math.abs(x)))+1;var p=k-d;var mag=Math.pow(10,p);var v=Math.round(x*mag)/mag;return {v:v,dec:Math.max(0,p)};}
+// ── Зэрэг форматлах ──
+function powClean(b,e){if(e===1)return ''+b;if(e===0)return '1';return b+'^{'+e+'}';}
+function powTex(bTex,e){if(e===1)return bTex;if(e===0)return '1';return bTex+'^{'+e+'}';}
+// ── Аравтын тоог хамгийн энгийн хэлбэрээр (0.50→0.5) ──
+function trimZeros(s){if(s.indexOf('.')<0)return s;s=s.replace(/0+$/,'');if(s.charAt(s.length-1)==='.')s=s.slice(0,-1);return s;}
+function decStr(x,maxdec){var s=x.toFixed(maxdec||6);return trimZeros(s);}
+// ── 2D координатын зураг ──
+function plane(opts){opts=opts||{};var W=200,H=200,pad=16,R=opts.xr||5,cx=W/2,cy=H/2,u=(W-2*pad)/(2*R);
+ function X(x){return (cx+x*u).toFixed(1);}function Y(y){return (cy-y*u).toFixed(1);}
+ var g='',i;
+ for(i=-R;i<=R;i++){g+='<line x1="'+X(i)+'" y1="'+Y(-R)+'" x2="'+X(i)+'" y2="'+Y(R)+'" stroke="#eef" stroke-width="1"/>';g+='<line x1="'+X(-R)+'" y1="'+Y(i)+'" x2="'+X(R)+'" y2="'+Y(i)+'" stroke="#eef" stroke-width="1"/>';}
+ g+='<line x1="'+X(-R)+'" y1="'+Y(0)+'" x2="'+X(R)+'" y2="'+Y(0)+'" stroke="#555" stroke-width="1.3"/>';
+ g+='<line x1="'+X(0)+'" y1="'+Y(-R)+'" x2="'+X(0)+'" y2="'+Y(R)+'" stroke="#555" stroke-width="1.3"/>';
+ g+='<polygon points="'+X(R)+','+Y(0)+' '+(+X(R)-5)+','+(+Y(0)-3)+' '+(+X(R)-5)+','+(+Y(0)+3)+'" fill="#555"/>';
+ g+='<polygon points="'+X(0)+','+Y(R)+' '+(+X(0)-3)+','+(+Y(R)+5)+' '+(+X(0)+3)+','+(+Y(R)+5)+'" fill="#555"/>';
+ g+='<text x="'+(+X(R)-3)+'" y="'+(+Y(0)+12)+'" font-size="10" font-style="italic" fill="#555">x</text>';
+ g+='<text x="'+(+X(0)+5)+'" y="'+(+Y(R)+8)+'" font-size="10" font-style="italic" fill="#555">y</text>';
+ if(!opts.blank){
+  (opts.lines||[]).forEach(function(L){var y1=L.k*(-R)+L.b,y2=L.k*R+L.b;g+='<line x1="'+X(-R)+'" y1="'+Y(y1)+'" x2="'+X(R)+'" y2="'+Y(y2)+'" stroke="'+(L.color||'#7B52EE')+'" stroke-width="2"/>';});
+  (opts.pts||[]).forEach(function(p){g+='<circle cx="'+X(p.x)+'" cy="'+Y(p.y)+'" r="3" fill="#dc2626"/>'+(p.l?'<text x="'+(+X(p.x)+4)+'" y="'+(+Y(p.y)-4)+'" font-size="9" font-weight="700" fill="#b91c1c">'+p.l+'</text>':'');});
+ }
+ return '<svg viewBox="0 0 '+W+' '+H+'" width="188">'+g+'</svg>';}
+// ── Тооны шулуун (blank, зөвхөн хуваарь; цэгийг тэмдэглэхгүй тул хариу илчлэхгүй) ──
+function numline(lo,hi){var W=320,H=44,pad=18,u=(W-2*pad)/(hi-lo);var g='<line x1="'+pad+'" y1="26" x2="'+(W-pad)+'" y2="26" stroke="#555" stroke-width="1.4"/>';
+ g+='<polygon points="'+(W-pad)+',26 '+(W-pad-6)+',23 '+(W-pad-6)+',29" fill="#555"/>';
+ for(var v=lo;v<=hi;v++){var x=pad+(v-lo)*u;g+='<line x1="'+x+'" y1="22" x2="'+x+'" y2="30" stroke="#555" stroke-width="1"/>';g+='<text x="'+x+'" y="41" font-size="9" text-anchor="middle" fill="#555">'+v+'</text>';}
+ return '<svg viewBox="0 0 '+W+' '+H+'" width="300">'+g+'</svg>';}
+// ── Эйлер-Веннийн диаграм (2 олонлог, blank) ──
+function venn2(la,lb){la=la||'A';lb=lb||'B';var g='<rect x="6" y="6" width="248" height="118" rx="6" fill="none" stroke="#b9b0d6"/>';
+ g+='<circle cx="102" cy="65" r="50" fill="rgba(123,82,238,0.13)" stroke="#7B52EE" stroke-width="1.4"/>';
+ g+='<circle cx="158" cy="65" r="50" fill="rgba(168,85,247,0.13)" stroke="#A855F7" stroke-width="1.4"/>';
+ g+='<text x="70" y="70" font-size="14" font-style="italic" fill="#5a32d6">'+la+'</text>';
+ g+='<text x="186" y="70" font-size="14" font-style="italic" fill="#5a32d6">'+lb+'</text>';
+ return '<svg viewBox="0 0 260 130" width="210">'+g+'</svg>';}
+// ── 7-р анги IV бүлэг (Магадлал: эсрэг үзэгдэл, нэмэх дүрэм, сонгодог магадлал) ──
+// g7core.js доторх helper-үүд (rnd,pick,shuffle,gcd,lcm,isPrime,frTeX,decStr...) шууд дуудагдана.
+
+// ── Магадлалын бутархайг харуулах: бүтэн + хураангуйлсан (P<1 гэж үзнэ) ──
+function PF(num,den){
+ var g=gcd(num,den),full='\\dfrac{'+num+'}{'+den+'}';
+ if(g===1||num===0)return full;
+ var rn=num/g,rd=den/g,red=(rd===1?''+rn:'\\dfrac{'+rn+'}{'+rd+'}');
+ return full+'='+red;
+}
+// хоёр шооны нийлбэр s-ийн тохиолдлын тоо
+function dsCount(s){return 6-Math.abs(7-s);}
+
+// ════════ WS1  Эсрэг үзэгдэл ба магадлал-1  (4.1) ════════
+var EN_EVENTS=[
+ {e:'Маргааш бороо орох',c:'Маргааш бороо орохгүй',d:['Маргааш цас орох','Маргааш салхи шуургатай байх','Өнөөдөр бороо орох']},
+ {e:'Шоо орхиход тэгш тоо буух',c:'Шоо орхиход сондгой тоо буух',d:['Шоо орхиход 6 буух','Шоо орхиход анхны тоо буух','Шоо орхиход 3-аас их тоо буух']},
+ {e:'Шоо орхиход 3-аас их тоо буух',c:'Шоо орхиход 3-аас ихгүй тоо (1,2,3) буух',d:['Шоо орхиход 3-аас бага тоо буух','Шоо орхиход тэгш тоо буух','Шоо орхиход анхны тоо буух']},
+ {e:'Сурагч шалгалтад А дүн авах',c:'Сурагч шалгалтад А-аас өөр дүн авах',d:['Сурагч F дүн авах','Сурагч B дүн авах','Сурагч тэнцэх']},
+ {e:'Зоос орхиход сүлд буух',c:'Зоос орхиход тоо буух',d:['Зоос орхиход ирмэгээрээ зогсох','Хоёр зоос орхиход хоёул сүлд буух','Өөр зоос орхих']},
+ {e:'Баг тоглолтод хожих',c:'Баг тоглолтод хожихгүй байх',d:['Баг тоглолтод тэнцэх','Баг тоглолтод хожигдох','Өрсөлдөгч баг хожих']},
+ {e:'Уутнаас (зөвхөн улаан ба хөх бөмбөгтэй) улаан бөмбөг гарах',c:'Уутнаас хөх бөмбөг гарах',d:['Уутнаас ногоон бөмбөг гарах','Уутнаас нэг ч бөмбөг гарахгүй','Уутнаас хоёр бөмбөг гарах']},
+ {e:'Санамсаргүй сонгосон тоо 5-д хуваагдах',c:'Санамсаргүй сонгосон тоо 5-д хуваагдахгүй',d:['Санамсаргүй сонгосон тоо тэгш байх','Санамсаргүй сонгосон тоо 10-д хуваагдах','Санамсаргүй сонгосон тоо анхны байх']},
+ {e:'Сонгосон өдөр Ням гараг байх',c:'Сонгосон өдөр Ням гарагаас өөр гараг байх',d:['Сонгосон өдөр Бямба гараг байх','Сонгосон өдөр амралтын өдөр байх','Сонгосон өдөр Даваа гараг байх']},
+ {e:'Шоо орхиход анхны тоо (2,3,5) буух',c:'Шоо орхиход анхны бус тоо (1,4,6) буух',d:['Шоо орхиход тэгш тоо буух','Шоо орхиход сондгой тоо буух','Шоо орхиход 4-өөс их тоо буух']},
+ {e:'Насанд хүрэгчид дундаас нэгийг сонгоход эрэгтэй байх',c:'Насанд хүрэгчид дундаас нэгийг сонгоход эмэгтэй байх',d:['Хүүхэд сонгох','Оюутан сонгох','Тэтгэвэрт гарсан хүн сонгох']}
+];
+function g_esregNerlekh(){
+ var idx=rnd(0,EN_EVENTS.length-1),it=EN_EVENTS[idx];
+ var opts=shuffle([it.c,it.d[0],it.d[1],it.d[2]]);
+ var L=['А','Б','В','Г'],pos=opts.indexOf(it.c),letter=L[pos];
+ var q='‘'+it.e+'’ гэсэн үзэгдлийн эсрэг үзэгдлийг сонгоно уу.<br>'+
+   L.map(function(x,i){return x+') '+opts[i];}).join(' &nbsp; ');
+ var a='Зөв хариу: <b>'+letter+')</b> '+it.c+'. Эсрэг үзэгдэл гэдэг нь өгсөн үзэгдэл '+
+   '<u>илрэхгүй</u> байх бүх тохиолдлын нэгдэл юм.';
+ return {q:q,a:a,key:'en'+idx,ans:letter,correct:it.c,opts:opts};
+}
+var ED_P=[0.15,0.24,0.35,0.42,0.63,0.75,0.86,0.44,0.58,0.09];
+function g_esregDecimal(){
+ var p=pick(ED_P),comp=Math.round((1-p)*100)/100;
+ var q='Аливаа $A$ үзэгдэл илрэх магадлал $P(A)='+decStr(p,2)+'$ бол эсрэг үзэгдлийн магадлал $P(\\bar A)$-ыг ол.';
+ var a='$P(\\bar A)=1-P(A)=1-'+decStr(p,2)+'='+decStr(comp,2)+'$';
+ return {q:q,a:a,key:'ed'+p,nv:comp,p:p,comp:comp};
+}
+var EF_PAIRS=[[5,12],[3,8],[7,10],[21,36],[7,9],[5,16],[7,15],[9,10],[11,12],[2,9],[13,45],[7,20],[3,10],[5,18]];
+function g_esregFraction(){
+ var pr=pick(EF_PAIRS),a1=pr[0],b1=pr[1],num=b1-a1,comp=num/b1;
+ var full='\\dfrac{'+num+'}{'+b1+'}',red=frTeX(num,b1),tail=(red===full?'':'='+red);
+ var q='Үзэгдлийн магадлал $P(A)=\\dfrac{'+a1+'}{'+b1+'}$ бол эсрэг үзэгдлийн магадлал $P(\\bar A)$-ыг ол.';
+ var a='$P(\\bar A)=1-\\dfrac{'+a1+'}{'+b1+'}=\\dfrac{'+b1+'-'+a1+'}{'+b1+'}='+full+tail+'$';
+ return {q:q,a:a,key:'ef'+a1+'/'+b1,nv:comp,a2:a1,b2:b1};
+}
+var UT_P=[0.63,0.55,0.4,0.72,0.35];
+var UT_COL=[['улаан','шар'],['ногоон','улаан'],['хөх','цагаан'],['шар','ногоон'],['улаан','цэнхэр']];
+function g_uutTwoColor(){
+ var p=pick(UT_P),cp=pick(UT_COL),comp=Math.round((1-p)*100)/100;
+ var q='Уутанд зөвхөн '+cp[0]+' ба '+cp[1]+' өнгийн чихэр байв. Нэг чихэр таамгаар авахад '+
+   cp[0]+' өнгөтэй байх магадлал $'+decStr(p,2)+'$ бол '+cp[1]+' өнгөтэй чихэр гарах магадлалыг ол.';
+ var a='Хоёр өнгийн чихэр тул нэгнийх нь эсрэг нь нөгөө: $P('+cp[1]+')=1-'+decStr(p,2)+'='+decStr(comp,2)+'$';
+ return {q:q,a:a,key:'ut'+cp[0]+cp[1]+p,nv:comp,p:p,comp:comp};
+}
+var UC_PAIRS=[[65,13],[60,15],[50,10],[80,16],[40,8],[100,20],[60,12],[45,9],[80,20],[100,25],[50,15]];
+var UC_COL=['ногоон','улаан','шар','хөх','цагаан'];
+function g_uutCountComplement(){
+ var pr=pick(UC_PAIRS),N=pr[0],k=pr[1],col=pick(UC_COL),num=N-k,comp=num/N;
+ var full='\\dfrac{'+num+'}{'+N+'}',red=frTeX(num,N),tail=(red===full?'':'='+red);
+ var q='Уутанд нийт $'+N+'$ чихрээс $'+k+'$ нь '+col+' өнгөтэй. Нэг чихэр таамгаар авахад '+col+
+   ' өнгөтэй <b>биш</b> байх магадлалыг ол.';
+ var a='Тохирох тоо: $'+N+'-'+k+'='+num+'$. $P('+col+' \\text{ биш})=\\dfrac{'+num+'}{'+N+'}'+tail+'$';
+ return {q:q,a:a,key:'uc'+N+'/'+k+col,nv:comp,N:N,k:k};
+}
+
+// ════════ WS2  Хоёр шоо орхих туршилт-1  (4.2) ════════
+var TO_EXP=[
+ {d:'Хоёр шоог зэрэг орхиход',f:[6,6]},
+ {d:'Зоосон мөнгийг хоёр удаа орхиход',f:[2,2]},
+ {d:'Гурван зоосыг зэрэг орхиход',f:[2,2,2]},
+ {d:'Нэг шоо ба нэг зоосыг зэрэг орхиход',f:[6,2]},
+ {d:'Нэг шоо ба нэг шагайг зэрэг орхиход',f:[6,4]},
+ {d:'Нэг шоо ба хоёр зоосыг зэрэг орхиход',f:[6,2,2]},
+ {d:'Хоёр шагайг зэрэг орхиход',f:[4,4]}
+];
+function g_diceTotalOutcomes(){
+ var ex=pick(TO_EXP),n=ex.f.reduce(function(a,b){return a*b;},1);
+ var q=ex.d+' нийт хэдэн боломжит үр дүн (ялгаатай үзэгдэл) илрэх вэ?';
+ var a='Үржвэрийн (тооллын) зарчмаар: $'+ex.f.join('\\cdot ')+'='+n+'$ үр дүн.';
+ return {q:q,a:a,key:'to'+ex.f.join('_'),nv:n,factors:ex.f.slice()};
+}
+function g_diceSumEqual(){
+ var s=pick([4,5,6,7,8,9,10]),cnt=dsCount(s),comp=36-cnt;
+ var q='Хоёр шоог зэрэг орхиход буусан нүднүүдийн нийлбэр $'+s+'$-тэй тэнцэх магадлалыг ол. '+
+   'Мөн энэ үзэгдлийн эсрэг үзэгдлийн магадлалыг ол.';
+ var a='Нийт үр дүн $6\\cdot 6=36$. Нийлбэр нь $'+s+'$ болох тохиолдол $'+cnt+'$ ширхэг. '+
+   '$P=\\dfrac{'+cnt+'}{36}'+(frTeX(cnt,36)==='\\dfrac{'+cnt+'}{36}'?'':'='+frTeX(cnt,36))+'$. '+
+   'Эсрэг үзэгдэл: $P(\\bar A)=\\dfrac{'+comp+'}{36}'+(frTeX(comp,36)==='\\dfrac{'+comp+'}{36}'?'':'='+frTeX(comp,36))+'$.';
+ return {q:q,a:a,key:'se'+s,nv:cnt/36,comp:comp/36,s:s};
+}
+var SI_ABL={2:'хоёроос',3:'гурваас',4:'дөрвөөс',5:'таваас',6:'зургаагаас',8:'наймаас',9:'есөөс',10:'араваас'};
+function g_diceSumInequality(){
+ var t=pick([4,5,6,8,9,10]),op=pick(['le','ge','gt','lt']);
+ var phrase,pred;
+ if(op==='le'){phrase='ихдээ $'+t+'$';pred=function(s){return s<=t;};}
+ else if(op==='ge'){phrase='багадаа $'+t+'$';pred=function(s){return s>=t;};}
+ else if(op==='gt'){phrase=SI_ABL[t]+' их';pred=function(s){return s>t;};}
+ else{phrase=SI_ABL[t]+' бага';pred=function(s){return s<t;};}
+ var cnt=0,parts=[];
+ for(var s=2;s<=12;s++)if(pred(s)){cnt+=dsCount(s);parts.push(dsCount(s));}
+ if(cnt===0||cnt===36)return null;
+ var full='\\dfrac{'+cnt+'}{36}',red=frTeX(cnt,36),tail=(red===full?'':'='+red);
+ var q='Хоёр шоог зэрэг орхиход буусан нүднүүдийн нийлбэр '+phrase+' байх магадлалыг ол.';
+ var a='Нийт $36$ үр дүн. Тохирох тохиолдлын тоо: $'+parts.join('+')+'='+cnt+'$. '+
+   '$P='+full+tail+'$.';
+ return {q:q,a:a,key:'si'+op+t,nv:cnt/36,op:op,t:t};
+}
+// ── Хувилбар олонтой болгосон: шоо/зоосны магадлал (тоолол нь предикатаар бүрэн хайлтаар) ──
+function d2count(pred){var c=0;for(var a=1;a<=6;a++)for(var b=1;b<=6;b++)if(pred(a,b))c++;return c;}
+function coinCount(n,pred){var tot=1<<n,c=0;for(var m=0;m<tot;m++){var h=0;for(var i=0;i<n;i++)if(m&(1<<i))h++;if(pred(h,n))c++;}return c;}
+var DC_OPS=[
+ {t:'хар шооны буусан нүд цагаан шооныхоос их байх',p:function(a,b){return a>b;}},
+ {t:'хар шооны буусан нүд цагаан шооныхоос бага байх',p:function(a,b){return a<b;}},
+ {t:'хоёр шооны буусан нүд тэнцүү байх',p:function(a,b){return a===b;}},
+ {t:'хар шооны буусан нүд цагаан шооныхоос их буюу тэнцүү байх',p:function(a,b){return a>=b;}},
+ {t:'хар шооны буусан нүд цагаан шооныхоос бага буюу тэнцүү байх',p:function(a,b){return a<=b;}},
+ {t:'хоёр шооны буусан нүд ялгаатай байх',p:function(a,b){return a!==b;}},
+ {t:'буусан нүднүүдийн ялгаврын модул $1$-тэй тэнцүү байх',p:function(a,b){return Math.abs(a-b)===1;}},
+ {t:'хар шооны буусан нүд цагаан шооныхоос яг $2$-оор их байх',p:function(a,b){return a-b===2;}}
+];
+function g_diceCompare(){
+ var it=pick(DC_OPS),cnt=d2count(it.p),comp=36-cnt;
+ if(cnt===0||cnt===36)return null;
+ var q='Хоёр (хар ба цагаан) шоог зэрэг орхив. '+it.t.charAt(0).toUpperCase()+it.t.slice(1)+
+   ' магадлалыг ол. Мөн эсрэг үзэгдлийн магадлалыг ол.';
+ var a='Нийт үр дүн $6\\cdot 6=36$, бүгд адил магадлалт. Хүснэгтээр тоолвол тохирох тохиолдол $'+cnt+
+   '$ ширхэг тул $P(A)='+PF(cnt,36)+'$. Эсрэг үзэгдэл: $P(\\bar{A})=1-P(A)='+PF(comp,36)+'$.';
+ return {q:q,a:a,key:'dc'+it.t,nv:cnt/36,comp:comp/36};
+}
+var DP_CONDS=[
+ {t:'тэгш',p:function(a,b){return (a*b)%2===0;}},
+ {t:'сондгой',p:function(a,b){return (a*b)%2===1;}},
+ {t:'$3$-т хуваагдах',p:function(a,b){return (a*b)%3===0;}},
+ {t:'$4$-т хуваагдах',p:function(a,b){return (a*b)%4===0;}},
+ {t:'$5$-д хуваагдах',p:function(a,b){return (a*b)%5===0;}},
+ {t:'$6$-д хуваагдах',p:function(a,b){return (a*b)%6===0;}},
+ {t:'$12$-оос их',p:function(a,b){return a*b>12;}},
+ {t:'бүтэн квадрат',p:function(a,b){var v=a*b,r=Math.round(Math.sqrt(v));return r*r===v;}}
+];
+function g_diceProductParity(){
+ var it=pick(DP_CONDS),cnt=d2count(it.p),comp=36-cnt;
+ if(cnt===0||cnt===36)return null;
+ var q='Хоёр шоог зэрэг орхив. Буусан нүднүүдийн үржвэр '+it.t+' байх магадлалыг ол. '+
+   'Мөн эсрэг үзэгдлийн магадлалыг ол.';
+ var a='Нийт үр дүн $6\\cdot 6=36$. Үржвэрийн хүснэгтээс тохирох тохиолдол $'+cnt+'$ ширхэг тул '+
+   '$P(A)='+PF(cnt,36)+'$. Эсрэг үзэгдэл: $P(\\bar{A})='+PF(comp,36)+'$.';
+ return {q:q,a:a,key:'pp'+it.t,nv:cnt/36,comp:comp/36};
+}
+var CH_EVENTS=[
+ {t:'ядаж нэг удаа сүлд буух',p:function(h,n){return h>=1;},viaComp:'нэг ч удаа сүлд буухгүй'},
+ {t:'ядаж нэг удаа тоо буух',p:function(h,n){return h<=n-1;},viaComp:'бүх удаад сүлд буух'},
+ {t:'нэг ч удаа сүлд буухгүй байх',p:function(h,n){return h===0;},viaComp:null},
+ {t:'бүх удаад сүлд буух',p:function(h,n){return h===n;},viaComp:null}
+];
+function g_coinsAtLeastOneHead(){
+ var n=pick([2,3,4]),it=pick(CH_EVENTS),tot=1<<n;
+ var cnt=coinCount(n,it.p),comp=tot-cnt;
+ var q='Зоосон мөнгийг '+n+' удаа орхив. '+it.t.charAt(0).toUpperCase()+it.t.slice(1)+
+   ' магадлалыг ол. Мөн эсрэг үзэгдлийн магадлалыг ол.';
+ var a='Нийт үр дүн $2^{'+n+'}='+tot+'$. '+
+   (it.viaComp?('Эсрэг үзэгдэл “'+it.viaComp+'” нь $'+comp+'$ тохиолдол тул $P(A)=1-'+PF(comp,tot).split('=').pop()+'='+PF(cnt,tot)+'$.')
+             :('Тохирох тохиолдол $'+cnt+'$ тул $P(A)='+PF(cnt,tot)+'$.'))+
+   ' Эсрэг үзэгдлийн магадлал $P(\\bar{A})='+PF(comp,tot)+'$.';
+ return {q:q,a:a,key:'ah'+n+it.t,nv:cnt/tot,comp:comp/tot};
+}
+function g_coinsExactOrCount(){
+ var n=pick([2,3]),tot=1<<n;
+ var opts=[];
+ for(var k=0;k<=n;k++)opts.push({t:'яг $'+k+'$ удаа сүлд буух',p:(function(kk){return function(h){return h===kk;};})(k)});
+ for(var k2=1;k2<=n;k2++)opts.push({t:'ядаж $'+k2+'$ удаа сүлд буух',p:(function(kk){return function(h){return h>=kk;};})(k2)});
+ opts.push({t:'бүх орхилт ижил талаараа буух',p:function(h){return h===0||h===n;}});
+ var it=pick(opts),cnt=coinCount(n,it.p),comp=tot-cnt;
+ if(cnt===0||cnt===tot)return null;
+ var space=(n===2)?'ТТ, ТС, СТ, СС':'ТТТ, ТТС, ТСТ, ТСС, СТТ, СТС, ССТ, ССС';
+ var q='Зоосон мөнгийг '+n+' удаа орхив. '+it.t.charAt(0).toUpperCase()+it.t.slice(1)+' магадлалыг ол.';
+ var a='Боломжит олонлог: '+space+' (Т — тоо, С — сүлд), нийт $2^{'+n+'}='+tot+'$ үр дүн. '+
+   'Тохирох тохиолдол $'+cnt+'$ тул $P='+PF(cnt,tot)+'$. Эсрэг үзэгдэл: $'+PF(comp,tot)+'$.';
+ return {q:q,a:a,key:'ce'+n+it.t,nv:cnt/tot,comp:comp/tot};
+}
+var DIE_CONDS=[
+ {t:'тэгш тоогоор',s:[2,4,6]},{t:'сондгой тоогоор',s:[1,3,5]},
+ {t:'$3$-аас их тоогоор',s:[4,5,6]},{t:'анхны тоогоор',s:[2,3,5]},
+ {t:'$4$-өөс бага тоогоор',s:[1,2,3]},{t:'$6$ тоогоор',s:[6]},
+ {t:'$3$-т хуваагдах тоогоор',s:[3,6]}
+];
+function g_dieCoinEvent(){
+ var dc=pick(DIE_CONDS),mode=pick(['both','dieOnly']);
+ var wantHead=pick([true,false]);
+ var cnt=0;
+ for(var d=1;d<=6;d++)for(var c=0;c<2;c++){
+  var okDie=dc.s.indexOf(d)>=0, okCoin=(c===1)===wantHead;
+  if(mode==='both'?(okDie&&okCoin):okDie)cnt++;
+ }
+ var comp=12-cnt;
+ if(cnt===0||cnt===12)return null;
+ var desc=(mode==='both')
+   ? ('Шоо '+dc.t+' буух ба зоос '+(wantHead?'сүлд':'тоо')+' буух')
+   : ('Шоо '+dc.t+' буух (зоос дурын байдлаар)');
+ var q='Нэг шоо ба нэг зоосыг зэрэг орхив. '+desc+' магадлалыг ол. Мөн эсрэг үзэгдлийн магадлалыг ол.';
+ var a='Нийт үр дүн $6\\cdot 2=12$, бүгд адил магадлалт. Тохирох тохиолдол $'+cnt+'$ тул '+
+   '$P(A)='+PF(cnt,12)+'$. Эсрэг үзэгдэл: $P(\\bar{A})='+PF(comp,12)+'$.';
+ return {q:q,a:a,key:'dce'+dc.t+mode+wantHead,nv:cnt/12,comp:comp/12};
+}
+var DS_CONDS=[
+ {t:'тэгш тоогоор',s:[2,4,6]},{t:'сондгой тоогоор',s:[1,3,5]},
+ {t:'$3$-аас их тоогоор',s:[4,5,6]},{t:'анхны тоогоор ($2,3,5$)',s:[2,3,5]},
+ {t:'$6$ тоогоор',s:[6]},{t:'$4$-өөс бага тоогоор',s:[1,2,3]},
+ {t:'$2$-оос их тоогоор',s:[3,4,5,6]},{t:'$5$-аас их биш тоогоор',s:[1,2,3,4,5]},
+ {t:'$3$-т хуваагдах тоогоор',s:[3,6]},{t:'$1$ буюу $6$ тоогоор',s:[1,6]}
+];
+function g_dieShagaiCount(){
+ var it=pick(DS_CONDS),num=it.s.length*4,comp=24-num;
+ if(num===0||num===24)return null;
+ var q='Нэг шоо ба нэг шагайг зэрэг орхив. Боломжит олонлогт нийт $6\\cdot 4=24$ үр дүн байна. '+
+   'Шоо '+it.t+' буух магадлалыг ол (шагай дурын байдлаар).';
+ var a='Шагай ямар ч тал ($4$ боломж) байхад шооны нөхцөл шийднэ. Тохирох шооны тал $'+it.s.length+
+   '$ тул тохиолдол $'+it.s.length+'\\cdot 4='+num+'$. $P='+PF(num,24)+'$. Эсрэг үзэгдэл: $'+PF(comp,24)+'$.';
+ return {q:q,a:a,key:'ds'+it.t,nv:num/24,comp:comp/24};
+}
+
+// ════════ WS4  Санамсаргүй тоо сонгох магадлал-1  (4.3) ════════
+var NDO_PAIRS=[[100,10],[50,5],[100,25],[60,4],[80,5],[100,4],[50,2],[60,3],[100,5],[80,10],[60,6],[100,2]];
+function g_numDivisibleOne(){
+ var pr=pick(NDO_PAIRS),N=pr[0],d=pr[1],cnt=Math.floor(N/d),comp=N-cnt;
+ var q='$1,\\ 2,\\ \\dots,\\ '+N+'$ натурал тоонуудаас нэгийг санамсаргүйгээр сонгов. Сонгосон тоо $'+d+
+   '$-д хуваагдах магадлалыг ол. Мөн эсрэг үзэгдлийн магадлалыг ол.';
+ var a='$'+d+'$-д хуваагдах тоо: $\\lfloor '+N+'\\div '+d+'\\rfloor='+cnt+'$ ширхэг. '+
+   '$P='+PF(cnt,N)+'$. Эсрэг үзэгдэл: $P(\\bar A)='+PF(comp,N)+'$.';
+ return {q:q,a:a,key:'ndo'+N+'_'+d,nv:cnt/N,comp:comp/N,N:N,d:d};
+}
+var NDE_PAIRS=[[5,9],[2,7],[3,4],[5,6],[4,9],[3,7],[4,5]];
+function cntDiv2d(d){var c=0;for(var x=10;x<=99;x++)if(x%d===0)c++;return c;}
+function g_numDivisibleEither(){
+ var pr=pick(NDE_PAIRS),d1=pr[0],d2=pr[1];
+ var A=cntDiv2d(d1),B=cntDiv2d(d2),L=lcm(d1,d2),AB=0;
+ for(var x=10;x<=99;x++)if(x%L===0)AB++;
+ var uni=A+B-AB,comp=90-uni;
+ var q='$10$-аас $99$ хүртэлх хоёр оронтой тоонуудаас нэгийг санамсаргүйгээр сонгов. Сонгосон тоо $'+d1+
+   '$ буюу $'+d2+'$-ын ядаж нэгэнд нь хуваагдах магадлалыг ол. Мөн эсрэг үзэгдлийн магадлалыг ол.';
+ var a='Нийт $90$ тоо. $'+d1+'$-д хуваагдах $'+A+'$, $'+d2+'$-д хуваагдах $'+B+'$, хоёуланд нь '+
+   '($'+L+'$-д) хуваагдах $'+AB+'$. Нэгдэл: $'+A+'+'+B+'-'+AB+'='+uni+'$. $P='+PF(uni,90)+'$. '+
+   'Эсрэг үзэгдэл: $P(\\bar A)='+PF(comp,90)+'$.';
+ return {q:q,a:a,key:'nde'+d1+'_'+d2,nv:uni/90,comp:comp/90,d1:d1,d2:d2};
+}
+var NDB_PAIRS=[[2,3],[2,5],[3,5],[4,6],[2,7],[3,4],[5,6]];
+function g_numDivisibleBoth(){
+ var pr=pick(NDB_PAIRS),d1=pr[0],d2=pr[1],L=lcm(d1,d2),cnt=0;
+ for(var x=10;x<=99;x++)if(x%L===0)cnt++;
+ var comp=90-cnt;
+ var q='$10$-аас $99$ хүртэлх хоёр оронтой тоонуудаас нэгийг санамсаргүйгээр сонгов. Сонгосон тоо $'+d1+
+   '$ ба $'+d2+'$-д зэрэг хуваагдах магадлалыг ол. Мөн эсрэг үзэгдлийн магадлалыг ол.';
+ var a='Хоёуланд нь зэрэг хуваагдах ⇔ ЕХИ $'+L+'$-д хуваагдах. Ийм тоо $'+cnt+'$ ширхэг. '+
+   '$P='+PF(cnt,90)+'$. Эсрэг үзэгдэл: $P(\\bar A)='+PF(comp,90)+'$.';
+ return {q:q,a:a,key:'ndb'+d1+'_'+d2,nv:cnt/90,comp:comp/90,d1:d1,d2:d2};
+}
+var NPR_PAIRS=[[10,50],[1,20],[20,40],[1,30],[10,30],[30,60],[1,25],[40,60]];
+function g_numPrimeInRange(){
+ var pr=pick(NPR_PAIRS),lo=pr[0],hi=pr[1],tot=hi-lo+1,cnt=0;
+ for(var x=lo;x<=hi;x++)if(isPrime(x))cnt++;
+ var comp=tot-cnt;
+ var q='$'+lo+'$-аас багагүй, $'+hi+'$-аас ихгүй натурал тоонуудаас нэгийг санамсаргүйгээр сонгов. '+
+   'Сонгосон тоо анхны тоо байх магадлалыг ол. Мөн эсрэг үзэгдлийн магадлалыг ол.';
+ var a='$['+lo+';\\,'+hi+']$ мужид нийт $'+tot+'$ тоо, түүнээс анхны тоо $'+cnt+'$ ширхэг. '+
+   '$P='+PF(cnt,tot)+'$. Эсрэг үзэгдэл: $P(\\bar A)='+PF(comp,tot)+'$.';
+ return {q:q,a:a,key:'npr'+lo+'_'+hi,nv:cnt/tot,comp:comp/tot,lo:lo,hi:hi};
+}
+var CW_DAYS=['Даваа','Мягмар','Лхагва','Пүрэв','Баасан','Бямба','Ням'];
+function g_calendarWeekday(){
+ var wd=pick(CW_DAYS),count=pick([4,5]),comp=31-count;
+ var q='Тодорхой $31$ хоногтой сард '+wd+' гараг '+count+' удаа тохиолдов. Уг сарын нэг өдрийг '+
+   'санамсаргүйгээр сонгоход тэр өдөр '+wd+' гараг байх магадлалыг ол. Мөн эсрэг үзэгдлийн магадлалыг ол.';
+ var a='Нийт $31$ өдөр. $P('+wd+')=\\dfrac{'+count+'}{31}$. Эсрэг үзэгдэл: $P(\\bar A)=\\dfrac{'+comp+'}{31}$.';
+ return {q:q,a:a,key:'cw'+wd+count,nv:count/31,comp:comp/31,count:count};
+}
+var WSPEC={"title":"Зоос ба нэгдсэн туршилт","sub":"Нэгдсэн туршилт · IV бүлэг · 7-р анги","rule":"<b>Санамж:</b> Тооллын (үржвэрийн) зарчим: нэгдсэн туршилтын нийт үр дүн нь туршилт бүрийн үр дүнгийн тооны үржвэртэй тэнцүү. Хоёр зоос $2\\cdot 2=4$, гурван зоос $2^3=8$, шоо ба зоос $6\\cdot 2=12$, шоо ба шагай $6\\cdot 4=24$ үр дүн өгнө. \"Ядаж нэг\" гэсэн үзэгдлийг эсрэг үзэгдлээр нь бодвол хялбар.","ref":"","tasks":[{"label":"Зоосыг хэд хэдэн удаа орхих.","fn":"g_coinsAtLeastOneHead","cap":3},{"label":"Сүлдний тоогоор нөхцөл тавих.","fn":"g_coinsExactOrCount","cap":3},{"label":"Шоо ба зоосны нэгдсэн туршилт.","fn":"g_dieCoinEvent","cap":3},{"label":"Шоо ба шагайн нэгдсэн туршилт.","fn":"g_dieShagaiCount","cap":3}]};
+
+function toggleAns(){var el=document.getElementById('answers');if(el)el.style.display=document.getElementById('sa').checked?'block':'none';}
+function gen(fn){for(var t=0;t<700;t++){var f=fn();if(f)return f;}return null;}
+var LET=['а','б','в','г','д','е','ё','ж','з','и','к','л','м','н','о','ө','п','р','с','т'];
+function probeH(sheet){var pr=sheet.cloneNode(true);pr.removeAttribute('id');pr.style.cssText='position:absolute;left:-99999px;top:0;width:210mm;max-width:none;min-height:0;margin:0;padding:0;box-shadow:none;zoom:1';var a=pr.querySelector('#answers,.ans-page');if(a)a.remove();document.body.appendChild(pr);var h=pr.scrollHeight;document.body.removeChild(pr);return h;}
+function relabel(sheet){var blocks=sheet.querySelectorAll('.grid'),map={};for(var g=0;g<blocks.length;g++){var qs2=blocks[g].querySelectorAll('.q');for(var i=0;i<qs2.length;i++){var lt=LET[i]||('#'+(i+1));var ql=qs2[i].querySelector('.ql');if(ql)ql.textContent=lt+')';map[qs2[i].getAttribute('data-k')]=(g+1)+lt+')';}}
+  var as=sheet.querySelectorAll('#answers .a');for(var j=0;j<as.length;j++){var an=as[j].querySelector('.an');if(an)an.textContent=map[as[j].getAttribute('data-k')]||'';}}
+function trimToFit(sheet,target){var guard=0,h=probeH(sheet);while(h>target&&guard++<90){var blocks=sheet.querySelectorAll('.grid'),best=-1,bestN=-1;for(var s=blocks.length-1;s>=0;s--){var n=blocks[s].querySelectorAll('.q').length;if(n>bestN&&n>2){bestN=n;best=s;}}if(best<0)break;var qs2=blocks[best].querySelectorAll('.q');var last=qs2[qs2.length-1],k=last.getAttribute('data-k');var ans=sheet.querySelector('#answers .a[data-k="'+k+'"]');if(ans)ans.parentNode.removeChild(ans);last.parentNode.removeChild(last);relabel(sheet);h=probeH(sheet);}}
+var TASKS=WSPEC.tasks.map(function(t){return {label:t.label, fn:eval(t.fn), cap:t.cap};});
+function genPool(){var P=TASKS.map(function(){return[];});var seen={};TASKS.forEach(function(t,i){var c=0,tr=0,need=t.cap+3;while(c<need&&tr<9000){tr++;var f=gen(t.fn);if(!f||seen[f.key])continue;seen[f.key]=1;P[i].push(f);c++;}});return P;}
+function build(){window.__POOL=genPool();layout();}
+function layout(){var WK=document.getElementById('sw').checked;var S=window.__POOL||(window.__POOL=genPool());window.__PROB=[];var K=0;
+  function block(arr,cap){var use=WK?arr.slice(0,cap):arr;return '<div class="grid">'+use.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});return '<div class="q" data-k="'+k+'"><div class="qh"><span class="ql"></span><span class="qm">'+f.q+'</span></div>'+(f.fig?'<div class="fig">'+f.fig+'</div>':'')+((WK&&!f.noWk)?'<div class="wk"></div>':'')+'</div>';}).join('')+'</div>';}
+  function ansAll(){return window.__PROB.map(function(p){return '<div class="a" data-k="'+p.k+'"><span class="an"></span>'+p.f.a+'</div>';}).join('');}
+  var html='<div class="head"><h1>'+WSPEC.title+'</h1><div class="sub">'+WSPEC.sub+'</div></div>'
+    +'<div class="meta"><span>Нэр: </span><span>Анги: </span><span>Огноо: </span></div>'
+    +'<div class="rule">'+WSPEC.rule+'</div>'+(WSPEC.ref||'');
+  TASKS.forEach(function(t,i){html+='<div class="task">'+(i+1)+'. '+t.label+'</div>'+block(S[i],t.cap);});
+  html+='<div class="ans-page" id="answers"><h2>Хариу ба бодолт</h2><div class="ans-grid">'+ansAll()+'</div></div>';
+  document.getElementById('sheet').innerHTML=html;
+  window.WS_ITEMS=[];window.WS_TITLE=WSPEC.title;
+  relabel(document.getElementById('sheet'));toggleAns();
+  try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
+  try{if(!WK)trimToFit(document.getElementById('sheet'),1035);}catch(e){}
+  try{relabel(document.getElementById('sheet'));}catch(e){}
+}
+build();
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>
