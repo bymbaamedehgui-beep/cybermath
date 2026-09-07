@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Бүхэл тоо үржих, хуваах-1 (7-р анги)</title>
+<title>Бүхэл тоон үржүүлэх, хуваах-1 (7-р анги)</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
@@ -26,7 +26,7 @@
   .q{break-inside:avoid;page-break-inside:avoid}
   .qh{display:flex;gap:7px;align-items:baseline}.ql{font-weight:800;color:var(--purple);font-size:13px;min-width:22px}.qm{font-size:13px}
   .fig{text-align:center;margin:4px 0}
-  .wk{border:1.1px solid #e2daf5;border-radius:7px;background:linear-gradient(#fff,#fbf9ff);height:16mm;margin-top:5px}
+  .wk{border:1.1px solid #e2daf5;border-radius:7px;background:linear-gradient(#fff,#fbf9ff);height:10mm;margin-top:5px}
   .ans-page{margin-top:9mm;border-top:2px dashed #ddd;padding-top:7mm}.ans-page h2{font-size:15px;color:#5a32d6;margin-bottom:10px}
   .ans-grid{display:grid;grid-template-columns:1fr;gap:9px;font-size:12px}.ans-grid .a{padding-bottom:8px;border-bottom:1px dotted #e6e0f5}.ans-grid .an{color:var(--purple);font-weight:800;margin-right:5px}
   #answers{display:none}
@@ -126,393 +126,847 @@ function venn2(la,lb){la=la||'A';lb=lb||'B';var g='<rect x="6" y="6" width="248"
  g+='<text x="186" y="70" font-size="14" font-style="italic" fill="#5a32d6">'+lb+'</text>';
  return '<svg viewBox="0 0 260 130" width="210">'+g+'</svg>';}
 // ══════════ g7ch1.js — I БҮЛЭГ. Бүхэл тоон олонлог, зэрэг, язгуур ══════════
+// Сурах бичгийн 5–16 хуудасны ДАСГАЛУУДЫН хэлбэрээр зохиогдсон.
+// ЗАРЧИМ: тооцооллын бодлогод q нь ЗӨВХӨН илэрхийлэл. Заавар нь plan.json дахь task.label-д ганц удаа бичигдэнэ.
 // g7core.js доторх helper-үүд (rnd,nz,pick,shuffle,gcd,lcm,sgn,paren,isPrime,
-// primeFactors,primeFactExp,pfTex,isqrt,icbrt ...) энэ файлын ӨМНӨ залгагдана.
+// primeFactors,primeFactExp,pfTex,powClean,isqrt,icbrt,numline,venn2 ...) энэ файлын ӨМНӨ залгагдана.
 
-// ───────── 1.1 Тооны модул ─────────
-function g_modulSimple(){
- var mag=rnd(10,999), s=pick([-1,1]), a=s*mag;
- var t=pick(['abs','opp']);
- if(t==='abs'){
-  return {q:'$|'+a+'|$ илэрхийллийн утгыг ол.',
-          a:'$|'+a+'|='+Math.abs(a)+'$',
-          key:'ms-abs-'+a, nv:Math.abs(a)};
+// ═══════════ ЗУРГИЙН ТУСЛАХУУД (цэвэрхэн, хариу илчлэхгүй) ═══════════
+// Хүснэгт: rows — мөр бүр нүдний массив. Эхний багана нь толгой.
+function figTbl(rows){
+ var h='<table style="border-collapse:collapse;margin:2px auto;font-size:12.5px;line-height:1.15">';
+ for(var i=0;i<rows.length;i++){
+  h+='<tr>';
+  for(var j=0;j<rows[i].length;j++){
+   var hd=(j===0);
+   h+='<td style="border:1px solid #7B52EE;padding:2px 7px;text-align:center;min-width:'+(hd?22:34)+'px;height:19px;'
+     +(hd?'background:#f3f0ff;font-style:italic;color:#4c2fb5;':'color:#221;')+'">'+rows[i][j]+'</td>';
+  }
+  h+='</tr>';
  }
- var opp=-a;
- return {q:'$'+a+'$ тооны эсрэг тоог ол.',
-         a:'$'+a+'$ тооны эсрэг тоо нь $'+opp+'$.',
-         key:'ms-opp-'+a, nv:opp};
+ return h+'</table>';
+}
+// Нэмэх зүй тогтлын пирамид: хоёр зууван + доор нь гурвалжин (нийлбэр)
+function figOvalTri(la,lb,ls){
+ var g='';
+ g+='<ellipse cx="56" cy="23" rx="43" ry="17" fill="#f7f5ff" stroke="#7B52EE" stroke-width="1.3"/>';
+ g+='<ellipse cx="164" cy="23" rx="43" ry="17" fill="#f7f5ff" stroke="#7B52EE" stroke-width="1.3"/>';
+ g+='<line x1="99" y1="23" x2="121" y2="23" stroke="#7B52EE" stroke-width="1.3"/>';
+ g+='<line x1="56" y1="40" x2="74" y2="48" stroke="#7B52EE" stroke-width="1.1"/>';
+ g+='<line x1="164" y1="40" x2="146" y2="48" stroke="#7B52EE" stroke-width="1.1"/>';
+ g+='<polygon points="110,94 66,48 154,48" fill="#f7f5ff" stroke="#7B52EE" stroke-width="1.3"/>';
+ g+='<text x="56" y="28" font-size="13" text-anchor="middle" fill="#221">'+la+'</text>';
+ g+='<text x="164" y="28" font-size="13" text-anchor="middle" fill="#221">'+lb+'</text>';
+ g+='<text x="110" y="68" font-size="13" text-anchor="middle" fill="#221">'+ls+'</text>';
+ return '<svg viewBox="0 0 220 100" width="196">'+g+'</svg>';
+}
+// Дараалсан үйлдлийн схем: [эхлэл] →op1→ [ ] →op2→ [ ]
+function figChain(start,ops){
+ var bx=[6,132,258], bw=76, by=16, bh=26, ym=by+bh/2, g='', i;
+ function cell(x,label){
+  g+='<rect x="'+x+'" y="'+by+'" width="'+bw+'" height="'+bh+'" rx="3" fill="'+(label?'#f3f0ff':'#fff')+'" stroke="#7B52EE" stroke-width="1.3"/>';
+  if(label) g+='<text x="'+(x+bw/2)+'" y="'+(by+18)+'" font-size="13" text-anchor="middle" fill="#221">'+label+'</text>';
+ }
+ cell(bx[0],''+start); cell(bx[1],''); cell(bx[2],'');
+ for(i=0;i<2;i++){
+  var x1=bx[i]+bw+3, x2=bx[i+1]-3;
+  g+='<line x1="'+x1+'" y1="'+ym+'" x2="'+(x2-6)+'" y2="'+ym+'" stroke="#7B52EE" stroke-width="1.2"/>';
+  g+='<polygon points="'+x2+','+ym+' '+(x2-7)+','+(ym-4)+' '+(x2-7)+','+(ym+4)+'" fill="#7B52EE"/>';
+  g+='<text x="'+((x1+x2)/2)+'" y="'+(ym-7)+'" font-size="11" text-anchor="middle" fill="#5a32d6">'
+    +(ops[i]<0?'+('+ops[i]+')':'+'+ops[i])+'</text>';
+ }
+ return '<svg viewBox="0 0 340 54" width="316">'+g+'</svg>';
+}
+// Үржвэрийн пирамид: доод мөр 3 нүд, дунд 2, дээд 1
+function figPyr3(top,mid,bot){
+ var cw=76, ch=24, g='';
+ function cell(x,y,label){
+  g+='<rect x="'+x+'" y="'+y+'" width="'+cw+'" height="'+ch+'" rx="3" fill="'+(label?'#f3f0ff':'#fff')+'" stroke="#7B52EE" stroke-width="1.2"/>';
+  if(label) g+='<text x="'+(x+cw/2)+'" y="'+(y+16.5)+'" font-size="12.5" text-anchor="middle" fill="#221">'+label+'</text>';
+ }
+ cell(112,4,top);
+ cell(74,32,mid[0]); cell(150,32,mid[1]);
+ cell(36,60,bot[0]); cell(112,60,bot[1]); cell(188,60,bot[2]);
+ return '<svg viewBox="0 0 300 92" width="284">'+g+'</svg>';
 }
 
-function g_modulNested(){
- var a=rnd(11,299), t=pick(['t1','t2','t3','t4']), q, v;
- if(t==='t1'){ q='$-(-'+a+')$'; v=a; }
- else if(t==='t2'){ q='$-|-'+a+'|$'; v=-a; }
- else if(t==='t3'){ q='$|-(-'+a+')|$'; v=a; }
- else { q='$-(-|-'+a+'|)$'; v=a; }
- return {q:'Утгыг ол: '+q, a:q+'$='+v+'$', key:'mn-'+t+'-'+a, nv:v};
+// ═════════════════ 1.1 Тооны модул ═════════════════
+// [дасгал 1] Модулыг ол.
+function g_modulAbs(){
+ var mag=rnd(12,999), a=pick([-1,1])*mag;
+ return {q:'$|'+a+'|$', a:'$|'+a+'|='+Math.abs(a)+'$', key:'ma-'+a, nv:Math.abs(a)};
 }
-
-function g_modulExpr(){
- var t=pick(['add','muls','divmul']), q, v;
- if(t==='add'){
-  var a=nz(-40,40), b=nz(-40,40);
-  v=Math.abs(a)+Math.abs(b);
-  q='$|'+a+'|+|'+b+'|$';
-  return {q:'Илэрхийллийн утгыг ол: '+q, a:q+'$='+Math.abs(a)+'+'+Math.abs(b)+'='+v+'$', key:'me-a-'+a+'-'+b, nv:v};
- }
- if(t==='muls'){
-  var a=nz(-12,12), b=nz(-12,12), c=nz(-40,40);
-  v=Math.abs(a)*Math.abs(b)-Math.abs(c);
-  q='$|'+a+'|\\times|'+b+'|-|'+c+'|$';
-  return {q:'Илэрхийллийн утгыг ол: '+q, a:q+'$='+Math.abs(a)+'\\times'+Math.abs(b)+'-'+Math.abs(c)+'='+v+'$', key:'me-m-'+a+'-'+b+'-'+c, nv:v};
- }
- var bb=rnd(2,12), k=rnd(2,12), A=bb*k;
- var a=pick([A,-A]), b=pick([bb,-bb]), c=nz(-12,12), d=nz(-12,12);
- var q1=Math.abs(a)/Math.abs(b), q2=Math.abs(c)*Math.abs(d);
- v=q1+q2;
- q='$|'+a+'|\\div|'+b+'|+|'+c+'|\\times|'+d+'|$';
- return {q:'Илэрхийллийн утгыг ол: '+q, a:q+'$='+q1+'+'+q2+'='+v+'$', key:'me-d-'+a+'-'+b+'-'+c+'-'+d, nv:v};
+// [дасгал 3] Эсрэг тоог ол.
+function g_modulOpp(){
+ var mag=rnd(12,999), a=pick([-1,1])*mag;
+ return {q:'$'+a+'$', a:'$'+a+'$ тооны эсрэг тоо нь $'+(-a)+'$', key:'mo-'+a, nv:-a};
 }
-
-function g_distanceTwoPts(){
- var a=rnd(-12,12), b=rnd(-12,12);
+// [дасгал 2] Модул нь өгөгдсөн тоо байх бүх бүхэл тоог ол.
+function g_modulInverse(){
+ var m=pick([rnd(2,99),rnd(100,999),rnd(1000,2999)]);
+ return {q:'$|x|='+m+'$', a:'$x='+m+'$ буюу $x='+(-m)+'$', key:'mi-'+m, nv:m};
+}
+// [сорилт 2] Модулуудыг жиш.
+function g_modulCompare(){
+ var a=nz(-199,199), b=nz(-199,199);
  if(a===b) return null;
- if(a>=0 && b>=0) return null; // ядаж нэг нь сөрөг
- var dist=Math.abs(a-b);
- return {q:'Тоон шулуун дээр $A('+a+')$, $B('+b+')$ цэгүүд өгөгдөв. $A$ ба $B$ цэгийн хоорондох зайг ол.',
-         a:'$AB=|'+a+'-'+paren(b)+'|=|'+(a-b)+'|='+dist+'$',
-         key:'d2-'+a+'-'+b, nv:dist};
+ var A=Math.abs(a), B=Math.abs(b);
+ var rel=A>B?'\\gt ':(A<B?'\\lt ':'=');
+ return {q:'$|'+a+'|$ ба $|'+b+'|$',
+         a:'$|'+a+'|='+A+'$, $|'+b+'|='+B+'$ тул $|'+a+'|'+rel+'|'+b+'|$',
+         key:'mc-'+a+'-'+b, nv:Math.max(A,B)};
 }
-
+// [дасгал 4] Утгыг ол (үүрлэсэн модул ба эсрэг тоо).
+function g_modulNested(){
+ var a=rnd(11,499), t=pick(['t1','t2','t3','t4','t5']), q, v;
+ if(t==='t1'){ q='-(-'+a+')'; v=a; }
+ else if(t==='t2'){ q='-|-'+a+'|'; v=-a; }
+ else if(t==='t3'){ q='|-(-'+a+')|'; v=a; }
+ else if(t==='t4'){ q='-\\bigl(-|-'+a+'|\\bigr)'; v=a; }
+ else { q='-|'+a+'|'; v=-a; }
+ return {q:'$'+q+'$', a:'$'+q+'='+v+'$', key:'mn-'+t+'-'+a, nv:v};
+}
+// [сорилт 1] Хоёр тооны хооронд орших бүхэл тооны тоог ол.
+function g_modulCountBetween(){
+ var a=rnd(-18,4), b=a+rnd(4,20);
+ var cnt=b-a-1;
+ return {q:'$'+a+'$ ба $'+b+'$',
+         a:'$'+(a+1)+'$-ээс $'+(b-1)+'$ хүртэлх $'+cnt+'$ бүхэл тоо байна.',
+         key:'mcb-'+a+'-'+b, nv:cnt};
+}
+// [сорилт 5] Өсөх эрэмбээр жагсаа.
+function g_modulOrder(){
+ var arr=[], seen={}, v;
+ while(arr.length<6){ v=rnd(-40,40); if(seen[v]) continue; seen[v]=1; arr.push(v); }
+ var srt=arr.slice().sort(function(x,y){return x-y;});
+ return {q:'$'+arr.join(';\\ ')+'$', a:'$'+srt.join('\\lt ')+'$', key:'mor-'+arr.join('_')};
+}
+// [дасгал 5] Цэгүүдийг тоон шулуун дээр тэмдэглэж, хоорондох зайг ол.
+function g_distanceTwoPts(){
+ var a=rnd(-8,8), b=rnd(-8,8);
+ if(a===b) return null;
+ if(a>=0&&b>=0) return null;
+ var d=Math.abs(a-b);
+ return {q:'$A('+a+')$, $B('+b+')$',
+         a:'$AB=|'+a+'-'+paren(b)+'|=|'+(a-b)+'|='+d+'$',
+         fig:numline(-9,9), key:'d2-'+a+'-'+b, nv:d};
+}
+// [дасгал 7, 10] Гурван цэгийн хос бүрийн хоорондох зай.
 function g_distanceThree(){
- var a=rnd(-12,12), b=rnd(-12,12), c=rnd(-12,12);
+ var a=rnd(-8,8), b=rnd(-8,8), c=rnd(-8,8);
  if(a===b||b===c||a===c) return null;
- var negs=(a<0)+(b<0)+(c<0);
- if(negs<2) return null;
+ if((a<0)+(b<0)+(c<0)<2) return null;
  var AB=Math.abs(a-b), BC=Math.abs(b-c), AC=Math.abs(a-c);
- return {q:'$A('+a+')$, $B('+b+')$, $C('+c+')$ цэгүүд өгөгдөв. $A$ ба $B$, $B$ ба $C$, $A$ ба $C$ цэгүүдийн хоорондох зайг тус бүрд нь ол.',
-         a:'$AB=|'+a+'-'+paren(b)+'|='+AB+'$, $BC=|'+b+'-'+paren(c)+'|='+BC+'$, $AC=|'+a+'-'+paren(c)+'|='+AC+'$',
-         key:'d3-'+a+'-'+b+'-'+c};
+ return {q:'$A('+a+')$, $B('+b+')$, $C('+c+')$',
+         a:'$|AB|=|'+a+'-'+paren(b)+'|='+AB+'$, $|BC|=|'+b+'-'+paren(c)+'|='+BC+'$, $|AC|=|'+a+'-'+paren(c)+'|='+AC+'$',
+         fig:numline(-9,9), key:'d3-'+a+'-'+b+'-'+c};
 }
-
+// [дасгал 6а] Нөхцөлийг хангах бүх бүхэл тоог жагсаа.
 function g_modulRange(){
- var n=rnd(3,6), t=pick(['range','equal']);
- if(t==='range'){
-  var arr=[]; for(var i=-n;i<=n;i++) arr.push(i);
-  return {q:'Модулаараа $'+n+'$-аас хэтрэхгүй байх бүх бүхэл тоог жагсаа.',
-          a:'$'+arr.join(';\\ ')+'$ (нийт '+(2*n+1)+' тоо)',
-          key:'mr-r-'+n, nv:2*n+1};
+ var n=rnd(3,10), t=pick(['le','lt']), arr=[], i, lim=(t==='le'?n:n-1);
+ for(i=-lim;i<=lim;i++) arr.push(i);
+ return {q:'$|x|'+(t==='le'?'\\le ':'\\lt ')+n+'$',
+         a:'$'+arr.join(';\\ ')+'$ — нийт $'+arr.length+'$ тоо',
+         key:'mr-'+lim, nv:arr.length};
+}
+// [дасгал 6б] Заасан завсрын бүх бүхэл тооны модулын нийлбэр.
+function g_modulAbsSum(){
+ var lo=rnd(-14,-3), hi=rnd(3,14), s=0, i;
+ for(i=lo;i<=hi;i++) s+=Math.abs(i);
+ var SA=(-lo)*(-lo+1)/2, SB=hi*(hi+1)/2;
+ return {q:'$'+lo+'$-аас $'+hi+'$ хүртэл',
+         a:'$(1+2+\\ldots+'+(-lo)+')+(1+2+\\ldots+'+hi+')='+SA+'+'+SB+'='+s+'$',
+         key:'mas-'+lo+'-'+hi, nv:s};
+}
+// [дасгал 8, сорилт 3] Илэрхийллийн утгыг ол (3 гишүүнт, том тоо).
+function g_modulExpr(){
+ var t=pick(['s3','md','dv']), a, b, c, v, q;
+ if(t==='s3'){
+  a=nz(-199,199); b=nz(-199,199); c=nz(-199,199);
+  v=Math.abs(a)+Math.abs(b)-Math.abs(c);
+  q='|'+a+'|+|'+b+'|-|'+c+'|';
+  return {q:'$'+q+'$', a:'$'+q+'='+Math.abs(a)+'+'+Math.abs(b)+'-'+Math.abs(c)+'='+v+'$',
+          key:'me-s-'+a+'-'+b+'-'+c, nv:v};
  }
- return {q:'Модулаараа $'+n+'$-тэй тэнцүү бүх бүхэл тоог ол.',
-         a:'$'+(-n)+'$ ба $'+n+'$',
-         key:'mr-e-'+n, nv:2};
+ if(t==='md'){
+  a=nz(-199,199); b=nz(-99,99); c=nz(-199,199);
+  if(Math.abs(a)<11||Math.abs(b)<11) return null;
+  v=Math.abs(a)*Math.abs(b)-Math.abs(c);
+  q='|'+a+'|\\times |'+b+'|-|'+c+'|';
+  return {q:'$'+q+'$', a:'$'+q+'='+Math.abs(a)+'\\times '+Math.abs(b)+'-'+Math.abs(c)+'='+v+'$',
+          key:'me-m-'+a+'-'+b+'-'+c, nv:v};
+ }
+ var d=rnd(11,60), k=rnd(11,60), A=d*k;
+ a=pick([A,-A]); b=pick([d,-d]); c=nz(-99,99);
+ var q1=Math.abs(a)/Math.abs(b);
+ v=q1+Math.abs(c);
+ q='|'+a+'|\\div |'+b+'|+|'+c+'|';
+ return {q:'$'+q+'$', a:'$'+q+'='+q1+'+'+Math.abs(c)+'='+v+'$',
+         key:'me-d-'+a+'-'+b+'-'+c, nv:v};
+}
+// [дасгал 8в өргөтгөл] Хаалттай, олон алхамт модулын илэрхийлэл.
+function g_modulExprMixed(){
+ var a=nz(-199,199), b=nz(-199,199), c=nz(-19,19);
+ if(Math.abs(c)<2) return null;
+ var inner=Math.abs(a)-Math.abs(b);
+ if(inner===0) return null;
+ var v=inner*Math.abs(c);
+ var q='\\bigl(|'+a+'|-|'+b+'|\\bigr)\\times |'+c+'|';
+ return {q:'$'+q+'$', a:'$'+q+'='+paren(inner)+'\\times '+Math.abs(c)+'='+v+'$',
+         key:'mem-'+a+'-'+b+'-'+c, nv:v};
 }
 
-// ───────── 1.2 Бүхэл тоо нэмэх, хасах ─────────
+// ═════════════════ 1.2 Бүхэл тооны нэмэх, хасах ═════════════════
+// [дасгал 11] Илэрхийллийн утгыг ол.
 function g_addTwo(){
  var a=nz(-600,600), b=nz(-600,600);
- var v=a+b;
- return {q:'Илэрхийллийн утгыг ол: $'+a+'+'+paren(b)+'$',
-         a:'$'+a+'+'+paren(b)+'='+v+'$', key:'a2-'+a+'-'+b, nv:v};
+ return {q:'$'+a+'+'+paren(b)+'$', a:'$'+a+'+'+paren(b)+'='+(a+b)+'$', key:'a2-'+a+'-'+b, nv:a+b};
 }
-
+// [дасгал 11л,м] Хасах үйлдэл.
 function g_subToAdd(){
- var a=nz(-400,400), b=nz(-400,400);
+ var a=nz(-500,500), b=nz(-500,500);
  var v=a-b;
- var work= b<0 ? '$'+a+'-('+b+')='+a+'+'+(-b)+'='+v+'$' : '$'+a+'-'+b+'='+v+'$';
- return {q:'Илэрхийллийн утгыг ол: $'+a+'-'+paren(b)+'$',
-         a:work, key:'sa-'+a+'-'+b, nv:v};
+ var work=(b<0)?('$'+a+'-('+b+')='+a+'+'+(-b)+'='+v+'$'):('$'+a+'-'+b+'='+v+'$');
+ return {q:'$'+a+'-'+paren(b)+'$', a:work, key:'sa-'+a+'-'+b, nv:v};
 }
-
+// [дасгал 12] Дөрөв, таван гишүүнт нийлбэр.
 function g_addChain3(){
- var n=pick([3,4]), arr=[], i;
- for(i=0;i<n;i++) arr.push(nz(-400,400));
+ var n=pick([4,5]), arr=[], i;
+ for(i=0;i<n;i++) arr.push(nz(-500,500));
  var v=arr.reduce(function(s,x){return s+x;},0);
- var q=arr[0]; for(i=1;i<arr.length;i++) q+='+'+paren(arr[i]);
- return {q:'Илэрхийллийн утгыг ол: $'+q+'$',
-         a:'$'+q+'='+v+'$', key:'ac-'+arr.join('_'), nv:v};
+ var q=''+arr[0];
+ for(i=1;i<n;i++) q+='+'+paren(arr[i]);
+ return {q:'$'+q+'$', a:'$'+q+'='+v+'$', key:'ac-'+arr.join('_'), nv:v};
 }
-
+// [дасгал 20] Хялбар аргаар гүйцэтгэ (эерэг, сөрөг гишүүдийг бүлэглэх).
 function g_easyGroup(){
- var n=rnd(6,8), arr=[], i;
- for(i=0;i<n;i++) arr.push(nz(-70,70));
+ var n=rnd(8,10), arr=[], i;
+ for(i=0;i<n;i++) arr.push(nz(-90,90));
  var pos=arr.filter(function(x){return x>0;});
  var neg=arr.filter(function(x){return x<0;});
- if(pos.length<2||neg.length<2) return null;
+ if(pos.length<3||neg.length<3) return null;
  var sp=pos.reduce(function(s,x){return s+x;},0);
  var sn=neg.reduce(function(s,x){return s+Math.abs(x);},0);
  var v=sp-sn;
- var q=arr[0]; for(i=1;i<arr.length;i++) q+= (arr[i]<0?'':'+')+arr[i];
- var work='$('+pos.join('+')+')-('+neg.map(function(x){return Math.abs(x);}).join('+')+')='+sp+'-'+sn+'='+v+'$';
- return {q:'Үйлдлийг хялбар аргаар гүйцэтгэ: $'+q+'$',
-         a:work, key:'eg-'+arr.join('_'), nv:v};
+ var q=''+arr[0];
+ for(i=1;i<n;i++) q+=(arr[i]<0?'':'+')+arr[i];
+ return {q:'$'+q+'$',
+         a:'$('+pos.join('+')+')-('+neg.map(function(x){return Math.abs(x);}).join('+')+')='+sp+'-'+sn+'='+v+'$',
+         key:'eg-'+arr.join('_'), nv:v};
 }
-
+// [дасгал 13] Зүй тогтол: зууван доторх хоёр тооны нийлбэр нь гурвалжинд бичигдэнэ.
+function g_pyramidAdd(){
+ var a=nz(-500,500), b=nz(-500,500), s=a+b;
+ if(s===0) return null;
+ var miss=pick([0,1,2]);
+ var la=(miss===0?'X':''+a), lb=(miss===1?'X':''+b), ls=(miss===2?'X':''+s);
+ var work;
+ if(miss===0) work='$X='+s+'-'+paren(b)+'='+a+'$';
+ else if(miss===1) work='$X='+s+'-'+paren(a)+'='+b+'$';
+ else work='$X='+a+'+'+paren(b)+'='+s+'$';
+ var val=(miss===0?a:(miss===1?b:s));
+ return {q:'$X=?$', fig:figOvalTri(la,lb,ls), a:work, key:'py-'+a+'-'+b+'-'+miss, nv:val};
+}
+// [дасгал 17] Схемийн дагуу дараалан үйлдэл гүйцэтгэ.
+function g_flowAdd(){
+ var start=nz(-400,400), o1=nz(-350,350), o2=nz(-350,350);
+ var v1=start+o1, v2=v1+o2;
+ if(v1===0||v2===0) return null;
+ return {q:'$X=?$', fig:figChain(start,[o1,o2]),
+         a:'$'+start+'+'+paren(o1)+'='+v1+'$; $'+v1+'+'+paren(o2)+'='+v2+'$',
+         key:'fl-'+start+'-'+o1+'-'+o2, nv:v2};
+}
+// [дасгал 14, 15] Температурын бодлого.
 function g_wordTemp(){
- var t0=rnd(-25,10), d1=rnd(3,15), d2=rnd(3,15);
- var w1=pick([1,-1]), w2=pick([1,-1]);
- var s1=w1*d1, s2=w2*d2, t=t0+s1+s2;
- var wd1=w1>0?'дулаарав':'хүйтэрлээ', wd2=w2>0?'дулаарав':'хүйтэрлээ';
- var q='Өглөө агаарын температур '+t0+'°C байв. Өдөртөө '+d1+'°-аар '+wd1+', оройдоо '+d2+'°-аар '+wd2+'. Оройн температур хэдэн хэм болсон бэ?';
- return {q:q, a:'$'+t0+sgn(s1)+sgn(s2)+'='+t+'$ °C', key:'wt-'+t0+'-'+s1+'-'+s2, nv:t};
+ var t0=rnd(-32,6), d=rnd(4,22), up=pick([1,-1]);
+ var t=t0+up*d;
+ var q=(up>0
+  ?('Өглөө агаарын температур '+t0+'°C байв. Өдөртөө '+d+' хэмээр дулаарав. Өдрийн температур хэдэн хэм болсон бэ?')
+  :('Өглөө агаарын температур '+t0+'°C байв. Оройдоо '+d+' хэмээр хүйтэрлээ. Оройн температур хэдэн хэм болсон бэ?'));
+ return {q:q, a:'$'+t0+sgn(up*d)+'='+t+'$ °C', key:'wt-'+t0+'-'+(up*d), nv:t};
 }
-
-// ───────── 1.3 Бүхэл тоо үржих, хуваах ─────────
-function g_mulDivTwo(){
- var t=pick(['mul','div']);
- if(t==='mul'){
-  var a=nz(-50,50), b=nz(-50,50);
-  if(Math.abs(a)<2||Math.abs(b)<2) return null;
-  var v=a*b;
-  return {q:'Үйлдлийг гүйцэтгэ: $'+paren(a)+'\\times'+paren(b)+'$',
-          a:'$'+paren(a)+'\\times'+paren(b)+'='+v+'$', key:'md-m-'+a+'-'+b, nv:v};
- }
- var b=nz(-50,50); if(Math.abs(b)<2) return null;
- var k=nz(-40,40); if(Math.abs(k)<2) return null;
- var a=b*k;
- if(Math.abs(a)>2500) return null;
- var v=a/b;
- return {q:'Үйлдлийг гүйцэтгэ: $'+paren(a)+'\\div'+paren(b)+'$',
-         a:'$'+paren(a)+'\\div'+paren(b)+'='+v+'$', key:'md-d-'+a+'-'+b, nv:v};
-}
-
-function g_unknownFactor(){
- var t=pick(['t1','t2','t3']), q, sol, work;
- if(t==='t1'){
-  var b=nz(-40,40); if(Math.abs(b)<2) return null;
-  sol=nz(-300,300); var p=sol*b;
-  q='$\\square\\times'+paren(b)+'='+p+'$';
-  work='$\\square='+p+'\\div'+paren(b)+'='+sol+'$';
- } else if(t==='t2'){
-  sol=nz(-40,40); if(Math.abs(sol)<2) return null;
-  var qv=nz(-19,19); var A=sol*qv;
-  q='$'+A+'\\div\\square='+qv+'$';
-  work='$\\square='+A+'\\div'+paren(qv)+'='+sol+'$';
+// [дасгал 16, сорилт 6] Хэрхэн өөрчлөгдсөнийг ол (урвуу хэлбэр).
+function g_riverLevel(){
+ var a=nz(-45,-5), b=nz(-45,25);
+ if(a===b) return null;
+ var d=b-a, t=pick(['river','temp']), q, ans;
+ if(t==='river'){
+  q='Голын усны түвшин эргээс доош '+Math.abs(a)+' см-т байв. Бороо орсны дараа усны түвшин '
+    +(b<0?('эргээс доош '+Math.abs(b)+' см-т хүрэв'):('эргээс дээш '+b+' см болов'))
+    +'. Усны түвшин хэрхэн өөрчлөгдсөн бэ?';
+  ans='$'+b+'-'+paren(a)+'='+d+'$ см'+(d>0?' (дээшилсэн)':' (доошилсон)');
  } else {
-  var b=nz(2,40); var qv=nz(-19,19); sol=qv*b;
-  q='$\\square\\div'+paren(b)+'='+qv+'$';
-  work='$\\square='+qv+'\\times'+b+'='+sol+'$';
+  q='Улаанбаатар хотод агаарын температур өглөө '+a+'°C байсан бол үдэш '+b+'°C болжээ. Температур хэрхэн өөрчлөгдсөн бэ?';
+  ans='$'+b+'-'+paren(a)+'='+d+'$ °C'+(d>0?' (дулаарсан)':' (хүйтэрсэн)');
  }
- return {q:'$\\square$-ийн оронд тохирох бүхэл тоог ол: '+q, a:work, key:'uf-'+t+'-'+sol+'-'+q, nv:sol};
+ return {q:q, a:ans, key:'rl-'+t+'-'+a+'-'+b, nv:d};
+}
+// [дасгал 18*] Блоклосон ээлжлэх нийлбэр.
+function g_altBlockSum(){
+ var start=rnd(1,9), nb=rnd(4,8), i, vals=[], total=0;
+ function blk(k){ return '('+k+'+'+(k+1)+'+'+(k+2)+'-'+(k+3)+'-'+(k+4)+')'; }
+ for(i=0;i<nb;i++){ var k=start+5*i; vals.push(k-4); total+=k-4; }
+ var q=blk(start)+'+'+blk(start+5)+'+\\ldots+'+blk(start+5*(nb-1));
+ var s=''+vals[0];
+ for(i=1;i<vals.length;i++) s+=(vals[i]<0?'':'+')+vals[i];
+ return {q:'$'+q+'$',
+         a:'Хаалт бүрийн утга: $k+(k+1)+(k+2)-(k+3)-(k+4)=k-4$. Иймд $'+s+'='+total+'$',
+         key:'abs-'+start+'-'+nb, nv:total};
+}
+// [дасгал 19*] Дундажтай холбоотой урвуу бодлого.
+function g_avgLoad(){
+ var p=rnd(2,9), q=rnd(2,9), d=rnd(1,4);
+ var num=2*p+2*q+5*d;
+ if(num%4!==0) return null;
+ var x=num/4;
+ if(x<2||x>60) return null;
+ return {q:'Агуулахад таван ачааны машин байв. $A$, $B$ машин тус бүр '+p+' тонны, $C$, $D$ машин тус бүр '+q
+          +' тонны даацтай. $E$ машин таван машины дундаж даацаас '+d+' тонноор илүү даацтай бол $E$ машины даацыг ол.',
+         a:'$E=x$ гэвэл $\\dfrac{'+(2*p+2*q)+'+x}{5}+'+d+'=x$, эндээс $'+(2*p+2*q)+'+x+'+(5*d)+'=5x$, $4x='+num+'$, $x='+x+'$ тонн.',
+         key:'al-'+p+'-'+q+'-'+d, nv:x};
+}
+// [дасгал 20в] Сондгой тоонуудын урт нийлбэрийг хялбар аргаар.
+function g_sumRangeInt(){
+ var lo=-(2*rnd(3,10)+1), hi=2*rnd(5,14)+1, i, terms=[], s=0;
+ if(hi<=-lo+2) return null;
+ for(i=lo;i<=hi;i+=2){ terms.push(i); s+=i; }
+ var n=terms.length, rem=[], j;
+ for(j=-lo+2;j<=hi;j+=2) rem.push(j);
+ var rest=(rem.length<=5)?rem.join('+'):(rem[0]+'+'+rem[1]+'+\\ldots+'+rem[rem.length-1]);
+ var q=''+terms[0]+'+'+paren(terms[1])+'+'+paren(terms[2])+'+\\ldots+'+terms[n-3]+'+'+terms[n-2]+'+'+terms[n-1];
+ return {q:'$'+q+'$',
+         a:'$'+lo+'$-аас $'+(-lo)+'$ хүртэлх гишүүд хос хосоороо хорогдоно. Үлдэх нь $'+rest+'='+s+'$',
+         key:'sri-'+lo+'-'+hi, nv:s};
 }
 
+// ═════════════════ 1.3 Бүхэл тооны үржүүлэх, хуваах ═════════════════
+// [дасгал 22, 23] Үйлдлийг гүйцэтгэ.
+function g_mulDivTwo(){
+ var t=pick(['mul','div']), a, b, k;
+ if(t==='mul'){
+  a=nz(-60,60); b=nz(-60,60);
+  if(Math.abs(a)<2||Math.abs(b)<2) return null;
+  return {q:'$'+paren(a)+'\\times '+paren(b)+'$', a:'$'+paren(a)+'\\times '+paren(b)+'='+(a*b)+'$',
+          key:'md-m-'+a+'-'+b, nv:a*b};
+ }
+ b=nz(-60,60); if(Math.abs(b)<2) return null;
+ k=nz(-60,60); if(Math.abs(k)<2) return null;
+ a=b*k; if(Math.abs(a)>3000) return null;
+ return {q:'$'+paren(a)+'\\div '+paren(b)+'$', a:'$'+paren(a)+'\\div '+paren(b)+'='+k+'$',
+         key:'md-d-'+a+'-'+b, nv:k};
+}
+// [дасгал 22ж, 31б] Хэд хэдэн үржигдэхүүн (тэмдгийн дүрэм).
 function g_signParity(){
- var a=nz(-12,12), b=nz(-12,12), c=nz(-12,12);
- if(Math.abs(a)<2||Math.abs(b)<2||Math.abs(c)<2) return null;
- var v=a*b*c;
- return {q:'Үйлдлийг гүйцэтгэ: $'+paren(a)+'\\times'+paren(b)+'\\times'+paren(c)+'$',
-         a:'$'+paren(a)+'\\times'+paren(b)+'\\times'+paren(c)+'='+v+'$', key:'sp-'+a+'-'+b+'-'+c, nv:v};
+ var n=pick([3,4]), arr=[], i, x;
+ for(i=0;i<n;i++){ x=nz(-12,12); if(Math.abs(x)<2) return null; arr.push(x); }
+ var v=arr.reduce(function(s,y){return s*y;},1);
+ var q=arr.map(function(y){return paren(y);}).join('\\times ');
+ return {q:'$'+q+'$', a:'$'+q+'='+v+'$', key:'sp-'+arr.join('_'), nv:v};
 }
-
-function g_wordTempMulti(){
- var t0=rnd(-45,-10), r1=rnd(1,3), r2=rnd(1,3), n1=rnd(5,14), n2=rnd(5,14);
- var t=t0+(-r1)*n1+r2*n2;
- var q='Температур '+t0+'°C байв. Эхний '+n1+' хоног өдөр бүр '+r1+'°-аар хүйтэрч, дараагийн '+n2+' хоног өдөр бүр '+r2+'°-аар дулаарав. Нийт '+(n1+n2)+' хоногийн дараа температур хэдэн хэм болсон бэ?';
- var a='$'+t0+'+('+(-r1)+')\\times'+n1+'+'+r2+'\\times'+n2+'='+t0+sgn(-r1*n1)+sgn(r2*n2)+'='+t+'$ °C';
- return {q:q, a:a, key:'wtm-'+t0+'-'+r1+'-'+r2+'-'+n1+'-'+n2, nv:t};
-}
-
-function g_scoreGame(){
- var p=rnd(4,8), m=nz(-6,-2), nHit=rnd(3,15), nMiss=rnd(3,15);
- var name=pick(['Бат','Дорж','Сараа','Тэмүүлэн','Ану']);
- var v=p*nHit+m*nMiss;
- var q=name+' бөмбөгийг цагаригт оруулбал '+p+' оноо, алдвал '+m+' оноо авна. Тэр '+nHit+' удаа оруулж, '+nMiss+' удаа алдсан бол нийт хэдэн оноо цуглуулсан бэ?';
- var a='$'+p+'\\times'+nHit+'+'+paren(m)+'\\times'+nMiss+'='+(p*nHit)+sgn(m*nMiss)+'='+v+'$ оноо';
- return {q:q, a:a, key:'sg-'+p+'-'+m+'-'+nHit+'-'+nMiss, nv:v};
-}
-
-// ───────── 1.4 Куб зэрэг ба язгуур ─────────
-function g_toPower(){
- var a=nz(-60,60); if(Math.abs(a)<2) return null;
- return {q:'Үржвэрийг зэрэг хэлбэрт бич: $'+paren(a)+'\\times'+paren(a)+'\\times'+paren(a)+'$',
-         a:'$'+paren(a)+'\\times'+paren(a)+'\\times'+paren(a)+'='+paren(a)+'^{3}$',
-         key:'tp-'+a};
-}
-
-function g_cubeValue(){
- var a=nz(-20,20); if(Math.abs(a)<2) return null;
- var v=a*a*a;
- return {q:'Илэрхийллийн утгыг ол: $'+paren(a)+'^{3}$',
-         a:'$'+paren(a)+'^{3}='+v+'$', key:'cv-'+a, nv:v};
-}
-
-function g_cubeRoot(){
- var b=nz(-10,10); if(Math.abs(b)<2) return null;
- var n=b*b*b;
- return {q:'Илэрхийллийн утгыг ол: $\\sqrt[3]{'+n+'}$',
-         a:'$\\sqrt[3]{'+n+'}='+b+'$', key:'cr-'+b, nv:b};
-}
-
-function g_rootSumProduct(){
- var m=pick([4,5]), t=pick(['sum','prod']), bs=[], i;
- for(i=0;i<m;i++) bs.push(nz(-5,5));
- var ns=bs.map(function(b){return b*b*b;});
- var qparts=ns.map(function(n){return '\\sqrt[3]{'+n+'}';});
- if(t==='sum'){
-  var v=bs.reduce(function(s,x){return s+x;},0);
-  return {q:'$'+qparts.join('+')+'$ нийлбэрийг ол.',
-          a:'$'+qparts.join('+')+'='+bs.map(function(b){return paren(b);}).join('+')+'='+v+'$',
-          key:'rs-s-'+bs.join('_'), nv:v};
+// [дасгал 24] □-ийн оронд тохирох бүхэл тоог ол.
+function g_unknownFactor(){
+ var t=pick(['t1','t2','t3','t4']), q, sol, work, b, qv, A, p;
+ if(t==='t1'){
+  b=nz(-99,99); if(Math.abs(b)<2) return null;
+  sol=nz(-99,99); p=sol*b;
+  q='\\square\\times '+paren(b)+'='+p; work='$\\square='+p+'\\div '+paren(b)+'='+sol+'$';
+ } else if(t==='t2'){
+  sol=nz(-99,99); if(Math.abs(sol)<2) return null;
+  qv=nz(-30,30); A=sol*qv;
+  q=''+A+'\\div \\square='+qv; work='$\\square='+A+'\\div '+paren(qv)+'='+sol+'$';
+ } else if(t==='t3'){
+  b=rnd(2,60); qv=nz(-30,30); sol=qv*b;
+  q='\\square\\div '+paren(b)+'='+qv; work='$\\square='+qv+'\\times '+b+'='+sol+'$';
+ } else {
+  b=nz(-99,99); if(Math.abs(b)<2) return null;
+  sol=nz(-40,40); p=sol*b;
+  q=''+paren(b)+'\\times \\square='+p; work='$\\square='+p+'\\div '+paren(b)+'='+sol+'$';
  }
- var v=bs.reduce(function(s,x){return s*x;},1);
- return {q:'$'+qparts.join('\\times')+'$ үржвэрийг ол.',
-         a:'$'+qparts.join('\\times')+'='+bs.map(function(b){return paren(b);}).join('\\times')+'='+v+'$',
-         key:'rs-p-'+bs.join('_'), nv:v};
+ return {q:'$'+q+'$', a:work, key:'uf-'+t+'-'+q, nv:sol};
+}
+// [дасгал 25] □×□=n байх БҮХ бүхэл хосыг ол.
+function g_boxAllPairs(){
+ var n=pick([12,15,18,20,24,28,-12,-15,-18,-20,-24,-28]);
+ var N=Math.abs(n), out=[], d, e;
+ for(d=1;d*d<=N;d++){
+  if(N%d) continue;
+  e=N/d;
+  if(n>0){ out.push('$'+d+'\\cdot '+e+'$'); out.push('$'+paren(-d)+'\\cdot '+paren(-e)+'$'); }
+  else { out.push('$'+paren(-d)+'\\cdot '+e+'$'); out.push('$'+d+'\\cdot '+paren(-e)+'$'); }
+ }
+ return {q:'$\\square\\cdot \\square='+n+'$', a:out.join(';  ')+' — нийт $'+out.length+'$ хос',
+         key:'bap-'+n, nv:out.length};
+}
+// [дасгал 27] Хүснэгтийг нөх: a·b = P.
+function g_prodTableFill(){
+ var P=pick([-810,-720,720,-360,540,-504,600,-900,840,-840]);
+ var N=Math.abs(P), divs=[], d, i;
+ for(d=1;d<=N;d++) if(N%d===0) divs.push(d);
+ var chosen=shuffle(divs).slice(0,6);
+ if(chosen.length<6) return null;
+ var as=[], bs=[];
+ for(i=0;i<6;i++){ var s=pick([-1,1]); as.push(s*chosen[i]); bs.push(P/(s*chosen[i])); }
+ var row1=['a'], row2=['b'], pairs=[];
+ for(i=0;i<6;i++){ row1.push(as[i]); row2.push(''); pairs.push('$'+as[i]+'\\to '+bs[i]+'$'); }
+ return {q:'$a\\cdot b='+P+'$', fig:figTbl([row1,row2]), a:pairs.join(';  '),
+         key:'ptf-'+P+'-'+as.join('_'), nv:P};
+}
+// [дасгал 26] Үржвэр нь хамгийн их / хамгийн бага байх хос тоо.
+function g_extremeProduct(){
+ var arr=[], seen={}, v, i, j;
+ while(arr.length<7){ v=rnd(-60,60); if(seen[v]) continue; seen[v]=1; arr.push(v); }
+ var neg=arr.filter(function(x){return x<0;}), pos=arr.filter(function(x){return x>0;});
+ if(neg.length<2||pos.length<2) return null;
+ var maxV=null, maxP=null, minV=null, minP=null;
+ for(i=0;i<arr.length;i++) for(j=i+1;j<arr.length;j++){
+  var pr=arr[i]*arr[j];
+  if(maxV===null||pr>maxV){ maxV=pr; maxP=[arr[i],arr[j]]; }
+  if(minV===null||pr<minV){ minV=pr; minP=[arr[i],arr[j]]; }
+ }
+ return {q:'$'+arr.join(';\\ ')+'$',
+         a:'Хамгийн их: $'+paren(maxP[0])+'\\cdot '+paren(maxP[1])+'='+maxV+'$. Хамгийн бага: $'
+           +paren(minP[0])+'\\cdot '+paren(minP[1])+'='+minV+'$.',
+         key:'ep-'+arr.join('_'), nv:maxV};
+}
+// [дасгал 28] Үржвэрийн пирамид: дээд нүд нь доорх хоёр нүдний үржвэр.
+function g_prodPyramid(){
+ var b0=nz(-9,9), b1=nz(-9,9), b2=nz(-9,9);
+ if(Math.abs(b0)<2||Math.abs(b1)<2||Math.abs(b2)<2) return null;
+ var m0=b0*b1, m1=b1*b2, top=m0*m1;
+ return {q:'$X=?$', fig:figPyr3('',[m0,m1],[b0,'','']),
+         a:'$'+m0+'\\div '+paren(b0)+'='+b1+'$; $'+m1+'\\div '+paren(b1)+'='+b2+'$; дээд нүд $'
+           +paren(m0)+'\\cdot '+paren(m1)+'='+top+'$',
+         key:'pp-'+b0+'-'+b1+'-'+b2, nv:top};
+}
+// [дасгал 30*] Санасан тоог ол (урвуу, олон алхамт).
+function g_thinkNumber(){
+ var m=pick([15,25,35,45,55,65,75]), k=pick([75,105,135,150,175,180,225]), r=nz(-60,60);
+ if(m===k) return null;
+ var x=r*k/m;
+ if(x!==Math.round(x)) return null;
+ if(Math.abs(x)<2||Math.abs(x)>2000) return null;
+ var name=pick(['Бат','Дорж','Сараа','Тэмүүлэн','Ану','Оюун']);
+ return {q:name+' нэг тоо санав. Санасан тоогоо $'+m+'$-аар үржүүлж, $'+k+'$-д хуваахад $'+r+'$ гарчээ. Санасан тоог ол.',
+         a:'$x\\cdot '+m+'\\div '+k+'='+r+'$ тул $x='+r+'\\cdot '+k+'\\div '+m+'='+x+'$',
+         key:'tn-'+m+'-'+k+'-'+r, nv:x};
+}
+// [Жишээ 6, Оймякон] Олон алхамт температурын бодлого.
+function g_wordTempMulti(){
+ var t0=rnd(-48,-10), r1=rnd(1,3), r2=rnd(1,3), n1=rnd(5,14), n2=rnd(5,14);
+ var t=t0+(-r1)*n1+r2*n2;
+ return {q:'Оймякон хотод агаарын температур '+t0+'°C байв. Эхний '+n1+' хоногийн турш өдөр бүр '+r1
+          +' хэмээр хүйтэрч, дараагийн '+n2+' хоногийн турш өдөр бүр '+r2
+          +' хэмээр дулаарчээ. Нийт '+(n1+n2)+' хоногийн дараа температур хэдэн хэм болсон бэ?',
+         a:'$'+t0+'+'+paren(-r1)+'\\times '+n1+'+'+r2+'\\times '+n2+'='+t0+sgn(-r1*n1)+sgn(r2*n2)+'='+t+'$ °C',
+         key:'wtm-'+t0+'-'+r1+'-'+r2+'-'+n1+'-'+n2, nv:t};
+}
+// [Сагсан бөмбөг] Оноо цуглуулах бодлого.
+function g_scoreGame(){
+ var p=rnd(4,9), m=nz(-7,-2), nHit=rnd(6,20), nMiss=rnd(6,20);
+ var name=pick(['Бат','Дорж','Сараа','Тэмүүлэн','Ану','Оюун']);
+ var v=p*nHit+m*nMiss;
+ return {q:name+' бөмбөгийг цагаригт оруулбал '+p+' оноо, алдвал '+m+' оноо авах дүрмээр тоглов. Тэр '
+          +nHit+' удаа оруулж, '+nMiss+' удаа алдсан бол нийт хэдэн оноо цуглуулсан бэ?',
+         a:'$'+p+'\\times '+nHit+'+'+paren(m)+'\\times '+nMiss+'='+(p*nHit)+sgn(m*nMiss)+'='+v+'$ оноо',
+         key:'sg-'+p+'-'+m+'-'+nHit+'-'+nMiss, nv:v};
+}
+// [дасгал 31а] Ээлжлэх нийлбэр.
+function g_altSignSum(){
+ var n=rnd(60,1200);
+ var q='-1+2-3+4-\\ldots-'+(2*n-1)+'+'+(2*n);
+ return {q:'$'+q+'$',
+         a:'Хос бүр $(-1)+2=1$, $(-3)+4=1$, $\\ldots$ болно. Нийт $'+n+'$ хос тул утга нь $'+n+'$.',
+         key:'ass-'+n, nv:n};
+}
+// [дасгал 31в] Квадратуудын ээлжлэх нийлбэр.
+function g_sqDiffAlt(){
+ var n=rnd(4,20);
+ var v=-n*(2*n+1);
+ var q='1^{2}-2^{2}+3^{2}-4^{2}+\\ldots+'+(2*n-1)+'^{2}-'+(2*n)+'^{2}';
+ return {q:'$'+q+'$',
+         a:'$a^{2}-b^{2}=(a-b)(a+b)$ тул хос бүр $-(a+b)$ болно: $-(1+2)-(3+4)-\\ldots-('+(2*n-1)+'+'+(2*n)
+           +')=-(1+2+\\ldots+'+(2*n)+')='+v+'$',
+         key:'sda-'+n, nv:v};
 }
 
+// ═════════════════ 1.4 Куб зэрэг ба куб язгуур ═════════════════
+// [дасгал 32] Үржвэрийг зэрэг хэлбэрт бич.
+function g_toPower(){
+ var a=nz(-60,60);
+ if(Math.abs(a)<2) return null;
+ var q=paren(a)+'\\times '+paren(a)+'\\times '+paren(a);
+ return {q:'$'+q+'$', a:'$'+q+'='+paren(a)+'^{3}$', key:'tp-'+a};
+}
+// [дасгал 33, 34] Илэрхийллийн утгыг ол.
+function g_cubeValue(){
+ var a=nz(-25,25);
+ if(Math.abs(a)<2) return null;
+ var e=pick([2,3]);
+ var v=(e===3?a*a*a:a*a);
+ return {q:'$'+paren(a)+'^{'+e+'}$', a:'$'+paren(a)+'^{'+e+'}='+v+'$', key:'cv-'+a+'-'+e, nv:v};
+}
+// [дасгал 36, 38, 39] Куб язгуурыг ол.
+function g_cubeRoot(){
+ var b=nz(-12,12);
+ if(Math.abs(b)<2) return null;
+ var n=b*b*b, t=pick(['plain','neg']);
+ if(t==='plain') return {q:'$\\sqrt[3]{'+n+'}$', a:'$\\sqrt[3]{'+n+'}='+b+'$', key:'cr-p-'+b, nv:b};
+ return {q:'$-\\sqrt[3]{'+n+'}$', a:'$-\\sqrt[3]{'+n+'}='+(-b)+'$', key:'cr-n-'+b, nv:-b};
+}
+// [дасгал 35] Кубын ирмэг өгөгдсөн бол эзлэхүүнийг ол.
+function g_cubeEdgeVolume(){
+ var a=rnd(2,16), u=pick(['см','дм','м','мм']);
+ return {q:'$a='+a+'$ '+u, a:'$V='+a+'^{3}='+(a*a*a)+'$ '+u+'³', key:'cev-'+a, nv:a*a*a};
+}
+// [Жишээ 7, дасгал 37] Талбай/эзлэхүүнээс тал, ирмэгийг ол.
 function g_sideVolume(){
  var t=pick(['sq','cube']);
  if(t==='sq'){
-  var k=rnd(2,20), S=k*k;
-  return {q:S+' см² талбайтай квадратын талын уртыг ол.',
-          a:'$\\sqrt{'+S+'}='+k+'$ см', key:'sv-s-'+k, nv:k};
+  var k=rnd(4,30), S=k*k;
+  return {q:'$S='+S+'\\ \\text{см}^{2}$', a:'$a=\\sqrt{'+S+'}='+k+'$ см', key:'sv-s-'+k, nv:k};
  }
- var m=rnd(2,10), V=m*m*m;
- return {q:V+' см³ эзлэхүүнтэй кубын ирмэгийн уртыг ол.',
-         a:'$\\sqrt[3]{'+V+'}='+m+'$ см', key:'sv-c-'+m, nv:m};
+ var m=rnd(2,15), V=m*m*m;
+ return {q:'$V='+V+'\\ \\text{см}^{3}$', a:'$a=\\sqrt[3]{'+V+'}='+m+'$ см', key:'sv-c-'+m, nv:m};
 }
-
+// [дасгал 40а, сорилт 9] Хүснэгтийг нөх: a, a², a³.
+function g_cubeTable(){
+ var vals=[], seen={}, v, i;
+ while(vals.length<5){
+  v=nz(-13,13);
+  if(Math.abs(v)<2||seen[Math.abs(v)]) continue;
+  seen[Math.abs(v)]=1; vals.push(v);
+ }
+ var r1=['a'], r2=['a<sup>2</sup>'], r3=['a<sup>3</sup>'], out=[];
+ for(i=0;i<5;i++){
+  var show=pick(['a','c']);
+  r1.push(show==='a'?vals[i]:'');
+  r2.push('');
+  r3.push(show==='c'?(vals[i]*vals[i]*vals[i]):'');
+  out.push('$a='+vals[i]+'$: $a^{2}='+(vals[i]*vals[i])+'$, $a^{3}='+(vals[i]*vals[i]*vals[i])+'$');
+ }
+ return {q:'$X=?$', fig:figTbl([r1,r2,r3]), a:out.join(';  '), key:'ct-'+vals.join('_')};
+}
+// [дасгал 40б, сорилт 10] Хүснэгтийг нөх: b, |b|, ∛b.
+function g_rootTable(){
+ var ks=[], seen={}, k, i;
+ while(ks.length<5){
+  k=nz(-11,11);
+  if(Math.abs(k)<2||seen[Math.abs(k)]) continue;
+  seen[Math.abs(k)]=1; ks.push(k);
+ }
+ var r1=['b'], r2=['|b|'], r3=['&#8731;b'], out=[];
+ for(i=0;i<5;i++){
+  var n=ks[i]*ks[i]*ks[i], show=pick(['b','r']);
+  r1.push(show==='b'?n:'');
+  r2.push('');
+  r3.push(show==='r'?ks[i]:'');
+  out.push('$b='+n+'$: $|b|='+Math.abs(n)+'$, $\\sqrt[3]{b}='+ks[i]+'$');
+ }
+ return {q:'$X=?$', fig:figTbl([r1,r2,r3]), a:out.join(';  '), key:'rt-'+ks.join('_')};
+}
+// [дасгал 41] Куб язгууруудын нийлбэр, үржвэр.
+function g_rootSumProduct(){
+ var m=pick([5,6]), t=pick(['sum','prod']), bs=[], i;
+ for(i=0;i<m;i++) bs.push(nz(-6,6));
+ var ns=bs.map(function(b){return b*b*b;});
+ var qp=ns.map(function(n){return '\\sqrt[3]{'+n+'}';});
+ var pb=bs.map(function(b){return paren(b);});
+ if(t==='sum'){
+  var v=bs.reduce(function(s,x){return s+x;},0);
+  return {q:'$'+qp.join('+')+'$', a:'$'+qp.join('+')+'='+pb.join('+')+'='+v+'$',
+          key:'rs-s-'+bs.join('_'), nv:v};
+ }
+ var v2=bs.reduce(function(s,x){return s*x;},1);
+ return {q:'$'+qp.join('\\times ')+'$', a:'$'+qp.join('\\times ')+'='+pb.join('\\times ')+'='+v2+'$',
+         key:'rs-p-'+bs.join('_'), nv:v2};
+}
+// [дасгал 42] Хялбар аргаар цэгцээр ол (зэргийн хэлбэрт оруулж).
+function g_powerTidy(){
+ var b1=rnd(2,9), b2=rnd(2,9);
+ if(b1===b2) return null;
+ var e1=rnd(2,3), e2=rnd(2,3), facs=[], i;
+ for(i=0;i<e1;i++) facs.push(b1);
+ for(i=0;i<e2;i++) facs.push(b2);
+ facs=shuffle(facs);
+ var v=Math.pow(b1,e1)*Math.pow(b2,e2);
+ var q=facs.join('\\times ');
+ var lo=Math.min(b1,b2), hi=Math.max(b1,b2);
+ var elo=(lo===b1?e1:e2), ehi=(hi===b1?e1:e2);
+ return {q:'$'+q+'$', a:'$'+q+'='+lo+'^{'+elo+'}\\times '+hi+'^{'+ehi+'}='+v+'$',
+         key:'pt-'+b1+'-'+e1+'-'+b2+'-'+e2, nv:v};
+}
+// [дасгал 45] Аль нь их вэ?
 function g_comparePowers(){
- var a=rnd(2,10), b=rnd(2,10), p=rnd(2,4), q=rnd(2,4);
- var va=Math.pow(a,p), vb=Math.pow(b,q);
+ var a=rnd(2,20), b=rnd(2,20), p=rnd(2,6), q=rnd(2,6);
  if(a===b&&p===q) return null;
- var res;
- if(va>vb) res='$'+a+'^{'+p+'}$ их';
- else if(vb>va) res='$'+b+'^{'+q+'}$ их';
- else res='тэнцүү';
- return {q:'Аль нь их вэ: $'+a+'^{'+p+'}$ ба $'+b+'^{'+q+'}$ ?',
-         a:'$'+a+'^{'+p+'}='+va+'$, $'+b+'^{'+q+'}='+vb+'$ тул '+res+'.',
+ var va=Math.pow(a,p), vb=Math.pow(b,q);
+ if(va>200000||vb>200000) return null;
+ if(Math.max(va,vb)/Math.min(va,vb)>8) return null;
+ var rel=(va>vb?'\\gt ':(va<vb?'\\lt ':'='));
+ return {q:'$'+a+'^{'+p+'}$ ба $'+b+'^{'+q+'}$',
+         a:'$'+a+'^{'+p+'}='+va+'$, $'+b+'^{'+q+'}='+vb+'$ тул $'+a+'^{'+p+'}'+rel+b+'^{'+q+'}$',
          key:'cp-'+a+'-'+p+'-'+b+'-'+q, nv:Math.max(va,vb)};
 }
+// [дасгал 43] Завсрын кубуудын нийлбэрийг хялбар аргаар.
+function g_cubeRangeSum(){
+ var lo=-rnd(3,9), hi=rnd(1,14), i, s=0;
+ if(hi<-lo+2) return null;
+ for(i=lo;i<=hi;i++) s+=i*i*i;
+ return {q:'$'+lo+'$-аас $'+hi+'$ хүртэл',
+         a:'$'+lo+'$-аас $'+(-lo)+'$ хүртэлх кубууд хос хосоороо хорогдоно. Үлдэх нь $'
+           +(-lo+1)+'^{3}+\\ldots+'+hi+'^{3}='+s+'$',
+         key:'crs-'+lo+'-'+hi, nv:s};
+}
+// [дасгал 44*] Ямар хамгийн бага натурал тоогоор үржүүлбэл куб гарах вэ?
+function g_cubeMultiplier(){
+ var p1=pick([2,3,5,7]), p2=pick([2,3,5,7]);
+ if(p1===p2) return null;
+ if(p1>p2){ var t=p1; p1=p2; p2=t; }
+ var e1=rnd(1,2), e2=rnd(1,2);
+ var n=Math.pow(p1,e1)*Math.pow(p2,e2);
+ var need=Math.pow(p1,3-e1)*Math.pow(p2,3-e2);
+ var cube=n*need, r=p1*p2;
+ return {q:'$'+n+'$',
+         a:'$'+n+'='+pfTex(n)+'$. Илтгэгч бүр $3$ болохын тулд $'+need+'='+pfTex(need)
+           +'$-аар үржүүлнэ: $'+n+'\\cdot '+need+'='+cube+'='+r+'^{3}$',
+         key:'cm-'+p1+'-'+e1+'-'+p2+'-'+e2, nv:need};
+}
+// [сорилт 7] Квадрат, куб болох тоонуудыг ялгаж, язгуурыг нь ол.
+function g_squareCubeSort(){
+ var squares=[16,25,36,49,81,100,121,144,169,196,225,256,289,324,400];
+ var cubes=[8,27,125,216,343,512,729,1000,-8,-27,-64,-125,-216,-343,-512];
+ var others=[-28,18,20,45,50,63,90,98,-45,-50,12,140,200,-18,-90];
+ var arr=shuffle(squares).slice(0,3).concat(shuffle(cubes).slice(0,3)).concat(shuffle(others).slice(0,2));
+ var s={}, ok=true, i;
+ for(i=0;i<arr.length;i++){ if(s[arr[i]]) ok=false; s[arr[i]]=1; }
+ if(!ok) return null;
+ arr=shuffle(arr);
+ var sqL=[], cuL=[];
+ for(i=0;i<arr.length;i++){
+  var x=arr[i], rq=(x>0?isqrt(x):null), rc=icbrt(x);
+  if(rq!==null) sqL.push('$\\sqrt{'+x+'}='+rq+'$');
+  if(rc!==null) cuL.push('$\\sqrt[3]{'+x+'}='+rc+'$');
+ }
+ return {q:'$'+arr.join(';\\ ')+'$',
+         a:'Квадрат: '+(sqL.length?sqL.join(', '):'алга')+'. Куб: '+(cuL.length?cuL.join(', '):'алга')+'.',
+         key:'scs-'+arr.join('_')};
+}
 
-// ───────── 1.5 Анхны тоон задаргаа ─────────
+// ═════════════════ 1.5 Тоог анхны тоон үржигдэхүүнд задлах ═════════════════
+// [дасгал 46] Анхны тоон үржигдэхүүнд задал.
 function g_primeFactor(){
- var n=rnd(40,999);
- var f=primeFactors(n);
- if(f.length<2) return null;
- if(f[f.length-1]>40) return null;
- return {q:'$'+n+'$ тоог анхны тоон үржигдэхүүнд задал.',
-         a:'$'+n+'='+pfTex(n)+'$', key:'pf-'+n, nv:n};
+ var n=rnd(60,999), f=primeFactors(n);
+ if(f.length<3) return null;
+ if(f[f.length-1]>31) return null;
+ return {q:'$'+n+'$', a:'$'+n+'='+pfTex(n)+'$', key:'pf-'+n, nv:n};
 }
-
-function g_divisibilityDigit(){
- var len=rnd(3,6), prefix=rnd(Math.pow(10,len-1), Math.pow(10,len)-1);
- var d=pick([4,6,8,9]);
- var valid=[];
- for(var s=0;s<=9;s++){ if((prefix*10+s)%d===0) valid.push(s); }
- if(valid.length===0) return null;
- return {q:'$\\overline{'+prefix+'*}$ тоо $'+d+'$-д хуваагдахын тулд *-ны оронд ямар цифр байх вэ? (бүх боломжийг бич)',
-         a:'$*\\in\\{'+valid.join(';\\ ')+'\\}$',
-         key:'dd-'+prefix+'-'+d};
-}
-
-function g_fixFactorization(){
- function pf(){var p=pick([2,3,5,7]), e=pick([1,1,2]); return {tex:e===1?''+p:p+'^{'+e+'}', val:Math.pow(p,e)};}
- var comps=[4,6,8,9,10,12,14,15,16,18,20,21,22,24,25,26,27,33,35,49,55,77];
- var comp=pick(comps);
- var f1=pf(), f2=pf();
- var facs=shuffle([f1,f2,{tex:''+comp,val:comp}]);
- var N=facs.reduce(function(s,x){return s*x.val;},1);
- var exprTex=facs.map(function(x){return x.tex;}).join('\\times');
- return {q:'$'+exprTex+'$ задаргаа нь анхны тоон үржигдэхүүн мөн эсэхийг шалгаж, зөв анхны задаргааг бич.',
-         a:'$'+exprTex+'='+pfTex(N)+'='+N+'$', key:'ff-'+exprTex, nv:N};
-}
-
+// [дасгал 47] Гэр бүл болсон тоонуудыг задал.
 function g_factorFamily(){
- var fams=[
-  [40,200,400,800],
-  [245,1225,2450],
-  [63,126,378,756],
-  [10,100,1000],
-  [16,32,80,320],
-  [60,120,240,480],
-  [90,270,810]
- ];
+ var fams=[[40,200,400,800],[245,1225,2450,4800],[63,126,378,756],[10,100,1000,10000],
+           [16,32,80,100,320],[14,28,140,280,520],[650,255,200,74,258],[46,130,60,88,94]];
  var fam=pick(fams);
- var arr= fam.length>3 ? shuffle(fam).slice(0,3) : fam.slice();
+ var arr=shuffle(fam).slice(0,3);
  arr.sort(function(x,y){return x-y;});
- return {q:'Дараах тоонуудыг анхны тоон үржигдэхүүнд задал: $'+arr.join(',\\ ')+'$',
+ return {q:'$'+arr.join(';\\ ')+'$',
          a:arr.map(function(x){return '$'+x+'='+pfTex(x)+'$';}).join(';  '),
          key:'fam-'+arr.join('_')};
 }
+// [нээлтийн даалгавар] Тооны бүх хуваагчийг ол.
+function g_divisorList(){
+ var n=pick([16,24,32,36,40,48,54,56,60,72,80,84,90,96,100,120]);
+ var d=[], i;
+ for(i=1;i<=n;i++) if(n%i===0) d.push(i);
+ return {q:'$'+n+'$', a:'$'+d.join(';\\ ')+'$ — нийт $'+d.length+'$ хуваагч', key:'dl-'+n, nv:d.length};
+}
+// [дасгал 53] *-ны оронд ямар цифр байж болохыг ол.
+function g_divisibilityDigit(){
+ var len=rnd(3,6), prefix=rnd(Math.pow(10,len-1),Math.pow(10,len)-1);
+ var d=pick([4,6,8,9,12,15]), valid=[], s;
+ for(s=0;s<=9;s++) if((prefix*10+s)%d===0) valid.push(s);
+ if(valid.length===0) return null;
+ return {q:'$\\overline{'+prefix+'*}$ тоо $'+d+'$-д хуваагдана.',
+         a:'$*\\in\\{'+valid.join(';\\ ')+'\\}$', key:'dd-'+prefix+'-'+d, nv:valid.length};
+}
+// [дасгал 50] Анхны тоон задаргаа нь мэдэгдэж байгаа тоог ол.
+function g_factorEvalBig(){
+ var ps=shuffle([2,3,5,7,11]).slice(0,3);
+ ps.sort(function(x,y){return x-y;});
+ var es=[rnd(1,3),rnd(1,2),1], v=1, parts=[], i;
+ for(i=0;i<3;i++){ v*=Math.pow(ps[i],es[i]); parts.push(powClean(ps[i],es[i])); }
+ var q=parts.join('\\times ');
+ return {q:'$'+q+'$', a:'$'+q+'='+v+'$', key:'feb-'+ps.join('_')+'-'+es.join('_'), nv:v};
+}
+// [дасгал 50] Задаргаа анхны тоон үржигдэхүүн мөн эсэхийг шалга.
+function g_fixFactorization(){
+ function pf(){ var p=pick([2,3,5,7]), e=pick([1,1,2]); return {tex:(e===1?''+p:p+'^{'+e+'}'), val:Math.pow(p,e)}; }
+ var comps=[4,6,8,9,10,12,14,15,16,18,20,21,22,24,25,26,27,33,35,49,55,77];
+ var comp=pick(comps), f1=pf(), f2=pf();
+ var facs=shuffle([f1,f2,{tex:''+comp,val:comp}]);
+ var N=facs.reduce(function(s,x){return s*x.val;},1);
+ var q=facs.map(function(x){return x.tex;}).join('\\times ');
+ return {q:'$'+q+'$', a:'$'+q+'='+pfTex(N)+'='+N+'$', key:'ff-'+q, nv:N};
+}
+// [дасгал 56*] Тооны сүүлийн цифрийг ол.
+function g_lastDigitPower(){
+ var b=pick([2,3,4,7,8,9,12,13,17,18]), e=rnd(20,300);
+ var cyc=[], x=1, i;
+ for(i=1;i<=4;i++){ x=(x*b)%10; cyc.push(x); }
+ var per=(cyc[0]===cyc[1])?1:((cyc[0]===cyc[2])?2:4);
+ var last=cyc[(e-1)%per];
+ return {q:'$'+b+'^{'+e+'}$',
+         a:'Сүүлийн цифр $'+per+'$ алхмаар давтагдана: $'+cyc.slice(0,per).join(';\\ ')+'$. $'+e+'\\div '+per
+           +'$ үйлдлийн үлдэгдэл $'+(e%per)+'$ тул сүүлийн цифр нь $'+last+'$.',
+         key:'ldp-'+b+'-'+e, nv:last};
+}
+// [нээлтийн даалгавар] Задаргаанаас хуваагчийн тоог ол.
+function g_divisorCount(){
+ var ps=shuffle([2,3,5,7,11]).slice(0,3);
+ ps.sort(function(x,y){return x-y;});
+ var es=[rnd(2,4),rnd(1,3),rnd(1,2)], n=1, parts=[], cnt=1, i;
+ for(i=0;i<3;i++){ n*=Math.pow(ps[i],es[i]); parts.push(powClean(ps[i],es[i])); cnt*=(es[i]+1); }
+ if(n>60000) return null;
+ return {q:'$'+n+'$',
+         a:'$'+n+'='+parts.join('\\times ')+'$ тул хуваагчийн тоо $('+es[0]+'+1)('+es[1]+'+1)('+es[2]+'+1)='+cnt+'$',
+         key:'dc-'+n, nv:cnt};
+}
 
-// ───────── 1.6 ХИЕХ ба ХБЕХ ─────────
+// ═════════════════ 1.6 ХИЕХ ба ХБЕХ ═════════════════
+// [Жишээ 11] Нэг нь нөгөөдөө хуваагдах тохиолдол.
+function g_gcdLcmDivides(){
+ var a=rnd(2,20), k=rnd(2,9), b=a*k;
+ return {q:'$'+a+'$ ба $'+b+'$',
+         a:'$'+b+'$ нь $'+a+'$-д хуваагдана. ХИЕХ$='+a+'$, ХБЕХ$='+b+'$.',
+         key:'gld-'+a+'-'+b, nv:a};
+}
+// [дасгал 52] Задалж ХИЕХ, ХБЕХ-ийг ол.
 function g_gcdLcmTwo(){
  var a=rnd(24,300), b=rnd(24,300);
  if(a===b) return null;
  var fa=primeFactors(a), fb=primeFactors(b);
  if(fa.length<2||fb.length<2) return null;
- if(fa[fa.length-1]>50||fb[fb.length-1]>50) return null;
- var g=gcd(a,b); if(g===1) return null;
+ if(fa[fa.length-1]>31||fb[fb.length-1]>31) return null;
+ var g=gcd(a,b);
+ if(g===1) return null;
  var l=lcm(a,b);
- return {q:'$'+a+'$ ба $'+b+'$ тоонуудыг анхны тоон үржигдэхүүнд задалж, ХИЕХ ба ХБЕХ-ийг ол.',
+ return {q:'$'+a+'$ ба $'+b+'$',
          a:'$'+a+'='+pfTex(a)+'$, $'+b+'='+pfTex(b)+'$. ХИЕХ$='+g+'$, ХБЕХ$='+l+'$.',
          key:'gl-'+a+'-'+b, nv:g};
 }
-
+// [дасгал 55] Задаргаа хэлбэрээр өгөгдсөн тоонууд.
 function g_gcdLcmFactored(){
- var primes=[2,3,5], ea=[], eb=[], i;
- for(i=0;i<3;i++){ ea.push(rnd(0,3)); eb.push(rnd(0,3)); }
+ var primes=[2,3,5,7], ea=[], eb=[], i;
+ for(i=0;i<4;i++){ ea.push(rnd(0,3)); eb.push(rnd(0,3)); }
  if(ea.reduce(function(s,x){return s+x;},0)===0) return null;
  if(eb.reduce(function(s,x){return s+x;},0)===0) return null;
- function tex(exps){var out=[];for(var j=0;j<3;j++){if(exps[j]>0)out.push(powClean(primes[j],exps[j]));}return out.length?out.join('\\times'):'1';}
- function val(exps){var v=1;for(var j=0;j<3;j++)v*=Math.pow(primes[j],exps[j]);return v;}
+ function tex(ex){ var out=[], j; for(j=0;j<4;j++) if(ex[j]>0) out.push(powClean(primes[j],ex[j])); return out.length?out.join('\\times '):'1'; }
+ function val(ex){ var v=1, j; for(j=0;j<4;j++) v*=Math.pow(primes[j],ex[j]); return v; }
  var A=val(ea), B=val(eb);
  if(A===B) return null;
  var gE=[], lE=[];
- for(i=0;i<3;i++){ gE.push(Math.min(ea[i],eb[i])); lE.push(Math.max(ea[i],eb[i])); }
- var gV=val(gE), lV=val(lE);
- return {q:'Дараах хоёр тооны ХИЕХ ба ХБЕХ-ийг ол: $'+tex(ea)+'$ ба $'+tex(eb)+'$',
-         a:'ХИЕХ$='+tex(gE)+'='+gV+'$, ХБЕХ$='+tex(lE)+'='+lV+'$.',
-         key:'glf-'+ea.join('')+'-'+eb.join(''), nv:gV};
+ for(i=0;i<4;i++){ gE.push(Math.min(ea[i],eb[i])); lE.push(Math.max(ea[i],eb[i])); }
+ return {q:'$'+tex(ea)+'$ ба $'+tex(eb)+'$',
+         a:'ХИЕХ$='+tex(gE)+'='+val(gE)+'$, ХБЕХ$='+tex(lE)+'='+val(lE)+'$.',
+         key:'glf-'+ea.join('')+'-'+eb.join(''), nv:val(gE)};
 }
-
-function g_gcdLcmDivides(){
- var a=rnd(2,15), k=rnd(2,8), b=a*k;
- return {q:'$'+a+'$ ба $'+b+'$ тоонуудын ХИЕХ ба ХБЕХ-ийг ол.',
-         a:'$'+b+'$ нь $'+a+'$-д хуваагдана. ХИЕХ$='+a+'$, ХБЕХ$='+b+'$.',
-         key:'gld-'+a+'-'+b, nv:a};
-}
-
-function g_gcdLcmBig(){
- var a=rnd(140,1000), b=rnd(140,1000);
+// [дасгал 48, 49] Эйлер-Веннийн диаграммаар дүрсэл.
+function g_gcdLcmVenn(){
+ var a=rnd(12,120), b=rnd(12,120);
  if(a===b) return null;
  var fa=primeFactors(a), fb=primeFactors(b);
  if(fa.length<2||fb.length<2) return null;
- if(fa[fa.length-1]>50||fb[fb.length-1]>50) return null;
- var g=gcd(a,b); if(g===1) return null;
+ if(fa[fa.length-1]>13||fb[fb.length-1]>13) return null;
+ var g=gcd(a,b);
+ if(g===1) return null;
+ return {q:'$'+a+'$ ба $'+b+'$', fig:venn2(''+a,''+b),
+         a:'$'+a+'='+pfTex(a)+'$, $'+b+'='+pfTex(b)+'$. Огтлолцолд нийтлэг үржигдэхүүн: ХИЕХ$='+g
+           +'$. Нийт талбайн үржвэр: ХБЕХ$='+lcm(a,b)+'$.',
+         key:'glv-'+a+'-'+b, nv:g};
+}
+// [сорилт 11в] Гурван тооны ХИЕХ, ХБЕХ.
+function g_gcdLcmThree(){
+ var a=rnd(8,72), b=rnd(8,72), c=rnd(8,72);
+ if(a===b||b===c||a===c) return null;
+ var g=gcd(gcd(a,b),c), l=lcm(lcm(a,b),c);
+ if(g===1||l>6000) return null;
+ return {q:'$'+a+'$, $'+b+'$, $'+c+'$',
+         a:'$'+a+'='+pfTex(a)+'$, $'+b+'='+pfTex(b)+'$, $'+c+'='+pfTex(c)+'$. ХИЕХ$='+g+'$, ХБЕХ$='+l+'$.',
+         key:'gl3-'+a+'-'+b+'-'+c, nv:g};
+}
+// [дасгал 59] Том тоонуудын ХИЕХ, ХБЕХ.
+function g_gcdLcmBig(){
+ var a=rnd(300,3600), b=rnd(300,3600);
+ if(a===b) return null;
+ var fa=primeFactors(a), fb=primeFactors(b);
+ if(fa.length<3||fb.length<3) return null;
+ if(fa[fa.length-1]>19||fb[fb.length-1]>19) return null;
+ var g=gcd(a,b);
+ if(g<2) return null;
  var l=lcm(a,b);
- return {q:'$'+a+'$ ба $'+b+'$ тоонуудыг анхны тоон үржигдэхүүнд задалж, ХИЕХ ба ХБЕХ-ийг ол.',
+ return {q:'$'+a+'$ ба $'+b+'$',
          a:'$'+a+'='+pfTex(a)+'$, $'+b+'='+pfTex(b)+'$. ХИЕХ$='+g+'$, ХБЕХ$='+l+'$.',
          key:'glb-'+a+'-'+b, nv:l};
 }
-
+// [дасгал 51 өргөтгөл] ХИЕХ·ХБЕХ = a·b (урвуу бодлого).
+function g_gcdLcmInverse(){
+ var g=rnd(2,30), m=rnd(2,17), n=rnd(2,17);
+ if(m===n||gcd(m,n)!==1) return null;
+ var a=g*m, b=g*n, l=g*m*n;
+ return {q:'ХИЕХ$='+g+'$, ХБЕХ$='+l+'$, $a='+a+'$',
+         a:'ХИЕХ$\\cdot$ХБЕХ$=a\\cdot b$ тул $b=\\dfrac{'+g+'\\cdot '+l+'}{'+a+'}='+b+'$',
+         key:'gli-'+g+'-'+m+'-'+n, nv:b};
+}
+// [дасгал 58] Тойрог замын бодлого (ХБЕХ).
 function g_wordLcm(){
  var p1=rnd(2,12), p2=rnd(2,12), p3=rnd(2,12);
  if(p1===p2||p2===p3||p1===p3) return null;
  var ans=lcm(lcm(p1,p2),p3);
- var t=pick(['track','rest']);
- var q, unit;
+ if(ans>2000) return null;
+ var t=pick(['track','rest']), q, unit;
  if(t==='track'){
   unit='минут';
-  q='Гурван машин тойрог замыг тус бүр '+p1+', '+p2+', '+p3+' минутад нэг удаа туулна. Гурвуулаа эхлэлийн цэгтээ хамгийн багадаа хэдэн минутын дараа зэрэг очих вэ?';
+  q='Гурван машин тойрог замаар уралдав. Ногоон машин '+p1+' минутад, цэнхэр машин '+p2+' минутад, улаан машин '
+    +p3+' минутад тойргийг нэг бүтэн туулна. Хэдэн минутын дараа гурвуулаа гарааны шугам дээр зэрэг байх вэ?';
  } else {
   unit='хоног';
-  q='Гурван ажилтан тус бүр '+p1+', '+p2+', '+p3+' хоног тутам нэг удаа амарна. Хамгийн багадаа хэдэн хоногийн дараа гурвуулаа зэрэг амрах вэ?';
+  q='Гурван ажилтан тус бүр '+p1+', '+p2+', '+p3+' хоног тутам нэг удаа амардаг. Өнөөдөр гурвуулаа зэрэг амарсан бол хамгийн багадаа хэдэн хоногийн дараа дахин зэрэг амрах вэ?';
  }
- return {q:q, a:'ХБЕХ$('+p1+','+p2+','+p3+')='+ans+'$ '+unit, key:'wl-'+p1+'-'+p2+'-'+p3, nv:ans};
+ return {q:q, a:'ХБЕХ$('+p1+','+p2+','+p3+')='+ans+'$ '+unit, key:'wl-'+t+'-'+p1+'-'+p2+'-'+p3, nv:ans};
 }
-
+// [Жишээ 10] Ижил бүрэлдэхүүнтэй багт хуваах (ХИЕХ).
 function g_wordGcd(){
- var g=rnd(8,40), b=rnd(8,40);
+ var g=rnd(8,60), b=rnd(8,60);
  var G=gcd(g,b);
- if(G===1) return null;
- var q='Ангид '+g+' эмэгтэй, '+b+' эрэгтэй сурагч бий. Багууд ижил бүрэлдэхүүнтэй байхаар хамгийн олондоо хэдэн багт хуваах вэ? Нэг багт хэдэн эмэгтэй, эрэгтэй орох вэ?';
- return {q:q, a:'ХИЕХ$('+g+','+b+')='+G+'$ баг. Нэг багт '+(g/G)+' эмэгтэй, '+(b/G)+' эрэгтэй орно.',
+ if(G<3||g===b) return null;
+ return {q:'Ангид '+g+' эмэгтэй, '+b+' эрэгтэй сурагч байв. Баг бүр ижил бүрэлдэхүүнтэй байхаар хамгийн олондоо хэдэн багт хуваах вэ? Нэг багт хэдэн эмэгтэй, эрэгтэй орох вэ?',
+         a:'ХИЕХ$('+g+','+b+')='+G+'$ баг. Нэг багт '+(g/G)+' эмэгтэй, '+(b/G)+' эрэгтэй орно.',
          key:'wg-'+g+'-'+b, nv:G};
 }
-var WSPEC={"title":"Бүхэл тоо үржих, хуваах-1","sub":"Бүхэл тооны үржүүлэх, хуваах · I бүлэг · 7-р анги","rule":"<b>Санамж:</b> Ижил тэмдэгтэй хоёр тооны үржвэр ба ноогдвор эерэг, эсрэг тэмдэгтэй хоёр тооны үржвэр ба ноогдвор сөрөг байна. Хэд хэдэн тоог үржүүлэхэд сөрөг үржигдэхүүний тоо сондгой бол үржвэр сөрөг, тэгш бол эерэг.","ref":"","tasks":[{"label":"Үржвэр ба ноогдворыг ол.","fn":"g_mulDivTwo","cap":4},{"label":"Мэдэгдэхгүй тоог ол.","fn":"g_unknownFactor","cap":4},{"label":"Үржвэрийн тэмдэг ба утгыг тодорхойл.","fn":"g_signParity","cap":3}]};
+// [дасгал 57] Хөлийн мөрийн давхцал.
+function g_wordJumps(){
+ var p=rnd(2,7), q=rnd(2,9);
+ if(p===q||gcd(p,q)!==1) return null;
+ var L=lcm(p,q), D=L*rnd(8,30);
+ var cnt=D/L;
+ return {q:'Туулай нэг харайхад '+p+' м, чоно нэг харайхад '+q+' м харайдаг. '+D
+          +' метр зайд тэдний хөлийн мөр хэдэн удаа давхцах вэ?',
+         a:'ХБЕХ$('+p+','+q+')='+L+'$ м тутамд давхцана. $'+D+'\\div '+L+'='+cnt+'$ удаа.',
+         key:'wj-'+p+'-'+q+'-'+D, nv:cnt};
+}
+// [дасгал 61*] Ажлын хуваарийн давхцал (шилжилттэй).
+function g_wordWorkRest(){
+ var c1=rnd(4,10), c2=rnd(3,9), T1=c1+1, T2=c2+1;
+ if(T1===T2) return null;
+ var off=rnd(1,Math.min(3,T2-1)), d=-1, x;
+ for(x=1;x<=30000;x++){ if(x%T1===0 && (x-off)%T2===0){ d=x; break; } }
+ if(d<0) return null;
+ var n1=pick(['Бат','Дорж','Тэмүүлэн']), n2=pick(['Цэцэг','Сараа','Ану']);
+ return {q:n1+', '+n2+' хоёр хамт үйлдвэрт ажилладаг. '+n1+' '+c1+' хоног ажиллаад 1 хоног амардаг, '+n2+' '+c2
+          +' хоног ажиллаад 1 хоног амардаг. Өнөөдөр '+n1+' амарч байгаа бөгөөд '+off+' хоногийн дараа '+n2
+          +' амарна. Хамгийн багадаа хэдэн өдрийн дараа тэд зэрэг амрах вэ?',
+         a:'$x$ нь $'+T1+'$-д хуваагдаж, $x-'+off+'$ нь $'+T2+'$-д хуваагдана. Эндээс $x='+d+'$ хоног.',
+         key:'wwr-'+c1+'-'+c2+'-'+off, nv:d};
+}
+var WSPEC={"title":"Бүхэл тоон үржүүлэх, хуваах-1","sub":"Тэмдгийн дүрэм, мэдэгдэхгүй үржигдэхүүн · I бүлэг · 7-р анги","rule":"<b>Санамж:</b> Ижил тэмдэгтэй хоёр тооны үржвэр ба ноогдвор эерэг, эсрэг тэмдэгтэй хоёр тооны үржвэр ба ноогдвор сөрөг байна. Хэд хэдэн тоог үржүүлэхэд сөрөг үржигдэхүүний тоо сондгой бол үржвэр сөрөг, тэгш бол эерэг.","ref":"","tasks":[{"label":"Үйлдлийг гүйцэтгэ.","fn":"g_mulDivTwo","cap":8,"cols":4,"wk":8},{"label":"Үйлдлийг гүйцэтгэ.","fn":"g_signParity","cap":5,"cols":3,"wk":10},{"label":"□-ийн оронд тохирох бүхэл тоог ол.","fn":"g_unknownFactor","cap":4,"cols":3,"wk":10},{"label":"Бодлогыг бод.","fn":"g_wordTempMulti","cap":3,"cols":1,"wk":24},{"label":"Илэрхийллийн утгыг хялбар аргаар ол.","fn":"g_altSignSum","cap":3,"cols":2,"wk":14}]};
 
 function toggleAns(){var el=document.getElementById('answers');if(el)el.style.display=document.getElementById('sa').checked?'block':'none';}
 function gen(fn){for(var t=0;t<700;t++){var f=fn();if(f)return f;}return null;}
@@ -521,16 +975,16 @@ function probeH(sheet){var pr=sheet.cloneNode(true);pr.removeAttribute('id');pr.
 function relabel(sheet){var blocks=sheet.querySelectorAll('.grid'),map={};for(var g=0;g<blocks.length;g++){var qs2=blocks[g].querySelectorAll('.q');for(var i=0;i<qs2.length;i++){var lt=LET[i]||('#'+(i+1));var ql=qs2[i].querySelector('.ql');if(ql)ql.textContent=lt+')';map[qs2[i].getAttribute('data-k')]=(g+1)+lt+')';}}
   var as=sheet.querySelectorAll('#answers .a');for(var j=0;j<as.length;j++){var an=as[j].querySelector('.an');if(an)an.textContent=map[as[j].getAttribute('data-k')]||'';}}
 function trimToFit(sheet,target){var guard=0,h=probeH(sheet);while(h>target&&guard++<90){var blocks=sheet.querySelectorAll('.grid'),best=-1,bestN=-1;for(var s=blocks.length-1;s>=0;s--){var n=blocks[s].querySelectorAll('.q').length;if(n>bestN&&n>2){bestN=n;best=s;}}if(best<0)break;var qs2=blocks[best].querySelectorAll('.q');var last=qs2[qs2.length-1],k=last.getAttribute('data-k');var ans=sheet.querySelector('#answers .a[data-k="'+k+'"]');if(ans)ans.parentNode.removeChild(ans);last.parentNode.removeChild(last);relabel(sheet);h=probeH(sheet);}}
-var TASKS=WSPEC.tasks.map(function(t){return {label:t.label, fn:eval(t.fn), cap:t.cap};});
+var TASKS=WSPEC.tasks.map(function(t){return {label:t.label, fn:eval(t.fn), cap:t.cap, cols:t.cols, wk:t.wk};});
 function genPool(){var P=TASKS.map(function(){return[];});var seen={};TASKS.forEach(function(t,i){var c=0,tr=0,need=t.cap+3;while(c<need&&tr<9000){tr++;var f=gen(t.fn);if(!f||seen[f.key])continue;seen[f.key]=1;P[i].push(f);c++;}});return P;}
 function build(){window.__POOL=genPool();layout();}
 function layout(){var WK=document.getElementById('sw').checked;var S=window.__POOL||(window.__POOL=genPool());window.__PROB=[];var K=0;
-  function block(arr,cap){var use=WK?arr.slice(0,cap):arr;return '<div class="grid">'+use.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});return '<div class="q" data-k="'+k+'"><div class="qh"><span class="ql"></span><span class="qm">'+f.q+'</span></div>'+(f.fig?'<div class="fig">'+f.fig+'</div>':'')+((WK&&!f.noWk)?'<div class="wk"></div>':'')+'</div>';}).join('')+'</div>';}
+  function block(arr,cap,tk){var use=WK?arr.slice(0,cap):arr;return '<div class="grid"'+(tk&&tk.cols?' style="grid-template-columns:repeat('+tk.cols+',1fr)"':'')+'>'+use.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});return '<div class="q" data-k="'+k+'"><div class="qh"><span class="ql"></span><span class="qm">'+f.q+'</span></div>'+(f.fig?'<div class="fig">'+f.fig+'</div>':'')+((WK&&!f.noWk)?'<div class="wk"'+(tk&&tk.wk?' style="height:'+tk.wk+'mm"':'')+'></div>':'')+'</div>';}).join('')+'</div>';}
   function ansAll(){return window.__PROB.map(function(p){return '<div class="a" data-k="'+p.k+'"><span class="an"></span>'+p.f.a+'</div>';}).join('');}
   var html='<div class="head"><h1>'+WSPEC.title+'</h1><div class="sub">'+WSPEC.sub+'</div></div>'
     +'<div class="meta"><span>Нэр: </span><span>Анги: </span><span>Огноо: </span></div>'
     +'<div class="rule">'+WSPEC.rule+'</div>'+(WSPEC.ref||'');
-  TASKS.forEach(function(t,i){html+='<div class="task">'+(i+1)+'. '+t.label+'</div>'+block(S[i],t.cap);});
+  TASKS.forEach(function(t,i){html+='<div class="task">'+(i+1)+'. '+t.label+'</div>'+block(S[i],t.cap,t);});
   html+='<div class="ans-page" id="answers"><h2>Хариу ба бодолт</h2><div class="ans-grid">'+ansAll()+'</div></div>';
   document.getElementById('sheet').innerHTML=html;
   window.WS_ITEMS=[];window.WS_TITLE=WSPEC.title;

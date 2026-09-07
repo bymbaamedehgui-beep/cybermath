@@ -1079,6 +1079,56 @@ module.exports = async (req, res) => {
         }
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_g7c6_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
+      // ── 7-р анги: v2 — шинэчилсэн/нэмэлт ажлын хуудсууд байгаа дэд бүлгүүдэд ──
+      const cf_g7v2 = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_g7_v2'`);
+      if (!cf_g7v2.rows.length) {
+        const subs_g7v2 = [
+          { name: "1.1 Тооны модул", slugs: ["toony-modul-1-7.html", "toony-modul-2-7.html", "toony-modul-3-7.html"] },
+          { name: "1.2 Бүхэл тооны нэмэх, хасах үйлдэл", slugs: ["buhel-nemeh-hasah-1-7.html", "buhel-nemeh-hasah-2-7.html", "buhel-nemeh-hasah-3-7.html"] },
+          { name: "1.3 Бүхэл тооны үржүүлэх, хуваах үйлдэл", slugs: ["buhel-urjih-huvaah-1-7.html", "buhel-urjih-huvaah-2-7.html", "buhel-urjih-huvaah-3-7.html"] },
+          { name: "1.4 Куб зэрэг ба куб язгуур", slugs: ["kub-zereg-1-7.html", "kub-zereg-2-7.html", "kub-zereg-3-7.html"] },
+          { name: "1.5 Анхны тоон үржигдэхүүнд задлах", slugs: ["anhny-too-zadlah-7.html", "anhny-too-zadlah-2-7.html"] },
+          { name: "1.6 ХИЕХ ба ХБЕХ", slugs: ["hieh-hbeh-1-7.html", "hieh-hbeh-2-7.html", "hieh-hbeh-3-7.html"] },
+          { name: "2.1 10-ын натурал илтгэгчтэй зэрэг", slugs: ["arawtiin-zereg-uildel-7.html", "aravtiin-zereg-bichleg-7.html", "arawtaar-urjih-huvaah-7.html"] },
+          { name: "2.2 Аравтын бутархайг жиших, эрэмбэлэх", slugs: ["arawtiin-butarhai-jishih-7.html", "arawtiin-butarhai-eremblel-7.html"] },
+          { name: "2.3 Тоог тоймлох", slugs: ["toog-toimloh-7.html", "toimlol-tootsoolol-7.html", "toimloh-urvuu-bodlogo-7.html"] },
+          { name: "2.4 Хялбар аргаар тооцоолох", slugs: ["holimog-uildel-butarhai-7.html", "tohiromjtoi-daraalal-7.html"] },
+          { name: "2.5 Энгийн бутархайг хураах, жиших", slugs: ["engiin-butarhai-huraah-jishih-7.html", "butarhai-huvirgalt-jishilt-7.html"] },
+          { name: "2.6 Энгийн бутархайн нэмэх, хасах", slugs: ["engiin-butarhai-nemeh-hasah-7.html", "holimog-too-nemeh-hasah-7.html", "butarhai-nemeh-bodlogo-7.html"] },
+          { name: "2.7 Энгийн бутархайн үржүүлэх, хуваах", slugs: ["engiin-butarhai-urjih-huvaah-7.html", "holimog-too-urjih-huvaah-7.html", "butarhai-olon-alham-7.html"] },
+          { name: "2.8 Бутархай ба процент харилцан шилжүүлэх", slugs: ["butarhai-protsent-1-7.html", "butarhai-protsent-2-7.html", "butarhai-protsent-huesnegt-7.html"] },
+          { name: "2.9 Хөдөлгөөн ба ажлын бодлого", slugs: ["hodolgoon-ajil-bodlogo-7.html", "dundaj-hurd-bodlogo-7.html", "ajil-hesgiin-bodlogo-7.html"] },
+          { name: "2.10 Процентын бодлого", slugs: ["protsentiin-bodlogo-7.html", "hemjeenii-protsent-oloh-7.html", "protsent-ugen-bodlogo-7.html"] },
+          { name: "2.11 Өсөлт, бууралтын процент", slugs: ["osolt-buuraltiin-protsent-7.html", "hyamdral-osoltiin-bodlogo-7.html"] },
+          { name: "3.1 Харьцаа ба түүний хялбар хэлбэр", slugs: ["haritsaa-hylbar-7.html", "haritsaa-negj-7.html", "haritsaa-butarhai-7.html"] },
+          { name: "3.2 Пропорц ба үндсэн чанар", slugs: ["proports-1-7.html", "proports-undsen-chanar-7.html", "proports-bodlogo-7.html"] },
+          { name: "3.3 Харьцааг процентоор илэрхийлэх", slugs: ["proports-2-7.html", "haritsaa-protsent-7.html"] },
+          { name: "3.4 Харьцаагаар хуваах", slugs: ["haritsaagaar-huvaah-7.html", "haritsaagaar-huvaah-2-7.html", "niilber-yalgavar-haritsaa-7.html", "haritsaa-hemjee-7.html"] },
+          { name: "3.5 Шууд пропорционал хамаарал", slugs: ["shuud-proports-1-7.html", "shuud-proports-2-7.html", "shuud-proports-3-7.html"] },
+          { name: "4.1 Эсрэг үзэгдлийн магадлал", slugs: ["esreg-uzegdel-1-7.html", "esreg-uzegdel-2-7.html", "esreg-uzegdel-3-7.html", "esreg-uzegdel-4-7.html"] },
+          { name: "4.2 Нэгдсэн туршилт (шоо, зоос, шагай)", slugs: ["hoyor-shoo-1-7.html", "hoyor-shoo-2-7.html", "hoyor-shoo-3-7.html", "zoos-negdsen-turshilt-7.html", "shudarga-toglom-7.html"] },
+          { name: "4.3 Санамсаргүй сонголтын магадлал", slugs: ["sanamsargui-too-1-7.html", "sanamsargui-too-2-7.html", "sanamsargui-too-3-7.html", "sanamsargui-songolt-7.html"] },
+          { name: "5.1 Алгебрын илэрхийлэл хялбарлах", slugs: ["tosootoi-gishuud-7.html", "haalt-zadlah-7.html", "ilerhiilel-utga-7.html", "ilerhiilel-aldaa-7.html"] },
+          { name: "5.2 Натурал илтгэгчтэй зэргийн чанарууд", slugs: ["zergiin-chanar-7.html", "zereg-chanar-2-7.html"] },
+          { name: "5.3 Нэг гишүүнтүүдийг үржүүлэх, хуваах", slugs: ["neg-gishuunt-1-7.html", "neg-gishuunt-2-7.html", "talbai-perimetr-7.html"] },
+          { name: "5.4 Нэг гишүүнтээр үржүүлэх, ерөнхий үржигдэхүүн гаргах", slugs: ["gishuunchlen-urjuuleh-7.html", "eronhii-urjigdehuun-7.html"] },
+          { name: "5.5 Шугаман тэгшитгэл бодох", slugs: ["shugaman-tegshitgel-1-7.html", "shugaman-tegshitgel-2-7.html", "tegshitgel-butarhai-7.html"] },
+          { name: "5.6 Тэгшитгэл зохиож бодлого бодох", slugs: ["tegshitgel-bodlogo-7.html", "tegshitgel-bodlogo-2-7.html", "tegshitgel-bodlogo-3-7.html"] },
+          { name: "6.1 Тоон дараалал ба ерөнхий гишүүн", slugs: ["toon-daraalal-1-7.html", "toon-daraalal-2-7.html", "eronhii-gishuun-7.html", "daraallyn-zui-togtol-7.html", "dursiin-daraalal-7.html"] },
+          { name: "6.2 Арифметик прогресс", slugs: ["arifmetik-progress-7.html", "arifmetik-progress-2-7.html", "arifmetik-huesnegt-7.html", "arifmetik-bodlogo-1-7.html", "arifmetik-bodlogo-2-7.html"] },
+          { name: "6.3 Шугаман функц, шулууны тэгшитгэл", slugs: ["shugaman-funkts-7.html", "shuluuny-tegshitgel-7.html", "shugaman-funkts-2-7.html"] },
+          { name: "6.4 Шугаман функцийн график, шууд пропорционал", slugs: ["funkts-huesnegt-7.html", "funkts-graphik-7.html", "shuud-proportsional-7.html", "shuud-proportsional-2-7.html"] },
+        ];
+        for (const sub of subs_g7v2) {
+          const sgr = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='7-р анги' AND name=$1`, [sub.name]);
+          if (!sgr.rows.length) continue;   // админ устгасан/нэр сольсон бол хүндэтгэнэ
+          const sid = Number(sgr.rows[0].id);
+          for (const slug of sub.slugs) {
+            await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + sid, slug]);
+          }
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_g7_v2','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
       // Slug тус бүрээр (name|||slug) хосоор мөрддөг: байгаа дэд бүлэгт шинэ slug орно, гэхдээ
       // бүхэл дэд бүлгийг устгасан/нэр сольсныг хүндэтгэж дахин үүсгэхгүй.
       for (const add of ADDITIONS) {

@@ -26,7 +26,7 @@
   .q{break-inside:avoid;page-break-inside:avoid}
   .qh{display:flex;gap:7px;align-items:baseline}.ql{font-weight:800;color:var(--purple);font-size:13px;min-width:22px}.qm{font-size:13px}
   .fig{text-align:center;margin:4px 0}
-  .wk{border:1.1px solid #e2daf5;border-radius:7px;background:linear-gradient(#fff,#fbf9ff);height:18mm;margin-top:5px}
+  .wk{border:1.1px solid #e2daf5;border-radius:7px;background:linear-gradient(#fff,#fbf9ff);height:14mm;margin-top:5px}
   .ans-page{margin-top:9mm;border-top:2px dashed #ddd;padding-top:7mm}.ans-page h2{font-size:15px;color:#5a32d6;margin-bottom:10px}
   .ans-grid{display:grid;grid-template-columns:1fr;gap:9px;font-size:12px}.ans-grid .a{padding-bottom:8px;border-bottom:1px dotted #e6e0f5}.ans-grid .an{color:var(--purple);font-weight:800;margin-right:5px}
   #answers{display:none}
@@ -125,10 +125,11 @@ function venn2(la,lb){la=la||'A';lb=lb||'B';var g='<rect x="6" y="6" width="248"
  g+='<text x="70" y="70" font-size="14" font-style="italic" fill="#5a32d6">'+la+'</text>';
  g+='<text x="186" y="70" font-size="14" font-style="italic" fill="#5a32d6">'+lb+'</text>';
  return '<svg viewBox="0 0 260 130" width="210">'+g+'</svg>';}
-// ── 7-р анги IV бүлэг (Магадлал: эсрэг үзэгдэл, нэмэх дүрэм, сонгодог магадлал) ──
+// ── 7-р анги IV бүлэг (Магадлал: эсрэг үзэгдэл, нэгдсэн туршилт, санамсаргүй сонголт) ──
 // g7core.js доторх helper-үүд (rnd,pick,shuffle,gcd,lcm,isPrime,frTeX,decStr...) шууд дуудагдана.
+// АСУУЛТ (q) нь зөвхөн НӨХЦӨЛ буюу илэрхийллийг агуулна; заавар нь plan.json дахь task.label-д нэг л удаа бичигдэнэ.
 
-// ── Магадлалын бутархайг харуулах: бүтэн + хураангуйлсан (P<1 гэж үзнэ) ──
+// ── Магадлалын бутархайг харуулах: бүтэн + хураангуйлсан ──
 function PF(num,den){
  var g=gcd(num,den),full='\\dfrac{'+num+'}{'+den+'}';
  if(g===1||num===0)return full;
@@ -137,8 +138,79 @@ function PF(num,den){
 }
 // хоёр шооны нийлбэр s-ийн тохиолдлын тоо
 function dsCount(s){return 6-Math.abs(7-s);}
+function d2count(pred){var c=0;for(var a=1;a<=6;a++)for(var b=1;b<=6;b++)if(pred(a,b))c++;return c;}
+function coinCount(n,pred){var tot=1<<n,c=0;for(var m=0;m<tot;m++){var h=0;for(var i=0;i<n;i++)if(m&(1<<i))h++;if(pred(h,n))c++;}return c;}
+function fact(n){var r=1;for(var i=2;i<=n;i++)r*=i;return r;}
+function C2(n){return n*(n-1)/2;}
 
-// ════════ WS1  Эсрэг үзэгдэл ба магадлал-1  (4.1) ════════
+// ══════════════ ЦЭВЭР SVG ЗУРГУУД (хариу илчлэхгүй) ══════════════
+var COLHEX={'улаан':'#ef4444','цагаан':'#ffffff','ногоон':'#22c55e','шар':'#facc15','хөх':'#3b82f6'};
+function sectors(cx,cy,r,cols){
+ var n=cols.length,g='',i;
+ for(i=0;i<n;i++){
+  var a1=-Math.PI/2+2*Math.PI*i/n,a2=-Math.PI/2+2*Math.PI*(i+1)/n;
+  var x1=(cx+r*Math.cos(a1)).toFixed(1),y1=(cy+r*Math.sin(a1)).toFixed(1);
+  var x2=(cx+r*Math.cos(a2)).toFixed(1),y2=(cy+r*Math.sin(a2)).toFixed(1);
+  g+='<path d="M '+cx+' '+cy+' L '+x1+' '+y1+' A '+r+' '+r+' 0 0 1 '+x2+' '+y2+' Z" fill="'+COLHEX[cols[i]]+'" stroke="#334155" stroke-width="1.1"/>';
+ }
+ g+='<circle cx="'+cx+'" cy="'+cy+'" r="2.6" fill="#334155"/>';
+ return g;
+}
+// Тэнцүү дөрвөн сектортой хоёр хүрд (зүү заасан өнгийг ХАРУУЛАХГҮЙ)
+function spinnerFig(cols){
+ var g=sectors(46,52,36,cols)+sectors(140,52,36,cols);
+ g+='<text x="46" y="104" font-size="10" text-anchor="middle" fill="#475569">I хүрд</text>';
+ g+='<text x="140" y="104" font-size="10" text-anchor="middle" fill="#475569">II хүрд</text>';
+ return '<svg viewBox="0 0 186 112" width="200">'+g+'</svg>';
+}
+// n×n×n куб (гадна тал будагдсан), жижиг кубуудад хуваасан
+function cubeFig(n){
+ var s=104,d=34,ox=12,oy=44,g='',i;
+ g+='<polygon points="'+ox+','+oy+' '+(ox+d)+','+(oy-d)+' '+(ox+s+d)+','+(oy-d)+' '+(ox+s)+','+oy+'" fill="#bfe3f7" stroke="#20628f" stroke-width="1.3"/>';
+ g+='<polygon points="'+(ox+s)+','+oy+' '+(ox+s+d)+','+(oy-d)+' '+(ox+s+d)+','+(oy+s-d)+' '+(ox+s)+','+(oy+s)+'" fill="#9ed2ef" stroke="#20628f" stroke-width="1.3"/>';
+ g+='<rect x="'+ox+'" y="'+oy+'" width="'+s+'" height="'+s+'" fill="#dcf0fc" stroke="#20628f" stroke-width="1.3"/>';
+ for(i=1;i<n;i++){
+  var t=ox+s*i/n,u=oy+s*i/n,f=i/n;
+  g+='<line x1="'+t.toFixed(1)+'" y1="'+oy+'" x2="'+t.toFixed(1)+'" y2="'+(oy+s)+'" stroke="#20628f" stroke-width="0.7"/>';
+  g+='<line x1="'+ox+'" y1="'+u.toFixed(1)+'" x2="'+(ox+s)+'" y2="'+u.toFixed(1)+'" stroke="#20628f" stroke-width="0.7"/>';
+  g+='<line x1="'+t.toFixed(1)+'" y1="'+oy+'" x2="'+(t+d).toFixed(1)+'" y2="'+(oy-d)+'" stroke="#20628f" stroke-width="0.7"/>';
+  g+='<line x1="'+(ox+d*f).toFixed(1)+'" y1="'+(oy-d*f).toFixed(1)+'" x2="'+(ox+s+d*f).toFixed(1)+'" y2="'+(oy-d*f).toFixed(1)+'" stroke="#20628f" stroke-width="0.7"/>';
+  g+='<line x1="'+(ox+s+d*f).toFixed(1)+'" y1="'+(oy-d*f).toFixed(1)+'" x2="'+(ox+s+d*f).toFixed(1)+'" y2="'+(oy-d*f+s).toFixed(1)+'" stroke="#20628f" stroke-width="0.7"/>';
+  g+='<line x1="'+(ox+s)+'" y1="'+u.toFixed(1)+'" x2="'+(ox+s+d)+'" y2="'+(u-d).toFixed(1)+'" stroke="#20628f" stroke-width="0.7"/>';
+ }
+ return '<svg viewBox="0 0 '+(ox+s+d+12)+' '+(oy+s+12)+'" width="150">'+g+'</svg>';
+}
+// Хоёр шооны хоосон 6×6 хүснэгт (сурагч өөрөө дүүргэнэ)
+function diceGridFig(la,lb){
+ var c=26,ox=10,oy=10,g='',i,k;
+ g+='<rect x="'+ox+'" y="'+oy+'" width="'+(7*c)+'" height="'+c+'" fill="#e9eef7"/>';
+ g+='<rect x="'+ox+'" y="'+oy+'" width="'+c+'" height="'+(7*c)+'" fill="#e9eef7"/>';
+ for(i=0;i<=7;i++){
+  g+='<line x1="'+ox+'" y1="'+(oy+i*c)+'" x2="'+(ox+7*c)+'" y2="'+(oy+i*c)+'" stroke="#94a3b8" stroke-width="1"/>';
+  g+='<line x1="'+(ox+i*c)+'" y1="'+oy+'" x2="'+(ox+i*c)+'" y2="'+(oy+7*c)+'" stroke="#94a3b8" stroke-width="1"/>';
+ }
+ for(k=1;k<=6;k++){
+  g+='<text x="'+(ox+k*c+c/2)+'" y="'+(oy+c/2+4)+'" font-size="11" text-anchor="middle" fill="#334155">'+k+'</text>';
+  g+='<text x="'+(ox+c/2)+'" y="'+(oy+k*c+c/2+4)+'" font-size="11" text-anchor="middle" fill="#334155">'+k+'</text>';
+ }
+ g+='<text x="'+(ox+7*c+4)+'" y="'+(oy+c-6)+'" font-size="9" fill="#475569">'+la+'</text>';
+ g+='<text x="'+(ox+2)+'" y="'+(oy+7*c+11)+'" font-size="9" fill="#475569">'+lb+'</text>';
+ return '<svg viewBox="0 0 '+(ox+7*c+34)+' '+(oy+7*c+18)+'" width="215">'+g+'</svg>';
+}
+// Хуанлийн хүснэгт
+var CAL_SHORT=['Да','Мя','Лх','Пү','Ба','Бя','Ня'];
+function calFig(startDow,days){
+ var c=29,hx=8,hy=8,rows=Math.ceil((startDow+days)/7),g='',i,d,j;
+ g+='<rect x="'+hx+'" y="'+hy+'" width="'+(7*c)+'" height="'+c+'" fill="#e9eef7"/>';
+ for(i=0;i<7;i++)g+='<text x="'+(hx+i*c+c/2)+'" y="'+(hy+c/2+4)+'" font-size="10" text-anchor="middle" fill="#334155">'+CAL_SHORT[i]+'</text>';
+ for(d=1;d<=days;d++){var idx=startDow+d-1,r=Math.floor(idx/7),col=idx%7;
+  g+='<text x="'+(hx+col*c+c/2)+'" y="'+(hy+(r+1)*c+c/2+4)+'" font-size="10" text-anchor="middle" fill="#0f172a">'+d+'</text>';}
+ for(j=0;j<=rows+1;j++)g+='<line x1="'+hx+'" y1="'+(hy+j*c)+'" x2="'+(hx+7*c)+'" y2="'+(hy+j*c)+'" stroke="#94a3b8" stroke-width="1"/>';
+ for(j=0;j<=7;j++)g+='<line x1="'+(hx+j*c)+'" y1="'+hy+'" x2="'+(hx+j*c)+'" y2="'+(hy+(rows+1)*c)+'" stroke="#94a3b8" stroke-width="1"/>';
+ return '<svg viewBox="0 0 '+(2*hx+7*c)+' '+(2*hy+(rows+1)*c)+'" width="228">'+g+'</svg>';
+}
+
+// ════════════════════ 4.1 ЭСРЭГ ҮЗЭГДЭЛ ════════════════════
 var EN_EVENTS=[
  {e:'Маргааш бороо орох',c:'Маргааш бороо орохгүй',d:['Маргааш цас орох','Маргааш салхи шуургатай байх','Өнөөдөр бороо орох']},
  {e:'Шоо орхиход тэгш тоо буух',c:'Шоо орхиход сондгой тоо буух',d:['Шоо орхиход 6 буух','Шоо орхиход анхны тоо буух','Шоо орхиход 3-аас их тоо буух']},
@@ -150,79 +222,223 @@ var EN_EVENTS=[
  {e:'Санамсаргүй сонгосон тоо 5-д хуваагдах',c:'Санамсаргүй сонгосон тоо 5-д хуваагдахгүй',d:['Санамсаргүй сонгосон тоо тэгш байх','Санамсаргүй сонгосон тоо 10-д хуваагдах','Санамсаргүй сонгосон тоо анхны байх']},
  {e:'Сонгосон өдөр Ням гараг байх',c:'Сонгосон өдөр Ням гарагаас өөр гараг байх',d:['Сонгосон өдөр Бямба гараг байх','Сонгосон өдөр амралтын өдөр байх','Сонгосон өдөр Даваа гараг байх']},
  {e:'Шоо орхиход анхны тоо (2,3,5) буух',c:'Шоо орхиход анхны бус тоо (1,4,6) буух',d:['Шоо орхиход тэгш тоо буух','Шоо орхиход сондгой тоо буух','Шоо орхиход 4-өөс их тоо буух']},
+ {e:'Зоосыг 3 удаа орхиход ядаж нэг удаа сүлд буух',c:'Гурван удаад нь тоо буух',d:['Гурван удаад нь сүлд буух','Яг нэг удаа сүлд буух','Яг хоёр удаа тоо буух']},
+ {e:'Хоёр шоог зэрэг орхиход нүднүүд нь тэнцүү буух',c:'Хоёр шооны нүд ялгаатай буух',d:['Нийлбэр нь тэгш буух','Хоёр шоо хоёул 6 буух','Нийлбэр нь 7 буух']},
  {e:'Насанд хүрэгчид дундаас нэгийг сонгоход эрэгтэй байх',c:'Насанд хүрэгчид дундаас нэгийг сонгоход эмэгтэй байх',d:['Хүүхэд сонгох','Оюутан сонгох','Тэтгэвэрт гарсан хүн сонгох']}
 ];
 function g_esregNerlekh(){
  var idx=rnd(0,EN_EVENTS.length-1),it=EN_EVENTS[idx];
  var opts=shuffle([it.c,it.d[0],it.d[1],it.d[2]]);
  var L=['А','Б','В','Г'],pos=opts.indexOf(it.c),letter=L[pos];
- var q='‘'+it.e+'’ гэсэн үзэгдлийн эсрэг үзэгдлийг сонгоно уу.<br>'+
-   L.map(function(x,i){return x+') '+opts[i];}).join(' &nbsp; ');
- var a='Зөв хариу: <b>'+letter+')</b> '+it.c+'. Эсрэг үзэгдэл гэдэг нь өгсөн үзэгдэл '+
-   '<u>илрэхгүй</u> байх бүх тохиолдлын нэгдэл юм.';
+ var q='‘'+it.e+'’<br>'+L.map(function(x,i){return x+') '+opts[i];}).join(' &nbsp; ');
+ var a='<b>'+letter+')</b> '+it.c+'. Эсрэг үзэгдэл нь өгсөн үзэгдэл <u>илрэхгүй</u> байх бүх тохиолдлын нэгдэл.';
  return {q:q,a:a,key:'en'+idx,ans:letter,correct:it.c,opts:opts};
 }
-var ED_P=[0.15,0.24,0.35,0.42,0.63,0.75,0.86,0.44,0.58,0.09];
+
+var EW_ITEMS=[
+ {e:'Шоо орхиход $3$-т хуваагдах тоогоор тусах',c:'Шоо орхиход $3$-т хуваагдахгүй тоогоор ($1,2,4,5$) тусах'},
+ {e:'Шоо орхиход $4$-өөс бага тоогоор тусах',c:'Шоо орхиход $4$-өөс багагүй тоогоор ($4,5,6$) тусах'},
+ {e:'Шоо орхиход анхны тоогоор тусах',c:'Шоо орхиход анхны бус тоогоор ($1,4,6$) тусах'},
+ {e:'Шоо орхиход тэгш тоогоор тусах',c:'Шоо орхиход сондгой тоогоор тусах'},
+ {e:'Шоо орхиход $6$-аас бага тоогоор тусах',c:'Шоо орхиход $6$ тоогоор тусах'},
+ {e:'Зоосыг $2$ удаа орхиход ядаж нэг удаа тоо буух',c:'Хоёр удаад нь сүлд буух'},
+ {e:'Зоосыг $3$ удаа орхиход нэг ч удаа сүлд буухгүй байх',c:'Ядаж нэг удаа сүлд буух'},
+ {e:'Хоёр зоосыг зэрэг орхиход зооснууд ялгаатай талаараа буух',c:'Зооснууд ижил талаараа буух'},
+ {e:'Шагайг $3$ удаа орхиход яг нэг удаа тэмээ буух',c:'Тэмээ огт буухгүй, эсвэл хоёр буюу гурван удаа буух'},
+ {e:'Дөрвөн хүүхэд дугаарлан зогсоход Болд хамгийн ард зогсох',c:'Болд хамгийн ард зогсохгүй байх'},
+ {e:'Гурван оронтой тоог санамсаргүйгээр бичихэд $25$-д хуваагдах',c:'Гурван оронтой тоо $25$-д хуваагдахгүй байх'},
+ {e:'Хоёр шоог зэрэг орхиход нийлбэр нь $10$-аас их байх',c:'Нийлбэр нь $10$-аас ихгүй байх'},
+ {e:'Сурагч гадаадад суралцах шалгалтад тэнцэх',c:'Сурагч уг шалгалтад тэнцэхгүй байх'},
+ {e:'Дөрвөн шагайг зэрэг орхиход дөрвөн бэрх буух',c:'Ядаж хоёр шагай ижил талаараа буух'}
+];
+function g_esregWrite(){
+ var i=rnd(0,EW_ITEMS.length-1),it=EW_ITEMS[i];
+ return {q:it.e,a:'Эсрэг үзэгдэл: '+it.c+'.',key:'ew'+i,cw:it.c};
+}
+
+var ED_P=[0.15,0.24,0.35,0.42,0.63,0.75,0.86,0.44,0.58,0.09,0.07,0.28,0.51,0.66,0.92,0.38];
 function g_esregDecimal(){
  var p=pick(ED_P),comp=Math.round((1-p)*100)/100;
- var q='Аливаа $A$ үзэгдэл илрэх магадлал $P(A)='+decStr(p,2)+'$ бол эсрэг үзэгдлийн магадлал $P(\\bar A)$-ыг ол.';
- var a='$P(\\bar A)=1-P(A)=1-'+decStr(p,2)+'='+decStr(comp,2)+'$';
- return {q:q,a:a,key:'ed'+p,nv:comp,p:p,comp:comp};
+ return {q:'$P(A)='+decStr(p,2)+'$',a:'$P(\\bar A)=1-'+decStr(p,2)+'='+decStr(comp,2)+'$',key:'ed'+p,nv:comp,p:p,comp:comp};
 }
-var EF_PAIRS=[[5,12],[3,8],[7,10],[21,36],[7,9],[5,16],[7,15],[9,10],[11,12],[2,9],[13,45],[7,20],[3,10],[5,18]];
+var EF_PAIRS=[[5,12],[3,8],[7,10],[21,36],[7,9],[5,16],[7,15],[9,10],[11,12],[2,9],[13,45],[7,20],[3,10],[5,18],[17,24],[9,28],[11,30],[13,36]];
 function g_esregFraction(){
  var pr=pick(EF_PAIRS),a1=pr[0],b1=pr[1],num=b1-a1,comp=num/b1;
  var full='\\dfrac{'+num+'}{'+b1+'}',red=frTeX(num,b1),tail=(red===full?'':'='+red);
- var q='Үзэгдлийн магадлал $P(A)=\\dfrac{'+a1+'}{'+b1+'}$ бол эсрэг үзэгдлийн магадлал $P(\\bar A)$-ыг ол.';
- var a='$P(\\bar A)=1-\\dfrac{'+a1+'}{'+b1+'}=\\dfrac{'+b1+'-'+a1+'}{'+b1+'}='+full+tail+'$';
- return {q:q,a:a,key:'ef'+a1+'/'+b1,nv:comp,a2:a1,b2:b1};
+ return {q:'$P(A)=\\dfrac{'+a1+'}{'+b1+'}$',
+  a:'$P(\\bar A)=1-\\dfrac{'+a1+'}{'+b1+'}=\\dfrac{'+b1+'-'+a1+'}{'+b1+'}='+full+tail+'$',
+  key:'ef'+a1+'/'+b1,nv:comp,a2:a1,b2:b1};
 }
-var UT_P=[0.63,0.55,0.4,0.72,0.35];
+
+var UT_P=[0.63,0.55,0.4,0.72,0.35,0.18,0.84,0.46];
 var UT_COL=[['улаан','шар'],['ногоон','улаан'],['хөх','цагаан'],['шар','ногоон'],['улаан','цэнхэр']];
 function g_uutTwoColor(){
  var p=pick(UT_P),cp=pick(UT_COL),comp=Math.round((1-p)*100)/100;
- var q='Уутанд зөвхөн '+cp[0]+' ба '+cp[1]+' өнгийн чихэр байв. Нэг чихэр таамгаар авахад '+
-   cp[0]+' өнгөтэй байх магадлал $'+decStr(p,2)+'$ бол '+cp[1]+' өнгөтэй чихэр гарах магадлалыг ол.';
- var a='Хоёр өнгийн чихэр тул нэгнийх нь эсрэг нь нөгөө: $P('+cp[1]+')=1-'+decStr(p,2)+'='+decStr(comp,2)+'$';
+ var q='Уутанд зөвхөн '+cp[0]+' ба '+cp[1]+' өнгийн үрлэн чихэр байв. Нэгийг таамгаар авахад '+
+   cp[0]+' өнгөтэй байх магадлал $'+decStr(p,2)+'$. $A$: авсан чихэр '+cp[1]+' өнгөтэй байх.';
+ var a='Хоёр өнгө тул нэгнийх нь эсрэг нь нөгөө: $P(A)=1-'+decStr(p,2)+'='+decStr(comp,2)+'$';
  return {q:q,a:a,key:'ut'+cp[0]+cp[1]+p,nv:comp,p:p,comp:comp};
 }
-var UC_PAIRS=[[65,13],[60,15],[50,10],[80,16],[40,8],[100,20],[60,12],[45,9],[80,20],[100,25],[50,15]];
+var UC_PAIRS=[[65,13],[60,15],[50,10],[80,16],[40,8],[100,20],[60,12],[45,9],[80,20],[100,25],[50,15],[75,30],[90,36],[120,45]];
 var UC_COL=['ногоон','улаан','шар','хөх','цагаан'];
 function g_uutCountComplement(){
  var pr=pick(UC_PAIRS),N=pr[0],k=pr[1],col=pick(UC_COL),num=N-k,comp=num/N;
- var full='\\dfrac{'+num+'}{'+N+'}',red=frTeX(num,N),tail=(red===full?'':'='+red);
- var q='Уутанд нийт $'+N+'$ чихрээс $'+k+'$ нь '+col+' өнгөтэй. Нэг чихэр таамгаар авахад '+col+
-   ' өнгөтэй <b>биш</b> байх магадлалыг ол.';
- var a='Тохирох тоо: $'+N+'-'+k+'='+num+'$. $P('+col+' \\text{ биш})=\\dfrac{'+num+'}{'+N+'}'+tail+'$';
+ var q='Уутанд нийт $'+N+'$ чихрээс $'+k+'$ нь '+col+' өнгөтэй. Нэгийг таамгаар авав. $A$: авсан чихэр '+col+' өнгөтэй биш байх.';
+ var a='Тохирох тоо $'+N+'-'+k+'='+num+'$ тул $P(A)='+PF(num,N)+'$. Эсрэг үзэгдэл: $P(\\bar A)='+PF(k,N)+'$.';
  return {q:q,a:a,key:'uc'+N+'/'+k+col,nv:comp,N:N,k:k};
 }
+var U3_SETS=[[60,30,10],[45,30,25],[24,16,10],[35,25,20],[50,30,20],[36,24,12],[40,35,25],[54,27,9]];
+var U3_COL=[['улаан','шар','ногоон'],['ногоон','хөх','цагаан'],['шар','улаан','хөх']];
+function g_uutThreeColor(){
+ var s=pick(U3_SETS),c=pick(U3_COL),i=rnd(0,2);
+ var N=s[0]+s[1]+s[2],k=s[i];
+ var q='Уутанд $'+s[0]+'$ '+c[0]+', $'+s[1]+'$ '+c[1]+', $'+s[2]+'$ '+c[2]+' өнгийн чихэр байв. Нэгийг таамгаар авав. '+
+   '$A$: авсан чихэр '+c[i]+' өнгөтэй байх.';
+ var a='Нийт $'+s[0]+'+'+s[1]+'+'+s[2]+'='+N+'$ чихэр. $P(A)='+PF(k,N)+'$. '+
+   'Эсрэг үзэгдэл “'+c[i]+' биш өнгө гарах”: $P(\\bar A)='+PF(N-k,N)+'$.';
+ return {q:q,a:a,key:'u3'+s.join('_')+c[0]+i,nv:k/N,comp:(N-k)/N,N:N,k:k};
+}
 
-// ════════ WS2  Хоёр шоо орхих туршилт-1  (4.2) ════════
+var JG_PAIRS=[
+ {A:'Шоо орхиход $3$-аас их тоогоор тусах',B:'Шоо орхиход $3$-аас бага тоогоор тусах',ok:false,
+  why:'$3$ тоо аль алинд нь ороогүй тул нэгдэл нь $\\Omega$ болохгүй. Зөв эсрэг үзэгдэл нь “$3$-аас ихгүй тоогоор тусах”.'},
+ {A:'Сурагч шалгалтад A дүн авах',B:'Сурагч шалгалтад F дүн авах',ok:false,
+  why:'B, C, D дүн авах тохиолдлууд хоёуланд нь ороогүй тул эсрэг үзэгдлүүд биш.'},
+ {A:'Дөрвөн шагайг зэрэг орхиход ядаж хоёр нь ижил талаараа буух',B:'Дөрвөн бэрх буух',ok:true,
+  why:'Дөрвүүлээ өөр өөр талаараа буух цорын ганц тохиолдол нь дөрвөн бэрх. Иймд нэгдэл нь $\\Omega$, огтлолцол нь $\\varnothing$.'},
+ {A:'Зоосыг $2$ удаа орхиход ядаж нэг удаа тоо буух',B:'Хоёр удаад нь сүлд буух',ok:true,
+  why:'$4$ боломжит үр дүнгээс $3$ нь эхнийхэд, $1$ нь хоёрдахьд харьяалагдана. $3+1=4$ тул эсрэг үзэгдлүүд.'},
+ {A:'Гурван шоог зэрэг орхиход бүгд ижил нүдээрээ буух',B:'Гурван шоо бүгд ялгаатай нүдээрээ буух',ok:false,
+  why:'Яг хоёр нь ижил буух тохиолдол хоёуланд нь ороогүй тул эсрэг үзэгдлүүд биш.'},
+ {A:'Хоёр оронтой тоо сонгоход цифрүүд нь өсөх эрэмбээр байрлах',B:'Цифрүүд нь буурах эрэмбээр байрлах',ok:false,
+  why:'Цифрүүд нь тэнцүү байх $11,22,\\dots,99$ тоонууд хоёуланд нь ороогүй.'},
+ {A:'Шоо орхиход тэгш тоогоор тусах',B:'Шоо орхиход сондгой тоогоор тусах',ok:true,
+  why:'$\\{2,4,6\\}$ ба $\\{1,3,5\\}$ огтлолцохгүй ба нэгдэл нь $\\Omega$ тул эсрэг үзэгдлүүд.'},
+ {A:'Маргааш бороо орох',B:'Маргааш цас орох',ok:false,
+  why:'Маргааш огт хур тунадас орохгүй байж болно, мөн бороо цас хоёулаа орж болно.'},
+ {A:'Хоёр зоосыг зэрэг орхиход зооснууд ялгаатай талаараа буух',B:'Зооснууд ижил талаараа буух',ok:true,
+  why:'Хоёр зоос эсвэл ижил, эсвэл ялгаатай талаараа буух тул гуравдахь боломж алга.'},
+ {A:'Шоо орхиход анхны тоогоор тусах',B:'Шоо орхиход тэгш тоогоор тусах',ok:false,
+  why:'$2$ тоо нь анхны бас тэгш тул хоёуланд нь орно, огтлолцол нь хоосон биш.'},
+ {A:'Хоёр шоог зэрэг орхиход нийлбэр нь $7$-оос бага байх',B:'Нийлбэр нь $7$-оос их байх',ok:false,
+  why:'Нийлбэр яг $7$ байх $6$ тохиолдол хоёуланд нь ороогүй.'},
+ {A:'Уутнаас нэг бөмбөг авахад улаан гарах',B:'Уутнаас улаанаас өөр өнгийн бөмбөг гарах',ok:true,
+  why:'Хоёр үзэгдлийн нэгдэл нь бүх боломжит үр дүнг хамарч, огтлолцол нь хоосон.'}
+];
+function g_esregJudge(){
+ var i=rnd(0,JG_PAIRS.length-1),it=JG_PAIRS[i];
+ return {q:'$A$: '+it.A+'. &nbsp;&nbsp; $B$: '+it.B+'.',
+  a:(it.ok?'<b>Тийм.</b> ':'<b>Үгүй.</b> ')+it.why,key:'jg'+i,ok:it.ok};
+}
+
+var SYM_CTX=[
+ {c:'Шагайг нэг удаа орхиход бод буух магадлал',s:'a',comp:'шагай бог буух',
+  x:'Шагай бод (морь, тэмээ) буюу бог (хонь, ямаа) талаараа буудаг тул өөр боломж алга.'},
+ {c:'Буудлагын тамирчны байг онох магадлал',s:'p',comp:'тамирчин байг онохгүй байх',
+  x:'Нэг буудалтад онох буюу оногдохгүй байх хоёрын нэг нь заавал болно.'},
+ {c:'Хоёр шагайг зэрэг орхиход хоёул морь буух магадлал',s:'a',comp:'ядаж нэг шагай морь биш буух',
+  x:'“Хоёул морь” үзэгдлийн үгүйсгэл нь “ядаж нэг нь морь биш”.'},
+ {c:'Шагайг хоёр удаа орхиход яг нэг удаа бод буух магадлал',s:'p',comp:'хоёулаа бод, эсвэл хоёулаа бог буух',
+  x:'“Яг нэг удаа бод” гэдгийн үгүйсгэл нь бод буух тоо $0$ буюу $2$ байх.'},
+ {c:'Сурагч гадаадад суралцах шалгалтад тэнцэх магадлал',s:'p',comp:'сурагч уг шалгалтад тэнцэхгүй байх',
+  x:'Тэнцэх ба тэнцэхгүй хоёр үзэгдэл нэгдээд $\\Omega$-г үүсгэнэ.'},
+ {c:'Хоёр шагайг зэрэг орхиход хоёул бог буух магадлал',s:'q',comp:'ядаж нэг шагай бод буух',
+  x:'“Хоёул бог” гэдгийн эсрэг нь “ядаж нэг нь бод”.'}
+];
+function g_esregSymbolic(){
+ var i=rnd(0,SYM_CTX.length-1),it=SYM_CTX[i],s=it.s;
+ var thr=pick([0.5,0.4,0.6,0.75]);
+ var suf=(s==='a')?'-тай':'-тэй';
+ var q=it.c+' $'+s+'$'+suf+' тэнцүү. &nbsp; а) Эсрэг үзэгдлийг нэрлэж, магадлалыг нь $'+s+
+   '$-аар илэрхийл. &nbsp; б) $'+s+'\\gt '+decStr(thr,2)+'$ бол эсрэг үзэгдлийн магадлал ямар завсарт орох вэ?';
+ var a='а) Эсрэг үзэгдэл: “'+it.comp+'”. '+it.x+' $P(\\bar A)=1-'+s+'$. &nbsp; '+
+   'б) $'+s+'\\gt '+decStr(thr,2)+'$ ба $'+s+'\\le 1$ тул $1-'+s+'\\lt '+decStr(1-thr,2)+'$, '+
+   'мөн $1-'+s+'\\ge 0$. Тэгэхээр $0\\le P(\\bar A)\\lt '+decStr(1-thr,2)+'$.';
+ return {q:q,a:a,key:'sy'+i+thr,thr:thr,lo:0,hi:Math.round((1-thr)*100)/100};
+}
+
+var EI_N=[20,25,50,100];
+function g_esregInverse(){
+ var N=pick(EI_N),mode=pick(['count','diff','total']);
+ var col=pick(['улаан','хөх','ногоон','шар']),col2=pick(['цагаан','хар','ягаан']);
+ if(mode==='count'){
+  var k=rnd(Math.max(1,Math.round(N*0.1)),N-Math.max(1,Math.round(N*0.1)));
+  var p=Math.round((N-k)/N*100)/100;
+  if(Math.abs(p*N-Math.round(p*N))>1e-9)return null;
+  var q='Уутанд нийт $'+N+'$ ижил хэмжээтэй бөмбөг байна. Нэгийг таамгаар авахад '+col+
+    ' бөмбөг гарахгүй байх магадлал $'+decStr(p,2)+'$ байв. Уутанд хэдэн '+col+' бөмбөг байгаа вэ?';
+  var a='$P('+col+')=1-'+decStr(p,2)+'='+decStr(1-p,2)+'$. Иймд '+col+' бөмбөгний тоо $'+
+    decStr(1-p,2)+'\\cdot '+N+'='+k+'$ ширхэг.';
+  return {q:q,a:a,key:'ei1'+N+'_'+k,mode:'count',N:N,k:k,p:p,nv:k};
+ }
+ if(mode==='diff'){
+  var k2=rnd(Math.max(1,Math.round(N*0.1)),Math.floor(N/2)-1);
+  var p2=Math.round(k2/N*100)/100;
+  if(Math.abs(p2*N-Math.round(p2*N))>1e-9)return null;
+  var dif=N-2*k2;
+  if(dif<=0)return null;
+  var q2='Уутанд зөвхөн '+col+' ба '+col2+' өнгийн нийт $'+N+'$ бөмбөг байна. Нэгийг таамгаар авахад '+col+
+    ' гарах магадлал $'+decStr(p2,2)+'$ бол '+col2+' бөмбөг нь '+col+' бөмбөгнөөс хэдээр олон вэ?';
+  var a2=col+' бөмбөг: $'+decStr(p2,2)+'\\cdot '+N+'='+k2+'$. '+col2+' бөмбөг: $'+N+'-'+k2+'='+(N-k2)+'$. '+
+    'Ялгавар: $'+(N-k2)+'-'+k2+'='+dif+'$ ширхэг.';
+  return {q:q2,a:a2,key:'ei2'+N+'_'+k2,mode:'diff',N:N,k:k2,p:p2,nv:dif};
+ }
+ var k3=rnd(Math.max(1,Math.round(N*0.1)),N-Math.max(1,Math.round(N*0.1)));
+ var p3=Math.round((N-k3)/N*100)/100;
+ if(Math.abs(p3*N-Math.round(p3*N))>1e-9)return null;
+ if(p3<=0||p3>=1)return null;
+ var q3='Уутанд $'+k3+'$ ширхэг '+col+' бөмбөг байна. Нэг бөмбөг таамгаар авахад тэр нь '+col+
+   ' биш байх магадлал $'+decStr(p3,2)+'$ байв. Уутанд нийт хэдэн бөмбөг байна вэ?';
+ var a3='$P('+col+')=1-'+decStr(p3,2)+'='+decStr(1-p3,2)+'$. Нийт тоог $n$ гэвэл $'+k3+'\\div n='+
+   decStr(1-p3,2)+'$, эндээс $n='+k3+'\\div '+decStr(1-p3,2)+'='+N+'$ ширхэг.';
+ return {q:q3,a:a3,key:'ei3'+N+'_'+k3,mode:'total',N:N,k:k3,p:p3,nv:N};
+}
+
+// ════════════════ 4.2 НЭГДСЭН ТУРШИЛТ ════════════════
 var TO_EXP=[
- {d:'Хоёр шоог зэрэг орхиход',f:[6,6]},
- {d:'Зоосон мөнгийг хоёр удаа орхиход',f:[2,2]},
- {d:'Гурван зоосыг зэрэг орхиход',f:[2,2,2]},
- {d:'Нэг шоо ба нэг зоосыг зэрэг орхиход',f:[6,2]},
- {d:'Нэг шоо ба нэг шагайг зэрэг орхиход',f:[6,4]},
- {d:'Нэг шоо ба хоёр зоосыг зэрэг орхиход',f:[6,2,2]},
- {d:'Хоёр шагайг зэрэг орхиход',f:[4,4]}
+ {d:'Хоёр шоог зэрэг орхив.',f:[6,6]},
+ {d:'Зоосон мөнгийг хоёр удаа орхив.',f:[2,2]},
+ {d:'Гурван зоосыг зэрэг орхив.',f:[2,2,2]},
+ {d:'Нэг шоо ба нэг зоосыг зэрэг орхив.',f:[6,2]},
+ {d:'Нэг шоо ба нэг шагайг зэрэг орхив.',f:[6,4]},
+ {d:'Нэг шоо ба хоёр зоосыг зэрэг орхив.',f:[6,2,2]},
+ {d:'Хоёр шагайг зэрэг орхив.',f:[4,4]},
+ {d:'Гурван шоог зэрэг орхив.',f:[6,6,6]},
+ {d:'Дөрвөн зоосыг зэрэг орхив.',f:[2,2,2,2]},
+ {d:'Хоёр шоо ба нэг зоосыг зэрэг орхив.',f:[6,6,2]},
+ {d:'Тэнцүү дөрвөн сектортой хоёр хүрдийг зэрэг эргүүлэв.',f:[4,4]},
+ {d:'Хоёр шагай ба нэг шоог зэрэг орхив.',f:[4,4,6]},
+ {d:'Шагайг гурван удаа орхив.',f:[4,4,4]}
 ];
 function g_diceTotalOutcomes(){
  var ex=pick(TO_EXP),n=ex.f.reduce(function(a,b){return a*b;},1);
- var q=ex.d+' нийт хэдэн боломжит үр дүн (ялгаатай үзэгдэл) илрэх вэ?';
- var a='Үржвэрийн (тооллын) зарчмаар: $'+ex.f.join('\\cdot ')+'='+n+'$ үр дүн.';
- return {q:q,a:a,key:'to'+ex.f.join('_'),nv:n,factors:ex.f.slice()};
+ return {q:ex.d,a:'Үржвэрийн (тооллын) зарчмаар $'+ex.f.join('\\cdot ')+'='+n+'$ үр дүн.',
+  key:'to'+ex.f.join('_'),nv:n,factors:ex.f.slice()};
 }
+
+var DIE_CONDS=[
+ {t:'тэгш тоогоор',s:[2,4,6]},{t:'сондгой тоогоор',s:[1,3,5]},
+ {t:'$3$-аас их тоогоор',s:[4,5,6]},{t:'анхны тоогоор',s:[2,3,5]},
+ {t:'$4$-өөс бага тоогоор',s:[1,2,3]},{t:'$6$ тоогоор',s:[6]},
+ {t:'$3$-т хуваагдах тоогоор',s:[3,6]},{t:'$6$-аас бага тоогоор',s:[1,2,3,4,5]},
+ {t:'$1$ буюу $6$ тоогоор',s:[1,6]},{t:'$2$-оос их тоогоор',s:[3,4,5,6]}
+];
+function g_dieSingleEvent(){
+ var it=pick(DIE_CONDS),cnt=it.s.length;
+ return {q:'Шоо орхив. $A$: '+it.t+' тусах.',
+  a:'Нийт $6$ адил магадлалт үр дүн, тохирох нь $'+it.s.join(',\\ ')+'$ буюу $'+cnt+'$ ширхэг. '+
+    '$P(A)='+PF(cnt,6)+'$, $P(\\bar A)='+PF(6-cnt,6)+'$.',
+  key:'dse'+it.t,nv:cnt/6,comp:(6-cnt)/6,cnt:cnt};
+}
+
 function g_diceSumEqual(){
- var s=pick([4,5,6,7,8,9,10]),cnt=dsCount(s),comp=36-cnt;
- var q='Хоёр шоог зэрэг орхиход буусан нүднүүдийн нийлбэр $'+s+'$-тэй тэнцэх магадлалыг ол. '+
-   'Мөн энэ үзэгдлийн эсрэг үзэгдлийн магадлалыг ол.';
- var a='Нийт үр дүн $6\\cdot 6=36$. Нийлбэр нь $'+s+'$ болох тохиолдол $'+cnt+'$ ширхэг. '+
-   '$P=\\dfrac{'+cnt+'}{36}'+(frTeX(cnt,36)==='\\dfrac{'+cnt+'}{36}'?'':'='+frTeX(cnt,36))+'$. '+
-   'Эсрэг үзэгдэл: $P(\\bar A)=\\dfrac{'+comp+'}{36}'+(frTeX(comp,36)==='\\dfrac{'+comp+'}{36}'?'':'='+frTeX(comp,36))+'$.';
- return {q:q,a:a,key:'se'+s,nv:cnt/36,comp:comp/36,s:s};
+ var s=pick([3,4,5,6,7,8,9,10,11]),cnt=dsCount(s),comp=36-cnt;
+ return {q:'Хоёр шоог зэрэг орхив. $A$: буусан нүднүүдийн нийлбэр $'+s+'$-тэй тэнцүү байх.',
+  a:'Нийт $6\\cdot 6=36$ үр дүн. Нийлбэр нь $'+s+'$ болох тохиолдол $'+cnt+'$ ширхэг. '+
+    '$P(A)='+PF(cnt,36)+'$, $P(\\bar A)='+PF(comp,36)+'$.',
+  key:'se'+s,nv:cnt/36,comp:comp/36,s:s};
 }
-var SI_ABL={2:'хоёроос',3:'гурваас',4:'дөрвөөс',5:'таваас',6:'зургаагаас',8:'наймаас',9:'есөөс',10:'араваас'};
+var SI_ABL={4:'дөрвөөс',5:'таваас',6:'зургаагаас',8:'наймаас',9:'есөөс',10:'араваас'};
 function g_diceSumInequality(){
  var t=pick([4,5,6,8,9,10]),op=pick(['le','ge','gt','lt']);
  var phrase,pred;
@@ -233,107 +449,130 @@ function g_diceSumInequality(){
  var cnt=0,parts=[];
  for(var s=2;s<=12;s++)if(pred(s)){cnt+=dsCount(s);parts.push(dsCount(s));}
  if(cnt===0||cnt===36)return null;
- var full='\\dfrac{'+cnt+'}{36}',red=frTeX(cnt,36),tail=(red===full?'':'='+red);
- var q='Хоёр шоог зэрэг орхиход буусан нүднүүдийн нийлбэр '+phrase+' байх магадлалыг ол.';
- var a='Нийт $36$ үр дүн. Тохирох тохиолдлын тоо: $'+parts.join('+')+'='+cnt+'$. '+
-   '$P='+full+tail+'$.';
- return {q:q,a:a,key:'si'+op+t,nv:cnt/36,op:op,t:t};
+ return {q:'Хоёр шоог зэрэг орхив. $A$: буусан нүднүүдийн нийлбэр '+phrase+' байх.',
+  a:'Нийт $36$ үр дүн. Тохирох тохиолдол: $'+parts.join('+')+'='+cnt+'$. $P(A)='+PF(cnt,36)+
+    '$, $P(\\bar A)='+PF(36-cnt,36)+'$.',
+  key:'si'+op+t,nv:cnt/36,comp:(36-cnt)/36,op:op,t:t};
 }
-// ── Хувилбар олонтой болгосон: шоо/зоосны магадлал (тоолол нь предикатаар бүрэн хайлтаар) ──
-function d2count(pred){var c=0;for(var a=1;a<=6;a++)for(var b=1;b<=6;b++)if(pred(a,b))c++;return c;}
-function coinCount(n,pred){var tot=1<<n,c=0;for(var m=0;m<tot;m++){var h=0;for(var i=0;i<n;i++)if(m&(1<<i))h++;if(pred(h,n))c++;}return c;}
 var DC_OPS=[
- {t:'хар шооны буусан нүд цагаан шооныхоос их байх',p:function(a,b){return a>b;}},
- {t:'хар шооны буусан нүд цагаан шооныхоос бага байх',p:function(a,b){return a<b;}},
- {t:'хоёр шооны буусан нүд тэнцүү байх',p:function(a,b){return a===b;}},
- {t:'хар шооны буусан нүд цагаан шооныхоос их буюу тэнцүү байх',p:function(a,b){return a>=b;}},
- {t:'хар шооны буусан нүд цагаан шооныхоос бага буюу тэнцүү байх',p:function(a,b){return a<=b;}},
- {t:'хоёр шооны буусан нүд ялгаатай байх',p:function(a,b){return a!==b;}},
- {t:'буусан нүднүүдийн ялгаврын модул $1$-тэй тэнцүү байх',p:function(a,b){return Math.abs(a-b)===1;}},
- {t:'хар шооны буусан нүд цагаан шооныхоос яг $2$-оор их байх',p:function(a,b){return a-b===2;}}
+ {id:'gt',t:'хар шооны буусан нүд цагаан шооныхоос их байх',p:function(a,b){return a>b;}},
+ {id:'lt',t:'хар шооны буусан нүд цагаан шооныхоос бага байх',p:function(a,b){return a<b;}},
+ {id:'eq',t:'хоёр шооны буусан нүд тэнцүү байх',p:function(a,b){return a===b;}},
+ {id:'ge',t:'хар шооны буусан нүд цагаан шооныхоос багагүй байх',p:function(a,b){return a>=b;}},
+ {id:'le',t:'хар шооны буусан нүд цагаан шооныхоос ихгүй байх',p:function(a,b){return a<=b;}},
+ {id:'ne',t:'хоёр шооны буусан нүд ялгаатай байх',p:function(a,b){return a!==b;}},
+ {id:'d1',t:'буусан нүднүүдийн ялгаврын модул $1$-тэй тэнцүү байх',p:function(a,b){return Math.abs(a-b)===1;}},
+ {id:'d2',t:'хар шооны буусан нүд цагаан шооныхоос яг $2$-оор их байх',p:function(a,b){return a-b===2;}},
+ {id:'d3',t:'буусан нүднүүдийн ялгаврын модул $2$-оос ихгүй байх',p:function(a,b){return Math.abs(a-b)<=2;}}
 ];
 function g_diceCompare(){
  var it=pick(DC_OPS),cnt=d2count(it.p),comp=36-cnt;
  if(cnt===0||cnt===36)return null;
- var q='Хоёр (хар ба цагаан) шоог зэрэг орхив. '+it.t.charAt(0).toUpperCase()+it.t.slice(1)+
-   ' магадлалыг ол. Мөн эсрэг үзэгдлийн магадлалыг ол.';
- var a='Нийт үр дүн $6\\cdot 6=36$, бүгд адил магадлалт. Хүснэгтээр тоолвол тохирох тохиолдол $'+cnt+
-   '$ ширхэг тул $P(A)='+PF(cnt,36)+'$. Эсрэг үзэгдэл: $P(\\bar{A})=1-P(A)='+PF(comp,36)+'$.';
- return {q:q,a:a,key:'dc'+it.t,nv:cnt/36,comp:comp/36};
+ return {q:'Хар ба цагаан хоёр шоог зэрэг орхив. $A$: '+it.t+'.',
+  a:'Нийт $6\\cdot 6=36$ адил магадлалт үр дүн. Хүснэгтээр тоолвол тохирох тохиолдол $'+cnt+
+    '$ ширхэг тул $P(A)='+PF(cnt,36)+'$. Эсрэг үзэгдэл: $P(\\bar A)='+PF(comp,36)+'$.',
+  fig:diceGridFig('хар','цагаан'),key:'dc'+it.id,nv:cnt/36,comp:comp/36,cid:it.id};
 }
 var DP_CONDS=[
- {t:'тэгш',p:function(a,b){return (a*b)%2===0;}},
- {t:'сондгой',p:function(a,b){return (a*b)%2===1;}},
- {t:'$3$-т хуваагдах',p:function(a,b){return (a*b)%3===0;}},
- {t:'$4$-т хуваагдах',p:function(a,b){return (a*b)%4===0;}},
- {t:'$5$-д хуваагдах',p:function(a,b){return (a*b)%5===0;}},
- {t:'$6$-д хуваагдах',p:function(a,b){return (a*b)%6===0;}},
- {t:'$12$-оос их',p:function(a,b){return a*b>12;}},
- {t:'бүтэн квадрат',p:function(a,b){var v=a*b,r=Math.round(Math.sqrt(v));return r*r===v;}}
+ {id:'ev',t:'тэгш',p:function(a,b){return (a*b)%2===0;}},
+ {id:'od',t:'сондгой',p:function(a,b){return (a*b)%2===1;}},
+ {id:'m3',t:'$3$-т хуваагдах',p:function(a,b){return (a*b)%3===0;}},
+ {id:'m4',t:'$4$-т хуваагдах',p:function(a,b){return (a*b)%4===0;}},
+ {id:'m5',t:'$5$-д хуваагдах',p:function(a,b){return (a*b)%5===0;}},
+ {id:'m6',t:'$6$-д хуваагдах',p:function(a,b){return (a*b)%6===0;}},
+ {id:'g12',t:'$12$-оос их',p:function(a,b){return a*b>12;}},
+ {id:'sq',t:'бүтэн квадрат',p:function(a,b){var v=a*b,r=Math.round(Math.sqrt(v));return r*r===v;}}
 ];
 function g_diceProductParity(){
  var it=pick(DP_CONDS),cnt=d2count(it.p),comp=36-cnt;
  if(cnt===0||cnt===36)return null;
- var q='Хоёр шоог зэрэг орхив. Буусан нүднүүдийн үржвэр '+it.t+' байх магадлалыг ол. '+
-   'Мөн эсрэг үзэгдлийн магадлалыг ол.';
- var a='Нийт үр дүн $6\\cdot 6=36$. Үржвэрийн хүснэгтээс тохирох тохиолдол $'+cnt+'$ ширхэг тул '+
-   '$P(A)='+PF(cnt,36)+'$. Эсрэг үзэгдэл: $P(\\bar{A})='+PF(comp,36)+'$.';
- return {q:q,a:a,key:'pp'+it.t,nv:cnt/36,comp:comp/36};
+ return {q:'Хоёр шоог зэрэг орхив. $A$: буусан нүднүүдийн үржвэр '+it.t+' байх.',
+  a:'Нийт $36$ үр дүн. Үржвэрийн хүснэгтээс тохирох тохиолдол $'+cnt+'$ ширхэг тул $P(A)='+PF(cnt,36)+
+    '$. Эсрэг үзэгдэл: $P(\\bar A)='+PF(comp,36)+'$.',
+  key:'pp'+it.id,nv:cnt/36,comp:comp/36,cid:it.id};
+}
+// ── Хосолсон нөхцөл (хүнд) ──
+var DU_CONDS=[
+ {id:'u1',t:'нийлбэр нь $5$-аас бага буюу $10$-аас их байх',p:function(a,b){return a+b<5||a+b>10;}},
+ {id:'u2',t:'нийлбэр нь $3$-т хуваагдах ба тэгш байх',p:function(a,b){var s=a+b;return s%3===0&&s%2===0;}},
+ {id:'u3',t:'нийлбэр нь анхны тоо байх',p:function(a,b){return isPrime(a+b);}},
+ {id:'u4',t:'нийлбэр нь $7$ буюу үржвэр нь $12$ байх',p:function(a,b){return a+b===7||a*b===12;}},
+ {id:'u5',t:'ядаж нэг шоо $6$ буух ба нийлбэр нь $9$-өөс их байх',p:function(a,b){return (a===6||b===6)&&a+b>9;}},
+ {id:'u6',t:'нийлбэр ба үржвэр хоёул тэгш байх',p:function(a,b){return (a+b)%2===0&&(a*b)%2===0;}},
+ {id:'u7',t:'нийлбэр нь $4$-т хуваагдах буюу нүднүүд нь тэнцүү байх',p:function(a,b){return (a+b)%4===0||a===b;}},
+ {id:'u8',t:'ядаж нэг шоо анхны тоогоор буух ба нийлбэр нь $8$-аас бага байх',p:function(a,b){return (isPrime(a)||isPrime(b))&&a+b<8;}}
+];
+function g_diceSumUnion(){
+ var it=pick(DU_CONDS),cnt=d2count(it.p),comp=36-cnt;
+ if(cnt===0||cnt===36)return null;
+ return {q:'Хоёр шоог зэрэг орхив. $A$: '+it.t+'.',
+  a:'Нийт $36$ үр дүн. Хүснэгтийн $36$ нүдийг шалгавал нөхцөлд тохирох нь $'+cnt+'$ ширхэг. '+
+    '$P(A)='+PF(cnt,36)+'$, $P(\\bar A)='+PF(comp,36)+'$.',
+  fig:diceGridFig('I шоо','II шоо'),key:'du'+it.id,nv:cnt/36,comp:comp/36,cid:it.id};
 }
 var CH_EVENTS=[
- {t:'ядаж нэг удаа сүлд буух',p:function(h,n){return h>=1;},viaComp:'нэг ч удаа сүлд буухгүй'},
- {t:'ядаж нэг удаа тоо буух',p:function(h,n){return h<=n-1;},viaComp:'бүх удаад сүлд буух'},
- {t:'нэг ч удаа сүлд буухгүй байх',p:function(h,n){return h===0;},viaComp:null},
- {t:'бүх удаад сүлд буух',p:function(h,n){return h===n;},viaComp:null}
+ {id:'ge1',t:'ядаж нэг удаа сүлд буух',p:function(h,n){return h>=1;},viaComp:'нэг ч удаа сүлд буухгүй'},
+ {id:'atl',t:'ядаж нэг удаа тоо буух',p:function(h,n){return h<=n-1;},viaComp:'бүх удаад сүлд буух'},
+ {id:'no',t:'нэг ч удаа сүлд буухгүй байх',p:function(h,n){return h===0;},viaComp:null},
+ {id:'all',t:'бүх удаад сүлд буух',p:function(h,n){return h===n;},viaComp:null}
 ];
 function g_coinsAtLeastOneHead(){
  var n=pick([2,3,4]),it=pick(CH_EVENTS),tot=1<<n;
  var cnt=coinCount(n,it.p),comp=tot-cnt;
- var q='Зоосон мөнгийг '+n+' удаа орхив. '+it.t.charAt(0).toUpperCase()+it.t.slice(1)+
-   ' магадлалыг ол. Мөн эсрэг үзэгдлийн магадлалыг ол.';
  var a='Нийт үр дүн $2^{'+n+'}='+tot+'$. '+
    (it.viaComp?('Эсрэг үзэгдэл “'+it.viaComp+'” нь $'+comp+'$ тохиолдол тул $P(A)=1-'+PF(comp,tot).split('=').pop()+'='+PF(cnt,tot)+'$.')
              :('Тохирох тохиолдол $'+cnt+'$ тул $P(A)='+PF(cnt,tot)+'$.'))+
-   ' Эсрэг үзэгдлийн магадлал $P(\\bar{A})='+PF(comp,tot)+'$.';
- return {q:q,a:a,key:'ah'+n+it.t,nv:cnt/tot,comp:comp/tot};
+   ' Эсрэг үзэгдлийн магадлал $P(\\bar A)='+PF(comp,tot)+'$.';
+ return {q:'Зоосон мөнгийг '+n+' удаа орхив. $A$: '+it.t+'.',a:a,key:'ah'+n+it.id,nv:cnt/tot,comp:comp/tot,n:n,cid:it.id};
 }
 function g_coinsExactOrCount(){
- var n=pick([2,3]),tot=1<<n;
- var opts=[];
- for(var k=0;k<=n;k++)opts.push({t:'яг $'+k+'$ удаа сүлд буух',p:(function(kk){return function(h){return h===kk;};})(k)});
- for(var k2=1;k2<=n;k2++)opts.push({t:'ядаж $'+k2+'$ удаа сүлд буух',p:(function(kk){return function(h){return h>=kk;};})(k2)});
- opts.push({t:'бүх орхилт ижил талаараа буух',p:function(h){return h===0||h===n;}});
+ var n=pick([2,3]),tot=1<<n,opts=[],k,k2;
+ for(k=0;k<=n;k++)opts.push({id:'e'+k,t:'яг $'+k+'$ удаа сүлд буух',p:(function(kk){return function(h){return h===kk;};})(k)});
+ for(k2=1;k2<=n;k2++)opts.push({id:'a'+k2,t:'ядаж $'+k2+'$ удаа сүлд буух',p:(function(kk){return function(h){return h>=kk;};})(k2)});
+ opts.push({id:'sm',t:'бүх орхилт ижил талаараа буух',p:function(h){return h===0||h===n;}});
  var it=pick(opts),cnt=coinCount(n,it.p),comp=tot-cnt;
  if(cnt===0||cnt===tot)return null;
  var space=(n===2)?'ТТ, ТС, СТ, СС':'ТТТ, ТТС, ТСТ, ТСС, СТТ, СТС, ССТ, ССС';
- var q='Зоосон мөнгийг '+n+' удаа орхив. '+it.t.charAt(0).toUpperCase()+it.t.slice(1)+' магадлалыг ол.';
- var a='Боломжит олонлог: '+space+' (Т — тоо, С — сүлд), нийт $2^{'+n+'}='+tot+'$ үр дүн. '+
-   'Тохирох тохиолдол $'+cnt+'$ тул $P='+PF(cnt,tot)+'$. Эсрэг үзэгдэл: $'+PF(comp,tot)+'$.';
- return {q:q,a:a,key:'ce'+n+it.t,nv:cnt/tot,comp:comp/tot};
+ return {q:'Зоосон мөнгийг '+n+' удаа орхив. $A$: '+it.t+'.',
+  a:'Боломжит олонлог: '+space+' (Т — тоо, С — сүлд), нийт $2^{'+n+'}='+tot+'$ үр дүн. '+
+    'Тохирох тохиолдол $'+cnt+'$ тул $P(A)='+PF(cnt,tot)+'$, $P(\\bar A)='+PF(comp,tot)+'$.',
+  key:'ce'+n+it.id,nv:cnt/tot,comp:comp/tot,n:n,cid:it.id};
 }
-var DIE_CONDS=[
- {t:'тэгш тоогоор',s:[2,4,6]},{t:'сондгой тоогоор',s:[1,3,5]},
- {t:'$3$-аас их тоогоор',s:[4,5,6]},{t:'анхны тоогоор',s:[2,3,5]},
- {t:'$4$-өөс бага тоогоор',s:[1,2,3]},{t:'$6$ тоогоор',s:[6]},
- {t:'$3$-т хуваагдах тоогоор',s:[3,6]}
-];
 function g_dieCoinEvent(){
  var dc=pick(DIE_CONDS),mode=pick(['both','dieOnly']);
  var wantHead=pick([true,false]);
- var cnt=0;
- for(var d=1;d<=6;d++)for(var c=0;c<2;c++){
-  var okDie=dc.s.indexOf(d)>=0, okCoin=(c===1)===wantHead;
+ var cnt=0,d,c;
+ for(d=1;d<=6;d++)for(c=0;c<2;c++){
+  var okDie=dc.s.indexOf(d)>=0,okCoin=(c===1)===wantHead;
   if(mode==='both'?(okDie&&okCoin):okDie)cnt++;
  }
  var comp=12-cnt;
  if(cnt===0||cnt===12)return null;
- var desc=(mode==='both')
-   ? ('Шоо '+dc.t+' буух ба зоос '+(wantHead?'сүлд':'тоо')+' буух')
-   : ('Шоо '+dc.t+' буух (зоос дурын байдлаар)');
- var q='Нэг шоо ба нэг зоосыг зэрэг орхив. '+desc+' магадлалыг ол. Мөн эсрэг үзэгдлийн магадлалыг ол.';
- var a='Нийт үр дүн $6\\cdot 2=12$, бүгд адил магадлалт. Тохирох тохиолдол $'+cnt+'$ тул '+
-   '$P(A)='+PF(cnt,12)+'$. Эсрэг үзэгдэл: $P(\\bar{A})='+PF(comp,12)+'$.';
- return {q:q,a:a,key:'dce'+dc.t+mode+wantHead,nv:cnt/12,comp:comp/12};
+ var desc=(mode==='both')?('шоо '+dc.t+' буух ба зоос '+(wantHead?'сүлд':'тоо')+' буух')
+                        :('шоо '+dc.t+' буух (зоос дурын байдлаар)');
+ return {q:'Нэг шоо ба нэг зоосыг зэрэг орхив. $A$: '+desc+'.',
+  a:'Нийт үр дүн $6\\cdot 2=12$, бүгд адил магадлалт. Тохирох тохиолдол $'+cnt+'$ тул $P(A)='+PF(cnt,12)+
+    '$, $P(\\bar A)='+PF(comp,12)+'$.',
+  key:'dce'+dc.t+mode+wantHead,nv:cnt/12,comp:comp/12,dsN:dc.s.length,mode:mode};
+}
+// ── Шоо + хоёр зоос (24 үр дүн, хүнд) ──
+var D2C_CONDS=[
+ {id:'a',t:'шоо тэгш тоогоор буух ба зооснуудын ядаж нэг нь сүлд буух',p:function(d,h){return d%2===0&&h>=1;}},
+ {id:'b',t:'шоо $3$-аас их буух ба хоёр зоос ижил талаараа буух',p:function(d,h){return d>3&&(h===0||h===2);}},
+ {id:'c',t:'шоо анхны тоогоор буух ба яг нэг зоос сүлд буух',p:function(d,h){return isPrime(d)&&h===1;}},
+ {id:'d',t:'шоо $6$ буух буюу хоёр зоос хоёул сүлд буух',p:function(d,h){return d===6||h===2;}},
+ {id:'e',t:'шоо $3$-т хуваагдах тоогоор буух ба нэг ч зоос сүлд буухгүй байх',p:function(d,h){return d%3===0&&h===0;}},
+ {id:'f',t:'шоо $4$-өөс бага буух ба зооснууд ялгаатай талаараа буух',p:function(d,h){return d<4&&h===1;}}
+];
+function g_dieTwoCoins(){
+ var it=pick(D2C_CONDS),cnt=0,d,c1,c2;
+ for(d=1;d<=6;d++)for(c1=0;c1<2;c1++)for(c2=0;c2<2;c2++)if(it.p(d,c1+c2))cnt++;
+ var comp=24-cnt;
+ if(cnt===0||cnt===24)return null;
+ return {q:'Нэг шоо ба хоёр зоосыг зэрэг орхив. $A$: '+it.t+'.',
+  a:'Нийт үр дүн $6\\cdot 2\\cdot 2=24$, бүгд адил магадлалт. Тохирох тохиолдол $'+cnt+'$ ширхэг тул '+
+    '$P(A)='+PF(cnt,24)+'$, $P(\\bar A)='+PF(comp,24)+'$.',
+  key:'d2c'+it.id,nv:cnt/24,comp:comp/24,cid:it.id};
 }
 var DS_CONDS=[
  {t:'тэгш тоогоор',s:[2,4,6]},{t:'сондгой тоогоор',s:[1,3,5]},
@@ -345,68 +584,277 @@ var DS_CONDS=[
 function g_dieShagaiCount(){
  var it=pick(DS_CONDS),num=it.s.length*4,comp=24-num;
  if(num===0||num===24)return null;
- var q='Нэг шоо ба нэг шагайг зэрэг орхив. Боломжит олонлогт нийт $6\\cdot 4=24$ үр дүн байна. '+
-   'Шоо '+it.t+' буух магадлалыг ол (шагай дурын байдлаар).';
- var a='Шагай ямар ч тал ($4$ боломж) байхад шооны нөхцөл шийднэ. Тохирох шооны тал $'+it.s.length+
-   '$ тул тохиолдол $'+it.s.length+'\\cdot 4='+num+'$. $P='+PF(num,24)+'$. Эсрэг үзэгдэл: $'+PF(comp,24)+'$.';
- return {q:q,a:a,key:'ds'+it.t,nv:num/24,comp:comp/24};
+ return {q:'Нэг шоо ба нэг шагайг зэрэг орхив (боломжит олонлогт $6\\cdot 4=24$ үр дүн). $A$: шоо '+it.t+' буух.',
+  a:'Шагай ямар ч тал ($4$ боломж) байхад шооны нөхцөл шийднэ. Тохирох шооны тал $'+it.s.length+
+    '$ тул тохиолдол $'+it.s.length+'\\cdot 4='+num+'$. $P(A)='+PF(num,24)+'$, $P(\\bar A)='+PF(comp,24)+'$.',
+  key:'ds'+it.t,nv:num/24,comp:comp/24,sN:it.s.length};
+}
+var SGS=[
+ {c:'Шагайг $3$ удаа орхиход яг нэг удаа тэмээ буух магадлал',s:'p',comp:'тэмээ огт буухгүй, эсвэл хоёр буюу гурван удаа буух'},
+ {c:'Шагайг $2$ удаа орхиход яг нэг удаа бод буух магадлал',s:'p',comp:'хоёулаа бод, эсвэл хоёулаа бог буух'},
+ {c:'Хоёр шагайг зэрэг орхиход хоёул морь буух магадлал',s:'a',comp:'ядаж нэг шагай морь биш буух'},
+ {c:'Хоёр шагайг зэрэг орхиход хоёул бог буух магадлал',s:'a',comp:'ядаж нэг шагай бод буух'},
+ {c:'Дөрвөн шагайг зэрэг орхиход дөрвөн бэрх буух магадлал',s:'q',comp:'ядаж хоёр шагай ижил талаараа буух'},
+ {c:'Шагайг $3$ удаа орхиход гурвуулаа хонь буух магадлал',s:'q',comp:'ядаж нэг удаа хонь биш буух'}
+];
+function g_shagaiSymbolic(){
+ var i=rnd(0,SGS.length-1),it=SGS[i];
+ return {q:it.c+' $'+it.s+'$'+(it.s==='a'?'-тай':'-тэй')+' тэнцүү.',
+  a:'Эсрэг үзэгдэл: “'+it.comp+'”. $P(\\bar A)=1-'+it.s+'$. '+
+    '(Шагайн талууд адил магадлалт биш тул тоолж бодох боломжгүй, зөвхөн $P(A)+P(\\bar A)=1$ чанарыг хэрэглэнэ.)',
+  key:'sg'+i,sym:it.s};
+}
+var SP_COLS=['улаан','цагаан','ногоон','шар'];
+var SP_EV=[
+ {id:'same',t:'хоёр зүү ижил өнгө заах',p:function(x,y){return x===y;}},
+ {id:'diff',t:'хоёр зүү ялгаатай өнгө заах',p:function(x,y){return x!==y;}},
+ {id:'aw',t:'ядаж нэг зүү цагаан заах',p:function(x,y){return x===1||y===1;}},
+ {id:'ew',t:'яг нэг зүү цагаан заах',p:function(x,y){return (x===1)!==(y===1);}},
+ {id:'ar',t:'ядаж нэг зүү улаан заах',p:function(x,y){return x===0||y===0;}},
+ {id:'ny',t:'нэг ч зүү шар заахгүй байх',p:function(x,y){return x!==3&&y!==3;}},
+ {id:'bg',t:'хоёулаа ногоон заах',p:function(x,y){return x===2&&y===2;}},
+ {id:'rw',t:'нэг зүү улаан, нөгөө нь цагаан заах',p:function(x,y){return (x===0&&y===1)||(x===1&&y===0);}}
+];
+function g_spinnerTwo(){
+ var it=pick(SP_EV),cnt=0,x,y;
+ for(x=0;x<4;x++)for(y=0;y<4;y++)if(it.p(x,y))cnt++;
+ var comp=16-cnt;
+ if(cnt===0||cnt===16)return null;
+ return {q:'Улаан, цагаан, ногоон, шар өнгийн тэнцүү дөрвөн сектортой хоёр хүрд байв. Хоёр зүүг зэрэг эргүүлэхэд '+
+   'зүү бүр аль нэг сектор дээр тогтоно. $A$: '+it.t+'.',
+  a:'Нийт үр дүн $4\\cdot 4=16$, бүгд адил магадлалт. Тохирох тохиолдол $'+cnt+'$ ширхэг тул '+
+    '$P(A)='+PF(cnt,16)+'$, $P(\\bar A)='+PF(comp,16)+'$.',
+  fig:spinnerFig(SP_COLS),key:'sp'+it.id,nv:cnt/16,comp:comp/16,cid:it.id};
+}
+var CP_KIND=[
+ {id:'k3',t:'яг гурван талаараа будагдсан байх'},
+ {id:'k2',t:'яг хоёр талаараа будагдсан байх'},
+ {id:'k1',t:'яг нэг талаараа будагдсан байх'},
+ {id:'k0',t:'нэг ч талаараа будагдаагүй байх'}
+];
+function cpCount(n,id){
+ if(id==='k3')return 8;
+ if(id==='k2')return 12*(n-2);
+ if(id==='k1')return 6*(n-2)*(n-2);
+ return (n-2)*(n-2)*(n-2);
+}
+function g_cubePaint(){
+ var n=pick([3,4,5]),it=pick(CP_KIND),tot=n*n*n,cnt=cpCount(n,it.id);
+ if(cnt===0)return null;
+ var why={k3:'Зөвхөн $8$ булангийн куб гурван талаараа будагдана.',
+  k2:'Ирмэг бүр дээр буланг эс тооцвол $'+(n-2)+'$ куб, ирмэг $12$ ширхэг: $12\\cdot '+(n-2)+'='+(12*(n-2))+'$.',
+  k1:'Тал бүрийн дундах $'+(n-2)+'\\times '+(n-2)+'$ куб, тал $6$ ширхэг: $6\\cdot '+((n-2)*(n-2))+'='+(6*(n-2)*(n-2))+'$.',
+  k0:'Дотор талд нь $'+(n-2)+'\\times '+(n-2)+'\\times '+(n-2)+'='+((n-2)*(n-2)*(n-2))+'$ куб үлдэнэ.'}[it.id];
+ return {q:'Кубын гадна талыг бүхэлд нь будаад, ирмэг бүрийг $'+n+'$ тэнцүү хэсэгт хувааж нийт $'+n+
+   '^{3}='+tot+'$ жижиг куб гаргав. Нэг жижиг кубыг таамгаар сонгов. $A$: сонгосон куб '+it.t+'.',
+  a:why+' Нийт $'+tot+'$ куб тул $P(A)='+PF(cnt,tot)+'$. Эсрэг үзэгдэл: $P(\\bar A)='+PF(tot-cnt,tot)+'$.',
+  fig:cubeFig(n),key:'cp'+n+it.id,nv:cnt/tot,comp:(tot-cnt)/tot,n:n,cid:it.id};
+}
+var FG_RULES=[
+ {id:'s89',a:'нийлбэр нь $8$',b:'нийлбэр нь $9$',pa:function(x,y){return x+y===8;},pb:function(x,y){return x+y===9;}},
+ {id:'par',a:'нийлбэр нь тэгш',b:'нийлбэр нь сондгой',pa:function(x,y){return (x+y)%2===0;},pb:function(x,y){return (x+y)%2===1;}},
+ {id:'mul',a:'үржвэр нь тэгш',b:'үржвэр нь сондгой',pa:function(x,y){return (x*y)%2===0;},pb:function(x,y){return (x*y)%2===1;}},
+ {id:'lt7',a:'нийлбэр нь $7$-оос бага',b:'нийлбэр нь $7$-оос их',pa:function(x,y){return x+y<7;},pb:function(x,y){return x+y>7;}},
+ {id:'eqd',a:'хоёр нүд тэнцүү',b:'хоёр нүд ялгаатай',pa:function(x,y){return x===y;},pb:function(x,y){return x!==y;}},
+ {id:'d45',a:'нийлбэр нь $5$-д хуваагдах',b:'нийлбэр нь $4$-т хуваагдах',pa:function(x,y){return (x+y)%5===0;},pb:function(x,y){return (x+y)%4===0;}},
+ {id:'dif',a:'нүднүүдийн ялгаврын модул $2$-оос бага',b:'ялгаврын модул $2$-оос багагүй',pa:function(x,y){return Math.abs(x-y)<2;},pb:function(x,y){return Math.abs(x-y)>=2;}},
+ {id:'p36',a:'үржвэр нь $3$-т хуваагдах',b:'үржвэр нь $3$-т хуваагдахгүй',pa:function(x,y){return (x*y)%3===0;},pb:function(x,y){return (x*y)%3!==0;}}
+];
+function g_fairGame(){
+ var it=pick(FG_RULES),ca=d2count(it.pa),cb=d2count(it.pb);
+ var fair=(ca===cb),rest=36-ca-cb;
+ return {q:'Хоёр найз хоёр шоог зэрэг орхиж тоглов. Хэрэв '+it.a+' бол эхний тоглогч, '+it.b+
+   ' бол хоёр дахь тоглогч оноо авна. Энэ тоглоом шударга уу?',
+  a:'Нийт $36$ үр дүн. Эхний тоглогчид тохирох $'+ca+'$, хоёр дахьд нь $'+cb+'$ тохиолдол'+
+    (rest>0?(', үлдсэн $'+rest+'$ тохиолдолд хэн ч оноо авахгүй'):'')+'. $P_1='+PF(ca,36)+'$, $P_2='+PF(cb,36)+
+    '$. Магадлалууд '+(fair?'тэнцүү тул тоглоом <b>шударга</b>.':'тэнцүү биш тул тоглоом <b>шударга биш</b>.'),
+  fig:diceGridFig('I шоо','II шоо'),key:'fg'+it.id,ca:ca,cb:cb,fair:fair,cid:it.id};
 }
 
-// ════════ WS4  Санамсаргүй тоо сонгох магадлал-1  (4.3) ════════
-var NDO_PAIRS=[[100,10],[50,5],[100,25],[60,4],[80,5],[100,4],[50,2],[60,3],[100,5],[80,10],[60,6],[100,2]];
+// ════════════ 4.3 САНАМСАРГҮЙ СОНГОЛТ ════════════
+var NDO_PAIRS=[[100,10],[50,5],[100,25],[60,4],[80,5],[100,4],[50,2],[60,3],[100,5],[80,10],[60,6],[100,2],[120,8],[150,6],[200,25]];
 function g_numDivisibleOne(){
  var pr=pick(NDO_PAIRS),N=pr[0],d=pr[1],cnt=Math.floor(N/d),comp=N-cnt;
- var q='$1,\\ 2,\\ \\dots,\\ '+N+'$ натурал тоонуудаас нэгийг санамсаргүйгээр сонгов. Сонгосон тоо $'+d+
-   '$-д хуваагдах магадлалыг ол. Мөн эсрэг үзэгдлийн магадлалыг ол.';
- var a='$'+d+'$-д хуваагдах тоо: $\\lfloor '+N+'\\div '+d+'\\rfloor='+cnt+'$ ширхэг. '+
-   '$P='+PF(cnt,N)+'$. Эсрэг үзэгдэл: $P(\\bar A)='+PF(comp,N)+'$.';
- return {q:q,a:a,key:'ndo'+N+'_'+d,nv:cnt/N,comp:comp/N,N:N,d:d};
+ return {q:'$1,\\ 2,\\ \\dots,\\ '+N+'$ натурал тоонуудаас нэгийг санамсаргүйгээр сонгов. $A$: сонгосон тоо $'+d+'$-д хуваагдах.',
+  a:'$'+d+'$-д хуваагдах тоо $'+N+'\\div '+d+'='+cnt+'$ ширхэг. $P(A)='+PF(cnt,N)+'$, $P(\\bar A)='+PF(comp,N)+'$.',
+  key:'ndo'+N+'_'+d,nv:cnt/N,comp:comp/N,N:N,d:d};
 }
-var NDE_PAIRS=[[5,9],[2,7],[3,4],[5,6],[4,9],[3,7],[4,5]];
+var NLD_N=[100,125,150,200,60,80,90];
+function g_numLastDigit(){
+ var N=pick(NLD_N),d=rnd(0,9),cnt=0,x;
+ for(x=1;x<=N;x++)if(x%10===d)cnt++;
+ if(cnt===0||cnt===N)return null;
+ return {q:'Уулзалтад ирсэн сурагчдад $1$-ээс $'+N+'$ хүртэлх дугаар бүхий урилга тараав. Нэг урилгыг таамгаар сонгов. '+
+   '$A$: урилгын дугаар $'+d+'$ цифрээр төгсөх.',
+  a:'$'+d+'$ цифрээр төгссөн дугаар $'+cnt+'$ ширхэг байна. $P(A)='+PF(cnt,N)+'$, $P(\\bar A)='+PF(N-cnt,N)+'$.',
+  key:'nld'+N+'_'+d,nv:cnt/N,comp:(N-cnt)/N,N:N,d:d,cnt:cnt};
+}
+var NDE_PAIRS=[[5,9],[2,7],[3,4],[5,6],[4,9],[3,7],[4,5],[2,3],[6,7],[3,8]];
 function cntDiv2d(d){var c=0;for(var x=10;x<=99;x++)if(x%d===0)c++;return c;}
 function g_numDivisibleEither(){
  var pr=pick(NDE_PAIRS),d1=pr[0],d2=pr[1];
- var A=cntDiv2d(d1),B=cntDiv2d(d2),L=lcm(d1,d2),AB=0;
- for(var x=10;x<=99;x++)if(x%L===0)AB++;
+ var A=cntDiv2d(d1),B=cntDiv2d(d2),L=lcm(d1,d2),AB=0,x;
+ for(x=10;x<=99;x++)if(x%L===0)AB++;
  var uni=A+B-AB,comp=90-uni;
- var q='$10$-аас $99$ хүртэлх хоёр оронтой тоонуудаас нэгийг санамсаргүйгээр сонгов. Сонгосон тоо $'+d1+
-   '$ буюу $'+d2+'$-ын ядаж нэгэнд нь хуваагдах магадлалыг ол. Мөн эсрэг үзэгдлийн магадлалыг ол.';
- var a='Нийт $90$ тоо. $'+d1+'$-д хуваагдах $'+A+'$, $'+d2+'$-д хуваагдах $'+B+'$, хоёуланд нь '+
-   '($'+L+'$-д) хуваагдах $'+AB+'$. Нэгдэл: $'+A+'+'+B+'-'+AB+'='+uni+'$. $P='+PF(uni,90)+'$. '+
-   'Эсрэг үзэгдэл: $P(\\bar A)='+PF(comp,90)+'$.';
- return {q:q,a:a,key:'nde'+d1+'_'+d2,nv:uni/90,comp:comp/90,d1:d1,d2:d2};
+ return {q:'$10$-аас $99$ хүртэлх хоёр оронтой тоонуудаас нэгийг санамсаргүйгээр сонгов. $A$: сонгосон тоо $'+d1+
+   '$ буюу $'+d2+'$-ын ядаж нэгэнд нь хуваагдах.',
+  a:'Нийт $90$ тоо. $'+d1+'$-д хуваагдах $'+A+'$, $'+d2+'$-д хуваагдах $'+B+'$, хоёуланд нь ($'+L+
+    '$-д) хуваагдах $'+AB+'$. Нэгдэл $'+A+'+'+B+'-'+AB+'='+uni+'$. $P(A)='+PF(uni,90)+'$, $P(\\bar A)='+PF(comp,90)+'$.',
+  key:'nde'+d1+'_'+d2,nv:uni/90,comp:comp/90,d1:d1,d2:d2};
 }
-var NDB_PAIRS=[[2,3],[2,5],[3,5],[4,6],[2,7],[3,4],[5,6]];
+var NDB_PAIRS=[[2,3],[2,5],[3,5],[4,6],[2,7],[3,4],[5,6],[4,9],[6,8],[2,9]];
 function g_numDivisibleBoth(){
- var pr=pick(NDB_PAIRS),d1=pr[0],d2=pr[1],L=lcm(d1,d2),cnt=0;
- for(var x=10;x<=99;x++)if(x%L===0)cnt++;
+ var pr=pick(NDB_PAIRS),d1=pr[0],d2=pr[1],L=lcm(d1,d2),cnt=0,x;
+ for(x=10;x<=99;x++)if(x%L===0)cnt++;
  var comp=90-cnt;
- var q='$10$-аас $99$ хүртэлх хоёр оронтой тоонуудаас нэгийг санамсаргүйгээр сонгов. Сонгосон тоо $'+d1+
-   '$ ба $'+d2+'$-д зэрэг хуваагдах магадлалыг ол. Мөн эсрэг үзэгдлийн магадлалыг ол.';
- var a='Хоёуланд нь зэрэг хуваагдах ⇔ ЕХИ $'+L+'$-д хуваагдах. Ийм тоо $'+cnt+'$ ширхэг. '+
-   '$P='+PF(cnt,90)+'$. Эсрэг үзэгдэл: $P(\\bar A)='+PF(comp,90)+'$.';
- return {q:q,a:a,key:'ndb'+d1+'_'+d2,nv:cnt/90,comp:comp/90,d1:d1,d2:d2};
+ if(cnt===0)return null;
+ return {q:'$10$-аас $99$ хүртэлх хоёр оронтой тоонуудаас нэгийг санамсаргүйгээр сонгов. $A$: сонгосон тоо $'+d1+
+   '$ ба $'+d2+'$-д зэрэг хуваагдах.',
+  a:'Хоёуланд нь зэрэг хуваагдах нь ХБЕХ $'+L+'$-д хуваагдахтай адил. Ийм тоо $'+cnt+'$ ширхэг. '+
+    '$P(A)='+PF(cnt,90)+'$, $P(\\bar A)='+PF(comp,90)+'$.',
+  key:'ndb'+d1+'_'+d2,nv:cnt/90,comp:comp/90,d1:d1,d2:d2};
 }
-var NPR_PAIRS=[[10,50],[1,20],[20,40],[1,30],[10,30],[30,60],[1,25],[40,60]];
+var N3_D=[4,8,9,11,12,15,20,25];
+function g_num3DigitDiv(){
+ var d=pick(N3_D),cnt=Math.floor(999/d)-Math.floor(99/d),comp=900-cnt;
+ return {q:'Гурван оронтой тоог санамсаргүйгээр бичив. $A$: бичсэн тоо $'+d+'$-д хуваагдах.',
+  a:'Гурван оронтой тоо нийт $900$ ширхэг. $[100;\\,999]$ мужид $'+d+'$-д хуваагдах тоо $'+
+    Math.floor(999/d)+'-'+Math.floor(99/d)+'='+cnt+'$ ширхэг. $P(A)='+PF(cnt,900)+'$, $P(\\bar A)='+PF(comp,900)+'$.',
+  key:'n3'+d,nv:cnt/900,comp:comp/900,d:d};
+}
+var NPR_PAIRS=[[10,50],[1,20],[20,40],[1,30],[10,30],[30,60],[1,25],[40,60],[1,40],[50,80]];
 function g_numPrimeInRange(){
- var pr=pick(NPR_PAIRS),lo=pr[0],hi=pr[1],tot=hi-lo+1,cnt=0;
- for(var x=lo;x<=hi;x++)if(isPrime(x))cnt++;
+ var pr=pick(NPR_PAIRS),lo=pr[0],hi=pr[1],tot=hi-lo+1,cnt=0,x;
+ for(x=lo;x<=hi;x++)if(isPrime(x))cnt++;
  var comp=tot-cnt;
- var q='$'+lo+'$-аас багагүй, $'+hi+'$-аас ихгүй натурал тоонуудаас нэгийг санамсаргүйгээр сонгов. '+
-   'Сонгосон тоо анхны тоо байх магадлалыг ол. Мөн эсрэг үзэгдлийн магадлалыг ол.';
- var a='$['+lo+';\\,'+hi+']$ мужид нийт $'+tot+'$ тоо, түүнээс анхны тоо $'+cnt+'$ ширхэг. '+
-   '$P='+PF(cnt,tot)+'$. Эсрэг үзэгдэл: $P(\\bar A)='+PF(comp,tot)+'$.';
- return {q:q,a:a,key:'npr'+lo+'_'+hi,nv:cnt/tot,comp:comp/tot,lo:lo,hi:hi};
+ return {q:'$'+lo+'$-аас багагүй, $'+hi+'$-аас ихгүй натурал тоонуудаас нэгийг санамсаргүйгээр сонгов. $A$: сонгосон тоо анхны тоо байх.',
+  a:'$['+lo+';\\,'+hi+']$ мужид нийт $'+tot+'$ тоо, түүнээс анхны тоо $'+cnt+'$ ширхэг. '+
+    '$P(A)='+PF(cnt,tot)+'$, $P(\\bar A)='+PF(comp,tot)+'$.',
+  key:'npr'+lo+'_'+hi,nv:cnt/tot,comp:comp/tot,lo:lo,hi:hi};
 }
 var CW_DAYS=['Даваа','Мягмар','Лхагва','Пүрэв','Баасан','Бямба','Ням'];
 function g_calendarWeekday(){
  var wd=pick(CW_DAYS),count=pick([4,5]),comp=31-count;
- var q='Тодорхой $31$ хоногтой сард '+wd+' гараг '+count+' удаа тохиолдов. Уг сарын нэг өдрийг '+
-   'санамсаргүйгээр сонгоход тэр өдөр '+wd+' гараг байх магадлалыг ол. Мөн эсрэг үзэгдлийн магадлалыг ол.';
- var a='Нийт $31$ өдөр. $P('+wd+')=\\dfrac{'+count+'}{31}$. Эсрэг үзэгдэл: $P(\\bar A)=\\dfrac{'+comp+'}{31}$.';
- return {q:q,a:a,key:'cw'+wd+count,nv:count/31,comp:comp/31,count:count};
+ return {q:'Тодорхой $31$ хоногтой сард '+wd+' гараг $'+count+'$ удаа тохиолдов. Уг сарын нэг өдрийг санамсаргүйгээр сонгов. '+
+   '$A$: сонгосон өдөр '+wd+' гараг байх.',
+  a:'Нийт $31$ өдөр. $P(A)=\\dfrac{'+count+'}{31}$, $P(\\bar A)=\\dfrac{'+comp+'}{31}$.',
+  key:'cw'+wd+count,nv:count/31,comp:comp/31,count:count};
 }
-var WSPEC={"title":"Эсрэг үзэгдэл ба магадлал-2","sub":"Эсрэг үзэгдэл · IV бүлэг · 7-р анги","rule":"<b>Санамж:</b> $A$ үзэгдэл илрэхэд нэгэн зэрэг илэрдэггүй бүх үзэгдлийн олонлогийг $A$-гийн <b>эсрэг үзэгдэл</b> гээд $\\bar{A}$ гэж тэмдэглэнэ. $A\\cup\\bar{A}=\\Omega$ ба $P(A)+P(\\bar{A})=1$, эндээс $P(\\bar{A})=1-P(A)$. Боломжгүй үзэгдлийг $\\varnothing$, гарцаагүй үзэгдлийг $\\Omega$ гэж тэмдэглэнэ.","ref":"","tasks":[{"label":"Хоёр өнгийн уутны бодлого.","fn":"g_uutTwoColor","cap":3},{"label":"Тоо өгөгдсөн уутны бодлого.","fn":"g_uutCountComplement","cap":3},{"label":"Эсрэг үзэгдлийн магадлалыг ол.","fn":"g_esregFraction","cap":4}]};
+var CT_MODE=[
+ {id:'wd',t:'сонгосон өдөр $W$ гараг байх'},
+ {id:'wdEven',t:'сонгосон өдөр $W$ гараг бөгөөд тэгш цифрээр төгссөн байх'},
+ {id:'wdWeekend',t:'сонгосон өдөр амралтын өдөр (Бямба буюу Ням) байх'},
+ {id:'wdOdd',t:'сонгосон өдөр $W$ гараг бөгөөд сондгой тоо байх'}
+];
+function g_calendarTable(){
+ var startDow=rnd(0,6),days=pick([30,31]),m=pick(CT_MODE),wi=rnd(0,4);
+ var cnt=0,d,dow;
+ for(d=1;d<=days;d++){
+  dow=(startDow+d-1)%7;
+  if(m.id==='wd'){if(dow===wi)cnt++;}
+  else if(m.id==='wdEven'){if(dow===wi&&d%2===0)cnt++;}
+  else if(m.id==='wdOdd'){if(dow===wi&&d%2===1)cnt++;}
+  else {if(dow===5||dow===6)cnt++;}
+ }
+ if(cnt===0||cnt===days)return null;
+ var txt=m.t.replace('$W$',CW_DAYS[wi]);
+ return {q:'Нэг сарын хуанли өгөгдөв. Уг сарын нэг өдрийг санамсаргүйгээр сонгов. $A$: '+txt+'.',
+  a:'Хуанлиас тоолвол нөхцөлд тохирох өдөр $'+cnt+'$ ширхэг, нийт $'+days+'$ өдөр. '+
+    '$P(A)='+PF(cnt,days)+'$, $P(\\bar A)='+PF(days-cnt,days)+'$.',
+  fig:calFig(startDow,days),key:'ct'+startDow+days+m.id+wi,
+  nv:cnt/days,comp:(days-cnt)/days,startDow:startDow,days:days,mid:m.id,wi:wi};
+}
+var QN=['Бат','Оюун','Дорж','Сараа','Болд','Чимэг','Гэрэл','Түвшин'];
+var Q_MODE=[
+ {id:'adj',t:'$X$ ба $Y$ хоёр дараалан зогсох'},
+ {id:'notlast',t:'$X$ хамгийн ард зогсохгүй байх'},
+ {id:'first',t:'$X$ хамгийн түрүүнд зогсох'},
+ {id:'firsttwo',t:'$X$ ба $Y$ хоёул эхний хоёрт багтах'},
+ {id:'order',t:'$X$ нь $Y$-гийн өмнө зогсох'}
+];
+function qCount(n,id){
+ if(id==='adj')return 2*(n-1)*fact(n-2);
+ if(id==='notlast')return (n-1)*fact(n-1);
+ if(id==='first')return fact(n-1);
+ if(id==='firsttwo')return 2*fact(n-2);
+ return fact(n)/2;
+}
+function qWhy(n,id){
+ if(id==='adj')return 'Хоёрыг нэг блок гэвэл $'+(n-1)+'!='+fact(n-1)+'$ байрлал, блок доторх дараалал $2$ янз: $'+fact(n-1)+'\\cdot 2='+(2*fact(n-1))+'$.';
+ if(id==='notlast')return 'Сүүлчийн байрыг үлдсэн $'+(n-1)+'$ хүний нэг эзэлнэ: $'+(n-1)+'\\cdot '+fact(n-1)+'='+((n-1)*fact(n-1))+'$.';
+ if(id==='first')return 'Эхний байр тогтмол, үлдсэн нь $'+(n-1)+'!='+fact(n-1)+'$ янзаар байрлана.';
+ if(id==='firsttwo')return 'Эхний хоёр байранд тэд $2$ янзаар, үлдсэн нь $'+(n-2)+'!='+fact(n-2)+'$ янзаар: $2\\cdot '+fact(n-2)+'='+(2*fact(n-2))+'$.';
+ return 'Тэгш хэмээр аль нэг нь нөгөөгийнхөө өмнө байх тохиолдол тэнцүү хуваагдана: $'+fact(n)+'\\div 2='+(fact(n)/2)+'$.';
+}
+function g_queueAdjacent(){
+ var n=pick([4,5,6]),m=pick(Q_MODE),nm=shuffle(QN).slice(0,2);
+ var tot=fact(n),cnt=qCount(n,m.id),comp=tot-cnt;
+ if(cnt===0||cnt===tot)return null;
+ var txt=m.t.replace('$X$',nm[0]).replace('$Y$',nm[1]);
+ return {q:'$'+n+'$ хүүхэд дугаарлан санамсаргүй эрэмбээр зогсов. $A$: '+txt+'.',
+  a:'Нийт байрлал $'+n+'!='+tot+'$. '+qWhy(n,m.id)+' Иймд $P(A)='+PF(cnt,tot)+'$, $P(\\bar A)='+PF(comp,tot)+'$.',
+  key:'qa'+n+m.id,nv:cnt/tot,comp:comp/tot,n:n,mid:m.id};
+}
+var CT2_MODE=[
+ {id:'both',t:'$X$ ба $Y$ хоёул сонгогдох'},
+ {id:'one',t:'$X$ сонгогдох'},
+ {id:'none',t:'$X$, $Y$ хоёрын аль нь ч сонгогдохгүй байх'},
+ {id:'exact1',t:'$X$, $Y$ хоёрын яг нэг нь сонгогдох'}
+];
+function ct2Count(n,id){
+ if(id==='both')return 1;
+ if(id==='one')return n-1;
+ if(id==='none')return C2(n-2);
+ return 2*(n-2);
+}
+function ct2Why(n,id){
+ if(id==='both')return 'Хоёул сонгогдох цорын ганц хослол байна.';
+ if(id==='one')return 'Нэг нь тогтмол, хосыг нь үлдсэн $'+(n-1)+'$ хүнээс сонгоно: $'+(n-1)+'$ хослол.';
+ if(id==='none')return 'Үлдсэн $'+(n-2)+'$ хүнээс хоёрыг сонгоно: $'+(n-2)+'\\cdot '+(n-3)+'\\div 2='+C2(n-2)+'$.';
+ return 'Хоёрын нэгийг $2$ янзаар, нөгөө гишүүнийг үлдсэн $'+(n-2)+'$ хүнээс сонгоно: $2\\cdot '+(n-2)+'='+(2*(n-2))+'$.';
+}
+function g_chooseTwo(){
+ var n=pick([5,6,7,8]),m=pick(CT2_MODE),nm=shuffle(QN).slice(0,2);
+ var tot=C2(n),cnt=ct2Count(n,m.id),comp=tot-cnt;
+ if(cnt===0||cnt===tot)return null;
+ var txt=m.t.replace('$X$',nm[0]).replace('$Y$',nm[1]);
+ return {q:'Багш $'+n+'$ сурагчаас хоёрыг таамгаар сонгож жижүүрээр томилов. $A$: '+txt+'.',
+  a:'Хоёрыг сонгох боломж $'+n+'\\cdot '+(n-1)+'\\div 2='+tot+'$. '+ct2Why(n,m.id)+
+    ' $P(A)='+PF(cnt,tot)+'$, $P(\\bar A)='+PF(comp,tot)+'$.',
+  key:'c2'+n+m.id,nv:cnt/tot,comp:comp/tot,n:n,mid:m.id};
+}
+var TD_MODE=[
+ {id:'inc',t:'цифрүүд нь өсөх эрэмбээр байрлах',p:function(a,b){return a<b;}},
+ {id:'dec',t:'цифрүүд нь буурах эрэмбээр байрлах',p:function(a,b){return a>b;}},
+ {id:'eq',t:'цифрүүд нь тэнцүү байх',p:function(a,b){return a===b;}},
+ {id:'s10',t:'цифрүүдийн нийлбэр $10$-тэй тэнцүү байх',p:function(a,b){return a+b===10;}},
+ {id:'s5',t:'цифрүүдийн нийлбэр $5$-д хуваагдах',p:function(a,b){return (a+b)%5===0;}},
+ {id:'pe',t:'цифрүүдийн үржвэр тэгш байх',p:function(a,b){return (a*b)%2===0;}},
+ {id:'s3',t:'цифрүүдийн нийлбэр $3$-т хуваагдах',p:function(a,b){return (a+b)%3===0;}},
+ {id:'df3',t:'цифрүүдийн ялгаврын модул $3$-аас бага байх',p:function(a,b){return Math.abs(a-b)<3;}}
+];
+function g_twoDigitDigits(){
+ var m=pick(TD_MODE),cnt=0,x;
+ for(x=10;x<=99;x++)if(m.p(Math.floor(x/10),x%10))cnt++;
+ if(cnt===0||cnt===90)return null;
+ return {q:'Хоёр оронтой тоог санамсаргүйгээр сонгов. $A$: '+m.t+'.',
+  a:'Хоёр оронтой тоо нийт $90$ ширхэг. Аравтын цифрийг $a$, нэгжийн цифрийг $b$ гэж авч тоолвол '+
+    'нөхцөлд тохирох тоо $'+cnt+'$ ширхэг. $P(A)='+PF(cnt,90)+'$, $P(\\bar A)='+PF(90-cnt,90)+'$.',
+  key:'td'+m.id,nv:cnt/90,comp:(90-cnt)/90,mid:m.id};
+}
+var VOW_SET=[
+ {N:35,k:13,t:'эгшиг үсэг'},{N:35,k:22,t:'гийгүүлэгч үсэг'},
+ {N:26,k:5,t:'эгшиг үсэг'},{N:26,k:21,t:'гийгүүлэгч үсэг'},
+ {N:33,k:10,t:'эгшиг үсэг'},{N:33,k:21,t:'гийгүүлэгч үсэг'}
+];
+function g_letterPick(){
+ var it=pick(VOW_SET);
+ return {q:'Цагаан толгойн $'+it.N+'$ үсгээс дурын нэгийг таамгаар сонгов (үсэг бүр адил боломжтой). $A$: сонгосон үсэг '+
+   it.t+' байх (нийт $'+it.k+'$ ширхэг).',
+  a:'$P(A)='+PF(it.k,it.N)+'$. Эсрэг үзэгдэл: $P(\\bar A)='+PF(it.N-it.k,it.N)+'$.',
+  key:'lp'+it.N+it.k,nv:it.k/it.N,comp:(it.N-it.k)/it.N,N:it.N,k:it.k};
+}
+var WSPEC={"title":"Эсрэг үзэгдэл ба магадлал-2","sub":"Эсрэг үзэгдэл · IV бүлэг · 7-р анги","rule":"<b>Санамж:</b> $A$ үзэгдэл илрэхэд нэгэн зэрэг илэрдэггүй бүх үзэгдлийн олонлогийг $A$-гийн <b>эсрэг үзэгдэл</b> гээд $\\bar{A}$ гэж тэмдэглэнэ. $A\\cup\\bar{A}=\\Omega$ ба $P(A)+P(\\bar{A})=1$, эндээс $P(\\bar{A})=1-P(A)$. Боломжгүй үзэгдлийг $\\varnothing$, гарцаагүй үзэгдлийг $\\Omega$ гэж тэмдэглэнэ.","ref":"","tasks":[{"label":"$P(\\bar A)$-ыг ол.","fn":"g_esregFraction","cap":6,"cols":3,"wk":9},{"label":"$P(A)$ ба $P(\\bar A)$-ыг ол.","fn":"g_uutThreeColor","cap":4,"cols":2,"wk":13},{"label":"Эдгээр хоёр үзэгдэл эсрэг үзэгдлүүд мөн үү? Хариугаа үндэслэ.","fn":"g_esregJudge","cap":4,"cols":1,"wk":18},{"label":"Бодлого бод.","fn":"g_esregSymbolic","cap":3,"cols":1,"wk":26},{"label":"Уутан дахь бөмбөгний тоог ол.","fn":"g_esregInverse","cap":3,"cols":1,"wk":22}]};
 
 function toggleAns(){var el=document.getElementById('answers');if(el)el.style.display=document.getElementById('sa').checked?'block':'none';}
 function gen(fn){for(var t=0;t<700;t++){var f=fn();if(f)return f;}return null;}
@@ -415,16 +863,16 @@ function probeH(sheet){var pr=sheet.cloneNode(true);pr.removeAttribute('id');pr.
 function relabel(sheet){var blocks=sheet.querySelectorAll('.grid'),map={};for(var g=0;g<blocks.length;g++){var qs2=blocks[g].querySelectorAll('.q');for(var i=0;i<qs2.length;i++){var lt=LET[i]||('#'+(i+1));var ql=qs2[i].querySelector('.ql');if(ql)ql.textContent=lt+')';map[qs2[i].getAttribute('data-k')]=(g+1)+lt+')';}}
   var as=sheet.querySelectorAll('#answers .a');for(var j=0;j<as.length;j++){var an=as[j].querySelector('.an');if(an)an.textContent=map[as[j].getAttribute('data-k')]||'';}}
 function trimToFit(sheet,target){var guard=0,h=probeH(sheet);while(h>target&&guard++<90){var blocks=sheet.querySelectorAll('.grid'),best=-1,bestN=-1;for(var s=blocks.length-1;s>=0;s--){var n=blocks[s].querySelectorAll('.q').length;if(n>bestN&&n>2){bestN=n;best=s;}}if(best<0)break;var qs2=blocks[best].querySelectorAll('.q');var last=qs2[qs2.length-1],k=last.getAttribute('data-k');var ans=sheet.querySelector('#answers .a[data-k="'+k+'"]');if(ans)ans.parentNode.removeChild(ans);last.parentNode.removeChild(last);relabel(sheet);h=probeH(sheet);}}
-var TASKS=WSPEC.tasks.map(function(t){return {label:t.label, fn:eval(t.fn), cap:t.cap};});
+var TASKS=WSPEC.tasks.map(function(t){return {label:t.label, fn:eval(t.fn), cap:t.cap, cols:t.cols, wk:t.wk};});
 function genPool(){var P=TASKS.map(function(){return[];});var seen={};TASKS.forEach(function(t,i){var c=0,tr=0,need=t.cap+3;while(c<need&&tr<9000){tr++;var f=gen(t.fn);if(!f||seen[f.key])continue;seen[f.key]=1;P[i].push(f);c++;}});return P;}
 function build(){window.__POOL=genPool();layout();}
 function layout(){var WK=document.getElementById('sw').checked;var S=window.__POOL||(window.__POOL=genPool());window.__PROB=[];var K=0;
-  function block(arr,cap){var use=WK?arr.slice(0,cap):arr;return '<div class="grid">'+use.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});return '<div class="q" data-k="'+k+'"><div class="qh"><span class="ql"></span><span class="qm">'+f.q+'</span></div>'+(f.fig?'<div class="fig">'+f.fig+'</div>':'')+((WK&&!f.noWk)?'<div class="wk"></div>':'')+'</div>';}).join('')+'</div>';}
+  function block(arr,cap,tk){var use=WK?arr.slice(0,cap):arr;return '<div class="grid"'+(tk&&tk.cols?' style="grid-template-columns:repeat('+tk.cols+',1fr)"':'')+'>'+use.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});return '<div class="q" data-k="'+k+'"><div class="qh"><span class="ql"></span><span class="qm">'+f.q+'</span></div>'+(f.fig?'<div class="fig">'+f.fig+'</div>':'')+((WK&&!f.noWk)?'<div class="wk"'+(tk&&tk.wk?' style="height:'+tk.wk+'mm"':'')+'></div>':'')+'</div>';}).join('')+'</div>';}
   function ansAll(){return window.__PROB.map(function(p){return '<div class="a" data-k="'+p.k+'"><span class="an"></span>'+p.f.a+'</div>';}).join('');}
   var html='<div class="head"><h1>'+WSPEC.title+'</h1><div class="sub">'+WSPEC.sub+'</div></div>'
     +'<div class="meta"><span>Нэр: </span><span>Анги: </span><span>Огноо: </span></div>'
     +'<div class="rule">'+WSPEC.rule+'</div>'+(WSPEC.ref||'');
-  TASKS.forEach(function(t,i){html+='<div class="task">'+(i+1)+'. '+t.label+'</div>'+block(S[i],t.cap);});
+  TASKS.forEach(function(t,i){html+='<div class="task">'+(i+1)+'. '+t.label+'</div>'+block(S[i],t.cap,t);});
   html+='<div class="ans-page" id="answers"><h2>Хариу ба бодолт</h2><div class="ans-grid">'+ansAll()+'</div></div>';
   document.getElementById('sheet').innerHTML=html;
   window.WS_ITEMS=[];window.WS_TITLE=WSPEC.title;

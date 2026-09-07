@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Харьцаагаар хуваах (7-р анги)</title>
+<title>Харьцаагаар хуваах-1 (7-р анги)</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
@@ -26,7 +26,7 @@
   .q{break-inside:avoid;page-break-inside:avoid}
   .qh{display:flex;gap:7px;align-items:baseline}.ql{font-weight:800;color:var(--purple);font-size:13px;min-width:22px}.qm{font-size:13px}
   .fig{text-align:center;margin:4px 0}
-  .wk{border:1.1px solid #e2daf5;border-radius:7px;background:linear-gradient(#fff,#fbf9ff);height:20mm;margin-top:5px}
+  .wk{border:1.1px solid #e2daf5;border-radius:7px;background:linear-gradient(#fff,#fbf9ff);height:14mm;margin-top:5px}
   .ans-page{margin-top:9mm;border-top:2px dashed #ddd;padding-top:7mm}.ans-page h2{font-size:15px;color:#5a32d6;margin-bottom:10px}
   .ans-grid{display:grid;grid-template-columns:1fr;gap:9px;font-size:12px}.ans-grid .a{padding-bottom:8px;border-bottom:1px dotted #e6e0f5}.ans-grid .an{color:var(--purple);font-weight:800;margin-right:5px}
   #answers{display:none}
@@ -126,28 +126,128 @@ function venn2(la,lb){la=la||'A';lb=lb||'B';var g='<rect x="6" y="6" width="248"
  g+='<text x="186" y="70" font-size="14" font-style="italic" fill="#5a32d6">'+lb+'</text>';
  return '<svg viewBox="0 0 260 130" width="210">'+g+'</svg>';}
 // ══════════ g7ch3.js — III БҮЛЭГ. ХАРЬЦАА, ПРОПОРЦ ══════════
-// g7core.js доторх helper-үүдийг шууд дуудна (rnd,pick,gcd,decStr,...).
+// Сурах бичгийн 46-50 хуудсын дасгалуудын хэлбэрээр зохиов.
+// g7core.js доторх helper-үүдийг шууд дуудна (rnd,pick,gcd,lcm,decStr,Fr,...).
+// АНХААР: q нь ЗӨВХӨН бодлогын өгөгдөл. Заавар (label) нь plan.json-д нэг л удаа бичигдэнэ.
 
-// ── туслах: харьцангуй анхны хос сонгох ──
+// ───────────────────────── туслах функцууд ─────────────────────────
 function coprimePair(set){
  for(var i=0;i<40;i++){var p=pick(set),q=pick(set);if(p!==q&&gcd(p,q)===1)return [p,q];}
  return null;
 }
 function redRatio2(a,b){var g=gcd(a,b)||1;return [a/g,b/g];}
 function redRatio3(a,b,c){var g=gcd(gcd(a,b),c)||1;return [a/g,b/g,c/g];}
+function gcdArr(v){var g=v[0],i;for(i=1;i<v.length;i++)g=gcd(g,v[i]);return g||1;}
+// k ширхэг эерэг бүхэл, нийлбэр нь s, гишүүн бүр minPart-аас багагүй, ХИЯ=1
+function tupleWithSum(k,s,minPart){
+ for(var i=0;i<400;i++){
+  var v=[],rem=s,ok=true,j;
+  for(j=0;j<k-1;j++){
+   var maxv=rem-(k-1-j)*minPart;
+   if(maxv<minPart){ok=false;break;}
+   var x=rnd(minPart,maxv);v.push(x);rem-=x;
+  }
+  if(!ok||rem<minPart)continue;
+  v.push(rem);
+  if(gcdArr(v)!==1)continue;
+  var same=true;for(j=1;j<v.length;j++)if(v[j]!==v[0])same=false;
+  if(same)continue;
+  return v;
+ }
+ return null;
+}
+// 3 гишүүнт харьцаа (ХИЯ=1, бүгд ижил биш)
+function randRatio3(){
+ for(var i=0;i<200;i++){
+  var v=[rnd(1,9),rnd(1,9),rnd(1,9)];
+  if(gcdArr(v)!==1)continue;
+  if(v[0]===v[1]&&v[1]===v[2])continue;
+  return v;
+ }
+ return null;
+}
+// мянгатаар тусгаарлах (SVG хүснэгтэд)
+function nfmt(n){var s=''+n,out='',c=0,i;for(i=s.length-1;i>=0;i--){out=s.charAt(i)+out;c++;if(c%3===0&&i>0)out=' '+out;}return out;}
+// өгүүлбэрийн эхний үсгийг том болгох
+function cap(s){return s.charAt(0).toUpperCase()+s.slice(1);}
+// "12:8=3:2" эсвэл аль хэдийн хураагдсан бол зөвхөн "5:19"
+function ratShow(a,b){var r=redRatio2(a,b);return (r[0]===a&&r[1]===b)?(a+':'+b):(a+':'+b+'='+r[0]+':'+r[1]);}
 
-// ───────────────────────── 3.1 Харьцааг хялбар хэлбэрт ─────────────────────────
-function g_ratioSimplifyInt(){
- var pr=coprimePair([2,3,4,5,7,8,9]);if(!pr)return null;
- var p=pr[0],q=pr[1],k=rnd(3,12);
- var a=k*p,b=k*q;
- if(a>200||b>200)return null;
- var q1='Харьцааг хамгийн хялбар хэлбэрт бич: $'+a+':'+b+'$';
- var g=gcd(a,b);
- var ans='ХИЯ$('+a+','+b+')='+g+'$. $'+a+':'+b+'='+(a/g)+':'+(b/g)+'$';
- return {q:q1,a:ans,key:'rsi:'+a+':'+b,nv:p/q,chk:{a:a,b:b,rp:p,rq:q}};
+// ───────────────────────── SVG зурагууд (хариу илчлэхгүй) ─────────────────────────
+// Хэсэгчилсэн зурвас: 1.8 метр → 5 хэсэг | 3 хэсэг | 2 хэсэг
+function barParts(r,totLbl){
+ var s=0,i;for(i=0;i<r.length;i++)s+=r[i];
+ var x0=22,x1=298,W=x1-x0,y=26,h=17,g='',acc=0;
+ g+='<rect x="'+x0+'" y="'+y+'" width="'+W+'" height="'+h+'" rx="3" fill="#f3f0fd" stroke="#7B52EE" stroke-width="1.3"/>';
+ for(i=0;i<r.length;i++){
+  var w=W*r[i]/s;
+  g+='<text x="'+(x0+acc+w/2).toFixed(1)+'" y="20" font-size="10" text-anchor="middle" fill="#5a32d6">'+r[i]+' хэсэг</text>';
+  acc+=w;
+  if(i<r.length-1)g+='<line x1="'+(x0+acc).toFixed(1)+'" y1="'+y+'" x2="'+(x0+acc).toFixed(1)+'" y2="'+(y+h)+'" stroke="#7B52EE" stroke-width="1.3"/>';
+ }
+ g+='<line x1="'+x0+'" y1="54" x2="'+x1+'" y2="54" stroke="#555" stroke-width="1"/>';
+ g+='<line x1="'+x0+'" y1="50" x2="'+x0+'" y2="58" stroke="#555" stroke-width="1"/>';
+ g+='<line x1="'+x1+'" y1="50" x2="'+x1+'" y2="58" stroke="#555" stroke-width="1"/>';
+ g+='<text x="'+((x0+x1)/2)+'" y="69" font-size="10" text-anchor="middle" fill="#333">'+totLbl+'</text>';
+ return '<svg viewBox="0 0 320 76" width="300">'+g+'</svg>';
+}
+// Өнгөт нүдний тор
+function gridCells(cells,cols){
+ var CM={b:'#60a5fa',g:'#4ade80',y:'#fde047',w:'#ffffff'};
+ var s=17,rows=Math.ceil(cells.length/cols),g='',i;
+ for(i=0;i<cells.length;i++){
+  var cx=(i%cols)*s+1,cy=Math.floor(i/cols)*s+1;
+  g+='<rect x="'+cx+'" y="'+cy+'" width="'+s+'" height="'+s+'" fill="'+CM[cells[i]]+'" stroke="#94a3b8" stroke-width="1"/>';
+ }
+ var W=cols*s+2,H=rows*s+2;
+ return '<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'">'+g+'</svg>';
+}
+// Хоёр тэгш өнцөгт гурвалжин (катетуудын шошготой)
+function twoRightTri(h1,v1,v2,h2){
+ var g='';
+ g+='<polygon points="42,100 102,100 42,58" fill="rgba(96,165,250,0.18)" stroke="#2563eb" stroke-width="1.6"/>';
+ g+='<rect x="42" y="94" width="6" height="6" fill="none" stroke="#2563eb" stroke-width="1"/>';
+ g+='<text x="72" y="114" font-size="10" text-anchor="middle" fill="#1e40af">'+h1+'</text>';
+ g+='<text x="37" y="82" font-size="10" text-anchor="end" fill="#1e40af">'+v1+'</text>';
+ g+='<polygon points="186,100 268,100 186,30" fill="rgba(248,113,113,0.18)" stroke="#dc2626" stroke-width="1.6"/>';
+ g+='<rect x="186" y="94" width="6" height="6" fill="none" stroke="#dc2626" stroke-width="1"/>';
+ g+='<text x="227" y="114" font-size="10" text-anchor="middle" fill="#b91c1c">'+h2+'</text>';
+ g+='<text x="181" y="68" font-size="10" text-anchor="end" fill="#b91c1c">'+v2+'</text>';
+ return '<svg viewBox="0 0 290 122" width="278">'+g+'</svg>';
+}
+// Ерөнхий хүснэгт (эхний багана өргөн)
+function tableSVG(head,rows){
+ var w0=64,w=42,H=21,g='',i,j,cols=head.length;
+ function cx(j){return j===0?0:w0+(j-1)*w;}
+ function cw(j){return j===0?w0:w;}
+ var W=w0+(cols-1)*w,Hh=H*(rows.length+1);
+ for(j=0;j<cols;j++){
+  g+='<rect x="'+cx(j)+'" y="0" width="'+cw(j)+'" height="'+H+'" fill="#ede9fe" stroke="#7B52EE" stroke-width="1"/>';
+  g+='<text x="'+(cx(j)+cw(j)/2)+'" y="14" font-size="8.5" text-anchor="middle" fill="#4c1d95">'+head[j]+'</text>';
+ }
+ for(i=0;i<rows.length;i++)for(j=0;j<cols;j++){
+  var y=H*(i+1);
+  g+='<rect x="'+cx(j)+'" y="'+y+'" width="'+cw(j)+'" height="'+H+'" fill="#fff" stroke="#7B52EE" stroke-width="1"/>';
+  var t=rows[i][j];
+  if(t)g+='<text x="'+(cx(j)+cw(j)/2)+'" y="'+(y+14)+'" font-size="8.5" text-anchor="middle" fill="#111">'+t+'</text>';
+ }
+ return '<svg viewBox="-1 -1 '+(W+2)+' '+(Hh+2)+'" width="'+(W+2)+'">'+g+'</svg>';
 }
 
+// ═════════════════════ 3.1 Харьцаа ба түүний хялбар хэлбэр ═════════════════════
+// Дасгал 7: Харьцаануудыг хялбар хэлбэрт бич. а. 64:48 ...
+function g_ratioSimplifyInt(){
+ var pr=coprimePair([2,3,4,5,7,8,9,11]);if(!pr)return null;
+ var p=pr[0],q=pr[1],k=rnd(4,18);
+ var a=k*p,b=k*q;
+ if(a>260||b>260||a<12||b<12)return null;
+ var g=gcd(a,b);
+ return {q:'$'+a+':'+b+'$',
+  a:'ХИЯ$('+a+','+b+')='+g+'$, тул $'+a+':'+b+'='+(a/g)+':'+(b/g)+'$',
+  key:'rsi:'+a+':'+b,nv:p/q,chk:{a:a,b:b,rp:p,rq:q}};
+}
+
+// Дасгал 7 (г,д,е,ж,з,и,к): өөр нэгжтэй хэмжээний харьцаа
 function g_ratioSimplifyUnits(){
  var PAIRS=[
   {big:'цаг',small:'минут',f:60,step:5,smax:115},
@@ -156,17 +256,16 @@ function g_ratioSimplifyUnits(){
   {big:'литр',small:'мл',f:1000,step:50,smax:950},
   {big:'км',small:'м',f:1000,step:50,smax:950},
   {big:'өдөр',small:'цаг',f:24,step:1,smax:23},
-  {big:'сар',small:'долоо хоног',f:4,step:1,smax:3}
+  {big:'сар',small:'долоо хоног',f:4,step:1,smax:3},
+  {big:'цаг',small:'секунд',f:3600,step:60,smax:3540}
  ];
  var P=pick(PAIRS);
  var bigVal=rnd(1,6);
  var steps=Math.floor(P.smax/P.step);
  var smallVal=rnd(1,steps)*P.step;
- var totBig=bigVal*P.f;      // big-ийг small нэгжид
+ var totBig=bigVal*P.f;
  var totSmall=smallVal;
  if(totBig===totSmall)return null;
- var r=redRatio2(totSmall,totBig);
- // хэвлэх дараалал: firstIsSmall
  var firstSmall=rnd(0,1)===0;
  var q1,rr;
  if(firstSmall){
@@ -176,176 +275,377 @@ function g_ratioSimplifyUnits(){
   q1='$'+bigVal+'\\ \\text{'+P.big+'}:'+smallVal+'\\ \\text{'+P.small+'}$';
   rr=redRatio2(totBig,totSmall);
  }
- var qq='Хэмжээнүүдийг ижил нэгжид оруулж, харьцааг хялбар хэлбэрт бич: '+q1;
  var ans;
  if(firstSmall)
   ans='$'+bigVal+'\\ \\text{'+P.big+'}='+totBig+'\\ \\text{'+P.small+'}$. Харьцаа $'+totSmall+':'+totBig+'='+rr[0]+':'+rr[1]+'$';
  else
   ans='$'+bigVal+'\\ \\text{'+P.big+'}='+totBig+'\\ \\text{'+P.small+'}$. Харьцаа $'+totBig+':'+totSmall+'='+rr[0]+':'+rr[1]+'$';
- return {q:qq,a:ans,key:'rsu:'+P.small+':'+smallVal+':'+bigVal+':'+firstSmall,
+ return {q:q1,a:ans,key:'rsu:'+P.small+':'+smallVal+':'+bigVal+':'+firstSmall,
   chk:{first:firstSmall?totSmall:totBig,second:firstSmall?totBig:totSmall,rp:rr[0],rq:rr[1]}};
 }
 
+// Дасгал 19: 2 6/7 : 30, 1.6:1.8, 1/2:1/3, 1 1/3 : 2.4 ...
 function g_ratioSimplifyDecimalFrac(){
- // operand -> {fr:{n,d}, tex}
- function decOp(scale){
-  var t=rnd(1,scale*2-1);
-  return {fr:Fr(t,scale),tex:decStr(t/scale,3)};
- }
- function fracOp(){
-  var num=rnd(1,2),den=rnd(2,9);
-  if(gcd(num,den)!==1)return null;
-  return {fr:Fr(num,den),tex:'\\tfrac{'+num+'}{'+den+'}'};
- }
- function mixOp(){
-  var w=rnd(1,3),c=rnd(2,7),b=rnd(1,c-1);
-  return {fr:Fr(w*c+b,c),tex:w+'\\tfrac{'+b+'}{'+c+'}'};
- }
- var mode=pick(['dec','frac','mix']);
+ function decOp(scale){var t=rnd(1,scale*2-1);return {fr:Fr(t,scale),tex:decStr(t/scale,3)};}
+ function fracOp(){var num=rnd(1,3),den=rnd(2,9);if(gcd(num,den)!==1)return null;return {fr:Fr(num,den),tex:'\\tfrac{'+num+'}{'+den+'}'};}
+ function mixOp(){var w=rnd(1,3),c=rnd(2,7),b=rnd(1,c-1);if(gcd(b,c)!==1)return null;return {fr:Fr(w*c+b,c),tex:w+'\\tfrac{'+b+'}{'+c+'}'};}
+ function intOp(){var v=rnd(2,30);return {fr:Fr(v,1),tex:''+v};}
+ var mode=pick(['dec','frac','mix','mixint','decfrac']);
  var x,y;
  if(mode==='dec'){var sc=pick([10,100]);x=decOp(sc);y=decOp(sc);}
- else if(mode==='frac'){x=fracOp();y=fracOp();if(!x||!y)return null;}
- else{x=mixOp();y=pick([0,1])?decOp(10):fracOp();if(!y)return null;}
+ else if(mode==='frac'){x=fracOp();y=fracOp();}
+ else if(mode==='mix'){x=mixOp();y=fracOp();}
+ else if(mode==='mixint'){x=mixOp();y=intOp();}
+ else{x=decOp(10);y=fracOp();}
+ if(!x||!y)return null;
  if(x.fr.n===0||y.fr.n===0)return null;
- // ижил бүхэл руу: L=lcm(хуваарь)
  var L=lcm(x.fr.d,y.fr.d);
  var A=x.fr.n*(L/x.fr.d),B=y.fr.n*(L/y.fr.d);
  if(A===B)return null;
+ if(A>4000||B>4000)return null;
  var r=redRatio2(A,B);
- var q1='Харьцааг хамгийн хялбар (бүхэл тоон) хэлбэрт бич: $'+x.tex+':'+y.tex+'$';
  var mid=(A===r[0]&&B===r[1])?'':('='+A+':'+B);
- var ans='$'+x.tex+':'+y.tex+mid+'='+r[0]+':'+r[1]+'$';
- return {q:q1,a:ans,key:'rsd:'+x.tex+':'+y.tex,
+ return {q:'$'+x.tex+':'+y.tex+'$',
+  a:'$'+x.tex+':'+y.tex+mid+'='+r[0]+':'+r[1]+'$',
+  key:'rsd:'+x.tex+':'+y.tex,
   chk:{xn:x.fr.n,xd:x.fr.d,yn:y.fr.n,yd:y.fr.d,rp:r[0],rq:r[1]}};
 }
 
-// ───────────────────────── 3.2 / 3.3 Пропорц ба процент ─────────────────────────
+// Дасгал 16: Хайрцагт 12 ногоон, 8 улаан, 5 шар алим байв...
+function g_boxRatios(){
+ var CTX=[
+  {box:'Хайрцагт',items:['ногоон алим','улаан алим','шар алим'],sh:['ногоон','улаан','шар']},
+  {box:'Саванд',items:['цэнхэр бөмбөг','ногоон бөмбөг','улаан бөмбөг'],sh:['цэнхэр','ногоон','улаан']},
+  {box:'Номын санд',items:['монгол ном','гадаад ном','сэтгүүл'],sh:['монгол ном','гадаад ном','сэтгүүл']},
+  {box:'Номын тавиур дээр',items:['сурах бичиг','тууж','толь бичиг'],sh:['сурах бичиг','тууж','толь бичиг']}
+ ];
+ var C=pick(CTX);
+ var n1=rnd(4,30),n2=rnd(4,30),n3=rnd(2,20);
+ if(n1===n2||n2===n3||n1===n3)return null;
+ var T=n1+n2+n3;
+ var r12=redRatio2(n1,n2),r23=redRatio2(n2,n3),r1T=redRatio2(n1,T);
+ var red=(gcd(n1,n2)>1?1:0)+(gcd(n2,n3)>1?1:0)+(gcd(n1,T)>1?1:0);
+ if(red<2)return null;
+ var qq=C.box+' $'+n1+'$ '+C.items[0]+', $'+n2+'$ '+C.items[1]+', $'+n3+'$ '+C.items[2]+' байв. '+
+  'а) '+C.sh[0]+' : '+C.sh[1]+'  б) '+C.sh[1]+' : '+C.sh[2]+'  в) '+C.sh[0]+' : нийт';
+ var ans='Нийт $'+n1+'+'+n2+'+'+n3+'='+T+'$. а) $'+ratShow(n1,n2)+'$  б) $'+ratShow(n2,n3)+'$  в) $'+ratShow(n1,T)+'$';
+
+ return {q:qq,a:ans,key:'brt:'+C.box+':'+n1+':'+n2+':'+n3,
+  chk:{n1:n1,n2:n2,n3:n3,T:T,r12:r12,r23:r23,r1T:r1T}};
+}
+
+// Дасгал 3: Зургийг ажиглан өнгөт квадратуудыг тоол
+function g_gridColorRatio(){
+ var cols=6,tot=36;
+ var B=rnd(5,13),G=rnd(5,13),Y=rnd(4,11);
+ var W=tot-B-G-Y;
+ if(W<4||W>18)return null;
+ if(B===G)return null;
+ var cells=[],i;
+ for(i=0;i<B;i++)cells.push('b');
+ for(i=0;i<G;i++)cells.push('g');
+ for(i=0;i<Y;i++)cells.push('y');
+ for(i=0;i<W;i++)cells.push('w');
+ cells=shuffle(cells);
+ var rBG=redRatio2(B,G),rYT=redRatio2(Y,tot),rGT=redRatio2(G,B+G+Y);
+ var redn=(gcd(B,G)>1?1:0)+(gcd(Y,tot)>1?1:0)+(gcd(G,B+G+Y)>1?1:0);
+ if(redn<2)return null;
+ var qq='Зурагт цэнхэр, ногоон, шар өнгийн нүд байна (нийт $36$ нүд). '+
+  'а) цэнхэр : ногоон  б) шар : нийт нүд  в) ногоон : өнгөт нүдний тоо';
+ var ans='Цэнхэр $'+B+'$, ногоон $'+G+'$, шар $'+Y+'$, өнгөгүй $'+W+'$. '+
+  'а) $'+ratShow(B,G)+'$  б) $'+ratShow(Y,36)+'$'+
+  '  в) $'+ratShow(G,B+G+Y)+'$';
+ return {q:qq,a:ans,fig:gridCells(cells,cols),key:'gcr:'+B+':'+G+':'+Y,
+  chk:{B:B,G:G,Y:Y,W:W,tot:tot,rBG:rBG,rYT:rYT,rGT:rGT}};
+}
+
+// ═════════════════════ 3.2 Пропорц ба үндсэн чанар ═════════════════════
+// Жишээ 3: 24:16 болон 60:40 харьцаанууд пропорц үүсгэх үү?
 function g_propCheck(){
- var a=rnd(4,15),b=rnd(4,15),k=rnd(2,6);
+ var a=rnd(6,24),b=rnd(6,24),k=rnd(2,7);
  var isProp=rnd(0,1)===0;
  var c=k*a,d=k*b;
  if(!isProp){
-  var off=pick([-3,-2,-1,1,2,3]);
+  var off=pick([-4,-3,-2,-1,1,2,3,4]);
   d=d+off;
   if(d<=0)return null;
   if(a*d===b*c)return null;
  }
- if(c>90||d>90)return null;
+ if(c>150||d>150)return null;
  var ad=a*d,bc=b*c;
- var qq='$'+a+':'+b+'$ ба $'+c+':'+d+'$ харьцаанууд пропорц үүсгэх үү? Пропорцын үндсэн чанараар шалга.';
  var ans;
- if(ad===bc)
-  ans='Тийм, пропорц мөн. $'+a+'\\cdot'+d+'='+b+'\\cdot'+c+'='+ad+'$';
- else
-  ans='Үгүй, пропорц биш. $'+a+'\\cdot'+d+'='+ad+'$, $'+b+'\\cdot'+c+'='+bc+'$ тэнцэхгүй.';
- return {q:qq,a:ans,key:'pc:'+a+':'+b+':'+c+':'+d,nv:ad-bc,
+ if(ad===bc)ans='$'+a+'\\cdot '+d+'='+ad+'$, $'+b+'\\cdot '+c+'='+bc+'$ тэнцүү тул пропорц мөн.';
+ else ans='$'+a+'\\cdot '+d+'='+ad+'$, $'+b+'\\cdot '+c+'='+bc+'$ тэнцэхгүй тул пропорц биш.';
+ return {q:'$'+a+':'+b+'$ ба $'+c+':'+d+'$',a:ans,key:'pc:'+a+':'+b+':'+c+':'+d,nv:ad-bc,
   chk:{a:a,b:b,c:c,d:d,isProp:ad===bc}};
 }
 
+// Жишээ 2 / Дасгал: пропорцоос үл мэдэгдэх гишүүнийг олох
 function g_propSolveX(){
- var pr=coprimePair([2,3,4,5,6,7,8,9,11]);if(!pr)return null;
- var p=pr[0],q=pr[1],m=rnd(2,15);
- // хоёр төлөөлөл: (p,q) ба (p*m,q*m)
+ var pr=coprimePair([2,3,4,5,6,7,8,9,11,13]);if(!pr)return null;
+ var p=pr[0],q=pr[1],m=rnd(3,20);
  var leftBig=rnd(0,1)===0;
  var L1,L2,R1,R2;
  if(leftBig){L1=p*m;L2=q*m;R1=p;R2=q;}
  else{L1=p;L2=q;R1=p*m;R2=q*m;}
  var vals=[L1,L2,R1,R2];
+ if(vals[0]>300||vals[1]>300)return null;
  var hide=rnd(0,3);
  var xVal=vals[hide];
  var disp=vals.slice();
  disp[hide]='x';
- var qq='Пропорцоос $x$-ийг ол: $'+disp[0]+':'+disp[1]+'='+disp[2]+':'+disp[3]+'$';
- // бодолт: захын үржвэр = дундын үржвэр
- var ans='Пропорцын үндсэн чанар: $'+vals[0]+'\\cdot'+vals[3]+'='+vals[1]+'\\cdot'+vals[2]+'$. $x='+xVal+'$';
- return {q:qq,a:ans,key:'psx:'+vals.join(':')+':'+hide,nv:xVal,
-  chk:{v:vals,hide:hide,x:xVal}};
+ var ans='$'+vals[0]+'\\cdot '+vals[3]+'='+vals[1]+'\\cdot '+vals[2]+'$ тул $x='+xVal+'$';
+ return {q:'$'+disp[0]+':'+disp[1]+'='+disp[2]+':'+disp[3]+'$',a:ans,
+  key:'psx:'+vals.join(':')+':'+hide,nv:xVal,chk:{v:vals,hide:hide,x:xVal}};
 }
 
+// Жишээ 2: аравтын бутархайтай пропорц (12:a=4:5, b:22.5=4:5)
+function g_propSolveDec(){
+ var pr=coprimePair([2,3,4,5,6,7,8,9]);if(!pr)return null;
+ var m=pr[0],n=pr[1];
+ var H=rnd(5,45);                  // нэг хэсэг t = H/2 (хагас бүхэл)
+ if(H%2===0&&rnd(0,2)>0)return null;   // аравтын бутархайтай хувилбарыг давамгайлуулна
+ var A=m*H/2, B=n*H/2;             // харьцааны хоёр гишүүн
+ if(A>300||B>300||A<1.5||B<1.5)return null;
+ var As=decStr(A,3),Bs=decStr(B,3);
+ var giveFirst=rnd(0,1)===0;
+ var qq,ans,xv;
+ if(giveFirst){
+  xv=B;
+  qq='$'+As+':x='+m+':'+n+'$';
+  ans='$'+m+'\\cdot x='+As+'\\cdot '+n+'$ тул $x=\\dfrac{'+As+'\\cdot '+n+'}{'+m+'}='+Bs+'$';
+ }else{
+  xv=A;
+  qq='$x:'+Bs+'='+m+':'+n+'$';
+  ans='$x\\cdot '+n+'='+Bs+'\\cdot '+m+'$ тул $x=\\dfrac{'+Bs+'\\cdot '+m+'}{'+n+'}='+As+'$';
+ }
+ return {q:qq,a:ans,key:'psd:'+m+':'+n+':'+H+':'+giveFirst,nv:xv,
+  chk:{m:m,n:n,H:H,giveFirst:giveFirst,x:xv,A:A,B:B}};
+}
+
+// Жишээ 7: Зэсийн хайлшинд зэс ба хүдэр 8:5 харьцаатай оржээ...
 function g_propWord(){
  var MATS=[
-  {a:'Зэс',b:'хүдэр',u:'г'},
-  {a:'Цемент',b:'элс',u:'кг'},
-  {a:'Алт',b:'мөнгө',u:'г'},
-  {a:'Ус',b:'сироп',u:'мл'},
-  {a:'Кофе',b:'сүү',u:'мл'}
+  {a:'зэс',b:'хүдэр',u:'г'},
+  {a:'цемент',b:'элс',u:'кг'},
+  {a:'алт',b:'мөнгө',u:'г'},
+  {a:'ус',b:'сироп',u:'мл'},
+  {a:'кофе',b:'сүү',u:'мл'},
+  {a:'цагаан будаа',b:'ус',u:'г'}
  ];
- var pr=coprimePair([2,3,4,5,7,8,9]);if(!pr)return null;
- var p=pr[0],q=pr[1],t=rnd(8,30);
+ var pr=coprimePair([2,3,4,5,7,8,9,11]);if(!pr)return null;
+ var p=pr[0],q=pr[1],t=rnd(8,40);
  var M=pick(MATS);
  var giveSecond=rnd(0,1)===0;
- var qq,ans,nv;
  if(giveSecond){
   var V=q*t,x=p*t;
-  qq=M.a+' ба '+M.b+' бодис $'+p+':'+q+'$ харьцаатай холилдоно. '+M.b+' $'+V+'$ '+M.u+' орсон бол '+M.a+' хэдэн '+M.u+' орсон бэ?';
-  ans='Пропорц: $'+p+':'+q+'='+'x:'+V+'$. $x=\\dfrac{'+p+'\\cdot'+V+'}{'+q+'}='+x+'$ '+M.u;
-  nv=x;
-  return {q:qq,a:ans,key:'pw:'+M.a+':'+p+':'+q+':2:'+V,nv:nv,chk:{p:p,q:q,given:V,find:x,side:2}};
+  if(V>500||x>500)return null;
+  return {q:'Хольцод '+M.a+' ба '+M.b+' $'+p+':'+q+'$ харьцаатай орно. '+M.b+' $'+V+'$ '+M.u+' орсон бол '+M.a+' хэдэн '+M.u+' орсон бэ?',
+   a:'$'+p+':'+q+'=x:'+V+'$, $'+q+'x='+p+'\\cdot '+V+'$, $x='+x+'$ '+M.u,
+   key:'pw:'+M.a+':'+p+':'+q+':2:'+V,nv:x,chk:{p:p,q:q,given:V,find:x,side:2}};
  }else{
   var V2=p*t,x2=q*t;
-  qq=M.a+' ба '+M.b+' бодис $'+p+':'+q+'$ харьцаатай холилдоно. '+M.a+' $'+V2+'$ '+M.u+' орсон бол '+M.b+' хэдэн '+M.u+' орсон бэ?';
-  ans='Пропорц: $'+p+':'+q+'='+V2+':x$. $x=\\dfrac{'+q+'\\cdot'+V2+'}{'+p+'}='+x2+'$ '+M.u;
-  nv=x2;
-  return {q:qq,a:ans,key:'pw:'+M.a+':'+p+':'+q+':1:'+V2,nv:nv,chk:{p:p,q:q,given:V2,find:x2,side:1}};
+  if(V2>500||x2>500)return null;
+  return {q:'Хольцод '+M.a+' ба '+M.b+' $'+p+':'+q+'$ харьцаатай орно. '+M.a+' $'+V2+'$ '+M.u+' орсон бол '+M.b+' хэдэн '+M.u+' орсон бэ?',
+   a:'$'+p+':'+q+'='+V2+':x$, $'+p+'x='+q+'\\cdot '+V2+'$, $x='+x2+'$ '+M.u,
+   key:'pw:'+M.a+':'+p+':'+q+':1:'+V2,nv:x2,chk:{p:p,q:q,given:V2,find:x2,side:1}};
  }
 }
 
+// Жишээ 7 (өргөтгөсөн): нэг бүрэлдэхүүн өгөгдөхөд нөгөө нь БА нийт хэмжээ
+function g_alloyPart(){
+ var MATS=[
+  {a:'зэс',b:'хүдэр',u:'г',n:'Хайлш',loc:'Хайлшид',loc2:'хайлшид',nom:'хайлш'},
+  {a:'цемент',b:'элс',u:'кг',n:'Зуурмаг',loc:'Зуурмагт',loc2:'зуурмагт',nom:'зуурмаг'},
+  {a:'никель',b:'төмөр',u:'г',n:'Хайлш',loc:'Хайлшид',loc2:'хайлшид',nom:'хайлш'},
+  {a:'шүүс',b:'ус',u:'мл',n:'Ундаа',loc:'Ундаанд',loc2:'ундаанд',nom:'ундаа'},
+  {a:'какао',b:'сүү',u:'г',n:'Хольц',loc:'Хольцонд',loc2:'хольцонд',nom:'хольц'}
+ ];
+ var pr=coprimePair([3,4,5,7,8,9,11,13]);if(!pr)return null;
+ var p=pr[0],q=pr[1],t=rnd(9,45);
+ var M=pick(MATS);
+ var given=q*t,other=p*t,tot=(p+q)*t;
+ if(given>700||other>700||tot>1400)return null;
+ var qq=M.loc+' '+M.a+' ба '+M.b+' $'+p+':'+q+'$ харьцаатай орно. '+
+  M.loc+' $'+given+'$ '+M.u+' '+M.b+' хэрэглэсэн бол а) '+M.a+' хэдэн '+M.u+' орсон бэ? б) '+M.nom+' нийт хэдэн '+M.u+' болсон бэ?';
+ var ans='а) $'+p+':'+q+'=x:'+given+'$, $'+q+'x='+p+'\\cdot '+given+'='+(p*given)+'$, $x='+other+'$ '+M.u+
+  '. б) Нийт $'+other+'+'+given+'='+tot+'$ '+M.u+'.';
+ return {q:qq,a:ans,key:'alp:'+M.a+':'+p+':'+q+':'+t,nv:other,
+  chk:{p:p,q:q,given:given,other:other,tot:tot}};
+}
+
+// Жишээ 2: зурагтай — хоёр тэгш өнцөгт гурвалжны катетуудын харьцаа
+function g_similarLegs(){
+ var pr=coprimePair([2,3,4,5,7,8,9]);if(!pr)return null;
+ var m=pr[0],n=pr[1];
+ var k1=rnd(2,9);
+ var A=m*k1,aa=n*k1;
+ var H=rnd(5,27);                 // k2 = H/2
+ if((n*H)%2!==0)return null;
+ var B=n*H/2, bb=m*H/2;
+ if(A>70||aa>70||B>70||bb>70)return null;
+ if(A<6||aa<6||B<6||bb<6)return null;
+ var Bs=decStr(B,3),bs=decStr(bb,3);
+ var qq='Тэгш өнцөгт гурвалжин бүрийн катетуудын харьцаа $'+m+':'+n+'$ бол мэдэгдэхгүй байгаа катетуудын уртыг ол.';
+ var ans='$'+A+':a='+m+':'+n+'$, $\\ a=\\dfrac{'+A+'\\cdot '+n+'}{'+m+'}='+aa+'$ см. '+
+  '$b:'+Bs+'='+m+':'+n+'$, $\\ b=\\dfrac{'+Bs+'\\cdot '+m+'}{'+n+'}='+bs+'$ см.';
+ return {q:qq,a:ans,fig:twoRightTri(A+' см','a = ?',Bs+' см','b = ?'),
+  key:'sml:'+m+':'+n+':'+k1+':'+H,nv:aa,chk:{m:m,n:n,A:A,aa:aa,B:B,bb:bb}};
+}
+
+// Дасгал 14: Ах, дүүгийн насны харьцаа (олон алхамт)
+function g_ageRatio(){
+ var pr=coprimePair([2,3,4,5,7]);if(!pr)return null;
+ var a=Math.max(pr[0],pr[1]),b=Math.min(pr[0],pr[1]);
+ var t=rnd(2,9);
+ var A=a*t,B=b*t;
+ if(B<4||A>62||A-B<2)return null;
+ var y=pick([5,10,15,20]);
+ var rNow=redRatio2(A,B),rFut=redRatio2(A+y,B+y);
+ var qq='Ах, дүү хоёрын одоогийн насны харьцаа $'+a+':'+b+'$ байв. Дүү нь $'+B+'$ настай бол '+
+  'а) ах нь хэдэн настай вэ? б) $'+y+'$ жилийн дараа тэдний насны харьцаа ямар болох вэ?';
+ var ans='а) $1$ хэсэг $='+B+':'+b+'='+t+'$, ах $='+a+'\\cdot '+t+'='+A+'$ настай. '+
+  'б) $'+y+'$ жилийн дараа ах $'+(A+y)+'$, дүү $'+(B+y)+'$ настай болно. Харьцаа $'+ratShow(A+y,B+y)+'$.';
+ return {q:qq,a:ans,key:'age:'+a+':'+b+':'+t+':'+y,nv:A,
+  chk:{a:a,b:b,t:t,A:A,B:B,y:y,rNow:rNow,rFut:rFut}};
+}
+
+// ═════════════════════ 3.3 Харьцааг процентоор илэрхийлэх ═════════════════════
+// Жишээ 4 / хүснэгт: 1:2 ⇒ 50%, 3:4 ⇒ 75%, 5:1 ⇒ 500% ...
 function g_ratioToPercent(){
- var b=pick([2,4,5,8,10,20,25,50]);
- var a=rnd(1,2*b-1);
- if(gcd(a,b)===b)return null; // a нь b-д хуваагдаад бүхэл процент — зөвшөөрнө, гэхдээ давхардлаас сэргийл
+ var b=pick([2,4,5,8,10,16,20,25,40,50]);
+ var a=rnd(1,3*b-1);
+ if(a===b)return null;
+ if(gcd(a,b)!==1)return null;
  var pct=a/b*100;
+ if(pct>600)return null;
  var asFrac=rnd(0,1)===0;
- var head=asFrac?'Бутархайг процентоор илэрхийл: $\\dfrac{'+a+'}{'+b+'}$':'Харьцааг процентоор илэрхийл: $'+a+':'+b+'$';
- var ans='$\\dfrac{'+a+'}{'+b+'}\\cdot100='+decStr(pct,3)+'\\%$';
+ var head=asFrac?'$\\dfrac{'+a+'}{'+b+'}$':'$'+a+':'+b+'$';
+ var ans='$\\dfrac{'+a+'}{'+b+'}\\cdot 100\\%='+decStr(pct,4)+'\\%$';
  return {q:head,a:ans,key:'rtp:'+a+':'+b+':'+asFrac,nv:pct,chk:{a:a,b:b,pct:pct}};
 }
 
+// Дасгал 5: 11/20 = □/50 = □% ; 9/125 = □/1000 = □%
 function g_fractionToPercentMulti(){
- var b=pick([20,25,50,125,200,1000]);
+ var b=pick([20,25,40,50,125,200,250,500,1000]);
  var a=rnd(1,b-1);
- if(a>=b)return null;
+ if(gcd(a,b)===b)return null;
  var target=(100%b===0)?100:1000;
+ if(b>100&&1000%b!==0)return null;
+ if(b<=100&&100%b!==0)return null;
  var k=target/b;
  var num=a*k;
  var pct=a/b*100;
- var qq='Дутуу тоог нөхөж процентоор илэрхийл: $\\dfrac{'+a+'}{'+b+'}=\\dfrac{\\square}{'+target+'}=\\square\\%$';
- var ans;
- if(target===100)
-  ans='$\\dfrac{'+a+'}{'+b+'}=\\dfrac{'+num+'}{100}='+decStr(pct,3)+'\\%$';
- else
-  ans='$\\dfrac{'+a+'}{'+b+'}=\\dfrac{'+num+'}{1000}='+decStr(pct,3)+'\\%$';
+ var qq='$\\dfrac{'+a+'}{'+b+'}=\\dfrac{\\square}{'+target+'}=\\square\\%$';
+ var ans='$\\dfrac{'+a+'}{'+b+'}=\\dfrac{'+num+'}{'+target+'}='+decStr(pct,4)+'\\%$';
  return {q:qq,a:ans,key:'ftp:'+a+':'+b,nv:pct,chk:{a:a,b:b,target:target,num:num,pct:pct}};
 }
 
-// ───────────────────────── 3.4 Харьцаагаар хуваах ─────────────────────────
+// Дасгал 5 (а,б,е): 64/72 = 8/□ ; 7/9 = □/63 ; 19/76 = 1/□
+function g_fillEquivFrac(){
+ var pr=coprimePair([1,2,3,4,5,7,8,9,11,13]);if(!pr)return null;
+ var a=pr[0],b=pr[1];
+ if(a>=b)return null;
+ var k=rnd(2,12);
+ var A=a*k,B=b*k;
+ if(B>200)return null;
+ var mode=pick(['red','exp']);
+ var qq,ans,sq;
+ if(mode==='red'){
+  sq=b;
+  qq='$\\dfrac{'+A+'}{'+B+'}=\\dfrac{'+a+'}{\\square}$';
+  ans='ХИЯ$('+A+','+B+')='+k+'$, $\\dfrac{'+A+'}{'+B+'}=\\dfrac{'+a+'}{'+b+'}$ тул $\\square='+b+'$';
+ }else{
+  sq=A;
+  qq='$\\dfrac{'+a+'}{'+b+'}=\\dfrac{\\square}{'+B+'}$';
+  ans='$'+B+':'+b+'='+k+'$, $\\dfrac{'+a+'}{'+b+'}=\\dfrac{'+a+'\\cdot '+k+'}{'+B+'}=\\dfrac{'+A+'}{'+B+'}$ тул $\\square='+A+'$';
+ }
+ return {q:qq,a:ans,key:'fef:'+a+':'+b+':'+k+':'+mode,nv:sq,
+  chk:{a:a,b:b,k:k,A:A,B:B,mode:mode,sq:sq}};
+}
+
+// Дасгал 6: Жимсний шүүсэнд алим ба нимбэг 3:5 харьцаатай. Алим нь нимбэгний хэдэн процент вэ?
+function g_ratioPercentOf(){
+ var CTX=[
+  {t:'Жимсний шүүсэнд',a:'алим',b:'нимбэг',bg:'нимбэгний'},
+  {t:'Хольцонд',a:'элс',b:'цемент',bg:'цементийн'},
+  {t:'Ундаанд',a:'сироп',b:'ус',bg:'усны'},
+  {t:'Хайлшинд',a:'цагаан тугалга',b:'зэс',bg:'зэсийн'},
+  {t:'Талбайд',a:'улаан лооль',b:'өргөст хэмх',bg:'өргөст хэмхний'}
+ ];
+ var C=pick(CTX);
+ var toTotal=rnd(0,1)===0;
+ var p,q,base,pct,qq,ans;
+ if(toTotal){
+  var s=pick([4,5,8,10,20,25,40,50]);
+  p=rnd(2,s-2);q=s-p;
+  if(q<2)return null;
+  if(gcd(p,q)!==1)return null;
+  base=s;pct=p/s*100;
+  qq=C.t+' '+C.a+' ба '+C.b+' $'+p+':'+q+'$ харьцаатай орсон. '+cap(C.a)+' нь нийт хольцын хэдэн процентыг эзлэх вэ?';
+  ans='Нийт $'+p+'+'+q+'='+s+'$ хэсэг. $\\dfrac{'+p+'}{'+s+'}\\cdot 100\\%='+decStr(pct,4)+'\\%$';
+ }else{
+  q=pick([2,4,5,8,10,16,20,25,40,50]);
+  p=rnd(1,2*q-1);
+  if(p===q)return null;
+  if(gcd(p,q)!==1)return null;
+  base=q;pct=p/q*100;
+  qq=C.t+' '+C.a+' ба '+C.b+' $'+p+':'+q+'$ харьцаатай орсон. '+cap(C.a)+' нь '+C.bg+' хэдэн процент болох вэ?';
+  ans='$\\dfrac{'+p+'}{'+q+'}\\cdot 100\\%='+decStr(pct,4)+'\\%$';
+ }
+ return {q:qq,a:ans,key:'rpo:'+C.a+':'+p+':'+q+':'+toTotal,nv:pct,
+  chk:{p:p,q:q,base:base,pct:pct,toTotal:toTotal}};
+}
+
+// Дасгал 4: Хоёр машины нэг нь нөгөөгөөс 20%-оор их хурдтай...
+function g_percentFasterRatio(){
+ var P=[{p:20,step:5},{p:25,step:4},{p:40,step:5},{p:50,step:2},{p:60,step:5},{p:75,step:4},{p:80,step:5}];
+ var S=pick(P);
+ var v=S.step*rnd(8,26);
+ if(v<40||v>130)return null;
+ var fast=v*(100+S.p)/100;
+ if(fast%1!==0)return null;
+ var r=redRatio2(100,100+S.p);
+ var OBJ=[{n:'машины',u:'км/ц'},{n:'дугуйчны',u:'км/ц'},{n:'галт тэрэгний',u:'км/ц'},{n:'усан онгоцны',u:'км/ц'}];
+ var O=pick(OBJ);
+ var qq='Хоёр '+O.n+' нэг нь нөгөөгөөсөө $'+S.p+'\\%$-оор их хурдтай. '+
+  'а) Хурдны харьцааг (бага : их) ол. б) Бага хурдтай нь $'+v+'$ '+O.u+' явдаг бол нөгөө нь хэдэн '+O.u+' явах вэ?';
+ var ans='а) Бага хурдыг $100$ хэсэг гэвэл их нь $'+(100+S.p)+'$ хэсэг: $100:'+(100+S.p)+'='+r[0]+':'+r[1]+'$. '+
+  'б) $'+r[0]+':'+r[1]+'='+v+':x$, $x=\\dfrac{'+v+'\\cdot '+r[1]+'}{'+r[0]+'}='+fast+'$ '+O.u+'.';
+ return {q:qq,a:ans,key:'pfr:'+S.p+':'+v+':'+O.n,nv:fast,
+  chk:{p:S.p,v:v,fast:fast,r:r}};
+}
+
+// ═════════════════════ 3.4 Харьцаагаар хуваах ═════════════════════
+// Дасгал 9, 10: Хэмжээг өгсөн харьцаагаар хуваа
 function g_divideByRatio2(){
- var pr=coprimePair([2,3,4,5,6,7,8,9]);if(!pr)return null;
+ var pr=coprimePair([2,3,4,5,6,7,8,9,11,13]);if(!pr)return null;
  var m=pr[0],n=pr[1],s=m+n;
- var UNITS=[{u:'марк',lo:5,hi:60},{u:'кг',lo:4,hi:50},{u:'литр',lo:4,hi:50},{u:'м',lo:5,hi:60},{u:'мл',lo:20,hi:200},{u:'₮',lo:100,hi:2000}];
+ var UNITS=[{u:'марк',acc:'маркийг',lo:5,hi:60},{u:'кг',acc:'кг-ийг',lo:4,hi:50},{u:'литр',acc:'литрийг',lo:4,hi:50},
+  {u:'м',acc:'м-ийг',lo:5,hi:60},{u:'мл',acc:'мл-ийг',lo:20,hi:200},{u:'₮',acc:'төгрөгийг',lo:100,hi:4000}];
  var U=pick(UNITS);
  var u=rnd(U.lo,U.hi);
  var Q=s*u;
- if(Q<100||Q>3000)return null;
+ if(Q<100||Q>60000)return null;
  var p1=m*u,p2=n*u;
- var qq='$'+Q+'$ '+U.u+'-ийг $'+m+':'+n+'$ харьцаагаар хуваа. Хэсэг тус бүрийг ол.';
- var ans='Нийт $'+m+'+'+n+'='+s+'$ хэсэг. 1 хэсэг $='+Q+':'+s+'='+u+'$ '+U.u+'. Хэсгүүд: $'+m+'\\cdot'+u+'='+p1+'$ ба $'+n+'\\cdot'+u+'='+p2+'$ '+U.u+'.';
- return {q:qq,a:ans,key:'dr2:'+Q+':'+m+':'+n+':'+U.u,nv:p1,chk:{Q:Q,m:m,n:n,p1:p1,p2:p2}};
+ return {q:'$'+Q+'$ '+U.acc+' $'+m+':'+n+'$ харьцаатай',
+  a:'Нийт $'+m+'+'+n+'='+s+'$ хэсэг, $1$ хэсэг $='+Q+':'+s+'='+u+'$. Хэсгүүд: $'+p1+'$ ба $'+p2+'$ '+U.u+'.',
+  key:'dr2:'+Q+':'+m+':'+n+':'+U.u,nv:p1,chk:{Q:Q,m:m,n:n,p1:p1,p2:p2}};
 }
 
+// Дасгал 9 (д,е,ж,з), 12: гурван гишүүнт харьцаа (аравтын бутархайтай ч байж болно)
 function g_divideByRatio3(){
- var UNITS=[{u:'₮',mul:1000},{u:'мл',mul:5},{u:'литр',mul:2},{u:'кг',mul:3},{u:'см',mul:4}];
+ var UNITS=[{u:'₮',acc:'төгрөгийг',mul:1000},{u:'мл',acc:'мл-ийг',mul:5},{u:'литр',acc:'литрийг',mul:2},
+  {u:'кг',acc:'кг-ийг',mul:3},{u:'см',acc:'см-ийг',mul:4},{u:'г',acc:'г-ийг',mul:10}];
  var U=pick(UNITS);
  var decMode=rnd(0,1)===0;
- var t=[],disp=[];
+ var t=[],disp=[],i,j;
  if(decMode){
-  // тэрбумтын хэлбэр: ti = аравтын тоо *10
-  for(var i=0;i<3;i++){t.push(rnd(10,90));}
-  // дор хаяж нэг нь 10-д хуваагдахгүй байх (аравтын оронтой)
+  for(i=0;i<3;i++)t.push(rnd(10,90));
   if(t[0]%10===0&&t[1]%10===0&&t[2]%10===0)t[rnd(0,2)]+=rnd(1,9);
-  for(var j=0;j<3;j++)disp.push(decStr(t[j]/10,2));
+  for(j=0;j<3;j++)disp.push(decStr(t[j]/10,2));
  }else{
-  for(var a=0;a<3;a++){t.push(rnd(1,9)*10);disp.push(''+(t[a]/10));}
+  for(i=0;i<3;i++){t.push(rnd(1,9)*10);disp.push(''+(t[i]/10));}
  }
  var r=redRatio3(t[0],t[1],t[2]);
  var s=r[0]+r[1]+r[2];
@@ -353,139 +653,404 @@ function g_divideByRatio3(){
  var Q=s*u;
  if(Q<1000||Q>3000000)return null;
  var parts=[r[0]*u,r[1]*u,r[2]*u];
- var qq='$'+Q+'$ '+U.u+'-ийг $'+disp[0]+':'+disp[1]+':'+disp[2]+'$ харьцаагаар хуваа. Хэсэг тус бүрийг ол.';
  var ans='';
  if(decMode){
   var mid=(t[0]===r[0]&&t[1]===r[1]&&t[2]===r[2])?'':('='+t[0]+':'+t[1]+':'+t[2]);
-  ans+='Эхлээд бүхэл тоон харьцаа болгоно: $'+disp[0]+':'+disp[1]+':'+disp[2]+mid+'='+r[0]+':'+r[1]+':'+r[2]+'$. ';
+  ans+='Бүхэл тоон харьцаанд шилжүүлбэл $'+disp[0]+':'+disp[1]+':'+disp[2]+mid+'='+r[0]+':'+r[1]+':'+r[2]+'$. ';
  }
- ans+='Нийт $'+r[0]+'+'+r[1]+'+'+r[2]+'='+s+'$ хэсэг. 1 хэсэг $='+Q+':'+s+'='+u+'$ '+U.u+'. Хэсгүүд: $'+parts[0]+',\\ '+parts[1]+',\\ '+parts[2]+'$ '+U.u+'.';
- return {q:qq,a:ans,key:'dr3:'+Q+':'+r.join(':')+':'+U.u+':'+decMode,nv:parts[0],
-  chk:{Q:Q,r:r,parts:parts}};
+ ans+='Нийт $'+r[0]+'+'+r[1]+'+'+r[2]+'='+s+'$ хэсэг, $1$ хэсэг $='+Q+':'+s+'='+u+'$. Хэсгүүд: $'+parts[0]+',\\ '+parts[1]+',\\ '+parts[2]+'$ '+U.u+'.';
+ return {q:'$'+Q+'$ '+U.acc+' $'+disp[0]+':'+disp[1]+':'+disp[2]+'$ харьцаатай',a:ans,
+  key:'dr3:'+Q+':'+r.join(':')+':'+U.u+':'+decMode,nv:parts[0],chk:{Q:Q,r:r,parts:parts}};
 }
 
+// Дасгал 9 (б,д,е), 11: нэгж хөрвүүлэлт шаардсан хуваалт
+function g_divideRatioUnitConv(){
+ var UN=[
+  {big:'цаг',acc:'цагийг',small:'минут',ins:'минутаар',f:60,mod:30,lo:60,hi:720},
+  {big:'га',acc:'га-г',small:'м$^2$',ins:'м$^2$-аар',f:10000,mod:100,lo:800,hi:60000},
+  {big:'тонн',acc:'тонныг',small:'кг',ins:'кг-аар',f:1000,mod:100,lo:500,hi:20000},
+  {big:'км',acc:'км-ийг',small:'м',ins:'м-ээр',f:1000,mod:100,lo:500,hi:20000},
+  {big:'литр',acc:'литрийг',small:'мл',ins:'мл-ээр',f:1000,mod:100,lo:500,hi:20000},
+  {big:'кг',acc:'кг-ийг',small:'г',ins:'граммаар',f:1000,mod:100,lo:500,hi:20000}
+ ];
+ var U=pick(UN);
+ var three=rnd(0,1)===0;
+ var r=three?randRatio3():coprimePair([2,3,4,5,6,7,8,9,11,13]);
+ if(!r)return null;
+ var s=0,i;for(i=0;i<r.length;i++)s+=r[i];
+ if(s<4||s>25)return null;
+ var base=U.mod/gcd(s,U.mod);
+ var step=s*base;
+ var mlo=Math.ceil(U.lo/step),mhi=Math.floor(U.hi/step);
+ if(mhi<mlo)return null;
+ var m=rnd(mlo,mhi);
+ var u=base*m;
+ var T=s*u;
+ var bigVal=T/U.f;
+ if(bigVal<0.05||bigVal>60)return null;
+ var bs=decStr(bigVal,4);
+ var parts=[];for(i=0;i<r.length;i++)parts.push(r[i]*u);
+ var qq='$'+bs+'$ '+U.acc+' $'+r.join(':')+'$ харьцаатай (хариуг '+U.ins+')';
+ var ans='$'+bs+'$ '+U.big+' $='+T+'$ '+U.small+'. Нийт $'+r.join('+')+'='+s+'$ хэсэг, $1$ хэсэг $='+T+':'+s+'='+u+'$. '+
+  'Хэсгүүд: $'+parts.join(',\\ ')+'$ '+U.small+'.';
+ return {q:qq,a:ans,key:'druc:'+U.big+':'+T+':'+r.join(':'),nv:parts[0],
+  chk:{f:U.f,T:T,r:r,s:s,u:u,parts:parts,bigVal:bigVal}};
+}
+
+// Жишээ 6: 1.8 м урттай модыг 5:3:2 харьцаатай хөрөөджээ (зурагтай)
+function g_stickDivide(){
+ var OBJ=[{n:'модыг',v:'хөрөөджээ'},{n:'төмөр туйваныг',v:'таслажээ'},{n:'олсыг',v:'тайрчээ'},{n:'утсыг',v:'хуваажээ'},{n:'хавтанг',v:'зүсжээ'}];
+ var O=pick(OBJ);
+ var r=randRatio3();if(!r)return null;
+ var s=r[0]+r[1]+r[2];
+ if(s<5||s>22)return null;
+ var base=10/gcd(s,10);
+ var step=s*base;
+ var mlo=Math.ceil(120/step),mhi=Math.floor(720/step);
+ if(mhi<mlo)return null;
+ var u=base*rnd(mlo,mhi);
+ var T=s*u;
+ if(T%10!==0)return null;
+ var Ms=decStr(T/100,3);
+ var parts=[r[0]*u,r[1]*u,r[2]*u];
+ var qq='$'+Ms+'$ м урттай '+O.n+' $'+r.join(':')+'$ харьцаатай '+O.v+'. Хэсэг тус бүрийн уртыг см-ээр ол.';
+ var ans='$'+Ms+'$ м $='+T+'$ см. Нийт $'+r.join('+')+'='+s+'$ хэсэг, $1$ хэсэг $='+T+':'+s+'='+u+'$ см. '+
+  'Хэсгүүд: $'+parts.join(',\\ ')+'$ см. Шалгавал $'+parts.join('+')+'='+T+'$ см.';
+ return {q:qq,a:ans,fig:barParts(r,Ms+' метр'),key:'stk:'+O.n+':'+T+':'+r.join(':'),nv:parts[0],
+  chk:{T:T,r:r,s:s,u:u,parts:parts}};
+}
+
+// Дасгал 1: Гурвалжны өнцгүүд 5:6:4 харьцаатай бол өнцөг тус бүрийг ол
+function g_angleRatioTriangle(){
+ var s=pick([6,9,10,12,15,18,20,30,36]);
+ var u=180/s;
+ var minPart=Math.ceil(20/u);
+ var r=tupleWithSum(3,s,minPart);
+ if(!r)return null;
+ var ang=[r[0]*u,r[1]*u,r[2]*u];
+ var i;for(i=0;i<3;i++){if(ang[i]<20||ang[i]>140||ang[i]%1!==0)return null;}
+ var qq='Гурвалжны өнцгүүд $'+r.join(':')+'$ харьцаатай.';
+ var ans='Нийт $'+r.join('+')+'='+s+'$ хэсэг, $1$ хэсэг $=180^\\circ:'+s+'='+u+'^\\circ$. '+
+  'Өнцгүүд: $'+ang[0]+'^\\circ,\\ '+ang[1]+'^\\circ,\\ '+ang[2]+'^\\circ$. Шалгавал нийлбэр $=180^\\circ$.';
+ return {q:qq,a:ans,key:'art:'+r.join(':'),nv:ang[0],chk:{r:r,s:s,u:u,ang:ang,sum:180}};
+}
+
+// Дасгал 2: Дөрвөн өнцөгтийн өнцгүүд 1:5:2:4 харьцаатай бол өнцөг тус бүрийг ол
+function g_angleRatioQuad(){
+ var s=pick([8,9,10,12,15,18,20,24,30,36,40]);
+ var u=360/s;
+ var minPart=Math.ceil(20/u);
+ var r=tupleWithSum(4,s,minPart);
+ if(!r)return null;
+ var ang=[r[0]*u,r[1]*u,r[2]*u,r[3]*u];
+ var i;for(i=0;i<4;i++){if(ang[i]<20||ang[i]>170||ang[i]%1!==0)return null;}
+ var qq='Дөрвөн өнцөгтийн өнцгүүд $'+r.join(':')+'$ харьцаатай.';
+ var ans='Нийт $'+r.join('+')+'='+s+'$ хэсэг, $1$ хэсэг $=360^\\circ:'+s+'='+u+'^\\circ$. '+
+  'Өнцгүүд: $'+ang[0]+'^\\circ,\\ '+ang[1]+'^\\circ,\\ '+ang[2]+'^\\circ,\\ '+ang[3]+'^\\circ$. Шалгавал нийлбэр $=360^\\circ$.';
+ return {q:qq,a:ans,key:'arq:'+r.join(':'),nv:ang[0],chk:{r:r,s:s,u:u,ang:ang,sum:360}};
+}
+
+// Дасгал 18 (а): харьцаа ба нийлбэр / ялгавар
 function g_findFromSumDiff(){
  var pr=coprimePair([2,3,4,5,6,7,8,9,11,13]);if(!pr)return null;
  var a=pr[0],b=pr[1];
- var t=rnd(4,40);
+ var t=rnd(4,60);
  var useSum=rnd(0,1)===0;
- var n1=a*t,n2=b*t;
- var qq,ans,S,nv;
+ var n1=a*t,n2=b*t,S,ans;
+ if(n1>900||n2>900)return null;
  if(useSum){
   S=n1+n2;
-  qq='Хоёр тооны харьцаа $'+a+':'+b+'$, нийлбэр нь $'+S+'$ бол тоонуудыг ол.';
-  ans='Нийт $'+a+'+'+b+'='+(a+b)+'$ хэсэг. 1 хэсэг $='+S+':'+(a+b)+'='+t+'$. Тоонууд: $'+a+'\\cdot'+t+'='+n1+'$ ба $'+b+'\\cdot'+t+'='+n2+'$.';
+  ans='Нийт $'+a+'+'+b+'='+(a+b)+'$ хэсэг, $1$ хэсэг $='+S+':'+(a+b)+'='+t+'$. Тоонууд: $'+n1+'$ ба $'+n2+'$.';
+  return {q:'Хоёр тооны харьцаа $'+a+':'+b+'$, нийлбэр нь $'+S+'$ бол тоонуудыг ол.',a:ans,
+   key:'fsd:'+a+':'+b+':'+t+':s',nv:n1,chk:{a:a,b:b,n1:n1,n2:n2,S:S,useSum:true}};
  }else{
   if(b<=a)return null;
   S=n2-n1;
-  qq='Хоёр тооны харьцаа $'+a+':'+b+'$, ялгавар нь $'+S+'$ бол тоонуудыг ол.';
-  ans='Хэсгийн зөрүү $'+b+'-'+a+'='+(b-a)+'$. 1 хэсэг $='+S+':'+(b-a)+'='+t+'$. Тоонууд: $'+a+'\\cdot'+t+'='+n1+'$ ба $'+b+'\\cdot'+t+'='+n2+'$.';
+  ans='Хэсгийн зөрүү $'+b+'-'+a+'='+(b-a)+'$, $1$ хэсэг $='+S+':'+(b-a)+'='+t+'$. Тоонууд: $'+n1+'$ ба $'+n2+'$.';
+  return {q:'Хоёр тооны харьцаа $'+a+':'+b+'$, ялгавар нь $'+S+'$ бол тоонуудыг ол.',a:ans,
+   key:'fsd:'+a+':'+b+':'+t+':d',nv:n1,chk:{a:a,b:b,n1:n1,n2:n2,S:S,useSum:false}};
  }
- nv=n1;
- return {q:qq,a:ans,key:'fsd:'+a+':'+b+':'+t+':'+useSum,nv:nv,
-  chk:{a:a,b:b,n1:n1,n2:n2,S:S,useSum:useSum}};
 }
 
+// Дасгал 18: 7:13 харьцаатай хоёр тоо. а) нийлбэр 45 б) ялгавар 51.6
+function g_sumDiffDecimal(){
+ var pr=coprimePair([3,4,5,7,8,9,11,13]);if(!pr)return null;
+ var a=Math.min(pr[0],pr[1]),b=Math.max(pr[0],pr[1]);
+ var d=b-a,s=a+b;
+ var t1=rnd(3,25);
+ var S=s*t1,x1=a*t1,y1=b*t1;
+ var X=rnd(21,180);                        // t2 = X/10
+ var Dn=d*X;                                // аравтаар
+ if(Dn%10===0)return null;                  // ядаж нэг аравтын орон гартал
+ var Ds=decStr(Dn/10,3);
+ var x2s=decStr(a*X/10,3),y2s=decStr(b*X/10,3);
+ if(S>900||b*X/10>900)return null;
+ var qq='Харьцаа нь $'+a+':'+b+'$ байх хоёр тоо өгөв. а) Нийлбэр нь $'+S+'$ б) Ялгавар нь $'+Ds+'$ бол эдгээр тоог тус тус ол.';
+ var ans='а) Нийт $'+a+'+'+b+'='+s+'$ хэсэг, $1$ хэсэг $='+S+':'+s+'='+t1+'$; тоонууд $'+x1+'$ ба $'+y1+'$. '+
+  'б) Хэсгийн зөрүү $'+b+'-'+a+'='+d+'$, $1$ хэсэг $='+Ds+':'+d+'='+decStr(X/10,3)+'$; тоонууд $'+x2s+'$ ба $'+y2s+'$.';
+ return {q:qq,a:ans,key:'sdd:'+a+':'+b+':'+t1+':'+X,nv:x1,
+  chk:{a:a,b:b,s:s,d:d,t1:t1,X:X,S:S,x1:x1,y1:y1,Dn:Dn}};
+}
+
+// Дасгал 17: Зуурмагт цемент, элс, ус 3:3:1.2 харьцаатай ордог
+function g_mortarMulti(){
+ var CTX=[
+  {n:'зуурмаг',c:['цемент','элс','ус'],u:'кг'},
+  {n:'бетон',c:['цемент','хайрга','ус'],u:'кг'},
+  {n:'тэжээл',c:['эрдэнэ шиш','хивэг','шохой'],u:'кг'},
+  {n:'будаг',c:['пигмент','уусгагч','наалдуулагч'],u:'кг'}
+ ];
+ var C=pick(CTX);
+ var d0=rnd(2,6),d1=rnd(2,6),d2t=rnd(6,28);
+ if(d2t%10===0)return null;
+ var I=[d0*10,d1*10,d2t];
+ var g=gcdArr(I);
+ var r=[I[0]/g,I[1]/g,I[2]/g];
+ var s=r[0]+r[1]+r[2];
+ if(s<6||s>40)return null;
+ var klo=Math.ceil(60/s),khi=Math.floor(600/s);
+ if(khi-klo<4)return null;
+ var ks=[],tries=0;
+ while(ks.length<3&&tries++<80){var k=rnd(klo,khi);if(ks.indexOf(k)<0)ks.push(k);}
+ if(ks.length<3)return null;
+ ks.sort(function(p,q){return p-q;});
+ var Ts=ks.map(function(k){return s*k;});
+ var cem=ks.map(function(k){return r[0]*k;});
+ var disp=[''+d0,''+d1,decStr(d2t/10,2)];
+ var qq=cap(C.n)+' бэлтгэхэд '+C.c[0]+', '+C.c[1]+', '+C.c[2]+' $'+disp.join(':')+'$ харьцаатай ордог. '+
+  'а) $'+Ts[0]+'$ '+C.u+' б) $'+Ts[1]+'$ '+C.u+' в) $'+Ts[2]+'$ '+C.u+' '+C.n+' бэлтгэхэд хэдэн '+C.u+' '+C.c[0]+' орох вэ?';
+ var ans='Бүхэл тоон харьцаа: $'+disp.join(':')+'='+I.join(':')+'='+r.join(':')+'$, нийт $'+s+'$ хэсэг. '+
+  cap(C.c[0])+' нь нийтийн $\\dfrac{'+r[0]+'}{'+s+'}$. '+
+  'а) $'+Ts[0]+'\\cdot\\dfrac{'+r[0]+'}{'+s+'}='+cem[0]+'$ '+C.u+' '+
+  'б) $'+cem[1]+'$ '+C.u+' в) $'+cem[2]+'$ '+C.u+'.';
+ return {q:qq,a:ans,key:'mrt:'+C.n+':'+r.join(':')+':'+Ts.join(':'),nv:cem[0],
+  chk:{I:I,r:r,s:s,Ts:Ts,cem:cem}};
+}
+
+// Дасгал 15: 72 см периметртэй тэгш өнцөгтийн урт нь өргөнөөсөө 12 см-ээр их
 function g_rectRatioPerimeter(){
- var w=rnd(6,22);
- var d=2*rnd(1,10);
+ var w=rnd(6,30);
+ var d=2*rnd(1,12);
  var l=w+d;
  var half=l+w;
  if(half%2)return null;
  var P=2*half;
- if(P<40||P>120)return null;
+ if(P<40||P>180)return null;
  var area=l*w;
  var r1=redRatio2(l,w);
  var r2=redRatio2(P,area);
  var qq='$'+P+'$ см периметртэй тэгш өнцөгтийн урт нь өргөнөөсөө $'+d+'$ см-ээр их. '+
   'а) Урт ба өргөний харьцааг ол. б) Периметр ба талбайн харьцааг ол.';
- var ans='Хагас периметр $'+P+':2='+half+'$ (урт+өргөн). Өргөн $w=\\dfrac{'+half+'-'+d+'}{2}='+w+'$ см, урт $l='+w+'+'+d+'='+l+'$ см. '+
-  'а) $l:w='+l+':'+w+'='+r1[0]+':'+r1[1]+'$. б) Талбай $='+l+'\\cdot'+w+'='+area+'$ см$^2$; периметр:талбай $='+P+':'+area+'='+r2[0]+':'+r2[1]+'$.';
- return {q:qq,a:ans,key:'rrp:'+P+':'+d,nv:area,
-  chk:{P:P,d:d,l:l,w:w,area:area,r1:r1,r2:r2}};
+ var ans='Хагас периметр $'+P+':2='+half+'$ см. Өргөн $='+'\\dfrac{'+half+'-'+d+'}{2}='+w+'$ см, урт $='+w+'+'+d+'='+l+'$ см. '+
+  'а) $'+l+':'+w+'='+r1[0]+':'+r1[1]+'$. б) Талбай $='+l+'\\cdot '+w+'='+area+'$ см$^2$, $'+P+':'+area+'='+r2[0]+':'+r2[1]+'$.';
+ return {q:qq,a:ans,key:'rrp:'+P+':'+d,nv:area,chk:{P:P,d:d,l:l,w:w,area:area,r1:r1,r2:r2}};
 }
 
-// ───────────────────────── 3.5 Шууд пропорционал хамаарал ─────────────────────────
+// Хайрцаг: параллелепипедийн урт, өргөн, өндөр 5:3:4 харьцаатай
+function g_boxDims(){
+ var r=randRatio3();if(!r)return null;
+ if(r[0]===r[1]&&r[1]===r[2])return null;
+ var NAMES=['урт','өргөн','өндөр'];
+ var UNIT=pick(['мм','см','дм','м']);
+ var idx=rnd(0,2);
+ var T=rnd(10,90);                     // нэг хэсэг = T/10
+ var given=r[idx]*T;                   // аравтаар
+ if(given>1200)return null;
+ var o1=(idx+1)%3,o2=(idx+2)%3;
+ var gs=decStr(given/10,3),us=decStr(T/10,3);
+ var a1=decStr(r[o1]*T/10,3),a2=decStr(r[o2]*T/10,3);
+ var qq='Тэгш өнцөгт параллелепипедийн урт, өргөн, өндөр $'+r.join(':')+'$ харьцаатай. '+
+  cap(NAMES[idx])+' нь $'+gs+'$ '+UNIT+' байхад '+NAMES[o1]+' ба '+NAMES[o2]+' нь ямар хэмжээтэй байх вэ?';
+ var ans='$1$ хэсэг $='+gs+':'+r[idx]+'='+us+'$ '+UNIT+'. '+
+  cap(NAMES[o1])+' $='+r[o1]+'\\cdot '+us+'='+a1+'$ '+UNIT+', '+NAMES[o2]+' $='+r[o2]+'\\cdot '+us+'='+a2+'$ '+UNIT+'.';
+ return {q:qq,a:ans,key:'bxd:'+r.join(':')+':'+idx+':'+T+':'+UNIT,nv:r[o1]*T/10,
+  chk:{r:r,idx:idx,T:T,given:given,o1:o1,o2:o2}};
+}
+
+// ═════════════════════ 3.5 Шууд пропорционал хамаарал ═════════════════════
+// Хуудас 50-ын оршил: ажлын хөлсний хүснэгтийг нөх
+function g_wageTable(){
+ var w1=rnd(10,40)*2000,w2=rnd(10,40)*2000;
+ if(w1===w2)return null;
+ var head=['Хугацаа','30 мин','45 мин','1 цаг','2 цаг','5 цаг','8 цаг'];
+ var rows=[
+  ['I ажилчин','','',nfmt(w1),'','',''],
+  ['II ажилчин','','',nfmt(w2),'','','']
+ ];
+ var f=[0.5,0.75,1,2,5,8];
+ var v1=f.map(function(x){return w1*x;}),v2=f.map(function(x){return w2*x;});
+ var qq='Хоёр ажилчны ажлын хөлсийг хүснэгтээр харуулав. Ажилчин бүрийн $1$ цагийн хөлс тогтмол бол хүснэгтийг нөх.';
+ var ans='I ажилчин: $'+v1[0]+',\\ '+v1[1]+',\\ '+v1[2]+',\\ '+v1[3]+',\\ '+v1[4]+',\\ '+v1[5]+'$ ₮. '+
+  'II ажилчин: $'+v2[0]+',\\ '+v2[1]+',\\ '+v2[2]+',\\ '+v2[3]+',\\ '+v2[4]+',\\ '+v2[5]+'$ ₮.';
+ return {q:qq,a:ans,fig:tableSVG(head,rows),key:'wgt:'+w1+':'+w2,nv:v1[0],
+  chk:{w1:w1,w2:w2,v1:v1,v2:v2,f:f}};
+}
+
+// Жишээ 8, Дасгал 20: 25 минутад 650 аяга → 4 цагт хэдэн аяга?
 function g_directPropRate(){
- var t1=pick([25,40,45,50]);
- var rate=rnd(10,40);
+ var t1=pick([25,30,36,40,45,50]);
+ var rate=rnd(8,40);
  var N=t1*rate;
- var t2=rnd(2,8);
- var UNITS=['аяга','хуудас','талх','ширхэг','боов'];
+ var t2=rnd(2,9);
+ var UNITS=['аяга','хуудас','талх','ширхэг','боов','хайрцаг'];
  var U=pick(UNITS);
  var mins=t2*60;
- var ans=rate*mins;
- var qq='Нэгэн төхөөрөмж $'+t1+'$ минутад $'+N+'$ '+U+' хийдэг бол $'+t2+'$ цагт хэдэн '+U+' хийх вэ?';
- var sol='1 минутад $'+N+':'+t1+'='+rate+'$ '+U+'. $'+t2+'$ цаг $='+mins+'$ минут. Хариу $'+rate+'\\cdot'+mins+'='+ans+'$ '+U+'.';
- return {q:qq,a:sol,key:'dpr:'+t1+':'+N+':'+t2+':'+U,nv:ans,chk:{t1:t1,N:N,t2:t2,ans:ans}};
+ var ansv=rate*mins;
+ var qq='Автомат машин $'+t1+'$ минутад $'+N+'$ '+U+' хийдэг бол $'+t2+'$ цагт хэдэн '+U+' хийх вэ?';
+ var sol='$1$ минутад $'+N+':'+t1+'='+rate+'$ '+U+'. $'+t2+'$ цаг $='+mins+'$ минут, хариу $'+rate+'\\cdot '+mins+'='+ansv+'$ '+U+'.';
+ return {q:qq,a:sol,key:'dpr:'+t1+':'+N+':'+t2+':'+U,nv:ansv,chk:{t1:t1,N:N,t2:t2,ans:ansv}};
 }
 
-function g_directPropPrice(){
+// Дасгал 22: 8 цагт 12 тонн → 60 цагт? / 50 минутад 180 хуудас → 4 цагт?
+function g_rateHourMin(){
+ var HH=[{n:'Тариа хураах машин',u:'тонн улаан буудай',v1:'хураадаг',v2:'хураах'},
+  {n:'Уурхайн машин',u:'тонн нүүрс',v1:'олборлодог',v2:'олборлох'},
+  {n:'Насос',u:'куб метр ус',v1:'шахдаг',v2:'шахах'}];
+ var MH=[{n:'Хувилагч машин',u:'хуудас'},{n:'Талхны цех',u:'ширхэг талх'},{n:'Савлагааны шугам',u:'хайрцаг'}];
+ if(rnd(0,1)===0){
+  var O=pick(HH);
+  var t1=rnd(4,12),N=rnd(6,36);
+  var st=t1/gcd(N,t1);
+  var mlo=Math.ceil(15/st),mhi=Math.floor(96/st);
+  if(mhi<mlo)return null;
+  var t2=st*rnd(mlo,mhi);
+  if(t2===t1)return null;
+  var A=N*t2/t1;
+  if(A%1!==0||A>900)return null;
+  return {q:O.n+' $'+t1+'$ цагт $'+N+'$ '+O.u+' '+O.v1+' бол $'+t2+'$ цагт хэчнээн '+O.u+' '+O.v2+' вэ?',
+   a:'$'+t1+':'+N+'='+t2+':x$, $x=\\dfrac{'+N+'\\cdot '+t2+'}{'+t1+'}='+A+'$ '+O.u+'.',
+   key:'rhm:h:'+O.n+':'+t1+':'+N+':'+t2,nv:A,chk:{mode:'hh',t1:t1,N:N,t2:t2,A:A}};
+ }else{
+  var P=pick(MH);
+  var m1=pick([25,30,36,40,45,50]);
+  var h2=pick([2,3,4,5,6]);
+  var T2=h2*60;
+  var base=m1/gcd(m1,T2);
+  var N2=base*rnd(Math.ceil(40/base),Math.floor(360/base));
+  if(!N2||N2<40||N2>360)return null;
+  var A2=N2*T2/m1;
+  if(A2%1!==0||A2>4000)return null;
+  return {q:P.n+' $'+m1+'$ минутад $'+N2+'$ '+P.u+' үйлдвэрлэдэг бол $'+h2+'$ цагт хэчнээн '+P.u+' үйлдвэрлэх вэ?',
+   a:'$'+h2+'$ цаг $='+T2+'$ минут. $'+m1+':'+N2+'='+T2+':x$, $x=\\dfrac{'+N2+'\\cdot '+T2+'}{'+m1+'}='+A2+'$ '+P.u+'.',
+   key:'rhm:m:'+P.n+':'+m1+':'+N2+':'+h2,nv:A2,chk:{mode:'mh',t1:m1,N:N2,T2:T2,A:A2}};
+ }
+}
+
+// Жишээ 8-ын урвуу: өгсөн хэмжээг гүйцэтгэхэд хэдэн минут шаардах вэ?
+function g_rateInverseTime(){
+ var OBJ=[{n:'Автомат шугам',u:'ширхэг сав'},{n:'Талхны цех',u:'ширхэг талх'},{n:'Хэвлэх машин',u:'хуудас'},{n:'Савлагааны машин',u:'хайрцаг'}];
+ var O=pick(OBJ);
+ var t1=pick([25,30,36,40,45,50]);
+ var N=rnd(8,60);
+ if(N===t1)return null;
+ var base=N/gcd(N,t1);
+ var mlo=3,mhi=Math.floor(900/base);
+ if(mhi<mlo+2)return null;
+ var M=base*rnd(mlo,mhi);
+ if(M<50||M>900)return null;
+ var T=t1*M/N;
+ if(T%1!==0||T<30||T>600)return null;
+ var extra=(T%60===0)?(' буюу $'+(T/60)+'$ цаг'):'';
+ var qq=O.n+' $'+t1+'$ минутад $'+N+'$ '+O.u+' үйлдвэрлэдэг. $'+M+'$ '+O.u+' үйлдвэрлэхэд хэдэн минут зарцуулах вэ?';
+ var ans='Хугацаа : тоо $='+t1+':'+N+'$. $'+t1+':'+N+'=x:'+M+'$, $x=\\dfrac{'+t1+'\\cdot '+M+'}{'+N+'}='+T+'$ минут'+extra+'.';
+ return {q:qq,a:ans,key:'rit:'+O.n+':'+t1+':'+N+':'+M,nv:T,chk:{t1:t1,N:N,M:M,T:T}};
+}
+
+// Дасгал 21: 4 м хулдаас 35000₮ бол 8 м, 50 см, 80 см нь?
+function g_priceThree(){
+ var GOODS=[{g:'Шалны хулдаасны'},{g:'Даавууны'},{g:'Хашлагын торны'},{g:'Кабелийн'},{g:'Хивсэнцэрийн'}];
+ var G=pick(GOODS);
+ var unit=rnd(30,200)*100;
  var A=rnd(2,8);
- var unit=rnd(5,90)*100;   // 1 м-ийн үнэ (100-д хуваагдана)
+ var C=unit*A;
+ var Bm=rnd(6,20);
+ if(Bm===A)return null;
+ var CM=shuffle([20,40,50,60,80]);
+ var c1=CM[0],c2=CM[1];
+ var p1=unit*Bm,p2=unit*c1/100,p3=unit*c2/100;
+ if(p2%1!==0||p3%1!==0)return null;
+ var qq=G.g+' $'+A+'$ м нь $'+C+'$₮ үнэтэй бол а) $'+Bm+'$ м б) $'+c1+'$ см в) $'+c2+'$ см нь ямар үнэтэй болох вэ?';
+ var ans='$1$ м-ийн үнэ $='+C+':'+A+'='+unit+'$₮. а) $'+unit+'\\cdot '+Bm+'='+p1+'$₮ '+
+  'б) $'+c1+'$ см $='+decStr(c1/100,2)+'$ м, $'+unit+'\\cdot '+decStr(c1/100,2)+'='+p2+'$₮ '+
+  'в) $'+c2+'$ см $='+decStr(c2/100,2)+'$ м, $'+unit+'\\cdot '+decStr(c2/100,2)+'='+p3+'$₮.';
+ return {q:qq,a:ans,key:'pt3:'+A+':'+unit+':'+Bm+':'+c1+':'+c2,nv:p1,
+  chk:{unit:unit,A:A,C:C,Bm:Bm,c1:c1,c2:c2,p1:p1,p2:p2,p3:p3}};
+}
+
+// Дасгал 21-ийн энгийн хувилбар: 1 нэгжийн үнэ → өөр урт
+function g_directPropPrice(){
+ var A=rnd(2,9);
+ var unit=rnd(5,120)*100;
  var C=unit*A;
  var cmMode=rnd(0,1)===0;
- var qq,sol,ans,keytail,bcm;
+ var qq,sol,ansv,keytail,bcm;
  if(cmMode){
-  var Bcm=pick([25,50,75,80]);
+  var Bcm=pick([20,25,40,50,60,75,80]);
+  if((unit*Bcm)%100!==0)return null;
   bcm=Bcm;
-  ans=unit*Bcm/100;
+  ansv=unit*Bcm/100;
   qq='$'+A+'$ метр даавуу $'+C+'$₮ бол $'+Bcm+'$ см даавуу хэдэн төгрөгийн үнэтэй вэ?';
-  sol='1 метрийн үнэ $'+C+':'+A+'='+unit+'$₮. $'+Bcm+'$ см $='+decStr(Bcm/100,2)+'$ м. Хариу $'+unit+'\\cdot'+decStr(Bcm/100,2)+'='+ans+'$₮.';
+  sol='$1$ метрийн үнэ $='+C+':'+A+'='+unit+'$₮. $'+Bcm+'$ см $='+decStr(Bcm/100,2)+'$ м, хариу $'+unit+'\\cdot '+decStr(Bcm/100,2)+'='+ansv+'$₮.';
   keytail='cm:'+Bcm;
  }else{
-  var Bm=rnd(2,12);
+  var Bm=rnd(3,18);
   if(Bm===A)return null;
   bcm=Bm*100;
-  ans=unit*Bm;
+  ansv=unit*Bm;
   qq='$'+A+'$ метр даавуу $'+C+'$₮ бол $'+Bm+'$ метр даавуу хэдэн төгрөгийн үнэтэй вэ?';
-  sol='1 метрийн үнэ $'+C+':'+A+'='+unit+'$₮. Хариу $'+unit+'\\cdot'+Bm+'='+ans+'$₮.';
+  sol='$1$ метрийн үнэ $='+C+':'+A+'='+unit+'$₮. Хариу $'+unit+'\\cdot '+Bm+'='+ansv+'$₮.';
   keytail='m:'+Bm;
  }
- return {q:qq,a:sol,key:'dpp:'+A+':'+unit+':'+keytail,nv:ans,chk:{unit:unit,A:A,C:C,ans:ans,bcm:bcm}};
+ return {q:qq,a:sol,key:'dpp:'+A+':'+unit+':'+keytail,nv:ansv,chk:{unit:unit,A:A,C:C,ans:ansv,bcm:bcm}};
 }
 
+// Дасгал 23: Багш ба сурагчийн тооны харьцаа 1:20
 function g_directPropRatioApply(){
- var k=pick([12,15,20,25]);
+ var k=pick([12,15,18,20,24,25]);
  var n=k*rnd(30,90);
  var m=rnd(20,60);
  var Xa=n/k,Yb=m*k;
- var qq='Багш ба сурагчийн тоны харьцаа $1:'+k+'$ байдаг. а) Сурагч $'+n+'$ байвал багш хэд байх вэ? б) Багш $'+m+'$ байвал сурагч хэд байх вэ?';
- var ans='а) Багш $='+n+':'+k+'='+Xa+'$. б) Сурагч $='+m+'\\cdot'+k+'='+Yb+'$.';
+ var qq='Сургуулийн багш ба сурагчийн тооны харьцаа $1:'+k+'$ байдаг. '+
+  'а) Сурагч $'+n+'$ байвал багш хэд байх вэ? б) Багш $'+m+'$ байвал сурагч хэд байх вэ?';
+ var ans='а) $1:'+k+'=x:'+n+'$, $x='+n+':'+k+'='+Xa+'$ багш. б) $1:'+k+'='+m+':y$, $y='+m+'\\cdot '+k+'='+Yb+'$ сурагч.';
  return {q:qq,a:ans,key:'dra:'+k+':'+n+':'+m,nv:Xa,chk:{k:k,n:n,m:m,Xa:Xa,Yb:Yb}};
 }
 
+// Дасгал 24: 24 ширхэг нарийн боовны орц
 function g_recipeScale(){
- var N0=pick([12,24,36]);
+ var N0=pick([12,24,36,48]);
  var gPer=rnd(15,40),jPer=rnd(3,12),cPer=rnd(8,25);
  var g0=gPer*N0,j0=jPer*N0,c0=cPer*N0;
- var N1=pick([6,8,12,18,24,30,36,40,48,60]);
+ var N1=pick([6,8,12,18,24,30,36,40,48,60,72]);
  if(N1===N0)return null;
  var g1=gPer*N1,j1=jPer*N1,c1=cPer*N1;
- var qq='$'+N0+'$ ширхэг боов хийхэд гурил $'+g0+'$ г, хатаасан жимс $'+j0+'$ г, тос $'+c0+'$ г орно. '+
+ var qq='$'+N0+'$ ширхэг нарийн боов хийхэд гурил $'+g0+'$ г, хатаасан жимс $'+j0+'$ г, цөцгийн тос $'+c0+'$ г орно. '+
   '$'+N1+'$ ширхэг боов хийхэд бүрэлдэхүүн тус бүр хэдэн грамм орох вэ?';
- var ans='Коэффициент $='+N1+':'+N0+'$. Гурил $'+g0+'\\cdot\\dfrac{'+N1+'}{'+N0+'}='+g1+'$ г, жимс $'+j1+'$ г, тос $'+c1+'$ г.';
+ var ans='$1$ боовонд гурил $'+g0+':'+N0+'='+gPer+'$ г, жимс $'+jPer+'$ г, тос $'+cPer+'$ г. '+
+  '$'+N1+'$ боовонд: гурил $'+g1+'$ г, жимс $'+j1+'$ г, тос $'+c1+'$ г.';
  return {q:qq,a:ans,key:'rcp:'+N0+':'+gPer+':'+jPer+':'+cPer+':'+N1,nv:g1,
   chk:{N0:N0,N1:N1,g0:g0,j0:j0,c0:c0,g1:g1,j1:j1,c1:c1}};
 }
 
+// Дасгал 13: 25 см лаа 12 минутад 20 см болжээ
 function g_candleBurn(){
- var L0=pick([20,24,25,30,36,40]);
- // L0-ийн хуваагч d (4..L0/2), L0/d>=2
- var divs=[];
- for(var dd=4;dd<=L0/2;dd++){if(L0%dd===0)divs.push(dd);}
+ var L0=pick([20,24,25,30,32,36,40,45]);
+ var divs=[],dd;
+ for(dd=3;dd<=L0/2;dd++){if(L0%dd===0)divs.push(dd);}
  if(!divs.length)return null;
  var d=pick(divs);
  var L1=L0-d;
  if(L1<=0)return null;
- var t=rnd(6,20);
+ var t=rnd(6,24);
  var total=(L0/d)*t;
- if(total<20||total>200)return null;
- var qq='$'+L0+'$ см урттай лаа асаагаад $'+t+'$ минут болоход $'+L1+'$ см урт болжээ. Бүтэн лаа хэдэн минутад асаж дуусах вэ?';
- var ans='$'+t+'$ минутад $'+L0+'-'+L1+'='+d+'$ см шатжээ. Бүтэн $'+L0+'$ см шатах хугацаа $=\\dfrac{'+L0+'\\cdot'+t+'}{'+d+'}='+total+'$ минут.';
+ if(total<20||total>300)return null;
+ var qq='$'+L0+'$ см урттай лаа асаагаад $'+t+'$ минут болсны дараа $'+L1+'$ см урттай болжээ. '+
+  'Бүтэн лаа ямар хугацаанд асаж дуусах вэ?';
+ var ans='$'+t+'$ минутад $'+L0+'-'+L1+'='+d+'$ см шатжээ. $'+d+':'+t+'='+L0+':x$, '+
+  '$x=\\dfrac{'+L0+'\\cdot '+t+'}{'+d+'}='+total+'$ минут.';
  return {q:qq,a:ans,key:'cb:'+L0+':'+d+':'+t,nv:total,chk:{L0:L0,L1:L1,t:t,d:d,total:total}};
 }
-var WSPEC={"title":"Харьцаагаар хуваах","sub":"Харьцаагаар хуваах · III бүлэг · 7-р анги","rule":"<b>Санамж:</b> Хэмжээг $m:n$ харьцаагаар хуваахдаа нийт хэсгийн тоо $m+n$-ийг олж, нэг хэсэгт ногдох хэмжээг $\\dfrac{S}{m+n}$ гэж тооцоод харьцааны гишүүн тус бүрээр үржүүлнэ. Гурван гишүүнт $m:n:k$ харьцаанд ч мөн адил.","ref":"","tasks":[{"label":"Хоёр гишүүнт харьцаагаар хуваа.","fn":"g_divideByRatio2","cap":4},{"label":"Гурван гишүүнт харьцаагаар хуваа.","fn":"g_divideByRatio3","cap":3},{"label":"Нийлбэр, ялгавраар тоонуудыг ол.","fn":"g_findFromSumDiff","cap":3},{"label":"Тэгш өнцөгтийн хэмжээг ол.","fn":"g_rectRatioPerimeter","cap":2}]};
+var WSPEC={"title":"Харьцаагаар хуваах-1","sub":"Хэмжээг харьцаагаар хуваах · III бүлэг · 7-р анги","rule":"<b>Санамж:</b> Хэмжээг $m:n$ харьцаагаар хуваахдаа нийт хэсгийн тоо $m+n$-ийг олж, нэг хэсэгт ногдох хэмжээг $\\dfrac{S}{m+n}$ гэж тооцоод харьцааны гишүүн тус бүрээр үржүүлнэ. Гурван гишүүнт $m:n:k$ харьцаанд ч мөн адил.","ref":"","tasks":[{"label":"Хэмжээг өгсөн харьцаагаар хуваа.","fn":"g_divideByRatio2","cap":6,"cols":2,"wk":12},{"label":"Зургийг ашиглан хэсэг тус бүрийн уртыг ол.","fn":"g_stickDivide","cap":3,"cols":1,"wk":20},{"label":"Хэмжээг өгсөн харьцаагаар хуваа.","fn":"g_divideByRatio3","cap":5,"cols":1,"wk":18},{"label":"Тоонуудыг ол.","fn":"g_findFromSumDiff","cap":3,"cols":1,"wk":20},{"label":"Өнцөг тус бүрийн хэмжээг ол.","fn":"g_angleRatioTriangle","cap":3,"cols":1,"wk":20}]};
 
 function toggleAns(){var el=document.getElementById('answers');if(el)el.style.display=document.getElementById('sa').checked?'block':'none';}
 function gen(fn){for(var t=0;t<700;t++){var f=fn();if(f)return f;}return null;}
@@ -494,16 +1059,16 @@ function probeH(sheet){var pr=sheet.cloneNode(true);pr.removeAttribute('id');pr.
 function relabel(sheet){var blocks=sheet.querySelectorAll('.grid'),map={};for(var g=0;g<blocks.length;g++){var qs2=blocks[g].querySelectorAll('.q');for(var i=0;i<qs2.length;i++){var lt=LET[i]||('#'+(i+1));var ql=qs2[i].querySelector('.ql');if(ql)ql.textContent=lt+')';map[qs2[i].getAttribute('data-k')]=(g+1)+lt+')';}}
   var as=sheet.querySelectorAll('#answers .a');for(var j=0;j<as.length;j++){var an=as[j].querySelector('.an');if(an)an.textContent=map[as[j].getAttribute('data-k')]||'';}}
 function trimToFit(sheet,target){var guard=0,h=probeH(sheet);while(h>target&&guard++<90){var blocks=sheet.querySelectorAll('.grid'),best=-1,bestN=-1;for(var s=blocks.length-1;s>=0;s--){var n=blocks[s].querySelectorAll('.q').length;if(n>bestN&&n>2){bestN=n;best=s;}}if(best<0)break;var qs2=blocks[best].querySelectorAll('.q');var last=qs2[qs2.length-1],k=last.getAttribute('data-k');var ans=sheet.querySelector('#answers .a[data-k="'+k+'"]');if(ans)ans.parentNode.removeChild(ans);last.parentNode.removeChild(last);relabel(sheet);h=probeH(sheet);}}
-var TASKS=WSPEC.tasks.map(function(t){return {label:t.label, fn:eval(t.fn), cap:t.cap};});
+var TASKS=WSPEC.tasks.map(function(t){return {label:t.label, fn:eval(t.fn), cap:t.cap, cols:t.cols, wk:t.wk};});
 function genPool(){var P=TASKS.map(function(){return[];});var seen={};TASKS.forEach(function(t,i){var c=0,tr=0,need=t.cap+3;while(c<need&&tr<9000){tr++;var f=gen(t.fn);if(!f||seen[f.key])continue;seen[f.key]=1;P[i].push(f);c++;}});return P;}
 function build(){window.__POOL=genPool();layout();}
 function layout(){var WK=document.getElementById('sw').checked;var S=window.__POOL||(window.__POOL=genPool());window.__PROB=[];var K=0;
-  function block(arr,cap){var use=WK?arr.slice(0,cap):arr;return '<div class="grid">'+use.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});return '<div class="q" data-k="'+k+'"><div class="qh"><span class="ql"></span><span class="qm">'+f.q+'</span></div>'+(f.fig?'<div class="fig">'+f.fig+'</div>':'')+((WK&&!f.noWk)?'<div class="wk"></div>':'')+'</div>';}).join('')+'</div>';}
+  function block(arr,cap,tk){var use=WK?arr.slice(0,cap):arr;return '<div class="grid"'+(tk&&tk.cols?' style="grid-template-columns:repeat('+tk.cols+',1fr)"':'')+'>'+use.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});return '<div class="q" data-k="'+k+'"><div class="qh"><span class="ql"></span><span class="qm">'+f.q+'</span></div>'+(f.fig?'<div class="fig">'+f.fig+'</div>':'')+((WK&&!f.noWk)?'<div class="wk"'+(tk&&tk.wk?' style="height:'+tk.wk+'mm"':'')+'></div>':'')+'</div>';}).join('')+'</div>';}
   function ansAll(){return window.__PROB.map(function(p){return '<div class="a" data-k="'+p.k+'"><span class="an"></span>'+p.f.a+'</div>';}).join('');}
   var html='<div class="head"><h1>'+WSPEC.title+'</h1><div class="sub">'+WSPEC.sub+'</div></div>'
     +'<div class="meta"><span>Нэр: </span><span>Анги: </span><span>Огноо: </span></div>'
     +'<div class="rule">'+WSPEC.rule+'</div>'+(WSPEC.ref||'');
-  TASKS.forEach(function(t,i){html+='<div class="task">'+(i+1)+'. '+t.label+'</div>'+block(S[i],t.cap);});
+  TASKS.forEach(function(t,i){html+='<div class="task">'+(i+1)+'. '+t.label+'</div>'+block(S[i],t.cap,t);});
   html+='<div class="ans-page" id="answers"><h2>Хариу ба бодолт</h2><div class="ans-grid">'+ansAll()+'</div></div>';
   document.getElementById('sheet').innerHTML=html;
   window.WS_ITEMS=[];window.WS_TITLE=WSPEC.title;

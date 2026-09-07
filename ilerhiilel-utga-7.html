@@ -1,0 +1,1235 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Хялбарчилж утга олох (7-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<style>
+  :root{--purple:#7B52EE;--purple2:#A855F7;--ink:#1a1030;--soft:#7a7390}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:var(--ink);background:#eceaf3;padding:16px;line-height:1.5}
+  .bar{max-width:820px;margin:0 auto 14px;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
+  .btn{font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.6rem 1.3rem;font-size:.9rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2));box-shadow:0 6px 16px -6px rgba(123,82,238,.6)}
+  .btn:hover{filter:brightness(1.06)} .btn.refresh{background:linear-gradient(135deg,#16a34a,#22c55e)}
+  .bar label{font-weight:700;color:var(--purple);display:flex;align-items:center;gap:6px;font-size:.88rem}
+  .sheet{background:#fff;width:210mm;max-width:100%;min-height:297mm;margin:0 auto;padding:12mm 14mm;box-shadow:0 12px 44px -18px rgba(0,0,0,.35)}
+  .head{text-align:center;border-bottom:2.5px solid var(--purple);padding-bottom:7px;margin-bottom:7px}
+  .head h1{font-size:16px;color:#5a32d6;font-weight:800}.head .sub{font-size:11px;color:var(--soft);margin-top:2px}
+  .meta{display:flex;justify-content:space-between;font-size:11.5px;margin:8px 2px 10px}.meta span{border-bottom:1px dotted #b3a9cf;padding:0 26px 2px 4px}
+  .rule{font-size:11px;color:var(--soft);background:transparent;border-left:3px solid #d9cff5;border-radius:8px;padding:8px 12px;margin-bottom:11px}
+  .rule b{color:#5a32d6}
+  .task{font-weight:800;color:#5a32d6;font-size:12.5px;margin:9px 0 7px;border-left:4px solid var(--purple2);padding-left:9px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:11px 20px}
+  .q{break-inside:avoid;page-break-inside:avoid}
+  .qh{display:flex;gap:7px;align-items:baseline}.ql{font-weight:800;color:var(--purple);font-size:13px;min-width:22px}.qm{font-size:13px}
+  .fig{text-align:center;margin:4px 0}
+  .wk{border:1.1px solid #e2daf5;border-radius:7px;background:linear-gradient(#fff,#fbf9ff);height:16mm;margin-top:5px}
+  .ans-page{margin-top:9mm;border-top:2px dashed #ddd;padding-top:7mm}.ans-page h2{font-size:15px;color:#5a32d6;margin-bottom:10px}
+  .ans-grid{display:grid;grid-template-columns:1fr;gap:9px;font-size:12px}.ans-grid .a{padding-bottom:8px;border-bottom:1px dotted #e6e0f5}.ans-grid .an{color:var(--purple);font-weight:800;margin-right:5px}
+  #answers{display:none}
+  @media print{body{background:#fff;padding:0}.bar{display:none}.sheet{box-shadow:none;width:auto;min-height:auto;padding:0;margin:0}@page{size:A4;margin:11mm}.ans-page{break-before:page}}
+</style>
+</head>
+<body>
+<div class="bar">
+  <button class="btn refresh" onclick="build()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>Шинэ бодлого</button>
+  <label><input type="checkbox" id="sw" onchange="layout()" checked> Бодолтын зай</label>
+  <label><input type="checkbox" id="sa" onchange="toggleAns()"> Хариу хавсаргах</label>
+  <button class="btn" onclick="window.print()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>Хэвлэх / PDF</button>
+</div>
+<div class="sheet" id="sheet"></div>
+<script>
+// ══════════ g7core.js — 7-р ангийн нийтлэг хөдөлгүүр (бүх бүлэгт залгагдана) ══════════
+function rnd(a,b){return a+Math.floor(Math.random()*(b-a+1));}
+function nz(a,b){var v;do{v=rnd(a,b);}while(v===0);return v;}
+function pick(a){return a[rnd(0,a.length-1)];}
+function shuffle(a){a=a.slice();for(var i=a.length-1;i>0;i--){var j=rnd(0,i),t=a[i];a[i]=a[j];a[j]=t;}return a;}
+function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){var t=b;b=a%b;a=t;}return a||1;}
+function lcm(a,b){return Math.abs(a*b)/gcd(a,b);}
+function sgn(n){return n>=0?'+'+n:''+n;}                 // +5, -3 (тэмдэгтэй)
+function paren(n){return n<0?'('+n+')':''+n;}            // (-3), 5 (сөрөг бол хаалттай)
+// ── Анхны тоо, задаргаа ──
+function isPrime(n){n=Math.abs(n);if(n<2)return false;for(var i=2;i*i<=n;i++)if(n%i===0)return false;return true;}
+function primeFactors(n){n=Math.abs(n);var f=[],d=2;while(d*d<=n){while(n%d===0){f.push(d);n/=d;}d++;}if(n>1)f.push(n);return f;} // [2,2,3]
+function primeFactExp(n){var f=primeFactors(n),out=[],i=0;while(i<f.length){var p=f[i],e=0;while(i<f.length&&f[i]===p){e++;i++;}out.push({p:p,e:e});}return out;} // [{p:2,e:2},{p:3,e:1}]
+function pfTex(n){var pe=primeFactExp(n);return pe.map(function(x){return x.e===1?''+x.p:x.p+'^{'+x.e+'}';}).join('\\cdot ');} // 2^{2}\cdot3
+// ── Бүтэн квадрат/куб ──
+function isqrt(n){if(n<0)return null;var r=Math.round(Math.sqrt(n));return r*r===n?r:null;}       // төгс квадрат бол язгуур, үгүй бол null
+function icbrt(n){var s=n<0?-1:1;n=Math.abs(n);var r=Math.round(Math.cbrt(n));for(var k=r-1;k<=r+1;k++){if(k*k*k===n)return s*k;}return null;} // төгс куб бол куб язгуур, үгүй бол null
+// ── Бутархайн exact хөдөлгүүр ──
+function Fr(n,d){if(d<0){n=-n;d=-d;}var g=gcd(n,d)||1;return {n:n/g,d:d/g};}
+function fAdd(a,b){return Fr(a.n*b.d+b.n*a.d,a.d*b.d);}
+function fSub(a,b){return Fr(a.n*b.d-b.n*a.d,a.d*b.d);}
+function fMul(a,b){return Fr(a.n*b.n,a.d*b.d);}
+function fDiv(a,b){return Fr(a.n*b.d,a.d*b.n);}
+function fVal(a){return a.n/a.d;}
+function fTex(a){if(a.d===1)return ''+a.n;if(a.n<0)return '-\\dfrac{'+(-a.n)+'}{'+a.d+'}';return '\\dfrac{'+a.n+'}{'+a.d+'}';}
+function fMix(a){if(a.d===1)return ''+a.n;var neg=a.n<0,N=Math.abs(a.n),w=Math.floor(N/a.d),r=N%a.d;if(w===0)return (neg?'-':'')+'\\dfrac{'+r+'}{'+a.d+'}';if(r===0)return (neg?'-':'')+w;return (neg?'-':'')+w+'\\dfrac{'+r+'}{'+a.d+'}';}
+function pFr(a){var t=fMix(a);return a.n<0?'\\left('+t+'\\right)':t;}
+function frTeX(n,d){if(d===0)return null;if(d<0){n=-n;d=-d;}var g=gcd(n,d);n/=g;d/=g;if(d===1)return ''+n;if(n<0)return '-\\dfrac{'+(-n)+'}{'+d+'}';return '\\dfrac{'+n+'}{'+d+'}';}
+// ── Аравтын бутархай (урт хуваалт, үет илрүүлэх) ──
+function longDiv(n,d){var ip=Math.floor(n/d),rem=n%d,digits=[],seen={},idx=0,pStart=-1;
+ while(rem!==0){if(seen[rem]!==undefined){pStart=seen[rem];break;}seen[rem]=idx;rem*=10;digits.push(Math.floor(rem/d));rem%=d;idx++;if(idx>40)break;}
+ return {ip:ip,digits:digits,pStart:pStart};}
+function decLatex(fr){var neg=fr.n<0,r=longDiv(Math.abs(fr.n),fr.d),s=(neg?'-':'');
+ if(r.digits.length===0)return s+r.ip;
+ if(r.pStart<0)return s+r.ip+'.'+r.digits.join('');
+ var nonrep=r.digits.slice(0,r.pStart).join(''),rep=r.digits.slice(r.pStart).join('');
+ return s+r.ip+'.'+nonrep+'('+rep+')';}
+function decPlain(fr){var neg=fr.n<0,r=longDiv(Math.abs(fr.n),fr.d),s=(neg?'-':'');
+ if(r.digits.length===0)return s+r.ip;
+ if(r.pStart<0)return s+r.ip+'.'+r.digits.join('');
+ var nonrep=r.digits.slice(0,r.pStart).join(''),rep=r.digits.slice(r.pStart).join('');
+ return s+r.ip+'.'+nonrep+rep+rep+'…';}
+function repToFr(ip,nonrep,rep){var p=nonrep.length,q=rep.length;var Aint=nonrep===''?0:parseInt(nonrep,10);var ABint=parseInt((nonrep+rep)||'0',10);
+ var den=(Math.pow(10,q)-1)*Math.pow(10,p);var num=ABint-Aint;var frac=Fr(num,den);var whole=Fr(ip,1);return fAdd(whole,frac);}
+// ── Тоймлол ──
+function roundPlace(n,place){return Math.round(n/place)*place;}
+function roundDec(x,step){return Math.round(x/step)*step;}
+function fmtDec(x,dec){return x.toFixed(dec);}
+function sigRound(x,k){if(x===0)return {v:0,dec:0};var d=Math.floor(Math.log10(Math.abs(x)))+1;var p=k-d;var mag=Math.pow(10,p);var v=Math.round(x*mag)/mag;return {v:v,dec:Math.max(0,p)};}
+// ── Зэрэг форматлах ──
+function powClean(b,e){if(e===1)return ''+b;if(e===0)return '1';return b+'^{'+e+'}';}
+function powTex(bTex,e){if(e===1)return bTex;if(e===0)return '1';return bTex+'^{'+e+'}';}
+// ── Аравтын тоог хамгийн энгийн хэлбэрээр (0.50→0.5) ──
+function trimZeros(s){if(s.indexOf('.')<0)return s;s=s.replace(/0+$/,'');if(s.charAt(s.length-1)==='.')s=s.slice(0,-1);return s;}
+function decStr(x,maxdec){var s=x.toFixed(maxdec||6);return trimZeros(s);}
+// ── 2D координатын зураг ──
+function plane(opts){opts=opts||{};var W=200,H=200,pad=16,R=opts.xr||5,cx=W/2,cy=H/2,u=(W-2*pad)/(2*R);
+ function X(x){return (cx+x*u).toFixed(1);}function Y(y){return (cy-y*u).toFixed(1);}
+ var g='',i;
+ for(i=-R;i<=R;i++){g+='<line x1="'+X(i)+'" y1="'+Y(-R)+'" x2="'+X(i)+'" y2="'+Y(R)+'" stroke="#eef" stroke-width="1"/>';g+='<line x1="'+X(-R)+'" y1="'+Y(i)+'" x2="'+X(R)+'" y2="'+Y(i)+'" stroke="#eef" stroke-width="1"/>';}
+ g+='<line x1="'+X(-R)+'" y1="'+Y(0)+'" x2="'+X(R)+'" y2="'+Y(0)+'" stroke="#555" stroke-width="1.3"/>';
+ g+='<line x1="'+X(0)+'" y1="'+Y(-R)+'" x2="'+X(0)+'" y2="'+Y(R)+'" stroke="#555" stroke-width="1.3"/>';
+ g+='<polygon points="'+X(R)+','+Y(0)+' '+(+X(R)-5)+','+(+Y(0)-3)+' '+(+X(R)-5)+','+(+Y(0)+3)+'" fill="#555"/>';
+ g+='<polygon points="'+X(0)+','+Y(R)+' '+(+X(0)-3)+','+(+Y(R)+5)+' '+(+X(0)+3)+','+(+Y(R)+5)+'" fill="#555"/>';
+ g+='<text x="'+(+X(R)-3)+'" y="'+(+Y(0)+12)+'" font-size="10" font-style="italic" fill="#555">x</text>';
+ g+='<text x="'+(+X(0)+5)+'" y="'+(+Y(R)+8)+'" font-size="10" font-style="italic" fill="#555">y</text>';
+ if(!opts.blank){
+  (opts.lines||[]).forEach(function(L){var y1=L.k*(-R)+L.b,y2=L.k*R+L.b;g+='<line x1="'+X(-R)+'" y1="'+Y(y1)+'" x2="'+X(R)+'" y2="'+Y(y2)+'" stroke="'+(L.color||'#7B52EE')+'" stroke-width="2"/>';});
+  (opts.pts||[]).forEach(function(p){g+='<circle cx="'+X(p.x)+'" cy="'+Y(p.y)+'" r="3" fill="#dc2626"/>'+(p.l?'<text x="'+(+X(p.x)+4)+'" y="'+(+Y(p.y)-4)+'" font-size="9" font-weight="700" fill="#b91c1c">'+p.l+'</text>':'');});
+ }
+ return '<svg viewBox="0 0 '+W+' '+H+'" width="188">'+g+'</svg>';}
+// ── Тооны шулуун (blank, зөвхөн хуваарь; цэгийг тэмдэглэхгүй тул хариу илчлэхгүй) ──
+function numline(lo,hi){var W=320,H=44,pad=18,u=(W-2*pad)/(hi-lo);var g='<line x1="'+pad+'" y1="26" x2="'+(W-pad)+'" y2="26" stroke="#555" stroke-width="1.4"/>';
+ g+='<polygon points="'+(W-pad)+',26 '+(W-pad-6)+',23 '+(W-pad-6)+',29" fill="#555"/>';
+ for(var v=lo;v<=hi;v++){var x=pad+(v-lo)*u;g+='<line x1="'+x+'" y1="22" x2="'+x+'" y2="30" stroke="#555" stroke-width="1"/>';g+='<text x="'+x+'" y="41" font-size="9" text-anchor="middle" fill="#555">'+v+'</text>';}
+ return '<svg viewBox="0 0 '+W+' '+H+'" width="300">'+g+'</svg>';}
+// ── Эйлер-Веннийн диаграм (2 олонлог, blank) ──
+function venn2(la,lb){la=la||'A';lb=lb||'B';var g='<rect x="6" y="6" width="248" height="118" rx="6" fill="none" stroke="#b9b0d6"/>';
+ g+='<circle cx="102" cy="65" r="50" fill="rgba(123,82,238,0.13)" stroke="#7B52EE" stroke-width="1.4"/>';
+ g+='<circle cx="158" cy="65" r="50" fill="rgba(168,85,247,0.13)" stroke="#A855F7" stroke-width="1.4"/>';
+ g+='<text x="70" y="70" font-size="14" font-style="italic" fill="#5a32d6">'+la+'</text>';
+ g+='<text x="186" y="70" font-size="14" font-style="italic" fill="#5a32d6">'+lb+'</text>';
+ return '<svg viewBox="0 0 260 130" width="210">'+g+'</svg>';}
+// ── 7-р анги V бүлэг (Алгебрын илэрхийлэл, тэгшитгэл) ──
+// Асуулт (q) нь ЗӨВХӨН илэрхийлэл. Заавар нь plan.json дахь task.label-д ганц удаа бичигдэнэ.
+// g7core.js доторх helper-үүдийг (rnd,nz,pick,shuffle,gcd,sgn,paren,powClean,decStr...) шууд дуудна.
+
+// ── тусгай туслах (g7core-т байхгүй нэрс) ──
+function vp(v,e){return e===0?'':e===1?v:v+'^{'+e+'}';}
+function co(c,w){if(w==='')return ''+c;if(c===0)return '0';if(c===1)return w;if(c===-1)return '-'+w;return c+w;}
+function coS(c,w){if(c===0)return '';if(w===''){return c>0?'+'+c:''+c;}if(c===1)return '+'+w;if(c===-1)return '-'+w;return (c>0?'+':'')+c+w;}
+function mono2(k,v1,e1,v2,e2){return co(k,vp(v1,e1)+vp(v2,e2));}
+function wrapNeg(s){return s.charAt(0)==='-'?'('+s+')':s;}
+function cap(s){return s.charAt(0).toUpperCase()+s.slice(1);}
+function joinT(list){return list.map(function(t,i){return i===0?co(t.c,t.w):coS(t.c,t.w);}).join('');}
+function halfTex(h){return (h%2===0)?''+(h/2):decStr(h/2,1);}   // 3 -> '1.5', 4 -> '2'
+
+// ── цэвэрхэн SVG зурагууд ──
+var _FC='#7B52EE',_FF='rgba(123,82,238,0.07)',_FT='#4b2fb5',_FG='#94a3b8';
+function _t(x,y,s,an,sz){return '<text x="'+x+'" y="'+y+'" font-size="'+(sz||12.5)+'" text-anchor="'+(an||'middle')+'" fill="'+_FT+'" font-family="Georgia,serif" font-style="italic">'+s+'</text>';}
+function figRect2(top,right){
+ var g='<rect x="46" y="26" width="146" height="80" rx="2" fill="'+_FF+'" stroke="'+_FC+'" stroke-width="1.7"/>';
+ g+=_t(119,18,top);g+=_t(200,71,right,'start');
+ return '<svg viewBox="0 0 258 118" width="224">'+g+'</svg>';
+}
+function figRectIn(top,right,inside){
+ var g='<rect x="46" y="26" width="152" height="82" rx="2" fill="'+_FF+'" stroke="'+_FC+'" stroke-width="1.7"/>';
+ g+=_t(122,18,top);g+=_t(206,72,right,'start');
+ g+='<text x="122" y="72" font-size="11.5" text-anchor="middle" fill="'+_FT+'" font-family="Georgia,serif">'+inside+'</text>';
+ return '<svg viewBox="0 0 272 120" width="238">'+g+'</svg>';
+}
+function figTri3(la,lb,lc){
+ var g='<polygon points="40,108 190,108 130,30" fill="'+_FF+'" stroke="'+_FC+'" stroke-width="1.7"/>';
+ g+=_t(74,64,la,'end');g+=_t(166,66,lb,'start');g+=_t(115,126,lc);
+ return '<svg viewBox="0 0 214 136" width="214">'+g+'</svg>';
+}
+function figBox(wl,dl,hl){
+ var x0=32,y0=50,W=118,H=62,ox=32,oy=-26;
+ function P(x,y){return x+','+y;}
+ var g='';
+ g+='<polyline points="'+P(x0,y0+H)+' '+P(x0+ox,y0+oy+H)+' '+P(x0+W+ox,y0+oy+H)+'" fill="none" stroke="'+_FC+'" stroke-width="1.1" stroke-dasharray="4 3" opacity="0.55"/>';
+ g+='<line x1="'+(x0+ox)+'" y1="'+(y0+oy+H)+'" x2="'+(x0+ox)+'" y2="'+(y0+oy)+'" stroke="'+_FC+'" stroke-width="1.1" stroke-dasharray="4 3" opacity="0.55"/>';
+ g+='<rect x="'+x0+'" y="'+y0+'" width="'+W+'" height="'+H+'" fill="'+_FF+'" stroke="'+_FC+'" stroke-width="1.7"/>';
+ g+='<polyline points="'+P(x0,y0)+' '+P(x0+ox,y0+oy)+' '+P(x0+W+ox,y0+oy)+' '+P(x0+W,y0)+'" fill="none" stroke="'+_FC+'" stroke-width="1.7"/>';
+ g+='<line x1="'+(x0+W+ox)+'" y1="'+(y0+oy)+'" x2="'+(x0+W+ox)+'" y2="'+(y0+oy+H)+'" stroke="'+_FC+'" stroke-width="1.7"/>';
+ g+='<line x1="'+(x0+W)+'" y1="'+(y0+H)+'" x2="'+(x0+W+ox)+'" y2="'+(y0+oy+H)+'" stroke="'+_FC+'" stroke-width="1.7"/>';
+ g+=_t(x0+W/2,y0+H+18,wl);
+ g+=_t(x0+W+ox+5,y0+oy+H+13,dl,'start');
+ g+=_t(x0+W+5,y0+H/2+4,hl,'start');
+ return '<svg viewBox="0 0 222 140" width="206">'+g+'</svg>';
+}
+function figSeg(labels,weights,total){
+ var x0=20,x1=282,y=44,i,sw=0;
+ for(i=0;i<weights.length;i++)sw+=weights[i];
+ var g='<line x1="'+x0+'" y1="'+y+'" x2="'+x1+'" y2="'+y+'" stroke="'+_FC+'" stroke-width="2"/>';
+ var x=x0;
+ g+='<line x1="'+x0+'" y1="'+(y-8)+'" x2="'+x0+'" y2="'+(y+8)+'" stroke="'+_FC+'" stroke-width="1.6"/>';
+ for(i=0;i<labels.length;i++){
+  var w=(x1-x0)*weights[i]/sw;
+  g+=_t(x+w/2,y-13,labels[i]);
+  x+=w;
+  g+='<line x1="'+x.toFixed(1)+'" y1="'+(y-8)+'" x2="'+x.toFixed(1)+'" y2="'+(y+8)+'" stroke="'+_FC+'" stroke-width="1.6"/>';
+ }
+ g+='<line x1="'+x0+'" y1="'+(y+22)+'" x2="'+x1+'" y2="'+(y+22)+'" stroke="'+_FG+'" stroke-width="1.1"/>';
+ g+='<line x1="'+x0+'" y1="'+(y+18)+'" x2="'+x0+'" y2="'+(y+26)+'" stroke="'+_FG+'" stroke-width="1.1"/>';
+ g+='<line x1="'+x1+'" y1="'+(y+18)+'" x2="'+x1+'" y2="'+(y+26)+'" stroke="'+_FG+'" stroke-width="1.1"/>';
+ g+='<text x="151" y="'+(y+38)+'" font-size="11.5" text-anchor="middle" fill="'+_FT+'" font-family="Georgia,serif">'+total+'</text>';
+ return '<svg viewBox="0 0 302 92" width="288">'+g+'</svg>';
+}
+function figAngles(l1,l2){
+ var g='<line x1="18" y1="88" x2="266" y2="88" stroke="'+_FC+'" stroke-width="1.8"/>';
+ g+='<line x1="142" y1="88" x2="212" y2="24" stroke="'+_FC+'" stroke-width="1.8"/>';
+ g+='<circle cx="142" cy="88" r="2.6" fill="'+_FC+'"/>';
+ g+='<path d="M 108 88 A 34 34 0 0 1 165 65" fill="none" stroke="'+_FG+'" stroke-width="1.2"/>';
+ g+='<path d="M 158 71 A 22 22 0 0 1 164 88" fill="none" stroke="'+_FG+'" stroke-width="1.2"/>';
+ g+=_t(104,56,l1);g+=_t(186,80,l2,'start');
+ return '<svg viewBox="0 0 282 102" width="252">'+g+'</svg>';
+}
+
+// ════════ 5.1 Төсөөтэй гишүүд эмхэтгэх ════════
+function g_combineOneVar(){
+ var v=pick(['a','b','c','x','y','k','m']);
+ var nx=rnd(2,3), nc=rnd(1,2), xt=[], ct=[], i;
+ for(i=0;i<nx;i++)xt.push(nz(-9,9));
+ for(i=0;i<nc;i++)ct.push(nz(-9,9));
+ var cX=xt.reduce(function(s,c){return s+c;},0), cS=ct.reduce(function(s,c){return s+c;},0);
+ if(cX===0)return null;
+ var items=[];
+ xt.forEach(function(c){items.push({c:c,w:v});});
+ ct.forEach(function(c){items.push({c:c,w:''});});
+ items=shuffle(items);
+ return {q:'$'+joinT(items)+'$', a:'$='+co(cX,v)+coS(cS,'')+'$',
+  key:'c1'+v+xt.join(',')+'|'+ct.join(','),
+  f0:function(x){return items.reduce(function(s,t){return s+(t.w===''?t.c:t.c*x);},0);},
+  f1:function(x){return cX*x+cS;}};
+}
+function g_combineTwoVar(){
+ var P=pick([['x','y'],['a','b'],['m','n'],['p','q']]),v1=P[0],v2=P[1];
+ var a1=nz(-9,9),a2=nz(-9,9),b1=nz(-9,9),b2=nz(-9,9);
+ var cx=a1+a2, cy=b1+b2;
+ if(cx===0&&cy===0)return null;
+ var items=shuffle([{c:a1,w:v1},{c:a2,w:v1},{c:b1,w:v2},{c:b2,w:v2}]);
+ var ans='';
+ if(cx!==0)ans=co(cx,v1);
+ if(cy!==0)ans+=(ans===''?co(cy,v2):coS(cy,v2));
+ return {q:'$'+joinT(items)+'$', a:'$='+ans+'$', key:'c2'+v1+a1+a2+b1+b2,
+  f0:function(x,y){return items.reduce(function(s,t){return s+(t.w===v1?t.c*x:t.c*y);},0);},
+  f1:function(x,y){return cx*x+cy*y;}};
+}
+function g_combineTwoVarDeg(){
+ var set=pick([
+  {vs:['x','y'],gr:[{w:'x^{2}',e:[2,0]},{w:'xy',e:[1,1]}]},
+  {vs:['x','y'],gr:[{w:'x^{2}',e:[2,0]},{w:'xy',e:[1,1]},{w:'y^{2}',e:[0,2]}]},
+  {vs:['a','b'],gr:[{w:'a^{2}',e:[2,0]},{w:'a',e:[1,0]},{w:'',e:[0,0]}]}
+ ]);
+ var gr=set.gr, items=[], sums=gr.map(function(){return 0;});
+ gr.forEach(function(gp,gi){
+  var t1=nz(-8,8),t2=nz(-8,8);
+  sums[gi]=t1+t2;
+  items.push({c:t1,w:gp.w,gi:gi});items.push({c:t2,w:gp.w,gi:gi});
+ });
+ if(sums.every(function(s){return s===0;}))return null;
+ items=shuffle(items);
+ var parts=[];
+ gr.forEach(function(gp,gi){if(sums[gi]!==0)parts.push({c:sums[gi],w:gp.w,e:gp.e});});
+ return {q:'$'+joinT(items)+'$', a:'$='+joinT(parts)+'$',
+  key:'c2d'+set.vs.join('')+items.map(function(t){return t.c+t.w;}).join('_'),
+  f0:function(x,y){return items.reduce(function(s,t){var e=gr[t.gi].e;return s+t.c*Math.pow(x,e[0])*Math.pow(y,e[1]);},0);},
+  f1:function(x,y){return parts.reduce(function(s,t){return s+t.c*Math.pow(x,t.e[0])*Math.pow(y,t.e[1]);},0);}};
+}
+function g_combineMulti(){
+ var set=pick([
+  {vs:['x','y'],gr:[{w:'x^{2}',e:[2,0]},{w:'xy',e:[1,1]},{w:'y^{2}',e:[0,2]}]},
+  {vs:['a','b'],gr:[{w:'a^{2}b',e:[2,1]},{w:'ab^{2}',e:[1,2]},{w:'ab',e:[1,1]}]},
+  {vs:['m','n'],gr:[{w:'m^{3}',e:[3,0]},{w:'m^{2}n',e:[2,1]},{w:'mn^{2}',e:[1,2]},{w:'n^{3}',e:[0,3]}]},
+  {vs:['x','y'],gr:[{w:'x^{2}',e:[2,0]},{w:'x',e:[1,0]},{w:'',e:[0,0]},{w:'y',e:[0,1]}]}
+ ]);
+ var gr=set.gr, items=[], sums=[], i, j;
+ for(i=0;i<gr.length;i++){
+  var cnt=rnd(2,3), s=0;
+  for(j=0;j<cnt;j++){var c=nz(-14,14);s+=c;items.push({c:c,w:gr[i].w,gi:i});}
+  sums.push(s);
+ }
+ if(items.length>10)return null;
+ var parts=[];
+ for(i=0;i<sums.length;i++)if(sums[i]!==0)parts.push({c:sums[i],w:gr[i].w,e:gr[i].e});
+ if(!parts.length)return null;
+ items=shuffle(items);
+ return {q:'$'+joinT(items)+'$', a:'$='+joinT(parts)+'$',
+  key:'cmu'+set.vs.join('')+items.map(function(t){return t.c+'@'+t.gi;}).join('_'),
+  f0:function(x,y){return items.reduce(function(s,t){var e=gr[t.gi].e;return s+t.c*Math.pow(x,e[0])*Math.pow(y,e[1]);},0);},
+  f1:function(x,y){return parts.reduce(function(s,t){return s+t.c*Math.pow(x,t.e[0])*Math.pow(y,t.e[1]);},0);}};
+}
+
+// ════════ 5.1 Хаалт задлах ════════
+function g_distSimplify1(){
+ var v=pick(['x','a','c','y']);
+ var k=pick([-6,-5,-4,-3,-2,2,3,4,5,6]);
+ var b=rnd(1,5), m=nz(-9,9), p=nz(-9,9), q=nz(-14,14);
+ var cx=k*b+p, cs=k*m+q;
+ if(cx===0&&cs===0)return null;
+ var kS=(k===1?'':k===-1?'-':''+k);
+ var qT=kS+'('+co(b,v)+coS(m,'')+')'+coS(p,v)+coS(q,'');
+ return {q:'$'+qT+'$', a:'$='+(cx===0?''+cs:co(cx,v)+coS(cs,''))+'$', key:'ds1'+v+k+b+m+p+q,
+  f0:function(x){return k*(b*x+m)+p*x+q;}, f1:function(x){return cx*x+cs;}};
+}
+function g_distSimplify2(){
+ var v=pick(['x','a','y','c']);
+ var A=rnd(2,9), D=rnd(2,9), b=rnd(1,6), e=rnd(1,6), c=nz(-9,9), f=nz(-9,9);
+ var op=pick(['+','-']), s=(op==='-'?-1:1);
+ var cx=A*b+s*D*e, cs=A*c+s*D*f;
+ if(cx===0&&cs===0)return null;
+ var qT=A+'('+co(b,v)+coS(c,'')+')'+op+D+'('+co(e,v)+coS(f,'')+')';
+ return {q:'$'+qT+'$', a:'$='+(cx===0?''+cs:co(cx,v)+coS(cs,''))+'$', key:'ds2'+v+A+D+b+e+c+f+op,
+  f0:function(x){return A*(b*x+c)+s*D*(e*x+f);}, f1:function(x){return cx*x+cs;}};
+}
+function _brk(sign,coef,ee,ff,v,leading){
+ var inner=co(ee,v)+coS(ff,'');
+ var cs=(coef===1?'':''+coef);
+ if(leading)return cs+'('+inner+')';
+ return (sign>0?'+':'-')+cs+'('+inner+')';
+}
+function g_distSimplify3(){
+ var v=pick(['x','a','c','d']);
+ var A=rnd(1,9), D=rnd(1,9), G=rnd(1,9);
+ var b=rnd(1,9), e=rnd(1,9), h=rnd(1,9);
+ var c=nz(-12,12), f=nz(-12,12), k=nz(-12,12);
+ var s2=pick([1,-1]), s3=pick([1,-1]);
+ var cx=A*b+s2*D*e+s3*G*h, cs=A*c+s2*D*f+s3*G*k;
+ if(cx===0&&cs===0)return null;
+ var qT=_brk(1,A,b,c,v,true)+_brk(s2,D,e,f,v,false)+_brk(s3,G,h,k,v,false);
+ return {q:'$'+qT+'$', a:'$='+(cx===0?''+cs:co(cx,v)+coS(cs,''))+'$', key:'ds3'+v+A+D+G+b+e+h+c+f+k+s2+s3,
+  f0:function(x){return A*(b*x+c)+s2*D*(e*x+f)+s3*G*(h*x+k);}, f1:function(x){return cx*x+cs;}};
+}
+function g_distSimplifyBig(){
+ var v=pick(['x','a','d','c']);
+ var lead=nz(-120,120);
+ var A=rnd(3,20), D=rnd(3,20), G=pick([1,1,2,3]);
+ var b=rnd(4,30), e=rnd(4,30), h=rnd(20,120);
+ var c=nz(-30,30), f=nz(-30,30), k=nz(-120,120);
+ var s2=pick([1,-1]), s3=pick([1,-1]);
+ var cx=s2*A*b+s3*D*e+G*h;
+ var cs=lead+s2*A*c+s3*D*f+G*k;
+ if(cx===0&&cs===0)return null;
+ if(Math.abs(cx)>400||Math.abs(cs)>900)return null;
+ var qT=''+lead+_brk(s2,A,b,c,v,false)+_brk(s3,D,e,f,v,false)+_brk(1,G,h,k,v,false);
+ return {q:'$'+qT+'$', a:'$='+(cx===0?''+cs:co(cx,v)+coS(cs,''))+'$',
+  key:'dsB'+v+lead+A+D+G+b+e+h+c+f+k+s2+s3,
+  f0:function(x){return lead+s2*A*(b*x+c)+s3*D*(e*x+f)+G*(h*x+k);},
+  f1:function(x){return cx*x+cs;}};
+}
+function g_distTwoVar(){
+ var P=pick([['x','y'],['a','b'],['m','n']]),v1=P[0],v2=P[1];
+ var mode=pick(['two','two','lead']);
+ var A=rnd(2,8), D=rnd(2,8), p1=rnd(1,6), q1=nz(-6,6), p2=rnd(1,6), q2=nz(-6,6);
+ var s=pick([1,-1]), L1=nz(-9,9), L2=nz(-9,9);
+ var cx,cy,qT;
+ if(mode==='lead'){
+  cx=L1+s*A*p1; cy=L2+s*A*q1;
+  qT=co(L1,v1)+coS(L2,v2)+(s>0?'+':'-')+A+'('+co(p1,v1)+coS(q1,v2)+')';
+ }else{
+  cx=A*p1+s*D*p2; cy=A*q1+s*D*q2;
+  qT=A+'('+co(p1,v1)+coS(q1,v2)+')'+(s>0?'+':'-')+D+'('+co(p2,v1)+coS(q2,v2)+')';
+ }
+ if(cx===0&&cy===0)return null;
+ var ans='';
+ if(cx!==0)ans=co(cx,v1);
+ if(cy!==0)ans+=(ans===''?co(cy,v2):coS(cy,v2));
+ var mm=mode;
+ return {q:'$'+qT+'$', a:'$='+ans+'$', key:'dtv'+v1+mm+A+D+p1+q1+p2+q2+s+L1+L2,
+  f0:function(x,y){return mm==='lead'?(L1*x+L2*y+s*A*(p1*x+q1*y)):(A*(p1*x+q1*y)+s*D*(p2*x+q2*y));},
+  f1:function(x,y){return cx*x+cy*y;}};
+}
+
+// ── хялбарчлаад утга олох ──
+function g_simplifyEval(){
+ var mode=pick(['one','one','two']);
+ if(mode==='one'){
+  var v=pick(['x','a','y']);
+  var A=rnd(2,9), b=rnd(1,6), c=nz(-9,9), D=rnd(2,9), e=rnd(1,6), f=nz(-9,9);
+  var s=pick([1,-1]);
+  var cx=A*b+s*D*e, cs=A*c+s*D*f;
+  if(cx===0&&cs===0)return null;
+  var x0=pick([-5,-4,-3,-2,2,3,4,5,6,8]);
+  var val=cx*x0+cs;
+  var at={};at[v]=x0;
+  var qT=A+'('+co(b,v)+coS(c,'')+')'+(s>0?'+':'-')+D+'('+co(e,v)+coS(f,'')+')';
+  return {q:'$'+qT+'$,  $'+v+'='+x0+'$',
+   a:'$='+(cx===0?''+cs:co(cx,v)+coS(cs,''))+'$;  утга нь $'+val+'$',
+   key:'se1'+v+A+b+c+D+e+f+s+x0, at:at, val:val,
+   f0:function(x){return A*(b*x+c)+s*D*(e*x+f);}, f1:function(x){return cx*x+cs;}};
+ }
+ var P=pick([['x','y'],['a','b']]),w1=P[0],w2=P[1];
+ var A2=rnd(2,7), p1=rnd(1,5), q1=nz(-5,5), D2=rnd(2,7), p2=rnd(1,5), q2=nz(-5,5), t=nz(-8,8);
+ var s2=pick([1,-1]);
+ var cx2=A2*p1+s2*D2*p2, cy2=A2*q1+s2*D2*q2+t;
+ if(cx2===0&&cy2===0)return null;
+ var X0=pick([-4,-3,-2,2,3,4,5]), Y0=pick([-4,-3,-2,2,3,4,5]);
+ var val2=cx2*X0+cy2*Y0;
+ var at2={};at2[w1]=X0;at2[w2]=Y0;
+ var qT2=A2+'('+co(p1,w1)+coS(q1,w2)+')'+(s2>0?'+':'-')+D2+'('+co(p2,w1)+coS(q2,w2)+')'+coS(t,w2);
+ var ans2='';
+ if(cx2!==0)ans2=co(cx2,w1);
+ if(cy2!==0)ans2+=(ans2===''?co(cy2,w2):coS(cy2,w2));
+ return {q:'$'+qT2+'$,  $'+w1+'='+X0+'$, $'+w2+'='+Y0+'$',
+  a:'$='+ans2+'$;  утга нь $'+val2+'$',
+  key:'se2'+w1+A2+p1+q1+D2+p2+q2+s2+t+X0+Y0, at:at2, val:val2,
+  f0:function(x,y){return A2*(p1*x+q1*y)+s2*D2*(p2*x+q2*y)+t*y;},
+  f1:function(x,y){return cx2*x+cy2*y;}};
+}
+function g_simplifyDecEval(){
+ var P=pick([['a','b'],['x','y'],['m','n']]),v1=P[0],v2=P[1];
+ var Ah=pick([1,3,5,7]), Dh=pick([1,2,3,4,5,6]);
+ var b=rnd(1,4), c=nz(-4,4), e=rnd(1,4), f=nz(-4,4);
+ var s=pick([1,-1]);
+ var cxh=Ah*b+s*Dh*e, csh=Ah*c+s*Dh*f;
+ if(cxh%2!==0||csh%2!==0)return null;
+ var cx=cxh/2, cy=csh/2;
+ if(cx===0&&cy===0)return null;
+ var X0=pick([-6,-5,-4,-3,-2,2,3,4,6]), Y0=pick([-6,-5,-4,-3,-2,2,3,4,6]);
+ var val=cx*X0+cy*Y0;
+ var at={};at[v1]=X0;at[v2]=Y0;
+ function kTex(h){var s2=halfTex(h);return s2==='1'?'':s2;}
+ var qT=kTex(Ah)+'('+co(b,v1)+coS(c,v2)+')'+(s>0?'+':'-')+kTex(Dh)+'('+co(e,v1)+coS(f,v2)+')';
+ var ans='';
+ if(cx!==0)ans=co(cx,v1);
+ if(cy!==0)ans+=(ans===''?co(cy,v2):coS(cy,v2));
+ return {q:'$'+qT+'$,  $'+v1+'='+X0+'$, $'+v2+'='+Y0+'$',
+  a:'$='+ans+'$;  утга нь $'+val+'$',
+  key:'sde'+v1+Ah+Dh+b+c+e+f+s+X0+Y0, at:at, val:val,
+  f0:function(x,y){return (Ah/2)*(b*x+c*y)+s*(Dh/2)*(e*x+f*y);},
+  f1:function(x,y){return cx*x+cy*y;}};
+}
+function g_findErrorDist(){
+ var v=pick(['x','a','m']);
+ var A=rnd(2,8), b=rnd(1,4), c=rnd(2,9), D=rnd(2,8), e=rnd(1,4), f=rnd(2,9);
+ var s=pick([1,-1]);
+ var cx=A*b+s*D*e, cs=A*c+s*D*f;
+ var which=pick([1,2]);
+ var wcs=(which===1)?(c+s*D*f):(A*c+s*f);
+ if(wcs===cs)return null;
+ if(cx===0)return null;
+ var orig=A+'('+co(b,v)+'+'+c+')'+(s>0?'+':'-')+D+'('+co(e,v)+'+'+f+')';
+ var mid=(which===1)
+   ? joinT([{c:A*b,w:v},{c:c,w:''},{c:s*D*e,w:v},{c:s*D*f,w:''}])
+   : joinT([{c:A*b,w:v},{c:A*c,w:''},{c:s*D*e,w:v},{c:s*f,w:''}]);
+ var wrongFin=co(cx,v)+coS(wcs,'');
+ var corr=co(cx,v)+coS(cs,'');
+ var badK=(which===1)?A:D, badN=(which===1)?c:f;
+ return {q:'$'+orig+'='+mid+'='+wrongFin+'$',
+  a:'Алдаа: $'+badK+'\\cdot '+badN+'='+(badK*badN)+'$ гэж үржүүлээгүй. Зөв нь $'+corr+'$',
+  key:'fe'+v+A+b+c+D+e+f+s+which,
+  idL:orig, idR:corr, neqL:orig, neqR:wrongFin};
+}
+function g_perimeterExpr(){
+ var shape=pick(['tri','tri','rect','iso']);
+ var v=pick(['x','a','y']);
+ function lin(p,q){return co(p,v)+coS(q,'');}
+ if(shape==='rect'){
+  var p1=rnd(2,9), q1=nz(-9,9), p2=rnd(2,9), q2=nz(-9,9);
+  var s1=lin(p1,q1), s2=lin(p2,q2);
+  var cx=2*(p1+p2), cs=2*(q1+q2);
+  if(cx===0&&cs===0)return null;
+  return {q:'Тэгш өнцөгт: $'+s1+'$ ба $'+s2+'$',
+   a:'$P=2\\bigl(('+s1+')+('+s2+')\\bigr)='+co(cx,v)+coS(cs,'')+'$',
+   fig:figRect2(s1,s2), key:'per'+v+p1+q1+p2+q2,
+   idL:'2(('+s1+')+('+s2+'))', idR:co(cx,v)+coS(cs,'')};
+ }
+ if(shape==='iso'){
+  var pa=rnd(2,9), qa=nz(-9,9), base=rnd(4,20);
+  var sa=lin(pa,qa);
+  var cx2=2*pa, cs2=2*qa+base;
+  return {q:'Гурвалжин: хажуу тал $'+sa+'$ (хоёулаа), суурь $'+base+'$',
+   a:'$P=2('+sa+')+'+base+'='+co(cx2,v)+coS(cs2,'')+'$',
+   fig:figTri3(sa,sa,''+base), key:'pei'+v+pa+qa+base,
+   idL:'2('+sa+')+'+base, idR:co(cx2,v)+coS(cs2,'')};
+ }
+ var a1=rnd(2,9),b1=nz(-9,9),a2=rnd(2,9),b2=nz(-9,9),a3=rnd(2,9),b3=nz(-9,9);
+ var t1=lin(a1,b1),t2=lin(a2,b2),t3=lin(a3,b3);
+ var cX=a1+a2+a3, cS=b1+b2+b3;
+ if(cX===0&&cS===0)return null;
+ return {q:'Гурвалжин: $'+t1+'$, $'+t2+'$, $'+t3+'$',
+  a:'$P=('+t1+')+('+t2+')+('+t3+')='+co(cX,v)+coS(cS,'')+'$',
+  fig:figTri3(t1,t2,t3), key:'pet'+v+a1+b1+a2+b2+a3+b3,
+  idL:'('+t1+')+('+t2+')+('+t3+')', idR:co(cX,v)+coS(cS,'')};
+}
+function g_XYZcombine(){
+ var v=pick(['x','a']);
+ function poly(){var A=nz(-4,4),B=nz(-8,8),C=nz(-9,9);return {A:A,B:B,C:C,t:co(A,vp(v,2))+coS(B,v)+coS(C,'')};}
+ var X=poly(),Y=poly(),Z=poly();
+ var combo=pick([[1,1,1,'X+Y+Z'],[1,-1,-1,'X-Y-Z'],[1,1,-1,'X+Y-Z'],[1,-1,1,'X-Y+Z']]);
+ var s1=combo[0],s2=combo[1],s3=combo[2];
+ var A=s1*X.A+s2*Y.A+s3*Z.A, B=s1*X.B+s2*Y.B+s3*Z.B, C=s1*X.C+s2*Y.C+s3*Z.C;
+ if(A===0&&B===0&&C===0)return null;
+ var parts=[];
+ if(A!==0)parts.push({c:A,w:vp(v,2)});
+ if(B!==0)parts.push({c:B,w:v});
+ if(C!==0)parts.push({c:C,w:''});
+ var ans=joinT(parts);
+ var lhs='('+X.t+')'+(s2>0?'+':'-')+'('+Y.t+')'+(s3>0?'+':'-')+'('+Z.t+')';
+ return {q:'$X='+X.t+'$, $Y='+Y.t+'$, $Z='+Z.t+'$;  олох нь $'+combo[3]+'$',
+  a:'$'+combo[3]+'='+ans+'$', key:'xyz'+v+X.A+X.B+X.C+Y.A+Y.B+Y.C+Z.A+Z.B+Z.C+combo[3],
+  idL:lhs, idR:ans};
+}
+
+// ════════ 5.2 Натурал илтгэгчтэй зэргийн чанарууд ════════
+function g_powMult(){
+ var base=pick(['a','b','c','x','y','2','3','5']);
+ var cnt=rnd(2,3), exps=[], i;
+ for(i=0;i<cnt;i++)exps.push(rnd(1,6));
+ var sumE=exps.reduce(function(s,e){return s+e;},0);
+ if(/^[0-9]$/.test(base)&&sumE>12)return null;
+ var parts=exps.map(function(e){return vp(base,e);});
+ return {q:'$'+parts.join('\\cdot ')+'$', a:'$='+powClean(base,sumE)+'$', key:'pm'+base+exps.join('_')};
+}
+function g_powDiv(){
+ var mode=pick(['num','num','sym']);
+ var base=pick(['a','b','c','x','y']);
+ if(mode==='sym'){
+  var cm=rnd(3,7), cn=rnd(2,cm-1), evar=pick(['n','k','m']);
+  if(base===evar)return null;
+  var resC=cm-cn;
+  return {q:'$\\dfrac{'+base+'^{'+cm+evar+'}}{'+base+'^{'+cn+evar+'}}$',
+   a:'$='+base+'^{'+(resC===1?evar:resC+evar)+'}$', key:'pdS'+base+cm+cn+evar};
+ }
+ var m=rnd(3,10), n=rnd(1,m-1);
+ return {q:'$\\dfrac{'+vp(base,m)+'}{'+vp(base,n)+'}$', a:'$='+powClean(base,m-n)+'$', key:'pdN'+base+m+n};
+}
+function g_powPower(){
+ var form=pick(['single','prod','frac']);
+ if(form==='single'){
+  var b=pick(['a','x','m','c','y']), inner=rnd(2,6), outer=rnd(2,4);
+  return {q:'$('+vp(b,inner)+')^{'+outer+'}$', a:'$='+vp(b,inner*outer)+'$', key:'ppS'+b+inner+outer};
+ }
+ if(form==='prod'){
+  var Q=pick([['a','b'],['x','y'],['m','n']]),u1=Q[0],u2=Q[1];
+  var m1=rnd(1,6), n1=rnd(1,6), p=rnd(2,3);
+  if(m1===1&&n1===1&&p===1)return null;
+  return {q:'$('+vp(u1,m1)+vp(u2,n1)+')^{'+p+'}$', a:'$='+vp(u1,m1*p)+vp(u2,n1*p)+'$', key:'ppP'+u1+m1+n1+p};
+ }
+ var R=pick([['a','b'],['x','y'],['m','n']]),w1=R[0],w2=R[1];
+ var m2=rnd(1,6), n2=rnd(1,6), p2=rnd(2,3);
+ if(m2*p2===1||n2*p2===1)return null;
+ return {q:'$\\bigl(\\dfrac{'+vp(w1,m2)+'}{'+vp(w2,n2)+'}\\bigr)^{'+p2+'}$',
+  a:'$=\\dfrac{'+vp(w1,m2*p2)+'}{'+vp(w2,n2*p2)+'}$', key:'ppF'+w1+m2+n2+p2};
+}
+function g_powMixed(){
+ var base=pick(['a','b','x','c']);
+ var form=pick(['muldiv','powtimes','powdivpow','zeropow']);
+ if(form==='muldiv'){
+  var m=rnd(2,7), n=rnd(1,6), p=rnd(1,7), r=m+n-p;
+  if(r<2)return null;
+  return {q:'$\\dfrac{'+vp(base,m)+'\\cdot '+vp(base,n)+'}{'+vp(base,p)+'}$', a:'$='+powClean(base,r)+'$', key:'pxD'+base+m+n+p};
+ }
+ if(form==='powtimes'){
+  var a1=rnd(2,5), b1=rnd(2,3), c1=rnd(1,5);
+  return {q:'$('+vp(base,a1)+')^{'+b1+'}\\cdot '+vp(base,c1)+'$', a:'$='+powClean(base,a1*b1+c1)+'$', key:'pxP'+base+a1+b1+c1};
+ }
+ if(form==='powdivpow'){
+  var u=rnd(2,5), w=rnd(2,4), y=rnd(2,5), z=rnd(2,3), r2=u*w-y*z;
+  if(r2<2)return null;
+  return {q:'$\\dfrac{('+vp(base,u)+')^{'+w+'}}{('+vp(base,y)+')^{'+z+'}}$', a:'$='+powClean(base,r2)+'$', key:'pxQ'+base+u+w+y+z};
+ }
+ var m4=rnd(2,5), n4=rnd(1,4), t=rnd(2,5);
+ return {q:'$('+vp(base,m4)+vp('y',n4)+')^{0}\\cdot '+vp(base,t)+'$', a:'$='+powClean(base,t)+'$', key:'px0'+base+m4+n4+t};
+}
+function g_powFillBlank(){
+ var form=pick(['expand','negbase','count','root','bigpow','zerobase']);
+ var SQ='\\square';
+ if(form==='expand'){
+  var b=pick([2,3,5,7,'a','x','m']), e=rnd(3,6);
+  var chain=[];for(var i=0;i<e;i++)chain.push(''+b);
+  return {q:'$'+b+'^{'+SQ+'}='+chain.join('\\cdot ')+'$', a:'$'+SQ+'='+e+'$',
+   key:'pfE'+b+e, solved:''+b+'^{'+e+'}='+chain.join('\\cdot ')};
+ }
+ if(form==='negbase'){
+  var nb=pick([2,3,4,5]), ne=pick([3,5]);
+  var val=Math.pow(nb,ne)*(ne%2?-1:1);
+  return {q:'$'+val+'=('+(-nb)+')^{'+SQ+'}$', a:'$'+SQ+'='+ne+'$',
+   key:'pfN'+nb+ne, solved:''+val+'=('+(-nb)+')^{'+ne+'}'};
+ }
+ if(form==='count'){
+  var cb=pick([2,3,4,5,6,10]), ce=rnd(3,5), cv=Math.pow(cb,ce);
+  var ch=[];for(var j=0;j<ce;j++)ch.push(''+cb);
+  return {q:'$'+cv+'='+ch.join('\\cdot ')+'='+cb+'^{'+SQ+'}$', a:'$'+SQ+'='+ce+'$',
+   key:'pfC'+cb+ce, solved:''+cv+'='+ch.join('\\cdot ')+'='+cb+'^{'+ce+'}'};
+ }
+ if(form==='root'){
+  var rb=pick([-5,-4,-3,-2,2,3,4,5]), re=pick([2,3]);
+  if(rb<0&&re===2)return null;
+  var rv=Math.pow(Math.abs(rb),re)*((rb<0&&re%2)?-1:1);
+  return {q:'$'+SQ+'^{'+re+'}='+rv+'$', a:'$'+SQ+'='+rb+'$',
+   key:'pfR'+rb+re, solved:'('+rb+')^{'+re+'}='+rv};
+ }
+ if(form==='bigpow'){
+  var pb=pick([2,4,8,3,9,5]), pe=rnd(2,4), pv=Math.pow(pb,pe);
+  if(pv>4096)return null;
+  return {q:'$'+pv+'='+SQ+'^{'+SQ+'}$', a:'жишээ нь $'+pv+'='+pb+'^{'+pe+'}$',
+   key:'pfB'+pb+pe, solved:''+pv+'='+pb+'^{'+pe+'}'};
+ }
+ var ze=pick([4,5,6,10,100]), zb=pick([0,1,-1]);
+ var zv=(zb===0)?0:(zb===1?1:(ze%2?-1:1));
+ var zt=(zb<0)?'('+zb+')':''+zb;
+ return {q:'$'+zt+'^{'+ze+'}='+SQ+'$', a:'$'+SQ+'='+zv+'$',
+  key:'pfZ'+zb+ze, solved:zt+'^{'+ze+'}='+zv};
+}
+function g_powSameExp(){
+ var form=pick(['num','num','sym']);
+ if(form==='num'){
+  var pr=pick([[2,5],[5,4],[2,3],[3,2],[5,2],[4,5],[2,50],[20,5]]);
+  var b1=pr[0], b2=pr[1], e=rnd(2,3);
+  if(Math.pow(b1*b2,e)>1e7)return null;
+  return {q:'$'+b1+'^{'+e+'}\\cdot '+b2+'^{'+e+'}$',
+   a:'$=('+b1+'\\cdot '+b2+')^{'+e+'}='+(b1*b2)+'^{'+e+'}='+Math.pow(b1*b2,e)+'$',
+   key:'pse'+b1+b2+e, idL:''+b1+'^{'+e+'}\\cdot '+b2+'^{'+e+'}', idR:''+Math.pow(b1*b2,e)};
+ }
+ var Q=pick([['a','b'],['x','y'],['m','n'],['p','q']]),u1=Q[0],u2=Q[1];
+ var ee=rnd(2,5), k1=rnd(1,3), k2=rnd(1,3);
+ if(gcd(k1,k2)!==1)return null;
+ return {q:'$'+vp(u1,k1*ee)+'\\cdot '+vp(u2,k2*ee)+'$',
+  a:'$=('+vp(u1,k1)+vp(u2,k2)+')^{'+ee+'}$',
+  key:'pss'+u1+ee+k1+k2, idL:vp(u1,k1*ee)+'\\cdot '+vp(u2,k2*ee), idR:'('+vp(u1,k1)+vp(u2,k2)+')^{'+ee+'}'};
+}
+function g_powDivCompound(){
+ var form=pick(['symexp','coefbase','coefbase','symbase']);
+ if(form==='symexp'){
+  var b=pick(['x','a','y','m']), ev=pick(['n','k']);
+  var m1=rnd(3,7), m2=rnd(1,m1-1), d=m1-m2;
+  return {q:'$'+b+'^{'+m1+ev+'}\\div '+b+'^{'+m2+ev+'}$',
+   a:'$='+b+'^{'+(d===1?ev:d+ev)+'}$', key:'pdcS'+b+m1+m2+ev};
+ }
+ if(form==='coefbase'){
+  var k=rnd(2,5), v=pick(['x','a','b','y']);
+  var e1=rnd(4,9), e2=rnd(2,e1-1), r=e1-e2;
+  if(r>3)return null;
+  var inner=k+v;
+  var num=Math.pow(k,r);
+  return {q:'$('+inner+')^{'+e1+'}\\div ('+inner+')^{'+e2+'}$',
+   a:(r===1?('$='+inner+'$'):('$=('+inner+')^{'+r+'}='+num+vp(v,r)+'$')),
+   key:'pdcC'+k+v+e1+e2,
+   idL:'('+inner+')^{'+e1+'}\\div ('+inner+')^{'+e2+'}', idR:(r===1?inner:num+vp(v,r))};
+ }
+ var kk=pick([2,3,5]), P=pick([['a','b'],['x','y']]);
+ var base='('+kk+P[0]+P[1]+')', ev2=pick(['n','k']), gap=rnd(2,3);
+ var cf=Math.pow(kk,gap);
+ return {q:'$'+base+'^{'+ev2+'}\\div '+base+'^{'+ev2+'-'+gap+'}$',
+  a:'$='+base+'^{'+gap+'}='+cf+vp(P[0],gap)+vp(P[1],gap)+'$',
+  key:'pdcB'+kk+P[0]+ev2+gap,
+  idL:base+'^{'+ev2+'}\\div '+base+'^{'+ev2+'-'+gap+'}', idR:''+cf+vp(P[0],gap)+vp(P[1],gap)};
+}
+function g_powBlankExp(){
+ var b=pick(['a','b','x','y','m','c']), SQ='\\square';
+ var form=pick(['div','mul','powpow','muldiv']);
+ if(form==='div'){
+  var m=rnd(5,10), r=rnd(1,3), n=m-r;
+  return {q:'$'+vp(b,m)+'\\div '+b+'^{'+SQ+'}='+powClean(b,r)+'$', a:'$'+SQ+'='+n+'$',
+   key:'pbeD'+b+m+n, solved:vp(b,m)+'\\div '+vp(b,n)+'='+powClean(b,r)};
+ }
+ if(form==='mul'){
+  var m2=rnd(2,6), n2=rnd(2,6);
+  return {q:'$'+vp(b,m2)+'\\cdot '+b+'^{'+SQ+'}='+vp(b,m2+n2)+'$', a:'$'+SQ+'='+n2+'$',
+   key:'pbeM'+b+m2+n2, solved:vp(b,m2)+'\\cdot '+vp(b,n2)+'='+vp(b,m2+n2)};
+ }
+ if(form==='powpow'){
+  var i3=rnd(2,5), o3=rnd(2,4);
+  return {q:'$('+b+'^{'+SQ+'})^{'+o3+'}='+vp(b,i3*o3)+'$', a:'$'+SQ+'='+i3+'$',
+   key:'pbeP'+b+i3+o3, solved:'('+vp(b,i3)+')^{'+o3+'}='+vp(b,i3*o3)};
+ }
+ var p1=rnd(2,5), p2=rnd(2,5), p3=rnd(1,p1+p2-2);
+ return {q:'$'+vp(b,p1)+'\\cdot '+vp(b,p2)+'\\div '+b+'^{'+SQ+'}='+powClean(b,p1+p2-p3)+'$', a:'$'+SQ+'='+p3+'$',
+  key:'pbeQ'+b+p1+p2+p3, solved:vp(b,p1)+'\\cdot '+vp(b,p2)+'\\div '+vp(b,p3)+'='+powClean(b,p1+p2-p3)};
+}
+function g_powCheckError(){
+ var good=pick([true,false,false]);
+ var b1=pick([2,3,4,5]), b2=pick([2,3,4,5]), e=rnd(2,3);
+ if(b1===b2)return null;
+ if(good){
+  var L='('+b1+'\\cdot '+b2+')^{'+e+'}', R=''+(b1*b2)+'^{'+e+'}';
+  return {q:'$'+b1+'^{'+e+'}\\cdot '+b2+'^{'+e+'}='+L+'='+R+'$',
+   a:'Зөв. Ижил илтгэгчтэй тул $('+b1+'\\cdot '+b2+')^{'+e+'}='+(b1*b2)+'^{'+e+'}='+Math.pow(b1*b2,e)+'$',
+   key:'pceG'+b1+b2+e, good:true,
+   cmp:{l:''+b1+'^{'+e+'}\\cdot '+b2+'^{'+e+'}', r:R, eq:true}};
+ }
+ var e1=rnd(2,4), e2=rnd(2,4);
+ if(e1===e2)return null;
+ var wrong=''+(b1+b2)+'^{'+(e1+e2)+'}';
+ var lhs=''+b1+'^{'+e1+'}\\cdot '+b2+'^{'+e2+'}';
+ return {q:'$'+lhs+'=('+b1+'+'+b2+')^{'+e1+'+'+e2+'}='+wrong+'$',
+  a:'Буруу. Суурь ба илтгэгчийг нэмж болохгүй: $'+lhs+'='+Math.pow(b1,e1)+'\\cdot '+Math.pow(b2,e2)+'='+(Math.pow(b1,e1)*Math.pow(b2,e2))+'$',
+  key:'pceB'+b1+b2+e1+e2, good:false,
+  cmp:{l:lhs, r:wrong, eq:false}};
+}
+
+// ════════ 5.3 Нэг гишүүнтүүдийг үржүүлэх, хуваах ════════
+function g_monoMult(){
+ var v=pick(['a','x','z','n','b']);
+ var k1=nz(-7,7), k2=nz(-7,7), m=rnd(1,5), nn=rnd(1,5);
+ return {q:'$'+wrapNeg(co(k1,vp(v,m)))+'\\cdot '+wrapNeg(co(k2,vp(v,nn)))+'$',
+  a:'$='+co(k1*k2,vp(v,m+nn))+'$', key:'mm1'+v+k1+k2+m+nn,
+  f0:function(x){return k1*Math.pow(x,m)*k2*Math.pow(x,nn);},
+  f1:function(x){return k1*k2*Math.pow(x,m+nn);}};
+}
+function g_monoMultTwoVar(){
+ var P=pick([['x','y'],['a','b'],['m','n'],['p','q']]),v1=P[0],v2=P[1];
+ var k1=nz(-6,6),k2=nz(-6,6),a1=rnd(0,4),b1=rnd(0,4),a2=rnd(0,4),b2=rnd(0,4);
+ if(a1+b1===0||a2+b2===0)return null;
+ return {q:'$'+wrapNeg(mono2(k1,v1,a1,v2,b1))+'\\cdot '+wrapNeg(mono2(k2,v1,a2,v2,b2))+'$',
+  a:'$='+mono2(k1*k2,v1,a1+a2,v2,b1+b2)+'$', key:'mm2'+v1+k1+k2+a1+b1+a2+b2,
+  f0:function(x,y){return k1*Math.pow(x,a1)*Math.pow(y,b1)*k2*Math.pow(x,a2)*Math.pow(y,b2);},
+  f1:function(x,y){return k1*k2*Math.pow(x,a1+a2)*Math.pow(y,b1+b2);}};
+}
+function g_monoTripleMult(){
+ var P=pick([['a','b'],['x','y'],['m','n'],['p','q']]),v1=P[0],v2=P[1];
+ var ks=[nz(-5,5),nz(-5,5),nz(-5,5)];
+ var ex=[rnd(0,3),rnd(0,3),rnd(0,3)], ey=[rnd(0,3),rnd(0,3),rnd(0,3)];
+ var i, tot=0;
+ for(i=0;i<3;i++){if(ex[i]+ey[i]===0&&Math.abs(ks[i])===1)return null;tot+=ex[i]+ey[i];}
+ if(tot<3)return null;
+ var rc=ks[0]*ks[1]*ks[2];
+ if(Math.abs(rc)>150)return null;
+ var parts=[];for(i=0;i<3;i++)parts.push(wrapNeg(mono2(ks[i],v1,ex[i],v2,ey[i])));
+ return {q:'$'+parts.join('\\cdot ')+'$',
+  a:'$='+mono2(rc,v1,ex[0]+ex[1]+ex[2],v2,ey[0]+ey[1]+ey[2])+'$',
+  key:'mt3'+v1+ks.join(',')+ex.join(',')+ey.join(','),
+  f0:function(x,y){var s=1;for(var j=0;j<3;j++)s*=ks[j]*Math.pow(x,ex[j])*Math.pow(y,ey[j]);return s;},
+  f1:function(x,y){return rc*Math.pow(x,ex[0]+ex[1]+ex[2])*Math.pow(y,ey[0]+ey[1]+ey[2]);}};
+}
+function g_monoDiv(){
+ var P=pick([['a','b'],['p','q'],['x','y']]),v1=P[0],v2=P[1];
+ var k2=pick([2,3,4,5]), mult=nz(-7,7), k1=k2*mult;
+ var a1=rnd(1,8),b1=rnd(1,6),a2=rnd(0,a1),b2=rnd(0,b1);
+ var r1=a1-a2, r2=b1-b2;
+ if(r1+r2===0&&Math.abs(mult)===1)return null;
+ return {q:'$\\dfrac{'+mono2(k1,v1,a1,v2,b1)+'}{'+mono2(k2,v1,a2,v2,b2)+'}$',
+  a:'$='+mono2(mult,v1,r1,v2,r2)+'$', key:'md'+v1+k1+k2+a1+b1+a2+b2,
+  f0:function(x,y){return (k1*Math.pow(x,a1)*Math.pow(y,b1))/(k2*Math.pow(x,a2)*Math.pow(y,b2));},
+  f1:function(x,y){return mult*Math.pow(x,r1)*Math.pow(y,r2);}};
+}
+function g_monoDivHard(){
+ var P=pick([['a','b'],['x','y'],['m','n']]),v1=P[0],v2=P[1];
+ var k1=rnd(3,24), k2=rnd(3,24), g=gcd(k1,k2), rn=k1/g, rd=k2/g;
+ if(rd===1)return null;
+ var a1=rnd(1,5),b1=rnd(1,5),a2=rnd(0,a1),b2=rnd(0,b1), r1=a1-a2, r2=b1-b2;
+ if(r1+r2===0)return null;
+ return {q:'$\\dfrac{'+mono2(k1,v1,a1,v2,b1)+'}{'+mono2(k2,v1,a2,v2,b2)+'}$',
+  a:'$=\\dfrac{'+co(rn,vp(v1,r1)+vp(v2,r2))+'}{'+rd+'}$', key:'mdh'+v1+k1+k2+a1+b1+a2+b2,
+  f0:function(x,y){return (k1*Math.pow(x,a1)*Math.pow(y,b1))/(k2*Math.pow(x,a2)*Math.pow(y,b2));},
+  f1:function(x,y){return (rn*Math.pow(x,r1)*Math.pow(y,r2))/rd;}};
+}
+function g_monoPowDiv(){
+ var P=pick([['a','b'],['x','y'],['m','n']]),v1=P[0],v2=P[1];
+ var k1=pick([2,3,4,5]), p=pick([2,3]);
+ var e1=rnd(1,3), f1=rnd(1,3);
+ var K=Math.pow(k1,p);
+ var k2=pick([2,3,4,6,8,9,12]);
+ if(K%k2!==0)return null;
+ var e2=rnd(0,e1*p-1), f2=rnd(0,f1*p-1);
+ var r1=e1*p-e2, r2=f1*p-f2;
+ if(r1+r2===0)return null;
+ if(K/k2===1&&r1+r2===0)return null;
+ return {q:'$\\dfrac{('+mono2(k1,v1,e1,v2,f1)+')^{'+p+'}}{'+mono2(k2,v1,e2,v2,f2)+'}$',
+  a:'$=\\dfrac{'+mono2(K,v1,e1*p,v2,f1*p)+'}{'+mono2(k2,v1,e2,v2,f2)+'}='+mono2(K/k2,v1,r1,v2,r2)+'$',
+  key:'mpd'+v1+k1+p+e1+f1+k2+e2+f2,
+  f0:function(x,y){return Math.pow(k1*Math.pow(x,e1)*Math.pow(y,f1),p)/(k2*Math.pow(x,e2)*Math.pow(y,f2));},
+  f1:function(x,y){return (K/k2)*Math.pow(x,r1)*Math.pow(y,r2);}};
+}
+function g_rectAreaMono(){
+ var P=pick([['x','y'],['m','n'],['p','q']]),v1=P[0],v2=P[1];
+ var k1=rnd(2,7),m1=rnd(1,4),n1=rnd(0,4),k2=rnd(2,7),m2=rnd(1,4),n2=rnd(0,4);
+ var s1=mono2(k1,v1,m1,v2,n1), s2=mono2(k2,v1,m2,v2,n2);
+ var S=mono2(k1*k2,v1,m1+m2,v2,n1+n2);
+ return {q:'$a='+s1+'$,  $b='+s2+'$',
+  a:'$S=a\\cdot b=('+s1+')('+s2+')='+S+'$', fig:figRect2('b','a'),
+  key:'ram'+v1+k1+m1+n1+k2+m2+n2,
+  idL:'('+s1+')('+s2+')', idR:S};
+}
+function g_squareAreaPerim(){
+ var P=pick([['x','y'],['m','n'],['p','q']]),v1=P[0],v2=P[1];
+ var k=rnd(2,7), m=rnd(1,4), n=rnd(0,3);
+ var side=mono2(k,v1,m,v2,n);
+ var S=mono2(k*k,v1,2*m,v2,2*n), Pm=mono2(4*k,v1,m,v2,n);
+ return {q:'$a='+side+'$',
+  a:'$S=a^{2}='+S+'$,  $P=4a='+Pm+'$', fig:figRect2('a','a'),
+  key:'sap'+v1+k+m+n,
+  idL:'('+side+')^{2}', idR:S, idL2:'4('+side+')', idR2:Pm};
+}
+function g_boxVolumeMono(){
+ var v1='x', v2='y';
+ var k1=pick([2,3,4,5]), k2=pick([1,2,3]), k3=pick([2,3,4,5]);
+ var e1=rnd(1,2), f1=rnd(0,2), e2=rnd(0,2), f2=rnd(1,2), e3=rnd(1,3), f3=rnd(1,3);
+ var a=mono2(k1,v1,e1,v2,f1), b=mono2(k2,v1,e2,v2,f2), h=mono2(k3,v1,e3,v2,f3);
+ var V=mono2(k1*k2*k3,v1,e1+e2+e3,v2,f1+f2+f3);
+ if(k1*k2*k3>120)return null;
+ return {q:'$V='+V+'$; суурийн талууд $'+a+'$ ба $'+b+'$',
+  a:'$h=\\dfrac{'+V+'}{('+a+')\\cdot ('+b+')}='+h+'$', fig:figBox(a,b,'?'),
+  key:'bvm'+k1+k2+k3+e1+f1+e2+f2+e3+f3,
+  idL:'('+V+')/(('+a+')\\cdot ('+b+'))', idR:h};
+}
+
+// ════════ 5.4 Нэг гишүүнтээр үржүүлэх, ерөнхий үржигдэхүүн гаргах ════════
+function g_monoTimesPoly(){
+ var v=pick(['x','a','z','n','y']);
+ var k=nz(-9,9), ae=rnd(1,3), cnt=rnd(2,3);
+ var pool=shuffle([0,1,2,3]).slice(0,cnt);
+ var terms=pool.map(function(e){return {c:nz(-9,9),e:e};});
+ terms.sort(function(p,q){return q.e-p.e;});
+ var polyT2=terms.map(function(t,i){return i===0?co(t.c,vp(v,t.e)):coS(t.c,vp(v,t.e));}).join('');
+ var ansT=terms.map(function(t,i){return i===0?co(k*t.c,vp(v,ae+t.e)):coS(k*t.c,vp(v,ae+t.e));}).join('');
+ return {q:'$'+co(k,vp(v,ae))+'('+polyT2+')$', a:'$='+ansT+'$',
+  key:'mtp'+v+k+ae+terms.map(function(t){return t.c+'^'+t.e;}).join('_'),
+  f0:function(x){return k*Math.pow(x,ae)*terms.reduce(function(s,t){return s+t.c*Math.pow(x,t.e);},0);},
+  f1:function(x){return terms.reduce(function(s,t){return s+k*t.c*Math.pow(x,ae+t.e);},0);}};
+}
+function g_monoTimesPolyTwoVar(){
+ var P=pick([['x','y'],['a','b'],['m','n']]),v1=P[0],v2=P[1];
+ var k=nz(-6,6), ea=rnd(1,3), eb=rnd(1,3);
+ var pool=[[2,0],[1,1],[0,2],[3,0],[0,3],[1,0],[0,1],[2,1],[1,2]];
+ var chosen=shuffle(pool).slice(0,3);
+ var terms=chosen.map(function(p){return {c:nz(-7,7),ex:p[0],ey:p[1]};});
+ var pT=terms.map(function(t,i){var w=vp(v1,t.ex)+vp(v2,t.ey);return i===0?co(t.c,w):coS(t.c,w);}).join('');
+ var aT=terms.map(function(t,i){var w=vp(v1,ea+t.ex)+vp(v2,eb+t.ey);return i===0?co(k*t.c,w):coS(k*t.c,w);}).join('');
+ return {q:'$'+mono2(k,v1,ea,v2,eb)+'('+pT+')$', a:'$='+aT+'$',
+  key:'mtp2'+v1+k+ea+eb+terms.map(function(t){return t.c+','+t.ex+','+t.ey;}).join('_'),
+  f0:function(x,y){return k*Math.pow(x,ea)*Math.pow(y,eb)*terms.reduce(function(s,t){return s+t.c*Math.pow(x,t.ex)*Math.pow(y,t.ey);},0);},
+  f1:function(x,y){return terms.reduce(function(s,t){return s+k*t.c*Math.pow(x,ea+t.ex)*Math.pow(y,eb+t.ey);},0);}};
+}
+function g_twoMonoPoly(){
+ var v=pick(['x','a','n','m']);
+ var form=pick(['common','common','deg']);
+ if(form==='common'){
+  var k1=nz(-5,5), k2=nz(-5,5), e1=rnd(0,2), e2=rnd(0,2);
+  var b1=rnd(1,4), c1=nz(-9,9), b2=rnd(1,4), c2=nz(-9,9);
+  if(e1===e2&&k1+k2===0)return null;
+  var A=[{c:k1*b1,e:e1+1},{c:k1*c1,e:e1},{c:k2*b2,e:e2+1},{c:k2*c2,e:e2}];
+  var map={};
+  A.forEach(function(t){map[t.e]=(map[t.e]||0)+t.c;});
+  var es=Object.keys(map).map(Number).sort(function(p,q){return q-p;});
+  var parts=[];
+  es.forEach(function(e){if(map[e]!==0)parts.push({c:map[e],w:vp(v,e),e:e});});
+  if(!parts.length)return null;
+  var qT=co(k1,vp(v,e1))+'('+co(b1,v)+coS(c1,'')+')'+(k2>0?'+':'-')+co(Math.abs(k2),vp(v,e2))+'('+co(b2,v)+coS(c2,'')+')';
+  return {q:'$'+qT+'$', a:'$='+joinT(parts)+'$', key:'tmpC'+v+k1+k2+e1+e2+b1+c1+b2+c2,
+   f0:function(x){return k1*Math.pow(x,e1)*(b1*x+c1)+k2*Math.pow(x,e2)*(b2*x+c2);},
+   f1:function(x){return parts.reduce(function(s,t){return s+t.c*Math.pow(x,t.e);},0);}};
+ }
+ var K1=nz(-4,4), K2=nz(-4,4), E=rnd(1,2);
+ var t1=[{c:rnd(1,5),e:2},{c:nz(-7,7),e:1},{c:nz(-7,7),e:0}];
+ var t2=[{c:rnd(1,5),e:1},{c:nz(-7,7),e:0}];
+ var acc={};
+ t1.forEach(function(t){acc[t.e+E]=(acc[t.e+E]||0)+K1*t.c;});
+ t2.forEach(function(t){acc[t.e+E]=(acc[t.e+E]||0)+K2*t.c;});
+ var ks=Object.keys(acc).map(Number).sort(function(p,q){return q-p;});
+ var pr=[];ks.forEach(function(e){if(acc[e]!==0)pr.push({c:acc[e],w:vp(v,e),e:e});});
+ if(!pr.length)return null;
+ var p1=t1.map(function(t,i){return i===0?co(t.c,vp(v,t.e)):coS(t.c,vp(v,t.e));}).join('');
+ var p2=t2.map(function(t,i){return i===0?co(t.c,vp(v,t.e)):coS(t.c,vp(v,t.e));}).join('');
+ var qT2=co(K1,vp(v,E))+'('+p1+')'+(K2>0?'+':'-')+co(Math.abs(K2),vp(v,E))+'('+p2+')';
+ return {q:'$'+qT2+'$', a:'$='+joinT(pr)+'$', key:'tmpD'+v+K1+K2+E+t1.map(function(t){return t.c;}).join()+t2.map(function(t){return t.c;}).join(),
+  f0:function(x){return K1*Math.pow(x,E)*t1.reduce(function(s,t){return s+t.c*Math.pow(x,t.e);},0)+K2*Math.pow(x,E)*t2.reduce(function(s,t){return s+t.c*Math.pow(x,t.e);},0);},
+  f1:function(x){return pr.reduce(function(s,t){return s+t.c*Math.pow(x,t.e);},0);}};
+}
+function buildFactor(T,V,gmin,gmax){
+ var v1=V[0], v2=V[1]||null, j;
+ var g=rnd(gmin,gmax);
+ var tx=[],ty=[];
+ for(j=0;j<T;j++){tx.push(rnd(0,5));ty.push(v2?rnd(0,5):0);}
+ var seen={};for(j=0;j<T;j++){var kk=tx[j]+','+ty[j];if(seen[kk])return null;seen[kk]=1;}
+ var idx=[];for(j=0;j<T;j++)idx.push(j);
+ idx.sort(function(p,q){return (tx[q]+ty[q])-(tx[p]+ty[p]);});
+ var TX=idx.map(function(i){return tx[i];}), TY=idx.map(function(i){return ty[i];});
+ var ij=[rnd(2,7)];
+ for(j=1;j<T;j++)ij.push(nz(-7,7));
+ var gg=Math.abs(ij[0]);for(j=1;j<T;j++)gg=gcd(gg,Math.abs(ij[j]));
+ if(gg!==1)return null;
+ var ox=Math.min.apply(null,TX), oy=Math.min.apply(null,TY);
+ var rx=TX.map(function(t){return t-ox;}), ry=TY.map(function(t){return t-oy;});
+ var anyVar=false;for(j=0;j<T;j++)if(rx[j]>0||ry[j]>0)anyVar=true;
+ if(!anyVar)return null;
+ var expr='';for(j=0;j<T;j++){var w=vp(v1,TX[j])+(v2?vp(v2,TY[j]):'');var fc=g*ij[j];expr+=(j===0?co(fc,w):coS(fc,w));}
+ var gcfV=vp(v1,ox)+(v2?vp(v2,oy):''), gcf=co(g,gcfV);
+ var inner='';for(j=0;j<T;j++){var iw=vp(v1,rx[j])+(v2?vp(v2,ry[j]):'');inner+=(j===0?co(ij[j],iw):coS(ij[j],iw));}
+ return {expr:expr, ans:gcf+'('+inner+')', g:g, ij:ij, tx:TX, ty:TY, ox:ox, oy:oy, rx:rx, ry:ry, v1:v1, v2:v2};
+}
+function g_factorCommon(){
+ var V=pick([['x'],['a'],['n'],['z'],['x','y'],['a','b'],['m','n']]);
+ var r=buildFactor(2,V,2,14);if(!r)return null;
+ return {q:'$'+r.expr+'$', a:'$='+r.ans+'$',
+  key:'fc2'+r.v1+(r.v2||'')+r.g+r.ij.join(',')+r.tx.join(',')+r.ty.join(','),
+  f0:function(x,y){var s=0,j;for(j=0;j<2;j++)s+=r.g*r.ij[j]*Math.pow(x,r.tx[j])*Math.pow(y,r.ty[j]);return s;},
+  f1:function(x,y){var gv=r.g*Math.pow(x,r.ox)*Math.pow(y,r.oy),inv=0,j;for(j=0;j<2;j++)inv+=r.ij[j]*Math.pow(x,r.rx[j])*Math.pow(y,r.ry[j]);return gv*inv;}};
+}
+function g_factorCommon3(){
+ var V=pick([['x','y'],['a','b'],['m','n'],['p','q']]);
+ var r=buildFactor(3,V,3,15);if(!r)return null;
+ return {q:'$'+r.expr+'$', a:'$='+r.ans+'$',
+  key:'fc3'+r.v1+(r.v2||'')+r.g+r.ij.join(',')+r.tx.join(',')+r.ty.join(','),
+  f0:function(x,y){var s=0,j;for(j=0;j<3;j++)s+=r.g*r.ij[j]*Math.pow(x,r.tx[j])*Math.pow(y,r.ty[j]);return s;},
+  f1:function(x,y){var gv=r.g*Math.pow(x,r.ox)*Math.pow(y,r.oy),inv=0,j;for(j=0;j<3;j++)inv+=r.ij[j]*Math.pow(x,r.rx[j])*Math.pow(y,r.ry[j]);return gv*inv;}};
+}
+function g_polymulBlank(){
+ var P=pick([['x','y'],['a','b'],['m','n']]),v1=P[0],v2=P[1], SQ='\\square';
+ var k=rnd(2,5), e1=rnd(1,3), f1=rnd(2,3);
+ var c1=rnd(2,5), g1=rnd(1,3), h1=rnd(0,2);
+ var c2=nz(-6,-2), g2=rnd(0,2), h2=rnd(1,3);
+ if(g1===g2&&h1===h2)return null;
+ var monoT=mono2(k,v1,e1,v2,f1);
+ var t1=mono2(c1,v1,g1,v2,h1), t2s=coS(c2,vp(v1,g2)+vp(v2,h2));
+ var r1=mono2(k*c1,v1,e1+g1,v2,f1+h1), r2s=coS(k*c2,vp(v1,e1+g2),v2);
+ r2s=coS(k*c2,vp(v1,e1+g2)+vp(v2,f1+h2));
+ // асуулт: mono-гийн y илтгэгч, эхний гишүүний x илтгэгч, хариуны эхний коэффициент — хоосон
+ var qMono=co(k,vp(v1,e1))+v2+'^{'+SQ+'}';
+ var qT1=co(c1,v1+'^{'+SQ+'}'+vp(v2,h1));
+ var qRes=SQ+' '+vp(v1,e1+g1)+vp(v2,f1+h1)+r2s;
+ var qT=qMono+'\\bigl('+qT1+t2s+'\\bigr)='+qRes;
+ var solved=monoT+'\\bigl('+t1+t2s+'\\bigr)='+r1+r2s;
+ return {q:'$'+qT+'$', a:'$'+solved+'$',
+  key:'pmb'+v1+k+e1+f1+c1+g1+h1+c2+g2+h2, solved:solved};
+}
+
+// ════════ 5.5 Шугаман тэгшитгэл бодох ════════
+function g_eqSimple(){
+ var v=pick(['x','f','g','k','n']);
+ var x=nz(-9,12), a=rnd(2,12), c=rnd(1,11);
+ if(a===c)return null;
+ var b=nz(-15,15), d=(a-c)*x+b;
+ if(Math.abs(d)>60)return null;
+ var eq=co(a,v)+coS(b,'')+'='+co(c,v)+coS(d,'');
+ return {q:'$'+eq+'$', a:'$'+co(a-c,v)+'='+(d-b)+'$,  $'+v+'='+x+'$',
+  key:'eqS'+v+a+c+b+x, eq:eq, sol:x, nv:x, ef:function(X){return a*X+b-(c*X+d);}};
+}
+function g_eqBracketOne(){
+ var v=pick(['x','m','k','f']), form=pick(['A','B','C']), x=nz(-9,12);
+ if(form==='A'){
+  var a=rnd(2,11), b=nz(-12,12), c=rnd(-9,9);
+  if(a===c)return null;
+  var d=(a-c)*x+a*b;
+  if(Math.abs(d)>90)return null;
+  var rhs=(c===0?''+d:co(c,v)+coS(d,''));
+  var eqA=a+'('+co(1,v)+coS(b,'')+')='+rhs;
+  return {q:'$'+eqA+'$', a:'$'+co(a,v)+coS(a*b,'')+'='+rhs+'$;  $'+v+'='+x+'$',
+   key:'eqBA'+v+a+b+c+x, eq:eqA, sol:x, nv:x, ef:function(X){return a*(X+b)-(c*X+d);}};
+ }
+ if(form==='B'){
+  var A=rnd(2,11), m=rnd(3,20), D=A*(m-x);
+  if(Math.abs(D)>140)return null;
+  var eqB=A+'('+m+'-'+v+')='+D;
+  return {q:'$'+eqB+'$', a:'$'+(A*m)+'-'+co(A,v)+'='+D+'$;  $'+v+'='+x+'$',
+   key:'eqBB'+v+A+m+x, eq:eqB, sol:x, nv:x, ef:function(X){return A*(m-X)-D;}};
+ }
+ var a2=rnd(2,12), c2=rnd(1,11);
+ if(a2===c2)return null;
+ var d2=(a2-c2)*x;
+ var eqC=co(a2,v)+'='+co(c2,v)+coS(d2,'');
+ if(d2===0)return null;
+ return {q:'$'+eqC+'$', a:'$'+co(a2-c2,v)+'='+d2+'$;  $'+v+'='+x+'$',
+  key:'eqBC'+v+a2+c2+x, eq:eqC, sol:x, nv:x, ef:function(X){return a2*X-(c2*X+d2);}};
+}
+function g_eqBracketBoth(){
+ var v=pick(['x','f','m','k']), x=nz(-9,12);
+ var a=rnd(2,11), d=rnd(2,11), b=rnd(1,6), e=rnd(1,6), c=nz(-14,14);
+ if(a*b===d*e)return null;
+ var numf=a*(b*x+c)-d*e*x;
+ if(numf%d!==0)return null;
+ var f=numf/d;
+ if(f===0||Math.abs(f)>18)return null;
+ var eq=a+'('+co(b,v)+coS(c,'')+')='+d+'('+co(e,v)+coS(f,'')+')';
+ return {q:'$'+eq+'$',
+  a:'$'+co(a*b,v)+coS(a*c,'')+'='+co(d*e,v)+coS(d*f,'')+'$;  $'+co(a*b-d*e,v)+'='+(d*f-a*c)+'$,  $'+v+'='+x+'$',
+  key:'eqB2'+v+a+b+c+d+e+x, eq:eq, sol:x, nv:x, ef:function(X){return a*(b*X+c)-d*(e*X+f);}};
+}
+function g_eqFraction(){
+ var form=pick(['int','int','dec']);
+ if(form==='int'){
+  var v=pick(['x','n','m']), a=rnd(2,11), b=rnd(2,9), x=nz(-9,12), num=a*x;
+  if(num%b!==0)return null;
+  var c=num/b;
+  if(Math.abs(c)>60)return null;
+  var eqI='\\dfrac{'+co(a,v)+'}{'+b+'}='+c;
+  return {q:'$'+eqI+'$', a:'$'+co(a,v)+'='+(b*c)+'$;  $'+v+'='+x+'$',
+   key:'eqFi'+v+a+b+x, eq:eqI, sol:x, nv:x, ef:function(X){return a*X/b-c;}};
+ }
+ var opts=[{s:'0.05',c:5},{s:'0.1',c:10},{s:'0.2',c:20},{s:'0.25',c:25},{s:'0.4',c:40},{s:'0.5',c:50},{s:'1.2',c:120}];
+ var o1=pick(opts), o2=pick(opts), x2=rnd(1,9), r=rnd(1,8);
+ var Ccents=o1.c*x2+o2.c*(x2-r), Cstr=decStr(Ccents/100,2);
+ var eqD=o1.s+'x+'+o2.s+'(x-'+r+')='+Cstr;
+ return {q:'$'+eqD+'$',
+  a:'$'+decStr((o1.c+o2.c)/100,2)+'x-'+decStr(o2.c*r/100,2)+'='+Cstr+'$;  $x='+x2+'$',
+  key:'eqFd'+o1.c+o2.c+x2+r, eq:eqD, sol:x2, nv:x2, ef:function(X){return o1.c*X+o2.c*(X-r)-Ccents;}};
+}
+function g_eqFracMulti(){
+ var form=pick(['A','B']);
+ var x0=nz(-9,12);
+ if(form==='A'){
+  // (a1 x + b1)/p + s(a2 x + b2)/q = (a3 x + b3)/r
+  var DS=pick([[6,3,2],[4,2,8],[6,2,3],[9,18,6],[10,5,2],[12,4,3]]);
+  var p=DS[0],q=DS[1],r=DS[2];
+  var a1=nz(-6,6), b1=nz(-12,12), a2=nz(-6,6), b2=nz(-12,12), a3=nz(-6,6);
+  var s=pick([1,-1]);
+  var lhsAtX=(a1*x0+b1)/p+s*(a2*x0+b2)/q;
+  var b3=r*lhsAtX-a3*x0;
+  if(Math.abs(b3-Math.round(b3))>1e-9)return null;
+  b3=Math.round(b3);
+  if(Math.abs(b3)>40)return null;
+  var kx=a1/p+s*a2/q-a3/r;
+  if(Math.abs(kx)<1e-9)return null;
+  var eq='\\dfrac{'+co(a1,'x')+coS(b1,'')+'}{'+p+'}'+(s>0?'+':'-')+'\\dfrac{'+co(a2,'x')+coS(b2,'')+'}{'+q+'}=\\dfrac{'+co(a3,'x')+coS(b3,'')+'}{'+r+'}';
+  var L=lcm(lcm(p,q),r);
+  return {q:'$'+eq+'$',
+   a:'Хоёр талыг $'+L+'$-аар үржүүлбэл $x='+x0+'$',
+   key:'efmA'+p+q+r+a1+b1+a2+b2+a3+x0+s, eq:eq, sol:x0, nv:x0,
+   ef:function(X){return (a1*X+b1)/p+s*(a2*X+b2)/q-(a3*X+b3)/r;}};
+ }
+ // a x/p - b/q = c x/r + d/t
+ var DD=pick([[9,2,18,3],[6,4,12,3],[4,3,8,6],[10,5,2,4]]);
+ var p2=DD[0],q2=DD[1],r2=DD[2],t2=DD[3];
+ var A=nz(-8,8), C=nz(-8,8), B=nz(-9,9);
+ var kx2=A/p2-C/r2;
+ if(Math.abs(kx2)<1e-9)return null;
+ var Dv=t2*(A*x0/p2-B/q2-C*x0/r2);
+ if(Math.abs(Dv-Math.round(Dv))>1e-9)return null;
+ Dv=Math.round(Dv);
+ if(Math.abs(Dv)>40||Dv===0)return null;
+ var eq2='\\dfrac{'+co(A,'x')+'}{'+p2+'}-\\dfrac{'+B+'}{'+q2+'}=\\dfrac{'+co(C,'x')+'}{'+r2+'}+\\dfrac{'+Dv+'}{'+t2+'}';
+ var L2=lcm(lcm(p2,q2),lcm(r2,t2));
+ return {q:'$'+eq2+'$', a:'Хоёр талыг $'+L2+'$-аар үржүүлбэл $x='+x0+'$',
+  key:'efmB'+p2+q2+r2+t2+A+B+C+x0, eq:eq2, sol:x0, nv:x0,
+  ef:function(X){return A*X/p2-B/q2-(C*X/r2+Dv/t2);}};
+}
+function g_eqCheckRoot(){
+ var A=rnd(2,14), x0=nz(-14,14), cc=pick([1,-1,2,-2,3,-3]);
+ var d=A*(1-x0)-cc*x0;
+ if(Math.abs(d)>140||d===0)return null;
+ if(A===cc)return null;
+ var eq=A+'(1-x)='+co(cc,'x')+coS(d,'');
+ var hasRoot=pick([true,true,false]);
+ var opts=[], guard=0, o;
+ while(opts.length<3&&guard++<200){o=nz(-45,45);if(o!==x0&&opts.indexOf(o)<0)opts.push(o);}
+ if(opts.length<3)return null;
+ if(hasRoot)opts.push(x0);
+ else{guard=0;do{o=nz(-45,45);}while((o===x0||opts.indexOf(o)>=0)&&guard++<200);if(o===x0)return null;opts.push(o);}
+ opts=shuffle(opts);
+ return {q:'$'+eq+'$;  сонголт: $'+opts.join(';\\ ')+'$',
+  a:hasRoot?('$x='+x0+'$ нь шийд.'):('Шийд нь $x='+x0+'$ тул аль нь ч шийд биш.'),
+  key:'ecr'+A+cc+d+x0+opts.join(','),
+  eq:eq, sol:x0, nv:x0, ef:function(X){return A*(1-X)-(cc*X+d);},
+  ok:((opts.indexOf(x0)>=0)===hasRoot)};
+}
+function g_eqGeom(){
+ var mode=pick(['seg','line','rect','tri']);
+ if(mode==='seg'){
+  var n=rnd(3,4), k=rnd(10,60), x=rnd(4,40), T=n*x+k;
+  var eq='('+n+'x)+'+k+'='+T;
+  return {q:'Хэрчим: $'+n+'$ ширхэг $x$ ба $'+k+'$ см; нийт $'+T+'$ см',
+   a:'$'+n+'x+'+k+'='+T+'$;  $x='+x+'$',
+   fig:figSeg(['x','x','x','x'].slice(0,n).concat([''+k]),[3,3,3,3].slice(0,n).concat([Math.max(1,Math.round(3*k/x))]),''+T+' см'),
+   key:'egS'+n+k+x, eq:eq, sol:x, nv:x, ef:function(X){return n*X+k-T;}};
+ }
+ if(mode==='line'){
+  var a1=rnd(2,7), b1=rnd(5,60), a2=rnd(1,6), x2;
+  var b2;
+  x2=rnd(5,30);
+  b2=180-(a1*x2+b1)-a2*x2;
+  if(b2<1||b2>90)return null;
+  if(a1*x2+b1>=180||a2*x2+b2>=180)return null;
+  var L1=co(a1,'x')+coS(b1,''), L2=co(a2,'x')+coS(b2,'');
+  var eq2='('+L1+')+('+L2+')=180';
+  return {q:'Шулуун дээрх хоёр өнцөг: $('+L1+')^\\circ$ ба $('+L2+')^\\circ$',
+   a:'$'+co(a1+a2,'x')+coS(b1+b2,'')+'=180$;  $x='+x2+'$',
+   fig:figAngles(L1+'°',L2+'°'),
+   key:'egL'+a1+b1+a2+x2, eq:eq2, sol:x2, nv:x2, ef:function(X){return a1*X+b1+a2*X+b2-180;}};
+ }
+ if(mode==='rect'){
+  var p1=rnd(2,12), q1=nz(-15,30), p2=rnd(2,12), q2=nz(-15,30), x3=rnd(3,14);
+  var Pm=2*((p1*x3+q1)+(p2*x3+q2));
+  if(p1*x3+q1<3||p2*x3+q2<3||Pm>400)return null;
+  var S1=co(p1,'x')+coS(q1,''), S2=co(p2,'x')+coS(q2,'');
+  var eq3='2(('+S1+')+('+S2+'))='+Pm;
+  return {q:'Тэгш өнцөгтийн талууд $'+S1+'$ ба $'+S2+'$; периметр $'+Pm+'$ см',
+   a:'$'+co(2*(p1+p2),'x')+coS(2*(q1+q2),'')+'='+Pm+'$;  $x='+x3+'$',
+   fig:figRectIn(S1,S2,'P = '+Pm+' см'),
+   key:'egR'+p1+q1+p2+q2+x3, eq:eq3, sol:x3, nv:x3,
+   ef:function(X){return 2*((p1*X+q1)+(p2*X+q2))-Pm;}};
+ }
+ var m1=rnd(1,4), c1=rnd(5,40), m2=rnd(1,4), x4=rnd(5,30);
+ var c2=90-(m1*x4+c1)-m2*x4;
+ if(c2<1||c2>80)return null;
+ if(m1*x4+c1<1||m2*x4+c2<1)return null;
+ var A1=co(m1,'x')+coS(c1,''), A2=co(m2,'x')+coS(c2,'');
+ var eq4='('+A1+')+('+A2+')=90';
+ return {q:'Тэгш өнцөгт гурвалжны хурц өнцгүүд: $('+A1+')^\\circ$ ба $('+A2+')^\\circ$',
+  a:'$'+co(m1+m2,'x')+coS(c1+c2,'')+'=90$;  $x='+x4+'$',
+  key:'egT'+m1+c1+m2+x4, eq:eq4, sol:x4, nv:x4, ef:function(X){return m1*X+c1+m2*X+c2-90;}};
+}
+function g_eqRectSides(){
+ var a=rnd(3,12), c=rnd(1,a-1), x=rnd(3,20);
+ var b=nz(-30,30), d=(a-c)*x+b;
+ if(Math.abs(d)>60)return null;
+ var side=a*x+b;
+ if(side<2)return null;
+ var p1=rnd(2,15), q1=nz(-10,30), other=p1*x+q1;
+ if(other<2)return null;
+ var S1=co(a,'x')+coS(b,''), S2=co(c,'x')+coS(d,''), S3=co(p1,'x')+coS(q1,'');
+ var eq=S1+'='+S2;
+ return {q:'Эсрэг талууд: $'+S1+'$ ба $'+S2+'$; хөрш тал $'+S3+'$',
+  a:'$'+S1+'='+S2+'$-оос $x='+x+'$; талууд $'+side+'$ ба $'+other+'$, $P='+(2*(side+other))+'$',
+  fig:figRect2(S1,S3), key:'ers'+a+b+c+x+p1+q1,
+  eq:eq, sol:x, nv:x, ef:function(X){return (a*X+b)-(c*X+d);},
+  ok:(a*x+b===c*x+d)};
+}
+
+// ════════ 5.6 Тэгшитгэл зохиож бодлого бодох ════════
+function g_thinkNumber(){
+ var x=rnd(2,20), a=rnd(2,12), c=rnd(2,12);
+ if(a===c)return null;
+ var b=nz(-15,15), d=(a-c)*x+b;
+ if(d===0||Math.abs(d)>60)return null;
+ var w1=b>0?('$'+b+'$-ыг нэмэв'):('$'+(-b)+'$-ыг хасав');
+ var w2=d>0?('$'+d+'$-ыг нэмэв'):('$'+(-d)+'$-ыг хасав');
+ var eq=co(a,'x')+coS(b,'')+'='+co(c,'x')+coS(d,'');
+ return {q:'Санасан тоог $'+a+'$-аар үржүүлээд '+w1+'. Мөн уг тоог $'+c+'$-аар үржүүлээд '+w2+'. Хоёр үр дүн тэнцүү бол санасан тоог ол.',
+  a:'$'+eq+'$;  $x='+x+'$', key:'tn'+a+b+c+x,
+  eq:eq, sol:x, nv:x, ef:function(X){return a*X+b-(c*X+d);}};
+}
+function g_nestedNumberEq(){
+ var x=rnd(1,15), a=rnd(2,12), b=nz(-12,12), c=rnd(2,9), d=rnd(2,12);
+ var e=c*(a*x+b)-d*x;
+ if(Math.abs(e)>200||e===0)return null;
+ if(c*a===d)return null;
+ var w1=b>0?('$'+b+'$-ыг нэмэв'):('$'+(-b)+'$-ыг хасав');
+ var w2=e>0?('$'+e+'$-ыг нэмсэнтэй'):('$'+(-e)+'$-ыг хассантай');
+ var eq=c+'('+co(a,'x')+coS(b,'')+')='+co(d,'x')+coS(e,'');
+ return {q:'Тоог $'+a+'$-аар үржүүлээд '+w1+'. Гарсан үр дүнг $'+c+'$-аар үржүүлэхэд уг тоог $'+d+'$-аар үржүүлээд '+w2+' тэнцүү гарав. Тоог ол.',
+  a:'$'+eq+'$;  $x='+x+'$', key:'nne'+a+b+c+d+x,
+  eq:eq, sol:x, nv:x, ef:function(X){return c*(a*X+b)-(d*X+e);}};
+}
+function g_twoTransformEqual(){
+ var x=rnd(3,20), a=rnd(3,14), c=rnd(2,a-1), d=rnd(1,14);
+ var num=(a-c)*x-c*d;
+ if(num%a!==0)return null;
+ var b=num/a;
+ if(b<1||b>15)return null;
+ var eq=a+'(x-'+b+')='+c+'(x+'+d+')';
+ return {q:'Багш самбарт нэг тоо бичив. Эхний сурагч уг тооноос $'+b+'$-ыг хасаад $'+a+'$-аар үржүүлэв. Хоёр дахь сурагч уг тоон дээр $'+d+'$-ыг нэмээд $'+c+'$-аар үржүүлэв. Хариунууд тэнцүү бол багш ямар тоо бичсэн бэ?',
+  a:'$'+eq+'$;  $'+co(a-c,'x')+'='+(a*b+c*d)+'$,  $x='+x+'$',
+  key:'tte'+a+b+c+d+x, eq:eq, sol:x, nv:x, ef:function(X){return a*(X-b)-c*(X+d);}};
+}
+function g_priceRatio(){
+ var pairs=[['ширээ','сандал'],['цүнх','ном'],['дэвтэр','харандаа'],['компьютер','дэлгэц'],['хөргөгч','индүү']];
+ var P=pick(pairs), big=P[0], small=P[1];
+ var k=rnd(2,7), sp=1000*rnd(3,40), D=(k-1)*sp, bp=k*sp;
+ var eq=co(k,'x')+'-x='+D;
+ return {q:cap(big)+' нь '+small+'-аас $'+k+'$ дахин үнэтэй бөгөөд $'+D+'$ төгрөгөөр илүү үнэтэй. Тус бүрийн үнийг ол.',
+  a:small+': $'+sp+'$₮, '+big+': $'+bp+'$₮  ($'+co(k-1,'x')+'='+D+'$)',
+  key:'prc'+big+k+sp, eq:eq, sol:sp, nv:sp, ef:function(X){return k*X-X-D;},
+  ok:(bp-sp===D&&bp===k*sp)};
+}
+function g_headsLegs(){
+ var pairs=[['тахиа','туулай'],['нугас','гахай'],['тагтаа','муур']];
+ var P=pick(pairs), two=P[0], four=P[1];
+ var c=rnd(5,45), r=rnd(3,30), H=c+r;
+ if(H<15||H>70)return null;
+ var L=2*c+4*r;
+ var eq='2x+4('+H+'-x)='+L;
+ return {q:cap(two)+', '+four+' нийлээд $'+H+'$ толгой, хөл нь нийт $'+L+'$ байв. Тус бүр хэд байсан бэ?',
+  a:two+': $'+c+'$, '+four+': $'+r+'$  ($x+y='+H+'$, $2x+4y='+L+'$)',
+  key:'hl'+two+H+L, eq:eq, sol:c, nv:c, ef:function(X){return 2*X+4*(H-X)-L;},
+  ok:(c+r===H&&2*c+4*r===L)};
+}
+function g_notebookMoney(){
+ var n1=rnd(3,7), n2=rnd(1,n1-1), p=100*rnd(3,25);
+ var r1=100*rnd(1,9), r2=r1+(n1-n2)*p;
+ if(r2>40000)return null;
+ var money=n1*p+r1;
+ var eq=co(n1,'x')+'+'+r1+'='+co(n2,'x')+'+'+r2;
+ return {q:'Хоёр сурагч ижил хэмжээний мөнгөтэй байв. Нэг нь $'+n1+'$ дэвтэр аваад $'+r1+'$ төгрөгтэй, нөгөө нь $'+n2+'$ дэвтэр аваад $'+r2+'$ төгрөгтэй үлдэв. Дэвтрийн үнэ ба анхны мөнгийг ол.',
+  a:'Дэвтэр $'+p+'$₮, анх $'+money+'$₮  ($'+co(n1-n2,'x')+'='+(r2-r1)+'$)',
+  key:'nbm'+n1+n2+p+r1, eq:eq, sol:p, nv:p, ef:function(X){return n1*X+r1-(n2*X+r2);},
+  ok:(n1*p+r1===n2*p+r2)};
+}
+function g_transferBalance(){
+ var k=rnd(2,6), light=rnd(4,40);
+ if((light*(k-1))%2!==0)return null;
+ var m=light*(k-1)/2;
+ if(m<2||m>60)return null;
+ var heavy=k*light;
+ if(heavy-m!==light+m)return null;
+ var eq=co(k,'x')+'-'+m+'=x+'+m;
+ return {q:'Нэг нь нөгөөгөөсөө $'+k+'$ дахин хүнд хоёр хайрцаг чихэр байв. Хүнд хайрцгаас $'+m+'$ кг чихэр авч хөнгөн хайрцагт нэмэхэд хоёулаа тэнцэв. Хайрцаг тус бүрд хэдэн кг чихэр байсан бэ?',
+  a:'Хөнгөн $'+light+'$ кг, хүнд $'+heavy+'$ кг  ($'+co(k-1,'x')+'='+(2*m)+'$)',
+  key:'tbl'+k+light, eq:eq, sol:light, nv:light, ef:function(X){return k*X-m-(X+m);},
+  ok:(heavy-m===light+m)};
+}
+function g_parkingCars(){
+ var k=rnd(2,6), few=rnd(6,50);
+ if((few*(k-1))%2!==0)return null;
+ var m=few*(k-1)/2;
+ if(m<3||m>80)return null;
+ var many=k*few;
+ var eq=co(k,'x')+'-'+m+'=x+'+m;
+ return {q:'Машины хоёр зогсоолын нэгэнд нь нөгөөгөөсөө $'+k+'$ дахин олон машин байв. Олон машинтай зогсоолоос $'+m+'$ машиныг нөгөө рүү шилжүүлэхэд зогсоолууд дахь машины тоо тэнцэв. Зогсоол бүрд анх хэдэн машин байсан бэ?',
+  a:'$'+few+'$ ба $'+many+'$ машин  ($'+co(k-1,'x')+'='+(2*m)+'$)',
+  key:'pkc'+k+few, eq:eq, sol:few, nv:few, ef:function(X){return k*X-m-(X+m);},
+  ok:(many-m===few+m)};
+}
+function g_catMice(){
+ var k=rnd(2,5), white=rnd(8,40), n=rnd(3,12), pq=pick([[6,4],[5,3],[7,2],[4,3],[8,5]]);
+ var p=pq[0], q=pq[1];
+ var black=k*white;
+ var A=black-p*n, B=white-q*n;
+ if(A<3||B<3)return null;
+ if(A+p*n!==k*(B+q*n))return null;
+ var eq='('+A+'+'+p+'\\cdot '+n+')='+k+'('+B+'+'+q+'\\cdot '+n+')';
+ return {q:'Муур цагаан хулганаас $'+k+'$ дахин олон хар хулгана барьжээ. Өдөр бүр $'+p+'$ хар, $'+q+'$ цагаан хулгана иддэг. $'+n+'$ хоногийн дараа $'+A+'$ хар, $'+B+'$ цагаан хулгана үлдэв. Муур нийт хэдэн хулгана барьсан бэ?',
+  a:'Цагаан $'+white+'$, хар $'+black+'$; нийт $'+(white+black)+'$',
+  key:'cmi'+k+white+n+p+q, sol:white, nv:white,
+  eq:'x\\cdot '+k+'-'+p+'\\cdot '+n+'='+A,
+  ef:function(X){return k*X-p*n-A;},
+  ok:(A===k*white-p*n&&B===white-q*n&&A+p*n===k*(B+q*n))};
+}
+var WSPEC={"title":"Хялбарчилж утга олох","sub":"Алгебрын илэрхийлэл хялбарлах · V бүлэг · 7-р анги","rule":"<b>Санамж:</b> Гишүүнчлэн үржүүлэх дүрэм: $a(b+c)=ab+ac$, $\\ a(b-c)=ab-ac$. Хаалтын өмнө хасах тэмдэг байвал хаалт задлахад дотоод гишүүдийн тэмдэг эсрэгээр солигдоно: $-(b-c)=-b+c$. Хаалт задалсны дараа төсөөтэй гишүүдийг эмхэтгэнэ.","ref":"","tasks":[{"label":"Хаалт задалж хялбарчил.","fn":"g_distSimplify1","cap":5,"cols":3,"wk":10},{"label":"Хялбарчлаад өгсөн утганд тооцоол.","fn":"g_simplifyEval","cap":5,"cols":1,"wk":20},{"label":"Дүрсийн периметр олох илэрхийлэл бичээд хялбарчил.","fn":"g_perimeterExpr","cap":3,"cols":1,"wk":18},{"label":"Хялбарчлаад өгсөн утганд тооцоол.","fn":"g_simplifyDecEval","cap":3,"cols":1,"wk":20},{"label":"$X$, $Y$, $Z$-ийн утгыг орлуулж хялбарчил.","fn":"g_XYZcombine","cap":3,"cols":1,"wk":22}]};
+
+function toggleAns(){var el=document.getElementById('answers');if(el)el.style.display=document.getElementById('sa').checked?'block':'none';}
+function gen(fn){for(var t=0;t<700;t++){var f=fn();if(f)return f;}return null;}
+var LET=['а','б','в','г','д','е','ё','ж','з','и','к','л','м','н','о','ө','п','р','с','т'];
+function probeH(sheet){var pr=sheet.cloneNode(true);pr.removeAttribute('id');pr.style.cssText='position:absolute;left:-99999px;top:0;width:210mm;max-width:none;min-height:0;margin:0;padding:0;box-shadow:none;zoom:1';var a=pr.querySelector('#answers,.ans-page');if(a)a.remove();document.body.appendChild(pr);var h=pr.scrollHeight;document.body.removeChild(pr);return h;}
+function relabel(sheet){var blocks=sheet.querySelectorAll('.grid'),map={};for(var g=0;g<blocks.length;g++){var qs2=blocks[g].querySelectorAll('.q');for(var i=0;i<qs2.length;i++){var lt=LET[i]||('#'+(i+1));var ql=qs2[i].querySelector('.ql');if(ql)ql.textContent=lt+')';map[qs2[i].getAttribute('data-k')]=(g+1)+lt+')';}}
+  var as=sheet.querySelectorAll('#answers .a');for(var j=0;j<as.length;j++){var an=as[j].querySelector('.an');if(an)an.textContent=map[as[j].getAttribute('data-k')]||'';}}
+function trimToFit(sheet,target){var guard=0,h=probeH(sheet);while(h>target&&guard++<90){var blocks=sheet.querySelectorAll('.grid'),best=-1,bestN=-1;for(var s=blocks.length-1;s>=0;s--){var n=blocks[s].querySelectorAll('.q').length;if(n>bestN&&n>2){bestN=n;best=s;}}if(best<0)break;var qs2=blocks[best].querySelectorAll('.q');var last=qs2[qs2.length-1],k=last.getAttribute('data-k');var ans=sheet.querySelector('#answers .a[data-k="'+k+'"]');if(ans)ans.parentNode.removeChild(ans);last.parentNode.removeChild(last);relabel(sheet);h=probeH(sheet);}}
+var TASKS=WSPEC.tasks.map(function(t){return {label:t.label, fn:eval(t.fn), cap:t.cap, cols:t.cols, wk:t.wk};});
+function genPool(){var P=TASKS.map(function(){return[];});var seen={};TASKS.forEach(function(t,i){var c=0,tr=0,need=t.cap+3;while(c<need&&tr<9000){tr++;var f=gen(t.fn);if(!f||seen[f.key])continue;seen[f.key]=1;P[i].push(f);c++;}});return P;}
+function build(){window.__POOL=genPool();layout();}
+function layout(){var WK=document.getElementById('sw').checked;var S=window.__POOL||(window.__POOL=genPool());window.__PROB=[];var K=0;
+  function block(arr,cap,tk){var use=WK?arr.slice(0,cap):arr;return '<div class="grid"'+(tk&&tk.cols?' style="grid-template-columns:repeat('+tk.cols+',1fr)"':'')+'>'+use.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});return '<div class="q" data-k="'+k+'"><div class="qh"><span class="ql"></span><span class="qm">'+f.q+'</span></div>'+(f.fig?'<div class="fig">'+f.fig+'</div>':'')+((WK&&!f.noWk)?'<div class="wk"'+(tk&&tk.wk?' style="height:'+tk.wk+'mm"':'')+'></div>':'')+'</div>';}).join('')+'</div>';}
+  function ansAll(){return window.__PROB.map(function(p){return '<div class="a" data-k="'+p.k+'"><span class="an"></span>'+p.f.a+'</div>';}).join('');}
+  var html='<div class="head"><h1>'+WSPEC.title+'</h1><div class="sub">'+WSPEC.sub+'</div></div>'
+    +'<div class="meta"><span>Нэр: </span><span>Анги: </span><span>Огноо: </span></div>'
+    +'<div class="rule">'+WSPEC.rule+'</div>'+(WSPEC.ref||'');
+  TASKS.forEach(function(t,i){html+='<div class="task">'+(i+1)+'. '+t.label+'</div>'+block(S[i],t.cap,t);});
+  html+='<div class="ans-page" id="answers"><h2>Хариу ба бодолт</h2><div class="ans-grid">'+ansAll()+'</div></div>';
+  document.getElementById('sheet').innerHTML=html;
+  window.WS_ITEMS=[];window.WS_TITLE=WSPEC.title;
+  relabel(document.getElementById('sheet'));toggleAns();
+  try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
+  try{if(!WK)trimToFit(document.getElementById('sheet'),1035);}catch(e){}
+  try{relabel(document.getElementById('sheet'));}catch(e){}
+}
+build();
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>
