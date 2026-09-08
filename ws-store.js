@@ -376,6 +376,7 @@
       var h1=document.querySelector('#sheet .head h1'); if(!h1)return;
       var v=(h1.textContent||'').replace(/\s+/g,' ').trim();
       setLocalTitle((!v||v===baseTitle())?null:v);   // хоосон буюу анхныхтай ижил бол хадгалахгүй
+      syncDocTitle(v||baseTitle());
       refreshTitleReset();
     },500);
   }
@@ -387,7 +388,13 @@
         b=document.createElement('button'); b.type='button'; b.className='ws-titlereset';
         b.style.cssText='font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.55rem 1rem;font-size:.85rem;color:#5a32d6;background:#efe9ff;display:inline-flex;align-items:center;gap:5px';
         b.innerHTML='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.64-6.36"/><path d="M3 4v6h6"/></svg><span>Гарчиг анхандаа</span>';
-        b.onclick=function(){ setLocalTitle(null); applyEdits(); refreshTitleReset(); };
+        b.onclick=function(){
+          setLocalTitle(null);
+          // гарчиг фокустай хэвээр бол applyEdits курсор хамгаалж хөндөхгүй тул эхлээд салгана
+          var h=document.querySelector('#sheet .head h1');
+          if(h){ try{h.blur();}catch(e){} h.textContent=baseTitle()||''; }
+          applyEdits(); refreshTitleReset();
+        };
         bar.appendChild(b);
       }
     } else if(b){ b.remove(); }
