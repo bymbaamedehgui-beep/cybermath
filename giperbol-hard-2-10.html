@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Гипербол, шулуун ба хөвч — хүнд (10-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<style>
+  :root{--purple:#7B52EE;--purple2:#A855F7;--ink:#1a1030;--soft:#7a7390}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:var(--ink);background:#eceaf3;padding:16px;line-height:1.5}
+  .bar{max-width:820px;margin:0 auto 14px;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
+  .btn{font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.6rem 1.3rem;font-size:.9rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2));box-shadow:0 6px 16px -6px rgba(123,82,238,.6)}
+  .btn:hover{filter:brightness(1.06)} .btn.refresh{background:linear-gradient(135deg,#16a34a,#22c55e)}
+  .bar label{font-weight:700;color:var(--purple);display:flex;align-items:center;gap:6px;font-size:.88rem}
+  .sheet{background:#fff;width:210mm;max-width:100%;min-height:297mm;margin:0 auto;padding:12mm 14mm;box-shadow:0 12px 44px -18px rgba(0,0,0,.35)}
+  .head{text-align:center;border-bottom:2.5px solid var(--purple);padding-bottom:7px;margin-bottom:7px}
+  .head h1{font-size:16px;color:#5a32d6;font-weight:800}.head .sub{font-size:11px;color:var(--soft);margin-top:2px}
+  .meta{display:flex;justify-content:space-between;font-size:11.5px;margin:8px 2px 10px}.meta span{border-bottom:1px dotted #b3a9cf;padding:0 26px 2px 4px}
+  .rule{font-size:11px;color:var(--soft);background:transparent;border-left:3px solid #d9cff5;border-radius:8px;padding:8px 12px;margin-bottom:11px}
+  .rule b{color:#5a32d6}
+  .task{font-weight:800;color:#5a32d6;font-size:12.5px;margin:9px 0 7px;border-left:4px solid var(--purple2);padding-left:9px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:11px 20px}
+  .q{break-inside:avoid;page-break-inside:avoid}
+  .qh{display:flex;gap:7px;align-items:baseline}.ql{font-weight:800;color:var(--purple);font-size:13px;min-width:22px}.qm{font-size:13px}
+  .fig{text-align:center;margin:4px 0}
+  .wk{border:1.1px solid #e2daf5;border-radius:7px;background:linear-gradient(#fff,#fbf9ff);height:30mm;margin-top:5px}
+  .ans-page{margin-top:9mm;border-top:2px dashed #ddd;padding-top:7mm}.ans-page h2{font-size:15px;color:#5a32d6;margin-bottom:10px}
+  .ans-grid{display:grid;grid-template-columns:1fr;gap:9px;font-size:12px}.ans-grid .a{padding-bottom:8px;border-bottom:1px dotted #e6e0f5}.ans-grid .an{color:var(--purple);font-weight:800;margin-right:5px}
+  #answers{display:none}
+  @media print{body{background:#fff;padding:0}.bar{display:none}.sheet{box-shadow:none;width:auto;min-height:auto;padding:0;margin:0}@page{size:A4;margin:11mm}.ans-page{break-before:page}}
+</style>
+</head>
+<body>
+<div class="bar">
+  <button class="btn refresh" onclick="build()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>Шинэ бодлого</button>
+  <label><input type="checkbox" id="sw" onchange="layout()" checked> Бодолтын зай</label>
+  <label><input type="checkbox" id="sa" onchange="toggleAns()"> Хариу хавсаргах</label>
+  <button class="btn" onclick="window.print()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>Хэвлэх / PDF</button>
+</div>
+<div class="sheet" id="sheet"></div>
+<script>
+// ══════════ g10core.js — 10-р ангийн нийтлэг хөдөлгүүр ══════════
+function rnd(a,b){return a+Math.floor(Math.random()*(b-a+1));}
+function nz(a,b){var v;do{v=rnd(a,b);}while(v===0);return v;}
+function pick(a){return a[rnd(0,a.length-1)];}
+function shuffle(a){a=a.slice();for(var i=a.length-1;i>0;i--){var j=rnd(0,i),t=a[i];a[i]=a[j];a[j]=t;}return a;}
+function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){var t=b;b=a%b;a=t;}return a||1;}
+function lcm(a,b){return Math.abs(a*b)/gcd(a,b);}
+function sgn(n){return n>=0?'+'+n:''+n;}                 // +5, -3 (тэмдэгтэй)
+function paren(n){return n<0?'('+n+')':''+n;}            // (-3), 5 (сөрөг бол хаалттай)
+// ── Анхны тоо, задаргаа ──
+function isPrime(n){n=Math.abs(n);if(n<2)return false;for(var i=2;i*i<=n;i++)if(n%i===0)return false;return true;}
+function primeFactors(n){n=Math.abs(n);var f=[],d=2;while(d*d<=n){while(n%d===0){f.push(d);n/=d;}d++;}if(n>1)f.push(n);return f;} // [2,2,3]
+function primeFactExp(n){var f=primeFactors(n),out=[],i=0;while(i<f.length){var p=f[i],e=0;while(i<f.length&&f[i]===p){e++;i++;}out.push({p:p,e:e});}return out;} // [{p:2,e:2},{p:3,e:1}]
+function pfTex(n){var pe=primeFactExp(n);return pe.map(function(x){return x.e===1?''+x.p:x.p+'^{'+x.e+'}';}).join('\\cdot ');} // 2^{2}\cdot3
+// ── Бүтэн квадрат/куб ──
+function isqrt(n){if(n<0)return null;var r=Math.round(Math.sqrt(n));return r*r===n?r:null;}       // төгс квадрат бол язгуур, үгүй бол null
+function icbrt(n){var s=n<0?-1:1;n=Math.abs(n);var r=Math.round(Math.cbrt(n));for(var k=r-1;k<=r+1;k++){if(k*k*k===n)return s*k;}return null;} // төгс куб бол куб язгуур, үгүй бол null
+// ── Бутархайн exact хөдөлгүүр ──
+function Fr(n,d){if(d<0){n=-n;d=-d;}var g=gcd(n,d)||1;return {n:n/g,d:d/g};}
+function fAdd(a,b){return Fr(a.n*b.d+b.n*a.d,a.d*b.d);}
+function fSub(a,b){return Fr(a.n*b.d-b.n*a.d,a.d*b.d);}
+function fMul(a,b){return Fr(a.n*b.n,a.d*b.d);}
+function fDiv(a,b){return Fr(a.n*b.d,a.d*b.n);}
+function fVal(a){return a.n/a.d;}
+function fTex(a){if(a.d===1)return ''+a.n;if(a.n<0)return '-\\dfrac{'+(-a.n)+'}{'+a.d+'}';return '\\dfrac{'+a.n+'}{'+a.d+'}';}
+function fMix(a){if(a.d===1)return ''+a.n;var neg=a.n<0,N=Math.abs(a.n),w=Math.floor(N/a.d),r=N%a.d;if(w===0)return (neg?'-':'')+'\\dfrac{'+r+'}{'+a.d+'}';if(r===0)return (neg?'-':'')+w;return (neg?'-':'')+w+'\\dfrac{'+r+'}{'+a.d+'}';}
+function pFr(a){var t=fMix(a);return a.n<0?'\\left('+t+'\\right)':t;}
+function frTeX(n,d){if(d===0)return null;if(d<0){n=-n;d=-d;}var g=gcd(n,d);n/=g;d/=g;if(d===1)return ''+n;if(n<0)return '-\\dfrac{'+(-n)+'}{'+d+'}';return '\\dfrac{'+n+'}{'+d+'}';}
+// ── Аравтын бутархай (урт хуваалт, үет илрүүлэх) ──
+function longDiv(n,d){var ip=Math.floor(n/d),rem=n%d,digits=[],seen={},idx=0,pStart=-1;
+ while(rem!==0){if(seen[rem]!==undefined){pStart=seen[rem];break;}seen[rem]=idx;rem*=10;digits.push(Math.floor(rem/d));rem%=d;idx++;if(idx>40)break;}
+ return {ip:ip,digits:digits,pStart:pStart};}
+function decLatex(fr){var neg=fr.n<0,r=longDiv(Math.abs(fr.n),fr.d),s=(neg?'-':'');
+ if(r.digits.length===0)return s+r.ip;
+ if(r.pStart<0)return s+r.ip+'.'+r.digits.join('');
+ var nonrep=r.digits.slice(0,r.pStart).join(''),rep=r.digits.slice(r.pStart).join('');
+ return s+r.ip+'.'+nonrep+'('+rep+')';}
+function decPlain(fr){var neg=fr.n<0,r=longDiv(Math.abs(fr.n),fr.d),s=(neg?'-':'');
+ if(r.digits.length===0)return s+r.ip;
+ if(r.pStart<0)return s+r.ip+'.'+r.digits.join('');
+ var nonrep=r.digits.slice(0,r.pStart).join(''),rep=r.digits.slice(r.pStart).join('');
+ return s+r.ip+'.'+nonrep+rep+rep+'…';}
+function repToFr(ip,nonrep,rep){var p=nonrep.length,q=rep.length;var Aint=nonrep===''?0:parseInt(nonrep,10);var ABint=parseInt((nonrep+rep)||'0',10);
+ var den=(Math.pow(10,q)-1)*Math.pow(10,p);var num=ABint-Aint;var frac=Fr(num,den);var whole=Fr(ip,1);return fAdd(whole,frac);}
+// ── Тоймлол ──
+function roundPlace(n,place){return Math.round(n/place)*place;}
+function roundDec(x,step){return Math.round(x/step)*step;}
+function fmtDec(x,dec){return x.toFixed(dec);}
+function sigRound(x,k){if(x===0)return {v:0,dec:0};var d=Math.floor(Math.log10(Math.abs(x)))+1;var p=k-d;var mag=Math.pow(10,p);var v=Math.round(x*mag)/mag;return {v:v,dec:Math.max(0,p)};}
+// ── Зэрэг форматлах ──
+function powClean(b,e){if(e===1)return ''+b;if(e===0)return '1';return b+'^{'+e+'}';}
+function powTex(bTex,e){if(e===1)return bTex;if(e===0)return '1';return bTex+'^{'+e+'}';}
+// ── Аравтын тоог хамгийн энгийн хэлбэрээр (0.50→0.5) ──
+function trimZeros(s){if(s.indexOf('.')<0)return s;s=s.replace(/0+$/,'');if(s.charAt(s.length-1)==='.')s=s.slice(0,-1);return s;}
+function decStr(x,maxdec){var s=x.toFixed(maxdec||6);return trimZeros(s);}
+// ── 2D координатын зураг ──
+function plane(opts){opts=opts||{};var W=200,H=200,pad=16,R=opts.xr||5,cx=W/2,cy=H/2,u=(W-2*pad)/(2*R);
+ function X(x){return (cx+x*u).toFixed(1);}function Y(y){return (cy-y*u).toFixed(1);}
+ var g='',i;
+ for(i=-R;i<=R;i++){g+='<line x1="'+X(i)+'" y1="'+Y(-R)+'" x2="'+X(i)+'" y2="'+Y(R)+'" stroke="#eef" stroke-width="1"/>';g+='<line x1="'+X(-R)+'" y1="'+Y(i)+'" x2="'+X(R)+'" y2="'+Y(i)+'" stroke="#eef" stroke-width="1"/>';}
+ g+='<line x1="'+X(-R)+'" y1="'+Y(0)+'" x2="'+X(R)+'" y2="'+Y(0)+'" stroke="#555" stroke-width="1.3"/>';
+ g+='<line x1="'+X(0)+'" y1="'+Y(-R)+'" x2="'+X(0)+'" y2="'+Y(R)+'" stroke="#555" stroke-width="1.3"/>';
+ g+='<polygon points="'+X(R)+','+Y(0)+' '+(+X(R)-5)+','+(+Y(0)-3)+' '+(+X(R)-5)+','+(+Y(0)+3)+'" fill="#555"/>';
+ g+='<polygon points="'+X(0)+','+Y(R)+' '+(+X(0)-3)+','+(+Y(R)+5)+' '+(+X(0)+3)+','+(+Y(R)+5)+'" fill="#555"/>';
+ g+='<text x="'+(+X(R)-3)+'" y="'+(+Y(0)+12)+'" font-size="10" font-style="italic" fill="#555">x</text>';
+ g+='<text x="'+(+X(0)+5)+'" y="'+(+Y(R)+8)+'" font-size="10" font-style="italic" fill="#555">y</text>';
+ if(!opts.blank){
+  (opts.lines||[]).forEach(function(L){var y1=L.k*(-R)+L.b,y2=L.k*R+L.b;g+='<line x1="'+X(-R)+'" y1="'+Y(y1)+'" x2="'+X(R)+'" y2="'+Y(y2)+'" stroke="'+(L.color||'#7B52EE')+'" stroke-width="2"/>';});
+  (opts.pts||[]).forEach(function(p){g+='<circle cx="'+X(p.x)+'" cy="'+Y(p.y)+'" r="3" fill="#dc2626"/>'+(p.l?'<text x="'+(+X(p.x)+4)+'" y="'+(+Y(p.y)-4)+'" font-size="9" font-weight="700" fill="#b91c1c">'+p.l+'</text>':'');});
+ }
+ return '<svg viewBox="0 0 '+W+' '+H+'" width="188">'+g+'</svg>';}
+// ── Тооны шулуун (blank, зөвхөн хуваарь; цэгийг тэмдэглэхгүй тул хариу илчлэхгүй) ──
+function numline(lo,hi){var W=320,H=44,pad=18,u=(W-2*pad)/(hi-lo);var g='<line x1="'+pad+'" y1="26" x2="'+(W-pad)+'" y2="26" stroke="#555" stroke-width="1.4"/>';
+ g+='<polygon points="'+(W-pad)+',26 '+(W-pad-6)+',23 '+(W-pad-6)+',29" fill="#555"/>';
+ for(var v=lo;v<=hi;v++){var x=pad+(v-lo)*u;g+='<line x1="'+x+'" y1="22" x2="'+x+'" y2="30" stroke="#555" stroke-width="1"/>';g+='<text x="'+x+'" y="41" font-size="9" text-anchor="middle" fill="#555">'+v+'</text>';}
+ return '<svg viewBox="0 0 '+W+' '+H+'" width="300">'+g+'</svg>';}
+// ── Эйлер-Веннийн диаграм (2 олонлог, blank) ──
+function venn2(la,lb){la=la||'A';lb=lb||'B';var g='<rect x="6" y="6" width="248" height="118" rx="6" fill="none" stroke="#b9b0d6"/>';
+ g+='<circle cx="102" cy="65" r="50" fill="rgba(123,82,238,0.13)" stroke="#7B52EE" stroke-width="1.4"/>';
+ g+='<circle cx="158" cy="65" r="50" fill="rgba(168,85,247,0.13)" stroke="#A855F7" stroke-width="1.4"/>';
+ g+='<text x="70" y="70" font-size="14" font-style="italic" fill="#5a32d6">'+la+'</text>';
+ g+='<text x="186" y="70" font-size="14" font-style="italic" fill="#5a32d6">'+lb+'</text>';
+ return '<svg viewBox="0 0 260 130" width="210">'+g+'</svg>';}
+// ══════════ 10-р анги · V БҮЛЭГ (ФУНКЦ БА ГРАФИК) — ЗӨВХӨН ХҮНД ТҮВШИН ══════════
+// g10core.js-ийн ард залгагдана. Бүх генератор {q,a,key,fig?,nv?,_v?} буцаана.
+
+// ──────────── Ерөнхий туслахууд ────────────
+function I(n){return Fr(n,1);}
+function absFr(f){return Fr(Math.abs(f.n),f.d);}
+function aTex(f){if(f.d===1){if(f.n===1)return '';if(f.n===-1)return '-';return ''+f.n;}return fTex(f);}
+function absCoef(f){var m=absFr(f);return (m.d===1&&m.n===1)?'':fTex(m);}
+function sgnFr(f){if(f.n===0)return '';if(f.n>0)return '+'+fTex(f);return '-'+fTex(absFr(f));}
+function pFr(f){return f.n<0?('\\bigl('+fTex(f)+'\\bigr)'):fTex(f);}
+function pm(n){return n>=0?'+'+n:''+n;}
+function pmz(n){return n===0?'':pm(n);}
+function coefTerm(n,v){if(n===0)return '';return (n<0?'-':'+')+(Math.abs(n)===1?'':Math.abs(n))+v;}
+function fPow(f,n){var r=I(1),i;if(n>=0){for(i=0;i<n;i++)r=fMul(r,f);}else{for(i=0;i<-n;i++)r=fDiv(r,f);}return r;}
+function fMin(a,b){return fVal(a)<=fVal(b)?a:b;}
+function fMax(a,b){return fVal(a)>=fVal(b)?a:b;}
+function fEq(a,b){return Math.abs(fVal(a)-fVal(b))<1e-9;}
+
+// ax^2+bx+c (a,b,c нь Fr) — хоосон гишүүдийг алгасана
+function quadTex(a,b,c,v){v=v||'x';
+ var t='';
+ if(a.n!==0)t+=(a.n<0?'-':'')+absCoef(a)+v+'^2';
+ if(b.n!==0)t+=(b.n<0?'-':(t?'+':''))+absCoef(b)+v;
+ if(c.n!==0)t+=(c.n<0?'-':(t?'+':''))+fTex(absFr(c));
+ return t===''?'0':t;}
+function linTex(k,b,v){return quadTex(I(0),k,b,v);}
+// a(x-p)^2+q
+function vertexTex(a,p,q){
+ var s=(fVal(a)===1?'':(fVal(a)===-1?'-':aTex(a)));
+ if(p.n===0)s+='x^2';else s+='\\bigl(x'+sgnFr(fMul(p,I(-1)))+'\\bigr)^2';
+ return s+sgnFr(q);}
+function ptN(x,y){return '\\bigl('+x+';\\ '+y+'\\bigr)';}
+function ptF(x,y){return '\\bigl('+fTex(x)+';\\ '+fTex(y)+'\\bigr)';}
+function setX(lo,hi){return '\\{x\\mid '+lo+'\\le x\\le '+hi+'\\}';}
+function setY(lo,hi){return '\\{y\\mid '+lo+'\\le y\\le '+hi+'\\}';}
+
+// ──────────── Цэвэр SVG график ────────────
+function graph(o){o=o||{};
+ var W=o.W||212,H=o.H||212,pad=17;
+ var xr=o.xr||5,yr=o.yr||5;
+ var ux=(W-2*pad)/(2*xr),uy=(H-2*pad)/(2*yr);
+ function X(x){return (pad+(x+xr)*ux).toFixed(1);}
+ function Y(y){return (H-pad-(y+yr)*uy).toFixed(1);}
+ var g='',i;
+ if(o.grid!==false){
+  for(i=-xr;i<=xr;i++)g+='<line x1="'+X(i)+'" y1="'+Y(-yr)+'" x2="'+X(i)+'" y2="'+Y(yr)+'" stroke="#eaeaf5" stroke-width="0.8"/>';
+  for(i=-yr;i<=yr;i++)g+='<line x1="'+X(-xr)+'" y1="'+Y(i)+'" x2="'+X(xr)+'" y2="'+Y(i)+'" stroke="#eaeaf5" stroke-width="0.8"/>';
+ }
+ g+='<line x1="'+X(-xr)+'" y1="'+Y(0)+'" x2="'+X(xr)+'" y2="'+Y(0)+'" stroke="#444" stroke-width="1.2"/>';
+ g+='<line x1="'+X(0)+'" y1="'+Y(-yr)+'" x2="'+X(0)+'" y2="'+Y(yr)+'" stroke="#444" stroke-width="1.2"/>';
+ g+='<polygon points="'+X(xr)+','+Y(0)+' '+(+X(xr)-6)+','+(+Y(0)-3)+' '+(+X(xr)-6)+','+(+Y(0)+3)+'" fill="#444"/>';
+ g+='<polygon points="'+X(0)+','+Y(yr)+' '+(+X(0)-3)+','+(+Y(yr)+6)+' '+(+X(0)+3)+','+(+Y(yr)+6)+'" fill="#444"/>';
+ if(o.labels){
+  var sx=xr<=5?1:2,sy=yr<=5?1:Math.ceil(yr/5);
+  for(i=-xr;i<=xr;i++){if(i===0)continue;
+   g+='<line x1="'+X(i)+'" y1="'+(+Y(0)-2.5)+'" x2="'+X(i)+'" y2="'+(+Y(0)+2.5)+'" stroke="#444" stroke-width="0.9"/>';
+   if(i%sx===0)g+='<text x="'+X(i)+'" y="'+(+Y(0)+11)+'" font-size="7.5" text-anchor="middle" fill="#666">'+i+'</text>';}
+  for(i=-yr;i<=yr;i++){if(i===0)continue;
+   g+='<line x1="'+(+X(0)-2.5)+'" y1="'+Y(i)+'" x2="'+(+X(0)+2.5)+'" y2="'+Y(i)+'" stroke="#444" stroke-width="0.9"/>';
+   if(i%sy===0)g+='<text x="'+(+X(0)-4)+'" y="'+(+Y(i)+3)+'" font-size="7.5" text-anchor="end" fill="#666">'+i+'</text>';}
+ }
+ g+='<text x="'+(+X(0)-4)+'" y="'+(+Y(0)+11)+'" font-size="8" text-anchor="end" fill="#666">O</text>';
+ g+='<text x="'+(+X(xr)-2)+'" y="'+(+Y(0)+13)+'" font-size="10" font-style="italic" fill="#444">x</text>';
+ g+='<text x="'+(+X(0)+6)+'" y="'+(+Y(yr)+9)+'" font-size="10" font-style="italic" fill="#444">y</text>';
+ (o.fns||[]).forEach(function(F){
+  var cur=[],N=o.N||420,t,k;
+  for(k=0;k<=N;k++){
+   t=-xr+(2*xr)*k/N;
+   var yv;
+   try{yv=F.f(t);}catch(e){yv=null;}
+   if(yv==null||!isFinite(yv)||yv<-yr-0.02||yv>yr+0.02){if(cur.length>1)g+='<polyline points="'+cur.join(' ')+'" fill="none" stroke="'+(F.color||'#7B52EE')+'" stroke-width="1.9"/>';cur=[];continue;}
+   cur.push(X(t)+','+Y(yv));
+  }
+  if(cur.length>1)g+='<polyline points="'+cur.join(' ')+'" fill="none" stroke="'+(F.color||'#7B52EE')+'" stroke-width="1.9"/>';
+ });
+ (o.segs||[]).forEach(function(S){g+='<line x1="'+X(S.x1)+'" y1="'+Y(S.y1)+'" x2="'+X(S.x2)+'" y2="'+Y(S.y2)+'" stroke="'+(S.color||'#9aa0b5')+'" stroke-width="1.1" stroke-dasharray="3,3"/>';});
+ (o.pts||[]).forEach(function(p){g+='<circle cx="'+X(p.x)+'" cy="'+Y(p.y)+'" r="3" fill="#dc2626"/>';
+  if(p.l)g+='<text x="'+(+X(p.x)+5)+'" y="'+(+Y(p.y)-5)+'" font-size="10" font-weight="700" fill="#b91c1c">'+p.l+'</text>';});
+ return '<svg viewBox="0 0 '+W+' '+H+'" width="196">'+g+'</svg>';}
+
+// ════════════════ 5.1 Функц, тодорхойлогдох муж ба дүр ════════════════
+
+// 1. √(ax+b)/(cx-d) хэлбэрийн тодорхойлогдох муж — гурван тохиолдол
+function g_domSqrtFrac(){
+ var a=pick([2,3,4,5]),b=nz(-12,12),c=pick([2,3,4,5]),d=nz(-10,10);
+ var p=Fr(-b,a),r=Fr(d,c);
+ var num='\\sqrt{'+linTex(I(a),I(b))+'}',den=linTex(I(c),I(-d));
+ var cmp=fVal(r)-fVal(p),ans,kind;
+ var head='Язгуур доорх илэрхийлэл сөрөг биш: $'+linTex(I(a),I(b))+'\\ge 0\\Rightarrow x\\ge '+fTex(p)+'$. Хуваарь тэг биш: $'+den+'\\ne 0\\Rightarrow x\\ne '+fTex(r)+'$. ';
+ if(cmp>1e-9){kind='cut';ans=head+'$'+fTex(r)+'\\gt '+fTex(p)+'$ тул хасалт хүчинтэй байна: $D='+'\\{x\\mid x\\ge '+fTex(p)+',\\ x\\ne '+fTex(r)+'\\}$';}
+ else if(Math.abs(cmp)<1e-9){kind='edge';ans=head+'Хоёр нөхцлийн хил давхцаж байгаа тул $x='+fTex(p)+'$ гарна: $D=\\{x\\mid x\\gt '+fTex(p)+'\\}$';}
+ else {kind='out';ans=head+'$'+fTex(r)+'\\lt '+fTex(p)+'$ тул энэ цэг эхний мужид ороогүй: $D=\\{x\\mid x\\ge '+fTex(p)+'\\}$';}
+ return {q:'$y=\\dfrac{'+num+'}{'+den+'}$',a:ans,key:'dsf'+a+'_'+b+'_'+c+'_'+d,
+  _v:{t:'domSqrtFrac',a:a,b:b,c:c,d:d,p:fVal(p),r:fVal(r),kind:kind}};}
+
+// 2. Тодорхойлогдох муж нь бүх бодит тоо байх параметрийн муж
+function g_domAllReal(){
+ var a=nz(-5,5),b=nz(-9,9)*2,m=nz(-8,8);
+ var B=Fr(b*b,4*a);
+ var den=quadTex(I(a),I(b),I(0))+'+k';
+ var ans='Хуваарь ямар ч $x$-д тэг болохгүй байх ёстой, өөрөөр хэлбэл $'+den+'=0$ тэгшитгэл шийдгүй: $D_{1}='+(b*b)+coefTerm(-4*a,'k')+'\\lt 0$. '+
+  'Эндээс $'+coefTerm(-4*a,'k').replace(/^\+/,'')+'\\lt '+(-b*b)+'$ болох ба $a='+a+(a>0?'\\gt 0':'\\lt 0')+'$ тул тэнцэтгэл бишийг $'+(-4*a)+'$-д хуваахад '+(a>0?'тэмдэг эргэнэ':'тэмдэг эргэхгүй')+': $k'+(a>0?'\\gt ':'\\lt ')+fTex(B)+'$';
+ return {q:'$y=\\dfrac{'+linTex(I(1),I(m))+'}{'+den+'}$',a:ans,key:'dar'+a+'_'+b+'_'+m,
+  _v:{t:'domAllReal',a:a,b:b,dir:(a>0?1:-1),B:fVal(B)}};}
+
+// 3. Шугаман функцийн тодорхойлогдох муж ба дүрээс a, b-г буцаан олох (2 тохиолдол)
+function g_rangeLinParam(){
+ var m=rnd(-6,2),n=m+rnd(2,6),u=rnd(-8,4),v=u+rnd(2,10);
+ var A1=Fr(v-u,n-m),b1=fSub(I(u),fMul(A1,I(m)));
+ var A2=Fr(u-v,n-m),b2=fSub(I(v),fMul(A2,I(m)));
+ return {q:'$D='+setX(m,n)+',\\quad E='+setY(u,v)+'$',
+  a:'$a\\ne 0$ тул функц хатуу монотон. <b>1)</b> $a\\gt 0$ бол $f('+m+')='+u+',\\ f('+n+')='+v+'$ тул $a=\\dfrac{'+(v-u)+'}{'+(n-m)+'}='+fTex(A1)+'$, $b='+u+'-'+fTex(A1)+'\\cdot '+paren(m)+'='+fTex(b1)+'$. '+
+    '<b>2)</b> $a\\lt 0$ бол $f('+m+')='+v+',\\ f('+n+')='+u+'$ тул $a='+fTex(A2)+'$, $b='+fTex(b2)+'$.',
+  key:'rlp'+m+'_'+n+'_'+u+'_'+v,_v:{t:'rangeLinParam',m:m,n:n,u:u,v:v,a1:fVal(A1),b1:fVal(b1),a2:fVal(A2),b2:fVal(b2)}};}
+
+// 4. Харгалзаа функц болох бүх параметрийг ол (сурах бичгийн 4-р бодлогын ерөнхий хэлбэр)
+function g_paramRelFunc(){
+ var e1=rnd(-3,3),e2=e1+rnd(1,3),e3=e2+rnd(1,3),E=[e1,e2,e3];
+ var c=pick(E),other=pick(E),t=c-other;
+ var mid=(t===0)?'ax':('\\bigl(a'+pm(t)+'\\bigr)x');
+ var expr='ax^2'+(t===0?'+':'+')+mid+pmz(c);
+ var sols=E.map(function(e){return Fr(e-t-c,2);});
+ var uniq=[],seen={};sols.forEach(function(s){var k=fVal(s);if(!seen[k]){seen[k]=1;uniq.push(s);}});
+ return {q:'$D=\\{-1;\\ 0;\\ 1\\},\\quad E=\\{'+e1+';\\ '+e2+';\\ '+e3+'\\},\\quad \\bigl(x;\\ '+expr+'\\bigr)$',
+  a:'Харгалзаа функц болохын тулд $x\\in D$ бүрд утга нь $E$-д харьяалагдана. $f(-1)=a-\\bigl(a'+pmz(t)+'\\bigr)'+pmz(c)+'='+(c-t)+'\\in E$ ба $f(0)='+c+'\\in E$ нь $a$-аас хамаарахгүй биелнэ. $f(1)=2a'+pmz(t)+pmz(c)+'=2a'+pmz(t+c)+'$ байх тул $2a'+pmz(t+c)+'\\in E$: '+
+    uniq.map(function(s,i){return '$a='+fTex(s)+'$';}).join(', ')+'. Иймд '+uniq.length+' утга нийцнэ.',
+  key:'prf'+e1+'_'+e2+'_'+e3+'_'+c+'_'+t,
+  _v:{t:'paramRelFunc',E:E,c:c,tt:t,sols:uniq.map(fVal)}};}
+
+// 5. Квадрат функцийн хаалттай завсар дээрх дүр (орой дотор/гадна)
+function g_rangeQuadInt(){
+ var A=pick([I(1),I(-1),I(2),I(-2),I(3),I(-3),Fr(1,2),Fr(-1,2)]);
+ var b=nz(-8,8),c=rnd(-6,8),m=rnd(-5,1),n=m+rnd(2,6);
+ var B=I(b),C=I(c);
+ function f(x){return fAdd(fAdd(fMul(A,fMul(x,x)),fMul(B,x)),C);}
+ var xv=fDiv(fMul(I(-1),B),fMul(I(2),A));
+ var fm=f(I(m)),fn=f(I(n)),fv=f(xv);
+ var ins=(fVal(xv)>=m-1e-12&&fVal(xv)<=n+1e-12),lo,hi,ex;
+ if(ins){
+  if(fVal(A)>0){lo=fv;hi=fMax(fm,fn);ex='Орой $x='+fTex(xv)+'$ нь завсарт орсон ба $a\\gt 0$ тул хамгийн бага утга $f\\bigl('+fTex(xv)+'\\bigr)='+fTex(fv)+'$. Захын утгууд $f('+m+')='+fTex(fm)+',\\ f('+n+')='+fTex(fn)+'$ тул хамгийн их нь $'+fTex(hi)+'$.';}
+  else{hi=fv;lo=fMin(fm,fn);ex='Орой $x='+fTex(xv)+'$ нь завсарт орсон ба $a\\lt 0$ тул хамгийн их утга $f\\bigl('+fTex(xv)+'\\bigr)='+fTex(fv)+'$. Захын утгууд $f('+m+')='+fTex(fm)+',\\ f('+n+')='+fTex(fn)+'$ тул хамгийн бага нь $'+fTex(lo)+'$.';}
+ }else{
+  lo=fMin(fm,fn);hi=fMax(fm,fn);
+  ex='Орой $x='+fTex(xv)+'$ нь завсраас гадна тул функц завсартаа монотон. $f('+m+')='+fTex(fm)+',\\ f('+n+')='+fTex(fn)+'$.';
+ }
+ if(Math.abs(fVal(hi)-fVal(lo))<1e-12)return null;
+ return {q:'$f(x)='+quadTex(A,B,C)+',\\quad D='+setX(m,n)+'$',
+  a:ex+' Иймд дүр нь $'+setY(fTex(lo),fTex(hi))+'$.',
+  key:'rqi'+fVal(A)+'_'+b+'_'+c+'_'+m+'_'+n,
+  _v:{t:'rangeQuadInt',A:fVal(A),b:b,c:c,m:m,n:n,lo:fVal(lo),hi:fVal(hi)}};}
+
+// 6. √(квадрат гурван гишүүнт)-ийн тодорхойлогдох муж
+function g_domSqrtQuad(){
+ var r=nz(-6,5),s=r+rnd(1,7),up=pick([true,false]);
+ var A=up?I(1):I(-1),B=up?I(-(r+s)):I(r+s),C=up?I(r*s):I(-r*s);
+ var fac='\\bigl(x'+pmz(-r)+'\\bigr)\\bigl(x'+pmz(-s)+'\\bigr)';
+ if(r===0)fac='x\\bigl(x'+pmz(-s)+'\\bigr)';
+ if(s===0)fac='\\bigl(x'+pmz(-r)+'\\bigr)x';
+ var ans;
+ if(up)ans='$'+quadTex(A,B,C)+'='+fac+'\\ge 0$. Үржигдэхүүн бүрийн тэмдгийг $x='+r+'$ ба $x='+s+'$ цэгүүдээр хуваасан гурван мужид шалгавал захын мужуудад эерэг байна: $D=\\{x\\mid x\\le '+r+'\\}\\cup\\{x\\mid x\\ge '+s+'\\}$';
+ else ans='$'+quadTex(A,B,C)+'=-'+fac+'\\ge 0$ буюу $'+fac+'\\le 0$. Тэмдгийн шалгалтаар дунд мужид сөрөг биш байна: $D='+setX(r,s)+'$';
+ return {q:'$y=\\sqrt{'+quadTex(A,B,C)+'}$',a:ans,key:'dsq'+r+'_'+s+'_'+(up?1:0),
+  _v:{t:'domSqrtQuad',r:r,s:s,up:up}};}
+
+// 7. f(x)=x^2+ax+c: хоёр утгаас a, c-г олж, гурав дахь утгыг ол
+function g_funcVal2(){
+ var a=nz(-7,7),c=nz(-9,9),m=nz(-4,4),n=nz(-4,4);
+ if(m===n)return null;
+ var w=nz(-5,5);if(w===m||w===n)return null;
+ var u=m*m+a*m+c,v=n*n+a*n+c,fw=w*w+a*w+c;
+ return {q:'$f(x)=x^2+ax+c,\\quad f('+m+')='+u+',\\quad f('+n+')='+v+',\\quad f('+w+')=?$',
+  a:'Утгуудыг орлуулж систем зохионо: $\\begin{cases}'+(m*m)+coefTerm(m,'a')+'+c='+u+'\\\\ '+(n*n)+coefTerm(n,'a')+'+c='+v+'\\end{cases}$ '+
+    'Хоёр тэгшитгэлийг хасвал $'+coefTerm(m-n,'a').replace(/^\+/,'')+'='+(u-v-(m*m-n*n))+'$ тул $a='+a+'$, эндээс $c='+u+'-'+(m*m)+'-'+paren(a)+'\\cdot '+paren(m)+'='+c+'$. Иймд $f(x)=x^2'+coefTerm(a,'x')+pmz(c)+'$ ба $f('+w+')='+fw+'$.',
+  key:'fv2'+a+'_'+c+'_'+m+'_'+n+'_'+w,nv:fw,_v:{t:'funcVal2',a:a,c:c,m:m,n:n,w:w,u:u,v:v,fw:fw}};}
+
+// 8. Функцийн тоо (тоолох бодлого)
+function g_countFuncs(){
+ var k=rnd(2,4),n=rnd(2,5),mode=pick(['all','inj','miss','img2']);
+ var all=Math.pow(n,k),i,q,ans,val;
+ if(mode==='all'){val=all;q='$D$ олонлогт $'+k+'$, $E$ олонлогт $'+n+'$ элемент байв. $D$ дээр тодорхойлогдсон $E$-ээс утга авах функц нийт хэд байх вэ?';
+  ans='$D$-ийн элемент бүрт $E$-ээс $'+n+'$ янзаар утга сонгоно. Сонголтууд хоорондоо хамааралгүй тул нийт $'+n+'^{'+k+'}='+all+'$ функц.';}
+ else if(mode==='inj'){if(n<k)return null;var p=1;for(i=0;i<k;i++)p*=(n-i);val=p;
+  q='$D$ олонлогт $'+k+'$, $E$ олонлогт $'+n+'$ элемент байв. Дүр нь $'+k+'$ ялгаатай элементтэй байх функц хэд байх вэ?';
+  ans='Элемент бүрт өмнөх сонголтуудаас ялгаатай утга өгнө: $'+(function(){var t=[];for(i=0;i<k;i++)t.push(n-i);return t.join('\\cdot ');})()+'='+p+'$ функц.';}
+ else if(mode==='miss'){val=Math.pow(n-1,k);
+  q='$D$ олонлогт $'+k+'$, $E$ олонлогт $'+n+'$ элемент байв. $E$-ийн нэг тогтмол элемент дүрд <b>орохгүй</b> байх функц хэд байх вэ?';
+  ans='Тэр элементийг хасвал сонголт $'+(n-1)+'$ болно: $'+(n-1)+'^{'+k+'}='+Math.pow(n-1,k)+'$ функц.';}
+ else{if(n<2)return null;var C=n*(n-1)/2,cnt=C*(Math.pow(2,k)-2);if(cnt<=0)return null;val=cnt;
+  q='$D$ олонлогт $'+k+'$, $E$ олонлогт $'+n+'$ элемент байв. Дүр нь яг $2$ элементтэй байх функц хэд байх вэ?';
+  ans='Эхлээд дүрийн $2$ элементийг $\\dfrac{'+n+'\\cdot '+(n-1)+'}{2}='+C+'$ янзаар сонгоно. Тэр хоёр утгыг ашиглах функц $2^{'+k+'}='+Math.pow(2,k)+'$ ба тэдгээрээс зөвхөн нэг утга авдаг $2$-ыг хасна: $'+C+'\\cdot \\bigl('+Math.pow(2,k)+'-2\\bigr)='+cnt+'$ функц.';}
+ return {q:q,a:ans,key:'cf'+mode+k+'_'+n,nv:val,_v:{t:'countFuncs',mode:mode,k:k,n:n,val:val}};}
+
+// 9. Модультай функцийн хаалттай завсар дээрх дүр
+function g_rangeAbsInt(){
+ var k=nz(-3,3),p=rnd(-4,4),q=rnd(-6,6),m=rnd(-6,0),n=m+rnd(2,7);
+ function f(x){return k*Math.abs(x-p)+q;}
+ var fm=f(m),fn=f(n),ins=(p>=m&&p<=n),lo,hi,ex;
+ if(ins){
+  if(k>0){lo=q;hi=Math.max(fm,fn);ex='$x='+p+'$ цэг завсарт орсон ба $k\\gt 0$ тул хамгийн бага утга $f('+p+')='+q+'$.';}
+  else{hi=q;lo=Math.min(fm,fn);ex='$x='+p+'$ цэг завсарт орсон ба $k\\lt 0$ тул хамгийн их утга $f('+p+')='+q+'$.';}
+ }else{lo=Math.min(fm,fn);hi=Math.max(fm,fn);ex='$x='+p+'$ цэг завсраас гадна тул функц завсартаа монотон.';}
+ if(lo===hi)return null;
+ return {q:'$f(x)='+(Math.abs(k)===1?(k<0?'-':''):k)+'\\bigl|x'+pmz(-p)+'\\bigr|'+pmz(q)+',\\quad D='+setX(m,n)+'$',
+  a:ex+' $f('+m+')='+fm+',\\ f('+n+')='+fn+'$ тул дүр нь $'+setY(lo,hi)+'$.',
+  key:'rai'+k+'_'+p+'_'+q+'_'+m+'_'+n,_v:{t:'rangeAbsInt',k:k,p:p,q:q,m:m,n:n,lo:lo,hi:hi}};}
+
+// ════════════════ 5.2 Квадрат функц ════════════════
+
+// 1. Бүтэн квадрат ялгаж бүх чанарыг тодорхойлох
+function g_qVertexFull(){
+ var A=pick([I(1),I(-1),I(2),I(-2),I(3),I(-3),Fr(1,2),Fr(-1,2),Fr(1,3),Fr(-1,3),Fr(3,2),Fr(-3,2)]);
+ var mode=pick(['roots','roots','touch','none']),p,q,B,C,r1,r2,rootTxt;
+ if(mode==='none'){
+  p=Fr(nz(-8,8),pick([1,1,2]));q=I(rnd(1,9)*(fVal(A)>0?1:-1));
+  B=fMul(I(-2),fMul(A,p));C=fAdd(fMul(A,fMul(p,p)),q);
+  rootTxt='$'+vertexTex(A,p,q)+'=0$ тэгшитгэлээс $\\bigl(x'+sgnFr(fMul(p,I(-1)))+'\\bigr)^2='+fTex(fDiv(fMul(q,I(-1)),A))+'\\lt 0$ гарах тул $Ox$ тэнхлэгтэй огтлолцохгүй.';
+ }else{
+  r1=nz(-6,4);r2=(mode==='touch')?r1:(r1+rnd(1,7));
+  B=fMul(A,I(-(r1+r2)));C=fMul(A,I(r1*r2));
+  p=Fr(r1+r2,2);q=fMul(A,fMul(fSub(p,I(r1)),fSub(p,I(r2))));
+  rootTxt=(mode==='touch')?('$Ox$ тэнхлэгийг $'+ptN(r1,0)+'$ цэгт шүргэнэ.'):('$Ox$ тэнхлэгтэй $'+ptN(r1,0)+'$ ба $'+ptN(r2,0)+'$ цэгүүдээр огтлолцоно.');
+ }
+ var up=fVal(A)>0;
+ var ans='$'+quadTex(A,B,C)+'='+aTex(A)+'\\Bigl(x^2'+coefTerm(0,'')+(fVal(B)<0?'-':'+')+fTex(absFr(fDiv(B,A)))+'x\\Bigr)'+sgnFr(C)+'='+vertexTex(A,p,q)+'$. '+
+  'Иймд орой $'+ptF(p,q)+'$, тэгш хэмийн тэнхлэг $x='+fTex(p)+'$, '+(up?'$a\\gt 0$ тул дээшээ харсан парабол, дүр нь $\\{y\\mid y\\ge '+fTex(q)+'\\}$':'$a\\lt 0$ тул доошоо харсан парабол, дүр нь $\\{y\\mid y\\le '+fTex(q)+'\\}$')+'. '+
+  '$Oy$ тэнхлэгтэй $'+ptF(I(0),C)+'$ цэгээр огтлолцоно. '+rootTxt;
+ return {q:'$y='+quadTex(A,B,C)+'$',a:ans,key:'qvf'+fVal(A)+'_'+fVal(B)+'_'+fVal(C),
+  _v:{t:'qVertexFull',A:fVal(A),B:fVal(B),C:fVal(C),p:fVal(p),q:fVal(q)}};}
+
+// 2. Орой ба дайрах цэгээс тэгшитгэлийг сэргээх
+function g_qVertexPoint(){
+ var A=pick([I(1),I(-1),I(2),I(-2),Fr(1,2),Fr(-1,2),I(3),Fr(3,2),Fr(-1,3),I(-4)]);
+ var p=rnd(-5,5),q=rnd(-8,8),dx=pick([1,2,3,4,-1,-2,-3,-4]),u=p+dx;
+ var v=fAdd(fMul(A,I(dx*dx)),I(q));
+ var B=fMul(I(-2),fMul(A,I(p))),C=fAdd(fMul(A,I(p*p)),I(q));
+ return {q:'орой $'+ptN(p,q)+'$, дайрах цэг $'+ptF(I(u),v)+'$',
+  a:'Оройн хэлбэрээр $y=a\\bigl(x'+pmz(-p)+'\\bigr)^2'+pmz(q)+'$. Дайрах цэгийг орлуулбал $'+fTex(v)+'=a\\cdot '+paren(dx)+'^2'+pmz(q)+'$ тул $a\\cdot '+(dx*dx)+'='+fTex(fSub(v,I(q)))+'$, $a='+fTex(A)+'$. '+
+    'Иймд $y='+vertexTex(A,I(p),I(q))+'='+quadTex(A,B,C)+'$.',
+  key:'qvp'+fVal(A)+'_'+p+'_'+q+'_'+dx,_v:{t:'qVertexPoint',A:fVal(A),p:p,q:q,u:u,v:fVal(v)}};}
+
+// 3. Тодорхойлогдох муж ба дүрээс a, q-г буцаан олох
+function g_qDomRangeParam(){
+ var m=rnd(-6,2),n=m+rnd(2,6),side=pick(['left','right']);
+ var p=(side==='left')?m:n,other=(side==='left')?n:m;
+ var neg=pick([true,false]),A=(neg?-1:1)*pick([1,2,3,4]),qv=rnd(-8,8);
+ var d=other-p,fo=A*d*d+qv;
+ var lo=neg?fo:qv,hi=neg?qv:fo;
+ if(lo>=hi)return null;
+ return {q:'$f(x)=a\\bigl(x'+pmz(-p)+'\\bigr)^2+q\\ \\bigl(a'+(neg?'\\lt':'\\gt')+' 0\\bigr),\\quad D='+setX(m,n)+',\\quad E='+setY(lo,hi)+'$',
+  a:'Оройн абсцисс $x='+p+'$ нь тодорхойлогдох мужийн зах тул функц завсартаа монотон. '+
+    (neg?'$a\\lt 0$ тул оройд хамгийн их утга: $f('+p+')=q='+hi+'$. Нөгөө зах дээр хамгийн бага утга: $f('+other+')=a\\cdot '+paren(d)+'^2'+pmz(qv)+'='+lo+'$'
+        :'$a\\gt 0$ тул оройд хамгийн бага утга: $f('+p+')=q='+lo+'$. Нөгөө зах дээр хамгийн их утга: $f('+other+')=a\\cdot '+paren(d)+'^2'+pmz(qv)+'='+hi+'$')+
+    ' тул $a\\cdot '+(d*d)+'='+((neg?lo:hi)-qv)+'$, $a='+A+'$, $q='+qv+'$.',
+  key:'qdrp'+m+'_'+n+'_'+side+'_'+A+'_'+qv,_v:{t:'qDomRangeParam',p:p,other:other,A:A,qv:qv,lo:lo,hi:hi,m:m,n:n}};}
+
+// 4. Гурван цэгээр парабол сэргээх
+function g_qThreePoints(){
+ var A=nz(-3,3),B=nz(-6,6),C=nz(-9,9);
+ var xs=shuffle([-3,-2,-1,0,1,2,3]).slice(0,3);
+ var P=xs.map(function(x){return [x,A*x*x+B*x+C];});
+ var eqs=P.map(function(z){return (z[0]*z[0])+'a'+coefTerm(z[0],'b')+'+c='+z[1];});
+ var pv=Fr(-B,2*A),qv=Fr(4*A*C-B*B,4*A);
+ return {q:'$'+P.map(function(z){return ptN(z[0],z[1]);}).join(',\\ ')+'$',
+  a:'$y=ax^2+bx+c$-д цэг бүрийг орлуулбал $\\begin{cases}'+eqs.join('\\\\ ')+'\\end{cases}$ '+
+    'Системийг бодвол $a='+A+',\\ b='+B+',\\ c='+C+'$ тул $y='+quadTex(I(A),I(B),I(C))+'$. Оройн цэг нь $'+ptF(pv,qv)+'$.',
+  key:'q3p'+A+'_'+B+'_'+C+'_'+xs.join(''),_v:{t:'qThreePoints',A:A,B:B,C:C,P:P}};}
+
+// 5. Тэгш хэмийн тэнхлэг ба хоёр цэгээс тэгшитгэл
+function g_qAxisTwoPoints(){
+ var s=rnd(-4,4),A=nz(-3,3),qv=nz(-9,9);
+ var d1=pick([1,2,3,4]),d2=pick([-1,-2,-3,-4,1,2,3]);
+ if(Math.abs(d1)===Math.abs(d2))return null;
+ var x1=s+d1,x2=s+d2,y1=A*d1*d1+qv,y2=A*d2*d2+qv;
+ var B=I(-2*A*s),C=I(A*s*s+qv);
+ return {q:'$x='+s+'$ тэнхлэг, $'+ptN(x1,y1)+'$, $'+ptN(x2,y2)+'$',
+  a:'Тэгш хэмийн тэнхлэг өгсөн тул $y=a\\bigl(x'+pmz(-s)+'\\bigr)^2+q$. Цэгүүдийг орлуулбал $\\begin{cases}'+(d1*d1)+'a+q='+y1+'\\\\ '+(d2*d2)+'a+q='+y2+'\\end{cases}$ '+
+    'хасахад $'+(d1*d1-d2*d2)+'a='+(y1-y2)+'$ тул $a='+A+',\\ q='+qv+'$. Иймд $y='+vertexTex(I(A),I(s),I(qv))+'='+quadTex(I(A),B,C)+'$.',
+  key:'qatp'+s+'_'+A+'_'+qv+'_'+d1+'_'+d2,_v:{t:'qAxisTwoPoints',s:s,A:A,qv:qv,x1:x1,y1:y1,x2:x2,y2:y2}};}
+
+// 6. Зөөлтийн дараах параболыг сэргээх
+function g_qShiftFind(){
+ var A=pick([I(1),I(-1),I(2),I(-2),I(3),I(-3),Fr(1,2),Fr(-1,2),Fr(1,4),Fr(-3,2)]);
+ var p=nz(-5,5),qv=nz(-6,6),dx=pick([1,2,3,-1,-2,-3]),u=p+dx;
+ var v=fAdd(fMul(A,I(dx*dx)),I(qv));
+ var B=fMul(I(-2),fMul(A,I(p))),C=fAdd(fMul(A,I(p*p)),I(qv));
+ return {q:'зөөлт $'+ptN(p,qv)+'$, дайрах цэг $M'+ptF(I(u),v)+'$',
+  a:'$y=ax^2$ параболыг $Ox$-ийн дагуу $'+p+'$, $Oy$-ийн дагуу $'+qv+'$ нэгжээр зөөвөл $y=a\\bigl(x'+pmz(-p)+'\\bigr)^2'+pmz(qv)+'$ болно. $M$ цэгийг орлуулбал $'+fTex(v)+'=a\\cdot '+paren(dx)+'^2'+pmz(qv)+'$, эндээс $a='+fTex(A)+'$. '+
+    'Иймд $y='+vertexTex(A,I(p),I(qv))+'='+quadTex(A,B,C)+'$, орой нь $'+ptN(p,qv)+'$.',
+  key:'qsf'+fVal(A)+'_'+p+'_'+qv+'_'+dx,_v:{t:'qShiftFind',A:fVal(A),p:p,qv:qv,u:u,v:fVal(v)}};}
+
+// 7. Парабол ба Ox тэнхлэгээр үүсэх гурвалжны талбай
+function g_qTriArea(){
+ var a=pick([1,-1,2,-2,1,-1,3,-3]),r=nz(-6,3),s=r+2*rnd(1,3);
+ if(s===0&&r===0)return null;
+ var B=-a*(r+s),C=a*r*s,pv=Fr(r+s,2),yv=Fr(-a*(s-r)*(s-r),4);
+ var area=Fr(Math.abs(a)*Math.pow(s-r,3),8);
+ var xr=Math.max(Math.abs(r),Math.abs(s))+2,yr=Math.max(3,Math.ceil(Math.abs(fVal(yv)))+2);
+ var fig=graph({xr:xr,yr:yr,grid:false,labels:false,
+  fns:[{f:function(x){return a*(x-r)*(x-s);}}],
+  pts:[{x:r,y:0,l:'A'},{x:s,y:0,l:'B'},{x:fVal(pv),y:fVal(yv),l:'C'}]});
+ return {q:'$y='+quadTex(I(a),I(B),I(C))+'$',fig:fig,
+  a:'Илэрхийллийг задлан үржвэрлэвэл $y='+(a===1?'':(a===-1?'-':''+a))+'\\bigl(x'+pmz(-r)+'\\bigr)\\bigl(x'+pmz(-s)+'\\bigr)$ тул $Ox$ тэнхлэгтэй $A'+ptN(r,0)+'$, $B'+ptN(s,0)+'$ цэгүүдээр огтлолцоно, $AB='+(s-r)+'$. '+
+    'Оройн абсцисс $x=\\dfrac{'+r+pm(s)+'}{2}='+fTex(pv)+'$, ординат нь $'+fTex(yv)+'$ тул $C$ оройгоос $AB$ хүртэлх өндөр $h='+fTex(absFr(yv))+'$. '+
+    'Иймд $S=\\dfrac{1}{2}\\cdot '+(s-r)+'\\cdot '+fTex(absFr(yv))+'='+fTex(area)+'$ квадрат нэгж.',
+  key:'qta'+a+'_'+r+'_'+s,nv:fVal(area),_v:{t:'qTriArea',a:a,r:r,s:s,area:fVal(area)}};}
+
+// 8. Зургаас a, b, c, D-ийн тэмдгийг тодорхойлох
+function g_qSignCoef(){
+ var a=pick([1,-1,0.5,-0.5]),xv=pick([-2,-1,1,2]),yv=pick([-3,-2,-1,1,2,3]);
+ var c=a*xv*xv+yv;
+ if(Math.abs(c)<0.2||Math.abs(c)>4.6)return null;
+ var b=-2*a*xv,D=b*b-4*a*c;
+ function sg(x){return x>0?'\\gt 0':'\\lt 0';}
+ var fig=graph({xr:4,yr:5,grid:false,labels:false,fns:[{f:function(x){return a*(x-xv)*(x-xv)+yv;}}]});
+ var abc=a*b*c;
+ return {q:'$y=ax^2+bx+c$',fig:fig,
+  a:'Салаа '+(a>0?'дээшээ':'доошоо')+' харсан тул $a'+sg(a)+'$. Орой $Oy$ тэнхлэгийн '+(xv>0?'баруун':'зүүн')+' талд буюу $-\\dfrac{b}{2a}'+sg(xv)+'$ тул $b'+sg(b)+'$. '+
+    'График $Oy$ тэнхлэгийг эхээс '+(c>0?'дээш':'доош')+' огтолж байгаа тул $c=f(0)'+sg(c)+'$. '+
+    'График $Ox$ тэнхлэгтэй '+(D>0?'хоёр цэгээр огтлолцож байгаа тул $D=b^2-4ac\\gt 0$':'огтлолцохгүй байгаа тул $D=b^2-4ac\\lt 0$')+'. '+
+    'Иймд $abc'+sg(abc)+'$.',
+  key:'qsc'+a+'_'+xv+'_'+yv,_v:{t:'qSignCoef',a:a,b:b,c:c,D:D}};}
+
+// 9. Хаалттай завсар дээрх хамгийн бага утгаас параметрийг олох (тохиолдол ялгах)
+function g_qMinParam(){
+ var n=pick([2,3,4,5,6]),c=rnd(-4,8),which=pick(['in','in','edge']);
+ var m0,M;
+ if(which==='in'){m0=rnd(1,n);M=c-m0*m0;}
+ else{m0=n+rnd(1,4);M=n*n-2*m0*n+c;}
+ var sols=[];
+ var t=c-M;                     // m^2=t (оройн тохиолдол)
+ var rt=isqrt(t);
+ if(rt!==null&&rt>=0&&rt<=n)sols.push(rt);
+ var mr=Fr(n*n+c-M,2*n);        // баруун тохиолдол
+ if(fVal(mr)>n+1e-12)sols.push(fVal(mr));
+ if(!sols.length)return null;
+ return {q:'$f(x)=x^2-2mx'+pmz(c)+',\\quad D='+setX(0,n)+',\\quad f_{min}='+M+'$',
+  a:'$f(x)=\\bigl(x-m\\bigr)^2'+pmz(c)+'-m^2$ тул орой нь $x=m$. Гурван тохиолдлыг шалгана. '+
+    '<b>1)</b> $m\\lt 0$: функц завсартаа өсөх тул $f_{min}=f(0)='+c+'$'+(c===M?' (энэ нь өгөгдөлтэй тохирох боловч $m$ ганц утгаар тодорхойлогдохгүй)':(', өгөгдөлтэй тохирохгүй ($'+c+'\\ne '+M+'$)'))+'. '+
+    '<b>2)</b> $0\\le m\\le '+n+'$: $f_{min}=f(m)='+c+'-m^2='+M+'\\Rightarrow m^2='+t+'$'+(rt!==null&&rt<=n?(' тул $m='+rt+'$'):' тул энэ мужид шийдгүй')+'. '+
+    '<b>3)</b> $m\\gt '+n+'$: функц завсартаа буурах тул $f_{min}=f('+n+')='+(n*n)+'-'+(2*n)+'m'+pmz(c)+'='+M+'\\Rightarrow m='+fTex(mr)+'$'+(fVal(mr)>n?(' (нөхцөл биелнэ)'):(' (нөхцөл биелэхгүй)'))+'. '+
+    'Хариу: $m='+sols.map(function(z){return ''+z;}).join('$ эсвэл $m=')+'$.',
+  key:'qmp'+n+'_'+c+'_'+which+'_'+m0,_v:{t:'qMinParam',n:n,c:c,M:M,sols:sols}};}
+
+// 10. Ялгаварлагчтай холбоотой параметрийн муж
+function g_qDiscParam(){
+ var r1=pick([-4,-3,-2,-1,0]),r2=pick([1,2,3,4,5]);
+ var al=r1+r2,k=-r1*r2,cond=pick(['touch','none','two']);
+ var tail=(al===0)?(''+k):(coefTerm(al,'m').replace(/^\+/,'')+pmz(k));
+ if(al===0&&k===0)return null;
+ var ctxt=cond==='touch'?'$Ox$ тэнхлэгийг шүргэнэ':(cond==='none'?'$Ox$ тэнхлэгтэй огтлолцохгүй':'$Ox$ тэнхлэгийг хоёр цэгээр огтлоно');
+ var res=cond==='touch'?('$m='+r1+'$ эсвэл $m='+r2+'$'):(cond==='none'?('$'+r1+'\\lt m\\lt '+r2+'$'):('$m\\lt '+r1+'$ эсвэл $m\\gt '+r2+'$'));
+ var sgnw=cond==='touch'?'=0':(cond==='none'?'\\lt 0':'\\gt 0');
+ return {q:'$y=x^2+2mx+\\bigl('+tail+'\\bigr)$ парабол '+ctxt,
+  a:'$\\dfrac{D}{4}=m^2-\\bigl('+tail+'\\bigr)=m^2'+coefTerm(-al,'m')+pmz(-k)+'=\\bigl(m'+pmz(-r1)+'\\bigr)\\bigl(m'+pmz(-r2)+'\\bigr)$. '+
+    'Нөхцөл нь $\\dfrac{D}{4}'+sgnw+'$ байх явдал тул '+res+'.',
+  key:'qdp'+r1+'_'+r2+'_'+cond,_v:{t:'qDiscParam',r1:r1,r2:r2,al:al,k:k,cond:cond}};}
+
+// 11. Парабол ба шулууны огтлолцол
+function g_qParabLine(){
+ var a=pick([1,-1,2,-2]),x1=nz(-5,2),x2=x1+rnd(1,6);
+ var b=nz(-5,5),c=nz(-6,6);
+ var k=b+a*(x1+x2),d=c-a*x1*x2;
+ var y1=k*x1+d,y2=k*x2+d;
+ var mx=Fr(x1+x2,2),my=fAdd(fMul(I(k),mx),I(d));
+ return {q:'$y='+quadTex(I(a),I(b),I(c))+'$ ба $y='+linTex(I(k),I(d))+'$',
+  a:'$'+quadTex(I(a),I(b),I(c))+'='+linTex(I(k),I(d))+'$ тэгшитгэлээс $'+quadTex(I(a),I(b-k),I(c-d))+'=0$. '+
+    'Үүнийг бодвол $x_1='+x1+',\\ x_2='+x2+'$ тул огтлолцох цэгүүд нь $'+ptN(x1,y1)+'$ ба $'+ptN(x2,y2)+'$. '+
+    'Хөвчийн дундаж цэг нь $'+ptF(mx,my)+'$.',
+  key:'qpl'+a+'_'+x1+'_'+x2+'_'+b+'_'+c,_v:{t:'qParabLine',a:a,b:b,c:c,k:k,d:d,x1:x1,x2:x2}};}
+
+// 12. f(m)=f(n) нөхцлөөс тэгш хэмийн тэнхлэгийг олж коэффициент сэргээх
+function g_qSymAxis(){
+ var m=nz(-6,5),n=nz(-6,6);
+ if(m===n||m+n===0)return null;
+ var b=-(m+n),w=nz(-5,5);
+ if(w===m||w===n)return null;
+ var c=nz(-9,9),v=w*w+b*w+c;
+ var pv=Fr(m+n,2),qv=fSub(I(c),Fr((m+n)*(m+n),4));
+ return {q:'$f(x)=x^2+bx+c,\\quad f('+m+')=f('+n+'),\\quad f('+w+')='+v+'$',
+  a:'$f('+m+')=f('+n+')$ тул $'+(m*m)+coefTerm(m,'b')+'='+(n*n)+coefTerm(n,'b')+'$, эндээс $'+coefTerm(m-n,'b').replace(/^\+/,'')+'='+(n*n-m*m)+'$ буюу $b='+b+'$. '+
+    'Дараа нь $f('+w+')='+(w*w)+pmz(b*w)+'+c='+v+'$-аас $c='+c+'$. '+
+    'Иймд $f(x)='+quadTex(I(1),I(b),I(c))+'$, тэгш хэмийн тэнхлэг $x='+fTex(pv)+'$, орой $'+ptF(pv,qv)+'$.',
+  key:'qsa'+m+'_'+n+'_'+w+'_'+c,_v:{t:'qSymAxis',m:m,n:n,w:w,v:v,b:b,c:c}};}
+
+// ════════════════ 5.3 y = a/x функц ════════════════
+function bTexF(f){return (f.d===1)?(''+f.n):('\\Bigl('+fTex(f)+'\\Bigr)');}
+function hypTex(a){return (a<0?'-':'')+'\\dfrac{'+Math.abs(a)+'}{x}';}
+function kTexM(k){return (k===1)?'':((k===-1)?'-':(''+k+'\\cdot '));}
+function chordLHS(a,p){var N=-a,P=p;if(P<0){N=-N;P=-P;}return (N<0?'-':'')+'\\dfrac{'+Math.abs(N)+'}{'+(P===1?'':P)+'q}';}
+function mfrac(n,dTex){return (n<0?'-':'')+'\\dfrac{'+Math.abs(n)+'}{'+dTex+'}';}
+function invSqTex(a){return (a<0?'-':'')+'\\dfrac{'+Math.abs(a)+'}{x^2}';}
+function pwT(b,e){if(e===1)return b;if(e===0)return '1';return b+'^{'+e+'}';}
+function flipRel(r){return r==='ge'?'le':'ge';}
+function relT(r){return r==='ge'?'\\ge ':'\\le ';}
+function divisorsOf(n){n=Math.abs(n);var d=[],i;for(i=1;i<=n;i++)if(n%i===0)d.push(i);return d;}
+
+// 1. Гипербол дээрх бүхэл координаттай цэгийн тоо
+function g_hypLattice(){
+ var A=pick([12,18,20,24,30,36,40,45,48,50,54,60,72,90,96,100,120]),s=pick([1,-1]),a=s*A;
+ var pe=primeFactExp(A),d=1;pe.forEach(function(z){d*=(z.e+1);});
+ var dv=divisorsOf(A).slice(0,3);
+ var show=dv.map(function(x){return ptN(x,a/x);}).join(',\\ ');
+ return {q:'$y='+hypTex(a)+'$',
+  a:'Цэгийн хоёр координат бүхэл байхын тулд $xy='+a+'$ буюу $x$ нь $'+A+'$-ийн хуваагч байх ёстой. '+
+    '$'+A+'='+pfTex(A)+'$ тул эерэг хуваагчийн тоо $'+pe.map(function(z){return '\\bigl('+z.e+'+1\\bigr)';}).join('\\cdot ')+'='+d+'$. '+
+    'Сөрөг хуваагч бүрд ч нэг цэг харгалзах тул нийт $2\\cdot '+d+'='+(2*d)+'$ цэг байна. Жишээ нь $'+show+'$ гэх мэт.',
+  key:'hl'+a,nv:2*d,_v:{t:'hypLattice',a:a,A:A,d:d}};}
+
+// 2. y=a/x функцийн хаалттай завсар дээрх дүр
+function g_hypRangeInt(){
+ var a=nz(-12,12),neg=pick([true,false]),m,n;
+ if(neg){n=-rnd(1,4);m=n-rnd(1,5);}else{m=rnd(1,4);n=m+rnd(1,5);}
+ var fm=Fr(a,m),fn=Fr(a,n),lo=fMin(fm,fn),hi=fMax(fm,fn);
+ if(fEq(lo,hi))return null;
+ return {q:'$y='+hypTex(a)+',\\quad D='+setX(m,n)+'$',
+  a:'Завсар бүхэлдээ $x'+(neg?'\\lt ':'\\gt ')+'0$ мужид байгаа тул зөвхөн нэг салааг авч үзнэ. '+
+    '$a='+a+(a>0?'\\gt ':'\\lt ')+'0$ тул салаан дээр функц '+(a>0?'буурна':'өснө')+'. '+
+    'Захын утгууд $f('+m+')='+fTex(fm)+'$, $f('+n+')='+fTex(fn)+'$ тул дүр нь $'+setY(fTex(lo),fTex(hi))+'$.',
+  key:'hri'+a+'_'+m+'_'+n,_v:{t:'hypRangeInt',a:a,m:m,n:n,lo:fVal(lo),hi:fVal(hi)}};}
+
+// 3. Тодорхойлогдох муж ба дүрээс a ба завсрын баруун захыг сэргээх
+function g_hypInvParam(){
+ var m=rnd(1,5),q1=nz(-9,9),a=m*q1,d=rnd(1,6),n=m+d;
+ var fm=Fr(a,m),fn=Fr(a,n);
+ if(fEq(fm,fn))return null;
+ var lo=fMin(fm,fn),hi=fMax(fm,fn),pos=(a>0);
+ return {q:'$y=\\dfrac{a}{x},\\quad D=\\{x\\mid '+m+'\\le x\\le n\\},\\quad E='+setY(fTex(lo),fTex(hi))+'$',
+  a:'$D$ дээр $x\\gt 0$ тул $\\dfrac{a}{x}$-ийн тэмдэг $a$-ийн тэмдэгтэй ижил. Дүр нь '+(pos?'эерэг':'сөрөг')+' тул $a'+(pos?'\\gt ':'\\lt ')+'0$ бөгөөд функц завсартаа '+(pos?'буурна':'өснө')+'. '+
+    'Иймд $f('+m+')='+fTex(fm)+'$, $f(n)='+fTex(fn)+'$ болно. Эхнийхээс $a='+m+'\\cdot '+pFr(fm)+'='+a+'$, дараа нь $n='+a+'\\div '+pFr(fn)+'='+n+'$.',
+  key:'hip'+m+'_'+q1+'_'+d,_v:{t:'hypInvParam',m:m,a:a,n:n}};}
+
+// 4. Гипербол ба шулууны огтлолцол
+function g_hypLineInt(){
+ var x1=nz(-6,6),x2=nz(-6,6);
+ if(x1===x2)return null;
+ var k=nz(-3,3),a=-k*x1*x2,b=-k*(x1+x2);
+ if(a===0)return null;
+ var y1=Fr(a,x1),y2=Fr(a,x2);
+ var mx=Fr(x1+x2,2),my=fMul(Fr(1,2),fAdd(y1,y2));
+ return {q:'$y='+hypTex(a)+'$ ба $y='+linTex(I(k),I(b))+'$',
+  a:'$'+hypTex(a)+'='+linTex(I(k),I(b))+'$ тэгшитгэлийн хоёр талыг $x\\ne 0$-д үржүүлбэл $'+quadTex(I(k),I(b),I(-a))+'=0$ гарна. '+
+    'Үүнийг бодвол $x_{1}='+x1+'$, $x_{2}='+x2+'$ тул огтлолцох цэгүүд нь $'+ptF(I(x1),y1)+'$, $'+ptF(I(x2),y2)+'$. '+
+    'Хөвчийн дундаж цэг нь $'+ptF(mx,my)+'$.',
+  key:'hli'+x1+'_'+x2+'_'+k,_v:{t:'hypLineInt',a:a,k:k,b:b,x1:x1,x2:x2}};}
+
+// 5. Гипербол дээрх цэг ба тэгш өнцөгт (систем зохиох)
+function g_hypRectArea(){
+ var x0=rnd(2,9),y0=rnd(1,9);
+ if(x0===y0)return null;
+ var a=x0*y0,d=x0-y0;
+ return {q:'$y='+hypTex(a)+'$ график дээрх I мөчид орших $M$ цэгийн абсцисс ба ординатын ялгавар нь $'+d+'$',
+  a:'$M\\bigl(x;\\ '+hypTex(a)+'\\bigr)$ гэвэл $x-'+hypTex(a)+'='+d+'$. Хоёр талыг $x\\ne 0$-д үржүүлбэл $'+quadTex(I(1),I(-d),I(-a))+'=0$ тул $x='+x0+'$ эсвэл $x='+(-y0)+'$. '+
+    'I мөчид $x\\gt 0$ байх тул хоёр дахь утга тохирохгүй: $x='+x0+'$, $y='+y0+'$ буюу $M'+ptN(x0,y0)+'$. '+
+    '$M$-ээс тэнхлэгүүд рүү буулгасан перпендикулярын үүсгэх тэгш өнцөгтийн талбай $S=x\\cdot y='+a+'$, периметр нь $P=2\\bigl('+x0+'+'+y0+'\\bigr)='+(2*(x0+y0))+'$.',
+  key:'hra'+x0+'_'+y0,nv:a,_v:{t:'hypRectArea',x0:x0,y0:y0,a:a,d:d}};}
+
+// 6. a/x-тэй тэнцэтгэл биш (тэмдгийн шугам, тохиолдол ялгах)
+function g_hypIneq(){
+ var k=nz(-6,6),r=nz(-9,9),a=k*r;
+ if(a===0)return null;
+ var rel=pick(['ge','le']);
+ var need=(rel==='ge')?((k>0)?'le':'ge'):((k>0)?'ge':'le');
+ var setTex;
+ if(need==='le')setTex=(r>0)?('\\{x\\mid 0\\lt x\\le '+r+'\\}'):('\\{x\\mid '+r+'\\le x\\lt 0\\}');
+ else setTex=(r>0)?('\\{x\\mid x\\lt 0\\}\\cup\\{x\\mid x\\ge '+r+'\\}'):('\\{x\\mid x\\le '+r+'\\}\\cup\\{x\\mid x\\gt 0\\}');
+ var cn=-k,cTex=(cn<0?'-':'')+(Math.abs(cn)===1?'':Math.abs(cn));
+ return {q:'$'+hypTex(a)+''+relT(rel)+paren(k)+'$',
+  a:'Бүх гишүүнийг зүүн тийш шилжүүлбэл $\\dfrac{'+a+coefTerm(-k,'x')+'}{x}'+relT(rel)+'0$ болно. '+
+    'Хүртвэрийг задлан үржвэрлэвэл $'+a+coefTerm(-k,'x')+'='+cTex+'\\bigl(x'+pmz(-r)+'\\bigr)$ тул тэнцэтгэл биш $\\dfrac{'+cTex+'\\bigl(x'+pmz(-r)+'\\bigr)}{x}'+relT(rel)+'0$ хэлбэртэй. '+
+    'Тэмдгийн шугам дээр $x=0$ ба $x='+r+'$ хоёр цэг тэмдэг солино. Мужуудад тэмдгийг шалгавал шийд нь $'+setTex+'$.',
+  key:'hin'+k+'_'+r+'_'+rel,_v:{t:'hypIneq',a:a,k:k,r:r,rel:rel,need:need}};}
+
+// 7. Гиперболын хөвчийн налалтаас хоёр дахь цэгийг олох
+function g_hypChordSlope(){
+ var A=pick([12,18,24,36,48,60,72,-12,-18,-24,-36,-48,-60,-72]);
+ var dv=divisorsOf(A).filter(function(z){return z<=12;}),p=pick(dv)*pick([1,-1]),q0=pick(dv)*pick([1,-1]);
+ if(p===q0)return null;
+ var k=Fr(-A,p*q0);
+ var yp=Fr(A,p),yq=Fr(A,q0);
+ return {q:'$y='+hypTex(A)+'$ гипербол дээрх $A$ цэгийн абсцисс нь $'+p+'$, $AB$ хөвчийн налалт нь $'+fTex(k)+'$',
+  a:'$A\\bigl(p;\\ \\dfrac{a}{p}\\bigr)$, $B\\bigl(q;\\ \\dfrac{a}{q}\\bigr)$ бол налалт нь '+
+    '$\\dfrac{\\dfrac{a}{q}-\\dfrac{a}{p}}{q-p}=\\dfrac{a\\bigl(p-q\\bigr)}{pq\\bigl(q-p\\bigr)}=-\\dfrac{a}{pq}$ болно. '+
+    'Иймд $'+chordLHS(A,p)+'='+fTex(k)+'$ тэгшитгэлээс $q='+q0+'$. '+
+    'Тэгэхээр $A'+ptF(I(p),yp)+'$, $B'+ptF(I(q0),yq)+'$.',
+  key:'hcs'+A+'_'+p+'_'+q0,_v:{t:'hypChordSlope',A:A,p:p,q:q0,k:fVal(k)}};}
+
+// ════════════════ 5.4 y = ax^n хэлбэрийн функцийн график ════════════════
+
+// 1. Бутархай илэрхийллийн тодорхойлогдох муж (хуваарь квадрат гурван гишүүнт)
+function g_domRatQuad(){
+ var mode=pick(['diff','sq','nod','fac']);
+ var num=linTex(I(nz(-5,5)),I(rnd(-6,6)));
+ var den,ans,key,ex;
+ if(mode==='diff'){
+  var uv=pick([[1,1],[2,1],[3,1],[1,2],[1,3],[2,3],[3,2],[1,4],[1,5],[2,5],[4,3],[5,2],[5,3]]);
+  var s=pick([1,2,3]),A=s*uv[1]*uv[1],B=s*uv[0]*uv[0],rr=Fr(uv[0],uv[1]);
+  den=quadTex(I(A),I(0),I(-B));
+  ans='$'+den+'=0$ тэгшитгэлээс $x^2=\\dfrac{'+B+'}{'+A+'}$ тул $x=\\pm '+fTex(rr)+'$. '+
+      'Иймд $D=\\{x\\in\\mathbb{R}\\mid x\\ne '+fTex(rr)+',\\ x\\ne '+fTex(fMul(rr,I(-1)))+'\\}$.';
+  key='drq_d'+s+'_'+uv[0]+'_'+uv[1];ex=[fVal(rr),-fVal(rr)];
+ }else if(mode==='sq'){
+  var p=nz(-6,6);
+  den='\\bigl(x'+pmz(-p)+'\\bigr)^2';
+  ans='Хуваарь нь бүтэн квадрат тул $\\bigl(x'+pmz(-p)+'\\bigr)^2=0$ зөвхөн $x='+p+'$ үед биелнэ. '+
+      'Иймд $D=\\{x\\in\\mathbb{R}\\mid x\\ne '+p+'\\}$.';
+  key='drq_s'+p;ex=[p];
+ }else if(mode==='nod'){
+  var a2=pick([1,2,3]),b2=nz(-5,5),c2=Math.floor(b2*b2/(4*a2))+rnd(1,4);
+  den=quadTex(I(a2),I(b2),I(c2));
+  ans='Хуваарийн ялгаварлагч $D_{1}='+(b2*b2)+'-4\\cdot '+a2+'\\cdot '+c2+'='+(b2*b2-4*a2*c2)+'\\lt 0$ бөгөөд ахлах коэффициент эерэг тул хуваарь ямар ч $x$-д тэгээс их байна. '+
+      'Хуваарь хэзээ ч тэг болохгүй тул $D=\\mathbb{R}$.';
+  key='drq_n'+a2+'_'+b2+'_'+c2;ex=[];
+ }else{
+  var a3=pick([2,3,4,5,6]),b3=nz(-9,9),rt=Fr(-b3,a3);
+  den=quadTex(I(a3),I(b3),I(0));
+  ans='Хуваарийг задлан үржвэрлэвэл $'+den+'=x\\bigl('+linTex(I(a3),I(b3))+'\\bigr)$ тул $x=0$ буюу $x='+fTex(rt)+'$ үед тэг болно. '+
+      'Иймд $D=\\{x\\in\\mathbb{R}\\mid x\\ne 0,\\ x\\ne '+fTex(rt)+'\\}$.';
+  key='drq_f'+a3+'_'+b3;ex=[0,fVal(rt)];
+ }
+ return {q:'$y=\\dfrac{'+num+'}{'+den+'}$',a:ans,key:key,_v:{t:'domRatQuad',mode:mode,ex:ex,den:den}};}
+
+// 2. Язгуур ба хуваарийн нөхцлийн огтлолцол
+function g_domSqrtInter(){
+ var a=nz(-4,4),b=nz(-12,12),c=nz(-4,4),d=nz(-12,12);
+ var p=Fr(-b,a),r=Fr(-d,c),cmp=fVal(p)-fVal(r),setTex,note;
+ if(a>0&&c>0){
+  if(cmp>0){setTex='\\{x\\mid x\\ge '+fTex(p)+'\\}';note='Хоёр доод хязгаараас илүү хатуу нь эхнийх.';}
+  else{setTex='\\{x\\mid x\\gt '+fTex(r)+'\\}';note='Хоёр доод хязгаараас илүү хатуу нь хоёр дахь нь.';}
+ }else if(a<0&&c<0){
+  if(cmp<0){setTex='\\{x\\mid x\\le '+fTex(p)+'\\}';note='Хоёр дээд хязгаараас илүү хатуу нь эхнийх.';}
+  else{setTex='\\{x\\mid x\\lt '+fTex(r)+'\\}';note='Хоёр дээд хязгаараас илүү хатуу нь хоёр дахь нь.';}
+ }else if(a>0&&c<0){
+  if(cmp<0){setTex='\\{x\\mid '+fTex(p)+'\\le x\\lt '+fTex(r)+'\\}';note='Доод ба дээд хязгаар хоёулаа гарч завсар үүснэ.';}
+  else{setTex='\\varnothing';note='Доод хязгаар нь дээд хязгаараасаа их тул огтлолцол хоосон.';}
+ }else{
+  if(cmp>0){setTex='\\{x\\mid '+fTex(r)+'\\lt x\\le '+fTex(p)+'\\}';note='Доод ба дээд хязгаар хоёулаа гарч завсар үүснэ.';}
+  else{setTex='\\varnothing';note='Доод хязгаар нь дээд хязгаараасаа их тул огтлолцол хоосон.';}
+ }
+ return {q:'$y=\\dfrac{\\sqrt{'+linTex(I(a),I(b))+'}}{\\sqrt{'+linTex(I(c),I(d))+'}}$',
+  a:'Хүртвэрийн язгуур доорх илэрхийлэл сөрөг биш байна: $'+linTex(I(a),I(b))+'\\ge 0$ тул $x'+(a>0?'\\ge ':'\\le ')+fTex(p)+'$. '+
+    'Хуваарь тэгээс ялгаатай байх тул язгуур доорхи илэрхийлэл хатуу эерэг: $'+linTex(I(c),I(d))+'\\gt 0$ тул $x'+(c>0?'\\gt ':'\\lt ')+fTex(r)+'$. '+
+    note+' Иймд $D='+setTex+'$.',
+  key:'dsi'+a+'_'+b+'_'+c+'_'+d,_v:{t:'domSqrtInter',a:a,b:b,c:c,d:d}};}
+
+// 3. y=a√x: D ба E-ээс a ба завсрын баруун захыг сэргээх
+function g_sqrtRangeParam(){
+ var A=pick([I(2),I(3),I(4),I(-2),I(-3),I(-4),Fr(1,2),Fr(-1,2),Fr(3,2),Fr(-3,2),I(5),I(-5)]);
+ var k1=rnd(1,4),k2=k1+rnd(1,4),m=k1*k1,n=k2*k2;
+ var fm=fMul(A,I(k1)),fn=fMul(A,I(k2));
+ var lo=fMin(fm,fn),hi=fMax(fm,fn),pos=(fVal(A)>0);
+ return {q:'$y=a\\sqrt{x},\\quad D=\\{x\\mid '+m+'\\le x\\le n\\},\\quad E='+setY(fTex(lo),fTex(hi))+'$',
+  a:'$\\sqrt{x}$ нь $[0;\\ +\\infty[$ дээр өсдөг. Дүр нь '+(pos?'сөрөг биш':'эерэг биш')+' тул $a'+(pos?'\\gt ':'\\lt ')+'0$ бөгөөд функц завсартаа '+(pos?'өснө':'буурна')+'. '+
+    'Иймд $f('+m+')='+fTex(fm)+'$, $f(n)='+fTex(fn)+'$ болно. Эхнийхээс $a\\cdot '+k1+'='+fTex(fm)+'$ тул $a='+fTex(A)+'$. '+
+    'Дараа нь $'+fTex(A)+'\\cdot \\sqrt{n}='+fTex(fn)+'$ буюу $\\sqrt{n}='+k2+'$ тул $n='+n+'$.',
+  key:'srp'+fVal(A)+'_'+k1+'_'+k2,_v:{t:'sqrtRangeParam',A:fVal(A),m:m,n:n,k1:k1,k2:k2}};}
+
+// 4. y=ax³: D ба E-ээс a ба завсрын баруун захыг сэргээх
+function g_cubeRangeParam(){
+ var A=pick([I(1),I(2),I(3),I(-1),I(-2),I(-3),Fr(1,2),Fr(-1,2)]);
+ var side=pick([1,-1]),k1,k2;
+ if(side>0){k1=rnd(1,3);k2=k1+rnd(1,3);}else{k2=-rnd(1,3);k1=k2-rnd(1,3);}
+ var m=k1*k1*k1,n=k2*k2*k2;
+ var fm=fMul(A,I(m)),fn=fMul(A,I(n));
+ var lo=fMin(fm,fn),hi=fMax(fm,fn),pos=(fVal(A)>0);
+ return {q:'$y=ax^3,\\quad D=\\{x\\mid '+m+'\\le x\\le n\\},\\quad E='+setY(fTex(lo),fTex(hi))+'$',
+  a:'$x^3$ нь бүх бодит тоон дээр өсдөг. Завсар бүхэлдээ $x'+(side>0?'\\gt ':'\\lt ')+'0$ мужид тул $x^3$-ийн тэмдэг тогтмол '+(side>0?'эерэг':'сөрөг')+' байна. '+
+    'Дүрийн тэмдгээс $a'+(pos?'\\gt ':'\\lt ')+'0$ гэж тогтоох ба функц завсартаа '+(pos?'өснө':'буурна')+'. '+
+    'Иймд $f('+m+')='+fTex(fm)+'$, $f(n)='+fTex(fn)+'$ болно. Эхнийхээс $a\\cdot '+paren(m)+'='+fTex(fm)+'$ тул $a='+fTex(A)+'$. '+
+    'Дараа нь $'+fTex(A)+'\\cdot n='+fTex(fn)+'$ буюу $n='+n+'$.',
+  key:'crp'+fVal(A)+'_'+k1+'_'+k2,_v:{t:'cubeRangeParam',A:fVal(A),m:m,n:n}};}
+
+// 5. y=a/x² функцийн хаалттай завсар дээрх дүр
+function g_invSqRange(){
+ var a=nz(-12,12),neg=pick([true,false]),m,n;
+ if(neg){n=-rnd(1,3);m=n-rnd(1,4);}else{m=rnd(1,3);n=m+rnd(1,4);}
+ var fm=Fr(a,m*m),fn=Fr(a,n*n),lo=fMin(fm,fn),hi=fMax(fm,fn);
+ if(fEq(lo,hi))return null;
+ var xmax=(fVal(fm)>fVal(fn))?m:n;
+ return {q:'$y='+invSqTex(a)+',\\quad D='+setX(m,n)+'$',
+  a:'Завсар дээр $x'+(neg?'\\lt ':'\\gt ')+'0$ тул $x^2$ нь '+(neg?'буурна':'өснө')+'. '+
+    '$a='+a+(a>0?'\\gt ':'\\lt ')+'0$ тул $\\dfrac{a}{x^2}$ нь $x^2$-той эсрэг чиглэлд өөрчлөгдөх ба функц завсартаа '+(((a>0)!==neg)?'буурна':'өснө')+'. '+
+    'Захын утгууд $f('+m+')='+fTex(fm)+'$, $f('+n+')='+fTex(fn)+'$ тул дүр нь $'+setY(fTex(lo),fTex(hi))+'$ бөгөөд хамгийн их утгыг $x='+xmax+'$ үед авна.',
+  key:'isr'+a+'_'+m+'_'+n,_v:{t:'invSqRange',a:a,m:m,n:n,lo:fVal(lo),hi:fVal(hi),xmax:xmax}};}
+
+// 6. Хоёр цэгээс n ба a-г тодорхойлох (зэрэгт функц)
+function g_axnFindN(){
+ var N=pick([-2,-1,0.5,1,2,3]);
+ var A=pick([I(1),I(2),I(3),I(-1),I(-2),Fr(1,2),Fr(-1,2),I(4),Fr(3,2)]);
+ var p,q0,w;
+ if(N===0.5){var s1=pick([1,2,3]),s2=s1+pick([1,2,3]),s3=s2+1;p=s1*s1;q0=s2*s2;w=s3*s3;}
+ else{p=pick([1,2,3]);q0=p+pick([1,2,3]);w=q0+1;}
+ function pw(x){
+  if(N===-2)return fDiv(A,I(x*x));
+  if(N===-1)return fDiv(A,I(x));
+  if(N===0.5)return fMul(A,I(Math.round(Math.sqrt(x))));
+  if(N===1)return fMul(A,I(x));
+  if(N===2)return fMul(A,I(x*x));
+  return fMul(A,I(x*x*x));}
+ var u=pw(p),v=pw(q0),fw=pw(w);
+ if(fEq(u,v))return null;
+ var ratio=fDiv(u,v),pq=Fr(p,q0);
+ var nTex=(N===0.5)?'\\dfrac{1}{2}':(''+N);
+ var powForm=(N===-2)?'\\dfrac{a}{x^2}':((N===-1)?'\\dfrac{a}{x}':((N===0.5)?'a\\sqrt{x}':((N===1)?'ax':((N===2)?'ax^2':'ax^3'))));
+ return {q:'$y=ax^{n},\\quad n\\in\\{-2;\\ -1;\\ \\dfrac{1}{2};\\ 1;\\ 2;\\ 3\\},\\quad f('+p+')='+fTex(u)+',\\quad f('+q0+')='+fTex(v)+'$',
+  a:'Хоёр нөхцлийг харьцуулбал $\\dfrac{f('+p+')}{f('+q0+')}=\\Bigl(\\dfrac{'+p+'}{'+q0+'}\\Bigr)^{n}$ болно. '+
+    'Энд $\\dfrac{'+p+'}{'+q0+'}='+fTex(pq)+'$, $\\dfrac{f('+p+')}{f('+q0+')}='+fTex(ratio)+'$ тул боломжит зургаан утгыг шалгахад зөвхөн $n='+nTex+'$ тохирно. '+
+    'Иймд $y='+powForm+'$ бөгөөд эхний нөхцлөөс $a='+fTex(A)+'$. Тэгэхээр $f('+w+')='+fTex(fw)+'$.',
+  key:'afn'+N+'_'+fVal(A)+'_'+p+'_'+q0,_v:{t:'axnFindN',N:N,A:fVal(A),p:p,q:q0,w:w}};}
+
+// 7. Зэрэгт функц ба гиперболын огтлолцол (шийдгүй тохиолдолтой)
+function g_axnIntersect(){
+ var mode=pick(['q4','c3']),a=nz(-3,3);
+ if(mode==='q4'){
+  var t=pick([2,3]),same=pick([true,false]),b=(same?1:-1)*a*t*t*t*t;
+  var y1=Fr(b,t),y2=Fr(b,-t);
+  if(same)return {q:'$y='+(a===1?'':(a===-1?'-':''+a))+'x^3$ ба $y='+hypTex(b)+'$',
+   a:'$'+(a===1?'':(a===-1?'-':''+a))+'x^3='+hypTex(b)+'$ тэгшитгэлийн хоёр талыг $x\\ne 0$-д үржүүлбэл $'+(a===1?'':(a===-1?'-':''+a))+'x^4='+b+'$ буюу $x^4='+(b/a)+'$. '+
+     'Иймд $x^2='+(t*t)+'$ тул $x='+t+'$ эсвэл $x='+(-t)+'$. Огтлолцох цэгүүд нь $'+ptF(I(t),y1)+'$, $'+ptF(I(-t),y2)+'$.',
+   key:'ai4'+a+'_'+t+'_1',_v:{t:'axnIntersect',mode:'q4',a:a,b:b,same:true,root:t}};
+  return {q:'$y='+(a===1?'':(a===-1?'-':''+a))+'x^3$ ба $y='+hypTex(b)+'$',
+   a:'$'+(a===1?'':(a===-1?'-':''+a))+'x^3='+hypTex(b)+'$ тэгшитгэлийн хоёр талыг $x\\ne 0$-д үржүүлбэл $x^4='+(b/a)+'$ гарна. '+
+     'Ямар ч бодит тооны дөрөвдүгээр зэрэг сөрөг биш тул энэ тэгшитгэл шийдгүй. Иймд хоёр график огтлолцохгүй.',
+   key:'ai4'+a+'_'+t+'_0',_v:{t:'axnIntersect',mode:'q4',a:a,b:b,same:false,root:null}};
+ }
+ var t2=nz(-3,3),b2=a*t2*t2*t2,y3=Fr(b2,t2);
+ return {q:'$y='+(a===1?'':(a===-1?'-':''+a))+'x^2$ ба $y='+hypTex(b2)+'$',
+  a:'$'+(a===1?'':(a===-1?'-':''+a))+'x^2='+hypTex(b2)+'$ тэгшитгэлийн хоёр талыг $x\\ne 0$-д үржүүлбэл $'+(a===1?'':(a===-1?'-':''+a))+'x^3='+b2+'$ буюу $x^3='+(b2/a)+'$. '+
+    'Куб язгуур нь ганц утгатай тул $x='+t2+'$. Огтлолцох цэг нь $'+ptF(I(t2),y3)+'$.',
+  key:'ai3'+a+'_'+t2,_v:{t:'axnIntersect',mode:'c3',a:a,b:b2,same:true,root:t2}};}
+
+// ════════════════ 5.5 y = aˣ илтгэгч функцийн график ════════════════
+
+// 1. Хоёр цэгээс k ба a-г олох
+function g_expFindKA(){
+ var A=pick([I(2),I(3),I(4),I(5),Fr(1,2),Fr(1,3),Fr(1,5),Fr(2,3),Fr(3,2)]);
+ var k=pick([1,2,3,4,6,-1,-2,-3,-6]);
+ var m=rnd(-2,2),e=pick([1,2,3]),n=m+e,w=n+1;
+ var u=fMul(I(k),fPow(A,m)),v=fMul(I(k),fPow(A,n)),fw=fMul(I(k),fPow(A,w));
+ var rat=fPow(A,e);
+ var rootLine=(e===1)?('$a='+fTex(A)+'$'):('$'+pwT('a',e)+'='+fTex(rat)+'$ бөгөөд $a\\gt 0$ тул $a='+fTex(A)+'$');
+ return {q:'$y=k\\cdot a^{x},\\quad f('+m+')='+fTex(u)+',\\quad f('+n+')='+fTex(v)+'$',
+  a:'Хоёр нөхцлийг хуваавал $\\dfrac{f('+n+')}{f('+m+')}=a^{'+n+'-'+paren(m)+'}='+pwT('a',e)+'$ ба баруун тал нь $'+fTex(v)+'\\div '+pFr(u)+'='+fTex(rat)+'$. '+
+    'Иймд '+rootLine+'. Дараа нь $k='+fTex(u)+'\\div '+pwT(bTexF(A),m)+'='+k+'$. '+
+    'Тэгэхээр $y='+kTexM(k)+bTexF(A)+'^{x}$ бөгөөд $f('+w+')='+fTex(fw)+'$.',
+  key:'efk'+fVal(A)+'_'+k+'_'+m+'_'+e,_v:{t:'expFindKA',A:fVal(A),k:k,m:m,n:n,w:w}};}
+
+// 2. Илтгэгч функцийн хаалттай завсар дээрх дүр
+function g_expRangeInt(){
+ var A=pick([I(2),I(3),I(4),Fr(1,2),Fr(1,3),Fr(2,3),Fr(3,2)]);
+ var k=pick([1,2,3,6,-1,-2,-3,-6]);
+ var m=rnd(-3,1),n=m+rnd(1,4);
+ var fm=fMul(I(k),fPow(A,m)),fn=fMul(I(k),fPow(A,n));
+ var lo=fMin(fm,fn),hi=fMax(fm,fn);
+ if(fEq(lo,hi))return null;
+ var big=(fVal(A)>1);
+ return {q:'$y='+kTexM(k)+bTexF(A)+'^{x},\\quad D='+setX(m,n)+'$',
+  a:'$a='+fTex(A)+(big?'\\gt ':'\\lt ')+'1$ тул $a^{x}$ нь '+(big?'өснө':'буурна')+'. '+
+    '$k='+k+(k>0?'\\gt ':'\\lt ')+'0$ тул $k$-гаар үржүүлэхэд монотон чанар '+(k>0?'хадгалагдана':'урвуу болно')+', өөрөөр хэлбэл функц '+((big===(k>0))?'өснө':'буурна')+'. '+
+    'Захын утгууд $f('+m+')='+fTex(fm)+'$, $f('+n+')='+fTex(fn)+'$ тул дүр нь $'+setY(fTex(lo),fTex(hi))+'$.',
+  key:'eri'+fVal(A)+'_'+k+'_'+m+'_'+n,_v:{t:'expRangeInt',A:fVal(A),k:k,m:m,n:n,lo:fVal(lo),hi:fVal(hi)}};}
+
+// 3. D ба E-ээс (k; a)-гийн БҮХ хосыг олох (хоёр тохиолдол)
+function g_expInvRange(){
+ var A=pick([I(2),I(3),I(4),Fr(1,2),Fr(1,3),Fr(3,2),Fr(2,3)]);
+ var k=pick([1,2,3,4,6,9,-1,-2,-3,-4,-6]);
+ var m=rnd(-2,1),e=pick([1,2]),n=m+e;
+ var fm=fMul(I(k),fPow(A,m)),fn=fMul(I(k),fPow(A,n));
+ var lo=fMin(fm,fn),hi=fMax(fm,fn);
+ if(fEq(lo,hi))return null;
+ var a1=fPow(fDiv(hi,lo),1),A1,A2,k1,k2;
+ // 1-р тохиолдол: f(m)=lo, f(n)=hi ;  2-р тохиолдол: f(m)=hi, f(n)=lo
+ var r1=fDiv(hi,lo),r2=fDiv(lo,hi);
+ function eroot(fr,ee){if(ee===1)return fr;var sn=isqrt(fr.n),sd=isqrt(fr.d);if(sn===null||sd===null)return null;return Fr(sn,sd);}
+ A1=eroot(r1,e);A2=eroot(r2,e);
+ if(!A1||!A2)return null;
+ k1=fDiv(lo,fPow(A1,m));k2=fDiv(hi,fPow(A2,m));
+ return {q:'$y=k\\cdot a^{x},\\quad D='+setX(m,n)+',\\quad E='+setY(fTex(lo),fTex(hi))+'$',
+  a:'Функц монотон тул захын утгууд захад хүрнэ, гэвч аль зах нь хамгийн бага болохыг мэдэхгүй тул хоёр тохиолдлыг үзнэ. '+
+    '<b>1)</b> $f('+m+')='+fTex(lo)+'$, $f('+n+')='+fTex(hi)+'$ бол $'+pwT('a',e)+'='+fTex(r1)+'$ тул $a='+fTex(A1)+'$, $k='+fTex(lo)+'\\div '+pwT(bTexF(A1),m)+'='+fTex(k1)+'$. '+
+    '<b>2)</b> $f('+m+')='+fTex(hi)+'$, $f('+n+')='+fTex(lo)+'$ бол $'+pwT('a',e)+'='+fTex(r2)+'$ тул $a='+fTex(A2)+'$, $k='+fTex(k2)+'$. '+
+    'Хариу: $\\bigl(k;\\ a\\bigr)='+ptF(k1,A1)+'$ эсвэл $'+ptF(k2,A2)+'$.',
+  key:'eiv'+fVal(A)+'_'+k+'_'+m+'_'+e,_v:{t:'expInvRange',m:m,n:n,lo:fVal(lo),hi:fVal(hi),k1:fVal(k1),a1:fVal(A1),k2:fVal(k2),a2:fVal(A2)}};}
+
+// 4. Илтгэгчтэй тэнцэтгэл биш (монотон чанар, тэмдэг эргэх)
+function g_expIneq(){
+ var A=pick([I(2),I(3),I(4),Fr(1,2),Fr(1,3),Fr(1,4),Fr(3,2),Fr(2,3)]);
+ var k=pick([1,2,3,5,-1,-2,-3,-5]),T=rnd(-3,3),rel=pick(['ge','le']);
+ var c=fMul(I(k),fPow(A,T));
+ var r1=(k<0)?flipRel(rel):rel;
+ var r2=(fVal(A)<1)?flipRel(r1):r1;
+ var big=(fVal(A)>1);
+ return {q:'$'+kTexM(k)+bTexF(A)+'^{x}'+relT(rel)+fTex(c)+'$',
+  a:'Хоёр талыг $k='+k+'$-д хуваая. $k'+(k>0?'\\gt ':'\\lt ')+'0$ тул тэнцэтгэл бишийн тэмдэг '+(k<0?'эргэнэ':'хэвээр үлдэнэ')+': $'+bTexF(A)+'^{x}'+relT(r1)+fTex(fPow(A,T))+'$. '+
+    'Баруун талыг $'+pwT(bTexF(A),T)+'$ хэлбэрт бичье. $a='+fTex(A)+(big?'\\gt ':'\\lt ')+'1$ тул $a^{x}$ нь '+(big?'өсдөг':'буурдаг')+' бөгөөд илтгэгчид шилжихэд тэмдэг '+(big?'хэвээр үлдэнэ':'эргэнэ')+'. '+
+    'Иймд шийд нь $\\{x\\mid x'+relT(r2)+T+'\\}$.',
+  key:'ein'+fVal(A)+'_'+k+'_'+T+'_'+rel,_v:{t:'expIneq',A:fVal(A),k:k,T:T,rel:rel,res:r2}};}
+
+// 5. Илтгэгчид квадрат гишүүнтэй тэгшитгэл
+function g_expEqQuad(){
+ var A=pick([I(2),I(3),I(5),Fr(1,2),Fr(1,3)]);
+ var r1=nz(-5,5),r2=nz(-5,5);
+ if(r1===r2)return null;
+ var B=-(r1+r2),T=-r1*r2,c=fPow(A,T);
+ return {q:'$'+bTexF(A)+'^{x^2'+coefTerm(B,'x')+'}='+fTex(c)+'$',
+  a:'Баруун талыг ижил суурьтай зэрэг болгон бичвэл $'+fTex(c)+'='+pwT(bTexF(A),T)+'$ болно. '+
+    '$a='+fTex(A)+'$ суурьтай илтгэгч функц хатуу монотон тул илтгэгчүүд тэнцүү байна: $x^2'+coefTerm(B,'x')+'='+T+'$. '+
+    'Эндээс $'+quadTex(I(1),I(B),I(-T))+'=0$ тул $x_{1}='+r1+'$, $x_{2}='+r2+'$.',
+  key:'eeq'+fVal(A)+'_'+r1+'_'+r2,_v:{t:'expEqQuad',A:fVal(A),r1:r1,r2:r2,B:B,T:T}};}
+
+// 6. Хоёр илтгэгч функцийн огтлолцол (суурь харилцан урвуу)
+function g_expIntersect(){
+ var A=pick([2,3,4,5]),k1=pick([1,2,3,5,7]),w=pick([-2,-1,1,2]);
+ var k2=fMul(I(k1),fPow(I(A),2*w));
+ var yv=fMul(I(k1),fPow(I(A),w));
+ return {q:'$y='+kTexM(k1)+A+'^{x}$ ба $y='+fTex(k2)+'\\cdot \\Bigl(\\dfrac{1}{'+A+'}\\Bigr)^{x}$',
+  a:'$\\Bigl(\\dfrac{1}{'+A+'}\\Bigr)^{x}='+A+'^{-x}$ тул тэгшитгэл нь $'+kTexM(k1)+A+'^{x}='+fTex(k2)+'\\cdot '+A+'^{-x}$ болно. '+
+    'Хоёр талыг $'+A+'^{-x}$-д хувааж, $'+k1+'$-д хуваавал $'+A+'^{2x}='+fTex(fDiv(k2,I(k1)))+'='+A+'^{'+(2*w)+'}$. '+
+    'Илтгэгч функц хатуу монотон тул $2x='+(2*w)+'$ буюу $x='+w+'$. Огтлолцох цэг нь $'+ptF(I(w),yv)+'$.',
+  key:'exi'+A+'_'+k1+'_'+w,_v:{t:'expIntersect',A:A,k1:k1,w:w,y:fVal(yv)}};}
+
+// 7. Илтгэгч өсөлтийн хэрэглээний бодлого
+function g_expWord(){
+ var A=pick([2,3]),k=pick([4,5,6,8,10,12,20,25]);
+ var t1=rnd(1,2),e=pick([2,3]),t2=t1+e,T=t2+rnd(1,2);
+ var u=k*Math.pow(A,t1),v=k*Math.pow(A,t2),z=k*Math.pow(A,T);
+ return {q:'Тэжээлийн орчинд байгаа бактерийн тоо цаг тутамд тогтмол $a$ дахин нэмэгдэнэ. Эхэлснээс хойш $'+t1+'$ цагийн дараа $'+u+'$, $'+t2+'$ цагийн дараа $'+v+'$ бактери байв. Эхний тоо ба $'+z+'$ бактери болох хугацааг ол.',
+  a:'Тоог $N(x)=k\\cdot a^{x}$ гэвэл $k\\cdot '+pwT('a',t1)+'='+u+'$, $k\\cdot '+pwT('a',t2)+'='+v+'$. '+
+    'Хуваавал $'+pwT('a',e)+'='+v+'\\div '+u+'='+Math.pow(A,e)+'$ тул $a='+A+'$. '+
+    'Эндээс $k='+u+'\\div '+pwT(''+A,t1)+'='+k+'$ буюу эхний тоо $'+k+'$ бактери. '+
+    'Эцэст нь $'+k+'\\cdot '+A+'^{x}='+z+'$ тул $'+A+'^{x}='+Math.pow(A,T)+'$ бөгөөд илтгэгч функц хатуу монотон тул $x='+T+'$ цаг.',
+  key:'ew'+A+'_'+k+'_'+t1+'_'+e+'_'+T,nv:T,_v:{t:'expWord',A:A,k:k,t1:t1,t2:t2,T:T}};}
+
+// ════════════════ 5.6 Муруйн шүргэгч, шүргэгчийн налалт ════════════════
+
+// 1. Параболын цэг дээрх шүргэгчийн налалт (давхар язгуурын нөхцөл)
+function g_tanParab(){
+ var A=pick([I(1),I(-1),I(2),I(-2),Fr(1,2),Fr(-1,2),I(3),Fr(-3,2)]);
+ var b=nz(-6,6),c=rnd(-6,6),x0=nz(-4,4);
+ var y0=fAdd(fAdd(fMul(A,I(x0*x0)),I(b*x0)),I(c));
+ var k=fAdd(fMul(I(2*x0),A),I(b));
+ var d=fSub(y0,fMul(k,I(x0)));
+ var yr=Math.min(12,Math.max(5,Math.ceil(Math.abs(fVal(y0)))+2));
+ var xr=Math.max(4,Math.abs(x0)+2);
+ var av=fVal(A);
+ var fig=(Math.abs(fVal(y0))<=10)?graph({xr:xr,yr:yr,labels:true,
+   fns:[{f:function(x){return av*x*x+b*x+c;}}],pts:[{x:x0,y:fVal(y0),l:'A'}]}):null;
+ var r={q:'$y='+quadTex(A,I(b),I(c))+'$ парабол, $A'+ptF(I(x0),y0)+'$',
+  a:'Шүргэгчийг $y=kx+d$ гэвэл $'+quadTex(A,I(b),I(c))+'=kx+d$ тэгшитгэл нь $x='+x0+'$ давхар язгууртай байх ёстой. '+
+    'Энэ нь $'+aTex(A)+'x^2+\\bigl('+b+'-k\\bigr)x+\\bigl('+c+'-d\\bigr)=0$ бөгөөд язгууруудын нийлбэр $2\\cdot '+paren(x0)+'=\\dfrac{k-'+paren(b)+'}{'+fTex(A)+'}$ гэсэн үг. '+
+    'Эндээс $k=2\\cdot '+pFr(A)+'\\cdot '+paren(x0)+sgnFr(I(b))+'='+fTex(k)+'$, $d='+fTex(y0)+'-'+pFr(k)+'\\cdot '+paren(x0)+'='+fTex(d)+'$. '+
+    'Иймд шүргэгчийн налалт нь $'+fTex(k)+'$, тэгшитгэл нь $y='+linTex(k,d)+'$.',
+  key:'tp'+fVal(A)+'_'+b+'_'+c+'_'+x0,_v:{t:'tanParab',A:fVal(A),b:b,c:c,x0:x0,k:fVal(k),d:fVal(d)}};
+ if(fig)r.fig=fig;
+ return r;}
+
+// 2. Гиперболын шүргэгч ба тэнхлэгүүдтэй үүсгэх гурвалжны талбай
+function g_tanHyp(){
+ var x0=nz(-4,4),mm=nz(-6,6),a=mm*x0;
+ var y0=Fr(a,x0),k=Fr(-a,x0*x0),d=Fr(2*a,x0);
+ var xint=2*x0;
+ return {q:'$y='+hypTex(a)+'$ гипербол, $A'+ptF(I(x0),y0)+'$',
+  a:'Шүргэгчийг $y=kx+d$ гэвэл $'+hypTex(a)+'=kx+d$ буюу $kx^2+dx'+pmz(-a)+'=0$ тэгшитгэл $x='+x0+'$ давхар язгууртай. '+
+    'Иймд язгууруудын нийлбэр $2\\cdot '+paren(x0)+'=-\\dfrac{d}{k}$, үржвэр $'+paren(x0)+'^{2}='+mfrac(-a,'k')+'$. '+
+    'Хоёр дахиас $k='+mfrac(-a,''+(x0*x0))+'='+fTex(k)+'$, эхнийхээс $d=-2k\\cdot '+paren(x0)+'='+fTex(d)+'$. '+
+    'Шүргэгч $y='+linTex(k,d)+'$ нь $Ox$-ийг $'+ptN(xint,0)+'$, $Oy$-ийг $'+ptF(I(0),d)+'$ цэгт огтолно. '+
+    'Тэнхлэгүүдтэй үүсгэх гурвалжны талбай $S=\\dfrac{1}{2}\\cdot '+Math.abs(xint)+'\\cdot '+fTex(absFr(d))+'='+(2*Math.abs(a))+'$ квадрат нэгж.',
+  key:'th'+x0+'_'+mm,nv:2*Math.abs(a),_v:{t:'tanHyp',a:a,x0:x0,k:fVal(k),d:fVal(d)}};}
+
+// 3. y=a√x функцийн шүргэгч (t=√x орлуулга)
+function g_tanSqrt(){
+ var a=nz(-6,6),t0=rnd(1,5),x0=t0*t0;
+ var y0=I(a*t0),k=Fr(a,2*t0),d=Fr(a*t0,2);
+ return {q:'$y='+(a===1?'':(a===-1?'-':''+a))+'\\sqrt{x}$, $A'+ptN(x0,a*t0)+'$',
+  a:'$t=\\sqrt{x}\\ \\bigl(t\\ge 0\\bigr)$ гэж орлуулбал муруй нь $y='+(a===1?'':(a===-1?'-':''+a))+'t$, $x=t^2$ хэлбэртэй. '+
+    'Шүргэгч $y=kx+d$-тэй огтлолцох нөхцөл нь $'+(a===1?'':(a===-1?'-':''+a))+'t=kt^2+d$ буюу $kt^2'+coefTerm(-a,'t')+'+d=0$ бөгөөд энэ нь $t='+t0+'$ давхар язгууртай байх ёстой. '+
+    'Язгууруудын нийлбэр $2\\cdot '+t0+'='+mfrac(a,'k')+'$ тул $k='+mfrac(a,''+(2*t0))+'='+fTex(k)+'$, үржвэр $'+t0+'^{2}=\\dfrac{d}{k}$ тул $d='+fTex(d)+'$. '+
+    'Иймд налалт нь $'+fTex(k)+'$, шүргэгч нь $y='+linTex(k,d)+'$.',
+  key:'ts'+a+'_'+t0,_v:{t:'tanSqrt',a:a,t0:t0,x0:x0,k:fVal(k),d:fVal(d)}};}
+
+// 4. Куб функцийн шүргэгч (давхар үржигдэхүүнд задлах)
+function g_tanCube(){
+ var A=pick([I(1),I(-1),I(2),I(-2),I(3),Fr(1,2),Fr(-1,2),Fr(-3,2)]);
+ var x0=nz(-3,3);
+ var y0=fMul(A,I(x0*x0*x0)),k=fMul(I(3*x0*x0),A),d=fMul(I(-2*x0*x0*x0),A);
+ var x1=-2*x0,y1=fMul(A,I(x1*x1*x1));
+ return {q:'$y='+aTex(A)+'x^3$, $A'+ptF(I(x0),y0)+'$',
+  a:'Шүргэгчийг $y=kx+d$ гэвэл $'+aTex(A)+'x^3-kx-d=0$ тэгшитгэл $x='+x0+'$ давхар язгууртай тул '+
+    '$'+aTex(A)+'x^3-kx-d='+pFr(A)+'\\bigl(x'+pmz(-x0)+'\\bigr)^2\\bigl(x-x_{1}\\bigr)$ гэж бичигдэнэ. '+
+    'Баруун талд $x^2$-ийн коэффициент нь $'+pFr(A)+'\\bigl(-2\\cdot '+paren(x0)+'-x_{1}\\bigr)$ бөгөөд зүүн талд $x^2$ байхгүй тул $x_{1}='+x1+'$. '+
+    'Дараа нь $x$-ийн коэффициентийг тэнцүүлбэл $-k='+pFr(A)+'\\bigl('+paren(x0)+'^{2}+2\\cdot '+paren(x0)+'\\cdot '+paren(x1)+'\\bigr)$ тул $k=3\\cdot '+pFr(A)+'\\cdot '+paren(x0)+'^{2}='+fTex(k)+'$, $d='+fTex(d)+'$. '+
+    'Шүргэгч $y='+linTex(k,d)+'$ нь муруйг $'+ptF(I(x1),y1)+'$ цэгт дахин огтолно.',
+  key:'tc'+fVal(A)+'_'+x0,_v:{t:'tanCube',A:fVal(A),x0:x0,k:fVal(k),d:fVal(d),x1:x1}};}
+
+// 5. Шүргэгч ба координатын тэнхлэгүүдийн үүсгэх гурвалжны талбай
+function g_tanTriArea(){
+ var A=pick([I(1),I(-1),I(2),I(-2),Fr(1,2),Fr(-1,2),I(3),Fr(1,3),Fr(-1,3),Fr(3,2)]);
+ var x0=nz(-4,4);
+ var y0=fMul(A,I(x0*x0)),k=fMul(I(2*x0),A),d=fMul(I(-x0*x0),A);
+ var xi=Fr(x0,2),S=fDiv(fMul(absFr(A),I(Math.abs(x0*x0*x0))),I(4));
+ return {q:'$y='+aTex(A)+'x^2$ параболд $x_{0}='+x0+'$ цэг дээр татсан шүргэгч',
+  a:'Шүргэгчийг $y=kx+d$ гэвэл $'+aTex(A)+'x^2-kx-d=0$ нь $x='+x0+'$ давхар язгууртай тул язгууруудын нийлбэр $2\\cdot '+paren(x0)+'=\\dfrac{k}{'+fTex(A)+'}$, үржвэр $'+paren(x0)+'^{2}=-\\dfrac{d}{'+fTex(A)+'}$. '+
+    'Эндээс $k=2\\cdot '+pFr(A)+'\\cdot '+paren(x0)+'='+fTex(k)+'$, $d='+fTex(d)+'$ буюу шүргэгч нь $y='+linTex(k,d)+'$. '+
+    'Энэ шулуун $Ox$-ийг $'+ptF(xi,I(0))+'$, $Oy$-ийг $'+ptF(I(0),d)+'$ цэгт огтолно. '+
+    'Иймд гурвалжны талбай $S=\\dfrac{1}{2}\\cdot '+fTex(absFr(xi))+'\\cdot '+fTex(absFr(d))+'='+fTex(S)+'$ квадрат нэгж.',
+  key:'tta'+fVal(A)+'_'+x0,nv:fVal(S),_v:{t:'tanTriArea',A:fVal(A),x0:x0,k:fVal(k),d:fVal(d),S:fVal(S)}};}
+
+// 6. Гадаад цэгээс параболд татсан хоёр шүргэгч
+function g_tanExternal(){
+ var A=pick([I(1),I(-1),I(2),I(-2),Fr(1,2),Fr(-1,2)]);
+ var x1=nz(-4,4),x2=nz(-4,4);
+ if(x1===x2||((x1+x2)%2!==0))return null;
+ var u=(x1+x2)/2,v=fMul(A,I(x1*x2));
+ var k1=fMul(I(2*x1),A),k2=fMul(I(2*x2),A);
+ var d1=fMul(I(-x1*x1),A),d2=fMul(I(-x2*x2),A);
+ var av=fVal(A);
+ var fig=(Math.abs(fVal(v))<=8&&Math.abs(u)<=4)?graph({xr:5,yr:Math.min(10,Math.max(5,Math.ceil(Math.abs(fVal(v)))+2)),labels:true,
+   fns:[{f:function(x){return av*x*x;}}],pts:[{x:u,y:fVal(v),l:'P'}]}):null;
+ var r={q:'$y='+aTex(A)+'x^2$ парабол, $P'+ptF(I(u),v)+'$',
+  a:'$P$-ээр дайрах шулууныг $y=k\\bigl(x'+pmz(-u)+'\\bigr)'+sgnFr(v)+'$ гэвэл огтлолцлын тэгшитгэл нь $'+aTex(A)+'x^2-kx+\\bigl(k\\cdot '+paren(u)+'-'+pFr(v)+'\\bigr)=0$. '+
+    'Шүргэх нөхцөл нь давхар язгууртай байх буюу $k^2-4\\cdot '+pFr(A)+'\\bigl(k\\cdot '+paren(u)+'-'+pFr(v)+'\\bigr)=0$. '+
+    'Энэ нь $k$-гийн хувьд квадрат тэгшитгэл бөгөөд бодвол $k_{1}='+fTex(k1)+'$, $k_{2}='+fTex(k2)+'$ гарна. '+
+    'Шүргэлтийн цэгүүд нь $x='+x1+'$ ба $x='+x2+'$ бөгөөд шүргэгчид нь $y='+linTex(k1,d1)+'$, $y='+linTex(k2,d2)+'$.',
+  key:'te'+fVal(A)+'_'+x1+'_'+x2,_v:{t:'tanExternal',A:fVal(A),x1:x1,x2:x2,u:u,k1:fVal(k1),k2:fVal(k2)}};
+ if(fig)r.fig=fig;
+ return r;}
+
+// 7. Өгсөн налалттай шүргэгчийн шүргэлтийн цэгийг олох (урвуу бодлого)
+function g_tanParallel(){
+ var A=pick([I(1),I(-1),I(2),I(-2),Fr(1,2),Fr(-1,2),I(3),Fr(-3,2)]);
+ var b=nz(-6,6),c=rnd(-6,6),x0=nz(-4,4);
+ var k=fAdd(fMul(I(2*x0),A),I(b));
+ var y0=fAdd(fAdd(fMul(A,I(x0*x0)),I(b*x0)),I(c));
+ var d=fSub(y0,fMul(k,I(x0)));
+ var mm=fAdd(d,I(pick([1,2,3,-1,-2,-3])));
+ return {q:'$y='+quadTex(A,I(b),I(c))+'$ парабол, $y='+linTex(k,mm)+'$ шулуун',
+  a:'Абсцисс нь $x_{0}$ байх цэг дээрх шүргэгчийн налалтыг олъё. $y=kx+d$ шүргэгчийн хувьд $'+aTex(A)+'x^2+\\bigl('+b+'-k\\bigr)x+\\bigl('+c+'-d\\bigr)=0$ нь $x_{0}$ давхар язгууртай тул $2x_{0}=\\dfrac{k-'+paren(b)+'}{'+fTex(A)+'}$ буюу $k=2\\cdot '+pFr(A)+'x_{0}'+sgnFr(I(b))+'$. '+
+    'Шүргэгч өгсөн шулуунтай параллел байхын тулд налалт нь тэнцүү: $2\\cdot '+pFr(A)+'x_{0}'+sgnFr(I(b))+'='+fTex(k)+'$ тул $x_{0}='+x0+'$. '+
+    'Шүргэлтийн цэг нь $'+ptF(I(x0),y0)+'$ бөгөөд $d='+fTex(y0)+'-'+pFr(k)+'\\cdot '+paren(x0)+'='+fTex(d)+'$. '+
+    'Иймд шүргэгч нь $y='+linTex(k,d)+'$ бөгөөд $d\\ne '+fTex(mm)+'$ тул өгсөн шулуунаас ялгаатай.',
+  key:'tpl'+fVal(A)+'_'+b+'_'+c+'_'+x0,_v:{t:'tanParallel',A:fVal(A),b:b,c:c,x0:x0,k:fVal(k),d:fVal(d)}};}
+var WSPEC={"title":"Гипербол, шулуун ба хөвч — хүнд","sub":"$y=\\dfrac{a}{x}$ функц · V бүлэг · 10-р анги","rule":"<b>Санамж:</b> $y=\\dfrac{a}{x}\\ \\bigl(a\\ne 0\\bigr)$ функцийн тодорхойлогдох муж ба дүр нь $]-\\infty;\\ 0[\\cup]0;\\ +\\infty[$ бөгөөд график нь координатын тэнхлэгүүдтэй огтлолцохгүй. $a\\gt 0$ бол график I ба III, $a\\lt 0$ бол II ба IV мөчид оршино. Салаа бүр дээр $a\\gt 0$ үед буурч, $a\\lt 0$ үед өснө. $\\bigl|a\\bigr|$ багасах тусам график тэнхлэгүүд рүү ойртоно. График нь координатын эх ба $y=\\pm x$ шулуунуудын хувьд тэгш хэмтэй.","ref":"","tasks":[{"label":"Гипербол ба шулууны огтлолцох цэгүүд, хөвчийн дундаж цэгийг ол.","fn":"g_hypLineInt","cap":4,"cols":1,"wk":30},{"label":"$M$ цэгийн координат, тэгш өнцөгтийн талбай ба периметрийг ол.","fn":"g_hypRectArea","cap":4,"cols":1,"wk":30},{"label":"$B$ цэгийн координатыг ол.","fn":"g_hypChordSlope","cap":4,"cols":1,"wk":30}]};
+
+function toggleAns(){var el=document.getElementById('answers');if(el)el.style.display=document.getElementById('sa').checked?'block':'none';}
+function gen(fn){for(var t=0;t<700;t++){var f=fn();if(f)return f;}return null;}
+var LET=['а','б','в','г','д','е','ё','ж','з','и','к','л','м','н','о','ө','п','р','с','т'];
+function probeH(sheet){var pr=sheet.cloneNode(true);pr.removeAttribute('id');pr.style.cssText='position:absolute;left:-99999px;top:0;width:210mm;max-width:none;min-height:0;margin:0;padding:0;box-shadow:none;zoom:1';var a=pr.querySelector('#answers,.ans-page');if(a)a.remove();document.body.appendChild(pr);var h=pr.scrollHeight;document.body.removeChild(pr);return h;}
+function relabel(sheet){var blocks=sheet.querySelectorAll('.grid'),map={},cnt={};for(var g=0;g<blocks.length;g++){var gr=blocks[g].getAttribute('data-gr')||(g+1);if(cnt[gr]===undefined)cnt[gr]=0;var qs2=blocks[g].querySelectorAll('.q');for(var i=0;i<qs2.length;i++){var ix=cnt[gr]++;var lt=LET[ix]||('#'+(ix+1));var ql=qs2[i].querySelector('.ql');if(ql)ql.textContent=lt+')';map[qs2[i].getAttribute('data-k')]=gr+lt+')';}}
+  var as=sheet.querySelectorAll('#answers .a');for(var j=0;j<as.length;j++){var an=as[j].querySelector('.an');if(an)an.textContent=map[as[j].getAttribute('data-k')]||'';}}
+function trimToFit(sheet,target){var guard=0,h=probeH(sheet);while(h>target&&guard++<90){var blocks=sheet.querySelectorAll('.grid'),best=-1,bestN=-1;for(var s=blocks.length-1;s>=0;s--){var n=blocks[s].querySelectorAll('.q').length;if(n>bestN&&n>2){bestN=n;best=s;}}if(best<0)break;var qs2=blocks[best].querySelectorAll('.q');var last=qs2[qs2.length-1],k=last.getAttribute('data-k');var ans=sheet.querySelector('#answers .a[data-k="'+k+'"]');if(ans)ans.parentNode.removeChild(ans);last.parentNode.removeChild(last);relabel(sheet);h=probeH(sheet);}}
+var TASKS=WSPEC.tasks.map(function(t){return {label:t.label, fn:eval(t.fn), cap:t.cap, cols:t.cols, wk:t.wk};});
+function genPool(){var P=TASKS.map(function(){return[];});var seen={};TASKS.forEach(function(t,i){var c=0,tr=0,need=t.cap+3;while(c<need&&tr<9000){tr++;var f=gen(t.fn);if(!f||seen[f.key])continue;seen[f.key]=1;P[i].push(f);c++;}});return P;}
+function build(){window.__POOL=genPool();layout();}
+function layout(){var WK=document.getElementById('sw').checked;var S=window.__POOL||(window.__POOL=genPool());window.__PROB=[];var K=0;
+  function block(arr,cap,tk,gno){var use=WK?arr.slice(0,cap):arr;return '<div class="grid" data-gr="'+gno+'"'+(tk&&tk.cols?' style="grid-template-columns:repeat('+tk.cols+',1fr)"':'')+'>'+use.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});return '<div class="q" data-k="'+k+'"><div class="qh"><span class="ql"></span><span class="qm">'+f.q+'</span></div>'+(f.fig?'<div class="fig">'+f.fig+'</div>':'')+((WK&&!f.noWk)?'<div class="wk"'+(tk&&tk.wk?' style="height:'+tk.wk+'mm"':'')+'></div>':'')+'</div>';}).join('')+'</div>';}
+  function ansAll(){return window.__PROB.map(function(p){return '<div class="a" data-k="'+p.k+'"><span class="an"></span>'+p.f.a+'</div>';}).join('');}
+  var html='<div class="head"><h1>'+WSPEC.title+'</h1><div class="sub">'+WSPEC.sub+'</div></div>'
+    +'<div class="meta"><span>Нэр: </span><span>Анги: </span><span>Огноо: </span></div>'
+    +'<div class="rule">'+WSPEC.rule+'</div>'+(WSPEC.ref||'');
+  var __g=0,__p=null;TASKS.forEach(function(t,i){if(t.label!==__p){__g++;html+='<div class="task">'+__g+'. '+t.label+'</div>';__p=t.label;}html+=block(S[i],t.cap,t,__g);});
+  html+='<div class="ans-page" id="answers"><h2>Хариу ба бодолт</h2><div class="ans-grid">'+ansAll()+'</div></div>';
+  document.getElementById('sheet').innerHTML=html;
+  window.WS_ITEMS=[];window.WS_TITLE=WSPEC.title;
+  relabel(document.getElementById('sheet'));toggleAns();
+  try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
+  try{if(!WK)trimToFit(document.getElementById('sheet'),1035);}catch(e){}
+  try{relabel(document.getElementById('sheet'));}catch(e){}
+}
+build();
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Хураагдах нийлбэр ба нийлмэл үйлдэл — хүнд (10-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<style>
+  :root{--purple:#7B52EE;--purple2:#A855F7;--ink:#1a1030;--soft:#7a7390}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:var(--ink);background:#eceaf3;padding:16px;line-height:1.5}
+  .bar{max-width:820px;margin:0 auto 14px;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
+  .btn{font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.6rem 1.3rem;font-size:.9rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2));box-shadow:0 6px 16px -6px rgba(123,82,238,.6)}
+  .btn:hover{filter:brightness(1.06)} .btn.refresh{background:linear-gradient(135deg,#16a34a,#22c55e)}
+  .bar label{font-weight:700;color:var(--purple);display:flex;align-items:center;gap:6px;font-size:.88rem}
+  .sheet{background:#fff;width:210mm;max-width:100%;min-height:297mm;margin:0 auto;padding:12mm 14mm;box-shadow:0 12px 44px -18px rgba(0,0,0,.35)}
+  .head{text-align:center;border-bottom:2.5px solid var(--purple);padding-bottom:7px;margin-bottom:7px}
+  .head h1{font-size:16px;color:#5a32d6;font-weight:800}.head .sub{font-size:11px;color:var(--soft);margin-top:2px}
+  .meta{display:flex;justify-content:space-between;font-size:11.5px;margin:8px 2px 10px}.meta span{border-bottom:1px dotted #b3a9cf;padding:0 26px 2px 4px}
+  .rule{font-size:11px;color:var(--soft);background:transparent;border-left:3px solid #d9cff5;border-radius:8px;padding:8px 12px;margin-bottom:11px}
+  .rule b{color:#5a32d6}
+  .task{font-weight:800;color:#5a32d6;font-size:12.5px;margin:9px 0 7px;border-left:4px solid var(--purple2);padding-left:9px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:11px 20px}
+  .q{break-inside:avoid;page-break-inside:avoid}
+  .qh{display:flex;gap:7px;align-items:baseline}.ql{font-weight:800;color:var(--purple);font-size:13px;min-width:22px}.qm{font-size:13px}
+  .fig{text-align:center;margin:4px 0}
+  .wk{border:1.1px solid #e2daf5;border-radius:7px;background:linear-gradient(#fff,#fbf9ff);height:28mm;margin-top:5px}
+  .ans-page{margin-top:9mm;border-top:2px dashed #ddd;padding-top:7mm}.ans-page h2{font-size:15px;color:#5a32d6;margin-bottom:10px}
+  .ans-grid{display:grid;grid-template-columns:1fr;gap:9px;font-size:12px}.ans-grid .a{padding-bottom:8px;border-bottom:1px dotted #e6e0f5}.ans-grid .an{color:var(--purple);font-weight:800;margin-right:5px}
+  #answers{display:none}
+  @media print{body{background:#fff;padding:0}.bar{display:none}.sheet{box-shadow:none;width:auto;min-height:auto;padding:0;margin:0}@page{size:A4;margin:11mm}.ans-page{break-before:page}}
+</style>
+</head>
+<body>
+<div class="bar">
+  <button class="btn refresh" onclick="build()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>Шинэ бодлого</button>
+  <label><input type="checkbox" id="sw" onchange="layout()" checked> Бодолтын зай</label>
+  <label><input type="checkbox" id="sa" onchange="toggleAns()"> Хариу хавсаргах</label>
+  <button class="btn" onclick="window.print()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>Хэвлэх / PDF</button>
+</div>
+<div class="sheet" id="sheet"></div>
+<script>
+// ══════════ g10core.js — 10-р ангийн нийтлэг хөдөлгүүр ══════════
+function rnd(a,b){return a+Math.floor(Math.random()*(b-a+1));}
+function nz(a,b){var v;do{v=rnd(a,b);}while(v===0);return v;}
+function pick(a){return a[rnd(0,a.length-1)];}
+function shuffle(a){a=a.slice();for(var i=a.length-1;i>0;i--){var j=rnd(0,i),t=a[i];a[i]=a[j];a[j]=t;}return a;}
+function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){var t=b;b=a%b;a=t;}return a||1;}
+function lcm(a,b){return Math.abs(a*b)/gcd(a,b);}
+function sgn(n){return n>=0?'+'+n:''+n;}                 // +5, -3 (тэмдэгтэй)
+function paren(n){return n<0?'('+n+')':''+n;}            // (-3), 5 (сөрөг бол хаалттай)
+// ── Анхны тоо, задаргаа ──
+function isPrime(n){n=Math.abs(n);if(n<2)return false;for(var i=2;i*i<=n;i++)if(n%i===0)return false;return true;}
+function primeFactors(n){n=Math.abs(n);var f=[],d=2;while(d*d<=n){while(n%d===0){f.push(d);n/=d;}d++;}if(n>1)f.push(n);return f;} // [2,2,3]
+function primeFactExp(n){var f=primeFactors(n),out=[],i=0;while(i<f.length){var p=f[i],e=0;while(i<f.length&&f[i]===p){e++;i++;}out.push({p:p,e:e});}return out;} // [{p:2,e:2},{p:3,e:1}]
+function pfTex(n){var pe=primeFactExp(n);return pe.map(function(x){return x.e===1?''+x.p:x.p+'^{'+x.e+'}';}).join('\\cdot ');} // 2^{2}\cdot3
+// ── Бүтэн квадрат/куб ──
+function isqrt(n){if(n<0)return null;var r=Math.round(Math.sqrt(n));return r*r===n?r:null;}       // төгс квадрат бол язгуур, үгүй бол null
+function icbrt(n){var s=n<0?-1:1;n=Math.abs(n);var r=Math.round(Math.cbrt(n));for(var k=r-1;k<=r+1;k++){if(k*k*k===n)return s*k;}return null;} // төгс куб бол куб язгуур, үгүй бол null
+// ── Бутархайн exact хөдөлгүүр ──
+function Fr(n,d){if(d<0){n=-n;d=-d;}var g=gcd(n,d)||1;return {n:n/g,d:d/g};}
+function fAdd(a,b){return Fr(a.n*b.d+b.n*a.d,a.d*b.d);}
+function fSub(a,b){return Fr(a.n*b.d-b.n*a.d,a.d*b.d);}
+function fMul(a,b){return Fr(a.n*b.n,a.d*b.d);}
+function fDiv(a,b){return Fr(a.n*b.d,a.d*b.n);}
+function fVal(a){return a.n/a.d;}
+function fTex(a){if(a.d===1)return ''+a.n;if(a.n<0)return '-\\dfrac{'+(-a.n)+'}{'+a.d+'}';return '\\dfrac{'+a.n+'}{'+a.d+'}';}
+function fMix(a){if(a.d===1)return ''+a.n;var neg=a.n<0,N=Math.abs(a.n),w=Math.floor(N/a.d),r=N%a.d;if(w===0)return (neg?'-':'')+'\\dfrac{'+r+'}{'+a.d+'}';if(r===0)return (neg?'-':'')+w;return (neg?'-':'')+w+'\\dfrac{'+r+'}{'+a.d+'}';}
+function pFr(a){var t=fMix(a);return a.n<0?'\\left('+t+'\\right)':t;}
+function frTeX(n,d){if(d===0)return null;if(d<0){n=-n;d=-d;}var g=gcd(n,d);n/=g;d/=g;if(d===1)return ''+n;if(n<0)return '-\\dfrac{'+(-n)+'}{'+d+'}';return '\\dfrac{'+n+'}{'+d+'}';}
+// ── Аравтын бутархай (урт хуваалт, үет илрүүлэх) ──
+function longDiv(n,d){var ip=Math.floor(n/d),rem=n%d,digits=[],seen={},idx=0,pStart=-1;
+ while(rem!==0){if(seen[rem]!==undefined){pStart=seen[rem];break;}seen[rem]=idx;rem*=10;digits.push(Math.floor(rem/d));rem%=d;idx++;if(idx>40)break;}
+ return {ip:ip,digits:digits,pStart:pStart};}
+function decLatex(fr){var neg=fr.n<0,r=longDiv(Math.abs(fr.n),fr.d),s=(neg?'-':'');
+ if(r.digits.length===0)return s+r.ip;
+ if(r.pStart<0)return s+r.ip+'.'+r.digits.join('');
+ var nonrep=r.digits.slice(0,r.pStart).join(''),rep=r.digits.slice(r.pStart).join('');
+ return s+r.ip+'.'+nonrep+'('+rep+')';}
+function decPlain(fr){var neg=fr.n<0,r=longDiv(Math.abs(fr.n),fr.d),s=(neg?'-':'');
+ if(r.digits.length===0)return s+r.ip;
+ if(r.pStart<0)return s+r.ip+'.'+r.digits.join('');
+ var nonrep=r.digits.slice(0,r.pStart).join(''),rep=r.digits.slice(r.pStart).join('');
+ return s+r.ip+'.'+nonrep+rep+rep+'…';}
+function repToFr(ip,nonrep,rep){var p=nonrep.length,q=rep.length;var Aint=nonrep===''?0:parseInt(nonrep,10);var ABint=parseInt((nonrep+rep)||'0',10);
+ var den=(Math.pow(10,q)-1)*Math.pow(10,p);var num=ABint-Aint;var frac=Fr(num,den);var whole=Fr(ip,1);return fAdd(whole,frac);}
+// ── Тоймлол ──
+function roundPlace(n,place){return Math.round(n/place)*place;}
+function roundDec(x,step){return Math.round(x/step)*step;}
+function fmtDec(x,dec){return x.toFixed(dec);}
+function sigRound(x,k){if(x===0)return {v:0,dec:0};var d=Math.floor(Math.log10(Math.abs(x)))+1;var p=k-d;var mag=Math.pow(10,p);var v=Math.round(x*mag)/mag;return {v:v,dec:Math.max(0,p)};}
+// ── Зэрэг форматлах ──
+function powClean(b,e){if(e===1)return ''+b;if(e===0)return '1';return b+'^{'+e+'}';}
+function powTex(bTex,e){if(e===1)return bTex;if(e===0)return '1';return bTex+'^{'+e+'}';}
+// ── Аравтын тоог хамгийн энгийн хэлбэрээр (0.50→0.5) ──
+function trimZeros(s){if(s.indexOf('.')<0)return s;s=s.replace(/0+$/,'');if(s.charAt(s.length-1)==='.')s=s.slice(0,-1);return s;}
+function decStr(x,maxdec){var s=x.toFixed(maxdec||6);return trimZeros(s);}
+// ── 2D координатын зураг ──
+function plane(opts){opts=opts||{};var W=200,H=200,pad=16,R=opts.xr||5,cx=W/2,cy=H/2,u=(W-2*pad)/(2*R);
+ function X(x){return (cx+x*u).toFixed(1);}function Y(y){return (cy-y*u).toFixed(1);}
+ var g='',i;
+ for(i=-R;i<=R;i++){g+='<line x1="'+X(i)+'" y1="'+Y(-R)+'" x2="'+X(i)+'" y2="'+Y(R)+'" stroke="#eef" stroke-width="1"/>';g+='<line x1="'+X(-R)+'" y1="'+Y(i)+'" x2="'+X(R)+'" y2="'+Y(i)+'" stroke="#eef" stroke-width="1"/>';}
+ g+='<line x1="'+X(-R)+'" y1="'+Y(0)+'" x2="'+X(R)+'" y2="'+Y(0)+'" stroke="#555" stroke-width="1.3"/>';
+ g+='<line x1="'+X(0)+'" y1="'+Y(-R)+'" x2="'+X(0)+'" y2="'+Y(R)+'" stroke="#555" stroke-width="1.3"/>';
+ g+='<polygon points="'+X(R)+','+Y(0)+' '+(+X(R)-5)+','+(+Y(0)-3)+' '+(+X(R)-5)+','+(+Y(0)+3)+'" fill="#555"/>';
+ g+='<polygon points="'+X(0)+','+Y(R)+' '+(+X(0)-3)+','+(+Y(R)+5)+' '+(+X(0)+3)+','+(+Y(R)+5)+'" fill="#555"/>';
+ g+='<text x="'+(+X(R)-3)+'" y="'+(+Y(0)+12)+'" font-size="10" font-style="italic" fill="#555">x</text>';
+ g+='<text x="'+(+X(0)+5)+'" y="'+(+Y(R)+8)+'" font-size="10" font-style="italic" fill="#555">y</text>';
+ if(!opts.blank){
+  (opts.lines||[]).forEach(function(L){var y1=L.k*(-R)+L.b,y2=L.k*R+L.b;g+='<line x1="'+X(-R)+'" y1="'+Y(y1)+'" x2="'+X(R)+'" y2="'+Y(y2)+'" stroke="'+(L.color||'#7B52EE')+'" stroke-width="2"/>';});
+  (opts.pts||[]).forEach(function(p){g+='<circle cx="'+X(p.x)+'" cy="'+Y(p.y)+'" r="3" fill="#dc2626"/>'+(p.l?'<text x="'+(+X(p.x)+4)+'" y="'+(+Y(p.y)-4)+'" font-size="9" font-weight="700" fill="#b91c1c">'+p.l+'</text>':'');});
+ }
+ return '<svg viewBox="0 0 '+W+' '+H+'" width="188">'+g+'</svg>';}
+// ── Тооны шулуун (blank, зөвхөн хуваарь; цэгийг тэмдэглэхгүй тул хариу илчлэхгүй) ──
+function numline(lo,hi){var W=320,H=44,pad=18,u=(W-2*pad)/(hi-lo);var g='<line x1="'+pad+'" y1="26" x2="'+(W-pad)+'" y2="26" stroke="#555" stroke-width="1.4"/>';
+ g+='<polygon points="'+(W-pad)+',26 '+(W-pad-6)+',23 '+(W-pad-6)+',29" fill="#555"/>';
+ for(var v=lo;v<=hi;v++){var x=pad+(v-lo)*u;g+='<line x1="'+x+'" y1="22" x2="'+x+'" y2="30" stroke="#555" stroke-width="1"/>';g+='<text x="'+x+'" y="41" font-size="9" text-anchor="middle" fill="#555">'+v+'</text>';}
+ return '<svg viewBox="0 0 '+W+' '+H+'" width="300">'+g+'</svg>';}
+// ── Эйлер-Веннийн диаграм (2 олонлог, blank) ──
+function venn2(la,lb){la=la||'A';lb=lb||'B';var g='<rect x="6" y="6" width="248" height="118" rx="6" fill="none" stroke="#b9b0d6"/>';
+ g+='<circle cx="102" cy="65" r="50" fill="rgba(123,82,238,0.13)" stroke="#7B52EE" stroke-width="1.4"/>';
+ g+='<circle cx="158" cy="65" r="50" fill="rgba(168,85,247,0.13)" stroke="#A855F7" stroke-width="1.4"/>';
+ g+='<text x="70" y="70" font-size="14" font-style="italic" fill="#5a32d6">'+la+'</text>';
+ g+='<text x="186" y="70" font-size="14" font-style="italic" fill="#5a32d6">'+lb+'</text>';
+ return '<svg viewBox="0 0 260 130" width="210">'+g+'</svg>';}
+// ── 10-р анги III БҮЛЭГ (АЛГЕБРЫН ИЛЭРХИЙЛЭЛ) — ЗӨВХӨН ХҮНД ТҮВШИН ──
+// g10core.js-ийн дараа залгагдана.
+// Хариултын хэлбэр: тооцооллын бодлогын "a" нь "; хариу $...$"-ээр төгсөнө.
+// check_g10ch3.js нь q ба хариуны LaTeX-ийг БИЕ ДААН задлан тоон утгаар тулгана.
+
+// ════════ Туслахууд ════════
+function rootT(n, inner) { return n === 2 ? ('\\sqrt{' + inner + '}') : ('\\sqrt[' + n + ']{' + inner + '}'); }
+function expT(p, q) {
+  var g = gcd(Math.abs(p), q) || 1, P = p / g, Q = q / g;
+  if (Q === 1) return '' + P;
+  return P < 0 ? ('-\\frac{' + (-P) + '}{' + Q + '}') : ('\\frac{' + P + '}{' + Q + '}');
+}
+function powT(b, p, q) {
+  var g = gcd(Math.abs(p), q) || 1, P = p / g, Q = q / g;
+  if (Q === 1) { if (P === 0) return '1'; if (P === 1) return b; return b + '^{' + P + '}'; }
+  return b + '^{' + expT(p, q) + '}';
+}
+function cT(c, body) { var s = (c < 0 ? '-' : '+'), A = Math.abs(c); return s + ((A === 1 && body !== '') ? '' : ('' + A)) + body; }
+function fT1(c, body) { var t = cT(c, body); return t.charAt(0) === '+' ? t.slice(1) : t; }
+function polyT(ts) {
+  var out = '', i;
+  for (i = 0; i < ts.length; i++) { if (ts[i][0] === 0) continue; out += (out === '' ? fT1(ts[i][0], ts[i][1]) : cT(ts[i][0], ts[i][1])); }
+  return out === '' ? '0' : out;
+}
+function bp(t) { return '\\bigl(' + t + '\\bigr)'; }
+function Bp(t) { return '\\Bigl(' + t + '\\Bigr)'; }
+function sq(t) { return '\\bigl(' + t + '\\bigr)^{2}'; }
+function fr(a, b) { return '\\frac{' + a + '}{' + b + '}'; }
+// (v + c) шугаман хэлбэр
+function lin1(v, c) { return c === 0 ? v : (c > 0 ? (v + '+' + c) : (v + '-' + (-c))); }
+function quadT(a, b, c, t) { return polyT([[a, t + '^{2}'], [b, t], [c, '']]); }
+// нэгэн зэрэг олон бүтэн тооны хамгийн их ерөнхий хуваагч
+function gcd3() { var g = 0, i; for (i = 0; i < arguments.length; i++) g = gcd(g, arguments[i]); return g || 1; }
+
+// ═══════════════════ 3.1 РАЦИОНАЛ ИЛТГЭГЧТЭЙ АЛГЕБРЫН ИЛЭРХИЙЛЭЛ ═══════════════════
+
+// 1) Гурван бүлэг төсөөтэй гишүүн, хоёр өөр тэмдэглэгээ (язгуур / рационал илтгэгч)
+function g_r31_collect() {
+  for (var t = 0; t < 400; t++) {
+    var v = pick(['x', 'y', 'b', 'm']), n = pick([3, 5]);
+    var p = rnd(2, 9), q = rnd(2, 9), s = rnd(2, 9), r = rnd(2, 9), u = rnd(2, 9), w = rnd(2, 7);
+    var A = p - q + s, B = r - u;
+    if (A === 0 || B === 0 || Math.abs(A) > 14) continue;
+    var r1 = rootT(n, v), r2 = rootT(n, v + '^{2}'), e1 = powT(v, 1, n), e2 = powT(v, 2, n);
+    var fin = polyT([[A, r1], [B, r2], [-w, v]]);
+    return {
+      q: '$' + p + r1 + '-' + q + e1 + '+' + r + r2 + '+' + s + e1 + '-' + u + e2 + '-' + w + v + '$',
+      a: '$' + e1 + '=' + r1 + '$, $\\ ' + e2 + '=' + r2 + '$ тул төсөөтэй гишүүд нь бүлэглэгдэнэ: $'
+        + bp(p + '-' + q + '+' + s) + r1 + '+' + bp(r + '-' + u) + r2 + '-' + w + v + '$; хариу $' + fin + '$',
+      key: 'c31' + v + n + '_' + p + '_' + q + '_' + s + '_' + r + '_' + u + '_' + w
+    };
+  }
+  return null;
+}
+
+// 2) Хоёр язгууртай хоёр гишүүнтийн үржвэр
+function g_r31_expand() {
+  for (var t = 0; t < 400; t++) {
+    var x = pick(['x', 'p', 'z']), y = pick(['y', 'q', 'w']);
+    var a = rnd(2, 6), b = rnd(2, 6), c = rnd(2, 6), d = rnd(2, 6);
+    var M = b * c - a * d;
+    if (M === 0 || Math.abs(M) > 24) continue;
+    var rx = rootT(2, x), ry = rootT(3, y), r2 = rootT(3, y + '^{2}'), mix = rx + '\\cdot ' + ry;
+    var fin = polyT([[a * c, x], [M, mix], [-b * d, r2]]);
+    return {
+      q: '$' + bp(a + rx + '+' + b + ry) + bp(c + rx + '-' + d + ry) + '$',
+      a: 'Хаалт задалбал $' + (a * c) + x + '-' + (a * d) + mix + '+' + (b * c) + mix + '-' + (b * d) + r2
+        + '$; дундах хоёр гишүүн нийлнэ; хариу $' + fin + '$',
+      key: 'e31' + x + y + a + '_' + b + '_' + c + '_' + d
+    };
+  }
+  return null;
+}
+
+// 3) (a√x ± b/√x)^2 − c
+function g_r31_sqInv() {
+  for (var t = 0; t < 400; t++) {
+    var v = pick(['x', 'y', 'a', 't']), a = rnd(2, 6), b = rnd(2, 6), c = rnd(2, 20), sg = pick([1, -1]);
+    var K = 2 * a * b * sg - c;
+    if (K === 0) continue;
+    var rx = rootT(2, v), inner = a + rx + (sg > 0 ? '+' : '-') + fr(b, rx);
+    var fin = polyT([[a * a, v], [K, '']]) + '+' + fr(b * b, v);
+    return {
+      q: '$' + sq(inner) + '-' + c + '$',
+      a: 'Нийлбэрийн квадратаар $' + sq(inner) + '=' + (a * a) + v + (sg > 0 ? '+' : '-') + (2 * a * b) + '+' + fr(b * b, v)
+        + '$ болно; хариу $' + fin + '$',
+      key: 's31' + v + a + '_' + b + '_' + c + '_' + sg
+    };
+  }
+  return null;
+}
+
+// 4) Хуваарийг язгуураас чөлөөлөх (тоон хосмог)
+function g_r31_rationalize() {
+  for (var t = 0; t < 500; t++) {
+    var p = pick([2, 3, 5, 6, 7, 10, 11, 13, 15]), q = pick([2, 3, 5, 6, 7, 10, 11, 13, 15]);
+    if (p === q) continue;
+    var a = rnd(1, 4), b = rnd(1, 4), N = rnd(2, 24), sg = pick([1, -1]);
+    var D = a * a * p - b * b * q;
+    if (D === 0 || Math.abs(D) > 160) continue;
+    var g = gcd(N, Math.abs(D)), Nn = N / g, Dd = D / g;
+    if (Dd < 0) { Nn = -Nn; Dd = -Dd; }
+    var s1 = sg > 0 ? '+' : '-', s2 = sg > 0 ? '-' : '+';
+    var aT = (a === 1 ? '' : '' + a), bT = (b === 1 ? '' : '' + b);
+    var den = aT + rootT(2, p) + s1 + bT + rootT(2, q), con = aT + rootT(2, p) + s2 + bT + rootT(2, q);
+    var numT = (Nn === 1 ? '' : (Nn === -1 ? '-' : ('' + Nn))) + bp(con);
+    var fin = Dd === 1 ? numT : fr(numT, Dd);
+    return {
+      q: '$' + fr(N, den) + '$',
+      a: 'Хосмог $' + con + '$-оор хүртвэр, хуваарийг үржүүлбэл хуваарь $' + bp(den) + bp(con) + '='
+        + (a * a) + '\\cdot ' + p + '-' + (b * b) + '\\cdot ' + q + '=' + D + '$ болно; хариу $' + fin + '$',
+      key: 'r31' + p + '_' + q + '_' + a + '_' + b + '_' + N + '_' + sg
+    };
+  }
+  return null;
+}
+
+// 5) Хувьсагчтай хосмог: (√u − √w)/(c√u ± d√w)
+function g_r31_ratNum() {
+  for (var t = 0; t < 400; t++) {
+    var u = pick(['a', 'x', 'p']), w = pick(['b', 'y', 'q']);
+    var c = rnd(1, 5), d = rnd(1, 5), sg = pick([1, -1]);
+    if (c === d && sg < 0) continue;
+    if (c * c === d * d) continue;
+    var ru = rootT(2, u), rw = rootT(2, w), rm = rootT(2, u + w);
+    var s1 = sg > 0 ? '+' : '-';
+    var K = -(c + sg * d), Cw = sg * d;
+    if (K === 0 || Cw === 0) continue;
+    if (gcd3(c, Math.abs(Cw), Math.abs(K), c * c, d * d) !== 1) continue;
+    var cT1 = (c === 1 ? '' : '' + c), dT1 = (d === 1 ? '' : '' + d);
+    var numT = polyT([[c, u], [Cw, w], [K, rm]]);
+    var denT = polyT([[c * c, u], [-d * d, w]]);
+    var con = cT1 + ru + (sg > 0 ? '-' : '+') + dT1 + rw;
+    return {
+      q: '$' + fr(ru + '-' + rw, cT1 + ru + s1 + dT1 + rw) + '$',
+      a: 'Хосмог $' + con + '$-оор үржүүлбэл хуваарь $' + denT + '$, хүртвэр $' + numT + '$ болно; хариу $' + fr(numT, denT) + '$',
+      key: 'n31' + u + w + c + '_' + d + '_' + sg
+    };
+  }
+  return null;
+}
+
+// 6) Квадрат гурван гишүүнт хүртвэртэй бутархайг хураах
+function g_r31_cancelQuad() {
+  for (var t = 0; t < 400; t++) {
+    var v = pick(['x', 'y', 'z']), m = rnd(1, 4), n = nz(-6, 6), k = rnd(1, 4), l = nz(-6, 6);
+    if (m * l === n * k) continue;
+    var A = m * k, B = m * l + n * k, C = n * l;
+    if (B === 0 || Math.abs(C) > 30) continue;
+    var rx = rootT(2, v);
+    var num = quadT(A, B, C, rx).replace(rx + '^{2}', v);
+    var den = polyT([[m, rx], [n, '']]), fin = polyT([[k, rx], [l, '']]);
+    return {
+      q: '$' + fr(num, den) + '$',
+      a: '$' + v + '=' + sq(rx) + '$ тул хүртвэр $' + bp(den) + bp(fin) + '$ болж задарна; хариу $' + fin + '$',
+      key: 'q31' + v + m + '_' + n + '_' + k + '_' + l
+    };
+  }
+  return null;
+}
+
+// 7) Зэргийн шат: рационал илтгэгчтэй бутархайг сөрөг зэрэг дэвшүүлэх
+function g_r31_tower() {
+  for (var t = 0; t < 400; t++) {
+    var d = pick([2, 3, 4, 6]), c = pick([2, 3]);
+    var N = -d * pick([1, 2]);
+    if (Math.pow(c, -N) > 200) continue;
+    var p = rnd(1, 5), r = rnd(1, 5), q = rnd(1, 5), s = rnd(1, 5);
+    if (p === r || q === s) continue;
+    var ex = N * (p - r) / d, ey = N * (q - s) / d;
+    if (Math.abs(ex) > 9 || Math.abs(ey) > 9 || ex === 0 || ey === 0) continue;
+    var num = powT('x', p, d) + powT('y', q, d), den = c + powT('x', r, d) + powT('y', s, d);
+    var K = Math.pow(c, -N);
+    var fin = K + powT('x', ex, 1) + powT('y', ey, 1);
+    return {
+      q: '$' + Bp(fr(num, den)) + '^{' + N + '}$',
+      a: 'Ижил суурьтай зэргийн илтгэгчүүдийг хасвал хаалт доторх нь $' + fr(1, c) + powT('x', p - r, d) + powT('y', q - s, d)
+        + '$; $' + N + '$ зэрэг дэвшүүлбэл хариу $' + fin + '$',
+      key: 't31' + d + '_' + c + '_' + N + '_' + p + '_' + r + '_' + q + '_' + s
+    };
+  }
+  return null;
+}
+
+// 8) Утга бодох (өгсөн утганд тооцох)
+function g_r31_value() {
+  for (var t = 0; t < 400; t++) {
+    var tb = pick([2, 3]), uc = pick([2, 3]);
+    var b = Math.pow(tb, 6), c = Math.pow(uc, 4);
+    var p = rnd(1, 5), r = rnd(1, 5), q = rnd(1, 5), s = rnd(1, 5);
+    if (p === r || q === s) continue;
+    var VB = Math.pow(tb, p - r), VC = Math.pow(uc, q - s);
+    var val = VB * VC;
+    if (!isFinite(val) || Math.abs(val) > 900 || Math.abs(val) < 0.005) continue;
+    var isInt = Math.abs(val - Math.round(val)) < 1e-9, isInv = Math.abs(1 / val - Math.round(1 / val)) < 1e-9;
+    if (!isInt && !isInv) continue;
+    var num = powT('b', p, 6) + '\\cdot ' + powT('c', q, 4), den = powT('b', r, 6) + '\\cdot ' + powT('c', s, 4);
+    var vTex = isInt ? ('' + Math.round(val)) : fr(1, Math.round(1 / val));
+    return {
+      q: '$b=' + b + ',\\ c=' + c + '$; $\\ ' + fr(num, den) + '$',
+      a: 'Зэргийн илтгэгчүүдийг хасвал $' + powT('b', p - r, 6) + powT('c', q - s, 4) + '$; $b=' + powClean(tb, 6) + '$, $c='
+        + powClean(uc, 4) + '$ тул утга нь $' + powClean(tb, p - r) + '\\cdot ' + powClean(uc, q - s) + '$; хариу $' + vTex + '$',
+      key: 'v31' + tb + '_' + uc + '_' + p + '_' + r + '_' + q + '_' + s
+    };
+  }
+  return null;
+}
+
+// 9) Кубын адилтгал үнэн эсэхийг шалгах
+function g_r31_identity() {
+  for (var t = 0; t < 400; t++) {
+    var x = pick(['x', 'a', 'p']), y = pick(['y', 'b', 'q']);
+    var m = rnd(1, 3), n = rnd(1, 3), ok = pick([1, 1, 0]);
+    var L = m * m * m, R = n * n * n;
+    var Lc = L, Rc = R;
+    if (!ok) { if (pick([0, 1])) Lc = L + pick([1, -1]) * rnd(1, 3); else Rc = R + pick([1, -1]) * rnd(1, 3); }
+    if (Lc === L && Rc === R && !ok) continue;
+    if (Lc === 0 || Rc === 0) continue;
+    var cx = rootT(3, x), cy = rootT(3, y), cx2 = rootT(3, x + '^{2}'), cy2 = rootT(3, y + '^{2}'), cxy = rootT(3, x + y);
+    var f1 = polyT([[m, cx], [-n, cy]]), f2 = polyT([[m * m, cx2], [m * n, cxy], [n * n, cy2]]);
+    var claim = polyT([[Lc, x], [-Rc, y]]), truth = polyT([[L, x], [-R, y]]);
+    var isTrue = (Lc === L && Rc === R);
+    return {
+      q: '$' + bp(f1) + bp(f2) + '=' + claim + '$',
+      a: '$' + bp('u-w') + bp('u^{2}+uw+w^{2}') + '=u^{3}-w^{3}$ томьёонд $u=' + polyT([[m, cx]]) + '$, $w=' + polyT([[n, cy]])
+        + '$ гэвэл зүүн тал $' + truth + '$ болно; тэнцэтгэл ' + (isTrue ? 'ҮНЭН' : 'ХУДАЛ, зөв нь $' + truth + '$'),
+      key: 'i31' + x + y + m + '_' + n + '_' + Lc + '_' + Rc
+    };
+  }
+  return null;
+}
+
+
+// ═══════════════ 3.2 АЛГЕБРЫН ИЛЭРХИЙЛЛИЙГ ҮРЖИГДЭХҮҮН БОЛГОН ЗАДЛАХ ═══════════════
+
+// 1) Дөрвөн гишүүнтийг бүлэглэх (язгууртай)
+function g_r32_group4() {
+  for (var t = 0; t < 500; t++) {
+    var x = pick(['x', 'a', 't']), y = pick(['y', 'b', 'z']), deg = pick([2, 3]);
+    var m = rnd(1, 4), n = nz(-6, 6), p = rnd(1, 5), qq = nz(-8, 8);
+    if (gcd(m, Math.abs(n)) !== 1 || gcd(p, Math.abs(qq)) !== 1) continue;
+    if (Math.abs(n * qq) > 40 || Math.abs(m * p) > 16) continue;
+    if (m === 1 && p === 1) continue;
+    var ry = rootT(deg, y);
+    var src = polyT([[m * p, x + ry], [n * p, x], [m * qq, ry], [n * qq, '']]);
+    var f1 = polyT([[m, ry], [n, '']]), f2 = polyT([[p, x], [qq, '']]);
+    return {
+      q: '$' + src + '$',
+      a: 'Эхний хоёр, сүүлийн хоёр гишүүнийг бүлэглэвэл $' + polyT([[p, x]]) + bp(f1) + cT(qq, '') + bp(f1)
+        + '$ болж $' + f1 + '$ ерөнхий үржигдэхүүн гарна; хариу $' + bp(f1) + bp(f2) + '$',
+      key: 'g32' + x + y + deg + '_' + m + '_' + n + '_' + p + '_' + qq
+    };
+  }
+  return null;
+}
+
+// 2) Дөрөвдүгээр зэргийн ялгавар — хоёр удаа задлах
+function g_r32_diff4() {
+  for (var t = 0; t < 200; t++) {
+    var v = pick(['x', 'y', 'a', 'b']), n = pick([2, 3, 4, 5]), m = rnd(2, 4), k = rnd(1, 4);
+    var M4 = Math.pow(m, 4), K4 = Math.pow(k, 4), M2 = m * m, K2 = k * k;
+    var e1 = powT(v, 1, n), e2 = powT(v, 2, n), e4 = powT(v, 4, n);
+    var mid1 = polyT([[M2, e2], [-K2, '']]), mid2 = polyT([[M2, e2], [K2, '']]);
+    return {
+      q: '$' + polyT([[M4, e4], [-K4, '']]) + '$',
+      a: 'Квадратуудын ялгавраар $' + bp(mid1) + bp(mid2) + '$; эхний хаалт дахин задарна; хариу $'
+        + bp(polyT([[m, e1], [-k, '']])) + bp(polyT([[m, e1], [k, '']])) + bp(mid2) + '$',
+      key: 'd32' + v + n + '_' + m + '_' + k
+    };
+  }
+  return null;
+}
+
+// 3) Язгуурын хувьд квадрат гурван гишүүнт (ахлах коэффициенттэй)
+function g_r32_quadRad() {
+  for (var t = 0; t < 600; t++) {
+    var v = pick(['x', 'y', 'a', 't']), useExp = pick([0, 0, 1]);
+    var a = rnd(1, 4), c = rnd(1, 4), b = nz(-7, 7), d = nz(-7, 7);
+    var A = a * c, B = a * d + b * c, C = b * d;
+    if (B === 0 || A === 1) continue;
+    if (gcd3(A, Math.abs(B), Math.abs(C)) !== 1) continue;
+    if (Math.abs(C) > 40 || Math.abs(B) > 30) continue;
+    var rt = useExp ? powT(v, 1, 2) : rootT(2, v);
+    return {
+      q: '$' + polyT([[A, v], [B, rt], [C, '']]) + '$',
+      a: '$' + v + '=' + sq(rt) + '$ тул $' + rt + '$-ийн хувьд квадрат гурван гишүүнт болно; $' + A + '\\cdot ' + paren(C)
+        + '=' + (A * C) + '$-ийг $' + B + '$ нийлбэртэй хоёр үржигдэхүүнд задалж бүлэглэнэ; хариу $'
+        + bp(polyT([[a, rt], [b, '']])) + bp(polyT([[c, rt], [d, '']])) + '$',
+      key: 'k32' + v + useExp + '_' + a + '_' + b + '_' + c + '_' + d
+    };
+  }
+  return null;
+}
+
+// 4) Кубуудын нийлбэр/ялгавар (куб язгууртай)
+function g_r32_cube() {
+  for (var t = 0; t < 300; t++) {
+    var x = pick(['x', 'a', 'p']), y = pick(['y', 'b', 'q']);
+    var m = rnd(1, 4), n = rnd(1, 4), sg = pick([1, -1]);
+    if (m === 1 && n === 1) continue;
+    var cy = rootT(3, y), cy2 = rootT(3, y + '^{2}');
+    var f1 = polyT([[m, x], [sg * n, cy]]);
+    var f2 = polyT([[m * m, x + '^{2}'], [-sg * m * n, x + cy], [n * n, cy2]]);
+    return {
+      q: '$' + polyT([[Math.pow(m, 3), x + '^{3}'], [sg * Math.pow(n, 3), y]]) + '$',
+      a: '$u=' + polyT([[m, x]]) + '$, $w=' + polyT([[n, cy]]) + '$ гэвэл $w^{3}=' + (n * n * n) + y + '$ тул илэрхийлэл $u^{3}'
+        + (sg > 0 ? '+' : '-') + 'w^{3}$ хэлбэртэй; хариу $' + bp(f1) + bp(f2) + '$',
+      key: 'b32' + x + y + m + '_' + n + '_' + sg
+    };
+  }
+  return null;
+}
+
+// 5) Гүйцэд куб (зургаан гишүүн болгон бүлэглэх)
+function g_r32_cube3() {
+  for (var t = 0; t < 300; t++) {
+    var v = pick(['x', 'y', 'a']), a = rnd(1, 3), b = nz(-5, 5);
+    if (gcd(a, Math.abs(b)) !== 1) continue;
+    var A3 = a * a * a, A2 = 3 * a * a * b, A1 = 3 * a * b * b, A0 = b * b * b;
+    return {
+      q: '$' + polyT([[A3, v + '^{3}'], [A2, v + '^{2}'], [A1, v], [A0, '']]) + '$',
+      a: '$' + bp('u+w') + '^{3}=u^{3}+3u^{2}w+3uw^{2}+w^{3}$ томьёонд $u=' + polyT([[a, v]]) + '$, $w=' + b
+        + '$ гэвэл дөрвөн гишүүн яг тохирно; хариу $' + bp(polyT([[a, v], [b, '']])) + '^{3}$',
+      key: 'c32c' + v + a + '_' + b
+    };
+  }
+  return null;
+}
+
+// 6) Ерөнхий үржигдэхүүн хаалтнаас гаргах (язгуурын доорх зэрэг)
+function g_r32_common() {
+  for (var t = 0; t < 300; t++) {
+    var u = pick(['a', 'x', 'm']), w = pick(['b', 'y', 'n']);
+    var g = pick([1, 2, 3, 4, 5]), a1 = rnd(1, 6), b1 = rnd(1, 6), c1 = rnd(1, 6);
+    if (gcd3(a1, b1, c1) !== 1) continue;
+    var A = g * a1, B = g * b1, C = g * c1;
+    var s1 = rootT(2, u + '^{3}' + w), s2 = rootT(2, u + w + '^{3}'), s3 = rootT(2, u + '^{3}' + w + '^{3}');
+    var rw = rootT(2, u + w), gT = (g === 1 ? '' : '' + g);
+    return {
+      q: '$' + polyT([[A, s1], [B, s2], [-C, s3]]) + '$',
+      a: '$' + s1 + '=' + u + rw + '$, $\\ ' + s2 + '=' + w + rw + '$, $\\ ' + s3 + '=' + u + w + rw
+        + '$ тул ерөнхий үржигдэхүүн нь $' + gT + rw + '$; хариу $' + gT + rw + bp(polyT([[a1, u], [b1, w], [-c1, u + w]])) + '$',
+      key: 'y32' + u + w + g + '_' + a1 + '_' + b1 + '_' + c1
+    };
+  }
+  return null;
+}
+
+// 7) Задаргаа үнэн эсэхийг шалгах
+function g_r32_verify() {
+  for (var t = 0; t < 600; t++) {
+    var v = pick(['x', 'y', 'a', 't']);
+    var a = rnd(1, 3), c = rnd(1, 3), b = nz(-6, 6), d = nz(-6, 6);
+    var A = a * c, B = a * d + b * c, C = b * d;
+    if (B === 0 || Math.abs(C) > 36) continue;
+    var ok = pick([1, 1, 0]), b2 = b, d2 = d;
+    if (!ok) { if (pick([0, 1])) b2 = b + pick([1, -1]) * rnd(1, 3); else d2 = d + pick([1, -1]) * rnd(1, 3); }
+    if (b2 === 0 || d2 === 0) continue;
+    var isTrue = (a * d2 + b2 * c === B && b2 * d2 === C);
+    if (!ok && isTrue) continue;
+    var rt = rootT(2, v);
+    var lhs = polyT([[A, v], [B, rt], [C, '']]);
+    var rhs = bp(polyT([[a, rt], [b2, '']])) + bp(polyT([[c, rt], [d2, '']]));
+    return {
+      q: '$' + lhs + '=' + rhs + '$',
+      a: 'Баруун талыг задалбал $' + polyT([[a * c, v], [a * d2 + b2 * c, rt], [b2 * d2, '']]) + '$ болно; тэнцэтгэл '
+        + (isTrue ? 'ҮНЭН' : 'ХУДАЛ, зөв задаргаа нь $' + bp(polyT([[a, rt], [b, '']])) + bp(polyT([[c, rt], [d, '']])) + '$'),
+      key: 'v32' + v + a + '_' + b + '_' + c + '_' + d + '_' + b2 + '_' + d2
+    };
+  }
+  return null;
+}
+
+// 8) Урвуу бодлого: тэнцэтгэлийг үнэн байлгах параметр
+function g_r32_param() {
+  for (var t = 0; t < 300; t++) {
+    var p = nz(-5, 5), r = nz(-6, 6), s = nz(-6, 6);
+    var A = p + s, B = r + p * s, C = r * s;
+    if (Math.abs(B) > 40) continue;
+    var num = polyT([[1, 'x^{3}'], [A, 'x^{2}'], [B, 'x']]) + '+c';
+    var den = polyT([[1, 'x^{2}'], [p, 'x'], [r, '']]);
+    return {
+      q: '$' + fr(num, den) + '=' + polyT([[1, 'x'], [s, '']]) + '$',
+      a: 'Хоёр талыг $' + den + '$-д үржүүлбэл $' + bp(den) + bp(polyT([[1, 'x'], [s, '']])) + '='
+        + polyT([[1, 'x^{3}'], [A, 'x^{2}'], [B, 'x'], [C, '']]) + '$ болно; чөлөөт гишүүдийг тэнцүүлбэл хариу $c=' + C + '$',
+      key: 'p32' + p + '_' + r + '_' + s
+    };
+  }
+  return null;
+}
+
+
+// ═══════════════ 3.3 АЛГЕБРЫН БУТАРХАЙН ҮРЖҮҮЛЭХ, ХУВААХ ҮЙЛДЭЛ ═══════════════
+
+// нэг гишүүнт бичих туслахууд
+function monI(c, parts) {
+  var vs = '', i;
+  for (i = 0; i < parts.length; i++) { if (parts[i] && parts[i] !== '1') vs += parts[i]; }
+  if (vs === '') return '' + c;
+  if (c === 1) return vs;
+  if (c === -1) return '-' + vs;
+  return c + vs;
+}
+function monF(n, d, parts) {
+  var vs = '', i, g = gcd(n, d);
+  for (i = 0; i < parts.length; i++) { if (parts[i] && parts[i] !== '1') vs += parts[i]; }
+  n = n / g; d = d / g; if (d < 0) { n = -n; d = -d; }
+  if (d === 1) return monI(n, parts);
+  var f = fr(Math.abs(n), d);
+  if (vs === '') return (n < 0 ? '-' : '') + f;
+  return (n < 0 ? '-' : '') + f + vs;
+}
+// зураг: тэгш өнцөгт
+function rectFig(la, lb) {
+  var g = '<rect x="34" y="18" width="146" height="70" fill="none" stroke="#7B52EE" stroke-width="1.6"/>';
+  g += '<text x="107" y="12" font-size="12" text-anchor="middle" font-style="italic" fill="#5a32d6">' + la + '</text>';
+  g += '<text x="22" y="57" font-size="12" text-anchor="middle" font-style="italic" fill="#5a32d6">' + lb + '</text>';
+  return '<svg viewBox="0 0 200 96" width="180">' + g + '</svg>';
+}
+// зураг: гурвалжин
+function triFig(l1, l2, l3) {
+  var g = '<polygon points="18,86 182,86 122,16" fill="none" stroke="#7B52EE" stroke-width="1.6"/>';
+  g += '<text x="100" y="98" font-size="12" text-anchor="middle" font-style="italic" fill="#5a32d6">' + l1 + '</text>';
+  g += '<text x="58" y="44" font-size="12" text-anchor="middle" font-style="italic" fill="#5a32d6">' + l2 + '</text>';
+  g += '<text x="162" y="48" font-size="12" text-anchor="middle" font-style="italic" fill="#5a32d6">' + l3 + '</text>';
+  return '<svg viewBox="0 0 200 104" width="180">' + g + '</svg>';
+}
+
+// 1) Үржүүлэх: хүртвэр, хуваарийг задалж хураах
+function g_r33_mulFactor() {
+  for (var t = 0; t < 300; t++) {
+    var v = pick(['x', 'y', 'z', 't']), A = rnd(2, 7), B = nz(-7, 7);
+    if (B === A * A) continue;
+    var rt = rootT(2, v);
+    var num1 = polyT([[1, v + '^{2}'], [-2 * B, v], [B * B, '']]);
+    var den1 = polyT([[1, rt], [-A, '']]);
+    var num2 = polyT([[1, v], [-A * A, '']]);
+    var den2 = polyT([[1, v], [-B, '']]);
+    var fin = bp(den2) + bp(polyT([[1, rt], [A, '']]));
+    return {
+      q: '$' + fr(num1, den1) + '\\cdot ' + fr(num2, den2) + '$',
+      a: '$' + num1 + '=' + sq(den2) + '$, $\\ ' + num2 + '=' + bp(den1) + bp(polyT([[1, rt], [A, '']]))
+        + '$ тул хураавал хариу $' + fin + '$',
+      key: 'm33' + v + A + '_' + B
+    };
+  }
+  return null;
+}
+
+// 2) Хуваах: урвуугаар үржүүлж хураах
+function g_r33_divide() {
+  for (var t = 0; t < 300; t++) {
+    var v = pick(['x', 'y', 'a', 't']), a = nz(-6, 6), k = rnd(2, 6);
+    var num1 = polyT([[1, v + '^{2}'], [2 * a, v], [a * a, '']]);
+    var den1 = polyT([[1, v + '^{2}'], [-2 * a, v], [a * a, '']]);
+    var num2 = polyT([[k, v], [k * a, '']]);
+    var den2 = bp(polyT([[1, v], [-a, '']])) + '^{2}';
+    var fin = fr(polyT([[1, v], [a, '']]), k);
+    return {
+      q: '$' + fr(num1, den1) + ':' + fr(num2, den2) + '$',
+      a: 'Хоёр гурван гишүүнтийг гүйцэд квадрат болгон задалж, хуваахыг урвуугаар үржүүлэхээр солибол $'
+        + fr(sq(polyT([[1, v], [a, '']])), sq(polyT([[1, v], [-a, '']]))) + '\\cdot ' + fr(sq(polyT([[1, v], [-a, '']])), monI(k, [bp(polyT([[1, v], [a, '']]))]))
+        + '$; хариу $' + fin + '$',
+      key: 'd33' + v + a + '_' + k
+    };
+  }
+  return null;
+}
+
+// 3) Рационал илтгэгчтэй нэг гишүүнтүүдийн үржвэр, ноогдвор
+function g_r33_powFrac() {
+  for (var t = 0; t < 400; t++) {
+    var x = pick(['p', 'x', 'a']), y = pick(['q', 'y', 'b']), D = pick([2, 3, 4, 6]);
+    var e1 = rnd(1, 7), e2 = rnd(1, 7), e3 = rnd(1, 7), e4 = rnd(1, 7);
+    var f1 = rnd(1, 7), f2 = rnd(1, 7), f3 = rnd(1, 7), f4 = rnd(1, 7);
+    var EX = e1 - e2 + e3 - e4, FY = f1 - f2 + f3 - f4;
+    if (EX === 0 || FY === 0) continue;
+    if (Math.abs(EX / D) > 4 || Math.abs(FY / D) > 4) continue;
+    var A = rnd(2, 9), B = rnd(2, 9), C = rnd(2, 9), E = rnd(2, 9);
+    var n = A * C, d = B * E, g = gcd(n, d);
+    if (n / g === 1 && d / g === 1) continue;
+    var P = function (nn) { return powT(x, nn, D); }, Q = function (nn) { return powT(y, nn, D); };
+    var fin = monF(n, d, [powT(x, EX, D), powT(y, FY, D)]);
+    return {
+      q: '$' + fr(monI(A, [P(e1), Q(f1)]), monI(B, [P(e2), Q(f2)])) + '\\cdot ' + fr(monI(C, [P(e3), Q(f3)]), monI(E, [P(e4), Q(f4)])) + '$',
+      a: 'Тоон коэффициентүүд $' + fr(A + '\\cdot ' + C, B + '\\cdot ' + E) + '$, суурь тус бүрийн илтгэгчүүдийг нэмж хасвал $'
+        + x + '$-ийн илтгэгч $' + expT(EX, D) + '$, $' + y + '$-ийнх $' + expT(FY, D) + '$; хариу $' + fin + '$',
+      key: 'w33' + x + y + D + '_' + e1 + e2 + e3 + e4 + '_' + f1 + f2 + f3 + f4 + '_' + A + B + C + E
+    };
+  }
+  return null;
+}
+
+// 4) Язгууртай хоёр гишүүнтийг хаалтнаас гаргаж бүрэн хураах
+function g_r33_radFrac() {
+  for (var t = 0; t < 300; t++) {
+    var v = pick(['z', 'x', 'y']), a = rnd(2, 6), b = rnd(2, 9), c = rnd(2, 9), d = rnd(2, 12), e = rnd(2, 6), k = rnd(2, 4);
+    var n = a * d, dd = c * e, g = gcd(n, dd);
+    if (n / g === 1 && dd / g === 1) continue;
+    var rt = rootT(2, v), pk = powClean(v, k);
+    var num1 = polyT([[a, rt], [a * b, '']]), den1 = monI(c, [pk]);
+    var num2 = monI(d, [pk]), den2 = polyT([[e, rt], [e * b, '']]);
+    return {
+      q: '$' + fr(num1, den1) + '\\cdot ' + fr(num2, den2) + '$',
+      a: 'Хүртвэр, хуваариас ерөнхий үржигдэхүүнийг гаргавал $' + monI(a, [bp(polyT([[1, rt], [b, '']]))]) + '$ ба $'
+        + monI(e, [bp(polyT([[1, rt], [b, '']]))]) + '$ болно; $' + bp(polyT([[1, rt], [b, '']])) + '$ ба $' + pk
+        + '$ хураагдана; хариу $' + frTeX(n, dd) + '$',
+      key: 'f33' + v + a + '_' + b + '_' + c + '_' + d + '_' + e + '_' + k
+    };
+  }
+  return null;
+}
+
+// 5) Гурван үйлдлийн дараалал (үржүүлэх, хуваах)
+function g_r33_three() {
+  for (var t = 0; t < 300; t++) {
+    var x = pick(['x', 'a', 'p']), y = pick(['y', 'b', 'q']), A = rnd(1, 5), B = rnd(2, 9);
+    var sum = polyT([[1, x], [A, y]]), dif = polyT([[1, x], [-A, y]]);
+    return {
+      q: '$' + fr(polyT([[1, x + '^{2}'], [-A * A, y + '^{2}']]), sum) + ':' + bp(sum) + '\\cdot ' + fr(monI(B, [y]), dif) + '$',
+      a: 'Эхний бутархайн хүртвэр $' + bp(sum) + bp(dif) + '$ тул тэр нь $' + dif + '$ болно; дараа нь $'
+        + fr(dif, sum) + '\\cdot ' + fr(monI(B, [y]), dif) + '$; хариу $' + fr(monI(B, [y]), sum) + '$',
+      key: 'x33' + x + y + A + '_' + B
+    };
+  }
+  return null;
+}
+
+// 6) Куб язгууртай бутархайг хураах
+function g_r33_cbrt() {
+  for (var t = 0; t < 500; t++) {
+    var m = pick(['m', 'x', 'a']), n = pick(['n', 'y', 'b']);
+    var a = rnd(1, 3), b = rnd(1, 4), tt = rnd(1, 5);
+    if (a === b) continue;
+    var r = rnd(1, 4), s = rnd(1, 4), al = pick([-1, 1]), be = pick([-1, 1]);
+    var p = r + 3 * al, q = s + 3 * be;
+    if (p < 1 || q < 1) continue;
+    var A = a * a * a * tt, B = b * b * b * tt;
+    var top = monI(A, [powClean(m, p), powClean(n, q)]), bot = monI(B, [powClean(m, r), powClean(n, s)]);
+    var fin = monF(a, b, [powClean(m, al), powClean(n, be)]);
+    return {
+      q: '$' + fr(rootT(3, top), rootT(3, bot)) + '$',
+      a: 'Нэг куб язгуур дор нийлүүлбэл $' + rootT(3, fr(top, bot)) + '=' + rootT(3, monF(a * a * a, b * b * b, [powClean(m, 3 * al), powClean(n, 3 * be)]))
+        + '$ болно; хариу $' + fin + '$',
+      key: 'r33c' + m + n + a + '_' + b + '_' + tt + '_' + r + '_' + s + '_' + al + '_' + be
+    };
+  }
+  return null;
+}
+
+// 7) Тэгш өнцөгтийн талбай (зурагтай)
+function g_r33_area() {
+  for (var t = 0; t < 200; t++) {
+    var A = pick([5, 6, 7, 8, 9, 10]), k = rnd(2, 5), c = rnd(2, 4);
+    if (c >= A) continue;
+    var S1 = fr(polyT([[A, 'x'], [-1, 'x^{2}']]), polyT([[k, 'x'], [c * k, '']]));
+    var S2 = fr(polyT([[1, 'x^{2}'], [-c * c, '']]), polyT([[A * A, ''], [-1, 'x^{2}']]));
+    var fin = fr('x' + bp(polyT([[1, 'x'], [-c, '']])), monI(k, [bp(polyT([[1, 'x'], [A, '']]))]));
+    return {
+      q: '$' + S1 + '$ ба $' + S2 + '$',
+      fig: rectFig('a', 'b'),
+      a: 'Хүртвэр, хуваарийг задалбал $' + fr('x' + bp(polyT([[A, ''], [-1, 'x']])), monI(k, [bp(polyT([[1, 'x'], [c, '']]))]))
+        + '$ ба $' + fr(bp(polyT([[1, 'x'], [-c, '']])) + bp(polyT([[1, 'x'], [c, '']])), bp(polyT([[A, ''], [-1, 'x']])) + bp(polyT([[A, ''], [1, 'x']])))
+        + '$; хураавал хариу $' + fin + '$',
+      key: 'a33' + A + '_' + k + '_' + c
+    };
+  }
+  return null;
+}
+
+// 8) Урвуу бодлого: үржвэрийг 1 болгох параметр
+function g_r33_param() {
+  for (var t = 0; t < 300; t++) {
+    var B = rnd(2, 7), r = nz(-7, 7);
+    if (r === B || r === -B) continue;
+    var C = r * B, M = -(r + B);
+    if (M === 0) continue;
+    var num1 = 'x^{2}+mx' + cT(C, '');
+    var den1 = polyT([[1, 'x^{2}'], [-B * B, '']]);
+    var num2 = polyT([[1, 'x'], [B, '']]), den2 = polyT([[1, 'x'], [-r, '']]);
+    return {
+      q: '$' + fr(num1, den1) + '\\cdot ' + fr(num2, den2) + '=1$',
+      a: 'Хуваарь $' + bp(polyT([[1, 'x'], [-B, '']])) + bp(num2) + '$ тул хураахад хүртвэр нь $' + bp(den2) + bp(polyT([[1, 'x'], [-B, '']]))
+        + '$ байх ёстой; задалбал $' + polyT([[1, 'x^{2}'], [M, 'x'], [C, '']]) + '$; хариу $m=' + M + '$',
+      key: 'z33' + B + '_' + r
+    };
+  }
+  return null;
+}
+
+
+// ═══════════════ 3.4 АЛГЕБРЫН БУТАРХАЙН НЭМЭХ, ХАСАХ ҮЙЛДЭЛ ═══════════════
+
+// 1) Эсрэг хуваарьтай гурван бутархай
+function g_r34_opp() {
+  for (var t = 0; t < 400; t++) {
+    var v = pick(['x', 'y', 'a', 't']), c = nz(-8, 8);
+    var A = rnd(1, 7), D = rnd(1, 7), B = nz(-9, 9), E = nz(-9, 9), F = rnd(1, 9);
+    var Na = A - D, Nb = B - E - F;
+    if (Na === 0 && Nb === 0) continue;
+    if (Na * c + Nb === 0) continue;
+    var den1 = polyT([[1, v], [-c, '']]), den2 = polyT([[c, ''], [-1, v]]);
+    var fin = fr(polyT([[Na, v], [Nb, '']]), den1);
+    return {
+      q: '$' + fr(polyT([[A, v], [B, '']]), den1) + '+' + fr(polyT([[D, v], [E, '']]), den2) + '-' + fr(monI(F, []), den1) + '$',
+      a: '$' + den2 + '=-' + bp(den1) + '$ тул хоёр дахь бутархай $' + fr('-' + bp(polyT([[D, v], [E, '']])), den1)
+        + '$ болно; ижил хуваарьтай болгож хүртвэрүүдийг нэмбэл хариу $' + fin + '$',
+      key: 'o34' + v + c + '_' + A + '_' + B + '_' + D + '_' + E + '_' + F
+    };
+  }
+  return null;
+}
+
+// 2) Квадрат гурван гишүүнт хуваарийг задалж ерөнхий хуваарь олох
+function g_r34_quadDen() {
+  for (var t = 0; t < 500; t++) {
+    var v = pick(['x', 'y', 'a', 't']), p = rnd(2, 4), s = rnd(2, 4), r = rnd(1, 6), tt = rnd(1, 6);
+    if (p * tt === s * r) continue;
+    var A = rnd(2, 8), B = rnd(1, 8), C = nz(-9, 9);
+    var Na = A * s - B, Nb = -A * tt - C;
+    if (Na === 0 && Nb === 0) continue;
+    if (Na * r + Nb * p === 0 || Na * tt + Nb * s === 0) continue;
+    var d1 = polyT([[p, v], [-r, '']]), d2 = polyT([[s, v], [-tt, '']]);
+    var quad = polyT([[p * s, v + '^{2}'], [-(p * tt + s * r), v], [r * tt, '']]);
+    var fin = fr(polyT([[Na, v], [Nb, '']]), bp(d1) + bp(d2));
+    return {
+      q: '$' + fr(monI(A, []), d1) + '-' + fr(polyT([[B, v], [C, '']]), quad) + '$',
+      a: '$' + quad + '=' + bp(d1) + bp(d2) + '$ тул ерөнхий хуваарь нь $' + bp(d1) + bp(d2) + '$; эхний бутархайг $'
+        + d2 + '$-д үржүүлж хасвал хүртвэр $' + monI(A, [bp(d2)]) + '-' + bp(polyT([[B, v], [C, '']])) + '$; хариу $' + fin + '$',
+      key: 'q34' + v + p + '_' + s + '_' + r + '_' + tt + '_' + A + '_' + B + '_' + C
+    };
+  }
+  return null;
+}
+
+// 3) Язгууртай эсрэг хуваарь — бүрэн хураагдана
+function g_r34_radDen() {
+  for (var t = 0; t < 300; t++) {
+    var v = pick(['q', 'u', 'x', 'y']), C = rnd(1, 6), b = rnd(2, 7), D = nz(-9, 9);
+    var A = C * b + D;
+    if (A === 0 || A === D) continue;
+    var rt = rootT(2, v);
+    var den1 = polyT([[1, rt], [-b, '']]), den2 = polyT([[b, ''], [-1, rt]]);
+    var num2 = polyT([[C, rt], [D, '']]);
+    return {
+      q: '$' + fr(monI(A, []), den1) + '+' + fr(num2, den2) + '$',
+      a: '$' + den2 + '=-' + bp(den1) + '$ тул нийлбэр $' + fr(polyT([[A - D, ''], [-C, rt]]), den1) + '$ болно; хүртвэр $'
+        + monI(-C, [bp(den1)]) + '$ хэлбэртэй тул хураагдана; хариу $' + (-C) + '$',
+      key: 'r34' + v + C + '_' + b + '_' + D
+    };
+  }
+  return null;
+}
+
+// 4) Бүхэл илэрхийлэл ба бутархайн ялгавар
+function g_r34_mixed() {
+  for (var t = 0; t < 300; t++) {
+    var v = pick(['x', 'y', 'a', 't']), A = rnd(2, 6), B = nz(-9, 9), C = rnd(1, 7), D = nz(-9, 9), e = nz(-7, 7);
+    if (C * e - D === 0) continue;
+    var N1 = A, N2 = A * e + B - C, N3 = B * e - D;
+    if (N2 === 0 && N3 === 0) continue;
+    var den = polyT([[1, v], [e, '']]);
+    var fin = fr(polyT([[N1, v + '^{2}'], [N2, v], [N3, '']]), den);
+    return {
+      q: '$' + polyT([[A, v], [B, '']]) + '-' + fr(polyT([[C, v], [D, '']]), den) + '$',
+      a: 'Бүхэл хэсгийг $' + den + '$ хуваартай болгож $' + fr(bp(polyT([[A, v], [B, '']])) + bp(den), den)
+        + '$ гэж бичээд хасвал хүртвэр $' + polyT([[A, v + '^{2}'], [A * e + B, v], [B * e, '']]) + '-' + bp(polyT([[C, v], [D, '']]))
+        + '$; хариу $' + fin + '$',
+      key: 'x34' + v + A + '_' + B + '_' + C + '_' + D + '_' + e
+    };
+  }
+  return null;
+}
+
+// 5) Хоёр бутархайн нийлбэр — хураагдана
+function g_r34_cancel() {
+  for (var t = 0; t < 400; t++) {
+    var v = pick(['a', 'x', 'y', 'k']), A = rnd(1, 6), B = nz(-6, 6), p = nz(-7, 7), s = nz(-7, 7);
+    if (p === s) continue;
+    var K = A + B;
+    if (K === 0) continue;
+    var C = K * p - A * s;
+    var quad = polyT([[1, v + '^{2}'], [p + s, v], [p * s, '']]);
+    var fin = (K < 0 ? '-' : '') + fr(Math.abs(K), polyT([[1, v], [s, '']]));
+    return {
+      q: '$' + fr(monI(A, []), polyT([[1, v], [p, '']])) + '+' + fr(polyT([[B, v], [C, '']]), quad) + '$',
+      a: '$' + quad + '=' + bp(polyT([[1, v], [p, '']])) + bp(polyT([[1, v], [s, '']])) + '$; ерөнхий хуваарьт шилжүүлэн хүртвэрүүдийг нэмбэл $'
+        + polyT([[K, v], [K * p, '']]) + '=' + monI(K, [bp(polyT([[1, v], [p, '']]))]) + '$ болж $' + bp(polyT([[1, v], [p, '']]))
+        + '$ хураагдана; хариу $' + fin + '$',
+      key: 'c34' + v + A + '_' + B + '_' + p + '_' + s
+    };
+  }
+  return null;
+}
+
+// 6) Хаалттай нийлмэл үйлдэл
+function g_r34_combo() {
+  for (var t = 0; t < 200; t++) {
+    var v = pick(['a', 'x', 'p']), w = pick(['b', 'y', 'q']), m = rnd(2, 9), sw = pick([0, 1]);
+    var f1 = sw ? fr(1, v + '^{2}') + '-' + fr(1, w + '^{2}') : fr(1, w + '^{2}') + '-' + fr(1, v + '^{2}');
+    var top = sw ? polyT([[1, w], [-1, v]]) : polyT([[1, v], [-1, w]]);
+    var fin = fr(monI(m, [bp(top)]), v + w);
+    return {
+      q: '$' + Bp(f1) + '\\cdot ' + fr(monI(m, [v, w]), polyT([[1, v], [1, w]])) + '$',
+      a: 'Хаалт доторх нь $' + fr(sw ? polyT([[1, w + '^{2}'], [-1, v + '^{2}']]) : polyT([[1, v + '^{2}'], [-1, w + '^{2}']]), v + '^{2}' + w + '^{2}')
+        + '$ бөгөөд хүртвэр нь $' + bp(polyT([[1, sw ? w : v], [-1, sw ? v : w]])) + bp(polyT([[1, v], [1, w]]))
+        + '$ гэж задарна; хураавал хариу $' + fin + '$',
+      key: 'k34' + v + w + m + '_' + sw
+    };
+  }
+  return null;
+}
+
+// 7) Гурвалжны периметр (зурагтай)
+function g_r34_perim() {
+  for (var t = 0; t < 300; t++) {
+    var A = rnd(2, 9), B = rnd(2, 6), C = nz(-6, 6), D = rnd(2, 20);
+    if (gcd(B, A) !== 1) continue;
+    var s1 = fr(A, monI(B, ['x'])), s2 = fr(polyT([[1, 'x'], [C, '']]), 'x'), s3 = fr(D, 'x^{2}');
+    var fin = fr(polyT([[B, 'x^{2}'], [A + B * C, 'x'], [B * D, '']]), monI(B, ['x^{2}']));
+    return {
+      q: '$' + s1 + '$, $\\ ' + s2 + '$, $\\ ' + s3 + '$',
+      fig: triFig('a', 'b', 'c'),
+      a: 'Ерөнхий хуваарь нь $' + monI(B, ['x^{2}']) + '$; тус бүрийг шилжүүлбэл $' + fr(monI(A, ['x']), monI(B, ['x^{2}']))
+        + '$, $\\ ' + fr(monI(B, ['x']) + bp(polyT([[1, 'x'], [C, '']])), monI(B, ['x^{2}'])) + '$, $\\ '
+        + fr(monI(B * D, []), monI(B, ['x^{2}'])) + '$; хариу $' + fin + '$',
+      key: 'p34' + A + '_' + B + '_' + C + '_' + D
+    };
+  }
+  return null;
+}
+
+// 8) Урвуу бодлого: хоосон зайг нөхөх
+function g_r34_box() {
+  for (var t = 0; t < 300; t++) {
+    var A = rnd(1, 6), B = nz(-9, 9), c = rnd(2, 7), d = nz(-8, 8);
+    if (d === c || d === -c) continue;
+    var fin = polyT([[A, 'x^{2}'], [A * d + B, 'x'], [B * d, '']]);
+    var lhs = fr(polyT([[A, 'x'], [B, '']]), polyT([[1, 'x^{2}'], [-c * c, '']]));
+    var rhs = fr('\\square', bp(polyT([[1, 'x'], [-c, '']])) + bp(polyT([[1, 'x'], [c, '']])) + bp(polyT([[1, 'x'], [d, '']])));
+    return {
+      q: '$' + lhs + '=' + rhs + '$',
+      a: '$' + polyT([[1, 'x^{2}'], [-c * c, '']]) + '=' + bp(polyT([[1, 'x'], [-c, '']])) + bp(polyT([[1, 'x'], [c, '']]))
+        + '$ тул хуваарийг $' + bp(polyT([[1, 'x'], [d, '']])) + '$-д үржүүлсэн байна; хүртвэрийг мөн адил үржүүлбэл хариу $' + fin + '$',
+      key: 'b34' + A + '_' + B + '_' + c + '_' + d
+    };
+  }
+  return null;
+}
+var WSPEC={"title":"Хураагдах нийлбэр ба нийлмэл үйлдэл — хүнд","sub":"Алгебрын бутархайн нэмэх, хасах · III бүлэг · 10-р анги","rule":"<b>Санамж:</b> Ижил хуваарьтай үед $\\frac{P}{Q}\\pm\\frac{R}{Q}=\\frac{P\\pm R}{Q}$. Хуваарь өөр бол хуваарь бүрийг үржигдэхүүн болгон задалж ерөнхий хуваарийг олно. $b-a=-\\bigl(a-b\\bigr)$ тул эсрэг хуваарьтай бутархайн хүртвэр, хуваарийг $-1$-д үржүүлж ижил хуваарьтай болгоно. Гарсан бутархайг боломжтой бол хураана.","ref":"","tasks":[{"label":"Үйлдлийг гүйцэтгэж, хариуг эцсээ хүртэл хураа.","fn":"g_r34_cancel","cap":3,"cols":1,"wk":30},{"label":"Илэрхийллийг хялбарчил.","fn":"g_r34_combo","cap":3,"cols":1,"wk":30},{"label":"Гурвалжны талууд өгөгдөв. Периметрийг нь ол.","fn":"g_r34_perim","cap":2,"cols":1,"wk":32},{"label":"Тэнцүү байлгах илэрхийллийг хоосон зайд нөхөн бич.","fn":"g_r34_box","cap":3,"cols":1,"wk":30}]};
+
+function toggleAns(){var el=document.getElementById('answers');if(el)el.style.display=document.getElementById('sa').checked?'block':'none';}
+function gen(fn){for(var t=0;t<700;t++){var f=fn();if(f)return f;}return null;}
+var LET=['а','б','в','г','д','е','ё','ж','з','и','к','л','м','н','о','ө','п','р','с','т'];
+function probeH(sheet){var pr=sheet.cloneNode(true);pr.removeAttribute('id');pr.style.cssText='position:absolute;left:-99999px;top:0;width:210mm;max-width:none;min-height:0;margin:0;padding:0;box-shadow:none;zoom:1';var a=pr.querySelector('#answers,.ans-page');if(a)a.remove();document.body.appendChild(pr);var h=pr.scrollHeight;document.body.removeChild(pr);return h;}
+function relabel(sheet){var blocks=sheet.querySelectorAll('.grid'),map={},cnt={};for(var g=0;g<blocks.length;g++){var gr=blocks[g].getAttribute('data-gr')||(g+1);if(cnt[gr]===undefined)cnt[gr]=0;var qs2=blocks[g].querySelectorAll('.q');for(var i=0;i<qs2.length;i++){var ix=cnt[gr]++;var lt=LET[ix]||('#'+(ix+1));var ql=qs2[i].querySelector('.ql');if(ql)ql.textContent=lt+')';map[qs2[i].getAttribute('data-k')]=gr+lt+')';}}
+  var as=sheet.querySelectorAll('#answers .a');for(var j=0;j<as.length;j++){var an=as[j].querySelector('.an');if(an)an.textContent=map[as[j].getAttribute('data-k')]||'';}}
+function trimToFit(sheet,target){var guard=0,h=probeH(sheet);while(h>target&&guard++<90){var blocks=sheet.querySelectorAll('.grid'),best=-1,bestN=-1;for(var s=blocks.length-1;s>=0;s--){var n=blocks[s].querySelectorAll('.q').length;if(n>bestN&&n>2){bestN=n;best=s;}}if(best<0)break;var qs2=blocks[best].querySelectorAll('.q');var last=qs2[qs2.length-1],k=last.getAttribute('data-k');var ans=sheet.querySelector('#answers .a[data-k="'+k+'"]');if(ans)ans.parentNode.removeChild(ans);last.parentNode.removeChild(last);relabel(sheet);h=probeH(sheet);}}
+var TASKS=WSPEC.tasks.map(function(t){return {label:t.label, fn:eval(t.fn), cap:t.cap, cols:t.cols, wk:t.wk};});
+function genPool(){var P=TASKS.map(function(){return[];});var seen={};TASKS.forEach(function(t,i){var c=0,tr=0,need=t.cap+3;while(c<need&&tr<9000){tr++;var f=gen(t.fn);if(!f||seen[f.key])continue;seen[f.key]=1;P[i].push(f);c++;}});return P;}
+function build(){window.__POOL=genPool();layout();}
+function layout(){var WK=document.getElementById('sw').checked;var S=window.__POOL||(window.__POOL=genPool());window.__PROB=[];var K=0;
+  function block(arr,cap,tk,gno){var use=WK?arr.slice(0,cap):arr;return '<div class="grid" data-gr="'+gno+'"'+(tk&&tk.cols?' style="grid-template-columns:repeat('+tk.cols+',1fr)"':'')+'>'+use.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});return '<div class="q" data-k="'+k+'"><div class="qh"><span class="ql"></span><span class="qm">'+f.q+'</span></div>'+(f.fig?'<div class="fig">'+f.fig+'</div>':'')+((WK&&!f.noWk)?'<div class="wk"'+(tk&&tk.wk?' style="height:'+tk.wk+'mm"':'')+'></div>':'')+'</div>';}).join('')+'</div>';}
+  function ansAll(){return window.__PROB.map(function(p){return '<div class="a" data-k="'+p.k+'"><span class="an"></span>'+p.f.a+'</div>';}).join('');}
+  var html='<div class="head"><h1>'+WSPEC.title+'</h1><div class="sub">'+WSPEC.sub+'</div></div>'
+    +'<div class="meta"><span>Нэр: </span><span>Анги: </span><span>Огноо: </span></div>'
+    +'<div class="rule">'+WSPEC.rule+'</div>'+(WSPEC.ref||'');
+  var __g=0,__p=null;TASKS.forEach(function(t,i){if(t.label!==__p){__g++;html+='<div class="task">'+__g+'. '+t.label+'</div>';__p=t.label;}html+=block(S[i],t.cap,t,__g);});
+  html+='<div class="ans-page" id="answers"><h2>Хариу ба бодолт</h2><div class="ans-grid">'+ansAll()+'</div></div>';
+  document.getElementById('sheet').innerHTML=html;
+  window.WS_ITEMS=[];window.WS_TITLE=WSPEC.title;
+  relabel(document.getElementById('sheet'));toggleAns();
+  try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
+  try{if(!WK)trimToFit(document.getElementById('sheet'),1035);}catch(e){}
+  try{relabel(document.getElementById('sheet'));}catch(e){}
+}
+build();
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

@@ -1079,6 +1079,50 @@ module.exports = async (req, res) => {
         }
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_g7c6_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
+      // ── 10-р анги: хүнд түвшний нэмэлт ажлын хуудсууд ──
+      const cf_g10h = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_g10_hard_v1'`);
+      if (!cf_g10h.rows.length) {
+        const subs_g10h = [
+          { name: "I БҮЛЭГ. ОЛОНЛОГ", slugs: ["olonlog-hard-1-10.html", "olonlog-hard-2-10.html", "olonlog-hard-3-10.html"] },
+          { name: "2.1 Тэг ба сөрөг илтгэгчтэй зэрэг", slugs: ["zereg-teg-sorog-hard-1-10.html", "zereg-teg-sorog-hard-2-10.html", "zereg-teg-sorog-hard-3-10.html"] },
+          { name: "2.2 n зэргийн язгуурын чанарууд", slugs: ["yazguur-chanar-hard-1-10.html", "yazguur-chanar-hard-2-10.html", "yazguur-chanar-hard-3-10.html"] },
+          { name: "2.3 Рационал тоон илтгэгчтэй зэрэг", slugs: ["ratsional-iltgegch-hard-1-10.html", "ratsional-iltgegch-hard-2-10.html", "ratsional-iltgegch-hard-3-10.html"] },
+          { name: "2.4 Стандарт хэлбэрээр бичсэн тооны үйлдэл", slugs: ["standart-helber-hard-1-10.html", "standart-helber-hard-2-10.html"] },
+          { name: "3.1 Рационал илтгэгчтэй алгебрын илэрхийлэл", slugs: ["alg-ratsional-iltgegch-hard-1-10.html", "alg-ratsional-iltgegch-hard-2-10.html", "alg-ratsional-iltgegch-hard-3-10.html"] },
+          { name: "3.2 Алгебрын илэрхийллийг үржигдэхүүн болгон задлах", slugs: ["urjigdehuun-zadlah-hard-1-10.html", "urjigdehuun-zadlah-hard-2-10.html"] },
+          { name: "3.3 Алгебрын бутархайн үржүүлэх, хуваах", slugs: ["butarhai-urjuuleh-hard-1-10.html", "butarhai-urjuuleh-hard-2-10.html"] },
+          { name: "3.4 Алгебрын бутархайн нэмэх, хасах", slugs: ["butarhai-nemeh-hard-1-10.html", "butarhai-nemeh-hard-2-10.html"] },
+          { name: "4.1 Тэгш өнцөгт координатын систем, цэгийн координат", slugs: ["koordinat-sistem-hard-1-10.html", "koordinat-sistem-hard-2-10.html", "koordinat-sistem-hard-3-10.html"] },
+          { name: "4.2 Шулууны налалт", slugs: ["shuluu-nalalt-hard-1-10.html", "shuluu-nalalt-hard-2-10.html", "shuluu-nalalt-hard-3-10.html"] },
+          { name: "4.3 Шулууны тэгшитгэл", slugs: ["shuluu-tegshitgel-hard-1-10.html", "shuluu-tegshitgel-hard-2-10.html", "shuluu-tegshitgel-hard-3-10.html"] },
+          { name: "4.4 Координатын эх дээр төвтэй тойргийн тэгшитгэл", slugs: ["toirog-tegshitgel-hard-1-10.html", "toirog-tegshitgel-hard-2-10.html", "toirog-tegshitgel-hard-3-10.html"] },
+          { name: "5.1 Функц, функцийн тодорхойлогдох муж ба дүр", slugs: ["funkts-muj-hard-1-10.html", "funkts-dur-hard-2-10.html"] },
+          { name: "5.2 Квадрат функц", slugs: ["kvadrat-orgil-hard-1-10.html", "kvadrat-param-hard-2-10.html", "kvadrat-grafik-hard-3-10.html"] },
+          { name: "5.3 y=a/x функц", slugs: ["giperbol-hard-1-10.html", "giperbol-hard-2-10.html"] },
+          { name: "5.4 y = axⁿ хэлбэрийн функцийн график", slugs: ["zeregt-funkts-hard-1-10.html", "zeregt-funkts-hard-2-10.html"] },
+          { name: "5.5 y = aˣ илтгэгч функцийн график", slugs: ["iltgegch-hard-1-10.html", "iltgegch-hard-2-10.html"] },
+          { name: "5.6 Муруйн шүргэгч, шүргэгчийн налалт", slugs: ["shurgegch-hard-1-10.html", "shurgegch-hard-2-10.html"] },
+          { name: "6.1 Нэг хувьсагчтай шугаман тэнцэтгэл биш ба систем", slugs: ["shugaman-tb-hard-1-10.html", "shugaman-tb-hard-2-10.html"] },
+          { name: "6.2 Квадрат тэгшитгэл", slugs: ["kvadrat-teng-hard-1-10.html", "kvadrat-teng-hard-2-10.html"] },
+          { name: "6.3 Квадрат тэгшитгэлд шилждэг тэгшитгэл", slugs: ["shiljih-teng-hard-1-10.html", "shiljih-teng-hard-2-10.html"] },
+          { name: "6.4 Хоёр хувьсагчтай шугаман тэнцэтгэл биш ба систем", slugs: ["2huv-tb-hard-1-10.html", "2huv-tb-hard-2-10.html"] },
+          { name: "6.5 Илтгэгч тэгшитгэл", slugs: ["iltgegch-teng-hard-1-10.html", "iltgegch-teng-hard-2-10.html"] },
+          { name: "7.1 Тойрогт багтсан өнцөг", slugs: ["bagtsan-onts-hard-1-10.html", "bagtsan-onts-hard-2-10.html", "bagtsan-onts-hard-3-10.html"] },
+          { name: "7.2 Тойрогт багтсан ба тойрог багтаасан олон өнцөгт", slugs: ["olon-ontsogt-hard-1-10.html", "olon-ontsogt-hard-2-10.html", "olon-ontsogt-hard-3-10.html"] },
+          { name: "7.3 Тойргийн хөвч, шүргэгч, огтлогчийн чанар", slugs: ["hovch-shurgegch-hard-1-10.html", "hovch-shurgegch-hard-2-10.html", "hovch-shurgegch-hard-3-10.html"] },
+          { name: "7.4 Хоёр тойргийн харилцан байршил", slugs: ["hoyor-toirog-hard-1-10.html", "hoyor-toirog-hard-2-10.html"] },
+          { name: "7.5 Цэгийн геометр байр", slugs: ["tseg-geometr-hard-1-10.html", "tseg-geometr-hard-2-10.html"] },
+        ];
+        for (const sub of subs_g10h) {
+          const sgr = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='10-р анги' AND name=$1`, [sub.name]);
+          if (!sgr.rows.length) continue;
+          const sid = Number(sgr.rows[0].id);
+          for (const slug of sub.slugs) {
+            await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + sid, slug]);
+          }
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_g10_hard_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
       // ── 8-р анги: v2 — шинэчилсэн/нэмэлт ажлын хуудсууд байгаа дэд бүлгүүдэд ──
       const cf_g8v2 = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_g8_v2'`);
       if (!cf_g8v2.rows.length) {
