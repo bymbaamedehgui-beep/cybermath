@@ -738,20 +738,5 @@ window.WS_LIST=[
     ['modul-shalgalt-material-12.html','Модуль — Шалгалтын материал (10 тест + 4 задгай, хариутай)'],
   ]],
 ];
-window.WS_CAMB=[
-  ['Бүлэг 4 · Бутархай, аравт, хувь',[
-    ['camb-4a-factors.html','4A · Хуваагч ба үржвэр'],
-    ['camb-4b-hcf-lcm.html','4B · ХИЕХ ба ХБЕХ'],
-    ['camb-4d-equiv-fraction.html','4D · Эквивалент/энгийн бутархай'],
-    ['camb-4e-mixed-improper.html','4E · Холимог ↔ энгийн бус бутархай'],
-    ['camb-4f-compare-fraction.html','4F · Бутархай харьцуулах·эрэмбэлэх'],
-    ['camb-4g-decimal-order.html','4G · Аравтын бутархай харьцуулах'],
-    ['camb-4h-round-decimal.html','4H · Аравтын бутархай тойролт'],
-    ['camb-4i-dec-frac.html','4I · Аравт ↔ бутархай хөрвүүлэх'],
-    ['camb-4j-perc-frac-dec.html','4J · Хувь ↔ бутархай ↔ аравт'],
-    ['camb-4k-dec-perc.html','4K · Аравт ↔ хувь хөрвүүлэх'],
-    ['camb-4l-frac-perc.html','4L · Бутархай ↔ хувь хөрвүүлэх'],
-    ['camb-4m-perc-quantity.html','4M · Тооны хувь олох'],
-    ['camb-4n-compare.html','4N · Харьцаа: хэдэн % / ямар бутархай'],
-  ]],
-];
+/* Cambridge (Year 7 / Stage 4) — түр хугацаанд каталогоос хассан. Файлууд байрандаа. */
+window.WS_CAMB=[];
