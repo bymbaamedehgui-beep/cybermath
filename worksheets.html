@@ -171,6 +171,22 @@
   .empty{padding:26px;text-align:center;color:var(--soft)}
 
   /* ---- modal ---- */
+  /* ---- олноор сонгох ---- */
+  body.selmode #catalog .card{position:relative;cursor:pointer}
+  body.selmode #catalog .card::before{content:"";position:absolute;top:6px;left:6px;width:18px;height:18px;border-radius:6px;border:1.8px solid var(--purple);background:#fff;z-index:2}
+  body.selmode #catalog .card.selected{outline:2.5px solid var(--purple);outline-offset:-2px;background:#f6f2ff}
+  body.selmode #catalog .card.selected::before{background:var(--purple);box-shadow:inset 0 0 0 2px #fff}
+  #selbar{position:fixed;left:50%;transform:translateX(-50%);bottom:16px;z-index:60;display:none;gap:9px;align-items:center;
+    background:#fff;border:1.5px solid #e2daf5;border-radius:14px;padding:9px 12px;box-shadow:0 16px 44px -16px rgba(60,30,120,.5)}
+  #selbar.on{display:flex}
+  #selbar .cnt{font-weight:900;color:var(--purple-d);font-size:13.5px;white-space:nowrap}
+  #selbar button{border:1.5px solid var(--line);background:#fff;color:var(--purple-d);font-weight:800;font-size:.8rem;border-radius:999px;padding:.4rem .85rem;cursor:pointer}
+  #selbar button.pri{background:linear-gradient(135deg,var(--purple),var(--purple2));color:#fff;border-color:transparent}
+  #selbar button svg{width:14px;height:14px;vertical-align:-2px;margin-right:3px}
+  .tgtopt{text-align:left;border:1.4px solid #e2daf5;background:#fff;color:#1a1030;border-radius:9px;padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer}
+  .tgtopt:hover{border-color:var(--purple)}
+  .tgtopt.sub{margin-left:16px;font-weight:500;font-size:12.5px}
+  .tgtopt[disabled]{background:#f3f0fb;color:#b3a9cf;cursor:default}
   .modal{position:fixed;inset:0;z-index:50;background:rgba(20,15,40,.5);display:none;place-items:center;padding:18px}
   .modal.on{display:grid}
   .mbox{background:#fff;border-radius:18px;max-width:780px;width:100%;max-height:88vh;overflow:auto;padding:24px;position:relative}
@@ -264,6 +280,7 @@
     <div class="chips" id="chips"></div>
     <div class="editbar" id="editBar" style="display:none">
       <button class="editbtn" id="editToggle" onclick="toggleEdit()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Засах</button>
+      <button class="editbtn" id="selToggle" onclick="toggleSelMode()" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Олноор сонгох</button>
       <span class="edithint" id="editHint">Нэр дээр дарж засна · ⠿ чирж дараалал өөрчилнө</span>
     </div>
   </div>
@@ -295,6 +312,23 @@
     <h3 id="grpTitle" style="margin:0 0 4px">Анги сонгох</h3>
     <div id="grpSub" style="font-size:12.5px;color:#7a7390;margin-bottom:12px"></div>
     <div id="grpList" style="display:flex;flex-direction:column;gap:6px;max-height:52vh;overflow:auto"></div>
+  </div>
+</div>
+
+<div id="selbar">
+  <span class="cnt" id="selCnt">0 сонгосон</span>
+  <button class="pri" onclick="openBulkPicker()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 11 21 7 17 3"/><path d="M21 7H9"/><polyline points="7 21 3 17 7 13"/><path d="M15 17H3"/></svg>Зөөх…</button>
+  <button onclick="selectAllVisible()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Бүгдийг</button>
+  <button onclick="clearSel()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>Цуцлах</button>
+</div>
+
+<div class="modal" id="bulkModal" onclick="if(event.target===this)closeBulk()">
+  <div class="mbox" style="max-width:460px">
+    <button class="x" onclick="closeBulk()">✕</button>
+    <h3 id="bulkTitle" style="margin:0 0 4px">Хаашаа зөөх вэ?</h3>
+    <div id="bulkSub" style="font-size:12.5px;color:#7a7390;margin-bottom:10px"></div>
+    <div id="bulkProg" style="display:none;font-size:12.5px;color:var(--purple-d);font-weight:700;margin-bottom:8px"></div>
+    <div id="bulkList" style="display:flex;flex-direction:column;gap:5px;max-height:56vh;overflow:auto"></div>
   </div>
 </div>
 
@@ -555,11 +589,13 @@ function renderCatalog(){
   }
   if(editMode){[].forEach.call(cat.querySelectorAll('.card'),function(c){c.setAttribute('draggable','true');});
     [].forEach.call(cat.querySelectorAll('.subgrp-head'),function(h){h.setAttribute('draggable','true');});}
+  if(typeof refreshSelUI==='function')refreshSelUI();   /* дахин зурсны дараа сонголтыг сэргээнэ */
 }
 var _clickN=0,_clickTmr=null;
 function catalogClick(e){
   var c=e.target.closest('.card'); if(!c)return;
   e.preventDefault();
+  if(selMode){toggleCardSel(c,e.shiftKey);return;}
   _clickN++;
   if(_clickN===1){
     _clickTmr=setTimeout(function(){
@@ -782,6 +818,9 @@ function toggleEdit(){
   b.classList.toggle('on',editMode);
   b.innerHTML=editMode?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Дууссан':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Засах';
   if(editMode)hidePv();
+  var sb=document.getElementById('selToggle');
+  if(sb)sb.style.display=editMode?'':'none';
+  if(!editMode&&selMode)toggleSelMode();       /* засах горимоос гарахад сонголт унтарна */
   [].forEach.call(document.querySelectorAll('#catalog .card'),function(c){
     if(editMode)c.setAttribute('draggable','true'); else c.removeAttribute('draggable');
   });
@@ -1046,6 +1085,120 @@ document.getElementById('grpList').addEventListener('click',function(e){
 });
 function pushUniq(obj,k,v){obj[k]=obj[k]||[];if(obj[k].indexOf(v)<0)obj[k].push(v);}
 function pull(obj,k,v){if(obj[k]){var i=obj[k].indexOf(v);if(i>=0)obj[k].splice(i,1);}}
+
+/* ================= Олноор сонгож зөөх (зөвхөн админ, засах горимд) ================= */
+var selMode=false, SEL=[], lastSelCard=null;
+function selKey(slug,grp){return grp+' '+slug;}
+function selHas(slug,grp){var k=selKey(slug,grp);for(var i=0;i<SEL.length;i++)if(selKey(SEL[i].slug,SEL[i].grp)===k)return true;return false;}
+function selAdd(slug,grp){if(!selHas(slug,grp))SEL.push({slug:slug,grp:grp});}
+function selDel(slug,grp){var k=selKey(slug,grp);SEL=SEL.filter(function(s){return selKey(s.slug,s.grp)!==k;});}
+function toggleSelMode(){
+  if(!isAdmin()){alert('Зөвхөн админ');return;}
+  selMode=!selMode;
+  document.body.classList.toggle('selmode',selMode);
+  var b=document.getElementById('selToggle');
+  b.classList.toggle('on',selMode);
+  if(!selMode)clearSel(); else refreshSelUI();
+}
+function clearSel(){SEL=[];lastSelCard=null;refreshSelUI();}
+function selectAllVisible(){
+  [].forEach.call(document.querySelectorAll('#catalog .card'),function(c){
+    if(c.offsetParent===null)return;                       /* нуугдсаныг алгасна */
+    var box=c.closest('.cards');if(!box)return;
+    selAdd(c.getAttribute('data-slug'),box.getAttribute('data-grp'));
+  });
+  refreshSelUI();
+}
+function refreshSelUI(){
+  [].forEach.call(document.querySelectorAll('#catalog .card'),function(c){
+    var box=c.closest('.cards');
+    var on=box&&selHas(c.getAttribute('data-slug'),box.getAttribute('data-grp'));
+    c.classList.toggle('selected',!!on);
+  });
+  var bar=document.getElementById('selbar');
+  document.getElementById('selCnt').textContent=SEL.length+' сонгосон';
+  bar.classList.toggle('on',selMode&&SEL.length>0);
+}
+function toggleCardSel(card,shift){
+  var box=card.closest('.cards'); if(!box)return;
+  var grp=box.getAttribute('data-grp'), slug=card.getAttribute('data-slug');
+  if(shift&&lastSelCard&&lastSelCard.closest('.cards')===box){
+    var cards=[].slice.call(box.querySelectorAll('.card'));
+    var a=cards.indexOf(lastSelCard),b=cards.indexOf(card);
+    if(a>=0&&b>=0){var lo=Math.min(a,b),hi=Math.max(a,b);
+      for(var i=lo;i<=hi;i++)selAdd(cards[i].getAttribute('data-slug'),grp);}
+  }else{
+    if(selHas(slug,grp))selDel(slug,grp); else selAdd(slug,grp);
+  }
+  lastSelCard=card;refreshSelUI();
+}
+function gradeOfGrp(grp){return (grp&&grp.indexOf('sg:')===0)?SGGRADE[+grp.slice(3)]:grp;}
+function openBulkPicker(){
+  if(!SEL.length)return;
+  document.getElementById('bulkTitle').textContent='Хаашаа зөөх вэ?';
+  document.getElementById('bulkSub').textContent=SEL.length+' ажлын хуудсыг сонгосон анги/дэд бүлэг рүү зөөнө.';
+  document.getElementById('bulkProg').style.display='none';
+  var h='';
+  GROUPS.forEach(function(g){
+    h+='<button class="tgtopt" data-t="'+esc(g)+'">'+esc(g)+'</button>';
+    (SGALLBY[g]||[]).forEach(function(s){
+      h+='<button class="tgtopt sub" data-t="sg:'+s.id+'">↳ '+esc(s.name)+'</button>';
+    });
+  });
+  document.getElementById('bulkList').innerHTML=h;
+  document.getElementById('bulkModal').classList.add('on');
+}
+function closeBulk(){document.getElementById('bulkModal').classList.remove('on');}
+document.getElementById('bulkList').addEventListener('click',function(e){
+  var b=e.target.closest('.tgtopt'); if(!b||b.disabled)return;
+  applyBulkMove(b.getAttribute('data-t'));
+});
+function moveOne(item,to){
+  var slug=item.slug, from=item.grp, fromGrade=gradeOfGrp(from);
+  var toGrade=(to.indexOf('sg:')===0)?SGGRADE[+to.slice(3)]:to;
+  var chain=Promise.resolve();
+  if(fromGrade!==toGrade){
+    chain=chain.then(function(){
+      return fetch('/api/worksheets',{method:'POST',headers:adminHeaders(),
+        body:JSON.stringify({action:'moveTopic',slug:slug,from:fromGrade,to:toGrade})})
+        .then(function(r){if(r.status===401)throw new Error('Зөвхөн админ');return r.json();})
+        .then(function(d){if(!d||!d.ok)throw new Error((d&&d.error)||'Алдаа');
+          removeSlugFromGradeSg(slug,fromGrade);
+          pushUniq(PLACE.remove,fromGrade,slug);pull(PLACE.add,fromGrade,slug);
+          pushUniq(PLACE.add,toGrade,slug);pull(PLACE.remove,toGrade,slug);});
+    });
+  }
+  if(to.indexOf('sg:')===0){
+    chain=chain.then(function(){
+      return sgApi('sg_assign',{id:+to.slice(3),slug:slug}).then(function(d){
+        if(d&&d.ok===false)throw new Error(d.error||'Алдаа');
+        removeSlugFromGradeSg(slug,toGrade);pushUniq(PLACE.add,to,slug);});
+    });
+  }else if(from.indexOf('sg:')===0&&fromGrade===toGrade){
+    /* тухайн ангийн дэд бүлгээс ангийн үндсэн жагсаалт руу гаргана */
+    chain=chain.then(function(){
+      return sgApi('sg_unassign',{slug:slug,from:from}).then(function(){pull(PLACE.add,from,slug);});
+    });
+  }
+  return chain;
+}
+function applyBulkMove(to){
+  if(!isAdmin()){alert('Зөвхөн админ');return;}
+  var items=SEL.slice(), total=items.length, done=0, fail=0;
+  var prog=document.getElementById('bulkProg');
+  prog.style.display='block';prog.textContent='Зөөж байна… 0/'+total;
+  [].forEach.call(document.querySelectorAll('#bulkList .tgtopt'),function(b){b.disabled=true;});
+  var chain=Promise.resolve();
+  items.forEach(function(it){
+    chain=chain.then(function(){return moveOne(it,to);})
+      .then(function(){done++;},function(){fail++;})
+      .then(function(){prog.textContent='Зөөж байна… '+(done+fail)+'/'+total;});
+  });
+  chain.then(function(){
+    closeBulk();clearSel();renderCatalog();applyFilters();
+    toast(fail?('Зөөлөө: '+done+', алдаа: '+fail):('↔️ '+done+' хуудсыг зөөлөө'));
+  });
+}
 function shareClassroom(url){
   window.open('https://classroom.google.com/share?url='+encodeURIComponent(url),'_blank','noopener,width=600,height=620');
 }
