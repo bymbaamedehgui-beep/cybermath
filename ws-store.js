@@ -24,7 +24,7 @@
     var items=(window.WS_ITEMS&&window.WS_ITEMS.length)?window.WS_ITEMS:scrapeItems();
     if(!items.length){alert('Хадгалах бодлого алга. Эхлээд "Шинэ бодлого" дарна уу.');return;}
     var h1=document.querySelector('#sheet .head h1, .head h1');
-    var title=window.WS_TITLE||(h1&&h1.textContent)||document.title||'Дасгал';
+    var title=(h1&&(h1.textContent||'').trim())||window.WS_TITLE||document.title||'Дасгал';
     // Тэмдэглэл бичих (хүсвэл) — Cancel дарвал хадгалахгүй
     var note=window.prompt('Тэмдэглэл бичнэ үү (жнь: 9А анги, гэрийн даалгавар):', '');
     if(note===null)return;
@@ -287,6 +287,10 @@
       '.cm-ed:hover{background:rgba(123,82,238,.06);border-radius:5px;box-shadow:inset 0 0 0 1px rgba(123,82,238,.22)}'+
       '.cm-ed:focus{background:rgba(123,82,238,.11);border-radius:5px;box-shadow:inset 0 0 0 1px rgba(123,82,238,.5)}'+
       '@media print{.cm-ed:hover,.cm-ed:focus{background:none!important;box-shadow:none!important}}'+
+      '.cm-title-ed{cursor:text}'+
+      '.cm-title-ed:hover::after{content:"засах";position:absolute;right:0;top:50%;transform:translateY(-50%);'+
+        'font:700 9.5px system-ui,Arial,sans-serif;color:#a99ad0;letter-spacing:.3px;pointer-events:none}'+
+      '@media print{.cm-title-ed:hover::after{content:""!important}}'+
       // Заавар/хайрцгийг устгах × товч (зөвхөн админд, hover дээр)
       '.cm-ed{position:relative}'+
       '.cm-del{position:absolute;top:-9px;right:-9px;width:21px;height:21px;line-height:20px;text-align:center;border-radius:50%;background:#ef4444;color:#fff;font-weight:900;font-size:15px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.3);opacity:0;transition:opacity .12s,transform .12s;z-index:7;user-select:none}'+
@@ -353,6 +357,70 @@
   var serverEdits=null;       // серверээс уншсан загвар {index: html}, ачаалаагүй бол null
   var saveTimer=null;
   var DEL='@@CMDEL@@';   // "устгасан" тэмдэг (заавар/хайрцгийг хүрээтэй нь нуух)
+
+  // ─── ГАРЧГИЙН ХУВИЙН ЗАСВАР ───────────────────────────────────────────────
+  //  Багш ажлын хуудасны дээд гарчгийг өөрөө засаж болно. Уг засвар нь
+  //  ЗӨВХӨН ТУХАЙН ТӨХӨӨРӨМЖИД (localStorage) хадгалагдана — серверт илгээхгүй,
+  //  өөр багш нарт нөлөөлөхгүй. (Админ засвар нь урьдын адил серверт очно.)
+  function titleKey(){ return 'cm_ws_title:'+curSlug(); }
+  function getLocalTitle(){ var v=ls(titleKey()); return (v==null||v==='')?null:v; }
+  function setLocalTitle(v){
+    if(v==null||v==='')  { try{localStorage.removeItem(titleKey());}catch(e){} }
+    else lset(titleKey(),v);
+  }
+  function baseTitle(){ return (serverEdits&&serverEdits['title']!=null)?serverEdits['title']:editTitleDefault; }
+  var titleTimer=null;
+  function scheduleTitleSave(){
+    if(titleTimer)clearTimeout(titleTimer);
+    titleTimer=setTimeout(function(){
+      var h1=document.querySelector('#sheet .head h1'); if(!h1)return;
+      var v=(h1.textContent||'').replace(/\s+/g,' ').trim();
+      setLocalTitle((!v||v===baseTitle())?null:v);   // хоосон буюу анхныхтай ижил бол хадгалахгүй
+      refreshTitleReset();
+    },500);
+  }
+  function refreshTitleReset(){
+    if(IS_QR)return; var bar=document.querySelector('.bar'); if(!bar)return;
+    var b=bar.querySelector('.ws-titlereset');
+    if(!isAdminUser()&&getLocalTitle()!=null){
+      if(!b){
+        b=document.createElement('button'); b.type='button'; b.className='ws-titlereset';
+        b.style.cssText='font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.55rem 1rem;font-size:.85rem;color:#5a32d6;background:#efe9ff;display:inline-flex;align-items:center;gap:5px';
+        b.innerHTML='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.64-6.36"/><path d="M3 4v6h6"/></svg><span>Гарчиг анхандаа</span>';
+        b.onclick=function(){ setLocalTitle(null); applyEdits(); refreshTitleReset(); };
+        bar.appendChild(b);
+      }
+    } else if(b){ b.remove(); }
+  }
+  // Гарчгийг нэг мөр, цэвэр бичвэрээр барих
+  function bindTitleEditing(h1){
+    h1.addEventListener('keydown',function(ev){ if(ev.key==='Enter'){ ev.preventDefault(); h1.blur(); } });
+    h1.addEventListener('paste',function(ev){
+      ev.preventDefault();
+      var t=((ev.clipboardData||window.clipboardData).getData('text')||'').replace(/\s+/g,' ').trim();
+      try{ document.execCommand('insertText',false,t); }catch(e){ h1.textContent=(h1.textContent||'')+t; }
+    });
+    h1.addEventListener('input',function(){ isAdminUser()?scheduleSave():scheduleTitleSave(); });
+    h1.addEventListener('blur',function(){
+      if(!(h1.textContent||'').trim()){                       // хоосолсон бол анхандаа буцаана
+        h1.textContent=baseTitle()||'';
+        isAdminUser()?scheduleSave():scheduleTitleSave();
+      }
+    });
+  }
+  // Табын нэр (хэвлэхэд толгойд гарна) — гарчигтай нийцүүлнэ. "(9-р анги)" гэх дагаврыг хэвээр үлдээнэ.
+  var docTitleOrig=null;
+  function syncDocTitle(want){
+    try{
+      if(docTitleOrig==null)docTitleOrig=document.title||'';
+      var base=editTitleDefault||'';
+      if(!base||!want||docTitleOrig.indexOf(base)<0)return;
+      var t=docTitleOrig.split(base).join(want);
+      if(document.title!==t)document.title=t;
+    }catch(e){}
+  }
+  window.cmSetLocalTitle=setLocalTitle; window.cmGetLocalTitle=getLocalTitle;
+  // ──────────────────────────────────────────────────────────────────────────
   function htmlNoDel(el){var c=el.cloneNode(true);var ds=c.getElementsByClassName('cm-del');while(ds.length)ds[0].parentNode.removeChild(ds[0]);return c.innerHTML;}
   function ensureDelBtn(el,i){
     if(el.getElementsByClassName('cm-del').length)return;
@@ -398,21 +466,28 @@
       }
     });
     // ─── Гарчиг (.head h1) — тусдаа 'title' түлхүүрээр (индекс шилжүүлэхгүй) ───
+    //  Админ  → серверт (бүх хэрэглэгчид харна)
+    //  Бусад  → зөвхөн өөрийн төхөөрөмжид (localStorage)
     var h1=sh.querySelector('.head h1');
     if(h1){
       if(editTitleDefault==null)editTitleDefault=(h1.textContent||'').trim();
       var tt=serverEdits['title'];
-      if(tt!=null&&(h1.textContent||'').trim()!==tt)h1.textContent=tt;
-      if(admin&&!h1.getAttribute('data-cm-ed')){
+      var base=(tt!=null)?tt:editTitleDefault;
+      var want=admin?base:(getLocalTitle()||base);
+      // бичиж байх үед курсорыг таслахгүйн тулд фокустай бол хөндөхгүй
+      if(document.activeElement!==h1&&(h1.textContent||'').trim()!==want)h1.textContent=want;
+      syncDocTitle(want);           // хэвлэлийн толгой/таб дээрх нэрийг ч тааруулна
+      if(!IS_QR&&!h1.getAttribute('data-cm-ed')){
         h1.setAttribute('data-cm-ed','1');
         h1.setAttribute('contenteditable','true');
         h1.setAttribute('spellcheck','false');
-        h1.classList.add('cm-ed');
-        h1.title='Админ: гарчгийг засаж болно';
-        h1.addEventListener('input',scheduleSave);
+        h1.classList.add('cm-ed','cm-title-ed');
+        h1.title=admin?'Админ: гарчгийг засвал БҮХ хэрэглэгчид харагдана'
+                      :'Гарчгийг дарж засна уу — зөвхөн энэ төхөөрөмж дээр хадгалагдана';
+        bindTitleEditing(h1);
       }
     }
-    if(admin)refreshEditReset();
+    if(admin)refreshEditReset(); else refreshTitleReset();
   }
   function collectEdits(){
     var sh=document.getElementById('sheet'),m={}; if(!sh)return m;
