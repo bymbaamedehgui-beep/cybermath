@@ -1079,6 +1079,51 @@ module.exports = async (req, res) => {
         }
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_g7c6_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
+      // ── 8-р анги: v2 — шинэчилсэн/нэмэлт ажлын хуудсууд байгаа дэд бүлгүүдэд ──
+      const cf_g8v2 = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_g8_v2'`);
+      if (!cf_g8v2.rows.length) {
+        const subs_g8v2 = [
+          { name: "1.1 Рационал тоо", slugs: ["rats-too-1-8.html", "rats-too-2-8.html", "rats-too-3-8.html", "rats-too-4-8.html", "rats-too-5-8.html"] },
+          { name: "1.2 Тоог тоймлох", slugs: ["toimloh-1-8.html", "toimloh-2-8.html", "toimloh-3-8.html", "toimloh-4-8.html", "toimloh-5-8.html"] },
+          { name: "1.3 Рационал тооны үйлдэл", slugs: ["rats-uildel-1-8.html", "rats-uildel-2-8.html", "rats-uildel-3-8.html", "rats-uildel-4-8.html", "rats-holimog-1-8.html", "rats-holimog-2-8.html", "rats-holimog-3-8.html"] },
+          { name: "1.4 Натурал илтгэгчтэй зэрэг", slugs: ["natural-zereg-1-8.html", "natural-zereg-2-8.html", "natural-zereg-3-8.html", "natural-zereg-4-8.html", "natural-zereg-5-8.html"] },
+          { name: "1.5 Зэрэгт дэвшүүлэх ба язгуур гаргах", slugs: ["zeregt-devsh-8.html", "zeregt-devsh-2-8.html", "yazguur-gargah-8.html", "yazguur-gargah-2-8.html"] },
+          { name: "1.6 10-ын бүхэл илтгэгчтэй зэрэг", slugs: ["arav-zereg-1-8.html", "arav-zereg-2-8.html", "standart-helber-8.html", "standart-helber-2-8.html"] },
+          { name: "2.1 Процент", slugs: ["protsent-1-8.html", "protsent-2-8.html", "protsent-3-8.html", "protsent-4-8.html", "protsent-5-8.html", "protsent-6-8.html", "protsent-7-8.html", "protsent-8-8.html"] },
+          { name: "2.2 Масштаб", slugs: ["masshtab-1-8.html", "masshtab-2-8.html", "masshtab-3-8.html", "haritsaa-1-8.html", "haritsaa-2-8.html"] },
+          { name: "2.3 Урвуу пропорционал хамаарал", slugs: ["urvuu-1-8.html", "urvuu-2-8.html", "urvuu-3-8.html", "urvuu-4-8.html", "urvuu-5-8.html"] },
+          { name: "3.1 Олонлог, түүн дээрх үйлдэл", slugs: ["olonlog-1-8.html", "olonlog-2-8.html", "venn-diagram-8.html", "olonlog-chadal-8.html", "olonlog-holimog-1-8.html", "olonlog-holimog-2-8.html"] },
+          { name: "3.2 Нийцтэй ба нийцгүй үзэгдлүүд", slugs: ["uzegdel-8.html", "egel-uzegdel-8.html", "uzegdel-niitstei-8.html", "uzegdel-holimog-8.html"] },
+          { name: "3.3 Үзэгдлийн магадлал", slugs: ["magadlal-1-8.html", "magadlal-2-8.html", "magadlal-3-8.html", "magadlal-huvaari-8.html", "niitsgui-negdel-8.html", "magadlal-holimog-8.html"] },
+          { name: "4.1 Нэг ба олон гишүүнт", slugs: ["mono-1-8.html", "mono-2-8.html", "mono-3-8.html", "mono-4-8.html", "mono-5-8.html", "mono-6-8.html"] },
+          { name: "4.2 Квадратуудын ялгавар, нийлбэр ба ялгаврын квадрат", slugs: ["kvadr-tomyo-1-8.html", "kvadr-tomyo-2-8.html", "kvadr-tomyo-3-8.html"] },
+          { name: "4.3 Олон гишүүнтийг үржигдэхүүн болгон задлах", slugs: ["zadlal-1-8.html", "zadlal-2-8.html", "zadlal-3-8.html", "zadlal-4-8.html"] },
+          { name: "4.4 Алгебрын бутархай", slugs: ["alg-butarhai-8.html", "alg-butarhai-2-8.html", "alg-butarhai-3-8.html"] },
+          { name: "4.5 Рационал тэгшитгэл", slugs: ["rats-teng-1-8.html", "rats-teng-2-8.html", "rats-teng-3-8.html"] },
+          { name: "4.6 Хоёр хувьсагчтай шугаман тэгшитгэлийн систем", slugs: ["shts-shugaman-1-8.html", "shts-shugaman-2-8.html", "shts-shugaman-3-8.html"] },
+          { name: "4.7 Нэг хувьсагчтай шугаман тэнцэтгэл биш", slugs: ["tents-bish-1-8.html", "tents-bish-2-8.html", "tents-bish-3-8.html", "tents-bish-4-8.html", "tents-bish-5-8.html"] },
+          { name: "5.1 Дараалал", slugs: ["daraalal-8.html", "daraalal-2-8.html", "daraalal-3-8.html"] },
+          { name: "5.2 Арифметик прогресс", slugs: ["arifm-progress-1-8.html", "arifm-progress-2-8.html", "arifm-progress-3-8.html", "arifm-progress-4-8.html"] },
+          { name: "5.3 Шугаман функц, түүний график", slugs: ["shugaman-funkts-1-8.html", "shugaman-funkts-2-8.html", "shugaman-funkts-3-8.html", "shugaman-funkts-4-8.html"] },
+          { name: "5.4 Шулууны налалт, ШТС-ийн график", slugs: ["nalalt-shts-8.html", "nalalt-2-8.html", "shts-grafik-8.html", "shts-grafik-2-8.html"] },
+          { name: "5.5 Урвуу пропорционал хамаарлын график", slugs: ["urvuu-grafik-8.html", "urvuu-grafik-2-8.html", "urvuu-grafik-3-8.html"] },
+          { name: "5.6 y=ax² функц, түүний график", slugs: ["parabol-1-8.html", "parabol-2-8.html", "parabol-3-8.html"] },
+          { name: "6.1 Олон өнцөгтийн дотоод ба гадаад өнцөг", slugs: ["olon-ongogt-1-8.html", "olon-ongogt-2-8.html", "olon-diagonal-8.html", "olon-algebr-8.html", "paralel-ongog-8.html"] },
+          { name: "6.2 Гурвалжны дундаж шугам, өндөр, медиан, биссектрис", slugs: ["gurvaljin-shugam-8.html", "medion-hundiin-8.html", "bissektris-tuv-8.html"] },
+          { name: "6.3 Пифагорын теорем", slugs: ["pifagor-1-8.html", "pifagor-2-8.html", "pifagor-durs-8.html", "pifagor-trapets-8.html", "pifagor-algebr-8.html", "pifagor-olon-alham-8.html", "pifagor-gurval-8.html"] },
+          { name: "6.4 Тойрог ба өнцөг", slugs: ["toirog-ongog-1-8.html", "toirog-ongog-2-8.html", "toirog-num-8.html", "toirog-dorvon-8.html"] },
+          { name: "6.5 Төсөөтэй дүрсүүд", slugs: ["tosootoi-1-8.html", "tosootoi-2-8.html", "tosootoi-hemjee-8.html"] },
+        ];
+        for (const sub of subs_g8v2) {
+          const sgr = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='8-р анги' AND name=$1`, [sub.name]);
+          if (!sgr.rows.length) continue;
+          const sid = Number(sgr.rows[0].id);
+          for (const slug of sub.slugs) {
+            await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + sid, slug]);
+          }
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_g8_v2','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
       // ── 7-р анги: v2 — шинэчилсэн/нэмэлт ажлын хуудсууд байгаа дэд бүлгүүдэд ──
       const cf_g7v2 = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_g7_v2'`);
       if (!cf_g7v2.rows.length) {

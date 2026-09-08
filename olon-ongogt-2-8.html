@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Олон өнцөгтийн гадаад өнцөг (8-р анги)</title>
+<title>Олон өнцөгт-2 (8-р анги)</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
@@ -26,7 +26,7 @@
   .q{break-inside:avoid;page-break-inside:avoid}
   .qh{display:flex;gap:7px;align-items:baseline}.ql{font-weight:800;color:var(--purple);font-size:13px;min-width:22px}.qm{font-size:13px}
   .fig{text-align:center;margin:4px 0}
-  .wk{border:1.1px solid #e2daf5;border-radius:7px;background:linear-gradient(#fff,#fbf9ff);height:16mm;margin-top:5px}
+  .wk{border:1.1px solid #e2daf5;border-radius:7px;background:linear-gradient(#fff,#fbf9ff);height:14mm;margin-top:5px}
   .ans-page{margin-top:9mm;border-top:2px dashed #ddd;padding-top:7mm}.ans-page h2{font-size:15px;color:#5a32d6;margin-bottom:10px}
   .ans-grid{display:grid;grid-template-columns:1fr;gap:9px;font-size:12px}.ans-grid .a{padding-bottom:8px;border-bottom:1px dotted #e6e0f5}.ans-grid .an{color:var(--purple);font-weight:800;margin-right:5px}
   #answers{display:none}
@@ -42,102 +42,1014 @@
 </div>
 <div class="sheet" id="sheet"></div>
 <script>
-// ── 8-р анги VI бүлэг (Өнцөг, дүрс, байгуулалт) ──
+// ══════════ g8core.js — 8-р ангийн нийтлэг хөдөлгүүр (бүлгийн сангийн ӨМНӨ залгагдана) ══════════
 function rnd(a,b){return a+Math.floor(Math.random()*(b-a+1));}
 function nz(a,b){var v;do{v=rnd(a,b);}while(v===0);return v;}
 function pick(a){return a[rnd(0,a.length-1)];}
+function shuffle(a){a=a.slice();for(var i=a.length-1;i>0;i--){var j=rnd(0,i),t=a[i];a[i]=a[j];a[j]=t;}return a;}
 function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){var t=b;b=a%b;a=t;}return a||1;}
-function frTeX(n,d){if(d===0)return null;if(d<0){n=-n;d=-d;}var g=gcd(n,d);n/=g;d/=g;if(d===1)return ''+n;return '\\dfrac{'+n+'}{'+d+'}';}
+function lcm(a,b){return Math.abs(a*b)/gcd(a,b);}
+function sgn(n){return n>=0?'+'+n:''+n;}                 // +5, -3 (тэмдэгтэй)
+function paren(n){return n<0?'('+n+')':''+n;}            // (-3), 5 (сөрөг бол хаалттай)
+// ── Анхны тоо, задаргаа ──
+function isPrime(n){n=Math.abs(n);if(n<2)return false;for(var i=2;i*i<=n;i++)if(n%i===0)return false;return true;}
+function primeFactors(n){n=Math.abs(n);var f=[],d=2;while(d*d<=n){while(n%d===0){f.push(d);n/=d;}d++;}if(n>1)f.push(n);return f;} // [2,2,3]
+function primeFactExp(n){var f=primeFactors(n),out=[],i=0;while(i<f.length){var p=f[i],e=0;while(i<f.length&&f[i]===p){e++;i++;}out.push({p:p,e:e});}return out;} // [{p:2,e:2},{p:3,e:1}]
+function pfTex(n){var pe=primeFactExp(n);return pe.map(function(x){return x.e===1?''+x.p:x.p+'^{'+x.e+'}';}).join('\\cdot ');} // 2^{2}\cdot3
+// ── Бүтэн квадрат/куб ──
+function isqrt(n){if(n<0)return null;var r=Math.round(Math.sqrt(n));return r*r===n?r:null;}       // төгс квадрат бол язгуур, үгүй бол null
+function icbrt(n){var s=n<0?-1:1;n=Math.abs(n);var r=Math.round(Math.cbrt(n));for(var k=r-1;k<=r+1;k++){if(k*k*k===n)return s*k;}return null;} // төгс куб бол куб язгуур, үгүй бол null
+// ── Бутархайн exact хөдөлгүүр ──
+function Fr(n,d){if(d<0){n=-n;d=-d;}var g=gcd(n,d)||1;return {n:n/g,d:d/g};}
+function fAdd(a,b){return Fr(a.n*b.d+b.n*a.d,a.d*b.d);}
+function fSub(a,b){return Fr(a.n*b.d-b.n*a.d,a.d*b.d);}
+function fMul(a,b){return Fr(a.n*b.n,a.d*b.d);}
+function fDiv(a,b){return Fr(a.n*b.d,a.d*b.n);}
+function fVal(a){return a.n/a.d;}
+function fTex(a){if(a.d===1)return ''+a.n;if(a.n<0)return '-\\dfrac{'+(-a.n)+'}{'+a.d+'}';return '\\dfrac{'+a.n+'}{'+a.d+'}';}
+function fMix(a){if(a.d===1)return ''+a.n;var neg=a.n<0,N=Math.abs(a.n),w=Math.floor(N/a.d),r=N%a.d;if(w===0)return (neg?'-':'')+'\\dfrac{'+r+'}{'+a.d+'}';if(r===0)return (neg?'-':'')+w;return (neg?'-':'')+w+'\\dfrac{'+r+'}{'+a.d+'}';}
+function pFr(a){var t=fMix(a);return a.n<0?'\\left('+t+'\\right)':t;}
+function frTeX(n,d){if(d===0)return null;if(d<0){n=-n;d=-d;}var g=gcd(n,d);n/=g;d/=g;if(d===1)return ''+n;if(n<0)return '-\\dfrac{'+(-n)+'}{'+d+'}';return '\\dfrac{'+n+'}{'+d+'}';}
+// ── Аравтын бутархай (урт хуваалт, үет илрүүлэх) ──
+function longDiv(n,d){var ip=Math.floor(n/d),rem=n%d,digits=[],seen={},idx=0,pStart=-1;
+ while(rem!==0){if(seen[rem]!==undefined){pStart=seen[rem];break;}seen[rem]=idx;rem*=10;digits.push(Math.floor(rem/d));rem%=d;idx++;if(idx>40)break;}
+ return {ip:ip,digits:digits,pStart:pStart};}
+function decLatex(fr){var neg=fr.n<0,r=longDiv(Math.abs(fr.n),fr.d),s=(neg?'-':'');
+ if(r.digits.length===0)return s+r.ip;
+ if(r.pStart<0)return s+r.ip+'.'+r.digits.join('');
+ var nonrep=r.digits.slice(0,r.pStart).join(''),rep=r.digits.slice(r.pStart).join('');
+ return s+r.ip+'.'+nonrep+'('+rep+')';}
+function decPlain(fr){var neg=fr.n<0,r=longDiv(Math.abs(fr.n),fr.d),s=(neg?'-':'');
+ if(r.digits.length===0)return s+r.ip;
+ if(r.pStart<0)return s+r.ip+'.'+r.digits.join('');
+ var nonrep=r.digits.slice(0,r.pStart).join(''),rep=r.digits.slice(r.pStart).join('');
+ return s+r.ip+'.'+nonrep+rep+rep+'…';}
+function repToFr(ip,nonrep,rep){var p=nonrep.length,q=rep.length;var Aint=nonrep===''?0:parseInt(nonrep,10);var ABint=parseInt((nonrep+rep)||'0',10);
+ var den=(Math.pow(10,q)-1)*Math.pow(10,p);var num=ABint-Aint;var frac=Fr(num,den);var whole=Fr(ip,1);return fAdd(whole,frac);}
+// ── Тоймлол ──
+function roundPlace(n,place){return Math.round(n/place)*place;}
+function roundDec(x,step){return Math.round(x/step)*step;}
+function fmtDec(x,dec){return x.toFixed(dec);}
+function sigRound(x,k){if(x===0)return {v:0,dec:0};var d=Math.floor(Math.log10(Math.abs(x)))+1;var p=k-d;var mag=Math.pow(10,p);var v=Math.round(x*mag)/mag;return {v:v,dec:Math.max(0,p)};}
+// ── Зэрэг форматлах ──
+function powClean(b,e){if(e===1)return ''+b;if(e===0)return '1';return b+'^{'+e+'}';}
+function powTex(bTex,e){if(e===1)return bTex;if(e===0)return '1';return bTex+'^{'+e+'}';}
+// ── Аравтын тоог хамгийн энгийн хэлбэрээр (0.50→0.5) ──
+function trimZeros(s){if(s.indexOf('.')<0)return s;s=s.replace(/0+$/,'');if(s.charAt(s.length-1)==='.')s=s.slice(0,-1);return s;}
+function decStr(x,maxdec){var s=x.toFixed(maxdec||6);return trimZeros(s);}
+// ── 2D координатын зураг ──
+function plane(opts){opts=opts||{};var W=200,H=200,pad=16,R=opts.xr||5,cx=W/2,cy=H/2,u=(W-2*pad)/(2*R);
+ function X(x){return (cx+x*u).toFixed(1);}function Y(y){return (cy-y*u).toFixed(1);}
+ var g='',i;
+ for(i=-R;i<=R;i++){g+='<line x1="'+X(i)+'" y1="'+Y(-R)+'" x2="'+X(i)+'" y2="'+Y(R)+'" stroke="#eef" stroke-width="1"/>';g+='<line x1="'+X(-R)+'" y1="'+Y(i)+'" x2="'+X(R)+'" y2="'+Y(i)+'" stroke="#eef" stroke-width="1"/>';}
+ g+='<line x1="'+X(-R)+'" y1="'+Y(0)+'" x2="'+X(R)+'" y2="'+Y(0)+'" stroke="#555" stroke-width="1.3"/>';
+ g+='<line x1="'+X(0)+'" y1="'+Y(-R)+'" x2="'+X(0)+'" y2="'+Y(R)+'" stroke="#555" stroke-width="1.3"/>';
+ g+='<polygon points="'+X(R)+','+Y(0)+' '+(+X(R)-5)+','+(+Y(0)-3)+' '+(+X(R)-5)+','+(+Y(0)+3)+'" fill="#555"/>';
+ g+='<polygon points="'+X(0)+','+Y(R)+' '+(+X(0)-3)+','+(+Y(R)+5)+' '+(+X(0)+3)+','+(+Y(R)+5)+'" fill="#555"/>';
+ g+='<text x="'+(+X(R)-3)+'" y="'+(+Y(0)+12)+'" font-size="10" font-style="italic" fill="#555">x</text>';
+ g+='<text x="'+(+X(0)+5)+'" y="'+(+Y(R)+8)+'" font-size="10" font-style="italic" fill="#555">y</text>';
+ if(!opts.blank){
+  (opts.lines||[]).forEach(function(L){var y1=L.k*(-R)+L.b,y2=L.k*R+L.b;g+='<line x1="'+X(-R)+'" y1="'+Y(y1)+'" x2="'+X(R)+'" y2="'+Y(y2)+'" stroke="'+(L.color||'#7B52EE')+'" stroke-width="2"/>';});
+  (opts.pts||[]).forEach(function(p){g+='<circle cx="'+X(p.x)+'" cy="'+Y(p.y)+'" r="3" fill="#dc2626"/>'+(p.l?'<text x="'+(+X(p.x)+4)+'" y="'+(+Y(p.y)-4)+'" font-size="9" font-weight="700" fill="#b91c1c">'+p.l+'</text>':'');});
+ }
+ return '<svg viewBox="0 0 '+W+' '+H+'" width="188">'+g+'</svg>';}
+// ── Тооны шулуун (blank, зөвхөн хуваарь; цэгийг тэмдэглэхгүй тул хариу илчлэхгүй) ──
+function numline(lo,hi){var W=320,H=44,pad=18,u=(W-2*pad)/(hi-lo);var g='<line x1="'+pad+'" y1="26" x2="'+(W-pad)+'" y2="26" stroke="#555" stroke-width="1.4"/>';
+ g+='<polygon points="'+(W-pad)+',26 '+(W-pad-6)+',23 '+(W-pad-6)+',29" fill="#555"/>';
+ for(var v=lo;v<=hi;v++){var x=pad+(v-lo)*u;g+='<line x1="'+x+'" y1="22" x2="'+x+'" y2="30" stroke="#555" stroke-width="1"/>';g+='<text x="'+x+'" y="41" font-size="9" text-anchor="middle" fill="#555">'+v+'</text>';}
+ return '<svg viewBox="0 0 '+W+' '+H+'" width="300">'+g+'</svg>';}
+// ── Эйлер-Веннийн диаграм (2 олонлог, blank) ──
+function venn2(la,lb){la=la||'A';lb=lb||'B';var g='<rect x="6" y="6" width="248" height="118" rx="6" fill="none" stroke="#b9b0d6"/>';
+ g+='<circle cx="102" cy="65" r="50" fill="rgba(123,82,238,0.13)" stroke="#7B52EE" stroke-width="1.4"/>';
+ g+='<circle cx="158" cy="65" r="50" fill="rgba(168,85,247,0.13)" stroke="#A855F7" stroke-width="1.4"/>';
+ g+='<text x="70" y="70" font-size="14" font-style="italic" fill="#5a32d6">'+la+'</text>';
+ g+='<text x="186" y="70" font-size="14" font-style="italic" fill="#5a32d6">'+lb+'</text>';
+ return '<svg viewBox="0 0 260 130" width="210">'+g+'</svg>';}
+// ══════════ 8-р анги · VI БҮЛЭГ · Өнцөг, дүрс, байгуулалт ══════════
+// Асуулт (q) нь ЗӨВХӨН өгөгдөл. Заавар нь g8ch6.plan.json дахь task.label-д ганц удаа.
+// Сурах бичгийн 96-119 хуудасны дасгалын хэлбэрүүдийг баримталсан.
+
+function rnd(a,b){return a+Math.floor(Math.random()*(b-a+1));}
+function nz(a,b){var v;do{v=rnd(a,b);}while(v===0);return v;}
+function pick(a){return a[rnd(0,a.length-1)];}
+function shuffle(a){a=a.slice();for(var i=a.length-1;i>0;i--){var j=rnd(0,i),t=a[i];a[i]=a[j];a[j]=t;}return a;}
+function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){var t=b;b=a%b;a=t;}return a||1;}
+function frTeX(n,d){if(d===0)return null;if(d<0){n=-n;d=-d;}var g=gcd(n,d);n/=g;d/=g;if(d===1)return ''+n;if(n<0)return '-\\dfrac{'+(-n)+'}{'+d+'}';return '\\dfrac{'+n+'}{'+d+'}';}
+function sgn(n){return n>=0?'+'+n:''+n;}
 function sqSimp(N){if(N<0)return null;var out=1,r=N;for(var f=2;f*f<=r;f++){while(r%(f*f)===0){out*=f;r/=(f*f);}}if(r===1)return ''+out;return (out===1?'':out)+'\\sqrt{'+r+'}';}
-// ── SVG зургууд ──
-function rTri(bh,bv,lb,lv,lc){ // horizontal leg bh, vertical leg bv (drawing units), labels
- var W=170,H=140,ox=30,oy=110,sc=Math.min(110/Math.max(bh,1),80/Math.max(bv,1));var w=bh*sc,h=bv*sc;
+function isqrt(n){if(n<0)return null;var r=Math.round(Math.sqrt(n));return r*r===n?r:null;}
+function dstr(x){var s=(Math.round(x*10000)/10000).toString();return s;}
+function tsgn(c){return c===0?'':(c>0?'+'+c:''+c);}
+
+// ══════════ SVG туслахууд ══════════
+var PC='#7B52EE', RD='#b91c1c', TXT='#333';
+function vAdd(a,b){return [a[0]+b[0],a[1]+b[1]];}
+function vSub(a,b){return [a[0]-b[0],a[1]-b[1]];}
+function vMul(a,k){return [a[0]*k,a[1]*k];}
+function vLen(a){var L=Math.sqrt(a[0]*a[0]+a[1]*a[1]);return L||1;}
+function vN(a){var L=vLen(a);return [a[0]/L,a[1]/L];}
+function sv(w,h,body,px){return '<svg viewBox="0 0 '+w+' '+h+'" width="'+px+'">'+body+'</svg>';}
+function tx(x,y,s,o){o=o||{};return '<text x="'+(+x).toFixed(1)+'" y="'+(+y).toFixed(1)+'" font-size="'+(o.fs||10)+'" fill="'+(o.c||TXT)+'" text-anchor="'+(o.an||'middle')+'"'+(o.it?' font-style="italic"':'')+'>'+s+'</text>';}
+function ln(a,b,o){o=o||{};return '<line x1="'+a[0].toFixed(1)+'" y1="'+a[1].toFixed(1)+'" x2="'+b[0].toFixed(1)+'" y2="'+b[1].toFixed(1)+'" stroke="'+(o.c||PC)+'" stroke-width="'+(o.w||1.5)+'"'+(o.d?' stroke-dasharray="4 3"':'')+'/>';}
+function pgn(pts,o){o=o||{};return '<polygon points="'+pts.map(function(p){return p[0].toFixed(1)+','+p[1].toFixed(1);}).join(' ')+'" fill="'+(o.f||'rgba(123,82,238,0.07)')+'" stroke="'+(o.c||PC)+'" stroke-width="'+(o.w||1.6)+'"/>';}
+function dotAt(p,o){o=o||{};return '<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="'+(o.r||2.4)+'" fill="'+(o.c||'#333')+'"/>';}
+function rAngMark(P,A,B,s){s=s||9;var u=vN(vSub(A,P)),v=vN(vSub(B,P));
+ var p1=vAdd(P,vMul(u,s)),p2=vAdd(vAdd(P,vMul(u,s)),vMul(v,s)),p3=vAdd(P,vMul(v,s));
+ return '<polyline points="'+[p1,p2,p3].map(function(p){return p[0].toFixed(1)+','+p[1].toFixed(1);}).join(' ')+'" fill="none" stroke="'+PC+'" stroke-width="1.1"/>';}
+function angArc(P,A,B,r,lab,col,loff,refl){
+ var a1=Math.atan2(-(A[1]-P[1]),A[0]-P[0]), a2=Math.atan2(-(B[1]-P[1]),B[0]-P[0]);
+ var d=a2-a1; while(d<=-Math.PI)d+=2*Math.PI; while(d>Math.PI)d-=2*Math.PI;
+ if(refl)d=(d>0)?(d-2*Math.PI):(d+2*Math.PI);
+ var s=[P[0]+r*Math.cos(a1),P[1]-r*Math.sin(a1)], e=[P[0]+r*Math.cos(a2),P[1]-r*Math.sin(a2)];
+ var sweep=d>0?0:1, la=Math.abs(d)>Math.PI?1:0;
+ var g='<path d="M '+s[0].toFixed(1)+' '+s[1].toFixed(1)+' A '+r+' '+r+' 0 '+la+' '+sweep+' '+e[0].toFixed(1)+' '+e[1].toFixed(1)+'" fill="none" stroke="'+(col||RD)+'" stroke-width="1.2"/>';
+ if(lab){var m=a1+d/2, rr=r+(loff||11);g+=tx(P[0]+rr*Math.cos(m), P[1]-rr*Math.sin(m)+3.4, lab,{c:col||RD,fs:9.5});}
+ return g;}
+function edgeLab(pts,labs,inset){var g='',i,n=pts.length,cx=0,cy=0;
+ for(i=0;i<n;i++){cx+=pts[i][0];cy+=pts[i][1];}cx/=n;cy/=n;
+ for(i=0;i<n;i++){if(!labs[i])continue;var A=pts[i],B=pts[(i+1)%n];
+  var m=[(A[0]+B[0])/2,(A[1]+B[1])/2];var d=vN(vSub(m,[cx,cy]));
+  var p=vAdd(m,vMul(d,inset||13));g+=tx(p[0],p[1]+3.4,labs[i],{fs:9.5});}
+ return g;}
+
+// ── Гүдгэр олон өнцөгт, дотоод өнцгийн шошготой ──
+var RRV=[1,0.93,1.03,0.9,0.99,1.05,0.94,1.01,0.96,1.02];
+function polyFig(labs){var n=labs.length,cx=96,cy=94,R=66,pts=[],i;
+ for(i=0;i<n;i++){var a=(90+i*360/n)*Math.PI/180,k=R*RRV[i%RRV.length];
+  pts.push([cx+k*Math.cos(a),cy-k*Math.sin(a)]);}
+ var g=pgn(pts);
+ for(i=0;i<n;i++){if(!labs[i])continue;
+  var pv=pts[(i+n-1)%n],nx=pts[(i+1)%n];
+  g+=angArc(pts[i],pv,nx,12,null,'#94a3b8');
+  var bi=vN(vAdd(vN(vSub(pv,pts[i])),vN(vSub(nx,pts[i]))));
+  var lp=vAdd(pts[i],vMul(bi,25));
+  g+=tx(lp[0],lp[1]+3.4,labs[i],{fs:9.5,c:RD});}
+ return sv(192,190,g,178);}
+
+// ── Тэгш өнцөгт гурвалжин (доод катет, зүүн катет, гипотенуз) ──
+function rtFig(hb,hv,lb,lv,lc){
+ var W=200,H=144,ox=46,oy=116;
+ var sc=Math.min(122/Math.max(hb,0.4),86/Math.max(hv,0.4));
+ var w=hb*sc,h=hv*sc;
  var A=[ox,oy],B=[ox+w,oy],C=[ox,oy-h];
- var g='<polygon points="'+A[0]+','+A[1]+' '+B[0]+','+B[1]+' '+C[0]+','+C[1]+'" fill="rgba(123,82,238,0.08)" stroke="#7B52EE" stroke-width="1.6"/>';
- g+='<rect x="'+A[0]+'" y="'+(A[1]-9)+'" width="9" height="9" fill="none" stroke="#7B52EE" stroke-width="1"/>';
- g+='<text x="'+(ox+w/2)+'" y="'+(oy+14)+'" font-size="10" fill="#333" text-anchor="middle">'+lb+'</text>';
- g+='<text x="'+(ox-8)+'" y="'+(oy-h/2)+'" font-size="10" fill="#333" text-anchor="end">'+lv+'</text>';
- g+='<text x="'+((ox+w/2)+6)+'" y="'+((oy-h/2)-4)+'" font-size="10" fill="#dc2626" text-anchor="start">'+lc+'</text>';
- return '<svg viewBox="0 0 '+W+' '+H+'" width="150">'+g+'</svg>';}
-function circAng(deg,inscribed){var cx=75,cy=75,R=55;var g='<circle cx="'+cx+'" cy="'+cy+'" r="'+R+'" fill="none" stroke="#7B52EE" stroke-width="1.5"/>';
- var aA=210*Math.PI/180, aB=(210-deg)*Math.PI/180;
- var A=[cx+R*Math.cos(aA),cy-R*Math.sin(aA)],B=[cx+R*Math.cos(aB),cy-R*Math.sin(aB)];
- g+='<circle cx="'+cx+'" cy="'+cy+'" r="2.5" fill="#333"/><text x="'+(cx-3)+'" y="'+(cy-6)+'" font-size="10" font-style="italic">O</text>';
- g+='<line x1="'+cx+'" y1="'+cy+'" x2="'+A[0].toFixed(1)+'" y2="'+A[1].toFixed(1)+'" stroke="#555" stroke-width="1.3"/>';
- g+='<line x1="'+cx+'" y1="'+cy+'" x2="'+B[0].toFixed(1)+'" y2="'+B[1].toFixed(1)+'" stroke="#555" stroke-width="1.3"/>';
- g+='<text x="'+(A[0]-10).toFixed(1)+'" y="'+(A[1]+4).toFixed(1)+'" font-size="10" font-style="italic">A</text>';
- g+='<text x="'+(B[0]+2).toFixed(1)+'" y="'+(B[1]+4).toFixed(1)+'" font-size="10" font-style="italic">B</text>';
- if(inscribed){var aC=30*Math.PI/180;var C=[cx+R*Math.cos(aC),cy-R*Math.sin(aC)];g+='<line x1="'+C[0].toFixed(1)+'" y1="'+C[1].toFixed(1)+'" x2="'+A[0].toFixed(1)+'" y2="'+A[1].toFixed(1)+'" stroke="#dc2626" stroke-width="1.3"/><line x1="'+C[0].toFixed(1)+'" y1="'+C[1].toFixed(1)+'" x2="'+B[0].toFixed(1)+'" y2="'+B[1].toFixed(1)+'" stroke="#dc2626" stroke-width="1.3"/><text x="'+(C[0]+3).toFixed(1)+'" y="'+(C[1]).toFixed(1)+'" font-size="10" font-style="italic" fill="#b91c1c">C</text>';}
- return '<svg viewBox="0 0 150 150" width="140">'+g+'</svg>';}
-function polyReg(n){var cx=75,cy=72,R=52;var pts=[];for(var i=0;i<n;i++){var a=(-90+i*360/n)*Math.PI/180;pts.push((cx+R*Math.cos(a)).toFixed(1)+','+(cy+R*Math.sin(a)).toFixed(1));}
- return '<svg viewBox="0 0 150 148" width="130"><polygon points="'+pts.join(' ')+'" fill="rgba(123,82,238,0.08)" stroke="#7B52EE" stroke-width="1.6"/></svg>';}
+ var g=pgn([A,B,C])+rAngMark(A,B,C,9);
+ if(lb)g+=tx(ox+w/2,oy+15,lb);
+ if(lv)g+=tx(ox-7,oy-h/2+3.4,lv,{an:'end'});
+ if(lc)g+=tx(ox+w/2+9,oy-h/2-5,lc,{an:'start'});
+ return sv(W,H,g,182);}
 
-var PNAME={3:'гурвалжин',4:'дөрвөн өнцөгт',5:'таван өнцөгт',6:'зургаан өнцөгт',7:'долоон өнцөгт',8:'найман өнцөгт',9:'есөн өнцөгт',10:'арван өнцөгт',12:'арван хоёр өнцөгт'};
-// ════════ 6.1 Олон өнцөгтийн өнцөг ════════
-function g_polyAngleSum(){var n=pick([5,6,7,8,9,10,12]);var s=(n-2)*180;
- return {q:'Гүдгэр $'+n+'$ өнцөгтийн дотоод өнцгүүдийн нийлбэрийг ол.',a:'$(n-2)\\cdot180^\\circ=('+n+'-2)\\cdot180^\\circ='+s+'^\\circ$',key:'pas'+n,nv:s,fig:polyReg(n>10?10:n)};}
-function g_regPolyInterior(){var n=pick([3,4,5,6,8,9,10,12]);var s=(n-2)*180,each=s/n;
- return {q:'Зөв $'+n+'$ өнцөгтийн нэг дотоод өнцгийг ол.',a:'$\\dfrac{(n-2)\\cdot180^\\circ}{n}=\\dfrac{'+s+'^\\circ}{'+n+'}='+each+'^\\circ$',key:'rpi'+n,nv:each,fig:polyReg(n>10?10:n)};}
-function g_polyMissing(){var n=pick([4,5]);var s=(n-2)*180;var angs=[];var used=0;for(var i=0;i<n-1;i++){var a=rnd(70,140);angs.push(a);used+=a;}var miss=s-used;if(miss<20||miss>170)return null;
- return {q:'Гүдгэр $'+n+'$ өнцөгтийн $'+(n-1)+'$ өнцөг нь $'+angs.map(function(a){return a+'^\\circ';}).join(',\\ ')+'$ бол мэдэгдэхгүй өнцгийг ол.',a:'$'+s+'^\\circ-('+angs.join('+')+')^\\circ='+miss+'^\\circ$',key:'pm'+n+angs.join(),nv:miss};}
-function g_regPolyExterior(){var n=pick([3,4,5,6,8,9,10,12,18,36]);var ext=360/n;
- return {q:'Зөв $'+n+'$ өнцөгтийн нэг гадаад өнцгийг ол.',a:'$\\dfrac{360^\\circ}{n}=\\dfrac{360^\\circ}{'+n+'}='+ext+'^\\circ$',key:'rpe'+n,nv:ext};}
-function g_polyFromExt(){var n=pick([4,5,6,8,9,10,12]);var ext=360/n;
- return {q:'Зөв олон өнцөгтийн нэг гадаад өнцөг $'+ext+'^\\circ$ бол талын тоог ол.',a:'$n=\\dfrac{360^\\circ}{'+ext+'^\\circ}='+n+'$',key:'pfe'+n,nv:n};}
+// ── Тэгш өнцөгт (диагональтай) ──
+function rectFig(a,b,la,lb,ld){
+ var ox=48,oy=112,sc=Math.min(116/a,76/b),w=a*sc,h=b*sc;
+ var A=[ox,oy],B=[ox+w,oy],C=[ox+w,oy-h],D=[ox,oy-h];
+ var g=pgn([A,B,C,D])+ln(A,C,{c:'#dc2626',w:1.4})+rAngMark(A,B,D,8);
+ if(la)g+=tx(ox+w/2,oy+15,la);
+ if(lb)g+=tx(ox+w+7,oy-h/2+3.4,lb,{an:'start'});
+ if(ld)g+=tx(ox+w/2-4,oy-h/2-3,ld,{an:'end',c:'#b91c1c'});
+ return sv(200,142,g,182);}
 
-// ════════ 6.2 Гурвалжны шугамууд ════════
-function g_midsegment(){var b=pick([8,10,12,14,16,6,18,20]);var mode=pick(['find','rev']);
- if(mode==='find')return {q:'Гурвалжны сууриа $'+b+'$ см. Уг суурьтай харгалзах дундаж шугамын уртыг ол.',a:'Дундаж шугам суурийн хагастай тэнцүү: $\\dfrac{'+b+'}{2}='+(b/2)+'$ см',key:'ms'+b,nv:b/2};
- return {q:'Гурвалжны дундаж шугам $'+(b/2)+'$ см бол харгалзах суурийн уртыг ол.',a:'Суурь дундаж шугамын хоёр дахин: $2\\cdot'+(b/2)+'='+b+'$ см',key:'msr'+b,nv:b};}
+// ── Ромб (диагональтай) ──
+function rhombFig(d1,d2,l1,l2,ls){
+ var cx=100,cy=74,sc=Math.min(120/d1,86/d2),w=d1*sc/2,h=d2*sc/2;
+ var L=[cx-w,cy],R2=[cx+w,cy],T=[cx,cy-h],B=[cx,cy+h];
+ var g=pgn([L,T,R2,B])+ln(L,R2,{c:'#dc2626',w:1.3})+ln(T,B,{c:'#dc2626',w:1.3})+rAngMark([cx,cy],R2,T,8);
+ if(l1)g+=tx(cx-w/2,cy-4,l1,{fs:9.5});
+ if(l2)g+=tx(cx+7,cy-h/2,l2,{fs:9.5,an:'start'});
+ if(ls)g+=tx((cx+w/2)+7,(cy-h/2)-4,ls,{fs:9.5,an:'start'});
+ return sv(200,150,g,182);}
+
+// ── Адил хажуут гурвалжин, өндөртэй ──
+function isoFig(base,leg,lb,ll,lh){
+ var hh=Math.sqrt(Math.max(leg*leg-base*base/4,1));
+ var sc=Math.min(120/base,80/hh),ox=100,oy=112,w=base*sc/2,h=hh*sc;
+ var A=[ox-w,oy],B=[ox+w,oy],C=[ox,oy-h],M=[ox,oy];
+ var g=pgn([A,B,C])+ln(C,M,{c:'#dc2626',w:1.3,d:1})+rAngMark(M,B,C,8);
+ if(lb)g+=tx(ox,oy+15,lb);
+ if(ll)g+=tx((ox-w/2)-9,(oy-h/2)+3,ll,{an:'end'});
+ if(lh)g+=tx(ox+6,oy-h/2,lh,{an:'start',c:'#b91c1c'});
+ return sv(200,144,g,182);}
+
+// ── Трапец (адил хажуут эсвэл тэгш өнцөгт) ──
+function trapFig(top,bot,ht,lt,lb,lh,ll,right){
+ var sc=Math.min(118/bot,72/ht),ox=44,oy=112,W2=bot*sc,T=top*sc,h=ht*sc;
+ var off=right?0:(W2-T)/2;
+ var A=[ox,oy],B=[ox+W2,oy],C=[ox+off+T,oy-h],D=[ox+off,oy-h];
+ var g=pgn([A,B,C,D])+ln(D,[ox+off,oy],{c:'#dc2626',w:1.2,d:1})+rAngMark([ox+off,oy],B,D,8);
+ if(lb)g+=tx(ox+W2/2,oy+15,lb);
+ if(lt)g+=tx(ox+off+T/2,oy-h-6,lt);
+ if(lh)g+=tx(ox+off+6,oy-h/2,lh,{an:'start',c:'#b91c1c'});
+ if(ll)g+=tx((ox+W2+ox+off+T)/2+8,oy-h/2,ll,{an:'start'});
+ return sv(200,146,g,182);}
+
+// ── Гурвалжин + гипотенуз руу буусан өндөр ──
+function altFig(p,q,lh,lp,lq,lb,lc){
+ var sc=Math.min(120/(p+q),1.6),ox=42,oy=112;
+ var hh=Math.sqrt(p*q)||1;var h=Math.min(hh*sc,78);
+ var A=[ox,oy],B=[ox+(p+q)*sc,oy],D=[ox+q*sc,oy],C=[ox+q*sc,oy-h];
+ var g=pgn([A,B,C])+ln(C,D,{c:'#dc2626',w:1.3})+rAngMark(D,B,C,8);
+ if(lq)g+=tx((A[0]+D[0])/2,oy+15,lq);
+ if(lp)g+=tx((D[0]+B[0])/2,oy+15,lp);
+ if(lh)g+=tx(D[0]-6,oy-h/2,lh,{an:'end',c:'#b91c1c'});
+ if(lc)g+=tx((A[0]+C[0])/2-8,(oy+C[1])/2-4,lc,{an:'end'});
+ if(lb)g+=tx((B[0]+C[0])/2+8,(oy+C[1])/2-4,lb,{an:'start'});
+ return sv(200,146,g,186);}
+
+// ── Тойргийн зураг ──
+function CF(o){o=o||{};var W=o.W||162,H=o.H||162,cx=W/2,cy=H/2,R=o.R||58;
+ function P(a){var r=a*Math.PI/180;return [cx+R*Math.cos(r),cy-R*Math.sin(r)];}
+ var pts={O:[cx,cy]},g='';
+ (o.pts||[]).forEach(function(p){pts[p.n]=P(p.a);});
+ (o.arcs||[]).forEach(function(A){var s=P(A.a1),e=P(A.a2);
+  var d=((A.a2-A.a1)%360+360)%360;var la=d>180?1:0;
+  g+='<path d="M '+s[0].toFixed(1)+' '+s[1].toFixed(1)+' A '+R+' '+R+' 0 '+la+' 0 '+e[0].toFixed(1)+' '+e[1].toFixed(1)+'" fill="none" stroke="'+(A.c||'#111827')+'" stroke-width="'+(A.w||3.2)+'"/>';});
+ g+='<circle cx="'+cx+'" cy="'+cy+'" r="'+R+'" fill="none" stroke="'+PC+'" stroke-width="1.5"/>';
+ (o.seg||[]).forEach(function(s){if(!pts[s[0]]||!pts[s[1]])return;g+=ln(pts[s[0]],pts[s[1]],{c:s[2]||'#555',w:s[3]||1.4});});
+ (o.ray||[]).forEach(function(s){if(!pts[s[0]]||!pts[s[1]])return;
+  var A=pts[s[0]],B=pts[s[1]];var u=vN(vSub(B,A));g+=ln(A,vAdd(B,vMul(u,s[2]||24)),{c:s[3]||'#555',w:1.4});});
+ (o.ang||[]).forEach(function(a){if(!pts[a.at]||!pts[a.f]||!pts[a.t])return;
+  g+=angArc(pts[a.at],pts[a.f],pts[a.t],a.r||15,a.l||null,a.c||RD,a.o,a.refl);});
+ (o.pts||[]).forEach(function(p){g+=dotAt(pts[p.n],{r:2.2});
+  var r=(p.a)*Math.PI/180;g+=tx(cx+(R+11)*Math.cos(r),cy-(R+11)*Math.sin(r)+3.4,p.n,{it:1,fs:10.5});});
+ (o.ext||[]).forEach(function(e){pts[e.n]=e.p;g+=dotAt(e.p,{r:2.2});g+=tx(e.p[0]+(e.dx||8),e.p[1]+(e.dy||4),e.n,{it:1,fs:10.5,an:'start'});});
+ if(o.O!==false){g+=dotAt([cx,cy],{r:2.4})+tx(cx-4,cy-6,'O',{it:1,fs:10.5,an:'end'});}
+ return sv(W,H,g,o.px||152);}
+
+// ── Гадна цэгээс татсан хоёр шүргэгч ──
+function tanFig(mLab,oLab){
+ var cx=74,cy=76,R=44,th=40*Math.PI/180;
+ var A=[cx+R*Math.cos(th),cy-R*Math.sin(th)],B=[cx+R*Math.cos(-th),cy-R*Math.sin(-th)];
+ var M=[cx+R/Math.cos(th),cy];
+ var g='<circle cx="'+cx+'" cy="'+cy+'" r="'+R+'" fill="none" stroke="'+PC+'" stroke-width="1.5"/>';
+ g+=ln([cx,cy],A,{c:'#7B52EE',w:1.3})+ln([cx,cy],B,{c:'#7B52EE',w:1.3});
+ g+=ln(A,M,{c:'#dc2626',w:1.5})+ln(B,M,{c:'#dc2626',w:1.5})+ln(A,B,{c:'#94a3b8',w:1.2});
+ g+=rAngMark(A,[cx,cy],M,8)+rAngMark(B,M,[cx,cy],8);
+ g+=dotAt([cx,cy],{r:2.4})+dotAt(A,{r:2.2})+dotAt(B,{r:2.2})+dotAt(M,{r:2.4});
+ g+=tx(cx-5,cy-6,'O',{it:1,an:'end'})+tx(A[0]-5,A[1]-6,'A',{it:1,an:'end'})+tx(B[0]-5,B[1]+12,'B',{it:1,an:'end'})+tx(M[0]+7,M[1]+4,'M',{it:1,an:'start'});
+ if(mLab)g+=angArc(M,A,B,17,mLab,RD);
+ if(oLab)g+=angArc([cx,cy],A,B,15,oLab,'#0f766e');
+ return sv(200,152,g,180);}
+// ── a√k хэлбэрийг хялбарчлах: (a/den)·√k ──
+function radFrac(a,den,k){var g=gcd(a,den),n=a/g,d=den/g;
+ var t=(n===1?'':''+n)+'\\sqrt{'+k+'}';
+ return d===1?t:'\\dfrac{'+(n===1?'':''+n)+'\\sqrt{'+k+'}}{'+d+'}';}
+// ── Параллель шулуун ба огтлогч ──
+var PPOS={ul:[-13,-8],ur:[15,-8],ll:[-15,19],lr:[16,19]};
+function parFig(items,three){
+ var W=258,H=three?168:150;
+ var ya=44,yb=three?106:112,yc=150;
+ var g='';
+ function Xat(y){return 60+(150-y)*0.66;}
+ g+=ln([16,ya],[240,ya],{c:PC,w:1.5})+tx(24,ya-7,'a',{it:1,fs:11});
+ g+=ln([16,yb],[240,yb],{c:PC,w:1.5})+tx(24,yb-7,'b',{it:1,fs:11});
+ if(three)g+=ln([16,yc],[240,yc],{c:PC,w:1.5})+tx(24,yc-7,'c',{it:1,fs:11});
+ var y0=three?yc:yb;
+ g+=ln([Xat(y0+18),y0+18],[Xat(ya-22),ya-22],{c:'#dc2626',w:1.5});
+ items.forEach(function(it){
+  var y=it.at==='a'?ya:(it.at==='b'?yb:yc);var x=Xat(y);
+  var d=PPOS[it.p]||[0,0];
+  g+=tx(x+d[0],y+d[1],it.t,{fs:9.5,c:RD,an:'middle'});});
+ return sv(W,H,g,240);}
+
+// ── Зигзаг (a || b, дунд нь орой) ──
+function zigFig(t1,t2,tx1){
+ var g='';
+ g+=ln([16,34],[236,34],{c:PC,w:1.5})+tx(24,26,'a',{it:1,fs:11});
+ g+=ln([16,140],[236,140],{c:PC,w:1.5})+tx(24,132,'b',{it:1,fs:11});
+ var A=[168,34],M=[86,87],B=[178,140];
+ g+=ln(A,M,{c:'#dc2626',w:1.5})+ln(M,B,{c:'#dc2626',w:1.5});
+ g+=angArc(A,[236,34],M,15,t1,RD);
+ g+=angArc(B,M,[236,140],15,t2,RD);
+ g+=angArc(M,A,B,15,tx1,'#0f766e',13);
+ return sv(252,168,g,232);}
+
+// ── Хоёр төсөөтэй гурвалжин ──
+function twoTriFig(l1,l2,k){
+ var sh=[[0,0],[1,0],[0.32,-0.72]],s1=48,s2=48*k;
+ var H=Math.round(Math.max(s1,s2)*0.72+44),W=Math.round(s1+s2+96);
+ var o1=[26,H-16],o2=[26+s1+44,H-16];
+ var p1=sh.map(function(p){return [o1[0]+p[0]*s1,o1[1]+p[1]*s1];});
+ var p2=sh.map(function(p){return [o2[0]+p[0]*s2,o2[1]+p[1]*s2];});
+ return sv(W,H,pgn(p1)+edgeLab(p1,l1,12)+pgn(p2)+edgeLab(p2,l2,12),Math.min(W,240));}
+
+// ── Хоёр төсөөтэй трапец ──
+function twoTrapFig(l1,l2,k){
+ var sh=[[0,0],[1,0],[0.78,-0.6],[0.2,-0.6]],s1=52,s2=52*k;
+ var H=Math.round(Math.max(s1,s2)*0.6+44),W=Math.round(s1+s2+92);
+ var o1=[24,H-16],o2=[24+s1+40,H-16];
+ var p1=sh.map(function(p){return [o1[0]+p[0]*s1,o1[1]+p[1]*s1];});
+ var p2=sh.map(function(p){return [o2[0]+p[0]*s2,o2[1]+p[1]*s2];});
+ return sv(W,H,pgn(p1)+edgeLab(p1,l1,12)+pgn(p2)+edgeLab(p2,l2,12),Math.min(W,240));}
+
+// ── Гурвалжин + дундаж шугам ──
+function midsegFig(lb,lm){
+ var A=[30,116],B=[176,116],C=[96,30];
+ var M=[(A[0]+C[0])/2,(A[1]+C[1])/2],N=[(B[0]+C[0])/2,(B[1]+C[1])/2];
+ var g=pgn([A,B,C])+ln(M,N,{c:'#dc2626',w:1.6});
+ g+=dotAt(M,{r:2.2})+dotAt(N,{r:2.2});
+ g+=tx(A[0]-4,A[1]+12,'A',{it:1})+tx(B[0]+4,B[1]+12,'B',{it:1})+tx(C[0],C[1]-6,'C',{it:1});
+ g+=tx(M[0]-10,M[1]+3,'M',{it:1,an:'end'})+tx(N[0]+10,N[1]+3,'N',{it:1,an:'start'});
+ if(lb)g+=tx((A[0]+B[0])/2,B[1]+16,lb);
+ if(lm)g+=tx((M[0]+N[0])/2,M[1]-6,lm,{c:RD});
+ return sv(200,142,g,180);}
+
+var PNAME={3:'гурвалжин',4:'дөрвөн өнцөгт',5:'таван өнцөгт',6:'зургаан өнцөгт',7:'долоон өнцөгт',8:'найман өнцөгт',9:'есөн өнцөгт',10:'арван өнцөгт',12:'арван хоёр өнцөгт',15:'арван таван өнцөгт',18:'арван найман өнцөгт',20:'хорин өнцөгт',24:'хорин дөрвөн өнцөгт',30:'гучин өнцөгт',36:'гучин зургаан өнцөгт'};
+var NDIV=[3,4,5,6,8,9,10,12,15,18,20,24,30,36];
+
+// ════════════════ 6.1 · Олон өнцөгтийн дотоод ба гадаад өнцөг ════════════════
+function g_polyAngleSum(){var n=rnd(5,20),s=(n-2)*180;
+ return {q:'$n='+n+'$',a:'$(n-2)\\cdot 180^\\circ=('+n+'-2)\\cdot 180^\\circ='+s+'^\\circ$',key:'pas'+n,nv:s};}
+
+function g_regPolyInterior(){var n=pick(NDIV),s=(n-2)*180,each=s/n;
+ return {q:'$n='+n+'$',a:'$\\dfrac{(n-2)\\cdot 180^\\circ}{n}=\\dfrac{'+s+'^\\circ}{'+n+'}='+each+'^\\circ$',key:'rpi'+n,nv:each};}
+
+function g_regPolyExterior(){var n=pick(NDIV),ext=360/n;
+ return {q:'$n='+n+'$',a:'$\\dfrac{360^\\circ}{n}=\\dfrac{360^\\circ}{'+n+'}='+ext+'^\\circ$',key:'rpe'+n,nv:ext};}
+
+function g_polyFromExt(){var n=pick(NDIV),ext=360/n;
+ return {q:'$'+ext+'^\\circ$',a:'$n=\\dfrac{360^\\circ}{'+ext+'^\\circ}='+n+'$ тул '+PNAME[n]+'.',key:'pfe'+n,nv:n};}
+
+function g_polyFromInterior(){var n=pick(NDIV.filter(function(x){return x>3;})),ext=360/n,inte=180-ext;
+ return {q:'$'+inte+'^\\circ$',a:'Гадаад өнцөг $180^\\circ-'+inte+'^\\circ='+ext+'^\\circ$; $\\ n=\\dfrac{360^\\circ}{'+ext+'^\\circ}='+n+'$. Нийлбэр нь $('+n+'-2)\\cdot 180^\\circ='+((n-2)*180)+'^\\circ$.',key:'pfi'+n,nv:n};}
+
+function g_polyDiagonals(){var n=rnd(4,20),d=n*(n-3)/2;
+ return {q:'$n='+n+'$',a:'$\\dfrac{n(n-3)}{2}=\\dfrac{'+n+'\\cdot '+(n-3)+'}{2}='+d+'$ диагональ.',key:'pdg'+n,nv:d};}
+
+function g_polyFromDiagonals(){var n=rnd(5,20),d=n*(n-3)/2;
+ return {q:'$'+d+'$ диагональ',a:'$\\dfrac{n(n-3)}{2}='+d+'$, $\\ n^2-3n-'+(2*d)+'=0$, $\\ n='+n+'$. Дотоод өнцгүүдийн нийлбэр $'+((n-2)*180)+'^\\circ$.',key:'pfd'+n,nv:n};}
+
+function g_polyMissing(){var n=pick([4,5,5,6]),s=(n-2)*180,angs=[],used=0,i;
+ for(i=0;i<n-1;i++){var a=rnd(75,150);angs.push(a);used+=a;}
+ var miss=s-used;if(miss<45||miss>168)return null;
+ var labs=angs.map(function(a){return a+'°';});labs.push('x');
+ return {q:'$x=?$',a:'$x='+s+'^\\circ-('+angs.join('+')+')^\\circ='+s+'^\\circ-'+used+'^\\circ='+miss+'^\\circ$',
+  key:'pm'+n+angs.join('_'),nv:miss,fig:polyFig(labs)};}
+
+function g_polyAlgebraAngles(){var n=pick([5,5,6,6,7]),tot=(n-2)*180,cs=[],S=0,i;
+ for(i=0;i<n;i++){var c=(i===0)?0:pick([-40,-35,-30,-25,-20,-15,-10,10,15,20,25,30,35,40]);cs.push(c);S+=c;}
+ if((tot-S)%n!==0)return null;var x=(tot-S)/n;if(x<45||x>165)return null;
+ for(i=0;i<n;i++){if(x+cs[i]<30||x+cs[i]>172)return null;}
+ var labs=cs.map(function(c){return c===0?'x':('x'+(c>0?'+':'−')+Math.abs(c)+'°');});
+ var terms=cs.map(function(c){return c===0?'x':'(x'+tsgn(c)+')';});
+ return {q:'$x=?$',
+  a:'$'+terms.join('+')+'='+tot+'^\\circ$; $\\ '+n+'x'+tsgn(S)+'='+tot+'$; $\\ x='+x+'^\\circ$',
+  key:'pag'+n+cs.join('_'),nv:x,fig:polyFig(labs)};}
+
+function g_polyAngleRatio(){var n=pick([3,4,4,5]),tot=(n-2)*180,r=[],S=0,i;
+ for(i=0;i<n;i++){var v=rnd(2,9);r.push(v);S+=v;}
+ if(tot%S!==0)return null;var u=tot/S;
+ for(i=0;i<n;i++){if(r[i]*u<20||r[i]*u>175)return null;}
+ var g=r.reduce(function(a,b){return gcd(a,b);},r[0]);if(g>1)return null;
+ return {q:'$n='+n+'$, харьцаа $'+r.join(':')+'$',
+  a:'$'+r.join('x+')+'x='+tot+'^\\circ$; $\\ '+S+'x='+tot+'^\\circ$, $\\ x='+u+'^\\circ$. Өнцгүүд: $'+r.map(function(v){return (v*u)+'^\\circ';}).join(';\\ ')+'$',
+  key:'par'+n+r.join('_'),nv:u};}
+
+function g_polyIntExtRatio(){var P=[[1,1],[2,1],[3,1],[4,1],[5,1],[6,1],[7,1],[8,1],[9,1],[3,2],[5,2],[7,2],[9,2],[11,2],[13,2]];
+ var p=pick(P),m=p[0],k=p[1];var N=2*m/k+2;if(N!==Math.round(N)||N<3||N>40)return null;
+ var ext=360/N,inte=180-ext;if(ext!==Math.round(ext*100)/100)return null;
+ return {q:'дотоод $:$ гадаад $='+m+':'+k+'$',
+  a:'$\\dfrac{180^\\circ-\\frac{360^\\circ}{n}}{\\frac{360^\\circ}{n}}=\\dfrac{n-2}{2}=\\dfrac{'+m+'}{'+k+'}$; $\\ n='+N+'$. Гадаад өнцөг $'+dstr(ext)+'^\\circ$, дотоод өнцөг $'+dstr(inte)+'^\\circ$.',
+  key:'pier'+m+'_'+k,nv:N};}
+
+function g_regPolyCentral(){var n=pick(NDIV),c=360/n;
+ return {q:'зөв $'+n+'$ өнцөгт',a:'Тойргийг $'+n+'$ тэнцүү хуваана: $\\dfrac{360^\\circ}{'+n+'}='+c+'^\\circ$. Багтсан өнцөг нь $\\dfrac{'+c+'^\\circ}{2}='+(c/2)+'^\\circ$.',key:'rpc'+n,nv:c};}
+
+var PPAIR=[['a','ul'],['a','ur'],['a','ll'],['a','lr'],['b','ul'],['b','ur'],['b','ll'],['b','lr']];
+function pval(pos,th){return (pos==='ur'||pos==='ll')?th:180-th;}
+function preason(g,u){
+ if(g[0]===u[0])return pval(g[1],50)===pval(u[1],50)?'Орой дахь өнцгүүд тэнцүү.':'Хамар өнцгүүдийн нийлбэр $180^\\circ$.';
+ return pval(g[1],50)===pval(u[1],50)?'Харгалзах (солбисон) өнцгүүд тэнцүү.':'Нэг талын өнцгүүдийн нийлбэр $180^\\circ$.';}
+function g_parallelAngles(){var th=rnd(28,76);
+ var gi=rnd(0,7),ui=rnd(0,7);if(gi===ui)return null;
+ var G=PPAIR[gi],U=PPAIR[ui];var gv=pval(G[1],th),uv=pval(U[1],th);
+ return {q:'$x=?$',
+  a:preason(G,U)+' Иймд $x='+(gv===uv?(''+uv+'^\\circ'):('180^\\circ-'+gv+'^\\circ='+uv+'^\\circ'))+'$',
+  key:'pa'+th+gi+ui,nv:uv,
+  fig:parFig([{at:G[0],p:G[1],t:gv+'°'},{at:U[0],p:U[1],t:'x'}])};}
+
+function g_parallelAlgebra(){var th=rnd(30,74);
+ var gi=rnd(0,7),ui=rnd(0,7);if(gi===ui)return null;
+ var G=PPAIR[gi],U=PPAIR[ui];var gv=pval(G[1],th),uv=pval(U[1],th);
+ var a=rnd(2,6),b=rnd(2,6);if(a===b)return null;
+ var x=rnd(6,26);var c=gv-a*x,d=uv-b*x;
+ if(Math.abs(c)>90||Math.abs(d)>90)return null;
+ var e1=a+'x'+tsgn(c),e2=b+'x'+tsgn(d);
+ var eq=(gv===uv)?(e1+'='+e2):(e1+'+'+e2+'=180');
+ return {q:'$'+e1+'^\\circ$ ба $'+e2+'^\\circ$',
+  a:preason(G,U)+' $\\ '+eq+'$; $\\ x='+x+'$. Өнцгүүд нь $'+gv+'^\\circ$ ба $'+uv+'^\\circ$.',
+  key:'paa'+th+gi+ui+a+b+x,nv:x,
+  fig:parFig([{at:G[0],p:G[1],t:e1+'°'},{at:U[0],p:U[1],t:e2+'°'}])};}
+
+function g_parallelZigzag(){var t1=rnd(25,80),t2=rnd(25,80);var x=t1+t2;if(x>165)return null;
+ return {q:'$x=?$',
+  a:'Оройгоор $a$-тай параллель шулуун татвал солбисон өнцгүүдээр $x='+t1+'^\\circ+'+t2+'^\\circ='+x+'^\\circ$',
+  key:'pz'+t1+'_'+t2,nv:x,fig:zigFig(t1+'°',t2+'°','x')};}
+
+// ════════════════ 6.2 · Гурвалжны дундаж шугам, өндөр, медиан, биссектрис ════════════════
 var TRILINE=[
- ['оройг эсрэг талын дунджтай холбосон хэрчмийг','медиан'],
- ['оройгоос эсрэг тал руу буулгасан перпендикулярыг','өндөр'],
- ['өнцгийг тэн хуваасан цацрагийн хэрчмийг','биссектрис'],
- ['хоёр талын дундыг холбосон хэрчмийг','дундаж шугам']];
+ ['оройг эсрэг талын дунд цэгтэй холбосон хэрчим','медиан'],
+ ['оройгоос эсрэг тал руу буулгасан перпендикуляр','өндөр'],
+ ['дотоод өнцгийг тэн хуваасан цацрагийн хэрчим','биссектрис'],
+ ['хоёр талын дунд цэгүүдийг холбосон хэрчим','дундаж шугам'],
+ ['талын дунд цэгт босгосон перпендикуляр','дундаж перпендикуляр'],
+ ['гурван медианы огтлолцлын цэг','хүндийн төв'],
+ ['гурван биссектрисийн огтлолцлын цэг','багтсан тойргийн төв'],
+ ['гурван дундаж перпендикулярын огтлолцлын цэг','багтаасан тойргийн төв'],
+ ['гурван өндрийн огтлолцлын цэг','ортоцентр']];
 function g_triLineType(){var t=pick(TRILINE);
- return {q:'Гурвалжны '+t[0]+' юу гэж нэрлэдэг вэ?',a:'Энэ нь <b>'+t[1]+'</b>.',key:'tlt'+t[1]};}
+ return {q:t[0],a:'Энэ нь <b>'+t[1]+'</b>.',key:'tlt'+t[1]};}
 
-// ════════ 6.3 Пифагорын теорем ════════
-var TRIP=[[3,4,5],[6,8,10],[5,12,13],[8,15,17],[9,12,15],[7,24,25],[20,21,29],[10,24,26],[9,40,41]];
-function g_pythHyp(){var t=pick(TRIP),k=pick([1,1,2]);var a=t[0]*k,b=t[1]*k,c=t[2]*k;
- return {q:'Тэгш өнцөгт гурвалжны катетууд $'+a+'$ см, $'+b+'$ см бол гипотенузыг ол.',a:'$c=\\sqrt{a^2+b^2}=\\sqrt{'+(a*a)+'+'+(b*b)+'}=\\sqrt{'+(a*a+b*b)+'}='+c+'$ см',key:'ph'+a+b,nv:c,fig:rTri(b,a,b+' см',a+' см','c=?')};}
-function g_pythLeg(){var t=pick(TRIP),k=pick([1,1,2]);var a=t[0]*k,b=t[1]*k,c=t[2]*k;
- return {q:'Тэгш өнцөгт гурвалжны гипотенуз $'+c+'$ см, нэг катет $'+a+'$ см бол нөгөө катетыг ол.',a:'$b=\\sqrt{c^2-a^2}=\\sqrt{'+(c*c)+'-'+(a*a)+'}=\\sqrt{'+(c*c-a*a)+'}='+b+'$ см',key:'pl'+a+c,nv:b,fig:rTri(b,a,'b=?',a+' см',c+' см')};}
-function g_pythGeneral(){var a=pick([2,3,4,5,6]),b=pick([2,3,4,5,6]);var N=a*a+b*b;var s=sqSimp(N);
- return {q:'Катетууд нь $'+a+'$ см, $'+b+'$ см тэгш өнцөгт гурвалжны гипотенузыг ол.',a:'$c=\\sqrt{'+(a*a)+'+'+(b*b)+'}=\\sqrt{'+N+'}='+s+'$ см',key:'pg'+a+b,fig:rTri(b,a,b+' см',a+' см','c=?')};}
-function g_isRight(){var mode=pick(['yes','no']);var t=pick(TRIP);var sides;
- if(mode==='yes')sides=[t[0],t[1],t[2]];else sides=[t[0],t[1],t[2]+pick([1,-1,2])];
- var mx=Math.max.apply(null,sides),a=sides.filter(function(x){return x!==mx;});if(a.length<2)a=[sides[0],sides[1]];
- var isR=(a[0]*a[0]+a[1]*a[1]===mx*mx);
- return {q:'$'+sides[0]+'$ см, $'+sides[1]+'$ см, $'+sides[2]+'$ см талтай гурвалжин тэгш өнцөгт мөн үү?',a:'$'+a[0]+'^2+'+a[1]+'^2='+(a[0]*a[0]+a[1]*a[1])+'$, $\\ '+mx+'^2='+(mx*mx)+'$. '+(isR?'Тэнцүү тул <b>тэгш өнцөгт мөн</b>.':'Тэнцүү биш тул <b>тэгш өнцөгт биш</b>.'),key:'ir'+sides.join()};}
-function g_pythWord(){var t=pick([[3,4,5],[6,8,10],[5,12,13],[8,15,17]]);var wall=t[1],base=t[0],lad=t[2];
- return {q:'Шат хананд түшүүлэхэд доод үзүүр нь ханаас $'+base+'$ м зайд, дээд үзүүр нь $'+wall+'$ м өндөрт хүрэв. Шатны уртыг ол.',a:'$\\sqrt{'+base+'^2+'+wall+'^2}=\\sqrt{'+(base*base+wall*wall)+'}='+lad+'$ м',key:'pw'+base+wall,nv:lad,fig:rTri(base,wall,base+' м',wall+' м','?')};}
+function g_midsegment(){var b=pick([6,8,10,12,14,16,18,20,22,24,26,30,36]),m=pick(['f','r']);
+ if(m==='f')return {q:'$AB='+b+'$ см, $MN$ — дундаж шугам',
+  a:'Дундаж шугам суурийн хагастай тэнцүү: $MN=\\dfrac{'+b+'}{2}='+(b/2)+'$ см',key:'ms'+b,nv:b/2,fig:midsegFig(b+' см','MN = ?')};
+ return {q:'$MN='+(b/2)+'$ см, $MN$ — дундаж шугам',
+  a:'Суурь дундаж шугамын хоёр дахин: $AB=2\\cdot '+(b/2)+'='+b+'$ см',key:'msr'+b,nv:b,fig:midsegFig('AB = ?',(b/2)+' см')};}
 
-// ════════ 6.4 Тойрог ба шулууны байршил ════════
-function g_circleLine(){var r=pick([5,6,8,10,4]),d=pick([r-2,r,r+3,r-3,r+1]);if(d<0)return null;
- var pos=d<r?'хоёр цэгээр огтолно (секанс)':d===r?'нэг цэгт шүргэнэ (шүргэгч)':'огтлолцохгүй';
- return {q:'Тойргийн радиус $R='+r+'$, төвөөс шулуун хүртэлх зай $d='+d+'$ бол тэдгээрийн харилцан байршлыг тодорхойл.',a:'$d='+d+(d<r?'\\lt ':d===r?'=':'\\gt ')+'R='+r+'$ тул шулуун тойргийг <b>'+pos+'</b>.',key:'cl'+r+d};}
+function g_medialPerimeter(){var a=rnd(6,24),b=rnd(6,24),c=rnd(6,24);
+ if(a+b<=c||a+c<=b||b+c<=a)return null;var P=a+b+c;if(P%2)return null;
+ return {q:'$'+a+'$ см, $'+b+'$ см, $'+c+'$ см',
+  a:'Дундаж шугам бүр харгалзах талын хагас тул периметр нь хагас: $\\dfrac{'+a+'+'+b+'+'+c+'}{2}=\\dfrac{'+P+'}{2}='+(P/2)+'$ см',
+  key:'mp'+a+'_'+b+'_'+c,nv:P/2};}
 
-// ════════ 6.5 Төв ба тойрогт багтсан өнцөг ════════
-function g_centralArc(){var deg=pick([30,45,60,90,120,135,150]);var mode=pick(['toArc','toCentral']);
- if(mode==='toArc')return {q:'Тойргийн төв өнцөг $\\angle AOB='+deg+'^\\circ$ бол түүнд тулсан $AB$ нумын хэмжээг ол.',a:'Төв өнцөг тулсан нумтайгаа тэнцүү: $\\overparen{AB}='+deg+'^\\circ$',key:'ca'+deg,nv:deg,fig:circAng(deg,false)};
- return {q:'$AB$ нумын хэмжээ $'+deg+'^\\circ$ бол түүнд тулсан төв өнцгийг ол.',a:'$\\angle AOB=\\overparen{AB}='+deg+'^\\circ$',key:'cc'+deg,nv:deg,fig:circAng(deg,false)};}
-function g_inscribed(){var mode=pick(['fromCentral','fromArc','semicircle']);
- if(mode==='semicircle')return {q:'Тойргийн диаметрт тулсан (хагас тойрогт багтсан) өнцгийг ол.',a:'Диаметр нь $180^\\circ$ нум тул багтсан өнцөг $\\dfrac{180^\\circ}{2}=90^\\circ$.',key:'ins90',nv:90,fig:circAng(180,true)};
- var deg=pick([40,60,80,100,120,140]);
- if(mode==='fromCentral')return {q:'$AB$ нумд тулсан төв өнцөг $'+deg+'^\\circ$ бол мөн нумд тулсан багтсан өнцгийг ол.',a:'Багтсан өнцөг төв өнцгийн хагас: $\\dfrac{'+deg+'^\\circ}{2}='+(deg/2)+'^\\circ$',key:'if'+deg,nv:deg/2,fig:circAng(deg,true)};
- return {q:'$AB$ нумын хэмжээ $'+deg+'^\\circ$ бол уг нумд тулсан багтсан өнцгийг ол.',a:'Багтсан өнцөг нумын хагас: $\\dfrac{'+deg+'^\\circ}{2}='+(deg/2)+'^\\circ$',key:'ia'+deg,nv:deg/2,fig:circAng(deg,true)};}
+function g_medianHyp(){var c=pick([10,12,14,16,18,20,24,26,30,34,36,40,50]),m=pick(['f','r']);
+ if(m==='f')return {q:'гипотенуз $='+c+'$ см',
+  a:'Тэгш өнцгийн оройгоос буусан медиан гипотенузын хагастай тэнцүү: $\\dfrac{'+c+'}{2}='+(c/2)+'$ см',key:'mh'+c,nv:c/2};
+ return {q:'медиан $='+(c/2)+'$ см',
+  a:'Гипотенуз медианы хоёр дахин: $2\\cdot '+(c/2)+'='+c+'$ см',key:'mhr'+c,nv:c};}
 
-// ════════ 6.6 Төсөөтэй дүрсүүд ════════
-function g_simRatio(){var k=pick([2,3,1.5,2.5]);var a=pick([4,6,8,10]);var b=a*k;if(b!==Math.round(b*10)/10)return null;
- return {q:'Хоёр төсөөтэй гурвалжны харгалзах талууд $'+a+'$ см ба $'+b+'$ см бол төсөөгийн коэффициентийг ол.',a:'$k=\\dfrac{'+b+'}{'+a+'}='+(Math.round(k*100)/100)+'$',key:'sr'+a+b,nv:k};}
-function g_simMissing(){var k=pick([2,3,1.5]);var a=pick([4,6,8]),b=a*k,c=pick([5,7,9]),d=c*k;if(b!==Math.round(b*10)/10||d!==Math.round(d*10)/10)return null;
- return {q:'$ABC\\sim A_1B_1C_1$ бөгөөд $AB='+a+',\\ A_1B_1='+b+',\\ BC='+c+'$ бол $B_1C_1$-г ол.',a:'$k=\\dfrac{'+b+'}{'+a+'}='+(Math.round(k*100)/100)+'$; $\\ B_1C_1=BC\\cdot k='+c+'\\cdot'+(Math.round(k*100)/100)+'='+(Math.round(d*100)/100)+'$',key:'sm'+a+c+k,nv:d};}
-function g_isSimilar(){var mode=pick(['yes','no']);var k=pick([2,3,1.5]);var a=pick([4,6]),b=pick([5,8]);
- var A=[a,b,a+b>10?a+2:a+3];var B;if(mode==='yes')B=A.map(function(x){return x*k;});else B=[a*k,b*k,(A[2]*k)+pick([1,2])];
- var ratios=A.map(function(x,i){return B[i]/x;});var allEq=Math.abs(ratios[0]-ratios[1])<1e-9&&Math.abs(ratios[1]-ratios[2])<1e-9;
- return {q:'Талууд нь $'+A.join(';\\ ')+'$ ба $'+B.map(function(x){return Math.round(x*100)/100;}).join(';\\ ')+'$ байх хоёр гурвалжин төсөөтэй эсэхийг шалга.',a:allEq?('Харгалзах талуудын харьцаа бүгд $'+ratios[0]+'$-тэй тэнцүү тул <b>төсөөтэй</b>.'):('Харгалзах талуудын харьцаа тэнцүү бус тул <b>төсөөтэй биш</b>.'),key:'is'+A.join()+B.join()};}
-var WSPEC={"title":"Олон өнцөгтийн гадаад өнцөг","sub":"Гүдгэр олон өнцөгтийн дотоод ба гадаад өнцөг · VI бүлэг · 8-р анги","rule":"<b>Санамж:</b> Гүдгэр $n$ өнцөгтийн дотоод өнцгүүдийн нийлбэр $(n-2)\\cdot180^\\circ$. Зөв $n$ өнцөгтийн нэг дотоод өнцөг $\\dfrac{(n-2)\\cdot180^\\circ}{n}$; гадаад өнцгүүдийн нийлбэр $360^\\circ$, нэг гадаад өнцөг $\\dfrac{360^\\circ}{n}$.","ref":"","tasks":[{"label":"Зөв олон өнцөгтийн нэг гадаад өнцгийг ол.","fn":"g_regPolyExterior","cap":4},{"label":"Гадаад өнцгөөр талын тоог ол.","fn":"g_polyFromExt","cap":4},{"label":"Дотоод өнцгүүдийн нийлбэрийг ол.","fn":"g_polyAngleSum","cap":4}]};
+function g_centroidRatio(){var k=rnd(2,15),med=3*k,m=pick(['big','small','from']);
+ if(m==='big')return {q:'медиан $AD='+med+'$ см, $O$ — хүндийн төв. $AO=?$',
+  a:'Хүндийн төв медианыг оройгоос $2:1$ харьцаагаар хуваана: $AO=\\dfrac{2}{3}\\cdot '+med+'='+(2*k)+'$ см',key:'cr1'+med,nv:2*k};
+ if(m==='small')return {q:'медиан $AD='+med+'$ см, $O$ — хүндийн төв. $OD=?$',
+  a:'$OD=\\dfrac{1}{3}\\cdot '+med+'='+k+'$ см',key:'cr2'+med,nv:k};
+ return {q:'$AO='+(2*k)+'$ см, $O$ — хүндийн төв. $AD=?$',
+  a:'$AO=\\dfrac{2}{3}AD$ тул $AD=\\dfrac{3}{2}\\cdot '+(2*k)+'='+med+'$ см',key:'cr3'+med,nv:med};}
+
+function g_equilateralHeight(){var a=pick([2,4,6,8,10,12,14,16,18,20,24,30]),m=pick(['h','R','r']);
+ if(m==='h')return {q:'тал $='+a+'$ см, өндөр $=?$',
+  a:'$h=\\sqrt{'+a+'^2-'+(a/2)+'^2}=\\sqrt{'+(a*a-a*a/4)+'}='+sqSimp(3*a*a/4)+'$ см',
+  key:'eqh'+a,nv:a*Math.sqrt(3)/2,fig:isoFig(a,a,a+' см',a+' см','h = ?')};
+ if(m==='R')return {q:'тал $='+a+'$ см, $AO=?$ ($O$ — хүндийн төв)',
+  a:'$h='+radFrac(a,2,3)+'$; $\\ AO=\\dfrac{2}{3}h='+radFrac(2*a,6,3)+'$ см',key:'eqR'+a,nv:a/Math.sqrt(3)};
+ return {q:'тал $='+a+'$ см, $OD=?$ ($O$ — хүндийн төв)',
+  a:'$h='+radFrac(a,2,3)+'$; $\\ OD=\\dfrac{1}{3}h='+radFrac(a,6,3)+'$ см',key:'eqr'+a,nv:a/(2*Math.sqrt(3))};}
+
+function g_bisectorIntExt(){var A=rnd(30,140);
+ return {q:'орой дахь дотоод өнцөг $='+A+'^\\circ$',
+  a:'Дотоод биссектрис $\\dfrac{'+A+'^\\circ}{2}='+dstr(A/2)+'^\\circ$, гадаад биссектрис $\\dfrac{'+(180-A)+'^\\circ}{2}='+dstr((180-A)/2)+'^\\circ$. Нийлбэр нь $'+dstr(A/2)+'^\\circ+'+dstr((180-A)/2)+'^\\circ=90^\\circ$.',
+  key:'bie'+A,nv:90};}
+
+function g_triBisectorAngle(){var A=2*rnd(11,54);var res=90+A/2;
+ return {q:'$\\angle A='+A+'^\\circ$',
+  a:'$\\angle B+\\angle C=180^\\circ-'+A+'^\\circ='+(180-A)+'^\\circ$. Биссектрисүүд тэн хуваах тул $\\dfrac{'+(180-A)+'^\\circ}{2}='+((180-A)/2)+'^\\circ$. Иймд $180^\\circ-'+((180-A)/2)+'^\\circ='+res+'^\\circ$.',
+  key:'tba'+A,nv:res};}
+
+function g_incircleArea(){var a=rnd(5,20),b=rnd(5,20),c=rnd(5,20);
+ if(a+b<=c||a+c<=b||b+c<=a)return null;var P=a+b+c;if(P%2)return null;var r=rnd(2,6);
+ return {q:'талууд $'+a+'$; $'+b+'$; $'+c+'$ см, $r='+r+'$ см',
+  a:'$p=\\dfrac{'+a+'+'+b+'+'+c+'}{2}='+(P/2)+'$ см; $\\ S=p\\cdot r='+(P/2)+'\\cdot '+r+'='+(P/2*r)+'$ см$^2$',
+  key:'ica'+a+'_'+b+'_'+c+'_'+r,nv:P/2*r};}
+
+// ════════════════ 6.3 · Пифагорын теорем ════════════════
+var TRIP=[[3,4,5],[6,8,10],[5,12,13],[8,15,17],[9,12,15],[7,24,25],[20,21,29],[10,24,26],[9,40,41],[12,16,20],[15,20,25],[12,35,37],[16,30,34],[18,24,30],[28,45,53],[11,60,61],[13,84,85],[33,56,65]];
+function g_pythHyp(){var t=pick(TRIP);var a=t[0],b=t[1],c=t[2];
+ return {q:'$a='+a+'$ см, $b='+b+'$ см',
+  a:'$c=\\sqrt{a^2+b^2}=\\sqrt{'+(a*a)+'+'+(b*b)+'}=\\sqrt{'+(a*a+b*b)+'}='+c+'$ см',
+  key:'ph'+a+'_'+b,nv:c,fig:rtFig(b,a,b+' см',a+' см','c = ?')};}
+
+function g_pythLeg(){var t=pick(TRIP);var a=t[0],b=t[1],c=t[2];var sw=rnd(0,1);
+ var kn=sw?b:a,un=sw?a:b;
+ return {q:'$c='+c+'$ см, катет $='+kn+'$ см',
+  a:'$\\sqrt{c^2-a^2}=\\sqrt{'+(c*c)+'-'+(kn*kn)+'}=\\sqrt{'+(c*c-kn*kn)+'}='+un+'$ см',
+  key:'pl'+c+'_'+kn,nv:un,fig:rtFig(sw?kn:12,sw?9:kn,sw?(kn+' см'):'? ',sw?'?':(kn+' см'),c+' см')};}
+
+function g_pythGeneral(){var a=rnd(2,12),b=rnd(2,12);var N=a*a+b*b;if(isqrt(N))return null;
+ return {q:'$a='+a+'$ см, $b='+b+'$ см',
+  a:'$c=\\sqrt{'+(a*a)+'+'+(b*b)+'}=\\sqrt{'+N+'}='+sqSimp(N)+'\\approx '+dstr(Math.round(Math.sqrt(N)*100)/100)+'$ см',
+  key:'pg'+Math.min(a,b)+'_'+Math.max(a,b),fig:rtFig(b,a,b+' см',a+' см','c = ?')};}
+
+function g_isRight(){var t=pick(TRIP),k=pick([1,1,2,3]);var s=[t[0]*k,t[1]*k,t[2]*k];
+ var no=rnd(0,1);if(no)s[2]=s[2]+pick([-2,-1,1,2,3]);
+ var srt=s.slice().sort(function(x,y){return x-y;});var mx=srt[2];var rest=[srt[0],srt[1]];
+ var lhs=rest[0]*rest[0]+rest[1]*rest[1],rhs=mx*mx;var ok=(lhs===rhs);
+ return {q:'$'+s[0]+'$; $'+s[1]+'$; $'+s[2]+'$ см',
+  a:'$'+rest[0]+'^2+'+rest[1]+'^2='+lhs+'$, $\\ '+mx+'^2='+rhs+'$. '+(ok?'Тэнцүү тул <b>тэгш өнцөгт мөн</b>.':'Тэнцүү биш тул <b>тэгш өнцөгт биш</b>.'),
+  key:'ir'+s.join('_')};}
+
+function g_isRightSurd(){var a=rnd(4,20),b=rnd(4,20);if(a===b)return null;
+ var N=a*a+b*b;var no=rnd(0,1);if(no)N+=pick([-3,-2,-1,1,2,3]);
+ if(isqrt(N))return null;if(N<=Math.max(a,b)*Math.max(a,b))return null;
+ var ok=(N===a*a+b*b);
+ return {q:'$'+a+'$; $'+b+'$; $\\sqrt{'+N+'}$',
+  a:'$'+a+'^2+'+b+'^2='+(a*a+b*b)+'$, $\\ \\bigl(\\sqrt{'+N+'}\\bigr)^2='+N+'$. '+(ok?'Тэнцүү тул <b>тэгш өнцөгт мөн</b>.':'Тэнцүү биш тул <b>тэгш өнцөгт биш</b>.'),
+  key:'irs'+a+'_'+b+'_'+N};}
+
+function g_squareDiag(){var a=pick([2,3,4,5,6,7,8,9,10,12,14,15,20]),m=pick(['d','a']);
+ if(m==='d')return {q:'квадратын тал $='+a+'$ см',
+  a:'$d=\\sqrt{'+a+'^2+'+a+'^2}=\\sqrt{'+(2*a*a)+'}='+sqSimp(2*a*a)+'$ см',key:'sd'+a,fig:rectFig(a,a,a+' см',a+' см','d = ?')};
+ return {q:'квадратын диагональ $='+a+'\\sqrt{2}$ см',
+  a:'$d=a\\sqrt{2}$ тул $a=\\dfrac{'+a+'\\sqrt{2}}{\\sqrt{2}}='+a+'$ см',key:'sda'+a,nv:a};}
+
+function g_rectDiagonal(){var t=pick(TRIP);var a=t[1],b=t[0],c=t[2];
+ return {q:'$a='+a+'$ см, $b='+b+'$ см',
+  a:'$d=\\sqrt{'+a+'^2+'+b+'^2}=\\sqrt{'+(a*a+b*b)+'}='+c+'$ см',
+  key:'rd'+a+'_'+b,nv:c,fig:rectFig(a,b,a+' см',b+' см','d = ?')};}
+
+function g_rectSideFromDiag(){var t=pick(TRIP);var a=t[1],b=t[0],c=t[2];var sw=rnd(0,1);
+ var kn=sw?b:a,un=sw?a:b;
+ return {q:'$d='+c+'$ см, тал $='+kn+'$ см',
+  a:'$\\sqrt{'+c+'^2-'+kn+'^2}=\\sqrt{'+(c*c-kn*kn)+'}='+un+'$ см',
+  key:'rsd'+c+'_'+kn,nv:un,fig:rectFig(sw?12:kn,sw?kn:9,sw?'?':(kn+' см'),sw?(kn+' см'):'?',c+' см')};}
+
+function g_rhombusSide(){var t=pick(TRIP);var d1=2*t[0],d2=2*t[1],s=t[2];
+ return {q:'$d_1='+d1+'$ см, $d_2='+d2+'$ см',
+  a:'Диагональууд тэн хуваалцах тул катетууд $'+t[0]+'$ ба $'+t[1]+'$: $\\ a=\\sqrt{'+(t[0]*t[0])+'+'+(t[1]*t[1])+'}='+s+'$ см',
+  key:'rhs'+d1+'_'+d2,nv:s,fig:rhombFig(d1,d2,d1+' см',d2+' см','a = ?')};}
+
+function g_rhombusDiagFrom(){var t=pick(TRIP);var d1=2*t[0],d2=2*t[1],s=t[2];
+ return {q:'$a='+s+'$ см, $d_1='+d1+'$ см',
+  a:'Хагас диагональ $\\dfrac{'+d1+'}{2}='+t[0]+'$; $\\ \\sqrt{'+(s*s)+'-'+(t[0]*t[0])+'}='+t[1]+'$ тул $d_2=2\\cdot '+t[1]+'='+d2+'$ см',
+  key:'rhd'+s+'_'+d1,nv:d2,fig:rhombFig(d1,d2,d1+' см','d₂ = ?',s+' см')};}
+
+function g_isoscHeight(){var t=pick(TRIP);var half=t[0],h=t[1],leg=t[2];var base=2*half;
+ return {q:'хажуу тал $='+leg+'$ см, суурь $='+base+'$ см',
+  a:'Өндөр суурийг тэн хуваана: $\\dfrac{'+base+'}{2}='+half+'$; $\\ h=\\sqrt{'+(leg*leg)+'-'+(half*half)+'}='+h+'$ см',
+  key:'ish'+leg+'_'+base,nv:h,fig:isoFig(base,leg,base+' см',leg+' см','h = ?')};}
+
+function g_isoTrapHeight(){var t=pick(TRIP);var off=t[0],h=t[1],leg=t[2];
+ var b=pick([4,5,6,8,10,12]),a=b+2*off;
+ return {q:'суурьнууд $'+a+'$ ба $'+b+'$ см, хажуу тал $='+leg+'$ см',
+  a:'$\\dfrac{'+a+'-'+b+'}{2}='+off+'$; $\\ h=\\sqrt{'+(leg*leg)+'-'+(off*off)+'}='+h+'$ см',
+  key:'ith'+a+'_'+b+'_'+leg,nv:h,fig:trapFig(b,a,h,b+' см',a+' см','h = ?',leg+' см',false)};}
+
+function g_rightTrapLeg(){var t=pick(TRIP);var off=t[0],h=t[1],leg=t[2];
+ var b=pick([5,6,7,8,10,12,14]),a=b+off;
+ return {q:'суурьнууд $'+a+'$ ба $'+b+'$ см, өндөр $='+h+'$ см',
+  a:'Хажуу талын хэвтээ хэсэг $'+a+'-'+b+'='+off+'$; $\\ c=\\sqrt{'+(h*h)+'+'+(off*off)+'}='+leg+'$ см',
+  key:'rtl'+a+'_'+b+'_'+h,nv:leg,fig:trapFig(b,a,h,b+' см',a+' см',h+' см','c = ?',true)};}
+
+var ALT=[[12,[5,9,16,35]],[15,[8,20,36]],[24,[7,10,18,32,45]],[20,[15,21,48]],[16,[12,30,63]],[8,[6,15]],[6,[8]],[9,[12]],[5,[12]],[4,[3]]];
+function g_altitudeSplit(){var A=pick(ALT),h=A[0],L=A[1];if(L.length<2)return null;
+ var i=rnd(0,L.length-1),j=rnd(0,L.length-1);if(i===j)return null;
+ var p=L[i],q=L[j];var c1=Math.round(Math.sqrt(h*h+p*p)),c2=Math.round(Math.sqrt(h*h+q*q));
+ return {q:'$CD='+h+'$, $\\ AD='+q+'$, $\\ DB='+p+'$ см',
+  a:'$CB=\\sqrt{'+(h*h)+'+'+(p*p)+'}='+c1+'$ см; $\\ CA=\\sqrt{'+(h*h)+'+'+(q*q)+'}='+c2+'$ см',
+  key:'as'+h+'_'+p+'_'+q,nv:c1,fig:altFig(p,q,h,p+'',q+'','?','?')};}
+
+function g_pythRatio(){var t=pick(TRIP);var g=gcd(t[0],t[1]);var r1=t[0]/g,r2=t[1]/g;
+ var k=pick([1,2,3]);var a=t[0]*k,b=t[1]*k,c=t[2]*k;
+ return {q:'катетуудын харьцаа $'+r1+':'+r2+'$, $\\ c='+c+'$ см',
+  a:'$('+r1+'x)^2+('+r2+'x)^2='+c+'^2$; $\\ '+(r1*r1+r2*r2)+'x^2='+(c*c)+'$; $\\ x='+(a/r1)+'$. Катетууд $'+a+'$ ба $'+b+'$ см, периметр $'+(a+b+c)+'$ см.',
+  key:'pr'+r1+'_'+r2+'_'+c,nv:a+b+c};}
+
+function g_pythAlgebra(){var t=pick(TRIP);var m=pick([2,3,4,5]),n=m+pick([1,2,3]);
+ // катетууд: p ба m·x, гипотенуз n·x  →  p² = (n²−m²)x²
+ var x=rnd(2,9);var p2=(n*n-m*m)*x*x;var p=isqrt(p2);if(!p)return null;if(p>200)return null;
+ return {q:'катетууд $'+p+'$ ба $'+m+'x$, гипотенуз $'+n+'x$',
+  a:'$'+p+'^2+('+m+'x)^2=('+n+'x)^2$; $\\ '+(p*p)+'='+(n*n-m*m)+'x^2$; $\\ x^2='+(x*x)+'$, $\\ x='+x+'$. Талууд: $'+p+'$; $'+(m*x)+'$; $'+(n*x)+'$.',
+  key:'pal'+p+'_'+m+'_'+n,nv:x};}
+
+function g_hexagonDiag(){var a=pick([2,3,4,5,6,7,8,9,10,12,14,15]),m=pick(['s','l']);
+ if(m==='l')return {q:'зөв зургаан өнцөгтийн тал $='+a+'$ см, урт диагональ $=?$',
+  a:'Урт диагональ бол багтаасан тойргийн диаметр: $2\\cdot '+a+'='+(2*a)+'$ см',key:'hxl'+a,nv:2*a};
+ return {q:'зөв зургаан өнцөгтийн тал $='+a+'$ см, богино диагональ $=?$',
+  a:'Богино диагональ нь адил хажуут гурвалжны суурь: $\\sqrt{'+(4*a*a)+'-'+(a*a)+'}=\\sqrt{'+(3*a*a)+'}='+sqSimp(3*a*a)+'$ см',
+  key:'hxs'+a};}
+
+function g_pythTripleGen(){var n=rnd(1,6),m=n+rnd(1,5);if(gcd(m,n)>1)return null;if((m-n)%2===0)return null;
+ var a=2*m*n,b=m*m-n*n,c=m*m+n*n;if(c>200)return null;
+ return {q:'$m='+m+'$, $\\ n='+n+'$',
+  a:'$2mn='+a+'$; $\\ m^2-n^2='+b+'$; $\\ m^2+n^2='+c+'$. $\\ '+a+'^2+'+b+'^2='+(a*a+b*b)+'='+c+'^2$ тул Пифагорын гурвал мөн.',
+  key:'ptg'+m+'_'+n,nv:c};}
+
+function g_rectRatioDiag(){var t=pick(TRIP);var g=gcd(t[0],t[1]);var r1=t[0]/g,r2=t[1]/g;
+ var k=pick([1,2,3,4]);var a=t[0]*k,b=t[1]*k,d=t[2]*k;
+ return {q:'талуудын харьцаа $'+r1+':'+r2+'$, $\\ d='+d+'$ см',
+  a:'$('+r1+'x)^2+('+r2+'x)^2='+d+'^2$; $\\ '+(r1*r1+r2*r2)+'x^2='+(d*d)+'$; $\\ x='+(a/r1)+'$. Талууд $'+a+'$ ба $'+b+'$ см.',
+  key:'rrd'+r1+'_'+r2+'_'+d,nv:a};}
+
+function g_rhombPerimDiag(){var t=pick(TRIP);var g=gcd(t[0],t[1]);var r1=t[0]/g,r2=t[1]/g;
+ var k=pick([1,2,3]);var half1=t[0]*k,half2=t[1]*k,s=t[2]*k;var P=4*s;
+ return {q:'диагональуудын харьцаа $'+r1+':'+r2+'$, периметр $='+P+'$ см',
+  a:'Тал $\\dfrac{'+P+'}{4}='+s+'$ см. Хагас диагональууд $'+r1+'x$ ба $'+r2+'x$: $\\ '+(r1*r1+r2*r2)+'x^2='+(s*s)+'$, $\\ x='+(half1/r1)+'$. Диагональууд $'+(2*half1)+'$ ба $'+(2*half2)+'$ см.',
+  key:'rpd'+r1+'_'+r2+'_'+P,nv:2*half1};}
+
+function g_pythWordLadder(){var t=pick([[3,4,5],[6,8,10],[5,12,13],[8,15,17],[9,12,15],[7,24,25],[12,16,20],[15,20,25]]);
+ var W=['Шат хананд түшүүлэхэд доод үзүүр нь ханаас $'+t[0]+'$ м зайд, дээд үзүүр нь $'+t[1]+'$ м өндөрт хүрэв. Шатны урт хэд вэ?',
+        'Цаасан шувуу газраас $'+t[1]+'$ м өндөрт нисэж байв. Утасны урт $'+t[2]+'$ м бол шувууны эгц доорх цэг хүртэл хэдэн метр алхах вэ?',
+        'Гэрэлт цамхгийн оройгоос усан онгоц хүртэл $'+t[2]+'$ м. Сууриас онгоц хүртэл $'+t[1]+'$ м бол цамхгийн өндрийг ол.',
+        'Хилийн багана $'+t[1]+'$ м өндөр бөгөөд оройгоос газар хүртэл $'+t[2]+'$ м гинжээр бэхэлжээ. Гинжний бэхэлсэн цэгээс багана хүртэлх зайг ол.',
+        'Усан сан $'+(t[0]*2)+'$ м $\\times '+(t[1]*2)+'$ м хэмжээтэй. Тамирчин нэг булангаас эсрэг булан хүртэл сэлсэн бол энэ зайг ол.'];
+ var i=rnd(0,W.length-1);var ans=[t[2],t[0],t[0],t[0],2*t[2]][i];
+ var sol=[ '$\\sqrt{'+t[0]+'^2+'+t[1]+'^2}=\\sqrt{'+(t[0]*t[0]+t[1]*t[1])+'}='+t[2]+'$ м',
+   '$\\sqrt{'+t[2]+'^2-'+t[1]+'^2}=\\sqrt{'+(t[2]*t[2]-t[1]*t[1])+'}='+t[0]+'$ м',
+   '$\\sqrt{'+t[2]+'^2-'+t[1]+'^2}=\\sqrt{'+(t[2]*t[2]-t[1]*t[1])+'}='+t[0]+'$ м',
+   '$\\sqrt{'+t[2]+'^2-'+t[1]+'^2}=\\sqrt{'+(t[2]*t[2]-t[1]*t[1])+'}='+t[0]+'$ м',
+   '$\\sqrt{'+(2*t[0])+'^2+'+(2*t[1])+'^2}=\\sqrt{'+(4*t[0]*t[0]+4*t[1]*t[1])+'}='+(2*t[2])+'$ м'][i];
+ return {q:W[i],a:sol,key:'pwl'+i+'_'+t[0]+'_'+t[1],nv:ans};}
+
+function g_pythWordPoles(){var t=pick(TRIP);var k=pick([1,2,3,4,5]);
+ var d=t[1]*k,dh=t[0]*k,wire=t[2]*k;var low=pick([10,15,20,25,30]),high=low+dh;
+ return {q:'Хоёр шонгийн өндөр $'+high+'$ м ба $'+low+'$ м, хоорондоо $'+d+'$ м зайтай. Оройнуудыг холбох утасны уртыг ол.',
+  a:'Өндрийн зөрүү $'+high+'-'+low+'='+dh+'$ м. $\\ \\sqrt{'+d+'^2+'+dh+'^2}=\\sqrt{'+(d*d+dh*dh)+'}='+wire+'$ м',
+  key:'pwp'+high+'_'+low+'_'+d,nv:wire};}
+
+function g_pythWordTV(){var t=pick(TRIP);var k=pick([1,2,3,4,5,6]);
+ var w=t[1]*k,h=t[0]*k,dg=t[2]*k;
+ return {q:'Зурагтын диагональ $'+dg+'$ см, өргөн $'+w+'$ см бол өндрийг ол.',
+  a:'$\\sqrt{'+dg+'^2-'+w+'^2}=\\sqrt{'+(dg*dg-w*w)+'}='+h+'$ см',
+  key:'pwt'+dg+'_'+w,nv:h};}
+
+function g_pythWordPlane(){var t=pick([[3,4,5],[6,8,10],[5,12,13],[8,15,17],[9,12,15],[20,21,29],[7,24,25]]);
+ var k=pick([100,200,500]);var g1=t[0]*k,h1=t[1]*k,d1=t[2]*k;
+ return {q:'Онгоц нисэх буудлаас хэвтээгээр $'+g1+'$ м зайд, $'+h1+'$ м өндөрт байв. Буудлаас онгоц хүртэлх зайг ол.',
+  a:'$\\sqrt{'+g1+'^2+'+h1+'^2}=\\sqrt{'+(g1*g1+h1*h1)+'}='+d1+'$ м',
+  key:'pwpl'+g1+'_'+h1,nv:d1};}
+
+// ════════════════ 6.4 · Тойрог ба өнцөг ════════════════
+function g_circleLine(){var r=pick([3,4,5,6,7,8,9,10,12,15]);var d=pick([r-3,r-2,r-1,r,r+1,r+2,r+4]);if(d<0)return null;
+ var pos=d<r?'хоёр ерөнхий цэгтэй — огтолно':(d===r?'нэг ерөнхий цэгтэй — шүргэнэ':'ерөнхий цэггүй — огтлохгүй');
+ return {q:'$R='+r+'$, $\\ d='+d+'$',
+  a:'$d='+d+(d<r?'\\lt ':(d===r?'=':'\\gt '))+'R='+r+'$ тул <b>'+pos+'</b>.',key:'cl'+r+'_'+d};}
+
+function g_tangentLen(){var t=pick(TRIP);var R=t[0],dd=t[2],L=t[1];var m=pick(['L','d']);
+ if(m==='L')return {q:'$R='+R+'$ см, $\\ OM='+dd+'$ см',
+  a:'Шүргэгчийн цэгт радиус перпендикуляр: $\\ MA=\\sqrt{'+dd+'^2-'+R+'^2}=\\sqrt{'+(dd*dd-R*R)+'}='+L+'$ см',
+  key:'tl'+R+'_'+dd,nv:L,fig:rtFig(L,R,'MA = ?',R+' см',dd+' см')};
+ return {q:'$R='+R+'$ см, шүргэгч $MA='+L+'$ см',
+  a:'$OM=\\sqrt{'+R+'^2+'+L+'^2}=\\sqrt{'+(R*R+L*L)+'}='+dd+'$ см',
+  key:'tld'+R+'_'+L,nv:dd,fig:rtFig(L,R,L+' см',R+' см','OM = ?')};}
+
+function g_tangentAngle(){var m=2*rnd(5,42);var aob=180-m;var base=(180-aob)/2;
+ return {q:'$\\angle BMA='+m+'^\\circ$',
+  a:'$MA=MB$, $\\ OA\\perp MA$, $\\ OB\\perp MB$ тул $AOBM$-д $\\angle AOB=360^\\circ-90^\\circ-90^\\circ-'+m+'^\\circ='+aob+'^\\circ$. $\\ OA=OB$ тул $\\angle OAB=\\angle OBA=\\dfrac{180^\\circ-'+aob+'^\\circ}{2}='+base+'^\\circ$.',
+  key:'ta'+m,nv:aob,
+  fig:CF({pts:[{n:'A',a:118},{n:'B',a:242}],seg:[['O','A','#7B52EE'],['O','B','#7B52EE'],['A','B','#94a3b8']],
+   ext:[{n:'M',p:[148,81],dx:6,dy:4}],px:150,
+   ang:[{at:'O',f:'A',t:'B',r:17,l:'?',c:'#b91c1c'}]})};}
+
+function g_centralArc(){var deg=pick([20,30,36,40,45,50,60,72,80,90,100,110,120,135,140,150,160]),m=pick(['toArc','toCentral','major']);
+ if(m==='toArc')return {q:'$\\angle AOB='+deg+'^\\circ$, $\\ AB$ нум $=?$',
+  a:'Төв өнцөг тулсан нумтайгаа тэнцүү тул $AB$ нум $='+deg+'^\\circ$.',key:'ca'+deg,nv:deg,
+  fig:CF({pts:[{n:'A',a:210},{n:'B',a:210-deg}],seg:[['O','A'],['O','B']],arcs:[{a1:210-deg,a2:210}],ang:[{at:'O',f:'A',t:'B',r:16,l:deg+'°'}]})};
+ if(m==='toCentral')return {q:'$AB$ нум $='+deg+'^\\circ$, $\\ \\angle AOB=?$',
+  a:'$\\angle AOB=AB$ нум $='+deg+'^\\circ$.',key:'cc'+deg,nv:deg,
+  fig:CF({pts:[{n:'A',a:210},{n:'B',a:210-deg}],seg:[['O','A'],['O','B']],arcs:[{a1:210-deg,a2:210}],ang:[{at:'O',f:'A',t:'B',r:16,l:'?'}]})};
+ return {q:'$\\angle AOB='+deg+'^\\circ$, их нум $=?$',
+  a:'Их нум $=360^\\circ-'+deg+'^\\circ='+(360-deg)+'^\\circ$.',key:'cm'+deg,nv:360-deg,
+  fig:CF({pts:[{n:'A',a:210},{n:'B',a:210-deg}],seg:[['O','A'],['O','B']],ang:[{at:'O',f:'A',t:'B',r:16,l:deg+'°'}]})};}
+
+function g_inscribed(){var deg=2*pick([15,20,25,30,35,40,45,50,55,60,65,70,75,80]),m=pick(['fromCentral','fromArc']);
+ var fig=CF({pts:[{n:'A',a:205},{n:'B',a:205-deg},{n:'C',a:60}],
+  seg:[['C','A','#dc2626'],['C','B','#dc2626']].concat(m==='fromCentral'?[['O','A'],['O','B']]:[]),
+  ang:[{at:'C',f:'A',t:'B',r:20,l:'?'}].concat(m==='fromCentral'?[{at:'O',f:'A',t:'B',r:15,l:deg+'°',c:'#0f766e'}]:[]),
+  arcs:m==='fromArc'?[{a1:205-deg,a2:205}]:[]});
+ if(m==='fromCentral')return {q:'$\\angle AOB='+deg+'^\\circ$',
+  a:'Багтсан өнцөг төв өнцгийн хагас: $\\angle ACB=\\dfrac{'+deg+'^\\circ}{2}='+(deg/2)+'^\\circ$',key:'if'+deg,nv:deg/2,fig:fig};
+ return {q:'$AB$ нум $='+deg+'^\\circ$',
+  a:'Багтсан өнцөг тулсан нумынхаа хагас: $\\angle ACB=\\dfrac{'+deg+'^\\circ}{2}='+(deg/2)+'^\\circ$',key:'ia'+deg,nv:deg/2,fig:fig};}
+
+function g_inscribedSemicircle(){var a=rnd(20,68);var b=90-a;
+ return {q:'$AB$ — диаметр, $\\ \\angle BAC='+a+'^\\circ$',
+  a:'Диаметрт тулсан багтсан өнцөг $\\angle ACB=90^\\circ$. Иймд $\\angle ABC=180^\\circ-90^\\circ-'+a+'^\\circ='+b+'^\\circ$.',
+  key:'isc'+a,nv:b,
+  fig:CF({pts:[{n:'A',a:180},{n:'B',a:0},{n:'C',a:62}],seg:[['A','B','#7B52EE'],['A','C','#dc2626'],['B','C','#dc2626']],
+   ang:[{at:'A',f:'B',t:'C',r:18,l:a+'°'},{at:'B',f:'C',t:'A',r:18,l:'x'}]})};}
+
+function g_reflexCentral(){var big=2*rnd(95,170);var small=360-big;var ins=small/2;
+ return {q:'их төв өнцөг $='+big+'^\\circ$',
+  a:'Бага төв өнцөг $360^\\circ-'+big+'^\\circ='+small+'^\\circ$. Багтсан өнцөг $\\dfrac{'+small+'^\\circ}{2}='+ins+'^\\circ$.',
+  key:'rc'+big,nv:ins,
+  fig:CF({pts:[{n:'A',a:212},{n:'B',a:328},{n:'C',a:80}],seg:[['O','A'],['O','B'],['C','A','#dc2626'],['C','B','#dc2626']],
+   ang:[{at:'O',f:'B',t:'A',r:14,l:big+'°',c:'#0f766e',o:13},{at:'C',f:'A',t:'B',r:20,l:'x'}]})};}
+
+function g_arcFromInscribed(){var x=rnd(18,80);
+ return {q:'$\\angle ACB='+x+'^\\circ$',
+  a:'Тулсан нум $AB=2\\cdot '+x+'^\\circ='+(2*x)+'^\\circ$; төв өнцөг $\\angle AOB='+(2*x)+'^\\circ$; их нум $=360^\\circ-'+(2*x)+'^\\circ='+(360-2*x)+'^\\circ$.',
+  key:'afi'+x,nv:2*x,
+  fig:CF({pts:[{n:'A',a:205},{n:'B',a:335},{n:'C',a:75}],seg:[['C','A','#dc2626'],['C','B','#dc2626']],
+   ang:[{at:'C',f:'A',t:'B',r:20,l:x+'°'}],arcs:[{a1:205,a2:335}]})};}
+
+function g_inscribedSameArc(){var x=rnd(20,88);
+ return {q:'$\\angle AKB='+x+'^\\circ$, $\\ \\angle AMB=?$, $\\ \\angle AOB=?$',
+  a:'Нэг нумд тулсан багтсан өнцгүүд тэнцүү: $\\angle AMB='+x+'^\\circ$. Төв өнцөг нь хоёр дахин: $\\angle AOB='+(2*x)+'^\\circ$.',
+  key:'isa'+x,nv:x,
+  fig:CF({pts:[{n:'A',a:200},{n:'B',a:340},{n:'K',a:70},{n:'M',a:110}],
+   seg:[['K','A','#dc2626'],['K','B','#dc2626'],['M','A','#0f766e'],['M','B','#0f766e']],
+   ang:[{at:'K',f:'A',t:'B',r:18,l:x+'°'}]})};}
+
+function g_cyclicQuad(){var a=rnd(60,120),b=rnd(60,120);
+ return {q:'$\\angle A='+a+'^\\circ$, $\\ \\angle B='+b+'^\\circ$',
+  a:'Тойрогт багтсан дөрвөн өнцөгтийн эсрэг өнцгүүдийн нийлбэр $180^\\circ$: $\\ \\angle C=180^\\circ-'+a+'^\\circ='+(180-a)+'^\\circ$, $\\ \\angle D=180^\\circ-'+b+'^\\circ='+(180-b)+'^\\circ$.',
+  key:'cq'+a+'_'+b,nv:180-a,
+  fig:CF({pts:[{n:'A',a:160},{n:'B',a:70},{n:'C',a:340},{n:'D',a:250}],
+   seg:[['A','B','#7B52EE'],['B','C','#7B52EE'],['C','D','#7B52EE'],['D','A','#7B52EE']],
+   ang:[{at:'A',f:'D',t:'B',r:16,l:a+'°'},{at:'B',f:'A',t:'C',r:16,l:b+'°'}],O:false})};}
+
+function g_triangleInCircle(){var aoc=2*rnd(11,84);var boc=180-aoc;
+ var A=aoc/2,B=boc/2,C=90;
+ return {q:'$AB$ — диаметр, $\\ \\angle AOC='+aoc+'^\\circ$',
+  a:'$\\angle ABC=\\dfrac{'+aoc+'^\\circ}{2}='+A+'^\\circ$ (нум $AC$-д тулсан); $\\ \\angle ACB=90^\\circ$ (диаметрт тулсан); $\\ \\angle BAC=180^\\circ-90^\\circ-'+A+'^\\circ='+B+'^\\circ$.',
+  key:'tic'+aoc,nv:A,
+  fig:CF({pts:[{n:'A',a:180},{n:'B',a:0},{n:'C',a:64}],
+   seg:[['A','B','#7B52EE'],['A','C','#dc2626'],['B','C','#dc2626'],['O','C','#0f766e']],
+   ang:[{at:'O',f:'A',t:'C',r:15,l:aoc+'°',c:'#0f766e'}]})};}
+
+function g_circleAlgebra(){var m=pick(['same','diam']);
+ var a=rnd(2,6),b=a+rnd(1,4);var x=rnd(6,30);
+ if(m==='same'){var c=a*x-b*x;var v=a*x;if(v<12||v>92)return null;
+  return {q:'нэг нумд тулсан багтсан өнцгүүд $'+a+'x'+tsgn(-c>0?0:0)+'^\\circ$ ба $'+b+'x'+tsgn(c)+'^\\circ$',
+   a:'Нэг нумд тулсан өнцгүүд тэнцүү: $'+a+'x='+b+'x'+tsgn(c)+'$; $\\ x='+x+'$. Өнцөг бүр $'+v+'^\\circ$.',
+   key:'cax'+a+'_'+b+'_'+x,nv:x};}
+ var p=rnd(3,7),q0=90-p*x;if(Math.abs(q0)>80)return null;
+ return {q:'диаметрт тулсан гурвалжны хурц өнцгүүд $'+p+'x'+tsgn(q0)+'^\\circ$ ба $'+(90-p*x-q0>0?'':'')+dstr(90-(p*x+q0))+'^\\circ$',
+  a:'Диаметрт тулсан өнцөг $90^\\circ$ тул хурц өнцгүүдийн нийлбэр $90^\\circ$: $\\ '+p+'x'+tsgn(q0)+'+'+dstr(90-(p*x+q0))+'=90$; $\\ x='+x+'$.',
+  key:'cad'+p+'_'+x+'_'+q0,nv:x};}
+
+function g_chordDiameter(){var deg=pick([30,45,60,90,120,135,150]);var arc=2*deg;
+ var chord=2*Math.sin(arc/2*Math.PI/180);
+ var exact={60:'1',90:'\\sqrt{2}',120:'\\sqrt{3}',180:'2',240:'\\sqrt{3}',270:'\\sqrt{2}',300:'1'};
+ if(!exact[arc])return null;
+ return {q:'$\\angle ACB='+deg+'^\\circ$',
+  a:'Тулсан нум $'+arc+'^\\circ$, төв өнцөг $'+arc+'^\\circ$. Хөвч нь $AB='+exact[arc]+'\\cdot R$ тул $\\dfrac{AB}{2R}=\\dfrac{'+exact[arc]+'}{2}$.',
+  key:'chd'+deg,nv:chord/2};}
+
+function g_inscribedRegular(){var n=pick(NDIV.filter(function(x){return x>3;}));
+ var arc=360/n,ins=arc/2,inte=(n-2)*180/n;
+ return {q:'зөв $'+n+'$ өнцөгт',
+  a:'Нум бүр $\\dfrac{360^\\circ}{'+n+'}='+dstr(arc)+'^\\circ$; нэг талд тулсан багтсан өнцөг $\\dfrac{'+dstr(arc)+'^\\circ}{2}='+dstr(ins)+'^\\circ$; олон өнцөгтийн дотоод өнцөг $'+dstr(inte)+'^\\circ$.',
+  key:'ipr'+n,nv:ins};}
+
+// ════════════════ 6.5 · Төсөөтэй дүрсүүд ════════════════
+var KS=[[3,2],[2,1],[3,1],[5,2],[4,3],[5,3],[5,4],[7,4],[3,4],[2,3],[7,2],[9,4],[5,6],[7,5],[8,5],[9,5]];
+function kTex(p,q){return q===1?''+p:'\\dfrac{'+p+'}{'+q+'}';}
+function g_simRatio(){var K=pick(KS),p=K[0],q=K[1];var a=q*rnd(2,9);var b=a*p/q;
+ return {q:'$'+a+'$ см ба $'+b+'$ см',
+  a:'$k=\\dfrac{'+b+'}{'+a+'}='+kTex(p,q)+(q===1?'':('='+dstr(p/q)))+'$',
+  key:'sr'+a+'_'+b,nv:p/q};}
+
+function g_simMissing(){var K=pick(KS),p=K[0],q=K[1];var a=q*rnd(2,7),b=a*p/q;
+ var c=q*rnd(2,7);if(c===a)return null;var d=c*p/q;
+ return {q:'$AB='+a+'$, $\\ A_1B_1='+b+'$, $\\ BC='+c+'$',
+  a:'$k=\\dfrac{'+b+'}{'+a+'}='+kTex(p,q)+'$; $\\ B_1C_1='+c+'\\cdot '+kTex(p,q)+'='+d+'$',
+  key:'sm'+a+'_'+b+'_'+c,nv:d,fig:twoTriFig([a+'',c+'',''],[b+'','x',''],Math.min(2.2,Math.max(0.55,p/q)))};}
+
+function g_isSimilar(){var K=pick(KS),p=K[0],q=K[1];
+ var A=[q*rnd(2,5),q*rnd(2,5),q*rnd(2,5)];
+ if(A[0]===A[1]||A[1]===A[2])return null;
+ var B=A.map(function(x){return x*p/q;});
+ var no=rnd(0,1);if(no)B[2]=B[2]+pick([-2,-1,1,2]);
+ if(B.some(function(x){return x<=0;}))return null;
+ var ok=(B[0]/A[0]===B[1]/A[1])&&(B[1]/A[1]===B[2]/A[2]);
+ return {q:'$'+A.join(';\\ ')+'$ ба $'+B.map(dstr).join(';\\ ')+'$',
+  a:'$\\dfrac{'+dstr(B[0])+'}{'+A[0]+'}='+dstr(B[0]/A[0])+'$; $\\ \\dfrac{'+dstr(B[1])+'}{'+A[1]+'}='+dstr(B[1]/A[1])+'$; $\\ \\dfrac{'+dstr(B[2])+'}{'+A[2]+'}='+dstr(B[2]/A[2])+'$. '+(ok?'Харьцаа тэнцүү тул <b>төсөөтэй</b>.':'Харьцаа тэнцүү бус тул <b>төсөөтэй биш</b>.'),
+  key:'is'+A.join('_')+'x'+B.map(dstr).join('_')};}
+
+function g_simFigureX(){var K=pick(KS),p=K[0],q=K[1];var k=p/q;if(k<0.5||k>2.2)return null;
+ var a=q*rnd(2,7),b=a*p/q;var c=q*rnd(2,7),d=c*p/q;if(a===c)return null;
+ return {q:'$x=?$',
+  a:'$k=\\dfrac{'+b+'}{'+a+'}='+kTex(p,q)+'$; $\\ x='+c+'\\cdot '+kTex(p,q)+'='+d+'$',
+  key:'sfx'+a+'_'+b+'_'+c,nv:d,fig:twoTrapFig([a+'',c+'','',''],[b+'','x','',''],k)};}
+
+function g_simPerimeter(){var K=pick(KS),p=K[0],q=K[1];var P=q*rnd(4,15);var P2=P*p/q;
+ var a=q*rnd(2,6),b=a*p/q;
+ return {q:'$k=\\dfrac{'+b+'}{'+a+'}$, эхний дүрсийн периметр $='+P+'$ см',
+  a:'$k='+kTex(p,q)+'$. Периметрүүдийн харьцаа $k$-тай тэнцүү: $\\ P_1='+P+'\\cdot '+kTex(p,q)+'='+dstr(P2)+'$ см',
+  key:'sp'+a+'_'+b+'_'+P,nv:P2};}
+
+function g_simSidesRatioPerim(){var r=[rnd(2,6),rnd(2,6),rnd(2,6)];
+ if(r[0]+r[1]<=r[2]||r[0]+r[2]<=r[1]||r[1]+r[2]<=r[0])return null;
+ var g=gcd(gcd(r[0],r[1]),r[2]);if(g>1)return null;
+ var S=r[0]+r[1]+r[2];var u=rnd(2,9);var P=S*u;
+ return {q:'талуудын харьцаа $'+r.join(':')+'$, төсөөтэй гурвалжны периметр $='+P+'$',
+  a:'$'+r.join('x+')+'x='+P+'$; $\\ '+S+'x='+P+'$, $\\ x='+u+'$. Талууд: $'+r.map(function(v){return ''+(v*u);}).join(';\\ ')+'$',
+  key:'ssrp'+r.join('_')+'_'+P,nv:u};}
+
+function g_simArea(){var K=pick(KS),p=K[0],q=K[1];var S=q*q*rnd(2,9);var S2=S*p*p/(q*q);
+ var a=q*rnd(2,6),b=a*p/q;
+ return {q:'$k=\\dfrac{'+b+'}{'+a+'}$, эхний дүрсийн талбай $='+S+'$ см$^2$',
+  a:'$k='+kTex(p,q)+'$. Талбайнуудын харьцаа $k^2='+kTex(p*p,q*q)+'$: $\\ S_1='+S+'\\cdot '+kTex(p*p,q*q)+'='+dstr(S2)+'$ см$^2$',
+  key:'sa'+a+'_'+b+'_'+S,nv:S2};}
+
+function g_simEnlarge(){var m=pick(['pct','add']);var a=rnd(3,12),b=a+rnd(1,9);
+ var pc=pick([10,20,25,40,50,60,75]),ad=rnd(2,9);
+ if(m==='pct')return {q:'$'+a+'$ ба $'+b+'$ талтай тэгш өнцөгтийн бүх талыг $'+pc+'\\%$-иар ихэсгэв.',
+  a:'$'+dstr(a*(1+pc/100))+'$ ба $'+dstr(b*(1+pc/100))+'$. Харьцаа $\\dfrac{'+dstr(a*(1+pc/100))+'}{'+a+'}=\\dfrac{'+dstr(b*(1+pc/100))+'}{'+b+'}='+dstr(1+pc/100)+'$ тул <b>төсөөтэй мөн</b>.',
+  key:'se1'+a+'_'+b+'_'+pc};
+ return {q:'$'+a+'$ ба $'+b+'$ талтай тэгш өнцөгтийн бүх талыг $'+ad+'$-аар ихэсгэв.',
+  a:'$'+(a+ad)+'$ ба $'+(b+ad)+'$. $\\ \\dfrac{'+(a+ad)+'}{'+a+'}='+dstr((a+ad)/a)+'$, $\\ \\dfrac{'+(b+ad)+'}{'+b+'}='+dstr((b+ad)/b)+'$ — тэнцүү биш тул <b>төсөөтэй биш</b>.',
+  key:'se2'+a+'_'+b+'_'+ad};}
+
+var SIMSETS=[['MNK','M_1N_1K_1'],['DEF','D_1E_1F_1'],['PQR','P_1Q_1R_1'],['XYZ','X_1Y_1Z_1'],['KLM','K_1L_1M_1']];
+function g_simProportion(){var S=pick(SIMSETS);var T1=S[0],T2=S[1].split('_1').join('');
+ var i=rnd(0,2),j=rnd(0,2);if(i===j)return null;
+ function sd(T,k){return T.charAt(k)+T.charAt((k+1)%3);}
+ var l=T2.charAt(j)+'_1'+T2.charAt((j+1)%3)+'_1';
+ var l2=T2.charAt(i)+'_1'+T2.charAt((i+1)%3)+'_1';
+ return {q:'$\\triangle '+T1+'\\sim\\triangle '+T2.charAt(0)+'_1'+T2.charAt(1)+'_1'+T2.charAt(2)+'_1$, $\\ \\dfrac{'+sd(T1,i)+'}{'+l2+'}=\\dfrac{'+sd(T1,j)+'}{\\square}$',
+  a:'Харгалзах талууд ижил эрэмбээр бичигдэнэ: $\\square='+l+'$',
+  key:'spp'+T1+i+j};}
+
+var SIMFACT=[['Дурын хоёр квадрат','төсөөтэй','бүх өнцөг $90^\\circ$, талуудын харьцаа тогтмол'],
+ ['Дурын хоёр зөв гурвалжин','төсөөтэй','бүх өнцөг $60^\\circ$, талуудын харьцаа тогтмол'],
+ ['Дурын хоёр зөв зургаан өнцөгт','төсөөтэй','ижил тооны тал, өнцгүүд тэнцүү'],
+ ['Дурын хоёр тойрог','төсөөтэй','радиусуудын харьцаа тогтмол'],
+ ['Дурын хоёр тэгш өнцөгт','төсөөтэй байх албагүй','талуудын харьцаа өөр байж болно'],
+ ['Дурын хоёр ромб','төсөөтэй байх албагүй','өнцгүүд нь өөр байж болно'],
+ ['Дурын хоёр адил хажуут гурвалжин','төсөөтэй байх албагүй','оройн өнцөг нь өөр байж болно'],
+ ['Дурын хоёр тэгш өнцөгт гурвалжин','төсөөтэй байх албагүй','хурц өнцгүүд нь өөр байж болно'],
+ ['Ижил $n$-тэй дурын хоёр зөв $n$ өнцөгт','төсөөтэй','өнцөг бүр $\\dfrac{(n-2)\\cdot 180^\\circ}{n}$, талуудын харьцаа тогтмол'],
+ ['Дурын хоёр параллелограмм','төсөөтэй байх албагүй','өнцөг ба талуудын харьцаа өөр байж болно']];
+function g_simRegularConcept(){var f=pick(SIMFACT);
+ return {q:f[0]+' төсөөтэй юу?',a:'<b>'+f[1]+'</b> — '+f[2]+'.',key:'src'+f[0]};}
+
+// ════════════════ НЭМЭЛТ ЗУРГИЙН ТУСЛАХУУД ════════════════
+// ── Гүдгэр олон өнцөгт, ГАДААД өнцгийн шошготой (талыг сунгасан) ──
+function polyExtFig(labs){var n=labs.length,cx=100,cy=100,R=60,pts=[],i;
+ for(i=0;i<n;i++){var a=(90+i*360/n)*Math.PI/180,k=R*RRV[i%RRV.length];
+  pts.push([cx+k*Math.cos(a),cy-k*Math.sin(a)]);}
+ var g=pgn(pts);
+ for(i=0;i<n;i++){if(!labs[i])continue;
+  var pv=pts[(i+n-1)%n],nx=pts[(i+1)%n],P=pts[i];
+  var u=vN(vSub(P,pv)),E=vAdd(P,vMul(u,20));
+  g+=ln(P,E,{c:'#94a3b8',w:1.1,d:1});
+  g+=angArc(P,E,nx,10,null,'#94a3b8');
+  var bi=vN(vAdd(vN(vSub(E,P)),vN(vSub(nx,P))));
+  var lp=vAdd(P,vMul(bi,26));
+  g+=tx(lp[0],lp[1]+3.4,labs[i],{fs:9.5,c:RD});}
+ return sv(202,202,g,184);}
+
+// ── Тэгш өнцөгт трапец, диагональтай ──
+function trapDiagFig(top,bot,ht,lt,lb,lh){
+ var sc=Math.min(116/bot,70/ht),ox=46,oy=112,W2=bot*sc,T=top*sc,h=ht*sc;
+ var A=[ox,oy],D=[ox+W2,oy],C=[ox+T,oy-h],B=[ox,oy-h];
+ var g=pgn([A,D,C,B])+ln(B,D,{c:'#dc2626',w:1.5})+rAngMark(A,D,B,8);
+ if(lb)g+=tx(ox+W2/2,oy+15,lb);
+ if(lt)g+=tx(ox+T/2,oy-h-6,lt);
+ if(lh)g+=tx(ox-7,oy-h/2+3.4,lh,{an:'end'});
+ g+=tx((B[0]+D[0])/2+7,(B[1]+D[1])/2-4,'?',{c:'#b91c1c',an:'start'});
+ return sv(202,146,g,184);}
+
+// ════════════════ 6.1 нэмэлт ════════════════
+function g_polyExteriorMissing(){var n=pick([4,5,5,6]),angs=[],used=0,i;
+ for(i=0;i<n-1;i++){var a=rnd(30,95);angs.push(a);used+=a;}
+ var miss=360-used;if(miss<25||miss>112)return null;
+ var labs=angs.map(function(a){return a+'°';});labs.push('x');
+ return {q:'$x=?$',
+  a:'Гадаад өнцгүүдийн нийлбэр $360^\\circ$: $\\ x=360^\\circ-('+angs.join('+')+')^\\circ=360^\\circ-'+used+'^\\circ='+miss+'^\\circ$',
+  key:'pxm'+n+'_'+angs.join('_'),nv:miss,fig:polyExtFig(labs)};}
+
+function g_polyPartialRatio(){var n=pick([5,6,7,8]),tot=(n-2)*180;
+ var k=pick([2,3]),m=n-k;if(m<2)return null;
+ var r=[],S=0,i;for(i=0;i<m;i++){var v=rnd(2,7);r.push(v);S+=v;}
+ var g0=r.reduce(function(a,b){return gcd(a,b);},r[0]);if(g0>1)return null;
+ var u=rnd(15,42),rest=u*S,given=tot-rest;
+ if(given<k*55||given>k*172)return null;
+ for(i=0;i<m;i++){if(r[i]*u<35||r[i]*u>172)return null;}
+ return {q:'$n='+n+'$; $\\ '+k+'$ өнцгийн нийлбэр $='+given+'^\\circ$; үлдсэн $'+m+'$ өнцгийн харьцаа $'+r.join(':')+'$',
+  a:'Нийт нийлбэр $('+n+'-2)\\cdot 180^\\circ='+tot+'^\\circ$. Үлдсэн өнцгүүдийн нийлбэр $'+tot+'^\\circ-'+given+'^\\circ='+rest+'^\\circ$. $\\ '+r.join('x+')+'x='+rest+'$; $\\ '+S+'x='+rest+'$, $\\ x='+u+'^\\circ$. Өнцгүүд: $'+r.map(function(v){return (v*u)+'^\\circ';}).join(';\\ ')+'$',
+  key:'ppr'+n+'_'+k+'_'+r.join('_')+'_'+u,nv:u};}
+
+var PPOS4=['ul','ur','ll','lr'];
+function g_parallelThree(){var th=rnd(32,74);
+ var G=pick(PPOS4),PX=pick(PPOS4),PY=pick(PPOS4);
+ var gv=pval(G,th),xv=pval(PX,th),yv=pval(PY,th);
+ return {q:'$x=?$, $\\ y=?$',
+  a:'$a\\parallel b\\parallel c$ тул огтлогчийн үүсгэсэн өнцөг бүр $'+th+'^\\circ$ эсвэл $'+(180-th)+'^\\circ$ болно. Иймд $x='+xv+'^\\circ$, $\\ y='+yv+'^\\circ$.',
+  key:'p3'+th+G+PX+PY,nv:xv,
+  fig:parFig([{at:'a',p:G,t:gv+'°'},{at:'b',p:PX,t:'x'},{at:'c',p:PY,t:'y'}],true)};}
+
+function g_parallelSumXYZ(){var m=pick(['sum','diff']);
+ if(m==='sum'){var z=rnd(25,155),S=180+z;
+  return {q:'$a\\parallel b$, $\\ x+y+z='+S+'^\\circ$',
+   a:'$x$ ба $y$ хамар өнцгүүд тул $x+y=180^\\circ$. Эндээс $z='+S+'^\\circ-180^\\circ='+z+'^\\circ$. $\\ x$ ба $z$ харгалзах өнцгүүд тул $x='+z+'^\\circ$, $\\ y=180^\\circ-'+z+'^\\circ='+(180-z)+'^\\circ$.',
+   key:'psx'+S,nv:z};}
+ var y=rnd(65,115),D=3*y-180,z2=180-y;
+ return {q:'$a\\parallel b$, $\\ x+y-z='+D+'^\\circ$',
+  a:'$y$ ба $z$ хамар өнцгүүд тул $z=180^\\circ-y$. $\\ x$ ба $y$ харгалзах өнцгүүд тул $x=y$. Эндээс $y+y-(180^\\circ-y)='+D+'^\\circ$; $\\ 3y='+(D+180)+'^\\circ$, $\\ y='+y+'^\\circ$. Иймд $x='+y+'^\\circ$, $\\ z='+z2+'^\\circ$.',
+  key:'pdx'+D,nv:y};}
+
+// ════════════════ 6.2 нэмэлт ════════════════
+function g_paraBisector(){var A=2*rnd(20,70),B=180-A;
+ return {q:'параллелограммын $\\angle A='+A+'^\\circ$',
+  a:'Зэргэлдээ орой: $\\angle B=180^\\circ-'+A+'^\\circ='+B+'^\\circ$. Биссектрисүүд тэн хуваахад $\\dfrac{'+A+'^\\circ}{2}='+(A/2)+'^\\circ$ ба $\\dfrac{'+B+'^\\circ}{2}='+(B/2)+'^\\circ$. Үүссэн гурвалжинд $180^\\circ-'+(A/2)+'^\\circ-'+(B/2)+'^\\circ=90^\\circ$ — биссектрисүүд перпендикуляр.',
+  key:'pbs'+A,nv:90};}
+
+function g_incircleRadius(){var a=rnd(5,20),b=rnd(5,20),c=rnd(5,20);
+ if(a+b<=c||a+c<=b||b+c<=a)return null;var P=a+b+c;if(P%2)return null;
+ var r=rnd(2,7),S=P/2*r;
+ return {q:'талууд $'+a+'$; $'+b+'$; $'+c+'$ см, $\\ S='+S+'$ см$^2$',
+  a:'$p=\\dfrac{'+a+'+'+b+'+'+c+'}{2}='+(P/2)+'$ см; $\\ S=p\\cdot r$ тул $r=\\dfrac{'+S+'}{'+(P/2)+'}='+r+'$ см',
+  key:'icr'+a+'_'+b+'_'+c+'_'+r,nv:r};}
+
+function g_medianTwoSum(){var k1=rnd(2,12),k2=rnd(2,12);if(k1===k2)return null;
+ var m1=3*k1,m2=3*k2;
+ return {q:'медианууд $AD='+m1+'$ см, $\\ BE='+m2+'$ см, $\\ O$ — хүндийн төв',
+  a:'$AO=\\dfrac{2}{3}\\cdot '+m1+'='+(2*k1)+'$ см; $\\ BO=\\dfrac{2}{3}\\cdot '+m2+'='+(2*k2)+'$ см. Иймд $AO+BO='+(2*k1)+'+'+(2*k2)+'='+(2*k1+2*k2)+'$ см.',
+  key:'mts'+m1+'_'+m2,nv:2*k1+2*k2};}
+
+function g_medialPerimeterRev(){var a=rnd(6,24),b=rnd(6,24),c=rnd(6,24);
+ if(a+b<=c||a+c<=b||b+c<=a)return null;var P=a+b+c;if(P%2)return null;
+ return {q:'дундаж шугамуудын үүсгэсэн гурвалжны периметр $='+(P/2)+'$ см',
+  a:'Дундаж шугам бүр харгалзах талын хагас тул периметр нь хагас байна: анхны периметр $=2\\cdot '+(P/2)+'='+P+'$ см.',
+  key:'mpr'+P,nv:P};}
+
+// ════════════════ 6.3 нэмэлт ════════════════
+function g_rightTrapDiag(){var t=pick(TRIP),h=t[0],a=t[1],d=t[2];
+ if(a>30||h>24)return null;
+ var b=pick([3,4,5,6,8,9,10,12]);if(b>a-2||b*3<a)return null;
+ return {q:'суурьнууд $'+a+'$ ба $'+b+'$ см, өндөр $='+h+'$ см',
+  a:'Тэгш өнцгийн оройгоос татсан диагональ нь $'+h+'$ ба $'+a+'$ катеттай: $\\ \\sqrt{'+(h*h)+'+'+(a*a)+'}=\\sqrt{'+(h*h+a*a)+'}='+d+'$ см',
+  key:'rtdg'+a+'_'+b+'_'+h,nv:d,fig:trapDiagFig(b,a,h,b+' см',a+' см',h+' см')};}
+
+function g_altitudeTwoStep(){var A=pick(ALT),h=A[0],L=A[1];if(L.length<2)return null;
+ var i=rnd(0,L.length-1),j=rnd(0,L.length-1);if(i===j)return null;
+ var q0=L[i],p=L[j];
+ var c2=Math.round(Math.sqrt(h*h+q0*q0)),c1=Math.round(Math.sqrt(h*h+p*p));
+ return {q:'$CD\\perp AB$; $\\ AC='+c2+'$, $\\ AD='+q0+'$, $\\ DB='+p+'$ см',
+  a:'$ACD$-аас $CD=\\sqrt{'+(c2*c2)+'-'+(q0*q0)+'}=\\sqrt{'+(h*h)+'}='+h+'$ см. $\\ CDB$-аас $CB=\\sqrt{'+(h*h)+'+'+(p*p)+'}=\\sqrt{'+(h*h+p*p)+'}='+c1+'$ см.',
+  key:'ats'+h+'_'+q0+'_'+p,nv:c1,fig:altFig(p,q0,'?',p+'',q0+'','?',c2+'')};}
+
+function g_pythCompare(){var t1=pick(TRIP),t2=pick(TRIP),k=pick([100,200,500]);
+ var g1=t1[0]*k,h1=t1[1]*k,d1=t1[2]*k;
+ var g2=t2[1]*k,h2=t2[0]*k,d2=t2[2]*k;
+ if(d1===d2)return null;
+ var w=d1<d2?'А':'Б';
+ return {q:'$A$ онгоц буудлаас хэвтээгээр $'+g1+'$ м зайд, $'+h1+'$ м өндөрт; $B$ онгоц $'+g2+'$ м зайд, $'+h2+'$ м өндөрт байв. Аль онгоц буудалд ойр вэ?',
+  a:'$d_A=\\sqrt{'+(g1*g1)+'+'+(h1*h1)+'}='+d1+'$ м; $\\ d_B=\\sqrt{'+(g2*g2)+'+'+(h2*h2)+'}='+d2+'$ м. '+(d1<d2?'$d_A\\lt d_B$':'$d_B\\lt d_A$')+' тул <b>'+w+' онгоц</b> ойр байна.',
+  key:'pcm'+g1+'_'+h1+'_'+g2+'_'+h2,nv:Math.min(d1,d2)};}
+
+function g_iso45(){var b=pick([4,6,8,10,12,14,16,18,20,24]),hf=b/2;
+ return {q:'суурь $='+b+'$ см, суурийн өнцөг $=45^\\circ$',
+  a:'Өндөр суурийг тэн хуваана: $\\dfrac{'+b+'}{2}='+hf+'$ см. Суурийн өнцөг $45^\\circ$ тул үүссэн гурвалжин адил хажуут: $h='+hf+'$ см. Хажуу тал $=\\sqrt{'+(hf*hf)+'+'+(hf*hf)+'}=\\sqrt{'+(b*b/2)+'}='+sqSimp(b*b/2)+'$ см.',
+  key:'i45'+b,nv:b/Math.sqrt(2),fig:isoFig(b,b*0.71,b+' см','?','h = ?')};}
+
+function g_isoTrap45(){var a=pick([2,3,4,5,6,7,8,9,10]),b=pick([4,5,6,8,10,12]);
+ var big=b+2*a,S=(big+b)/2*a;
+ return {q:'суурийн өнцөг $=45^\\circ$, хажуу тал $='+a+'\\sqrt{2}$ см, бага суурь $='+b+'$ см',
+  a:'$45^\\circ$ тул өндөр ба хэвтээ хэсэг тэнцүү: $h='+a+'\\sqrt{2}\\cdot\\dfrac{1}{\\sqrt{2}}='+a+'$ см. Их суурь $='+b+'+2\\cdot '+a+'='+big+'$ см. Периметр $='+big+'+'+b+'+2\\cdot '+a+'\\sqrt{2}='+(big+b)+'+'+(2*a)+'\\sqrt{2}$ см. Талбай $=\\dfrac{'+big+'+'+b+'}{2}\\cdot '+a+'='+S+'$ см$^2$.',
+  key:'it45'+a+'_'+b,nv:S};}
+
+function g_hexagonApothem(){var a=pick([2,4,6,8,10,12,14,16,18,20]);
+ var N=3*a*a/4,S=sqSimp(N),tail=(S==='\\sqrt{'+N+'}')?'':('='+S);
+ return {q:'зөв зургаан өнцөгтийн тал $='+a+'$ см, багтсан тойргийн радиус $=?$',
+  a:'Төвөөс талын дунд хүрэх зай нь $'+a+'$ талтай зөв гурвалжны өндөр: $\\ \\sqrt{'+(a*a)+'-'+(a*a/4)+'}=\\sqrt{'+N+'}'+tail+'$ см',
+  key:'hxa'+a};}
+
+// ════════════════ 6.4 нэмэлт ════════════════
+function g_radiusIsosceles(){var t=rnd(20,75),aob=180-2*t;
+ return {q:'$OA=OB=R$, $\\ \\angle OAB='+t+'^\\circ$',
+  a:'$OA=OB$ тул $\\angle OBA=\\angle OAB='+t+'^\\circ$. $\\ \\angle AOB=180^\\circ-2\\cdot '+t+'^\\circ='+aob+'^\\circ$, иймд $AB$ нум $='+aob+'^\\circ$.',
+  key:'ris'+t,nv:aob,
+  fig:CF({pts:[{n:'A',a:200},{n:'B',a:340}],seg:[['O','A','#7B52EE'],['O','B','#7B52EE'],['A','B','#94a3b8']],
+   ang:[{at:'A',f:'O',t:'B',r:14,l:t+'°'},{at:'O',f:'A',t:'B',r:16,l:'?'}]})};}
+
+function g_arcFromTwoInscribed(){var a=rnd(25,75),b=rnd(25,75),c=180-a-b;
+ if(c<25||c>110)return null;
+ return {q:'$\\angle A='+a+'^\\circ$, $\\ \\angle B='+b+'^\\circ$',
+  a:'$\\angle C=180^\\circ-'+a+'^\\circ-'+b+'^\\circ='+c+'^\\circ$. Багтсан өнцөг нумынхаа хагас тул нум $BC=2\\cdot '+a+'^\\circ='+(2*a)+'^\\circ$; нум $AC='+(2*b)+'^\\circ$; нум $AB='+(2*c)+'^\\circ$.',
+  key:'afti'+a+'_'+b,nv:2*a,
+  fig:CF({pts:[{n:'A',a:205},{n:'B',a:325},{n:'C',a:80}],
+   seg:[['A','B','#7B52EE'],['B','C','#7B52EE'],['A','C','#7B52EE']],
+   ang:[{at:'A',f:'B',t:'C',r:17,l:a+'°'},{at:'B',f:'C',t:'A',r:17,l:b+'°'}],O:false})};}
+
+function g_tangentSecantTri(){var t=rnd(15,42);
+ return {q:'$MB$ — шүргэгч, $\\ MA$ — төвийг дайрсан огтлогч, $\\ \\angle A='+t+'^\\circ$',
+  a:'$OA=OB$ тул $\\angle OBA='+t+'^\\circ$. $\\ OB\\perp MB$ тул $\\angle ABM='+t+'^\\circ+90^\\circ='+(t+90)+'^\\circ$. Гурвалжны өнцгийн нийлбэрээр $\\angle M=180^\\circ-'+t+'^\\circ-'+(t+90)+'^\\circ='+(90-2*t)+'^\\circ$.',
+  key:'tst'+t,nv:90-2*t};}
+
+// ════════════════ 6.5 нэмэлт ════════════════
+function g_simKFromArea(){var K=pick(KS),p=K[0],q=K[1];
+ var S=q*q*rnd(2,9),S2=S*p*p/(q*q);
+ return {q:'талбайнууд $'+S+'$ см$^2$ ба $'+S2+'$ см$^2$',
+  a:'$k^2=\\dfrac{'+S2+'}{'+S+'}='+kTex(p*p,q*q)+'$; $\\ k='+kTex(p,q)+(q===1?'':('='+dstr(p/q)))+'$',
+  key:'ska'+S+'_'+S2,nv:p/q};}
+
+var SIMPROP=[
+ ['\\dfrac{AB}{DE}=\\dfrac{BC}{EF}',1],
+ ['\\dfrac{AB}{DE}=\\dfrac{AC}{DF}',1],
+ ['\\dfrac{BC}{EF}=\\dfrac{AC}{DF}',1],
+ ['\\dfrac{AB}{EF}=\\dfrac{BC}{DE}',0],
+ ['\\dfrac{BC}{DF}=\\dfrac{AC}{EF}',0],
+ ['\\dfrac{AB}{DF}=\\dfrac{AC}{DE}',0],
+ ['\\dfrac{CA}{FD}=\\dfrac{BC}{EF}',1],
+ ['\\dfrac{CA}{EF}=\\dfrac{AB}{DE}',0],
+ ['\\dfrac{AC}{DF}=\\dfrac{AB}{EF}',0],
+ ['\\dfrac{BC}{EF}=\\dfrac{CA}{FD}',1]];
+function g_simTrueProportion(){var i=rnd(0,SIMPROP.length-1),s=SIMPROP[i];
+ return {q:'$\\triangle ABC\\sim\\triangle DEF$, $\\ '+s[0]+'$',
+  a:s[1]?'<b>Үнэн</b> — харгалзах талуудын харьцаа тэнцүү.':'<b>Худал</b> — харгалзах бус талуудыг харьцуулжээ. Зөв харгалзаа: $A\\to D$, $\\ B\\to E$, $\\ C\\to F$.',
+  key:'stp'+i};}
+
+function g_simAlgebraX(){var K=pick(KS),p=K[0],q=K[1];if(p<=q)return null;
+ var m=rnd(1,6),t=rnd(2,7);
+ var x=q*m,c=(p-q)*m,big=p*m,b=q*t,B=p*t;
+ if(c<2||c>40)return null;
+ if(big*4<B||B*4<big)return null;
+ var step=((p-q)===1)?('$\\ x='+(q*c)+'$'):('$\\ '+(p-q)+'x='+(q*c)+'$, $\\ x='+x+'$');
+ return {q:'том дүрс: $x+'+c+'$ ба $'+B+'$; жижиг дүрс: $x$ ба $'+b+'$',
+  a:'$\\dfrac{x+'+c+'}{x}=\\dfrac{'+B+'}{'+b+'}='+kTex(p,q)+'$; $\\ '+(q===1?'':q)+'(x+'+c+')='+p+'x$; '+step+'. Том дүрсийн талууд: $'+big+'$ ба $'+B+'$.',
+  key:'sax'+p+'_'+q+'_'+m+'_'+t,nv:x};}
+var WSPEC={"title":"Олон өнцөгт-2","sub":"Гадаад өнцөг ба талын тоо · VI бүлэг · 8-р анги","rule":"<b>Санамж:</b> Гүдгэр $n$ өнцөгтийн дотоод өнцгүүдийн нийлбэр $(n-2)\\cdot 180^\\circ$, гадаад өнцгүүдийн нийлбэр $360^\\circ$. Зөв $n$ өнцөгтийн нэг дотоод өнцөг $\\dfrac{(n-2)\\cdot 180^\\circ}{n}$, нэг гадаад өнцөг $\\dfrac{360^\\circ}{n}$. Нэг орой дахь дотоод ба гадаад өнцөг хамар өнцөг тул нийлбэр нь $180^\\circ$. Диагоналийн тоо $\\dfrac{n(n-3)}{2}$.","ref":"","tasks":[{"label":"Зөв олон өнцөгтийн нэг гадаад өнцгийг ол.","fn":"g_regPolyExterior","cap":6,"cols":4,"wk":8},{"label":"Нэг гадаад өнцгөөр талын тоог ол.","fn":"g_polyFromExt","cap":4,"cols":3,"wk":10},{"label":"Зурагт мэдэгдэхгүй байгаа гадаад өнцгийг ол.","fn":"g_polyExteriorMissing","cap":4,"cols":2,"wk":18},{"label":"Дотоод ба гадаад өнцгийн харьцаагаар талын тоог ол.","fn":"g_polyIntExtRatio","cap":6,"cols":2,"wk":18}]};
 
 function toggleAns(){var el=document.getElementById('answers');if(el)el.style.display=document.getElementById('sa').checked?'block':'none';}
 function gen(fn){for(var t=0;t<700;t++){var f=fn();if(f)return f;}return null;}
@@ -146,16 +1058,16 @@ function probeH(sheet){var pr=sheet.cloneNode(true);pr.removeAttribute('id');pr.
 function relabel(sheet){var blocks=sheet.querySelectorAll('.grid'),map={};for(var g=0;g<blocks.length;g++){var qs2=blocks[g].querySelectorAll('.q');for(var i=0;i<qs2.length;i++){var lt=LET[i]||('#'+(i+1));var ql=qs2[i].querySelector('.ql');if(ql)ql.textContent=lt+')';map[qs2[i].getAttribute('data-k')]=(g+1)+lt+')';}}
   var as=sheet.querySelectorAll('#answers .a');for(var j=0;j<as.length;j++){var an=as[j].querySelector('.an');if(an)an.textContent=map[as[j].getAttribute('data-k')]||'';}}
 function trimToFit(sheet,target){var guard=0,h=probeH(sheet);while(h>target&&guard++<90){var blocks=sheet.querySelectorAll('.grid'),best=-1,bestN=-1;for(var s=blocks.length-1;s>=0;s--){var n=blocks[s].querySelectorAll('.q').length;if(n>bestN&&n>2){bestN=n;best=s;}}if(best<0)break;var qs2=blocks[best].querySelectorAll('.q');var last=qs2[qs2.length-1],k=last.getAttribute('data-k');var ans=sheet.querySelector('#answers .a[data-k="'+k+'"]');if(ans)ans.parentNode.removeChild(ans);last.parentNode.removeChild(last);relabel(sheet);h=probeH(sheet);}}
-var TASKS=WSPEC.tasks.map(function(t){return {label:t.label, fn:eval(t.fn), cap:t.cap};});
+var TASKS=WSPEC.tasks.map(function(t){return {label:t.label, fn:eval(t.fn), cap:t.cap, cols:t.cols, wk:t.wk};});
 function genPool(){var P=TASKS.map(function(){return[];});var seen={};TASKS.forEach(function(t,i){var c=0,tr=0,need=t.cap+3;while(c<need&&tr<9000){tr++;var f=gen(t.fn);if(!f||seen[f.key])continue;seen[f.key]=1;P[i].push(f);c++;}});return P;}
 function build(){window.__POOL=genPool();layout();}
 function layout(){var WK=document.getElementById('sw').checked;var S=window.__POOL||(window.__POOL=genPool());window.__PROB=[];var K=0;
-  function block(arr,cap){var use=WK?arr.slice(0,cap):arr;return '<div class="grid">'+use.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});return '<div class="q" data-k="'+k+'"><div class="qh"><span class="ql"></span><span class="qm">'+f.q+'</span></div>'+(f.fig?'<div class="fig">'+f.fig+'</div>':'')+((WK&&!f.noWk)?'<div class="wk"></div>':'')+'</div>';}).join('')+'</div>';}
+  function block(arr,cap,tk){var use=WK?arr.slice(0,cap):arr;return '<div class="grid"'+(tk&&tk.cols?' style="grid-template-columns:repeat('+tk.cols+',1fr)"':'')+'>'+use.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});return '<div class="q" data-k="'+k+'"><div class="qh"><span class="ql"></span><span class="qm">'+f.q+'</span></div>'+(f.fig?'<div class="fig">'+f.fig+'</div>':'')+((WK&&!f.noWk)?'<div class="wk"'+(tk&&tk.wk?' style="height:'+tk.wk+'mm"':'')+'></div>':'')+'</div>';}).join('')+'</div>';}
   function ansAll(){return window.__PROB.map(function(p){return '<div class="a" data-k="'+p.k+'"><span class="an"></span>'+p.f.a+'</div>';}).join('');}
   var html='<div class="head"><h1>'+WSPEC.title+'</h1><div class="sub">'+WSPEC.sub+'</div></div>'
     +'<div class="meta"><span>Нэр: </span><span>Анги: </span><span>Огноо: </span></div>'
     +'<div class="rule">'+WSPEC.rule+'</div>'+(WSPEC.ref||'');
-  TASKS.forEach(function(t,i){html+='<div class="task">'+(i+1)+'. '+t.label+'</div>'+block(S[i],t.cap);});
+  TASKS.forEach(function(t,i){html+='<div class="task">'+(i+1)+'. '+t.label+'</div>'+block(S[i],t.cap,t);});
   html+='<div class="ans-page" id="answers"><h2>Хариу ба бодолт</h2><div class="ans-grid">'+ansAll()+'</div></div>';
   document.getElementById('sheet').innerHTML=html;
   window.WS_ITEMS=[];window.WS_TITLE=WSPEC.title;
