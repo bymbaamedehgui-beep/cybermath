@@ -1079,6 +1079,24 @@ module.exports = async (req, res) => {
         }
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_g7c6_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
+      // ── Нэг удаагийн: 6-р анги ЖИШИГ ДААЛГАВАР (40 хувилбар) ──
+      const cf_g6ex = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_g6exam_v1'`);
+      if (!cf_g6ex.rows.length) {
+        let sg_g6ex = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='6-р анги' AND name=$1`, ["ЖИШИГ ДААЛГАВАР — Заавал бодох 360 бодлого"]);
+        let sid_g6ex;
+        if (sg_g6ex.rows.length) { sid_g6ex = Number(sg_g6ex.rows[0].id); }
+        else {
+          const mx = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='6-р анги'`);
+          const ins = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('6-р анги',$1,$2,NULL) RETURNING id`, ["ЖИШИГ ДААЛГАВАР — Заавал бодох 360 бодлого", mx.rows[0].p]);
+          sid_g6ex = Number(ins.rows[0].id);
+        }
+        const slugs_g6ex = ["jishig-daalgavar-1-6.html", "jishig-daalgavar-2-6.html", "jishig-daalgavar-3-6.html", "jishig-daalgavar-4-6.html", "jishig-daalgavar-5-6.html", "jishig-daalgavar-6-6.html", "jishig-daalgavar-7-6.html", "jishig-daalgavar-8-6.html", "jishig-daalgavar-9-6.html", "jishig-daalgavar-10-6.html", "jishig-daalgavar-11-6.html", "jishig-daalgavar-12-6.html", "jishig-daalgavar-13-6.html", "jishig-daalgavar-14-6.html", "jishig-daalgavar-15-6.html", "jishig-daalgavar-16-6.html", "jishig-daalgavar-17-6.html", "jishig-daalgavar-18-6.html", "jishig-daalgavar-19-6.html", "jishig-daalgavar-20-6.html", "jishig-daalgavar-21-6.html", "jishig-daalgavar-22-6.html", "jishig-daalgavar-23-6.html", "jishig-daalgavar-24-6.html", "jishig-daalgavar-25-6.html", "jishig-daalgavar-26-6.html", "jishig-daalgavar-27-6.html", "jishig-daalgavar-28-6.html", "jishig-daalgavar-29-6.html", "jishig-daalgavar-30-6.html", "jishig-daalgavar-31-6.html", "jishig-daalgavar-32-6.html", "jishig-daalgavar-33-6.html", "jishig-daalgavar-34-6.html", "jishig-daalgavar-35-6.html", "jishig-daalgavar-36-6.html", "jishig-daalgavar-37-6.html", "jishig-daalgavar-38-6.html", "jishig-daalgavar-39-6.html", "jishig-daalgavar-40-6.html"];
+        for (const slug of slugs_g6ex) {
+          await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + sid_g6ex, slug]);
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_g6exam_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
+
       // ── Нэг удаагийн: 6-р анги I БҮЛЭГ ──
       const cf_g6c1 = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_g6c1_v1'`);
       if (!cf_g6c1.rows.length) {
