@@ -18,6 +18,29 @@ const WS_MONTHS = [3, 6, 9, 12];
 function wsNormMonths(m) { m = parseInt(m, 10); return WS_MONTHS.indexOf(m) >= 0 ? m : 3; }
 function wsBasePrice(months) { return WS_PRICES[wsNormMonths(months)]; }
 const WS_YEAR_PRICE = WS_PRICES[12];   // хуучин 'wsyear' нийцэл
+// ── Ажлын хуудсыг АНГИАР худалдан авах (нэг анги = сард 9900) ──
+const WG = require('./_wsgrade');
+const WS_GRADE_PER_MONTH = parseInt(process.env.WS_GRADE_PRICE || '9900', 10);
+const WS_GRADE_MONTHS = [1, 3, 6, 12];
+// catalog.js ачаалагдаагүй (жагсаалт хоосон) тохиолдолд "N-р анги" хэлбэрээр зөвшөөрнө
+function wsGradeOk(g) {
+  g = String(g || '').trim();
+  if (!g) return false;
+  const list = WG.allGrades();
+  if (list.length) return list.indexOf(g) >= 0;
+  return /^\d{1,2}-р анги$/.test(g);
+}
+function wsGradeMonths(m) { m = parseInt(m, 10); return WS_GRADE_MONTHS.indexOf(m) >= 0 ? m : 1; }
+function wsGradeBase(months) { return wsGradeMonths(months) * WS_GRADE_PER_MONTH; }
+function wsGradePrice(pct, months) {
+  const base = wsGradeBase(months);
+  return pct > 0 ? Math.round(base * (100 - pct) / 100) : base;
+}
+function wsGradePrices() {
+  const o = {};
+  WS_GRADE_MONTHS.forEach(function (m) { o[m] = wsGradeBase(m); });
+  return o;
+}
 // Ажлын хуудсын урамшууллын код (20% хөнгөлөлт). Кодыг env-ээр өөрчилж болно.
 const WS_PROMO_PCT = parseInt(process.env.WS_PROMO_PCT || '20', 10);
 const WS_PROMO_CODES = (process.env.WS_PROMO_CODES || 'BAGSH20,ZUN20,CYBER20')
@@ -209,6 +232,8 @@ async function ensureWsExtra() {
     created_at TIMESTAMPTZ DEFAULT NOW()
   )`).catch(()=>{});
   await pool.query(`ALTER TABLE ws_pending ADD COLUMN IF NOT EXISTS ref TEXT`).catch(()=>{});
+  await pool.query(`ALTER TABLE ws_pending ADD COLUMN IF NOT EXISTS grade TEXT`).catch(()=>{});
+  await pool.query(`ALTER TABLE ws_purchases ADD COLUMN IF NOT EXISTS grade TEXT`).catch(()=>{});
   await pool.query(`ALTER TABLE ws_login ADD COLUMN IF NOT EXISTS ref_code TEXT`).catch(()=>{});
   await pool.query(`CREATE TABLE IF NOT EXISTS ws_referrals (
     referee_email TEXT PRIMARY KEY,
@@ -242,12 +267,12 @@ async function resolvePromo(code) {
   return { valid: false, pct: 0 };
 }
 function priceFromPct(pct, months) { const base = wsBasePrice(months); return pct > 0 ? Math.round(base * (100 - pct) / 100) : base; }
-async function recordPurchase(email, amount, promo, invoiceId, months) {
+async function recordPurchase(email, amount, promo, invoiceId, months, grade) {
   await ensureWsExtra();
   const r = await pool.query(
-    `INSERT INTO ws_purchases (email, amount, promo, invoice_id, months) VALUES ($1,$2,$3,$4,$5)
+    `INSERT INTO ws_purchases (email, amount, promo, invoice_id, months, grade) VALUES ($1,$2,$3,$4,$5,$6)
      ON CONFLICT (invoice_id) DO NOTHING RETURNING id`,
-    [email, amount, promo || null, invoiceId || null, months || null]);
+    [email, amount, promo || null, invoiceId || null, months || null, grade || null]);
   return r.rows.length > 0;
 }
 
@@ -333,6 +358,16 @@ module.exports = async (req, res) => {
       if (plan === 'wsyear') wsMonths = 12;
       else if (plan === 'wsmonths') wsMonths = wsNormMonths((req.body || {}).months);
 
+      // Ажлын хуудас — НЭГ АНГИ (сард 9900, 1/3/6/12 сар)
+      let wgGrade = null, wgMonths = null;
+      if (plan === 'wsgrade') {
+        wgGrade = String((req.body || {}).grade || '').trim();
+        if (!wsGradeOk(wgGrade)) {
+          return res.status(400).json({ ok: false, error: 'Анги буруу байна' });
+        }
+        wgMonths = wsGradeMonths((req.body || {}).months);
+      }
+
       // Сургалт (Event) — үнийг DB-ээс баталгаатай авна
       let eventId = null, eventTitle = null, eventPrice = null;
       if (plan === 'event') {
@@ -345,9 +380,11 @@ module.exports = async (req, res) => {
       }
 
       const planParam = wsMonths != null ? `&plan=wsmonths&months=${wsMonths}`
+                      : wgGrade != null ? `&plan=wsgrade&grade=${encodeURIComponent(wgGrade)}&months=${wgMonths}`
                       : plan === 'event' ? `&plan=event&event_id=${eventId}`
                       : plan ? `&plan=${encodeURIComponent(plan)}` : '';
-      const desc = wsMonths != null ? `CyberMath Ажлын хуудас — ${wsMonths} сар`
+      const desc = wgGrade != null ? `CyberMath ${wgGrade} — ${wgMonths} сар`.slice(0, 100)
+                 : wsMonths != null ? `CyberMath Ажлын хуудас — ${wsMonths} сар`
                  : plan === 'event' ? ('Сургалт — ' + (eventTitle || 'CyberMath')).slice(0, 100)
                  : plan === 'friends' ? 'CyberMath Найзууд багц (3 хүн)'
                  : plan === 'yearly'  ? 'CyberMath Premium 1 жил'
@@ -365,6 +402,9 @@ module.exports = async (req, res) => {
           if (owner && owner !== email.trim().toLowerCase()) { refStore = refIn; if (REF_PCT > pct) pct = REF_PCT; }
         }
         invAmount = priceFromPct(pct, wsMonths);
+      } else if (wgGrade != null) {
+        const pi = await resolvePromo((req.body || {}).promo);
+        invAmount = wsGradePrice(pi.pct, wgMonths);
       } else if (plan === 'event') {
         invAmount = eventPrice;
       }
@@ -387,14 +427,15 @@ module.exports = async (req, res) => {
       });
       const invoice = await invoiceResp.json();
       // Ажлын хуудсын нэхэмжлэхийг хадгална — дараа нь тулгаж нөхөж олгох боломжтой
-      if (wsMonths != null && invoice && invoice.invoice_id) {
+      if ((wsMonths != null || wgGrade != null) && invoice && invoice.invoice_id) {
         try {
           await ensureWsExtra();
           const promo = ((req.body || {}).promo || '').trim().toUpperCase() || null;
           await pool.query(
-            `INSERT INTO ws_pending (invoice_id, email, months, promo, amount, ref) VALUES ($1,$2,$3,$4,$5,$6)
+            `INSERT INTO ws_pending (invoice_id, email, months, promo, amount, ref, grade) VALUES ($1,$2,$3,$4,$5,$6,$7)
              ON CONFLICT (invoice_id) DO NOTHING`,
-            [invoice.invoice_id, email.trim().toLowerCase(), wsMonths, promo, invAmount, refStore]);
+            [invoice.invoice_id, email.trim().toLowerCase(), wsMonths != null ? wsMonths : wgMonths,
+             promo, invAmount, refStore, wgGrade]);
         } catch (e) { console.error('[ws_pending]', e.message); }
       }
       // Сургалтын бүртгэлд invoice_id холбоно (event_register аль хэдийн мөр үүсгэсэн)
@@ -436,6 +477,21 @@ module.exports = async (req, res) => {
             }
           } catch (e) { console.error('[event paid]', e.message); }
           return res.json({ ok: true, paid: true });
+        }
+        // Ажлын хуудсын эрх — НЭГ АНГИ
+        if (plan === 'wsgrade') {
+          const grade = String((req.body || {}).grade || '').trim();
+          const months = wsGradeMonths((req.body || {}).months);
+          if (!wsGradeOk(grade)) return res.status(400).json({ ok: false, error: 'Анги буруу байна' });
+          const gexp = await WG.grantGradeMonths(email, grade, months);
+          try {
+            const promo = ((req.body || {}).promo || '').trim().toUpperCase() || null;
+            const pi = promo ? await resolvePromo(promo) : { pct: 0 };
+            const inserted = await recordPurchase(email, wsGradePrice(pi.pct, months), promo, invoice_id, months, grade);
+            if (inserted && promo) await pool.query('UPDATE ws_promos SET used_count=used_count+1 WHERE code=$1', [promo]).catch(()=>{});
+            await pool.query('UPDATE ws_pending SET granted=TRUE WHERE invoice_id=$1', [invoice_id]).catch(()=>{});
+          } catch (e) { console.error('[ws grade purchase]', e.message); }
+          return res.json({ ok: true, paid: true, grade: grade, expiry: gexp.toISOString(), ws_token: wsToken(email) });
         }
         // Ажлын хуудсын эрх — сараар тусдаа ws_access-д олгоно
         if (plan === 'wsyear' || plan === 'wsmonths') {
@@ -484,6 +540,17 @@ module.exports = async (req, res) => {
       const email = req.query.email ? decodeURIComponent(req.query.email) : null;
       const plan = req.query.plan ? decodeURIComponent(req.query.plan) : null;
 
+      if (email && plan === 'wsgrade') {
+        const grade = req.query.grade ? decodeURIComponent(req.query.grade) : '';
+        const months = wsGradeMonths(req.query.months);
+        try {
+          if (wsGradeOk(grade)) {
+            await WG.grantGradeMonths(email, grade, months);
+            console.log('[QPay callback] grade granted:', email, grade, months + 'сар');
+          } else { console.warn('[QPay callback] unknown grade:', grade); }
+        } catch (err) { console.error('[QPay callback grade]', err.message); }
+        return res.json({ ok: true });
+      }
       if (email && (plan === 'wsyear' || plan === 'wsmonths')) {
         const months = plan === 'wsyear' ? 12 : wsNormMonths(req.query.months);
         try { await grantWsMonths(email, months); console.log('[QPay callback] ws granted:', email, months + 'сар'); }
@@ -526,7 +593,9 @@ module.exports = async (req, res) => {
 
     // Ажлын хуудсын үнийн жагсаалт (нээлттэй)
     if (req.query.action === 'wsprices') {
-      return res.json({ ok: true, prices: WS_PRICES, months: WS_MONTHS });
+      return res.json({ ok: true, prices: WS_PRICES, months: WS_MONTHS,
+        grade_prices: wsGradePrices(), grade_months: WS_GRADE_MONTHS,
+        grade_per_month: WS_GRADE_PER_MONTH, grades: WG.allGrades() });
     }
 
     // Азтаны хүрд — нүднүүдийн шошго (клиент ижил дарааллаар зурна)
@@ -611,7 +680,7 @@ module.exports = async (req, res) => {
       const b = req.body || {};
       // Төлбөр тулгах — хадгалсан нэхэмжлэхүүдийг QPay-тэй тулгаж, төлсөн атлаа олгогдоогүйг нөхөж олгоно
       if (req.query.action === 'ws_reconcile') {
-        const pend = await pool.query('SELECT invoice_id, email, months, promo, amount FROM ws_pending WHERE granted=FALSE ORDER BY created_at DESC LIMIT 200');
+        const pend = await pool.query('SELECT invoice_id, email, months, promo, amount, grade FROM ws_pending WHERE granted=FALSE ORDER BY created_at DESC LIMIT 200');
         let checked = 0, granted = [];
         const token = await getToken();
         for (const row of pend.rows) {
@@ -623,12 +692,20 @@ module.exports = async (req, res) => {
             });
             const cd = await cr.json();
             if (cd && cd.count > 0) {
-              await grantWsMonths(row.email, row.months);
-              const inserted = await recordPurchase(row.email, row.amount || priceFromPct(0, row.months), row.promo, row.invoice_id, row.months);
-              if (inserted && row.promo) await pool.query('UPDATE ws_promos SET used_count=used_count+1 WHERE code=$1', [row.promo]).catch(()=>{});
-              await pool.query('UPDATE ws_pending SET granted=TRUE WHERE invoice_id=$1', [row.invoice_id]);
-              await processReferral(row.email, row.invoice_id);
-              granted.push({ email: row.email, months: row.months, amount: row.amount });
+              if (row.grade) {
+                await WG.grantGradeMonths(row.email, row.grade, row.months);
+                const insertedG = await recordPurchase(row.email, row.amount || wsGradeBase(row.months), row.promo, row.invoice_id, row.months, row.grade);
+                if (insertedG && row.promo) await pool.query('UPDATE ws_promos SET used_count=used_count+1 WHERE code=$1', [row.promo]).catch(()=>{});
+                await pool.query('UPDATE ws_pending SET granted=TRUE WHERE invoice_id=$1', [row.invoice_id]);
+                granted.push({ email: row.email, grade: row.grade, months: row.months, amount: row.amount });
+              } else {
+                await grantWsMonths(row.email, row.months);
+                const inserted = await recordPurchase(row.email, row.amount || priceFromPct(0, row.months), row.promo, row.invoice_id, row.months);
+                if (inserted && row.promo) await pool.query('UPDATE ws_promos SET used_count=used_count+1 WHERE code=$1', [row.promo]).catch(()=>{});
+                await pool.query('UPDATE ws_pending SET granted=TRUE WHERE invoice_id=$1', [row.invoice_id]);
+                await processReferral(row.email, row.invoice_id);
+                granted.push({ email: row.email, months: row.months, amount: row.amount });
+              }
             }
           } catch (e) { /* тухайн нэхэмжлэхийг алгасна */ }
         }
@@ -638,6 +715,14 @@ module.exports = async (req, res) => {
       if (req.query.action === 'ws_grant') {
         const email = String(b.email || '').trim().toLowerCase();
         if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ ok: false, error: 'Зөв имэйл оруулна уу' });
+        // grade өгвөл зөвхөн тэр ангид олгоно
+        const gr = String(b.grade || '').trim();
+        if (gr) {
+          if (!wsGradeOk(gr)) return res.status(400).json({ ok: false, error: 'Анги буруу байна' });
+          const gm = wsGradeMonths(b.months);
+          const gexp = await WG.grantGradeMonths(email, gr, gm);
+          return res.json({ ok: true, email: email, grade: gr, months: gm, expires_at: gexp.toISOString() });
+        }
         const months = wsNormMonths(b.months);
         const exp = await grantWsMonths(email, months);
         return res.json({ ok: true, email: email, months: months, expires_at: exp.toISOString() });
@@ -646,8 +731,20 @@ module.exports = async (req, res) => {
       if (req.query.action === 'ws_revoke') {
         const email = String(b.email || '').trim().toLowerCase();
         if (!email) return res.status(400).json({ ok: false, error: 'email дутуу' });
+        const gr = String(b.grade || '').trim();
+        if (gr) { await WG.revokeGrade(email, gr); return res.json({ ok: true, revoked: email, grade: gr }); }
         await pool.query('DELETE FROM ws_access WHERE email=$1', [email]);
+        await pool.query('DELETE FROM ws_grade_access WHERE email=$1', [email]).catch(()=>{});
         return res.json({ ok: true, revoked: email });
+      }
+      // Ангиар эрхтэй хэрэглэгчид
+      if (req.query.action === 'ws_grade_users') {
+        await WG.ensureGradeTable();
+        const r = await pool.query(
+          `SELECT email, grade, expires_at, updated_at, (expires_at > NOW()) AS active
+             FROM ws_grade_access ORDER BY updated_at DESC LIMIT 1000`);
+        const act = await pool.query('SELECT COUNT(*)::int n FROM ws_grade_access WHERE expires_at > NOW()');
+        return res.json({ ok: true, rows: r.rows, total: r.rows.length, active: act.rows[0].n });
       }
       // Эрхтэй хэрэглэгчид (ws_access) — бүртгэл админд харагдана
       if (req.query.action === 'ws_users_list') {
@@ -776,12 +873,38 @@ module.exports = async (req, res) => {
       if (!email && b.token) email = emailFromToken(b.token);
       const byEmail = !email && b.email ? String(b.email).trim().toLowerCase() : null;
       if (byEmail) email = byEmail;
-      if (!email) return res.json({ ok: true, enabled: true, active: false });
+      // Энэ хуудас ямар ангид харьяалагдахыг тодорхойлно (нэгээс олон байж болно)
+      const slug = String(b.slug || '').trim().toLowerCase();
+      let slugGrades = [], offerGrade = null;
+      if (slug) {
+        try {
+          slugGrades = await WG.gradesForSlug(slug);
+          const buyable = WG.allGrades();
+          offerGrade = slugGrades.filter(function (g) { return buyable.indexOf(g) >= 0; })[0] || null;
+        } catch (e) { console.error('[wsstatus grade]', e.message); }
+      }
+      const gradePrices = { grade: offerGrade, grade_prices: wsGradePrices(),
+        grade_months: WS_GRADE_MONTHS, grade_per_month: WS_GRADE_PER_MONTH,
+        prices: WS_PRICES, months: WS_MONTHS };
+
+      if (!email) return res.json(Object.assign({ ok: true, enabled: true, active: false, scope: null, grades: [] }, gradePrices));
+
       const r = await pool.query('SELECT expires_at FROM ws_access WHERE email=$1 AND expires_at > NOW()', [email]);
-      const active = r.rows.length > 0;
-      return res.json({ ok: true, enabled: true, active: active, email: active ? email : null,
-        expires_at: active ? r.rows[0].expires_at : null,
-        ws_token: active ? wsToken(email) : null });
+      const allActive = r.rows.length > 0;
+
+      let owned = [];
+      try { owned = await WG.activeGrades(email); } catch (e) { console.error('[wsstatus owned]', e.message); }
+      const ownedNames = owned.map(function (x) { return x.grade; });
+      const gradeHit = slugGrades.filter(function (g) { return ownedNames.indexOf(g) >= 0; })[0] || null;
+
+      const active = allActive || !!gradeHit;
+      return res.json(Object.assign({
+        ok: true, enabled: true, active: active,
+        scope: allActive ? 'all' : (gradeHit ? 'grade' : null),
+        email: active ? email : null,
+        expires_at: allActive ? r.rows[0].expires_at : (gradeHit ? (owned.filter(function (x) { return x.grade === gradeHit; })[0] || {}).expires_at : null),
+        grades: owned,
+        ws_token: active ? wsToken(email) : null }, gradePrices));
     }
 
     res.status(405).end();
