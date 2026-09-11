@@ -1079,6 +1079,24 @@ module.exports = async (req, res) => {
         }
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_g7c6_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
+      // ── Нэг удаагийн: 11-р анги ЖИШИГ ДААЛГАВАР (бодолттой) ──
+      const cf_g11ex = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_g11exam_v1'`);
+      if (!cf_g11ex.rows.length) {
+        let sg_g11ex = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='11-р анги' AND name=$1`, ["ЖИШИГ ДААЛГАВАР — бодолт хавсаргасан"]);
+        let sid_g11ex;
+        if (sg_g11ex.rows.length) { sid_g11ex = Number(sg_g11ex.rows[0].id); }
+        else {
+          const mx = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='11-р анги'`);
+          const ins = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('11-р анги',$1,$2,NULL) RETURNING id`, ["ЖИШИГ ДААЛГАВАР — бодолт хавсаргасан", mx.rows[0].p]);
+          sid_g11ex = Number(ins.rows[0].id);
+        }
+        const slugs_g11ex = ["jishig-daalgavar-1-11.html"];
+        for (const slug of slugs_g11ex) {
+          await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + sid_g11ex, slug]);
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_g11exam_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
+
       // ── Нэг удаагийн: 10-р анги ЖИШИГ ДААЛГАВАР (бодолттой, 10 хувилбар) ──
       const cf_g10ex = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_g10exam_v1'`);
       if (!cf_g10ex.rows.length) {

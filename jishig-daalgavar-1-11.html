@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Жишиг даалгавар-1 (11-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<style>
+  :root{--purple:#7B52EE;--purple2:#A855F7;--ink:#1a1030;--soft:#7a7390}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:var(--ink);background:#eceaf3;padding:16px;line-height:1.5}
+  .bar{max-width:820px;margin:0 auto 14px;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
+  .btn{font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.6rem 1.3rem;font-size:.9rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2));box-shadow:0 6px 16px -6px rgba(123,82,238,.6)}
+  .btn:hover{filter:brightness(1.06)} .btn.refresh{background:linear-gradient(135deg,#16a34a,#22c55e)}
+  .bar label{font-weight:700;color:var(--purple);display:flex;align-items:center;gap:6px;font-size:.88rem}
+  .sheet{background:#fff;width:210mm;max-width:100%;min-height:297mm;margin:0 auto;padding:12mm 14mm;box-shadow:0 12px 44px -18px rgba(0,0,0,.35)}
+  .head{text-align:center;border-bottom:2.5px solid var(--purple);padding-bottom:7px;margin-bottom:7px}
+  .head h1{font-size:16px;color:#5a32d6;font-weight:800}.head .sub{font-size:11px;color:var(--soft);margin-top:2px}
+  .meta{display:flex;justify-content:space-between;font-size:11.5px;margin:8px 2px 10px}.meta span{border-bottom:1px dotted #b3a9cf;padding:0 26px 2px 4px}
+  .rule{font-size:11px;color:var(--soft);background:transparent;border-left:3px solid #d9cff5;border-radius:8px;padding:8px 12px;margin-bottom:11px}
+  .rule b{color:#5a32d6}
+  .task{font-weight:800;color:#5a32d6;font-size:12.5px;margin:9px 0 7px;border-left:4px solid var(--purple2);padding-left:9px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:11px 20px}
+  .q{break-inside:avoid;page-break-inside:avoid}
+  .qh{display:flex;gap:7px;align-items:baseline}.ql{font-weight:800;color:var(--purple);font-size:13px;min-width:22px}.qm{font-size:13px}
+  .fig{text-align:center;margin:4px 0}
+  .wk{border:1.1px solid #e2daf5;border-radius:7px;background:linear-gradient(#fff,#fbf9ff);height:22mm;margin-top:5px}
+  .ans-page{margin-top:9mm;border-top:2px dashed #ddd;padding-top:7mm}.ans-page h2{font-size:15px;color:#5a32d6;margin-bottom:10px}
+  .ans-grid{display:grid;grid-template-columns:1fr;gap:9px;font-size:12px}.ans-grid .a{padding-bottom:8px;border-bottom:1px dotted #e6e0f5}.ans-grid .an{color:var(--purple);font-weight:800;margin-right:5px}
+  #answers{display:none}
+  @media print{body{background:#fff;padding:0}.bar{display:none}.sheet{box-shadow:none;width:auto;min-height:auto;padding:0;margin:0}@page{size:A4;margin:11mm}.ans-page{break-before:page}}
+</style>
+</head>
+<body>
+<div class="bar">
+  <button class="btn refresh" onclick="build()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>Шинэ бодлого</button>
+  <label><input type="checkbox" id="sw" onchange="layout()" checked> Бодолтын зай</label>
+  <label><input type="checkbox" id="sa" onchange="toggleAns()"> Хариу хавсаргах</label>
+  <button class="btn" onclick="window.print()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>Хэвлэх / PDF</button>
+</div>
+<div class="sheet" id="sheet"></div>
+<script>
+// ══════════ g10core.js — 10-р ангийн нийтлэг хөдөлгүүр ══════════
+function rnd(a,b){return a+Math.floor(Math.random()*(b-a+1));}
+function nz(a,b){var v;do{v=rnd(a,b);}while(v===0);return v;}
+function pick(a){return a[rnd(0,a.length-1)];}
+function shuffle(a){a=a.slice();for(var i=a.length-1;i>0;i--){var j=rnd(0,i),t=a[i];a[i]=a[j];a[j]=t;}return a;}
+function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){var t=b;b=a%b;a=t;}return a||1;}
+function lcm(a,b){return Math.abs(a*b)/gcd(a,b);}
+function sgn(n){return n>=0?'+'+n:''+n;}                 // +5, -3 (тэмдэгтэй)
+function paren(n){return n<0?'('+n+')':''+n;}            // (-3), 5 (сөрөг бол хаалттай)
+// ── Анхны тоо, задаргаа ──
+function isPrime(n){n=Math.abs(n);if(n<2)return false;for(var i=2;i*i<=n;i++)if(n%i===0)return false;return true;}
+function primeFactors(n){n=Math.abs(n);var f=[],d=2;while(d*d<=n){while(n%d===0){f.push(d);n/=d;}d++;}if(n>1)f.push(n);return f;} // [2,2,3]
+function primeFactExp(n){var f=primeFactors(n),out=[],i=0;while(i<f.length){var p=f[i],e=0;while(i<f.length&&f[i]===p){e++;i++;}out.push({p:p,e:e});}return out;} // [{p:2,e:2},{p:3,e:1}]
+function pfTex(n){var pe=primeFactExp(n);return pe.map(function(x){return x.e===1?''+x.p:x.p+'^{'+x.e+'}';}).join('\\cdot ');} // 2^{2}\cdot3
+// ── Бүтэн квадрат/куб ──
+function isqrt(n){if(n<0)return null;var r=Math.round(Math.sqrt(n));return r*r===n?r:null;}       // төгс квадрат бол язгуур, үгүй бол null
+function icbrt(n){var s=n<0?-1:1;n=Math.abs(n);var r=Math.round(Math.cbrt(n));for(var k=r-1;k<=r+1;k++){if(k*k*k===n)return s*k;}return null;} // төгс куб бол куб язгуур, үгүй бол null
+// ── Бутархайн exact хөдөлгүүр ──
+function Fr(n,d){if(d<0){n=-n;d=-d;}var g=gcd(n,d)||1;return {n:n/g,d:d/g};}
+function fAdd(a,b){return Fr(a.n*b.d+b.n*a.d,a.d*b.d);}
+function fSub(a,b){return Fr(a.n*b.d-b.n*a.d,a.d*b.d);}
+function fMul(a,b){return Fr(a.n*b.n,a.d*b.d);}
+function fDiv(a,b){return Fr(a.n*b.d,a.d*b.n);}
+function fVal(a){return a.n/a.d;}
+function fTex(a){if(a.d===1)return ''+a.n;if(a.n<0)return '-\\dfrac{'+(-a.n)+'}{'+a.d+'}';return '\\dfrac{'+a.n+'}{'+a.d+'}';}
+function fMix(a){if(a.d===1)return ''+a.n;var neg=a.n<0,N=Math.abs(a.n),w=Math.floor(N/a.d),r=N%a.d;if(w===0)return (neg?'-':'')+'\\dfrac{'+r+'}{'+a.d+'}';if(r===0)return (neg?'-':'')+w;return (neg?'-':'')+w+'\\dfrac{'+r+'}{'+a.d+'}';}
+function pFr(a){var t=fMix(a);return a.n<0?'\\left('+t+'\\right)':t;}
+function frTeX(n,d){if(d===0)return null;if(d<0){n=-n;d=-d;}var g=gcd(n,d);n/=g;d/=g;if(d===1)return ''+n;if(n<0)return '-\\dfrac{'+(-n)+'}{'+d+'}';return '\\dfrac{'+n+'}{'+d+'}';}
+// ── Аравтын бутархай (урт хуваалт, үет илрүүлэх) ──
+function longDiv(n,d){var ip=Math.floor(n/d),rem=n%d,digits=[],seen={},idx=0,pStart=-1;
+ while(rem!==0){if(seen[rem]!==undefined){pStart=seen[rem];break;}seen[rem]=idx;rem*=10;digits.push(Math.floor(rem/d));rem%=d;idx++;if(idx>40)break;}
+ return {ip:ip,digits:digits,pStart:pStart};}
+function decLatex(fr){var neg=fr.n<0,r=longDiv(Math.abs(fr.n),fr.d),s=(neg?'-':'');
+ if(r.digits.length===0)return s+r.ip;
+ if(r.pStart<0)return s+r.ip+'.'+r.digits.join('');
+ var nonrep=r.digits.slice(0,r.pStart).join(''),rep=r.digits.slice(r.pStart).join('');
+ return s+r.ip+'.'+nonrep+'('+rep+')';}
+function decPlain(fr){var neg=fr.n<0,r=longDiv(Math.abs(fr.n),fr.d),s=(neg?'-':'');
+ if(r.digits.length===0)return s+r.ip;
+ if(r.pStart<0)return s+r.ip+'.'+r.digits.join('');
+ var nonrep=r.digits.slice(0,r.pStart).join(''),rep=r.digits.slice(r.pStart).join('');
+ return s+r.ip+'.'+nonrep+rep+rep+'…';}
+function repToFr(ip,nonrep,rep){var p=nonrep.length,q=rep.length;var Aint=nonrep===''?0:parseInt(nonrep,10);var ABint=parseInt((nonrep+rep)||'0',10);
+ var den=(Math.pow(10,q)-1)*Math.pow(10,p);var num=ABint-Aint;var frac=Fr(num,den);var whole=Fr(ip,1);return fAdd(whole,frac);}
+// ── Тоймлол ──
+function roundPlace(n,place){return Math.round(n/place)*place;}
+function roundDec(x,step){return Math.round(x/step)*step;}
+function fmtDec(x,dec){return x.toFixed(dec);}
+function sigRound(x,k){if(x===0)return {v:0,dec:0};var d=Math.floor(Math.log10(Math.abs(x)))+1;var p=k-d;var mag=Math.pow(10,p);var v=Math.round(x*mag)/mag;return {v:v,dec:Math.max(0,p)};}
+// ── Зэрэг форматлах ──
+function powClean(b,e){if(e===1)return ''+b;if(e===0)return '1';return b+'^{'+e+'}';}
+function powTex(bTex,e){if(e===1)return bTex;if(e===0)return '1';return bTex+'^{'+e+'}';}
+// ── Аравтын тоог хамгийн энгийн хэлбэрээр (0.50→0.5) ──
+function trimZeros(s){if(s.indexOf('.')<0)return s;s=s.replace(/0+$/,'');if(s.charAt(s.length-1)==='.')s=s.slice(0,-1);return s;}
+function decStr(x,maxdec){var s=x.toFixed(maxdec||6);return trimZeros(s);}
+// ── 2D координатын зураг ──
+function plane(opts){opts=opts||{};var W=200,H=200,pad=16,R=opts.xr||5,cx=W/2,cy=H/2,u=(W-2*pad)/(2*R);
+ function X(x){return (cx+x*u).toFixed(1);}function Y(y){return (cy-y*u).toFixed(1);}
+ var g='',i;
+ for(i=-R;i<=R;i++){g+='<line x1="'+X(i)+'" y1="'+Y(-R)+'" x2="'+X(i)+'" y2="'+Y(R)+'" stroke="#eef" stroke-width="1"/>';g+='<line x1="'+X(-R)+'" y1="'+Y(i)+'" x2="'+X(R)+'" y2="'+Y(i)+'" stroke="#eef" stroke-width="1"/>';}
+ g+='<line x1="'+X(-R)+'" y1="'+Y(0)+'" x2="'+X(R)+'" y2="'+Y(0)+'" stroke="#555" stroke-width="1.3"/>';
+ g+='<line x1="'+X(0)+'" y1="'+Y(-R)+'" x2="'+X(0)+'" y2="'+Y(R)+'" stroke="#555" stroke-width="1.3"/>';
+ g+='<polygon points="'+X(R)+','+Y(0)+' '+(+X(R)-5)+','+(+Y(0)-3)+' '+(+X(R)-5)+','+(+Y(0)+3)+'" fill="#555"/>';
+ g+='<polygon points="'+X(0)+','+Y(R)+' '+(+X(0)-3)+','+(+Y(R)+5)+' '+(+X(0)+3)+','+(+Y(R)+5)+'" fill="#555"/>';
+ g+='<text x="'+(+X(R)-3)+'" y="'+(+Y(0)+12)+'" font-size="10" font-style="italic" fill="#555">x</text>';
+ g+='<text x="'+(+X(0)+5)+'" y="'+(+Y(R)+8)+'" font-size="10" font-style="italic" fill="#555">y</text>';
+ if(!opts.blank){
+  (opts.lines||[]).forEach(function(L){var y1=L.k*(-R)+L.b,y2=L.k*R+L.b;g+='<line x1="'+X(-R)+'" y1="'+Y(y1)+'" x2="'+X(R)+'" y2="'+Y(y2)+'" stroke="'+(L.color||'#7B52EE')+'" stroke-width="2"/>';});
+  (opts.pts||[]).forEach(function(p){g+='<circle cx="'+X(p.x)+'" cy="'+Y(p.y)+'" r="3" fill="#dc2626"/>'+(p.l?'<text x="'+(+X(p.x)+4)+'" y="'+(+Y(p.y)-4)+'" font-size="9" font-weight="700" fill="#b91c1c">'+p.l+'</text>':'');});
+ }
+ return '<svg viewBox="0 0 '+W+' '+H+'" width="188">'+g+'</svg>';}
+// ── Тооны шулуун (blank, зөвхөн хуваарь; цэгийг тэмдэглэхгүй тул хариу илчлэхгүй) ──
+function numline(lo,hi){var W=320,H=44,pad=18,u=(W-2*pad)/(hi-lo);var g='<line x1="'+pad+'" y1="26" x2="'+(W-pad)+'" y2="26" stroke="#555" stroke-width="1.4"/>';
+ g+='<polygon points="'+(W-pad)+',26 '+(W-pad-6)+',23 '+(W-pad-6)+',29" fill="#555"/>';
+ for(var v=lo;v<=hi;v++){var x=pad+(v-lo)*u;g+='<line x1="'+x+'" y1="22" x2="'+x+'" y2="30" stroke="#555" stroke-width="1"/>';g+='<text x="'+x+'" y="41" font-size="9" text-anchor="middle" fill="#555">'+v+'</text>';}
+ return '<svg viewBox="0 0 '+W+' '+H+'" width="300">'+g+'</svg>';}
+// ── Эйлер-Веннийн диаграм (2 олонлог, blank) ──
+function venn2(la,lb){la=la||'A';lb=lb||'B';var g='<rect x="6" y="6" width="248" height="118" rx="6" fill="none" stroke="#b9b0d6"/>';
+ g+='<circle cx="102" cy="65" r="50" fill="rgba(123,82,238,0.13)" stroke="#7B52EE" stroke-width="1.4"/>';
+ g+='<circle cx="158" cy="65" r="50" fill="rgba(168,85,247,0.13)" stroke="#A855F7" stroke-width="1.4"/>';
+ g+='<text x="70" y="70" font-size="14" font-style="italic" fill="#5a32d6">'+la+'</text>';
+ g+='<text x="186" y="70" font-size="14" font-style="italic" fill="#5a32d6">'+lb+'</text>';
+ return '<svg viewBox="0 0 260 130" width="210">'+g+'</svg>';}
+// ══════════ g11exam.v00.js — ЖИШИГ ДААЛГАВАР (11-р анги) нийтлэг туслахууд ══════════
+// Энэ файл бүх хувилбарын ӨМНӨ залгагдана. Доорх функцүүдийг ДАХИН БҮҮ ТОДОРХОЙЛ.
+// g11core.js-ийн туслахууд (rnd, pick, Fr, fTex, ...) энэ файлын өмнө байна.
+
+// ─── Бодолтыг ЦЭГЦТЭЙ харуулах ───────────────────────────────────────
+// steps: алхам бүрийн HTML мөр (массив). ans: эцсийн хариу (HTML).
+// Алхам бүр тусдаа мөрөнд, зүүн талдаа нимгэн шугамтай; хариу нь ногооноор тодорно.
+function x10_sol(steps, ans) {
+  var body = (steps || []).filter(function (t) { return t != null && t !== ''; })
+    .map(function (t) {
+      return '<div style="margin:2px 0;padding-left:9px;border-left:2px solid #e6ddfa">' + t + '</div>';
+    }).join('');
+  return body + '<div style="margin-top:4px;font-weight:800;color:#16a34a">Хариу: ' + ans + '</div>';
+}
+// Богино бодолт — ганц мөр тайлбар + хариу
+function x10_one(step, ans) { return x10_sol([step], ans); }
+// Зөвхөн хариу (бодолт шаардлагагүй энгийн даалгаварт)
+function x10_ans(ans) { return '<span style="font-weight:800;color:#16a34a">Хариу: ' + ans + '</span>'; }
+
+// ─── Бодолтын хуудсыг цэвэрхэн болгох CSS (plan-ийн ref-д ордог) ────
+var X10_REF = '<style>'
+  + '#answers h2{font-size:15.5px}'
+  + '#answers .ans-grid{gap:7px;font-size:12px}'
+  + '#answers .ans-grid .a{padding:6px 10px 7px;background:#fbfaff;border:1px solid #ece6fb;'
+  + 'border-radius:9px;border-bottom:1px solid #ece6fb;break-inside:avoid;page-break-inside:avoid}'
+  + '#answers .ans-grid .an{display:inline-block;min-width:26px;color:#5a32d6}'
+  + '</style>';
+
+// ─── Түгээмэл жижиг туслахууд ───────────────────────────────────────
+// Цэгийн координатыг бичих: (a; b)
+function x10_pt(a, b) { return '(' + a + ';\\ ' + b + ')'; }
+// Векторын тэмдэглэгээ: \vec{AB}
+function x10_vec(s) { return '\\vec{' + s + '}'; }
+// Бутархайг хамгийн хураангуй хэлбэрээр LaTeX болгох (бүхэл бол зөвхөн тоо)
+function x10_fr(p, q) {
+  var g = gcd(Math.abs(p), Math.abs(q)) || 1;
+  p = p / g; q = q / g;
+  if (q < 0) { p = -p; q = -q; }
+  if (q === 1) return '' + p;
+  return (p < 0 ? '-' : '') + '\\dfrac{' + Math.abs(p) + '}{' + q + '}';
+}
+// Язгуурыг хялбарчлах: sqrt(n) → [гадна, дотор]  (ж: 72 → [6,2])
+function x10_sqSimp(n) {
+  var out = 1;
+  for (var d = 2; d * d <= n; d++) { while (n % (d * d) === 0) { n /= (d * d); out *= d; } }
+  return [out, n];
+}
+// √-ийн LaTeX (дотор нь 1 бол зөвхөн коэффициент)
+function x10_sqTex(k, r) {
+  if (r === 1) return '' + k;
+  return (k === 1 ? '' : k) + '\\sqrt{' + r + '}';
+}
+// Тэмдэгтэй нэмэлт: 5 → "+5", -3 → "-3"
+function x10_pm(n) { return (n >= 0 ? '+' : '') + n; }
+// ax^2+bx+c хэлбэрийн гурван гишүүнтийг цэвэрхэн бичих
+function x10_quad(a, b, c, v) {
+  v = v || 'x';
+  var s = '';
+  s += (a === 1 ? '' : a === -1 ? '-' : a) + v + '^2';
+  if (b) s += (b > 0 ? '+' : '-') + (Math.abs(b) === 1 ? '' : Math.abs(b)) + v;
+  if (c) s += (c > 0 ? '+' : '-') + Math.abs(c);
+  return s;
+}
+
+// ══════════ g11exam.v01.js — ЖИШИГ ДААЛГАВАР ХУВИЛБАР №1 (11-р анги) ══════════
+// g11core.js + g11exam.v00.js-ийн ДАРАА залгагдана. Эх сурвалж: 800 бодлого, х.1 (Хувилбар №1, зүүн багана).
+// Бодлого бүр эх сурвалжтай ижил хэлбэртэй, зөвхөн тоо нь санамсаргүй өөрчлөгдөнө.
+
+// ─── Туслахууд ──────────────────────────────────────────────────────
+// kx+m шугаман илэрхийлэл (k=±1 бол коэффициентгүй, m=0 бол сул гишүүнгүй)
+function e11v1_lin(k, m, v) {
+  v = v || 'x';
+  var s = (k === 1 ? '' : k === -1 ? '-' : '' + k) + v;
+  if (m) s += (m > 0 ? '+' : '-') + Math.abs(m);
+  return s;
+}
+// Бутархай коэффициент × хувьсагч: 1→v, -1→-v, 3→3v, 1/2→\dfrac{1}{2}v
+function e11v1_cx(f, v) {
+  if (f.d === 1) return (f.n === 1 ? '' : f.n === -1 ? '-' : '' + f.n) + v;
+  return fTex(f) + v;
+}
+// Тэмдэгтэй гишүүн (эхнийх биш): +\dfrac{1}{2}x, -3x
+function e11v1_sx(f, v) {
+  var t = e11v1_cx(f, v);
+  return (t.charAt(0) === '-' ? '' : '+') + t;
+}
+// Огторгуйн цэг/вектор (a;\ b;\ c)
+function e11v1_p3(a, b, c) { return '(' + a + ';\\ ' + b + ';\\ ' + c + ')'; }
+// Хагас бүхэл аравтын бичлэг (Fr, хуваарь 1 эсвэл 2): 3/2 → 1.5
+function e11v1_dec(f) {
+  if (f.d === 1) return '' + f.n;
+  var neg = f.n < 0, N = Math.abs(f.n);
+  return (neg ? '-' : '') + Math.floor(N / 2) + '.5';
+}
+function e11v1_C(n, k) { var r = 1; for (var i = 1; i <= k; i++) r = r * (n - k + i) / i; return Math.round(r); }
+
+// ══════════════════════════════════════════════════════════════════
+// [№1 №1] 1-x^2 ≥ 0 тэнцэтгэл бишийг хангах хамгийн бага бүхэл тоо
+function g_e11v1p1() {
+  var c = rnd(1, 60), n = 0;
+  while ((n + 1) * (n + 1) <= c) n++;
+  var sq = n * n === c;
+  var st = ['$' + c + '-x^2\\ge 0$ тул $x^2\\le ' + c + '$'];
+  if (sq) st.push('$|x|\\le\\sqrt{' + c + '}=' + n + '$, өөрөөр хэлбэл $-' + n + '\\le x\\le ' + n + '$');
+  else st.push('$|x|\\le\\sqrt{' + c + '}$; $' + n + '^2=' + (n * n) + '$, $' + (n + 1) + '^2=' + ((n + 1) * (n + 1))
+    + '$ тул $' + n + '\\lt\\sqrt{' + c + '}\\lt ' + (n + 1) + '$');
+  st.push('Шийд: $-\\sqrt{' + c + '}\\le x\\le\\sqrt{' + c + '}$ тул хамгийн бага бүхэл тоо $x=-' + n + '$');
+  st.push('Шалгалт: $' + c + '-(-' + n + ')^2=' + (c - n * n) + '$ (сөрөг биш), $' + c + '-(-' + (n + 1) + ')^2='
+    + (c - (n + 1) * (n + 1)) + '$ (сөрөг)');
+  return {
+    q: '$' + c + '-x^2\\ge 0$ тэнцэтгэл бишийг хангах хамгийн бага бүхэл тоог ол.',
+    a: x10_sol(st, '$' + (-n) + '$'), nv: -n, key: 'p1_' + c
+  };
+}
+
+// [№1 №2] Хоёр тооны нийлбэр 20, үржвэр нь -96 бол эдгээр тоог ол
+function g_e11v1p2() {
+  var x1, x2;
+  do { x1 = rnd(3, 24); x2 = -rnd(1, x1 - 1); } while (x1 * -x2 > 300);
+  var S = x1 + x2, P = x1 * x2, D = S * S - 4 * P, sd = x1 - x2;
+  return {
+    q: 'Хоёр тооны нийлбэр $' + S + '$, үржвэр нь $' + P + '$ бол эдгээр тоог ол.',
+    a: x10_sol([
+      'Тоонуудыг $t_1$, $t_2$ гэвэл $S=t_1+t_2=' + S + '$, $P=t_1t_2=' + P + '$; Виетийн теоремоор тэдгээр нь $t^2-St+P=0$ тэгшитгэлийн язгуурууд',
+      '$' + x10_quad(1, -S, P, 't') + '=0$',
+      '$D=' + S + '^2-4\\cdot(' + P + ')=' + (S * S) + '+' + (-4 * P) + '=' + D + '$, $\\sqrt{D}=' + sd + '$',
+      '$t_1=\\dfrac{' + S + '+' + sd + '}{2}=' + x1 + '$, $t_2=\\dfrac{' + S + '-' + sd + '}{2}=' + x2 + '$',
+      'Шалгалт: $' + x1 + '+(' + x2 + ')=' + S + '$, $' + x1 + '\\cdot(' + x2 + ')=' + P + '$'
+    ], '$' + x1 + '$ ба $' + x2 + '$'),
+    key: 'p2_' + x1 + '_' + x2
+  };
+}
+
+// [№1 №3] f(x)=5/2·x^4-2 функцийн эх функц
+function g_e11v1p3() {
+  var n = rnd(2, 7), qd = pick([2, 3, 4, 5]), p;
+  do { p = rnd(1, 9); } while (gcd(p, qd) !== 1);
+  var c = nz(-9, 9), m = n + 1;
+  var k = Fr(p, qd * m);
+  var cs = (c > 0 ? '+' : '-') + Math.abs(c);
+  var cx = (c > 0 ? '+' : '-') + (Math.abs(c) === 1 ? '' : Math.abs(c)) + 'x';
+  var F = e11v1_cx(k, 'x^{' + m + '}') + cx + '+C';
+  return {
+    q: '$f(x)=\\dfrac{' + p + '}{' + qd + '}x^' + n + cs + '$ функцийн эх функцийг ол.',
+    a: x10_sol([
+      'Томьёо: $\\int x^n\\,dx=\\dfrac{x^{n+1}}{n+1}+C$, $\\int a\\,dx=ax+C$',
+      'Эхний гишүүн: $\\dfrac{' + p + '}{' + qd + '}\\cdot\\dfrac{x^{' + m + '}}{' + m + '}=' + e11v1_cx(k, 'x^{' + m + '}') + '$',
+      'Сул гишүүн: $' + (c > 0 ? c : '(' + c + ')') + '\\cdot x=' + (c === 1 ? '' : c === -1 ? '-' : c) + 'x$',
+      'Эх функцүүдийн ерөнхий хэлбэр: $F(x)=' + F + '$'
+    ], '$F(x)=' + F + '$'),
+    key: 'p3_' + p + '_' + qd + '_' + n + '_' + c
+  };
+}
+
+// [№1 №4] {x^2-5xy=-4; x-3y=1} системийн бүхэл тоон шийд
+function g_e11v1p4() {
+  for (var t = 0; t < 60; t++) {
+    var A = rnd(2, 7), B = pick([-4, -3, -2, 2, 3, 4]), D = nz(-5, 5), y0 = nz(-4, 4);
+    var x0 = B * y0 + D, C = x0 * x0 - A * x0 * y0;
+    if (!C || Math.abs(C) > 80) continue;
+    var a2 = B * B - A * B, b2 = 2 * B * D - A * D, c2 = D * D - C;
+    if (!a2) continue;
+    var y1 = Fr(-b2 - a2 * y0, a2);
+    if (y1.d === 1) continue;
+    var s = a2 < 0 ? -1 : 1, g = gcd(gcd(a2, b2), c2);
+    var A2 = s * a2 / g, B2 = s * b2 / g, C2 = s * c2 / g;
+    var Dq = B2 * B2 - 4 * A2 * C2, r = isqrt(Dq);
+    if (r === null || r === 0) continue;
+    var yp = Fr(-B2 + r, 2 * A2), ym = Fr(-B2 - r, 2 * A2);
+    var lin = e11v1_lin(B, D, 'y');
+    var line = 'x' + (B > 0 ? '-' + B : '+' + (-B)) + 'y=' + D;
+    var nb = B2 ? '' + (-B2) : '';
+    return {
+      q: '$\\begin{cases}x^2-' + A + 'xy=' + C + '\\\\' + line + '\\end{cases}$ тэгшитгэлийн бүхэл тоон шийдийг ол.',
+      a: x10_sol([
+        'Хоёр дахь тэгшитгэлээс: $x=' + lin + '$',
+        'Эхний тэгшитгэлд орлуулна: $(' + lin + ')^2-' + A + '(' + lin + ')y=' + C + '$',
+        'Хаалтыг задалж эмхэтгэвэл: $' + x10_quad(a2, b2, c2, 'y') + '=0$',
+        s * g === 1 ? '' : (s * g === -1 ? 'Хоёр талыг $-1$-ээр үржүүлбэл: $' : 'Хоёр талыг $' + (s * g) + '$ тоонд хуваавал: $')
+          + x10_quad(A2, B2, C2, 'y') + '=0$',
+        '$D=' + paren(B2) + '^2-4\\cdot ' + A2 + '\\cdot ' + paren(C2) + '=' + Dq + '$; $y_1=\\dfrac{' + nb + '+' + r + '}{' + (2 * A2) + '}='
+          + fTex(yp) + '$, $y_2=\\dfrac{' + nb + '-' + r + '}{' + (2 * A2) + '}=' + fTex(ym) + '$',
+        'Бүхэл утга нь $y=' + y0 + '$ (нөгөө нь бүхэл биш), $x=' + B + '\\cdot ' + paren(y0) + (D > 0 ? '+' : '-') + Math.abs(D) + '=' + x0 + '$'
+      ], '$' + x10_pt(x0, y0) + '$'),
+      key: 'p4_' + A + '_' + B + '_' + D + '_' + y0
+    };
+  }
+  return null;
+}
+
+// [№1 №5] 2/3+2/9+2/27+…+2/3^n нийлбэр
+function g_e11v1p5() {
+  var b = pick([2, 3, 4, 5, 6, 7, 8, 9]), a;
+  do { a = rnd(1, 9); } while (gcd(a, b) !== 1);
+  var co = Fr(a, b - 1);
+  var tail = '1-\\dfrac{1}{' + b + '^n}';
+  var ans = (co.n === 1 && co.d === 1) ? tail : fTex(co) + '\\bigl(' + tail + '\\bigr)';
+  return {
+    q: '$\\dfrac{' + a + '}{' + b + '}+\\dfrac{' + a + '}{' + (b * b) + '}+\\dfrac{' + a + '}{' + (b * b * b)
+      + '}+\\ldots+\\dfrac{' + a + '}{' + b + '^n}$ нийлбэрийг ол.',
+    a: x10_sol([
+      'Геометр прогрессийн эхний $n$ гишүүний нийлбэр: $b_1=\\dfrac{' + a + '}{' + b + '}$, $q=\\dfrac{1}{' + b + '}$',
+      'Томьёо: $S_n=\\dfrac{b_1(1-q^n)}{1-q}$',
+      '$1-q=1-\\dfrac{1}{' + b + '}=\\dfrac{' + (b - 1) + '}{' + b + '}$, $q^n=\\dfrac{1}{' + b + '^n}$',
+      '$S_n=\\dfrac{' + a + '}{' + b + '}\\cdot ' + x10_fr(b, b - 1) + '\\bigl(' + tail + '\\bigr)=' + ans + '$'
+    ], '$S_n=' + ans + '$'),
+    key: 'p5_' + a + '_' + b
+  };
+}
+
+// [№1 №6] (x+1/x)^10 задаргааны x^4-тэй гишүүний коэффициент
+function g_e11v1p6() {
+  for (var t = 0; t < 60; t++) {
+    var n = rnd(5, 12), a = pick([1, 1, 1, 2, 3]), k = rnd(2, n - 1), m = n - 2 * k;
+    if (m < 1) continue;
+    var Cn = e11v1_C(n, k), coef = Cn * Math.pow(a, k);
+    if (coef > 5000) continue;
+    var xm = m === 1 ? 'x' : m < 10 ? 'x^' + m : 'x^{' + m + '}';
+    var kk = Math.min(k, n - k), num = [], den = [];
+    for (var i = 0; i < kk; i++) { num.push(n - i); den.push(kk - i); }
+    var ke = k < 10 ? '^' + k : '^{' + k + '}';
+    var cStep = kk === 1 ? '$C_{' + n + '}' + ke + '=' + Cn + '$'
+      : '$C_{' + n + '}' + ke + '=\\dfrac{' + num.join('\\cdot ') + '}{' + den.join('\\cdot ') + '}=' + Cn + '$';
+    var st = ['Биномын ерөнхий гишүүн: $T_{k+1}=C_n^k a^{n-k}b^k$'];
+    if (a === 1) st.push('$T_{k+1}=C_{' + n + '}^k x^{' + n + '-k}\\bigl(\\dfrac{1}{x}\\bigr)^k=C_{' + n + '}^k x^{' + n + '-2k}$');
+    else st.push('$T_{k+1}=C_{' + n + '}^k x^{' + n + '-k}\\bigl(\\dfrac{' + a + '}{x}\\bigr)^k=C_{' + n + '}^k\\cdot ' + a + '^k x^{' + n + '-2k}$');
+    st.push('$' + n + '-2k=' + m + '$ тул $k=' + k + '$');
+    st.push(cStep);
+    if (a !== 1) st.push('$T_{' + (k + 1) + '}=' + Cn + '\\cdot ' + a + ke + '\\cdot ' + xm + '=' + coef + xm + '$');
+    return {
+      q: '$\\bigl(x+\\dfrac{' + a + '}{x}\\bigr)^{' + n + '}$ задаргааны $' + xm + '$-тэй гишүүний өмнөх коэффициентийг ол.',
+      a: x10_sol(st, '$' + coef + '$'), nv: coef, key: 'p6_' + n + '_' + a + '_' + k
+    };
+  }
+  return null;
+}
+
+// [№1 №7] (1-sin(-α))(1-sinα) илэрхийллийг хялбарчлах
+function g_e11v1p7() {
+  var f = 'sin', s1 = pick(['-', '+']), m = pick([1, 1, 2, 3, 4, 5, 6]), v = pick(['\\alpha', '\\beta', 'x']);
+  var A = (m === 1 ? '' : '' + m) + v;
+  function F(arg) { return '\\' + f + (arg.charAt(0) === '\\' ? '' : ' ') + arg; }
+  function F2(g) { return '\\' + g + '^2 ' + A; }
+  var o1 = s1 === '-' ? '+' : '-';
+  var st = [], orig, ans;
+  if (f === 'sin') {
+    orig = '(1' + s1 + '\\sin(-' + A + '))(1' + s1 + F(A) + ')';
+    st.push('Синус сондгой функц: $\\sin(-' + A + ')=-' + F(A) + '$');
+    st.push('Иймд $' + orig + '=(1' + o1 + F(A) + ')(1' + s1 + F(A) + ')$');
+    st.push('Квадратуудын ялгавар: $(1' + o1 + F(A) + ')(1' + s1 + F(A) + ')=1-' + F2('sin') + '$');
+    st.push('Үндсэн адилтгал: $' + F2('sin') + '+' + F2('cos') + '=1$ тул $1-' + F2('sin') + '=' + F2('cos') + '$');
+    ans = F2('cos');
+  } else {
+    orig = '(1' + s1 + '\\cos(-' + A + '))(1' + o1 + F(A) + ')';
+    st.push('Косинус тэгш функц: $\\cos(-' + A + ')=' + F(A) + '$');
+    st.push('Иймд $' + orig + '=(1' + s1 + F(A) + ')(1' + o1 + F(A) + ')$');
+    st.push('Квадратуудын ялгавар: $(1' + s1 + F(A) + ')(1' + o1 + F(A) + ')=1-' + F2('cos') + '$');
+    st.push('Үндсэн адилтгал: $' + F2('sin') + '+' + F2('cos') + '=1$ тул $1-' + F2('cos') + '=' + F2('sin') + '$');
+    ans = F2('sin');
+  }
+  return {
+    q: '$' + orig + '$ илэрхийллийг хялбарчил.',
+    a: x10_sol(st, '$' + ans + '$'),
+    key: 'p7_' + f + s1 + m + v
+  };
+}
+
+// [№1 №8] 2sinα-1=0 биелэх α-ийн утгууд (ерөнхий шийд)
+function g_e11v1p8() {
+  var f = 'sin', r = pick(['1', '\\sqrt{2}', '\\sqrt{3}']), s = pick([1, -1]), k = pick([1, 1, 2, 3]);
+  var v = pick(['\\alpha', 'x']), vq = v === 'x' ? 'x' : '\\alpha';
+  var sp = v === 'x' ? ' ' : '';
+  var kr = k === 1 ? r : (r === '1' ? '' + k : k + r);
+  var eq = (2 * k) + '\\' + f + sp + v + (s > 0 ? '-' : '+') + kr + '=0';
+  var valT = (s < 0 ? '-' : '') + '\\dfrac{' + r + '}{2}';
+  // үндсэн өнцөг (эерэг утгын)
+  var base = f === 'sin' ? { '1': [1, 6], '\\sqrt{2}': [1, 4], '\\sqrt{3}': [1, 3] }[r]
+    : { '1': [1, 3], '\\sqrt{2}': [1, 4], '\\sqrt{3}': [1, 6] }[r];
+  function ang(p, q) { return '\\dfrac{' + (p === 1 ? '' : p) + '\\pi}{' + q + '}'; }
+  var st = [];
+  st.push('$' + (2 * k) + '\\' + f + sp + v + '=' + (s < 0 ? '-' : '') + kr + '$ тул $\\' + f + sp + v + '=' + valT + '$');
+  var ans;
+  if (f === 'sin') {
+    st.push('Томьёо: $\\sin ' + v + '=a$ бол $' + v + '=(-1)^k\\arcsin a+\\pi k,\\ k\\in\\mathbb{Z}$');
+    if (s > 0) {
+      st.push('$\\arcsin' + valT + '=' + ang(1, base[1]) + '$');
+      ans = v + '=(-1)^k' + ang(1, base[1]) + '+\\pi k,\\ k\\in\\mathbb{Z}';
+    } else {
+      st.push('$\\arcsin\\bigl(' + valT + '\\bigr)=-\\arcsin\\dfrac{' + r + '}{2}=-' + ang(1, base[1]) + '$');
+      st.push('$' + v + '=(-1)^k\\cdot\\bigl(-' + ang(1, base[1]) + '\\bigr)+\\pi k=(-1)^{k+1}' + ang(1, base[1]) + '+\\pi k$');
+      ans = v + '=(-1)^{k+1}' + ang(1, base[1]) + '+\\pi k,\\ k\\in\\mathbb{Z}';
+    }
+  } else {
+    st.push('Томьёо: $\\cos ' + v + '=a$ бол $' + v + '=\\pm\\arccos a+2\\pi k,\\ k\\in\\mathbb{Z}$');
+    if (s > 0) {
+      st.push('$\\arccos' + valT + '=' + ang(1, base[1]) + '$');
+      ans = v + '=\\pm' + ang(1, base[1]) + '+2\\pi k,\\ k\\in\\mathbb{Z}';
+    } else {
+      var pp = base[1] - 1;
+      st.push('$\\arccos\\bigl(' + valT + '\\bigr)=\\pi-\\arccos\\dfrac{' + r + '}{2}=\\pi-' + ang(1, base[1]) + '=' + ang(pp, base[1]) + '$');
+      ans = v + '=\\pm' + ang(pp, base[1]) + '+2\\pi k,\\ k\\in\\mathbb{Z}';
+    }
+  }
+  var a0 = f === 'sin' ? (s > 0 ? ang(1, base[1]) : '\\bigl(-' + ang(1, base[1]) + '\\bigr)')
+    : (s > 0 ? ang(1, base[1]) : ang(base[1] - 1, base[1]));
+  st.push('Шалгалт ($k=0$): $\\' + f + a0 + '=' + valT + '$');
+  return {
+    q: '$' + eq + '$ биелэх $' + vq + '$-ийн утгыг ол.',
+    a: x10_sol(st, '$' + ans + '$'),
+    key: 'p8_' + f + '_' + r + '_' + s + '_' + k + '_' + v
+  };
+}
+
+// [№1 №9] u=(3;-1;2), v=(m;-0.5;1) коллинеар бол m
+function g_e11v1p9() {
+  var T = pick([Fr(1, 2), Fr(1, 2), Fr(-1, 2), Fr(2, 1), Fr(-2, 1), Fr(3, 1), Fr(-3, 1)]);
+  var a = nz(-6, 6), b = nz(-6, 6), c = nz(-6, 6);
+  var tb = fMul(Fr(b, 1), T), tc = fMul(Fr(c, 1), T), M = fMul(Fr(a, 1), T);
+  var d = e11v1_dec, pd = function (f) { return f.n < 0 ? '(' + d(f) + ')' : d(f); };
+  return {
+    q: '$\\vec{u}=' + e11v1_p3(a, b, c) + '$, $\\vec{v}=' + e11v1_p3('m', d(tb), d(tc)) + '$ векторууд коллинеар бол $m$-ийг ол.',
+    a: x10_sol([
+      'Коллинеар векторын координатууд пропорциональ: $\\dfrac{m}{' + a + '}=\\dfrac{' + d(tb) + '}{' + b + '}=\\dfrac{' + d(tc) + '}{' + c + '}$',
+      'Харьцаа: $\\dfrac{' + d(tb) + '}{' + b + '}=\\dfrac{' + d(tc) + '}{' + c + '}=' + d(T) + '$',
+      '$\\dfrac{m}{' + a + '}=' + d(T) + '$',
+      '$m=' + a + '\\cdot ' + pd(T) + '=' + d(M) + '$'
+    ], '$m=' + d(M) + '$'),
+    key: 'p9_' + a + '_' + b + '_' + c + '_' + T.n + '_' + T.d
+  };
+}
+
+// Гистограмм (давтамжийн нягт) — моод бүлгийг тодруулахгүй
+function e11v1_hist(x0, w, h2) {
+  var nb = h2.length, maxV = Math.max.apply(null, h2) / 2, ymax = Math.max(5, Math.ceil(maxV));
+  var L = 46, R = 18, Tp = 16, B = 42, W = 380, H = 240, pw = W - L - R, ph = H - Tp - B;
+  var sx = pw / (nb + 1.4), sy = (ph - 10) / ymax, y0 = H - B;
+  var g = '', i;
+  for (i = 1; i <= ymax; i++) {
+    var yy = (y0 - i * sy).toFixed(1);
+    g += '<line x1="' + L + '" y1="' + yy + '" x2="' + (L + (nb + 1) * sx).toFixed(1) + '" y2="' + yy + '" stroke="#ece6fb" stroke-width="1"/>';
+    g += '<line x1="' + (L - 4) + '" y1="' + yy + '" x2="' + L + '" y2="' + yy + '" stroke="#333" stroke-width="1"/>';
+    g += '<text x="' + (L - 7) + '" y="' + (+yy + 3.5) + '" font-size="10" text-anchor="end" fill="#333">' + i + '</text>';
+  }
+  for (i = 0; i < nb; i++) {
+    var hh = h2[i] / 2 * sy;
+    g += '<rect x="' + (L + i * sx).toFixed(1) + '" y="' + (y0 - hh).toFixed(1) + '" width="' + sx.toFixed(1) + '" height="' + hh.toFixed(1)
+      + '" fill="#e6ddfa" stroke="#5a32d6" stroke-width="1.3"/>';
+  }
+  for (i = 0; i <= nb + 1; i++) {
+    var xx = (L + i * sx).toFixed(1);
+    g += '<line x1="' + xx + '" y1="' + y0 + '" x2="' + xx + '" y2="' + (y0 + 4) + '" stroke="#333" stroke-width="1"/>';
+    g += '<text x="' + xx + '" y="' + (y0 + 15) + '" font-size="10" text-anchor="middle" fill="#333">' + (x0 + i * w) + '</text>';
+  }
+  var xe = L + (nb + 1.3) * sx;
+  g += '<line x1="' + L + '" y1="' + y0 + '" x2="' + xe.toFixed(1) + '" y2="' + y0 + '" stroke="#333" stroke-width="1.3"/>';
+  g += '<polygon points="' + (xe + 6).toFixed(1) + ',' + y0 + ' ' + xe.toFixed(1) + ',' + (y0 - 3) + ' ' + xe.toFixed(1) + ',' + (y0 + 3) + '" fill="#333"/>';
+  g += '<line x1="' + L + '" y1="' + y0 + '" x2="' + L + '" y2="' + (Tp - 2) + '" stroke="#333" stroke-width="1.3"/>';
+  g += '<polygon points="' + L + ',' + (Tp - 8) + ' ' + (L - 3) + ',' + (Tp - 2) + ' ' + (L + 3) + ',' + (Tp - 2) + '" fill="#333"/>';
+  g += '<text x="' + (L + pw / 2).toFixed(1) + '" y="' + (H - 8) + '" font-size="11" text-anchor="middle" fill="#333">масс (граммаар)</text>';
+  g += '<text x="14" y="' + (Tp + ph / 2).toFixed(1) + '" font-size="11" text-anchor="middle" fill="#333" transform="rotate(-90 14 '
+    + (Tp + ph / 2).toFixed(1) + ')">Давтамжийн нягт</text>';
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="360">' + g + '</svg>';
+}
+
+// [№1 №10] Гистограммаас моод бүлгийг олох
+function g_e11v1p10() {
+  var nb = rnd(5, 7), w = pick([5, 10, 10, 20]), x0 = pick([0, 0, w, 2 * w]);
+  var Hm = rnd(6, 10), im = rnd(0, nb - 1), h2 = [];
+  for (var i = 0; i < nb; i++) h2.push(i === im ? 2 * Hm : rnd(2, 2 * Hm - 2));
+  var lo = x0 + im * w, hi = lo + w;
+  var hs = h2.map(function (h) { return h % 2 ? Math.floor(h / 2) + '.5' : '' + h / 2; });
+  return {
+    q: 'Зурагт өгөгдсөн өгөгдлөөс моод бүлгийг ол.',
+    fig: e11v1_hist(x0, w, h2),
+    a: x10_sol([
+      'Бүх бүлгийн өргөн тэнцүү ($' + w + '$ г) тул давтамж $f=d\\cdot ' + w + '$ нь давтамжийн нягт $d$-тэй пропорциональ',
+      'Баганын өндрүүд (давтамжийн нягт): $' + hs.join(';\\ ') + '$',
+      'Хамгийн өндөр багана: $d=' + Hm + '$, бүлэг $' + lo + '\\le m\\lt ' + hi + '$',
+      'Энэ бүлгийн давтамж хамгийн их: $f=' + Hm + '\\cdot ' + w + '=' + (Hm * w) + '$'
+    ], '$' + lo + '\\le m\\lt ' + hi + '$ г бүлэг'),
+    key: 'p10_' + x0 + '_' + w + '_' + h2.join('.')
+  };
+}
+
+// [№1 №11] A(1;-5;6) цэгээс OZ тэнхлэг хүртэлх зай
+function g_e11v1p11() {
+  var ax = pick(['X', 'Y', 'Z']), P = [nz(-9, 9), nz(-9, 9), nz(-9, 9)];
+  var idx = { X: 0, Y: 1, Z: 2 }[ax], nm = ['x', 'y', 'z'];
+  var o = [0, 1, 2].filter(function (i) { return i !== idx; });
+  var Hc = [0, 0, 0]; Hc[idx] = P[idx];
+  var S = P[o[0]] * P[o[0]] + P[o[1]] * P[o[1]], sq = x10_sqSimp(S), dT = x10_sqTex(sq[0], sq[1]);
+  var tail = sq[1] === 1 ? '=' + sq[0] : (sq[0] > 1 ? '=' + dT : '');
+  return {
+    q: '$A' + e11v1_p3(P[0], P[1], P[2]) + '$ цэгээс $O' + ax + '$ тэнхлэг хүртэлх зайг ол.',
+    a: x10_sol([
+      '$A$ цэгээс $O' + ax + '$ тэнхлэгт буулгасан перпендикулярын суурь: $H' + e11v1_p3(Hc[0], Hc[1], Hc[2]) + '$',
+      '$AH=\\sqrt{(x-x_H)^2+(y-y_H)^2+(z-z_H)^2}=\\sqrt{' + nm[o[0]] + '^2+' + nm[o[1]] + '^2}$',
+      '$AH=\\sqrt{' + paren(P[o[0]]) + '^2+' + paren(P[o[1]]) + '^2}=\\sqrt{' + (P[o[0]] * P[o[0]]) + '+' + (P[o[1]] * P[o[1]]) + '}=\\sqrt{' + S + '}' + tail + '$'
+    ], '$' + dT + '$'),
+    key: 'p11_' + ax + P.join('_')
+  };
+}
+
+// [№1 №12] y=x^2-4x+1 парабол ба y=x-3 шулууны огтлолцлын цэг
+function g_e11v1p12() {
+  for (var t = 0; t < 80; t++) {
+    var k = nz(-3, 3), m = nz(-6, 6), r1 = rnd(-4, 4), r2 = rnd(-4, 5);
+    if (r2 <= r1) continue;
+    var b = k - (r1 + r2), c = m + r1 * r2;
+    if (!b || !c || Math.abs(b) > 9 || Math.abs(c) > 12) continue;
+    var lin = e11v1_lin(k, m);
+    var at = function (r) { return (k === 1 ? '' : k === -1 ? '-' : k + '\\cdot ') + paren(r) + (m > 0 ? '+' : '-') + Math.abs(m); };
+    var y1 = k * r1 + m, y2 = k * r2 + m;
+    return {
+      q: '$y=' + x10_quad(1, b, c) + '$ парабол ба $y=' + lin + '$ шулууны огтлолцлын цэгийн координатыг ол.',
+      a: x10_sol([
+        'Огтлолцлын цэгт $y$ тэнцүү: $' + x10_quad(1, b, c) + '=' + lin + '$',
+        '$' + x10_quad(1, -(r1 + r2), r1 * r2) + '=0$',
+        'Виетийн теорем: $x_1+x_2=' + (r1 + r2) + '$, $x_1x_2=' + (r1 * r2) + '$ тул $x_1=' + r1 + '$, $x_2=' + r2 + '$',
+        '$y_1=' + at(r1) + '=' + y1 + '$, $y_2=' + at(r2) + '=' + y2 + '$'
+      ], '$' + x10_pt(r1, y1) + '$ ба $' + x10_pt(r2, y2) + '$'),
+      key: 'p12_' + k + '_' + m + '_' + r1 + '_' + r2
+    };
+  }
+  return null;
+}
+
+// [№1 №13] y=(2x-1)/(x+3) функцийн урвуу
+function g_e11v1p13() {
+  var a, b, c, d;
+  do { a = rnd(1, 5); b = nz(-9, 9); c = pick([1, 1, 2, 3]); d = nz(-9, 9); } while (a * d - b * c === 0 || (c === 1 && d === -a) || gcd(gcd(a, b), gcd(c, d)) > 1);
+  var ly = function (k, m) { return e11v1_lin(k, m, 'y'); };
+  var num, den;
+  if (d > 0) { num = e11v1_lin(d, -b); den = a + '-' + (c === 1 ? '' : c) + 'x'; }
+  else { num = e11v1_lin(-d, b); den = e11v1_lin(c, -a); }
+  var cxy = (c === 1 ? '' : c) + 'xy', dy = (d > 0 ? '+' : '-') + (Math.abs(d) === 1 ? '' : Math.abs(d)) + 'y';
+  var ax = (a === 1 ? '-' : '-' + a) + 'x';
+  return {
+    q: '$y=\\dfrac{' + e11v1_lin(a, b) + '}{' + e11v1_lin(c, d) + '}$ функцийн урвууг ол.',
+    a: x10_sol([
+      'Хуваарийг үржүүлнэ: $y(' + e11v1_lin(c, d) + ')=' + e11v1_lin(a, b) + '$',
+      '$' + cxy + dy + '=' + e11v1_lin(a, b) + '$',
+      '$x$-тэй гишүүдийг нэг талд: $' + cxy + ax + '=' + ly(-d, b) + '$, $x(' + ly(c, -a) + ')=' + ly(-d, b) + '$',
+      '$x=\\dfrac{' + ly(-d, b) + '}{' + ly(c, -a) + '}$',
+      '$x$ ба $y$-ийн байрыг сольж бичвэл урвуу функц гарна'
+    ], '$y=\\dfrac{' + num + '}{' + den + '}$'),
+    key: 'p13_' + a + '_' + b + '_' + c + '_' + d
+  };
+}
+
+// [№1 №14] f(x)=4x^3-x-1 функцийн x=-1 цэг дэх нормаль шулуун
+function g_e11v1p14() {
+  for (var t = 0; t < 60; t++) {
+    var a = nz(-5, 5), b = nz(-6, 6), c = nz(-9, 9), x0 = nz(-2, 2);
+    var y0 = a * x0 * x0 * x0 + b * x0 + c, fp = 3 * a * x0 * x0 + b;
+    if (!fp || Math.abs(y0) > 60) continue;
+    var sl = Fr(-1, fp), ic = Fr(y0 * fp + x0, fp);
+    var fT = (a === 1 ? '' : a === -1 ? '-' : a) + 'x^3' + (b > 0 ? '+' : '-') + (Math.abs(b) === 1 ? '' : Math.abs(b)) + 'x' + (c > 0 ? '+' : '-') + Math.abs(c);
+    var sub = (a === 1 ? '' : a === -1 ? '-' : a + '\\cdot ') + paren(x0) + '^3' + (b > 0 ? '+' : '-') + (Math.abs(b) === 1 ? '' : Math.abs(b) + '\\cdot ') + paren(x0) + (c > 0 ? '+' : '-') + Math.abs(c);
+    var dT = (3 * a) + 'x^2' + (b > 0 ? '+' : '-') + Math.abs(b);
+    var dS = (3 * a) + '\\cdot ' + paren(x0) + '^2' + (b > 0 ? '+' : '-') + Math.abs(b);
+    var yl = y0 > 0 ? 'y-' + y0 : y0 < 0 ? 'y+' + (-y0) : 'y';
+    var xl = x0 > 0 ? 'x-' + x0 : 'x+' + (-x0);
+    var slT = sl.d === 1 ? (sl.n === 1 ? '' : '-') : fTex(sl);
+    var ans = 'y=' + e11v1_cx(sl, 'x') + (ic.n ? (ic.n > 0 ? '+' : '-') + fTex(Fr(Math.abs(ic.n), ic.d)) : '');
+    return {
+      q: '$f(x)=' + fT + '$ функцийн $x=' + x0 + '$ цэг дэх нормаль шулууны тэгшитгэлийг бич.',
+      a: x10_sol([
+        '$y_0=f(' + x0 + ')=' + sub + '=' + y0 + '$',
+        '$f\'(x)=' + dT + '$, $f\'(' + x0 + ')=' + dS + '=' + fp + '$',
+        'Нормаль: $y-y_0=-\\dfrac{1}{f\'(x_0)}(x-x_0)$',
+        '$' + yl + '=' + slT + '(' + xl + ')$',
+        '$' + ans + '$'
+      ], '$' + ans + '$'),
+      key: 'p14_' + a + '_' + b + '_' + c + '_' + x0
+    };
+  }
+  return null;
+}
+
+// [№1 №15] Геометр прогресс: b5-b3=144, b2·b4=324 бол b1, q
+function g_e11v1p15() {
+  var L = [];
+  // |b3|=|b1|q^2 <= 48 (эх бодлого: b1=2, q=3, b3=18) — тоонууд эхтэй ойролцоо
+  [[2, 12], [3, 5], [4, 3], [5, 1]].forEach(function (p) {
+    for (var v = 1; v <= p[1]; v++) { L.push([v, p[0]]); L.push([-v, p[0]]); }
+  });
+  var ch = pick(L), b1 = ch[0], q = ch[1], q2 = q * q;
+  var b3 = b1 * q2, D1 = b3 * (q2 - 1), P = b3 * b3, s3 = Math.abs(b3);
+  return {
+    q: 'Геометр прогрессийн $b_5-b_3=' + D1 + '$, $b_2\\cdot b_4=' + P + '$ бол $b_1$, $q=?$',
+    a: x10_sol([
+      '$b_2\\cdot b_4=b_1q\\cdot b_1q^3=(b_1q^2)^2=b_3^2$ тул $b_3^2=' + P + '$, $b_3=\\pm ' + s3 + '$',
+      '$b_5-b_3=b_1q^4-b_1q^2=b_3(q^2-1)=' + D1 + '$',
+      '$b_3=' + b3 + '$ бол $q^2-1=' + (q2 - 1) + '$, $q^2=' + q2 + '$, $q=\\pm ' + q + '$',
+      '$b_3=' + (-b3) + '$ бол $q^2-1=' + (1 - q2) + '$, $q^2=' + (2 - q2) + '$ — сөрөг тул шийдгүй',
+      '$b_1=\\dfrac{b_3}{q^2}=\\dfrac{' + b3 + '}{' + q2 + '}=' + b1 + '$'
+    ], '$b_1=' + b1 + '$, $q=' + q + '$ эсвэл $q=-' + q + '$'),
+    key: 'p15_' + b1 + '_' + q
+  };
+}
+
+// [№1 №16] A, B, C цэгүүд; AB=CD бол D цэгийн координат
+function g_e11v1p16() {
+  var A, B, C, ab;
+  do {
+    A = [rnd(-5, 5), rnd(-5, 5), rnd(-5, 5)]; B = [rnd(-5, 5), rnd(-5, 5), rnd(-5, 5)]; C = [rnd(-5, 5), rnd(-5, 5), rnd(-5, 5)];
+    ab = [B[0] - A[0], B[1] - A[1], B[2] - A[2]];
+  } while (!ab[0] || !ab[1] || !ab[2] || (C[0] === A[0] && C[1] === A[1] && C[2] === A[2]));
+  var D = [C[0] + ab[0], C[1] + ab[1], C[2] + ab[2]], v = ['x', 'y', 'z'];
+  var dif = [0, 1, 2].map(function (i) { return B[i] + '-' + paren(A[i]); });
+  var eqs = [0, 1, 2].map(function (i) { return '$' + v[i] + '-' + paren(C[i]) + '=' + ab[i] + '$'; });
+  var sol = [0, 1, 2].map(function (i) { return '$' + v[i] + '=' + ab[i] + '+' + paren(C[i]) + '=' + D[i] + '$'; });
+  return {
+    q: '$A' + e11v1_p3(A[0], A[1], A[2]) + '$ $B' + e11v1_p3(B[0], B[1], B[2]) + '$ $C' + e11v1_p3(C[0], C[1], C[2])
+      + '$ цэгүүд өгөгдөв. $\\vec{AB}=\\vec{CD}$ бол $D$ цэгийн координатыг ол.',
+    a: x10_sol([
+      '$\\vec{AB}=(x_B-x_A;\\ y_B-y_A;\\ z_B-z_A)=' + e11v1_p3(dif[0], dif[1], dif[2]) + '=' + e11v1_p3(ab[0], ab[1], ab[2]) + '$',
+      '$D(x;\\ y;\\ z)$ бол $\\vec{CD}=(x-' + paren(C[0]) + ';\\ y-' + paren(C[1]) + ';\\ z-' + paren(C[2]) + ')$',
+      'Тэнцүү векторын координатууд тэнцүү: ' + eqs.join(', '),
+      sol.join(', ')
+    ], '$D' + e11v1_p3(D[0], D[1], D[2]) + '$'),
+    key: 'p16_' + A.join('.') + '_' + B.join('.') + '_' + C.join('.')
+  };
+}
+
+// [№1 №17] g(x)=√((3-2x)^2019) функцийн уламжлал
+function g_e11v1p17() {
+  var n = 2001 + 2 * rnd(0, 15), a, b;
+  do { a = rnd(1, 9); b = rnd(1, 6); } while (gcd(a, b) !== 1);
+  var s = pick([-1, -1, 1]);
+  var base = a + (s < 0 ? '-' : '+') + (b === 1 ? '' : b) + 'x';
+  var co = fTex(Fr(n * s * b, 2));
+  return {
+    q: '$g(x)=\\sqrt{(' + base + ')^{' + n + '}}$ функцийн уламжлалыг ол.',
+    a: x10_sol([
+      'Зэрэг хэлбэрт бичнэ: $g(x)=(' + base + ')^{\\frac{' + n + '}{2}}$',
+      'Нийлмэл функцийн уламжлал: $(u^r)\'=r\\cdot u^{r-1}\\cdot u\'$',
+      '$(' + base + ')\'=' + (s * b) + '$',
+      '$g\'(x)=\\dfrac{' + n + '}{2}(' + base + ')^{\\frac{' + (n - 2) + '}{2}}\\cdot ' + paren(s * b) + '=' + co + '(' + base + ')^{\\frac{' + (n - 2) + '}{2}}$'
+    ], '$g\'(x)=' + co + '\\sqrt{(' + base + ')^{' + (n - 2) + '}}$'),
+    key: 'p17_' + n + '_' + a + '_' + b + '_' + s
+  };
+}
+
+// Fr утгуудын нийлбэрийг гишүүнчлэн бичих (тэг гишүүнийг алгасна)
+function e11v1_terms(ts) {
+  var nzs = ts.filter(function (f) { return f.n !== 0; });
+  if (!nzs.length) return '0';
+  return nzs.map(function (f, i) { var t = fTex(f); return i === 0 || t.charAt(0) === '-' ? t : '+' + t; }).join('');
+}
+
+// [№1 №18] y=x^2-x+3, y=4x-1 шугамуудаар хашигдсан дүрсийн талбай
+function g_e11v1p18() {
+  for (var t = 0; t < 80; t++) {
+    var k = nz(-4, 5), m = nz(-6, 6), r1 = rnd(-3, 3), d = rnd(1, 5), r2 = r1 + d;
+    var b = k - (r1 + r2), c = m + r1 * r2;
+    if (!b || !c || Math.abs(b) > 9 || Math.abs(c) > 12) continue;
+    var Bc = r1 + r2, Cc = -r1 * r2;
+    var para = x10_quad(1, b, c), lin = e11v1_lin(k, m);
+    var Ft = function (r) { return [Fr(-r * r * r, 3), Fr(Bc * r * r, 2), Fr(Cc * r, 1)]; };
+    var sum = function (ts) { return ts.reduce(function (p, f) { return fAdd(p, f); }, Fr(0, 1)); };
+    var T2 = Ft(r2), T1 = Ft(r1), F2 = sum(T2), F1 = sum(T1), S = fSub(F2, F1);
+    var show = function (r, ts, F) {
+      var e = e11v1_terms(ts), v = fTex(F);
+      return '$F(' + r + ')=' + (e === v ? v : e + '=' + v) + '$';
+    };
+    var F1T = F1.n < 0 ? (F1.d === 1 ? '(' + F1.n + ')' : '\\bigl(' + fTex(F1) + '\\bigr)') : fTex(F1);
+    var FxT = '-\\dfrac{x^3}{3}' + (Bc ? e11v1_sx(Fr(Bc, 2), 'x^2') : '') + (Cc ? e11v1_sx(Fr(Cc, 1), 'x') : '');
+    var In = '\\int_{' + r1 + '}^' + (r2 === 1 ? '1' : '{' + r2 + '}');
+    return {
+      q: '$y=' + para + '$, $y=' + lin + '$ шугамуудаар хашигдсан дүрсийн талбайг ол.',
+      a: x10_sol([
+        'Огтлолцол: $' + para + '=' + lin + '$, $' + x10_quad(1, -Bc, r1 * r2) + '=0$, $x_1=' + r1 + '$, $x_2=' + r2 + '$',
+        'Энэ завсарт шулуун параболоос дээр: $S=' + In + '\\bigl((' + lin + ')-(' + para + ')\\bigr)\\,dx=' + In + '(' + x10_quad(-1, Bc, Cc) + ')\\,dx$',
+        'Эх функц: $F(x)=' + FxT + '$',
+        show(r2, T2, F2) + ', ' + show(r1, T1, F1),
+        'Ньютон–Лейбниц: $S=F(' + r2 + ')-F(' + r1 + ')=' + fTex(F2) + '-' + F1T + '=' + fTex(S) + '$'
+      ], '$S=' + fTex(S) + '$'),
+      key: 'p18_' + k + '_' + m + '_' + r1 + '_' + r2
+    };
+  }
+  return null;
+}
+
+// [№1 №19] {xy=-12; x+2y=2} систем
+function g_e11v1p19() {
+  for (var t = 0; t < 80; t++) {
+    var k = pick([1, 2, 2, 3, 4]), y1 = nz(-6, 6), y2 = nz(-6, 6);
+    if (y1 >= y2 || y1 + y2 === 0) continue;
+    var S = k * (y1 + y2), P = k * y1 * y2;
+    if (Math.abs(P) > 60 || Math.abs(S) > 20) continue;
+    var x1 = k * y2, x2 = k * y1, ky = (k === 1 ? '' : k) + 'y', kd = k === 1 ? '' : k + '\\cdot ';
+    var st = [
+      'Хоёр дахь тэгшитгэлээс: $x=' + S + '-' + ky + '$',
+      'Эхний тэгшитгэлд орлуулна: $(' + S + '-' + ky + ')y=' + P + '$',
+      '$' + x10_quad(k, -S, P, 'y') + '=0$' + (k > 1 ? ', $' + x10_quad(1, -(y1 + y2), y1 * y2, 'y') + '=0$' : ''),
+      'Виетийн теорем: $y_1=' + y1 + '$, $y_2=' + y2 + '$',
+      '$x_1=' + S + '-' + kd + paren(y1) + '=' + x1 + '$, $x_2=' + S + '-' + kd + paren(y2) + '=' + x2 + '$'
+    ];
+    return {
+      q: '$\\begin{cases}xy=' + P + '\\\\x+' + ky + '=' + S + '\\end{cases}$ системийг бодоорой.',
+      a: x10_sol(st, '$' + x10_pt(x1, y1) + '$, $' + x10_pt(x2, y2) + '$'),
+      key: 'p19_' + k + '_' + y1 + '_' + y2
+    };
+  }
+  return null;
+}
+
+// [№1 №20] 18 сурагчийн өндөр: иш-навчны диаграмм, моод, медиан, далайц
+function e11v1_m(cm) { var r = cm % 100; return Math.floor(cm / 100) + '.' + (r < 10 ? '0' : '') + r; }
+function g_e11v1p20() {
+  for (var t = 0; t < 200; t++) {
+    var s0 = pick([14, 15]), ns = pick([3, 4]), lo = s0 * 10, hi = (s0 + ns) * 10 - 1;
+    var mid = function () { return lo + Math.floor((rnd(0, hi - lo) + rnd(0, hi - lo)) / 2); };
+    var vm = mid(), cm = rnd(4, 5), vals = [], i;
+    for (i = 0; i < cm; i++) vals.push(vm);
+    while (vals.length < 18) { var v = rnd(0, 3) ? mid() : rnd(lo, hi); if (v !== vm) vals.push(v); }
+    var cnt = {}; vals.forEach(function (x) { cnt[x] = (cnt[x] || 0) + 1; });
+    var ok = Object.keys(cnt).every(function (x) { return +x === vm || cnt[x] <= cm - 2; });
+    if (!ok) continue;
+    var stems = {}; vals.forEach(function (x) { stems[Math.floor(x / 10)] = 1; });
+    if (Object.keys(stems).length !== ns) continue;
+    var so = vals.slice().sort(function (p, q) { return p - q; });
+    var sum = so[8] + so[9];
+    var med = sum % 2 ? e11v1_m(Math.floor(sum / 2)) + '5' : e11v1_m(sum / 2);
+    var rg = so[17] - so[0];
+    var mix = shuffle(vals);
+    var cell = 'padding:3px 6px;border:1px solid #d9d2ee;text-align:center';
+    var fig = '<table style="border-collapse:collapse;margin:4px auto;font-size:12.5px;color:#333">'
+      + [mix.slice(0, 9), mix.slice(9)].map(function (row) {
+        return '<tr>' + row.map(function (x) { return '<td style="' + cell + '">' + e11v1_m(x) + '</td>'; }).join('') + '</tr>';
+      }).join('') + '</table>';
+    var rows = '';
+    for (var s = s0; s < s0 + ns; s++) {
+      var lv = so.filter(function (x) { return Math.floor(x / 10) === s; }).map(function (x) { return x % 10; });
+      rows += '<tr><td style="padding:2px 10px;border-right:2px solid #5a32d6;text-align:right;font-weight:700">'
+        + Math.floor(s / 10) + '.' + (s % 10) + '</td><td style="padding:2px 10px;letter-spacing:1px">' + lv.join(' ') + '</td></tr>';
+    }
+    var tbl = '<table style="border-collapse:collapse;margin:3px 0;font-size:12.5px">'
+      + '<tr><td style="padding:2px 10px;border-right:2px solid #5a32d6;border-bottom:1px solid #d9d2ee;text-align:right;color:#5a32d6">Иш</td>'
+      + '<td style="padding:2px 10px;border-bottom:1px solid #d9d2ee;color:#5a32d6">Навч</td></tr>' + rows + '</table>';
+    var ex = so[0];
+    fig += '<div style="text-align:left;margin:4px 0 0 8px;line-height:1.6">а. Өгөгдлүүдийг иш-навчны диаграмм дээр дүрсэл.<br>б. Моод, медиан, далайцыг ол.</div>';
+    return {
+      q: '8-р ангийн 18 сурагчийн өндрийг /м/ хэмжин тэмдэглэжээ.',
+      fig: fig,
+      a: x10_sol([
+        'Өсөхөөр эрэмбэлбэл: ' + so.map(e11v1_m).join(', '),
+        'а) Иш — метр ба аравтын орон, навч — зуутын орон (ж: ' + Math.floor(ex / 100) + '.' + (Math.floor(ex / 10) % 10) + ' | ' + (ex % 10) + ' нь ' + e11v1_m(ex) + ' м):' + tbl,
+        'б) Моод: хамгийн олон ($' + cm + '$ удаа) давтагдсан утга $' + e11v1_m(vm) + '$ м',
+        'Медиан: $n=18$ тэгш тул $M_e=\\dfrac{x_9+x_{10}}{2}=\\dfrac{' + e11v1_m(so[8]) + '+' + e11v1_m(so[9]) + '}{2}=' + med + '$ м',
+        'Далайц: $R=x_{max}-x_{min}=' + e11v1_m(so[17]) + '-' + e11v1_m(so[0]) + '=' + e11v1_m(rg) + '$ м'
+      ], 'моод $' + e11v1_m(vm) + '$ м, медиан $' + med + '$ м, далайц $' + e11v1_m(rg) + '$ м'),
+      key: 'p20_' + so.join('.')
+    };
+  }
+  return null;
+}
+var WSPEC={"title":"Жишиг даалгавар-1","sub":"ХУВИЛБАР №1 · Жишиг даалгавар · 11-р анги","rule":"<b>Санамж:</b> Эх функц $\\int x^n\\,dx=\\dfrac{x^{n+1}}{n+1}+C$, Ньютон–Лейбниц $\\int_a^b f(x)\\,dx=F(b)-F(a)$. Бином $T_{k+1}=C_n^k a^{n-k}b^k$. Геометр прогресс $S_n=\\dfrac{b_1(1-q^n)}{1-q}$. Нормаль $y-y_0=-\\dfrac{1}{f'(x_0)}(x-x_0)$. $\\sin x=a$ бол $x=(-1)^k\\arcsin a+\\pi k$, $\\cos x=a$ бол $x=\\pm\\arccos a+2\\pi k$, $k\\in\\mathbb{Z}$.","ref":"<style>#answers h2{font-size:15.5px}#answers .ans-grid{gap:7px;font-size:12px}#answers .ans-grid .a{padding:6px 10px 7px;background:#fbfaff;border:1px solid #ece6fb;border-radius:9px;border-bottom:1px solid #ece6fb;break-inside:avoid;page-break-inside:avoid}#answers .ans-grid .an{display:inline-block;min-width:26px;color:#5a32d6}</style>","tasks":[{"label":"Тэнцэтгэл бишийг бод.","fn":"g_e11v1p1","cap":1,"cols":1,"wk":18,"solo":true},{"label":"Тоонуудыг ол.","fn":"g_e11v1p2","cap":1,"cols":1,"wk":18,"solo":true},{"label":"Эх функцийг ол.","fn":"g_e11v1p3","cap":1,"cols":1,"wk":18,"solo":true},{"label":"Системийг бод.","fn":"g_e11v1p4","cap":1,"cols":1,"wk":26,"solo":true},{"label":"Нийлбэрийг ол.","fn":"g_e11v1p5","cap":1,"cols":1,"wk":20,"solo":true},{"label":"Коэффициентийг ол.","fn":"g_e11v1p6","cap":1,"cols":1,"wk":24,"solo":true},{"label":"Илэрхийллийг хялбарчил.","fn":"g_e11v1p7","cap":1,"cols":1,"wk":18,"solo":true},{"label":"Тэгшитгэлийг бод.","fn":"g_e11v1p8","cap":1,"cols":1,"wk":20,"solo":true},{"label":"Параметрийг ол.","fn":"g_e11v1p9","cap":1,"cols":1,"wk":18,"solo":true},{"label":"Моод бүлгийг ол.","fn":"g_e11v1p10","cap":1,"cols":1,"wk":24,"solo":true},{"label":"Зайг ол.","fn":"g_e11v1p11","cap":1,"cols":1,"wk":18,"solo":true},{"label":"Огтлолцлын цэгийг ол.","fn":"g_e11v1p12","cap":1,"cols":1,"wk":24,"solo":true},{"label":"Урвуу функцийг ол.","fn":"g_e11v1p13","cap":1,"cols":1,"wk":24,"solo":true},{"label":"Нормалийн тэгшитгэлийг бич.","fn":"g_e11v1p14","cap":1,"cols":1,"wk":26,"solo":true},{"label":"Эхний гишүүн ба хуваарийг ол.","fn":"g_e11v1p15","cap":1,"cols":1,"wk":26,"solo":true},{"label":"Цэгийн координатыг ол.","fn":"g_e11v1p16","cap":1,"cols":1,"wk":20,"solo":true},{"label":"Уламжлалыг ол.","fn":"g_e11v1p17","cap":1,"cols":1,"wk":20,"solo":true},{"label":"Талбайг ол.","fn":"g_e11v1p18","cap":1,"cols":1,"wk":30,"solo":true},{"label":"Системийг бод.","fn":"g_e11v1p19","cap":1,"cols":1,"wk":26,"solo":true},{"label":"Иш-навчны диаграмм байгуулж, моод, медиан, далайцыг ол.","fn":"g_e11v1p20","cap":1,"cols":1,"wk":32,"solo":true}]};
+
+function toggleAns(){var el=document.getElementById('answers');if(el)el.style.display=document.getElementById('sa').checked?'block':'none';}
+function gen(fn){for(var t=0;t<700;t++){var f=fn();if(f)return f;}return null;}
+var LET=['а','б','в','г','д','е','ё','ж','з','и','к','л','м','н','о','ө','п','р','с','т'];
+function probeH(sheet){var pr=sheet.cloneNode(true);pr.removeAttribute('id');pr.style.cssText='position:absolute;left:-99999px;top:0;width:210mm;max-width:none;min-height:0;margin:0;padding:0;box-shadow:none;zoom:1';var a=pr.querySelector('#answers,.ans-page');if(a)a.remove();document.body.appendChild(pr);var h=pr.scrollHeight;document.body.removeChild(pr);return h;}
+function relabel(sheet){var blocks=sheet.querySelectorAll('.grid'),map={},cnt={};for(var g=0;g<blocks.length;g++){var gr=blocks[g].getAttribute('data-gr')||(g+1);var solo=blocks[g].getAttribute('data-solo')==='1';if(cnt[gr]===undefined)cnt[gr]=0;var qs2=blocks[g].querySelectorAll('.q');for(var i=0;i<qs2.length;i++){var ix=cnt[gr]++;var lt=LET[ix]||('#'+(ix+1));var ql=qs2[i].querySelector('.ql');if(solo&&qs2.length===1){if(ql)ql.textContent='';map[qs2[i].getAttribute('data-k')]=gr+')';}else{if(ql)ql.textContent=lt+')';map[qs2[i].getAttribute('data-k')]=gr+lt+')';}}}
+  var as=sheet.querySelectorAll('#answers .a');for(var j=0;j<as.length;j++){var an=as[j].querySelector('.an');if(an)an.textContent=map[as[j].getAttribute('data-k')]||'';}}
+function trimToFit(sheet,target){var guard=0,h=probeH(sheet);while(h>target&&guard++<90){var blocks=sheet.querySelectorAll('.grid'),best=-1,bestN=-1;for(var s=blocks.length-1;s>=0;s--){var n=blocks[s].querySelectorAll('.q').length;if(n>bestN&&n>2){bestN=n;best=s;}}if(best<0)break;var qs2=blocks[best].querySelectorAll('.q');var last=qs2[qs2.length-1],k=last.getAttribute('data-k');var ans=sheet.querySelector('#answers .a[data-k="'+k+'"]');if(ans)ans.parentNode.removeChild(ans);last.parentNode.removeChild(last);relabel(sheet);h=probeH(sheet);}}
+var TASKS=WSPEC.tasks.map(function(t){return {label:t.label, fn:eval(t.fn), cap:t.cap, cols:t.cols, wk:t.wk, solo:t.solo};});
+function genPool(){var P=TASKS.map(function(){return[];});var seen={};TASKS.forEach(function(t,i){var c=0,tr=0,need=t.cap+3;while(c<need&&tr<9000){tr++;var f=gen(t.fn);if(!f||seen[f.key])continue;seen[f.key]=1;P[i].push(f);c++;}});return P;}
+function build(){window.__POOL=genPool();layout();}
+function layout(){var WK=document.getElementById('sw').checked;var S=window.__POOL||(window.__POOL=genPool());window.__PROB=[];var K=0;
+  function block(arr,cap,tk,gno){var use=WK?arr.slice(0,cap):arr;return '<div class="grid" data-gr="'+gno+'"'+(tk&&tk.solo?' data-solo="1"':'')+(tk&&tk.cols?' style="grid-template-columns:repeat('+tk.cols+',1fr)"':'')+'>'+use.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});return '<div class="q" data-k="'+k+'"><div class="qh"><span class="ql"></span><span class="qm">'+f.q+'</span></div>'+(f.fig?'<div class="fig">'+f.fig+'</div>':'')+((WK&&!f.noWk)?'<div class="wk"'+(tk&&tk.wk?' style="height:'+tk.wk+'mm"':'')+'></div>':'')+'</div>';}).join('')+'</div>';}
+  function ansAll(){return window.__PROB.map(function(p){return '<div class="a" data-k="'+p.k+'"><span class="an"></span>'+p.f.a+'</div>';}).join('');}
+  var html='<div class="head"><h1>'+WSPEC.title+'</h1><div class="sub">'+WSPEC.sub+'</div></div>'
+    +'<div class="meta"><span>Нэр: </span><span>Анги: </span><span>Огноо: </span></div>'
+    +'<div class="rule">'+WSPEC.rule+'</div>'+(WSPEC.ref||'');
+  var __g=0,__p=null;TASKS.forEach(function(t,i){if(t.label!==__p||t.solo){__g++;html+='<div class="task">'+__g+'. '+t.label+'</div>';__p=t.solo?null:t.label;}html+=block(S[i],t.cap,t,__g);});
+  html+='<div class="ans-page" id="answers"><h2>Хариу ба бодолт</h2><div class="ans-grid">'+ansAll()+'</div></div>';
+  document.getElementById('sheet').innerHTML=html;
+  window.WS_ITEMS=[];window.WS_TITLE=WSPEC.title;
+  relabel(document.getElementById('sheet'));toggleAns();
+  try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
+  try{if(!WK)trimToFit(document.getElementById('sheet'),1035);}catch(e){}
+  try{relabel(document.getElementById('sheet'));}catch(e){}
+}
+build();
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>
