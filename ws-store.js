@@ -837,7 +837,56 @@
     lb.querySelector('.cm-work-cb').addEventListener('change',function(){ window.WS_WORK=this.checked; try{if(typeof window.build==='function')window.build();}catch(e){} });
   }
   window.cmAddWorkToggle=addWorkToggle;
-  function init(){ injectBrandCSS(); brandSheet(); watchSheet(); enhanceMeta(); loadInstr(); if(!IS_QR){addBtn();addBatchBtn();addWorkToggle();} applyQR(); enforcePaywall(); injectSocial(); }
+
+  // ─── Товчны хослол: Ctrl+Enter (Mac: ⌘+Enter) → "Шинэ бодлого" ───
+  //  Хуудас бүрийн шинэчлэх товчийг ОЛЖ дардаг тул build()/gen()/genPractice() аль нь ч бай ажиллана.
+  //  Гарчиг, нэр зэрэг засаж байх үед (input/contenteditable дээр) болон төлбөрийн цонх нээлттэй үед ажиллахгүй.
+  var IS_MAC=/Mac|iPhone|iPad|iPod/.test(navigator.platform||navigator.userAgent||'');
+  function findRefreshBtn(){
+    var b=document.querySelector('.bar .btn.refresh');
+    if(b)return b;
+    var all=document.querySelectorAll('.bar button');
+    for(var i=0;i<all.length;i++){ if(/^\s*Шинэ/.test(all[i].textContent||''))return all[i]; }
+    return null;
+  }
+  function isEditing(el){
+    if(!el||el===document.body)return false;
+    var t=(el.tagName||'').toLowerCase();
+    if(t==='input'||t==='textarea'||t==='select')return true;
+    return !!(el.isContentEditable);
+  }
+  function addRefreshShortcut(){
+    var btn=findRefreshBtn(); if(!btn)return;               // шинэчлэх товчгүй хуудас (статик)
+    var combo=IS_MAC?'⌘ Enter':'Ctrl+Enter';
+    if(!btn.getAttribute('title'))btn.setAttribute('title','Шинэ бодлого ('+combo+')');
+    if(!document.getElementById('cm-kbd-css')){
+      var st=document.createElement('style'); st.id='cm-kbd-css';
+      st.textContent='.cm-kbd{display:inline-block;margin-left:7px;padding:1px 6px;border:1px solid currentColor;'
+        +'border-radius:6px;font-size:.68rem;font-weight:700;line-height:1.35;opacity:.72;letter-spacing:.2px;vertical-align:1px}'
+        +'@media (max-width:820px),(hover:none){.cm-kbd{display:none}}'
+        +'@media print{.cm-kbd{display:none}}'
+        +'.cm-kbd-hit{transform:scale(.95);filter:brightness(1.12)}';
+      document.head.appendChild(st);
+    }
+    if(!btn.querySelector('.cm-kbd')){
+      var k=document.createElement('span'); k.className='cm-kbd'; k.textContent=combo;
+      btn.appendChild(k);
+    }
+    document.addEventListener('keydown',function(e){
+      if(e.key!=='Enter'||e.repeat||e.altKey||e.shiftKey)return;
+      if(!(IS_MAC?e.metaKey:e.ctrlKey))return;
+      if(isEditing(e.target)||isEditing(document.activeElement))return;
+      if(document.getElementById('wsLock'))return;             // төлбөрийн цонх нээлттэй
+      var b=findRefreshBtn(); if(!b||b.disabled||b.offsetParent===null)return;
+      e.preventDefault();
+      b.classList.add('cm-kbd-hit');
+      setTimeout(function(){ b.classList.remove('cm-kbd-hit'); },160);
+      b.click();
+    });
+  }
+  window.cmFindRefreshBtn=findRefreshBtn;
+
+  function init(){ injectBrandCSS(); brandSheet(); watchSheet(); enhanceMeta(); loadInstr(); if(!IS_QR){addBtn();addBatchBtn();addWorkToggle();} addRefreshShortcut(); applyQR(); enforcePaywall(); injectSocial(); }
   if(document.readyState!=='loading')init();
   else document.addEventListener('DOMContentLoaded',init);
 })();
