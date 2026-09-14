@@ -3,8 +3,10 @@ const nodemailer = require('nodemailer');
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: 'cybermath424@gmail.com',
-    pass: 'curbqiqjrzgmgkfq'
+    user: process.env.GMAIL_USER || 'cybermath424@gmail.com',
+    // Gmail app password-ийг Vercel env GMAIL_APP_PASSWORD-оос уншина. Хуучин утга нийтийн репод задарсан тул
+    // Google дээр хүчингүй болгоод шинийг env-д тавьсны дараа доорх fallback-ийг устгана.
+    pass: process.env.GMAIL_APP_PASSWORD || 'curbqiqjrzgmgkfq'
   }
 });
 
