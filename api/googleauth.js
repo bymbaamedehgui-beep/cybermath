@@ -1,44 +1,106 @@
+const crypto = require('crypto');
 const pool = require('./_db');
 const jwt = require('jsonwebtoken');
 const { ensureExpiryCheck } = require('./_premium');
+const { jwtSecret, secretMissing } = require('./_guard');
 
-// Google ID token-ийг шалгахын тулд Google-ийн public certs-аас баталгаажуулна.
-// Тиймээс jose эсвэл google-auth-library ашиглах хэрэгтэй. Vercel-д аль аль нь
-// серверлес дотор ажилладаг. Энд илүү хөнгөн хувилбараа: jwt token-ийг decode
-// хийгээд `iss`, `aud` шалгана. Бүрэн crypto verify-ыг google-auth-library-аар
-// хийх боломжтой.
+// Google ID token-ийг Google-ийн нийтийн түлхүүрээр (JWKS, RS256) гарын үсгийг нь шалгана.
+// Нэмэлт npm хамааралгүй: JWKS-ийг татаж кэшлээд crypto.createPublicKey + jwt.verify.
+const GOOGLE_JWKS_URL = 'https://www.googleapis.com/oauth2/v3/certs';
+const GOOGLE_ISSUERS = ['accounts.google.com', 'https://accounts.google.com'];
 
-async function verifyGoogleToken(idToken) {
-  // Энгийн decode хийгээд payload-ыг авах
-  // ЗААВАЛ: production-д Google-ийн public certs-аар signature verify хийх ёстой
-  // (google-auth-library дэмждэг).
+let _jwks = null;          // { keys: { kid: pem }, expiresAt: ms }
+let _jwksLoading = null;
+let _lastForced = 0;       // таньдаггүй kid-ээр хүчээр дахин татсан сүүлийн хугацаа
+const FORCE_REFETCH_MS = 60 * 1000;
+
+async function loadJwks(force) {
+  // Хүчээр дахин татахыг 60 секундэд нэг удаа (хуурамч kid-ээр Google руу олноор татуулахгүй)
+  if (force && _jwks) {
+    if (Date.now() - _lastForced < FORCE_REFETCH_MS) return _jwks;
+    _lastForced = Date.now();
+  }
+  if (!force && _jwks && _jwks.expiresAt > Date.now()) return _jwks;
+  if (_jwksLoading) return _jwksLoading;
+  _jwksLoading = (async () => {
+    const r = await fetch(GOOGLE_JWKS_URL);
+    if (!r || (r.ok === false)) throw new Error('Google JWKS татаж чадсангүй');
+    const body = await r.json();
+    const keys = {};
+    (body && Array.isArray(body.keys) ? body.keys : []).forEach(function(k) {
+      if (!k || !k.kid || k.kty !== 'RSA') return;
+      try {
+        keys[k.kid] = crypto.createPublicKey({ key: k, format: 'jwk' }).export({ type: 'spki', format: 'pem' });
+      } catch (e) { /* буруу түлхүүрийг алгасна */ }
+    });
+    // Cache-Control max-age-ийг дагана (байхгүй бол 1 цаг)
+    let maxAge = 3600;
+    try {
+      const cc = r.headers && typeof r.headers.get === 'function' ? (r.headers.get('cache-control') || '') : '';
+      const m = /max-age=(\d+)/.exec(cc);
+      if (m) maxAge = Math.min(86400, Math.max(60, parseInt(m[1], 10)));
+    } catch (e) {}
+    _jwks = { keys: keys, expiresAt: Date.now() + maxAge * 1000 };
+    return _jwks;
+  })();
+  try { return await _jwksLoading; } finally { _jwksLoading = null; }
+}
+
+// Амжилттай бол payload, үгүй бол null
+async function verifyGoogleToken(idToken, clientId) {
+  if (typeof idToken !== 'string' || idToken.length > 4096) return null;
+  const dec = jwt.decode(idToken, { complete: true });
+  if (!dec || !dec.header || dec.header.alg !== 'RS256' || !dec.header.kid) return null;
+  let set = await loadJwks(false);
+  let pem = set.keys[dec.header.kid];
+  if (!pem) {
+    // Түлхүүр сэлгэгдсэн байж болно — нэг удаа дахин татна
+    set = await loadJwks(true);
+    pem = set.keys[dec.header.kid];
+  }
+  if (!pem) return null;
+  let payload;
   try {
-    const payload = jwt.decode(idToken);
-    if (!payload || !payload.email || !payload.email_verified) return null;
-    if (payload.iss !== 'https://accounts.google.com' && payload.iss !== 'accounts.google.com') return null;
-    if (process.env.GOOGLE_CLIENT_ID && payload.aud !== process.env.GOOGLE_CLIENT_ID) return null;
-    return payload;
+    payload = jwt.verify(idToken, pem, {
+      algorithms: ['RS256'],
+      audience: clientId,
+      issuer: GOOGLE_ISSUERS
+    }); // exp-ийг jwt.verify өөрөө шалгана
   } catch (e) {
     return null;
   }
+  if (!payload || typeof payload !== 'object') return null;
+  if (payload.email_verified !== true && payload.email_verified !== 'true') return null;
+  if (typeof payload.email !== 'string' || payload.email.indexOf('@') < 1) return null;
+  return payload;
 }
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   if (req.method !== 'POST') return res.status(405).end();
+
+  if (secretMissing(res)) return;
+  const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+  if (!CLIENT_ID) return res.status(500).json({ ok: false, error: 'Серверийн тохиргоо дутуу (GOOGLE_CLIENT_ID)' });
 
   try {
     const { idToken } = req.body || {};
     if (!idToken) return res.status(400).json({ ok: false, error: 'Missing idToken' });
 
-    const payload = await verifyGoogleToken(idToken);
+    let payload = null;
+    try {
+      payload = await verifyGoogleToken(idToken, CLIENT_ID);
+    } catch (e) {
+      console.error('[googleauth] jwks', e.message);
+      return res.status(503).json({ ok: false, error: 'Google баталгаажуулалт түр ажиллахгүй байна. Дахин оролдоно уу.' });
+    }
     if (!payload) return res.status(401).json({ ok: false, error: 'Google token буруу' });
 
-    const email = String(payload.email).toLowerCase();
+    const email = String(payload.email).trim().toLowerCase();
     const firstName = payload.given_name || (payload.name ? payload.name.split(' ')[0] : '');
     const lastName  = payload.family_name || (payload.name ? payload.name.split(' ').slice(1).join(' ') : '');
     const picture = payload.picture || null;
@@ -68,7 +130,7 @@ module.exports = async (req, res) => {
     // JWT token гаргах
     const token = jwt.sign(
       { email: user.email, id: user.id },
-      process.env.JWT_SECRET || 'cybermath-secret',
+      jwtSecret(),
       { expiresIn: '30d' }
     );
 
@@ -108,6 +170,6 @@ module.exports = async (req, res) => {
     });
   } catch (e) {
     console.error('[googleauth]', e);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: 'Серверийн алдаа' });
   }
 };

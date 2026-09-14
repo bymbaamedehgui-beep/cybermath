@@ -1,12 +1,25 @@
 const pool = require('./_db');
+const { secretMissing, requireAdmin, requireUser, rateLimit, clientIp } = require('./_guard');
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
+    // Эрхийн шалгалт: GET ?reports=, POST (reportQuestion-оос бусад), PUT, DELETE — зөвхөн админ.
+    // Тоглоомын GET (node_id/ids/exam/grade...) болон хэрэглэгчийн reportQuestion нээлттэй.
+    const _q = req.query || {};
+    const _b = req.body || {};
+    const needAdmin = (req.method === 'GET' && _q.reports)
+      || (req.method === 'POST' && _b.action !== 'reportQuestion')
+      || req.method === 'PUT' || req.method === 'DELETE';
+    if (needAdmin) {
+      if (secretMissing(res)) return;
+      if (!requireAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
+    }
+
     // Lazy migration — difficulty column нэмэх
     await pool.query(`ALTER TABLE questions ADD COLUMN IF NOT EXISTS difficulty TEXT DEFAULT 'medium'`).catch(()=>{});
     // is_exam — шалгалтын бодлого эсэхийг тэмдэглэх
@@ -82,8 +95,20 @@ module.exports = async (req, res) => {
 
       // Хэрэглэгчээс ирсэн "Алдаа мэдэгдэх"
       if (body.action === 'reportQuestion') {
-        const { question_id, reporter_email, reason } = body;
-        if (!question_id || !reporter_email) return res.status(400).json({ ok: false, error: 'Missing fields' });
+        const { question_id, reason } = body;
+        // Токен байвал имэйлийг түүнээс, үгүй бол body-оос (хуучин клиент — index.html authFetch руу шилжтэл түр)
+        const tokUser = requireUser(req);
+        const reporter_email = tokUser ? tokUser.email : (body.reporter_email ? String(body.reporter_email).trim().toLowerCase().slice(0, 254) : '');
+        if (!question_id || !reporter_email || isNaN(parseInt(question_id))) return res.status(400).json({ ok: false, error: 'Missing fields' });
+        // Токенгүй: хатуу хязгаар (IP 5/цаг) + бүртгэлтэй имэйл байх ёстой (зохиомол имэйлээр спам хийхээс)
+        if (!(await rateLimit('qreport:ip:' + clientIp(req), tokUser ? 20 : 5, 3600))) {
+          return res.status(429).json({ ok: false, error: 'Хэт олон мэдэгдэл. Түр хүлээгээд дахин оролдоно уу.' });
+        }
+        if (!tokUser) {
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(reporter_email)) return res.status(400).json({ ok: false, error: 'Имэйл буруу' });
+          const ue = await pool.query('SELECT 1 FROM users WHERE LOWER(email)=LOWER($1) LIMIT 1', [reporter_email]);
+          if (!ue.rows.length) return res.status(401).json({ ok: false, error: 'Нэвтэрнэ үү' });
+        }
         // Table байхгүй бол үүсгэх (lazy)
         await pool.query(`
           CREATE TABLE IF NOT EXISTS question_reports (

@@ -2532,15 +2532,20 @@ body {
 #cybermath-app { display: none; }
 </style>
 <script>
-// Demo user seed
-(function() {
-  var users = JSON.parse(localStorage.getItem('cm_users') || '[]');
-  var exists = users.find(function(u){ return u.email === 'demo@cybermath.mn'; });
-  if (!exists) {
-    users.push({lastName:'Батбаяр',firstName:'Болд',email:'demo@cybermath.mn',pass:'cyber123',plan:'premium'});
-    localStorage.setItem('cm_users', JSON.stringify(users));
-  }
-})();
+// Хуучин локал demo/хэрэглэгчийн жагсаалтыг цэвэрлэнэ (нэвтрэлт зөвхөн сервераар)
+try { localStorage.removeItem('cm_users'); } catch (e) {}
+// authFetch — эрт ачаалагдах нөөц хувилбар (үндсэн хувилбар доор дахин тодорхойлогдоно).
+// /api/users зэрэг токен шаарддаг endpoint-д Authorization: Bearer <cm_token> илгээнэ.
+if (typeof window.authFetch !== 'function') {
+  window.authFetch = function(url, options) {
+    options = options || {};
+    options.headers = options.headers || {};
+    var token = null;
+    try { token = (window._currentUser && window._currentUser.token) || localStorage.getItem('cm_token'); } catch (e) {}
+    if (token && !options.headers['Authorization']) options.headers['Authorization'] = 'Bearer ' + token;
+    return fetch(url, options);
+  };
+}
 </script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
@@ -41580,7 +41585,7 @@ document.head.appendChild(cmStyle);
         sbhBoard[sbhCurCell.row][sbhCurCell.col].used = true;
         sbhScores[sbhTurn] += sbhValues[sbhCurCell.row];
         if (sbhMode === 'online' && window._currentUser && _currentUser.email) {
-          try { fetch('/api/users', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email:_currentUser.email, action:'addXp', amount: Math.round(sbhValues[sbhCurCell.row]/10) }) }).catch(function(){}); } catch(e){}
+          try { authFetch('/api/users', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email:_currentUser.email, action:'addXp', amount: Math.round(sbhValues[sbhCurCell.row]/10) }) }).catch(function(){}); } catch(e){}
         }
         sbhCurCell = null;
         checkSbhEnd();
@@ -42382,7 +42387,7 @@ document.head.appendChild(cmStyle);
         console.log('[xpdrop close] pool=' + pool + ' lost=' + wasLost);
         if (pool > 0 && _currentUser && _currentUser.email && !window._xpdropAwarded) {
           window._xpdropAwarded = true;
-          fetch('/api/users', {
+          authFetch('/api/users', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email: _currentUser.email, action: 'addXp', amount: pool })
@@ -42980,7 +42985,7 @@ document.head.appendChild(cmStyle);
           render();
           if (drPlayMode==='online'&&window.olSendMove) window.olSendMove(drSerialize(), true, drTurn==='r'?'white':'black');
           if (drTurn==='r'&&window._currentUser&&_currentUser.email&&drPlayMode!=='online'){
-            try { fetch('/api/users', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email:_currentUser.email, action:'addXp', amount:30 }) }).catch(function(){}); } catch(e){}
+            try { authFetch('/api/users', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email:_currentUser.email, action:'addXp', amount:30 }) }).catch(function(){}); } catch(e){}
           }
           return;
         }
@@ -46273,7 +46278,7 @@ document.head.appendChild(cmStyle);
   function loadLeaderboard() {
     var list = document.getElementById('lb-list');
     if (!list) return;
-    fetch('/api/users?leaderboard=1')
+    authFetch('/api/users?leaderboard=1')
       .then(function(r){ return r.json(); })
       .then(function(data){
         var users = data.users || [];
@@ -46753,7 +46758,7 @@ document.head.appendChild(cmStyle);
       // Идэвхтэй тэмцээн байгаа эсэхийг шалгаж banner харуулах
       Promise.all([
         fetch('/api/classroom?teacher_email=' + encodeURIComponent(_currentUser.email)).then(function(r){ return r.json(); }),
-        fetch('/api/users', {
+        authFetch('/api/users', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: _currentUser.email, action: 'getMyActiveTournament' })
@@ -46827,7 +46832,7 @@ document.head.appendChild(cmStyle);
   // Багш үргэлжлүүлэх (өөр төхөөрөмжөөс орсон ч ажиллана)
   window.resumeTeacherMathlet = function(roomCode) {
     if (!roomCode) return;
-    fetch('/api/users', {
+    authFetch('/api/users', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: _currentUser.email, action: 'getTournament', roomCode: roomCode })
@@ -46847,7 +46852,7 @@ document.head.appendChild(cmStyle);
     var saved = '';
     try { saved = localStorage.getItem('cm_active_mathlet') || ''; } catch(e){}
     if (!/^\d{6}$/.test(saved)) { showToast && showToast('Хадгалсан тэмцээн алга'); return; }
-    fetch('/api/users', {
+    authFetch('/api/users', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: _currentUser.email, action: 'joinTournament', roomCode: saved })
@@ -47449,7 +47454,7 @@ function renderMath(text) {
     }
     var reason = (document.getElementById('rq-reason').value || '').trim();
     if (btn) { btn.disabled = true; btn.textContent = 'Илгээж байна...'; }
-    fetch('/api/questions', {
+    window.authFetch('/api/questions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -48515,7 +48520,7 @@ function renderMath(text) {
     }
     // Server-т sync (зүрх алдаагүй жижиг payload)
     if (_currentUser && _currentUser.email) {
-      fetch('/api/users', {
+      authFetch('/api/users', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: _currentUser.email, action: 'saveLessonProgress', lessonId: lessonId, progress: data })
@@ -48531,7 +48536,7 @@ function renderMath(text) {
     delete map[lessonId];
     localStorage.setItem('cm_lesson_progress', JSON.stringify(map));
     if (_currentUser && _currentUser.email) {
-      fetch('/api/users', {
+      authFetch('/api/users', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: _currentUser.email, action: 'clearLessonProgress', lessonId: lessonId })
@@ -48562,7 +48567,7 @@ function renderMath(text) {
       if (typeof updateNodeVisuals === 'function') setTimeout(updateNodeVisuals, 300);
       // Database-д хадгалах (нэвтэрсэн бол)
       if (_currentUser && _currentUser.email) {
-        fetch('/api/users', {
+        authFetch('/api/users', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
@@ -48884,7 +48889,7 @@ function renderMath(text) {
       addWeeklyXP(earned);
       // Server дээр атомик нэмэлт хийх (overwrite биш)
       if (_currentUser && _currentUser.email) {
-        fetch('/api/users', {
+        authFetch('/api/users', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: _currentUser.email, action: 'addXp', amount: earned })
@@ -49249,7 +49254,7 @@ function toggleAvatarSection() {
       m.style.display = 'flex';
       // Server-аас premium_expiry зэрэг шинэ field-уудыг refresh хийх
       if (user.email) {
-        fetch('/api/users?me=' + encodeURIComponent(user.email))
+        authFetch('/api/users?me=' + encodeURIComponent(user.email))
           .then(function(r){ return r.json(); })
           .then(function(d){
             if (d && d.ok && d.user) {
@@ -51275,7 +51280,7 @@ function toggleAvatarSection() {
     if (!_currentClassroomId) return;
     var title = prompt('Live class-ын нэрийг оруул (хүсвэл):', 'Хичээл');
     if (title === null) return; // Cancel дарсан
-    fetch('/api/users', {
+    authFetch('/api/users', {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
@@ -51302,7 +51307,7 @@ function toggleAvatarSection() {
   function stopLiveClass() {
     if (!_currentClassroomId) return;
     if (!confirm('Live class-ыг зогсоох уу?')) return;
-    fetch('/api/users', {
+    authFetch('/api/users', {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
@@ -51324,7 +51329,7 @@ function toggleAvatarSection() {
 
   function pollLiveClass() {
     if (!_currentClassroomId || !_liveClassActive) return;
-    fetch('/api/users', {
+    authFetch('/api/users', {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
@@ -51490,7 +51495,7 @@ function toggleAvatarSection() {
     var dashEl = document.getElementById('live-class-dashboard');
     if (dashEl) dashEl.style.display = 'none';
     // Active session байгаа эсэхийг шалгаад UI сэргээх
-    fetch('/api/users', {
+    authFetch('/api/users', {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
@@ -51802,7 +51807,7 @@ function toggleAvatarSection() {
     if (!lessons.length) { alert('Дор хаяж 1 хичээл сонгоно уу'); return; }
     var classroomId = _currentClassroomId;
 
-    fetch('/api/users', {
+    authFetch('/api/users', {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
@@ -51834,7 +51839,7 @@ function toggleAvatarSection() {
     var classroomId = _currentClassroomId;
     if (!classroomId) { alert('Анги олдсонгүй'); return; }
 
-    fetch('/api/users', {
+    authFetch('/api/users', {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
@@ -52041,7 +52046,7 @@ function toggleAvatarSection() {
     };
     var modeRadio = document.querySelector('input[name="mathlet-mode"]:checked');
     var mode = modeRadio ? modeRadio.value : 'phone';
-    fetch('/api/users', {
+    authFetch('/api/users', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -52070,7 +52075,7 @@ function toggleAvatarSection() {
     renderTeacherMathlet(t);
     if (_mathletPolling) clearInterval(_mathletPolling);
     _mathletPolling = setInterval(function() {
-      fetch('/api/users', {
+      authFetch('/api/users', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: _currentUser.email, action: 'getTournament', roomCode: _currentMathletRoom })
@@ -52576,7 +52581,7 @@ function toggleAvatarSection() {
   }
 
   window.controlMathlet = function(control) {
-    fetch('/api/users', {
+    authFetch('/api/users', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -52607,7 +52612,7 @@ function toggleAvatarSection() {
   // ═══════════════════════════════════════════════
   function _fetchTournamentForReport(cb) {
     if (!_currentMathletRoom) return cb(new Error('Тэмцээн идэвхгүй'));
-    fetch('/api/users', {
+    authFetch('/api/users', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: _currentUser.email, action: 'getTournament', roomCode: _currentMathletRoom })
@@ -53579,7 +53584,7 @@ function toggleAvatarSection() {
     if (!entries.length) return;
     _liveSubmitQueue = {};
     _liveSubmitInflight = true;
-    fetch('/api/users', {
+    authFetch('/api/users', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -53640,7 +53645,7 @@ function toggleAvatarSection() {
     _lastTeacherStatus = null;
     // Тэмцээний state-ийг шууд татаад дахин render
     if (_currentMathletRoom) {
-      fetch('/api/users', {
+      authFetch('/api/users', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: _currentUser.email, action: 'getTournament', roomCode: _currentMathletRoom })
@@ -53699,7 +53704,7 @@ function toggleAvatarSection() {
   window.openPaperCardsPrint = function() {
     var roomCode = _currentMathletRoom;
     if (!roomCode) return;
-    fetch('/api/users', {
+    authFetch('/api/users', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: _currentUser.email, action: 'getTournament', roomCode: roomCode })
@@ -54256,7 +54261,7 @@ function toggleAvatarSection() {
   window.doJoinMathlet = function() {
     var code = document.getElementById('mathlet-room-input').value.trim();
     if (!/^\d{6}$/.test(code)) { alert('6 оронтой тоон код оруулна уу'); return; }
-    fetch('/api/users', {
+    authFetch('/api/users', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: _currentUser.email, action: 'joinTournament', roomCode: code })
@@ -54295,7 +54300,7 @@ function toggleAvatarSection() {
     var lastQuestion = -1;
     var hasAnswered = false;
     var pollFn = function() {
-      fetch('/api/users', {
+      authFetch('/api/users', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: _currentUser.email, action: 'getTournament', roomCode: _currentMathletRoom })
@@ -54465,7 +54470,7 @@ function toggleAvatarSection() {
   }
 
   window.submitMathletAnswer = function(answerIdx, qIdx) {
-    fetch('/api/users', {
+    authFetch('/api/users', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -55207,7 +55212,7 @@ function toggleAvatarSection() {
       alert('Дор хаяж нэг хичээл сонгоно уу');
       return;
     }
-    fetch('/api/users', {
+    authFetch('/api/users', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -55234,7 +55239,7 @@ function toggleAvatarSection() {
   window.recoverClassroomXp = function() {
     if (!_currentClassroomId) return;
     if (!confirm('Энэ нь анги доторх сурагч бүрд:\n  10 XP × дуусгасан хичээл = шинэ XP\n\nоноох болно. Үргэлжлүүлэх үү?')) return;
-    fetch('/api/users', {
+    authFetch('/api/users', {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
@@ -55307,7 +55312,7 @@ function toggleAvatarSection() {
   }
 
   function loadLeagueMini(tier) {
-    fetch('/api/users?league=' + tier)
+    authFetch('/api/users?league=' + tier)
       .then(function(r){ return r.json(); })
       .then(function(d){
         if (!d.ok) return;
@@ -55351,7 +55356,7 @@ function toggleAvatarSection() {
     // Load leaderboard
     var list = document.getElementById('league-board-list');
     if (list) list.innerHTML = '<div style="text-align:center;padding:30px;color:#aaa;font-family:\'Baloo 2\',sans-serif;">Уншиж байна...</div>';
-    fetch('/api/users?league=' + tier)
+    authFetch('/api/users?league=' + tier)
       .then(function(r){ return r.json(); })
       .then(function(d){
         if (!d.ok || !list) return;
@@ -55592,7 +55597,7 @@ function toggleAvatarSection() {
             if (!_currentUser || !_currentUser.email) return;
             window._myangatAwarded = true;
             var amount = parseInt(d.prize) || 1000;
-            fetch('/api/users', {
+            authFetch('/api/users', {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ email: _currentUser.email, action: 'addXp', amount: amount })
@@ -55632,7 +55637,7 @@ function toggleAvatarSection() {
           var gemGain = parseInt(d.gems) || 0;
           if (xpGain > 0 && _currentUser && _currentUser.email) {
             // Server-руу XP нэмэх
-            fetch('/api/users', {
+            authFetch('/api/users', {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ email: _currentUser.email, action: 'addXp', amount: xpGain })
@@ -55646,7 +55651,7 @@ function toggleAvatarSection() {
             if (typeof showToast === 'function') showToast('+' + xpGain + ' XP');
           }
           if (gemGain > 0 && _currentUser && _currentUser.email) {
-            fetch('/api/users', {
+            authFetch('/api/users', {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ email: _currentUser.email, action: 'addGems', amount: gemGain })
@@ -55714,7 +55719,7 @@ function toggleAvatarSection() {
     // Win = +250, End = score/10 (capped 200)
     var amount = d.type === 'p2048-win' ? 250 : Math.min(200, Math.floor(sc / 10));
     if (amount <= 0) return;
-    fetch('/api/users', {
+    authFetch('/api/users', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: _currentUser.email, action: 'addXp', amount: amount })
@@ -55738,7 +55743,7 @@ function toggleAvatarSection() {
     window._sudokuAwarded = true;
     var rewards = { easy: 100, medium: 200, hard: 350 };
     var amount = rewards[d.difficulty] || 150;
-    fetch('/api/users', {
+    authFetch('/api/users', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: _currentUser.email, action: 'addXp', amount: amount })
@@ -55780,7 +55785,6 @@ function toggleAvatarSection() {
   });
 
   // ===== AUTH & PROFILE SYSTEM =====
-  var _users = JSON.parse(localStorage.getItem('cm_users') || '[]');
   var _userStreak = 0;
   var _currentUser = JSON.parse(localStorage.getItem('cm_current') || 'null') || null;
   window._currentUser = _currentUser;
@@ -55798,29 +55802,6 @@ function toggleAvatarSection() {
     if (gemEl && _currentUser.gems !== undefined) gemEl.textContent = String(_currentUser.gems);
   })();
 
-  // Session шалгах — хуучин session бол гаргах
-  function verifySession() {
-    if (!_currentUser || !_currentUser.email) return;
-    var token = localStorage.getItem('cm_session_token');
-    if (!token) return;
-    fetch('/api/auth', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ action: 'verifySession', email: _currentUser.email, sessionToken: token })
-    }).then(function(r){ return r.json(); }).then(function(d){
-      if (!d.ok && d.expired) {
-        // Session хүчингүй — гаргах
-        _currentUser = null;
-        localStorage.removeItem('cm_current');
-        localStorage.removeItem('cm_session_token');
-        showToast('⚠️ Өөр төхөөрөмжөөс нэвтэрсэн тул гарлаа!');
-        setTimeout(function(){ showLanding(); openAuthModal('login'); }, 1500);
-      }
-    }).catch(function(){});
-  }
-
-
-  function _saveUsers() { localStorage.setItem('cm_users', JSON.stringify(_users)); }
   function _saveCurrentUser() {
     if (_currentUser) {
       localStorage.setItem('cm_current', JSON.stringify(_currentUser));
@@ -56139,9 +56120,12 @@ function toggleAvatarSection() {
         var months = (_selectedPremiumPlan === 'yearly') ? 12 : 1;
         var until = new Date();
         until.setMonth(until.getMonth() + months);
+        // Зөвхөн серверийн баталгаажсан хариунаас (d.paid + d.expiry) — жинхэнэ утгыг доор серверээс дахин татна
         _currentUser.plan = 'premium';
+        _currentUser.premium_expiry = d.expiry || until.toISOString();
         _saveCurrentUser();
-        syncUserToServer({ plan: 'premium', premium_until: until.toISOString() });
+        // Premium-ийг сервер (qpay check) өөрөө бичнэ — клиентээс plan бичихгүй, серверээс дахин татна
+        refreshUserFromServer();
         // Friends багц — promo кодыг харуулна
         if (_selectedPremiumPlan === 'friends' && d.promo_code) {
           showFriendsPackCode(d.promo_code, d.promo_uses || 2);
@@ -56457,7 +56441,7 @@ function toggleAvatarSection() {
         data.user.profile_image = prevLocal.profile_image;
         // Server-руу re-upload хийх
         setTimeout(function() {
-          fetch('/api/users', {
+          authFetch('/api/users', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email: data.user.email, profile_image: prevLocal.profile_image })
@@ -56467,12 +56451,8 @@ function toggleAvatarSection() {
       _currentUser = data.user; _saveCurrentUser();
       closeAuthModal(); _onLogin();
     }).catch(function(){
-      // Fallback: local
-      var user = _users.find(function(u){ return u.email === email && u.pass === pass; });
-      if (!user) { err.textContent = 'И-мэйл эсвэл нууц үг буруу байна.'; return; }
-      err.textContent = '';
-      _currentUser = user; _saveCurrentUser();
-      closeAuthModal(); _onLogin();
+      // Локал fallback байхгүй — нэвтрэлтийг зөвхөн сервер баталгаажуулна
+      err.textContent = 'Сервертэй холбогдоход алдаа гарлаа. Дахин оролдоно уу.';
     });
   }
   function forceLogin(email, pass) {
@@ -56554,16 +56534,6 @@ function toggleAvatarSection() {
   }
 
   function doLogout() {
-    // Server-д session устгах
-    var token = localStorage.getItem('cm_session_token');
-    var email = _currentUser && _currentUser.email;
-    if (token && email) {
-      fetch('/api/auth', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ action: 'logout', email: email, sessionToken: token })
-      }).catch(function(){});
-    }
     localStorage.removeItem('cm_session_token');
     _currentUser = null;
     localStorage.removeItem('cm_current');
@@ -56730,7 +56700,7 @@ function toggleAvatarSection() {
       try { screen = getCurrentScreen(); } catch(e) { screen = ''; }
       // Tab нуугдсан үед хайхрахгүй (bandwidth-ийг хэмнэх)
       if (document.hidden) return;
-      fetch('/api/users', {
+      authFetch('/api/users', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: _currentUser.email, action: 'heartbeat', screen: screen })
@@ -56747,7 +56717,7 @@ function toggleAvatarSection() {
   // Сурагчийн challenge-ыг ачаалж banner-аар харуулах
   function loadAndShowChallenges() {
     if (!_currentUser || !_currentUser.email) return;
-    fetch('/api/users', {
+    authFetch('/api/users', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: _currentUser.email, action: 'getChallenges' })
@@ -56848,7 +56818,7 @@ function toggleAvatarSection() {
             window.history.replaceState({}, '', window.location.pathname);
             // Шууд join хийх
             _currentMathletRoom = mathletCode.toUpperCase();
-            fetch('/api/users', {
+            authFetch('/api/users', {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ email: _currentUser.email, action: 'joinTournament', roomCode: mathletCode.toUpperCase() })
@@ -57082,9 +57052,33 @@ function toggleAvatarSection() {
     options.headers = options.headers || {};
     var token = (_currentUser && _currentUser.token) || localStorage.getItem('cm_token');
     if (token) options.headers['Authorization'] = 'Bearer ' + token;
-    return fetch(url, options);
+    return fetch(url, options).then(function(r) {
+      // /api/users токен заавал — токен дууссан/байхгүй бол нэг удаа дахин нэвтрэхийг санал болгоно
+      if (r && r.status === 401 && String(url).indexOf('/api/users') === 0 && _currentUser && _currentUser.email && !window._cmAuthExpiredShown) {
+        window._cmAuthExpiredShown = true;
+        try { if (typeof showToast === 'function') showToast('Нэвтрэлтийн хугацаа дууссан. Ахицаа хадгалахын тулд дахин нэвтэрнэ үү.'); } catch (e) {}
+        setTimeout(function(){ try { if (typeof openAuthModal === 'function') openAuthModal('login'); } catch (e) {} }, 1200);
+      }
+      return r;
+    });
   }
   window.authFetch = authFetch;
+  // Серверээс хэрэглэгчийн мэдээллийг (plan, premium_expiry, gems...) дахин татаж local state-ийг шинэчилнэ
+  function refreshUserFromServer(cb) {
+    var u = _currentUser;
+    if (!u || !u.email) { if (cb) cb(null); return; }
+    authFetch('/api/users?me=' + encodeURIComponent(u.email))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (d && d.ok && d.user) {
+          _currentUser = Object.assign({}, _currentUser, d.user);
+          _saveCurrentUser();
+          try { if (typeof updateUI === 'function') updateUI(); } catch (e) {}
+        }
+        if (cb) cb(d && d.user || null);
+      }).catch(function(){ if (cb) cb(null); });
+  }
+  window.refreshUserFromServer = refreshUserFromServer;
 
   // QR scan-аар хичээлэлэг рүү орох — өмнөх хичээлийг хийсэн эсэхийг шалгана
   window.handleLessonQrScan = function(lessonId) {
@@ -57160,7 +57154,7 @@ function toggleAvatarSection() {
   function trackDailyActivity(minutes) {
     var u = _currentUser;
     if (!u || !u.email) return;
-    fetch('/api/users', {
+    authFetch('/api/users', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: u.email, action: 'addMinutes', minutes: minutes })
@@ -57317,7 +57311,7 @@ function toggleAvatarSection() {
 
     msg.style.color='#7B52EE'; msg.textContent='Хадгалж байна...';
 
-    fetch('/api/users', {
+    authFetch('/api/users', {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
@@ -57339,22 +57333,8 @@ function toggleAvatarSection() {
     });
   }
   if (_currentUser && _currentUser.email) {
-    // Database-аас шинэ мэдээлэл авах (pass шаардахгүй)
-    fetch('/api/auth', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'getuser', email: _currentUser.email })
-    }).then(function(r){ return r.json(); }).then(function(data){
-      if (data.ok) {
-        var savedPass = _currentUser.pass;
-        _currentUser = data.user;
-        _currentUser.pass = savedPass;
-        _saveCurrentUser();
-      }
-      setTimeout(_onLogin, 100);
-    }).catch(function(){
-      setTimeout(_onLogin, 100);
-    });
+    // Database-аас шинэ мэдээлэл авах — /api/users?me= (токентой), plan/premium-ийг сервер шийднэ
+    refreshUserFromServer(function(){ setTimeout(_onLogin, 100); });
   }
 
   // ===== MATHLET MULTIPLAYER =====
@@ -60371,13 +60351,12 @@ function sendAppChat(text) {
     return sys;
   })();
 
-  fetch('/api/chat', {
+  window.authFetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       system: appSysPrompt,
-      messages: _appChatHistory,
-      userEmail: (window._currentUser || JSON.parse(localStorage.getItem('cm_current')||'null'))?.email || null
+      messages: _appChatHistory
     })
   })
   .then(function(r){ return r.json(); })
@@ -61347,7 +61326,7 @@ function openDailyChallenge() {
   // Сервер дээр өөр төхөөрөмжөөс хийсэн эсэхийг шалгах
   if (_currentUser && _currentUser.email) {
     document.getElementById('daily-content').innerHTML = '<div style="color:#aaa;padding:20px;">Шалгаж байна...</div>';
-    fetch('/api/users', {
+    authFetch('/api/users', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + (localStorage.getItem('cm_token') || '') },
@@ -61499,7 +61478,7 @@ function finishDailyChallenge() {
   localStorage.setItem(getDailyKey(), 'done');
   // Сервер дээр тэмдэглэх (хэн өөр төхөөрөмжөөс орсон ч давтаж хийгдэхгүй)
   if (typeof _currentUser !== 'undefined' && _currentUser && _currentUser.email) {
-    fetch('/api/users', {
+    authFetch('/api/users', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + (localStorage.getItem('cm_token') || '') },
@@ -61516,7 +61495,7 @@ function finishDailyChallenge() {
     if (typeof addTodayXP === 'function') { try { addTodayXP(amount); } catch(e) {} }
     if (typeof addWeeklyXP === 'function') { try { addWeeklyXP(amount); } catch(e) {} }
     if (typeof _currentUser !== 'undefined' && _currentUser && _currentUser.email) {
-      fetch('/api/users', {
+      authFetch('/api/users', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: _currentUser.email, action: 'addXp', amount: amount })
@@ -61827,7 +61806,7 @@ function applyReward(reward) {
     if (typeof addTodayXP === 'function') { try { addTodayXP(reward.amount); } catch(e){} }
     if (typeof addWeeklyXP === 'function') { try { addWeeklyXP(reward.amount); } catch(e){} }
     if (typeof _currentUser !== 'undefined' && _currentUser && _currentUser.email) {
-      fetch('/api/users', {
+      authFetch('/api/users', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: _currentUser.email, action: 'addXp', amount: reward.amount })
       }).then(function(r){ return r.json(); }).then(function(d){
@@ -62702,7 +62681,7 @@ function injectSpinButton() {}
       // AI горимд → backend XP нэмэх
       if (xp > 0 && window._currentUser && _currentUser.email) {
         try {
-          fetch('/api/users', {
+          authFetch('/api/users', {
             method: 'PUT', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email: _currentUser.email, action: 'addXp', amount: xp })
           }).catch(function(){});
@@ -63517,7 +63496,7 @@ function injectSpinButton() {}
         + '</div>';
       if (xp > 0 && window._currentUser && _currentUser.email) {
         try {
-          fetch('/api/users', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          authFetch('/api/users', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email: _currentUser.email, action: 'addXp', amount: xp }) }).catch(function(){});
         } catch(e) {}
       }
@@ -64120,7 +64099,7 @@ function injectSpinButton() {}
         + '</div>';
       if (xp > 0 && window._currentUser && _currentUser.email) {
         try {
-          fetch('/api/users', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          authFetch('/api/users', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email: _currentUser.email, action: 'addXp', amount: xp }) }).catch(function(){});
         } catch(e) {}
       }
@@ -65347,7 +65326,7 @@ function injectSpinButton() {}
         + '</div>';
       if (xp > 0 && window._currentUser && _currentUser.email) {
         try {
-          fetch('/api/users', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          authFetch('/api/users', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email: _currentUser.email, action: 'addXp', amount: xp }) }).catch(function(){});
         } catch(e) {}
       }
@@ -65645,7 +65624,7 @@ function injectSpinButton() {}
     }
     btn.disabled = true; btn.innerHTML = 'Шалгаж байна...';
     msg.textContent = '';
-    fetch('/api/promo', {
+    window.authFetch('/api/promo', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'redeem', code: code, email: window._currentUser.email })
@@ -65666,6 +65645,8 @@ function injectSpinButton() {}
           else if (d.reward.type === 'hearts') window._currentUser.hearts = Math.min(5, (window._currentUser.hearts || 0) + d.reward.amount);
           else if (d.reward.type === 'premium') window._currentUser.plan = 'premium';
           if (typeof _saveCurrentUser === 'function') _saveCurrentUser();
+          // Серверийн жинхэнэ утгыг (premium_expiry г.м) дахин татна
+          if (typeof window.refreshUserFromServer === 'function') window.refreshUserFromServer();
         }
         // 1.5 sec-ийн дараа modal хааж, UI шинэчлэх
         setTimeout(function(){

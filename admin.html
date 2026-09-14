@@ -858,7 +858,7 @@ window.openQuoteForm = async function(id, userCount) {
   var days = prompt('Premium хоног (хэдэн хоног идэвхтэй байх):', defaultDays);
   if (!days) return;
   days = parseInt(days, 10);
-  if (!days || days < 1) { alert('Хоног буруу'); return; }
+  if (!days || days < 1 || days > 365) { alert('Хоног 1-365 байх ёстой'); return; }
   var price = prompt('Үнийн санал (₮):', '');
   if (price === null) return;
   price = parseInt(price, 10) || null;
@@ -870,7 +870,7 @@ window.openQuoteForm = async function(id, userCount) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'create', code: promoCode, reward_type: 'premium',
-        reward_amount: days, max_uses: userCount,
+        reward_amount: days, max_uses: userCount, is_public: false,
         description: 'Багц хүсэлт #' + id + ' (' + userCount + ' хүн × ' + days + ' хоног)'
       })
     });
@@ -967,7 +967,8 @@ window.createPromoCode = async function() {
         reward_amount: amount,
         max_uses: max ? parseInt(max) : null,
         description: desc || null,
-        expires_at: expires || null
+        expires_at: expires || null,
+        is_public: !!(document.getElementById('pr-public') && document.getElementById('pr-public').checked)
       })
     });
     var d = await r.json();
@@ -978,6 +979,7 @@ window.createPromoCode = async function() {
     document.getElementById('pr-max').value = '';
     document.getElementById('pr-desc').value = '';
     document.getElementById('pr-expires').value = '';
+    if (document.getElementById('pr-public')) document.getElementById('pr-public').checked = false;
     loadPromoCodes();
   } catch(e) { msg.textContent = '✗ ' + (e.message || e); msg.style.color = '#dc2626'; }
 };
@@ -1003,7 +1005,8 @@ window.loadPromoCodes = async function() {
                   : '<span style="color:#22c55e;font-weight:800;font-size:0.75rem;">Идэвхтэй</span>';
       var expDate = c.expires_at ? new Date(c.expires_at).toLocaleDateString('mn-MN') : '∞';
       return '<tr>'
-        + '<td><b style="color:var(--purple-light);letter-spacing:0.08rem;">' + c.code + '</b><br>' + status + '</td>'
+        + '<td><b style="color:var(--purple-light);letter-spacing:0.08rem;">' + c.code + '</b><br>' + status
+        +   '<br><button onclick="togglePromoPublic(' + c.id + ',' + (c.is_public ? 'false' : 'true') + ')" title="Нийтийн код бүртгэлийн баталгаажуулах имэйлд хавсаргагдана" style="margin-top:3px;background:transparent;border:1px solid ' + (c.is_public ? '#22c55e' : 'var(--border)') + ';color:' + (c.is_public ? '#22c55e' : 'var(--muted)') + ';border-radius:6px;padding:1px 7px;cursor:pointer;font-size:0.7rem;font-weight:800;">' + (c.is_public ? 'Нийтийн' : 'Хувийн') + '</button></td>'
         + '<td>' + (typeIcon[c.reward_type] || '') + ' <b>+' + c.reward_amount + '</b><br><span style="color:var(--muted);font-size:0.78rem;">' + c.reward_type + '</span></td>'
         + '<td><b>' + c.used_count + '</b>' + (c.max_uses ? ' / ' + c.max_uses : ' / ∞') + '</td>'
         + '<td style="font-size:0.85rem;">' + expDate + '</td>'
@@ -1026,6 +1029,20 @@ window.copyPromoCode = function(code) {
       if (msg) { msg.innerHTML = '✓ "<b>' + code + '</b>" clipboard-д хуулагдлаа'; msg.style.color = '#22c55e'; }
     }).catch(function(){});
   }
+};
+
+// Нийтийн код = бүртгүүлэгч бүрийн баталгаажуулах имэйлд очно. Багц/найзуудын кодыг хэзээ ч нийтийн болгохгүй.
+window.togglePromoPublic = async function(id, makePublic) {
+  if (makePublic && !confirm('Энэ кодыг бүртгүүлсэн бүх хэрэглэгчийн имэйлд илгээх үү? (Багц/найзуудын төлбөртэй кодыг нийтийн болгож болохгүй)')) return;
+  try {
+    var r = await adminFetch('/api/promo', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'setPublic', id: id, is_public: !!makePublic })
+    });
+    var d = await r.json();
+    if (!d.ok) { alert('Алдаа: ' + (d.error || '')); return; }
+    loadPromoCodes();
+  } catch(e) { alert('Алдаа: ' + (e.message || e)); }
 };
 
 window.deletePromoCode = async function(id, code) {
@@ -2379,6 +2396,12 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
               <label style="font-size:0.78rem;font-weight:800;color:var(--muted);display:block;margin-bottom:4px;">Дуусах хугацаа <span style="color:var(--muted);font-weight:600;">(заавал биш)</span></label>
               <input id="pr-expires" type="date" style="width:100%;padding:10px 12px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-weight:700;outline:none;box-sizing:border-box;">
             </div>
+            <div style="grid-column:1/-1;">
+              <label style="font-size:0.82rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px;cursor:pointer;">
+                <input id="pr-public" type="checkbox" style="width:16px;height:16px;">
+                Нийтийн код — бүртгүүлсэн хэрэглэгчийн баталгаажуулах имэйлд хавсаргах
+              </label>
+            </div>
             <div style="display:flex;align-items:flex-end;gap:8px;">
               <button onclick="generateRandomCode()" style="background:var(--surface2);border:1.5px solid var(--border);color:var(--text);border-radius:10px;padding:10px 14px;font-family:inherit;font-weight:800;cursor:pointer;font-size:0.85rem;">🎲 Random</button>
               <button onclick="createPromoCode()" class="add-btn" style="flex:1;">Үүсгэх ✓</button>
@@ -3222,7 +3245,7 @@ function closeMathModal() { closeChoiceMathModal(); }
   function saveNodes(nodes) { localStorage.setItem('cm_nodes', JSON.stringify(nodes)); }
 
   function addLog(action, detail, color) {
-    fetch(API + '/api/logs', {
+    adminFetch(API + '/api/logs', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({action, detail, color: color||'#58CC02'})
     }).catch(function(){});
@@ -3689,7 +3712,7 @@ function closeMathModal() { closeChoiceMathModal(); }
     // Бүх бодлого + node-уудыг авах
     Promise.all([
       fetch(API + '/api/questions?all=1').then(function(r){ return r.json(); }),
-      fetch(API + '/api/nodes').then(function(r){ return r.json(); })
+      adminFetch(API + '/api/nodes').then(function(r){ return r.json(); })
     ]).then(function(results) {
       var qData = results[0];
       var nData = results[1];
@@ -4502,11 +4525,11 @@ function openEditMathModal(targetId) {
     var nodeEl = document.getElementById('q-node');
     var nodeId = nodeEl ? parseInt(nodeEl.value)||null : null;
     // DELETE + POST (update)
-    fetch(API + '/api/questions', {
+    adminFetch(API + '/api/questions', {
       method:'DELETE', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({id: id})
     }).then(function() {
-      return fetch(API + '/api/questions', {
+      return adminFetch(API + '/api/questions', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({text, correct, choices, hint: hasHint ? hint : null,
           type: qtype,
@@ -4520,7 +4543,7 @@ function openEditMathModal(targetId) {
 
   function deleteQuestion(id) {
     if (!confirm('Устгах уу?')) return;
-    fetch(API + '/api/questions', {
+    adminFetch(API + '/api/questions', {
       method:'DELETE', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({id: id})
     }).then(function(){ renderQuestions(); }).catch(function(){});
@@ -4674,7 +4697,7 @@ function openEditMathModal(targetId) {
     var difficulty = diffEl ? (diffEl.value || 'medium') : 'medium';
     var isExamEl = document.getElementById('q-is-exam');
     var isExam = isExamEl ? !!isExamEl.checked : false;
-    fetch(API + '/api/questions', {
+    adminFetch(API + '/api/questions', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({text, node_id: nodeId?parseInt(nodeId):null, correct, choices: choices, hint: (hint&&(hint.text||hint.embed||hint.image||hint.video))?hint:null, type: qtype, grade: grade, answer_template: answerTpl || null, time_limit: timeLimit, difficulty: difficulty, is_exam: isExam, image: (document.getElementById('q-image') && document.getElementById('q-image').value) || null})
     }).then(r=>r.json()).then(function(data) {
@@ -4799,13 +4822,13 @@ function openEditMathModal(targetId) {
     var inp = document.getElementById('nname-' + id);
     if (inp) inp.value = name;
     // Эхлээд name хадгалах
-    fetch(API + '/api/nodes', {
+    adminFetch(API + '/api/nodes', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({id: n.id, name: name, type: n.type, icon: n.icon||'📚', grade: n.grade||'', sort_order: n.sort_order||n.id})
     }).then(function(){
       // Дараа intro_html хадгалах
-      return fetch(API + '/api/nodes', {
+      return adminFetch(API + '/api/nodes', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
         body: JSON.stringify({action: 'saveIntroHtml', id: n.id, intro_html: introHtml})
@@ -4858,7 +4881,7 @@ function openEditMathModal(targetId) {
     });
     saveSectionLabelsLocal(labels);
     // API-д хадгалах
-    fetch(API + '/api/nodes', {
+    adminFetch(API + '/api/nodes', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ action: 'saveSectionLabels', labels: labels })
@@ -4886,7 +4909,7 @@ function openEditMathModal(targetId) {
     nodes.forEach(function(n){ if (n.id > maxId) maxId = n.id; });
     var newId = maxId + 1;
     if(msg){msg.textContent='Хадгалж байна...';msg.style.color='var(--muted)';}
-    fetch(API + '/api/nodes', {
+    adminFetch(API + '/api/nodes', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ id: newId, name: name, type: type, icon: icon || '📚', grade: grade, sort_order: newId })
@@ -4909,7 +4932,7 @@ function openEditMathModal(targetId) {
     var el = document.getElementById('nodes-list');
     if (!el) return;
     el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);">Уншиж байна...</div>';
-    fetch(API + '/api/nodes?t=' + Date.now())
+    adminFetch(API + '/api/nodes?t=' + Date.now())
       .then(function(r){ return r.json(); })
       .then(function(data){
         var nodes = data.nodes || [];
@@ -4991,7 +5014,7 @@ function openEditMathModal(targetId) {
     if (!confirm(id + '-р node-ийг устгах уу?')) return;
     var nodes = getNodes().filter(function(n){ return n.id !== id; });
     saveNodes(nodes);
-    fetch(API + '/api/nodes', {
+    adminFetch(API + '/api/nodes', {
       method: 'DELETE',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({id: id})
@@ -5007,7 +5030,7 @@ function openEditMathModal(targetId) {
     saveNodes(nodes);
     var input = document.getElementById('nname-' + id);
     if (input) input.value = '';
-    fetch(API + '/api/nodes', {
+    adminFetch(API + '/api/nodes', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({id: n.id, name: '', type: n.type, icon: n.icon||'📚', grade: n.grade||'', sort_order: n.sort_order||n.id})
@@ -5026,7 +5049,7 @@ function openEditMathModal(targetId) {
     saveNodes(nodes);
     _renderNodesUI(nodes);
     Promise.all(nodes.map(function(n){
-      return fetch(API + '/api/nodes', {
+      return adminFetch(API + '/api/nodes', {
         method: 'POST', headers: {'Content-Type':'application/json'},
         body: JSON.stringify({id: n.id, name: '', type: n.type, icon: n.icon||'📚', grade: n.grade||'', sort_order: n.sort_order||n.id})
       });
@@ -5051,7 +5074,7 @@ function openEditMathModal(targetId) {
     saveNodes(nodes);
     _renderNodesUI(nodes);
     Promise.all(nodes.map(function(n){
-      return fetch(API + '/api/nodes', {
+      return adminFetch(API + '/api/nodes', {
         method: 'POST', headers: {'Content-Type':'application/json'},
         body: JSON.stringify({id: n.id, name: n.name, type: n.type, icon: n.icon||'📚', grade: n.grade||'', sort_order: n.sort_order||n.id})
       });
@@ -5076,7 +5099,7 @@ function openEditMathModal(targetId) {
     n.name = name;
     saveNodes(nodes);
     var payload = { id: id, name: name };
-    fetch(API + '/api/nodes', {
+    adminFetch(API + '/api/nodes', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(payload)
@@ -5097,7 +5120,7 @@ function openEditMathModal(targetId) {
     if (!n) return;
     n.type = type;
     saveNodes(nodes);
-    fetch(API + '/api/nodes', {
+    adminFetch(API + '/api/nodes', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({id: id, name: n.name, type: type, icon: n.icon||'📚', grade: n.grade||'', sort_order: n.sort_order||id})
     }).catch(function(){});
@@ -5114,7 +5137,7 @@ function openEditMathModal(targetId) {
     });
     saveNodes(nodes);
     // DB-д бүгдийг хадгалах
-    fetch(API + '/api/nodes', {
+    adminFetch(API + '/api/nodes', {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ nodes: nodes })
@@ -5208,7 +5231,7 @@ function openEditMathModal(targetId) {
     var newPass = document.getElementById('reset-new') ? document.getElementById('reset-new').value.trim() : '';
     var el = document.getElementById('reset-result');
     if (!email || !newPass) { if(el){el.style.display='block';el.style.background='#FF4B4B22';el.textContent='И-мэйл болон нууц үг оруулна уу!';} return; }
-    fetch(API + '/api/auth', {
+    adminFetch(API + '/api/auth', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({action:'reset', email, newPass})
     }).then(r=>r.json()).then(function(d){
@@ -5218,7 +5241,7 @@ function openEditMathModal(targetId) {
 
   // ══ LOGS ══
   function loadLogs() {
-    fetch(API + '/api/logs').then(r=>r.json()).then(function(d){
+    adminFetch(API + '/api/logs').then(r=>r.json()).then(function(d){
       var el = document.getElementById('log-list');
       if(!el) return;
       var logs = d.logs || [];

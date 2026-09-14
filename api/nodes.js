@@ -1,12 +1,14 @@
 const pool = require('./_db');
+const { secretMissing, requireAdmin } = require('./_guard');
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
+    // Тоглоомын нийтийн GET — нээлттэй
     if (req.method === 'GET') {
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
       const r = await pool.query('SELECT * FROM nodes ORDER BY sort_order, id');
@@ -17,6 +19,12 @@ module.exports = async (req, res) => {
         sectionLabels = sl.rows.map(r => ({ id: r.id, name: r.name, afterNode: r.after_node }));
       } catch(e) {}
       return res.json({ ok: true, nodes: r.rows, sectionLabels });
+    }
+
+    // Бичих/устгах бүх үйлдэл — зөвхөн админ
+    if (['POST', 'PUT', 'DELETE'].indexOf(req.method) >= 0) {
+      if (secretMissing(res)) return;
+      if (!requireAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
     }
 
     if (req.method === 'POST') {
@@ -69,6 +77,7 @@ module.exports = async (req, res) => {
 
     if (req.method === 'DELETE') {
       const { id } = req.body || {};
+      if (id == null) return res.status(400).json({ ok: false, error: 'Missing id' });
       await pool.query('DELETE FROM nodes WHERE id=$1', [id]);
       return res.json({ ok: true });
     }

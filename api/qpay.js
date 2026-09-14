@@ -1,6 +1,11 @@
 const pool = require('./_db');
 const jwt = require('jsonwebtoken');
-const JWT_SECRET = process.env.JWT_SECRET || 'cybermath-default-secret-change-in-prod';
+const crypto = require('crypto');
+const { rateLimit, clientIp } = require('./_guard');
+// Telegram HTML мессежэнд хэрэглэгчийн утгыг аюулгүй оруулах
+function escTg(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+// JWT нууц түлхүүр — ЗААВАЛ env-ээс (default fallback байхгүй). Байхгүй бол handler 500 буцаана.
+function jwtSecret() { return process.env.JWT_SECRET || ''; }
 // Telegram мэдэгдэл (сургалтын төлбөр гэх мэт)
 async function notifyTelegram(text) {
   const tok = process.env.TELEGRAM_BOT_TOKEN, chat = process.env.TELEGRAM_CHAT_ID;
@@ -184,12 +189,15 @@ async function createWheelPromo(pct, days) {
   }
   throw new Error('код үүсгэж чадсангүй');
 }
-function wsToken(email) { return jwt.sign({ email: email, ws: true }, JWT_SECRET, { expiresIn: '400d' }); }
-function emailFromToken(tok) { try { var d = jwt.verify(tok, JWT_SECRET); return d && d.email ? String(d.email).toLowerCase() : null; } catch (e) { return null; } }
+function wsToken(email) {
+  if (!jwtSecret()) throw new Error('JWT_SECRET тохируулаагүй');
+  return jwt.sign({ email: email, ws: true }, jwtSecret(), { expiresIn: '400d' });
+}
+function emailFromToken(tok) { if (!jwtSecret() || !tok) return null; try { var d = jwt.verify(tok, jwtSecret()); return d && d.email ? String(d.email).toLowerCase() : null; } catch (e) { return null; } }
 function isAdmin(req) {
   const auth = req.headers.authorization || req.headers.Authorization || '';
-  if (!auth.startsWith('Bearer ')) return false;
-  try { const d = jwt.verify(auth.slice(7), JWT_SECRET); return !!(d && d.admin); } catch (e) { return false; }
+  if (!auth.startsWith('Bearer ') || !jwtSecret()) return false;
+  try { const d = jwt.verify(auth.slice(7), jwtSecret()); return !!(d && d.admin); } catch (e) { return false; }
 }
 
 // ── Ажлын хуудсын промо код + борлуулалтын бүртгэл (DB) ──
@@ -275,23 +283,74 @@ async function recordPurchase(email, amount, promo, invoiceId, months, grade) {
     [email, amount, promo || null, invoiceId || null, months || null, grade || null]);
   return r.rows.length > 0;
 }
-// QPay дээр нэхэмжлэх үнэхээр төлөгдсөн эсэх
-async function qpayInvoicePaid(invoiceId) {
-  if (!invoiceId) return false;
+// QPay payment/check — төлөгдсөн гүйлгээний тоо + нийт төлсөн дүн
+async function qpayPayment(invoiceId) {
+  if (!invoiceId) return { count: 0, paid: 0 };
   const token = await getToken();
   const cr = await fetch(`${QPAY_URL}/payment/check`, {
     method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ object_type: 'INVOICE', object_id: invoiceId })
   });
   const cd = await cr.json();
-  return !!(cd && cd.count > 0);
+  const count = cd && cd.count > 0 ? Number(cd.count) : 0;
+  let sum = 0;
+  (Array.isArray(cd && cd.rows) ? cd.rows : []).forEach(function (x) {
+    const st = String((x && x.payment_status) || 'PAID').toUpperCase();
+    if (st === 'PAID') sum += Number(x.payment_amount) || 0;
+  });
+  const top = Number(cd && cd.paid_amount) || 0;
+  return { count: count, paid: Math.max(sum, top) };
+}
+// Нэхэмжлэх үнэхээр төлөгдсөн БӨГӨӨД төлсөн дүн хадгалсан дүнгээс багагүй эсэх
+async function qpayInvoicePaid(invoiceId, needAmount) {
+  const p = await qpayPayment(invoiceId);
+  if (!(p.count > 0)) return false;
+  const need = Number(needAmount) || 0;
+  if (p.paid < need) { console.warn('[qpay] дутуу төлбөр', invoiceId, p.paid, '<', need); return false; }
+  return true;
 }
 async function wsPendingRow(invoiceId) {
   if (!invoiceId) return null;
   await ensureWsExtra();
-  const r = await pool.query('SELECT invoice_id, email, months, promo, amount, grade FROM ws_pending WHERE invoice_id=$1',
-    [String(invoiceId)]).catch(()=>({ rows: [] }));
+  const r = await pool.query('SELECT invoice_id, email, months, promo, amount, grade, granted FROM ws_pending WHERE invoice_id=$1',
+    [String(invoiceId)]);
   return r.rows[0] || null;
+}
+// ── Premium / Найзууд багц / Сургалт — нэхэмжлэх бүрийн pending мөр ──
+let payPendingReady = false;
+async function ensurePayPending() {
+  if (payPendingReady) return;
+  await pool.query(`CREATE TABLE IF NOT EXISTS pay_pending (
+    invoice_id TEXT PRIMARY KEY,
+    email TEXT NOT NULL,
+    plan TEXT NOT NULL,
+    months INT,
+    amount INT NOT NULL,
+    event_id BIGINT,
+    granted BOOLEAN NOT NULL DEFAULT FALSE,
+    promo_code TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`).catch(()=>{});
+  await pool.query(`ALTER TABLE pay_pending ADD COLUMN IF NOT EXISTS promo_code TEXT`).catch(()=>{});
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_pay_pending_email ON pay_pending(email, granted)`).catch(()=>{});
+  payPendingReady = true;
+}
+async function payPendingRow(invoiceId) {
+  if (!invoiceId) return null;
+  await ensurePayPending();
+  const r = await pool.query('SELECT invoice_id, email, plan, months, amount, event_id, granted, promo_code FROM pay_pending WHERE invoice_id=$1',
+    [String(invoiceId)]);
+  return r.rows[0] || null;
+}
+// Нэг удаа зарцуулах: granted=FALSE → TRUE атомаар. Мөр буцвал л энэ дуудлага олгоно.
+const PENDING_TABLES = { ws_pending: 'ws_pending', pay_pending: 'pay_pending' };
+async function claimPending(table, invoiceId) {
+  const r = await pool.query(`UPDATE ${PENDING_TABLES[table]} SET granted=TRUE WHERE invoice_id=$1 AND granted=FALSE RETURNING invoice_id`, [String(invoiceId)]);
+  return r.rows.length > 0;
+}
+async function unclaimPending(table, invoiceId) {
+  await pool.query(`UPDATE ${PENDING_TABLES[table]} SET granted=FALSE WHERE invoice_id=$1`, [String(invoiceId)])
+    .catch(e => console.error('[qpay unclaim]', e.message));
 }
 // Төлөгдсөн нэхэмжлэхийг ХАДГАЛСАН мэдээллээр (имэйл/анги/сар/дүн) олгож бүртгэнэ.
 // Давтан дуудахад аюулгүй: эрх GREATEST-ээр сунгагдахгүй, худалдан авалт invoice_id-аар давхардахгүй.
@@ -307,11 +366,118 @@ async function settleWsPending(row) {
   } catch (e) { console.error('[ws settle]', e.message); }
   return exp;
 }
+// Ажлын хуудасны нэхэмжлэхийг НЭГ УДАА олгоно (claim → settleWsPending). Аль хэдийн олгосон бол
+// дахин сунгахгүй — одоогийн дуусах хугацааг л буцаана. Олголт алдаа гарвал claim-ийг буцаана.
+async function wsCurrentExpiry(row) {
+  let exp = null;
+  try {
+    const r = row.grade
+      ? await pool.query('SELECT expires_at FROM ws_grade_access WHERE email=$1 AND grade=$2', [String(row.email).toLowerCase(), row.grade])
+      : await pool.query('SELECT expires_at FROM ws_access WHERE email=$1', [String(row.email).toLowerCase()]);
+    if (r.rows.length && r.rows[0].expires_at) exp = new Date(r.rows[0].expires_at);
+  } catch (e) { console.error('[ws expiry]', e.message); }
+  if (!exp) { exp = new Date(); exp.setDate(exp.getDate() + WG.monthsToDays(row.months)); }
+  return exp;
+}
+async function settleWsOnce(row) {
+  // Хуучин callback замаар олгогдож ws_purchases-т бүртгэгдсэн боловч ws_pending.granted=FALSE үлдсэн нэхэмжлэх —
+  // аль хэдийн олгосон гэж үзэж зөвхөн granted=TRUE болгоно, дахин олгохгүй (replay хаалт)
+  const bought = await pool.query('SELECT 1 FROM ws_purchases WHERE invoice_id=$1 LIMIT 1', [String(row.invoice_id)]);
+  if (bought.rows.length) {
+    await pool.query('UPDATE ws_pending SET granted=TRUE WHERE invoice_id=$1', [String(row.invoice_id)])
+      .catch(e => console.error('[ws legacy mark]', e.message));
+    return { already: true, exp: await wsCurrentExpiry(row) };
+  }
+  if (!(await claimPending('ws_pending', row.invoice_id))) return { already: true, exp: await wsCurrentExpiry(row) };
+  try { return { already: false, exp: await settleWsPending(row) }; }
+  catch (e) { await unclaimPending('ws_pending', row.invoice_id); throw e; }
+}
+// Premium / friends / event нэхэмжлэхийг ХАДГАЛСАН мөрөөр НЭГ УДАА олгоно.
+// Буцаах: { granted: энэ дуудлага эрх олгосон эсэх, out: клиентийн хариу (бүтэц хуучинтай ижил) }
+async function settlePay(row) {
+  const email = String(row.email).trim().toLowerCase();
+  const claimed = await claimPending('pay_pending', row.invoice_id);
+  if (row.plan === 'event') {
+    if (!claimed) return { granted: false, out: { ok: true, paid: true } };
+    let upd;
+    try {
+      upd = await pool.query('UPDATE ws_event_regs SET paid=TRUE, paid_at=NOW() WHERE event_id=$1 AND lower(email)=$2 AND paid=FALSE RETURNING id, slot', [row.event_id, email]);
+    } catch (e) { await unclaimPending('pay_pending', row.invoice_id); throw e; }
+    if (!upd.rows.length) {
+      // Бүртгэл олдсонгүй эсвэл аль хэдийн төлөгдсөн — нэхэмжлэхийг зарцуулсан гэж тэмдэглэхгүй (админ тулгаж шалгана).
+      // QPay төлбөрийг баталсан тул клиентэд paid:true (давтан poll-оор анхааруулга олон дахин явуулахгүй)
+      await unclaimPending('pay_pending', row.invoice_id);
+      console.warn('[qpay event] төлөгдсөн боловч ws_event_regs шинэчлэгдсэнгүй', row.invoice_id, email, row.event_id);
+      await notifyTelegram('⚠️ <b>Сургалтын төлбөр бүртгэлтэй тулгагдсангүй</b>\n\n👤 ' + escTg(email) + '\n📌 event_id: ' + escTg(row.event_id) +
+        '\n🧾 ' + escTg(row.invoice_id) + '\n💰 ' + escTg(row.amount) + '₮\nБүртгэл олдсонгүй эсвэл аль хэдийн төлөгдсөн — гараар шалгана уу.');
+      return { granted: false, out: { ok: true, paid: true } };
+    }
+    try {
+      const ev = await pool.query('SELECT title FROM ws_events WHERE id=$1', [row.event_id]);
+      await notifyTelegram('✅ <b>Сургалтын төлбөр төлөгдлөө</b> (' + ((ev.rows[0] && ev.rows[0].title) || row.event_id) + ')\n\n👤 ' + email + '\n🕒 ' + (upd.rows[0].slot || '') + '\n💰 ' + row.amount + '₮');
+    } catch (e) {}
+    return { granted: true, out: { ok: true, paid: true } };
+  }
+  // Premium (monthly/yearly/friends)
+  if (!claimed) {
+    let exp = null;
+    try {
+      const u = await pool.query('SELECT premium_expiry FROM users WHERE lower(email)=$1 LIMIT 1', [email]);
+      if (u.rows.length && u.rows[0].premium_expiry) exp = new Date(u.rows[0].premium_expiry);
+    } catch (e) { console.error('[premium expiry]', e.message); }
+    const out = { ok: true, paid: true, expiry: (exp || new Date()).toISOString() };
+    if (row.plan === 'friends' && row.promo_code) { out.promo_code = row.promo_code; out.promo_uses = 2; }
+    return { granted: false, out: out };
+  }
+  const months = parseInt(row.months, 10) || 1;
+  // Найзууд багц — promo кодыг premium-ээс ӨМНӨ бэлдэнэ. Алдаа гарвал claim буцаж premium огт олгогдоогүй үлдэнэ,
+  // тиймээс дараагийн оролдлого premium-ийг ДАВХАР сунгахгүй. Код claim-ийн дараа шинээр уншигдана:
+  // өмнөх оролдлого кодыг хадгалаад (users алдаагаар) буцсан бол тэр кодыг дахин ашиглана.
+  let promoCode = null;
+  if (row.plan === 'friends') {
+    try {
+      const cur = await pool.query('SELECT promo_code FROM pay_pending WHERE invoice_id=$1', [String(row.invoice_id)]);
+      promoCode = (cur.rows[0] && cur.rows[0].promo_code) || null;
+      if (!promoCode) {
+        promoCode = await createFriendsPromo(email);
+        await pool.query('UPDATE pay_pending SET promo_code=$2 WHERE invoice_id=$1', [row.invoice_id, promoCode]);
+      }
+    } catch (err) {
+      console.error('[QPay friends promo]', err.message);
+      await unclaimPending('pay_pending', row.invoice_id);   // дараагийн check/callback/reconcile дахин оролдоно
+      throw err;
+    }
+  }
+  // Одоогийн эрхийг дарахгүй сунгана: MAX(одоогийн дуусах, NOW()) + сар*30 хоног. claim нэг удаа тул replay үгүй.
+  let expiry;
+  try {
+    const upd = await pool.query(
+      `UPDATE users SET plan='premium', premium_expiry = GREATEST(COALESCE(premium_expiry, NOW()), NOW()) + make_interval(days => $2::int)
+        WHERE lower(email)=$1 RETURNING premium_expiry`,
+      [email, months * 30]);
+    if (!upd.rows.length) throw new Error('Хэрэглэгч олдсонгүй');
+    expiry = upd.rows[0].premium_expiry ? new Date(upd.rows[0].premium_expiry) : new Date(Date.now() + months * 30 * 864e5);
+  } catch (e) { await unclaimPending('pay_pending', row.invoice_id); throw e; }
+  const out = { ok: true, paid: true, expiry: expiry.toISOString() };
+  if (promoCode) { out.promo_code = promoCode; out.promo_uses = 2; }
+  return { granted: true, out: out };
+}
+async function settlePayOnce(row) { return (await settlePay(row)).out; }
 
 const QPAY_URL = 'https://merchant.qpay.mn/v2';
-const USERNAME = 'BYAMBADORJ';
-const PASSWORD = 'UWDUnhyP';
-const INVOICE_CODE = 'BYAMBADORJ_INVOICE';
+// QPay мерчантын нэвтрэх мэдээлэл env-ээс. ШИЛЖИЛТИЙН ҮЕИЙН fallback: QPay дээр нууц үгийг сольж
+// Vercel env-д QPAY_USERNAME/QPAY_PASSWORD/QPAY_INVOICE_CODE нэмсний дараа доорх хатуу утгуудыг УСТГАНА.
+const USERNAME = process.env.QPAY_USERNAME || 'BYAMBADORJ';
+const PASSWORD = process.env.QPAY_PASSWORD || 'UWDUnhyP';
+const INVOICE_CODE = process.env.QPAY_INVOICE_CODE || 'BYAMBADORJ_INVOICE';
+
+// Premium тариф — СЕРВЕР тогтооно (клиентийн amount-д итгэхгүй). index.html showPremiumInfo()-той ижил.
+const PREMIUM_PRICES = {
+  student: { monthly: 9900,  yearly: 100980, friends: 24900 },
+  teacher: { monthly: 24900, yearly: Math.round(24900 * 12 * 0.8), friends: 24900 },   // жил 239040
+};
+const PREMIUM_MONTHS = { monthly: 1, yearly: 12, friends: 1 };
+function premiumPlanNorm(p) { p = String(p || '').trim(); return p === 'premium' ? 'monthly' : (PREMIUM_MONTHS[p] ? p : null); }
 
 let qpayToken = null;
 let tokenExpiry = 0;
@@ -330,14 +496,15 @@ async function createFriendsPromo(ownerEmail) {
       max_uses INT,
       used_count INT NOT NULL DEFAULT 0,
       expires_at TIMESTAMPTZ,
+      is_public BOOLEAN NOT NULL DEFAULT false,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
-  // Random код үүсгэх — давхардвал дахин оролдоно
+  // crypto санамсаргүй код (FR + 10 тэмдэгт ≈ 50 бит) — таамаглах/brute force боломжгүй. Давхардвал дахин оролдоно
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   for (let attempt = 0; attempt < 5; attempt++) {
     let code = 'FR';
-    for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    for (let i = 0; i < 10; i++) code += chars[crypto.randomInt(chars.length)];
     try {
       await pool.query(
         `INSERT INTO promo_codes (code, reward_type, reward_amount, max_uses, description)
@@ -362,6 +529,7 @@ async function getToken() {
     }
   });
   const data = await resp.json();
+  if (!data || !data.access_token) throw new Error('QPay auth амжилтгүй');
   qpayToken = data.access_token;
   tokenExpiry = Date.now() + (data.expires_in || 3600) * 1000 - 60000;
   return qpayToken;
@@ -372,15 +540,20 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
+  if (!jwtSecret()) { console.error('[qpay] JWT_SECRET тохируулаагүй'); return res.status(500).json({ ok: false, error: 'Серверийн тохиргооны алдаа' }); }
 
   try {
     // Invoice үүсгэх
     if (req.method === 'POST' && req.query.action === 'create') {
-      const { email, amount, plan } = req.body || {};
-      if (!email) return res.status(400).json({ ok: false, error: 'Missing email' });
+      // amount-ыг клиентээс АВАХГҮЙ — үнийг зөвхөн сервер тогтооно
+      const { email, plan } = req.body || {};
+      if (!email || typeof email !== 'string') return res.status(400).json({ ok: false, error: 'Missing email' });
+      const emailLc = email.trim().toLowerCase();
+      const premiumPlan = premiumPlanNorm(plan);
+      if (!premiumPlan && ['wsyear', 'wsmonths', 'wsgrade', 'event'].indexOf(plan) < 0)
+        return res.status(400).json({ ok: false, error: 'Тариф буруу байна' });
 
       // Email-ыг богиносгож аюулгүй болгох — QPay-н sender_invoice_no/customer_code 45 тэмдэгт хязгаартай
-      const crypto = require('crypto');
       const emailHash = crypto.createHash('md5').update(email).digest('hex').slice(0, 12); // 12 тэмдэгт
       const senderNo = `CM${emailHash}${Date.now()}`; // CM + 12 + 13 = 27 тэмдэгт
       const receiverCode = `cm_${emailHash}`; // 15 тэмдэгт, зөвхөн ASCII
@@ -411,19 +584,24 @@ module.exports = async (req, res) => {
         if (eventPrice == null) return res.status(400).json({ ok: false, error: 'Сургалт олдсонгүй' });
       }
 
-      const planParam = wsMonths != null ? `&plan=wsmonths&months=${wsMonths}`
-                      : wgGrade != null ? `&plan=wsgrade&grade=${encodeURIComponent(wgGrade)}&months=${wgMonths}`
-                      : plan === 'event' ? `&plan=event&event_id=${eventId}`
-                      : plan ? `&plan=${encodeURIComponent(plan)}` : '';
+      // Premium — хэрэглэгч бүртгэлтэй байх ёстой; багш/сурагчийн тарифыг DB-ийн role-оор тогтооно
+      let premiumAmount = null;
+      if (premiumPlan) {
+        const u = await pool.query('SELECT role, grade FROM users WHERE lower(email)=$1 LIMIT 1', [emailLc]);
+        if (!u.rows.length) return res.status(400).json({ ok: false, error: 'Хэрэглэгч олдсонгүй' });
+        const isTeacher = u.rows[0].role === 'teacher' || u.rows[0].grade === 'teacher';
+        premiumAmount = PREMIUM_PRICES[isTeacher ? 'teacher' : 'student'][premiumPlan];
+      }
+
       const desc = wgGrade != null ? `CyberMath ${wgGrade} — ${wgMonths} сар`.slice(0, 100)
                  : wsMonths != null ? `CyberMath Ажлын хуудас — ${wsMonths} сар`
                  : plan === 'event' ? ('Сургалт — ' + (eventTitle || 'CyberMath')).slice(0, 100)
-                 : plan === 'friends' ? 'CyberMath Найзууд багц (3 хүн)'
-                 : plan === 'yearly'  ? 'CyberMath Premium 1 жил'
+                 : premiumPlan === 'friends' ? 'CyberMath Найзууд багц (3 хүн)'
+                 : premiumPlan === 'yearly'  ? 'CyberMath Premium 1 жил'
                  : 'CyberMath Premium';
 
-      // Үнэ — серверийн талд эрх мэдэлтэй тооцно (промо код бол хямдруулна)
-      let invAmount = amount || 9900;
+      // Үнэ — зөвхөн серверийн талд тооцно (промо код бол хямдруулна)
+      let invAmount = premiumAmount;
       let refStore = null;
       if (wsMonths != null) {
         const pi = await resolvePromo((req.body || {}).promo);
@@ -431,7 +609,7 @@ module.exports = async (req, res) => {
         const refIn = ((req.body || {}).ref || '').trim().toUpperCase() || null;
         if (refIn) {
           const owner = await refOwner(refIn);
-          if (owner && owner !== email.trim().toLowerCase()) { refStore = refIn; if (REF_PCT > pct) pct = REF_PCT; }
+          if (owner && owner !== emailLc) { refStore = refIn; if (REF_PCT > pct) pct = REF_PCT; }
         }
         invAmount = priceFromPct(pct, wsMonths);
       } else if (wgGrade != null) {
@@ -454,187 +632,110 @@ module.exports = async (req, res) => {
           invoice_receiver_code: receiverCode,
           invoice_description: desc,
           amount: invAmount,
-          callback_url: `https://cyber-math.com/api/qpay?action=callback&email=${encodeURIComponent(email)}${planParam}`
+          // Callback URL-д зөвхөн имэйл — plan/сар/анги-г серверийн pending мөрөөс авна
+          callback_url: `https://cyber-math.com/api/qpay?action=callback&email=${encodeURIComponent(emailLc)}`
         })
       });
       const invoice = await invoiceResp.json();
-      // Ажлын хуудсын нэхэмжлэхийг хадгална — дараа нь тулгаж нөхөж олгох боломжтой
-      if ((wsMonths != null || wgGrade != null) && invoice && invoice.invoice_id) {
+      // БҮХ нэхэмжлэхийг хадгална — check/callback зөвхөн энэ мөрөөр олгоно. Хадгалж чадахгүй бол QR өгөхгүй.
+      if (invoice && invoice.invoice_id) {
         try {
-          await ensureWsExtra();
-          const promo = ((req.body || {}).promo || '').trim().toUpperCase() || null;
-          await pool.query(
-            `INSERT INTO ws_pending (invoice_id, email, months, promo, amount, ref, grade) VALUES ($1,$2,$3,$4,$5,$6,$7)
-             ON CONFLICT (invoice_id) DO NOTHING`,
-            [invoice.invoice_id, email.trim().toLowerCase(), wsMonths != null ? wsMonths : wgMonths,
-             promo, invAmount, refStore, wgGrade]);
-        } catch (e) { console.error('[ws_pending]', e.message); }
+          if (wsMonths != null || wgGrade != null) {
+            await ensureWsExtra();
+            const promo = String((req.body || {}).promo || '').trim().toUpperCase() || null;
+            await pool.query(
+              `INSERT INTO ws_pending (invoice_id, email, months, promo, amount, ref, grade) VALUES ($1,$2,$3,$4,$5,$6,$7)
+               ON CONFLICT (invoice_id) DO NOTHING`,
+              [invoice.invoice_id, emailLc, wsMonths != null ? wsMonths : wgMonths,
+               promo, invAmount, refStore, wgGrade]);
+          } else {
+            await ensurePayPending();
+            await pool.query(
+              `INSERT INTO pay_pending (invoice_id, email, plan, months, amount, event_id) VALUES ($1,$2,$3,$4,$5,$6)
+               ON CONFLICT (invoice_id) DO NOTHING`,
+              [invoice.invoice_id, emailLc, plan === 'event' ? 'event' : premiumPlan,
+               plan === 'event' ? null : PREMIUM_MONTHS[premiumPlan], invAmount, plan === 'event' ? eventId : null]);
+          }
+        } catch (e) {
+          console.error('[pending save]', e.message);
+          return res.status(500).json({ ok: false, error: 'Нэхэмжлэх хадгалж чадсангүй. Дахин оролдоно уу.' });
+        }
       }
       // Сургалтын бүртгэлд invoice_id холбоно (event_register аль хэдийн мөр үүсгэсэн)
       if (plan === 'event' && invoice && invoice.invoice_id && eventId) {
         try {
           await pool.query('UPDATE ws_event_regs SET invoice_id=$1, amount=$2 WHERE event_id=$3 AND lower(email)=$4',
-            [invoice.invoice_id, invAmount, eventId, String(email).trim().toLowerCase()]);
+            [invoice.invoice_id, invAmount, eventId, emailLc]);
         } catch (e) { console.error('[event invoice link]', e.message); }
       }
       return res.json({ ok: true, invoice });
     }
 
-    // Төлбөр шалгах
+    // Төлбөр шалгах — invoice_id-г ЗААВАЛ серверийн pending мөртэй тулгана.
+    // body-ийн plan/months/grade/event_id/amount-д огт итгэхгүй; бүгдийг хадгалсан мөрөөс авна.
     if (req.method === 'POST' && req.query.action === 'check') {
-      const { invoice_id, email, plan } = req.body || {};
+      const b = req.body || {};
+      const email = String(b.email || '').trim().toLowerCase();
+      const invoiceId = String(b.invoice_id || '').trim();
       if (!email) return res.status(400).json({ ok: false, error: 'Missing email' });
-      const token = await getToken();
-      const checkResp = await fetch(`${QPAY_URL}/payment/check`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ object_type: 'INVOICE', object_id: invoice_id })
-      });
-      const result = await checkResp.json();
-      if (result.count > 0) {
-        // Сургалтын төлбөр — бүртгэлийг paid болгоно
-        if (plan === 'event') {
-          try {
-            const em = String(email).trim().toLowerCase();
-            const eid = parseInt((req.body || {}).event_id, 10);
-            const upd = await pool.query('UPDATE ws_event_regs SET paid=TRUE, paid_at=NOW() WHERE event_id=$1 AND lower(email)=$2 AND paid=FALSE RETURNING id, slot', [eid, em]);
-            if (upd.rows.length) {
-              try {
-                const ev = await pool.query('SELECT title FROM ws_events WHERE id=$1', [eid]);
-                await notifyTelegram('✅ <b>Сургалтын төлбөр төлөгдлөө</b> (' + ((ev.rows[0] && ev.rows[0].title) || eid) + ')\n\n👤 ' + em + '\n🕒 ' + (upd.rows[0].slot || '') + '\n💰 төлөгдсөн');
-              } catch (e) {}
-            }
-          } catch (e) { console.error('[event paid]', e.message); }
-          return res.json({ ok: true, paid: true });
-        }
-        // Ажлын хуудсын эрх — хадгалсан нэхэмжлэх байвал body-ийн анги/сар/дүнд итгэхгүй, нэхэмжлэхийнхээр олгоно
-        if (plan === 'wsgrade' || plan === 'wsyear' || plan === 'wsmonths') {
-          const prow = await wsPendingRow(invoice_id);
-          if (prow) {
-            if (String(prow.email).toLowerCase() !== String(email).trim().toLowerCase())
-              return res.status(403).json({ ok: false, error: 'Нэхэмжлэх энэ имэйлд хамаарахгүй' });
-            const pexp = await settleWsPending(prow);
-            const out = { ok: true, paid: true, expiry: pexp.toISOString(), ws_token: wsToken(email) };
-            if (prow.grade) out.grade = prow.grade;
-            return res.json(out);
-          }
-        }
-        // Ажлын хуудсын эрх — НЭГ АНГИ (хадгалсан нэхэмжлэхгүй хуучин зам)
-        if (plan === 'wsgrade') {
-          const grade = String((req.body || {}).grade || '').trim();
-          const months = wsGradeMonths((req.body || {}).months);
-          if (!wsGradeOk(grade)) return res.status(400).json({ ok: false, error: 'Анги буруу байна' });
-          const gexp = await WG.grantGradeMonths(email, grade, months);
-          try {
-            const promo = ((req.body || {}).promo || '').trim().toUpperCase() || null;
-            const pi = promo ? await resolvePromo(promo) : { pct: 0 };
-            const inserted = await recordPurchase(email, wsGradePrice(pi.pct, months), promo, invoice_id, months, grade);
-            if (inserted && promo) await pool.query('UPDATE ws_promos SET used_count=used_count+1 WHERE code=$1', [promo]).catch(()=>{});
-            await pool.query('UPDATE ws_pending SET granted=TRUE WHERE invoice_id=$1', [invoice_id]).catch(()=>{});
-          } catch (e) { console.error('[ws grade purchase]', e.message); }
-          return res.json({ ok: true, paid: true, grade: grade, expiry: gexp.toISOString(), ws_token: wsToken(email) });
-        }
-        // Ажлын хуудсын эрх — сараар тусдаа ws_access-д олгоно
-        if (plan === 'wsyear' || plan === 'wsmonths') {
-          const months = plan === 'wsyear' ? 12 : wsNormMonths((req.body || {}).months);
-          const wexp = await grantWsMonths(email, months);
-          // Борлуулалтын бүртгэл + промо ашиглалт (invoice_id-ээр давхардуулахгүй)
-          try {
-            const promo = ((req.body || {}).promo || '').trim().toUpperCase() || null;
-            const pi = promo ? await resolvePromo(promo) : { pct: 0 };
-            const inserted = await recordPurchase(email, priceFromPct(pi.pct, months), promo, invoice_id, months);
-            if (inserted && promo) {
-              await pool.query('UPDATE ws_promos SET used_count=used_count+1 WHERE code=$1', [promo]).catch(()=>{});
-            }
-            await pool.query('UPDATE ws_pending SET granted=TRUE WHERE invoice_id=$1', [invoice_id]).catch(()=>{});
-            await processReferral(email, invoice_id);
-          } catch (e) { console.error('[ws purchase]', e.message); }
-          return res.json({ ok: true, paid: true, expiry: wexp.toISOString(), ws_token: wsToken(email) });
-        }
-        // Төлбөр амжилттай — plan-ээс хамаарч хэрэгжүүлэх
-        const months = plan === 'yearly' ? 12 : 1;
-        const days = months * 30;
-        const expiry = new Date();
-        expiry.setDate(expiry.getDate() + days);
-        await pool.query(
-          `UPDATE users SET plan='premium', premium_expiry=$2 WHERE email=$1`,
-          [email, expiry.toISOString()]
-        );
-
-        // Найзууд багц — захиалагчид зориулсан promo код үүсгэх (2 найз × 30 хоног)
-        if (plan === 'friends') {
-          try {
-            const code = await createFriendsPromo(email);
-            return res.json({ ok: true, paid: true, expiry: expiry.toISOString(), promo_code: code, promo_uses: 2 });
-          } catch(err) {
-            console.error('[QPay friends promo]', err.message);
-            return res.json({ ok: true, paid: true, expiry: expiry.toISOString(), promo_error: err.message });
-          }
-        }
-        return res.json({ ok: true, paid: true, expiry: expiry.toISOString() });
+      if (!invoiceId) return res.status(400).json({ ok: false, error: 'Нэхэмжлэх олдсонгүй' });
+      const wrow = await wsPendingRow(invoiceId);
+      const prow = wrow ? null : await payPendingRow(invoiceId);
+      const row = wrow || prow;
+      if (!row) return res.status(400).json({ ok: false, error: 'Нэхэмжлэх олдсонгүй' });
+      if (String(row.email).trim().toLowerCase() !== email)
+        return res.status(403).json({ ok: false, error: 'Нэхэмжлэх энэ имэйлд хамаарахгүй' });
+      // Олгогдоогүй бол QPay-тэй тулгана: төлөгдсөн + төлсөн дүн >= хадгалсан дүн
+      if (!row.granted && !(await qpayInvoicePaid(invoiceId, row.amount))) return res.json({ ok: true, paid: false });
+      if (wrow) {
+        const s = await settleWsOnce(wrow);
+        const out = { ok: true, paid: true, expiry: s.exp.toISOString(), ws_token: wsToken(email) };
+        if (wrow.grade) out.grade = wrow.grade;
+        return res.json(out);
       }
-      return res.json({ ok: true, paid: false });
+      return res.json(await settlePayOnce(prow));
     }
-
-    // Callback — QPay-аас амжилттай төлсний дараа автомат ирнэ
+    // Callback — QPay-аас амжилттай төлсний дараа автомат ирнэ.
+    // URL-ийн plan/months/grade/event_id-д ОГТ итгэхгүй: энэ имэйлийн олгогдоогүй нэхэмжлэхүүдийг (хоёр хүснэгтээс)
+    // QPay-тэй тулгаж (дүнгийн хамт), үнэхээр төлөгдсөнийг нь хадгалсан мөрөөр НЭГ УДАА олгоно.
     if ((req.method === 'POST' || req.method === 'GET') && req.query.action === 'callback') {
-      const email = req.query.email ? decodeURIComponent(req.query.email) : null;
-      const plan = req.query.plan ? decodeURIComponent(req.query.plan) : null;
-
-      // Ажлын хуудсын эрх: URL-ийн анги/сард итгэхгүй. Энэ имэйлийн төлөгдөөгүй нэхэмжлэхийг
-      // QPay-тэй тулгаж, үнэхээр төлөгдсөнийг нь хадгалсан мэдээллээр олгож бүртгэнэ.
-      if (email && (plan === 'wsgrade' || plan === 'wsyear' || plan === 'wsmonths')) {
-        try {
-          await ensureWsExtra();
-          const pend = await pool.query(
-            `SELECT invoice_id, email, months, promo, amount, grade FROM ws_pending
-              WHERE email=$1 AND granted=FALSE AND created_at > NOW() - INTERVAL '3 days'
-              ORDER BY created_at DESC LIMIT 10`, [String(email).trim().toLowerCase()]);
-          for (const row of pend.rows) {
-            try {
-              if (await qpayInvoicePaid(row.invoice_id)) {
-                await settleWsPending(row);
-                console.log('[QPay callback] ws granted:', row.email, row.grade || 'бүх анги', row.months + 'сар');
-              }
-            } catch (e) { console.error('[QPay callback ws row]', e.message); }
-          }
-        } catch (err) { console.error('[QPay callback ws]', err.message); }
-        return res.json({ ok: true });
-      }
-      if (email && plan === 'event') {
-        const eid = parseInt(req.query.event_id, 10);
-        try { await pool.query('UPDATE ws_event_regs SET paid=TRUE, paid_at=NOW() WHERE event_id=$1 AND lower(email)=$2 AND paid=FALSE', [eid, String(email).trim().toLowerCase()]); }
-        catch(err){ console.error('[QPay callback event]', err.message); }
-        return res.json({ ok: true });
-      }
-      if (email) {
-        try {
-          const months = plan === 'yearly' ? 12 : 1;
-          const days = months * 30;
-          const expiry = new Date();
-          expiry.setDate(expiry.getDate() + days);
-          await pool.query(
-            `UPDATE users SET plan='premium', premium_expiry=$2 WHERE email=$1`,
-            [email, expiry.toISOString()]
-          );
-          if (plan === 'friends') {
-            try {
-              const code = await createFriendsPromo(email);
-              console.log('[QPay callback] friends pack — promo code:', code, 'for', email);
-            } catch(e) {
-              console.error('[QPay callback] friends promo failed:', e.message);
+      // Rate limit — IP: 60/10мин, имэйл: 10/10мин (QPay-ийн жинхэнэ callback цөөн; QPay check-ийг спамдуулахгүй)
+      if (!(await rateLimit('qpay_cb_ip:' + clientIp(req), 60, 600))) return res.status(429).json({ ok: false });
+      let email = String(req.query.email || '');
+      try { email = decodeURIComponent(email); } catch (e) {}
+      email = email.trim().toLowerCase();
+      if (!email) { console.warn('[QPay callback] No email in query string'); return res.json({ ok: true }); }
+      if (!(await rateLimit('qpay_cb_email:' + email.slice(0, 254), 10, 600))) return res.status(429).json({ ok: false });
+      try {
+        await ensureWsExtra();
+        const pend = await pool.query(
+          `SELECT invoice_id, email, months, promo, amount, grade, granted FROM ws_pending
+            WHERE email=$1 AND granted=FALSE AND created_at > NOW() - INTERVAL '3 days'
+            ORDER BY created_at DESC LIMIT 10`, [email]);
+        for (const row of pend.rows) {
+          try {
+            if (await qpayInvoicePaid(row.invoice_id, row.amount)) {
+              const s = await settleWsOnce(row);
+              if (!s.already) console.log('[QPay callback] ws granted:', row.email, row.grade || 'бүх анги', row.months + 'сар');
             }
-          }
-          console.log('[QPay callback] Premium granted to:', email, 'plan:', plan, 'expires:', expiry.toISOString());
-        } catch(err) {
-          console.error('[QPay callback] DB update failed:', err.message);
+          } catch (e) { console.error('[QPay callback ws row]', e.message); }
         }
-      } else {
-        console.warn('[QPay callback] No email in query string');
-      }
+      } catch (err) { console.error('[QPay callback ws]', err.message); }
+      try {
+        await ensurePayPending();
+        const pend = await pool.query(
+          `SELECT invoice_id, email, plan, months, amount, event_id, granted, promo_code FROM pay_pending
+            WHERE email=$1 AND granted=FALSE AND created_at > NOW() - INTERVAL '3 days'
+            ORDER BY created_at DESC LIMIT 10`, [email]);
+        for (const row of pend.rows) {
+          try {
+            if (await qpayInvoicePaid(row.invoice_id, row.amount)) {
+              const s = await settlePay(row);
+              if (s.granted) console.log('[QPay callback] granted:', row.email, row.plan, s.out.expiry || '', s.out.promo_code ? 'promo' : '');
+            }
+          } catch (e) { console.error('[QPay callback pay row]', e.message); }
+        }
+      } catch (err) { console.error('[QPay callback pay]', err.message); }
       return res.json({ ok: true });
     }
 
@@ -727,17 +828,36 @@ module.exports = async (req, res) => {
       const b = req.body || {};
       // Төлбөр тулгах — хадгалсан нэхэмжлэхүүдийг QPay-тэй тулгаж, төлсөн атлаа олгогдоогүйг нөхөж олгоно
       if (req.query.action === 'ws_reconcile') {
-        const pend = await pool.query('SELECT invoice_id, email, months, promo, amount, grade FROM ws_pending WHERE granted=FALSE ORDER BY created_at DESC LIMIT 200');
+        const pend = await pool.query('SELECT invoice_id, email, months, promo, amount, grade, granted FROM ws_pending WHERE granted=FALSE ORDER BY created_at DESC LIMIT 200');
         let checked = 0, granted = [];
         for (const row of pend.rows) {
           checked++;
           try {
-            if (await qpayInvoicePaid(row.invoice_id)) {
-              await settleWsPending(row);
-              granted.push(row.grade ? { email: row.email, grade: row.grade, months: row.months, amount: row.amount }
-                                     : { email: row.email, months: row.months, amount: row.amount });
+            if (await qpayInvoicePaid(row.invoice_id, row.amount)) {
+              const s = await settleWsOnce(row);        // callback-тай зэрэгцвэл давхар олгохгүй
+              if (s.already) continue;
+              granted.push(row.grade ? { email: row.email, plan: 'wsgrade', grade: row.grade, months: row.months, amount: row.amount }
+                                     : { email: row.email, plan: 'wsmonths', months: row.months, amount: row.amount });
             }
           } catch (e) { /* тухайн нэхэмжлэхийг алгасна */ }
+        }
+        // Premium / friends / event — сүүлийн 30 хоногийн олгогдоогүй нэхэмжлэхүүд
+        await ensurePayPending();
+        const ppend = await pool.query(
+          `SELECT invoice_id, email, plan, months, amount, event_id, granted, promo_code FROM pay_pending
+            WHERE granted=FALSE AND created_at > NOW() - INTERVAL '30 days'
+            ORDER BY created_at DESC LIMIT 200`);
+        for (const row of ppend.rows) {
+          checked++;
+          try {
+            if (await qpayInvoicePaid(row.invoice_id, row.amount)) {
+              const s = await settlePay(row);           // claim нэг удаа — давхар олгохгүй
+              if (!s.granted) continue;
+              const g = { email: row.email, plan: row.plan, months: row.months, amount: row.amount };
+              if (row.plan === 'event') g.event_id = row.event_id;
+              granted.push(g);
+            }
+          } catch (e) { console.error('[reconcile pay row]', row.invoice_id, e.message); }
         }
         return res.json({ ok: true, checked: checked, granted_count: granted.length, granted: granted });
       }

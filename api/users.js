@@ -1,35 +1,67 @@
 const pool = require('./_db');
 const { sendPremiumEmail, sendFreeEmail } = require('./_email');
 const { ensureExpiryCheck } = require('./_premium');
-const jwt = require('jsonwebtoken');
+const guard = require('./_guard');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'cybermath-default-secret-change-in-prod';
-
-function verifyToken(req) {
-  const auth = req.headers.authorization || req.headers.Authorization;
-  if (!auth || !auth.startsWith('Bearer ')) return null;
-  try { return jwt.verify(auth.slice(7), JWT_SECRET); } catch (e) { return null; }
-}
-function checkUserAccess(req, requestedEmail, options) {
-  options = options || {};
-  const decoded = verifyToken(req);
-  if (options.strict) {
-    if (!decoded) return { ok: false, error: 'Нэвтрэх эрх буруу. Дахин нэвтэрнэ үү.' };
-    if (decoded.admin) return { ok: true, isAdmin: true };
-    if (decoded.email !== requestedEmail) return { ok: false, error: 'Зөвхөн өөрийнхөө өгөгдлийг харна' };
-    return { ok: true, email: decoded.email, role: decoded.role };
+// Токен ЗААВАЛ (Bearer JWT): админ эсвэл decoded.email === requestedEmail.
+// Токенгүй (legacy) замыг хаасан — 401. ws:true (ажлын хуудасны) токеныг хүлээн авахгүй.
+function checkUserAccess(req, requestedEmail) {
+  const decoded = guard.verifyBearer(req);
+  if (!decoded) return { ok: false, status: 401, error: 'Нэвтрэх эрх буруу. Дахин нэвтэрнэ үү.' };
+  if (decoded.admin === true) return { ok: true, isAdmin: true };
+  // uid — api/shop.js (NOMAD GEAR) токен; secret давхцсан ч тоглоомын хэрэглэгч гэж хүлээн авахгүй
+  if (decoded.ws || decoded.uid !== undefined || typeof decoded.email !== 'string') return { ok: false, status: 401, error: 'Нэвтрэх эрх буруу. Дахин нэвтэрнэ үү.' };
+  if (decoded.email.trim().toLowerCase() !== String(requestedEmail || '').trim().toLowerCase()) {
+    return { ok: false, status: 403, error: 'Зөвхөн өөрийнхөө өгөгдлийг харна' };
   }
-  if (decoded) {
-    if (decoded.admin) return { ok: true, isAdmin: true };
-    if (decoded.email !== requestedEmail) return { ok: false, error: 'Зөвхөн өөрийнхөө өгөгдлийг харна' };
-    return { ok: true, email: decoded.email, role: decoded.role };
-  }
-  return { ok: true, legacy: true };
+  return { ok: true, email: decoded.email.trim().toLowerCase(), role: decoded.role };
 }
 function requireAdmin(req) {
-  const decoded = verifyToken(req);
-  if (!decoded || !decoded.admin) return { ok: false, error: 'Зөвхөн админ' };
+  if (!guard.requireAdmin(req)) return { ok: false, error: 'Зөвхөн админ' };
   return { ok: true };
+}
+
+// Анги тухайн багшийнх эсэх (админ бол үргэлж зөвшөөрнө)
+async function ownsClassroom(access, email, classroomId) {
+  if (access.isAdmin) return true;
+  const c = await pool.query('SELECT teacher_email FROM classrooms WHERE id=$1', [classroomId]);
+  return !!(c.rows.length && String(c.rows[0].teacher_email || '').trim().toLowerCase() === email);
+}
+
+const MAX_ADD_ONCE = 500; // addXp/addGems болон абсолют xp/gems бичилтийн нэг удаагийн өсөлтийн дээд хэмжээ
+const MAX_HEARTS = 5;
+// streak-ийн нэг бичилтэд өсөх дээд хэмжээ: клиент (initStreak) өдөрт +1 эсвэл 0/1 болгож тэглэдэг,
+// нэвтрэхэд серверийн streak_data-г сэргээдэг тул хэвийн урсгалд нэг бичилт +1-ээс хэтрэхгүй
+const MAX_STREAK_STEP = 1;
+function nonNegInt(v) {
+  const n = parseInt(v, 10);
+  return isNaN(n) || n < 0 ? 0 : n;
+}
+
+// Тэмцээнийг сурагчид буцаахдаа хариуг нууна: илрээгүй асуултын correct-ийг хасч,
+// бусдын хариулт/түүхийг харуулахгүй. Эзэн багш, админ бүтнээр нь авна.
+function tournamentForViewer(t, access, email) {
+  if (!t || access.isAdmin || String(t.teacher_email || '').trim().toLowerCase() === email) return t;
+  let qs = t.questions;
+  if (typeof qs === 'string') { try { qs = JSON.parse(qs); } catch (e) { qs = []; } }
+  const cur = parseInt(t.current_question, 10) || 0;
+  const finished = t.status === 'finished' || t.current_phase === 'finished';
+  const lobby = t.status === 'lobby';
+  const safeQs = (Array.isArray(qs) ? qs : []).map((q, idx) => {
+    if (!q || typeof q !== 'object') return q;
+    const revealed = finished || (!lobby && (idx < cur || (idx === cur && t.current_phase === 'revealed')));
+    if (revealed) return q;
+    const c = Object.assign({}, q);
+    delete c.correct;
+    return c;
+  });
+  let answers = t.answers || {};
+  if (typeof answers === 'string') { try { answers = JSON.parse(answers); } catch (e) { answers = {}; } }
+  const mine = {};
+  if (answers && answers[email] !== undefined) mine[email] = answers[email];
+  const out = Object.assign({}, t, { questions: safeQs, answers: mine });
+  delete out.answer_history;
+  return out;
 }
 
 function todayStr() {
@@ -60,8 +92,10 @@ async function sendTelegramNotification(message) {
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
+
+  if (guard.secretMissing(res)) return;
 
   try {
     if (req.method === 'GET') {
@@ -71,7 +105,10 @@ module.exports = async (req, res) => {
       }
       // ?me=email — нэг хэрэглэгчийн profile-ыг refresh хийх
       if (req.query && req.query.me) {
-        const email = String(req.query.me).toLowerCase();
+        const email = String(req.query.me).trim().toLowerCase();
+        // Токен заавал — өөрийн имэйл эсвэл админ
+        const meAccess = checkUserAccess(req, email);
+        if (!meAccess.ok) return res.status(meAccess.status).json({ ok: false, error: meAccess.error });
         const r = await pool.query('SELECT * FROM users WHERE LOWER(email)=LOWER($1)', [email]);
         if (!r.rows.length) return res.json({ ok: false, error: 'User олдсонгүй' });
         let u = r.rows[0];
@@ -209,12 +246,12 @@ module.exports = async (req, res) => {
       // body-руу буцаах — дараах query-ууд req.body.email ашиглаж байгаа бол
       req.body.email = email;
 
-      // Auth шалгалт — token байвал email-тай таарч байх ёстой
-      const access = checkUserAccess(req, email, { strict: false });
-      if (!access.ok) return res.status(403).json({ ok: false, error: access.error });
+      // Auth шалгалт — токен ЗААВАЛ, email-тэй таарах (эсвэл админ)
+      const access = checkUserAccess(req, email);
+      if (!access.ok) return res.status(access.status).json({ ok: false, error: access.error });
 
-      // Багшаас assignChallenge гэх мэт нь өөр хэрэглэгчид нөлөөлдөг.
-      // Тэдгээр нь action өөрөө security check хийнэ (classroom owner, etc).
+      // Багшаас assignChallenge гэх мэт нь өөр хэрэглэгчид нөлөөлдөг —
+      // action бүр ангийн эзэмшлийг (classrooms.teacher_email) өөрөө шалгана.
 
       // changePassword нь өөрийнх л байх ёстой
       if (action === 'changePassword') {
@@ -224,7 +261,9 @@ module.exports = async (req, res) => {
         if (!r.rows.length) return res.json({ ok: false, error: 'Хэрэглэгч олдсонгүй' });
         const stored = r.rows[0].pass;
         let isValid = false;
-        if (stored && (stored.startsWith('$2a$') || stored.startsWith('$2b$') || stored.startsWith('$2y$'))) {
+        if (typeof oldPassword !== 'string' || !oldPassword || !stored || stored === 'GOOGLE_OAUTH') {
+          isValid = false;
+        } else if (stored.startsWith('$2a$') || stored.startsWith('$2b$') || stored.startsWith('$2y$')) {
           isValid = await bcrypt.compare(oldPassword, stored);
         } else {
           isValid = oldPassword === stored;
@@ -238,7 +277,7 @@ module.exports = async (req, res) => {
 
       if (action === 'addXp') {
         const { amount } = req.body || {};
-        const a = parseInt(amount) || 0;
+        const a = Math.min(MAX_ADD_ONCE, parseInt(amount) || 0);
         if (a <= 0) return res.json({ ok: false });
         const r = await pool.query('UPDATE users SET xp = COALESCE(xp,0) + $1 WHERE email=$2 RETURNING xp', [a, email]);
         if (!r.rows.length) return res.json({ ok: false });
@@ -247,7 +286,7 @@ module.exports = async (req, res) => {
 
       if (action === 'addGems') {
         const { amount } = req.body || {};
-        const a = parseInt(amount) || 0;
+        const a = Math.min(MAX_ADD_ONCE, parseInt(amount) || 0);
         if (a <= 0) return res.json({ ok: false });
         const r = await pool.query('UPDATE users SET gems = COALESCE(gems,0) + $1 WHERE email=$2 RETURNING gems', [a, email]);
         if (!r.rows.length) return res.json({ ok: false });
@@ -306,6 +345,9 @@ module.exports = async (req, res) => {
       if (action === 'getLiveSession') {
         const { classroomId } = req.body || {};
         if (!classroomId) return res.json({ ok: false });
+        if (!(await ownsClassroom(access, email, classroomId))) {
+          return res.status(403).json({ ok: false, error: 'Зөвшөөрөлгүй' });
+        }
         // Active session байгаа эсэх шалгах
         const sessRes = await pool.query(
           'SELECT id, title, started_at FROM live_sessions WHERE classroom_id=$1 AND active=true ORDER BY started_at DESC LIMIT 1',
@@ -412,6 +454,9 @@ module.exports = async (req, res) => {
       if (action === 'assignChallenge') {
         const { classroomId, title, lessons, dueDate } = req.body || {};
         if (!classroomId || !title || !lessons) return res.json({ ok: false, error: 'Missing fields' });
+        if (!(await ownsClassroom(access, email, classroomId))) {
+          return res.status(403).json({ ok: false, error: 'Зөвшөөрөлгүй' });
+        }
         // Анги доторх бүх сурагчдын challenges-руу нэмэх
         const m = await pool.query('SELECT student_email FROM class_members WHERE classroom_id=$1', [classroomId]);
         const challenge = {
@@ -445,6 +490,9 @@ module.exports = async (req, res) => {
       if (action === 'updateChallenge') {
         const { classroomId, challengeId, title, lessons, dueDate } = req.body || {};
         if (!classroomId || !challengeId) return res.json({ ok: false, error: 'Missing fields' });
+        if (!(await ownsClassroom(access, email, classroomId))) {
+          return res.status(403).json({ ok: false, error: 'Зөвшөөрөлгүй' });
+        }
         const m = await pool.query('SELECT student_email FROM class_members WHERE classroom_id=$1', [classroomId]);
         for (const row of m.rows) {
           const u = await pool.query('SELECT challenges FROM users WHERE email=$1', [row.student_email]);
@@ -474,6 +522,9 @@ module.exports = async (req, res) => {
       if (action === 'deleteChallenge') {
         const { classroomId, challengeId } = req.body || {};
         if (!classroomId || !challengeId) return res.json({ ok: false, error: 'Missing fields' });
+        if (!(await ownsClassroom(access, email, classroomId))) {
+          return res.status(403).json({ ok: false, error: 'Зөвшөөрөлгүй' });
+        }
         const m = await pool.query('SELECT student_email FROM class_members WHERE classroom_id=$1', [classroomId]);
         for (const row of m.rows) {
           const u = await pool.query('SELECT challenges FROM users WHERE email=$1', [row.student_email]);
@@ -513,6 +564,15 @@ module.exports = async (req, res) => {
       if (action === 'createTournament') {
         const { classroomId, title, lessons, questionCount, prizeXp, secondsPerQuestion, mode } = req.body || {};
         if (!classroomId || !lessons || !lessons.length) return res.json({ ok: false, error: 'Missing fields' });
+        if (!(await ownsClassroom(access, email, classroomId))) {
+          return res.status(403).json({ ok: false, error: 'Зөвшөөрөлгүй' });
+        }
+        // Шагналын XP-г байр тус бүрд MAX_ADD_ONCE-оор хязгаарлана
+        let safePrize = { 1: 100, 2: 50, 3: 25 };
+        if (prizeXp && typeof prizeXp === 'object') {
+          safePrize = {};
+          [1, 2, 3].forEach(k => { safePrize[k] = Math.min(MAX_ADD_ONCE, nonNegInt(prizeXp[k])); });
+        }
         const tournamentMode = (mode === 'paper') ? 'paper' : 'phone';
         const qRes = await pool.query(
           `SELECT id, text, choices, correct, image, hint, node_id, type FROM questions
@@ -577,7 +637,7 @@ module.exports = async (req, res) => {
         const r = await pool.query(
           `INSERT INTO tournaments (room_code, teacher_email, classroom_id, title, questions, prize_xp, status, current_question, current_phase, seconds_per_question, mode, players, scores)
            VALUES ($1, $2, $3, $4, $5, $6, 'lobby', 0, 'waiting', $7, $8, $9, $10) RETURNING *`,
-          [code, email, classroomId, title || 'Mathlet тэмцээн', JSON.stringify(selected), JSON.stringify(prizeXp || {1:100,2:50,3:25}), seconds, tournamentMode, JSON.stringify(players), JSON.stringify(scores)]
+          [code, email, classroomId, title || 'Mathlet тэмцээн', JSON.stringify(selected), JSON.stringify(safePrize), seconds, tournamentMode, JSON.stringify(players), JSON.stringify(scores)]
         );
         return res.json({ ok: true, tournament: r.rows[0] });
       }
@@ -645,7 +705,7 @@ module.exports = async (req, res) => {
         const scores = t.scores || {};
         if (!scores[email]) scores[email] = 0;
         await pool.query('UPDATE tournaments SET players=$1, scores=$2 WHERE id=$3', [JSON.stringify(players), JSON.stringify(scores), t.id]);
-        return res.json({ ok: true, tournament: t });
+        return res.json({ ok: true, tournament: tournamentForViewer(t, access, email) });
       }
 
       // Багшийн идэвхтэй (status != 'finished') хамгийн сүүлийн тэмцээнийг буцаах
@@ -659,7 +719,8 @@ module.exports = async (req, res) => {
           );
           return res.json({ ok: true, tournament: r.rows[0] || null });
         } catch(e) {
-          return res.json({ ok: false, error: e.message });
+          console.error('[users getMyActiveTournament]', e.message);
+          return res.json({ ok: false, error: 'Серверийн алдаа' });
         }
       }
 
@@ -669,7 +730,7 @@ module.exports = async (req, res) => {
         if (!roomCode) return res.json({ ok: false });
         const r = await pool.query('SELECT * FROM tournaments WHERE room_code=$1', [roomCode.toUpperCase()]);
         if (!r.rows.length) return res.json({ ok: false, error: 'Room олдсонгүй' });
-        return res.json({ ok: true, tournament: r.rows[0] });
+        return res.json({ ok: true, tournament: tournamentForViewer(r.rows[0], access, email) });
       }
 
       // Багш тэмцээн эхлүүлэх / асуулт солих / phase солих
@@ -679,6 +740,22 @@ module.exports = async (req, res) => {
         const r = await pool.query('SELECT * FROM tournaments WHERE room_code=$1 AND teacher_email=$2', [roomCode.toUpperCase(), email]);
         if (!r.rows.length) return res.json({ ok: false, error: 'Зөвшөөрөлгүй' });
         const t = r.rows[0];
+        // Дууссан тэмцээнийг дахин finish/next хийж шагналыг давхар авахгүй
+        if (t.status === 'finished' && control !== 'cancel') {
+          return res.json({ ok: true, tournament: t });
+        }
+        // Шагнал: зөвхөн оноотой (0-ээс их) эхний 3 тоглогч, байр бүр MAX_ADD_ONCE хүртэл
+        const awardPrizes = async () => {
+          const scores = t.scores || {};
+          const prize = t.prize_xp || {1:100,2:50,3:25};
+          const ranked = Object.entries(scores).filter(e => Number(e[1]) > 0).sort((a, b) => b[1] - a[1]);
+          for (let i = 0; i < Math.min(ranked.length, 3); i++) {
+            const xp = Math.min(MAX_ADD_ONCE, parseInt(prize[i + 1]) || 0);
+            if (xp > 0) {
+              await pool.query('UPDATE users SET xp = xp + $1 WHERE email=$2', [xp, ranked[i][0]]);
+            }
+          }
+        };
 
         if (control === 'start') {
           await pool.query(
@@ -696,15 +773,7 @@ module.exports = async (req, res) => {
           history[String(t.current_question)] = t.answers || {};
           try { await pool.query(`ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS answer_history JSONB DEFAULT '{}'::jsonb`); } catch(e) {}
           if (next >= qs.length) {
-            const scores = t.scores || {};
-            const prize = t.prize_xp || {1:100,2:50,3:25};
-            const ranked = Object.entries(scores).sort((a, b) => b[1] - a[1]);
-            for (let i = 0; i < Math.min(ranked.length, 3); i++) {
-              const xp = parseInt(prize[i + 1]) || 0;
-              if (xp > 0) {
-                await pool.query('UPDATE users SET xp = xp + $1 WHERE email=$2', [xp, ranked[i][0]]);
-              }
-            }
+            await awardPrizes();
             // Тэмцээн дуусахад QR хариулт/scan түүхийг бүрэн устгана
             await pool.query(`UPDATE tournaments SET status='finished', current_phase='finished', answers='{}', answer_history='{}' WHERE id=$1`, [t.id]);
           } else {
@@ -719,15 +788,7 @@ module.exports = async (req, res) => {
           if (typeof history === 'string') { try { history = JSON.parse(history); } catch(e) { history = {}; } }
           history[String(t.current_question)] = t.answers || {};
           try { await pool.query(`ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS answer_history JSONB DEFAULT '{}'::jsonb`); } catch(e) {}
-          const scores = t.scores || {};
-          const prize = t.prize_xp || {1:100,2:50,3:25};
-          const ranked = Object.entries(scores).sort((a, b) => b[1] - a[1]);
-          for (let i = 0; i < Math.min(ranked.length, 3); i++) {
-            const xp = parseInt(prize[i + 1]) || 0;
-            if (xp > 0) {
-              await pool.query('UPDATE users SET xp = xp + $1 WHERE email=$2', [xp, ranked[i][0]]);
-            }
-          }
+          await awardPrizes();
           // Тэмцээн дуусахад QR хариулт/scan түүхийг бүрэн устгана
           await pool.query(`UPDATE tournaments SET status='finished', current_phase='finished', answers='{}', answer_history='{}' WHERE id=$1`, [t.id]);
         } else if (control === 'cancel') {
@@ -800,24 +861,44 @@ module.exports = async (req, res) => {
       const sets = [];
       const vals = [];
       let i = 1;
+      // plan / premium_expiry / premium_until — ЗӨВХӨН админ JWT бичнэ.
+      // Энгийн хэрэглэгч зөвхөн 'free' болгож (бууруулж) болно; 'premium' хүсэлтийг үл тооно.
+      // Premium-ийг зөвхөн qpay (баталгаажсан төлбөр), promo redeem, админ олгоно.
+      if (plan !== undefined && !access.isAdmin && plan !== 'free') plan = undefined;
       if (plan !== undefined) {
-        sets.push(`plan=$${i++}`);
-        vals.push(plan);
         if (plan === 'premium') {
           // premium_until (legacy field name)-ийг premium_expiry (authoritative)-руу бичих
           const { premium_until, premium_expiry } = req.body || {};
           const expVal = premium_expiry || premium_until;
+          const expDate = expVal ? new Date(expVal) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+          if (isNaN(expDate.getTime())) return res.status(400).json({ ok: false, error: 'premium_expiry буруу' });
+          sets.push(`plan=$${i++}`);
+          vals.push(plan);
           sets.push(`premium_expiry=$${i++}`);
-          vals.push(expVal ? new Date(expVal) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
+          vals.push(expDate);
         } else if (plan === 'free') {
+          sets.push(`plan=$${i++}`);
+          vals.push(plan);
           sets.push(`premium_expiry=$${i++}`);
           vals.push(null);
+        } else {
+          return res.status(400).json({ ok: false, error: 'plan буруу' });
         }
       }
-      if (xp                !== undefined) { sets.push(`xp=$${i++}`);                vals.push(xp); }
-      if (gems              !== undefined) { sets.push(`gems=$${i++}`);              vals.push(gems); }
-      if (hearts            !== undefined) { sets.push(`hearts=$${i++}`);            vals.push(hearts); }
-      if (streak            !== undefined) { sets.push(`streak=$${i++}`);            vals.push(streak); }
+      // Абсолют бичилт — токен өөрийн имэйлтэй таарсан (эсвэл админ) үед л энд хүрнэ.
+      // Энгийн хэрэглэгч: буурах нь чөлөөтэй, өсөлт нэг бичилтэд DB-ийн утгаас хэтрэхгүй
+      // (xp/gems +MAX_ADD_ONCE, streak +MAX_STREAK_STEP), hearts ≤ MAX_HEARTS. Админ хязгааргүй.
+      if (access.isAdmin) {
+        if (xp              !== undefined) { sets.push(`xp=$${i++}`);                vals.push(nonNegInt(xp)); }
+        if (gems            !== undefined) { sets.push(`gems=$${i++}`);              vals.push(nonNegInt(gems)); }
+        if (hearts          !== undefined) { sets.push(`hearts=$${i++}`);            vals.push(nonNegInt(hearts)); }
+        if (streak          !== undefined) { sets.push(`streak=$${i++}`);            vals.push(nonNegInt(streak)); }
+      } else {
+        if (xp              !== undefined) { sets.push(`xp=LEAST($${i++}::int, COALESCE(xp,0) + ${MAX_ADD_ONCE})`);         vals.push(nonNegInt(xp)); }
+        if (gems            !== undefined) { sets.push(`gems=LEAST($${i++}::int, COALESCE(gems,0) + ${MAX_ADD_ONCE})`);     vals.push(nonNegInt(gems)); }
+        if (hearts          !== undefined) { sets.push(`hearts=$${i++}`);            vals.push(Math.min(MAX_HEARTS, nonNegInt(hearts))); }
+        if (streak          !== undefined) { sets.push(`streak=LEAST($${i++}::int, COALESCE(streak,0) + ${MAX_STREAK_STEP})`); vals.push(nonNegInt(streak)); }
+      }
       if (avatar            !== undefined) { sets.push(`avatar=$${i++}`);            vals.push(avatar); }
       if (stars_data        !== undefined) { sets.push(`stars_data=$${i++}`);        vals.push(stars_data); }
       if (streak_data       !== undefined) { sets.push(`streak_data=$${i++}`);       vals.push(streak_data); }
@@ -864,6 +945,7 @@ module.exports = async (req, res) => {
 
     res.status(405).end();
   } catch (e) {
-    res.status(500).json({ ok: false, error: e.message });
+    console.error('[users]', e);
+    res.status(500).json({ ok: false, error: 'Серверийн алдаа' });
   }
 };

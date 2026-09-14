@@ -1,12 +1,17 @@
 const pool = require('./_db');
+const { secretMissing, requireAdminOrSeedKey } = require('./_guard');
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-seed-key');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
+    // Schema migration (UPDATE users ... орно) — админ JWT эсвэл x-seed-key (SEED_KEY env) шаардана
+    if (secretMissing(res)) return;
+    if (!requireAdminOrSeedKey(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
+
     // Users table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
@@ -138,6 +143,17 @@ module.exports = async (req, res) => {
       )
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_qr_status ON question_reports(status, created_at DESC)`).catch(()=>{});
+
+    // Rate limit (_guard.rateLimit) — deploy-оос өмнө үүсгэвэл хүйтэн эхлэлийн зэрэг CREATE-ээс сэргийлнэ
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS rate_limits (
+        key TEXT PRIMARY KEY,
+        window_start TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        count INT NOT NULL DEFAULT 0
+      )
+    `);
+    // Промо код: зөвхөн is_public=true кодыг бүртгэлийн имэйлд илгээнэ (promo_codes байхгүй бол алгасна)
+    await pool.query(`ALTER TABLE IF EXISTS promo_codes ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT false`).catch(()=>{});
 
     res.status(200).json({ ok: true, message: 'Tables ready' });
   } catch (e) {

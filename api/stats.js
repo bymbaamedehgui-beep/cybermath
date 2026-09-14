@@ -1,19 +1,6 @@
 const pool = require('./_db');
-const jwt = require('jsonwebtoken');
-
-const JWT_SECRET = process.env.JWT_SECRET || 'cybermath-default-secret-change-in-prod';
-
-function verifyToken(req) {
-  const auth = req.headers.authorization || req.headers.Authorization;
-  if (!auth || !auth.startsWith('Bearer ')) return null;
-  try { return jwt.verify(auth.slice(7), JWT_SECRET); } catch (e) { return null; }
-}
-
-function requireAdmin(req) {
-  const decoded = verifyToken(req);
-  if (!decoded || !decoded.admin) return { ok: false, error: 'Зөвхөн админ' };
-  return { ok: true };
-}
+// JWT шалгалт — _guard (JWT_SECRET env заавал, default fallback байхгүй)
+const { secretMissing, requireAdmin } = require('./_guard');
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -21,9 +8,9 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET') return res.status(405).end();
+  if (secretMissing(res)) return;   // JWT_SECRET тохируулаагүй → 500
 
-  const adminCheck = requireAdmin(req);
-  if (!adminCheck.ok) return res.status(403).json({ ok: false, error: adminCheck.error });
+  if (!requireAdmin(req)) return res.status(403).json({ ok: false, error: 'Зөвхөн админ' });
 
   try {
     const q1 = async (sql) => {
