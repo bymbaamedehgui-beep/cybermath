@@ -129,6 +129,8 @@ window.loadWsSales = async function(){
   catch(e){ var ul=document.getElementById('ws-purchase-list'); if(ul)ul.innerHTML='<div style="color:#dc2626;padding:10px;">Алдаа: '+wsEsc(e.message)+'</div>'; }
   try{ var us=await wsPost('ws_users_list',{}); renderWsUsers(us||{}); }
   catch(e){ var uu=document.getElementById('ws-users-list'); if(uu)uu.innerHTML='<div style="color:#dc2626;padding:10px;">Алдаа: '+wsEsc(e.message)+'</div>'; }
+  try{ var gu=await wsPost('ws_grade_users',{}); if(gu&&gu.ok===false)throw new Error(gu.error||'хандах эрхгүй'); renderWsGradeUsers(gu||{}); }
+  catch(e){ var gl=document.getElementById('ws-grade-users-list'); if(gl)gl.innerHTML='<div style="color:#dc2626;padding:10px;">Алдаа: '+wsEsc(e.message)+'</div>'; }
   try{ var an=await wsPostW('getAnnounce',{}); var ai=document.getElementById('ws-announce'); if(ai)ai.value=(an&&an.announce)||''; }catch(e){}
   try{ var fb=await wsPostW('feedback_list',{}); renderWsFeedback((fb&&fb.feedback)||[]); }
   catch(e){ var fe=document.getElementById('ws-feedback-list'); if(fe)fe.innerHTML='<div style="color:#dc2626;padding:8px;">Алдаа: '+wsEsc(e.message)+'</div>'; }
@@ -311,10 +313,14 @@ function renderWsUsers(d){
       +'<td style="padding:8px;color:var(--muted);white-space:nowrap;">'+wsDate(u.updated_at)+'</td>'
       +'<td style="padding:8px;color:var(--muted);white-space:nowrap;">'+wsDate(u.expires_at)+'</td>'
       +'<td style="padding:8px;">'+st+'</td>'
-      +'<td style="padding:8px;text-align:right;white-space:nowrap;"><button onclick="revokeWsAccess(\''+wsEsc(u.email)+'\')" style="background:rgba(220,38,38,.12);border:1px solid rgba(220,38,38,.3);color:#dc2626;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;">Цуцлах</button></td>'
+      +'<td style="padding:8px;text-align:right;white-space:nowrap;"><button class="ws-revoke" data-email="'+wsEsc(u.email)+'" style="background:rgba(220,38,38,.12);border:1px solid rgba(220,38,38,.3);color:#dc2626;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;">Цуцлах</button></td>'
       +'</tr>';
   });
   el.innerHTML=h+'</tbody></table>';
+  el.onclick=function(ev){
+    var b=ev.target&&ev.target.closest?ev.target.closest('.ws-revoke'):null;
+    if(b)revokeWsAccess(b.getAttribute('data-email'));
+  };
 }
 window.grantWsAccess=async function(){
   var email=(document.getElementById('wsGrantEmail').value||'').trim().toLowerCase();
@@ -336,8 +342,98 @@ window.reconcileWs=async function(){
   b.disabled=false;b.textContent=ot;
 };
 window.revokeWsAccess=async function(email){
-  if(!confirm('"'+email+'"-ийн ажлын хуудсын эрхийг цуцлах уу?'))return;
-  try{ await wsPost('ws_revoke',{email:email}); loadWsSales(); }catch(e){ alert('Алдаа: '+e.message); }
+  if(!confirm('"'+email+'"-ийн БҮХ АНГИЙН эрхийг цуцлах уу?\n\nАнгиар авсан эрх нь хэвээр үлдэнэ ("Ангиар эрх авсан хэрэглэгчид" хэсгээс тусад нь цуцална).'))return;
+  try{ var d=await wsPost('ws_revoke',{email:email}); if(!d||!d.ok){ alert('Алдаа: '+((d&&d.error)||'цуцалж чадсангүй')); return; } loadWsSales(); }catch(e){ alert('Алдаа: '+e.message); }
+};
+// ─── Ангиар эрх авсан хэрэглэгчид (ws_grade_access) ───
+var WS_GRADES=['6-р анги','7-р анги','8-р анги','9-р анги','10-р анги','11-р анги','12-р анги'];
+function wsGradeGen(g){ return String(g||'').replace(/анги$/,'ангийн'); }
+function renderWsGradeUsers(d){
+  var el=document.getElementById('ws-grade-users-list'); if(!el)return;
+  var list=d.rows||[], by=d.by_grade||[], pend=d.pending||[];
+  var inp='padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:0.85rem;';
+  var form='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:14px;">'
+    +'<span style="font-weight:800;font-size:0.82rem;color:var(--text);">Ангийн эрх олгох:</span>'
+    +'<input id="wsgEmail" type="email" placeholder="Имэйл хаяг" style="flex:1;min-width:170px;'+inp+'" onkeydown="if(event.key===\'Enter\')grantWsGradeAccess()">'
+    +'<select id="wsgGrade" style="'+inp+'font-weight:700;">'+WS_GRADES.map(function(g){return '<option value="'+wsEsc(g)+'">'+wsEsc(g)+'</option>';}).join('')+'</select>'
+    +'<select id="wsgMonths" style="'+inp+'font-weight:700;"><option value="1" selected>1 сар</option><option value="3">3 сар</option><option value="6">6 сар</option><option value="12">1 жил</option></select>'
+    +'<button onclick="grantWsGradeAccess()" style="background:linear-gradient(135deg,#7B52EE,#A855F7);border:0;color:#fff;border-radius:8px;padding:8px 16px;cursor:pointer;font-weight:800;font-size:0.85rem;">+ Олгох</button>'
+    +'<span id="wsgMsg" style="font-size:0.8rem;font-weight:700;"></span></div>';
+  var chips=by.length
+    ?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">'+by.map(function(b){
+        return '<div style="border:1px solid var(--border);border-radius:10px;padding:8px 12px;background:var(--surface);min-width:130px;">'
+          +'<div style="font-weight:900;color:#6d28d9;font-size:0.86rem;">'+wsEsc(b.grade)+'</div>'
+          +'<div style="font-size:0.74rem;color:var(--muted);font-weight:700;margin-top:2px;">идэвхтэй '+wsNum(b.active||0)+' · '+wsNum(b.sales||0)+' худалдан авалт</div>'
+          +'<div style="font-size:0.84rem;font-weight:800;color:#16a34a;margin-top:2px;">'+wsNum(b.revenue||0)+'₮</div></div>';
+      }).join('')+'</div>'
+    :'';
+  var head='<div style="font-size:0.78rem;color:var(--muted);font-weight:700;margin-bottom:10px;">Нийт '+wsNum(d.total||list.length)+' эрх · идэвхтэй '+wsNum(d.active||0)+'</div>';
+  var table;
+  if(!list.length){ table='<div style="color:var(--muted);padding:10px;">Ангиар эрх авсан хэрэглэгч алга.</div>'; }
+  else{
+    table='<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.85rem;"><thead><tr>'
+      +'<th style="text-align:left;padding:8px;">И-мэйл</th><th style="text-align:left;padding:8px;">Анги</th>'
+      +'<th style="text-align:left;padding:8px;">Эрх авсан</th><th style="text-align:left;padding:8px;">Дуусах</th>'
+      +'<th style="text-align:right;padding:8px;">Төлсөн</th><th style="text-align:left;padding:8px;">Төлөв</th>'
+      +'<th style="text-align:right;padding:8px;">Үйлдэл</th></tr></thead><tbody>';
+    list.forEach(function(u){
+      var st=u.active
+        ?'<span style="background:#dcfce7;color:#16a34a;border-radius:100px;padding:2px 9px;font-weight:800;font-size:0.74rem;">Идэвхтэй</span>'
+        :'<span style="background:var(--surface2);color:var(--muted);border-radius:100px;padding:2px 9px;font-weight:800;font-size:0.74rem;">Дууссан</span>';
+      var paid=(u.paid_count>0)
+        ?'<span style="font-weight:800;">'+wsNum(u.paid_sum)+'₮</span>'+(u.paid_count>1?'<div style="font-size:0.7rem;color:var(--muted);">'+wsNum(u.paid_count)+' удаа</div>':'')
+        :'<span style="color:var(--muted);font-size:0.78rem;">Админ олгосон</span>';
+      table+='<tr>'
+        +'<td style="padding:8px;font-weight:700;">'+wsEsc(u.email)+'</td>'
+        +'<td style="padding:8px;"><span style="background:#ede9fe;color:#6d28d9;border-radius:100px;padding:2px 9px;font-weight:800;font-size:0.74rem;white-space:nowrap;">'+wsEsc(u.grade)+'</span></td>'
+        +'<td style="padding:8px;color:var(--muted);white-space:nowrap;">'+wsDate(u.updated_at)+'</td>'
+        +'<td style="padding:8px;color:var(--muted);white-space:nowrap;">'+wsDate(u.expires_at)+'</td>'
+        +'<td style="padding:8px;text-align:right;white-space:nowrap;">'+paid+'</td>'
+        +'<td style="padding:8px;">'+st+'</td>'
+        +'<td style="padding:8px;text-align:right;white-space:nowrap;"><button class="wsg-revoke" data-email="'+wsEsc(u.email)+'" data-grade="'+wsEsc(u.grade)+'" style="background:rgba(220,38,38,.12);border:1px solid rgba(220,38,38,.3);color:#dc2626;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;">Цуцлах</button></td>'
+        +'</tr>';
+    });
+    table+='</tbody></table></div>';
+  }
+  var pendH='';
+  if(pend.length){
+    pendH='<details style="margin-top:14px;border:1px solid var(--border);border-radius:10px;padding:8px 12px;background:var(--surface);">'
+      +'<summary style="cursor:pointer;font-weight:800;font-size:0.8rem;color:var(--muted);">Төлөгдөөгүй ангийн нэхэмжлэх — сүүлийн 30 хоног ('+wsNum(pend.length)+')</summary>'
+      +'<div style="font-size:0.74rem;color:var(--muted);margin:6px 0 8px;">QPay-ээр төлсөн атлаа эрх нь нээгдээгүй гэж хэрэглэгч хандвал доорх "Худалдан авалтын бүртгэл" хэсгийн тулгах товчийг дарна уу — төлсөн нь автоматаар олгогдоно.</div>'
+      +'<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.8rem;"><thead><tr style="color:var(--muted);">'
+      +'<th style="text-align:left;padding:5px 8px;">Огноо</th><th style="text-align:left;padding:5px 8px;">И-мэйл</th><th style="text-align:left;padding:5px 8px;">Анги</th>'
+      +'<th style="text-align:left;padding:5px 8px;">Хугацаа</th><th style="text-align:right;padding:5px 8px;">Дүн</th></tr></thead><tbody>'
+      +pend.map(function(p){
+        return '<tr style="border-top:1px solid var(--border);">'
+          +'<td style="padding:5px 8px;color:var(--muted);white-space:nowrap;">'+wsDate(p.created_at)+'</td>'
+          +'<td style="padding:5px 8px;">'+wsEsc(p.email)+'</td>'
+          +'<td style="padding:5px 8px;">'+wsEsc(p.grade)+'</td>'
+          +'<td style="padding:5px 8px;color:var(--muted);">'+(p.months>=12?'1 жил':(wsNum(p.months||0)+' сар'))+'</td>'
+          +'<td style="padding:5px 8px;text-align:right;">'+wsNum(p.amount||0)+'₮</td></tr>';
+      }).join('')
+      +'</tbody></table></div></details>';
+  }
+  el.innerHTML=form+chips+head+table+pendH;
+  // Цуцлах товч — имэйл/ангийг data атрибутаас уншина (онцгой тэмдэгттэй имэйлд ч аюулгүй)
+  el.onclick=function(ev){
+    var b=ev.target&&ev.target.closest?ev.target.closest('.wsg-revoke'):null;
+    if(b)revokeWsGradeAccess(b.getAttribute('data-email'),b.getAttribute('data-grade'));
+  };
+}
+window.grantWsGradeAccess=async function(){
+  var email=(document.getElementById('wsgEmail').value||'').trim().toLowerCase();
+  var grade=document.getElementById('wsgGrade').value;
+  var months=document.getElementById('wsgMonths').value;
+  var msg=document.getElementById('wsgMsg');
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){msg.style.color='#dc2626';msg.textContent='Зөв имэйл оруулна уу';return;}
+  msg.style.color='var(--muted)';msg.textContent='Олгож байна…';
+  try{ var d=await wsPost('ws_grant',{email:email,grade:grade,months:months});
+    if(d&&d.ok){ loadWsSales(); } else { msg.style.color='#dc2626'; msg.textContent='Алдаа: '+((d&&d.error)||''); } }
+  catch(e){ msg.style.color='#dc2626'; msg.textContent='Алдаа: '+e.message; }
+};
+window.revokeWsGradeAccess=async function(email,grade){
+  if(!confirm('"'+email+'" хэрэглэгчийн '+wsGradeGen(grade)+' эрхийг цуцлах уу?'))return;
+  try{ var d=await wsPost('ws_revoke',{email:email,grade:grade}); if(!d||!d.ok){ alert('Алдаа: '+((d&&d.error)||'цуцалж чадсангүй')); return; } loadWsSales(); }catch(e){ alert('Алдаа: '+e.message); }
 };
 function renderWsPromos(list){
   var el=document.getElementById('ws-promo-list'); if(!el)return;
@@ -370,29 +466,58 @@ function renderWsPromos(list){
   el.innerHTML=h+'</tbody></table>';
 }
 function renderWsPurchases(d){
+  window._WS_PURCH=d||{};
   var sum=document.getElementById('ws-summary');
+  function card(label,val,color,sub){
+    return '<div class="table-card" style="padding:14px 16px;"><div style="font-size:0.72rem;color:var(--muted);font-weight:800;">'+label+'</div>'
+      +'<div style="font-size:1.5rem;font-weight:900;color:'+(color||'var(--text)')+';">'+val+'</div>'
+      +(sub?'<div style="font-size:0.72rem;color:var(--muted);font-weight:700;margin-top:3px;">'+sub+'</div>':'')+'</div>';
+  }
   if(sum) sum.innerHTML=
-    '<div class="table-card" style="padding:14px 16px;"><div style="font-size:0.72rem;color:var(--muted);font-weight:800;">Нийт борлуулалт</div><div style="font-size:1.5rem;font-weight:900;color:var(--text);">'+wsNum(d.count||0)+'</div></div>'
-    +'<div class="table-card" style="padding:14px 16px;"><div style="font-size:0.72rem;color:var(--muted);font-weight:800;">Нийт орлого</div><div style="font-size:1.5rem;font-weight:900;color:#16a34a;">'+wsNum(d.total||0)+'₮</div></div>';
+     card('Нийт борлуулалт',wsNum(d.count||0),null,'Бүх анги '+wsNum(d.count_all||0)+' · Нэг анги '+wsNum(d.count_grade||0))
+    +card('Нийт орлого',wsNum(d.total||0)+'₮','#16a34a','Бүх анги '+wsNum(d.total_all||0)+'₮ · Нэг анги '+wsNum(d.total_grade||0)+'₮');
+  wsRenderPurchaseTable();
+}
+// Худалдан авалтын хүснэгт — багцаар шүүх боломжтой
+window.wsPurchFilter=window.wsPurchFilter||'all';
+function wsRenderPurchaseTable(){
   var el=document.getElementById('ws-purchase-list'); if(!el)return;
-  var list=d.purchases||[];
-  if(!list.length){el.innerHTML='<div style="color:var(--muted);padding:10px;">Худалдан авалт хараахан алга.</div>';return;}
-  var h='<table style="width:100%;border-collapse:collapse;font-size:0.85rem;"><thead><tr>'
+  var d=window._WS_PURCH||{};
+  var all=d.purchases||[];
+  var f=window.wsPurchFilter;
+  var list=all.filter(function(p){ return f==='all'?true:(f==='grade'?!!p.grade:!p.grade); });
+  function fbtn(key,label,cnt){
+    var on=(f===key);
+    return '<button onclick="wsSetPurchFilter(\''+key+'\')" style="border:1px solid '+(on?'#7B52EE':'var(--border)')+';background:'+(on?'#ede9fe':'var(--surface)')
+      +';color:'+(on?'#6d28d9':'var(--text)')+';border-radius:999px;padding:4px 12px;cursor:pointer;font-weight:800;font-size:0.78rem;">'+label+' ('+wsNum(cnt)+')</button>';
+  }
+  var nGrade=all.filter(function(p){return !!p.grade;}).length;
+  var bar='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">'
+    +fbtn('all','Бүгд',d.count!=null?d.count:all.length)
+    +fbtn('full','Бүх анги',d.count_all!=null?d.count_all:all.length-nGrade)
+    +fbtn('grade','Нэг анги',d.count_grade!=null?d.count_grade:nGrade)+'</div>';
+  if(!list.length){ el.innerHTML=bar+'<div style="color:var(--muted);padding:10px;">'+(all.length?'Энэ шүүлтүүрт худалдан авалт алга.':'Худалдан авалт хараахан алга.')+'</div>'; return; }
+  var h=bar+'<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.85rem;"><thead><tr>'
     +'<th style="text-align:left;padding:8px;">Огноо</th><th style="text-align:left;padding:8px;">И-мэйл</th>'
-    +'<th style="text-align:left;padding:8px;">Хугацаа</th>'
+    +'<th style="text-align:left;padding:8px;">Багц</th><th style="text-align:left;padding:8px;">Хугацаа</th>'
     +'<th style="text-align:right;padding:8px;">Дүн</th><th style="text-align:left;padding:8px;">Промо</th></tr></thead><tbody>';
   list.forEach(function(p){
     var dur=p.months?(p.months>=12?'1 жил':(p.months+' сар')):'—';
+    var pkg=p.grade
+      ?'<span style="background:#ede9fe;color:#6d28d9;border-radius:100px;padding:2px 9px;font-weight:800;font-size:0.74rem;white-space:nowrap;">'+wsEsc(p.grade)+'</span>'
+      :'<span style="background:#e0f2fe;color:#0369a1;border-radius:100px;padding:2px 9px;font-weight:800;font-size:0.74rem;white-space:nowrap;">Бүх анги</span>';
     h+='<tr>'
       +'<td style="padding:8px;color:var(--muted);white-space:nowrap;">'+wsDate(p.created_at)+'</td>'
       +'<td style="padding:8px;font-weight:700;">'+wsEsc(p.email)+'</td>'
+      +'<td style="padding:8px;">'+pkg+'</td>'
       +'<td style="padding:8px;color:var(--muted);white-space:nowrap;">'+dur+'</td>'
       +'<td style="padding:8px;text-align:right;font-weight:800;">'+wsNum(p.amount)+'₮</td>'
       +'<td style="padding:8px;">'+(p.promo?('<span style="background:#dcfce7;color:#16a34a;border-radius:100px;padding:2px 8px;font-weight:800;font-size:0.75rem;">'+wsEsc(p.promo)+'</span>'):'<span style="color:var(--muted);">—</span>')+'</td>'
       +'</tr>';
   });
-  el.innerHTML=h+'</tbody></table>';
+  el.innerHTML=h+'</tbody></table></div>';
 }
+window.wsSetPurchFilter=function(k){ window.wsPurchFilter=k; wsRenderPurchaseTable(); };
 window.createWsPromo = async function(ev){
   if(ev)ev.preventDefault();
   var msg=document.getElementById('wsp-msg');
@@ -2461,6 +2586,14 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
             <div class="table-title" style="flex:1;">Хэрэглэгчийн бүртгэл <span style="font-size:0.72rem;color:var(--muted);font-weight:700;">(эрх авсан имэйлүүд)</span></div>
           </div>
           <div id="ws-users-list"></div>
+        </div>
+
+        <!-- Ангиар эрх авсан хэрэглэгчид -->
+        <div class="table-card" style="padding:14px 16px;margin-bottom:16px;">
+          <div class="table-header" style="margin-bottom:12px;">
+            <div class="table-title">Ангиар эрх авсан хэрэглэгчид</div>
+          </div>
+          <div id="ws-grade-users-list"></div>
         </div>
 
         <!-- Худалдан авалтын бүртгэл -->
