@@ -249,7 +249,18 @@
       if(g)g.onclick=function(){ setPlan('all',selMonths); };
     }
     // Эрхийн төлөв ирэхэд багцуудыг эцэслэн угсарна (checkAccess дуудна)
+    // Токенгүй (зөвхөн имэйлээр) шалгахад сервер needLogin буцаана — нууц үгээр нэвтрэх рүү чиглүүлнэ
+    function loginHint(){
+      if(o.querySelector('#wsLoginHint'))return;
+      var next=location.pathname||'/';
+      var box=document.createElement('div');box.id='wsLoginHint';
+      box.style.cssText='margin-top:12px;border:1.4px solid #e7ddff;background:#faf7ff;border-radius:12px;padding:10px 12px;font-size:.84rem;color:#3a2d5e;line-height:1.45';
+      box.innerHTML='Эрх авсан бол <b>нууц үгээрээ нэвтэрнэ үү</b>. Нэвтэрсний дараа энэ хуудас нээгдэнэ.'
+        +'<a id="wsLoginGo" href="/worksheets?login=1&next='+encodeURIComponent(next)+'" style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:8px;font-weight:800;font-size:.88rem;text-decoration:none;color:#fff;background:linear-gradient(135deg,#7B52EE,#A855F7);border-radius:999px;padding:.55rem .9rem"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>Нууц үгээрээ нэвтэрнэ үү</a>';
+      var rs=o.querySelector('#wsRestore'); if(rs)rs.parentNode.insertBefore(box,rs); else o.firstChild.appendChild(box);
+    }
     window.__wsLockApply=function(d){
+      if(d&&d.needLogin)loginHint();
       if(applied)return; applied=true;
       if(d){
         if(d.prices)P_ALL=d.prices;
@@ -310,7 +321,8 @@
       msg.textContent='Шалгаж байна…';
       fetch('/api/qpay?action=wsstatus',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,slug:curSlug()})})
         .then(function(r){return r.json();}).then(function(d){
-          if(d&&d.active){ if(d.ws_token)lset('cm_ws_token',d.ws_token); lset('cm_last_user',email); unlockWs(); }
+          if(d&&d.needLogin){ lset('cm_last_user',email); msg.style.color='#5a32d6'; msg.textContent='Эрхээ ашиглахын тулд нууц үгээрээ нэвтэрнэ үү.'; loginHint(); }
+          else if(d&&d.active){ if(d.ws_token)lset('cm_ws_token',d.ws_token); lset('cm_last_user',email); unlockWs(); }
           else if(d&&d.grades&&d.grades.length){
             msg.style.color='#b45309';
             msg.textContent='Танд '+d.grades.map(function(x){return x.grade;}).join(', ')+' -ийн эрх байна, харин энэ хуудас өөр ангийнх байна.';

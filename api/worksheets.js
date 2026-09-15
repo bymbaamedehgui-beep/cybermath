@@ -2,12 +2,108 @@
 const pool = require('./_db');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const { sendVerifyEmail, sendFeedbackReply } = require('./_email');
+const { rateLimit, clientIp } = require('./_guard');
 const JWT_SECRET = process.env.JWT_SECRET || 'cybermath-default-secret-change-in-prod';
 
 // Дасгалын төвийн нэвтрэлт — имэйл + нууц үг + баталгаажуулах код (тусдаа ws_login)
 function wsSign(email) { return jwt.sign({ email: String(email).toLowerCase(), ws: true }, JWT_SECRET, { expiresIn: '400d' }); }
-function wsEmailFromToken(t) { try { const d = jwt.verify(String(t || ''), JWT_SECRET); return (d && d.ws && d.email) ? String(d.email).toLowerCase() : null; } catch (e) { return null; } }
+// env WS_TOKEN_IAT_MIN (epoch сек) тавьсан бол түүнээс өмнө олгосон ws токеныг хүчингүй гэж үзнэ (тавиагүй бол нөлөөгүй)
+function wsIatOk(d) {
+  const min = parseInt(process.env.WS_TOKEN_IAT_MIN || '', 10);
+  if (!Number.isFinite(min) || min <= 0) return true;
+  return !!d && typeof d.iat === 'number' && d.iat >= min;
+}
+function wsEmailFromToken(t) { try { const d = jwt.verify(String(t || ''), JWT_SECRET); return (d && d.ws && d.email && wsIatOk(d)) ? String(d.email).toLowerCase() : null; } catch (e) { return null; } }
+
+// ── Код/имэйлийн хязгаар ──
+const MSG_CODE_BAD = 'Код буруу эсвэл хугацаа нь дууссан байна';
+const MSG_CODE_DEAD = 'Код хүчингүй боллоо. Шинэ код авна уу.';
+const MSG_TOO_MANY = 'Хэт олон оролдлого. Түр хүлээгээд дахин оролдоно уу.';
+const MSG_MAIL_CD = 'Код дахин илгээхийн өмнө 1 минут хүлээнэ үү.';
+const MSG_MAIL_DAY = 'Энэ имэйлд өнөөдөр хэт олон код илгээсэн байна. Маргааш дахин оролдоно уу.';
+const MSG_MAIL_IP = 'Хэт олон хүсэлт илгээлээ. Түр хүлээгээд дахин оролдоно уу.';
+const MSG_MAIL_FAIL = 'Имэйл илгээж чадсангүй. Түр хүлээгээд дахин оролдоно уу.';
+const CODE_MAX_ATTEMPTS = 5;
+
+// IP-г rate limit-ийн түлхүүр болгох: IPv4 бүтэн хаяг (::ffff: → IPv4), IPv6 эхний 4 бүлэг (/64).
+// Түүхий IP хадгалахгүйн тулд sha256-ийн эхний 16 hex-ийг ашиглана.
+function expandV6(s) {
+  const parts = s.split('::');
+  if (parts.length > 2) return null;
+  const head = parts[0] ? parts[0].split(':') : [];
+  const tail = parts.length === 2 && parts[1] ? parts[1].split(':') : [];
+  const fill = parts.length === 2 ? Math.max(0, 8 - head.length - tail.length) : 0;
+  const groups = head.concat(new Array(fill).fill('0'), tail);
+  if (groups.length !== 8) return null;
+  return groups.map(g => /^[0-9a-f]{1,4}$/.test(g) ? parseInt(g, 16).toString(16) : g);
+}
+function ipKey(ip) {
+  let s = String(ip || '').trim().toLowerCase().replace(/^\[/, '').replace(/\]$/, '').replace(/%.*$/, '');
+  let v;
+  if (!s || s === 'unknown') v = 'noip';
+  else {
+    const m4 = s.match(/^(?:::ffff:)?(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/);
+    if (m4) v = m4[1];
+    else if (s.indexOf(':') >= 0) { const g = expandV6(s); v = g ? g.slice(0, 4).join(':') : s.slice(0, 64); }
+    else v = s.slice(0, 64);
+  }
+  return crypto.createHash('sha256').update('ip|' + v).digest('hex').slice(0, 16);
+}
+// Хязгааруудыг дарааллаар шалгана; давсан бол мессеж, эс бөгөөс null (DB алдаа → rateLimit false → хаана)
+async function firstLimitHit(checks) {
+  for (const c of checks) { if (!(await rateLimit(c[0], c[1], c[2]))) return c[3]; }
+  return null;
+}
+function mailLimits(email, ipk) {
+  return firstLimitHit([
+    ['wsmail:cd:' + email, 1, 60, MSG_MAIL_CD],
+    ['wsmail:d:' + email, 5, 86400, MSG_MAIL_DAY],
+    ['wsmail:ip:' + ipk, 20, 3600, MSG_MAIL_IP],
+    // Нийт өдрийн дээд хязгаар — олон IP сэлгэж Gmail квотыг дүүргэхээс хамгаална
+    ['wsmail:global', 300, 86400, MSG_MAIL_IP],
+  ]);
+}
+// sendEmail нь throw хийхгүй, {ok:true} | {error} буцаадаг
+async function sendCodeMail(email, code, name) {
+  try {
+    const r = await sendVerifyEmail(email, code, name || '');
+    if (r && r.ok) return true;
+    console.error('[ws mail]', r && r.error);
+  } catch (e) { console.error('[ws mail]', e && e.message); }
+  return false;
+}
+// Илгээж чадаагүй кодыг хүчингүй болгоно (хэрэглэгч аваагүй код хүчинтэй үлдэхгүй)
+async function dropCode(email, code) {
+  try { await pool.query('UPDATE ws_login SET code=NULL, code_exp=NULL WHERE email=$1 AND code=$2', [email, code]); } catch (e) { console.error('[ws dropCode]', e && e.message); }
+}
+// ws_verify ба ws_reset-ийн кодын шалгалт. Амжилттай бол { ok:true, code } (дуудагч code=$2 нөхцөлтэй UPDATE хийнэ)
+async function codeAttempt(email, ipk, input) {
+  const code = String(input == null ? '' : input).trim();
+  if (!/^\d{6}$/.test(code)) return { ok: false, status: 400, error: MSG_CODE_BAD };
+  const lim = await firstLimitHit([
+    ['wscode:em:' + email, 10, 86400, MSG_TOO_MANY],
+    ['wscode:ip:' + ipk, 30, 900, MSG_TOO_MANY],
+  ]);
+  if (lim) return { ok: false, status: 429, error: lim };
+  const r = await pool.query(
+    'UPDATE ws_login SET code_attempts=COALESCE(code_attempts,0)+1 WHERE email=$1 AND code IS NOT NULL RETURNING code, code_exp, code_attempts',
+    [email]);
+  if (!r.rows.length) return { ok: false, status: 400, error: MSG_CODE_BAD };
+  const row = r.rows[0];
+  const stored = String(row.code == null ? '' : row.code);
+  if (Number(row.code_attempts) > CODE_MAX_ATTEMPTS) {
+    await pool.query('UPDATE ws_login SET code=NULL, code_exp=NULL WHERE email=$1 AND code=$2', [email, stored]);
+    return { ok: false, status: 400, error: MSG_CODE_DEAD };
+  }
+  if (!/^\d{6}$/.test(stored)) return { ok: false, status: 400, error: MSG_CODE_BAD };
+  const expMs = row.code_exp ? new Date(row.code_exp).getTime() : NaN;
+  if (!Number.isFinite(expMs) || expMs < Date.now()) return { ok: false, status: 400, error: MSG_CODE_BAD };
+  // Хоёулаа 6 оронтой ASCII тул урт ижил
+  if (!crypto.timingSafeEqual(Buffer.from(stored), Buffer.from(code))) return { ok: false, status: 400, error: MSG_CODE_BAD };
+  return { ok: true, code: stored };
+}
 // Санал хүсэлтийн мөрүүдэд харилцан ярианы thread-ийг нэг багц query-ээр хавсаргана
 async function attachThreads(rows) {
   const ids = rows.map(f => f.id);
@@ -22,7 +118,7 @@ async function attachThreads(rows) {
     return { id: f.id, message: f.message, contact: f.contact, created_at: f.created_at, replied_at: f.replied_at, thread };
   });
 }
-function gen6() { return Math.floor(100000 + Math.random() * 900000).toString(); }
+function gen6() { return String(crypto.randomInt(0, 1000000)).padStart(6, '0'); }
 async function ensureWsLogin() {
   await pool.query(`CREATE TABLE IF NOT EXISTS ws_login (
     email TEXT PRIMARY KEY,
@@ -36,6 +132,7 @@ async function ensureWsLogin() {
   )`).catch(()=>{});
   await pool.query(`ALTER TABLE ws_login ADD COLUMN IF NOT EXISTS name TEXT`).catch(()=>{});
   await pool.query(`ALTER TABLE ws_login ADD COLUMN IF NOT EXISTS phone TEXT`).catch(()=>{});
+  await pool.query(`ALTER TABLE ws_login ADD COLUMN IF NOT EXISTS code_attempts INT NOT NULL DEFAULT 0`).catch(()=>{});
 }
 
 // Зөвхөн админы JWT (admin:true) эсэхийг шалгах
@@ -283,6 +380,12 @@ module.exports = async (req, res) => {
         if (b.action === 'ws_login') {
           const r = await pool.query('SELECT pass_hash, verified FROM ws_login WHERE email=$1', [email]);
           if (!r.rows.length) return res.status(404).json({ ok: false, notFound: true, error: 'Бүртгэлгүй имэйл' });
+          // Нууц үгийн brute force хязгаар: имэйл тутам 15 минутад 20, IP тутам 15 минутад 100
+          const llim = await firstLimitHit([
+            ['wslogin:em:' + email, 20, 900, MSG_TOO_MANY],
+            ['wslogin:ip:' + ipKey(clientIp(req)), 100, 900, MSG_TOO_MANY],
+          ]);
+          if (llim) return res.status(429).json({ ok: false, error: llim });
           const okp = await bcrypt.compare(String(b.pass || ''), r.rows[0].pass_hash);
           if (!okp) return res.status(401).json({ ok: false, error: 'Нууц үг буруу' });
           if (!r.rows[0].verified) return res.status(403).json({ ok: false, needVerify: true, error: 'Имэйл баталгаажаагүй' });
@@ -293,42 +396,59 @@ module.exports = async (req, res) => {
           const name = b.name ? String(b.name).trim().slice(0, 80) : null;
           const phone = b.phone ? String(b.phone).trim().slice(0, 20) : null;
           if (pass.length < 6) return res.status(400).json({ ok: false, error: 'Нууц үг 6+ тэмдэгт байх ёстой' });
-          const ex = await pool.query('SELECT verified FROM ws_login WHERE email=$1', [email]);
+          const ex = await pool.query('SELECT verified, code, code_exp FROM ws_login WHERE email=$1', [email]);
           if (ex.rows.length && ex.rows[0].verified) return res.status(400).json({ ok: false, existed: true, error: 'Энэ имэйл бүртгэлтэй байна. Нэвтэрнэ үү.' });
+          // Хугацаа нь дуусаагүй код байгаа бол нууц үг/нэр/утсыг дарж бичихгүй, код дахин илгээхгүй
+          const exExp = ex.rows.length && ex.rows[0].code && ex.rows[0].code_exp ? new Date(ex.rows[0].code_exp).getTime() : 0;
+          if (exExp > Date.now()) return res.json({ ok: true, needVerify: true });
+          const lim = await mailLimits(email, ipKey(clientIp(req)));
+          if (lim) return res.status(429).json({ ok: false, error: lim });
           const code = gen6(), exp = new Date(Date.now() + 10 * 60 * 1000), hash = await bcrypt.hash(pass, 10);
-          await pool.query(
+          // WHERE нөхцөл: зэрэг хүсэлт ирсэн ч баталгаажсан эсвэл хүчинтэй кодтой мөрийг дарахгүй (атомар)
+          const up = await pool.query(
             `INSERT INTO ws_login (email, pass_hash, verified, code, code_exp, name, phone) VALUES ($1,$2,FALSE,$3,$4,$5,$6)
-             ON CONFLICT (email) DO UPDATE SET pass_hash=EXCLUDED.pass_hash, code=EXCLUDED.code, code_exp=EXCLUDED.code_exp, name=EXCLUDED.name, phone=EXCLUDED.phone`,
+             ON CONFLICT (email) DO UPDATE SET pass_hash=EXCLUDED.pass_hash, code=EXCLUDED.code, code_exp=EXCLUDED.code_exp, code_attempts=0, name=EXCLUDED.name, phone=EXCLUDED.phone
+             WHERE ws_login.verified=FALSE AND (ws_login.code IS NULL OR ws_login.code_exp IS NULL OR ws_login.code_exp <= NOW())
+             RETURNING email`,
             [email, hash, code, exp.toISOString(), name, phone]);
-          try { await sendVerifyEmail(email, code, name || ''); } catch (e) { console.error('[ws mail]', e.message); }
+          if (!up.rows.length) return res.json({ ok: true, needVerify: true });
+          if (!(await sendCodeMail(email, code, name))) { await dropCode(email, code); return res.status(503).json({ ok: false, error: MSG_MAIL_FAIL }); }
           return res.json({ ok: true, needVerify: true });
         }
         if (b.action === 'ws_forgot') {
           const r = await pool.query('SELECT verified FROM ws_login WHERE email=$1', [email]);
           if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Бүртгэлгүй имэйл' });
+          const lim = await mailLimits(email, ipKey(clientIp(req)));
+          if (lim) return res.status(429).json({ ok: false, error: lim });
           const code = gen6(), exp = new Date(Date.now() + 10 * 60 * 1000);
-          await pool.query('UPDATE ws_login SET code=$2, code_exp=$3 WHERE email=$1', [email, code, exp.toISOString()]);
-          try { await sendVerifyEmail(email, code, ''); } catch (e) {}
+          await pool.query('UPDATE ws_login SET code=$2, code_exp=$3, code_attempts=0 WHERE email=$1', [email, code, exp.toISOString()]);
+          if (!(await sendCodeMail(email, code, ''))) { await dropCode(email, code); return res.status(503).json({ ok: false, error: MSG_MAIL_FAIL }); }
           return res.json({ ok: true });
         }
         if (b.action === 'ws_reset') {
           const pass = String(b.pass || '');
           if (pass.length < 6) return res.status(400).json({ ok: false, error: 'Нууц үг 6+ тэмдэгт байх ёстой' });
-          const r = await pool.query('SELECT code, code_exp FROM ws_login WHERE email=$1', [email]);
-          if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Бүртгэлгүй' });
-          if (String(r.rows[0].code) !== String(b.code || '')) return res.status(400).json({ ok: false, error: 'Код буруу байна' });
-          if (new Date(r.rows[0].code_exp) < new Date()) return res.status(400).json({ ok: false, error: 'Кодын хугацаа дууссан' });
+          const ca = await codeAttempt(email, ipKey(clientIp(req)), b.code);
+          if (!ca.ok) return res.status(ca.status).json({ ok: false, error: ca.error });
           const hash = await bcrypt.hash(pass, 10);
-          await pool.query('UPDATE ws_login SET pass_hash=$2, verified=TRUE, code=NULL WHERE email=$1', [email, hash]);
+          const upd = await pool.query('UPDATE ws_login SET pass_hash=$2, verified=TRUE, code=NULL, code_exp=NULL, code_attempts=0 WHERE email=$1 AND code=$3 RETURNING email', [email, hash, ca.code]);
+          if (!upd.rows.length) return res.status(400).json({ ok: false, error: MSG_CODE_BAD });
           return res.json({ ok: true, token: wsSign(email), email: email });
         }
         if (b.action === 'ws_verify') {
-          const r = await pool.query('SELECT code, code_exp, verified, name, phone FROM ws_login WHERE email=$1', [email]);
-          if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Хэрэглэгч олдсонгүй' });
-          if (r.rows[0].verified) return res.json({ ok: true, token: wsSign(email), email: email });
-          if (String(r.rows[0].code) !== String(b.code || '')) return res.status(400).json({ ok: false, error: 'Код буруу байна' });
-          if (new Date(r.rows[0].code_exp) < new Date()) return res.status(400).json({ ok: false, error: 'Кодын хугацаа дууссан' });
-          await pool.query('UPDATE ws_login SET verified=TRUE, code=NULL WHERE email=$1', [email]);
+          const r = await pool.query('SELECT verified, name, phone FROM ws_login WHERE email=$1', [email]);
+          if (!r.rows.length) return res.status(400).json({ ok: false, error: MSG_CODE_BAD });
+          // Аль хэдийн баталгаажсан бол токен/имэйл өгөхгүй — нууц үгээр нэвтэрнэ
+          if (r.rows[0].verified) return res.json({ ok: true, alreadyVerified: true });
+          // Кодын эзэн нууц үгээ энд тохируулна (бүртгэлийн үеийн pass_hash-д итгэхгүй — данс булаахаас хамгаална).
+          // Нууц үггүй хүсэлт кодын оролдлого/хязгаарыг зарцуулахгүй.
+          const pass = String(b.pass || '');
+          if (pass.length < 6) return res.status(400).json({ ok: false, error: 'Нууц үг 6+ тэмдэгт байх ёстой' });
+          const ca = await codeAttempt(email, ipKey(clientIp(req)), b.code);
+          if (!ca.ok) return res.status(ca.status).json({ ok: false, error: ca.error });
+          const hash = await bcrypt.hash(pass, 10);
+          const upd = await pool.query('UPDATE ws_login SET pass_hash=$3, verified=TRUE, code=NULL, code_exp=NULL, code_attempts=0 WHERE email=$1 AND code=$2 RETURNING email', [email, ca.code, hash]);
+          if (!upd.rows.length) return res.status(400).json({ ok: false, error: MSG_CODE_BAD });
           // Шинэ хэрэглэгч бүртгүүлсэн — Telegram мэдэгдэл
           try {
             const u = r.rows[0];
@@ -343,9 +463,11 @@ module.exports = async (req, res) => {
           const r = await pool.query('SELECT verified FROM ws_login WHERE email=$1', [email]);
           if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Бүртгэлгүй' });
           if (r.rows[0].verified) return res.json({ ok: true, alreadyVerified: true });
+          const lim = await mailLimits(email, ipKey(clientIp(req)));
+          if (lim) return res.status(429).json({ ok: false, error: lim });
           const code = gen6(), exp = new Date(Date.now() + 10 * 60 * 1000);
-          await pool.query('UPDATE ws_login SET code=$2, code_exp=$3 WHERE email=$1', [email, code, exp.toISOString()]);
-          try { await sendVerifyEmail(email, code, ''); } catch (e) {}
+          await pool.query('UPDATE ws_login SET code=$2, code_exp=$3, code_attempts=0 WHERE email=$1', [email, code, exp.toISOString()]);
+          if (!(await sendCodeMail(email, code, ''))) { await dropCode(email, code); return res.status(503).json({ ok: false, error: MSG_MAIL_FAIL }); }
           return res.json({ ok: true, needVerify: true });
         }
       }

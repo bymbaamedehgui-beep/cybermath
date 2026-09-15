@@ -193,7 +193,13 @@ function wsToken(email) {
   if (!jwtSecret()) throw new Error('JWT_SECRET тохируулаагүй');
   return jwt.sign({ email: email, ws: true }, jwtSecret(), { expiresIn: '400d' });
 }
-function emailFromToken(tok) { if (!jwtSecret() || !tok) return null; try { var d = jwt.verify(tok, jwtSecret()); return d && d.email ? String(d.email).toLowerCase() : null; } catch (e) { return null; } }
+// env WS_TOKEN_IAT_MIN (epoch сек) тавьсан бол түүнээс өмнө олгосон ws:true токеныг хүчингүй гэж үзнэ (тавиагүй бол нөлөөгүй)
+function wsIatOk(d) {
+  const min = parseInt(process.env.WS_TOKEN_IAT_MIN || '', 10);
+  if (!Number.isFinite(min) || min <= 0) return true;
+  return !!d && typeof d.iat === 'number' && d.iat >= min;
+}
+function emailFromToken(tok) { if (!jwtSecret() || !tok) return null; try { var d = jwt.verify(tok, jwtSecret()); if (d && d.ws && !wsIatOk(d)) return null; return d && d.email ? String(d.email).toLowerCase() : null; } catch (e) { return null; } }
 function isAdmin(req) {
   const auth = req.headers.authorization || req.headers.Authorization || '';
   if (!auth.startsWith('Bearer ') || !jwtSecret()) return false;
@@ -1052,8 +1058,8 @@ module.exports = async (req, res) => {
       let email = null;
       if (b.wstoken) email = emailFromToken(b.wstoken);
       if (!email && b.token) email = emailFromToken(b.token);
+      // Зөвхөн имэйлээр (токенгүй) ирсэн хүсэлт эзэмшлийг баталдаггүй — ws_token/active хэзээ ч өгөхгүй, нууц үгээр нэвтрэхийг шаардана
       const byEmail = !email && b.email ? String(b.email).trim().toLowerCase() : null;
-      if (byEmail) email = byEmail;
       // Энэ хуудас ямар ангид харьяалагдахыг тодорхойлно (нэгээс олон байж болно)
       const slug = String(b.slug || '').trim().toLowerCase();
       let slugGrades = [], offerGrade = null;
@@ -1068,6 +1074,7 @@ module.exports = async (req, res) => {
         grade_months: WS_GRADE_MONTHS, grade_per_month: WS_GRADE_PER_MONTH,
         prices: WS_PRICES, months: WS_MONTHS };
 
+      if (byEmail) return res.json(Object.assign({ ok: true, enabled: true, active: false, needLogin: true, scope: null, grades: [] }, gradePrices));
       if (!email) return res.json(Object.assign({ ok: true, enabled: true, active: false, scope: null, grades: [] }, gradePrices));
 
       const r = await pool.query('SELECT expires_at FROM ws_access WHERE email=$1 AND expires_at > NOW()', [email]);
