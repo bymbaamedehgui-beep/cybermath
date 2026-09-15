@@ -259,9 +259,13 @@
         +'<a id="wsLoginGo" href="/worksheets?login=1&next='+encodeURIComponent(next)+'" style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:8px;font-weight:800;font-size:.88rem;text-decoration:none;color:#fff;background:linear-gradient(135deg,#7B52EE,#A855F7);border-radius:999px;padding:.55rem .9rem"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>Нууц үгээрээ нэвтэрнэ үү</a>';
       var rs=o.querySelector('#wsRestore'); if(rs)rs.parentNode.insertBefore(box,rs); else o.firstChild.appendChild(box);
     }
+    var appliedData=false, userPicked=false;
     window.__wsLockApply=function(d){
       if(d&&d.needLogin)loginHint();
-      if(applied)return; applied=true;
+      // 4с-ийн нөөц (өгөгдөлгүй) хэрэглэсний дараа серверийн хариу хожуу ирвэл ангийн багцыг дахин угсарна
+      if(applied&&(appliedData||!d))return;
+      var first=!applied;
+      applied=true; if(d)appliedData=true;
       if(d){
         if(d.prices)P_ALL=d.prices;
         if(d.months&&d.months.length)M_ALL=d.months;
@@ -270,8 +274,12 @@
         if(d.grade)GRADE=d.grade;
       }
       buildPlans();
-      setPlan(GRADE?'grade':'all');
+      if(first||!userPicked)setPlan(GRADE?'grade':'all');   // хэрэглэгч аль хэдийн сонгосон бол багцыг нь солихгүй
+      else setPlan(PLAN,selMonths);
     };
+    // Хэрэглэгч багц/хугацаа сонгосон эсэхийг тэмдэглэнэ (хожуу ирсэн хариу сонголтыг дарахгүй)
+    if(planRow)planRow.addEventListener('click',function(){ userPicked=true; },true);
+    if(durRow)durRow.addEventListener('click',function(){ userPicked=true; },true);
     // Хэрэв төлөв удаж ирвэл (эсвэл ирэхгүй бол) бүх ангийн багцаар эхэлнэ
     setTimeout(function(){ if(!applied)window.__wsLockApply(WS_ST); },4000);
     if(WS_ST)window.__wsLockApply(WS_ST);
