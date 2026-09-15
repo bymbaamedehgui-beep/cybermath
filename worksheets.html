@@ -1586,7 +1586,33 @@ function openBuy(opts){
     +'<div id="buMsg" style="font-size:.84rem;color:var(--soft);margin-top:10px;min-height:1em"></div>'
     +'</div>';
   document.body.appendChild(o);
-  var em=o.querySelector('#buEmail');if(lsGet('cm_last_user'))em.value=lsGet('cm_last_user');
+  // Ажлын хуудасны эрхийг зөвхөн НЭВТЭРСЭН данс худалдан авна — имэйлийг гараар оруулахгүй, токены имэйлийг зөвхөн уншигдахаар харуулна
+  function buTokEmail(t){try{var p=String(t).split('.')[1].replace(/-/g,'+').replace(/_/g,'/');while(p.length%4)p+='=';var d=JSON.parse(atob(p));return d&&typeof d.email==='string'?d.email.trim().toLowerCase():'';}catch(e){return '';}}
+  var em=o.querySelector('#buEmail'),acctEmail=lsGet('cm_ws_token')?(buTokEmail(lsGet('cm_ws_token'))||lsGet('cm_last_user')||''):'';
+  function showAcct(e){
+    if(e)acctEmail=e;
+    em.style.display='';em.value=acctEmail;em.readOnly=true;em.tabIndex=-1;em.style.background='#f6f3ff';em.style.color='#3a2d5e';em.style.fontWeight='700';em.style.cursor='default';
+    var cap=o.querySelector('#buAcctCap');
+    if(!cap){cap=document.createElement('div');cap.id='buAcctCap';cap.style.cssText='display:flex;align-items:center;gap:5px;font-size:.78rem;color:var(--soft);font-weight:700;margin:0 0 4px 2px;text-align:left';
+      cap.innerHTML='<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Худалдан авах данс';
+      em.parentNode.insertBefore(cap,em);}
+    cap.style.display='flex';
+  }
+  function hideAcct(){em.style.display='none';var c=o.querySelector('#buAcctCap');if(c)c.style.display='none';}
+  if(acctEmail)showAcct(acctEmail);else hideAcct();
+  // Нэвтрээгүй (эсвэл токен хүчингүй) — нэхэмжлэх үүсгэхгүй, нэвтрэх товч харуулна. Нэвтэрсний дараа энэ цонх дахин нээгдэнэ.
+  function buNeedLogin(){
+    hideAcct();
+    msg.style.color='#5a32d6';msg.textContent='Худалдан авахын тулд эхлээд нэвтэрнэ үү.';
+    var box=o.querySelector('#buLoginHint');
+    if(box)return;
+    box=document.createElement('div');box.id='buLoginHint';
+    box.style.cssText='margin-top:12px;border:1.4px solid #e7ddff;background:#faf7ff;border-radius:12px;padding:10px 12px;font-size:.84rem;color:#3a2d5e;line-height:1.45';
+    box.innerHTML='Ажлын хуудасны эрхийг зөвхөн <b>нэвтэрсэн дансаар</b> худалдан авна. Нэвтэрсний дараа энэ цонх дахин нээгдэнэ.'
+      +'<a id="buLoginGo" href="/worksheets?login=1&next='+encodeURIComponent(location.pathname||'/worksheets')+'" style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:8px;font-weight:800;font-size:.88rem;text-decoration:none;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2));border-radius:999px;padding:.55rem .9rem"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>Нэвтрэх / Бүртгүүлэх</a>';
+    msg.parentNode.appendChild(box);
+    box.querySelector('#buLoginGo').onclick=function(ev){ev.preventDefault();if(pollT){clearInterval(pollT);pollT=null;}o.remove();window.__afterLogin=function(){openBuy(opts);};openLogin(false);};
+  }
   var priceBox=o.querySelector('#buPrice'),promoIn=o.querySelector('#buPromo'),promoBtn=o.querySelector('#buPromoBtn'),promoMsg=o.querySelector('#buPromoMsg'),msg=o.querySelector('#buMsg'),qr=o.querySelector('#buQr');
   var durBtns=o.querySelectorAll('#buDur .wsd');
   if(/(fban|fbav|fb_iab|instagram|messenger|micromessenger|line\/|tiktok|twitter|okhttp)/i.test(navigator.userAgent||'')){
@@ -1620,12 +1646,15 @@ function openBuy(opts){
       else{refCode=null;}
     }).catch(function(){});
   }
-  o.querySelector('#buBuy').onclick=function(){var email=(em.value||'').trim().toLowerCase();if(!okEmail(email)){msg.style.color='#dc2626';msg.textContent='Зөв имэйл хаяг оруулна уу';return;}this.disabled=true;this.textContent='Нэхэмжлэх үүсгэж байна…';var btn=this;
-    fetch('/api/qpay?action=create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,plan:'wsmonths',months:selMonths,promo:appliedPromo,ref:refCode})}).then(function(r){return r.json();}).then(function(d){var inv=d&&d.invoice;if(!inv||!inv.invoice_id){msg.style.color='#dc2626';msg.textContent='Нэхэмжлэх үүсгэж чадсангүй. Дахин оролдоно уу.';btn.disabled=false;btn.textContent='QPay-аар худалдан авах';return;}
+  o.querySelector('#buBuy').onclick=function(){var wt=lsGet('cm_ws_token');if(!wt){buNeedLogin();return;}this.disabled=true;this.textContent='Нэхэмжлэх үүсгэж байна…';var btn=this;function resetBtn(){btn.disabled=false;btn.textContent='QPay-аар худалдан авах';}
+    // Имэйл илгээхгүй — сервер ws токеноос тодорхойлно
+    fetch('/api/qpay?action=create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({wstoken:wt,plan:'wsmonths',months:selMonths,promo:appliedPromo,ref:refCode})}).then(function(r){return r.json().then(function(d){return {s:r.status,d:d};},function(){return {s:r.status,d:null};});}).then(function(x){var d=x.d;if(x.s===401||(d&&d.needLogin)){resetBtn();buNeedLogin();return;}var inv=d&&d.invoice;if(!inv||!inv.invoice_id){msg.style.color='#dc2626';msg.textContent='Нэхэмжлэх үүсгэж чадсангүй. Дахин оролдоно уу.';resetBtn();return;}
+      var email=String(d.email||acctEmail||'').toLowerCase();if(email)showAcct(email);
       var img=inv.qr_image?('<img src="data:image/png;base64,'+inv.qr_image+'" style="width:190px;height:190px" alt="QPay QR"/>'):'';var link=inv.qPay_shortUrl?('<div style="margin-top:8px"><a href="'+inv.qPay_shortUrl+'" target="_blank" style="display:inline-flex;align-items:center;gap:5px;color:var(--purple-d);font-weight:700;font-size:.85rem;text-decoration:none"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg>Утаснаас төлөх</a></div>'):'';
       qr.innerHTML='<div style="font-size:.82rem;color:var(--soft);margin-bottom:6px">QPay аппаар уншуулж төлнө үү</div>'+img+link;btn.style.display='none';em.disabled=true;o.querySelector('#buDur').style.display='none';msg.style.color='var(--soft)';msg.textContent='Төлбөрийг хүлээж байна…';
-      pollT=setInterval(function(){fetch('/api/qpay?action=check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({invoice_id:inv.invoice_id,email:email,plan:'wsmonths',months:selMonths,promo:appliedPromo,ref:refCode})}).then(function(r){return r.json();}).then(function(c){if(c&&c.paid){if(c.ws_token)lsSet('cm_ws_token',c.ws_token);lsSet('cm_last_user',email);clearInterval(pollT);pollT=null;CM_USER={email:email};renderAcct();o.remove();toast('✓ Амжилттай! Тавтай морил');ensurePin();}}).catch(function(){});},3000);
-    }).catch(function(){msg.style.color='#dc2626';msg.textContent='Сүлжээний алдаа. Дахин оролдоно уу.';btn.disabled=false;btn.textContent='QPay-аар худалдан авах';});};
+      // Сервер ws_token буцаахгүй — одоогийн нэвтэрсэн токеноороо (verifyUser → wsstatus) эрхээ дахин шалгана
+      pollT=setInterval(function(){fetch('/api/qpay?action=check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({invoice_id:inv.invoice_id,email:email})}).then(function(r){return r.json();}).then(function(c){if(c&&c.paid&&pollT){clearInterval(pollT);pollT=null;if(email)lsSet('cm_last_user',email);o.remove();toast('✓ Амжилттай! Тавтай морил');verifyUser(function(){ensurePin();});}}).catch(function(){});},3000);
+    }).catch(function(){msg.style.color='#dc2626';msg.textContent='Сүлжээний алдаа. Дахин оролдоно уу.';resetBtn();});};
   o.querySelector('#buBack').onclick=function(){if(pollT){clearInterval(pollT);pollT=null;}o.remove();openLogin(false);};
   o.addEventListener('mousedown',function(e){if(e.target===o){if(pollT){clearInterval(pollT);pollT=null;}o.remove();}});
 }

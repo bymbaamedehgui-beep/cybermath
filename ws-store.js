@@ -87,11 +87,14 @@
   var WS_PRICE=39900;
   function ls(k){try{return localStorage.getItem(k);}catch(e){return null;}}
   function lset(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+  // ws токены payload-аас имэйлийг ЗӨВХӨН харуулахын тулд уншина (баталгаажуулалт нь серверт)
+  function tokEmail(t){try{var p=String(t).split('.')[1].replace(/-/g,'+').replace(/_/g,'/');while(p.length%4)p+='=';var d=JSON.parse(atob(p));return d&&typeof d.email==='string'?d.email.trim().toLowerCase():'';}catch(e){return '';}}
   var WS_ST=null;                                                    // сүүлд авсан эрхийн төлөв
   function checkAccess(){
     if(ls('cm_admin_token'))return Promise.resolve(true);            // админ үргэлж нээлттэй
     // slug илгээснээр сервер энэ хуудас ямар ангийнх болохыг тодорхойлж, ангийн эрхийг ч шалгана
-    var body={token:ls('cm_token'),wstoken:ls('cm_ws_token'),email:ls('cm_last_user'),slug:curSlug()};
+    // Зөвхөн ажлын хуудасны токен (cm_ws_token) — тоглоомын токеныг сервер хүлээн авахгүй
+    var body={wstoken:ls('cm_ws_token'),email:ls('cm_last_user'),slug:curSlug()};
     return fetch('/api/qpay?action=wsstatus',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
       .then(function(r){return r.json();})
       .then(function(d){
@@ -141,8 +144,26 @@
       if(history.length>1&&sameOriginRef)history.back();
       else location.href='/worksheets.html';
     };
-    var em=o.querySelector('#wsEmail'); if(ls('cm_last_user'))em.value=ls('cm_last_user');
+    var em=o.querySelector('#wsEmail');
     var msg=o.querySelector('#wsMsg'),qr=o.querySelector('#wsQr');
+    // Ажлын хуудасны эрхийг зөвхөн НЭВТЭРСЭН данс худалдан авна — имэйлийг гараар оруулахгүй,
+    // нэвтэрсэн токены имэйлийг зөвхөн уншигдахаар харуулна
+    var acctEmail=ls('cm_ws_token')?(tokEmail(ls('cm_ws_token'))||ls('cm_last_user')||''):'';
+    function showAcct(e){
+      if(e)acctEmail=e;
+      em.style.display=''; em.value=acctEmail; em.readOnly=true; em.tabIndex=-1;
+      em.style.background='#f6f3ff'; em.style.color='#3a2d5e'; em.style.fontWeight='700'; em.style.cursor='default';
+      var cap=o.querySelector('#wsAcctCap');
+      if(!cap){
+        cap=document.createElement('div');cap.id='wsAcctCap';
+        cap.style.cssText='display:flex;align-items:center;gap:5px;font-size:.78rem;color:#7a7390;font-weight:700;margin:0 0 4px 2px;text-align:left';
+        cap.innerHTML='<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Худалдан авах данс';
+        em.parentNode.insertBefore(cap,em);
+      }
+      cap.style.display='flex';
+    }
+    function hideAcct(){ em.style.display='none'; var c=o.querySelector('#wsAcctCap'); if(c)c.style.display='none'; }
+    if(acctEmail)showAcct(acctEmail); else hideAcct();
     // ─── Facebook/Messenger доторх browser QPay deeplink-ийг дэмждэггүй ───
     if(/(fban|fbav|fb_iab|instagram|messenger|micromessenger|line\/|tiktok|twitter|okhttp)/i.test(navigator.userAgent||'')){
       var wn=document.createElement('div');
@@ -250,14 +271,25 @@
     }
     // Эрхийн төлөв ирэхэд багцуудыг эцэслэн угсарна (checkAccess дуудна)
     // Токенгүй (зөвхөн имэйлээр) шалгахад сервер needLogin буцаана — нууц үгээр нэвтрэх рүү чиглүүлнэ
-    function loginHint(){
-      if(o.querySelector('#wsLoginHint'))return;
+    // kind==='buy' — худалдан авахын өмнө нэвтрэх; бусад — эрхээ ашиглахын тулд нууц үгээр нэвтрэх
+    function loginHint(kind){
+      var buy=kind==='buy';
       var next=location.pathname||'/';
-      var box=document.createElement('div');box.id='wsLoginHint';
-      box.style.cssText='margin-top:12px;border:1.4px solid #e7ddff;background:#faf7ff;border-radius:12px;padding:10px 12px;font-size:.84rem;color:#3a2d5e;line-height:1.45';
-      box.innerHTML='Эрх авсан бол <b>нууц үгээрээ нэвтэрнэ үү</b>. Нэвтэрсний дараа энэ хуудас нээгдэнэ.'
-        +'<a id="wsLoginGo" href="/worksheets?login=1&next='+encodeURIComponent(next)+'" style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:8px;font-weight:800;font-size:.88rem;text-decoration:none;color:#fff;background:linear-gradient(135deg,#7B52EE,#A855F7);border-radius:999px;padding:.55rem .9rem"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>Нууц үгээрээ нэвтэрнэ үү</a>';
-      var rs=o.querySelector('#wsRestore'); if(rs)rs.parentNode.insertBefore(box,rs); else o.firstChild.appendChild(box);
+      var box=o.querySelector('#wsLoginHint');
+      if(!box){
+        box=document.createElement('div');box.id='wsLoginHint';
+        box.style.cssText='margin-top:12px;border:1.4px solid #e7ddff;background:#faf7ff;border-radius:12px;padding:10px 12px;font-size:.84rem;color:#3a2d5e;line-height:1.45';
+        var rs=o.querySelector('#wsRestore'); if(rs)rs.parentNode.insertBefore(box,rs); else o.firstChild.appendChild(box);
+      }
+      box.innerHTML=(buy?'Ажлын хуудасны эрхийг зөвхөн <b>нэвтэрсэн дансаар</b> худалдан авна. Нэвтэрсний дараа энэ хуудас руу буцаж ирнэ.'
+                        :'Эрх авсан бол <b>нууц үгээрээ нэвтэрнэ үү</b>. Нэвтэрсний дараа энэ хуудас нээгдэнэ.')
+        +'<a id="wsLoginGo" href="/worksheets?login=1&next='+encodeURIComponent(next)+'" style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:8px;font-weight:800;font-size:.88rem;text-decoration:none;color:#fff;background:linear-gradient(135deg,#7B52EE,#A855F7);border-radius:999px;padding:.55rem .9rem"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>'
+        +(buy?'Нэвтрэх / Бүртгүүлэх':'Нууц үгээрээ нэвтэрнэ үү')+'</a>';
+    }
+    function needLoginToBuy(){
+      hideAcct();
+      msg.style.color='#5a32d6'; msg.textContent='Худалдан авахын тулд эхлээд нэвтэрнэ үү.';
+      loginHint('buy');
     }
     var appliedData=false, userPicked=false;
     window.__wsLockApply=function(d){
@@ -302,29 +334,53 @@
     };
     promoIn.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();promoBtn.click();}});
     o.querySelector('#wsBuy').onclick=function(){
-      var email=(em.value||'').trim().toLowerCase();
-      if(!valid(email)){msg.textContent='Зөв имэйл хаяг оруулна уу';return;}
+      var wt=ls('cm_ws_token');
+      if(!wt){ needLoginToBuy(); return; }                      // нэвтрээгүй — нэхэмжлэх үүсгэхгүй
       this.disabled=true;this.textContent='Нэхэмжлэх үүсгэж байна…';var btn=this;
+      function resetBtn(){btn.disabled=false;btn.textContent='QPay-аар худалдан авах';}
       var PAY=(PLAN==='grade'&&GRADE)?{plan:'wsgrade',grade:GRADE}:{plan:'wsmonths'};
-      fetch('/api/qpay?action=create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,plan:PAY.plan,grade:PAY.grade,months:selMonths,promo:appliedPromo})})
-        .then(function(r){return r.json();}).then(function(d){
+      // Имэйл илгээхгүй — сервер токеноос тодорхойлно
+      fetch('/api/qpay?action=create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({wstoken:wt,plan:PAY.plan,grade:PAY.grade,months:selMonths,promo:appliedPromo})})
+        .then(function(r){return r.json().then(function(d){return {s:r.status,d:d};},function(){return {s:r.status,d:null};});}).then(function(x){
+          var d=x.d;
+          if(x.s===401||(d&&d.needLogin)){ resetBtn(); needLoginToBuy(); return; }
           var inv=d&&d.invoice;
-          if(!inv||!inv.invoice_id){msg.textContent='Нэхэмжлэх үүсгэж чадсангүй. Дахин оролдоно уу.';btn.disabled=false;btn.textContent='QPay-аар худалдан авах';return;}
+          if(!inv||!inv.invoice_id){msg.style.color='';msg.textContent='Нэхэмжлэх үүсгэж чадсангүй. Дахин оролдоно уу.';resetBtn();return;}
+          var email=String(d.email||acctEmail||'').toLowerCase();
+          if(email)showAcct(email);
           var img=inv.qr_image?('<img src="data:image/png;base64,'+inv.qr_image+'" style="width:190px;height:190px" alt="QPay QR"/>'):'';
           var link=inv.qPay_shortUrl?('<div style="margin-top:8px"><a href="'+inv.qPay_shortUrl+'" target="_blank" style="display:inline-flex;align-items:center;gap:5px;color:#5a32d6;font-weight:700;font-size:.85rem;text-decoration:none"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg>Утаснаас төлөх</a></div>'):'';
           qr.innerHTML='<div style="font-size:.82rem;color:#7a7390;margin-bottom:6px">QPay аппаар уншуулж төлнө үү</div>'+img+link;
-          btn.style.display='none';em.disabled=true;
-          msg.textContent='Төлбөрийг хүлээж байна…';
+          btn.style.display='none';
+          msg.style.color='';msg.textContent='Төлбөрийг хүлээж байна…';
           pollT=setInterval(function(){
-            fetch('/api/qpay?action=check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({invoice_id:inv.invoice_id,email:email,plan:PAY.plan,grade:PAY.grade,months:selMonths,promo:appliedPromo})})
+            fetch('/api/qpay?action=check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({invoice_id:inv.invoice_id,email:email})})
               .then(function(r){return r.json();}).then(function(c){
-                if(c&&c.paid){ if(c.ws_token)lset('cm_ws_token',c.ws_token); lset('cm_last_user',email); msg.style.color='#16a34a';msg.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><polyline points="20 6 9 17 4 12"/></svg>Амжилттай! Нээгдэж байна…'; setTimeout(unlockWs,700); }
+                if(c&&c.paid&&pollT){
+                  clearInterval(pollT);pollT=null;
+                  if(email)lset('cm_last_user',email);
+                  msg.style.color='#16a34a';msg.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><polyline points="20 6 9 17 4 12"/></svg>Амжилттай! Нээгдэж байна…';
+                  // Сервер ws_token буцаахгүй — одоогийн нэвтэрсэн токеноороо эрхээ дахин шалгаж нээнэ
+                  setTimeout(function(){ checkAccess().then(function(ok){ if(ok)unlockWs(); else location.reload(); }); },700);
+                }
               }).catch(function(){});
           },3000);
-        }).catch(function(){msg.textContent='Сүлжээний алдаа. Дахин оролдоно уу.';btn.disabled=false;btn.textContent='QPay-аар худалдан авах';});
+        }).catch(function(){msg.style.color='';msg.textContent='Сүлжээний алдаа. Дахин оролдоно уу.';resetBtn();});
     };
     o.querySelector('#wsRestore').onclick=function(ev){ev.preventDefault();
-      var email=(em.value||prompt('Эрх авсан имэйл хаягаа оруулна уу:','')||'').trim().toLowerCase();
+      // Нэвтэрсэн бол имэйлээр биш, токеноороо шалгана
+      if(ls('cm_ws_token')){
+        msg.style.color='';msg.textContent='Шалгаж байна…';
+        checkAccess().then(function(ok){
+          if(ok){unlockWs();return;}
+          var d=WS_ST;
+          if(d&&d.needLogin){ msg.style.color='#5a32d6'; msg.textContent='Эрхээ ашиглахын тулд нууц үгээрээ нэвтэрнэ үү.'; loginHint(); }
+          else if(d&&d.grades&&d.grades.length){ msg.style.color='#b45309'; msg.textContent='Танд '+d.grades.map(function(x){return x.grade;}).join(', ')+' -ийн эрх байна, харин энэ хуудас өөр ангийнх байна.'; }
+          else { msg.style.color=''; msg.textContent='Энэ дансанд идэвхтэй эрх олдсонгүй.'; }
+        });
+        return;
+      }
+      var email=(prompt('Эрх авсан имэйл хаягаа оруулна уу:',ls('cm_last_user')||'')||'').trim().toLowerCase();
       if(!valid(email)){msg.textContent='Зөв имэйл оруулна уу';return;}
       msg.textContent='Шалгаж байна…';
       fetch('/api/qpay?action=wsstatus',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,slug:curSlug()})})

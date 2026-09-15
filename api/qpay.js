@@ -199,7 +199,17 @@ function wsIatOk(d) {
   if (!Number.isFinite(min) || min <= 0) return true;
   return !!d && typeof d.iat === 'number' && d.iat >= min;
 }
-function emailFromToken(tok) { if (!jwtSecret() || !tok) return null; try { var d = jwt.verify(tok, jwtSecret()); if (d && d.ws && !wsIatOk(d)) return null; return d && d.email ? String(d.email).toLowerCase() : null; } catch (e) { return null; } }
+// Ажлын хуудасны (ws:true) токеноос л имэйл гаргана. Тоглоомын токен ({email, role} / {email, id}) ОГТ хүлээн авахгүй:
+// тоглоомын урилгын бүртгэл имэйл баталгаажуулдаггүй тул өөр хүний имэйлээр токен авч болно (H8).
+// Дуудагчид: wsstatus, wheel_spin, ws_ref, ws plan-уудын create — бүгд ажлын хуудасны зам.
+function emailFromToken(tok) {
+  if (!jwtSecret() || !tok || typeof tok !== 'string') return null;
+  try {
+    const d = jwt.verify(tok, jwtSecret(), { algorithms: ['HS256'] });
+    if (!d || d.ws !== true || !wsIatOk(d)) return null;
+    return typeof d.email === 'string' && d.email.trim() ? d.email.trim().toLowerCase() : null;
+  } catch (e) { return null; }
+}
 function isAdmin(req) {
   const auth = req.headers.authorization || req.headers.Authorization || '';
   if (!auth.startsWith('Bearer ') || !jwtSecret()) return false;
@@ -552,8 +562,18 @@ module.exports = async (req, res) => {
     // Invoice үүсгэх
     if (req.method === 'POST' && req.query.action === 'create') {
       // amount-ыг клиентээс АВАХГҮЙ — үнийг зөвхөн сервер тогтооно
-      const { email, plan } = req.body || {};
-      if (!email || typeof email !== 'string') return res.status(400).json({ ok: false, error: 'Missing email' });
+      const plan = (req.body || {}).plan;
+      const isWsPlan = ['wsyear', 'wsmonths', 'wsgrade'].indexOf(plan) >= 0;
+      let email;
+      if (isWsPlan) {
+        // Ажлын хуудасны эрхийг зөвхөн НЭВТЭРСЭН данс худалдан авна (H6): имэйлийг ЗӨВХӨН ws токеноос авна,
+        // body.email-д огт итгэхгүй. Тоглоомын токен хүчингүй (emailFromToken нь ws:true шаардана).
+        email = emailFromToken((req.body || {}).wstoken);
+        if (!email) return res.status(401).json({ ok: false, needLogin: true, error: 'Худалдан авахын тулд эхлээд нэвтэрнэ үү.' });
+      } else {
+        email = (req.body || {}).email;
+        if (!email || typeof email !== 'string') return res.status(400).json({ ok: false, error: 'Missing email' });
+      }
       const emailLc = email.trim().toLowerCase();
       const premiumPlan = premiumPlanNorm(plan);
       if (!premiumPlan && ['wsyear', 'wsmonths', 'wsgrade', 'event'].indexOf(plan) < 0)
@@ -674,7 +694,8 @@ module.exports = async (req, res) => {
             [invoice.invoice_id, invAmount, eventId, emailLc]);
         } catch (e) { console.error('[event invoice link]', e.message); }
       }
-      return res.json({ ok: true, invoice });
+      // ws plan: аль данс руу худалдан авч буйг (токены имэйл) клиентэд буцаана — check-д энэ имэйлийг илгээнэ
+      return res.json(isWsPlan ? { ok: true, invoice, email: emailLc } : { ok: true, invoice });
     }
 
     // Төлбөр шалгах — invoice_id-г ЗААВАЛ серверийн pending мөртэй тулгана.
@@ -695,7 +716,9 @@ module.exports = async (req, res) => {
       if (!row.granted && !(await qpayInvoicePaid(invoiceId, row.amount))) return res.json({ ok: true, paid: false });
       if (wrow) {
         const s = await settleWsOnce(wrow);
-        const out = { ok: true, paid: true, expiry: s.exp.toISOString(), ws_token: wsToken(email) };
+        // ws_token ХЭЗЭЭ Ч буцаахгүй (H6): төлбөр төлсөн нь имэйлийг эзэмшдэгийг батлахгүй. Клиент өөрийн
+        // нэвтэрсэн токеноороо wsstatus-ийг дахин шалгаж хуудсаа нээнэ.
+        const out = { ok: true, paid: true, expiry: s.exp.toISOString() };
         if (wrow.grade) out.grade = wrow.grade;
         return res.json(out);
       }
@@ -1054,10 +1077,9 @@ module.exports = async (req, res) => {
       if (!enabled) return res.json({ ok: true, enabled: false, active: true });
       await ensureWsTable();
       const b = req.body || {};
-      // Имэйлийг найдвартай токеноос (эсвэл сэргээхэд имэйлээр) авах
+      // Имэйлийг ЗӨВХӨН ажлын хуудасны (ws:true) токеноос авна. Тоглоомын токен (b.token) хүлээн авахгүй (H8).
       let email = null;
       if (b.wstoken) email = emailFromToken(b.wstoken);
-      if (!email && b.token) email = emailFromToken(b.token);
       // Зөвхөн имэйлээр (токенгүй) ирсэн хүсэлт эзэмшлийг баталдаггүй — ws_token/active хэзээ ч өгөхгүй, нууц үгээр нэвтрэхийг шаардана
       const byEmail = !email && b.email ? String(b.email).trim().toLowerCase() : null;
       // Энэ хуудас ямар ангид харьяалагдахыг тодорхойлно (нэгээс олон байж болно)
