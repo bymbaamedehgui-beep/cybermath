@@ -16,6 +16,7 @@
 //   phoneHash(local)             → hex16
 //   ipKeys(ip)                   → {ipk, ip24}  (IPv4 бүтэн | IPv6 /64 ; IPv4 /24 | IPv6 /48), HMAC hex16
 //   codeText(purpose, code)      → SMS текст ('verify'|'reset'|'login'), ≤70 тэмдэгт
+//   promoNote()                  → Promise<'' | PROMO_NOTE>  /promo-д идэвхтэй код байвал (sendCode 'verify'-д нэмнэ; throw хийхгүй, 60с кэш)
 //   precheck({ip, email, kind})  → Promise<null | Fail>   данс хайхаас ӨМНӨ; kind 'reg'|'acct' (бусад → 'reg')
 //   sendCode({purpose, phone, email, ip, kind, store, drop}) → Promise<Ok | Fail>
 //                                   store(code) — дуудагч кодыг DB-д бичнэ (throw → SMS_UNAVAILABLE, fetch 0)
@@ -177,7 +178,7 @@ function ipKeys(ip) {
   return { ipk: hmacHex('ip|' + full).slice(0, 16), ip24: hmacHex('ip|' + net).slice(0, 16) };
 }
 
-// Кирилл, ≤70 тэмдэгт (1 хэсэг SMS), эможи/холбоосгүй
+// Кирилл, ≤70 тэмдэгт (1 хэсэг SMS), эможи/холбоосгүй. Үл хамаарах: 'verify' + PROMO_NOTE (2 хэсэг, доор)
 const SMS_TEXT = {
   verify: 'CyberMath бүртгэлийн код: {code}. Хэнд ч бүү хэл. 10 мин.',
   reset: 'CyberMath нууц үг сэргээх код: {code}. Хэнд ч бүү хэл. 10 мин.',
@@ -188,6 +189,41 @@ function codeText(purpose, code) {
   if (!t) throw new Error('sms: unknown purpose');
   return t.replace('{code}', String(code));
 }
+
+// ───────────────────────── промо сануулга (зөвхөн 'verify' SMS) ─────────────────────────
+// cyber-math.com/promo хуудсанд (api/qpay.js ws_promo_public) харагдах идэвхтэй код байвал бүртгэлийн SMS-д нэг мөр нэмнэ.
+// Нөхцөл нь ws_promo_public-ийн WHERE-тэй ИЖИЛ байх ёстой (хуудас хоосон байхад SMS "идэвхтэй" гэж хэлэхгүй).
+// Алдаа / удаашрал SMS-ийг хэзээ ч хаахгүй: асуулт PROMO_QUERY_MS-ээс удаан эсвэл алдаатай бол сануулгагүй илгээнэ.
+// Урт: 57 + 72 = 129 тэмдэгт (UCS-2 2 хэсэг ≤134). SMS_PROMO_NOTE=0 бол унтраана.
+// Android (SmsUsageMonitor) хэсэг бүрийг тоолж ~30-аас хэтэрвэл утсан дээр зөвшөөрөл асууж SMS-ийг гацаадаг тул
+// сануулгатай SMS нь 30 минутын "sms:promo:t" нөөцөөс нэгийг авна: ≤ SMS_PARTS_30MIN_MAX(30) − SMS_30MIN_MAX(25).
+const PROMO_NOTE = '\nХөнгөлөлтийн код идэвхтэй: cyber-math.com/promo сайтаар ороод эдлээрэй.';
+const PROMO_CACHE_MS = 60000;
+const PROMO_QUERY_MS = 1500;
+let _promoCache = null; // {at, has}
+async function promoNote() {
+  if (envStr('SMS_PROMO_NOTE') === '0') return '';
+  const t0 = Date.now();
+  if (_promoCache && t0 - _promoCache.at < PROMO_CACHE_MS) return _promoCache.has ? PROMO_NOTE : '';
+  let timer = null, has = false;
+  try {
+    const q = Promise.resolve(pool.query(
+      `SELECT 1 FROM ws_promos WHERE active = TRUE AND COALESCE(personal, FALSE) = FALSE
+         AND (expires_at IS NULL OR expires_at > NOW()) AND (max_uses IS NULL OR used_count < max_uses) LIMIT 1`));
+    q.catch(function () {}); // хугацаа хэтэрсний дараах rejection-ийг залгина
+    const r = await Promise.race([q, new Promise(function (res) { timer = setTimeout(function () { res(null); }, PROMO_QUERY_MS); })]);
+    has = !!(r && r.rows && r.rows.length); // r=null → timeout
+  } catch (e) {
+    logErr('[sms] promo', e);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+  // алдаа / timeout-ийг ч 60с "байхгүй" гэж кэшлэнэ — DB удаан үед бүртгэл бүр 1.5с хүлээхгүй
+  _promoCache = { at: t0, has: has };
+  return has ? PROMO_NOTE : '';
+}
+function promoCacheReset() { _promoCache = null; } // тест
+function promoPartsMax(L) { return Math.max(0, intEnv('SMS_PARTS_30MIN_MAX', 30) - L.t30); }
 
 // ───────────────────────── хариуны код ба текст ─────────────────────────
 const HTTP = {
@@ -663,6 +699,19 @@ async function sendCode(o) {
     if (s.cap) caps.push({ scope: s.cap.scope, per: s.cap.per, val: s.cap.val, n: n, max: s.max });
   }
 
+  // 3b. Промо сануулга (зөвхөн verify; хэзээ ч throw хийхгүй) — кодоос ӨМНӨ тул асуулт кодын 10 минутаас хасагдахгүй.
+  // 2 хэсэгтэй SMS тул 30 минутын хэсгийн нөөцөөс нэгийг reserved-д авна (алдаа үед rollback буцаана); нөөцгүй / DB алдаа → сануулгагүй.
+  let note = purpose === 'verify' ? await promoNote() : '';
+  if (note) {
+    const pk = 'sms:promo:t:' + P.b;
+    if (!(await hit(pk, T30_WIN))) note = '';
+    else {
+      reserved.push(pk);
+      const used = await count(tKeys('sms:promo:t:', P.b));
+      if (used == null || used > promoPartsMax(L)) { note = ''; reserved.pop(); await decr(pk); }
+    }
+  }
+
   // 4. Код → дуудагч DB-д бичнэ
   const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
   try { await o.store(code); }
@@ -683,7 +732,7 @@ async function sendCode(o) {
   }
 
   // 6. textbee
-  const t = await textbeeSend(p.e164, codeText(purpose, code));
+  const t = await textbeeSend(p.e164, codeText(purpose, code) + note);
   if (t.cls === 'ok') console.log('[sms]', 'ok', t.http, t.ms, masked2);
   else if (t.errName) console.error('[sms]', t.cls, t.http, t.ms, masked2, t.errName);
   else console.error('[sms]', t.cls, t.http, t.ms, masked2);
@@ -819,7 +868,9 @@ module.exports = {
   normalizePhone, maskPhone, maskEmail, fakeMask, phoneHash, ipKeys, codeText,
   precheck, sendCode, markVerified, publicOtpResponse, padTo, mkFail, ERR, failJson, notify,
   status, setPause, deviceStatus, textbeeSend, limits, logErr, safeMsg, ensureSmsTables, ensureUserColumns, maxAccountsPerPhone, trustLegacyPhone,
+  promoNote, PROMO_NOTE,
   // тестэд
+  promoCacheReset,
   _internal: { hit, readCounts, count, decr, periods, tKeys },
 };
 Object.defineProperty(module.exports, 'CONTACT', { enumerable: true, get: contact });

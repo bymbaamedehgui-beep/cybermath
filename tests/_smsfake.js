@@ -251,11 +251,22 @@ async function query(sql, p) {
     Object.assign(r, { pass_hash: p[1], verified: true, code: null, code_exp: null, code_attempts: 0 }); if (!r.phone_verified_at) r.phone_verified_at = new Date(); return { rows: [{ email: r.email }] };
   }
 
+  // _sms.js promoNote — ws_promo_public-тэй ижил нөхцөл (db.promos: {active, personal, expires_at, max_uses, used_count})
+  if (q === 'SELECT 1 FROM ws_promos WHERE active = TRUE AND COALESCE(personal, FALSE) = FALSE AND (expires_at IS NULL OR expires_at > NOW()) AND (max_uses IS NULL OR used_count < max_uses) LIMIT 1') {
+    db.promoQueries = (db.promoQueries || 0) + 1;
+    if (db.promoMode === 'hang') return new Promise(function () {});
+    if (db.promoMode === 'fail') { const e = new Error('relation "ws_promos" does not exist'); e.code = '42P01'; throw e; }
+    const live = (db.promos || []).filter(r => r.active === true && r.personal !== true
+      && (r.expires_at == null || new Date(r.expires_at).getTime() > now())
+      && (r.max_uses == null || r.used_count < r.max_uses));
+    return { rows: live.length ? [{ '?column?': 1 }] : [] };
+  }
+
   // _sms.js ensureUserColumns — каталог шалгалт (хоосон → ALTER-ууд урьдын адил ажиллана)
   if (/^SELECT column_name FROM information_schema\.columns WHERE table_name = 'users' AND column_name = ANY\(\$1\)$/.test(q)) return { rows: [] };
   if (q === "SELECT indexname FROM pg_indexes WHERE tablename = 'users' AND indexname = 'idx_users_phone'") return { rows: [] };
 
-  if (/\b(users|ws_login|rate_limits|sms_log|sms_state|ws_access|ws_grade_access|ws_purchases|ws_pending|ws_event_regs|admin_invites)\b/.test(q)) {
+  if (/\b(users|ws_login|rate_limits|sms_log|sms_state|ws_access|ws_grade_access|ws_purchases|ws_pending|ws_event_regs|admin_invites|ws_promos)\b/.test(q)) {
     db.unknown.push(q);
     throw new Error('mock: unknown SQL');
   }
@@ -333,6 +344,9 @@ function reset() {
   delete process.env.SMS_DISABLED; delete process.env.SMS_DAY_MAX;
   process.env.SMS_PAD_MS = '0';
   process.env.TEXTBEE_API_KEY = FAKE_KEY;
+  db.promos = []; db.promoMode = null; db.promoQueries = 0; delete process.env.SMS_PROMO_NOTE;
+  const smsMod = require.cache[require.resolve(path.join(API, '_sms.js'))];
+  if (smsMod && smsMod.exports && smsMod.exports.promoCacheReset) smsMod.exports.promoCacheReset();
 }
 function clearCooldowns() { for (const k of Array.from(db.rl.keys())) if (/^(sms:em:cd:|sms:ph:cd:|auth:|wscode:)/.test(k)) db.rl.delete(k); }
 function entitle(table, email) { if (!db.entitled.has(table)) db.entitled.set(table, new Set()); db.entitled.get(table).add(email); }
