@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const pool = require('./_db');
-const { sendVerifyEmail } = require('./_email');
+const sms = require('./_sms');
+const tg = require('./_telegram');
 const { validateEmail } = require('./_email_validate');
 const { ensureExpiryCheck } = require('./_premium');
 const { jwtSecret, secretMissing, requireAdmin, rateLimit, clientIp } = require('./_guard');
@@ -11,14 +12,23 @@ const BCRYPT_ROUNDS = 10;
 const MAX_CODE_ATTEMPTS = 5;          // нэг кодонд ногдох буруу оролдлого
 const TOO_MANY = 'Хэт олон оролдлого. Түр хүлээгээд дахин оролдоно уу.';
 
-function signToken(email, role) {
-  // /api/users токен заавал шаарддаг болсон тул Google токентой ижил 30 хоног
-  return jwt.sign({ email: email, role: role }, jwtSecret(), { expiresIn: '30d' });
+function signToken(email, role, tv) {
+  // /api/users токен заавал шаарддаг болсон тул Google токентой ижил 30 хоног.
+  // tv = users.token_version — Google цэвэрлэгээ / нууц үг сэргээлт / админ утас тохируулахад хуучин токен хүчингүй (api/users.js)
+  return jwt.sign({ email: email, role: role, tv: Number(tv) | 0 }, jwtSecret(), { expiresIn: '30d' });
 }
+function roleOf(u) { return u.role || (u.grade === 'teacher' ? 'teacher' : 'student'); }
 
-// 6 оронтой код — crypto санамсаргүй
-function genCode() {
-  return String(crypto.randomInt(100000, 1000000));
+// Нууц үг сэргээх кодыг илгээж болох утас (спек §5.1). SMS кодоор батлагдсан утас, эсвэл
+// SMS-ээс ӨМНӨ имэйлээр батлагдсан (email_unverified=FALSE) дансны хүчинтэй утас. Бусад → null.
+// SMS/урилгаар бүртгүүлж утсаа батлаагүй дансны утсанд итгэхгүй (S7: SMS имэйлийн эзэмшлийг батлахгүй).
+function usablePhone(u) {
+  if (!u) return null;
+  const pn = sms.normalizePhone(u.phone);
+  if (!pn.ok) return null;
+  if (u.phone_verified_at) return pn.local;
+  if (sms.trustLegacyPhone() && u.email_unverified === false) return pn.local;
+  return null;
 }
 
 function safeEqual(a, b) {
@@ -131,6 +141,26 @@ async function recordLoginFail(email, ip) {
   await rateLimit('auth:loginfail:em:' + email, LOGIN_FAIL_EM, LOGIN_FAIL_WINDOW);
 }
 
+// ═══ SMS код (баталгаажуулах / нууц үг сэргээх) — api/_sms.js sendCode-ийн store/drop ═══
+// forReset=false: зөвхөн баталгаажаагүй мөр (бүртгэл), true: зөвхөн баталгаажсан мөр (нууц үг сэргээх)
+function userCodeStore(email, forReset) {
+  return async function (code) {
+    const r = await pool.query(
+      'UPDATE users SET verify_code=$1, verify_expiry=$2, code_attempts=0 WHERE LOWER(email)=LOWER($3) AND '
+        + (forReset ? 'verified IS NOT FALSE' : 'verified IS NOT TRUE') + ' RETURNING id',
+      [code, new Date(Date.now() + 10 * 60 * 1000), email]
+    );
+    if (!r.rows.length) throw new Error('user code store: row missing');
+  };
+}
+function userCodeDrop(email) {
+  return function (code) {
+    return pool.query('UPDATE users SET verify_code=NULL WHERE LOWER(email)=LOWER($1) AND verify_code=$2', [email, code]);
+  };
+}
+// Enumeration-д мэдрэг endpoint (resend/forgot): данс олдоогүй / ашиглах утасгүй / дугаарын квот → бодит илгээлттэй ижил хэлбэр
+function smsAccepted(masked) { return { ok: true, sms: true, masked: masked }; }
+
 // Буруу болон хугацаа дууссан код нэг ижил мессежтэй (хэрэглэгчид хоёр шалтгааныг хоёуланг нь хэлнэ)
 const BAD_CODE_MSG = 'Код буруу эсвэл хугацаа нь дууссан байна';
 function codeError(res, status) {
@@ -143,31 +173,6 @@ function randomToken(len) {
   let out = '';
   for (let i = 0; i < (len || 10); i++) out += chars[crypto.randomInt(chars.length)];
   return out;
-}
-
-// Идэвхтэй НИЙТИЙН урамшууллын код — баталгаажуулах имэйлд хавсаргах (хугацаа/ашиглалт хүчинтэй).
-// is_public=false (FR/багцын, хувийн) кодыг хэзээ ч имэйлээр тараахгүй.
-function promoRewardText(p) {
-  const a = p.reward_amount;
-  if (p.reward_type === 'premium') return 'Premium ' + (a || 30) + ' хоног';
-  if (p.reward_type === 'gems') return a + ' зоос';
-  if (p.reward_type === 'xp') return a + ' XP';
-  if (p.reward_type === 'hearts') return a + ' зүрх';
-  return p.description || 'Урамшуулал';
-}
-async function getActivePromo() {
-  try {
-    const r = await pool.query(
-      `SELECT code, reward_type, reward_amount, description FROM promo_codes
-       WHERE is_public = true
-         AND (expires_at IS NULL OR expires_at > NOW())
-         AND (max_uses IS NULL OR used_count < max_uses)
-       ORDER BY created_at DESC LIMIT 1`
-    );
-    if (!r.rows.length) return null;
-    const p = r.rows[0];
-    return { code: p.code, reward: (p.description || promoRewardText(p)) };
-  } catch (e) { return null; } // promo_codes хүснэгт / is_public багана үүсээгүй бол чимээгүй алгасна
 }
 
 function userPayload(u, token) {
@@ -202,6 +207,9 @@ async function verifyPassword(input, stored) {
   return safeEqual(input, stored);
 }
 
+// users.phone_verified_at / email_unverified / token_version баганыг ашигладаг action-ууд
+const USER_COL_ACTIONS = ['register', 'verify', 'resend', 'verifyResetCode', 'reset', 'resetWithCode', 'forgot', 'sendResetCode', 'adminUserPhone', 'adminSetPhone'];
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
@@ -217,6 +225,7 @@ module.exports = async (req, res) => {
   const ip = clientIp(req);
 
   try {
+    if (USER_COL_ACTIONS.indexOf(action) >= 0) await sms.ensureUserColumns();
     if (action === 'login') {
       if (!email) return res.status(401).json({ ok: false, error: 'И-мэйл эсвэл нууц үг буруу' });
       if (!(await rateLimit('auth:login:ip:' + ip, 100, 900)) || (await loginLocked(email, ip))) {
@@ -234,7 +243,7 @@ module.exports = async (req, res) => {
         return res.status(401).json({ ok: false, error: 'И-мэйл эсвэл нууц үг буруу' });
       }
       if (u.verified === false) {
-        return res.status(403).json({ ok: false, error: 'И-мэйл баталгаажаагүй байна', needVerify: true, email });
+        return res.status(403).json({ ok: false, error: 'Бүртгэл баталгаажаагүй байна', needVerify: true, email });
       }
       // Хуучин plain text password бол bcrypt-ээр шинэчлэх
       if (!u.pass.startsWith('$2')) {
@@ -243,7 +252,7 @@ module.exports = async (req, res) => {
       }
       // Premium хугацаа дууссан эсэхийг шалгаж free болгох
       u = await ensureExpiryCheck(u);
-      const token = signToken(u.email, u.role || (u.grade === 'teacher' ? 'teacher' : 'student'));
+      const token = signToken(u.email, roleOf(u), u.token_version);
       return res.json({ ok: true, user: userPayload(u, token) });
     }
 
@@ -278,17 +287,38 @@ module.exports = async (req, res) => {
 
       await pool.query(`DELETE FROM users WHERE verified=false AND verify_expiry < NOW()`).catch(() => {});
       const exists = await pool.query('SELECT id, verified FROM users WHERE LOWER(email)=LOWER($1)', [email]);
-      if (exists.rows.length) {
-        if (exists.rows[0].verified === false) {
-          await pool.query('DELETE FROM users WHERE LOWER(email)=LOWER($1) AND verified=false', [email]);
-        } else {
-          return res.status(400).json({ ok: false, error: 'И-мэйл бүртгэлтэй байна' });
-        }
+      if (exists.rows.length && exists.rows[0].verified !== false) {
+        return res.status(400).json({ ok: false, error: 'И-мэйл бүртгэлтэй байна' });
       }
       if (!grade && safeRole !== 'teacher') return res.status(400).json({ ok: false, error: 'Ангиа сонгоно уу' });
       if (!pass || pass.length < 6) return res.status(400).json({ ok: false, error: 'Нууц үг 6+ тэмдэгт байх ёстой' });
 
-      const verifyCode = genCode();
+      // Урилгагүй бүртгэлд утас ЗААВАЛ — баталгаажуулах код зөвхөн SMS-ээр явна.
+      // Урилгатай бол заавал биш: хүчинтэй бол нормчилж хадгална, буруу бол хадгалахгүй (ангиар бүртгэлийг хаахгүй;
+      // урилгын утас баталгаажаагүй тул нууц үг сэргээлтэд ашиглагдахгүй — usablePhone).
+      let smsPhone = null;
+      if (!inviteRow) {
+        const pn = sms.normalizePhone(phone);
+        if (!pn.ok) return sms.failJson(res, sms.mkFail(pn.code));
+        smsPhone = pn.local;
+      } else {
+        const pn = sms.normalizePhone(phone);
+        smsPhone = pn.ok ? pn.local : null;
+      }
+      if (!inviteRow) {
+        const pc = await pool.query('SELECT count(*)::int AS n FROM users WHERE phone=$1 AND verified IS NOT FALSE', [smsPhone]);
+        if ((Number(pc.rows[0] && pc.rows[0].n) || 0) >= sms.maxAccountsPerPhone()) return sms.failJson(res, sms.mkFail('PHONE_TOO_MANY'));
+      }
+
+      // SMS квот — хуучин баталгаажаагүй мөрийг устгахаас ӨМНӨ (cooldown үед өмнөх код хүчинтэй үлдэнэ)
+      if (!inviteRow) {
+        const pf = await sms.precheck({ ip, email, kind: 'reg' });
+        if (pf) return sms.failJson(res, pf, { reg: 'game' });
+      }
+      if (exists.rows.length) {
+        await pool.query('DELETE FROM users WHERE LOWER(email)=LOWER($1) AND verified=false', [email]);
+      }
+
       const codeExpiry = new Date(Date.now() + 10 * 60 * 1000);
       const hashedPass = await bcrypt.hash(pass, BCRYPT_ROUNDS);
 
@@ -300,11 +330,14 @@ module.exports = async (req, res) => {
       const finalGradeUsed = (isInvited && inviteRow.grade && safeRole !== 'teacher') ? inviteRow.grade : finalGrade;
       const finalSchoolUsed = (isInvited && inviteRow.school && !school) ? inviteRow.school : (school || null);
 
+      await ensureAttemptsColumn();
+      // Урилгагүй бол verify_code NULL (кодыг sendCode-ийн store бичнэ), verify_expiry — амжилтгүй мөрийг цэвэрлэхэд.
+      // email_unverified=TRUE (урилгатай ч): SMS/урилга имэйлийн эзэмшлийг батлахгүй → Google нэвтрэлт цэвэрлэнэ (S7)
       await pool.query(
-        'INSERT INTO users (email,pass,first_name,last_name,grade,plan,xp,gems,hearts,streak,avatar,verified,verify_code,verify_expiry,aimag,sum,school,phone,role) VALUES (LOWER($1),$2,$3,$4,$5,$6,0,340,5,0,$7,$8,$9,$10,$11,$12,$13,$14,$15)',
+        'INSERT INTO users (email,pass,first_name,last_name,grade,plan,xp,gems,hearts,streak,avatar,verified,verify_code,verify_expiry,aimag,sum,school,phone,role,email_unverified) VALUES (LOWER($1),$2,$3,$4,$5,$6,0,340,5,0,$7,$8,$9,$10,$11,$12,$13,$14,$15,TRUE)',
         [email, hashedPass, firstName, lastName, finalGradeUsed, 'free', 'default',
-         isInvited, isInvited ? null : verifyCode, isInvited ? null : codeExpiry,
-         aimag||null, sum||null, finalSchoolUsed, phone||null, safeRole]
+         isInvited, null, isInvited ? null : codeExpiry,
+         aimag||null, sum||null, finalSchoolUsed, smsPhone, safeRole]
       );
 
       // Урилгаар — SMS/email алгасаж шууд login
@@ -315,14 +348,23 @@ module.exports = async (req, res) => {
         const isT2 = u.role === 'teacher' || u.grade === 'teacher';
         const msg = `✅ <b>Шинэ хэрэглэгч (Урилгаар)</b>\n\n👤 ${(u.last_name||'')} ${(u.first_name||'')}\n📧 ${email}\n${isT2 ? '👨‍🏫 Багш' : '🎓 ' + u.grade + '-р анги'}${u.school ? '\n🏫 ' + u.school : ''}\n🎫 ${inviteToken.slice(0, 8)}…`;
         sendTelegramNotification(msg).catch(()=>{});
-        const token = signToken(u.email, u.role || (u.grade === 'teacher' ? 'teacher' : 'student'));
+        const token = signToken(u.email, roleOf(u), u.token_version);
         return res.json({ ok: true, invited: true, user: userPayload({ ...u, verified: true }, token) });
       }
 
-      // Ердийн бүртгэл — verify code + урамшууллын код хамт илгээх
-      const promo = await getActivePromo();
-      await sendVerifyEmail(email, verifyCode, firstName, promo);
-      return res.json({ ok: true, needVerify: true, email });
+      // Ердийн бүртгэл — баталгаажуулах код ЗӨВХӨН SMS-ээр (имэйл илгээхгүй)
+      const sent = await sms.sendCode({
+        purpose: 'verify', kind: 'reg', phone: smsPhone, email, ip,
+        store: userCodeStore(email, false), drop: userCodeDrop(email),
+      });
+      if (sent.ok) return res.json({ ok: true, needVerify: true, email, sms: true, masked: sent.masked2 });
+      if (sent.code === 'SMS_UNCERTAIN') {
+        // textbee хүлээн авсан байж магадгүй — мөр ба код үлдэнэ, клиент код оруулах алхам руу шилжинэ
+        return sms.failJson(res, sent, { reg: 'game', fields: { needVerify: true, email, sms: true, masked: sms.maskPhone(smsPhone, 2) } });
+      }
+      await pool.query('DELETE FROM users WHERE LOWER(email)=LOWER($1) AND verified=false', [email])
+        .catch(function (e) { sms.logErr('[auth] reg cleanup', e); });
+      return sms.failJson(res, sent, { reg: 'game' });
     }
 
     // Код шалгадаг action-уудад IP-ийн нийт хязгаар (олон имэйл дээр тараан таах)
@@ -339,45 +381,60 @@ module.exports = async (req, res) => {
 
     if (action === 'verify') {
       const r = await pool.query('SELECT * FROM users WHERE LOWER(email)=LOWER($1)', [email]);
-      if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Хэрэглэгч олдсонгүй' });
+      // Олдоогүй = буруу кодтой ижил (enumeration)
+      if (!r.rows.length) return res.status(400).json({ ok: false, error: BAD_CODE_MSG });
       const u = r.rows[0];
       if (u.verified) return res.json({ ok: true, alreadyVerified: true });
       if (!code) return res.status(400).json({ ok: false, error: 'Код буруу байна' });
       const st = await checkCode(email, code);
       if (st !== 'ok') return codeError(res, st);
-      await pool.query('UPDATE users SET verified=true, verify_code=NULL, verify_expiry=NULL WHERE LOWER(email)=LOWER($1)', [email]);
+      // SMS код утсыг баталсан ч имэйлийг батлахгүй: email_unverified=TRUE ҮРГЭЛЖ (SMS-ээс өмнөх unverified мөр ч, H9/S7)
+      await pool.query('UPDATE users SET verified=true, verify_code=NULL, verify_expiry=NULL, phone_verified_at=NOW(), email_unverified=TRUE WHERE LOWER(email)=LOWER($1)', [email]);
+      await sms.markVerified(u.phone);
       const isT = u.role === 'teacher' || u.grade === 'teacher';
-      const msg = `✅ <b>Шинэ хэрэглэгч баталгаажлаа</b>\n\n👤 ${(u.last_name||'')} ${(u.first_name||'')}\n📧 ${email}\n${isT ? '👨‍🏫 Багш' : '🎓 ' + u.grade + '-р анги'}${u.school ? '\n🏫 ' + u.school : ''}`;
+      const msg = `✅ <b>Шинэ хэрэглэгч баталгаажлаа (SMS)</b>\n\n👤 ${(u.last_name||'')} ${(u.first_name||'')}\n📧 ${email}\n${isT ? '👨‍🏫 Багш (имэйл баталгаажаагүй)' : '🎓 ' + u.grade + '-р анги'}${u.school ? '\n🏫 ' + u.school : ''}`;
       sendTelegramNotification(msg).catch(()=>{});
-      const token = signToken(u.email, u.role || (u.grade === 'teacher' ? 'teacher' : 'student'));
+      const token = signToken(u.email, roleOf(u), u.token_version);
       return res.json({ ok: true, user: userPayload({ ...u, verified: true }, token) });
     }
 
     if (action === 'resend') {
-      if (!email) return res.status(404).json({ ok: false });
+      if (!email) return res.status(400).json({ ok: false, error: 'Зөв и-мэйл оруулна уу' });
       if (!(await rateLimit('auth:resend:ip:' + ip, 30, 3600)) || !(await rateLimit('auth:resend:em:' + email, 3, 600))
           || !(await rateLimit('auth:resend:em:day:' + email, 10, 86400))) {
         return res.status(429).json({ ok: false, error: TOO_MANY });
       }
-      const r = await pool.query('SELECT * FROM users WHERE LOWER(email)=LOWER($1)', [email]);
-      if (!r.rows.length) return res.status(404).json({ ok: false });
-      if (r.rows[0].verified) return res.json({ ok: true, alreadyVerified: true });
+      const t0 = Date.now();
+      const r = await pool.query('SELECT verified, phone FROM users WHERE LOWER(email)=LOWER($1)', [email]);
+      // Баталгаажсан данс SMS квот зарцуулахгүй (SMS унтарсан үед ч production-той ижил хариу)
+      if (r.rows.length && r.rows[0].verified) return res.json({ ok: true, alreadyVerified: true });
+      const pf = await sms.precheck({ ip, email, kind: 'reg' });
+      if (pf) return sms.failJson(res, pf, { reg: 'game' });
+      const pn = r.rows.length ? sms.normalizePhone(r.rows[0].phone) : { ok: false };
+      if (!pn.ok) {
+        // Олдоогүй / утас хүчингүй → бодит илгээлттэй ижил хэлбэр (enumeration)
+        await sms.padTo(t0);
+        return res.json(smsAccepted(sms.fakeMask(email)));
+      }
       await ensureAttemptsColumn();
-      const verifyCode = genCode();
-      const codeExpiry = new Date(Date.now() + 10 * 60 * 1000);
-      await pool.query('UPDATE users SET verify_code=$1, verify_expiry=$2, code_attempts=0 WHERE LOWER(email)=LOWER($3)', [verifyCode, codeExpiry, email]);
-      const promoR = await getActivePromo();
-      await sendVerifyEmail(email, verifyCode, r.rows[0].first_name, promoR);
-      return res.json({ ok: true });
+      const sent = await sms.sendCode({
+        purpose: 'verify', kind: 'reg', phone: pn.local, email, ip,
+        store: userCodeStore(email, false), drop: userCodeDrop(email),
+      });
+      if (sent.ok) return res.json(smsAccepted(sent.masked2));
+      if (sent.phoneQuota) { await sms.padTo(t0); return res.json(smsAccepted(sms.fakeMask(email))); }
+      return sms.failJson(res, sent, { reg: 'game' });
     }
 
     if (action === 'verifyResetCode') {
-      // Forgot password flow — кодыг л шалгана (нууц үг шинэчилэхгүй)
-      const r = await pool.query('SELECT 1 FROM users WHERE LOWER(email)=LOWER($1)', [email]);
-      if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Хэрэглэгч олдсонгүй' });
+      // Forgot password flow — кодыг л шалгана (нууц үг шинэчилэхгүй).
+      // Олдоогүй / баталгаажаагүй мөр = буруу код (бүртгэлийн кодоор нууц үг сэргээхгүй)
+      const r = await pool.query('SELECT phone, verified FROM users WHERE LOWER(email)=LOWER($1)', [email]);
+      if (!r.rows.length || r.rows[0].verified === false) return res.status(400).json({ ok: false, error: BAD_CODE_MSG });
       if (!code) return res.status(400).json({ ok: false, error: 'Код буруу байна' });
       const st = await checkCode(email, code);
       if (st !== 'ok') return codeError(res, st);
+      await sms.markVerified(r.rows[0].phone);
       return res.json({ ok: true });
     }
 
@@ -387,35 +444,105 @@ module.exports = async (req, res) => {
       const isAdmin = action === 'reset' && requireAdmin(req);
       if (!isAdmin && !code) return res.status(400).json({ ok: false, error: 'Баталгаажуулах код шаардлагатай' });
       if (!newPass || newPass.length < 6) return res.status(400).json({ ok: false, error: 'Нууц үг 6+ тэмдэгт' });
-      const r = await pool.query('SELECT 1 FROM users WHERE LOWER(email)=LOWER($1)', [email]);
-      if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Хэрэглэгч олдсонгүй' });
+      const r = await pool.query('SELECT phone, verified, role, grade FROM users WHERE LOWER(email)=LOWER($1)', [email]);
+      if (isAdmin && !r.rows.length) return res.status(404).json({ ok: false, error: 'Хэрэглэгч олдсонгүй' });
+      if (!isAdmin && (!r.rows.length || r.rows[0].verified === false)) return res.status(400).json({ ok: false, error: BAD_CODE_MSG });
       if (!isAdmin) {
         const st = await checkCode(email, code);
         if (st !== 'ok') return codeError(res, st);
       }
       const hashedPass = await bcrypt.hash(newPass, BCRYPT_ROUNDS);
-      await pool.query('UPDATE users SET pass=$1, verify_code=NULL, verify_expiry=NULL WHERE LOWER(email)=LOWER($2)', [hashedPass, email]);
+      // token_version+1 → бусад төхөөрөмжийн (халдагчийн) хуучин JWT хүчингүй
+      if (isAdmin) {
+        await pool.query('UPDATE users SET pass=$1, verify_code=NULL, verify_expiry=NULL, token_version=COALESCE(token_version,0)+1 WHERE LOWER(email)=LOWER($2)', [hashedPass, email]);
+      } else {
+        // Код usablePhone руу очсон тул тэр утас батлагдсан
+        await pool.query('UPDATE users SET pass=$1, verify_code=NULL, verify_expiry=NULL, phone_verified_at=COALESCE(phone_verified_at, NOW()), token_version=COALESCE(token_version,0)+1 WHERE LOWER(email)=LOWER($2)', [hashedPass, email]);
+        await sms.markVerified(r.rows[0].phone);
+        const u = r.rows[0];
+        if (u.role === 'teacher' || u.grade === 'teacher') {
+          tg.sendTelegram('Багшийн нууц үг SMS-ээр сэргээгдлээ: ' + sms.maskEmail(email)).catch(() => {});
+        }
+      }
       return res.json({ ok: true });
     }
 
     if (action === 'forgot' || action === 'sendResetCode') {
-      // Forgot password — code илгээх
-      if (!email) return res.json({ ok: true });
+      // Forgot password — код ЗӨВХӨН дансны итгэмжлэгдсэн утас руу SMS-ээр (usablePhone)
+      if (!email) return res.status(400).json({ ok: false, error: 'Зөв и-мэйл оруулна уу' });
       if (!(await rateLimit('auth:forgot:ip:' + ip, 20, 3600)) || !(await rateLimit('auth:forgot:em:' + email, 3, 900))
           || !(await rateLimit('auth:forgot:em:day:' + email, 10, 86400))) {
         return res.status(429).json({ ok: false, error: TOO_MANY });
       }
-      const r = await pool.query('SELECT first_name FROM users WHERE LOWER(email)=LOWER($1)', [email]);
-      if (!r.rows.length) {
-        // Аюулгүйн үүднээс хэрэглэгч байгаа эсэхийг хэлэхгүй
-        return res.json({ ok: true });
+      const t0 = Date.now();
+      // SMS квот данс хайхаас ӨМНӨ — бүртгэлтэй эсэхээс үл хамааран ижил тоологдоно
+      const pf = await sms.precheck({ ip, email, kind: 'acct' });
+      if (pf) return sms.failJson(res, pf);
+      const r = await pool.query('SELECT phone, phone_verified_at, email_unverified FROM users WHERE LOWER(email)=LOWER($1) AND verified IS NOT FALSE', [email]);
+      const dest = r.rows.length ? usablePhone(r.rows[0]) : null;
+      if (!dest) {
+        // Олдоогүй / ашиглах утасгүй → хэрэглэгч байгаа эсэхийг хэлэхгүй: бодит илгээлттэй ижил хэлбэр, ойролцоо хугацаа
+        await sms.padTo(t0);
+        return res.json(smsAccepted(sms.fakeMask(email)));
       }
       await ensureAttemptsColumn();
-      const verifyCode = genCode();
-      const codeExpiry = new Date(Date.now() + 10 * 60 * 1000);
-      await pool.query('UPDATE users SET verify_code=$1, verify_expiry=$2, code_attempts=0 WHERE LOWER(email)=LOWER($3)', [verifyCode, codeExpiry, email]);
-      await sendVerifyEmail(email, verifyCode, r.rows[0].first_name);
-      return res.json({ ok: true });
+      const sent = await sms.sendCode({
+        purpose: 'reset', kind: 'acct', phone: dest, email, ip,
+        store: userCodeStore(email, true), drop: userCodeDrop(email),
+      });
+      if (sent.ok) return res.json(smsAccepted(sent.masked2));
+      if (sent.phoneQuota) {
+        // Дугаарын cooldown/өдрийн квот: өмнөх код хүчинтэй хэвээр; бүртгэлгүй имэйлийн хариутай ижил хэлбэр (спек S1 үл хамаарах)
+        await sms.padTo(t0);
+        return res.json(smsAccepted(sms.maskPhone(dest, 2)));
+      }
+      return sms.failJson(res, sent);
+    }
+
+    // ═══ АДМИН: хэрэглэгчийн утас (SMS) ба SMS төлөв ═══
+    if (action === 'adminUserPhone' || action === 'adminSetPhone' || action === 'smsStatus'
+        || action === 'smsPause' || action === 'smsResume' || action === 'smsDevice') {
+      if (!requireAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
+      if (action === 'smsStatus') return res.json({ ok: true, status: await sms.status() });
+      if (action === 'smsDevice') return res.json({ ok: true, device: await sms.deviceStatus() });
+      if (action === 'smsPause') {
+        const min = parseInt((req.body || {}).minutes, 10);
+        if (!(min >= 1 && min <= 1440)) return res.status(400).json({ ok: false, error: 'minutes 1..1440' });
+        const until = Math.floor(Date.now() / 1000) + min * 60;
+        await sms.setPause(until);
+        tg.sendTelegram('SMS түр зогсоов: ' + min + ' минут (админ)').catch(() => {});
+        return res.json({ ok: true, paused_until: until });
+      }
+      if (action === 'smsResume') {
+        await sms.setPause(null);
+        tg.sendTelegram('SMS дахин асаав (админ)').catch(() => {});
+        return res.json({ ok: true });
+      }
+      if (!email) return res.status(400).json({ ok: false, error: 'email заавал' });
+      if (action === 'adminUserPhone') {
+        const r = await pool.query('SELECT email, phone, phone_verified_at, verified, pass, email_unverified FROM users WHERE LOWER(email)=LOWER($1)', [email]);
+        if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Хэрэглэгч олдсонгүй' });
+        const u = r.rows[0];
+        return res.json({ ok: true, email: u.email, phone: u.phone || null, phone_verified_at: u.phone_verified_at || null,
+          verified: u.verified !== false, google: u.pass === 'GOOGLE_OAUTH', email_unverified: u.email_unverified === true,
+          usable: !!usablePhone(u) });
+      }
+      // adminSetPhone: админ хэрэглэгчтэй ТЭР дугаараар ярьж баталгаажуулсны дараа (runbook §8). null/'' → арилгана
+      const raw = (req.body || {}).phone;
+      let local = null;
+      if (!(raw == null || String(raw).trim() === '')) {
+        const pn = sms.normalizePhone(raw);
+        if (!pn.ok) return sms.failJson(res, sms.mkFail(pn.code));
+        local = pn.local;
+      }
+      const up = await pool.query(
+        // $3 тусдаа boolean: phone VARCHAR бол $2-г text болгож cast хийхэд 42P08 (inconsistent types) өгөхөөс сэргийлнэ
+        'UPDATE users SET phone=$2, phone_verified_at=(CASE WHEN $3::boolean THEN NOW() ELSE NULL END), verify_code=NULL, verify_expiry=NULL, token_version=COALESCE(token_version,0)+1 WHERE LOWER(email)=LOWER($1) RETURNING email',
+        [email, local, local != null]
+      );
+      if (!up.rows.length) return res.status(404).json({ ok: false, error: 'Хэрэглэгч олдсонгүй' });
+      tg.sendTelegram('Админ утас тохируулав: ' + sms.maskEmail(email) + ' → ' + (local ? sms.maskPhone(local, 2) : '(арилгав)')).catch(() => {});
+      return res.json({ ok: true, email: up.rows[0].email, phone: local });
     }
 
     // ═══ АДМИН УРИЛГА ═══
@@ -492,7 +619,7 @@ module.exports = async (req, res) => {
 
     return res.status(400).json({ ok: false, error: 'Unknown action' });
   } catch (e) {
-    console.error('Auth error:', e);
+    sms.logErr('[auth]', e);
     return res.status(500).json({ ok: false, error: 'Серверийн алдаа' });
   }
 };

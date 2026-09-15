@@ -106,6 +106,7 @@ function showPage(name, btn) {
   if (name === 'grouprequest') loadGroupRequests();
   if (name === 'premium') loadPremiumUsers();
   if (name === 'wssales') loadWsSales();
+  if (name === 'smsphone') loadSmsStatus();
   if (name === 'stats') loadAllStats();
 }
 
@@ -120,6 +121,90 @@ function wsPost(action,body){
 function wsPostW(action,body){
   var b=Object.assign({action:action},body||{});
   return adminFetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(function(r){return r.json();});
+}
+// ─── Утас (SMS): SMS төлөв + хэрэглэгчийн утсыг баталгаажуулж тохируулах (/api/auth, /api/worksheets) ───
+function authPostA(action,body){
+  var b=Object.assign({action:action},body||{});
+  return adminFetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(function(r){return r.json();});
+}
+function spMsg(id,ok,text){var el=document.getElementById(id);if(!el)return;el.style.color=ok?'#16a34a':'#dc2626';el.textContent=text;}
+function spRow(k,v){return '<div><span style="color:var(--muted)">'+wsEsc(k)+':</span> <b>'+wsEsc(v)+'</b></div>';}
+function loadSmsStatus(){
+  var el=document.getElementById('sms-status'); if(!el)return;
+  el.textContent='Ачаалж байна…';
+  authPostA('smsStatus').then(function(d){
+    if(!d||!d.ok){el.textContent='Алдаа: '+((d&&d.error)||'');return;}
+    var s=d.status||{},f=function(x){return x?(x.sent+' / '+x.max):'-';};
+    var errs=Object.keys(s.errors24h||{}).map(function(k){return k+': '+s.errors24h[k];}).join(', ')||'байхгүй';
+    el.innerHTML=spRow('Тохиргоо',(s.configured?'бэлэн':'TEXTBEE_API_KEY алга')+(s.device_id?'':' · TEXTBEE_DEVICE_ID алга')+(s.disabled?' · SMS_DISABLED=1':''))
+      +spRow('Түр зогсоолт',s.paused_until?wsDate(s.paused_until*1000)+' хүртэл':'үгүй')
+      +spRow('Өнөөдөр',f(s.day))+spRow('Өнөөдөр (бүртгэл)',f(s.reg_day))
+      +spRow('Сүүлийн 30 мин',f(s.last30m))+spRow('Энэ сар',f(s.month))+spRow('Энэ сар (бүртгэл)',f(s.reg_month))
+      +spRow('24 цагийн алдаа',errs)+spRow('30 мин дотор баталгаажаагүй код',s.unverified30m||0);
+  }).catch(function(){el.textContent='Сервертэй холбогдоход алдаа гарлаа';});
+}
+function smsPause(){
+  var m=parseInt((document.getElementById('sms-pause-min')||{}).value,10);
+  if(!(m>=1&&m<=1440)){alert('1-1440 минут');return;}
+  if(!confirm(m+' минут SMS код илгээхийг зогсоох уу? Энэ хугацаанд бүртгэл/нууц үг сэргээлт ажиллахгүй.'))return;
+  authPostA('smsPause',{minutes:m}).then(function(){loadSmsStatus();}).catch(function(){});
+}
+function smsResume(){ authPostA('smsResume').then(function(){loadSmsStatus();}).catch(function(){}); }
+function smsDevice(){
+  var el=document.getElementById('sms-device'); if(!el)return;
+  el.textContent='Шалгаж байна…';
+  authPostA('smsDevice').then(function(d){
+    var v=d&&d.device;
+    if(!v){el.textContent='Алдаа';return;}
+    if(v.unsupported){el.textContent='textbee төхөөрөмжийн төлөвийг API-аас авах боломжгүй';return;}
+    if(!v.ok){el.textContent='Алдаа: '+(v.cls||'')+(v.http?' (HTTP '+v.http+')':'');return;}
+    el.innerHTML=(v.devices||[]).map(function(x){return spRow(x.name||'төхөөрөмж',(x.enabled===false?'идэвхгүй':'идэвхтэй')+(x.last_heartbeat?' · '+wsDate(x.last_heartbeat):''));}).join('')||'Төхөөрөмж алга';
+  }).catch(function(){el.textContent='Сервертэй холбогдоход алдаа гарлаа';});
+}
+function spGameLookup(){
+  var email=(document.getElementById('sp-g-email').value||'').trim().toLowerCase(), info=document.getElementById('sp-g-info');
+  if(!email){spMsg('sp-g-msg',false,'Имэйл оруулна уу');return;}
+  info.textContent='Хайж байна…';
+  authPostA('adminUserPhone',{email:email}).then(function(d){
+    if(!d||!d.ok){info.textContent='';spMsg('sp-g-msg',false,(d&&d.error)||'Олдсонгүй');return;}
+    spMsg('sp-g-msg',true,'');
+    info.innerHTML=spRow('Утас',d.phone||'-')+spRow('Утас баталгаажсан',d.phone_verified_at?wsDate(d.phone_verified_at):'үгүй')
+      +spRow('Сэргээх код явах эсэх',d.usable?'тийм':'үгүй')+spRow('Данс баталгаажсан',d.verified?'тийм':'үгүй')
+      +spRow('Google данс',d.google?'тийм':'үгүй')+spRow('Имэйл батлагдаагүй (SMS/урилга)',d.email_unverified?'тийм':'үгүй');
+    document.getElementById('sp-g-phone').value=d.phone||'';
+  }).catch(function(){info.textContent='';spMsg('sp-g-msg',false,'Сервертэй холбогдоход алдаа гарлаа');});
+}
+function spGameSet(){
+  var email=(document.getElementById('sp-g-email').value||'').trim().toLowerCase(), phone=(document.getElementById('sp-g-phone').value||'').trim();
+  if(!email){spMsg('sp-g-msg',false,'Имэйл оруулна уу');return;}
+  if(!confirm((phone?('Утсыг '+phone+' болгох уу?'):'Утсыг арилгах уу?')+'\nХэрэглэгчтэй тэр дугаараар ярьж баталгаажуулсан байх ёстой. Хэрэглэгч бүх төхөөрөмжөөс гарна.'))return;
+  authPostA('adminSetPhone',{email:email,phone:phone||null}).then(function(d){
+    if(d&&d.ok){spMsg('sp-g-msg',true,'Хадгаллаа. Хэрэглэгч «Нууц үг сэргээх»-ээр орно.');spGameLookup();}
+    else spMsg('sp-g-msg',false,(d&&d.error)||'Алдаа');
+  }).catch(function(){spMsg('sp-g-msg',false,'Сервертэй холбогдоход алдаа гарлаа');});
+}
+function spWsLookup(){
+  var email=(document.getElementById('sp-w-email').value||'').trim().toLowerCase(), info=document.getElementById('sp-w-info');
+  if(!email){spMsg('sp-w-msg',false,'Имэйл оруулна уу');return;}
+  info.textContent='Хайж байна…';
+  wsPostW('ws_admin_phone',{email:email}).then(function(d){
+    if(!d||!d.ok){info.textContent='';spMsg('sp-w-msg',false,(d&&d.error)||'Алдаа');return;}
+    spMsg('sp-w-msg',true,'');
+    info.innerHTML=spRow('Данс',d.exists?(d.verified?'баталгаажсан':(d.prepared?'админ бэлтгэсэн':'баталгаажаагүй')):'байхгүй')
+      +spRow('Эрх (худалдан авалт/олголт)',d.entitled==null?'шалгаж чадсангүй':(d.entitled?'тийм':'үгүй'))
+      +spRow('Утас',d.phone||'-')+spRow('Утас баталгаажсан',d.phone_verified_at?wsDate(d.phone_verified_at):'үгүй')
+      +spRow('Сэргээх код явах эсэх',d.usable?'тийм':'үгүй');
+    document.getElementById('sp-w-phone').value=d.phone||'';
+  }).catch(function(){info.textContent='';spMsg('sp-w-msg',false,'Сервертэй холбогдоход алдаа гарлаа');});
+}
+function spWsSet(){
+  var email=(document.getElementById('sp-w-email').value||'').trim().toLowerCase(), phone=(document.getElementById('sp-w-phone').value||'').trim();
+  if(!email){spMsg('sp-w-msg',false,'Имэйл оруулна уу');return;}
+  if(!confirm((phone?('Утсыг '+phone+' болгох уу?'):'Утсыг арилгах уу?')+'\nХэрэглэгчтэй тэр дугаараар ярьж, худалдан авалтыг нь тулгаж баталгаажуулсан байх ёстой.'))return;
+  wsPostW('ws_admin_set_phone',{email:email,phone:phone||null}).then(function(d){
+    if(d&&d.ok){spMsg('sp-w-msg',true,d.phone?(d.verified?'Хадгаллаа.':'Хадгаллаа. Хэрэглэгч «Нууц үг мартсан?»-аар код авч нэвтэрнэ.'):'Утас арилгалаа.');spWsLookup();}
+    else spMsg('sp-w-msg',false,(d&&d.error)||'Алдаа');
+  }).catch(function(){spMsg('sp-w-msg',false,'Сервертэй холбогдоход алдаа гарлаа');});
 }
 window.loadWsSales = async function(){
   var pl=document.getElementById('ws-promo-list'); if(pl)pl.innerHTML='<div style="color:var(--muted);padding:10px;">Ачааллаж байна…</div>';
@@ -1851,6 +1936,10 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
         <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M12 2C6.5 2 2 6.5 2 12C2 17.5 6.5 22 12 22C17.5 22 22 17.5 22 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M17 2V8H23" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 8V12L15 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
         Нууц үг сэргээх
       </button>
+      <button class="nav-item" onclick="showPage('smsphone',this)">
+        <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><rect x="6" y="2" width="12" height="20" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M10.5 18.5h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Утас (SMS)
+      </button>
       <div class="nav-section">Дасгалын төв</div>
       <button class="nav-item" onclick="showPage('wssales',this)">
         <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><rect x="3" y="4" width="18" height="16" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M3 9h18M8 14h5M8 17h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -2336,6 +2425,39 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
           </div>
           <button class="add-btn" onclick="doAdminReset()" style="width:100%;">Нууц үг шинэчлэх</button>
           <div id="reset-result" class="reset-result"></div>
+        </div>
+      </div>
+
+      <!-- Утас (SMS) -->
+      <div class="page" id="page-smsphone" style="display:none;">
+        <div class="page-title">Утас (SMS)</div>
+        <div class="page-sub">SMS кодын төлөв ба хэрэглэгчийн утас. Утас тохируулахаас өмнө хэрэглэгчийн хэлсэн дугаар руу залгаж нэр, анги, худалдан авалтыг тулгана.</div>
+        <div class="reset-form" style="max-width:640px;margin-bottom:16px;">
+          <div class="adm-label" style="margin-bottom:8px;">SMS төлөв</div>
+          <div id="sms-status" style="font-size:0.85rem;line-height:1.7;color:var(--text);">-</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px;">
+            <button class="add-btn" onclick="loadSmsStatus()">Шинэчлэх</button>
+            <input id="sms-pause-min" type="number" min="1" max="1440" value="30" class="adm-input" style="width:90px;">
+            <button class="add-btn" onclick="smsPause()">Түр зогсоох (мин)</button>
+            <button class="add-btn" onclick="smsResume()">Дахин асаах</button>
+            <button class="add-btn" onclick="smsDevice()">Төхөөрөмжийн төлөв</button>
+          </div>
+          <div id="sms-device" style="font-size:0.85rem;line-height:1.7;margin-top:10px;color:var(--text);"></div>
+        </div>
+        <div class="reset-form" style="max-width:640px;margin-bottom:16px;">
+          <div class="adm-label">Тоглоомын данс</div>
+          <div style="display:flex;gap:8px;margin:8px 0;"><input id="sp-g-email" type="email" class="adm-input" placeholder="user@example.com"><button class="add-btn" onclick="spGameLookup()">Хайх</button></div>
+          <div id="sp-g-info" style="font-size:0.85rem;line-height:1.7;color:var(--text);"></div>
+          <div style="display:flex;gap:8px;margin:8px 0;"><input id="sp-g-phone" type="tel" class="adm-input" placeholder="99XXXXXX (хоосон = арилгах)"><button class="add-btn" onclick="spGameSet()">Хадгалах</button></div>
+          <div id="sp-g-msg" style="font-size:0.85rem;font-weight:700;min-height:1em;"></div>
+        </div>
+        <div class="reset-form" style="max-width:640px;margin-bottom:16px;">
+          <div class="adm-label">Дасгалын төвийн данс</div>
+          <div style="font-size:0.78rem;color:var(--muted);margin-top:4px;">Эрх худалдаж авсан боловч данс нь баталгаажаагүй (NEED_ADMIN) хэрэглэгч: утсыг тохируулахад данс бэлтгэгдэж, хэрэглэгч «Нууц үг мартсан?»-аар орно.</div>
+          <div style="display:flex;gap:8px;margin:8px 0;"><input id="sp-w-email" type="email" class="adm-input" placeholder="user@example.com"><button class="add-btn" onclick="spWsLookup()">Хайх</button></div>
+          <div id="sp-w-info" style="font-size:0.85rem;line-height:1.7;color:var(--text);"></div>
+          <div style="display:flex;gap:8px;margin:8px 0;"><input id="sp-w-phone" type="tel" class="adm-input" placeholder="99XXXXXX (хоосон = арилгах)"><button class="add-btn" onclick="spWsSet()">Хадгалах</button></div>
+          <div id="sp-w-msg" style="font-size:0.85rem;font-weight:700;min-height:1em;"></div>
         </div>
       </div>
 

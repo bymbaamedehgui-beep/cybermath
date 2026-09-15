@@ -2,19 +2,32 @@ const pool = require('./_db');
 const { sendPremiumEmail, sendFreeEmail } = require('./_email');
 const { ensureExpiryCheck } = require('./_premium');
 const guard = require('./_guard');
+const sms = require('./_sms');
 
 // Токен ЗААВАЛ (Bearer JWT): админ эсвэл decoded.email === requestedEmail.
 // Токенгүй (legacy) замыг хаасан — 401. ws:true (ажлын хуудасны) токеныг хүлээн авахгүй.
-function checkUserAccess(req, requestedEmail) {
+async function checkUserAccess(req, requestedEmail) {
   const decoded = guard.verifyBearer(req);
   if (!decoded) return { ok: false, status: 401, error: 'Нэвтрэх эрх буруу. Дахин нэвтэрнэ үү.' };
   if (decoded.admin === true) return { ok: true, isAdmin: true };
   // uid — api/shop.js (NOMAD GEAR) токен; secret давхцсан ч тоглоомын хэрэглэгч гэж хүлээн авахгүй
   if (decoded.ws || decoded.uid !== undefined || typeof decoded.email !== 'string') return { ok: false, status: 401, error: 'Нэвтрэх эрх буруу. Дахин нэвтэрнэ үү.' };
-  if (decoded.email.trim().toLowerCase() !== String(requestedEmail || '').trim().toLowerCase()) {
+  const email = decoded.email.trim().toLowerCase();
+  if (email !== String(requestedEmail || '').trim().toLowerCase()) {
     return { ok: false, status: 403, error: 'Зөвхөн өөрийнхөө өгөгдлийг харна' };
   }
-  return { ok: true, email: decoded.email.trim().toLowerCase(), role: decoded.role };
+  // token_version: Google цэвэрлэгээ / нууц үг сэргээлт / админ утас тохируулсны дараа хуучин JWT хүчингүй (tv-гүй хуучин токен = 0)
+  try {
+    await sms.ensureUserColumns();
+    const r = await pool.query('SELECT token_version FROM users WHERE LOWER(email)=LOWER($1)', [email]);
+    if (r.rows.length && (Number(decoded.tv) | 0) !== (Number(r.rows[0].token_version) | 0)) {
+      return { ok: false, status: 401, code: 'TOKEN_STALE', error: sms.ERR('TOKEN_STALE') };
+    }
+  } catch (e) {
+    sms.logErr('[users tv]', e);
+    return { ok: false, status: 503, error: 'Сервер түр ажиллахгүй байна. Дахин оролдоно уу.' };
+  }
+  return { ok: true, email: email, role: decoded.role };
 }
 function requireAdmin(req) {
   if (!guard.requireAdmin(req)) return { ok: false, error: 'Зөвхөн админ' };
@@ -107,8 +120,8 @@ module.exports = async (req, res) => {
       if (req.query && req.query.me) {
         const email = String(req.query.me).trim().toLowerCase();
         // Токен заавал — өөрийн имэйл эсвэл админ
-        const meAccess = checkUserAccess(req, email);
-        if (!meAccess.ok) return res.status(meAccess.status).json({ ok: false, error: meAccess.error });
+        const meAccess = await checkUserAccess(req, email);
+        if (!meAccess.ok) return res.status(meAccess.status).json({ ok: false, code: meAccess.code, error: meAccess.error });
         const r = await pool.query('SELECT * FROM users WHERE LOWER(email)=LOWER($1)', [email]);
         if (!r.rows.length) return res.json({ ok: false, error: 'User олдсонгүй' });
         let u = r.rows[0];
@@ -247,8 +260,8 @@ module.exports = async (req, res) => {
       req.body.email = email;
 
       // Auth шалгалт — токен ЗААВАЛ, email-тэй таарах (эсвэл админ)
-      const access = checkUserAccess(req, email);
-      if (!access.ok) return res.status(access.status).json({ ok: false, error: access.error });
+      const access = await checkUserAccess(req, email);
+      if (!access.ok) return res.status(access.status).json({ ok: false, code: access.code, error: access.error });
 
       // Багшаас assignChallenge гэх мэт нь өөр хэрэглэгчид нөлөөлдөг —
       // action бүр ангийн эзэмшлийг (classrooms.teacher_email) өөрөө шалгана.

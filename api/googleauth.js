@@ -3,6 +3,8 @@ const pool = require('./_db');
 const jwt = require('jsonwebtoken');
 const { ensureExpiryCheck } = require('./_premium');
 const { jwtSecret, secretMissing } = require('./_guard');
+const sms = require('./_sms');
+const tg = require('./_telegram');
 
 // Google ID token-ийг Google-ийн нийтийн түлхүүрээр (JWKS, RS256) гарын үсгийг нь шалгана.
 // Нэмэлт npm хамааралгүй: JWKS-ийг татаж кэшлээд crypto.createPublicKey + jwt.verify.
@@ -106,10 +108,34 @@ module.exports = async (req, res) => {
     const picture = payload.picture || null;
 
     // Хэрэглэгч байгаа эсэхийг шалгах
+    await sms.ensureUserColumns();
     const r = await pool.query('SELECT * FROM users WHERE LOWER(email)=LOWER($1)', [email]);
     let user;
     if (r.rows.length) {
       user = r.rows[0];
+      // S7: SMS/урилгаар бүртгэгдсэн (имэйлийн эзэмшил батлагдаагүй) мөр. Google имэйлийг баталсан тул жинхэнэ эзэн нь энэ хүн:
+      // урьдчилан эзэлсэн хүний нууц үг, утас, хүлээгдэж буй кодыг арилгаж, token_version+1-ээр хуучин JWT-г хүчингүй болгоно.
+      if (user.email_unverified === true) {
+        if (user.pass !== 'GOOGLE_OAUTH') {
+          const cl = await pool.query(
+            `UPDATE users SET pass='GOOGLE_OAUTH', phone=NULL, phone_verified_at=NULL, verify_code=NULL, verify_expiry=NULL,
+               verified=TRUE, email_unverified=FALSE, token_version=COALESCE(token_version,0)+1
+             WHERE id=$1 AND email_unverified=TRUE RETURNING *`,
+            [user.id]
+          );
+          if (cl.rows.length) {
+            user = cl.rows[0];
+            const isT = user.role === 'teacher' || user.grade === 'teacher';
+            tg.sendTelegram('Баталгаажаагүй имэйлтэй данс Google-ээр эзэмшигдлээ (нууц үг/утас арилгав): ' + sms.maskEmail(email) + ', багш=' + isT).catch(() => {});
+          } else {
+            const again = await pool.query('SELECT * FROM users WHERE id=$1', [user.id]);
+            if (again.rows.length) user = again.rows[0];
+          }
+        } else {
+          await pool.query('UPDATE users SET email_unverified=FALSE WHERE id=$1', [user.id]);
+          user.email_unverified = false;
+        }
+      }
       // Profile picture байхгүй бол Google-ийнхийг нэмж тавих
       if (!user.profile_image && picture) {
         await pool.query('UPDATE users SET profile_image=$1 WHERE id=$2', [picture, user.id]);
@@ -129,7 +155,7 @@ module.exports = async (req, res) => {
 
     // JWT token гаргах
     const token = jwt.sign(
-      { email: user.email, id: user.id },
+      { email: user.email, id: user.id, tv: Number(user.token_version) | 0 },
       jwtSecret(),
       { expiresIn: '30d' }
     );
@@ -169,7 +195,7 @@ module.exports = async (req, res) => {
       }
     });
   } catch (e) {
-    console.error('[googleauth]', e);
+    sms.logErr('[googleauth]', e);
     res.status(500).json({ ok: false, error: 'Серверийн алдаа' });
   }
 };

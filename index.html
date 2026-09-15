@@ -56283,7 +56283,10 @@ function toggleAvatarSection() {
     if (!isTeacher && !grade) { err.textContent = 'Ангиа сонгоно уу.'; return; }
 
     var inviteToken = window._inviteToken || null;
-    err.textContent = inviteToken ? 'Бүртгэж байна...' : 'Баталгаажуулах код илгээж байна...';
+    phone = phone.replace(/[\s\-().]/g, '').replace(/^(\+976|00976|976)(?=\d{8}$)/, '');
+    // Урилгагүй бүртгэлд утас заавал — баталгаажуулах код SMS-ээр ирнэ
+    if (!inviteToken && !/^\d{8}$/.test(phone)) { err.textContent = '8 оронтой утасны дугаараа оруулна уу (код SMS-ээр ирнэ).'; return; }
+    err.textContent = inviteToken ? 'Бүртгэж байна...' : 'SMS код илгээж байна...';
     var payload = { action: 'register', email, pass, firstName, lastName, grade, plan: isTeacher ? 'free' : plan, role: isTeacher ? 'teacher' : 'student', phone, aimag, sum, school };
     if (inviteToken) payload.inviteToken = inviteToken;
 
@@ -56292,7 +56295,16 @@ function toggleAvatarSection() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     }).then(function(r){ return r.json(); }).then(function(d){
-      if (!d.ok) { err.textContent = d.error || 'Алдаа гарлаа'; return; }
+      if (!d.ok) {
+        // SMS илгээгдсэн эсэх тодорхойгүй (codeStep) — код ирвэл оруулах алхам руу шилжинэ
+        if (d.needVerify && d.codeStep) {
+          closeAuthModal();
+          showVerifyModal(d.email || email, plan, d.masked, d.error);
+          return;
+        }
+        err.textContent = d.error || 'Алдаа гарлаа';
+        return;
+      }
       err.textContent = '';
       // Урилгаар — шууд нэвтрэх, verify алгасана
       if (d.invited && d.user) {
@@ -56305,7 +56317,7 @@ function toggleAvatarSection() {
       }
       if (d.needVerify) {
         closeAuthModal();
-        showVerifyModal(d.email, plan);
+        showVerifyModal(d.email, plan, d.masked);
         return;
       }
       // Шууд нэвтрэх (verification байхгүй үед)
@@ -56320,14 +56332,19 @@ function toggleAvatarSection() {
     }).catch(function(){ err.textContent = 'Сервертэй холбогдоход алдаа гарлаа.'; });
   }
 
-  function showVerifyModal(email, plan) {
+  function showVerifyModal(email, plan, masked, note) {
     window._verifyEmail = email;
     window._verifyPlan = plan;
     openAuthModal('register');
-    setTimeout(function(){ showVerifyStep(email); }, 100);
+    setTimeout(function(){ showVerifyStep(email, masked, note); }, 100);
   }
 
-  function showVerifyStep(email) {
+  // "**** **07 дугаар руу" — сервер буцаасан маск (бүтэн дугаар хэзээ ч ирэхгүй)
+  function _smsTargetText(masked) {
+    return masked ? ('<b style="white-space:nowrap;">' + _esc(masked) + '</b> дугаар руу') : 'Таны утас руу';
+  }
+
+  function showVerifyStep(email, masked, note) {
     // Register form-ийг нуугаад verify div харуулна
     var form = document.getElementById('auth-form-register');
     var verifyDiv = document.getElementById('auth-verify-section');
@@ -56342,18 +56359,15 @@ function toggleAvatarSection() {
     verifyDiv.style.display = 'block';
     verifyDiv.innerHTML = '<div style="text-align:center;padding:8px 0;">'
       + '<div style="text-align:left;margin-bottom:16px;"><button onclick="hideVerifyStep()" style="background:none;border:none;cursor:pointer;display:flex;align-items:center;gap:6px;color:#7B52EE;font-weight:800;font-size:0.9rem;font-family:\'Baloo 2\',sans-serif;padding:0;"><svg width="9" height="14" viewBox="0 0 9 14"><path d="M7 12L2 7L7 2" stroke="#7B52EE" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Буцах</button></div>'
-      + '<div style="font-size:2.5rem;margin-bottom:8px;">📧</div>'
-      + '<div style="font-weight:900;font-size:1.1rem;color:#7B52EE;margin-bottom:4px;">Баталгаажуулах код</div>'
-      + '<div style="font-size:0.85rem;color:#888;margin-bottom:20px;line-height:1.5;"><b>' + email + '</b><br>хаягт 6 оронтой код илгээлээ</div>'
-      + '<input id="verify-code-input" type="text" maxlength="6" placeholder="000000" autofocus'
+      + '<div style="width:56px;height:56px;margin:0 auto 8px;border-radius:16px;background:linear-gradient(135deg,#7B52EE,#A855F7);display:flex;align-items:center;justify-content:center;"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M10.5 18.5h3"/></svg></div>'
+      + '<div style="font-weight:900;font-size:1.1rem;color:#7B52EE;margin-bottom:4px;">SMS баталгаажуулах код</div>'
+      + '<div id="verify-target" style="font-size:0.85rem;color:#888;margin-bottom:20px;line-height:1.5;">' + _smsTargetText(masked) + '<br>6 оронтой код илгээлээ<br><span style="font-size:0.78rem;">' + _esc(email) + '</span></div>'
+      + '<input id="verify-code-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" autofocus'
       + ' style="width:100%;padding:16px;font-size:1.8rem;font-weight:900;letter-spacing:10px;text-align:center;border:2px solid #7B52EE;border-radius:12px;margin-bottom:12px;box-sizing:border-box;">'
-      + '<div id="verify-err" style="color:#dc2626;font-size:0.82rem;min-height:20px;margin-bottom:8px;"></div>'
+      + '<div id="verify-err" style="color:#dc2626;font-size:0.82rem;min-height:20px;margin-bottom:8px;">' + (note ? _esc(note) : '') + '</div>'
       + '<button onclick="submitVerifyCode()" style="width:100%;padding:14px;background:linear-gradient(135deg,#7B52EE,#A855F7);border:none;border-radius:100px;font-weight:900;font-size:1rem;color:white;cursor:pointer;margin-bottom:8px;">✓ Баталгаажуулах</button>'
-      + '<div style="background:rgba(255,200,0,0.12);border:1.5px solid rgba(255,150,0,0.4);border-radius:10px;padding:10px 12px;margin-top:14px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start;text-align:left;">'
-      + '  <div style="font-size:1.2rem;flex-shrink:0;line-height:1;">⚠️</div>'
-      + '  <div style="font-size:0.78rem;color:#a06600;font-weight:700;line-height:1.4;">Код Inbox-т ирээгүй бол <b style="color:#7c3aed;">Spam / Junk / Хог</b> хавтасаа шалгана уу. Тэнд байвал <b>"Not spam"</b> дарж гаргаарай.</div>'
-      + '</div>'
-      + '<button onclick="resendVerifyCode(\'' + email + '\')" style="width:100%;padding:8px;background:none;border:1px solid #ddd;border-radius:8px;color:#888;font-size:0.82rem;cursor:pointer;margin-bottom:6px;">📨 Дахин код илгээх</button>'
+      + '<div style="background:transparent;border-left:3px solid #A855F7;border-radius:8px;padding:8px 12px;margin-top:14px;margin-bottom:8px;text-align:left;font-size:0.78rem;color:#666;font-weight:700;line-height:1.4;">Код SMS-ээр 1-2 минутад ирнэ. Ирэхгүй бол 1 минутын дараа «Дахин код илгээх»-ийг дарна уу.</div>'
+      + '<button id="verify-resend-btn" onclick="resendVerifyCode()" style="width:100%;padding:8px;background:none;border:1px solid #ddd;border-radius:8px;color:#888;font-size:0.82rem;cursor:pointer;margin-bottom:6px;">Дахин код илгээх</button>'
       + '</div>';
   }
 
@@ -56364,15 +56378,32 @@ function toggleAvatarSection() {
     if (form) form.style.display = 'block';
   }
 
-  function resendVerifyCode(email) {
+  function resendVerifyCode() {
+    var email = window._verifyEmail || (_regData && _regData.email) || '';
+    var errEl = document.getElementById('verify-err');
+    var btn = document.getElementById('verify-resend-btn');
+    if (btn) btn.disabled = true;
+    if (errEl) { errEl.style.color = '#888'; errEl.textContent = 'SMS код илгээж байна...'; }
     fetch('/api/auth', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({action: 'resend', email: email})
-    }).then(r=>r.json()).then(function(d){
-      var errEl = document.getElementById('verify-err');
-      if(errEl) errEl.style.color = d.ok ? '#16a34a' : '#dc2626';
-      if(errEl) errEl.textContent = d.ok ? '✓ Код дахин илгээгдлээ!' : (d.error||'Алдаа');
+    }).then(function(r){ return r.json(); }).then(function(d){
+      if (btn) btn.disabled = false;
+      if (!errEl) return;
+      if (d.ok && d.alreadyVerified) { errEl.style.color = '#16a34a'; errEl.textContent = 'Бүртгэл аль хэдийн баталгаажсан. Нууц үгээрээ нэвтэрнэ үү.'; return; }
+      if (d.ok) {
+        var tgt = document.getElementById('verify-target');
+        if (tgt && d.masked) tgt.innerHTML = _smsTargetText(d.masked) + '<br>6 оронтой код илгээлээ<br><span style="font-size:0.78rem;">' + _esc(email) + '</span>';
+        errEl.style.color = '#16a34a';
+        errEl.textContent = '✓ ' + (d.masked ? d.masked + ' дугаар руу' : 'Утас руу') + ' код дахин илгээлээ';
+        return;
+      }
+      errEl.style.color = '#dc2626';
+      errEl.textContent = d.error || 'Код илгээж чадсангүй';
+    }).catch(function(){
+      if (btn) btn.disabled = false;
+      if (errEl) { errEl.style.color = '#dc2626'; errEl.textContent = 'Сервертэй холбогдоход алдаа гарлаа.'; }
     });
   }
 
@@ -56481,11 +56512,13 @@ function toggleAvatarSection() {
       body: JSON.stringify({ action: 'sendResetCode', email: email })
     }).then(function(r){ return r.json(); }).then(function(d){
       if (btn) { btn.textContent = 'Шалгах →'; btn.disabled = false; }
-      if (!d.ok) { err.textContent = d.error || 'Алдаа гарлаа'; return; }
+      // codeStep: SMS илгээгдсэн эсэх тодорхойгүй — код ирвэл оруулж болно
+      if (!d.ok && !d.codeStep) { err.textContent = d.error || 'Алдаа гарлаа'; return; }
       document.getElementById('reset-step1').style.display = 'none';
       document.getElementById('reset-step-code').style.display = 'block';
-      document.getElementById('reset-target-email').textContent = email;
-      suc.textContent = '✓ ' + email + '-д баталгаажуулах код илгээлээ!';
+      document.getElementById('reset-target-email').textContent = email + (d.masked ? ' · ' + d.masked : '');
+      if (!d.ok) { err.textContent = d.error || 'Алдаа гарлаа'; return; }
+      suc.textContent = '✓ ' + (d.masked ? d.masked + ' дугаар руу' : 'Бүртгэлтэй утас руу') + ' SMS код илгээлээ';
     }).catch(function(){
       if (btn) { btn.textContent = 'Шалгах →'; btn.disabled = false; }
       err.textContent = 'Холбогдоход алдаа гарлаа';
@@ -61157,8 +61190,8 @@ function sendAppChat(text) {
         </div>
 
         <div class="auth-input-group">
-          <label class="auth-input-label">Утасны дугаар</label>
-          <input id="reg-phone" type="tel" class="auth-input" placeholder="99XXXXXX" maxlength="8">
+          <label class="auth-input-label">Утасны дугаар (баталгаажуулах код SMS-ээр ирнэ)</label>
+          <input id="reg-phone" type="tel" inputmode="numeric" autocomplete="tel-national" class="auth-input" placeholder="99XXXXXX" maxlength="16" required>
         </div>
         <div class="auth-input-group">
           <label class="auth-input-label">Аймаг / Нийслэл</label>
@@ -61223,7 +61256,7 @@ function sendAppChat(text) {
           </div>
           <span style="font-family:'Baloo 2',sans-serif;font-weight:800;font-size:0.95rem;color:#1B1B1B;">Нууц үг сэргээх</span>
         </div>
-        <div style="text-align:center;font-size:2rem;margin-bottom:10px;">🔑</div>
+        <div style="text-align:center;margin-bottom:10px;"><svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="#7B52EE" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3L21 2M16 7l3 3M18.5 4.5l2 2"/></svg></div>
         <div class="auth-step-bar">
           <div class="auth-step-dot active" id="rst-dot0"></div>
           <div class="auth-step-dot" id="rst-dot1"></div>
@@ -61234,18 +61267,20 @@ function sendAppChat(text) {
           <div class="auth-input-group">
             <label class="auth-input-label">Бүртгэлтэй и-мэйл хаяг</label>
             <input id="reset-email" type="email" class="auth-input" placeholder="example@mail.com" onkeydown="if(event.key==='Enter')checkResetEmail()">
+            <div style="font-size:0.78rem;color:#888;margin-top:6px;line-height:1.4;">Сэргээх код дансанд бүртгэлтэй утасны дугаар руу SMS-ээр ирнэ.</div>
           </div>
           <button class="auth-btn auth-btn-primary" onclick="checkResetEmail()">Шалгах →</button>
         </div>
         <!-- Step 1.5: Код оруулах -->
         <div id="reset-step-code" style="display:none;">
-          <div class="auth-email-confirm">✉️ <span id="reset-target-email"></span></div>
+          <div class="auth-email-confirm"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M10.5 18.5h3"/></svg> <span id="reset-target-email"></span></div>
           <div class="auth-input-group">
-            <label class="auth-input-label">И-мэйлд ирсэн 6 оронтой код</label>
-            <input id="reset-code" type="text" class="auth-input" placeholder="123456" maxlength="6" style="letter-spacing:6px;text-align:center;font-size:1.3rem;font-weight:900;" onkeydown="if(event.key==='Enter')doVerifyResetCode()">
+            <label class="auth-input-label">Утсанд SMS-ээр ирсэн 6 оронтой код</label>
+            <input id="reset-code" type="text" inputmode="numeric" autocomplete="one-time-code" class="auth-input" placeholder="123456" maxlength="6" style="letter-spacing:6px;text-align:center;font-size:1.3rem;font-weight:900;" onkeydown="if(event.key==='Enter')doVerifyResetCode()">
           </div>
           <button class="auth-btn auth-btn-primary" onclick="doVerifyResetCode()">Баталгаажуулах →</button>
-          <button onclick="checkResetEmail()" style="width:100%;padding:10px;background:none;border:none;color:#7B52EE;font-weight:700;cursor:pointer;font-size:0.85rem;">🔄 Код дахин илгээх</button>
+          <div style="font-size:0.76rem;color:#888;margin-top:8px;line-height:1.4;text-align:center;">Код ирэхгүй бол дансанд утас бүртгэгдээгүй эсвэл буруу байж магадгүй. Админтай холбогдоно уу.</div>
+          <button onclick="checkResetEmail()" style="width:100%;padding:10px;background:none;border:none;color:#7B52EE;font-weight:700;cursor:pointer;font-size:0.85rem;display:flex;align-items:center;justify-content:center;gap:6px;"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg> Код дахин илгээх</button>
         </div>
         <!-- Step 2 -->
         <div id="reset-step2" style="display:none;">
