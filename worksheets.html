@@ -1434,6 +1434,7 @@ function openLogin(auto){
       +'<p style="color:var(--soft);font-size:.85rem;margin-bottom:10px"><b id="vPhone">Таны утас</b> руу SMS-ээр илгээсэн <b>6 оронтой код</b>оо оруулна уу.<br><span style="font-size:.76rem">Данс: <span id="vEmail"></span></span></p>'
       +spamNote
       +'<input id="vCode" type="text" inputmode="numeric" maxlength="6" placeholder="••••••" style="width:100%;border:1.6px solid #e7ddff;border-radius:12px;padding:.7rem;font-size:1.5rem;letter-spacing:10px;text-align:center;font-weight:900;outline:none;margin-bottom:10px" />'
+      +'<div id="vPassWrap" style="display:none"><input id="vPass" type="password" placeholder="Нууц үг (6+ тэмдэгт)" style="'+iS+'" /></div>'
       +'<button id="vBtn" style="'+bS+'">Баталгаажуулах</button>'
       +'<div id="vMsg" style="font-size:.83rem;font-weight:700;margin-top:9px;min-height:1em"></div>'
       +'<div style="margin-top:8px;display:flex;justify-content:space-between">'
@@ -1460,9 +1461,9 @@ function openLogin(auto){
   function okE(e){return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);}
   function api(action,body){ body=body||{}; body.action=action; return fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json().then(function(d){return {s:r.status,d:d};});}); }
   var TITLES={login:'Дасгалын төвд нэвтрэх',register:'Шинэ бүртгэл үүсгэх',verify:'Бүртгэл баталгаажуулах',forgot:'Нууц үг сэргээх'};
-  function showView(v){ ['login','register','verify','forgot'].forEach(function(x){q('#v'+x.charAt(0).toUpperCase()+x.slice(1)).style.display=(x===v)?'block':'none';}); q('#liTitle').textContent=TITLES[v]; }
+  function showView(v){ ['login','register','verify','forgot'].forEach(function(x){q('#v'+x.charAt(0).toUpperCase()+x.slice(1)).style.display=(x===v)?'block':'none';}); q('#liTitle').textContent=TITLES[v]; if(v!=='verify'){passAsked=false; var pwW=q('#vPassWrap'); if(pwW){pwW.style.display='none'; q('#vPass').value='';}} }
   function done(token,email,fresh){ if(token)lsSet('cm_ws_token',token); lsSet('cm_last_user',email); CM_USER={email:email}; if(fresh)resetNewBaseline(); renderAcct(); o.remove(); toast('✓ Тавтай морил'); ensurePin(); try{loadEvents();}catch(e){} if(window.__afterLogin){var _f=window.__afterLogin;window.__afterLogin=null;setTimeout(_f,180);} }
-  var curEmail='',curPass='';
+  var curEmail='',curPass='',passAsked=false;
   if(lsGet('cm_last_user'))q('#lgEmail').value=lsGet('cm_last_user');
   if(WS_NEED_LOGIN&&lsGet('cm_last_user')){var _lm=q('#lgMsg');_lm.style.color='var(--soft)';_lm.textContent='Нууц үгээрээ нэвтэрнэ үү';}
   setTimeout(function(){q('#lgEmail').focus();},40);
@@ -1524,14 +1525,18 @@ function openLogin(auto){
   function doVerify(){
     var code=(q('#vCode').value||'').trim(),m=q('#vMsg');
     if(!/^\d{6}$/.test(code)){m.style.color='#dc2626';m.textContent='6 оронтой код оруулна уу';return;}
-    if(!curPass){var lm0=q('#lgMsg');q('#lgEmail').value=curEmail||'';q('#lgPass').value='';showView('login');lm0.style.color='#dc2626';lm0.textContent='Нууц үгээ дахин оруулна уу';setTimeout(function(){q('#lgPass').focus();},40);return;}
+    // Нууц үг санах ойд байхгүй (хуучин нээлттэй хуудас, дахин ачаалсан) эсвэл 6-аас богино → энд оруулна.
+    // SMS код нь утсыг баталсан тул нууц үгийг энэ алхамд тохируулах нь аюулгүй (ws_verify pass_hash-ийг шинэчилнэ).
+    var pass=passAsked?(q('#vPass').value||''):curPass;
+    if(!pass||pass.length<6){askPass(passAsked&&pass?'Нууц үг 6+ тэмдэгт байх ёстой':'Нууц үгээ оруулна уу (6+ тэмдэгт)');return;}
     var b=q('#vBtn');b.disabled=true;b.textContent='Шалгаж байна…';
-    api('ws_verify',{email:curEmail,code:code,pass:curPass}).then(function(x){var d=x.d;
+    api('ws_verify',{email:curEmail,code:code,pass:pass}).then(function(x){var d=x.d;
       if(d&&d.ok&&d.token){curPass='';toast('✓ Бүртгэл амжилттай');done(d.token,curEmail,true);}
       else if(d&&d.ok&&d.alreadyVerified){curPass='';b.disabled=false;b.textContent='Баталгаажуулах';m.textContent='';toLoginVerified(curEmail);}
-      else{b.disabled=false;b.textContent='Баталгаажуулах';m.style.color='#dc2626';m.textContent=(d&&d.error)||'Код буруу';}
+      else{b.disabled=false;b.textContent='Баталгаажуулах';if(d&&d.code==='NEED_PASS'){askPass('Нууц үгээ оруулна уу (6+ тэмдэгт)');return;}m.style.color='#dc2626';m.textContent=(d&&d.error)||'Код буруу';}
     }).catch(function(){b.disabled=false;b.textContent='Баталгаажуулах';m.style.color='#dc2626';m.textContent='Сүлжээний алдаа';});
   }
+  function askPass(msg){ passAsked=true; q('#vPassWrap').style.display='block'; var m=q('#vMsg'); m.style.color='#dc2626'; m.textContent=msg; setTimeout(function(){q('#vPass').focus();},40); }
   // FORGOT
   function doForgot(){
     var email=(q('#fgEmail').value||'').trim().toLowerCase(),m=q('#fgMsg');
@@ -1558,7 +1563,7 @@ function openLogin(auto){
   bindGo();
   q('#lgBtn').onclick=doLogin; q('#lgPass').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();});
   q('#rgBtn').onclick=doRegister; q('#rgPass2').addEventListener('keydown',function(e){if(e.key==='Enter')doRegister();});
-  q('#vBtn').onclick=doVerify; q('#vCode').addEventListener('input',function(){this.value=this.value.replace(/\D/g,'').slice(0,6);}); q('#vCode').addEventListener('keydown',function(e){if(e.key==='Enter')doVerify();});
+  q('#vBtn').onclick=doVerify; q('#vPass').addEventListener('keydown',function(e){if(e.key==='Enter')doVerify();}); q('#vCode').addEventListener('input',function(){this.value=this.value.replace(/\D/g,'').slice(0,6);}); q('#vCode').addEventListener('keydown',function(e){if(e.key==='Enter')doVerify();});
   q('#vResend').onclick=function(e){e.preventDefault();var m=q('#vMsg');m.style.color='var(--soft)';m.textContent='Илгээж байна…';api('ws_resend',{email:curEmail}).then(resendResult).catch(function(){m.style.color='#dc2626';m.textContent='Сүлжээний алдаа';});};
   q('#fgBtn').onclick=doForgot; q('#fgCode').addEventListener('input',function(){this.value=this.value.replace(/\D/g,'').slice(0,6);});
   q('#fgBtn2').onclick=doReset;

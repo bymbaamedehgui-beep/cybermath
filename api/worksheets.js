@@ -542,7 +542,8 @@ module.exports = async (req, res) => {
           // Кодын эзэн нууц үгээ энд тохируулна (бүртгэлийн үеийн pass_hash-д итгэхгүй — данс булаахаас хамгаална).
           // Нууц үггүй хүсэлт кодын оролдлого/хязгаарыг зарцуулахгүй.
           const pass = String(b.pass || '');
-          if (pass.length < 6) return res.status(400).json({ ok: false, error: 'Нууц үг 6+ тэмдэгт байх ёстой' });
+          // Хуучин нээлттэй хуудас нууц үг илгээдэггүй — NEED_PASS-аар код оруулах дэлгэцэд нууц үгийн талбар нээнэ
+          if (pass.length < 6) return res.status(400).json({ ok: false, code: 'NEED_PASS', error: 'Нууц үг шаардлагатай. Хуудсаа шинэчилж (F5) нууц үгээрээ дахин оролдоно уу.' });
           // Эрхтэй имэйлийг батлагдаагүй утсаар идэвхжүүлэхгүй — кодыг зарцуулахгүй, оролдлого тоолохгүй
           if (!r.rows[0].phone_verified_at && await wsClaimBlocked(res, email)) return;
           const ca = await codeAttempt(email, ipKey(clientIp(req)), b.code);

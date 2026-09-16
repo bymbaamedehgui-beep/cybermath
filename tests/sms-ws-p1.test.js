@@ -243,6 +243,24 @@ test('ws_register: SMS_UNCERTAIN (abort) → 503 + needVerify/codeStep/masked, �
   assert.strictEqual(F.db.ws.get('wu@x.mn').code, F.lastCode());
 });
 
+test('ws_verify: нууц үггүй / богино нууц үгтэй хүсэлт (хуучин нээлттэй хуудас) → 400 NEED_PASS, код ба оролдлого хэвээр', async () => {
+  F.reset();
+  const r0 = await W(reg('np2@x.mn', { phone: PH2 }));
+  assert.strictEqual(r0.body.ok, true);
+  const row = F.db.ws.get('np2@x.mn'), code = row.code;
+  let r = await W({ action: 'ws_verify', email: 'np2@x.mn', code: code });
+  assert.deepStrictEqual([r.statusCode, r.body.code], [400, 'NEED_PASS']);
+  assert.match(r.body.error, /Нууц үг/);
+  r = await W({ action: 'ws_verify', email: 'np2@x.mn', pass: 'abc', code: code });
+  assert.deepStrictEqual([r.statusCode, r.body.code], [400, 'NEED_PASS']);
+  assert.deepStrictEqual([row.code, row.code_attempts, row.verified], [code, 0, false]);
+  // 6+ нууц үгээр дахин оролдоход баталгаажна
+  r = await W({ action: 'ws_verify', email: 'np2@x.mn', pass: 'newpass9', code: code });
+  assert.strictEqual(r.statusCode, 200);
+  assert.ok(r.body.token);
+  assert.strictEqual(F.db.ws.get('np2@x.mn').verified, true);
+});
+
 test('S2/S1: бүтэн дугаар, код, API түлхүүр лог/Telegram/sms_log/хариунд алга; бодит сүлжээ 0; тодорхойгүй SQL 0; имэйл 0', () => {
   assert.deepStrictEqual(F.leakCheck([PH, PH2, PH3]), []);
   assert.deepStrictEqual(F.sms.other, []);
