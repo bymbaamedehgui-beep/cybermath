@@ -466,6 +466,8 @@ module.exports = async (req, res) => {
           // Админ бэлтгэсэн данс (утас батлагдсан) → «Нууц үг сэргээх»-ээр орно
           if (ex.rows.length && ex.rows[0].phone_verified_at) return sms.failJson(res, sms.mkFail('NEED_LOGIN'), { prepared: true, fields: { prepared: true } });
           // Утас ЗААВАЛ — баталгаажуулах код зөвхөн SMS-ээр явна
+          // Утас огт ирээгүй = хуучин нээлттэй хуудас (SMS-ээс өмнөх маягт талбаргүй) — F5 хийхийг зөвлөнө
+          if (!String(b.phone == null ? '' : b.phone).trim()) return res.status(400).json({ ok: false, code: 'PHONE_INVALID', error: 'Утасны дугаараа оруулна уу. Талбар харагдахгүй бол хуудсаа шинэчилнэ үү (F5).' });
           const pn = sms.normalizePhone(b.phone);
           if (!pn.ok) return sms.failJson(res, sms.mkFail(pn.code));
           const pc = await pool.query('SELECT count(*)::int AS n FROM ws_login WHERE phone=$1 AND verified=TRUE', [pn.local]);

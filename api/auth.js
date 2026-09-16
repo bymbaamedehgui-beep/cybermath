@@ -298,6 +298,8 @@ module.exports = async (req, res) => {
       // урилгын утас баталгаажаагүй тул нууц үг сэргээлтэд ашиглагдахгүй — usablePhone).
       let smsPhone = null;
       if (!inviteRow) {
+        // Утас огт ирээгүй = хуучин нээлттэй хуудас (SMS-ээс өмнөх маягт талбаргүй) — F5 хийхийг зөвлөнө
+        if (!String(phone == null ? '' : phone).trim()) return res.status(400).json({ ok: false, code: 'PHONE_INVALID', error: 'Утасны дугаараа оруулна уу. Талбар харагдахгүй бол хуудсаа шинэчилнэ үү (F5).' });
         const pn = sms.normalizePhone(phone);
         if (!pn.ok) return sms.failJson(res, sms.mkFail(pn.code));
         smsPhone = pn.local;
