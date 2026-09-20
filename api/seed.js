@@ -1354,6 +1354,50 @@ module.exports = async (req, res) => {
         }
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_g6c6_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
+      // ── Нэг удаагийн: 5-р анги I БҮЛЭГ ──
+      const cf_g5c1 = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_g5c1_v1'`);
+      if (!cf_g5c1.rows.length) {
+        let par_g5c1 = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='5-р анги' AND name LIKE 'I БҮЛЭГ%' AND parent_id IS NULL ORDER BY id LIMIT 1`);
+        let pid_g5c1;
+        if (par_g5c1.rows.length) { pid_g5c1 = Number(par_g5c1.rows[0].id); }
+        else {
+          const mxP = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='5-р анги'`);
+          const insP = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('5-р анги',$2,$1,NULL) RETURNING id`, [mxP.rows[0].p, "I БҮЛЭГ. ОЛОН ОРОНТОЙ ТОО, ГЕОМЕТРИЙН ДҮРС"]);
+          pid_g5c1 = Number(insP.rows[0].id);
+        }
+        const subs_g5c1 = [
+          { name: "1.1 Давтах", slugs: ["davtah-1-5.html", "davtah-2-5.html"] },
+          { name: "1.2 Олон оронтой тоог унших, бичих", slugs: ["olon-oronto-too-unsh-1-5.html", "olon-oronto-too-unsh-2-5.html"] },
+          { name: "1.3 Ром тоо", slugs: ["rom-too-1-5.html", "rom-too-2-5.html"] },
+          { name: "1.4 Олон оронтой тоог жиших", slugs: ["olon-oronto-too-jish-1-5.html", "olon-oronto-too-jish-2-5.html"] },
+          { name: "1.5 Олон оронтой тоог тоймлох", slugs: ["olon-oronto-toiml-1-5.html", "olon-oronto-toiml-2-5.html"] },
+          { name: "1.6 Олон оронтой тоог нэмэх, хасах", slugs: ["olon-oronto-nemeh-1-5.html", "olon-oronto-nemeh-2-5.html"] },
+          { name: "1.7 Олон оронтой тоог үржүүлэх", slugs: ["olon-oronto-urjuuleh-1-5.html", "olon-oronto-urjuuleh-2-5.html"] },
+          { name: "1.8 Олон оронтой тоог хуваах", slugs: ["olon-oronto-huvaah-1-5.html", "olon-oronto-huvaah-2-5.html"] },
+          { name: "1.9 Гурвалжныг ангилах", slugs: ["gurvaljin-angilah-1-5.html", "gurvaljin-angilah-2-5.html"] },
+          { name: "1.10 Тооны хуваагч, хуваагдагч", slugs: ["toonii-huvaagch-1-5.html", "toonii-huvaagch-2-5.html"] },
+          { name: "1.11 Хугацааг тооцох", slugs: ["hugatsaag-tootsoh-1-5.html", "hugatsaag-tootsoh-2-5.html"] },
+          { name: "1.12 Олон өнцөгт, түүнийг ангилах", slugs: ["olon-ontsogt-1-5.html", "olon-ontsogt-2-5.html"] },
+          { name: "1.13 Олон өнцөгтийн диагональ", slugs: ["olon-ontsogtiin-diagonal-1-5.html", "olon-ontsogtiin-diagonal-2-5.html"] },
+          { name: "1.14 Тэгш хэмтэй дүрс, түүнийг байгуулах", slugs: ["tegsh-hemtei-durs-1-5.html", "tegsh-hemtei-durs-2-5.html"] },
+          { name: "1.15 Дүрсийн талбай, периметрийг олох", slugs: ["durs-talbai-perimetr-1-5.html", "durs-talbai-perimetr-2-5.html"] },
+          { name: "1.16 Олон өнцөгтийн дотоод өнцгийн нийлбэр", slugs: ["olon-ontsogtiin-dotood-ontsog-1-5.html", "olon-ontsogtiin-dotood-ontsog-2-5.html"] },
+        ];
+        for (const sub of subs_g5c1) {
+          let sgr = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='5-р анги' AND name=$1`, [sub.name]);
+          let sid;
+          if (sgr.rows.length) { sid = Number(sgr.rows[0].id); }
+          else {
+            const mx = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='5-р анги'`);
+            const ins = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('5-р анги',$1,$2,$3) RETURNING id`, [sub.name, mx.rows[0].p, pid_g5c1]);
+            sid = Number(ins.rows[0].id);
+          }
+          for (const slug of sub.slugs) {
+            await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + sid, slug]);
+          }
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_g5c1_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
       // ── 10-р анги: хүнд түвшний нэмэлт ажлын хуудсууд ──
       const cf_g10h = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_g10_hard_v1'`);
       if (!cf_g10h.rows.length) {
