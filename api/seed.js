@@ -1398,6 +1398,85 @@ module.exports = async (req, res) => {
         }
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_g5c1_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
+      // ── Нэг удаагийн: 5-р анги II БҮЛЭГ ──
+      const cf_g5c2 = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_g5c2_v1'`);
+      if (!cf_g5c2.rows.length) {
+        let par_g5c2 = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='5-р анги' AND name LIKE 'II БҮЛЭГ%' AND parent_id IS NULL ORDER BY id LIMIT 1`);
+        let pid_g5c2;
+        if (par_g5c2.rows.length) { pid_g5c2 = Number(par_g5c2.rows[0].id); }
+        else {
+          const mxP = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='5-р анги'`);
+          const insP = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('5-р анги',$2,$1,NULL) RETURNING id`, [mxP.rows[0].p, "II БҮЛЭГ. ЭНГИЙН БА АРАВТЫН БУТАРХАЙ"]);
+          pid_g5c2 = Number(insP.rows[0].id);
+        }
+        const subs_g5c2 = [
+          { name: "2.1 Энгийн бутархайг жиших", slugs: ["engiin-butarhai-jish-1-5.html", "engiin-butarhai-jish-2-5.html"] },
+          { name: "2.2 Энгийн бутархайн үндсэн чанар, бутархайг хураах", slugs: ["butarhain-undsen-chanar-1-5.html", "butarhain-undsen-chanar-2-5.html"] },
+          { name: "2.3 Энгийн бутархайг нэмэх, хасах", slugs: ["engiin-butarhai-nemeh-1-5.html", "engiin-butarhai-nemeh-2-5.html"] },
+          { name: "2.4 Аравтын бутархайг унших, бичих", slugs: ["aravtiin-butarhai-unshih-1-5.html", "aravtiin-butarhai-unshih-2-5.html"] },
+          { name: "2.5 Аравтын бутархайг жиших", slugs: ["aravtiin-butarhai-jish-1-5.html", "aravtiin-butarhai-jish-2-5.html"] },
+          { name: "2.6 Аравтын бутархайг тоймлох", slugs: ["aravtiin-butarhai-toiml-1-5.html", "aravtiin-butarhai-toiml-2-5.html"] },
+          { name: "2.7 Аравтын бутархайг нэмэх, хасах", slugs: ["aravtyn-but-nemeh-hasah-1-5.html", "aravtyn-but-nemeh-hasah-2-5.html"] },
+        ];
+        for (const sub of subs_g5c2) {
+          let sgr = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='5-р анги' AND name=$1`, [sub.name]);
+          let sid;
+          if (sgr.rows.length) { sid = Number(sgr.rows[0].id); }
+          else {
+            const mx = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='5-р анги'`);
+            const ins = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('5-р анги',$1,$2,$3) RETURNING id`, [sub.name, mx.rows[0].p, pid_g5c2]);
+            sid = Number(ins.rows[0].id);
+          }
+          for (const slug of sub.slugs) {
+            await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + sid, slug]);
+          }
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_g5c2_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
+
+      // ── Нэг удаагийн: 5-р анги III БҮЛЭГ ──
+      const cf_g5c3 = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_g5c3_v1'`);
+      if (!cf_g5c3.rows.length) {
+        let par_g5c3 = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='5-р анги' AND name LIKE 'III БҮЛЭГ%' AND parent_id IS NULL ORDER BY id LIMIT 1`);
+        let pid_g5c3;
+        if (par_g5c3.rows.length) { pid_g5c3 = Number(par_g5c3.rows[0].id); }
+        else {
+          const mxP = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='5-р анги'`);
+          const insP = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('5-р анги',$2,$1,NULL) RETURNING id`, [mxP.rows[0].p, "III БҮЛЭГ. БУТАРХАЙН ҮЙЛДЭЛ, ХЭМЖИХ, ОРОН ЗАЙН ДҮРС"]);
+          pid_g5c3 = Number(insP.rows[0].id);
+        }
+        const subs_g5c3 = [
+          { name: "3.1 Аравтын бутархайг үржүүлэх, хуваах", slugs: ["aravtyn-butarhaig-urjuuleh-huvaah-1-5.html", "aravtyn-butarhaig-urjuuleh-huvaah-2-5.html"] },
+          { name: "3.2 Аравтын бутархайг бүхэл тоогоор үржүүлэх", slugs: ["aravtyn-butarhaig-buhel-toogoor-urjuuleh-1-5.html", "aravtyn-butarhaig-buhel-toogoor-urjuuleh-2-5.html"] },
+          { name: "3.3 Аравтын бутархайг бүхэл тоонд хуваах", slugs: ["aravt-butarhai-huvaah-1-5.html", "aravt-butarhai-huvaah-2-5.html"] },
+          { name: "3.4 Арифметик дундаж", slugs: ["arifmetik-dundaj-1-5.html", "arifmetik-dundaj-2-5.html"] },
+          { name: "3.5 Далайц", slugs: ["dalaits-1-5.html", "dalaits-2-5.html"] },
+          { name: "3.6 Боломж тоолох", slugs: ["bolomj-tooloh-1-5.html", "bolomj-tooloh-2-5.html"] },
+          { name: "3.7 Үйлдлийн гишүүдийн хамаарал", slugs: ["uildliin-gishuudiin-hamaaral-1-5.html", "uildliin-gishuudiin-hamaaral-2-5.html"] },
+          { name: "3.8 Хэмжих", slugs: ["hemjih-1-5.html", "hemjih-2-5.html"] },
+          { name: "3.9 Харьцаа ба пропорц, түүнийг хэрэглэх", slugs: ["haritsaa-proports-1-5.html", "haritsaa-proports-2-5.html"] },
+          { name: "3.10 Тэгш өнцөгт координатын хавтгай", slugs: ["koordinatin-havtgai-1-5.html", "koordinatin-havtgai-2-5.html"] },
+          { name: "3.11 Дөрвөн өнцөгтийг ангилах", slugs: ["dorvon-ontsogt-angilah-1-5.html", "dorvon-ontsogt-angilah-2-5.html"] },
+          { name: "3.12 Параллель зөөлт ба эргүүлэлт", slugs: ["parallel-zoolt-erguult-1-5.html", "parallel-zoolt-erguult-2-5.html"] },
+          { name: "3.13 Биет, түүний шинж чанар", slugs: ["biet-shinj-chanar-1-5.html", "biet-shinj-chanar-2-5.html"] },
+          { name: "3.14 Биетийн дэлгээс, гадаргуугийн талбайг олох", slugs: ["bietiin-delgees-1-5.html", "bietiin-delgees-2-5.html"] },
+          { name: "3.15 Эзлэхүүнийг хэмжих", slugs: ["ezlehuuniig-hemjih-1-5.html", "ezlehuuniig-hemjih-2-5.html"] },
+        ];
+        for (const sub of subs_g5c3) {
+          let sgr = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='5-р анги' AND name=$1`, [sub.name]);
+          let sid;
+          if (sgr.rows.length) { sid = Number(sgr.rows[0].id); }
+          else {
+            const mx = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='5-р анги'`);
+            const ins = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('5-р анги',$1,$2,$3) RETURNING id`, [sub.name, mx.rows[0].p, pid_g5c3]);
+            sid = Number(ins.rows[0].id);
+          }
+          for (const slug of sub.slugs) {
+            await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + sid, slug]);
+          }
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_g5c3_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
       // ── 10-р анги: хүнд түвшний нэмэлт ажлын хуудсууд ──
       const cf_g10h = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_g10_hard_v1'`);
       if (!cf_g10h.rows.length) {
