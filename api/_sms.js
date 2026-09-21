@@ -18,9 +18,10 @@
 //   codeText(purpose, code)      → SMS текст ('verify'|'reset'|'login'), ≤70 тэмдэгт
 //   promoNote()                  → Promise<'' | PROMO_NOTE>  /promo-д идэвхтэй код байвал (sendCode 'verify'-д нэмнэ; throw хийхгүй, 60с кэш)
 //   precheck({ip, email, kind})  → Promise<null | Fail>   данс хайхаас ӨМНӨ; kind 'reg'|'acct' (бусад → 'reg')
-//   sendCode({purpose, phone, email, ip, kind, store, drop}) → Promise<Ok | Fail>
+//   sendCode({purpose, phone, email, ip, kind, store, drop, reuse?}) → Promise<Ok | Fail>
+//                                   reuse() — хүчинтэй код байвал хугацааг сунгаад ТЭР кодыг буцаана (null → шинэ код)
 //                                   store(code) — дуудагч кодыг DB-д бичнэ (throw → SMS_UNAVAILABLE, fetch 0)
-//                                   drop(code)  — provider алдаанд кодыг хүчингүй болгоно (алдааг үл тооно)
+//                                   drop(code)  — provider алдаанд ШИНЭ кодыг хүчингүй болгоно (дахин ашигласан кодыг үгүй)
 //   markVerified(phone)          → Promise<void>  сүүлийн 30 минутын 'sent' мөрт verified_at (алдаа throw хийхгүй)
 //   publicOtpResponse(r)         → whitelist {ok, accepted, masked, cooldown, wait, code, error}
 //   padTo(t0)                    → Promise<void>  t0-оос хойш SMS_PAD_MS(700)+randomInt(0,800) мс хүртэл хүлээнэ
@@ -36,7 +37,7 @@
 //   textbeeSend(e164, message)   → Promise<{cls, http, ms, msgId, bodyKeys}>  (scripts/sms-smoke.js; бусад газар sendCode-ийг ашиглана)
 //   limits()                     → одоогийн env-ээс уншсан хязгаарууд
 //   logErr(tag, e), safeMsg(e), ensureSmsTables()
-// Ok   = {ok:true, masked2, masked4, cooldown:60, expires_in:600}
+// Ok   = {ok:true, masked2, masked4, cooldown:60, expires_in:600, reused}   — reused: хүчинтэй кодыг дахин илгээсэн эсэх
 // Fail = {ok:false, code, http, wait?, scope?:'day'|'month', phoneQuota?:true}   — scope/phoneQuota ДОТООД, клиент рүү гаргахгүй
 // Алдааны код: SMS_UNAVAILABLE 503, SMS_UNCERTAIN 503 (wait 60), SMS_BUSY 503 (wait 600), SMS_FULL 503,
 //              SMS_COOLDOWN 429 (wait), SMS_LIMIT 429, PHONE_INVALID/PHONE_FOREIGN/PHONE_TOO_MANY 400,
@@ -712,10 +713,21 @@ async function sendCode(o) {
     }
   }
 
-  // 4. Код → дуудагч DB-д бичнэ
-  const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
-  try { await o.store(code); }
-  catch (e) { await rollback(); logErr('[sms] store', e); return UNAV; }
+  // 4. Код. Хүчинтэй (хугацаа нь дуусаагүй, оролдлого үлдсэн) код байвал ДАХИН АШИГЛАНА: o.reuse() нь хугацааг
+  //    сунгаад тэр кодыг буцаана. Ингэснээр дахин илгээхээс өмнөх хоцорсон SMS ч зөв код хэвээр байна. Оролдлогын
+  //    тоолуур тэглэгдэхгүй (таах хамгаалалт хадгалагдана). Хүчинтэй код байхгүй / reuse алдаа → шинэ код + store().
+  let code = null, reused = false;
+  if (typeof o.reuse === 'function') {
+    try {
+      const c = String((await o.reuse()) || '');
+      if (/^\d{6}$/.test(c)) { code = c; reused = true; }
+    } catch (e) { logErr('[sms] reuse', e); }
+  }
+  if (!code) {
+    code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+    try { await o.store(code); }
+    catch (e) { await rollback(); logErr('[sms] store', e); return UNAV; }
+  }
 
   // 5. sms_log (reserved) — DB алдаа → хаана
   let logId = null;
@@ -727,7 +739,8 @@ async function sendCode(o) {
     );
     logId = r && r.rows && r.rows[0] ? r.rows[0].id : null;
   } catch (e) {
-    await rollback(); await safeDrop(o.drop, code); logErr('[sms] log', e);
+    // дахин ашигласан код өмнө нь илгээгдсэн тул хүчингүй болгохгүй
+    await rollback(); if (!reused) await safeDrop(o.drop, code); logErr('[sms] log', e);
     return UNAV;
   }
 
@@ -755,7 +768,7 @@ async function sendCode(o) {
       try { await pool.query(`DELETE FROM sms_log WHERE created_at < NOW() - INTERVAL '90 days'`); }
       catch (e) { logErr('[sms] cleanup', e); }
     }
-    return { ok: true, masked2: masked2, masked4: masked4, cooldown: COOLDOWN_SEC, expires_in: CODE_TTL_SEC };
+    return { ok: true, masked2: masked2, masked4: masked4, cooldown: COOLDOWN_SEC, expires_in: CODE_TTL_SEC, reused: reused };
   }
   await notify('tg:sms:' + t.cls, T30_WIN, tgClassText(t.cls, t.http));
   if (t.cls === 'TIMEOUT') {
@@ -764,7 +777,7 @@ async function sendCode(o) {
     return mkFail('SMS_UNCERTAIN', { wait: COOLDOWN_SEC });
   }
   await rollback();
-  await safeDrop(o.drop, code);
+  if (!reused) await safeDrop(o.drop, code);   // дахин ашигласан код өмнөх SMS-ээр ирсэн байж болно
   return UNAV;
 }
 

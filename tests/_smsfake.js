@@ -251,6 +251,28 @@ async function query(sql, p) {
     Object.assign(r, { pass_hash: p[1], verified: true, code: null, code_exp: null, code_attempts: 0 }); if (!r.phone_verified_at) r.phone_verified_at = new Date(); return { rows: [{ email: r.email }] };
   }
 
+  // auth.js register: дахин бүртгүүлэхэд хуучин кодыг шинэ мөрөнд шилжүүлнэ
+  if (q === 'UPDATE users SET verify_code=$2, code_attempts=$3 WHERE LOWER(email)=LOWER($1) AND verified=false') {
+    const u = db.users.get(lc(p[0])); if (u && u.verified === false) Object.assign(u, { verify_code: p[1], code_attempts: p[2] }); return { rows: [] };
+  }
+  // sendCode reuse (auth.js userCodeReuse / worksheets.js wsCodeReuse): хүчинтэй кодын хугацааг сунгаж ТЭР кодыг буцаана
+  if ((m = q.match(/^UPDATE users SET verify_expiry=\$2 WHERE LOWER\(email\)=LOWER\(\$1\) AND verified IS NOT (TRUE|FALSE) AND verify_code IS NOT NULL AND verify_expiry > NOW\(\) AND COALESCE\(code_attempts,0\) < \$3 RETURNING verify_code$/))) {
+    if (db.reuseFail) { const e = new Error('db down'); e.code = '57P01'; throw e; }
+    db.reuseQueries = (db.reuseQueries || 0) + 1;
+    const u = db.users.get(lc(p[0]));
+    if (!u || (m[1] === 'TRUE' ? u.verified === true : u.verified === false)) return { rows: [] };
+    if (u.verify_code == null || !u.verify_expiry || new Date(u.verify_expiry).getTime() <= now() || (u.code_attempts || 0) >= p[2]) return { rows: [] };
+    u.verify_expiry = p[1]; return { rows: [{ verify_code: u.verify_code }] };
+  }
+  if ((m = q.match(/^UPDATE ws_login SET code_exp=\$2 WHERE email=\$1( AND verified=FALSE)? AND code IS NOT NULL AND code_exp > NOW\(\) AND COALESCE\(code_attempts,0\) < \$3 RETURNING code$/))) {
+    if (db.reuseFail) { const e = new Error('db down'); e.code = '57P01'; throw e; }
+    db.reuseQueries = (db.reuseQueries || 0) + 1;
+    const r = db.ws.get(p[0]);
+    if (!r || (m[1] && r.verified)) return { rows: [] };
+    if (r.code == null || !r.code_exp || new Date(r.code_exp).getTime() <= now() || (r.code_attempts || 0) >= p[2]) return { rows: [] };
+    r.code_exp = new Date(p[1]); return { rows: [{ code: r.code }] };
+  }
+
   // _sms.js promoNote — ws_promo_public-тэй ижил нөхцөл (db.promos: {active, personal, expires_at, max_uses, used_count})
   if (q === 'SELECT 1 FROM ws_promos WHERE active = TRUE AND COALESCE(personal, FALSE) = FALSE AND (expires_at IS NULL OR expires_at > NOW()) AND (max_uses IS NULL OR used_count < max_uses) LIMIT 1') {
     db.promoQueries = (db.promoQueries || 0) + 1;
@@ -344,7 +366,7 @@ function reset() {
   delete process.env.SMS_DISABLED; delete process.env.SMS_DAY_MAX;
   process.env.SMS_PAD_MS = '0';
   process.env.TEXTBEE_API_KEY = FAKE_KEY;
-  db.promos = []; db.promoMode = null; db.promoQueries = 0; delete process.env.SMS_PROMO_NOTE;
+  db.promos = []; db.promoMode = null; db.promoQueries = 0; db.reuseFail = false; db.reuseQueries = 0; delete process.env.SMS_PROMO_NOTE;
   const smsMod = require.cache[require.resolve(path.join(API, '_sms.js'))];
   if (smsMod && smsMod.exports && smsMod.exports.promoCacheReset) smsMod.exports.promoCacheReset();
 }

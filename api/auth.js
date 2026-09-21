@@ -153,6 +153,19 @@ function userCodeStore(email, forReset) {
     if (!r.rows.length) throw new Error('user code store: row missing');
   };
 }
+// Хүчинтэй код байвал хугацааг 10 минутаар сунгаж ТЭР кодыг буцаана (sendCode-ийн reuse). Оролдлого тэглэхгүй,
+// оролдлого дууссан (checkCode түгжих) код дахин ашиглагдахгүй.
+function userCodeReuse(email, forReset) {
+  return async function () {
+    const r = await pool.query(
+      'UPDATE users SET verify_expiry=$2 WHERE LOWER(email)=LOWER($1) AND '
+        + (forReset ? 'verified IS NOT FALSE' : 'verified IS NOT TRUE')
+        + ' AND verify_code IS NOT NULL AND verify_expiry > NOW() AND COALESCE(code_attempts,0) < $3 RETURNING verify_code',
+      [email, new Date(Date.now() + 10 * 60 * 1000), MAX_CODE_ATTEMPTS]
+    );
+    return r.rows.length ? r.rows[0].verify_code : null;
+  };
+}
 function userCodeDrop(email) {
   return function (code) {
     return pool.query('UPDATE users SET verify_code=NULL WHERE LOWER(email)=LOWER($1) AND verify_code=$2', [email, code]);
@@ -317,6 +330,18 @@ module.exports = async (req, res) => {
         const pf = await sms.precheck({ ip, email, kind: 'reg' });
         if (pf) return sms.failJson(res, pf, { reg: 'game' });
       }
+      // Дахин бүртгүүлэх ("Буцах" → формоо дахин илгээх): ижил утас, хүчинтэй код, оролдлого үлдсэн бол ТЭР кодыг
+      // шинэ мөрөнд шилжүүлж дахин илгээнэ — хоцорч ирсэн анхны SMS-ийн код ч зөв хэвээр. Утас өөр бол шинэ код.
+      let carry = null;
+      if (!inviteRow && exists.rows.length) {
+        await ensureAttemptsColumn();
+        const oldQ = await pool.query('SELECT verified, verify_code, verify_expiry, code_attempts, phone FROM users WHERE LOWER(email)=LOWER($1)', [email]);
+        const o = oldQ.rows[0];
+        if (o && o.verified === false && o.verify_code && o.verify_expiry && new Date(o.verify_expiry).getTime() > Date.now()
+            && (Number(o.code_attempts) || 0) < MAX_CODE_ATTEMPTS && String(o.phone || '') === String(smsPhone)) {
+          carry = { code: String(o.verify_code), attempts: Number(o.code_attempts) || 0 };
+        }
+      }
       if (exists.rows.length) {
         await pool.query('DELETE FROM users WHERE LOWER(email)=LOWER($1) AND verified=false', [email]);
       }
@@ -355,9 +380,13 @@ module.exports = async (req, res) => {
       }
 
       // Ердийн бүртгэл — баталгаажуулах код ЗӨВХӨН SMS-ээр (имэйл илгээхгүй)
+      // Шилжүүлэх код байвал шинэ мөрөнд бичнэ (оролдлогын тоо хэвээр) → sendCode reuse нь хугацааг сунгаж ТЭР кодыг илгээнэ
+      if (carry) {
+        await pool.query('UPDATE users SET verify_code=$2, code_attempts=$3 WHERE LOWER(email)=LOWER($1) AND verified=false', [email, carry.code, carry.attempts]);
+      }
       const sent = await sms.sendCode({
         purpose: 'verify', kind: 'reg', phone: smsPhone, email, ip,
-        store: userCodeStore(email, false), drop: userCodeDrop(email),
+        store: userCodeStore(email, false), drop: userCodeDrop(email), reuse: carry ? userCodeReuse(email, false) : undefined,
       });
       if (sent.ok) return res.json({ ok: true, needVerify: true, email, sms: true, masked: sent.masked2 });
       if (sent.code === 'SMS_UNCERTAIN') {
@@ -421,7 +450,7 @@ module.exports = async (req, res) => {
       await ensureAttemptsColumn();
       const sent = await sms.sendCode({
         purpose: 'verify', kind: 'reg', phone: pn.local, email, ip,
-        store: userCodeStore(email, false), drop: userCodeDrop(email),
+        store: userCodeStore(email, false), drop: userCodeDrop(email), reuse: userCodeReuse(email, false),
       });
       if (sent.ok) return res.json(smsAccepted(sent.masked2));
       if (sent.phoneQuota) { await sms.padTo(t0); return res.json(smsAccepted(sms.fakeMask(email))); }
@@ -490,7 +519,7 @@ module.exports = async (req, res) => {
       await ensureAttemptsColumn();
       const sent = await sms.sendCode({
         purpose: 'reset', kind: 'acct', phone: dest, email, ip,
-        store: userCodeStore(email, true), drop: userCodeDrop(email),
+        store: userCodeStore(email, true), drop: userCodeDrop(email), reuse: userCodeReuse(email, true),
       });
       if (sent.ok) return res.json(smsAccepted(sent.masked2));
       if (sent.phoneQuota) {

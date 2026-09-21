@@ -170,16 +170,17 @@ test('register: урилгатай → утас заавал биш, SMS 0, шу
   assert.strictEqual(F.sms.calls.length, n);
 });
 
-test('resend: утастай баталгаажаагүй → шинэ SMS код; утасгүй / олдоогүй → хуурамч ижил хэлбэр (SMS 0); баталгаажсан → alreadyVerified', async () => {
+test('resend: хүчинтэй код байвал ТЭР кодыг дахин илгээнэ (оролдлого хэвээр, хугацаа сунгана); утасгүй / олдоогүй → хуурамч ижил хэлбэр (SMS 0); баталгаажсан → alreadyVerified', async () => {
   await seedUser('rs@x.mn', { verified: false, verify_code: '123123', verify_expiry: new Date(Date.now() + 600e3), code_attempts: 2 });
   const n = F.sms.calls.length;
   let r = await A({ action: 'resend', email: 'rs@x.mn' });
   assert.strictEqual(r.statusCode, 200);
   assert.deepStrictEqual(r.body, { ok: true, sms: true, masked: '**** **33' });
   const u = F.db.users.get('rs@x.mn');
-  assert.strictEqual(u.verify_code, F.lastCode());
-  assert.notStrictEqual(u.verify_code, '123123');
-  assert.strictEqual(u.code_attempts, 0);
+  assert.strictEqual(F.lastCode(), '123123', 'хүчинтэй кодыг дахин илгээнэ');
+  assert.strictEqual(u.verify_code, '123123');
+  assert.strictEqual(u.code_attempts, 2, 'оролдлого тэглэгдэхгүй');
+  assert.ok(new Date(u.verify_expiry).getTime() > Date.now() + 9 * 60e3, 'хугацаа сунгагдсан');
   await seedUser('rsnp@x.mn', { verified: false, phone: null });
   r = await A({ action: 'resend', email: 'rsnp@x.mn' });
   assert.strictEqual(r.statusCode, 200);

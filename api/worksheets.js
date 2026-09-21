@@ -82,6 +82,17 @@ function wsCodeStore(email, onlyUnverified) {
     if (!r.rows.length) throw new Error('ws code store: row missing');
   };
 }
+// Хүчинтэй код байвал хугацааг 10 минутаар сунгаж ТЭР кодыг буцаана (sendCode-ийн reuse). Оролдлого тэглэхгүй.
+// codeAttempt нь оролдлого CODE_MAX_ATTEMPTS-аас хэтэрмэгц кодыг устгадаг тул тийм код дахин ашиглагдахгүй.
+function wsCodeReuse(email, onlyUnverified) {
+  return async function () {
+    const r = await pool.query(
+      'UPDATE ws_login SET code_exp=$2 WHERE email=$1' + (onlyUnverified ? ' AND verified=FALSE' : '')
+        + ' AND code IS NOT NULL AND code_exp > NOW() AND COALESCE(code_attempts,0) < $3 RETURNING code',
+      [email, new Date(Date.now() + 10 * 60 * 1000).toISOString(), CODE_MAX_ATTEMPTS]);
+    return r.rows.length ? r.rows[0].code : null;
+  };
+}
 // Худалдан авсан/олгосон эрхтэй имэйл эсэх (хугацаа дууссан ч тооцно). Хүснэгт үүсээгүй (42P01) бол алгасна, бусад DB алдаа → throw
 const WS_ENTITLED_SQL = [
   'SELECT 1 FROM ws_access WHERE LOWER(email)=$1 LIMIT 1',
@@ -514,7 +525,7 @@ module.exports = async (req, res) => {
           if (!dest) { await sms.padTo(t0); return res.json(wsAccepted(sms.fakeMask(email))); }
           const sent = await sms.sendCode({
             purpose: 'reset', kind: 'acct', phone: dest, email: email, ip: ip,
-            store: wsCodeStore(email, false), drop: function (code) { return dropCode(email, code); },
+            store: wsCodeStore(email, false), drop: function (code) { return dropCode(email, code); }, reuse: wsCodeReuse(email, false),
           });
           if (sent.ok) return res.json(wsAccepted(sent.masked2));
           if (sent.phoneQuota) { await sms.padTo(t0); return res.json(wsAccepted(sms.maskPhone(dest, 2))); }
@@ -586,7 +597,7 @@ module.exports = async (req, res) => {
           }
           const sent = await sms.sendCode({
             purpose: 'verify', kind: 'reg', phone: pn.local, email: email, ip: ip,
-            store: wsCodeStore(email, true), drop: function (code) { return dropCode(email, code); },
+            store: wsCodeStore(email, true), drop: function (code) { return dropCode(email, code); }, reuse: wsCodeReuse(email, true),
           });
           if (sent.ok) return res.json(wsAccepted(sent.masked2, { needVerify: true }));
           if (sent.phoneQuota) return fake();
