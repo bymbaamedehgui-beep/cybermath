@@ -113,7 +113,19 @@ test('resend (game) ба ws_register / ws_resend → сануулгатай; н�
   assert.strictEqual(lastMsg(), sms.codeText('reset', F.lastCode()));
 });
 
-test('Android хэсгийн нөөц: 30 минутад сануулга ≤ SMS_PARTS_30MIN_MAX(30) − SMS_30MIN_MAX(25) = 5; амжилтгүй илгээлт нөөцөө буцаана', async () => {
+test('Android хэсгийн нөөц: SMS_30MIN_MAX=25 тавьсан үед 30 минутад сануулга ≤ SMS_PARTS_30MIN_MAX(30) − 25 = 5; амжилтгүй илгээлт нөөцөө буцаана', async () => {
+  process.env.SMS_30MIN_MAX = '25';
+  try { await promoBudget(); } finally { delete process.env.SMS_30MIN_MAX; }
+});
+test('30 минутын нийт хязгааргүй (анхдагч, textbee Pro) → сануулгын нөөц ч хязгааргүй: бүх бөөн бүртгэлд сануулга', async () => {
+  F.db.promos.push(promo());
+  for (let i = 0; i < BURST.length; i++) {
+    const r = await A(regBody('u' + i + '@x.mn', BURST[i]), { ip: '198.51.100.' + (40 + i) });
+    assert.strictEqual(r.statusCode, 200, 'i=' + i);
+    assert.match(lastMsg(), URL_RE, 'i=' + i);
+  }
+});
+async function promoBudget() {
   F.db.promos.push(promo());
   const withNote = [];
   for (let i = 0; i < BURST.length; i++) {
@@ -139,7 +151,7 @@ test('Android хэсгийн нөөц: 30 минутад сануулга ≤ SM
     assert.strictEqual(r.statusCode, 200);
     assert.strictEqual(lastMsg(), sms.codeText('verify', F.lastCode()));
   } finally { delete process.env.SMS_PARTS_30MIN_MAX; }
-});
+}
 
 test('промо асуулт алдаа (42P01) → SMS сануулгагүй хэвийн, ok:true; алдааг 60с кэшлэнэ; лог-д код/дугаар алга', async () => {
   F.db.promos.push(promo());

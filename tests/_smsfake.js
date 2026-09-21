@@ -26,7 +26,8 @@ const db = {
   rl: new Map(),          // key → {ws:ms, count}
   users: new Map(),       // lower(email) → row
   invites: new Map(),
-  ws: new Map(),          // email → ws_login row
+  wsInv: new Map(),       // ws_invites token → row
+  ws: new Map(),         // email → ws_login row
   smsLog: [],
   smsState: new Map(),
   entitled: new Map(),    // table → Set(email)
@@ -251,6 +252,32 @@ async function query(sql, p) {
     Object.assign(r, { pass_hash: p[1], verified: true, code: null, code_exp: null, code_attempts: 0 }); if (!r.phone_verified_at) r.phone_verified_at = new Date(); return { rows: [{ email: r.email }] };
   }
 
+  // worksheets.js урилгын линк (ws_invites) + урилгаар бүртгүүлэх
+  if (q === 'INSERT INTO ws_invites (token, max_uses, expires_at, note) VALUES ($1,$2,$3,$4)') {
+    db.wsInv.set(p[0], { token: p[0], max_uses: p[1], uses: 0, expires_at: p[2] ? new Date(p[2]) : null, note: p[3], created_at: new Date() }); return { rows: [] };
+  }
+  if (q === 'SELECT max_uses, uses, expires_at FROM ws_invites WHERE token=$1') {
+    const i = db.wsInv.get(p[0]); return { rows: i ? [pick(i, ['max_uses', 'uses', 'expires_at'])] : [] };
+  }
+  if (q === 'SELECT token, max_uses, uses, expires_at, note, created_at FROM ws_invites ORDER BY created_at DESC LIMIT 200') {
+    return { rows: Array.from(db.wsInv.values()).reverse().map(i => Object.assign({}, i)) };
+  }
+  if (q === 'DELETE FROM ws_invites WHERE token=$1') { db.wsInv.delete(p[0]); return { rows: [] }; }
+  if (q === 'UPDATE ws_invites SET uses=uses+1 WHERE token=$1 AND uses < max_uses AND (expires_at IS NULL OR expires_at > NOW()) RETURNING token') {
+    const i = db.wsInv.get(p[0]);
+    if (!i || i.uses >= i.max_uses || (i.expires_at && new Date(i.expires_at).getTime() <= now())) return { rows: [] };
+    i.uses++; return { rows: [{ token: i.token }] };
+  }
+  if (q === 'UPDATE ws_invites SET uses=GREATEST(uses-1,0) WHERE token=$1') { const i = db.wsInv.get(p[0]); if (i) i.uses = Math.max(0, i.uses - 1); return { rows: [] }; }
+  if (q === 'INSERT INTO ws_login (email, pass_hash, verified, code, code_exp, name, phone, invite) VALUES ($1,$2,TRUE,NULL,NULL,$3,$4,$5) ON CONFLICT (email) DO UPDATE SET pass_hash=EXCLUDED.pass_hash, verified=TRUE, code=NULL, code_exp=NULL, code_attempts=0, name=EXCLUDED.name, phone=EXCLUDED.phone, invite=EXCLUDED.invite WHERE ws_login.verified=FALSE AND ws_login.phone_verified_at IS NULL RETURNING email') {
+    if (typeof db.beforeWsUpsert === 'function') { const f = db.beforeWsUpsert; db.beforeWsUpsert = null; f(p[0]); }
+    const [email, hash, name, phone, inv] = p; const r = db.ws.get(email);
+    const fields = { pass_hash: hash, verified: true, code: null, code_exp: null, code_attempts: 0, name, phone, invite: inv };
+    if (!r) { db.ws.set(email, Object.assign({ email, phone_verified_at: null }, fields)); return { rows: [{ email }] }; }
+    if (!r.verified && !r.phone_verified_at) { Object.assign(r, fields); return { rows: [{ email }] }; }
+    return { rows: [] };
+  }
+
   // auth.js register: дахин бүртгүүлэхэд хуучин кодыг шинэ мөрөнд шилжүүлнэ
   if (q === 'UPDATE users SET verify_code=$2, code_attempts=$3 WHERE LOWER(email)=LOWER($1) AND verified=false') {
     const u = db.users.get(lc(p[0])); if (u && u.verified === false) Object.assign(u, { verify_code: p[1], code_attempts: p[2] }); return { rows: [] };
@@ -288,7 +315,7 @@ async function query(sql, p) {
   if (/^SELECT column_name FROM information_schema\.columns WHERE table_name = 'users' AND column_name = ANY\(\$1\)$/.test(q)) return { rows: [] };
   if (q === "SELECT indexname FROM pg_indexes WHERE tablename = 'users' AND indexname = 'idx_users_phone'") return { rows: [] };
 
-  if (/\b(users|ws_login|rate_limits|sms_log|sms_state|ws_access|ws_grade_access|ws_purchases|ws_pending|ws_event_regs|admin_invites|ws_promos)\b/.test(q)) {
+  if (/\b(users|ws_login|rate_limits|sms_log|sms_state|ws_access|ws_grade_access|ws_purchases|ws_pending|ws_event_regs|admin_invites|ws_invites|ws_promos)\b/.test(q)) {
     db.unknown.push(q);
     throw new Error('mock: unknown SQL');
   }
@@ -360,7 +387,7 @@ const responses = [];
 
 function reset() {
   // db.unknown-ийг цэвэрлэхгүй — файлын төгсгөлд нийтээр шалгана
-  db.rl.clear(); db.entitled.clear(); db.entFail = false; db.rateFail = false; db.beforeWsUpsert = null;
+  db.rl.clear(); db.entitled.clear(); db.wsInv.clear(); db.entFail = false; db.rateFail = false; db.beforeWsUpsert = null;
   db.smsState.delete('paused_until');
   sms.mode = 'ok';
   delete process.env.SMS_DISABLED; delete process.env.SMS_DAY_MAX;

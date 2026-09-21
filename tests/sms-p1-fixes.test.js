@@ -223,14 +223,14 @@ test('ws_register: баталгаажсан ws данс нэг дугаарт 5 
   assert.deepStrictEqual([r.statusCode, r.body.existed], [400, true]);
 });
 
-test('ws_register pending (R8): 10 минут дотор өөр дугаартай дахин бүртгэл → pending мессеж, утас солигдохгүй, SMS 0', async () => {
+test('ws_register pending (R8): код хүчинтэй (20 минут) үед өөр дугаартай дахин бүртгэл → pending мессеж, утас солигдохгүй, SMS 0', async () => {
   let r = await W({ action: 'ws_register', email: 'wp@x.mn', pass: 'secret1', name: 'A', phone: PH });
   assert.strictEqual(r.body.sms, true);
   F.clearCooldowns();
   const n = F.sms.calls.length;
   r = await W({ action: 'ws_register', email: 'wp@x.mn', pass: 'secret1', name: 'A', phone: PH2 });
   assert.deepStrictEqual([r.body.ok, r.body.needVerify, r.body.pending], [true, true, true]);
-  assert.match(r.body.message, /10 минутын дараа/);
+  assert.match(r.body.message, /20 минутын дараа/);
   assert.strictEqual(F.sms.calls.length, n);
   assert.strictEqual(F.db.ws.get('wp@x.mn').phone, PH);
 });

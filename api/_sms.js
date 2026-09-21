@@ -37,10 +37,11 @@
 //   textbeeSend(e164, message)   → Promise<{cls, http, ms, msgId, bodyKeys}>  (scripts/sms-smoke.js; бусад газар sendCode-ийг ашиглана)
 //   limits()                     → одоогийн env-ээс уншсан хязгаарууд
 //   logErr(tag, e), safeMsg(e), ensureSmsTables()
-// Ok   = {ok:true, masked2, masked4, cooldown:60, expires_in:600, reused}   — reused: хүчинтэй кодыг дахин илгээсэн эсэх
+//                                   SMS явалгүй бүтэлгүйтвэл (SMS_UNCERTAIN-аас бусад) имэйл/дугаарын cooldown-ыг буцаана
+// Ok   = {ok:true, masked2, masked4, cooldown:600, expires_in:1200, reused}   — reused: хүчинтэй кодыг дахин илгээсэн эсэх
 // Fail = {ok:false, code, http, wait?, scope?:'day'|'month', phoneQuota?:true}   — scope/phoneQuota ДОТООД, клиент рүү гаргахгүй
-// Алдааны код: SMS_UNAVAILABLE 503, SMS_UNCERTAIN 503 (wait 60), SMS_BUSY 503 (wait 600), SMS_FULL 503,
-//              SMS_COOLDOWN 429 (wait), SMS_LIMIT 429, PHONE_INVALID/PHONE_FOREIGN/PHONE_TOO_MANY 400,
+// Алдааны код: SMS_UNAVAILABLE 503, SMS_UNCERTAIN 503 (wait 600, codeStep), SMS_BUSY 503 (wait 600), SMS_FULL 503,
+//              SMS_COOLDOWN 429 (wait; имэйлийнх бол codeStep), SMS_LIMIT 429, PHONE_INVALID/PHONE_FOREIGN/PHONE_TOO_MANY 400,
 //              NEED_LOGIN/NEED_ADMIN/NO_PHONE 409, TOKEN_STALE 401
 const crypto = require('crypto');
 const pool = require('./_db');
@@ -49,8 +50,11 @@ const tg = require('./_telegram');
 
 const TEXTBEE_SEND_URL = 'https://api.textbee.dev/api/v1/gateway/send-sms';
 const TEXTBEE_DEVICES_URL = 'https://api.textbee.dev/api/v1/gateway/devices';
-const COOLDOWN_SEC = 60;
-const CODE_TTL_SEC = 600;
+// Нэг хүнд (имэйл, дугаар тус бүр) 10 минутад 1 SMS. Код 20 минут хүчинтэй: 10 минутын дараа дахин хүсэхэд
+// (reuse) ТЭР кодыг сунгаж илгээнэ — хоцорч ирсэн анхны SMS ч зөв хэвээр.
+const COOLDOWN_SEC = 600;
+const CODE_TTL_SEC = 1200;
+const CODE_TTL_MS = CODE_TTL_SEC * 1000;
 const DAY_WIN = 86400;
 const MONTH_WIN = 3456000; // 40 хоног
 const T30_WIN = 1800;
@@ -63,19 +67,30 @@ const EM_DAY_MAX = 10;
 // ───────────────────────── env (дуудлага бүрт уншина) ─────────────────────────
 function envStr(name) { const v = process.env[name]; return v == null ? '' : String(v).trim(); }
 function intEnv(name, def) { const n = parseInt(envStr(name), 10); return Number.isFinite(n) && n > 0 ? n : def; }
+// Нийт хязгаар: env тавиагүй → def, '0' → хязгааргүй (Infinity), эерэг тоо → тэр хязгаар
+function capEnv(name, def) {
+  const s = envStr(name);
+  if (!s) return def;
+  const n = parseInt(s, 10);
+  if (n === 0) return Infinity;
+  return Number.isFinite(n) && n > 0 ? n : def;
+}
 
+// textbee Pro (2026-09-21): өдөр / 30 минутын нийт хязгааргүй. Сар — Pro багцын 5000-аас бага хамгаалалт.
+// Android ~30 SMS/30 мин хязгаарыг утсан дээр adb-ээр өргөсгөнө (sms_outgoing_check_max_count).
 function limits() {
-  const month = intEnv('SMS_MONTH_MAX', 290);
+  const month = capEnv('SMS_MONTH_MAX', 4900);
   return {
-    day: intEnv('SMS_DAY_MAX', 45),
-    t30: intEnv('SMS_30MIN_MAX', 25),
+    day: capEnv('SMS_DAY_MAX', Infinity),
+    t30: capEnv('SMS_30MIN_MAX', Infinity),
     month: month,
-    regDay: intEnv('SMS_REG_DAY_MAX', 35),
-    regT30: intEnv('SMS_REG_30MIN_MAX', 18),
+    regDay: capEnv('SMS_REG_DAY_MAX', Infinity),
+    regT30: capEnv('SMS_REG_30MIN_MAX', Infinity),
     // Сар бүр нууц үг сэргээлт/нэвтрэлтэд (acct) дор хаяж 60 үлдээнэ
-    regMonth: Math.max(0, intEnv('SMS_REG_MONTH_MAX', Math.max(0, month - 60))),
-    ip: intEnv('SMS_IP_HOUR_MAX', 20),
-    ip24: intEnv('SMS_IP24_HOUR_MAX', 40),
+    regMonth: Math.max(0, capEnv('SMS_REG_MONTH_MAX', Math.max(0, month - 60))),
+    // IP (сургуулийн нэг NAT-аас олон багш) — хүн тус бүрийн хязгаар нь имэйл/дугаарын cooldown
+    ip: intEnv('SMS_IP_HOUR_MAX', 100),
+    ip24: intEnv('SMS_IP24_HOUR_MAX', 200),
     timeout: Math.min(9000, Math.max(2000, intEnv('SMS_TIMEOUT_MS', 8000))),
   };
 }
@@ -181,9 +196,9 @@ function ipKeys(ip) {
 
 // Кирилл, ≤70 тэмдэгт (1 хэсэг SMS), эможи/холбоосгүй. Үл хамаарах: 'verify' + PROMO_NOTE (2 хэсэг, доор)
 const SMS_TEXT = {
-  verify: 'CyberMath бүртгэлийн код: {code}. Хэнд ч бүү хэл. 10 мин.',
-  reset: 'CyberMath нууц үг сэргээх код: {code}. Хэнд ч бүү хэл. 10 мин.',
-  login: 'CyberMath нэвтрэх код: {code}. Хэнд ч бүү хэл. 10 мин.',
+  verify: 'CyberMath бүртгэлийн код: {code}. Хэнд ч бүү хэл. 20 мин.',
+  reset: 'CyberMath нууц үг сэргээх код: {code}. Хэнд ч бүү хэл. 20 мин.',
+  login: 'CyberMath нэвтрэх код: {code}. Хэнд ч бүү хэл. 20 мин.',
 };
 function codeText(purpose, code) {
   const t = SMS_TEXT[purpose];
@@ -224,7 +239,8 @@ async function promoNote() {
   return has ? PROMO_NOTE : '';
 }
 function promoCacheReset() { _promoCache = null; } // тест
-function promoPartsMax(L) { return Math.max(0, intEnv('SMS_PARTS_30MIN_MAX', 30) - L.t30); }
+// 30 минутын нийт хязгааргүй (Pro + утасны Android хязгаарыг өргөсгөсөн) бол сануулгын нөөц ч хязгааргүй
+function promoPartsMax(L) { return Number.isFinite(L.t30) ? Math.max(0, intEnv('SMS_PARTS_30MIN_MAX', 30) - L.t30) : Infinity; }
 
 // ───────────────────────── хариуны код ба текст ─────────────────────────
 const HTTP = {
@@ -240,8 +256,13 @@ function mkFail(code, extra) {
   if (x.scope) f.scope = x.scope;
   if (x.phoneQuota) f.phoneQuota = true;
   if (code === 'SMS_BUSY' && f.wait == null) f.wait = 600;
-  if (code === 'SMS_UNCERTAIN' && f.wait == null) f.wait = 60;
+  if (code === 'SMS_UNCERTAIN' && f.wait == null) f.wait = COOLDOWN_SEC;
   return f;
+}
+// секунд → "N секундын" / "N минутын"
+function waitText(sec) {
+  const s = Number(sec) > 0 ? Math.ceil(Number(sec)) : COOLDOWN_SEC;
+  return s < 60 ? s + ' секундын' : Math.ceil(s / 60) + ' минутын';
 }
 const UNAVAILABLE_TEXT = 'SMS түр явахгүй байна. Хэдэн минутын дараа дахин оролдоно уу.';
 function ERR(f, extra) {
@@ -250,14 +271,19 @@ function ERR(f, extra) {
   const x = extra || {};
   let t;
   switch (code) {
-    case 'SMS_UNCERTAIN': t = 'SMS илгээгдсэн эсэх тодорхойгүй байна. Код ирвэл оруулна уу, ирэхгүй бол 1 минутын дараа дахин илгээнэ үү.'; break;
+    case 'SMS_UNCERTAIN': t = 'SMS илгээгдсэн эсэх тодорхойгүй байна. Код ирвэл оруулна уу, ирэхгүй бол ' + waitText(fo.wait) + ' дараа дахин илгээнэ үү.'; break;
     case 'SMS_BUSY': t = 'Яг одоо олон хүн зэрэг код хүсэж байна. 10 минутын дараа дахин оролдоно уу.'; break;
     case 'SMS_FULL':
       t = fo.scope === 'month'
         ? 'Энэ сарын SMS кодын хязгаар дүүрлээ. Админтай холбогдоно уу: ' + contact()
         : 'Өнөөдрийн SMS кодын хязгаар дүүрлээ. Маргааш дахин оролдоно уу.';
       break;
-    case 'SMS_COOLDOWN': t = 'Код саяхан илгээсэн. ' + (Number(fo.wait) > 0 ? Number(fo.wait) : COOLDOWN_SEC) + ' секундын дараа дахин оролдоно уу.'; break;
+    case 'SMS_COOLDOWN':
+      // Нэг хүнд 10 минутад 1 SMS. Имэйлийн cooldown → өмнөх код хүчинтэй (codeStep); дугаарынх → өөр данс энэ дугаарт саяхан авсан
+      t = fo.phoneQuota
+        ? 'Энэ дугаарт саяхан код илгээсэн. ' + waitText(fo.wait) + ' дараа дахин оролдоно уу.'
+        : 'Код саяхан илгээсэн. Утсанд ирсэн кодоо оруулна уу, ирээгүй бол ' + waitText(fo.wait) + ' дараа дахин код авна уу.';
+      break;
     case 'SMS_LIMIT': t = 'Хэт олон код хүслээ. Түр хүлээгээд дахин оролдоно уу.'; break;
     case 'PHONE_INVALID': t = 'Монгол улсын 8 оронтой гар утасны дугаар оруулна уу.'; break;
     case 'PHONE_FOREIGN': t = 'Одоогоор зөвхөн Монгол улсын (+976) дугаарт код илгээнэ.'; break;
@@ -287,7 +313,8 @@ function failJson(res, f, extra) {
   out.code = fx.code;
   out.error = ERR(fx, x);
   if (fx.wait != null) out.wait = fx.wait;
-  if (fx.code === 'SMS_UNCERTAIN') out.codeStep = true;
+  // codeStep: өмнөх код хүчинтэй байж болно — клиент код оруулах алхам руу шилжинэ (имэйлийн cooldown, тодорхойгүй илгээлт)
+  if (fx.code === 'SMS_UNCERTAIN' || (fx.code === 'SMS_COOLDOWN' && !fx.phoneQuota)) out.codeStep = true;
   return res.status(fx.http || HTTP[fx.code] || 503).json(out);
 }
 
@@ -590,8 +617,9 @@ async function precheck(o) {
   if (!h) return UNAV;
   if (h.count > L.ip24) return mkFail('SMS_LIMIT');
 
-  // pc-4: имэйлийн cooldown
-  h = await hit('sms:em:cd:' + email, COOLDOWN_SEC);
+  // pc-4: имэйлийн cooldown (kind тус бүр — нууц үг сэргээх оролдлого бүртгэлийг 10 минут хаахгүй).
+  // SMS явалгүй бүтэлгүйтвэл sendCode буцаана (emCdKey).
+  h = await hit(emCdKey(kind, email), COOLDOWN_SEC);
   if (!h) return UNAV;
   if (h.count > 1) return mkFail('SMS_COOLDOWN', { wait: h.retryAfter });
 
@@ -641,13 +669,27 @@ async function offlineCheck() {
   } catch (e) { logErr('[sms] offline', e); }
 }
 
+function emCdKey(kind, email) { return 'sms:em:cd:' + (kind === 'acct' ? 'acct' : 'reg') + ':' + normEmail(email); }
+
 async function safeDrop(drop, code) {
   if (typeof drop !== 'function') return;
   try { await drop(code); } catch (e) { logErr('[sms] drop', e); }
 }
 
+// SMS огт явалгүй бүтэлгүйтвэл (SMS_UNCERTAIN-аас бусад алдаа) энэ хүсэлтийн тавьсан cooldown-ыг буцаана —
+// textbee/DB алдаа, буруу дугаар зэргээс болж хэрэглэгч 10 минут хүлээхгүй. Имэйлийн cooldown-ыг дуудагч энэ
+// хүсэлтэд precheck-ээр тавьсан (precheck-д count>1 бол sendCode хүрэхгүй), дугаарынхыг sendCodeInner тавьсан бол cd.ph.
 async function sendCode(o) {
   o = o || {};
+  const cd = { ph: null };
+  const r = await sendCodeInner(o, cd);
+  if (r && !r.ok && r.code !== 'SMS_UNCERTAIN') {
+    if (o.email) await decr(emCdKey(o.kind, o.email));
+    if (cd.ph) await decr(cd.ph);
+  }
+  return r;
+}
+async function sendCodeInner(o, cd) {
   const purpose = o.purpose;
   const kind = o.kind === 'acct' ? 'acct' : 'reg';
   const UNAV = mkFail('SMS_UNAVAILABLE');
@@ -664,9 +706,11 @@ async function sendCode(o) {
 
   // 2. Дугаарын квот (store-оос ӨМНӨ → cooldown үед өмнөх код хүчинтэй хэвээр).
   // cooldown түлхүүр kind тус бүр: хохирогчийн дугаараар бүртгэл spam хийсэн ч нууц үг сэргээлт нь хаагдахгүй.
-  let h = await hit('sms:ph:cd:' + kind + ':' + ph, COOLDOWN_SEC);
+  const phCd = 'sms:ph:cd:' + kind + ':' + ph;
+  let h = await hit(phCd, COOLDOWN_SEC);
   if (!h) return UNAV;
   if (h.count > 1) return mkFail('SMS_COOLDOWN', { wait: h.retryAfter, phoneQuota: true });
+  cd.ph = phCd;
   h = await hit('sms:ph:' + kind + ':' + ph, DAY_WIN);
   if (!h) return UNAV;
   if (h.count > (kind === 'reg' ? PH_REG_DAY_MAX : PH_ACCT_DAY_MAX)) return mkFail('SMS_LIMIT', { phoneQuota: true });
@@ -881,7 +925,7 @@ module.exports = {
   normalizePhone, maskPhone, maskEmail, fakeMask, phoneHash, ipKeys, codeText,
   precheck, sendCode, markVerified, publicOtpResponse, padTo, mkFail, ERR, failJson, notify,
   status, setPause, deviceStatus, textbeeSend, limits, logErr, safeMsg, ensureSmsTables, ensureUserColumns, maxAccountsPerPhone, trustLegacyPhone,
-  promoNote, PROMO_NOTE,
+  promoNote, PROMO_NOTE, CODE_TTL_MS, COOLDOWN_SEC,
   // тестэд
   promoCacheReset,
   _internal: { hit, readCounts, count, decr, periods, tKeys },

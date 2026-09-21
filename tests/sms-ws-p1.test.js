@@ -222,18 +222,18 @@ test('ws_resend: утастай баталгаажаагүй → SMS; утасг
   assert.strictEqual(F.sms.calls.length, n + 1);
 });
 
-test('ws_register: textbee 500 → 503, код NULL; 60с дотор дахин → 429; дараа нь дахин бүртгүүлж болно', async () => {
+test('ws_register: textbee 500 → 503, код NULL; SMS яваагүй тул cooldown буцаагдаж ШУУД дахин бүртгүүлж болно; амжилттайн дараа 10 мин 429', async () => {
   F.sms.mode = 'down';
   let r = await W(reg('rf@x.mn', { phone: PH2 }));
   assert.deepStrictEqual([r.statusCode, r.body.ok, r.body.code], [503, false, 'SMS_UNAVAILABLE']);
   assert.strictEqual(F.db.ws.get('rf@x.mn').code, null);
   F.sms.mode = 'ok';
   r = await W(reg('rf@x.mn', { phone: PH2 }));
-  assert.deepStrictEqual([r.statusCode, r.body.code], [429, 'SMS_COOLDOWN']);
-  F.reset();
-  r = await W(reg('rf@x.mn', { phone: PH2 }));
   assert.strictEqual(r.body.ok, true);
   assert.strictEqual(F.db.ws.get('rf@x.mn').code, F.lastCode());
+  r = await W({ action: 'ws_resend', email: 'rf@x.mn' });
+  assert.deepStrictEqual([r.statusCode, r.body.code], [429, 'SMS_COOLDOWN']);
+  assert.match(r.body.error, /минутын дараа/);
 });
 
 test('ws_register: SMS_UNCERTAIN (abort) → 503 + needVerify/codeStep/masked, код үлдэнэ', async () => {

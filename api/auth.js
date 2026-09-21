@@ -148,12 +148,12 @@ function userCodeStore(email, forReset) {
     const r = await pool.query(
       'UPDATE users SET verify_code=$1, verify_expiry=$2, code_attempts=0 WHERE LOWER(email)=LOWER($3) AND '
         + (forReset ? 'verified IS NOT FALSE' : 'verified IS NOT TRUE') + ' RETURNING id',
-      [code, new Date(Date.now() + 10 * 60 * 1000), email]
+      [code, new Date(Date.now() + sms.CODE_TTL_MS), email]
     );
     if (!r.rows.length) throw new Error('user code store: row missing');
   };
 }
-// Хүчинтэй код байвал хугацааг 10 минутаар сунгаж ТЭР кодыг буцаана (sendCode-ийн reuse). Оролдлого тэглэхгүй,
+// Хүчинтэй код байвал хугацааг CODE_TTL (20 минут)-аар сунгаж ТЭР кодыг буцаана (sendCode-ийн reuse). Оролдлого тэглэхгүй,
 // оролдлого дууссан (checkCode түгжих) код дахин ашиглагдахгүй.
 function userCodeReuse(email, forReset) {
   return async function () {
@@ -161,7 +161,7 @@ function userCodeReuse(email, forReset) {
       'UPDATE users SET verify_expiry=$2 WHERE LOWER(email)=LOWER($1) AND '
         + (forReset ? 'verified IS NOT FALSE' : 'verified IS NOT TRUE')
         + ' AND verify_code IS NOT NULL AND verify_expiry > NOW() AND COALESCE(code_attempts,0) < $3 RETURNING verify_code',
-      [email, new Date(Date.now() + 10 * 60 * 1000), MAX_CODE_ATTEMPTS]
+      [email, new Date(Date.now() + sms.CODE_TTL_MS), MAX_CODE_ATTEMPTS]
     );
     return r.rows.length ? r.rows[0].verify_code : null;
   };
@@ -328,7 +328,11 @@ module.exports = async (req, res) => {
       // SMS квот — хуучин баталгаажаагүй мөрийг устгахаас ӨМНӨ (cooldown үед өмнөх код хүчинтэй үлдэнэ)
       if (!inviteRow) {
         const pf = await sms.precheck({ ip, email, kind: 'reg' });
-        if (pf) return sms.failJson(res, pf, { reg: 'game' });
+        if (pf) {
+          // 10 минутын cooldown үед хүлээгдэж буй бүртгэлийн (хугацаа дуусаагүй) код хүчинтэй — клиент код оруулах алхам руу шилжинэ
+          const pend = pf.code === 'SMS_COOLDOWN' && !pf.phoneQuota && exists.rows.length > 0;
+          return sms.failJson(res, pf, { reg: 'game', fields: pend ? { needVerify: true, email } : undefined });
+        }
       }
       // Дахин бүртгүүлэх ("Буцах" → формоо дахин илгээх): ижил утас, хүчинтэй код, оролдлого үлдсэн бол ТЭР кодыг
       // шинэ мөрөнд шилжүүлж дахин илгээнэ — хоцорч ирсэн анхны SMS-ийн код ч зөв хэвээр. Утас өөр бол шинэ код.
@@ -346,7 +350,7 @@ module.exports = async (req, res) => {
         await pool.query('DELETE FROM users WHERE LOWER(email)=LOWER($1) AND verified=false', [email]);
       }
 
-      const codeExpiry = new Date(Date.now() + 10 * 60 * 1000);
+      const codeExpiry = new Date(Date.now() + sms.CODE_TTL_MS);
       const hashedPass = await bcrypt.hash(pass, BCRYPT_ROUNDS);
 
       // Багш бол grade-ийг 'teacher' болгох

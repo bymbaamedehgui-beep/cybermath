@@ -1396,13 +1396,13 @@ function openPinCreate(){
   inp.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();save();}});
   o.querySelector('#pinSkip').onclick=function(e){e.preventDefault();lsSet('cm_ws_pin_skip','1');o.remove();};
 }
-function openLogin(auto){
+function openLogin(auto,view){
   if(document.getElementById('wsLogin'))return;
   var o=document.createElement('div');o.id='wsLogin';
   o.style.cssText='position:fixed;inset:0;z-index:200;background:rgba(20,15,40,.6);display:grid;place-items:center;padding:16px;overflow:auto';
   var iS='width:100%;border:1.6px solid #e7ddff;border-radius:12px;padding:.7rem .9rem;font-size:.95rem;outline:none;margin-bottom:9px';
   var bS='width:100%;font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.75rem;font-size:.95rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2))';
-  var spamNote='<div style="font-size:.76rem;color:var(--soft);background:transparent;border-left:3px solid #d9cff5;border-radius:8px;padding:7px 10px;margin-bottom:10px">Код <b>SMS</b>-ээр 1-2 минутад ирнэ. Ирэхгүй бол 1 минутын дараа дахин код авна уу.</div>';
+  var spamNote='<div style="font-size:.76rem;color:var(--soft);background:transparent;border-left:3px solid #d9cff5;border-radius:8px;padding:7px 10px;margin-bottom:10px">Код <b>SMS</b>-ээр 1-2 минутад ирнэ. Ирэхгүй бол 10 минутын дараа дахин код авна уу.</div>';
   o.innerHTML='<div style="background:#fff;border-radius:20px;max-width:400px;width:100%;padding:24px;text-align:center;box-shadow:0 24px 60px -18px rgba(0,0,0,.5)">'
     +'<div style="width:54px;height:54px;margin:0 auto 6px;background:linear-gradient(135deg,var(--purple),var(--purple2));border-radius:15px;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="27" height="27" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg></div>'
     +'<h3 id="liTitle" style="color:var(--purple-d);font-size:1.2rem;font-weight:900;margin:6px 0 10px">Дасгалын төвд нэвтрэх</h3>'
@@ -1419,7 +1419,8 @@ function openLogin(auto){
       +'</div></div>'
     // REGISTER
     +'<div id="vRegister" style="display:none">'
-      +'<p style="color:var(--soft);font-size:.82rem;margin-bottom:10px">Баталгаажуулах код утсанд <b>SMS</b>-ээр ирнэ. Эрх худалдаж авсан боловч нэвтэрч чадахгүй бол «Нууц үг мартсан?»-ыг ашиглах эсвэл админтай холбогдоно уу.</p>'
+      +'<div id="rgInv" style="display:none;text-align:left;font-size:.82rem;color:#3b2a7a;background:transparent;border-left:3px solid var(--purple);border-radius:8px;padding:8px 11px;margin-bottom:10px;line-height:1.45"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px;color:var(--purple)"><path d="M20 6L9 17l-5-5"/></svg><b>Урилгын линкээр</b> бүртгүүлж байна — SMS код шаардлагагүй, шууд нэвтэрнэ.</div>'
+      +'<p id="rgSmsNote" style="color:var(--soft);font-size:.82rem;margin-bottom:10px">Баталгаажуулах код утсанд <b>SMS</b>-ээр ирнэ. Эрх худалдаж авсан боловч нэвтэрч чадахгүй бол «Нууц үг мартсан?»-ыг ашиглах эсвэл админтай холбогдоно уу.</p>'
       +'<input id="rgName" type="text" placeholder="Нэр" style="'+iS+'" />'
       +'<input id="rgEmail" type="email" placeholder="Имэйл хаяг" style="'+iS+'" />'
       +'<input id="rgPhone" type="tel" inputmode="numeric" autocomplete="tel-national" maxlength="16" placeholder="Утасны дугаар (8 орон, код SMS-ээр ирнэ)" style="'+iS+'" />'
@@ -1461,6 +1462,14 @@ function openLogin(auto){
   function okE(e){return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);}
   function api(action,body){ body=body||{}; body.action=action; return fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json().then(function(d){return {s:r.status,d:d};});}); }
   var TITLES={login:'Дасгалын төвд нэвтрэх',register:'Шинэ бүртгэл үүсгэх',verify:'Бүртгэл баталгаажуулах',forgot:'Нууц үг сэргээх'};
+  // Урилгын горим: SMS-ийн тайлбарыг нууж, утсыг заавал биш болгоно
+  function applyInv(){
+    var on=!!(WS_INV&&WS_INV.ok);
+    q('#rgInv').style.display=on?'block':'none'; q('#rgSmsNote').style.display=on?'none':'block';
+    q('#rgPhone').placeholder=on?'Утасны дугаар (заавал биш)':'Утасны дугаар (8 орон, код SMS-ээр ирнэ)';
+    TITLES.register=on?'Урилгаар бүртгүүлэх':'Шинэ бүртгэл үүсгэх';
+    if(q('#vRegister').style.display==='block')q('#liTitle').textContent=TITLES.register;
+  }
   function showView(v){ ['login','register','verify','forgot'].forEach(function(x){q('#v'+x.charAt(0).toUpperCase()+x.slice(1)).style.display=(x===v)?'block':'none';}); q('#liTitle').textContent=TITLES[v]; if(v!=='verify'){passAsked=false; var pwW=q('#vPassWrap'); if(pwW){pwW.style.display='none'; q('#vPass').value='';}} }
   function done(token,email,fresh){ if(token)lsSet('cm_ws_token',token); lsSet('cm_last_user',email); CM_USER={email:email}; if(fresh)resetNewBaseline(); renderAcct(); o.remove(); toast('✓ Тавтай морил'); ensurePin(); try{loadEvents();}catch(e){} if(window.__afterLogin){var _f=window.__afterLogin;window.__afterLogin=null;setTimeout(_f,180);} }
   var curEmail='',curPass='',passAsked=false;
@@ -1509,13 +1518,18 @@ function openLogin(auto){
     var p1=q('#rgPass').value||'',p2=q('#rgPass2').value||'',m=q('#rgMsg');
     if(!name){m.style.color='#dc2626';m.textContent='Нэрээ оруулна уу';return;}
     if(!okE(email)){m.style.color='#dc2626';m.textContent='Зөв имэйл оруулна уу';return;}
-    if(!/^\d{8}$/.test(phone)){m.style.color='#dc2626';m.textContent='8 оронтой утасны дугаар оруулна уу (код SMS-ээр ирнэ)';return;}
+    var inv=(WS_INV&&WS_INV.ok)?WS_INV.token:null;
+    if(inv?(phone&&!/^\d{8}$/.test(phone)):!/^\d{8}$/.test(phone)){m.style.color='#dc2626';m.textContent=inv?'Утасны дугаар 8 оронтой байх ёстой (эсвэл хоосон орхино уу)':'8 оронтой утасны дугаар оруулна уу (код SMS-ээр ирнэ)';return;}
     if(p1.length<6){m.style.color='#dc2626';m.textContent='Нууц үг 6+ тэмдэгт байх ёстой';return;}
     if(p1!==p2){m.style.color='#dc2626';m.textContent='Нууц үг таарахгүй байна';return;}
     var b=q('#rgBtn');b.disabled=true;b.textContent='Бүртгэж байна…';m.textContent='';
-    api('ws_register',{email:email,pass:p1,name:name,phone:phone}).then(function(x){
+    var body={email:email,pass:p1,name:name,phone:phone};if(inv)body.invite=inv;
+    api('ws_register',body).then(function(x){
       b.disabled=false;b.textContent='Бүртгүүлэх';var d=x.d;
-      if(d&&d.needVerify){curEmail=email;curPass=p1;q('#vEmail').textContent=email;setVPhone(d.masked);var vm=q('#vMsg');if(d.ok&&d.pending){vm.style.color='#dc2626';vm.textContent=d.message||'Энэ имэйлд саяхан код илгээсэн. Дугаараа буруу бичсэн бол 10 минутын дараа дахин бүртгүүлнэ үү.';}else if(d.ok){vm.style.color='var(--soft)';vm.textContent='Утсанд SMS-ээр ирсэн кодыг оруулна уу. Ирээгүй бол "Код дахин илгээх"-ийг дарна уу.';}else{vm.style.color='#dc2626';vm.textContent=d.error||'';}showView('verify');setTimeout(function(){q('#vCode').focus();},40);}
+      // Урилгаар — SMS кодгүй шууд нэвтэрнэ
+      if(d&&d.ok&&d.invited&&d.token){wsInviteClear();done(d.token,email,true);return;}
+      if(d&&d.code==='INVITE_BAD'){wsInviteClear();applyInv();m.style.color='#dc2626';m.textContent=(d.error||'Урилгын линк хүчингүй байна.')+' Утасны дугаараа оруулж SMS кодоор бүртгүүлж болно.';return;}
+      if(d&&d.needVerify){curEmail=email;curPass=p1;q('#vEmail').textContent=email;setVPhone(d.masked);var vm=q('#vMsg');if(d.ok&&d.pending){vm.style.color='#dc2626';vm.textContent=d.message||'Энэ имэйлд саяхан код илгээсэн. Дугаараа буруу бичсэн бол 20 минутын дараа дахин бүртгүүлнэ үү.';}else if(d.ok){vm.style.color='var(--soft)';vm.textContent='Утсанд SMS-ээр ирсэн кодыг оруулна уу. Ирээгүй бол "Код дахин илгээх"-ийг дарна уу.';}else{vm.style.color='#dc2626';vm.textContent=d.error||'';}showView('verify');setTimeout(function(){q('#vCode').focus();},40);}
       else if(d&&d.existed){m.style.color='#dc2626';m.innerHTML='Энэ имэйл бүртгэлтэй. <a href="#" data-go="login" style="color:var(--purple-d);font-weight:800">Нэвтрэх</a>';bindGo();}
       else if(d&&d.code==='NEED_LOGIN'&&d.prepared){q('#fgEmail').value=email;m.style.color='#dc2626';m.innerHTML='Энэ имэйлд данс бэлтгэгдсэн байна. <a href="#" data-go="forgot" style="color:var(--purple-d);font-weight:800">Нууц үг сэргээх</a>-ээр орно уу.';bindGo();}
       else{m.style.color='#dc2626';m.textContent=(d&&d.error)||'Алдаа гарлаа';}
@@ -1569,6 +1583,20 @@ function openLogin(auto){
   q('#fgBtn2').onclick=doReset;
   var guest=o.querySelector('[data-guest]'); if(guest)guest.onclick=function(e){e.preventDefault();lsSet('cm_ws_dismissed','1');o.remove();};
   o.addEventListener('mousedown',function(e){if(e.target===o&&!auto){lsSet('cm_ws_dismissed','1');o.remove();}});
+  applyInv();
+  if(view){showView(view);setTimeout(function(){var f=q(view==='register'?'#rgName':'#lgEmail');if(f)f.focus();},60);}
+  if(view==='register'&&WS_INV&&WS_INV.err){var rm=q('#rgMsg');rm.style.color='#dc2626';rm.textContent=WS_INV.err;WS_INV=null;}
+}
+/* Админы урилгын линк (?invite=TOKEN): хүчинтэй бол бүртгэлийн маягтыг SMS кодгүй горимоор нээнэ */
+function wsInviteClear(){WS_INV=null;try{sessionStorage.removeItem('cm_ws_invite');}catch(e){}}
+function openInvite(){
+  var tok=WS_INVITE;
+  fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'ws_invite_info',invite:tok})})
+    .then(function(r){return r.json();}).then(function(d){
+      if(d&&d.ok)WS_INV={token:tok,ok:true};
+      else{wsInviteClear();WS_INV={err:((d&&d.error)||'Урилгын линк хүчингүй байна.')+' Утасны дугаараа оруулж SMS кодоор бүртгүүлж болно.'};}
+      openLogin(false,'register');
+    }).catch(function(){WS_INV={token:tok,ok:true};openLogin(false,'register');});   // сүлжээний алдаа — сервер бүртгэлийн үед дахин шалгана
 }
 
 /* ── Худалдан авах цонх (каталог дээр шууд) ── */
@@ -1866,6 +1894,14 @@ function openFeedback(){
 
 /* Найзын урилгын код (?ref=CODE) — PROMO-оос өмнө барина (query цэвэрлэгдэхээс өмнө) */
 (function(){var m=location.search.match(/[?&]ref=([A-Za-z0-9]{4,12})/);if(m)lsSet('cm_ws_ref',m[1].toUpperCase());})();
+/* Админы урилгын линк (?invite=TOKEN) — SMS кодгүй бүртгэл. Хуудсаа дахин ачаалсан ч sessionStorage-д үлдэнэ; URL-аас зөвхөн invite-г хасна */
+var WS_INV=null;
+var WS_INVITE=(function(){
+  var m=location.search.match(/[?&]invite=([A-Za-z0-9]{8,32})(?=[&#]|$)/),t=m?m[1].toUpperCase():null;
+  try{if(t)sessionStorage.setItem('cm_ws_invite',t);else t=sessionStorage.getItem('cm_ws_invite');}catch(e){}
+  if(/[?&]invite=/.test(location.search)){try{var u=new URL(location.href);u.searchParams.delete('invite');history.replaceState(null,'',u.pathname+u.search+u.hash);}catch(e){}}
+  return t||null;
+})();
 /* /promo хуудаснаас "АШИГЛАХ" дарж ирсэн промо код (?promo=CODE&months=N) */
 var PROMO_MONTHS=0;
 var PROMO_CODE=(function(){var m=location.search.match(/[?&]promo=([^&?#]+)/);if(!m)return null;var mm=location.search.match(/[?&]months=(\d+)/);if(mm){var v=parseInt(mm[1],10);if([3,6,9,12].indexOf(v)>=0)PROMO_MONTHS=v;}var c=decodeURIComponent(m[1]).toUpperCase().replace(/[^A-Z0-9]/g,'');try{history.replaceState(null,'',location.pathname);}catch(e){}return c||null;})();
@@ -1942,10 +1978,13 @@ function initWelcomeOffer(cb){
   }).catch(function(){cb(false);});
 }
 /* Нэвтрэлт: нэвтэрсэн бол дахиж асуухгүй; анх орж ирэхэд (админ биш) нэг удаа асууна */
+if(WS_INVITE&&isAdmin()){setTimeout(function(){toast('Урилгын линкийг админ биш цонхонд (Incognito) шалгана уу');},600);}
 if(!isAdmin()){
   renderAcct();
   verifyUser(function(){
-    if(LOGIN_REQ && !CM_USER && !PROMO_CODE){ if(LOGIN_REQ.next)window.__afterLogin=function(){location.href=LOGIN_REQ.next;}; openLogin(false); }
+    if(WS_INVITE && CM_USER){ wsInviteClear(); }   // аль хэдийн нэвтэрсэн — урилга хэрэггүй
+    if(WS_INVITE && !CM_USER){ openInvite(); }
+    else if(LOGIN_REQ && !CM_USER && !PROMO_CODE){ if(LOGIN_REQ.next)window.__afterLogin=function(){location.href=LOGIN_REQ.next;}; openLogin(false); }
     else if(!CM_USER && !PAYWALL_OFF && !lsGet('cm_ws_dismissed') && !PROMO_CODE) initWelcomeOffer(function(shown){ if(!shown) openLogin(true); });
     else ensurePin();
     checkFbReplies();
