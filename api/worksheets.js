@@ -23,7 +23,7 @@ function wsEmailFromToken(t) { try { const d = jwt.verify(String(t || ''), JWT_S
 const MSG_CODE_BAD = 'Код буруу эсвэл хугацаа нь дууссан байна';
 const MSG_CODE_DEAD = 'Код хүчингүй боллоо. Шинэ код авна уу.';
 const MSG_TOO_MANY = 'Хэт олон оролдлого. Түр хүлээгээд дахин оролдоно уу.';
-const MSG_PENDING = 'Энэ имэйлд саяхан код илгээсэн. Утсанд ирсэн кодыг оруулна уу. Дугаараа буруу бичсэн бол 20 минутын дараа дахин бүртгүүлнэ үү.';
+const MSG_PENDING = 'Энэ имэйлд саяхан код илгээсэн. Утсанд ирсэн кодыг оруулна уу. Дугаараа буруу бичсэн бол 10 минутын дараа дахин бүртгүүлнэ үү.';
 const CODE_MAX_ATTEMPTS = 5;
 
 // Нууц үг сэргээх кодыг илгээж болох утас (спек §6.2): SMS/админаар батлагдсан, эсвэл SMS-ээс өмнө имэйлээр
@@ -537,7 +537,7 @@ module.exports = async (req, res) => {
           const pass = String(b.pass || '');
           const name = b.name ? String(b.name).trim().slice(0, 80) : null;
           if (pass.length < 6) return res.status(400).json({ ok: false, error: 'Нууц үг 6+ тэмдэгт байх ёстой' });
-          const ex = await pool.query('SELECT verified, code, code_exp, phone_verified_at FROM ws_login WHERE email=$1', [email]);
+          const ex = await pool.query('SELECT verified, code, code_exp, phone_verified_at, phone FROM ws_login WHERE email=$1', [email]);
           if (ex.rows.length && ex.rows[0].verified) return res.status(400).json({ ok: false, existed: true, error: 'Энэ имэйл бүртгэлтэй байна. Нэвтэрнэ үү.' });
           // Админ бэлтгэсэн данс (утас батлагдсан) → «Нууц үг сэргээх»-ээр орно
           if (ex.rows.length && ex.rows[0].phone_verified_at) return sms.failJson(res, sms.mkFail('NEED_LOGIN'), { prepared: true, fields: { prepared: true } });
@@ -555,7 +555,7 @@ module.exports = async (req, res) => {
             if (String(b.phone == null ? '' : b.phone).trim()) {
               const pn = sms.normalizePhone(b.phone);
               if (!pn.ok) return sms.failJson(res, sms.mkFail(pn.code));
-              const pc = await pool.query('SELECT count(*)::int AS n FROM ws_login WHERE phone=$1 AND verified=TRUE', [pn.local]);
+              const pc = await pool.query('SELECT count(*)::int AS n FROM ws_login WHERE phone=$1 AND verified=TRUE AND (phone_verified_at IS NOT NULL OR invite IS NULL)', [pn.local]);
               if ((Number(pc.rows[0] && pc.rows[0].n) || 0) >= sms.maxAccountsPerPhone()) return sms.failJson(res, sms.mkFail('PHONE_TOO_MANY'));
               phone = pn.local;
             }
@@ -589,13 +589,16 @@ module.exports = async (req, res) => {
           if (!String(b.phone == null ? '' : b.phone).trim()) return res.status(400).json({ ok: false, code: 'PHONE_INVALID', error: 'Утасны дугаараа оруулна уу. Талбар харагдахгүй бол хуудсаа шинэчилнэ үү (F5).' });
           const pn = sms.normalizePhone(b.phone);
           if (!pn.ok) return sms.failJson(res, sms.mkFail(pn.code));
-          const pc = await pool.query('SELECT count(*)::int AS n FROM ws_login WHERE phone=$1 AND verified=TRUE', [pn.local]);
+          const pc = await pool.query('SELECT count(*)::int AS n FROM ws_login WHERE phone=$1 AND verified=TRUE AND (phone_verified_at IS NOT NULL OR invite IS NULL)', [pn.local]);
           if ((Number(pc.rows[0] && pc.rows[0].n) || 0) >= sms.maxAccountsPerPhone()) return sms.failJson(res, sms.mkFail('PHONE_TOO_MANY'));
           if (await wsClaimBlocked(res, email)) return;
-          // Хугацаа нь дуусаагүй код байгаа бол нууц үг/нэр/утсыг дарж бичихгүй, код дахин илгээхгүй
-          // (pending: клиент "саяхан код илгээсэн, дугаар буруу бол 20 минутын дараа" гэж харуулна)
+          // Сүүлийн SMS 10 минутаас бага (code_exp − 20 мин + 10 мин > одоо) бол нууц үг/нэр/утсыг дарж бичихгүй, код дахин
+          // илгээхгүй (pending: клиент "саяхан код илгээсэн, дугаар буруу бол 10 минутын дараа" гэж харуулна). Түүнээс хойш:
+          // ижил утас → ТЭР кодыг дахин илгээнэ (reuse), өөр утас → шинэ код.
+          const PEND_SEC = Math.max(0, Math.round(sms.CODE_TTL_MS / 1000) - sms.COOLDOWN_SEC);
           const exExp = ex.rows.length && ex.rows[0].code && ex.rows[0].code_exp ? new Date(ex.rows[0].code_exp).getTime() : 0;
-          if (exExp > Date.now()) return res.json({ ok: true, needVerify: true, pending: true, message: MSG_PENDING });
+          if (exExp - PEND_SEC * 1000 > Date.now()) return res.json({ ok: true, needVerify: true, pending: true, message: MSG_PENDING });
+          const samePhone = ex.rows.length > 0 && !ex.rows[0].verified && String(ex.rows[0].phone || '') === pn.local;
           const ip = clientIp(req);
           const pf = await sms.precheck({ ip: ip, email: email, kind: 'reg' });
           if (pf) return sms.failJson(res, pf, { reg: 'ws' });
@@ -609,12 +612,12 @@ module.exports = async (req, res) => {
               const up = await pool.query(
                 `INSERT INTO ws_login (email, pass_hash, verified, code, code_exp, name, phone) VALUES ($1,$2,FALSE,$3,$4,$5,$6)
                  ON CONFLICT (email) DO UPDATE SET pass_hash=EXCLUDED.pass_hash, code=EXCLUDED.code, code_exp=EXCLUDED.code_exp, code_attempts=0, name=EXCLUDED.name, phone=EXCLUDED.phone
-                 WHERE ws_login.verified=FALSE AND ws_login.phone_verified_at IS NULL AND (ws_login.code IS NULL OR ws_login.code_exp IS NULL OR ws_login.code_exp <= NOW())
+                 WHERE ws_login.verified=FALSE AND ws_login.phone_verified_at IS NULL AND (ws_login.code IS NULL OR ws_login.code_exp IS NULL OR ws_login.code_exp <= NOW() + make_interval(secs => $7))
                  RETURNING email`,
-                [email, hash, code, exp.toISOString(), name, pn.local]);
+                [email, hash, code, exp.toISOString(), name, pn.local, PEND_SEC]);
               if (!up.rows.length) { raced = true; throw new Error('ws_register: active code'); }
             },
-            drop: function (code) { return dropCode(email, code); },
+            drop: function (code) { return dropCode(email, code); }, reuse: samePhone ? wsCodeReuse(email, true) : undefined,
           });
           if (sent.ok) return res.json({ ok: true, needVerify: true, sms: true, masked: sent.masked2 });
           if (raced) return res.json({ ok: true, needVerify: true, pending: true, message: MSG_PENDING });
@@ -626,7 +629,8 @@ module.exports = async (req, res) => {
           const ip = clientIp(req);
           // SMS квот данс хайхаас ӨМНӨ — бүртгэлтэй эсэхээс үл хамааран ижил тоологдоно
           const pf = await sms.precheck({ ip: ip, email: email, kind: 'acct' });
-          if (pf) return sms.failJson(res, pf, { reg: 'ws' });
+          // pending: данс байгаа эсэхээс үл хамааран ижил (enumeration) — клиент код оруулах алхам руу шилжинэ
+          if (pf) return sms.failJson(res, pf, { reg: 'ws', pending: true });
           const r = await pool.query('SELECT verified, phone, phone_verified_at FROM ws_login WHERE email=$1', [email]);
           // Олдоогүй / ашиглах утасгүй (баталгаажаагүй мөрийн утсыг өөр хүн бичсэн байж болно, H9) → хуурамч хариу, SMS 0
           const dest = wsUsablePhone(r.rows[0]);
@@ -690,7 +694,7 @@ module.exports = async (req, res) => {
           if (row && row.verified) return res.json({ ok: true, alreadyVerified: true });
           const ip = clientIp(req);
           const pf = await sms.precheck({ ip: ip, email: email, kind: 'reg' });
-          if (pf) return sms.failJson(res, pf, { reg: 'ws' });
+          if (pf) return sms.failJson(res, pf, { reg: 'ws', pending: true });   // код оруулах дэлгэцээс дуудагдана
           const fake = async function () { await sms.padTo(t0); return res.json(wsAccepted(sms.fakeMask(email), { needVerify: true })); };
           // Олдоогүй / админ бэлтгэсэн мөр / утас хүчингүй → хуурамч хариу (enumeration), SMS 0
           const pn = row ? sms.normalizePhone(row.phone) : { ok: false };

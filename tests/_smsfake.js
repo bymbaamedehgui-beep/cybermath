@@ -209,8 +209,8 @@ async function query(sql, p) {
   if ((m = q.match(/^SELECT ([a-z_, ]+) FROM ws_login WHERE email=\$1$/))) {
     const r = db.ws.get(p[0]); return { rows: r ? [pick(wsDefaults(r), m[1].split(',').map(s => s.trim()))] : [] };
   }
-  if (q === 'SELECT count(*)::int AS n FROM ws_login WHERE phone=$1 AND verified=TRUE') {
-    let n = 0; for (const r of db.ws.values()) if (r.phone === p[0] && r.verified === true) n++; return { rows: [{ n }] };
+  if (q === 'SELECT count(*)::int AS n FROM ws_login WHERE phone=$1 AND verified=TRUE AND (phone_verified_at IS NOT NULL OR invite IS NULL)') {
+    let n = 0; for (const r of db.ws.values()) if (r.phone === p[0] && r.verified === true && (r.phone_verified_at || !r.invite)) n++; return { rows: [{ n }] };
   }
   if (q === 'UPDATE ws_login SET phone=NULL, phone_verified_at=NULL, code=NULL, code_exp=NULL WHERE email=$1 RETURNING email') {
     const r = db.ws.get(p[0]); if (!r) return { rows: [] };
@@ -222,11 +222,11 @@ async function query(sql, p) {
     else Object.assign(r, { phone: p[1], phone_verified_at: new Date(), code: null, code_exp: null, code_attempts: 0 });
     return { rows: [{ email: r.email, verified: r.verified }] };
   }
-  if (/^INSERT INTO ws_login \(email, pass_hash, verified, code, code_exp, name, phone\) VALUES \(\$1,\$2,FALSE,\$3,\$4,\$5,\$6\) ON CONFLICT \(email\) DO UPDATE SET pass_hash=EXCLUDED\.pass_hash, code=EXCLUDED\.code, code_exp=EXCLUDED\.code_exp, code_attempts=0, name=EXCLUDED\.name, phone=EXCLUDED\.phone WHERE ws_login\.verified=FALSE AND ws_login\.phone_verified_at IS NULL AND \(ws_login\.code IS NULL OR ws_login\.code_exp IS NULL OR ws_login\.code_exp <= NOW\(\)\) RETURNING email$/.test(q)) {
+  if (/^INSERT INTO ws_login \(email, pass_hash, verified, code, code_exp, name, phone\) VALUES \(\$1,\$2,FALSE,\$3,\$4,\$5,\$6\) ON CONFLICT \(email\) DO UPDATE SET pass_hash=EXCLUDED\.pass_hash, code=EXCLUDED\.code, code_exp=EXCLUDED\.code_exp, code_attempts=0, name=EXCLUDED\.name, phone=EXCLUDED\.phone WHERE ws_login\.verified=FALSE AND ws_login\.phone_verified_at IS NULL AND \(ws_login\.code IS NULL OR ws_login\.code_exp IS NULL OR ws_login\.code_exp <= NOW\(\) \+ make_interval\(secs => \$7\)\) RETURNING email$/.test(q)) {
     if (typeof db.beforeWsUpsert === 'function') { const f = db.beforeWsUpsert; db.beforeWsUpsert = null; f(p[0]); }
     const [email, hash, code, exp, name, phone] = p; const r = db.ws.get(email);
     if (!r) { db.ws.set(email, { email, pass_hash: hash, verified: false, code, code_exp: new Date(exp), name, phone, code_attempts: 0 }); return { rows: [{ email }] }; }
-    if (!r.verified && !r.phone_verified_at && (r.code == null || r.code_exp == null || new Date(r.code_exp).getTime() <= now())) {
+    if (!r.verified && !r.phone_verified_at && (r.code == null || r.code_exp == null || new Date(r.code_exp).getTime() <= now() + p[6] * 1000)) {
       Object.assign(r, { pass_hash: hash, code, code_exp: new Date(exp), code_attempts: 0, name, phone }); return { rows: [{ email }] };
     }
     return { rows: [] };

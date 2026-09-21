@@ -69,7 +69,7 @@ test('ws_register: хугацаа дууссан код → шинэчилж SMS
 
 test('ws_register: store race (зэрэг хүсэлт хүчинтэй код тавьсан) → {ok:true, needVerify:true}, SMS 0, нөөц буцна', async () => {
   F.db.beforeWsUpsert = function (email) {
-    F.db.ws.set(email, { email: email, pass_hash: 'x', verified: false, code: '555555', code_exp: new Date(Date.now() + 600e3), name: 'R', phone: PH3, code_attempts: 0 });
+    F.db.ws.set(email, { email: email, pass_hash: 'x', verified: false, code: '555555', code_exp: new Date(Date.now() + 1200e3), name: 'R', phone: PH3, code_attempts: 0 });
   };
   const n = F.sms.calls.length;
   const r = await W(reg('race@x.mn'));

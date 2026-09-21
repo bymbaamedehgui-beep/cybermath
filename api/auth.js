@@ -299,7 +299,7 @@ module.exports = async (req, res) => {
       }
 
       await pool.query(`DELETE FROM users WHERE verified=false AND verify_expiry < NOW()`).catch(() => {});
-      const exists = await pool.query('SELECT id, verified FROM users WHERE LOWER(email)=LOWER($1)', [email]);
+      const exists = await pool.query('SELECT id, verified, phone FROM users WHERE LOWER(email)=LOWER($1)', [email]);
       if (exists.rows.length && exists.rows[0].verified !== false) {
         return res.status(400).json({ ok: false, error: 'И-мэйл бүртгэлтэй байна' });
       }
@@ -329,9 +329,11 @@ module.exports = async (req, res) => {
       if (!inviteRow) {
         const pf = await sms.precheck({ ip, email, kind: 'reg' });
         if (pf) {
-          // 10 минутын cooldown үед хүлээгдэж буй бүртгэлийн (хугацаа дуусаагүй) код хүчинтэй — клиент код оруулах алхам руу шилжинэ
-          const pend = pf.code === 'SMS_COOLDOWN' && !pf.phoneQuota && exists.rows.length > 0;
-          return sms.failJson(res, pf, { reg: 'game', fields: pend ? { needVerify: true, email } : undefined });
+          // 10 минутын cooldown үед ИЖИЛ утастай хүлээгдэж буй бүртгэлийн (хугацаа дуусаагүй) код хүчинтэй — клиент код оруулах
+          // алхам руу шилжинэ. Утсаа зассан бол форм дээр үлдэж, хугацааны дараа дахин илгээнэ (хуучин дугаар руу resend хийхгүй).
+          const ex0 = exists.rows[0];
+          const pend = pf.code === 'SMS_COOLDOWN' && !pf.phoneQuota && !!ex0 && String(ex0.phone || '') === String(smsPhone);
+          return sms.failJson(res, pf, { reg: 'game', pending: pend, fields: pend ? { needVerify: true, email, masked: sms.maskPhone(smsPhone, 2) } : undefined });
         }
       }
       // Дахин бүртгүүлэх ("Буцах" → формоо дахин илгээх): ижил утас, хүчинтэй код, оролдлого үлдсэн бол ТЭР кодыг
@@ -444,7 +446,7 @@ module.exports = async (req, res) => {
       // Баталгаажсан данс SMS квот зарцуулахгүй (SMS унтарсан үед ч production-той ижил хариу)
       if (r.rows.length && r.rows[0].verified) return res.json({ ok: true, alreadyVerified: true });
       const pf = await sms.precheck({ ip, email, kind: 'reg' });
-      if (pf) return sms.failJson(res, pf, { reg: 'game' });
+      if (pf) return sms.failJson(res, pf, { reg: 'game', pending: true });   // код оруулах дэлгэцээс дуудагдана
       const pn = r.rows.length ? sms.normalizePhone(r.rows[0].phone) : { ok: false };
       if (!pn.ok) {
         // Олдоогүй / утас хүчингүй → бодит илгээлттэй ижил хэлбэр (enumeration)
@@ -512,7 +514,8 @@ module.exports = async (req, res) => {
       const t0 = Date.now();
       // SMS квот данс хайхаас ӨМНӨ — бүртгэлтэй эсэхээс үл хамааран ижил тоологдоно
       const pf = await sms.precheck({ ip, email, kind: 'acct' });
-      if (pf) return sms.failJson(res, pf);
+      // pending: данс байгаа эсэхээс үл хамааран ижил (enumeration) — клиент код оруулах алхам руу шилжинэ
+      if (pf) return sms.failJson(res, pf, { pending: true });
       const r = await pool.query('SELECT phone, phone_verified_at, email_unverified FROM users WHERE LOWER(email)=LOWER($1) AND verified IS NOT FALSE', [email]);
       const dest = r.rows.length ? usablePhone(r.rows[0]) : null;
       if (!dest) {

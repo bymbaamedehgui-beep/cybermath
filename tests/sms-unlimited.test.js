@@ -151,6 +151,71 @@ test('нууц үг сэргээх 10 минутад 2 дахь удаа → 429
   assert.strictEqual(r.statusCode, 200);
 });
 
+test('тоглоомын бүртгэл 10 минутад ӨӨР утастай дахин → форм дээр үлдэнэ (needVerify/codeStep байхгүй), хуучин дугаар руу явахгүй', async () => {
+  let r = await A(regBody('ch@x.mn', ph(700)));
+  assert.strictEqual(r.statusCode, 200);
+  r = await A(regBody('ch@x.mn', ph(701)));
+  assert.deepStrictEqual([r.statusCode, r.body.code, r.body.needVerify, r.body.codeStep], [429, 'SMS_COOLDOWN', undefined, undefined]);
+  assert.match(r.body.error, /^Саяхан код илгээсэн\. 10 минутын дараа/);
+  pass10min();
+  r = await A(regBody('ch@x.mn', ph(701)));
+  assert.strictEqual(r.statusCode, 200);
+  assert.deepStrictEqual(F.sms.calls[F.sms.calls.length - 1].body.recipients, ['+976' + ph(701)]);
+});
+
+test('ижил утастай дахин бүртгэл → masked-тэй код оруулах алхам', async () => {
+  let r = await A(regBody('sm@x.mn', ph(702)));
+  r = await A(regBody('sm@x.mn', ph(702)));
+  assert.deepStrictEqual([r.body.needVerify, r.body.codeStep, r.body.masked], [true, true, '**** **' + ph(702).slice(-2)]);
+});
+
+test('тоглоом → Дасгалын төв ижил имэйл, өөр утас 10 минутад: codeStep/«кодоо оруул» гарахгүй (ws код байхгүй)', async () => {
+  let r = await A(regBody('both@x.mn', ph(703)));
+  assert.strictEqual(r.statusCode, 200);
+  r = await W(wsReg('both@x.mn', ph(704)));
+  assert.deepStrictEqual([r.statusCode, r.body.code, r.body.codeStep], [429, 'SMS_COOLDOWN', undefined]);
+  assert.doesNotMatch(r.body.error, /кодоо оруулна уу/);
+});
+
+test('textbee 3 удаа унасан ч дугаарын өдрийн квот (3) зарцуулагдахгүй → 4 дэх оролдлогод SMS явна; ws_resend хуурамч амжилт өгөхгүй', async () => {
+  F.sms.mode = 'down';
+  for (let i = 0; i < 3; i++) assert.strictEqual((await A(regBody('dq@x.mn', ph(705)))).statusCode, 503, 'i=' + i);
+  F.sms.mode = 'ok';
+  const n = F.sms.calls.length;
+  let r = await A(regBody('dq@x.mn', ph(705)));
+  assert.strictEqual(r.statusCode, 200);
+  assert.strictEqual(F.sms.calls.length, n + 1);
+  F.reset();
+  r = await W(wsReg('dr@x.mn', ph(706)));
+  assert.strictEqual(r.statusCode, 200);
+  pass10min();
+  F.sms.mode = 'down';
+  for (let i = 0; i < 3; i++) { r = await W({ action: 'ws_resend', email: 'dr@x.mn' }); assert.strictEqual(r.statusCode, 503, 'i=' + i); }
+  F.sms.mode = 'ok';
+  const n2 = F.sms.calls.length;
+  r = await W({ action: 'ws_resend', email: 'dr@x.mn' });
+  assert.strictEqual(r.statusCode, 200);
+  assert.strictEqual(F.sms.calls.length, n2 + 1, 'бодит SMS явсан');
+});
+
+test('ws_register: 10 минутын дараа ижил утас → ТЭР код; өөр утас → шинэ код', async () => {
+  let r = await W(wsReg('wp1@x.mn', ph(707)));
+  const first = F.lastCode();
+  r = await W(wsReg('wp1@x.mn', ph(707)));
+  assert.deepStrictEqual([r.body.pending, r.body.needVerify], [true, true]);
+  assert.match(r.body.message, /10 минутын дараа/);
+  // 10 минут өнгөрсөн: кодын хугацааг 10 минутаар урагшлуулж, cooldown-ыг хойшлуулна
+  const row = F.db.ws.get('wp1@x.mn'); row.code_exp = new Date(new Date(row.code_exp).getTime() - 601e3); pass10min();
+  r = await W(wsReg('wp1@x.mn', ph(707)));
+  assert.strictEqual(r.statusCode, 200);
+  assert.strictEqual(F.lastCode(), first, 'ижил утас → ТЭР код');
+  row.code_exp = new Date(new Date(row.code_exp).getTime() - 20 * 60e3 + 9 * 60e3); pass10min();
+  r = await W(wsReg('wp1@x.mn', ph(708)));
+  assert.strictEqual(r.statusCode, 200);
+  assert.notStrictEqual(F.lastCode(), first, 'өөр утас → шинэ код');
+  assert.strictEqual(F.db.ws.get('wp1@x.mn').phone, ph(708));
+});
+
 test('S2 / тодорхойгүй SQL: бүтэн дугаар, код лог/Telegram/хариунд алга', () => {
   assert.deepStrictEqual(F.leakCheck(used), []);
   assert.deepStrictEqual(F.db.unknown, []);

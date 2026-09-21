@@ -146,6 +146,13 @@ test('утас: заавал биш; буруу бол 400; зөв бол хад
   assert.strictEqual(r.statusCode, 200);
 });
 
+test('SMS-ээр батлагдаагүй урилгын утас дугаарын дансны тоонд орохгүй: 6 урилгын данс нэг дугаартай ч жинхэнэ эзэн SMS-ээр бүртгүүлнэ', async () => {
+  const t = await mkInvite({ maxUses: 10 });
+  for (let i = 0; i < 6; i++) assert.strictEqual((await reg('jk' + i + '@x.mn', t, { phone: PH })).statusCode, 200, 'i=' + i);
+  const r = await W({ action: 'ws_register', email: 'owner@x.mn', pass: 'secret1', name: 'O', phone: PH });
+  assert.deepStrictEqual([r.statusCode, r.body.needVerify], [200, true]);
+});
+
 test('админ жагсаалт: үүсгэсэн урилга, ашиглалт харагдана; maxUses/хугацааг хязгаарлана', async () => {
   const t = await mkInvite({ maxUses: 99999, expiresInDays: 9999, note: 'x'.repeat(500) });
   await reg('l1@x.mn', t);

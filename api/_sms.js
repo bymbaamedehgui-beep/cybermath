@@ -279,10 +279,13 @@ function ERR(f, extra) {
         : 'Өнөөдрийн SMS кодын хязгаар дүүрлээ. Маргааш дахин оролдоно уу.';
       break;
     case 'SMS_COOLDOWN':
-      // Нэг хүнд 10 минутад 1 SMS. Имэйлийн cooldown → өмнөх код хүчинтэй (codeStep); дугаарынх → өөр данс энэ дугаарт саяхан авсан
+      // Нэг хүнд 10 минутад 1 SMS. extra.pending (дуудагч хүлээгдэж буй кодыг баталсан) → кодоо оруулахыг зөвлөнө;
+      // дугаарынх → энэ дугаарт саяхан (өөр данс) авсан; бусад → зүгээр хүлээлгэнэ
       t = fo.phoneQuota
         ? 'Энэ дугаарт саяхан код илгээсэн. ' + waitText(fo.wait) + ' дараа дахин оролдоно уу.'
-        : 'Код саяхан илгээсэн. Утсанд ирсэн кодоо оруулна уу, ирээгүй бол ' + waitText(fo.wait) + ' дараа дахин код авна уу.';
+        : x.pending
+          ? 'Код саяхан илгээсэн. Утсанд ирсэн кодоо оруулна уу, ирээгүй бол ' + waitText(fo.wait) + ' дараа дахин код авна уу.'
+          : 'Саяхан код илгээсэн. ' + waitText(fo.wait) + ' дараа дахин оролдоно уу.';
       break;
     case 'SMS_LIMIT': t = 'Хэт олон код хүслээ. Түр хүлээгээд дахин оролдоно уу.'; break;
     case 'PHONE_INVALID': t = 'Монгол улсын 8 оронтой гар утасны дугаар оруулна уу.'; break;
@@ -303,7 +306,8 @@ function ERR(f, extra) {
   }
   return t;
 }
-// extra: {reg:'game'|'ws', prepared:true, fields:{needVerify:true, email, ...}} — fields нь ok/code/error-г дарж чадахгүй
+// extra: {reg:'game'|'ws', prepared:true, pending:true, fields:{needVerify:true, email, ...}} — fields нь ok/code/error-г дарж чадахгүй.
+// pending: хүлээгдэж буй код байгаа (эсвэл enumeration-аас болж ялгахгүй нууц үг сэргээх) — SMS_COOLDOWN-д codeStep + «кодоо оруулна уу»
 function failJson(res, f, extra) {
   const fx = f && f.code ? f : mkFail('SMS_UNAVAILABLE');
   const x = extra || {};
@@ -314,7 +318,7 @@ function failJson(res, f, extra) {
   out.error = ERR(fx, x);
   if (fx.wait != null) out.wait = fx.wait;
   // codeStep: өмнөх код хүчинтэй байж болно — клиент код оруулах алхам руу шилжинэ (имэйлийн cooldown, тодорхойгүй илгээлт)
-  if (fx.code === 'SMS_UNCERTAIN' || (fx.code === 'SMS_COOLDOWN' && !fx.phoneQuota)) out.codeStep = true;
+  if (fx.code === 'SMS_UNCERTAIN' || (fx.code === 'SMS_COOLDOWN' && !fx.phoneQuota && x.pending)) out.codeStep = true;
   return res.status(fx.http || HTTP[fx.code] || 503).json(out);
 }
 
@@ -624,10 +628,10 @@ async function precheck(o) {
   if (h.count > 1) return mkFail('SMS_COOLDOWN', { wait: h.retryAfter });
 
   // pc-5: имэйл|ip24 ба имэйлийн өдрийн хязгаар
-  h = await hit('sms:em:ip:' + email + '|' + ik.ip24, DAY_WIN);
+  h = await hit(emIpKey(email, o.ip), DAY_WIN);
   if (!h) return UNAV;
   if (h.count > EM_IP_DAY_MAX) return mkFail('SMS_LIMIT');
-  h = await hit('sms:em:' + email, DAY_WIN);
+  h = await hit(emDayKey(email), DAY_WIN);
   if (!h) return UNAV;
   if (h.count === EM_DAY_MAX + 1) await notify('tg:sms:em:' + email, DAY_WIN, 'SMS: нэг имэйлд олон код хүсэв: ' + maskEmail(email));
   if (h.count > EM_DAY_MAX) return mkFail('SMS_LIMIT');
@@ -670,6 +674,10 @@ async function offlineCheck() {
 }
 
 function emCdKey(kind, email) { return 'sms:em:cd:' + (kind === 'acct' ? 'acct' : 'reg') + ':' + normEmail(email); }
+function emIpKey(email, ip) { return 'sms:em:ip:' + normEmail(email) + '|' + ipKeys(ip).ip24; }
+function emDayKey(email) { return 'sms:em:' + normEmail(email); }
+// precheck-ийн имэйлд хамаарах түлхүүрүүд (sendCode бүтэлгүйтвэл буцаана)
+function emPrecheckKeys(kind, email, ip) { return [emCdKey(kind, email), emIpKey(email, ip), emDayKey(email)]; }
 
 async function safeDrop(drop, code) {
   if (typeof drop !== 'function') return;
@@ -681,11 +689,14 @@ async function safeDrop(drop, code) {
 // хүсэлтэд precheck-ээр тавьсан (precheck-д count>1 бол sendCode хүрэхгүй), дугаарынхыг sendCodeInner тавьсан бол cd.ph.
 async function sendCode(o) {
   o = o || {};
-  const cd = { ph: null };
+  const cd = { ph: null, phDay: null };
   const r = await sendCodeInner(o, cd);
   if (r && !r.ok && r.code !== 'SMS_UNCERTAIN') {
-    if (o.email) await decr(emCdKey(o.kind, o.email));
+    // «SMS яваагүй → торгуульгүй»: precheck-ийн имэйлийн cooldown ба өдрийн тоолуурууд, дугаарын cooldown ба өдрийн квот
+    const em = normEmail(o.email);
+    if (em) { for (const k of emPrecheckKeys(o.kind, em, o.ip)) await decr(k); }
     if (cd.ph) await decr(cd.ph);
+    if (cd.phDay) await decr(cd.phDay);
   }
   return r;
 }
@@ -713,6 +724,7 @@ async function sendCodeInner(o, cd) {
   cd.ph = phCd;
   h = await hit('sms:ph:' + kind + ':' + ph, DAY_WIN);
   if (!h) return UNAV;
+  cd.phDay = 'sms:ph:' + kind + ':' + ph;
   if (h.count > (kind === 'reg' ? PH_REG_DAY_MAX : PH_ACCT_DAY_MAX)) return mkFail('SMS_LIMIT', { phoneQuota: true });
 
   // 3. Глобал нөөцлөл — нэг нь хэтэрвэл нөөцөлсөн бүгдийг (хэтэрсэн key орно) буцаана
