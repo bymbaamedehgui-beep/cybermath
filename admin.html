@@ -319,24 +319,33 @@ window.saveAnnounce=async function(){
 function renderWsFeedback(list){
   var el=document.getElementById('ws-feedback-list'); if(!el)return;
   if(!list.length){el.innerHTML='<div style="color:var(--muted);padding:8px;">Санал хүсэлт алга.</div>';return;}
-  var h='';
+  var h='', pend=0;
+  var ICO_USER='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:.7;"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+  var ICO_ARR='<svg class="fb-arr" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>';
+  var ICO_DEL='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>';
+  var ICO_REPLY='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-1"/></svg>';
   list.forEach(function(f){
     var isEmail=/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test((f.contact||'').trim());
     var conv=[{sender:'user',text:f.message,at:f.created_at}].concat(f.thread||[]);
     var last=conv[conv.length-1]||{text:''};
     var prev=(last.text||'').replace(/\s+/g,' ').trim(), prevShort=prev.slice(0,46);
     var who=(f.contact?wsEsc(f.contact):'хаяггүй');
-    h+='<div style="border:1px solid var(--border);border-radius:14px;margin-bottom:10px;background:var(--surface);overflow:hidden;">'
-      +'<div onclick="wsFbToggle('+f.id+')" style="display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;user-select:none;">'
-        +'<span id="fbarr'+f.id+'" style="color:var(--muted);font-size:.72rem;flex-shrink:0;transition:transform .15s;">▶</span>'
+    var replied=conv.some(function(m){return m.sender==='admin';});
+    var cls, chip;
+    if(last.sender==='admin'){ cls='fb-done';  chip='<span class="fb-chip c-done">Хариулсан</span>'; }
+    else if(replied){         cls='fb-again'; chip='<span class="fb-chip c-again">Шинэ хариу</span>'; pend++; }
+    else {                    cls='fb-new';   chip='<span class="fb-chip c-new">Шинэ</span>'; pend++; }
+    h+='<div class="fb-item fold-row '+cls+'" id="fbitem'+f.id+'">'
+      +'<div class="fb-head" onclick="wsFbToggle('+f.id+')">'
+        +ICO_ARR
         +'<div style="flex:1;min-width:0;">'
-          +'<div style="font-weight:800;color:var(--text);font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">👤 '+who+(isEmail?'':' (имэйлгүй)')+'</div>'
-          +'<div style="font-size:.72rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;">'+(last.sender==='admin'?'↩ ':'')+wsEsc(prevShort)+(prev.length>46?'…':'')+'</div>'
+          +'<div class="fb-who">'+ICO_USER+'<span class="nm">'+who+(isEmail?'':' (имэйлгүй)')+'</span>'+chip+'</div>'
+          +'<div class="fb-prev">'+(last.sender==='admin'?ICO_REPLY+' ':'')+wsEsc(prevShort)+(prev.length>46?'…':'')+'</div>'
         +'</div>'
-        +'<span style="font-size:.7rem;color:var(--muted);flex-shrink:0;">'+wsDate(f.created_at)+'</span>'
-        +'<button onclick="event.stopPropagation();wsDeleteFeedback('+f.id+')" title="Устгах" style="flex-shrink:0;border:0;background:transparent;color:#ef4444;cursor:pointer;font-size:1rem;padding:2px 4px;border-radius:6px;">🗑</button>'
+        +'<span class="fb-date">'+wsDate(f.created_at)+'</span>'
+        +'<button class="fb-del" onclick="event.stopPropagation();wsDeleteFeedback('+f.id+')" title="Устгах">'+ICO_DEL+'</button>'
       +'</div>'
-      +'<div id="fbbody'+f.id+'" style="display:none;padding:0 14px 12px;border-top:1px solid var(--border);">'
+      +'<div class="fb-body" id="fbbody'+f.id+'">'
         +'<div style="display:flex;flex-direction:column;gap:7px;padding-top:11px;">';
     conv.forEach(function(m){
       var mine=(m.sender==='admin');
@@ -353,12 +362,12 @@ function renderWsFeedback(list){
       +'</div></div>';
   });
   el.innerHTML=h;
+  var nb=document.getElementById('fb-pend');
+  if(nb){ nb.textContent=pend?(pend+' хүлээгдэж буй'):''; nb.style.display=pend?'':'none'; }
 }
 window.wsFbToggle=function(id){
-  var b=document.getElementById('fbbody'+id), a=document.getElementById('fbarr'+id);
-  if(!b)return; var open=(b.style.display!=='none');
-  b.style.display=open?'none':'block';
-  if(a)a.style.transform=open?'':'rotate(90deg)';
+  var it=document.getElementById('fbitem'+id); if(!it)return;
+  it.classList.toggle('fb-open');
 };
 window.wsDeleteFeedback=async function(id){
   if(!confirm('Энэ санал хүсэлтийг бүрмөсөн устгах уу?'))return;
@@ -383,7 +392,7 @@ function admFoldToggle(head){
 }
 function admFoldSync(c){
   var b=c.querySelector('.fold-body'), n=c.querySelector('.fold-count'); if(!b||!n)return;
-  var rows=b.querySelectorAll('tbody tr').length;
+  var rows=b.querySelectorAll('tbody tr').length||b.querySelectorAll('.fold-row').length;
   n.textContent=rows?(rows+' мөр'):'';
 }
 function admFoldInit(){
@@ -1681,6 +1690,31 @@ body { font-family:'Baloo 2',sans-serif; background:var(--bg); color:var(--text)
 .fold .fold-body { display:none; }
 .fold.fold-open .fold-body { display:block; }
 .fold:not(.fold-open) .fold-head { margin-bottom:0 !important; border-bottom:0; padding-bottom:0; }
+.fold .fold-note { font-size:0.72rem; font-weight:800; border-radius:100px; padding:2px 10px; white-space:nowrap; background:rgba(245,158,11,.16); color:#f59e0b; border:1px solid rgba(245,158,11,.4); }
+
+/* ── САНАЛ ХҮСЭЛТ ── */
+.fb-item { border:1px solid var(--border); border-left:4px solid var(--border); border-radius:14px; margin-bottom:10px; background:var(--surface); overflow:hidden; transition:border-color .15s, box-shadow .15s; }
+.fb-item:hover { box-shadow:0 4px 16px -8px rgba(123,82,238,.55); }
+.fb-item.fb-new    { border-left-color:#f59e0b; background:linear-gradient(90deg, rgba(245,158,11,.10), transparent 240px); }
+.fb-item.fb-again  { border-left-color:#7B52EE; background:linear-gradient(90deg, rgba(123,82,238,.12), transparent 240px); }
+.fb-item.fb-done   { border-left-color:#16a34a; }
+.fb-item.fb-open   { border-color:var(--purple); }
+.fb-head { display:flex; align-items:center; gap:10px; padding:12px 14px; cursor:pointer; user-select:none; }
+.fb-head:hover .fb-who { color:var(--purple); }
+.fb-arr { color:var(--muted); flex-shrink:0; transition:transform .15s; }
+.fb-item.fb-open .fb-arr { transform:rotate(90deg); color:var(--purple); }
+.fb-who { font-weight:800; color:var(--text); font-size:0.88rem; display:flex; align-items:center; gap:7px; min-width:0; }
+.fb-who span.nm { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.fb-prev { font-size:0.72rem; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:3px; }
+.fb-chip { font-size:0.65rem; font-weight:900; border-radius:100px; padding:2px 8px; letter-spacing:.03em; flex-shrink:0; }
+.fb-chip.c-new   { background:rgba(245,158,11,.18); color:#f59e0b; }
+.fb-chip.c-again { background:rgba(123,82,238,.2); color:#a78bfa; }
+.fb-chip.c-done  { background:rgba(22,163,74,.16); color:#16a34a; }
+.fb-date { font-size:0.7rem; color:var(--muted); flex-shrink:0; white-space:nowrap; }
+.fb-del { flex-shrink:0; border:0; background:transparent; color:var(--muted); cursor:pointer; padding:4px 5px; border-radius:7px; display:flex; align-items:center; }
+.fb-del:hover { color:#ef4444; background:rgba(239,68,68,.12); }
+.fb-body { display:none; padding:0 14px 12px; border-top:1px solid var(--border); }
+.fb-item.fb-open .fb-body { display:block; }
 .search-input {
   padding:8px 14px; background:var(--surface2); border:1.5px solid var(--border);
   border-radius:8px; font-family:'Baloo 2',sans-serif; font-size:0.82rem; font-weight:700;
@@ -2686,9 +2720,14 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
         </div>
 
         <!-- Санал хүсэлт -->
-        <div class="table-card" style="padding:14px 16px;margin-bottom:18px;">
-          <div class="table-header" style="margin-bottom:10px;"><div class="table-title">💬 Санал хүсэлт <span style="font-size:0.72rem;color:var(--muted);font-weight:700;">(хэрэглэгчдээс)</span></div></div>
-          <div id="ws-feedback-list"><div style="color:var(--muted);padding:8px;">Ачааллаж байна…</div></div>
+        <div class="table-card fold" data-fold="feedback" style="padding:14px 16px;margin-bottom:18px;">
+          <div class="table-header fold-head" onclick="admFoldToggle(this)" style="margin-bottom:10px;display:flex;gap:8px;align-items:center;">
+            <svg class="fold-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+            <div class="table-title" style="flex:1;display:flex;align-items:center;gap:7px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.75;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Санал хүсэлт <span style="font-size:0.72rem;color:var(--muted);font-weight:700;">(хэрэглэгчдээс)</span></div>
+            <span class="fold-note" id="fb-pend" style="display:none;"></span>
+            <span class="fold-count"></span>
+          </div>
+          <div id="ws-feedback-list" class="fold-body"><div style="color:var(--muted);padding:8px;">Ачааллаж байна…</div></div>
         </div>
 
         <!-- Промо код үүсгэх -->
