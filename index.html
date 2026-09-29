@@ -2966,6 +2966,13 @@ var CM_LAST_OPT = /^(бүгд|аль нь ч биш|дээрх|бусад|нэг
 /* Нэг ХЭЛБЭРИЙН олон тоон хувилбараас нэгийг нь сонгож, дарааллыг нь холино.
    variant_key нь ижил мөрүүд = нэг бодлогын өөр тоотой хувилбарууд.
    Түлхүүргүй бол мөр бүр өөрийн хэлбэр (хуучин ажиллагаа хэвээр). */
+/* Багшийн жагсаалтад зөвхөн СУУРЬ бодлогыг үзүүлнэ — хувилбарууд давхардуулахгүй.
+   Суурь мөрийн variant_key нь өөрийн id-тай тэнцүү. */
+function cmBaseOnly(list) {
+  return (list || []).filter(function (q) {
+    return !q || !q.variant_key || q.variant_key === ('q' + q.id);
+  });
+}
 function cmPickVariants(list) {
   var byKey = {}, order = [];
   (list || []).forEach(function (q) {
@@ -4165,7 +4172,7 @@ function onChatLessonChange() {
   fetch('/api/questions?node_id=' + nid)
     .then(function(r){ return r.json(); })
     .then(function(d){
-      _chatQuestions = d.questions || [];
+      _chatQuestions = cmBaseOnly(d.questions || []);
       if (!_chatQuestions.length) { if(qWrap) qWrap.style.display='none'; return; }
       if(qWrap) qWrap.style.display='block';
       qSel.innerHTML = '<option value="">— Бодлого сонгох —</option>';
@@ -47137,7 +47144,7 @@ document.head.appendChild(cmStyle);
       return fetch('/api/questions?node_id=' + nid)
         .then(function(r){ return r.json(); })
         .then(function(data){
-          var qs = data.questions || [];
+          var qs = cmPickVariants(data.questions || []);   // нэг хэлбэрээс нэг хувилбар
           return qs.map(function(q){
             var choices = q.choices || [];
             if (typeof choices === 'string') {
@@ -51299,7 +51306,7 @@ function toggleAvatarSection() {
       if (typeof showToast === 'function') showToast('Бодлого ачаалж байна...');
       // Node бүрд параллель fetch
       Promise.all(L.node_ids.map(function(nid){
-        return fetch('/api/questions?node_id=' + nid).then(function(r){ return r.json(); }).then(function(d){ return d.questions || []; });
+        return fetch('/api/questions?node_id=' + nid).then(function(r){ return r.json(); }).then(function(d){ return cmPickVariants(d.questions || []); });
       })).then(function(arrays){
         var all = [].concat.apply([], arrays);
         if (!all.length) { alert('Сонгосон сэдвүүдэд бодлого алга'); return; }
@@ -60600,7 +60607,7 @@ function onAppLessonChange() {
   fetch('/api/questions?node_id=' + nid)
     .then(function(r){ return r.json(); })
     .then(function(d){
-      _appQuestions = d.questions || [];
+      _appQuestions = cmBaseOnly(d.questions || []);
       if (!_appQuestions.length) { if(qWrap) qWrap.style.display='none'; return; }
       if(qWrap) qWrap.style.display='block';
       qSel.innerHTML = '<option value="">— Бодлого сонгох —</option>';
