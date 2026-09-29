@@ -2675,7 +2675,7 @@ function updateNodeVisuals() {
 function updateNodeVisuals() {
   var svg = document.getElementById('path-svg');
   if (!svg) return;
-  var completed = (typeof getCompletedLessons === 'function') ? getCompletedLessons().map(function(x){return parseInt(x);}) : [];
+  var completed = cmCompletedSlots();
   var circles = Array.from(document.querySelectorAll('[onclick^="tryOpenLesson"]'));
 
   circles.forEach(function(circle) {
@@ -2863,13 +2863,134 @@ function applyNodeName(textEl, name) {
   }
 }
 
+
+/* ═══════════ АНГИАР ЗАМ БУУЛГАХ (grade-aware learning path) ═══════════
+   Замын SVG нь статик — слотууд (tryOpenLesson(N)) хатуу бичигдсэн.
+   9-р ангийн node-ийн id нь слотын id-тай таарч байсан тул урьд нь зураглал хэрэггүй байв.
+   Өөр ангийн node-ууд (ж: 10-р анги, id 401+) слоттой таарахгүй тул энд буулгана.
+   _PATH.on === false үед бүх функц ижилтгэл — 9-р ангийн ажиллагаа ӨӨРЧЛӨГДӨХГҮЙ. */
+window._PATH = { on: false, s2n: {}, n2s: {}, exam: null, count: 0, grade: '' };
+
+function cmUserGrade() {
+  /* _currentUser нь хуудас ачаалагдаж дуустал бэлэн биш байж болно (эсвэл түр цэвэрлэгддэг).
+     Тэр үед зам 9-р ангийн нэрээр анивчихаас сэргийлж, сүүлд мэдэгдсэн ангийг санаж хэрэглэнэ. */
+  var g = '';
+  try { if (typeof _currentUser !== 'undefined' && _currentUser && _currentUser.grade) g = String(_currentUser.grade); } catch (e) {}
+  try {
+    if (g) { localStorage.setItem('cm_path_grade', g); return g; }
+    return localStorage.getItem('cm_path_grade') || '';
+  } catch (e) { return g; }
+}
+/* Замын слотуудыг дээрээс доош (cy-гаар) эрэмбэлж буцаана — нэг удаа тооцоод кэшилнэ */
+var _cmSlots = null;
+function cmSlotOrder() {
+  if (_cmSlots) return _cmSlots;
+  var out = [], seen = {};
+  var els = Array.from(document.querySelectorAll('circle[onclick^="tryOpenLesson"]'));
+  els.map(function (el) {
+    var m = el.getAttribute('onclick').match(/tryOpenLesson\((\d+)\)/);
+    return m ? { id: parseInt(m[1]), cy: parseFloat(el.getAttribute('cy')) || 0 } : null;
+  }).filter(Boolean).sort(function (a, b) { return a.cy - b.cy; })
+    .forEach(function (x) { if (!seen[x.id]) { seen[x.id] = 1; out.push(x.id); } });
+  if (out.length) _cmSlots = out;
+  return out;
+}
+/* Бататгал node-уудын эх сурвалжийг node жагсаалтаас гаргана (📝 / 🏆 нэрээр таних) */
+function cmBuildExamMap(list) {
+  var exam = {}, bucket = [];
+  list.forEach(function (nd) {
+    var nm = String(nd.name || '');
+    if (nm.indexOf('📝') === 0 || nm.indexOf('🏆') === 0) {
+      if (bucket.length) exam[nd.id] = bucket.slice();
+      bucket = [];
+    } else bucket.push(nd.id);
+  });
+  return exam;
+}
+/* Хэрэглэгчийн ангид тохирсон зураглал барина */
+function cmBuildPathMap(nodes) {
+  var g = cmUserGrade();
+  window._PATH = { on: false, s2n: {}, n2s: {}, exam: null, count: 0, grade: g };
+  if (!g || g === 'teacher' || g === '9') return;          /* 9-р анги ба багш — хуучин хэвээр */
+  var mine = (nodes || []).filter(function (nd) { return String(nd.grade) === g; })
+    .sort(function (a, b) { return (a.sort_order || a.id) - (b.sort_order || b.id); });
+  if (mine.length < 2) return;                              /* тухайн ангид зам алга — хуучин хэвээр */
+  var slots = cmSlotOrder();
+  if (!slots.length) return;
+  var k = Math.min(mine.length, slots.length);
+  for (var i = 0; i < k; i++) { window._PATH.s2n[slots[i]] = mine[i].id; window._PATH.n2s[mine[i].id] = slots[i]; }
+  window._PATH.exam = cmBuildExamMap(mine);
+  window._PATH.on = true; window._PATH.count = k;
+  cmHideSlots(slots.slice(k));
+}
+/* Илүү слотуудыг нуух (тухайн ангийн node-ийн тоо слотоос цөөн үед) */
+function cmHideSlots(extra) {
+  extra.forEach(function (sl) {
+    ['node-glow-', 'node-lock-', 'lock-overlay-', 'node-3d-'].forEach(function (pre) {
+      var el = document.getElementById(pre + sl); if (el) el.style.display = 'none';
+    });
+    var st = document.getElementById('node-stars-' + sl); if (st) st.style.display = 'none';
+    Array.from(document.querySelectorAll('[onclick^="tryOpenLesson(' + sl + ')"]')).forEach(function (el) {
+      el.style.display = 'none'; el.style.pointerEvents = 'none';
+    });
+  });
+}
+/* Слот бүрийн нэрийн текстийг нэг удаа олж, data-slot-оор бэхэлнэ.
+   Нэг текстийг хоёр слот авахгүй (claimed). Дараагийн бүх дамжуулалт үүнийг л ашиглана. */
+function cmBindLabels() {
+  if (document.querySelector('#path-svg text[data-slot]')) return;
+  var svg = document.getElementById('path-svg'); if (!svg) return;
+  var texts = Array.from(svg.querySelectorAll('text[font-size="11"]'));
+  var claimed = {};
+  Array.from(svg.querySelectorAll('circle[onclick^="tryOpenLesson"]')).forEach(function (c) {
+    var m = c.getAttribute('onclick').match(/tryOpenLesson\((\d+)\)/); if (!m) return;
+    var cx = parseFloat(c.getAttribute('cx')), cy = parseFloat(c.getAttribute('cy'));
+    var best = null, bd = 1e9;
+    texts.forEach(function (t) {
+      if (claimed[t.__cmIdx]) return;
+      var tx = parseFloat(t.getAttribute('x')), ty = parseFloat(t.getAttribute('y'));
+      if (Math.abs(tx - cx) < 5 && ty > cy && ty < cy + 100) { var d = ty - cy; if (d < bd) { bd = d; best = t; } }
+    });
+    if (best) { best.setAttribute('data-slot', m[1]); best.__cmIdx = m[1]; claimed[m[1]] = 1; }
+  });
+}
+function cmLabelEl(slot) {
+  cmBindLabels();
+  return document.querySelector('#path-svg text[data-slot="' + slot + '"]');
+}
+function cmNodeForSlot(sl) { return window._PATH.on ? (window._PATH.s2n[sl] || null) : sl; }
+function cmSlotForNode(nd) { return window._PATH.on ? (window._PATH.n2s[nd] || null) : nd; }
+/* Дуусгасан хичээлийг СЛОТын id-гаар илэрхийлж буцаана (SVG-ийн бүх давталт слотоор ажилладаг) */
+function cmCompletedSlots() {
+  var c = (typeof getCompletedLessons === 'function') ? getCompletedLessons().map(function (x) { return parseInt(x); }) : [];
+  if (!window._PATH.on) return c;
+  var out = [];
+  c.forEach(function (nid) { var sl = window._PATH.n2s[nid]; if (sl) out.push(sl); });
+  return out;
+}
+/* Одны мэдээллийг слотын түлхүүртэй болгож буцаана */
+function cmStarsBySlot() {
+  var raw = {};
+  try { raw = JSON.parse(localStorage.getItem('cm_stars') || '{}') || {}; } catch (e) {}
+  if (!window._PATH.on) return raw;
+  var out = {};
+  Object.keys(raw).forEach(function (k) { var sl = window._PATH.n2s[parseInt(k)]; if (sl) out[sl] = raw[k]; });
+  return out;
+}
+/* Шалгалтын node-ийн эх сурвалж */
+function cmExamSources(id) {
+  if (window._PATH.on && window._PATH.exam) return window._PATH.exam[id] || null;
+  return (typeof EXAM_NODE_SOURCES !== 'undefined' && EXAM_NODE_SOURCES[id]) ? EXAM_NODE_SOURCES[id] : null;
+}
+
 function applyNodeNamesToMap() {
   fetch('/api/nodes?t=' + Date.now())
     .then(function(r){ return r.json(); })
     .then(function(data){
       var nodes = data.nodes || [];
-      // Exam node-уудыг "Бататгал N" нэрээр override хийх
+      // Exam node-уудыг "Бататгал N" нэрээр override хийх (зөвхөн үндсэн 9-р ангийн зам дээр)
       try {
+        if (cmUserGrade() && cmUserGrade() !== 'teacher' && cmUserGrade() !== '9') throw new Error('skip');
         var EXAM_IDS = window.EXAM_NODE_SOURCES ? Object.keys(window.EXAM_NODE_SOURCES).map(function(k){ return parseInt(k); }).sort(function(a, b){ return a - b; }) : [5, 11, 16, 22, 26, 31, 36, 41, 46, 51, 56, 61, 67, 74, 79, 86, 92, 98, 104, 108, 112, 129, 136, 142];
         nodes.forEach(function(n){
           var idx = EXAM_IDS.indexOf(n.id);
@@ -2886,6 +3007,7 @@ function applyNodeNamesToMap() {
         });
       } catch(e) {}
       localStorage.setItem('cm_nodes', JSON.stringify(nodes));
+      try { cmBuildPathMap(nodes); } catch (e) {}
       // Section labels ч хадгалах
       if (data.sectionLabels && data.sectionLabels.length) {
         localStorage.setItem('cm_section_labels', JSON.stringify(data.sectionLabels));
@@ -2898,24 +3020,12 @@ function applyNodeNamesToMap() {
         var m = circle.getAttribute('onclick').match(/tryOpenLesson\((\d+)\)/);
         if (!m) return;
         var nid = parseInt(m[1]);
-        var node = nodes.find(function(n){ return n.id === nid; });
+        var dataId = cmNodeForSlot(nid);
+        if (dataId === null) return;
+        var node = nodes.find(function(n){ return n.id === dataId; });
         if (!node) return;
 
-        var cx = parseFloat(circle.getAttribute('cx'));
-        var cy = parseFloat(circle.getAttribute('cy'));
-
-        // Тухайн node-ийн x-тэй таарч, y нь cy+30-cy+80 хооронд байгаа text олох
-        var allTexts = Array.from(document.querySelectorAll('#path-svg text[font-size="11"]'));
-        var matched = null;
-        var minDist = 999;
-        allTexts.forEach(function(t) {
-          var tx = parseFloat(t.getAttribute('x'));
-          var ty = parseFloat(t.getAttribute('y'));
-          if (Math.abs(tx - cx) < 5 && ty > cy && ty < cy + 100) {
-            var dist = ty - cy;
-            if (dist < minDist) { minDist = dist; matched = t; }
-          }
-        });
+        var matched = cmLabelEl(nid);
         if (matched) applyNodeName(matched, node.name || '');
       });
     })
@@ -3052,6 +3162,12 @@ function applySectionLabels() {
   ];
   try {
     var labels = JSON.parse(localStorage.getItem('cm_section_labels') || 'null') || DEFAULT_LABELS;
+    /* Ангиар шүүх: тухайн ангид зориулсан label байвал түүнийг, эс бөгөөс ангигүй (үндсэн 9-р ангийн) label-ыг */
+    try {
+      var _g = (typeof cmUserGrade === 'function') ? cmUserGrade() : '';
+      var _mine = labels.filter(function(L){ return L.grade && String(L.grade) === _g; });
+      labels = _mine.length ? _mine : labels.filter(function(L){ return !L.grade; });
+    } catch (e) {}
     labels.forEach(function(lbl) {
       var el = document.getElementById('section-label-' + lbl.id);
       if (el) el.textContent = lbl.name;
@@ -46202,8 +46318,9 @@ document.head.appendChild(cmStyle);
       .then(function(r){ return r.json(); })
       .then(function(data){
         var nodes = data.nodes || [];
-        // EXAM_IDS дээр "Бататгал N" override хийх (applyNodeNamesToMap-тай адил)
+        // EXAM_IDS дээр "Бататгал N" override хийх (зөвхөн үндсэн 9-р ангийн зам дээр)
         try {
+          if (cmUserGrade() && cmUserGrade() !== 'teacher' && cmUserGrade() !== '9') throw new Error('skip');
           var EXAM_IDS = window.EXAM_NODE_SOURCES ? Object.keys(window.EXAM_NODE_SOURCES).map(function(k){ return parseInt(k); }).sort(function(a, b){ return a - b; }) : [5, 11, 16, 22, 26, 31, 36, 41, 46, 51, 56, 61, 67, 74, 79, 86, 92, 98, 104, 108, 112, 129, 136, 142];
           nodes.forEach(function(n){
             var idx = EXAM_IDS.indexOf(n.id);
@@ -46218,26 +46335,18 @@ document.head.appendChild(cmStyle);
           });
         } catch(e) {}
         localStorage.setItem('cm_nodes', JSON.stringify(nodes));
+        try { cmBuildPathMap(nodes); } catch (e) {}
         var texts = Array.from(document.querySelectorAll('text[font-size="11"]'));
         var circles = Array.from(document.querySelectorAll('[onclick^="tryOpenLesson"]'));
         circles.forEach(function(circle) {
           var match = circle.getAttribute('onclick').match(/tryOpenLesson\((\d+)\)/);
           if (!match) return;
           var nid = parseInt(match[1]);
-          var node = nodes.find(function(n){ return n.id === nid; });
+          var dataId = cmNodeForSlot(nid);
+          if (dataId === null) return;
+          var node = nodes.find(function(n){ return n.id === dataId; });
           if (!node || !node.name) return;
-          var cx = parseFloat(circle.getAttribute('cx'));
-          var cy = parseFloat(circle.getAttribute('cy'));
-          // Зөвхөн node-ийн ДООД талд (cy < ty < cy+100) ба ижил x-тэй text олох
-          var best = null, bestDist = 9999;
-          texts.forEach(function(t) {
-            var tx = parseFloat(t.getAttribute('x'));
-            var ty = parseFloat(t.getAttribute('y'));
-            if (Math.abs(tx - cx) < 5 && ty > cy && ty < cy + 100) {
-              var dist = ty - cy;
-              if (dist < bestDist) { bestDist = dist; best = t; }
-            }
-          });
+          var best = cmLabelEl(nid);
           if (best) applyNodeName(best, node.name);
         });
       })
@@ -47291,8 +47400,9 @@ document.head.appendChild(cmStyle);
     document.getElementById('quiz-content').innerHTML = '<div style="text-align:center;padding:40px;color:#7B52EE;">Уншиж байна...</div>';
 
     // Шалгалт node эсэхийг шалгах
-    if (EXAM_NODE_SOURCES[id]) {
-      openExamLesson(id, EXAM_NODE_SOURCES[id]);
+    var _ex = cmExamSources(id);
+    if (_ex) {
+      openExamLesson(id, _ex);
       return;
     }
 
@@ -48549,7 +48659,7 @@ function renderMath(text) {
   var _cmCurrentEmail = (JSON.parse(localStorage.getItem('cm_current') || 'null') || {}).email;
   if (_cmCurrentEmail && _cmLastUser !== _cmCurrentEmail) {
     // Өөр хэрэглэгч нэвтэрсэн — localStorage цэвэрлэх (DB-аас дахин авна)
-    localStorage.removeItem('cm_completed');
+    localStorage.removeItem('cm_completed'); localStorage.removeItem('cm_path_grade');
     localStorage.removeItem('cm_stars');
     localStorage.removeItem('cybermath_streak');
     localStorage.removeItem('cm_heart_empty_time');
@@ -48580,7 +48690,7 @@ function renderMath(text) {
     }
   }
   function unlockNextNodes() {
-    var c = getCompletedLessons().map(function(x){ return parseInt(x); });
+    var c = cmCompletedSlots();
     // Nodes 108-125 нь устгагдсан тул HIDDEN_NODES хоосон
     var HIDDEN_NODES = [];
     function isHidden(id) { return false; }
@@ -48635,7 +48745,7 @@ function renderMath(text) {
     // Glow эллипс — дууссан үед lock нуугддаг болсон тул энэ хэрэггүй
     // (filter тохиргоо node-glow дээр section өнгөөр хийгдэнэ)
     // Stars ачааллах
-    var savedStars = JSON.parse(localStorage.getItem('cm_stars') || '{}');
+    var savedStars = cmStarsBySlot();
     for (var s = 1; s <= 162; s++) {
       var sEl = document.getElementById('node-stars-' + s);
       if (!sEl) continue;
@@ -48730,20 +48840,11 @@ function renderMath(text) {
           var m = circle.getAttribute('onclick').match(/tryOpenLesson\((\d+)\)/);
           if (!m) return;
           var nid = parseInt(m[1]);
-          var node = savedNodes.find(function(n){ return n.id === nid; });
+          var dataId = cmNodeForSlot(nid);
+          if (dataId === null) return;
+          var node = savedNodes.find(function(n){ return n.id === dataId; });
           if (!node || !node.name) return;
-          var cx = parseFloat(circle.getAttribute('cx'));
-          var cy = parseFloat(circle.getAttribute('cy'));
-          // Зөвхөн node-ийн ДООД талд (cy < ty < cy+100) ба ижил x-тэй text олох
-          var best = null, bestDist = 9999;
-          allTexts.forEach(function(t) {
-            var tx = parseFloat(t.getAttribute('x'));
-            var ty = parseFloat(t.getAttribute('y'));
-            if (Math.abs(tx - cx) < 5 && ty > cy && ty < cy + 100) {
-              var dist = ty - cy;
-              if (dist < bestDist) { bestDist = dist; best = t; }
-            }
-          });
+          var best = cmLabelEl(nid);
           if (best) applyNodeName(best, node.name);
         });
       }
@@ -48755,7 +48856,7 @@ function renderMath(text) {
     // 24 цагийн дараа зүрх сэргэх шалгалт (DB + localStorage хоёрыг шалгана)
     if (typeof checkHeartRegen === 'function') checkHeartRegen();
 
-    var c = getCompletedLessons().map(function(x){ return parseInt(x); });
+    var c = cmCompletedSlots();
     if (id === 1 || c.indexOf(id - 1) !== -1) {
       // Зүрх шалгах — _currentUser-аас уншина (DOM биш)
       var hearts = (_currentUser && _currentUser.hearts !== undefined && _currentUser.hearts !== null)
@@ -48774,7 +48875,9 @@ function renderMath(text) {
         }
         return;
       }
-      openLesson(id);
+      var _nd = cmNodeForSlot(id);
+      if (_nd === null) { showToast('Энэ хичээл тун удахгүй нэмэгдэнэ'); return; }
+      openLesson(_nd);
     } else {
       showToast('🔒 ' + (id-1) + '-р node-ийг эхлээд дуусгана уу!');
     }
@@ -48823,9 +48926,9 @@ function renderMath(text) {
       syncUserToServer({ avatar: avId });
     }
     // Node дотрын шувуу солих
-    updateNodeBird(currentLessonId, stars);
+    updateNodeBird(cmSlotForNode(currentLessonId), stars);
     // Одны текст шинэчлэх
-    var starEl = document.getElementById('node-stars-' + currentLessonId);
+    var starEl = document.getElementById('node-stars-' + cmSlotForNode(currentLessonId));
     if (starEl) {
       var starStr = {0:'☆☆☆', 1:'★☆☆', 2:'★★☆', 3:'★★★'}[stars];
       starEl.textContent = starStr;
@@ -48842,7 +48945,7 @@ function renderMath(text) {
         syncUserToServer({ stars_data: JSON.stringify(savedStars) });
       }
       // Node дээрх одыг шинэчлэх
-      var sEl = document.getElementById('node-stars-' + currentLessonId);
+      var sEl = document.getElementById('node-stars-' + cmSlotForNode(currentLessonId));
       if (sEl) {
         sEl.textContent = {1:'★☆☆', 2:'★★☆', 3:'★★★'}[stars] || '☆☆☆';
         sEl.setAttribute('fill', '#FFC800');
@@ -48938,7 +49041,7 @@ function renderMath(text) {
       localStorage.setItem('cm_stars', JSON.stringify(savedStars));
     }
     // Node дээрх одыг шинэчлэх
-    var sEl = document.getElementById('node-stars-' + currentLessonId);
+    var sEl = document.getElementById('node-stars-' + cmSlotForNode(currentLessonId));
     if (sEl) {
       sEl.textContent = {0:'☆☆☆', 1:'★☆☆', 2:'★★☆', 3:'★★★'}[stars];
       sEl.setAttribute('fill', stars > 0 ? '#FFC800' : '#888');
@@ -56817,7 +56920,7 @@ function toggleAvatarSection() {
     var lastUser = localStorage.getItem('cm_last_user');
     if (lastUser !== u.email) {
       // Өөр хэрэглэгч нэвтэрсэн — бүх localStorage цэвэрлэх
-      localStorage.removeItem('cm_completed');
+      localStorage.removeItem('cm_completed'); localStorage.removeItem('cm_path_grade');
       localStorage.removeItem('cm_stars');
       localStorage.removeItem('cybermath_streak');
       localStorage.removeItem('cm_heart_empty_time');

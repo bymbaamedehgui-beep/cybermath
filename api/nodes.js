@@ -16,7 +16,9 @@ module.exports = async (req, res) => {
       let sectionLabels = [];
       try {
         const sl = await pool.query('SELECT * FROM section_labels ORDER BY id');
-        sectionLabels = sl.rows.map(r => ({ id: r.id, name: r.name, afterNode: r.after_node }));
+        // Ангид зориулсан label-ын DB id нь 10000+ (давхцал гаргахгүйн тулд) — SVG-ийн байрлалын
+        // дугаар нь үлдэгдэл хэсэг. Frontend section-label-<id> элементийг энэ дугаараар олдог.
+        sectionLabels = sl.rows.map(r => ({ id: r.grade ? (r.id % 10000) : r.id, name: r.name, afterNode: r.after_node, grade: r.grade || null }));
       } catch(e) {}
       return res.json({ ok: true, nodes: r.rows, sectionLabels });
     }
