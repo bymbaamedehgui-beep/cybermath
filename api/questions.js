@@ -12,7 +12,8 @@ module.exports = async (req, res) => {
     // Тоглоомын GET (node_id/ids/exam/grade...) болон хэрэглэгчийн reportQuestion нээлттэй.
     const _q = req.query || {};
     const _b = req.body || {};
-    const needAdmin = (req.method === 'GET' && _q.reports)
+    // node_grade — нэг хүсэлтээр бүхэл ангийн бодлогыг татах тул зөвхөн админд
+    const needAdmin = (req.method === 'GET' && (_q.reports || _q.stats || _q.node_grade))
       || (req.method === 'POST' && _b.action !== 'reportQuestion')
       || req.method === 'PUT' || req.method === 'DELETE';
     if (needAdmin) {
@@ -26,7 +27,53 @@ module.exports = async (req, res) => {
     await pool.query(`ALTER TABLE questions ADD COLUMN IF NOT EXISTS is_exam BOOLEAN DEFAULT false`).catch(()=>{});
 
     if (req.method === 'GET') {
-      const { topic, grade, max_grade, node_id, ids, reports } = req.query || {};
+      const { topic, grade, max_grade, node_id, ids, reports, stats, node_grade } = req.query || {};
+
+      // Шалгалтын бодлогыг оруулах эсэх — жагсаалт, хяналт хоёрт ижил дүрэм
+      const _exam = req.query.exam;
+      const examCondQ = _exam === '1' ? 'q.is_exam = true'
+        : (_exam === 'all' ? 'TRUE' : '(q.is_exam = false OR q.is_exam IS NULL)');
+
+      /* ── Хяналт: node тус бүрийн бодлогын тоо, хэлбэр/хувилбар, төрөл, түвшин ──
+         Learning path-ыг анги ангиар нь нэг дор хянахад ашиглана. */
+      if (stats) {
+        const sv = [];
+        let where = '';
+        if (node_grade) { sv.push(String(node_grade)); where = 'WHERE n.grade = $1'; }
+        const sq = await pool.query(`
+          SELECT n.id, n.name, n.grade, n.sort_order, n.type,
+                 COUNT(q.id)::int AS total,
+                 COUNT(q.id) FILTER (WHERE q.variant_key IS NULL OR q.variant_key = 'q' || q.id::text)::int AS forms,
+                 COUNT(q.id) FILTER (WHERE q.type = 'choice')::int AS n_choice,
+                 COUNT(q.id) FILTER (WHERE q.type = 'fill')::int AS n_fill,
+                 COUNT(q.id) FILTER (WHERE q.type NOT IN ('choice','fill'))::int AS n_other,
+                 COUNT(q.id) FILTER (WHERE q.difficulty = 'easy')::int AS n_easy,
+                 COUNT(q.id) FILTER (WHERE q.difficulty = 'medium')::int AS n_medium,
+                 COUNT(q.id) FILTER (WHERE q.difficulty = 'hard')::int AS n_hard,
+                 COUNT(q.id) FILTER (WHERE q.hint IS NULL OR q.hint::text IN ('null','{}','""'))::int AS n_nohint
+          FROM nodes n
+          LEFT JOIN questions q ON q.node_id = n.id AND ${examCondQ}
+          ${where}
+          GROUP BY n.id, n.name, n.grade, n.sort_order, n.type
+          ORDER BY n.sort_order NULLS LAST, n.id`, sv);
+        // Ангиудын товчоо — сонгогч байгуулахад
+        const gq = await pool.query(`
+          SELECT COALESCE(n.grade, '') AS grade,
+                 COUNT(DISTINCT n.id)::int AS nodes,
+                 COUNT(q.id)::int AS total,
+                 COUNT(DISTINCT n.id) FILTER (WHERE q.id IS NULL)::int AS empty_nodes
+          FROM nodes n
+          LEFT JOIN questions q ON q.node_id = n.id AND ${examCondQ}
+          GROUP BY 1 ORDER BY 1`);
+        // Node-д хамаарахгүй бодлого (алдаатай өгөгдөл олоход хэрэгтэй)
+        const oq = await pool.query('SELECT COUNT(*)::int AS c FROM questions WHERE node_id IS NULL');
+        return res.json({
+          ok: true,
+          stats: sq.rows,
+          grades: gq.rows,
+          orphans: (oq.rows[0] || {}).c || 0,
+        });
+      }
 
       // /api/questions?reports=open — admin-д нээлттэй мэдэгдлийн жагсаалт
       if (reports) {
@@ -84,6 +131,11 @@ module.exports = async (req, res) => {
         }
       }
       if (node_id) { conds.push(`node_id=$${vals.length+1}`); vals.push(parseInt(node_id)); }
+      // Тухайн ангийн БҮХ node-ийн бодлого (node_id өгөөгүй үед хяналтын жагсаалтад)
+      if (node_grade && !node_id) {
+        conds.push(`node_id IN (SELECT id FROM nodes WHERE grade = $${vals.length+1})`);
+        vals.push(String(node_grade));
+      }
       if (conds.length) q += ' WHERE ' + conds.join(' AND ');
       q += ' ORDER BY id ASC';
       const r = await pool.query(q, vals);

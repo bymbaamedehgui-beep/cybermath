@@ -97,7 +97,7 @@ function showPage(name, btn) {
   if (btn) btn.classList.add('active');
   // Тухайн page-ийн өгөгдөл ачаалах
   if (name === 'overview') loadOverview();
-  if (name === 'questions') { populateQNodeSelect(); renderQuestions(); }
+  if (name === 'questions') { populateQNodeSelect(); renderQuestions(); loadQReview(); }
   if (name === 'nodes') { renderNodesList(); renderSectionLabelsList(); }
   if (name === 'users') loadUsers();
   if (name === 'log') loadLogs();
@@ -1688,6 +1688,23 @@ body { font-family:'Baloo 2',sans-serif; background:var(--bg); color:var(--text)
 .fold.fold-open .fold-chev { transform:rotate(90deg); color:var(--purple); }
 .fold .fold-count { font-size:0.72rem; font-weight:800; color:var(--muted); background:var(--surface2); border:1px solid var(--border); border-radius:100px; padding:2px 10px; white-space:nowrap; }
 .fold .fold-body { display:none; }
+/* ── Learning path хяналтын хүснэгт ── */
+#qrv-table table { width:100%; border-collapse:collapse; font-size:0.82rem; }
+#qrv-table th { text-align:left; font-weight:800; color:var(--muted); padding:6px 8px; border-bottom:1.5px solid var(--border); white-space:nowrap; font-size:0.74rem; text-transform:uppercase; letter-spacing:.03em; }
+#qrv-table td { padding:7px 8px; border-bottom:1px solid var(--border); vertical-align:middle; }
+#qrv-table tbody tr { cursor:pointer; }
+#qrv-table tbody tr:hover { background:var(--surface2); }
+#qrv-table .qrv-num { text-align:right; font-variant-numeric:tabular-nums; font-weight:800; }
+#qrv-table .qrv-name { font-weight:700; color:var(--text); }
+#qrv-table .qrv-dim { color:var(--muted); font-weight:700; font-variant-numeric:tabular-nums; }
+.qrv-chip { padding:5px 13px; border-radius:100px; border:1.5px solid var(--border); background:var(--surface); color:var(--muted); font-weight:800; font-size:0.8rem; cursor:pointer; white-space:nowrap; }
+.qrv-chip:hover { border-color:var(--purple); color:var(--purple); }
+.qrv-chip.on { background:var(--purple); border-color:var(--purple); color:#fff; }
+.qrv-badge { display:inline-block; padding:2px 9px; border-radius:100px; font-size:0.7rem; font-weight:800; white-space:nowrap; }
+.qrv-ok { background:rgba(22,163,74,.15); color:#16a34a; border:1px solid rgba(22,163,74,.35); }
+.qrv-warn { background:rgba(245,158,11,.16); color:#f59e0b; border:1px solid rgba(245,158,11,.4); }
+.qrv-bad { background:rgba(220,38,38,.14); color:#dc2626; border:1px solid rgba(220,38,38,.35); }
+.qrv-info { background:rgba(124,82,238,.14); color:var(--purple); border:1px solid rgba(124,82,238,.35); }
 .fold.fold-open .fold-body { display:block; }
 .fold:not(.fold-open) .fold-head { margin-bottom:0 !important; border-bottom:0; padding-bottom:0; }
 .fold .fold-note { font-size:0.72rem; font-weight:800; border-radius:100px; padding:2px 10px; white-space:nowrap; background:rgba(245,158,11,.16); color:#f59e0b; border:1px solid rgba(245,158,11,.4); }
@@ -2089,6 +2106,23 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
         <div class="page-title">Бодлогууд</div>
         <div class="page-sub">Node сонгоод бодлого нэмэх, засах</div>
 
+        <!-- Learning path хяналт — анги ангиар -->
+        <div class="table-card fold" data-fold="qreview" style="margin-bottom:18px;">
+          <div class="table-header fold-head" onclick="admFoldToggle(this)" style="display:flex;gap:8px;align-items:center;">
+            <svg class="fold-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+            <div class="table-title" style="flex:1;display:flex;align-items:center;gap:7px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.75;"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/></svg>
+              Learning path хяналт <span style="font-size:0.72rem;color:var(--muted);font-weight:700;">(анги тус бүрийн бодлогын хангалт)</span>
+            </div>
+            <span class="fold-count"></span>
+          </div>
+          <div class="fold-body" style="padding:0 20px 16px;">
+            <div id="qrv-chips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;"></div>
+            <div id="qrv-sum" style="font-size:0.82rem;color:var(--muted);font-weight:700;margin-bottom:10px;"></div>
+            <div id="qrv-table" style="overflow-x:auto;"></div>
+          </div>
+        </div>
+
         <!-- Node сонгох + бодлого нэмэх -->
         <div class="q-form">
           <div class="q-form-title">+ Шинэ бодлого нэмэх</div>
@@ -2323,7 +2357,7 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
           <div class="table-header">
             <div class="table-title" id="q-list-title">Бодлогууд</div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-              <select id="q-exam-filter" onchange="renderQuestions()" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:0.85rem;font-weight:700;outline:none;" title="Зориулалтаар шүүх">
+              <select id="q-exam-filter" onchange="renderQuestions(); loadQReview();" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:0.85rem;font-weight:700;outline:none;" title="Зориулалтаар шүүх">
                 <option value="lesson">📚 Хичээлийн</option>
                 <option value="exam">📝 Шалгалтын</option>
                 <option value="all">Бүгд</option>
@@ -3565,6 +3599,122 @@ function closeMathModal() { closeChoiceMathModal(); }
     clearHintFile('pdf');
   }
 
+  /* ══ Learning path хяналт ══
+     /api/questions?stats=1[&node_grade=N] → node тус бүрийн бодлогын тоо, хэлбэр/хувилбар,
+     төрөл, түвшин. Мөрөн дээр дарахад тухайн node-ийн бодлогууд доор нээгдэнэ. */
+  var _qrvGrade = '';                 // сонгосон анги ('' = бүх анги)
+  window._qrvGrade = '';
+  var _qrvGrades = null;              // ангиудын товчоо (нэг удаа татна)
+
+  function qrvEsc(t) {
+    return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  // Бататгал/шалгалтын node-д бодлого байхгүй нь хэвийн — нэрээр таньна
+  function qrvIsExam(r) { return /бататгал|шалгалт/i.test(r.name || ''); }
+
+  function qrvBadge(r) {
+    if (qrvIsExam(r)) return '<span class="qrv-badge qrv-info">бататгал</span>';
+    if (!r.total) return '<span class="qrv-badge qrv-bad">хоосон</span>';
+    if (r.forms < 10) return '<span class="qrv-badge qrv-warn">хэлбэр цөөн</span>';
+    if (!r.n_easy || !r.n_medium || !r.n_hard) return '<span class="qrv-badge qrv-warn">түвшин дутуу</span>';
+    if (r.n_nohint) return '<span class="qrv-badge qrv-warn">hint дутуу</span>';
+    return '<span class="qrv-badge qrv-ok">бүрэн</span>';
+  }
+
+  function qrvRenderChips() {
+    var el = document.getElementById('qrv-chips');
+    if (!el || !_qrvGrades) return;
+    var h = '<span class="qrv-chip' + (_qrvGrade ? '' : ' on') + '" onclick="qrvPick(\'\')">Бүх анги</span>';
+    _qrvGrades.forEach(function (g) {
+      var name = g.grade || '(ангигүй)';
+      h += '<span class="qrv-chip' + (String(_qrvGrade) === String(g.grade) ? ' on' : '')
+        + '" onclick="qrvPick(\'' + qrvEsc(g.grade) + '\')" title="' + g.nodes + ' node · ' + g.total + ' бодлого">'
+        + qrvEsc(name) + (g.grade && /^[0-9]+$/.test(g.grade) ? '-р анги' : '')
+        + ' <span style="opacity:.7;font-weight:700;">' + g.total + '</span></span>';
+    });
+    el.innerHTML = h;
+  }
+
+  window.qrvPick = function (g) {
+    _qrvGrade = String(g || '');
+    window._qrvGrade = _qrvGrade;
+    loadQReview();
+  };
+
+  window.loadQReview = function () {
+    var tbl = document.getElementById('qrv-table');
+    if (!tbl) return;
+    tbl.innerHTML = '<div style="color:var(--muted);padding:14px;">Уншиж байна…</div>';
+    var ef = document.getElementById('q-exam-filter');
+    var url = API + '/api/questions?stats=1&exam=' + encodeURIComponent(ef ? ef.value : 'lesson');
+    if (_qrvGrade) url += '&node_grade=' + encodeURIComponent(_qrvGrade);
+    adminFetch(url).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d || !d.ok) { tbl.innerHTML = '<div style="color:#dc2626;padding:14px;">Алдаа гарлаа</div>'; return; }
+      _qrvGrades = d.grades || [];
+      qrvRenderChips();
+      var rows = d.stats || [];
+
+      // Товчоо
+      var tot = 0, forms = 0, empty = 0, warn = 0;
+      rows.forEach(function (r) {
+        tot += r.total; forms += r.forms;
+        if (qrvIsExam(r)) return;
+        if (!r.total) empty++;
+        else if (r.forms < 10 || !r.n_easy || !r.n_medium || !r.n_hard) warn++;
+      });
+      var sum = document.getElementById('qrv-sum');
+      if (sum) {
+        sum.innerHTML = rows.length + ' node · ' + tot + ' бодлого · ' + forms + ' хэлбэр · '
+          + (tot - forms) + ' хувилбар'
+          + (empty ? ' · <span style="color:#dc2626;">' + empty + ' хоосон</span>' : '')
+          + (warn ? ' · <span style="color:#f59e0b;">' + warn + ' дутуу</span>' : '')
+          + (d.orphans ? ' · <span style="color:#dc2626;">node-гүй ' + d.orphans + '</span>' : '');
+      }
+
+      if (!rows.length) { tbl.innerHTML = '<div style="color:var(--muted);padding:14px;">Node алга</div>'; return; }
+      var h = '<table><thead><tr>'
+        + '<th>ID</th><th>Сэдэв</th><th style="text-align:right;">Нийт</th>'
+        + '<th style="text-align:right;">Хэлбэр</th><th style="text-align:right;">Хувилбар</th>'
+        + '<th>Сонголт / Нөхөх</th><th>Хялбар · Дунд · Хүнд</th><th>Төлөв</th>'
+        + '</tr></thead><tbody>';
+      rows.forEach(function (r) {
+        var other = r.n_other ? ' <span class="qrv-dim">+' + r.n_other + '</span>' : '';
+        h += '<tr class="fold-row" onclick="qrvOpenNode(' + r.id + ')" title="Дарвал энэ node-ийн бодлогууд доор нээгдэнэ">'
+          + '<td class="qrv-dim">' + r.id + '</td>'
+          + '<td class="qrv-name">' + qrvEsc(r.name || '(нэргүй)')
+          + (r.grade && !_qrvGrade ? ' <span class="qrv-dim">[' + qrvEsc(r.grade) + 'р]</span>' : '') + '</td>'
+          + '<td class="qrv-num">' + r.total + '</td>'
+          + '<td class="qrv-num">' + r.forms + '</td>'
+          + '<td class="qrv-num qrv-dim">' + (r.total - r.forms) + '</td>'
+          + '<td class="qrv-dim">' + r.n_choice + ' / ' + r.n_fill + other + '</td>'
+          + '<td class="qrv-dim">' + r.n_easy + ' · ' + r.n_medium + ' · ' + r.n_hard + '</td>'
+          + '<td>' + qrvBadge(r) + '</td>'
+          + '</tr>';
+      });
+      tbl.innerHTML = h + '</tbody></table>';
+    }).catch(function (e) {
+      tbl.innerHTML = '<div style="color:#dc2626;padding:14px;">Алдаа: ' + qrvEsc(e.message) + '</div>';
+    });
+  };
+
+  // Мөрөн дээр дарахад тухайн node-ийг сонгоод бодлогуудыг нь доор харуулна
+  window.qrvOpenNode = function (id) {
+    var g = document.getElementById('q-grade');
+    var nodes = getNodes();
+    var nd = nodes.filter(function (x) { return String(x.id) === String(id); })[0];
+    if (g && nd && nd.grade) g.value = String(nd.grade);
+    populateQNodeSelect();
+    var sel = document.getElementById('q-node');
+    if (sel) {
+      sel.value = String(id);
+      // grade шүүлтээс болж сонголт орхигдвол шүүлтгүйгээр дахин байгуулна
+      if (sel.value !== String(id) && g) { g.value = ''; populateQNodeSelect(); sel.value = String(id); }
+    }
+    renderQuestions();
+    var lst = document.getElementById('q-list');
+    if (lst) lst.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   function populateQNodeSelect() {
     var sel = document.getElementById('q-node');
     if (!sel) return;
@@ -4489,13 +4639,18 @@ function closeMathModal() { closeChoiceMathModal(); }
     var nodeName = nodeEl && nodeEl.selectedIndex >= 0 ? nodeEl.options[nodeEl.selectedIndex].text : '';
     // Гарчиг шинэчлэх
     var titleEl = document.getElementById('q-list-title');
-    if (titleEl) titleEl.textContent = nodeId ? ('Node ' + nodeId + ': ' + nodeName + ' — бодлогууд') : 'Бүх бодлого';
+    if (titleEl) {
+      titleEl.textContent = nodeId ? ('Node ' + nodeId + ': ' + nodeName + ' — бодлогууд')
+        : (window._qrvGrade ? (window._qrvGrade + '-р ангийн бүх бодлого') : 'Бүх бодлого');
+    }
     el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted);">Уншиж байна...</div>';
     var examFilterEl = document.getElementById('q-exam-filter');
     var examFilter = examFilterEl ? examFilterEl.value : 'lesson';
     var url = API + '/api/questions?exam=' + encodeURIComponent(examFilter);
     if (nodeId) url += '&node_id=' + nodeId;
-    fetch(url).then(r=>r.json()).then(function(data) {
+    // Node сонгоогүй ч анги сонгосон бол тухайн ангийн БҮХ node-ийн бодлого
+    else if (window._qrvGrade) url += '&node_grade=' + encodeURIComponent(window._qrvGrade);
+    adminFetch(url).then(r=>r.json()).then(function(data) {
       var qs = data.questions || [];
       if (search) qs = qs.filter(function(q){ return q.text && q.text.toLowerCase().includes(search.toLowerCase()); });
       if (!qs.length) { el.innerHTML = '<div style="color:var(--muted);text-align:center;padding:32px;">Бодлого байхгүй байна</div>'; return; }
