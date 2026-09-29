@@ -2958,6 +2958,25 @@ function cmLabelEl(slot) {
   cmBindLabels();
   return document.querySelector('#path-svg text[data-slot="' + slot + '"]');
 }
+/* Сонголтуудыг холино. «Бүгд зөв», «Аль нь ч биш» маягийн богино сонголтыг сүүлд нь үлдээнэ.
+   Буцаах: {options, idx} — idx нь холисны дараах зөв хариуны байрлал. */
+var CM_LAST_OPT = /^(бүгд|аль нь ч биш|дээрх|бусад|нэг нь ч биш|тодорхойлогдохгүй)/i;
+function cmShuffleChoices(choices, correct) {
+  var arr = Array.isArray(choices) ? choices.slice() : [];
+  if (arr.length < 2) return { options: arr, idx: Math.max(0, arr.indexOf(correct)) };
+  var tail = [], head = [];
+  arr.forEach(function (o) {
+    var t = String(o).replace(/[$\\]/g, '').trim();
+    if (t.length <= 24 && CM_LAST_OPT.test(t)) tail.push(o); else head.push(o);
+  });
+  for (var i = head.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1)), tmp = head[i]; head[i] = head[j]; head[j] = tmp;
+  }
+  var out = head.concat(tail);
+  var idx = out.indexOf(correct);
+  if (idx === -1) idx = 0;
+  return { options: out, idx: idx };
+}
 function cmNodeForSlot(sl) { return window._PATH.on ? (window._PATH.s2n[sl] || null) : sl; }
 function cmSlotForNode(nd) { return window._PATH.on ? (window._PATH.n2s[nd] || null) : nd; }
 /* Дуусгасан хичээлийг СЛОТын id-гаар илэрхийлж буцаана (SVG-ийн бүх давталт слотоор ажилладаг) */
@@ -47015,11 +47034,12 @@ document.head.appendChild(cmStyle);
                 // String хэвээр үлдэнэ — renderHintContent түүнийг ойлгоно
               }
             }
+            var _sh = cmShuffleChoices(choices, q.correct);
             return {
               id: q.id,
               q: q.text,
-              options: choices,
-              correct: choices.indexOf(q.correct),
+              options: _sh.options,
+              correct: _sh.idx,
               hint: qHint || {},
               type: q.type || 'choice',
               correctAnswer: q.correct,
@@ -47418,8 +47438,9 @@ document.head.appendChild(cmStyle);
             questions: dbQs.map(function(q){
               var choices = q.choices || [];
               if (typeof choices === 'string') { try { choices = JSON.parse(choices); } catch(e) { choices = []; } }
-              var correctIdx = choices.indexOf(q.correct);
-              if (correctIdx === -1) correctIdx = 0;
+              var _sh = cmShuffleChoices(choices, q.correct);
+              choices = _sh.options;
+              var correctIdx = _sh.idx;
               // Hint parse
               var qHint = q.hint;
               if (typeof qHint === 'string') {
@@ -51168,9 +51189,9 @@ function toggleAvatarSection() {
       var type = qq.type || 'choice';
       var correctVal;
       if (type === 'choice') {
-        var idx = choices.indexOf(qq.correct);
-        if (idx === -1) idx = 0;
-        correctVal = idx;
+        var _sh = cmShuffleChoices(choices, qq.correct);
+        choices = _sh.options;
+        correctVal = _sh.idx;
       } else {
         correctVal = qq.correct;
       }
