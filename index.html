@@ -2963,6 +2963,26 @@ function cmLabelEl(slot) {
 /* Сонголтуудыг холино. «Бүгд зөв», «Аль нь ч биш» маягийн богино сонголтыг сүүлд нь үлдээнэ.
    Буцаах: {options, idx} — idx нь холисны дараах зөв хариуны байрлал. */
 var CM_LAST_OPT = /^(бүгд|аль нь ч биш|дээрх|бусад|нэг нь ч биш|тодорхойлогдохгүй)/i;
+/* Нэг ХЭЛБЭРИЙН олон тоон хувилбараас нэгийг нь сонгож, дарааллыг нь холино.
+   variant_key нь ижил мөрүүд = нэг бодлогын өөр тоотой хувилбарууд.
+   Түлхүүргүй бол мөр бүр өөрийн хэлбэр (хуучин ажиллагаа хэвээр). */
+function cmPickVariants(list) {
+  var byKey = {}, order = [];
+  (list || []).forEach(function (q) {
+    if (!q) return;
+    var k = q.variant_key || ('q' + q.id);
+    if (!byKey[k]) { byKey[k] = []; order.push(k); }
+    byKey[k].push(q);
+  });
+  var out = order.map(function (k) {
+    var g = byKey[k];
+    return g.length === 1 ? g[0] : g[Math.floor(Math.random() * g.length)];
+  });
+  for (var i = out.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1)), t = out[i]; out[i] = out[j]; out[j] = t;
+  }
+  return out;
+}
 function cmShuffleChoices(choices, correct) {
   var arr = Array.isArray(choices) ? choices.slice() : [];
   if (arr.length < 2) return { options: arr, idx: Math.max(0, arr.indexOf(correct)) };
@@ -47361,6 +47381,8 @@ document.head.appendChild(cmStyle);
       + '<button onclick="resumeLessonChoice(\'continue\', \'' + String(lessonId).replace(/'/g, "\\'") + '\')" style="width:100%;padding:15px;background:linear-gradient(135deg,#7B52EE,#A855F7);border:none;border-radius:14px;color:white;font-family:inherit;font-weight:900;font-size:1rem;cursor:pointer;box-shadow:0 5px 0 #5e3fc0;margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:8px;">'
       + '<span>▶</span><span>' + qNum + '-р асуултаас үргэлжлүүлэх</span></button>'
 
+      // Шинэ бодлоготой эхлэх — ижил хэлбэр, өөр тоотой
+      + '<button onclick="resumeLessonChoice(\'fresh\', \'' + String(lessonId).replace(/'/g, "\\'") + '\')" style="width:100%;padding:13px;background:#fff;border:2px solid #7B52EE;border-radius:14px;color:#7B52EE;font-family:inherit;font-weight:900;font-size:0.95rem;cursor:pointer;margin-bottom:10px;">Шинэ бодлоготой эхнээс</button>'
       // Болих
       + '<button onclick="resumeLessonChoice(\'cancel\', \'' + String(lessonId).replace(/'/g, "\\'") + '\')" style="width:100%;padding:10px;background:transparent;border:none;color:#aaa;font-family:inherit;font-weight:700;font-size:0.85rem;cursor:pointer;">Болих</button>'
       + '</div>';
@@ -47376,6 +47398,16 @@ document.head.appendChild(cmStyle);
       currentLessonId = null;
       var qm = document.getElementById('quiz-modal');
       if (qm) qm.classList.remove('open');
+      return;
+    }
+
+    /* Шинэ бодлоготой эхнээс — хадгалсан явцыг цэвэрлээд дахин ачаална.
+       Бодлогын хэлбэр ижил хэвээр, зөвхөн тоо нь солигдоно. */
+    if (choice === 'fresh') {
+      try { if (typeof clearLessonProgress === 'function') clearLessonProgress(lessonId); } catch (e) {}
+      currentQ = 0; score = 0; mistakes = 0; sessionCorrectQs = []; selectedOpt = null;
+      lessonStartTimestamp = Date.now();
+      continueOpenLesson(lessonId);
       return;
     }
 
@@ -47530,7 +47562,7 @@ document.head.appendChild(cmStyle);
     fetch('/api/questions?node_id=' + id)
       .then(function(r){ return r.json(); })
       .then(function(data){
-        var dbQs = data.questions || [];
+        var dbQs = cmPickVariants(data.questions || []);
         if (dbQs.length >= 1) {
           // Database-д бодлого байвал тэрийг ашиглах (placeholder lessons[id] fallback ашиглахгүй)
           currentLesson = {
