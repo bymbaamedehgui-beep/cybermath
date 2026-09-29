@@ -2977,6 +2977,104 @@ function cmShuffleChoices(choices, correct) {
   if (idx === -1) idx = 0;
   return { options: out, idx: idx };
 }
+
+/* ═══════════ ХИЧЭЭЛИЙН ШИНЭ ЖИЛ — АНГИ БАТАЛГААЖУУЛАХ ═══════════
+   Хавар 9-р ангиар бүртгүүлсэн сурагч намар 10-р ангид ордог. Анги нь автоматаар
+   ахидаггүй тул хичээлийн шинэ жилийн эхэнд нэг удаа асууж, сурагч өөрөө сонгоно.
+   Ингэснээр буруу таамаглал гарахгүй, бүх ангид нэг зэрэг үйлчилнэ. */
+function cmSchoolYearStart() {
+  var now = new Date(), y = now.getFullYear();
+  var start = new Date(y, 8, 1);                 /* 9-р сарын 1 */
+  if (now < start) start = new Date(y - 1, 8, 1);
+  return start;
+}
+function cmNeedGradeCheck() {
+  try {
+    var u = _currentUser;
+    if (!u || !u.email) return false;
+    if (u.grade === 'teacher' || u.role === 'teacher') return false;
+    var g = parseInt(u.grade, 10);
+    if (!(g >= 1 && g <= 12)) return false;                  /* ангигүй бол асуухгүй */
+    var start = cmSchoolYearStart();
+    var created = u.created_at ? new Date(u.created_at) : null;
+    if (!created || isNaN(created) || created >= start) return false;  /* энэ жил бүртгүүлсэн */
+    var conf = u.grade_confirmed_at ? new Date(u.grade_confirmed_at) : null;
+    if (conf && !isNaN(conf) && conf >= start) return false;  /* энэ жил баталгаажуулсан */
+    return true;
+  } catch (e) { return false; }
+}
+function cmAskGrade() {
+  if (document.getElementById('cm-gradeyear')) return;
+  var u = _currentUser, cur = parseInt(u.grade, 10);
+  var sug = Math.min(12, cur + 1);
+  var opts = '';
+  for (var i = 1; i <= 12; i++) {
+    opts += '<option value="' + i + '"' + (i === sug ? ' selected' : '') + '>' + i + '-р анги</option>';
+  }
+  var w = document.createElement('div');
+  w.id = 'cm-gradeyear';
+  w.style.cssText = 'position:fixed;inset:0;z-index:2147483000;background:rgba(10,8,24,.78);display:flex;align-items:center;justify-content:center;padding:18px;';
+  w.innerHTML =
+    '<div style="background:#fff;border-radius:22px;max-width:420px;width:100%;padding:26px 24px;box-shadow:0 24px 60px -20px rgba(0,0,0,.6);font-family:inherit;">'
+    + '<div style="font-size:1.25rem;font-weight:900;color:#1a1040;margin-bottom:8px;">Шинэ хичээлийн жил эхэллээ</div>'
+    + '<div style="font-size:.95rem;color:#6c6486;line-height:1.55;margin-bottom:18px;">'
+    + 'Өмнө нь <b>' + cur + '-р анги</b> гэж бүртгүүлсэн байна. Чи одоо хэддүгээр ангид сурч байна вэ?'
+    + '</div>'
+    + '<select id="cm-gy-sel" style="width:100%;padding:13px 14px;font-size:1.05rem;font-weight:800;color:#1a1040;border:2px solid #7B52EE;border-radius:14px;background:#fff;outline:none;cursor:pointer;">' + opts + '</select>'
+    + '<div id="cm-gy-note" style="font-size:.82rem;color:#6c6486;margin-top:10px;line-height:1.5;"></div>'
+    + '<button id="cm-gy-ok" style="width:100%;margin-top:16px;border:0;cursor:pointer;border-radius:14px;padding:14px;font-size:1rem;font-weight:900;color:#fff;background:linear-gradient(135deg,#7B52EE,#A855F7);">Баталгаажуулах</button>'
+    + '<button id="cm-gy-later" style="width:100%;margin-top:8px;border:0;cursor:pointer;border-radius:14px;padding:11px;font-size:.9rem;font-weight:800;color:#6c6486;background:transparent;">Дараа</button>'
+    + '</div>';
+  document.body.appendChild(w);
+
+  var sel = document.getElementById('cm-gy-sel'), note = document.getElementById('cm-gy-note');
+  function paint() {
+    var v = parseInt(sel.value, 10);
+    note.innerHTML = (v === cur)
+      ? 'Анги өөрчлөгдөхгүй — сурч байсан зам чинь хэвээр үлдэнэ.'
+      : 'Анги солигдоход <b>' + v + '-р ангийн зам</b> шинээр эхэлнэ. Өмнөх ангийн явц чинь устахгүй, буцаж сонгвол сэргэнэ.';
+  }
+  sel.addEventListener('change', paint); paint();
+
+  document.getElementById('cm-gy-later').onclick = function () { w.remove(); };
+  document.getElementById('cm-gy-ok').onclick = function () {
+    var v = String(parseInt(sel.value, 10));
+    var changed = v !== String(cur);
+    _currentUser.grade = v;
+    _currentUser.grade_confirmed_at = new Date().toISOString();
+    if (changed) _currentUser.current_node_id = null;
+    try { _saveCurrentUser(); } catch (e) {}
+    try { localStorage.setItem('cm_path_grade', v); } catch (e) {}
+    var payload = { grade: v, grade_confirmed_at: _currentUser.grade_confirmed_at };
+    if (changed) payload.current_node_id = null;
+    try { syncUserToServer(payload); } catch (e) {}
+    if (changed) {
+      /* Хуучин ангийн дуусгаагүй хичээлийн түр төлөвийг цэвэрлэнэ (явц нь DB-д хэвээр) */
+      try { localStorage.removeItem('cm_lesson_progress'); } catch (e) {}
+      try { localStorage.removeItem('cm_nodes'); } catch (e) {}
+    }
+    w.remove();
+    try { if (typeof applyNodeNamesToMap === 'function') applyNodeNamesToMap(); } catch (e) {}
+    try { if (typeof showToast === 'function') showToast(v + '-р анги гэж хадгаллаа'); } catch (e) {}
+  };
+}
+/* Хэрэглэгч ачаалагдмагц нэг удаа шалгана */
+(function () {
+  var tries = 0;
+  function tick() {
+    tries++;
+    try {
+      if (typeof _currentUser !== 'undefined' && _currentUser && _currentUser.email) {
+        if (cmNeedGradeCheck()) setTimeout(cmAskGrade, 1200);
+        return;
+      }
+    } catch (e) {}
+    if (tries < 60) setTimeout(tick, 1000);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { setTimeout(tick, 2000); });
+  else setTimeout(tick, 2000);
+})();
+
 function cmNodeForSlot(sl) { return window._PATH.on ? (window._PATH.s2n[sl] || null) : sl; }
 function cmSlotForNode(nd) { return window._PATH.on ? (window._PATH.n2s[nd] || null) : nd; }
 /* Дуусгасан хичээлийг СЛОТын id-гаар илэрхийлж буцаана (SVG-ийн бүх давталт слотоор ажилладаг) */

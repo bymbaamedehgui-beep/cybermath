@@ -232,7 +232,7 @@ module.exports = async (req, res) => {
       }
       const r = await pool.query(
         `SELECT id,email,first_name,last_name,grade,plan,xp,gems,hearts,streak,avatar,
-                completed_lessons,created_at,current_node_id,activity_log,hearts_empty_time,verified,role,
+                completed_lessons,created_at,current_node_id,activity_log,hearts_empty_time,verified,role,grade_confirmed_at,
                 school,aimag,sum,phone
          FROM users WHERE verified=true ORDER BY created_at DESC`
       );
@@ -251,7 +251,7 @@ module.exports = async (req, res) => {
     if (req.method === 'PUT') {
       let { email, action, plan, xp, gems, hearts, streak, avatar, completed_lesson,
               stars_data, streak_data, current_node_id, hearts_empty_time, profile_image,
-              first_name, last_name, grade } = req.body || {};
+              first_name, last_name, grade, grade_confirmed_at } = req.body || {};
       if (!email) return res.status(400).json({ ok: false, error: 'Missing email' });
       // Email-ыг normalize — case-insensitive lookup (saveLessonProgress г.м case-sensitive
       // WHERE email=$1 query-ууд DB-н lowercase email-тай нийцэхгүй байсныг засав)
@@ -919,7 +919,9 @@ module.exports = async (req, res) => {
       if (profile_image     !== undefined) { sets.push(`profile_image=$${i++}`);     vals.push(profile_image); }
       if (first_name        !== undefined) { sets.push(`first_name=$${i++}`);        vals.push(String(first_name).trim().slice(0,60)); }
       if (last_name         !== undefined) { sets.push(`last_name=$${i++}`);         vals.push(String(last_name).trim().slice(0,60)); }
-      if (grade             !== undefined) { sets.push(`grade=$${i++}`);             vals.push(grade); }
+      if (grade             !== undefined) { sets.push(`grade=${i++}`);             vals.push(grade); }
+      // Хичээлийн шинэ жилд анги баталгаажуулсан огноо
+      if (grade_confirmed_at !== undefined) { sets.push(`grade_confirmed_at=${i++}`); vals.push(grade_confirmed_at ? new Date(grade_confirmed_at) : null); }
       if (hearts_empty_time !== undefined) {
         sets.push(`hearts_empty_time=$${i++}`);
         vals.push(hearts_empty_time === null ? null : new Date(hearts_empty_time));

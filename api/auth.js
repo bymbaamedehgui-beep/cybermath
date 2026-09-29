@@ -206,6 +206,8 @@ function userPayload(u, token) {
     completedLessons: u.completed_lessons || [],
     stars_data: u.stars_data || null, streak_data: u.streak_data || null,
     hearts_empty_time: u.hearts_empty_time || null,
+    created_at: u.created_at || null,
+    grade_confirmed_at: u.grade_confirmed_at || null,
     token: token || null
   };
 }
