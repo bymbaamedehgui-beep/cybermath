@@ -112,7 +112,9 @@ function allGrades() {
   const cat = loadCatalog();
   const s = new Set();
   Object.keys(cat).forEach(k => cat[k].forEach(g => s.add(g)));
-  return Array.from(s).sort((a, b) => (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0));
+  // тоон ангиуд эхэлж дугаараар, дараа нь хичээлийн бүлгүүд (Монгол хэл г.м) цагаан толгойгоор
+  const num = x => { const m = /^(\d+)/.exec(x); return m ? +m[1] : Infinity; };
+  return Array.from(s).sort((a, b) => (num(a) - num(b)) || a.localeCompare(b, 'mn'));
 }
 
 module.exports = {
