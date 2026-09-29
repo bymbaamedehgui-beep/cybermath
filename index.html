@@ -2926,9 +2926,11 @@ function cmBuildPathMap(nodes) {
 /* Илүү слотуудыг нуух (тухайн ангийн node-ийн тоо слотоос цөөн үед) */
 function cmHideSlots(extra) {
   extra.forEach(function (sl) {
-    ['node-glow-', 'node-lock-', 'lock-overlay-', 'node-3d-'].forEach(function (pre) {
+    ['node-glow-', 'node-lock-', 'lock-overlay-', 'node-3d-', 'node-bird-'].forEach(function (pre) {
       var el = document.getElementById(pre + sl); if (el) el.style.display = 'none';
     });
+    var pth = document.getElementById('path-' + (sl - 1) + '-' + sl);
+    if (pth) pth.style.display = 'none';
     var st = document.getElementById('node-stars-' + sl); if (st) st.style.display = 'none';
     Array.from(document.querySelectorAll('[onclick^="tryOpenLesson(' + sl + ')"]')).forEach(function (el) {
       el.style.display = 'none'; el.style.pointerEvents = 'none';
@@ -48812,11 +48814,20 @@ function renderMath(text) {
     var c = cmCompletedSlots();
     // Nodes 108-125 нь устгагдсан тул HIDDEN_NODES хоосон
     var HIDDEN_NODES = [];
-    function isHidden(id) { return false; }
+    /* Тухайн ангийн зам энэ слот хүртэл хүрэхгүй бол нуух (ж: 10-р анги 73 node → 74+ нуугдана).
+       _PATH.on унтраалттай (9-р анги) үед cmNodeForSlot нь id-г өөрийг нь буцаах тул үргэлж false. */
+    function isHidden(id) { try { return cmNodeForSlot(id) === null; } catch (e) { return false; } }
     // Lock-уудыг хянах — node 107 дуусгасан бол 126 unlock болно
     for (var i = 2; i <= 200; i++) {
       var lock = document.getElementById('node-lock-' + i);
       if (!lock) continue;
+      if (isHidden(i)) {
+        lock.style.display = 'none';
+        var ov0 = document.getElementById('lock-overlay-' + i); if (ov0) ov0.style.display = 'none';
+        var gl0 = document.getElementById('node-glow-' + i);    if (gl0) gl0.style.display = 'none';
+        var d30 = document.getElementById('node-3d-' + i);      if (d30) d30.style.display = 'none';
+        continue;
+      }
       // Тусгай: 108-125 устгасан тул node 126-г 107 дуусгасан бол unlock
       var prevDone;
       if (i === 126) prevDone = c.indexOf(107) !== -1;
@@ -48835,6 +48846,13 @@ function renderMath(text) {
     for (var j = 1; j <= 200; j++) {
       var path = document.getElementById('path-' + j + '-' + (j+1));
       if (!path) continue;
+      if (isHidden(j) || isHidden(j + 1)) {
+        path.style.display = 'none';
+        var pb = path.previousElementSibling;
+        if (pb && String(pb.tagName).toLowerCase() === 'path' && !pb.id) pb.style.display = 'none';
+        continue;
+      }
+      path.style.display = '';
       var isCompleted = c.indexOf(j) !== -1;
       if (isCompleted) {
         path.setAttribute('stroke-dasharray', 'none');
