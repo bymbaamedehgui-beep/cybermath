@@ -919,9 +919,16 @@ module.exports = async (req, res) => {
       if (profile_image     !== undefined) { sets.push(`profile_image=$${i++}`);     vals.push(profile_image); }
       if (first_name        !== undefined) { sets.push(`first_name=$${i++}`);        vals.push(String(first_name).trim().slice(0,60)); }
       if (last_name         !== undefined) { sets.push(`last_name=$${i++}`);         vals.push(String(last_name).trim().slice(0,60)); }
-      if (grade             !== undefined) { sets.push(`grade=${i++}`);             vals.push(grade); }
+      // Сурагч өөрөө зөвхөн 1–12-р анги сонгоно. 'teacher' гэж бичиж багш болохоос сэргийлнэ.
+      if (grade             !== undefined) {
+        let gv = grade === null ? null : String(grade).trim();
+        if (!access.isAdmin && gv !== null && !/^(?:[1-9]|1[0-2])$/.test(gv)) {
+          return res.status(400).json({ ok: false, error: 'Анги 1-12 байх ёстой' });
+        }
+        sets.push(`grade=$${i++}`); vals.push(gv);
+      }
       // Хичээлийн шинэ жилд анги баталгаажуулсан огноо
-      if (grade_confirmed_at !== undefined) { sets.push(`grade_confirmed_at=${i++}`); vals.push(grade_confirmed_at ? new Date(grade_confirmed_at) : null); }
+      if (grade_confirmed_at !== undefined) { sets.push(`grade_confirmed_at=$${i++}`); vals.push(grade_confirmed_at ? new Date(grade_confirmed_at) : null); }
       if (hearts_empty_time !== undefined) {
         sets.push(`hearts_empty_time=$${i++}`);
         vals.push(hearts_empty_time === null ? null : new Date(hearts_empty_time));

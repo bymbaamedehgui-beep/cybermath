@@ -3017,6 +3017,14 @@ function cmSchoolYearStart() {
   if (now < start) start = new Date(y - 1, 8, 1);
   return start;
 }
+/* Сурагч профайлаасаа ангиа өөрөө солих */
+window.cmEditGrade = function () {
+  try {
+    if (!_currentUser || !_currentUser.email) return;
+    if (_currentUser.role === 'teacher' || _currentUser.grade === 'teacher') return;
+    cmAskGrade({ edit: true });
+  } catch (e) {}
+};
 function cmNeedGradeCheck() {
   try {
     var u = _currentUser;
@@ -3032,10 +3040,14 @@ function cmNeedGradeCheck() {
     return true;
   } catch (e) { return false; }
 }
-function cmAskGrade() {
+/* opts.edit = true бол сурагч өөрөө «Анги солих» дарж нээсэн гэсэн үг.
+   Ялгаа нь: анхдагч сонголт нь одоогийн анги (дараагийнх биш), бичвэр өөр. */
+function cmAskGrade(opts) {
   if (document.getElementById('cm-gradeyear')) return;
+  var edit = !!(opts && opts.edit === true);
   var u = _currentUser, cur = parseInt(u.grade, 10);
-  var sug = Math.min(12, cur + 1);
+  var hasCur = cur >= 1 && cur <= 12;
+  var sug = edit ? (hasCur ? cur : 9) : Math.min(12, cur + 1);
   var opts = '';
   for (var i = 1; i <= 12; i++) {
     opts += '<option value="' + i + '"' + (i === sug ? ' selected' : '') + '>' + i + '-р анги</option>';
@@ -3045,21 +3057,28 @@ function cmAskGrade() {
   w.style.cssText = 'position:fixed;inset:0;z-index:2147483000;background:rgba(10,8,24,.78);display:flex;align-items:center;justify-content:center;padding:18px;';
   w.innerHTML =
     '<div style="background:#fff;border-radius:22px;max-width:420px;width:100%;padding:26px 24px;box-shadow:0 24px 60px -20px rgba(0,0,0,.6);font-family:inherit;">'
-    + '<div style="font-size:1.25rem;font-weight:900;color:#1a1040;margin-bottom:8px;">Шинэ хичээлийн жил эхэллээ</div>'
+    + '<div style="font-size:1.25rem;font-weight:900;color:#1a1040;margin-bottom:8px;">'
+    + (edit ? 'Анги солих' : 'Шинэ хичээлийн жил эхэллээ') + '</div>'
     + '<div style="font-size:.95rem;color:#6c6486;line-height:1.55;margin-bottom:18px;">'
-    + 'Өмнө нь <b>' + cur + '-р анги</b> гэж бүртгүүлсэн байна. Чи одоо хэддүгээр ангид сурч байна вэ?'
+    + (edit
+        ? (hasCur
+            ? 'Одоо <b>' + cur + '-р анги</b> гэж бүртгэгдсэн байна. Шинэ ангиа сонгоно уу.'
+            : 'Хэддүгээр ангид сурч байгаагаа сонгоно уу.')
+        : 'Өмнө нь <b>' + cur + '-р анги</b> гэж бүртгүүлсэн байна. Чи одоо хэддүгээр ангид сурч байна вэ?')
     + '</div>'
     + '<select id="cm-gy-sel" style="width:100%;padding:13px 14px;font-size:1.05rem;font-weight:800;color:#1a1040;border:2px solid #7B52EE;border-radius:14px;background:#fff;outline:none;cursor:pointer;">' + opts + '</select>'
     + '<div id="cm-gy-note" style="font-size:.82rem;color:#6c6486;margin-top:10px;line-height:1.5;"></div>'
-    + '<button id="cm-gy-ok" style="width:100%;margin-top:16px;border:0;cursor:pointer;border-radius:14px;padding:14px;font-size:1rem;font-weight:900;color:#fff;background:linear-gradient(135deg,#7B52EE,#A855F7);">Баталгаажуулах</button>'
-    + '<button id="cm-gy-later" style="width:100%;margin-top:8px;border:0;cursor:pointer;border-radius:14px;padding:11px;font-size:.9rem;font-weight:800;color:#6c6486;background:transparent;">Дараа</button>'
+    + '<button id="cm-gy-ok" style="width:100%;margin-top:16px;border:0;cursor:pointer;border-radius:14px;padding:14px;font-size:1rem;font-weight:900;color:#fff;background:linear-gradient(135deg,#7B52EE,#A855F7);">'
+    + (edit ? 'Хадгалах' : 'Баталгаажуулах') + '</button>'
+    + '<button id="cm-gy-later" style="width:100%;margin-top:8px;border:0;cursor:pointer;border-radius:14px;padding:11px;font-size:.9rem;font-weight:800;color:#6c6486;background:transparent;">'
+    + (edit ? 'Болих' : 'Дараа') + '</button>'
     + '</div>';
   document.body.appendChild(w);
 
   var sel = document.getElementById('cm-gy-sel'), note = document.getElementById('cm-gy-note');
   function paint() {
     var v = parseInt(sel.value, 10);
-    note.innerHTML = (v === cur)
+    note.innerHTML = (hasCur && v === cur)
       ? 'Анги өөрчлөгдөхгүй — сурч байсан зам чинь хэвээр үлдэнэ.'
       : 'Анги солигдоход <b>' + v + '-р ангийн зам</b> шинээр эхэлнэ. Өмнөх ангийн явц чинь устахгүй, буцаж сонгвол сэргэнэ.';
   }
@@ -3068,7 +3087,7 @@ function cmAskGrade() {
   document.getElementById('cm-gy-later').onclick = function () { w.remove(); };
   document.getElementById('cm-gy-ok').onclick = function () {
     var v = String(parseInt(sel.value, 10));
-    var changed = v !== String(cur);
+    var changed = !hasCur || v !== String(cur);
     _currentUser.grade = v;
     _currentUser.grade_confirmed_at = new Date().toISOString();
     if (changed) _currentUser.current_node_id = null;
@@ -3084,6 +3103,11 @@ function cmAskGrade() {
     }
     w.remove();
     try { if (typeof applyNodeNamesToMap === 'function') applyNodeNamesToMap(); } catch (e) {}
+    /* Профайлын цонх нээлттэй бол шинэ ангийг шууд тусгана */
+    try {
+      var am = document.getElementById('av-prof-grade');
+      if (am && typeof openAvatarModal === 'function' && am.offsetParent !== null) openAvatarModal();
+    } catch (e) {}
     try { if (typeof showToast === 'function') showToast(v + '-р анги гэж хадгаллаа'); } catch (e) {}
   };
 }
@@ -49569,7 +49593,15 @@ function toggleAvatarSection() {
           var schoolText = user.school ? user.school : 'Сургууль оруулаагүй';
           gradeEl.textContent = '👨‍🏫 ' + schoolText;
         } else {
-          gradeEl.textContent = user.grade ? user.grade + '-р анги' : '-';
+          gradeEl.textContent = user.grade ? user.grade + '-р анги' : 'Сонгоогүй';
+          /* Сурагч өөрөө ангиа солих */
+          var gb = document.createElement('button');
+          gb.type = 'button';
+          gb.textContent = 'Солих';
+          gb.style.cssText = 'margin-left:7px;border:0;background:#efe9ff;color:#7B52EE;font-family:inherit;'
+            + 'font-weight:800;font-size:0.64rem;border-radius:100px;padding:2px 9px;cursor:pointer;vertical-align:1px;';
+          gb.onclick = function (ev) { ev.stopPropagation(); if (typeof cmEditGrade === 'function') cmEditGrade(); };
+          gradeEl.appendChild(gb);
         }
       }
       // Багшид: Дасгалын төв (ажлын хуудсууд) руу орох товч
