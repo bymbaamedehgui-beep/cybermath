@@ -1015,7 +1015,157 @@
   }
   window.cmFindRefreshBtn=findRefreshBtn;
 
-  function init(){ injectBrandCSS(); brandSheet(); watchSheet(); enhanceMeta(); loadInstr(); if(!IS_QR){addBtn();addBatchBtn();addWorkToggle();} addRefreshShortcut(); applyQR(); enforcePaywall(); injectSocial(); }
+
+  /* ═══ Бодолтын зайг чирж тохируулах ═══
+     Багш бодолтын зайны баруун доод булангаас дээш/доош чирнэ. Зай багасвал
+     хуудсанд илүү олон бодлого багтана (cap нэмэгдэж, бодлогын сан томроно).
+     Зөвхөн TASKS/layout() бүхий шинэ хөдөлгүүрийн хуудсанд ажиллана. */
+  var WKS_KEY = 'cm_ws_wk_scale';
+  var wksOrig = null, wksScale = 1, wksBusy = false;
+
+  function wksReady() {
+    return !!(window.TASKS && window.TASKS.length && typeof window.layout === 'function');
+  }
+  function wksGrids() { return document.querySelectorAll('#sheet .grid'); }
+
+  /* Зай багасахад илүү бодлого хэрэгтэй — genPool()-ийг давтан дуудаж сан томруулна */
+  function wksGrowPool(need) {
+    var P = window.__POOL;
+    if (!P || typeof window.genPool !== 'function') return;
+    for (var i = 0; i < window.TASKS.length; i++) {
+      if (!P[i] || P[i].length >= need[i]) continue;
+      var seen = {}, guard = 0;
+      P[i].forEach(function (f) { if (f && f.key != null) seen[f.key] = 1; });
+      while (P[i].length < need[i] && guard++ < 15) {
+        var ex;
+        try { ex = window.genPool(); } catch (e) { break; }
+        var add = (ex && ex[i]) || [];
+        if (!add.length) break;
+        var before = P[i].length;
+        add.forEach(function (f) {
+          if (!f) return;
+          var k = (f.key != null) ? f.key : JSON.stringify(f.q);
+          if (!seen[k]) { seen[k] = 1; P[i].push(f); }
+        });
+        if (P[i].length === before) break;      // шинэ бодлого гарахаа больсон
+      }
+    }
+  }
+
+  function wksApply(sc, relayout) {
+    if (!wksReady()) return;
+    wksScale = Math.max(0.35, Math.min(2.5, sc));
+    var need = [];
+    window.TASKS.forEach(function (t, i) {
+      var o = wksOrig[i];
+      t.wk = Math.max(6, Math.round(o.wk * wksScale));
+      t.cap = Math.max(1, Math.round(o.cap / wksScale));
+      need.push(t.cap);
+    });
+    wksGrowPool(need);
+    try { localStorage.setItem(WKS_KEY, String(wksScale)); } catch (e) {}
+    if (relayout !== false) { wksBusy = true; try { window.layout(); } finally { wksBusy = false; } }
+    wksBadge();
+    wksGrips();
+  }
+
+  /* Чирж байх үеийн шуурхай урьдчилсан харагдац — зөвхөн өндрийг өөрчилнө */
+  function wksPreview(sc) {
+    var gs = wksGrids();
+    for (var i = 0; i < gs.length; i++) {
+      var o = wksOrig[i] || wksOrig[wksOrig.length - 1];
+      var h = Math.max(6, Math.round(o.wk * sc));
+      [].forEach.call(gs[i].querySelectorAll('.wk'), function (w) { w.style.height = h + 'mm'; });
+    }
+  }
+
+  function wksBadge() {
+    var bar = document.querySelector('.bar');
+    if (!bar) return;
+    var el = bar.querySelector('.cm-wkbadge');
+    if (!el) {
+      el = document.createElement('span');
+      el.className = 'cm-wkbadge';
+      el.style.cssText = 'display:inline-flex;align-items:center;gap:7px;font-size:.84rem;font-weight:700;color:#5a32d6;';
+      bar.appendChild(el);
+    }
+    var cnt = document.querySelectorAll('#sheet .grid .q').length;
+    el.innerHTML = 'Бодолтын зай <b>' + Math.round(wksScale * 100) + '%</b>'
+      + '<span style="color:#8a82a8;font-weight:600;">· ' + cnt + ' бодлого</span>'
+      + '<button type="button" class="cm-wkreset" style="border:1.5px solid #d9cffb;background:#fff;color:#5a32d6;'
+      + 'border-radius:8px;padding:2px 9px;font:inherit;font-size:.78rem;font-weight:800;cursor:pointer;">Анхны хэмжээ</button>';
+    el.querySelector('.cm-wkreset').onclick = function () { wksApply(1); };
+  }
+
+  /* Бодолтын зай бүрийн баруун доод буланд чирэх бариул */
+  function wksGrips() {
+    var ws = document.querySelectorAll('#sheet .wk');
+    for (var i = 0; i < ws.length; i++) {
+      var w = ws[i];
+      if (w.querySelector('.cm-grip')) continue;
+      if (getComputedStyle(w).position === 'static') w.style.position = 'relative';
+      var g = document.createElement('div');
+      g.className = 'cm-grip';
+      g.title = 'Дээш/доош чирж бодолтын зайг тохируулна';
+      w.appendChild(g);
+      g.addEventListener('pointerdown', wksDown);
+    }
+  }
+
+  function wksDown(e) {
+    if (!wksReady()) return;
+    e.preventDefault(); e.stopPropagation();
+    var wk = e.target.parentNode;
+    var y0 = e.clientY, h0 = wk.offsetHeight, s0 = wksScale;
+    var live = s0;
+    e.target.setPointerCapture && e.target.setPointerCapture(e.pointerId);
+    function mv(ev) {
+      var h = Math.max(10, h0 + (ev.clientY - y0));
+      live = Math.max(0.35, Math.min(2.5, s0 * h / h0));
+      wksPreview(live);
+      var b = document.querySelector('.cm-wkbadge b');
+      if (b) b.textContent = Math.round(live * 100) + '%';
+    }
+    function up() {
+      document.removeEventListener('pointermove', mv);
+      document.removeEventListener('pointerup', up);
+      wksApply(live);                       // энд л бодлогын тоо дахин тооцогдоно
+    }
+    document.addEventListener('pointermove', mv);
+    document.addEventListener('pointerup', up);
+  }
+
+  function addWorkResize() {
+    if (!wksReady()) return;                // хуучин хөдөлгүүрийн хуудас — хөндөхгүй
+    if (window.__wksOn) return;
+    window.__wksOn = 1;
+    wksOrig = window.TASKS.map(function (t) { return { wk: t.wk || 24, cap: t.cap || 1 }; });
+
+    var st = document.createElement('style');
+    st.textContent = '.cm-grip{position:absolute;right:2px;bottom:2px;width:18px;height:18px;'
+      + 'cursor:ns-resize;touch-action:none;opacity:.4;'
+      + 'background:linear-gradient(135deg,transparent 46%,#7B52EE 46%,#7B52EE 56%,transparent 56%),'
+      + 'linear-gradient(135deg,transparent 70%,#7B52EE 70%,#7B52EE 80%,transparent 80%);}'
+      + '.cm-grip:hover{opacity:.95}'
+      + '@media print{.cm-grip,.cm-wkbadge{display:none!important}}';
+    document.head.appendChild(st);
+
+    // layout() дуудагдах бүрд бариулаа дахин тавина
+    var _lay = window.layout;
+    window.layout = function () {
+      var r = _lay.apply(this, arguments);
+      if (!wksBusy) { try { wksBadge(); } catch (e) {} }
+      try { wksGrips(); } catch (e) {}
+      return r;
+    };
+
+    var saved = 1;
+    try { saved = parseFloat(localStorage.getItem(WKS_KEY) || '1') || 1; } catch (e) {}
+    if (saved !== 1) wksApply(saved); else { wksBadge(); wksGrips(); }
+  }
+  window.cmAddWorkResize = addWorkResize;
+
+  function init(){ injectBrandCSS(); brandSheet(); watchSheet(); enhanceMeta(); loadInstr(); if(!IS_QR){addBtn();addBatchBtn();addWorkToggle();} addRefreshShortcut(); applyQR(); enforcePaywall(); injectSocial(); addWorkResize(); }
   if(document.readyState!=='loading')init();
   else document.addEventListener('DOMContentLoaded',init);
 })();
