@@ -51,6 +51,8 @@
   }
   // ─── QR / сурагчийн горим: ?qr=1 бол хариу ба бодолт харагдахгүй ───
   var IS_QR=/[?&]qr=1(&|$)/.test(location.search);
+  // ?work=1 — бодолтын зайтайгаар шууд нээнэ (хэвлэх, багц PDF-д тохиромжтой)
+  var WANT_WORK=/[?&]work=1(&|$)/.test(location.search);
   window.WS_QR=IS_QR;
   // Хариу/бодолтын хэсгийг нуугаад агуулгыг нь DOM-оос цэвэрлэх (шалгаж болохгүй)
   function stripAnswers(){
@@ -1215,7 +1217,17 @@
   }
   window.cmAddWorkResize = addWorkResize;
 
-  function init(){ injectBrandCSS(); brandSheet(); watchSheet(); enhanceMeta(); loadInstr(); if(!IS_QR){addBtn();addBatchBtn();addWorkToggle();} addRefreshShortcut(); applyQR(); enforcePaywall(); injectSocial(); addWorkResize(); }
+  function applyWantWork(){
+    if(!WANT_WORK)return;
+    var sw=document.getElementById('sw');
+    if(sw&&!sw.checked){ sw.checked=true; try{if(typeof window.layout==='function')window.layout();}catch(e){} return; }
+    if(window.WS_HAS_WORK&&!window.WS_WORK){
+      window.WS_WORK=true;
+      var cb=document.querySelector('.cm-work-cb'); if(cb)cb.checked=true;
+      try{if(typeof window.build==='function')window.build();}catch(e){}
+    }
+  }
+  function init(){ injectBrandCSS(); brandSheet(); watchSheet(); enhanceMeta(); loadInstr(); if(!IS_QR){addBtn();addBatchBtn();addWorkToggle();} addRefreshShortcut(); applyQR(); enforcePaywall(); injectSocial(); applyWantWork(); addWorkResize(); }
   if(document.readyState!=='loading')init();
   else document.addEventListener('DOMContentLoaded',init);
 })();
