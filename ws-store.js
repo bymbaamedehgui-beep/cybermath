@@ -963,7 +963,7 @@
     lb.innerHTML='<input type="checkbox" class="cm-work-cb"'+(window.WS_WORK?' checked':'')+'> Бодолт хийх';
     var saLabel=null; [].forEach.call(bar.querySelectorAll('label'),function(l){ if(/Хариу хавсаргах/.test(l.textContent))saLabel=l; });
     if(saLabel)bar.insertBefore(lb, saLabel.nextSibling); else bar.appendChild(lb);
-    lb.querySelector('.cm-work-cb').addEventListener('change',function(){ window.WS_WORK=this.checked; try{if(typeof window.build==='function')window.build();}catch(e){} });
+    lb.querySelector('.cm-work-cb').addEventListener('change',function(){ window.WS_WORK=this.checked; try{if(typeof window.build==='function')window.build();}catch(e){} try{addWorkResize();}catch(e){} });
   }
   window.cmAddWorkToggle=addWorkToggle;
 
@@ -1023,8 +1023,34 @@
   var WKS_KEY = 'cm_ws_wk_scale';
   var wksOrig = null, wksScale = 1, wksBusy = false;
 
-  function wksReady() {
-    return !!(window.TASKS && window.TASKS.length && typeof window.layout === 'function');
+  /* 'new' = TASKS/layout() бүхий хуудас (.wk),  'old' = .work + build() бүхий хуудас */
+  var wksMode = null, wksOldCss = null, wksOldBase = null;
+  function wksDetect() {
+    if (window.TASKS && window.TASKS.length && typeof window.layout === 'function') return 'new';
+    if (document.querySelector('#sheet .work') && typeof window.build === 'function') return 'old';
+    return null;
+  }
+  function wksReady() { return wksMode === 'new'; }
+  function wksAny() { return !!wksMode; }
+
+  /* ── Хуучин хөдөлгүүр: .work-ийн өндрийг CSS-ээр дардаг. Ангилал бүрийн (sm/md…)
+     анхны өндрийг нэг удаа хэмжиж аваад, дараа нь хувиар масштаблана. ── */
+  function wksOldSnapshot() {
+    if (wksOldBase) return;
+    wksOldBase = {};
+    [].forEach.call(document.querySelectorAll('#sheet .work'), function (w) {
+      var k = w.className.trim().split(/\s+/).sort().join('.');
+      if (!wksOldBase[k]) wksOldBase[k] = parseFloat(getComputedStyle(w).height) || 53;
+    });
+  }
+  function wksOldApply(sc) {
+    wksOldSnapshot();
+    if (!wksOldCss) { wksOldCss = document.createElement('style'); document.head.appendChild(wksOldCss); }
+    var css = '';
+    Object.keys(wksOldBase).forEach(function (k) {
+      css += '.' + k + '{height:' + Math.max(12, Math.round(wksOldBase[k] * sc)) + 'px!important}';
+    });
+    wksOldCss.textContent = css;
   }
   function wksGrids() { return document.querySelectorAll('#sheet .grid'); }
 
@@ -1053,8 +1079,15 @@
   }
 
   function wksApply(sc, relayout) {
-    if (!wksReady()) return;
+    if (!wksAny()) return;
     wksScale = Math.max(0.35, Math.min(2.5, sc));
+    if (wksMode === 'old') {
+      wksOldApply(wksScale);
+      try { localStorage.setItem(WKS_KEY, String(wksScale)); } catch (e) {}
+      if (relayout !== false) { wksBusy = true; try { window.build(); } finally { wksBusy = false; } }
+      wksBadge(); wksGrips();
+      return;
+    }
     var need = [];
     window.TASKS.forEach(function (t, i) {
       var o = wksOrig[i];
@@ -1071,6 +1104,14 @@
 
   /* Чирж байх үеийн шуурхай урьдчилсан харагдац — зөвхөн өндрийг өөрчилнө */
   function wksPreview(sc) {
+    if (wksMode === 'old') {
+      wksOldSnapshot();
+      [].forEach.call(document.querySelectorAll('#sheet .work'), function (w) {
+        var k = w.className.trim().split(/\s+/).sort().join('.');
+        w.style.height = Math.max(12, Math.round((wksOldBase[k] || 53) * sc)) + 'px';
+      });
+      return;
+    }
     var gs = wksGrids();
     for (var i = 0; i < gs.length; i++) {
       var o = wksOrig[i] || wksOrig[wksOrig.length - 1];
@@ -1089,7 +1130,7 @@
       el.style.cssText = 'display:inline-flex;align-items:center;gap:7px;font-size:.84rem;font-weight:700;color:#5a32d6;';
       bar.appendChild(el);
     }
-    var cnt = document.querySelectorAll('#sheet .grid .q').length;
+    var cnt = document.querySelectorAll('#sheet .q').length;
     el.innerHTML = 'Бодолтын зай <b>' + Math.round(wksScale * 100) + '%</b>'
       + '<span style="color:#8a82a8;font-weight:600;">· ' + cnt + ' бодлого</span>'
       + '<button type="button" class="cm-wkreset" style="border:1.5px solid #d9cffb;background:#fff;color:#5a32d6;'
@@ -1099,7 +1140,7 @@
 
   /* Бодолтын зай бүрийн баруун доод буланд чирэх бариул */
   function wksGrips() {
-    var ws = document.querySelectorAll('#sheet .wk');
+    var ws = document.querySelectorAll('#sheet .wk, #sheet .work');
     for (var i = 0; i < ws.length; i++) {
       var w = ws[i];
       if (w.querySelector('.cm-grip')) continue;
@@ -1113,12 +1154,12 @@
   }
 
   function wksDown(e) {
-    if (!wksReady()) return;
+    if (!wksAny()) return;
     e.preventDefault(); e.stopPropagation();
     var wk = e.target.parentNode;
     var y0 = e.clientY, h0 = wk.offsetHeight, s0 = wksScale;
     var live = s0;
-    e.target.setPointerCapture && e.target.setPointerCapture(e.pointerId);
+    try { if (e.target.setPointerCapture) e.target.setPointerCapture(e.pointerId); } catch (err) {}
     function mv(ev) {
       var h = Math.max(10, h0 + (ev.clientY - y0));
       live = Math.max(0.35, Math.min(2.5, s0 * h / h0));
@@ -1136,10 +1177,18 @@
   }
 
   function addWorkResize() {
-    if (!wksReady()) return;                // хуучин хөдөлгүүрийн хуудас — хөндөхгүй
     if (window.__wksOn) return;
+    // «Бодолтын зай» унтраалгыг дагаж дахин эхэлж чадахаар
+    var _sw = document.getElementById("sw");
+    if (_sw && !_sw.__wksHook) { _sw.__wksHook = 1; _sw.addEventListener("change", function () { setTimeout(addWorkResize, 60); }); }
+    wksMode = wksDetect();
+    if (!wksMode) return;                   // бодолтын зайгүй хуудас
     window.__wksOn = 1;
-    wksOrig = window.TASKS.map(function (t) { return { wk: t.wk || 24, cap: t.cap || 1 }; });
+    if (wksMode === 'new') {
+      wksOrig = window.TASKS.map(function (t) { return { wk: t.wk || 24, cap: t.cap || 1 }; });
+    } else {
+      wksOldSnapshot();
+    }
 
     var st = document.createElement('style');
     st.textContent = '.cm-grip{position:absolute;right:2px;bottom:2px;width:18px;height:18px;'
@@ -1150,10 +1199,11 @@
       + '@media print{.cm-grip,.cm-wkbadge{display:none!important}}';
     document.head.appendChild(st);
 
-    // layout() дуудагдах бүрд бариулаа дахин тавина
-    var _lay = window.layout;
-    window.layout = function () {
-      var r = _lay.apply(this, arguments);
+    // Дахин зурагдах бүрд бариулаа дахин тавина
+    var _fnName = (wksMode === 'new') ? 'layout' : 'build';
+    var _orig = window[_fnName];
+    window[_fnName] = function () {
+      var r = _orig.apply(this, arguments);
       if (!wksBusy) { try { wksBadge(); } catch (e) {} }
       try { wksGrips(); } catch (e) {}
       return r;
