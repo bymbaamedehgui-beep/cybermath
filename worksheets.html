@@ -1835,7 +1835,8 @@ function openFeedback(){
   var o=document.createElement('div');o.id='wsFb';
   o.style.cssText='position:fixed;inset:0;z-index:200;background:rgba(20,15,40,.6);display:grid;place-items:center;padding:16px';
   o.innerHTML='<div style="position:relative;background:#fff;border-radius:20px;max-width:420px;width:100%;padding:24px;box-shadow:0 24px 60px -18px rgba(0,0,0,.5);max-height:calc(100vh - 32px);overflow-y:auto;-webkit-overflow-scrolling:touch">'
-    +'<button onclick="var e=document.getElementById(\'wsFb\');if(e)e.remove()" style="position:absolute;top:12px;right:14px;border:0;background:#f0f0f6;width:30px;height:30px;border-radius:50%;cursor:pointer;font-weight:800;color:#666">✕</button>'
+    +'<button onclick="var e=document.getElementById(\'wsFb\');if(e)e.remove()" title="Хаах" style="position:absolute;top:12px;right:14px;border:0;background:#f0f0f6;width:30px;height:30px;border-radius:50%;cursor:pointer;color:#666;display:flex;align-items:center;justify-content:center">'
+    +'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>'
     +'<div style="text-align:center;margin-bottom:4px"><div style="width:52px;height:52px;margin:0 auto;background:linear-gradient(135deg,var(--purple),var(--purple2));border-radius:14px;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div></div>'
     +'<h3 style="text-align:center;color:var(--purple-d);font-size:1.2rem;font-weight:900;margin:6px 0 3px">Санал хүсэлт</h3>'
     +'<p style="text-align:center;color:var(--soft);font-size:.86rem;margin-bottom:12px">Санал, гомдол, шинэ сэдвийн хүсэлтээ бичээрэй.</p>'
@@ -1847,28 +1848,57 @@ function openFeedback(){
     +'</div>';
   document.body.appendChild(o);
   if(lsGet('cm_last_user'))o.querySelector('#fbContact').value=lsGet('cm_last_user');
-  function fbD(s){try{return new Date(s).toLocaleDateString('mn-MN',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});}catch(e){return '';}}
+  function fbD(s){try{var d=new Date(s),hm=('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+    var now=new Date(); if(fbDay(s)===fbDay(now))return hm;
+    return (d.getMonth()+1)+' сар '+d.getDate()+' · '+hm;}catch(e){return '';}}
+  function fbDay(t){try{var d=new Date(t);return d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate();}catch(e){return null;}}
+  function fbDayLabel(t){
+    try{
+      var d=new Date(t),now=new Date();
+      var hm=('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+      if(fbDay(t)===fbDay(now))return 'ӨНӨӨДӨР '+hm;
+      if(fbDay(t)===fbDay(new Date(now.getTime()-864e5)))return 'ӨЧИГДӨР '+hm;
+      return d.getFullYear()+' оны '+(d.getMonth()+1)+' сарын '+d.getDate()+' · '+hm;
+    }catch(e){return '';}
+  }
   function refreshMine(){
     var mn=o.querySelector('#fbMine'), tk=lsGet('cm_ws_token'); if(!tk||!mn)return;
     fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'feedback_mine',token:tk})})
       .then(function(r){return r.json();}).then(function(d){
         var list=(d&&d.feedback)||[]; if(!list.length){mn.innerHTML='';return;}
-        var h='<div style="border-top:1px solid #eee;padding-top:14px;margin-top:2px"><div style="font-weight:800;color:var(--purple-d);font-size:.95rem;margin-bottom:10px">📨 Миний хүсэлтүүд</div>';
+        var h='<div style="border-top:1px solid #eee;padding-top:14px;margin-top:2px">'
+          +'<div style="display:flex;align-items:center;gap:7px;font-weight:800;color:var(--purple-d);font-size:.95rem;margin-bottom:10px">'
+          +'<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Миний хүсэлтүүд</div>';
         var maxTs=0;
         list.forEach(function(f){
           var conv=[{sender:'user',text:f.message,at:f.created_at}].concat(f.thread||[]);
-          h+='<div style="border:1px solid #ece7fb;border-radius:16px;padding:11px 12px;margin-bottom:11px;background:#faf9ff">';
-          conv.forEach(function(m){
+          h+='<div style="border:1px solid #ece7fb;border-radius:16px;padding:10px 10px 11px;margin-bottom:11px;background:#fff">';
+          var prevDay=null, lastMine=-1;
+          conv.forEach(function(m,i){ if(m.sender==='user')lastMine=i; });
+          conv.forEach(function(m,i){
             var mine=(m.sender==='user');
             if(m.sender==='admin'){var tt=new Date(m.at).getTime(); if(tt>maxTs)maxTs=tt;}
-            h+='<div style="display:flex;justify-content:'+(mine?'flex-end':'flex-start')+';margin-bottom:6px">'
-              +'<div style="max-width:82%;padding:7px 11px;border-radius:13px;font-size:.85rem;line-height:1.4;white-space:pre-wrap;'
-                +(mine?'background:linear-gradient(135deg,#7B52EE,#A855F7);color:#fff;border-bottom-right-radius:4px':'background:#efe9ff;color:#3a2d5e;border-bottom-left-radius:4px')+'">'
-              +esc(m.text)+'<div style="font-size:.6rem;opacity:.72;margin-top:3px;text-align:right">'+(mine?'Та':'CyberMath')+' · '+fbD(m.at)+'</div></div></div>';
+            /* Өдрийн зааглагч */
+            var dk=fbDay(m.at);
+            if(dk&&dk!==prevDay){ prevDay=dk;
+              h+='<div style="text-align:center;color:#9a9ab0;font-size:.63rem;font-weight:800;letter-spacing:.06em;margin:9px 0 6px">'+fbDayLabel(m.at)+'</div>'; }
+            var prev=i>0?conv[i-1]:null, next=i<conv.length-1?conv[i+1]:null;
+            var newGrp=!prev||prev.sender!==m.sender;
+            var lastGrp=!next||next.sender!==m.sender;
+            h+='<div style="display:flex;justify-content:'+(mine?'flex-end':'flex-start')+';margin-top:'+(newGrp?'7px':'2px')+'">'
+              +'<div style="max-width:78%;padding:8px 12px;border-radius:17px;font-size:.88rem;line-height:1.4;white-space:pre-wrap;word-break:break-word;'
+                +(mine?'background:linear-gradient(135deg,#7B52EE,#A855F7);color:#fff;'+(lastGrp?'border-bottom-right-radius:5px':'')
+                      :'background:#f0f0f5;color:#2a2340;'+(lastGrp?'border-bottom-left-radius:5px':''))+'">'
+              +esc(m.text)+'</div></div>';
+            if(lastGrp){
+              h+='<div style="text-align:'+(mine?'right':'left')+';color:#9a9ab0;font-size:.62rem;font-weight:700;margin:2px 3px 0">'
+                +(mine?(i===lastMine?'Илгээсэн · ':'Та · '):'CyberMath · ')+fbD(m.at)+'</div>';
+            }
           });
-          h+='<div style="display:flex;gap:6px;margin-top:8px">'
-            +'<input id="fbadd'+f.id+'" placeholder="Дахин бичих…" style="flex:1;min-width:0;border:1.4px solid #e7ddff;border-radius:999px;padding:.5rem .9rem;font-size:.86rem;outline:none">'
-            +'<button data-fb="'+f.id+'" style="flex-shrink:0;border:0;background:linear-gradient(135deg,var(--purple),var(--purple2));color:#fff;font-weight:800;border-radius:999px;padding:0 1.05rem;cursor:pointer;font-size:1rem">→</button></div>';
+          h+='<div style="display:flex;gap:4px;align-items:center;margin-top:10px">'
+            +'<input id="fbadd'+f.id+'" placeholder="Аа" style="flex:1;min-width:0;border:0;background:#f0f0f5;border-radius:999px;padding:.58rem 1rem;font-size:.88rem;outline:none;font-family:inherit">'
+            +'<button data-fb="'+f.id+'" title="Илгээх" style="flex-shrink:0;border:0;background:transparent;color:var(--purple);cursor:pointer;padding:6px;display:flex">'
+            +'<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg></button></div>';
           h+='</div>';
         });
         mn.innerHTML=h+'</div>';
