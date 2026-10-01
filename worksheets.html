@@ -1481,7 +1481,24 @@ function openLogin(auto,view){
     }catch(e){return '';}
   }
   window.cmWsDevice=wsDev;
-  function api(action,body){ body=body||{}; body.action=action; var h={'Content-Type':'application/json'}; var dv=wsDev(); if(dv)h['x-device-id']=dv; return fetch('/api/worksheets',{method:'POST',headers:h,body:JSON.stringify(body)}).then(function(r){return r.json().then(function(d){return {s:r.status,d:d};});}); }
+  /* Машины хурууны хээ: дэлгэц, цагийн бүс, OS/хөтчийн овог, цөмийн тоо…
+     Хөтчийн хувилбар ОРООГҮЙ тул автомат шинэчлэлтээр хээ хувирахгүй.
+     Зорилго: cm_device-ээ хуулж өгөөд нэг эрхээр олуулаа орохыг таслах. */
+  function wsFp(){
+    try{
+      var nv=navigator||{}, sc=screen||{}, ua=String(nv.userAgent||"");
+      var tz=""; try{tz=Intl.DateTimeFormat().resolvedOptions().timeZone||"";}catch(e){}
+      var os=/Windows/.test(ua)?"win":/Android/.test(ua)?"and":/iPhone|iPad|iPod/.test(ua)?"ios":/Mac/.test(ua)?"mac":/Linux/.test(ua)?"lin":"oth";
+      var br=/Edg\//.test(ua)?"edge":/OPR\//.test(ua)?"opera":/Firefox\//.test(ua)?"ff":/Chrome\//.test(ua)?"chr":/Safari\//.test(ua)?"saf":"oth";
+      var raw=[os,br,(sc.width||0)+"x"+(sc.height||0),sc.colorDepth||0,tz,
+               String(nv.language||""),nv.hardwareConcurrency||0].join("|");
+      var h=2166136261;
+      for(var i=0;i<raw.length;i++){h^=raw.charCodeAt(i);h=(h*16777619)>>>0;}
+      return ("0000000"+h.toString(16)).slice(-8);
+    }catch(e){return "";}
+  }
+  window.cmWsFp=wsFp;
+  function api(action,body){ body=body||{}; body.action=action; var h={'Content-Type':'application/json'}; var dv=wsDev(); if(dv)h['x-device-id']=dv; var fv=wsFp(); if(fv)h['x-device-fp']=fv; return fetch('/api/worksheets',{method:'POST',headers:h,body:JSON.stringify(body)}).then(function(r){return r.json().then(function(d){return {s:r.status,d:d};});}); }
   /* ── Төхөөрөмжийн хязгаарын самбар ──
      Эрхээ бусдад дахин зарахаас сэргийлж нэг бүртгэл 2 төхөөрөмж дээр л ажиллана.
      Шинэ төхөөрөмж нэмэхийн тулд хуучнаас нэгийг нь энд салгана. */

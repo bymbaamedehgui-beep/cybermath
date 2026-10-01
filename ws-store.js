@@ -107,7 +107,24 @@
     }catch(e){return '';}
   }
   window.cmWsDevice=wsDev;
-  function wsHdr(){ var h={'Content-Type':'application/json'}; var d=wsDev(); if(d)h['x-device-id']=d; return h; }
+  /* Машины хурууны хээ: дэлгэц, цагийн бүс, OS/хөтчийн овог, цөмийн тоо…
+     Хөтчийн хувилбар ОРООГҮЙ тул автомат шинэчлэлтээр хээ хувирахгүй.
+     Зорилго: cm_device-ээ хуулж өгөөд нэг эрхээр олуулаа орохыг таслах. */
+  function wsFp(){
+    try{
+      var nv=navigator||{}, sc=screen||{}, ua=String(nv.userAgent||"");
+      var tz=""; try{tz=Intl.DateTimeFormat().resolvedOptions().timeZone||"";}catch(e){}
+      var os=/Windows/.test(ua)?"win":/Android/.test(ua)?"and":/iPhone|iPad|iPod/.test(ua)?"ios":/Mac/.test(ua)?"mac":/Linux/.test(ua)?"lin":"oth";
+      var br=/Edg\//.test(ua)?"edge":/OPR\//.test(ua)?"opera":/Firefox\//.test(ua)?"ff":/Chrome\//.test(ua)?"chr":/Safari\//.test(ua)?"saf":"oth";
+      var raw=[os,br,(sc.width||0)+"x"+(sc.height||0),sc.colorDepth||0,tz,
+               String(nv.language||""),nv.hardwareConcurrency||0].join("|");
+      var h=2166136261;
+      for(var i=0;i<raw.length;i++){h^=raw.charCodeAt(i);h=(h*16777619)>>>0;}
+      return ("0000000"+h.toString(16)).slice(-8);
+    }catch(e){return "";}
+  }
+  window.cmWsFp=wsFp;
+  function wsHdr(){ var h={'Content-Type':'application/json'}; var d=wsDev(); if(d)h['x-device-id']=d; var f=wsFp(); if(f)h['x-device-fp']=f; return h; }
   var WS_ST=null;                                                    // сүүлд авсан эрхийн төлөв
   function checkAccess(){
     if(ls('cm_admin_token'))return Promise.resolve(true);            // админ үргэлж нээлттэй
@@ -746,7 +763,7 @@
   function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
   function uid(){var k=ls('cm_uid');if(!k){k='u'+Math.random().toString(36).slice(2)+Date.now().toString(36);lset('cm_uid',k);}return k;}
   function ukey(){return ls('cm_last_user')||uid();}
-  function sApi(action,data){data=data||{};data.action=action;var h={'Content-Type':'application/json'};try{var dv=(window.cmWsDevice?window.cmWsDevice():'');if(dv)h['x-device-id']=dv;}catch(e){}var at=ls('cm_admin_token');if(at)h['Authorization']='Bearer '+at;var wt=ls('cm_ws_token');if(wt)data.token=wt;
+  function sApi(action,data){data=data||{};data.action=action;var h={'Content-Type':'application/json'};try{var dv=(window.cmWsDevice?window.cmWsDevice():'');if(dv)h['x-device-id']=dv;var fv=(window.cmWsFp?window.cmWsFp():'');if(fv)h['x-device-fp']=fv;}catch(e){}var at=ls('cm_admin_token');if(at)h['Authorization']='Bearer '+at;var wt=ls('cm_ws_token');if(wt)data.token=wt;
     return fetch('/api/worksheets',{method:'POST',headers:h,body:JSON.stringify(data)}).then(function(r){return r.json();});}
   function ago(s){try{var t=new Date(s).getTime(),d=(Date.now()-t)/1000;if(d<60)return 'дөнгөж';if(d<3600)return Math.floor(d/60)+' мин';if(d<86400)return Math.floor(d/3600)+' цаг';if(d<2592000)return Math.floor(d/86400)+' хоног';return new Date(s).toLocaleDateString('mn-MN');}catch(e){return '';}}
   function injectSocialCSS(){

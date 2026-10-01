@@ -26,6 +26,9 @@ const SWAP_MAX = parseInt(process.env.WS_DEVICE_SWAPS || '3', 10) || 3;
 const SWAP_DAYS = 30;
 // Энэ хугацаанд огт хэрэглээгүй төхөөрөмжийн байр автоматаар суллагдана
 const IDLE_DAYS = parseInt(process.env.WS_DEVICE_IDLE_DAYS || '60', 10) || 60;
+// Нэг байрны хурууны хээг энэ хугацаанд нэг л удаа шинэчилж болно (жинхэнэ
+// төхөөрөмж өөрчлөлт). Дахин зөрвөл өөр машин гэж тооцно.
+const FP_HEAL_DAYS = parseInt(process.env.WS_DEVICE_FP_DAYS || '30', 10) || 30;
 
 let ready = false;
 async function ensureTable() {
@@ -46,6 +49,18 @@ async function ensureTable() {
     device_id TEXT,
     at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`).catch(() => {});
+  // Машины хурууны хээ — localStorage-оо бүтнээр нь хуулж өгөхөд ч өөр машин гэж танина
+  await pool.query(`ALTER TABLE ws_devices ADD COLUMN IF NOT EXISTS fp TEXT`).catch(() => {});
+  await pool.query(`ALTER TABLE ws_devices ADD COLUMN IF NOT EXISTS fp_changed_at TIMESTAMPTZ`).catch(() => {});
+  // Нэг байрыг хэдэн өөр сүлжээнээс ашиглаж байгааг админд харуулах (хуваалцлын дохио)
+  await pool.query(`CREATE TABLE IF NOT EXISTS ws_device_ips (
+    email TEXT NOT NULL,
+    device_id TEXT NOT NULL,
+    ip TEXT NOT NULL,
+    first_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (email, device_id, ip)
+  )`).catch(() => {});
   ready = true;
 }
 
@@ -59,6 +74,15 @@ function deviceIdFrom(req) {
   const h = (req && req.headers) || {};
   const b = (req && req.body) || {};
   return clean(h['x-device-id']) || clean(b.device) || clean(b.device_id) || null;
+}
+
+// Машины хурууны хээ (дэлгэцийн хэмжээ, цагийн бүс, OS/хөтчийн овог…). Хөтчийн
+// хувилбар ороогүй тул шинэчлэлтээр өөрчлөгдөхгүй.
+function fpFrom(req) {
+  const h = (req && req.headers) || {};
+  const b = (req && req.body) || {};
+  const raw = String(h['x-device-fp'] || b.fp || '').trim().toLowerCase();
+  return /^[a-f0-9]{6,32}$/.test(raw) ? raw : null;
 }
 
 function labelFromUA(ua) {
@@ -85,13 +109,29 @@ function ipOf(req) {
   const first = String(Array.isArray(xff) ? xff[0] : (xff || '')).split(',')[0].trim();
   return (first || h['x-real-ip'] || '').toString().slice(0, 64) || null;
 }
+function uaOf(req) {
+  return String(((req && req.headers) || {})['user-agent'] || '').slice(0, 300);
+}
+
+// Нэг байр хэдэн өөр сүлжээнээс хэрэглэгдэж байгааг бүртгэнэ (хуваалцлын дохио)
+async function touchIp(email, devId, ip) {
+  if (!ip) return;
+  await pool.query(
+    `INSERT INTO ws_device_ips (email, device_id, ip) VALUES ($1,$2,$3)
+     ON CONFLICT (email, device_id, ip) DO UPDATE SET last_seen=NOW()`,
+    [email, devId, ip]).catch(() => {});
+}
 
 async function list(email) {
   await ensureTable();
   const e = String(email || '').trim().toLowerCase();
   if (!e) return [];
   const r = await pool.query(
-    'SELECT device_id, label, ip, first_seen, last_seen FROM ws_devices WHERE email=$1 ORDER BY last_seen DESC',
+    `SELECT d.device_id, d.label, d.ip, d.fp, d.first_seen, d.last_seen,
+            (SELECT COUNT(*)::int FROM ws_device_ips i
+              WHERE i.email=d.email AND i.device_id=d.device_id
+                AND i.last_seen > NOW() - INTERVAL '30 days') AS ip_count
+       FROM ws_devices d WHERE d.email=$1 ORDER BY d.last_seen DESC`,
     [e]);
   return r.rows;
 }
@@ -99,16 +139,53 @@ async function list(email) {
 // Гол шалгалт. ok=false үед error: NO_DEVICE | DEVICE_LIMIT
 async function check(email, devId, req) {
   const e = String(email || '').trim().toLowerCase();
-  const d = clean(devId);
+  let d = clean(devId);
   if (!e) return { ok: false, error: 'NO_EMAIL' };
   if (!d) return { ok: false, error: 'NO_DEVICE' };
   await ensureTable();
+  const fp = fpFrom(req);
+  const ip = ipOf(req);
 
-  // Бүртгэлтэй бол — зөвхөн хугацааг нь шинэчилнэ
-  const up = await pool.query(
-    'UPDATE ws_devices SET last_seen=NOW(), ip=COALESCE($3, ip) WHERE email=$1 AND device_id=$2 RETURNING device_id',
-    [e, d, ipOf(req)]);
-  if (up.rows.length) return { ok: true, slot: 'existing' };
+  /* ── Хурууны хээгээр баталгаажуулах ──
+     Зөвхөн device_id-гаар бол localStorage-оо хуулж өгөхөд хязгаар өнгөрнө.
+     Тиймээс байр бүрд тухайн МАШИНЫ хээг хадгална:
+       • хээ таарвал        → тэр байр
+       • хээ зөрсөн ба 30 хоногт анх удаа → жинхэнэ төхөөрөмж өөрчлөлт гэж үзээд шинэчилнэ
+       • хээ зөрсөн, дахиад → ӨӨР МАШИН гэж үзээд тусдаа байр эзэлнэ (сул байргүй бол хаана) */
+  const cur = await pool.query(
+    'SELECT device_id, fp, fp_changed_at FROM ws_devices WHERE email=$1 AND device_id=$2', [e, d]);
+  if (cur.rows.length) {
+    const row = cur.rows[0];
+    const same = !fp || !row.fp || row.fp === fp;
+    if (same) {
+      await pool.query(
+        'UPDATE ws_devices SET last_seen=NOW(), ip=COALESCE($3, ip), fp=COALESCE(fp, $4) WHERE email=$1 AND device_id=$2',
+        [e, d, ip, fp]);
+      await touchIp(e, d, ip);
+      return { ok: true, slot: 'existing' };
+    }
+    const changedAt = row.fp_changed_at ? new Date(row.fp_changed_at).getTime() : 0;
+    const healOk = Date.now() - changedAt > FP_HEAL_DAYS * 86400000;
+    if (healOk) {
+      await pool.query(
+        'UPDATE ws_devices SET fp=$3, fp_changed_at=NOW(), last_seen=NOW(), ip=COALESCE($4, ip), ua=$5, label=$6 WHERE email=$1 AND device_id=$2',
+        [e, d, fp, ip, uaOf(req), labelFromUA(uaOf(req))]);
+      await touchIp(e, d, ip);
+      return { ok: true, slot: 'refit' };
+    }
+    // Хуулбарласан байдалтай — энэ машин өөрийн байртай байх ёстой
+    d = (d + '.' + fp).slice(0, 64);
+    const alt = await pool.query(
+      'UPDATE ws_devices SET last_seen=NOW(), ip=COALESCE($3, ip) WHERE email=$1 AND device_id=$2 RETURNING device_id',
+      [e, d, ip]);
+    if (alt.rows.length) { await touchIp(e, d, ip); return { ok: true, slot: 'existing' }; }
+  } else {
+    // Бүртгэлтэй бол — зөвхөн хугацааг нь шинэчилнэ
+    const up = await pool.query(
+      'UPDATE ws_devices SET last_seen=NOW(), ip=COALESCE($3, ip) WHERE email=$1 AND device_id=$2 RETURNING device_id',
+      [e, d, ip]);
+    if (up.rows.length) { await touchIp(e, d, ip); return { ok: true, slot: 'existing' }; }
+  }
 
   /* Удаан хэрэглээгүй төхөөрөмжийг суллана — localStorage цэвэрлэсэн, утсаа
      сольсон хүмүүс мөнхөд гацахгүй байх. */
@@ -122,11 +199,12 @@ async function check(email, devId, req) {
   if (n >= MAX_DEVICES) {
     return { ok: false, error: 'DEVICE_LIMIT', max: MAX_DEVICES, devices: await list(e) };
   }
-  const ua = String(((req && req.headers) || {})['user-agent'] || '').slice(0, 300);
+  const ua = uaOf(req);
   await pool.query(
-    `INSERT INTO ws_devices (email, device_id, label, ua, ip) VALUES ($1,$2,$3,$4,$5)
+    `INSERT INTO ws_devices (email, device_id, label, ua, ip, fp, fp_changed_at) VALUES ($1,$2,$3,$4,$5,$6,NOW())
      ON CONFLICT (email, device_id) DO UPDATE SET last_seen=NOW()`,
-    [e, d, labelFromUA(ua), ua, ipOf(req)]).catch(() => {});
+    [e, d, labelFromUA(ua), ua, ip, fp]).catch(() => {});
+  await touchIp(e, d, ip);
   return { ok: true, slot: 'new' };
 }
 
