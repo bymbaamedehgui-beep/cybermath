@@ -506,12 +506,14 @@ module.exports = async (req, res) => {
         if (!(await ownsClassroom(access, email, classroomId))) {
           return res.status(403).json({ ok: false, error: 'Зөвшөөрөлгүй' });
         }
-        const m = await pool.query('SELECT student_email FROM class_members WHERE classroom_id=$1', [classroomId]);
-        for (const row of m.rows) {
-          const u = await pool.query('SELECT challenges FROM users WHERE email=$1', [row.student_email]);
-          if (!u.rows.length) continue;
-          let list = u.rows[0].challenges || [];
+        /* Устгахтай адил — challenge-ийг агуулж буй бүх хэрэглэгчид хүрнэ */
+        const holders = await pool.query(
+          'SELECT email, challenges FROM users WHERE challenges IS NOT NULL AND challenges::text LIKE $' + '1',
+          ['%' + challengeId + '%']);
+        for (const row of holders.rows) {
+          let list = row.challenges || [];
           if (typeof list === 'string') { try { list = JSON.parse(list); } catch(e) { list = []; } }
+          if (!Array.isArray(list)) continue;
           let updated = false;
           list = list.map(c => {
             if (c.id === challengeId) {
@@ -525,7 +527,7 @@ module.exports = async (req, res) => {
             return c;
           });
           if (updated) {
-            await pool.query('UPDATE users SET challenges=$1 WHERE email=$2', [JSON.stringify(list), row.student_email]);
+            await pool.query('UPDATE users SET challenges=$1 WHERE email=$2', [JSON.stringify(list), row.email]);
           }
         }
         return res.json({ ok: true });
@@ -538,18 +540,24 @@ module.exports = async (req, res) => {
         if (!(await ownsClassroom(access, email, classroomId))) {
           return res.status(403).json({ ok: false, error: 'Зөвшөөрөлгүй' });
         }
-        const m = await pool.query('SELECT student_email FROM class_members WHERE classroom_id=$1', [classroomId]);
-        for (const row of m.rows) {
-          const u = await pool.query('SELECT challenges FROM users WHERE email=$1', [row.student_email]);
-          if (!u.rows.length) continue;
-          let list = u.rows[0].challenges || [];
+        /* Зөвхөн ОДООГИЙН гишүүдээс хасахад ангиа орхиод буцаж орсон сурагчид
+           хуучин хуулбараа авчирдаг байсан. Тиймээс тухайн challenge-ийг агуулж
+           буй БҮХ хэрэглэгчээс хасна. */
+        const holders = await pool.query(
+          'SELECT email, challenges FROM users WHERE challenges IS NOT NULL AND challenges::text LIKE $' + '1',
+          ['%' + challengeId + '%']);
+        let removed = 0;
+        for (const row of holders.rows) {
+          let list = row.challenges || [];
           if (typeof list === 'string') { try { list = JSON.parse(list); } catch(e) { list = []; } }
-          const filtered = list.filter(c => c.id !== challengeId);
+          if (!Array.isArray(list)) continue;
+          const filtered = list.filter(c => c && c.id !== challengeId);
           if (filtered.length !== list.length) {
-            await pool.query('UPDATE users SET challenges=$1 WHERE email=$2', [JSON.stringify(filtered), row.student_email]);
+            await pool.query('UPDATE users SET challenges=$1 WHERE email=$2', [JSON.stringify(filtered), row.email]);
+            removed++;
           }
         }
-        return res.json({ ok: true });
+        return res.json({ ok: true, removed });
       }
 
       // Сурагч challenge-ыг харах (хийгдээгүй ба хийсэн нь)

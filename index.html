@@ -49169,6 +49169,21 @@ function renderMath(text) {
   }
 
 
+  /* Багшийн оноосон хичээл — дарааллын түгжээг тойрч шууд нээнэ
+     (зүрхний шалгалт хэвээр). nodeId нь node-ийн жинхэнэ дугаар. */
+  window.openAssignedLesson = function(nodeId){
+    if (typeof checkHeartRegen === 'function') checkHeartRegen();
+    var hearts = (_currentUser && _currentUser.hearts !== undefined && _currentUser.hearts !== null)
+      ? parseInt(_currentUser.hearts)
+      : parseInt((document.getElementById('heart-count') || {}).textContent || '5');
+    if (_currentUser && _currentUser.plan !== 'premium' && hearts <= 0) {
+      showToast('Зүрх дууссан байна. Сэргэхийг хүлээнэ үү.');
+      return;
+    }
+    var nd = parseInt(nodeId, 10);
+    if (!nd) return;
+    openLesson(nd);
+  };
   function tryOpenLesson(id) {
     // 24 цагийн дараа зүрх сэргэх шалгалт (DB + localStorage хоёрыг шалгана)
     if (typeof checkHeartRegen === 'function') checkHeartRegen();
@@ -55583,20 +55598,49 @@ function toggleAvatarSection() {
       .then(function(r){ return r.json(); })
       .then(function(d){
         _challengeNodes = (d.nodes || []).map(function(n){
-          return { id: n.id, name: n.name || ('Хичээл #' + n.id) };
+          return { id: n.id, name: n.name || ('Хичээл #' + n.id), grade: String(n.grade || '') };
         }).sort(function(a, b){ return a.id - b.id; });
+        renderChallengeGrades();
         renderChallengeLessons('');
       });
   };
+  /* Ангийн шүүлтүүр — хичээл хэт олон болохоор ангиар нь ялгана */
+  var _challengeGrade = '';
+  try { _challengeGrade = localStorage.getItem('cm_ch_grade') || ''; } catch (e) {}
+  window.setChallengeGrade = function(g){
+    _challengeGrade = String(g || '');
+    try { localStorage.setItem('cm_ch_grade', _challengeGrade); } catch (e) {}
+    renderChallengeGrades();
+    renderChallengeLessons(document.getElementById('ch-lesson-search').value);
+  };
+  function renderChallengeGrades(){
+    var el = document.getElementById('ch-grade-chips');
+    if (!el) return;
+    var gs = {};
+    _challengeNodes.forEach(function(n){ if (n.grade) gs[n.grade] = (gs[n.grade] || 0) + 1; });
+    var keys = Object.keys(gs).sort(function(a,b){ return (parseInt(a)||99) - (parseInt(b)||99); });
+    if (keys.length && !_challengeGrade) { /* анхдагчаар бүгд */ }
+    function chip(val, label, cnt){
+      var on = String(_challengeGrade) === String(val);
+      return '<span onclick="setChallengeGrade(\'' + val + '\')" style="cursor:pointer;padding:4px 11px;border-radius:100px;font-size:0.74rem;font-weight:800;white-space:nowrap;'
+        + (on ? 'background:#7B52EE;color:#fff;border:1.5px solid #7B52EE;' : 'background:#fff;color:#777;border:1.5px solid #e4e4ee;')
+        + '">' + label + (cnt != null ? ' <span style="opacity:.7">' + cnt + '</span>' : '') + '</span>';
+    }
+    el.innerHTML = chip('', 'Бүгд', _challengeNodes.length)
+      + keys.map(function(k){ return chip(k, (/^[0-9]+$/.test(k) ? k + '-р анги' : k), gs[k]); }).join('');
+  }
   function renderChallengeLessons(search) {
     var listEl = document.getElementById('ch-lessons-list');
     if (!listEl) return;
     var s = (search || '').toLowerCase();
+    var base = _challengeGrade
+      ? _challengeNodes.filter(function(n){ return String(n.grade) === String(_challengeGrade); })
+      : _challengeNodes;
     var filtered = s
-      ? _challengeNodes.filter(function(n){
+      ? base.filter(function(n){
           return n.name.toLowerCase().includes(s) || ('хичээл ' + n.id).includes(s) || String(n.id) === s;
         })
-      : _challengeNodes;
+      : base;
     if (!filtered.length) {
       listEl.innerHTML = '<div style="text-align:center;padding:20px;color:#aaa;font-size:0.82rem;">Олдсонгүй</div>';
     } else {
@@ -57220,7 +57264,7 @@ function toggleAvatarSection() {
       return '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:' + (isDone ? '#f0fdf4' : '#f9f9f9') + ';border-radius:10px;border:1.5px solid ' + (isDone ? '#86efac' : '#eee') + ';margin-bottom:6px;">'
         + '<div style="font-size:1.1rem;">' + (isDone ? '✅' : '⏳') + '</div>'
         + '<div style="flex:1;font-family:\'Baloo 2\',sans-serif;font-weight:800;color:#333;font-size:0.9rem;">Хичээл #' + lid + '</div>'
-        + (isDone ? '' : '<button onclick="document.getElementById(\'challenge-detail-modal\').remove();tryOpenLesson(' + lid + ');" style="background:#7B52EE;border:none;color:white;border-radius:8px;padding:5px 12px;cursor:pointer;font-weight:800;font-size:0.78rem;">Эхлэх</button>')
+        + (isDone ? '' : '<button onclick="document.getElementById(\'challenge-detail-modal\').remove();openAssignedLesson(' + lid + ');" style="background:#7B52EE;border:none;color:white;border-radius:8px;padding:5px 12px;cursor:pointer;font-weight:800;font-size:0.78rem;">Эхлэх</button>')
         + '</div>';
     }).join('');
     var modal = document.createElement('div');
@@ -57559,8 +57603,17 @@ function toggleAvatarSection() {
     }
     // Дуусгасан хичээлүүд
     var completed = _completedLessons || JSON.parse(localStorage.getItem('cm_completed') || '[]');
-    // Sort хийж бүх node-уудыг (id-ээр) — өмнөх хичээлийг шалгана
-    var sortedNodes = nodes.slice().sort(function(a, b){ return (a.sort_order || a.id) - (b.sort_order || b.id); });
+    /* ЗӨВХӨН сурагчийн өөрийн ангийн node-ууд. Өмнө нь бүх ангийн node-ыг
+       шалгадаг байсан тул 10-р ангийн сурагчаас 6, 8, 9-р ангийн хичээлийг
+       нэхэж «өмнөх хичээлийг хийгээгүй» гэж гаргадаг байв. */
+    var myGrade = (typeof cmUserGrade === 'function') ? cmUserGrade() : '';
+    var scope = nodes;
+    if (myGrade) {
+      var sameGrade = nodes.filter(function(n){ return String(n.grade || '') === String(myGrade); });
+      if (sameGrade.length) scope = sameGrade;
+    }
+    if (scope.indexOf(targetNode) === -1) scope = nodes;   // өөр ангийн хичээл бол бүгдээр нь
+    var sortedNodes = scope.slice().sort(function(a, b){ return (a.sort_order || a.id) - (b.sort_order || b.id); });
     var targetIdx = sortedNodes.findIndex(function(n){ return n.id === lessonId; });
     if (targetIdx === -1) return;
     // Аль өмнөх хичээл хийгдээгүй вэ?
@@ -61369,6 +61422,7 @@ function sendAppChat(text) {
       <input id="ch-lesson-search" type="text" placeholder="Хайх..." oninput="filterChallengeLessons(this.value)" style="flex:1;padding:8px 12px;background:#f5f5f5;border:1.5px solid #ddd;border-radius:10px;font-family:'Baloo 2',sans-serif;font-size:0.82rem;font-weight:700;box-sizing:border-box;">
       <button onclick="clearChallengeSelection()" style="padding:8px 12px;background:#f5f5f5;border:1.5px solid #ddd;border-radius:10px;cursor:pointer;font-size:0.78rem;font-weight:800;color:#666;">Цэвэрлэх</button>
     </div>
+    <div id="ch-grade-chips" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;"></div>
     <div id="ch-lessons-list" style="max-height:240px;overflow-y:auto;border:1.5px solid #eee;border-radius:12px;padding:6px;margin-bottom:10px;background:#fafafa;"></div>
     <div id="ch-selected-count" style="font-family:'Baloo 2',sans-serif;font-size:0.78rem;color:#7B52EE;font-weight:800;margin-bottom:10px;">0 хичээл сонгогдсон</div>
     <div style="font-family:'Baloo 2',sans-serif;font-size:0.78rem;color:#888;margin-bottom:6px;">Эцсийн хугацаа (заавал биш):</div>
