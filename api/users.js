@@ -489,6 +489,13 @@ module.exports = async (req, res) => {
             await pool.query('UPDATE users SET challenges=$1 WHERE email=$2', [JSON.stringify(list), row.student_email]);
           }
         }
+        /* Ангийн мөрөнд эх хувийг хадгална — дараа нь элссэн сурагчид ч энэ
+           даалгаврыг авна (classroom.js доторх элсэлт үүнээс хуулна). */
+        await pool.query("ALTER TABLE classrooms ADD COLUMN IF NOT EXISTS challenges JSONB DEFAULT '[]'::jsonb").catch(()=>{});
+        await pool.query(
+          "UPDATE classrooms SET challenges = COALESCE(challenges,'[]'::jsonb) || $2::jsonb WHERE id=$1",
+          [classroomId, JSON.stringify([challenge])]).catch(()=>{});
+
         // Telegram мэдэгдэл
         const teacherInfo = await pool.query('SELECT first_name, last_name FROM users WHERE email=$1', [email]);
         const className = await pool.query('SELECT name FROM classrooms WHERE id=$1', [classroomId]);
@@ -530,6 +537,21 @@ module.exports = async (req, res) => {
             await pool.query('UPDATE users SET challenges=$1 WHERE email=$2', [JSON.stringify(list), row.email]);
           }
         }
+        /* Ангийн мөрөн дэх эх хувийг ч шинэчилнэ */
+        await pool.query("ALTER TABLE classrooms ADD COLUMN IF NOT EXISTS challenges JSONB DEFAULT '[]'::jsonb").catch(()=>{});
+        try {
+          const cr = await pool.query('SELECT challenges FROM classrooms WHERE id=$1', [classroomId]);
+          let cl = (cr.rows[0] || {}).challenges || [];
+          if (typeof cl === 'string') { try { cl = JSON.parse(cl); } catch (e) { cl = []; } }
+          if (Array.isArray(cl)) {
+            const cl2 = cl.map(c => c && c.id === challengeId ? Object.assign({}, c, {
+              title: title || c.title,
+              lessons: lessons || c.lessons,
+              dueDate: dueDate !== undefined ? dueDate : c.dueDate,
+            }) : c);
+            await pool.query('UPDATE classrooms SET challenges=$2 WHERE id=$1', [classroomId, JSON.stringify(cl2)]);
+          }
+        } catch (e) {}
         return res.json({ ok: true });
       }
 
@@ -557,6 +579,10 @@ module.exports = async (req, res) => {
             removed++;
           }
         }
+        await pool.query("ALTER TABLE classrooms ADD COLUMN IF NOT EXISTS challenges JSONB DEFAULT '[]'::jsonb").catch(()=>{});
+        await pool.query(
+          "UPDATE classrooms SET challenges = COALESCE((SELECT jsonb_agg(x) FROM jsonb_array_elements(COALESCE(challenges,'[]'::jsonb)) x WHERE x->>'id' <> $2), '[]'::jsonb) WHERE id=$1",
+          [classroomId, challengeId]).catch(()=>{});
         return res.json({ ok: true, removed });
       }
 

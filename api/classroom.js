@@ -189,6 +189,52 @@ module.exports = async (req, res) => {
         return res.json({ ok: true, classroom: r.rows[0] });
       }
 
+      /* Ангийн идэвхтэй challenge-уудыг шинэ сурагч руу хуулна.
+         Эх сурвалж нь classrooms.challenges; хуучин ангиудад тэр хоосон байж
+         болох тул гишүүдийн агуулгаас нөхөж авна. */
+      async function copyChallengesToStudent(classroomId, studentEmail) {
+        try {
+          await pool.query("ALTER TABLE classrooms ADD COLUMN IF NOT EXISTS challenges JSONB DEFAULT '[]'::jsonb").catch(()=>{});
+          const cr = await pool.query('SELECT challenges FROM classrooms WHERE id=$1', [classroomId]);
+          let src = (cr.rows[0] || {}).challenges || [];
+          if (typeof src === 'string') { try { src = JSON.parse(src); } catch (e) { src = []; } }
+          if (!Array.isArray(src)) src = [];
+
+          if (!src.length) {
+            // Хуучин өгөгдөл — гишүүдээс нэгтгэж авна
+            const mem = await pool.query(
+              'SELECT u.challenges FROM class_members m JOIN users u ON u.email=m.student_email WHERE m.classroom_id=$1',
+              [classroomId]);
+            const seen = {};
+            mem.rows.forEach(r => {
+              let l = r.challenges || [];
+              if (typeof l === 'string') { try { l = JSON.parse(l); } catch (e) { l = []; } }
+              if (!Array.isArray(l)) return;
+              l.forEach(c => {
+                if (c && c.id && String(c.classroomId) === String(classroomId) && !seen[c.id]) {
+                  seen[c.id] = 1; src.push(c);
+                }
+              });
+            });
+          }
+          if (!src.length) return 0;
+
+          const u = await pool.query('SELECT challenges FROM users WHERE email=$1', [studentEmail]);
+          if (!u.rows.length) return 0;
+          let mine = u.rows[0].challenges || [];
+          if (typeof mine === 'string') { try { mine = JSON.parse(mine); } catch (e) { mine = []; } }
+          if (!Array.isArray(mine)) mine = [];
+          const have = {};
+          mine.forEach(c => { if (c && c.id) have[c.id] = 1; });
+          let added = 0;
+          src.forEach(c => { if (c && c.id && !have[c.id]) { mine.push(c); added++; } });
+          if (added) {
+            await pool.query('UPDATE users SET challenges=$1 WHERE email=$2', [JSON.stringify(mine), studentEmail]);
+          }
+          return added;
+        } catch (e) { return 0; }
+      }
+
       if (action === 'join') {
         if (!student_email || !join_code) return res.status(400).json({ ok: false, error: 'Missing fields' });
         const c = await pool.query('SELECT * FROM classrooms WHERE join_code=$1', [join_code.toUpperCase()]);
@@ -198,7 +244,8 @@ module.exports = async (req, res) => {
           'INSERT INTO class_members (classroom_id, student_email) VALUES ($1,$2) ON CONFLICT DO NOTHING',
           [classroom.id, student_email]
         );
-        return res.json({ ok: true, classroom });
+        const gotJ = await copyChallengesToStudent(classroom.id, student_email);
+        return res.json({ ok: true, classroom, challengesAdded: gotJ });
       }
 
       // Багш сурагчийг бүртгэлтэй имэйлээр шууд ангид нэмэх
@@ -228,7 +275,8 @@ module.exports = async (req, res) => {
           'INSERT INTO class_members (classroom_id, student_email) VALUES ($1,$2) ON CONFLICT DO NOTHING',
           [classroom_id, realEmail]
         );
-        return res.json({ ok: true, student: u.rows[0] });
+        const gotA = await copyChallengesToStudent(classroom_id, realEmail);
+        return res.json({ ok: true, student: u.rows[0], challengesAdded: gotA });
       }
 
       return res.status(400).json({ ok: false, error: 'Unknown action' });
