@@ -3340,8 +3340,29 @@ function applySectionLabels() {
     } catch (e) {}
     labels.forEach(function(lbl) {
       var el = document.getElementById('section-label-' + lbl.id);
-      if (el) el.textContent = lbl.name;
+      if (el) { el.textContent = lbl.name; el.style.display = ''; }
     });
+    /* SVG-д 25 хаягийн суудал байдаг ч анги бүр цөөн хаягтай. Үлдсэн суудлууд
+       9-р ангийн анхны гарчгаа хадгалж үлддэг тул (ж: 10-р ангид 15–25, 8-р
+       ангид 1, 7, 11–25) тэдгээрийг хажуугийн зураастай нь хамт нуух. */
+    if (_mine && _mine.length) {
+      var keep = {};
+      labels.forEach(function(L){ keep[L.id] = 1; });
+      for (var si = 1; si <= 30; si++) {
+        if (keep[si]) continue;
+        var se = document.getElementById('section-label-' + si);
+        if (!se) continue;
+        se.style.display = 'none';
+        var sy = parseFloat(se.getAttribute('y'));
+        if (!isNaN(sy)) {
+          var svg = se.ownerSVGElement || document.getElementById('path-svg');
+          if (svg) [].forEach.call(svg.querySelectorAll('line'), function(ln){
+            var y1 = parseFloat(ln.getAttribute('y1'));
+            if (!isNaN(y1) && Math.abs(y1 - (sy - 4)) < 1.5) ln.style.display = 'none';
+          });
+        }
+      }
+    }
   } catch(e) {}
 }
 window.applySectionLabels = applySectionLabels;
