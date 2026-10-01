@@ -50145,8 +50145,102 @@ function toggleAvatarSection() {
         dot.style.opacity = '0.4';
       }
     }
+    try { cmDailyStreakPopup(); } catch (e) {}
   }
-  
+
+  /* ── Өдөр бүрийн streak цонх ──
+     Нэвтэрсэн хэрэглэгч тухайн өдөр АНХ орохдоо нэг л удаа харна. */
+  function cmDailyStreakPopup() {
+    try {
+      if (typeof _currentUser === 'undefined' || !_currentUser || !_currentUser.email) return;
+      if (document.getElementById('cm-streak-pop')) return;
+      var now = new Date();
+      var key = now.getFullYear() + '-' + (now.getMonth() + 1) + '-' + now.getDate();
+      try { if (localStorage.getItem('cm_streak_popup') === key) return; } catch (e) {}
+      var d = (typeof getStreakData === 'function') ? (getStreakData() || {}) : {};
+      var count = d.count || 0;
+      if (count < 1) return;
+      var active = d.activeDays || [];
+      try { localStorage.setItem('cm_streak_popup', key); } catch (e) {}
+
+      /* Долоо хоногийн мөр — Даваагаар эхэлнэ */
+      var NAMES = ['Да', 'Мя', 'Лх', 'Пү', 'Ба', 'Бя', 'Ня'];
+      var todayIdx = now.getDay() === 0 ? 6 : now.getDay() - 1;
+      var monday = new Date(now); monday.setDate(now.getDate() - todayIdx);
+      var dots = '';
+      for (var i = 0; i < 7; i++) {
+        var dd = new Date(monday); dd.setDate(monday.getDate() + i);
+        var isToday = i === todayIdx;
+        var done = !isToday && dd < now && active.indexOf(dd.toDateString()) !== -1;
+        var future = dd > now && !isToday;
+        var bg = done ? 'background:linear-gradient(135deg,#FF9400,#FFAB00);border-color:#FF9400;color:#fff;'
+          : (isToday ? 'background:#fff;border:2.5px solid #FF9400;color:#FF9400;box-shadow:0 0 0 4px rgba(255,148,0,.18);'
+            : 'background:#f1f1f5;border-color:#e6e6ee;color:#b5b5c2;');
+        dots += '<div style="display:flex;flex-direction:column;align-items:center;gap:5px;' + (future ? 'opacity:.45;' : '') + '">'
+          + '<div style="width:38px;height:38px;border-radius:50%;border:2px solid #e6e6ee;display:flex;align-items:center;justify-content:center;' + bg + '">'
+          + (done ? '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>' : '')
+          + '</div>'
+          + '<div style="font-size:.7rem;font-weight:800;color:' + (isToday ? '#FF9400' : '#9a9ab0') + ';">' + NAMES[i] + '</div>'
+          + '</div>';
+      }
+
+      var sub = count >= 30 ? 'Гайхалтай тэсвэр! Ийм хэвээрээ.'
+        : count >= 7 ? 'Энэ бол жинхэнэ ХИЧЭЭНГҮЙ зан!'
+        : count >= 3 ? 'Дадал бүрэлдэж байна. Үргэлжлүүл!'
+        : 'Эхлэл тавигдлаа — маргааш ч орж ирээрэй!';
+
+      /* Гал дүрсийг хуудсан дээрхээс хуулж авна */
+      var fire = '';
+      var src = document.querySelector('#streak-fire-icon svg');
+      if (src) {
+        var cl = src.cloneNode(true);
+        cl.setAttribute('width', '104'); cl.setAttribute('height', '126');
+        /* defs доторх id давхцахаас сэргийлж шинэчилнэ */
+        var html = cl.outerHTML.split('sfl').join('sflp').split('sflg').join('sflpg');
+        fire = html;
+      }
+
+      var w = document.createElement('div');
+      w.id = 'cm-streak-pop';
+      w.style.cssText = 'position:fixed;inset:0;z-index:2147482000;background:rgba(18,12,38,.55);'
+        + 'display:flex;align-items:center;justify-content:center;padding:18px;font-family:inherit;';
+      w.innerHTML =
+        '<div style="position:relative;background:linear-gradient(180deg,#fff6e8,#fff 42%);border-radius:24px;max-width:380px;width:100%;'
+        + 'padding:26px 22px 22px;box-shadow:0 26px 70px -18px rgba(40,20,80,.5);text-align:center;">'
+        + '<button id="cm-streak-x" title="Хаах" style="position:absolute;top:12px;right:12px;width:34px;height:34px;border-radius:10px;'
+        + 'border:2px solid #d9dbe6;background:#fff;color:#7b7b8f;cursor:pointer;display:flex;align-items:center;justify-content:center;">'
+        + '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>'
+        + '<div style="position:relative;display:inline-block;margin:4px 0 2px;">' + fire
+        + '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding-top:44px;'
+        + 'font-size:2.25rem;font-weight:900;color:#fff;text-shadow:0 2px 6px rgba(180,80,0,.45);">' + count + '</div></div>'
+        + '<div style="font-size:1.55rem;font-weight:900;color:#1a1035;margin-top:6px;">Өдрийн цуваа!</div>'
+        + '<div style="font-size:.92rem;color:#6c6486;font-weight:600;line-height:1.5;margin-top:6px;">' + sub + '</div>'
+        + '<div style="border:1.5px solid #ececf4;border-radius:16px;padding:14px 12px;margin-top:18px;">'
+        + '<div style="font-size:.84rem;font-weight:800;color:#1a1035;text-align:left;margin-bottom:11px;">Энэ долоо хоногийн явц</div>'
+        + '<div style="display:flex;justify-content:space-between;gap:4px;">' + dots + '</div>'
+        + '</div>'
+        + '<button id="cm-streak-go" style="width:100%;margin-top:16px;border:0;cursor:pointer;border-radius:14px;padding:13px;'
+        + 'font-size:1rem;font-weight:900;color:#fff;font-family:inherit;background:linear-gradient(135deg,#FF9400,#FFAB00);">Үргэлжлүүлэх</button>'
+        + '</div>';
+      document.body.appendChild(w);
+      function close() { w.remove(); }
+      w.querySelector('#cm-streak-x').onclick = close;
+      w.querySelector('#cm-streak-go').onclick = close;
+      w.addEventListener('click', function (e) { if (e.target === w) close(); });
+    } catch (e) {}
+  }
+  window.cmDailyStreakPopup = cmDailyStreakPopup;
+  /* Орж ирэхэд — хичээл дуусгахыг хүлээхгүйгээр */
+  (function () {
+    function boot() {
+      setTimeout(function () {
+        try { if (window._currentUser && window._currentUser.email) cmDailyStreakPopup(); } catch (e) {}
+      }, 1400);
+    }
+    if (document.readyState === 'complete') boot();
+    else window.addEventListener('load', boot);
+  })();
+
   // Call after lesson complete to mark streak
   function markStreakDay() {
     var today = new Date().toDateString();
