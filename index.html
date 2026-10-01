@@ -3153,7 +3153,44 @@ function cmExamSources(id) {
   return (typeof EXAM_NODE_SOURCES !== 'undefined' && EXAM_NODE_SOURCES[id]) ? EXAM_NODE_SOURCES[id] : null;
 }
 
+/* SVG-д node бүрийн СУУРЬ дугуй байх ёстой ч ердөө 3 slot-д л зурсан байдаг.
+   Түгжээтэй үед түгжээний дугуй, одоогийн хичээл дээр гэрэлтэх дугуй харагддаг
+   тул ихэнхдээ анзаарагддаггүй. Харин node нээлттэй атлаа одоогийнх биш үед
+   (ж: багш дараагийн хичээлийг даалгавраар өгөхөд) юу ч зурагдахгүй — node
+   алга болдог. Тиймээс дутуу суурь дугуйг JS-ээр нөхнө. */
+function cmEnsureNodeBase() {
+  var svg = document.getElementById('path-svg'); if (!svg) return;
+  var NS = 'http://www.w3.org/2000/svg';
+  [].forEach.call(svg.querySelectorAll('circle[onclick^="tryOpenLesson"]'), function (hit) {
+    var m = (hit.getAttribute('onclick') || '').match(/tryOpenLesson\((\d+)\)/);
+    if (!m) return;
+    var slot = m[1], cx = hit.getAttribute('cx'), cy = hit.getAttribute('cy');
+    if (svg.querySelector('circle[data-base="' + slot + '"]')) return;
+    /* Гараар зурсан суурьтай бол дахин нэмэхгүй */
+    var has = [].some.call(svg.children, function (e) {
+      return e.tagName === 'circle' && e.getAttribute('cx') === cx && e.getAttribute('cy') === cy
+        && e.getAttribute('r') === '30' && (e.getAttribute('fill') || '') !== 'transparent';
+    });
+    if (has) return;
+    var outer = document.createElementNS(NS, 'circle');
+    outer.setAttribute('cx', cx); outer.setAttribute('cy', cy); outer.setAttribute('r', '30');
+    outer.setAttribute('fill', '#3e3870'); outer.setAttribute('stroke', '#7B52EE');
+    outer.setAttribute('stroke-width', '3'); outer.setAttribute('data-base', slot);
+    var inner = document.createElementNS(NS, 'circle');
+    inner.setAttribute('cx', cx); inner.setAttribute('cy', cy); inner.setAttribute('r', '22');
+    inner.setAttribute('fill', '#3a3465'); inner.setAttribute('data-base', slot);
+    /* Гэрэлтэх/түгжээний бүлгийн ӨМНӨ тавина — slot 7-гийн дараалалтай ижил */
+    var anchor = document.getElementById('node-glow-' + slot)
+      || document.getElementById('node-3d-' + slot)
+      || document.getElementById('node-lock-' + slot) || hit;
+    var parent = anchor.parentNode || svg;
+    parent.insertBefore(outer, anchor);
+    parent.insertBefore(inner, anchor);
+  });
+}
+window.cmEnsureNodeBase = cmEnsureNodeBase;
 function applyNodeNamesToMap() {
+  try { cmEnsureNodeBase(); } catch (e) {}
   fetch('/api/nodes?t=' + Date.now())
     .then(function(r){ return r.json(); })
     .then(function(data){
