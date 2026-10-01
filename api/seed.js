@@ -1554,6 +1554,38 @@ module.exports = async (req, res) => {
         }
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_g4c2_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
+      // ── 12-р анги: II БҮЛЭГ. ОЛОН ГИШҮҮНТ (сурах бичгийн 17–42 х.) ──
+      const cf_g12c2 = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_g12c2_v1'`);
+      if (!cf_g12c2.rows.length) {
+        let par_g12c2 = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='12-р анги' AND name LIKE 'II БҮЛЭГ%' AND parent_id IS NULL ORDER BY id LIMIT 1`);
+        let pid_g12c2;
+        if (par_g12c2.rows.length) { pid_g12c2 = Number(par_g12c2.rows[0].id); }
+        else {
+          const mxP12 = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='12-р анги'`);
+          const insP12 = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('12-р анги',$2,$1,NULL) RETURNING id`, [mxP12.rows[0].p, "II БҮЛЭГ. ОЛОН ГИШҮҮНТ"]);
+          pid_g12c2 = Number(insP12.rows[0].id);
+        }
+        const subs_g12c2 = [
+          { name: "2.1 Нэг ба олон гишүүнт", slugs: ["olon-gishuunt-1-12.html", "olon-gishuunt-2-12.html", "olon-gishuunt-3-12.html", "olon-gishuunt-4-12.html"] },
+          { name: "2.2 Олон гишүүнтийн хуваах үйлдэл", slugs: ["olon-gishuunt-huvaalt-1-12.html", "olon-gishuunt-huvaalt-2-12.html", "olon-gishuunt-huvaalt-3-12.html"] },
+          { name: "2.3 Безугийн теорем", slugs: ["bezu-teorem-1-12.html", "bezu-teorem-2-12.html", "bezu-teorem-3-12.html", "bezu-teorem-4-12.html"] },
+          { name: "2.4 Рационал илэрхийллийг хялбар бутархайн нийлбэр болгон задлах", slugs: ["racional-zadlal-1-12.html", "racional-zadlal-2-12.html", "racional-zadlal-3-12.html", "racional-zadlal-4-12.html"] },
+        ];
+        for (const sub of subs_g12c2) {
+          let sgr = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='12-р анги' AND name=$1`, [sub.name]);
+          let sid;
+          if (sgr.rows.length) { sid = Number(sgr.rows[0].id); }
+          else {
+            const mx = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='12-р анги'`);
+            const ins = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('12-р анги',$1,$2,$3) RETURNING id`, [sub.name, mx.rows[0].p, pid_g12c2]);
+            sid = Number(ins.rows[0].id);
+          }
+          for (const slug of sub.slugs) {
+            await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + sid, slug]);
+          }
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_g12c2_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
       // ── 10-р анги: хүнд түвшний нэмэлт ажлын хуудсууд ──
       const cf_g10h = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_g10_hard_v1'`);
       if (!cf_g10h.rows.length) {
