@@ -1466,7 +1466,57 @@ function openLogin(auto,view){
   document.body.appendChild(o);
   function q(id){return o.querySelector(id);}
   function okE(e){return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);}
-  function api(action,body){ body=body||{}; body.action=action; return fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json().then(function(d){return {s:r.status,d:d};});}); }
+  /* Энэ хөтчийн тогтмол дугаар — нэг имэйл дээд тал нь 2 төхөөрөмж (api/_wsdev.js) */
+  function wsDev(){
+    try{
+      var v=localStorage.getItem('cm_device');
+      if(!v||v.length<8){
+        v='';var a=new Uint8Array(16);
+        if(window.crypto&&window.crypto.getRandomValues)window.crypto.getRandomValues(a);
+        else for(var j=0;j<16;j++)a[j]=Math.floor(Math.random()*256);
+        for(var i=0;i<a.length;i++)v+=('0'+a[i].toString(16)).slice(-2);
+        localStorage.setItem('cm_device',v);
+      }
+      return v;
+    }catch(e){return '';}
+  }
+  window.cmWsDevice=wsDev;
+  function api(action,body){ body=body||{}; body.action=action; var h={'Content-Type':'application/json'}; var dv=wsDev(); if(dv)h['x-device-id']=dv; return fetch('/api/worksheets',{method:'POST',headers:h,body:JSON.stringify(body)}).then(function(r){return r.json().then(function(d){return {s:r.status,d:d};});}); }
+  /* ── Төхөөрөмжийн хязгаарын самбар ──
+     Эрхээ бусдад дахин зарахаас сэргийлж нэг бүртгэл 2 төхөөрөмж дээр л ажиллана.
+     Шинэ төхөөрөмж нэмэхийн тулд хуучнаас нэгийг нь энд салгана. */
+  function devWhen(t){
+    try{ var d=new Date(t); return d.getFullYear()+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+('0'+d.getDate()).slice(-2); }
+    catch(e){ return ''; }
+  }
+  function showDeviceLimit(email,pass,d,msgEl){
+    var list=(d&&d.devices)||[];
+    var h='<div style="text-align:left;border:1.5px solid #f3d9a6;background:#fffaf0;border-radius:14px;padding:12px;margin-top:8px">'
+      +'<div style="font-weight:800;color:#92400e;font-size:.86rem;margin-bottom:4px">Төхөөрөмжийн хязгаар</div>'
+      +'<div style="font-size:.8rem;color:#7a6a4f;line-height:1.45">Нэг бүртгэлийг <b>'+((d&&d.max)||2)+' төхөөрөмж</b> дээр л ашиглана. Энэ төхөөрөмжийг нэмэхийн тулд доорхоос нэгийг салгана уу.</div>';
+    list.forEach(function(x){
+      h+='<div style="display:flex;align-items:center;gap:8px;margin-top:9px;padding-top:9px;border-top:1px solid #f3e4c6">'
+        +'<div style="flex:1;min-width:0">'
+          +'<div style="font-weight:800;font-size:.84rem;color:#3a2d5e">'+(x.label||'Төхөөрөмж')+'</div>'
+          +'<div style="font-size:.73rem;color:#9a8f7a">Сүүлд: '+devWhen(x.last_seen)+'</div>'
+        +'</div>'
+        +'<button data-devrm="'+x.id+'" style="flex-shrink:0;border:1.4px solid #e5b4b4;background:#fff;color:#b91c1c;font-weight:800;font-size:.76rem;border-radius:999px;padding:.35rem .8rem;cursor:pointer;font-family:inherit">Салгах</button>'
+      +'</div>';
+    });
+    h+='</div>';
+    msgEl.style.color='';
+    msgEl.innerHTML=h;
+    [].forEach.call(msgEl.querySelectorAll('[data-devrm]'),function(btn){
+      btn.onclick=function(){
+        if(!confirm('Энэ төхөөрөмжийг салгах уу? Тухайн төхөөрөмж дээрээс дахин нэвтрэх шаардлагатай болно.'))return;
+        btn.disabled=true;btn.textContent='Салгаж байна…';
+        api('ws_device_remove',{email:email,pass:pass,device:btn.getAttribute('data-devrm')}).then(function(x2){
+          if(x2.s===200&&x2.d&&x2.d.ok){ msgEl.style.color='#15803d'; msgEl.textContent='Салгалаа. Дахин нэвтэрч байна…'; setTimeout(doLogin,500); }
+          else { btn.disabled=false;btn.textContent='Салгах'; msgEl.style.color='#dc2626'; msgEl.textContent=(x2.d&&x2.d.error)||'Салгаж чадсангүй'; }
+        }).catch(function(){ btn.disabled=false;btn.textContent='Салгах'; });
+      };
+    });
+  }
   var TITLES={login:'Дасгалын төвд нэвтрэх',register:'Шинэ бүртгэл үүсгэх',verify:'Бүртгэл баталгаажуулах',forgot:'Нууц үг сэргээх'};
   // Урилгын горим: SMS-ийн тайлбарыг нууж, утсыг заавал биш болгоно
   function applyInv(){
@@ -1514,6 +1564,7 @@ function openLogin(auto,view){
         m.style.color='#dc2626';m.innerHTML='Бүртгэлгүй имэйл байна. <a href="#" data-go="register" style="color:var(--purple-d);font-weight:800">Бүртгүүлэх</a><br><span style="font-weight:600;font-size:.78rem;color:var(--soft)">Эрх худалдаж авсан бол админтай холбогдоно уу.</span>';bindGo();
         return;
       }
+      if(x.s===403&&d&&d.deviceLimit){ showDeviceLimit(email,pass,d,m); return; }
       if(d&&d.needVerify){curEmail=email;curPass=pass;q('#vMsg').textContent='';setVPhone('');api('ws_resend',{email:email}).then(resendResult).catch(function(){});q('#vEmail').textContent=email;showView('verify');return;}
       m.style.color='#dc2626';m.textContent=(d&&d.error)||'Нэвтрэх боломжгүй';
     }).catch(function(){b.disabled=false;b.textContent='Нэвтрэх';m.style.color='#dc2626';m.textContent='Сүлжээний алдаа';});

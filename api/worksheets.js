@@ -7,10 +7,36 @@ const { sendFeedbackReply } = require('./_email');
 const { rateLimit, clientIp } = require('./_guard');
 const sms = require('./_sms');
 const tg = require('./_telegram');
+const WDEV = require('./_wsdev');
 const JWT_SECRET = process.env.JWT_SECRET || 'cybermath-default-secret-change-in-prod';
 
 // Дасгалын төвийн нэвтрэлт — имэйл + нууц үг + баталгаажуулах код (тусдаа ws_login)
-function wsSign(email) { return jwt.sign({ email: String(email).toLowerCase(), ws: true }, JWT_SECRET, { expiresIn: '400d' }); }
+function wsSign(email, dev) {
+  const p = { email: String(email).toLowerCase(), ws: true };
+  if (dev) p.dev = dev;
+  return jwt.sign(p, JWT_SECRET, { expiresIn: '400d' });
+}
+/* Нэвтрэлт амжилттай болмогц төхөөрөмжийг бүртгэнэ. Хязгаар дүүрсэн бол 403.
+   Токен дотор dev явна — хуудас нээх бүрд (qpay wsstatus) дахин шалгагдана. */
+async function wsIssue(req, res, email, extra) {
+  const dev = WDEV.deviceIdFrom(req);
+  let chk;
+  try { chk = await WDEV.check(email, dev, req); }
+  catch (e) { console.error('[wsdev]', e.message); chk = { ok: true }; }   // DB асуудалд нэвтрэлтийг зогсоохгүй
+  if (!chk.ok) {
+    if (chk.error === 'NO_DEVICE') {
+      return res.status(400).json({ ok: false, error: 'Төхөөрөмж танигдсангүй. Хуудсаа шинэчлээд (Ctrl+F5) дахин оролдоно уу.' });
+    }
+    return res.status(403).json({
+      ok: false, deviceLimit: true, max: chk.max,
+      error: 'Энэ бүртгэл аль хэдийн ' + chk.max + ' төхөөрөмж дээр нэвтэрсэн байна. Шинэ төхөөрөмж нэмэхийн тулд хуучнаас нь нэгийг салгана уу.',
+      devices: (chk.devices || []).map(function (d) {
+        return { id: d.device_id, label: d.label, last_seen: d.last_seen, first_seen: d.first_seen };
+      }),
+    });
+  }
+  return res.json(Object.assign({ ok: true, token: wsSign(email, dev), email: email }, extra || {}));
+}
 // env WS_TOKEN_IAT_MIN (epoch сек) тавьсан бол түүнээс өмнө олгосон ws токеныг хүчингүй гэж үзнэ (тавиагүй бол нөлөөгүй)
 function wsIatOk(d) {
   const min = parseInt(process.env.WS_TOKEN_IAT_MIN || '', 10);
@@ -531,7 +557,65 @@ module.exports = async (req, res) => {
           const okp = await bcrypt.compare(String(b.pass || ''), r.rows[0].pass_hash);
           if (!okp) return res.status(401).json({ ok: false, error: 'Нууц үг буруу' });
           if (!r.rows[0].verified) return res.status(403).json({ ok: false, needVerify: true, error: 'Имэйл баталгаажаагүй' });
-          return res.json({ ok: true, token: wsSign(email), email: email });
+          return wsIssue(req, res, email);
+        }
+        /* ── Админ: хэрэглэгчийн төхөөрөмжүүдийг харах / цэвэрлэх (дэмжлэг) ── */
+        if (b.action === 'ws_device_admin') {
+          if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
+          if (b.clear) {
+            await WDEV.ensureTable();
+            if (b.device) await pool.query('DELETE FROM ws_devices WHERE email=$1 AND device_id=$2', [email, String(b.device)]);
+            else await pool.query('DELETE FROM ws_devices WHERE email=$1', [email]);
+            await pool.query('DELETE FROM ws_device_swaps WHERE email=$1', [email]).catch(function(){});
+          }
+          return res.json({ ok: true, max: WDEV.MAX_DEVICES, devices: await WDEV.list(email) });
+        }
+        /* ── Төхөөрөмжүүдээ харах (нууц үгээр батална) ── */
+        if (b.action === 'ws_devices') {
+          const r = await pool.query('SELECT pass_hash FROM ws_login WHERE email=$1', [email]);
+          if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Бүртгэлгүй имэйл' });
+          const llim = await firstLimitHit([
+            ['wsdev:em:' + email, 20, 900, MSG_TOO_MANY],
+            ['wsdev:ip:' + ipKey(clientIp(req)), 60, 900, MSG_TOO_MANY],
+          ]);
+          if (llim) return res.status(429).json({ ok: false, error: llim });
+          if (!(await bcrypt.compare(String(b.pass || ''), r.rows[0].pass_hash))) {
+            return res.status(401).json({ ok: false, error: 'Нууц үг буруу' });
+          }
+          const cur = WDEV.deviceIdFrom(req);
+          const list = await WDEV.list(email);
+          return res.json({
+            ok: true, max: WDEV.MAX_DEVICES, swapMax: WDEV.SWAP_MAX, swapDays: WDEV.SWAP_DAYS,
+            devices: list.map(function (d) {
+              return { id: d.device_id, label: d.label, last_seen: d.last_seen, first_seen: d.first_seen, current: d.device_id === cur };
+            }),
+          });
+        }
+        /* ── Төхөөрөмж салгах. 30 хоногт WS_DEVICE_SWAPS удаа л зөвшөөрнө —
+           «салгаад найздаа холбоод» гэж эрх дахин зарахаас сэргийлнэ. ── */
+        if (b.action === 'ws_device_remove') {
+          const r = await pool.query('SELECT pass_hash FROM ws_login WHERE email=$1', [email]);
+          if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Бүртгэлгүй имэйл' });
+          const llim = await firstLimitHit([
+            ['wsdevrm:em:' + email, 10, 900, MSG_TOO_MANY],
+            ['wsdevrm:ip:' + ipKey(clientIp(req)), 30, 900, MSG_TOO_MANY],
+          ]);
+          if (llim) return res.status(429).json({ ok: false, error: llim });
+          if (!(await bcrypt.compare(String(b.pass || ''), r.rows[0].pass_hash))) {
+            return res.status(401).json({ ok: false, error: 'Нууц үг буруу' });
+          }
+          const out = await WDEV.remove(email, b.device);
+          if (!out.ok) {
+            if (out.error === 'SWAP_LIMIT') {
+              return res.status(429).json({ ok: false, error: 'Төхөөрөмж солих тоо дууссан байна (' + out.days + ' хоногт ' + out.max + ' удаа). Дараа дахин оролдоно уу.' });
+            }
+            if (out.error === 'NOT_FOUND') return res.status(404).json({ ok: false, error: 'Тийм төхөөрөмж олдсонгүй' });
+            return res.status(400).json({ ok: false, error: 'Салгаж чадсангүй' });
+          }
+          try {
+            tg.sendTelegram('WS: төхөөрөмж салгалаа — ' + sms.maskEmail(email)).catch(function () {});
+          } catch (e) {}
+          return res.json({ ok: true, devices: await WDEV.list(email) });
         }
         if (b.action === 'ws_register') {
           const pass = String(b.pass || '');
@@ -582,7 +666,7 @@ module.exports = async (req, res) => {
                 + '📧 ' + tgEsc(email) + (phone ? ('\n📱 ' + sms.maskPhone(phone, 2)) : '')
                 + '\n🎫 ' + inv.slice(0, 4) + '…').catch(() => {});
             } catch (e) {}
-            return res.json({ ok: true, invited: true, token: wsSign(email), email: email });
+            return wsIssue(req, res, email, { invited: true });
           }
           // Утас ЗААВАЛ — баталгаажуулах код зөвхөн SMS-ээр явна
           // Утас огт ирээгүй = хуучин нээлттэй хуудас (SMS-ээс өмнөх маягт талбаргүй) — F5 хийхийг зөвлөнө
@@ -657,7 +741,7 @@ module.exports = async (req, res) => {
           if (!upd.rows.length) return res.status(400).json({ ok: false, error: MSG_CODE_BAD });
           if (rrow) await sms.markVerified(rrow.phone);
           try { if (await wsEntitled(email)) tg.sendTelegram('WS нууц үг SMS-ээр сэргээгдлээ: ' + sms.maskEmail(email)).catch(() => {}); } catch (e) { sms.logErr('[ws reset tg]', e); }
-          return res.json({ ok: true, token: wsSign(email), email: email });
+          return wsIssue(req, res, email);
         }
         if (b.action === 'ws_verify') {
           const r = await pool.query('SELECT verified, name, phone, phone_verified_at FROM ws_login WHERE email=$1', [email]);
@@ -685,7 +769,7 @@ module.exports = async (req, res) => {
               + '📧 ' + email + (u.phone ? ('\n📱 ' + sms.maskPhone(u.phone, 2)) : '');
             sendTelegram(msg).catch(() => {});
           } catch (e) {}
-          return res.json({ ok: true, token: wsSign(email), email: email });
+          return wsIssue(req, res, email);
         }
         if (b.action === 'ws_resend') {
           const t0 = Date.now();

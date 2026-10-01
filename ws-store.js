@@ -91,13 +91,30 @@
   function lset(k,v){try{localStorage.setItem(k,v);}catch(e){}}
   // ws токены payload-аас имэйлийг ЗӨВХӨН харуулахын тулд уншина (баталгаажуулалт нь серверт)
   function tokEmail(t){try{var p=String(t).split('.')[1].replace(/-/g,'+').replace(/_/g,'/');while(p.length%4)p+='=';var d=JSON.parse(atob(p));return d&&typeof d.email==='string'?d.email.trim().toLowerCase():'';}catch(e){return '';}}
+  /* Энэ хөтчийн тогтмол дугаар. Нэг имэйл → дээд тал нь 2 төхөөрөмж гэдгийг
+     сервер энэ дугаараар тоолно (api/_wsdev.js). */
+  function wsDev(){
+    try{
+      var v=localStorage.getItem('cm_device');
+      if(!v||v.length<8){
+        v='';var a=new Uint8Array(16);
+        if(window.crypto&&window.crypto.getRandomValues)window.crypto.getRandomValues(a);
+        else for(var j=0;j<16;j++)a[j]=Math.floor(Math.random()*256);
+        for(var i=0;i<a.length;i++)v+=('0'+a[i].toString(16)).slice(-2);
+        localStorage.setItem('cm_device',v);
+      }
+      return v;
+    }catch(e){return '';}
+  }
+  window.cmWsDevice=wsDev;
+  function wsHdr(){ var h={'Content-Type':'application/json'}; var d=wsDev(); if(d)h['x-device-id']=d; return h; }
   var WS_ST=null;                                                    // сүүлд авсан эрхийн төлөв
   function checkAccess(){
     if(ls('cm_admin_token'))return Promise.resolve(true);            // админ үргэлж нээлттэй
     // slug илгээснээр сервер энэ хуудас ямар ангийнх болохыг тодорхойлж, ангийн эрхийг ч шалгана
     // Зөвхөн ажлын хуудасны токен (cm_ws_token) — тоглоомын токеныг сервер хүлээн авахгүй
     var body={wstoken:ls('cm_ws_token'),email:ls('cm_last_user'),slug:curSlug()};
-    return fetch('/api/qpay?action=wsstatus',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+    return fetch('/api/qpay?action=wsstatus',{method:'POST',headers:wsHdr(),body:JSON.stringify(body)})
       .then(function(r){return r.json();})
       .then(function(d){
         WS_ST=d||null;
@@ -295,7 +312,18 @@
     }
     var appliedData=false, userPicked=false;
     window.__wsLockApply=function(d){
-      if(d&&d.needLogin)loginHint();
+      /* Төхөөрөмжийн хязгаар — эрх байгаа ч энэ хөтөч бүртгэлгүй */
+      if(d&&d.deviceBlocked){
+        var mm=document.getElementById('wsMsg');
+        if(mm){
+          mm.style.color='#b45309';
+          mm.innerHTML='Энэ бүртгэл аль хэдийн <b>'+(d.max||2)+' төхөөрөмж</b> дээр нэвтэрсэн байна.'
+            +(d.devices&&d.devices.length?'<div style="margin-top:5px;font-size:.78rem;color:#7a7390">'
+              +d.devices.map(function(x){return '• '+(x.label||'Төхөөрөмж');}).join('<br>')+'</div>':'')
+            +'<div style="margin-top:6px"><a href="/worksheets?devices=1" style="color:#5a32d6;font-weight:800">Төхөөрөмжөө удирдах</a></div>';
+        }
+      }
+      if(d&&d.needLogin&&!(d&&d.deviceBlocked))loginHint();
       // 4с-ийн нөөц (өгөгдөлгүй) хэрэглэсний дараа серверийн хариу хожуу ирвэл ангийн багцыг дахин угсарна
       if(applied&&(appliedData||!d))return;
       var first=!applied;
@@ -385,7 +413,7 @@
       var email=(prompt('Эрх авсан имэйл хаягаа оруулна уу:',ls('cm_last_user')||'')||'').trim().toLowerCase();
       if(!valid(email)){msg.textContent='Зөв имэйл оруулна уу';return;}
       msg.textContent='Шалгаж байна…';
-      fetch('/api/qpay?action=wsstatus',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,slug:curSlug()})})
+      fetch('/api/qpay?action=wsstatus',{method:'POST',headers:wsHdr(),body:JSON.stringify({email:email,slug:curSlug()})})
         .then(function(r){return r.json();}).then(function(d){
           if(d&&d.needLogin){ lset('cm_last_user',email); msg.style.color='#5a32d6'; msg.textContent='Эрхээ ашиглахын тулд нууц үгээрээ нэвтэрнэ үү.'; loginHint(); }
           else if(d&&d.active){ if(d.ws_token)lset('cm_ws_token',d.ws_token); lset('cm_last_user',email); unlockWs(); }
@@ -718,7 +746,7 @@
   function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
   function uid(){var k=ls('cm_uid');if(!k){k='u'+Math.random().toString(36).slice(2)+Date.now().toString(36);lset('cm_uid',k);}return k;}
   function ukey(){return ls('cm_last_user')||uid();}
-  function sApi(action,data){data=data||{};data.action=action;var h={'Content-Type':'application/json'};var at=ls('cm_admin_token');if(at)h['Authorization']='Bearer '+at;var wt=ls('cm_ws_token');if(wt)data.token=wt;
+  function sApi(action,data){data=data||{};data.action=action;var h={'Content-Type':'application/json'};try{var dv=(window.cmWsDevice?window.cmWsDevice():'');if(dv)h['x-device-id']=dv;}catch(e){}var at=ls('cm_admin_token');if(at)h['Authorization']='Bearer '+at;var wt=ls('cm_ws_token');if(wt)data.token=wt;
     return fetch('/api/worksheets',{method:'POST',headers:h,body:JSON.stringify(data)}).then(function(r){return r.json();});}
   function ago(s){try{var t=new Date(s).getTime(),d=(Date.now()-t)/1000;if(d<60)return 'дөнгөж';if(d<3600)return Math.floor(d/60)+' мин';if(d<86400)return Math.floor(d/3600)+' цаг';if(d<2592000)return Math.floor(d/86400)+' хоног';return new Date(s).toLocaleDateString('mn-MN');}catch(e){return '';}}
   function injectSocialCSS(){

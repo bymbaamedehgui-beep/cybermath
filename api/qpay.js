@@ -25,6 +25,7 @@ function wsBasePrice(months) { return WS_PRICES[wsNormMonths(months)]; }
 const WS_YEAR_PRICE = WS_PRICES[12];   // хуучин 'wsyear' нийцэл
 // ── Ажлын хуудсыг АНГИАР худалдан авах (нэг анги = сард 9900) ──
 const WG = require('./_wsgrade');
+const WDEV = require('./_wsdev');
 const WS_GRADE_PER_MONTH = parseInt(process.env.WS_GRADE_PRICE || '9900', 10);
 const WS_GRADE_MONTHS = [1, 3, 6, 12];
 // catalog.js ачаалагдаагүй (жагсаалт хоосон) тохиолдолд "N-р анги" хэлбэрээр зөвшөөрнө
@@ -203,11 +204,15 @@ function wsIatOk(d) {
 // тоглоомын урилгын бүртгэл имэйл баталгаажуулдаггүй тул өөр хүний имэйлээр токен авч болно (H8).
 // Дуудагчид: wsstatus, wheel_spin, ws_ref, ws plan-уудын create — бүгд ажлын хуудасны зам.
 function emailFromToken(tok) {
+  const d = wsPayload(tok);
+  return d && typeof d.email === 'string' && d.email.trim() ? d.email.trim().toLowerCase() : null;
+}
+function wsPayload(tok) {
   if (!jwtSecret() || !tok || typeof tok !== 'string') return null;
   try {
     const d = jwt.verify(tok, jwtSecret(), { algorithms: ['HS256'] });
     if (!d || d.ws !== true || !wsIatOk(d)) return null;
-    return typeof d.email === 'string' && d.email.trim() ? d.email.trim().toLowerCase() : null;
+    return d;
   } catch (e) { return null; }
 }
 function isAdmin(req) {
@@ -1103,6 +1108,30 @@ module.exports = async (req, res) => {
         grade_months: WS_GRADE_MONTHS, grade_per_month: WS_GRADE_PER_MONTH,
         prices: WS_PRICES, months: WS_MONTHS };
 
+      /* ── Нэг имэйл → дээд тал нь 2 төхөөрөмж ──
+         Токенд dev байвал одоогийн төхөөрөмжтэй ТААРАХ ёстой (токен хуулахыг таслана).
+         dev-гүй хуучин токен бол сул байр байвал энэ төхөөрөмжийг бүртгэнэ. */
+      if (email) {
+        const tokDev = (wsPayload(b.wstoken) || {}).dev || null;
+        const curDev = WDEV.deviceIdFrom(req);
+        let dchk = { ok: true };
+        try {
+          if (tokDev && curDev && tokDev !== curDev) {
+            dchk = { ok: false, error: 'DEVICE_MISMATCH', max: WDEV.MAX_DEVICES, devices: await WDEV.list(email) };
+          } else {
+            dchk = await WDEV.check(email, curDev || tokDev, req);
+          }
+        } catch (e) { console.error('[wsdev status]', e.message); dchk = { ok: true }; }
+        if (!dchk.ok && dchk.error !== 'NO_DEVICE') {
+          return res.json(Object.assign({
+            ok: true, enabled: true, active: false, needLogin: true, deviceBlocked: true,
+            max: dchk.max || WDEV.MAX_DEVICES, scope: null, grades: [],
+            devices: (dchk.devices || []).map(function (d) {
+              return { id: d.device_id, label: d.label, last_seen: d.last_seen };
+            }),
+          }, gradePrices));
+        }
+      }
       if (byEmail) return res.json(Object.assign({ ok: true, enabled: true, active: false, needLogin: true, scope: null, grades: [] }, gradePrices));
       if (!email) return res.json(Object.assign({ ok: true, enabled: true, active: false, scope: null, grades: [] }, gradePrices));
 
