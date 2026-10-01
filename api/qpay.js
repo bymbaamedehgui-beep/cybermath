@@ -1114,12 +1114,16 @@ module.exports = async (req, res) => {
       if (email) {
         const tokDev = (wsPayload(b.wstoken) || {}).dev || null;
         const curDev = WDEV.deviceIdFrom(req);
+        /* Толгой илгээхгүй байж шалгалтыг алгасах зам хаалттай: дугаар байхгүй бол
+           токеноосоо тогтвортой түлхүүр гаргаад ТЭР нь байр эзэлнэ. */
+        const useDev = curDev || tokDev || WDEV.keyFromToken(b.wstoken);
         let dchk = { ok: true };
         try {
           if (tokDev && curDev && tokDev !== curDev) {
+            await WDEV.logBlock(email, curDev, WDEV.fpFrom(req), null, 'DEVICE_MISMATCH', null);
             dchk = { ok: false, error: 'DEVICE_MISMATCH', max: WDEV.MAX_DEVICES, devices: await WDEV.list(email) };
           } else {
-            dchk = await WDEV.check(email, curDev || tokDev, req);
+            dchk = await WDEV.check(email, useDev, req);
           }
         } catch (e) { console.error('[wsdev status]', e.message); dchk = { ok: true }; }
         if (!dchk.ok && dchk.error !== 'NO_DEVICE') {

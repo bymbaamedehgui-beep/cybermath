@@ -24,9 +24,9 @@ async function wsIssue(req, res, email, extra) {
   try { chk = await WDEV.check(email, dev, req); }
   catch (e) { console.error('[wsdev]', e.message); chk = { ok: true }; }   // DB асуудалд нэвтрэлтийг зогсоохгүй
   if (!chk.ok) {
-    if (chk.error === 'NO_DEVICE') {
-      return res.status(400).json({ ok: false, error: 'Төхөөрөмж танигдсангүй. Хуудсаа шинэчлээд (Ctrl+F5) дахин оролдоно уу.' });
-    }
+    /* Дугаар ирээгүй (хуучин кэштэй хөтөч) — нэвтрэлтийг зогсоохгүй. Байр эзлэхгүй
+       ч wsstatus дээр токеноос гарсан түлхүүрээр ЗААВАЛ шалгагдана. */
+    if (chk.error === 'NO_DEVICE') return res.json(Object.assign({ ok: true, token: wsSign(email), email: email }, extra || {}));
     return res.status(403).json({
       ok: false, deviceLimit: true, max: chk.max,
       error: 'Энэ бүртгэл аль хэдийн ' + chk.max + ' төхөөрөмж дээр нэвтэрсэн байна. Шинэ төхөөрөмж нэмэхийн тулд хуучнаас нь нэгийг салгана уу.',
@@ -569,7 +569,10 @@ module.exports = async (req, res) => {
             else await pool.query('DELETE FROM ws_devices WHERE email=$1', [email]);
             await pool.query('DELETE FROM ws_device_swaps WHERE email=$1', [email]).catch(function(){});
           }
-          return res.json({ ok: true, max: WDEV.MAX_DEVICES, devices: await WDEV.list(email) });
+          const blk = await pool.query(
+            `SELECT device_id, fp, ip, why, at FROM ws_device_blocks
+              WHERE email=$1 ORDER BY at DESC LIMIT 20`, [email]).catch(() => ({ rows: [] }));
+          return res.json({ ok: true, max: WDEV.MAX_DEVICES, devices: await WDEV.list(email), blocks: blk.rows });
         }
         /* ── Төхөөрөмжүүдээ харах (нууц үгээр батална) ── */
         if (b.action === 'ws_devices') {

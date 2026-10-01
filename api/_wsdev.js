@@ -18,6 +18,7 @@
 //   remove(email, devId)                          → Promise<{ ok, error? }>
 //   labelFromUA(ua)                               → "Android утас" гэх мэт
 const pool = require('./_db');
+const crypto = require('crypto');
 
 const MAX_DEVICES = parseInt(process.env.WS_MAX_DEVICES || '2', 10) || 2;
 // Нэг төхөөрөмжийг салгаад өөрийг нь холбох нь 30 хоногт дээд тал нь 3 удаа.
@@ -52,6 +53,17 @@ async function ensureTable() {
   // Машины хурууны хээ — localStorage-оо бүтнээр нь хуулж өгөхөд ч өөр машин гэж танина
   await pool.query(`ALTER TABLE ws_devices ADD COLUMN IF NOT EXISTS fp TEXT`).catch(() => {});
   await pool.query(`ALTER TABLE ws_devices ADD COLUMN IF NOT EXISTS fp_changed_at TIMESTAMPTZ`).catch(() => {});
+  // Хаагдсан оролдлогын бүртгэл — хязгаар үнэхээр ажиллаж байгаа эсэхийг нотлох
+  await pool.query(`CREATE TABLE IF NOT EXISTS ws_device_blocks (
+    id BIGSERIAL PRIMARY KEY,
+    email TEXT NOT NULL,
+    device_id TEXT,
+    fp TEXT,
+    ip TEXT,
+    why TEXT,
+    ua TEXT,
+    at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`).catch(() => {});
   // Нэг байрыг хэдэн өөр сүлжээнээс ашиглаж байгааг админд харуулах (хуваалцлын дохио)
   await pool.query(`CREATE TABLE IF NOT EXISTS ws_device_ips (
     email TEXT NOT NULL,
@@ -111,6 +123,21 @@ function ipOf(req) {
 }
 function uaOf(req) {
   return String(((req && req.headers) || {})['user-agent'] || '').slice(0, 300);
+}
+
+// Хаасан оролдлогыг бүртгэнэ (аудит)
+async function logBlock(email, devId, fp, ip, why, ua) {
+  await pool.query(
+    'INSERT INTO ws_device_blocks (email, device_id, fp, ip, why, ua) VALUES ($1,$2,$3,$4,$5,$6)',
+    [email, devId || null, fp || null, ip || null, why || null, ua || null]).catch(() => {});
+}
+
+/* Төхөөрөмжийн дугаар ИРЭХГҮЙ үед токеноос тогтвортой түлхүүр гаргана.
+   Ингэснээр «толгой илгээхгүй» гэж шалгалтыг алгасах зам хаагдана. */
+function keyFromToken(tok) {
+  if (!tok || typeof tok !== 'string') return null;
+  const h = crypto.createHash('sha256').update(tok).digest('hex').slice(0, 16);
+  return 'tk' + h;
 }
 
 // Нэг байр хэдэн өөр сүлжээнээс хэрэглэгдэж байгааг бүртгэнэ (хуваалцлын дохио)
@@ -197,6 +224,7 @@ async function check(email, devId, req) {
   const c = await pool.query('SELECT COUNT(*)::int AS n FROM ws_devices WHERE email=$1', [e]);
   const n = (c.rows[0] || {}).n || 0;
   if (n >= MAX_DEVICES) {
+    await logBlock(e, d, fp, ip, 'DEVICE_LIMIT', uaOf(req));
     return { ok: false, error: 'DEVICE_LIMIT', max: MAX_DEVICES, devices: await list(e) };
   }
   const ua = uaOf(req);
@@ -226,4 +254,4 @@ async function remove(email, devId) {
   return { ok: true };
 }
 
-module.exports = { MAX_DEVICES, SWAP_MAX, SWAP_DAYS, ensureTable, deviceIdFrom, check, list, remove, labelFromUA };
+module.exports = { MAX_DEVICES, SWAP_MAX, SWAP_DAYS, ensureTable, deviceIdFrom, fpFrom, keyFromToken, logBlock, check, list, remove, labelFromUA };
