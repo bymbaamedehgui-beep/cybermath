@@ -540,7 +540,8 @@ module.exports = async (req, res) => {
       }
 
       // ── Дасгалын төвийн нэвтрэлт: бүртгэл → код → баталгаажуулах → нэвтрэх ──
-      if (['ws_register','ws_verify','ws_login','ws_resend','ws_forgot','ws_reset'].indexOf(b.action) >= 0) {
+      if (['ws_register','ws_verify','ws_login','ws_resend','ws_forgot','ws_reset',
+           'ws_devices','ws_device_remove','ws_device_admin'].indexOf(b.action) >= 0) {
         await ensureWsLogin();
         const email = String(b.email || '').trim().toLowerCase();
         if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ ok: false, error: 'Зөв имэйл оруулна уу' });
