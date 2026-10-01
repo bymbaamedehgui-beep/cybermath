@@ -26,6 +26,8 @@ module.exports = async (req, res) => {
       )
     `);
     await pool.query(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS reactions JSONB NOT NULL DEFAULT '{}'::jsonb`).catch(()=>{});
+    // Зураг — data URL хэлбэрээр (profile_image-тэй ижил зарчим)
+    await pool.query(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS image TEXT`).catch(()=>{});
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_cm_pair ON chat_messages(sender_email, receiver_email, id DESC)`).catch(()=>{});
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_cm_unread ON chat_messages(receiver_email, read)`).catch(()=>{});
 
@@ -37,7 +39,17 @@ module.exports = async (req, res) => {
       const from = String(body.from || '').toLowerCase();
       const to = String(body.to || '').toLowerCase();
       const text = String(body.text || '').slice(0, 2000).trim();
-      if (!from || !to || !text || from === to) return res.status(400).json({ ok: false, error: 'Missing fields' });
+      // Зурагтай үед текст хоосон байж болно
+      const image = typeof body.image === 'string' ? body.image : '';
+      if (image) {
+        if (!/^data:image\/(png|jpeg|jpg|webp|gif);base64,/.test(image)) {
+          return res.status(400).json({ ok: false, error: 'Зургийн формат буруу' });
+        }
+        if (image.length > 2_200_000) {
+          return res.status(400).json({ ok: false, error: 'Зураг хэт том байна' });
+        }
+      }
+      if (!from || !to || from === to || (!text && !image)) return res.status(400).json({ ok: false, error: 'Missing fields' });
       // Найз эсэхийг шалгах
       const fr = await pool.query(
         `SELECT 1 FROM friendships WHERE status='accepted' AND ((requester_email=$1 AND receiver_email=$2) OR (requester_email=$2 AND receiver_email=$1))`,
@@ -45,10 +57,10 @@ module.exports = async (req, res) => {
       );
       if (!fr.rows.length) return res.json({ ok: false, error: 'Найз биш байна' });
       const r = await pool.query(
-        `INSERT INTO chat_messages (sender_email, receiver_email, text) VALUES ($1, $2, $3) RETURNING id, created_at`,
-        [from, to, text]
+        `INSERT INTO chat_messages (sender_email, receiver_email, text, image) VALUES ($1, $2, $3, $4) RETURNING id, created_at`,
+        [from, to, text, image || null]
       );
-      return res.json({ ok: true, message: { id: r.rows[0].id, from: from, to: to, text: text, created_at: r.rows[0].created_at, read: false } });
+      return res.json({ ok: true, message: { id: r.rows[0].id, from: from, to: to, text: text, image: image || null, created_at: r.rows[0].created_at, read: false } });
     }
 
     if (action === 'conversation') {
@@ -57,7 +69,7 @@ module.exports = async (req, res) => {
       const since = body.since ? parseInt(body.since) : 0;
       if (!u1 || !u2) return res.status(400).json({ ok: false });
       const r = await pool.query(
-        `SELECT id, sender_email, receiver_email, text, read, reactions, created_at
+        `SELECT id, sender_email, receiver_email, text, image, read, reactions, created_at
          FROM chat_messages
          WHERE ((sender_email=$1 AND receiver_email=$2) OR (sender_email=$2 AND receiver_email=$1))
            AND ($3::bigint = 0 OR id > $3::bigint)
@@ -91,7 +103,7 @@ module.exports = async (req, res) => {
       const u2 = String(body.user2 || '').toLowerCase();
       if (!u1 || !u2) return res.status(400).json({ ok: false });
       const r = await pool.query(
-        `SELECT id, sender_email, receiver_email, text, read, reactions, created_at
+        `SELECT id, sender_email, receiver_email, text, image, read, reactions, created_at
          FROM chat_messages
          WHERE ((sender_email=$1 AND receiver_email=$2) OR (sender_email=$2 AND receiver_email=$1))
          ORDER BY id DESC LIMIT 200`,
