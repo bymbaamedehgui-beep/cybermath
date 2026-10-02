@@ -1554,6 +1554,38 @@ module.exports = async (req, res) => {
         }
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_g4c2_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
+      // ── 12-р анги: I БҮЛЭГ. ТЭГШИТГЭЛ, ТЭНЦЭТГЭЛ БИШ (сурах бичгийн 5–16 х.) ──
+      const cf_g12c1 = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_g12c1_v1'`);
+      if (!cf_g12c1.rows.length) {
+        let par_g12c1 = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='12-р анги' AND name LIKE 'I БҮЛЭГ%' AND parent_id IS NULL ORDER BY id LIMIT 1`);
+        let pid_g12c1;
+        if (par_g12c1.rows.length) { pid_g12c1 = Number(par_g12c1.rows[0].id); }
+        else {
+          const mxP1 = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='12-р анги'`);
+          const insP1 = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('12-р анги',$2,$1,NULL) RETURNING id`, [mxP1.rows[0].p, "I БҮЛЭГ. ТЭГШИТГЭЛ, ТЭНЦЭТГЭЛ БИШ"]);
+          pid_g12c1 = Number(insP1.rows[0].id);
+        }
+        const subs_g12c1 = [
+          { name: "1.1 Тооны модул", slugs: ["tooni-modul-1-12.html", "tooni-modul-2-12.html", "modul-12.html"] },
+          { name: "1.2 Модул агуулсан тэгшитгэл", slugs: ["modul-tegsh-1-12.html", "modul-tegsh-2-12.html", "modul-tegsh-3-12.html", "modul-tegsh-4-12.html", "modul-tegshitgel-12.html", "modul-tegshitgel-2-12.html", "modul-tegshitgel-3-12.html"] },
+          { name: "1.3 Модул агуулсан тэнцэтгэл биш", slugs: ["modul-tenbish-1-12.html", "modul-tenbish-2-12.html", "modul-tenbish-3-12.html", "modul-tenbish-4-12.html", "modul-tentsetgel-bish-12.html", "modul-tentsetgel-bish-2-12.html", "modul-tentsetgel-bish-3-12.html"] },
+          { name: "1.4 Модул — нэмэлт ба шалгалт", slugs: ["modul-ab-kvadrat-12.html", "modul-orluulga-kvadrat-12.html", "modul-radikal-12.html", "modul-shalgalt-12.html", "modul-shalgalt-material-12.html"] },
+        ];
+        for (const sub of subs_g12c1) {
+          let sgr = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='12-р анги' AND name=$1`, [sub.name]);
+          let sid;
+          if (sgr.rows.length) { sid = Number(sgr.rows[0].id); }
+          else {
+            const mx = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='12-р анги'`);
+            const ins = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('12-р анги',$1,$2,$3) RETURNING id`, [sub.name, mx.rows[0].p, pid_g12c1]);
+            sid = Number(ins.rows[0].id);
+          }
+          for (const slug of sub.slugs) {
+            await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + sid, slug]);
+          }
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_g12c1_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
       // ── 12-р анги: II БҮЛЭГ. ОЛОН ГИШҮҮНТ (сурах бичгийн 17–42 х.) ──
       const cf_g12c2 = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_g12c2_v1'`);
       if (!cf_g12c2.rows.length) {

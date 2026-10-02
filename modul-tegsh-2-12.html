@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Модул агуулсан тэгшитгэл-2 (12-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<style>
+  :root{--purple:#7B52EE;--purple2:#A855F7;--ink:#1a1030;--soft:#7a7390}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:var(--ink);background:#eceaf3;padding:16px;line-height:1.5}
+  .bar{max-width:820px;margin:0 auto 14px;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
+  .btn{font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.6rem 1.3rem;font-size:.9rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2));box-shadow:0 6px 16px -6px rgba(123,82,238,.6)}
+  .btn:hover{filter:brightness(1.06)} .btn.refresh{background:linear-gradient(135deg,#16a34a,#22c55e)}
+  .bar label{font-weight:700;color:var(--purple);display:flex;align-items:center;gap:6px;font-size:.88rem}
+  .sheet{background:#fff;width:210mm;max-width:100%;min-height:297mm;margin:0 auto;padding:12mm 14mm;box-shadow:0 12px 44px -18px rgba(0,0,0,.35)}
+  .head{text-align:center;border-bottom:2.5px solid var(--purple);padding-bottom:7px;margin-bottom:7px}
+  .head h1{font-size:16px;color:#5a32d6;font-weight:800}.head .sub{font-size:11px;color:var(--soft);margin-top:2px}
+  .meta{display:flex;justify-content:space-between;font-size:11.5px;margin:8px 2px 10px}.meta span{border-bottom:1px dotted #b3a9cf;padding:0 26px 2px 4px}
+  .rule{font-size:11px;color:var(--soft);background:transparent;border-left:3px solid #d9cff5;border-radius:8px;padding:8px 12px;margin-bottom:11px}
+  .rule b{color:#5a32d6}
+  .task{font-weight:800;color:#5a32d6;font-size:12.5px;margin:9px 0 7px;border-left:4px solid var(--purple2);padding-left:9px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:11px 20px}
+  .q{break-inside:avoid;page-break-inside:avoid}
+  .qh{display:flex;gap:7px;align-items:baseline}.ql{font-weight:800;color:var(--purple);font-size:13px;min-width:22px}.qm{font-size:13px}
+  .fig{text-align:center;margin:4px 0}
+  .wk{border:1.1px solid #e2daf5;border-radius:7px;background:linear-gradient(#fff,#fbf9ff);height:18mm;margin-top:5px}
+  .ans-page{margin-top:9mm;border-top:2px dashed #ddd;padding-top:7mm}.ans-page h2{font-size:15px;color:#5a32d6;margin-bottom:10px}
+  .ans-grid{display:grid;grid-template-columns:1fr;gap:9px;font-size:12px}.ans-grid .a{padding-bottom:8px;border-bottom:1px dotted #e6e0f5}.ans-grid .an{color:var(--purple);font-weight:800;margin-right:5px}
+  #answers{display:none}
+  @media print{body{background:#fff;padding:0}.bar{display:none}.sheet{box-shadow:none;width:auto;min-height:auto;padding:0;margin:0}@page{size:A4;margin:11mm}.ans-page{break-before:page}}
+</style>
+</head>
+<body>
+<div class="bar">
+  <button class="btn refresh" onclick="build()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>Шинэ бодлого</button>
+  <label><input type="checkbox" id="sw" onchange="layout()" checked> Бодолтын зай</label>
+  <label><input type="checkbox" id="sa" onchange="toggleAns()"> Хариу хавсаргах</label>
+  <button class="btn" onclick="window.print()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>Хэвлэх / PDF</button>
+</div>
+<div class="sheet" id="sheet"></div>
+<script>
+// ══════════ g10core.js — 10-р ангийн нийтлэг хөдөлгүүр ══════════
+function rnd(a,b){return a+Math.floor(Math.random()*(b-a+1));}
+function nz(a,b){var v;do{v=rnd(a,b);}while(v===0);return v;}
+function pick(a){return a[rnd(0,a.length-1)];}
+function shuffle(a){a=a.slice();for(var i=a.length-1;i>0;i--){var j=rnd(0,i),t=a[i];a[i]=a[j];a[j]=t;}return a;}
+function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){var t=b;b=a%b;a=t;}return a||1;}
+function lcm(a,b){return Math.abs(a*b)/gcd(a,b);}
+function sgn(n){return n>=0?'+'+n:''+n;}                 // +5, -3 (тэмдэгтэй)
+function paren(n){return n<0?'('+n+')':''+n;}            // (-3), 5 (сөрөг бол хаалттай)
+// ── Анхны тоо, задаргаа ──
+function isPrime(n){n=Math.abs(n);if(n<2)return false;for(var i=2;i*i<=n;i++)if(n%i===0)return false;return true;}
+function primeFactors(n){n=Math.abs(n);var f=[],d=2;while(d*d<=n){while(n%d===0){f.push(d);n/=d;}d++;}if(n>1)f.push(n);return f;} // [2,2,3]
+function primeFactExp(n){var f=primeFactors(n),out=[],i=0;while(i<f.length){var p=f[i],e=0;while(i<f.length&&f[i]===p){e++;i++;}out.push({p:p,e:e});}return out;} // [{p:2,e:2},{p:3,e:1}]
+function pfTex(n){var pe=primeFactExp(n);return pe.map(function(x){return x.e===1?''+x.p:x.p+'^{'+x.e+'}';}).join('\\cdot ');} // 2^{2}\cdot3
+// ── Бүтэн квадрат/куб ──
+function isqrt(n){if(n<0)return null;var r=Math.round(Math.sqrt(n));return r*r===n?r:null;}       // төгс квадрат бол язгуур, үгүй бол null
+function icbrt(n){var s=n<0?-1:1;n=Math.abs(n);var r=Math.round(Math.cbrt(n));for(var k=r-1;k<=r+1;k++){if(k*k*k===n)return s*k;}return null;} // төгс куб бол куб язгуур, үгүй бол null
+// ── Бутархайн exact хөдөлгүүр ──
+function Fr(n,d){if(d<0){n=-n;d=-d;}var g=gcd(n,d)||1;return {n:n/g,d:d/g};}
+function fAdd(a,b){return Fr(a.n*b.d+b.n*a.d,a.d*b.d);}
+function fSub(a,b){return Fr(a.n*b.d-b.n*a.d,a.d*b.d);}
+function fMul(a,b){return Fr(a.n*b.n,a.d*b.d);}
+function fDiv(a,b){return Fr(a.n*b.d,a.d*b.n);}
+function fVal(a){return a.n/a.d;}
+function fTex(a){if(a.d===1)return ''+a.n;if(a.n<0)return '-\\dfrac{'+(-a.n)+'}{'+a.d+'}';return '\\dfrac{'+a.n+'}{'+a.d+'}';}
+function fMix(a){if(a.d===1)return ''+a.n;var neg=a.n<0,N=Math.abs(a.n),w=Math.floor(N/a.d),r=N%a.d;if(w===0)return (neg?'-':'')+'\\dfrac{'+r+'}{'+a.d+'}';if(r===0)return (neg?'-':'')+w;return (neg?'-':'')+w+'\\dfrac{'+r+'}{'+a.d+'}';}
+function pFr(a){var t=fMix(a);return a.n<0?'\\left('+t+'\\right)':t;}
+function frTeX(n,d){if(d===0)return null;if(d<0){n=-n;d=-d;}var g=gcd(n,d);n/=g;d/=g;if(d===1)return ''+n;if(n<0)return '-\\dfrac{'+(-n)+'}{'+d+'}';return '\\dfrac{'+n+'}{'+d+'}';}
+// ── Аравтын бутархай (урт хуваалт, үет илрүүлэх) ──
+function longDiv(n,d){var ip=Math.floor(n/d),rem=n%d,digits=[],seen={},idx=0,pStart=-1;
+ while(rem!==0){if(seen[rem]!==undefined){pStart=seen[rem];break;}seen[rem]=idx;rem*=10;digits.push(Math.floor(rem/d));rem%=d;idx++;if(idx>40)break;}
+ return {ip:ip,digits:digits,pStart:pStart};}
+function decLatex(fr){var neg=fr.n<0,r=longDiv(Math.abs(fr.n),fr.d),s=(neg?'-':'');
+ if(r.digits.length===0)return s+r.ip;
+ if(r.pStart<0)return s+r.ip+'.'+r.digits.join('');
+ var nonrep=r.digits.slice(0,r.pStart).join(''),rep=r.digits.slice(r.pStart).join('');
+ return s+r.ip+'.'+nonrep+'('+rep+')';}
+function decPlain(fr){var neg=fr.n<0,r=longDiv(Math.abs(fr.n),fr.d),s=(neg?'-':'');
+ if(r.digits.length===0)return s+r.ip;
+ if(r.pStart<0)return s+r.ip+'.'+r.digits.join('');
+ var nonrep=r.digits.slice(0,r.pStart).join(''),rep=r.digits.slice(r.pStart).join('');
+ return s+r.ip+'.'+nonrep+rep+rep+'…';}
+function repToFr(ip,nonrep,rep){var p=nonrep.length,q=rep.length;var Aint=nonrep===''?0:parseInt(nonrep,10);var ABint=parseInt((nonrep+rep)||'0',10);
+ var den=(Math.pow(10,q)-1)*Math.pow(10,p);var num=ABint-Aint;var frac=Fr(num,den);var whole=Fr(ip,1);return fAdd(whole,frac);}
+// ── Тоймлол ──
+function roundPlace(n,place){return Math.round(n/place)*place;}
+function roundDec(x,step){return Math.round(x/step)*step;}
+function fmtDec(x,dec){return x.toFixed(dec);}
+function sigRound(x,k){if(x===0)return {v:0,dec:0};var d=Math.floor(Math.log10(Math.abs(x)))+1;var p=k-d;var mag=Math.pow(10,p);var v=Math.round(x*mag)/mag;return {v:v,dec:Math.max(0,p)};}
+// ── Зэрэг форматлах ──
+function powClean(b,e){if(e===1)return ''+b;if(e===0)return '1';return b+'^{'+e+'}';}
+function powTex(bTex,e){if(e===1)return bTex;if(e===0)return '1';return bTex+'^{'+e+'}';}
+// ── Аравтын тоог хамгийн энгийн хэлбэрээр (0.50→0.5) ──
+function trimZeros(s){if(s.indexOf('.')<0)return s;s=s.replace(/0+$/,'');if(s.charAt(s.length-1)==='.')s=s.slice(0,-1);return s;}
+function decStr(x,maxdec){var s=x.toFixed(maxdec||6);return trimZeros(s);}
+// ── 2D координатын зураг ──
+function plane(opts){opts=opts||{};var W=200,H=200,pad=16,R=opts.xr||5,cx=W/2,cy=H/2,u=(W-2*pad)/(2*R);
+ function X(x){return (cx+x*u).toFixed(1);}function Y(y){return (cy-y*u).toFixed(1);}
+ var g='',i;
+ for(i=-R;i<=R;i++){g+='<line x1="'+X(i)+'" y1="'+Y(-R)+'" x2="'+X(i)+'" y2="'+Y(R)+'" stroke="#eef" stroke-width="1"/>';g+='<line x1="'+X(-R)+'" y1="'+Y(i)+'" x2="'+X(R)+'" y2="'+Y(i)+'" stroke="#eef" stroke-width="1"/>';}
+ g+='<line x1="'+X(-R)+'" y1="'+Y(0)+'" x2="'+X(R)+'" y2="'+Y(0)+'" stroke="#555" stroke-width="1.3"/>';
+ g+='<line x1="'+X(0)+'" y1="'+Y(-R)+'" x2="'+X(0)+'" y2="'+Y(R)+'" stroke="#555" stroke-width="1.3"/>';
+ g+='<polygon points="'+X(R)+','+Y(0)+' '+(+X(R)-5)+','+(+Y(0)-3)+' '+(+X(R)-5)+','+(+Y(0)+3)+'" fill="#555"/>';
+ g+='<polygon points="'+X(0)+','+Y(R)+' '+(+X(0)-3)+','+(+Y(R)+5)+' '+(+X(0)+3)+','+(+Y(R)+5)+'" fill="#555"/>';
+ g+='<text x="'+(+X(R)-3)+'" y="'+(+Y(0)+12)+'" font-size="10" font-style="italic" fill="#555">x</text>';
+ g+='<text x="'+(+X(0)+5)+'" y="'+(+Y(R)+8)+'" font-size="10" font-style="italic" fill="#555">y</text>';
+ if(!opts.blank){
+  (opts.lines||[]).forEach(function(L){var y1=L.k*(-R)+L.b,y2=L.k*R+L.b;g+='<line x1="'+X(-R)+'" y1="'+Y(y1)+'" x2="'+X(R)+'" y2="'+Y(y2)+'" stroke="'+(L.color||'#7B52EE')+'" stroke-width="2"/>';});
+  (opts.pts||[]).forEach(function(p){g+='<circle cx="'+X(p.x)+'" cy="'+Y(p.y)+'" r="3" fill="#dc2626"/>'+(p.l?'<text x="'+(+X(p.x)+4)+'" y="'+(+Y(p.y)-4)+'" font-size="9" font-weight="700" fill="#b91c1c">'+p.l+'</text>':'');});
+ }
+ return '<svg viewBox="0 0 '+W+' '+H+'" width="188">'+g+'</svg>';}
+// ── Тооны шулуун (blank, зөвхөн хуваарь; цэгийг тэмдэглэхгүй тул хариу илчлэхгүй) ──
+function numline(lo,hi){var W=320,H=44,pad=18,u=(W-2*pad)/(hi-lo);var g='<line x1="'+pad+'" y1="26" x2="'+(W-pad)+'" y2="26" stroke="#555" stroke-width="1.4"/>';
+ g+='<polygon points="'+(W-pad)+',26 '+(W-pad-6)+',23 '+(W-pad-6)+',29" fill="#555"/>';
+ for(var v=lo;v<=hi;v++){var x=pad+(v-lo)*u;g+='<line x1="'+x+'" y1="22" x2="'+x+'" y2="30" stroke="#555" stroke-width="1"/>';g+='<text x="'+x+'" y="41" font-size="9" text-anchor="middle" fill="#555">'+v+'</text>';}
+ return '<svg viewBox="0 0 '+W+' '+H+'" width="300">'+g+'</svg>';}
+// ── Эйлер-Веннийн диаграм (2 олонлог, blank) ──
+function venn2(la,lb){la=la||'A';lb=lb||'B';var g='<rect x="6" y="6" width="248" height="118" rx="6" fill="none" stroke="#b9b0d6"/>';
+ g+='<circle cx="102" cy="65" r="50" fill="rgba(123,82,238,0.13)" stroke="#7B52EE" stroke-width="1.4"/>';
+ g+='<circle cx="158" cy="65" r="50" fill="rgba(168,85,247,0.13)" stroke="#A855F7" stroke-width="1.4"/>';
+ g+='<text x="70" y="70" font-size="14" font-style="italic" fill="#5a32d6">'+la+'</text>';
+ g+='<text x="186" y="70" font-size="14" font-style="italic" fill="#5a32d6">'+lb+'</text>';
+ return '<svg viewBox="0 0 260 130" width="210">'+g+'</svg>';}
+// ── 12-р анги I БҮЛЭГ: ТЭГШИТГЭЛ, ТЭНЦЭТГЭЛ БИШ (сурах бичгийн 5–16 хуудас) ──
+// 1.1 Тооны модул · 1.2 Модул агуулсан тэгшитгэл · 1.3 Модул агуулсан тэнцэтгэл биш
+// g12core.js-ийн дараа залгагдана (rnd, nz, pick, Fr/fTex, frTeX, numline …).
+
+// ════════════════ Туслах: илэрхийлэл ════════════════
+function h12_lin(a, b) {                       // ax+b → "3x-5"
+  var s = (a === 1 ? '' : (a === -1 ? '-' : '' + a)) + 'x';
+  if (b > 0) s += '+' + b; else if (b < 0) s += '-' + (-b);
+  return s;
+}
+function h12_abs(t) { return '\\left|' + t + '\\right|'; }
+function h12_set(arr) {                        // шийдийн олонлог {a; b}
+  if (!arr || !arr.length) return '\\varnothing';
+  return '\\left\\{' + arr.join(';\\ ') + '\\right\\}';
+}
+// Бутархайг эмхэтгэж TeX болгоно (бүхэл бол бүхлээр)
+function h12_q(n, d) { return frTeX(n, d); }
+function h12_qv(n, d) { return n / d; }
+
+// ════════════════ Туслах: завсар ════════════════
+// {lo,hi: тоо эсвэл ±Infinity; li,ri: хаалттай эсэх; lt,ht: TeX}
+function h12_iv(lo, lt, li, hi, ht, ri) { return { lo: lo, lt: lt, li: !!li, hi: hi, ht: ht, ri: !!ri }; }
+function h12_ivAll() { return h12_iv(-Infinity, '', false, Infinity, '', false); }
+function h12_ivEmpty() { return null; }
+function h12_ivTex(I) {
+  if (!I) return '\\varnothing';
+  if (I.lo === -Infinity && I.hi === Infinity) return '\\mathbb{R}';
+  var L = (I.lo === -Infinity) ? ']-\\infty' : ((I.li ? '[' : ']') + I.lt);
+  var R = (I.hi === Infinity) ? '+\\infty[' : (I.ht + (I.ri ? ']' : '['));
+  return L + ';\\ ' + R;
+}
+function h12_ivOk(I) {                          // хоосон биш эсэх
+  if (!I) return false;
+  if (I.lo === -Infinity || I.hi === Infinity) return true;
+  if (I.lo > I.hi) return false;
+  if (I.lo === I.hi) return I.li && I.ri;
+  return true;
+}
+function h12_ivAnd(A, B) {                      // огтлолцол
+  if (!A || !B) return null;
+  var lo, lt, li;
+  if (A.lo > B.lo) { lo = A.lo; lt = A.lt; li = A.li; }
+  else if (A.lo < B.lo) { lo = B.lo; lt = B.lt; li = B.li; }
+  else { lo = A.lo; lt = A.lt; li = A.li && B.li; }
+  var hi, ht, ri;
+  if (A.hi < B.hi) { hi = A.hi; ht = A.ht; ri = A.ri; }
+  else if (A.hi > B.hi) { hi = B.hi; ht = B.ht; ri = B.ri; }
+  else { hi = A.hi; ht = A.ht; ri = A.ri && B.ri; }
+  var R = h12_iv(lo, lt, li, hi, ht, ri);
+  return h12_ivOk(R) ? R : null;
+}
+// Хоёр завсрын нэгдлийг бичнэ (давхцвал нэгтгэнэ)
+function h12_ivOrTex(A, B) {
+  if (!A && !B) return '\\varnothing';
+  if (!A) return h12_ivTex(B);
+  if (!B) return h12_ivTex(A);
+  var P = A, Q = B;
+  if (P.lo > Q.lo) { var t = P; P = Q; Q = t; }
+  var touch = (P.hi > Q.lo) || (P.hi === Q.lo && (P.ri || Q.li));
+  if (touch) {
+    var hi, ht, ri;
+    if (P.hi > Q.hi) { hi = P.hi; ht = P.ht; ri = P.ri; }
+    else if (P.hi < Q.hi) { hi = Q.hi; ht = Q.ht; ri = Q.ri; }
+    else { hi = P.hi; ht = P.ht; ri = P.ri || Q.ri; }
+    return h12_ivTex(h12_iv(P.lo, P.lt, P.li, hi, ht, ri));
+  }
+  return h12_ivTex(P) + '\\cup ' + h12_ivTex(Q);
+}
+// A·x > B  (op: '>','>=','<','<=') → завсар. A≠0 гэж үзнэ.
+function h12_solve(A, B, op) {
+  var v = B / A, t = h12_q(B, A);
+  var flip = A < 0;
+  var o = op;
+  if (flip) o = (op === '>') ? '<' : (op === '>=') ? '<=' : (op === '<') ? '>' : '>=';
+  if (o === '>')  return h12_iv(v, t, false, Infinity, '', false);
+  if (o === '>=') return h12_iv(v, t, true,  Infinity, '', false);
+  if (o === '<')  return h12_iv(-Infinity, '', false, v, t, false);
+  return h12_iv(-Infinity, '', false, v, t, true);
+}
+
+// ════════════════════════════════════════════════════════════
+// 1.1  ТООНЫ МОДУЛ
+// ════════════════════════════════════════════════════════════
+
+// Бүхэл / аравтын / холимог бутархай тооны модул
+function g_101_absNum() {
+  var k = rnd(1, 3), t, ans;
+  if (k === 1) { var a = nz(-199, 199); t = '' + a; ans = '' + Math.abs(a); }
+  else if (k === 2) {
+    var w = rnd(1, 19), f = rnd(1, 99), s = pick([-1, 1]);
+    t = (s < 0 ? '-' : '') + w + '.' + (f < 10 ? '0' + f : f);
+    ans = w + '.' + (f < 10 ? '0' + f : f);
+  } else {
+    var W = rnd(1, 9), d = rnd(2, 12), n = rnd(1, d - 1), S = pick([-1, 1]);
+    t = (S < 0 ? '-' : '') + W + '\\dfrac{' + n + '}{' + d + '}';
+    ans = W + '\\dfrac{' + n + '}{' + d + '}';
+  }
+  return { q: '$' + h12_abs(t) + '$', a: '$' + ans + '$', key: '101n:' + t };
+}
+
+// |a^m - a^n| — зэрэгтийг харьцуулна
+function g_101_absPow() {
+  var a = pick([2, 3, 5, 7, 10]), m = rnd(2, 9), n = rnd(2, 9);
+  if (m === n) return null;
+  var big = Math.max(m, n), sml = Math.min(m, n);
+  var t = a + '^{' + m + '}-' + a + '^{' + n + '}';
+  var ans = a + '^{' + big + '}-' + a + '^{' + sml + '}';
+  var why = (m > n) ? (a + '^{' + m + '}\\gt ' + a + '^{' + n + '}' + '\\text{ тул модул доторх нь эерэг}')
+                    : (a + '^{' + m + '}\\lt ' + a + '^{' + n + '}' + '\\text{ тул модул доторх нь сөрөг}');
+  return { q: '$' + h12_abs(t) + '$', a: '$' + why + '$<br>$=' + ans + '$', key: '101p:' + a + ':' + m + ':' + n };
+}
+
+// |√a - b| — язгуурыг бүхэл тоотой харьцуулна
+function g_101_absRad() {
+  var b = rnd(2, 9), s = b * b, a = pick([s - rnd(1, Math.min(6, s - (b - 1) * (b - 1) - 1 || 1)), s + rnd(1, 2 * b)]);
+  if (a <= 1 || isqrt(a) !== null) return null;
+  var less = a < s;                      // √a < b үү
+  var t = '\\sqrt{' + a + '}-' + b;
+  var ans = less ? (b + '-\\sqrt{' + a + '}') : ('\\sqrt{' + a + '}-' + b);
+  var why = less ? ('\\sqrt{' + a + '}\\lt \\sqrt{' + s + '}=' + b) : ('\\sqrt{' + a + '}\\gt \\sqrt{' + s + '}=' + b);
+  return { q: '$' + h12_abs(t) + '$', a: '$' + why + '$<br>$=' + ans + '$', key: '101r:' + a + ':' + b };
+}
+
+// |∛a - b|
+function g_101_absCbrt() {
+  var b = rnd(2, 6), c = b * b * b, a = pick([c - rnd(1, Math.min(9, c - 1)), c + rnd(1, 12)]);
+  if (a <= 1 || icbrt(a) !== null) return null;
+  var less = a < c;
+  var t = '\\sqrt[3]{' + a + '}-' + b;
+  var ans = less ? (b + '-\\sqrt[3]{' + a + '}') : ('\\sqrt[3]{' + a + '}-' + b);
+  var why = less ? ('\\sqrt[3]{' + a + '}\\lt \\sqrt[3]{' + c + '}=' + b) : ('\\sqrt[3]{' + a + '}\\gt \\sqrt[3]{' + c + '}=' + b);
+  return { q: '$' + h12_abs(t) + '$', a: '$' + why + '$<br>$=' + ans + '$', key: '101c:' + a + ':' + b };
+}
+
+// |x²+bx+c| — дискриминант сөрөг тул үргэлж эерэг
+function g_101_absQuad() {
+  var b = nz(-8, 8), c = rnd(1, 30);
+  if (b * b - 4 * c >= 0) return null;
+  var t = 'x^{2}' + (b > 0 ? '+' + (b === 1 ? '' : b) + 'x' : '-' + (b === -1 ? '' : -b) + 'x') + '+' + c;
+  var D = b * b - 4 * c;
+  return {
+    q: '$' + h12_abs(t) + '$',
+    a: '$D=' + b + '^{2}-4\\cdot' + c + '=' + D + '<0$ тул илэрхийлэл үргэлж эерэг.<br>$=' + t + '$',
+    key: '101q:' + b + ':' + c
+  };
+}
+
+// |тригонометр| — стандарт өнцөг, яг утга
+function g_101_absTrig() {
+  var T = [
+    ['\\cos\\left(-45^{\\circ}\\right)', '\\dfrac{\\sqrt{2}}{2}', '\\cos\\left(-45^{\\circ}\\right)=\\dfrac{\\sqrt{2}}{2}>0'],
+    ['\\sin 210^{\\circ}', '\\dfrac{1}{2}', '\\sin 210^{\\circ}=-\\dfrac{1}{2}<0'],
+    ['\\cos 120^{\\circ}', '\\dfrac{1}{2}', '\\cos 120^{\\circ}=-\\dfrac{1}{2}<0'],
+    ['\\sin\\left(-30^{\\circ}\\right)', '\\dfrac{1}{2}', '\\sin\\left(-30^{\\circ}\\right)=-\\dfrac{1}{2}<0'],
+    ['\\cos 135^{\\circ}', '\\dfrac{\\sqrt{2}}{2}', '\\cos 135^{\\circ}=-\\dfrac{\\sqrt{2}}{2}<0'],
+    ['\\sin 240^{\\circ}', '\\dfrac{\\sqrt{3}}{2}', '\\sin 240^{\\circ}=-\\dfrac{\\sqrt{3}}{2}<0'],
+    ['\\cos 150^{\\circ}', '\\dfrac{\\sqrt{3}}{2}', '\\cos 150^{\\circ}=-\\dfrac{\\sqrt{3}}{2}<0'],
+    ['\\operatorname{tg}135^{\\circ}', '1', '\\operatorname{tg}135^{\\circ}=-1<0'],
+    ['\\operatorname{tg}\\left(-60^{\\circ}\\right)', '\\sqrt{3}', '\\operatorname{tg}\\left(-60^{\\circ}\\right)=-\\sqrt{3}<0'],
+    ['\\cos 300^{\\circ}', '\\dfrac{1}{2}', '\\cos 300^{\\circ}=\\dfrac{1}{2}>0']
+  ];
+  var r = pick(T);
+  return { q: '$' + h12_abs(r[0]) + '$', a: '$' + r[2] + '$<br>$=' + r[1] + '$', key: '101t:' + r[0] };
+}
+
+// |log_a b| — яг зэрэг тул бүхэл утга
+function g_101_absLog() {
+  var a = pick([2, 3, 5, 10]), k = nz(-4, 4);
+  var b = Math.pow(a, Math.abs(k));
+  var inner = (k < 0) ? ('\\dfrac{1}{' + b + '}') : ('' + b);
+  var t = '\\log_{' + a + '}' + inner;
+  return {
+    q: '$' + h12_abs(t) + '$',
+    a: '$' + t + '=' + k + '$ тул<br>$=' + Math.abs(k) + '$',
+    key: '101l:' + a + ':' + k
+  };
+}
+
+// Тоон шулуун дээрх зай: |a-b| (хоосон шулуун зураг)
+function g_101_absDist() {
+  var a = nz(-9, 9), b = nz(-9, 9);
+  if (a === b) return null;
+  return {
+    q: 'Тоон шулуун дээрх $A\\left(' + a + '\\right)$ ба $B\\left(' + b + '\\right)$ цэгийн хоорондох зайг ол.',
+    a: '$AB=' + h12_abs('' + a + (b < 0 ? '+' + (-b) : '-' + b)) + '=' + h12_abs('' + (a - b)) + '=' + Math.abs(a - b) + '$',
+    key: '101d:' + a + ':' + b,
+    fig: numline(-10, 10)
+  };
+}
+
+// ════════════════════════════════════════════════════════════
+// 1.2  МОДУЛ АГУУЛСАН ТЭГШИТГЭЛ
+// ════════════════════════════════════════════════════════════
+
+// |ax+b| = c
+function g_102_eqC() {
+  var a = nz(-6, 6), b = nz(-15, 15), c = rnd(1, 20);
+  var r1 = h12_q(c - b, a), r2 = h12_q(-c - b, a);
+  var v1 = (c - b) / a, v2 = (-c - b) / a;
+  var arr = (v1 < v2) ? [r1, r2] : [r2, r1];
+  return {
+    q: '$' + h12_abs(h12_lin(a, b)) + '=' + c + '$',
+    a: '$' + h12_lin(a, b) + '=' + c + '$ эсвэл $' + h12_lin(a, b) + '=-' + c + '$<br>$x=' + h12_set(arr) + '$',
+    key: '102c:' + a + ':' + b + ':' + c
+  };
+}
+
+// k|ax+b| + m = n  (шийдгүй тохиолдол ч гарна)
+function g_102_eqShift() {
+  var k = pick([2, 3, 4, 5]), a = nz(-5, 5), b = nz(-12, 12);
+  var m = nz(-20, 20), n = nz(-20, 30);
+  var rhs = n - m;
+  if (rhs % k !== 0) return null;
+  var c = rhs / k;
+  var q = '$' + k + h12_abs(h12_lin(a, b)) + (m > 0 ? '+' + m : '-' + (-m)) + '=' + n + '$';
+  if (c < 0) {
+    return { q: q, a: '$' + h12_abs(h12_lin(a, b)) + '=' + c + '<0$ тул шийдгүй.<br>$x\\in\\varnothing$', key: '102s:' + k + a + b + m + n };
+  }
+  if (c === 0) {
+    return { q: q, a: '$' + h12_lin(a, b) + '=0$<br>$x=' + h12_set([h12_q(-b, a)]) + '$', key: '102s:' + k + a + b + m + n };
+  }
+  var v1 = (c - b) / a, v2 = (-c - b) / a;
+  var arr = (v1 < v2) ? [h12_q(c - b, a), h12_q(-c - b, a)] : [h12_q(-c - b, a), h12_q(c - b, a)];
+  return { q: q, a: '$' + h12_abs(h12_lin(a, b)) + '=' + c + '$<br>$x=' + h12_set(arr) + '$', key: '102s:' + k + a + b + m + n };
+}
+
+// p|u| + q = r|u| + s,  u = ax+b
+function g_102_eqBoth() {
+  var p = rnd(2, 6), r = rnd(1, 6);
+  if (p === r) return null;
+  var a = nz(-5, 5), b = nz(-12, 12), q0 = nz(-15, 15), s = nz(-15, 15);
+  var num = s - q0, den = p - r;
+  if (num % den !== 0) return null;
+  var c = num / den;
+  var L = p + h12_abs(h12_lin(a, b)) + (q0 > 0 ? '+' + q0 : '-' + (-q0));
+  var R = r + h12_abs(h12_lin(a, b)) + (s > 0 ? '+' + s : '-' + (-s));
+  var qq = '$' + L + '=' + R + '$';
+  if (c < 0) return { q: qq, a: '$' + (p - r) + h12_abs(h12_lin(a, b)) + '=' + (s - q0) + '$, $' + h12_abs(h12_lin(a, b)) + '=' + c + '<0$ тул шийдгүй.<br>$x\\in\\varnothing$', key: '102b:' + p + r + a + b + q0 + s };
+  if (c === 0) return { q: qq, a: '$' + h12_abs(h12_lin(a, b)) + '=0$<br>$x=' + h12_set([h12_q(-b, a)]) + '$', key: '102b:' + p + r + a + b + q0 + s };
+  var v1 = (c - b) / a, v2 = (-c - b) / a;
+  var arr = (v1 < v2) ? [h12_q(c - b, a), h12_q(-c - b, a)] : [h12_q(-c - b, a), h12_q(c - b, a)];
+  return { q: qq, a: '$' + h12_abs(h12_lin(a, b)) + '=' + c + '$<br>$x=' + h12_set(arr) + '$', key: '102b:' + p + r + a + b + q0 + s };
+}
+
+// ||ax+b| - c| = d
+function g_102_eqNest() {
+  var a = nz(-4, 4), b = nz(-10, 10), c = rnd(1, 12), d = rnd(1, 12);
+  var inner = [c + d, c - d];                 // |ax+b| = c+d  эсвэл  c-d
+  var sols = [];
+  inner.forEach(function (t) {
+    if (t < 0) return;
+    if (t === 0) { sols.push({ v: -b / a, t: h12_q(-b, a) }); return; }
+    sols.push({ v: (t - b) / a, t: h12_q(t - b, a) });
+    sols.push({ v: (-t - b) / a, t: h12_q(-t - b, a) });
+  });
+  if (!sols.length) return null;
+  sols.sort(function (x, y) { return x.v - y.v; });
+  var seen = {}, out = [];
+  sols.forEach(function (s) { if (!seen[s.t]) { seen[s.t] = 1; out.push(s.t); } });
+  var step = (c - d < 0)
+    ? ('$' + h12_abs(h12_lin(a, b)) + '=' + (c + d) + '$ (нөгөө нь $' + (c - d) + '<0$ тул шийдгүй)')
+    : ('$' + h12_abs(h12_lin(a, b)) + '=' + (c + d) + '$ эсвэл $' + h12_abs(h12_lin(a, b)) + '=' + (c - d) + '$');
+  return {
+    q: '$' + h12_abs(h12_abs(h12_lin(a, b)) + '-' + c) + '=' + d + '$',
+    a: step + '<br>$x=' + h12_set(out) + '$',
+    key: '102n:' + a + ':' + b + ':' + c + ':' + d
+  };
+}
+
+// |ax+b| = cx+d   (шийдийг заавал шалгана)
+function g_102_eqCx() {
+  var a = nz(-6, 6), b = nz(-15, 15), c = nz(-5, 5), d = nz(-15, 15);
+  if (a === c || a === -c) return null;
+  var roots = [];
+  // 1) ax+b = cx+d → (a-c)x = d-b, нөхцөл: ax+b ≥ 0
+  var n1 = d - b, m1 = a - c, x1 = n1 / m1;
+  if (a * x1 + b >= -1e-9) roots.push({ v: x1, t: h12_q(n1, m1) });
+  // 2) -(ax+b) = cx+d → (a+c)x = -d-b, нөхцөл: ax+b < 0
+  var n2 = -d - b, m2 = a + c, x2 = n2 / m2;
+  if (a * x2 + b < -1e-9) roots.push({ v: x2, t: h12_q(n2, m2) });
+  roots.sort(function (p, q) { return p.v - q.v; });
+  var seen = {}, out = [];
+  roots.forEach(function (r) { if (!seen[r.t]) { seen[r.t] = 1; out.push(r.t); } });
+  var sol = '$x=' + h12_set(out) + '$';
+  return {
+    q: '$' + h12_abs(h12_lin(a, b)) + '=' + h12_lin(c, d) + '$',
+    a: '$' + h12_lin(a, b) + '\\ge 0$ үед $' + h12_lin(a, b) + '=' + h12_lin(c, d) + '$,<br>'
+       + '$' + h12_lin(a, b) + '<0$ үед $-\\left(' + h12_lin(a, b) + '\\right)=' + h12_lin(c, d) + '$.<br>'
+       + 'Нөхцөлөө хангасан шийд: ' + sol,
+    key: '102x:' + a + ':' + b + ':' + c + ':' + d
+  };
+}
+
+// |ax+b| = |cx+d|
+function g_102_eqAbsAbs() {
+  var a = nz(-7, 7), b = nz(-15, 15), c = nz(-7, 7), d = nz(-15, 15);
+  if (a === c && b === d) return null;
+  if (a === -c && b === -d) return null;
+  var out = [], seen = {}, list = [];
+  if (a !== c) { var t1 = h12_q(d - b, a - c); list.push({ v: (d - b) / (a - c), t: t1 }); }
+  if (a !== -c) { var t2 = h12_q(-d - b, a + c); list.push({ v: (-d - b) / (a + c), t: t2 }); }
+  if (!list.length) return null;
+  list.sort(function (p, q) { return p.v - q.v; });
+  list.forEach(function (r) { if (!seen[r.t]) { seen[r.t] = 1; out.push(r.t); } });
+  return {
+    q: '$' + h12_abs(h12_lin(a, b)) + '=' + h12_abs(h12_lin(c, d)) + '$',
+    a: '$' + h12_lin(a, b) + '=' + h12_lin(c, d) + '$ эсвэл $' + h12_lin(a, b) + '=-\\left(' + h12_lin(c, d) + '\\right)$<br>'
+       + '$x=' + h12_set(out) + '$',
+    key: '102a:' + a + ':' + b + ':' + c + ':' + d
+  };
+}
+
+// |x² - p| = q
+function g_102_eqQuad() {
+  var p = rnd(1, 30), q = rnd(1, 25);
+  var vals = [p + q, p - q], out = [], seen = {}, arr = [];
+  vals.forEach(function (t) {
+    if (t < 0) return;
+    if (t === 0) { arr.push({ v: 0, t: '0' }); return; }
+    var r = isqrt(t);
+    var tx = (r !== null) ? ('' + r) : ('\\sqrt{' + t + '}');
+    arr.push({ v: -Math.sqrt(t), t: '-' + tx });
+    arr.push({ v: Math.sqrt(t), t: tx });
+  });
+  if (!arr.length) return null;
+  arr.sort(function (x, y) { return x.v - y.v; });
+  arr.forEach(function (s) { if (!seen[s.t]) { seen[s.t] = 1; out.push(s.t); } });
+  var note = (p - q < 0) ? ('$x^{2}=' + (p + q) + '$ (нөгөө нь $x^{2}=' + (p - q) + '<0$ тул шийдгүй)')
+                         : ('$x^{2}=' + (p + q) + '$ эсвэл $x^{2}=' + (p - q) + '$');
+  return {
+    q: '$' + h12_abs('x^{2}-' + p) + '=' + q + '$',
+    a: note + '<br>$x=' + h12_set(out) + '$',
+    key: '102u:' + p + ':' + q
+  };
+}
+
+// ════════════════════════════════════════════════════════════
+// 1.3  МОДУЛ АГУУЛСАН ТЭНЦЭТГЭЛ БИШ
+// ════════════════════════════════════════════════════════════
+
+// |ax+b| < c  буюу  ≤ c   ( -c < ax+b < c )
+function g_103_ineqLt() {
+  var a = nz(-6, 6), b = nz(-14, 14), c = rnd(1, 20), eq = pick([0, 1]);
+  var op = eq ? '\\le ' : '\\lt ';
+  var I = h12_ivAnd(h12_solve(a, -c - b, eq ? '>=' : '>'), h12_solve(a, c - b, eq ? '<=' : '<'));
+  return {
+    q: '$' + h12_abs(h12_lin(a, b)) + op + c + '$',
+    a: '$-' + c + op + h12_lin(a, b) + op + c + '$<br>$x\\in ' + h12_ivTex(I) + '$',
+    key: '103l:' + a + ':' + b + ':' + c + ':' + eq
+  };
+}
+
+// |ax+b| > c  буюу  ≥ c   ( ax+b > c  эсвэл  ax+b < -c )
+function g_103_ineqGt() {
+  var a = nz(-6, 6), b = nz(-14, 14), c = rnd(1, 20), eq = pick([0, 1]);
+  var op = eq ? '\\ge ' : '\\gt ';
+  var A = h12_solve(a, c - b, eq ? '>=' : '>');
+  var B = h12_solve(a, -c - b, eq ? '<=' : '<');
+  return {
+    q: '$' + h12_abs(h12_lin(a, b)) + op + c + '$',
+    a: '$' + h12_lin(a, b) + op + c + '$ эсвэл $' + h12_lin(a, b) + (eq ? '\\le ' : '\\lt ') + '-' + c + '$<br>'
+       + '$x\\in ' + h12_ivOrTex(A, B) + '$',
+    key: '103g:' + a + ':' + b + ':' + c + ':' + eq
+  };
+}
+
+// k|ax+b| + m < n
+function g_103_ineqShift() {
+  var k = pick([2, 3, 4]), a = nz(-5, 5), b = nz(-12, 12), m = nz(-18, 18), n = nz(-10, 30);
+  var rhs = n - m;
+  if (rhs % k !== 0) return null;
+  var c = rhs / k;
+  var lt = pick([0, 1]);                       // 1 бол «<», 0 бол «>»
+  var q = '$' + k + h12_abs(h12_lin(a, b)) + (m > 0 ? '+' + m : '-' + (-m)) + (lt ? '\\lt ' : '\\gt ') + n + '$';
+  if (lt) {
+    if (c <= 0) return { q: q, a: '$' + h12_abs(h12_lin(a, b)) + '\\lt ' + c + '\\le 0$ тул шийдгүй.<br>$x\\in\\varnothing$', key: '103s:' + k + a + b + m + n + lt };
+    var I = h12_ivAnd(h12_solve(a, -c - b, '>'), h12_solve(a, c - b, '<'));
+    return { q: q, a: '$' + h12_abs(h12_lin(a, b)) + '\\lt ' + c + '$<br>$x\\in ' + h12_ivTex(I) + '$', key: '103s:' + k + a + b + m + n + lt };
+  }
+  if (c < 0) return { q: q, a: '$' + h12_abs(h12_lin(a, b)) + '\\gt ' + c + '$ нь үргэлж биелнэ.<br>$x\\in\\mathbb{R}$', key: '103s:' + k + a + b + m + n + lt };
+  if (c === 0) return { q: q, a: '$' + h12_abs(h12_lin(a, b)) + '\\gt 0$ буюу $' + h12_lin(a, b) + '\\ne 0$<br>$x\\ne ' + h12_q(-b, a) + '$', key: '103s:' + k + a + b + m + n + lt };
+  var A = h12_solve(a, c - b, '>'), B = h12_solve(a, -c - b, '<');
+  return { q: q, a: '$' + h12_abs(h12_lin(a, b)) + '\\gt ' + c + '$<br>$x\\in ' + h12_ivOrTex(A, B) + '$', key: '103s:' + k + a + b + m + n + lt };
+}
+
+// p < |ax+b| < q   (давхар тэнцэтгэл биш)
+function g_103_ineqDouble() {
+  var a = nz(-5, 5), b = nz(-12, 12), p = rnd(1, 8), q = p + rnd(2, 12);
+  // p < ax+b < q   ЭСВЭЛ   -q < ax+b < -p
+  var I1 = h12_ivAnd(h12_solve(a, p - b, '>'), h12_solve(a, q - b, '<'));
+  var I2 = h12_ivAnd(h12_solve(a, -q - b, '>'), h12_solve(a, -p - b, '<'));
+  return {
+    q: '$' + p + '\\lt ' + h12_abs(h12_lin(a, b)) + '\\lt ' + q + '$',
+    a: '$' + p + '\\lt ' + h12_lin(a, b) + '\\lt ' + q + '$ эсвэл $-' + q + '\\lt ' + h12_lin(a, b) + '\\lt -' + p + '$<br>'
+       + '$x\\in ' + h12_ivOrTex(I1, I2) + '$',
+    key: '103d:' + a + ':' + b + ':' + p + ':' + q
+  };
+}
+
+// |ax+b| < cx+d     ( -(cx+d) < ax+b < cx+d )
+function g_103_ineqCxLt() {
+  var a = nz(-5, 5), b = nz(-12, 12), c = nz(-4, 4), d = nz(-12, 12);
+  if (a === c || a === -c) return null;
+  // ax+b < cx+d → (a-c)x < d-b ;  ax+b > -(cx+d) → (a+c)x > -d-b
+  var I = h12_ivAnd(h12_solve(a - c, d - b, '<'), h12_solve(a + c, -d - b, '>'));
+  return {
+    q: '$' + h12_abs(h12_lin(a, b)) + '\\lt ' + h12_lin(c, d) + '$',
+    a: '$-\\left(' + h12_lin(c, d) + '\\right)\\lt ' + h12_lin(a, b) + '\\lt ' + h12_lin(c, d) + '$<br>'
+       + '$x\\in ' + h12_ivTex(I) + '$',
+    key: '103cl:' + a + ':' + b + ':' + c + ':' + d
+  };
+}
+
+// |ax+b| > cx+d     ( ax+b > cx+d  эсвэл  ax+b < -(cx+d) )
+function g_103_ineqCxGt() {
+  var a = nz(-5, 5), b = nz(-12, 12), c = nz(-4, 4), d = nz(-12, 12);
+  if (a === c || a === -c) return null;
+  var A = h12_solve(a - c, d - b, '>');
+  var B = h12_solve(a + c, -d - b, '<');
+  return {
+    q: '$' + h12_abs(h12_lin(a, b)) + '\\gt ' + h12_lin(c, d) + '$',
+    a: '$' + h12_lin(a, b) + '\\gt ' + h12_lin(c, d) + '$ эсвэл $' + h12_lin(a, b) + '\\lt -\\left(' + h12_lin(c, d) + '\\right)$<br>'
+       + '$x\\in ' + h12_ivOrTex(A, B) + '$',
+    key: '103cg:' + a + ':' + b + ':' + c + ':' + d
+  };
+}
+
+// |ax+b| > |cx+d|   (хоёр талыг квадрат зэрэгт дэвшүүлнэ)
+function g_103_ineqAbsAbs() {
+  var a = nz(-6, 6), b = nz(-12, 12), c = nz(-6, 6), d = nz(-12, 12);
+  if (Math.abs(a) === Math.abs(c)) return null;
+  var gt = pick([0, 1]);
+  // (ax+b)² - (cx+d)² > 0 → ((a-c)x+(b-d))·((a+c)x+(b+d)) > 0
+  var p1 = a - c, q1 = b - d, p2 = a + c, q2 = b + d;
+  var A = Math.pow(a, 2) - Math.pow(c, 2);     // квадрат гишүүний коэффициент (>0 эсвэл <0)
+  var r1 = -q1 / p1, r2 = -q2 / p2;
+  var t1 = h12_q(-q1, p1), t2 = h12_q(-q2, p2);
+  var lo, hi, lt, ht;
+  if (r1 < r2) { lo = r1; lt = t1; hi = r2; ht = t2; } else { lo = r2; lt = t2; hi = r1; ht = t1; }
+  if (r1 === r2) return null;
+  // A>0 бол парабол дээш → хоёр язгуурын ГАДНА эерэг; A<0 бол ДОТОР эерэг
+  var outside = (A > 0);
+  var want = gt ? outside : !outside;          // «>» бол эерэг муж, «<» бол сөрөг муж
+  var txt;
+  if (want) txt = h12_ivOrTex(h12_iv(-Infinity, '', false, lo, lt, false), h12_iv(hi, ht, false, Infinity, '', false));
+  else txt = h12_ivTex(h12_iv(lo, lt, false, hi, ht, false));
+  return {
+    q: '$' + h12_abs(h12_lin(a, b)) + (gt ? '\\gt ' : '\\lt ') + h12_abs(h12_lin(c, d)) + '$',
+    a: 'Хоёр тал сөрөг биш тул квадрат зэрэгт дэвшүүлье:<br>'
+       + '$\\left(' + h12_lin(a, b) + '\\right)^{2}' + (gt ? '\\gt ' : '\\lt ') + '\\left(' + h12_lin(c, d) + '\\right)^{2}$<br>'
+       + '$\\left(' + h12_lin(p1, q1) + '\\right)\\left(' + h12_lin(p2, q2) + '\\right)' + (gt ? '\\gt ' : '\\lt ') + '0$<br>'
+       + '$x\\in ' + txt + '$',
+    key: '103aa:' + a + ':' + b + ':' + c + ':' + d + ':' + gt
+  };
+}
+
+// |x| ≥ a хэлбэрийн хамгийн энгийн нь (тоон шулуунтай)
+function g_103_ineqBasic() {
+  var c = rnd(2, 15), gt = pick([0, 1]), eq = pick([0, 1]);
+  var op = gt ? (eq ? '\\ge ' : '\\gt ') : (eq ? '\\le ' : '\\lt ');
+  var ans = gt
+    ? h12_ivOrTex(h12_iv(-Infinity, '', false, -c, '-' + c, !!eq), h12_iv(c, '' + c, !!eq, Infinity, '', false))
+    : h12_ivTex(h12_iv(-c, '-' + c, !!eq, c, '' + c, !!eq));
+  return {
+    q: '$' + h12_abs('x') + op + c + '$',
+    a: '$x\\in ' + ans + '$',
+    key: '103b:' + c + ':' + gt + ':' + eq
+  };
+}
+var WSPEC={"title":"Модул агуулсан тэгшитгэл-2","sub":"Давхар модултай тэгшитгэл · I бүлэг · 12-р анги","rule":"<b>Санамж:</b> $|f(x)|=a$ тэгшитгэл $a<0$ үед шийдгүй, $a=0$ үед $f(x)=0$, $a>0$ үед $f(x)=a$ эсвэл $f(x)=-a$ болно.","ref":"","tasks":[{"label":"Тэгшитгэл бод.","fn":"g_102_eqC","cap":5,"cols":3,"wk":16},{"label":"Тэгшитгэл бод.","fn":"g_102_eqShift","cap":7,"cols":2,"wk":20},{"label":"Тэгшитгэл бод.","fn":"g_102_eqNest","cap":5,"cols":2,"wk":24}]};
+
+function toggleAns(){var el=document.getElementById('answers');if(el)el.style.display=document.getElementById('sa').checked?'block':'none';}
+function gen(fn){for(var t=0;t<700;t++){var f=fn();if(f)return f;}return null;}
+var LET=['а','б','в','г','д','е','ё','ж','з','и','к','л','м','н','о','ө','п','р','с','т'];
+function probeH(sheet){var pr=sheet.cloneNode(true);pr.removeAttribute('id');pr.style.cssText='position:absolute;left:-99999px;top:0;width:210mm;max-width:none;min-height:0;margin:0;padding:0;box-shadow:none;zoom:1';var a=pr.querySelector('#answers,.ans-page');if(a)a.remove();document.body.appendChild(pr);var h=pr.scrollHeight;document.body.removeChild(pr);return h;}
+function relabel(sheet){var blocks=sheet.querySelectorAll('.grid'),map={},cnt={};for(var g=0;g<blocks.length;g++){var gr=blocks[g].getAttribute('data-gr')||(g+1);var solo=blocks[g].getAttribute('data-solo')==='1';if(cnt[gr]===undefined)cnt[gr]=0;var qs2=blocks[g].querySelectorAll('.q');for(var i=0;i<qs2.length;i++){var ix=cnt[gr]++;var lt=LET[ix]||('#'+(ix+1));var ql=qs2[i].querySelector('.ql');if(solo&&qs2.length===1){if(ql)ql.textContent='';map[qs2[i].getAttribute('data-k')]=gr+')';}else{if(ql)ql.textContent=lt+')';map[qs2[i].getAttribute('data-k')]=gr+lt+')';}}}
+  var as=sheet.querySelectorAll('#answers .a');for(var j=0;j<as.length;j++){var an=as[j].querySelector('.an');if(an)an.textContent=map[as[j].getAttribute('data-k')]||'';}}
+function trimToFit(sheet,target){var guard=0,h=probeH(sheet);while(h>target&&guard++<90){var blocks=sheet.querySelectorAll('.grid'),best=-1,bestN=-1;for(var s=blocks.length-1;s>=0;s--){var n=blocks[s].querySelectorAll('.q').length;if(n>bestN&&n>2){bestN=n;best=s;}}if(best<0)break;var qs2=blocks[best].querySelectorAll('.q');var last=qs2[qs2.length-1],k=last.getAttribute('data-k');var ans=sheet.querySelector('#answers .a[data-k="'+k+'"]');if(ans)ans.parentNode.removeChild(ans);last.parentNode.removeChild(last);relabel(sheet);h=probeH(sheet);}}
+var TASKS=WSPEC.tasks.map(function(t){return {label:t.label, fn:eval(t.fn), cap:t.cap, cols:t.cols, wk:t.wk, solo:t.solo};});
+function genPool(){var P=TASKS.map(function(){return[];});var seen={};TASKS.forEach(function(t,i){var c=0,tr=0,need=t.cap+3;while(c<need&&tr<9000){tr++;var f=gen(t.fn);if(!f||seen[f.key])continue;seen[f.key]=1;P[i].push(f);c++;}});return P;}
+function build(){window.__POOL=genPool();layout();}
+function layout(){var WK=document.getElementById('sw').checked;var S=window.__POOL||(window.__POOL=genPool());window.__PROB=[];var K=0;
+  function block(arr,cap,tk,gno){var use=WK?arr.slice(0,cap):arr;return '<div class="grid" data-gr="'+gno+'"'+(tk&&tk.solo?' data-solo="1"':'')+(tk&&tk.cols?' style="grid-template-columns:repeat('+tk.cols+',1fr)"':'')+'>'+use.map(function(f){var k=K++;window.__PROB.push({f:f,k:k});return '<div class="q" data-k="'+k+'"><div class="qh"><span class="ql"></span><span class="qm">'+f.q+'</span></div>'+(f.fig?'<div class="fig">'+f.fig+'</div>':'')+((WK&&!f.noWk)?'<div class="wk"'+(tk&&tk.wk?' style="height:'+tk.wk+'mm"':'')+'></div>':'')+'</div>';}).join('')+'</div>';}
+  function ansAll(){return window.__PROB.map(function(p){return '<div class="a" data-k="'+p.k+'"><span class="an"></span>'+p.f.a+'</div>';}).join('');}
+  var html='<div class="head"><h1>'+WSPEC.title+'</h1><div class="sub">'+WSPEC.sub+'</div></div>'
+    +'<div class="meta"><span>Нэр: </span><span>Анги: </span><span>Огноо: </span></div>'
+    +'<div class="rule">'+WSPEC.rule+'</div>'+(WSPEC.ref||'');
+  var __g=0,__p=null;TASKS.forEach(function(t,i){if(t.label!==__p||t.solo){__g++;html+='<div class="task">'+__g+'. '+t.label+'</div>';__p=t.solo?null:t.label;}html+=block(S[i],t.cap,t,__g);});
+  html+='<div class="ans-page" id="answers"><h2>Хариу ба бодолт</h2><div class="ans-grid">'+ansAll()+'</div></div>';
+  document.getElementById('sheet').innerHTML=html;
+  window.WS_ITEMS=[];window.WS_TITLE=WSPEC.title;
+  relabel(document.getElementById('sheet'));toggleAns();
+  try{renderMathInElement(document.getElementById('sheet'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});}catch(e){}
+  try{if(!WK)trimToFit(document.getElementById('sheet'),1035);}catch(e){}
+  try{relabel(document.getElementById('sheet'));}catch(e){}
+}
+build();
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>
