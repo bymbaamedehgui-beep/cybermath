@@ -3630,6 +3630,10 @@ window.addEventListener('load', function() {
       <button class="btn-hero-secondary" onclick="openAuthModal('login')" style="width:auto;padding:16px 36px;font-family:'Nunito',sans-serif;text-align:center;">
         Нэвтрэх →
       </button>
+      <button class="btn-hero-secondary" onclick="cmTryDemo()" style="width:auto;padding:16px 32px;font-family:'Nunito',sans-serif;text-align:center;display:inline-flex;align-items:center;gap:8px;">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Бүртгэлгүй туршиж үзэх
+      </button>
     </div>
 
   </div>
@@ -49486,9 +49490,16 @@ function renderMath(text) {
           ${gemReward > 0 && !alreadyDone ? `<div class="result-stat"><div class="val" style="color:#1CB0F6">+${gemReward}💎</div><div class="lbl">Алмааз</div></div>` : `<div class="result-stat"><div class="val">${Math.round(score/total*100)}%</div><div class="lbl">Оноо</div></div>`}
         </div>
         <div id="lesson-reactions-done-${currentLessonId}" style="margin:14px 0;"></div>
-        ${stars > 0
-          ? '<button class="check-btn" onclick="closeModal()" style="margin-bottom:12px">ҮРГЭЛЖЛҮҮЛЭХ →</button>'
-          : '<button class="check-btn" onclick="openLesson(currentLessonId)" style="margin-bottom:12px;background:#FF4B4B;box-shadow:0 5px 0 #cc0000;">🔄 ДАХИН ХИЙХ</button>'}
+        ${window._cmDemo
+          ? '<div style="border-top:1.5px solid #ececf4;margin-top:14px;padding-top:16px;text-align:left">'
+            + '<div style="font-weight:900;font-size:1.02rem;color:#1a1035;margin-bottom:5px">Энэ бол эхний хичээл</div>'
+            + '<div style="font-size:0.88rem;color:#6c6486;line-height:1.5;margin-bottom:14px">Бүртгүүлбэл ахицаа хадгалж, дараагийн хичээлүүд, оноо, тоглоомууд нээгдэнэ.</div>'
+            + '<button class="check-btn" onclick="cmDemoRegister()" style="margin-bottom:10px">БҮРТГҮҮЛЭХ →</button>'
+            + '<button onclick="cmDemoExit()" style="width:100%;border:1.6px solid #d9dbe6;background:#fff;color:#6c6486;font-family:inherit;font-weight:800;font-size:0.92rem;border-radius:14px;padding:11px;cursor:pointer">Буцах</button>'
+            + '</div>'
+          : (stars > 0
+            ? '<button class="check-btn" onclick="closeModal()" style="margin-bottom:12px">ҮРГЭЛЖЛҮҮЛЭХ →</button>'
+            : '<button class="check-btn" onclick="openLesson(currentLessonId)" style="margin-bottom:12px;background:#FF4B4B;box-shadow:0 5px 0 #cc0000;">🔄 ДАХИН ХИЙХ</button>')}
 
       </div>
     `;
@@ -49500,6 +49511,14 @@ function renderMath(text) {
   let currentLessonId = 1;
 
   function closeModal() {
+    if (window._cmDemo) {                       // туршилт — буцаад landing руу
+      window._cmDemo = false;
+      var ov = document.getElementById('quiz-modal');
+      if (ov) { ov.style.display = 'none'; ov.classList.remove('open'); }
+      try { showLanding(); } catch (e) {}
+      window.scrollTo(0, 0);
+      return;
+    }
     var overlay = document.getElementById('quiz-modal');
     if (overlay) { overlay.style.paddingTop = ''; overlay.style.paddingBottom = ''; }
     if (window.mathVirtualKeyboard) window.mathVirtualKeyboard.hide();
@@ -57233,6 +57252,63 @@ function toggleAvatarSection() {
     if (aBtn) aBtn.style.display = 'none';
     if (aBot) aBot.style.display = 'none';
   }
+
+  /* ───────── Бүртгэлгүй туршилт ─────────
+     Зочин хэрэглэгч сурах замын ХАМГИЙН ЭХНИЙ хичээлийг нэг удаа үзнэ.
+     _currentUser тавихгүй тул серверт юу ч хадгалагдахгүй (syncUserToServer,
+     addXp зэрэг нь email байхгүй бол шууд буцдаг). */
+  window._cmDemo = false;
+  window.cmDemoFirstNode = function () {
+    var nodes = [];
+    try { nodes = JSON.parse(localStorage.getItem('cm_nodes') || '[]'); } catch (e) { nodes = []; }
+    if (!nodes.length) return null;
+    var G = '9-р анги';
+    var mine = nodes.filter(function (x) { return String(x.grade || '') === G; });
+    if (!mine.length) mine = nodes.slice();
+    mine.sort(function (a, b) {
+      var sa = (a.sort_order == null ? a.id : a.sort_order);
+      var sb = (b.sort_order == null ? b.id : b.sort_order);
+      return sa - sb || a.id - b.id;
+    });
+    return mine[0] ? mine[0].id : null;
+  };
+  window.cmTryDemo = function () {
+    function go() {
+      var nd = window.cmDemoFirstNode();
+      if (nd === null) {
+        if (typeof showToast === 'function') showToast('Хичээл ачаалж чадсангүй. Дахин оролдоно уу.');
+        return;
+      }
+      window._cmDemo = true;
+      try { showApp(); } catch (e) {}
+      window.scrollTo(0, 0);
+      try { localStorage.removeItem('cm_progress_' + nd); } catch (e) {}
+      setTimeout(function () { try { openLesson(nd); } catch (e) {} }, 150);
+    }
+    // nodes кэш хоосон бол сервэрээс нэг удаа татна
+    var have = 0;
+    try { have = (JSON.parse(localStorage.getItem('cm_nodes') || '[]')).length; } catch (e) {}
+    if (have) return go();
+    if (typeof showToast === 'function') showToast('Хичээл бэлдэж байна…');
+    fetch('/api/nodes').then(function (r) { return r.json(); }).then(function (d) {
+      if (d && d.nodes) { try { localStorage.setItem('cm_nodes', JSON.stringify(d.nodes)); } catch (e) {} }
+      go();
+    }).catch(function () {
+      if (typeof showToast === 'function') showToast('Сүлжээний алдаа. Дахин оролдоно уу.');
+    });
+  };
+  window.cmDemoExit = function () {
+    window._cmDemo = false;
+    try { closeModal(); } catch (e) {}
+    try { showLanding(); } catch (e) {}
+    window.scrollTo(0, 0);
+  };
+  window.cmDemoRegister = function () {
+    window._cmDemo = false;
+    try { closeModal(); } catch (e) {}
+    try { showLanding(); } catch (e) {}
+    setTimeout(function () { try { openAuthModal('register'); } catch (e) {} }, 200);
+  };
   function checkHeartRestore() {
     var emptyTime = localStorage.getItem('cm_heart_empty_time');
     if (!emptyTime) return;
