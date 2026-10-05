@@ -607,10 +607,61 @@ module.exports = async (req, res) => {
       }
 
       // ===== MATHLET TOURNAMENT =====
+      /* Багшийн өөрөө үүсгэсэн бодлогыг цэвэрлэнэ.
+         type: 'choice' (сонголттой тест) эсвэл 'fill' (хариугаа нөхөх).
+         Текст нь LaTeX агуулж болно — клиент дээр KaTeX-ээр рендерлэнэ. */
+      function cleanCustomQuestions(list) {
+        if (!Array.isArray(list)) return [];
+        const out = [];
+        for (const raw of list.slice(0, 50)) {
+          if (!raw || typeof raw !== 'object') continue;
+          const text = String(raw.text || '').trim().slice(0, 1000);
+          if (!text) continue;
+          const type = raw.type === 'fill' ? 'fill' : 'choice';
+          if (type === 'fill') {
+            const correct = String(raw.correct == null ? '' : raw.correct).trim().slice(0, 200);
+            if (!correct) continue;
+            out.push({ id: 'c' + out.length, custom: true, type: 'fill', text, correct,
+              hint: String(raw.hint || '').trim().slice(0, 300) || null, choices: [] });
+          } else {
+            let ch = Array.isArray(raw.choices) ? raw.choices : [];
+            ch = ch.map(x => String(x == null ? '' : x).trim().slice(0, 200)).filter(x => x);
+            ch = ch.filter((x, i) => ch.indexOf(x) === i);          // давхцлыг хасна
+            if (ch.length < 2 || ch.length > 4) continue;
+            const correct = String(raw.correct == null ? '' : raw.correct).trim().slice(0, 200);
+            if (!correct || ch.indexOf(correct) < 0) continue;      // зөв хариу сонголтод байх ёстой
+            out.push({ id: 'c' + out.length, custom: true, type: 'choice', text, choices: ch, correct,
+              hint: String(raw.hint || '').trim().slice(0, 300) || null });
+          }
+        }
+        return out;
+      }
+      /* «Хариу нөхөх» хэлбэрийн тулгалт — зай, $, \left/\right, dfrac зэргийг жигдрүүлнэ */
+      function fillNorm(v) {
+        let t = String(v == null ? '' : v);
+        t = t.replace(/\$/g, '')
+             .replace(/\\left|\\right/g, '')
+             .replace(/\\dfrac|\\tfrac/g, '\\frac')
+             .replace(/\\cdot|\\times/g, '*')
+             .replace(/[{}\s]/g, '')
+             .replace(/,/g, '.')
+             .toLowerCase();
+        return t;
+      }
+      function fillMatches(given, correct) {
+        const a = fillNorm(given), b = fillNorm(correct);
+        if (!a) return false;
+        if (a === b) return true;
+        const na = Number(a), nb = Number(b);                        // тоон хувилбар (0.5 = .5)
+        if (!isNaN(na) && !isNaN(nb)) return Math.abs(na - nb) < 1e-9;
+        return false;
+      }
       // Багш Room үүсгэх
       if (action === 'createTournament') {
-        const { classroomId, title, lessons, questionCount, prizeXp, secondsPerQuestion, mode } = req.body || {};
-        if (!classroomId || !lessons || !lessons.length) return res.json({ ok: false, error: 'Missing fields' });
+        const { classroomId, title, lessons, questionCount, prizeXp, secondsPerQuestion, mode, customQuestions } = req.body || {};
+        const myQs = cleanCustomQuestions(customQuestions);
+        const hasLessons = Array.isArray(lessons) && lessons.length;
+        if (!classroomId || (!hasLessons && !myQs.length)) return res.json({ ok: false, error: 'Missing fields' });
         if (!(await ownsClassroom(access, email, classroomId))) {
           return res.status(403).json({ ok: false, error: 'Зөвшөөрөлгүй' });
         }
@@ -621,23 +672,33 @@ module.exports = async (req, res) => {
           [1, 2, 3].forEach(k => { safePrize[k] = Math.min(MAX_ADD_ONCE, nonNegInt(prizeXp[k])); });
         }
         const tournamentMode = (mode === 'paper') ? 'paper' : 'phone';
-        const qRes = await pool.query(
-          `SELECT id, text, choices, correct, image, hint, node_id, type FROM questions
-           WHERE node_id = ANY($1::int[])
-             AND (type IS NULL OR type = 'choice')`,
-          [lessons]
-        );
-        let validQs = qRes.rows.filter(q => {
-          let ch = q.choices;
-          if (typeof ch === 'string') {
-            try { ch = JSON.parse(ch); } catch(e) { return false; }
-          }
-          return Array.isArray(ch) && ch.length >= 2 && ch.length <= 4;
-        });
-        let allQs = validQs.sort(() => Math.random() - 0.5);
-        const limit = Math.min(parseInt(questionCount) || 10, allQs.length);
-        const selected = allQs.slice(0, limit);
+        let selected;
+        if (myQs.length && !hasLessons) {
+          selected = myQs;                                           // зөвхөн багшийн бодлогууд
+        } else {
+          const qRes = await pool.query(
+            `SELECT id, text, choices, correct, image, hint, node_id, type FROM questions
+             WHERE node_id = ANY($1::int[])
+               AND (type IS NULL OR type = 'choice')`,
+            [lessons]
+          );
+          let validQs = qRes.rows.filter(q => {
+            let ch = q.choices;
+            if (typeof ch === 'string') {
+              try { ch = JSON.parse(ch); } catch(e) { return false; }
+            }
+            return Array.isArray(ch) && ch.length >= 2 && ch.length <= 4;
+          });
+          let allQs = validQs.sort(() => Math.random() - 0.5);
+          const limit = Math.min(parseInt(questionCount) || 10, allQs.length);
+          selected = allQs.slice(0, limit);
+          if (myQs.length) selected = myQs.concat(selected);         // багшийнх нь түрүүлж орно
+        }
         if (!selected.length) return res.json({ ok: false, error: 'Сонгосон хичээлүүдэд асуулт байхгүй' });
+        // «Хариу нөхөх» бодлого цаасан горимд ажиллахгүй (ABCD карт уншина)
+        if ((mode === 'paper') && selected.some(q => q && q.type === 'fill')) {
+          return res.json({ ok: false, error: 'Цаасан горимд «хариу нөхөх» бодлого ашиглах боломжгүй. Утасны горимыг сонгоно уу.' });
+        }
         // 6 оронтой тоо (давхцлыг шалгана)
         let code = '';
         for (let attempt = 0; attempt < 5; attempt++) {
@@ -858,14 +919,22 @@ module.exports = async (req, res) => {
         if (answers[email] !== undefined) return res.json({ ok: true, alreadyAnswered: true });
         const qs = t.questions || [];
         const q = qs[t.current_question];
-        let choices = q.choices || [];
-        if (typeof choices === 'string') { try { choices = JSON.parse(choices); } catch(e) { choices = []; } }
-        const correctIdx = choices.indexOf(q.correct);
-        const isCorrect = parseInt(answer) === correctIdx;
         const startedAt = new Date(t.question_started_at).getTime();
         const elapsed = Date.now() - startedAt;
         const speedBonus = Math.max(0, 15000 - elapsed) / 150;
-        answers[email] = { answer: parseInt(answer), isCorrect: isCorrect, time: elapsed };
+        let isCorrect, stored;
+        if (q && q.type === 'fill') {
+          const given = String(answer == null ? '' : answer).slice(0, 200);
+          isCorrect = fillMatches(given, q.correct);
+          stored = { answer: given, isCorrect: isCorrect, time: elapsed };
+        } else {
+          let choices = q.choices || [];
+          if (typeof choices === 'string') { try { choices = JSON.parse(choices); } catch(e) { choices = []; } }
+          const correctIdx = choices.indexOf(q.correct);
+          isCorrect = parseInt(answer) === correctIdx;
+          stored = { answer: parseInt(answer), isCorrect: isCorrect, time: elapsed };
+        }
+        answers[email] = stored;
         const scores = t.scores || {};
         if (isCorrect) {
           scores[email] = (scores[email] || 0) + 100 + Math.round(speedBonus);

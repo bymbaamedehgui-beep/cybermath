@@ -52730,11 +52730,168 @@ function toggleAvatarSection() {
   };
   window.filterMathletLessons = function(s) { renderMathletLessons(s); };
 
+  /* ───────── Багшийн өөрийн бодлогууд (math бичиглэлтэй) ───────── */
+  window._mlSource = 'ready';
+  window._mlCustom = [];
+  function mlEsc(t) { return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+
+  window.mlSetSource = function(src) {
+    window._mlSource = (src === 'custom') ? 'custom' : 'ready';
+    var isC = window._mlSource === 'custom';
+    var r = document.getElementById('ml-src-ready'), c = document.getElementById('ml-src-custom');
+    if (r) r.style.display = isC ? 'none' : 'block';
+    if (c) c.style.display = isC ? 'block' : 'none';
+    var br = document.getElementById('ml-src-btn-ready'), bc = document.getElementById('ml-src-btn-custom');
+    function on(b, yes) {
+      if (!b) return;
+      b.style.background = yes ? '#7B52EE' : '#fff';
+      b.style.color = yes ? '#fff' : '#7B52EE';
+      b.style.borderColor = yes ? '#7B52EE' : '#e4ddfa';
+    }
+    on(br, !isC); on(bc, isC);
+    // Асуултын тоо нь зөвхөн бэлэн хичээлд хамаатай
+    var qcw = document.getElementById('ml-qcount-wrap');
+    if (qcw) qcw.style.opacity = isC ? '0.45' : '1';
+    if (isC && !window._mlCustom.length) mlAddQuestion();
+  };
+
+  /* DOM дээрх утгуудыг төлөв рүү буцааж хадгална (дахин зурахад алдагдахгүй) */
+  function mlSync() {
+    window._mlCustom.forEach(function(q, i) {
+      var tf = document.getElementById('ml-q-text-' + i);
+      if (tf) q.text = tf.value || '';
+      if (q.type === 'fill') {
+        var af = document.getElementById('ml-q-ans-' + i);
+        if (af) q.correct = af.value || '';
+      } else {
+        q.choices = q.choices.map(function(_, j) {
+          var cf = document.getElementById('ml-q-ch-' + i + '-' + j);
+          return cf ? (cf.value || '') : '';
+        });
+        var sel = document.querySelector('input[name="ml-correct-' + i + '"]:checked');
+        if (sel) q.correctIdx = parseInt(sel.value, 10);
+      }
+      var hf = document.getElementById('ml-q-hint-' + i);
+      if (hf) q.hint = hf.value || '';
+    });
+  }
+  window.mlAddQuestion = function() {
+    mlSync();
+    window._mlCustom.push({ type: 'choice', text: '', choices: ['', ''], correctIdx: 0, hint: '' });
+    mlRenderCustom();
+  };
+  window.mlRemoveQuestion = function(i) {
+    mlSync();
+    window._mlCustom.splice(i, 1);
+    mlRenderCustom();
+  };
+  window.mlSetType = function(i, t) {
+    mlSync();
+    var q = window._mlCustom[i]; if (!q) return;
+    q.type = (t === 'fill') ? 'fill' : 'choice';
+    if (q.type === 'choice' && (!q.choices || q.choices.length < 2)) { q.choices = ['', '']; q.correctIdx = 0; }
+    if (q.type === 'fill' && typeof q.correct !== 'string') q.correct = '';
+    mlRenderCustom();
+  };
+  window.mlAddChoice = function(i) {
+    mlSync();
+    var q = window._mlCustom[i]; if (!q || q.choices.length >= 4) return;
+    q.choices.push('');
+    mlRenderCustom();
+  };
+  window.mlRemoveChoice = function(i, j) {
+    mlSync();
+    var q = window._mlCustom[i]; if (!q || q.choices.length <= 2) return;
+    q.choices.splice(j, 1);
+    if (q.correctIdx >= q.choices.length) q.correctIdx = 0;
+    mlRenderCustom();
+  };
+
+  function mlField(id, val, ph) {
+    return '<math-field id="' + id + '" style="width:100%;min-height:42px;font-size:1.02rem;display:block;background:#fff;'
+      + 'border:1.5px solid #ddd;border-radius:10px;padding:7px 10px;box-sizing:border-box;color:#1a1040;" '
+      + 'placeholder="' + mlEsc(ph || '') + '">' + mlEsc(val || '') + '</math-field>';
+  }
+  function mlRenderCustom() {
+    var box = document.getElementById('ml-custom-list');
+    if (!box) return;
+    var h = '';
+    window._mlCustom.forEach(function(q, i) {
+      var isFill = q.type === 'fill';
+      h += '<div style="border:1.5px solid #ece7fb;border-radius:14px;padding:12px;margin-bottom:10px;background:#fff;">'
+        + '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">'
+        +   '<span style="font-weight:900;font-size:0.84rem;color:#3C3C3C;">' + (i + 1) + '-р бодлого</span>'
+        +   '<button type="button" onclick="mlRemoveQuestion(' + i + ')" title="Устгах" style="border:1.4px solid #f3c9c9;background:#fff;color:#dc2626;border-radius:8px;padding:3px 9px;font-family:inherit;font-weight:800;font-size:0.74rem;cursor:pointer;">Устгах</button>'
+        + '</div>'
+        + '<div style="display:flex;gap:6px;margin-bottom:8px;">'
+        +   '<button type="button" onclick="mlSetType(' + i + ',\'choice\')" style="flex:1;padding:7px;border-radius:9px;font-family:inherit;font-weight:800;font-size:0.76rem;cursor:pointer;border:1.5px solid ' + (isFill ? '#e4ddfa' : '#7B52EE') + ';background:' + (isFill ? '#fff' : '#7B52EE') + ';color:' + (isFill ? '#7B52EE' : '#fff') + ';">Тест (сонголттой)</button>'
+        +   '<button type="button" onclick="mlSetType(' + i + ',\'fill\')" style="flex:1;padding:7px;border-radius:9px;font-family:inherit;font-weight:800;font-size:0.76rem;cursor:pointer;border:1.5px solid ' + (isFill ? '#7B52EE' : '#e4ddfa') + ';background:' + (isFill ? '#7B52EE' : '#fff') + ';color:' + (isFill ? '#fff' : '#7B52EE') + ';">Хариу нөхөх</button>'
+        + '</div>'
+        + '<div style="font-size:0.74rem;font-weight:800;color:#666;margin-bottom:4px;">Асуулт</div>'
+        + mlField('ml-q-text-' + i, q.text, 'Жишээ: 2x+5=11 бол x=?');
+      if (isFill) {
+        h += '<div style="font-size:0.74rem;font-weight:800;color:#666;margin:8px 0 4px;">Зөв хариу</div>'
+          + mlField('ml-q-ans-' + i, q.correct || '', 'Жишээ: 3')
+          + '<div style="font-size:0.68rem;color:#999;margin-top:4px;">Зай, $ тэмдэг, \\dfrac/\\frac ялгаа тооцогдохгүй.</div>';
+      } else {
+        h += '<div style="font-size:0.74rem;font-weight:800;color:#666;margin:8px 0 4px;">Хариултууд — зөвийг нь тэмдэглэ</div>';
+        q.choices.forEach(function(ch, j) {
+          h += '<div style="display:flex;align-items:center;gap:7px;margin-bottom:6px;">'
+            + '<input type="radio" name="ml-correct-' + i + '" value="' + j + '"' + ((q.correctIdx || 0) === j ? ' checked' : '') + ' style="width:17px;height:17px;flex-shrink:0;accent-color:#7B52EE;cursor:pointer;">'
+            + '<div style="flex:1;min-width:0;">' + mlField('ml-q-ch-' + i + '-' + j, ch, (j + 1) + '-р хариулт') + '</div>'
+            + (q.choices.length > 2 ? '<button type="button" onclick="mlRemoveChoice(' + i + ',' + j + ')" style="flex-shrink:0;border:1.3px solid #eee;background:#fff;color:#999;border-radius:7px;padding:3px 8px;font-family:inherit;font-weight:800;font-size:0.72rem;cursor:pointer;">−</button>' : '')
+            + '</div>';
+        });
+        if (q.choices.length < 4) {
+          h += '<button type="button" onclick="mlAddChoice(' + i + ')" style="border:1.3px dashed #c9b8ff;background:#faf8ff;color:#7B52EE;border-radius:8px;padding:5px 11px;font-family:inherit;font-weight:800;font-size:0.74rem;cursor:pointer;">+ Хариулт</button>';
+        }
+      }
+      h += '<div style="font-size:0.74rem;font-weight:800;color:#666;margin:8px 0 4px;">Сануулга (заавал биш)</div>'
+        + '<input id="ml-q-hint-' + i + '" type="text" value="' + mlEsc(q.hint || '') + '" placeholder="Богино тайлбар" style="width:100%;padding:8px 10px;background:#fafafa;border:1.5px solid #eee;border-radius:9px;font-family:inherit;font-size:0.8rem;font-weight:600;box-sizing:border-box;outline:none;">';
+      h += '</div>';
+    });
+    box.innerHTML = h;
+    var cnt = document.getElementById('ml-custom-count');
+    if (cnt) cnt.textContent = window._mlCustom.length + ' бодлого';
+  }
+  window.mlRenderCustom = mlRenderCustom;
+
+  /* Илгээхээр бэлтгэх — алдаатай бол мессеж буцаана */
+  function mlCollect() {
+    mlSync();
+    var out = [], err = null;
+    window._mlCustom.forEach(function(q, i) {
+      if (err) return;
+      var text = String(q.text || '').trim();
+      if (!text) { err = (i + 1) + '-р бодлогын асуулт хоосон байна'; return; }
+      if (q.type === 'fill') {
+        var a = String(q.correct || '').trim();
+        if (!a) { err = (i + 1) + '-р бодлогын зөв хариу хоосон байна'; return; }
+        out.push({ type: 'fill', text: text, correct: a, hint: q.hint || '' });
+      } else {
+        var ch = (q.choices || []).map(function(x){ return String(x || '').trim(); }).filter(function(x){ return x; });
+        if (ch.length < 2) { err = (i + 1) + '-р бодлогод дор хаяж 2 хариулт хэрэгтэй'; return; }
+        if (ch.length !== ch.filter(function(x, k){ return ch.indexOf(x) === k; }).length) { err = (i + 1) + '-р бодлогын хариултууд давхардсан байна'; return; }
+        var ci = q.correctIdx || 0;
+        var correct = String((q.choices || [])[ci] || '').trim();
+        if (!correct || ch.indexOf(correct) < 0) { err = (i + 1) + '-р бодлогын зөв хариуг тэмдэглэнэ үү'; return; }
+        out.push({ type: 'choice', text: text, choices: ch, correct: correct, hint: q.hint || '' });
+      }
+    });
+    return { list: out, error: err };
+  }
+
   window.doCreateMathlet = function() {
-    if (!_mathletSelected.size) {
+    var custom = { list: [], error: null };
+    if (window._mlSource === 'custom') {
+      custom = mlCollect();
+      if (custom.error) { alert(custom.error); return; }
+      if (!custom.list.length) { alert('Дор хаяж нэг бодлого үүсгэнэ үү'); return; }
+    } else if (!_mathletSelected.size) {
       alert('Дор хаяж нэг хичээл сонгоно уу');
       return;
     }
+    window.__mlCustomPayload = custom.list;
     var title = document.getElementById('mathlet-title').value.trim() || 'Mathlet тэмцээн';
     // Зөвхөн тоо бичсэн нэр код-той андуурагдахаас сэргийлэх
     if (/^\d+$/.test(title)) {
@@ -52756,7 +52913,8 @@ function toggleAvatarSection() {
         action: 'createTournament',
         classroomId: _currentClassroomId,
         title: title,
-        lessons: Array.from(_mathletSelected),
+        lessons: (window._mlSource === 'custom') ? [] : Array.from(_mathletSelected),
+        customQuestions: window.__mlCustomPayload || [],
         questionCount: qCount,
         prizeXp: prizeXp,
         secondsPerQuestion: parseInt(document.getElementById('mathlet-q-seconds').value) || 30,
@@ -55082,14 +55240,23 @@ function toggleAvatarSection() {
       var choices = q.choices || [];
       if (typeof choices === 'string') { try { choices = JSON.parse(choices); } catch(e) { choices = []; } }
       var letters = ['A','B','C','D'];
-      var optsHtml = choices.map(function(opt, i){
+      var isFillQ = q && q.type === 'fill';
+      var optsHtml = isFillQ
+        ? (canAnswer
+            ? '<div style="background:rgba(0,0,0,0.25);border-radius:16px;padding:14px;">'
+              + '<div style="font-size:0.8rem;font-weight:800;opacity:0.8;margin-bottom:8px;">Хариугаа бич</div>'
+              + '<math-field id="ml-fill-input" style="width:100%;min-height:52px;font-size:1.2rem;display:block;background:#fff;color:#1a1040;border-radius:12px;padding:9px 12px;box-sizing:border-box;"></math-field>'
+              + '<button onclick="mlSubmitFill(' + t.current_question + ')" style="width:100%;margin-top:10px;border:none;border-radius:14px;padding:13px;font-family:inherit;font-weight:900;font-size:1rem;color:#fff;cursor:pointer;background:linear-gradient(135deg,#7B52EE,#A855F7);">ИЛГЭЭХ</button>'
+              + '</div>'
+            : '<div style="text-align:center;background:rgba(88,204,2,0.15);border:2px solid rgba(88,204,2,0.4);border-radius:14px;padding:14px;font-weight:900;color:#58CC02;">Хариултаа илгээсэн</div>')
+        : choices.map(function(opt, i){
         var dimmed = !canAnswer && (myAnswer === undefined || myAnswer.answer !== i);
         var selected = !canAnswer && myAnswer && myAnswer.answer === i;
         return '<button onclick="' + (canAnswer ? 'submitMathletAnswer(' + i + ',' + t.current_question + ')' : '') + '" class="mathlet-option mathlet-option-' + letters[i] + (dimmed ? ' dimmed' : '') + (selected ? ' correct' : '') + '" style="width:100%;margin-bottom:10px;">'
           + '<span class="letter">' + letters[i] + '</span>'
           + '<span style="flex:1;">' + escapeHtml(opt) + '</span>'
           + '</button>';
-      }).join('');
+        }).join('');
 
       c.innerHTML = '<div style="max-width:520px;margin:0 auto;width:100%;">'
         + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;font-size:0.82rem;">'
@@ -55110,7 +55277,17 @@ function toggleAvatarSection() {
       if (typeof choices === 'string') { try { choices = JSON.parse(choices); } catch(e) { choices = []; } }
       var correctIdx = choices.indexOf(q.correct);
       var letters = ['A','B','C','D'];
-      var optsHtml = choices.map(function(opt, i){
+      var isFillR = q && q.type === 'fill';
+      var optsHtml = isFillR
+        ? ('<div style="background:rgba(0,0,0,0.25);border-radius:16px;padding:14px;">'
+            + '<div style="font-size:0.78rem;font-weight:800;opacity:0.7;margin-bottom:4px;">Зөв хариу</div>'
+            + '<div style="font-size:1.15rem;font-weight:900;color:#58CC02;">' + escapeHtml(String(q.correct == null ? '' : q.correct)) + '</div>'
+            + (myAnswer && myAnswer.answer !== undefined && String(myAnswer.answer).length
+                ? '<div style="margin-top:10px;font-size:0.78rem;font-weight:800;opacity:0.7;">Таны хариу</div>'
+                  + '<div style="font-size:1.05rem;font-weight:900;color:' + (myAnswer.isCorrect ? '#58CC02' : '#FF4B4B') + ';">' + escapeHtml(String(myAnswer.answer)) + '</div>'
+                : '')
+            + '</div>')
+        : choices.map(function(opt, i){
         var isCorrect = i === correctIdx;
         var isMine = myAnswer && myAnswer.answer === i;
         var cls = 'mathlet-option mathlet-option-' + letters[i];
@@ -55122,7 +55299,7 @@ function toggleAvatarSection() {
           + '<span style="flex:1;">' + escapeHtml(opt) + '</span>'
           + (isCorrect ? '<span style="color:#58CC02;font-weight:900;font-size:1.2rem;">✓</span>' : '')
           + '</div>';
-      }).join('');
+        }).join('');
       var wasCorrect = myAnswer && myAnswer.isCorrect;
       c.innerHTML = '<div style="max-width:520px;margin:0 auto;width:100%;">'
         + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;font-size:0.82rem;">'
@@ -55163,13 +55340,33 @@ function toggleAvatarSection() {
         + '<button onclick="closeMathletStudent()" class="mathlet-btn-primary" style="width:100%;">Хаах</button>'
         + '</div>';
     }
-    // Math бичиглэлийг render хийх (зөвхөн phase солигдсон үед)
-    if (window.MathJax && window.MathJax.typesetPromise) {
-      setTimeout(function() {
-        MathJax.typesetPromise([c]).catch(function(){});
-      }, 50);
-    }
+    // Math бичиглэлийг render хийх — энэ хуудас KaTeX ачаалдаг (MathJax биш)
+    setTimeout(function() { if (window.mlRenderMath) window.mlRenderMath(c); }, 30);
   }
+
+  /* «Хариу нөхөх» бодлогын хариуг илгээнэ */
+  window.mlSubmitFill = function(qIdx) {
+    var mf = document.getElementById('ml-fill-input');
+    var v = mf ? String(mf.value || '').trim() : '';
+    if (!v) { if (typeof showToast === 'function') showToast('Хариугаа бичнэ үү'); return; }
+    window.submitMathletAnswer(v, qIdx);
+  };
+  /* Mathlet дэлгэц дэх $…$ бичиглэлийг рендерлэнэ.
+     Хуудас MathJax ба KaTeX хоёуланг ачаалдаг — MathJax-ийг эхэнд нь,
+     бэлэн болоогүй бол KaTeX-ийг ашиглана. math-field-ийг хөндөхгүй. */
+  window.mlRenderMath = function(el) {
+    if (!el) return;
+    if (window.MathJax && window.MathJax.typesetPromise) {
+      try { MathJax.typesetPromise([el]).catch(function(){}); return; } catch (e) {}
+    }
+    if (typeof renderMathInElement !== 'function') return;
+    try {
+      renderMathInElement(el, {
+        delimiters: [ { left: '$$', right: '$$', display: true }, { left: '$', right: '$', display: false } ],
+        throwOnError: false, ignoredTags: ['script','noscript','style','textarea','pre','code','math-field']
+      });
+    } catch (e) {}
+  };
 
   window.submitMathletAnswer = function(answerIdx, qIdx) {
     authFetch('/api/users', {
@@ -61492,11 +61689,31 @@ function sendAppChat(text) {
       <div style="font-size:0.72rem;color:#888;margin-top:4px;">⚠️ Зөвхөн тоо бичиж кодтой андууруулахгүй</div>
     </div>
 
-    <div style="margin-bottom:14px;">
+    <div style="margin-bottom:12px;">
+      <label style="font-size:0.82rem;font-weight:800;color:#3C3C3C;display:block;margin-bottom:6px;">Бодлого хаанаас</label>
+      <div style="display:flex;gap:8px;">
+        <button type="button" id="ml-src-btn-ready" onclick="mlSetSource('ready')" style="flex:1;padding:10px;border-radius:12px;border:2px solid #7B52EE;background:#7B52EE;color:#fff;font-family:'Baloo 2',sans-serif;font-weight:900;font-size:0.84rem;cursor:pointer;">Бэлэн хичээлээс</button>
+        <button type="button" id="ml-src-btn-custom" onclick="mlSetSource('custom')" style="flex:1;padding:10px;border-radius:12px;border:2px solid #e4ddfa;background:#fff;color:#7B52EE;font-family:'Baloo 2',sans-serif;font-weight:900;font-size:0.84rem;cursor:pointer;">Өөрөө үүсгэх</button>
+      </div>
+    </div>
+
+    <div id="ml-src-ready" style="margin-bottom:14px;">
       <label style="font-size:0.82rem;font-weight:800;color:#3C3C3C;display:block;margin-bottom:6px;">Хичээлийн агуулга (хичээл сонго)</label>
       <input id="mathlet-search" type="text" placeholder="Хичээл хайх..." oninput="filterMathletLessons(this.value)" style="width:100%;padding:9px 12px;background:#f5f5f5;border:1.5px solid #ddd;border-radius:10px;font-family:'Baloo 2',sans-serif;font-size:0.82rem;font-weight:700;box-sizing:border-box;margin-bottom:6px;">
       <div id="mathlet-lessons-list" style="max-height:200px;overflow-y:auto;border:1.5px solid #eee;border-radius:12px;padding:6px;background:#fafafa;"></div>
       <div id="mathlet-selected-count" style="font-size:0.75rem;color:#FF4B4B;font-weight:800;margin-top:6px;">0 хичээл сонгогдсон</div>
+    </div>
+
+    <div id="ml-src-custom" style="display:none;margin-bottom:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+        <label style="font-size:0.82rem;font-weight:800;color:#3C3C3C;">Миний бодлогууд</label>
+        <span id="ml-custom-count" style="font-size:0.75rem;font-weight:800;color:#7B52EE;">0 бодлого</span>
+      </div>
+      <div style="font-size:0.72rem;color:#888;line-height:1.5;margin-bottom:8px;">
+        Математик бичихдээ талбар дээр дарж <b>гарны дүрс</b>-ийг ашиглана. Жишээ: бутархай, зэрэг, язгуур.
+      </div>
+      <div id="ml-custom-list"></div>
+      <button type="button" onclick="mlAddQuestion()" style="width:100%;margin-top:8px;padding:11px;border-radius:12px;border:2px dashed #c9b8ff;background:#faf8ff;color:#7B52EE;font-family:'Baloo 2',sans-serif;font-weight:900;font-size:0.86rem;cursor:pointer;">+ Бодлого нэмэх</button>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
