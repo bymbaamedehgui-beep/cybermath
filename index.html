@@ -4197,7 +4197,7 @@ window.gameTimePickerHtml = function() {
 window.addEventListener('DOMContentLoaded', function() {
   setTimeout(function() {
     document.querySelectorAll('[data-game-time-picker]').forEach(function(el){
-      el.innerHTML = window.gameTimePickerHtml();
+      el.innerHTML = window.gameTimePickerHtml() + window.gameLessonPickerHtml();
     });
     if (typeof window.setGameTime === 'function') {
       window.setGameTime(window.gameQuestionSeconds == null ? 'inf' : window.gameQuestionSeconds);
@@ -4215,13 +4215,91 @@ window.getUserMaxGrade = function() {
   if (g === 8) return 9;        // 8-р анги тусгай
   return g;                      // өөрийн анги хүртэл
 };
-// '/api/questions' эсвэл '/api/questions?...' дараа max_grade параметр нэмж буцаах
+/* ── Тоглоомын агуулгын хүрээ ──
+   null = бүх агуулга, тоо = тухайн хичээлийн (node) бодлого. */
+window.gameNodeId = (function(){
+  try { var v = localStorage.getItem('cm_game_node'); return v ? parseInt(v, 10) : null; }
+  catch (e) { return null; }
+})();
+window.setGameNode = function(id) {
+  var v = (id === '' || id == null) ? null : parseInt(id, 10);
+  window.gameNodeId = (v && !isNaN(v)) ? v : null;
+  try {
+    if (window.gameNodeId) localStorage.setItem('cm_game_node', window.gameNodeId);
+    else localStorage.removeItem('cm_game_node');
+  } catch (e) {}
+  // Бүх сонгогчийг ижил утгатай болгоно
+  [].forEach.call(document.querySelectorAll('.game-lesson-sel'), function(sel) {
+    sel.value = window.gameNodeId ? String(window.gameNodeId) : '';
+  });
+  [].forEach.call(document.querySelectorAll('.game-lesson-note'), function(el) {
+    el.textContent = window.gameNodeId ? 'Тоглоом эхлэхэд мөрдөгдөнө' : '';
+  });
+  if (typeof showToast === 'function') {
+    showToast(window.gameNodeId ? 'Сонгосон хичээлийн бодлогоор тоглоно' : 'Бүх агуулгаар тоглоно');
+  }
+};
+
+// '/api/questions' эсвэл '/api/questions?...' дараа max_grade (+ сонгосон хичээл) нэмж буцаах
 window.qApiUrl = function(suffix) {
   var mg = window.getUserMaxGrade();
   var base = '/api/questions';
-  if (!suffix) return base + '?max_grade=' + mg;
-  if (suffix.charAt(0) === '?') return base + suffix + '&max_grade=' + mg;
-  return base + '?' + suffix + '&max_grade=' + mg;
+  var extra = '&max_grade=' + mg + (window.gameNodeId ? '&node_id=' + window.gameNodeId : '');
+  if (!suffix) return base + '?' + extra.slice(1);
+  if (suffix.charAt(0) === '?') return base + suffix + extra;
+  return base + '?' + suffix + extra;
+};
+
+/* ── Хичээл сонгогч (бүх тоглоомд нийтлэг) ── */
+window.gameLessonPickerHtml = function() {
+  var nodes = [];
+  try { nodes = JSON.parse(localStorage.getItem('cm_nodes') || '[]'); } catch (e) {}
+  var mg = window.getUserMaxGrade();
+  nodes = nodes.filter(function(x){
+    var g = parseInt(x.grade);
+    return x && x.name && (isNaN(g) || g <= mg);
+  });
+  nodes.sort(function(a, b){
+    var ga = parseInt(a.grade) || 99, gb = parseInt(b.grade) || 99;
+    if (ga !== gb) return ga - gb;
+    var sa = (a.sort_order == null ? a.id : a.sort_order), sb = (b.sort_order == null ? b.id : b.sort_order);
+    return sa - sb || a.id - b.id;
+  });
+  var cur = window.gameNodeId ? String(window.gameNodeId) : '';
+  var opts = '<option value="">Бүх агуулга</option>';
+  var lastG = null;
+  nodes.forEach(function(x){
+    var g = String(x.grade || '—');
+    if (g !== lastG) {
+      if (lastG !== null) opts += '</optgroup>';
+      opts += '<optgroup label="' + (/^\d+$/.test(g) ? g + '-р анги' : g) + '">';
+      lastG = g;
+    }
+    var nm = String(x.name).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    opts += '<option value="' + x.id + '"' + (cur === String(x.id) ? ' selected' : '') + '>' + nm + '</option>';
+  });
+  if (lastG !== null) opts += '</optgroup>';
+  if (!nodes.length) opts = '<option value="">Бүх агуулга</option>';
+
+  return '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;">'
+    + '<span style="font-size:0.78rem;font-weight:800;color:#aaa;">Агуулга</span>'
+    + '<select class="game-lesson-sel" onchange="setGameNode(this.value)" '
+    + 'style="flex:1;min-width:170px;max-width:340px;background:rgba(255,255,255,0.06);border:1.5px solid rgba(255,255,255,0.15);'
+    + 'color:#eee;border-radius:8px;padding:6px 9px;font-weight:700;font-size:0.8rem;font-family:inherit;cursor:pointer;">'
+    + opts + '</select>'
+    + '<span class="game-lesson-note" style="font-size:0.7rem;font-weight:700;color:#8a82ad;"></span>'
+    + '</div>';
+};
+/* Тухайн тоглоомын талбайн эхэнд сонгогчийг нэг удаа оруулна */
+window.cmEnsureGamePicker = function(areaId) {
+  var area = document.getElementById(areaId);
+  if (!area || area.querySelector('.game-lesson-sel')) return;
+  var box = document.createElement('div');
+  box.innerHTML = window.gameLessonPickerHtml();
+  box.style.cssText = 'padding:0 2px 6px;';
+  area.insertBefore(box, area.firstChild);
+  var sel = box.querySelector('.game-lesson-sel');
+  if (sel) sel.value = window.gameNodeId ? String(window.gameNodeId) : '';
 };
 
 function initChatForUser() {
@@ -56051,7 +56129,20 @@ function toggleAvatarSection() {
 
   // ===== END LEAGUE SYSTEM =====
 
+  /* Бодлого татдаг тоглоомууд — хичээл сонгогч нэмнэ */
+  var CM_Q_GAMES = {
+    blockblast: 'blockblast-area', flagbattle: 'flagbattle-area', songon: 'songon-area',
+    nicebattle: 'nicebattle-area', chessmath: 'chessmath-area', daam: 'daam-area',
+    gomoku: 'gomoku-area', ludo: 'ludo-area', doroev: 'doroev-area', sbh: 'sbh-area',
+    numseq: 'numseq-area', myangat: null, sudoku: null, play2048: null, xpdrop: 'xpdrop-area'
+  };
   function startGame(type) {
+    setTimeout(function(){
+      try {
+        var aid = CM_Q_GAMES[type];
+        if (aid && typeof window.cmEnsureGamePicker === 'function') window.cmEnsureGamePicker(aid);
+      } catch (e) {}
+    }, 60);
     ['game-selector'].forEach(id => document.getElementById(id).style.display = 'none');
     ['blockblast-area','flagbattle-area','songon-area','nicebattle-area','chessmath-area','daam-area','gomoku-area','ludo-area','numseq-area','doroev-area','sbh-area','xpdrop-area','myangat-area','sudoku-area','play2048-area','game-area'].forEach(id => { var el = document.getElementById(id); if (el) el.style.display = 'none'; });
     document.getElementById('game-selector').style.display = 'none';
