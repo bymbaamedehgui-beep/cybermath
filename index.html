@@ -49274,8 +49274,9 @@ function renderMath(text) {
       if (!sEl) continue;
       if (typeof isHidden === "function" && isHidden(s)) { sEl.style.display = "none"; continue; }
       var st = parseInt(savedStars[s] || savedStars[String(s)] || 0);
-      sEl.textContent = {0:'☆☆☆', 1:'★☆☆', 2:'★★☆', 3:'★★★'}[st] || '☆☆☆';
-      sEl.setAttribute('fill', st > 0 ? '#FFC800' : '#aaa');
+      var mg = medalGlyph(st);
+      sEl.textContent = mg.ch;
+      sEl.setAttribute('fill', mg.fill);
       sEl.style.display = '';
     }
 
@@ -49420,14 +49421,69 @@ function renderMath(text) {
       showToast('🔒 ' + (id-1) + '-р node-ийг эхлээд дуусгана уу!');
     }
   }
+  /* ── Медалийн үнэлгээ (Eduten маягаар) ──
+     Зөв хариултын ХУВИАР үнэлнэ — ингэснээр асуулт олонтой хичээлд
+     шударга болно (өмнө нь алдааны ТООГООР үнэлдэг байсан).
+       4 Алмаз  100%
+       3 Алт     90%+
+       2 Мөнгө   75%+
+       1 Хүрэл   60%+
+       0 медальгүй — дахин хийнэ */
+  var MEDALS = {
+    1: { name: 'Хүрэл', color: '#C97B3C', ring: '#A35F27' },
+    2: { name: 'Мөнгө', color: '#AFB6BD', ring: '#8B949C' },
+    3: { name: 'Алт',   color: '#F2C200', ring: '#C79B00' },
+    4: { name: 'Алмаз', color: '#DD6E97', ring: '#B84B76' }
+  };
+  function getMedal(score, total) {
+    if (!total || total < 1) return 0;
+    var p = score / total;
+    if (p >= 1)    return 4;
+    if (p >= 0.9)  return 3;
+    if (p >= 0.75) return 2;
+    if (p >= 0.6)  return 1;
+    return 0;
+  }
+  // Хуучин дуудлагуудтай нийцүүлэх (алдааны тоогоор)
   function getStarsFromMistakes(m) {
+    if (m <= 0) return 4;
     if (m <= 2) return 3;
     if (m <= 4) return 2;
     if (m <= 6) return 1;
     return 0;
   }
+  /* Замын зураг дээрх тэмдэг — SVG <text> тул нэг глиф (эможи БИШ) */
+  function medalGlyph(lv) {
+    lv = parseInt(lv) || 0;
+    if (lv >= 4) return { ch: '◆', fill: MEDALS[4].color };
+    if (lv === 3) return { ch: '●', fill: MEDALS[3].color };
+    if (lv === 2) return { ch: '●', fill: MEDALS[2].color };
+    if (lv === 1) return { ch: '●', fill: MEDALS[1].color };
+    return { ch: '○', fill: '#aaa' };
+  }
+  window.getMedal = getMedal;
+  /* Үр дүнгийн дэлгэцэд — жинхэнэ SVG дүрс */
+  function medalSvg(lv, size) {
+    size = size || 74;
+    var m = MEDALS[lv];
+    if (!m) {
+      return '<svg viewBox="0 0 48 48" width="' + size + '" height="' + size + '" aria-label="Медальгүй">'
+        + '<circle cx="24" cy="24" r="21" fill="#f0f0f4" stroke="#d8d8e0" stroke-width="2"/>'
+        + '<path d="M16 16 L32 32 M32 16 L16 32" stroke="#c4c4cf" stroke-width="3" stroke-linecap="round"/></svg>';
+    }
+    var inner = (lv === 4)
+      ? '<path d="M24 13 L33 21 L24 35 L15 21 Z" fill="#fff" opacity="0.95"/>'
+        + '<path d="M15 21 H33 M24 13 L20 21 L24 35 L28 21 Z" stroke="' + m.ring + '" stroke-width="1.4" fill="none"/>'
+      : '<path d="M17 12 H31 V21 A7 7 0 0 1 17 21 Z" fill="#fff" opacity="0.95"/>'
+        + '<path d="M17 14 H13 A4 4 0 0 0 17 19 M31 14 H35 A4 4 0 0 1 31 19" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/>'
+        + '<path d="M22 28 H26 V33 H22 Z" fill="#fff" opacity="0.95"/>'
+        + '<path d="M18 34 H30" stroke="#fff" stroke-width="3" stroke-linecap="round"/>';
+    return '<svg viewBox="0 0 48 48" width="' + size + '" height="' + size + '" aria-label="' + m.name + '">'
+      + '<circle cx="24" cy="24" r="22" fill="' + m.color + '"/>' + inner + '</svg>';
+  }
+  window.medalSvg = medalSvg;
   function updateNodeBird(nodeId, stars) {
-    var avatarMap = {0: 8, 1: 3, 2: 4, 3: 5};
+    var avatarMap = {0: 8, 1: 3, 2: 4, 3: 5, 4: 5};
     var avId = avatarMap[stars];
     var card = document.getElementById('avc-' + avId);
     if (!card) return;
@@ -49456,7 +49512,7 @@ function renderMath(text) {
 
   function updateAvatarByStars(stars) {
     // Одны тоогоор аватар хадгалах
-    var avatarMap = {0: 8, 1: 3, 2: 4, 3: 5};
+    var avatarMap = {0: 8, 1: 3, 2: 4, 3: 5, 4: 5};
     var avId = avatarMap[stars];
     if (_currentUser) {
       _currentUser.avatar = avId;
@@ -49468,9 +49524,9 @@ function renderMath(text) {
     // Одны текст шинэчлэх
     var starEl = document.getElementById('node-stars-' + cmSlotForNode(currentLessonId));
     if (starEl) {
-      var starStr = {0:'☆☆☆', 1:'★☆☆', 2:'★★☆', 3:'★★★'}[stars];
-      starEl.textContent = starStr;
-      starEl.setAttribute('fill', stars > 0 ? '#FFC800' : '#555');
+      var mg0 = medalGlyph(stars);
+      starEl.textContent = mg0.ch;
+      starEl.setAttribute('fill', mg0.fill);
     }
     // Stars хадгалах — шинэ stars өмнөхөөс их бол л шинэчлэх
     if (stars > 0) {
@@ -49485,8 +49541,9 @@ function renderMath(text) {
       // Node дээрх одыг шинэчлэх
       var sEl = document.getElementById('node-stars-' + cmSlotForNode(currentLessonId));
       if (sEl) {
-        sEl.textContent = {1:'★☆☆', 2:'★★☆', 3:'★★★'}[stars] || '☆☆☆';
-        sEl.setAttribute('fill', '#FFC800');
+        var mg1 = medalGlyph(stars);
+        sEl.textContent = mg1.ch;
+        sEl.setAttribute('fill', mg1.fill);
       }
     }
   }
@@ -49506,14 +49563,15 @@ function renderMath(text) {
     // Double XP multiplier (Random Event эсвэл Mystery Box-ийн boost)
     var mult = (typeof getXpMultiplier === 'function') ? getXpMultiplier() : 1;
     const earned = baseEarned * mult;
-    const stars = getStarsFromMistakes(mistakes);
+    const stars = getMedal(score, total);          // 0-4: медалийн түвшин (хувиар)
+    const pct = total ? Math.round(score / total * 100) : 0;
     // Ангийн нууц хичээл дуусгасан бол сервер дээр attempt бүртгэх
     if (typeof currentLessonId === 'string' && currentLessonId.indexOf('cls_') === 0
         && typeof window._recordClassroomAttempt === 'function') {
       try { window._recordClassroomAttempt(); } catch(e){}
     }
-    // Алмааз шагнал: 3⭐=15, 2⭐=10, 1⭐=5, 0⭐=0
-    const gemReward = stars === 3 ? 15 : stars === 2 ? 10 : stars === 1 ? 5 : 0;
+    // Алмааз шагнал медалиар: Алмаз=20, Алт=15, Мөнгө=10, Хүрэл=5
+    const gemReward = stars === 4 ? 20 : stars === 3 ? 15 : stars === 2 ? 10 : stars === 1 ? 5 : 0;
     // Өмнө дуусгасан хичээл бол XP өгөхгүй
     // cls_* string ID (ангийн нууц хичээл)-уудыг шууд харьцуулна (parseInt-аар NaN болохгүй)
     var _doneList = getCompletedLessons();
@@ -49613,11 +49671,18 @@ function renderMath(text) {
 
     document.getElementById('quiz-content').innerHTML = `
       <div class="results-card">
-        <div class="results-icon">${score === total ? '🏆' : score >= total/2 ? '⭐' : '💪'}</div>
-        <div class="results-title">${score === total ? 'Төгс гүйцэтгэл!' : score >= total/2 ? 'Сайн хийлээ!' : 'Дахин оролдоорой!'}</div>
+        <div style="display:flex;justify-content:center;margin-bottom:10px;">${medalSvg(stars, 86)}</div>
+        <div class="results-title">${['Медаль аваагүй','Хүрэл медаль','Мөнгөн медаль','Алтан медаль','Алмазан медаль'][stars]}</div>
         <div class="results-subtitle">${score}/${total} зөв хариу өгсөн</div>
-        <div style="font-size:1.8rem;margin:8px 0;">${'⭐'.repeat(stars)}${'☆'.repeat(3-stars)}</div>
-        ${stars === 0 ? '<div style="color:#FF4B4B;font-weight:800;font-size:0.9rem;">7-оос дээш алдаа — дахин хийнэ үү!</div>' : ''}
+        <div style="display:flex;justify-content:center;gap:7px;margin:10px 0 4px;">
+          ${[1,2,3,4].map(function(lv){
+            var on = stars >= lv;
+            return '<div style="opacity:' + (on ? '1' : '0.28') + ';filter:' + (on ? 'none' : 'grayscale(1)') + ';">' + medalSvg(lv, 30) + '</div>';
+          }).join('')}
+        </div>
+        <div style="font-weight:900;font-size:1.1rem;color:#3C3C3C;margin-bottom:2px;">${pct}%</div>
+        ${stars === 0 ? '<div style="color:#FF4B4B;font-weight:800;font-size:0.9rem;">60%-аас доош — дахин хийнэ үү!</div>'
+            : (stars < 4 ? '<div style="color:#888;font-weight:700;font-size:0.82rem;">' + ['','75%-д хүрвэл Мөнгө','90%-д хүрвэл Алт','100% бол Алмаз'][stars] + '</div>' : '')}
         <div class="results-stats">
           <div class="result-stat"><div class="val">${score}/${total}</div><div class="lbl">Зөв</div></div>
           <div class="result-stat"><div class="val" style="${alreadyDone ? 'color:#999;' : ''}">${alreadyDone ? '—' : '+' + earned}</div><div class="lbl">${alreadyDone ? 'XP (давталт)' : 'XP'}</div></div>
