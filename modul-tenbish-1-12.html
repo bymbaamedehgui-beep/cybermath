@@ -594,6 +594,278 @@ function g_103_ineqBasic() {
     key: '103b:' + c + ':' + gt + ':' + eq
   };
 }
+
+
+// ════════════════════════════════════════════════════════════
+// I БҮЛГИЙН НЭМЭЛТ ДААЛГАВАР — ЖИШИГ (сурах бичгийн 14–16 х., №1–23)
+// ════════════════════════════════════════════════════════════
+
+// №9: √((ax+b)²) = cx+d  ⟺  |ax+b| = cx+d
+function g_104_eqRad() {
+  var a = nz(-4, 4), b = nz(-9, 9), c = nz(-3, 3), d = nz(-9, 9);
+  if (a === c || a === -c) return null;
+  var roots = [];
+  var n1 = d - b, m1 = a - c, x1 = n1 / m1;
+  if (a * x1 + b >= -1e-9) roots.push({ v: x1, t: frTeX(n1, m1) });
+  var n2 = -d - b, m2 = a + c, x2 = n2 / m2;
+  if (a * x2 + b < -1e-9) roots.push({ v: x2, t: frTeX(n2, m2) });
+  roots.sort(function (p, q) { return p.v - q.v; });
+  var seen = {}, out = [];
+  roots.forEach(function (r) { if (!seen[r.t]) { seen[r.t] = 1; out.push(r.t); } });
+  return {
+    q: '$\\sqrt{\\left(' + h12_lin(a, b) + '\\right)^{2}}=' + h12_lin(c, d) + '$',
+    a: '$\\sqrt{t^{2}}=\\left|t\\right|$ тул $' + h12_abs(h12_lin(a, b)) + '=' + h12_lin(c, d) + '$<br>'
+       + 'Тохиолдол тус бүрийн нөхцөлийг шалгавал<br>$x=' + h12_set(out) + '$',
+    key: '104r:' + a + ':' + b + ':' + c + ':' + d
+  };
+}
+
+// №10: √(x²+2px+p²) + √(x²−2qx+q²) = c  ⟺  |x+p| + |x−q| = c
+function g_104_eqRadSum() {
+  var A = nz(-7, 7), B = nz(-7, 7);
+  if (A === B) return null;
+  if (A > B) { var t = A; A = B; B = t; }           // A < B
+  var gap = B - A;
+  var c = pick([gap, gap + rnd(1, 6), gap - rnd(1, Math.max(1, gap))]);
+  // (x−A)² ба (x−B)² — язгуур нь A, B байх ёстой
+  var sqA = '\\sqrt{' + quadSq(A) + '}', sqB = '\\sqrt{' + quadSq(B) + '}';
+  var ans, why;
+  if (c < gap) {
+    ans = '$x\\in\\varnothing$';
+    why = 'Хамгийн бага утга нь $' + gap + '$ тул $' + c + '\\lt ' + gap + '$ үед шийдгүй.';
+  } else if (c === gap) {
+    ans = '$x\\in\\left[' + A + ';\\ ' + B + '\\right]$';
+    why = '$\\left|x-' + paren(A) + '\\right|+\\left|x-' + paren(B) + '\\right|$-ийн хамгийн бага утга $' + gap + '$ нь $\\left[' + A + ';\\ ' + B + '\\right]$ хэрчим дээр биелнэ.';
+  } else {
+    var lo = (A + B - c) / 2, hi = (A + B + c) / 2;
+    ans = '$x=' + h12_set([frTeX(A + B - c, 2), frTeX(A + B + c, 2)]) + '$';
+    why = 'Хэрчмийн гадна талд шийд орших тул $x=\\dfrac{' + (A + B) + '\\pm ' + c + '}{2}$.';
+  }
+  return {
+    q: '$' + sqA + '+' + sqB + '=' + c + '$',
+    a: 'Бүтэн квадрат тул $\\left|x-' + paren(A) + '\\right|+\\left|x-' + paren(B) + '\\right|=' + c + '$<br>' + why + '<br>' + ans,
+    key: '104rs:' + A + ':' + B + ':' + c
+  };
+}
+// (x - r)² -ийг задалсан хэлбэрээр бичнэ: x²-2rx+r²
+function quadSq(r) {
+  var b = -2 * r, c = r * r;
+  var s = 'x^{2}';
+  if (b > 0) s += '+' + (b === 1 ? '' : b) + 'x'; else if (b < 0) s += '-' + (b === -1 ? '' : -b) + 'x';
+  if (c > 0) s += '+' + c;
+  return s;
+}
+
+// №12: x² + a|x| + b = 0  (t = |x| орлуулга)
+function g_104_eqQuadAbs() {
+  var t1 = rnd(1, 7), t2 = nz(-7, 7);
+  var a = -(t1 + t2), b = t1 * t2;
+  var xs = [];
+  [t1, t2].forEach(function (t) { if (t > 0) { xs.push(-t); xs.push(t); } else if (t === 0) xs.push(0); });
+  if (!xs.length) return null;
+  xs = xs.filter(function (v, i) { return xs.indexOf(v) === i; }).sort(function (p, q) { return p - q; });
+  var drop = (t2 < 0) ? ' ($t=' + t2 + '\\lt 0$ нь $t=\\left|x\\right|\\ge 0$ нөхцөлд тохирохгүй)' : '';
+  return {
+    q: '$x^{2}' + (a >= 0 ? '+' + (a === 1 ? '' : a) : '-' + (a === -1 ? '' : -a)) + '\\left|x\\right|'
+       + (b >= 0 ? '+' + b : '' + b) + '=0$',
+    a: '$t=\\left|x\\right|\\ge 0$ орлуулбал $t^{2}' + (a >= 0 ? '+' + (a === 1 ? '' : a) : '-' + (a === -1 ? '' : -a)) + 't'
+       + (b >= 0 ? '+' + b : '' + b) + '=0$, $t=' + t1 + '$ эсвэл $t=' + t2 + '$' + drop + '<br>'
+       + '$x=' + h12_set(xs.map(String)) + '$',
+    key: '104qa:' + t1 + ':' + t2
+  };
+}
+
+// №19: x² + a|x| + b ≥ 0 / ≤ 0  (t = |x| орлуулга)
+function g_104_ineqQuadAbs() {
+  var t1 = rnd(1, 6), t2 = nz(-6, 6);
+  if (t1 === t2) return null;
+  var a = -(t1 + t2), b = t1 * t2;
+  var le = pick([0, 1]);                              // 1 бол «≤ 0»
+  var lhs = 'x^{2}' + (a >= 0 ? '+' + (a === 1 ? '' : a) : '-' + (a === -1 ? '' : -a)) + '\\left|x\\right|'
+          + (b >= 0 ? '+' + b : '' + b);
+  var pos = Math.max(t1, t2), low = Math.min(t1, t2);
+  var ans, why;
+  if (le) {
+    // t²+at+b ≤ 0 ⟺ t ∈ [low; pos];  t=|x| ≥ 0 тул |x| ≤ pos ба |x| ≥ max(low,0)
+    var lo = Math.max(low, 0);
+    if (lo === 0) { ans = '$x\\in\\left[-' + pos + ';\\ ' + pos + '\\right]$'; }
+    else { ans = '$x\\in\\left[-' + pos + ';\\ -' + lo + '\\right]\\cup\\left[' + lo + ';\\ ' + pos + '\\right]$'; }
+    why = '$t\\in\\left[' + low + ';\\ ' + pos + '\\right]$, $t=\\left|x\\right|\\ge 0$ тул $' + lo + '\\le \\left|x\\right|\\le ' + pos + '$';
+  } else {
+    // t²+at+b ≥ 0 ⟺ t ≤ low эсвэл t ≥ pos
+    var lo2 = Math.max(low, 0);
+    if (low < 0) { ans = '$x\\in\\left]-\\infty;\\ -' + pos + '\\right]\\cup\\left[' + pos + ';\\ +\\infty\\right[$'; }
+    else { ans = '$x\\in\\left]-\\infty;\\ -' + pos + '\\right]\\cup\\left[-' + low + ';\\ ' + low + '\\right]\\cup\\left[' + pos + ';\\ +\\infty\\right[$'; }
+    why = '$t\\le ' + low + '$ эсвэл $t\\ge ' + pos + '$, $t=\\left|x\\right|\\ge 0$-ийг тооцвол';
+  }
+  return {
+    q: '$' + lhs + (le ? '\\le ' : '\\ge ') + '0$',
+    a: '$t=\\left|x\\right|$ орлуулбал $t^{2}' + (a >= 0 ? '+' + (a === 1 ? '' : a) : '-' + (a === -1 ? '' : -a)) + 't'
+       + (b >= 0 ? '+' + b : '' + b) + (le ? '\\le ' : '\\ge ') + '0$<br>' + why + '<br>' + ans,
+    key: '104iq:' + t1 + ':' + t2 + ':' + le
+  };
+}
+
+/* №21: |x²+bx+c| < d
+   Тоонуудыг БҮХЭЛ язгууртай болгож сонгоно:
+     x²+bx+c-d = (x-p)(x-q),  x²+bx+c+d = (x-r)(x-s),  p+q = r+s = -b
+   Ижил нийлбэртэй үед үржвэр их байх тусам язгуурууд ойртоно (rs > pq тул
+   [r;s] нь (p;q)-ийн дотор). Иймд хариу нь ]p;r[ ∪ ]s;q[ хоёр завсар. */
+function g_104_ineqAbsQuadC() {
+  var S = nz(-8, 8);
+  var p = nz(-9, 9), q = S - p;
+  var r = nz(-9, 9), s = S - r;
+  if (p === q || r === s) return null;
+  var pq = p * q, rs = r * s;
+  if (rs <= pq) return null;
+  if ((rs - pq) % 2 !== 0) return null;
+  var d = (rs - pq) / 2;
+  if (d < 1 || d > 60) return null;
+  var c = (pq + rs) / 2, b = -S;
+  var P = Math.min(p, q), Q = Math.max(p, q), R = Math.min(r, s), T = Math.max(r, s);
+  if (!(P < R && T < Q)) return null;
+  var qt = 'x^{2}' + (b >= 0 ? '+' + (b === 1 ? '' : b) : '-' + (b === -1 ? '' : -b)) + 'x' + (c >= 0 ? '+' + c : '' + c);
+  return {
+    q: '$' + h12_abs(qt) + '\\lt ' + d + '$',
+    a: '$-' + d + '\\lt ' + qt + '\\lt ' + d + '$<br>'
+       + '$\\left(x-' + paren(P) + '\\right)\\left(x-' + paren(Q) + '\\right)\\lt 0$ ба '
+       + '$\\left(x-' + paren(R) + '\\right)\\left(x-' + paren(T) + '\\right)\\gt 0$<br>'
+       + '$x\\in\\left]' + P + ';\\ ' + R + '\\right[\\cup\\left]' + T + ';\\ ' + Q + '\\right[$',
+    key: '104aq:' + P + ':' + Q + ':' + R + ':' + T
+  };
+}
+
+// №22: тусгай тохиолдлууд — |x−a|≤0, |x+a|>−b, 0<|x−a|≤b
+function g_104_absEdge() {
+  var k = rnd(1, 4), a = nz(-9, 9), b = rnd(1, 8);
+  if (k === 1) {
+    return { q: '$' + h12_abs(h12_lin(1, -a)) + '\\le 0$',
+      a: 'Модул сөрөг биш тул зөвхөн $0$-тэй тэнцэнэ.<br>$x=' + h12_set([String(a)]) + '$',
+      key: '104e1:' + a };
+  }
+  if (k === 2) {
+    return { q: '$' + h12_abs(h12_lin(1, a)) + '\\gt -' + b + '$',
+      a: 'Модул үргэлж $\\ge 0\\gt -' + b + '$ тул бүх $x$ тохирно.<br>$x\\in\\mathbb{R}$',
+      key: '104e2:' + a + b };
+  }
+  if (k === 3) {
+    return { q: '$' + h12_abs(h12_lin(1, -a)) + '\\lt -' + b + '$',
+      a: 'Модул сөрөг тооноос бага байж чадахгүй.<br>$x\\in\\varnothing$',
+      key: '104e3:' + a + b };
+  }
+  return { q: '$0\\lt ' + h12_abs(h12_lin(1, -a)) + '\\le ' + b + '$',
+    a: '$\\left|x-' + paren(a) + '\\right|\\le ' + b + '$ ба $x\\ne ' + a + '$<br>'
+       + '$x\\in\\left[' + (a - b) + ';\\ ' + a + '\\right[\\cup\\left]' + a + ';\\ ' + (a + b) + '\\right]$',
+    key: '104e4:' + a + ':' + b };
+}
+
+// №15: хоёр модулт тэнцэтгэл бишийн систем
+function g_104_ineqSys() {
+  var p = rnd(1, 7), a = nz(-6, 6), c = rnd(2, 9);
+  // { |x| ≥ p ; |x−a| < c }
+  var I2lo = a - c, I2hi = a + c;
+  // |x| ≥ p → x ≤ −p эсвэл x ≥ p
+  /* (I2lo; I2hi) нээлттэй завсрыг (−∞; −p] ба [p; +∞)-тэй огтолно.
+     Зааг нь алиныхаа ирмэг болохоос хамаарч хаалттай/нээлттэй болно. */
+  var parts = [];
+  var Lhi = Math.min(-p, I2hi);
+  if (I2lo < Lhi) {
+    parts.push('\\left]' + I2lo + ';\\ ' + Lhi + (Lhi === -p ? '\\right]' : '\\right['));
+  }
+  var Rlo = Math.max(p, I2lo);
+  if (Rlo < I2hi) {
+    parts.push((Rlo === p ? '\\left[' : '\\left]') + Rlo + ';\\ ' + I2hi + '\\right[');
+  }
+  var ans = parts.length ? ('$x\\in ' + parts.join('\\cup ') + '$') : '$x\\in\\varnothing$';
+  return {
+    q: '$\\begin{cases}' + h12_abs('x') + '\\ge ' + p + ' \\\\ ' + h12_abs(h12_lin(1, -a)) + '\\lt ' + c + '\\end{cases}$',
+    a: '$x\\le -' + p + '$ эсвэл $x\\ge ' + p + '$;  мөн $' + I2lo + '\\lt x\\lt ' + I2hi + '$<br>'
+       + 'Хоёрын огтлолцол: ' + ans,
+    key: '104sys:' + p + ':' + a + ':' + c
+  };
+}
+
+// №3: гурван давхар модул — |||x+a|−b|+c|−d = 0
+function g_104_eqNest3() {
+  var a = nz(-6, 6), b = rnd(1, 7), c = rnd(0, 5), d = rnd(1, 10);
+  // ||x+a|−b| = d − c
+  var u = d - c;
+  if (u < 0) {
+    return { q: '$' + h12_abs(h12_abs(h12_abs(h12_lin(1, a)) + '-' + b) + '+' + c) + '-' + d + '=0$',
+      a: '$' + h12_abs(h12_abs(h12_lin(1, a)) + '-' + b) + '=' + u + '\\lt 0$ тул шийдгүй.<br>$x\\in\\varnothing$',
+      key: '104n3:' + a + b + c + d };
+  }
+  var inner = [b + u, b - u], sols = [];
+  inner.forEach(function (t) {
+    if (t < 0) return;
+    if (t === 0) { sols.push(-a); return; }
+    sols.push(-a + t); sols.push(-a - t);
+  });
+  if (!sols.length) {
+    return { q: '$' + h12_abs(h12_abs(h12_abs(h12_lin(1, a)) + '-' + b) + '+' + c) + '-' + d + '=0$',
+      a: '$x\\in\\varnothing$', key: '104n3:' + a + b + c + d };
+  }
+  sols = sols.filter(function (v, i) { return sols.indexOf(v) === i; }).sort(function (p, q) { return p - q; });
+  return {
+    q: '$' + h12_abs(h12_abs(h12_abs(h12_lin(1, a)) + '-' + b) + '+' + c) + '-' + d + '=0$',
+    a: '$' + h12_abs(h12_abs(h12_lin(1, a)) + '-' + b) + '=' + u + '$<br>'
+       + '$' + h12_abs(h12_lin(1, a)) + '=' + (b + u) + '$ эсвэл $' + h12_abs(h12_lin(1, a)) + '=' + (b - u) + '$<br>'
+       + '$x=' + h12_set(sols.map(String)) + '$',
+    key: '104n3:' + a + b + c + d
+  };
+}
+
+// №2 к), л): |x| = x хэлбэр — шийдийн муж
+function g_104_eqAbsLin() {
+  var a = nz(-5, 5), b = nz(-9, 9), c = nz(-5, 5), d = nz(-9, 9);
+  if (a === c || a === -c) return null;
+  var roots = [];
+  var n1 = d - b, m1 = a - c, x1 = n1 / m1;
+  if (a * x1 + b >= -1e-9) roots.push({ v: x1, t: frTeX(n1, m1) });
+  var n2 = -d - b, m2 = a + c, x2 = n2 / m2;
+  if (a * x2 + b < -1e-9) roots.push({ v: x2, t: frTeX(n2, m2) });
+  roots.sort(function (p, q) { return p.v - q.v; });
+  var seen = {}, out = [];
+  roots.forEach(function (r) { if (!seen[r.t]) { seen[r.t] = 1; out.push(r.t); } });
+  return {
+    q: '$' + h12_abs(h12_lin(a, b)) + '=' + h12_lin(c, d) + '$',
+    a: 'Баруун тал $\\ge 0$ байх ёстой. Хоёр тохиолдолд бодоод нөхцөлийг шалгавал<br>$x=' + h12_set(out) + '$',
+    key: '104al:' + a + ':' + b + ':' + c + ':' + d
+  };
+}
+
+// №8: |квадрат| = |квадрат|
+function g_104_eqAbsQuad2() {
+  var b1 = nz(-6, 6), c1 = nz(-9, 9), b2 = nz(-6, 6), c2 = nz(-9, 9);
+  if (b1 === b2 && c1 === c2) return null;
+  var qt1 = 'x^{2}' + (b1 >= 0 ? '+' + (b1 === 1 ? '' : b1) : '-' + (b1 === -1 ? '' : -b1)) + 'x' + (c1 >= 0 ? '+' + c1 : '' + c1);
+  var qt2 = 'x^{2}' + (b2 >= 0 ? '+' + (b2 === 1 ? '' : b2) : '-' + (b2 === -1 ? '' : -b2)) + 'x' + (c2 >= 0 ? '+' + c2 : '' + c2);
+  // Ялгавар: (b1-b2)x + (c1-c2) = 0 → шугаман
+  var db = b1 - b2, dc = c1 - c2;
+  var out = [];
+  if (db !== 0) out.push(frTeX(-dc, db));
+  // Нийлбэр: 2x² + (b1+b2)x + (c1+c2) = 0
+  var A = 2, B = b1 + b2, C = c1 + c2, D = B * B - 4 * A * C;
+  var sq = isqrt(D);
+  var sumTxt;
+  if (D < 0) sumTxt = 'Нийлбэр нь $D=' + D + '\\lt 0$ тул бодит шийдгүй.';
+  else if (sq !== null && (-B - sq) % (2 * A) === 0 && (-B + sq) % (2 * A) === 0) {
+    var s1 = (-B - sq) / (2 * A), s2 = (-B + sq) / (2 * A);
+    out.push(String(s1)); if (s2 !== s1) out.push(String(s2));
+    sumTxt = 'Нийлбэрээс $x=' + s1 + '$' + (s2 !== s1 ? ', $x=' + s2 + '$' : '') + '.';
+  } else return null;                                   // иррационал — хуудсанд тохиромжгүй
+  var uniq = [], seen = {};
+  out.forEach(function (t) { if (!seen[t]) { seen[t] = 1; uniq.push(t); } });
+  uniq.sort(function (p, q) { return Number(p) - Number(q); });
+  return {
+    q: '$' + h12_abs(qt1) + '=' + h12_abs(qt2) + '$',
+    a: '$f=g$ эсвэл $f=-g$.<br>'
+       + (db ? ('Ялгавраас: $' + h12_lin(db, dc) + '=0$. ') : 'Ялгавар нь тогтмол тул тэндээс шийд гарахгүй. ')
+       + sumTxt + '<br>'
+       + '$x=' + h12_set(uniq) + '$',
+    key: '104aq2:' + b1 + c1 + b2 + c2
+  };
+}
 var WSPEC={"title":"Модул агуулсан тэнцэтгэл биш-1","sub":"$|f(x)|<a$, $|f(x)|>a$ · I бүлэг · 12-р анги","rule":"<b>Санамж:</b> $a>0$ үед $|f(x)|<a\\Leftrightarrow -a<f(x)<a$, харин $|f(x)|>a\\Leftrightarrow f(x)>a$ эсвэл $f(x)<-a$ болно.","ref":"","tasks":[{"label":"Тэнцэтгэл биш бод.","fn":"g_103_ineqBasic","cap":6,"cols":3,"wk":14},{"label":"Тэнцэтгэл биш бод.","fn":"g_103_ineqLt","cap":4,"cols":2,"wk":20},{"label":"Тэнцэтгэл биш бод.","fn":"g_103_ineqGt","cap":4,"cols":2,"wk":20},{"label":"Тэнцэтгэл биш бод.","fn":"g_103_ineqShift","cap":6,"cols":2,"wk":22}]};
 
 function toggleAns(){var el=document.getElementById('answers');if(el)el.style.display=document.getElementById('sa').checked?'block':'none';}
