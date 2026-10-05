@@ -3415,6 +3415,247 @@ function applySectionLabels() {
 window.applySectionLabels = applySectionLabels;
 </script>
 <script src="/mathlive.min.js"></script>
+
+<script>
+/* ═══ ТУЛААН ═══
+   Ээлжит тоглоом: асуулт гартал дайсан хөдлөхгүй (хугацааны дарамтгүй).
+   Зөв  → баатар цохино.
+   Буруу→ дайсан нэг удаа цохино, дараа нь ЗӨВ хариуг нь сонгуулж сургана
+          (нэг л шийтгэл — HP; ээлж ч, цуваа ч давхар хасагдахгүй). */
+(function () {
+  var ST = null;                      // тоглоомын төлөв
+  var POOL = [];                      // бодлогын сан
+  var LOADING = false;
+  var LEVELS = [
+    { name: 'Араатан',  hp: 3, color: '#8BC34A' },
+    { name: 'Хуяг',     hp: 4, color: '#42A5F5' },
+    { name: 'Эзэн',     hp: 5, color: '#AB47BC' }
+  ];
+  var HERO_HP = 3;
+
+  function esc(t) { return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function stage() { return document.getElementById('battle-stage'); }
+
+  // ── бодлогын сан ──
+  function fetchPool(cb) {
+    if (LOADING) return;
+    LOADING = true;
+    var url = (typeof window.qApiUrl === 'function') ? window.qApiUrl() : '/api/questions';
+    fetch(url).then(function (r) { return r.json(); }).then(function (d) {
+      POOL = (d && d.questions ? d.questions : []).filter(function (q) {
+        var ch = q.choices;
+        if (typeof ch === 'string') { try { ch = JSON.parse(ch); } catch (e) { return false; } }
+        return q.text && Array.isArray(ch) && ch.length >= 2 && ch.length <= 4 && q.correct != null;
+      }).map(function (q) {
+        var ch = q.choices;
+        if (typeof ch === 'string') { try { ch = JSON.parse(ch); } catch (e) { ch = []; } }
+        return { id: q.id, text: q.text, choices: ch, correct: q.correct, hint: q.hint };
+      });
+      LOADING = false; cb && cb();
+    }).catch(function () { LOADING = false; POOL = []; cb && cb(); });
+  }
+  if (window.cmRegisterPoolReset) window.cmRegisterPoolReset(function () { POOL = []; });
+
+  // ── нэг тулаанд асуулт давтагдахгүй ──
+  function nextQuestion() {
+    var left = POOL.filter(function (q) { return ST.seen.indexOf(q.id) < 0; });
+    if (!left.length) { ST.seen = []; left = POOL; }          // сан дуусвал шинэчилнэ
+    var q = left[Math.floor(Math.random() * left.length)];
+    ST.seen.push(q.id);
+    // Байрлалаар таахаас сэргийлж сонголтыг холино
+    var opts = q.choices.slice();
+    for (var i = opts.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = opts[i]; opts[i] = opts[j]; opts[j] = t; }
+    ST.q = { text: q.text, opts: opts, correct: q.correct, hint: q.hint };
+    ST.phase = 'ask';
+    ST.picked = null;
+    save();
+  }
+
+  // ── хадгалалт (таб хаагдвал алдагдахгүй) ──
+  function save() { try { localStorage.setItem('cm_battle', JSON.stringify(ST)); } catch (e) {} }
+  function clearSave() { try { localStorage.removeItem('cm_battle'); } catch (e) {} }
+
+  // ── дүрслэл ──
+  function heroSvg(hit) {
+    return '<svg viewBox="0 0 80 90" width="76" height="86" style="transition:transform .25s;transform:translateX(' + (hit ? '16px' : '0') + ')">'
+      + '<ellipse cx="40" cy="80" rx="22" ry="5" fill="rgba(0,0,0,.18)"/>'
+      + '<circle cx="40" cy="44" r="26" fill="#FFD84D" stroke="#E0A800" stroke-width="2.5"/>'
+      + '<circle cx="31" cy="39" r="4.5" fill="#2b2b2b"/><circle cx="49" cy="39" r="4.5" fill="#2b2b2b"/>'
+      + '<circle cx="32.5" cy="37.5" r="1.6" fill="#fff"/><circle cx="50.5" cy="37.5" r="1.6" fill="#fff"/>'
+      + '<path d="M34 50 L40 56 L46 50" stroke="#E0A800" stroke-width="2.6" fill="none" stroke-linecap="round"/>'
+      + '<path d="M40 18 L40 10" stroke="#E0A800" stroke-width="2.6" stroke-linecap="round"/><circle cx="40" cy="8" r="3" fill="#FF6B4A"/>'
+      + '<path d="M62 34 L74 22" stroke="#9aa4b2" stroke-width="5" stroke-linecap="round"/>'
+      + '<path d="M58 38 L64 32" stroke="#6b7280" stroke-width="7" stroke-linecap="round"/>'
+      + '</svg>';
+  }
+  function foeSvg(lv, hit) {
+    var c = LEVELS[lv].color;
+    return '<svg viewBox="0 0 80 90" width="76" height="86" style="transition:transform .25s;transform:translateX(' + (hit ? '-16px' : '0') + ')">'
+      + '<ellipse cx="40" cy="80" rx="22" ry="5" fill="rgba(0,0,0,.18)"/>'
+      + '<path d="M14 50 Q14 20 40 20 Q66 20 66 50 Q66 72 40 72 Q14 72 14 50Z" fill="' + c + '" stroke="rgba(0,0,0,.35)" stroke-width="2.5"/>'
+      + '<path d="M18 26 L10 12 L26 20Z" fill="' + c + '" stroke="rgba(0,0,0,.35)" stroke-width="2"/>'
+      + '<path d="M62 26 L70 12 L54 20Z" fill="' + c + '" stroke="rgba(0,0,0,.35)" stroke-width="2"/>'
+      + '<circle cx="30" cy="44" r="6" fill="#fff"/><circle cx="50" cy="44" r="6" fill="#fff"/>'
+      + '<circle cx="31" cy="45" r="3" fill="#1a1a1a"/><circle cx="51" cy="45" r="3" fill="#1a1a1a"/>'
+      + '<path d="M30 60 L36 56 L42 60 L48 56 L54 60" stroke="#1a1a1a" stroke-width="2.4" fill="none" stroke-linecap="round"/>'
+      + '</svg>';
+  }
+  function bar(now, max, color) {
+    var pct = Math.max(0, Math.round(now / max * 100));
+    return '<div style="width:92px;height:9px;border-radius:99px;background:rgba(0,0,0,.22);overflow:hidden;">'
+      + '<div style="width:' + pct + '%;height:100%;background:' + color + ';border-radius:99px;transition:width .3s;"></div></div>';
+  }
+
+  function render() {
+    var el = stage(); if (!el) return;
+    if (!ST) { el.innerHTML = ''; return; }
+
+    if (ST.phase === 'loading') {
+      el.innerHTML = '<div style="padding:40px;text-align:center;font-family:\'Baloo 2\',sans-serif;font-weight:800;color:#888;">Бодлого бэлдэж байна…</div>';
+      return;
+    }
+    if (ST.phase === 'empty') {
+      el.innerHTML = '<div style="padding:34px;text-align:center;font-family:\'Baloo 2\',sans-serif;">'
+        + '<div style="font-weight:900;font-size:1.05rem;color:#3C3C3C;margin-bottom:6px;">Бодлого олдсонгүй</div>'
+        + '<div style="font-size:0.88rem;color:#777;line-height:1.5;margin-bottom:14px;">Сонгосон агуулгад бодлого алга байна. Дээрх «Агуулга»-аас өөр хичээл сонгох эсвэл «Бүх агуулга» болгоно уу.</div>'
+        + '<button onclick="btStart()" style="border:none;border-radius:14px;padding:11px 24px;font-family:inherit;font-weight:900;color:#fff;background:linear-gradient(135deg,#FF6B4A,#C7381A);cursor:pointer;">Дахин оролдох</button></div>';
+      return;
+    }
+    if (ST.phase === 'over') {
+      var win = ST.lv >= LEVELS.length;
+      el.innerHTML = '<div style="padding:30px 20px;text-align:center;font-family:\'Baloo 2\',sans-serif;">'
+        + '<div style="font-size:3rem;line-height:1;margin-bottom:6px;">' + (win ? '🏆' : '💪') + '</div>'
+        + '<div style="font-weight:900;font-size:1.25rem;color:#3C3C3C;">' + (win ? 'Бүх дайсныг яллаа!' : 'Дахин оролдоорой') + '</div>'
+        + '<div style="font-size:0.9rem;color:#777;margin:8px 0 4px;">Зөв хариулт: <b>' + ST.right + '</b> / ' + (ST.right + ST.wrong) + '</div>'
+        + (ST.xp ? '<div style="font-weight:900;color:#7B52EE;font-size:1rem;margin-bottom:14px;">+' + ST.xp + ' XP</div>' : '<div style="height:12px"></div>')
+        + '<button onclick="btStart()" style="border:none;border-radius:14px;padding:12px 26px;font-family:inherit;font-weight:900;color:#fff;background:linear-gradient(135deg,#FF6B4A,#C7381A);cursor:pointer;margin-right:8px;">Дахин</button>'
+        + '<button onclick="btClose()" style="border:1.6px solid #ddd;border-radius:14px;padding:12px 22px;font-family:inherit;font-weight:800;color:#777;background:#fff;cursor:pointer;">Гарах</button>'
+        + '</div>';
+      return;
+    }
+
+    var lv = LEVELS[ST.lv];
+    var showAns = (ST.phase === 'learn');
+    var opts = ST.q.opts.map(function (o, i) {
+      var isCorrect = String(o) === String(ST.q.correct);
+      var bg = '#fff', bd = '#e7e0f7', col = '#2a2340';
+      if (ST.phase === 'learn') {
+        if (isCorrect) { bg = '#eafbe7'; bd = '#58CC02'; col = '#2f7d00'; }
+        else if (String(o) === String(ST.picked)) { bg = '#ffeceb'; bd = '#FF4B4B'; col = '#b3261e'; }
+        else { bg = '#fafafa'; bd = '#eee'; col = '#aaa'; }
+      }
+      return '<button onclick="btPick(' + i + ')" style="width:100%;min-height:50px;margin-bottom:8px;border-radius:14px;'
+        + 'border:2px solid ' + bd + ';background:' + bg + ';color:' + col + ';font-family:\'Baloo 2\',sans-serif;'
+        + 'font-weight:800;font-size:1rem;cursor:pointer;padding:10px 14px;text-align:left;">' + esc(o) + '</button>';
+    }).join('');
+
+    el.innerHTML =
+      '<div style="background:linear-gradient(180deg,#223049,#16203a);border-radius:18px;padding:16px 14px 14px;">'
+      + '<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:10px;">'
+      +   '<div style="text-align:center;">' + bar(ST.hp, HERO_HP, '#58CC02')
+      +     '<div style="margin-top:4px;">' + heroSvg(ST.anim === 'hero') + '</div>'
+      +     '<div style="color:#cfe0ff;font-size:0.74rem;font-weight:800;font-family:\'Baloo 2\',sans-serif;">Та · ' + ST.hp + '/' + HERO_HP + '</div>'
+      +   '</div>'
+      +   '<div style="flex:1;text-align:center;color:#9fb6d8;font-size:0.74rem;font-weight:800;font-family:\'Baloo 2\',sans-serif;">'
+      +     'Дайсан ' + (ST.lv + 1) + '/' + LEVELS.length + '</div>'
+      +   '<div style="text-align:center;">' + bar(ST.foeHp, lv.hp, '#FF6B4A')
+      +     '<div style="margin-top:4px;">' + foeSvg(ST.lv, ST.anim === 'foe') + '</div>'
+      +     '<div style="color:#ffd7cc;font-size:0.74rem;font-weight:800;font-family:\'Baloo 2\',sans-serif;">' + lv.name + ' · ' + ST.foeHp + '/' + lv.hp + '</div>'
+      +   '</div>'
+      + '</div></div>'
+      + '<div style="background:#fff;border:2px solid #f0ebff;border-radius:18px;padding:16px 14px;margin-top:12px;">'
+      +   '<div style="font-family:\'Baloo 2\',sans-serif;font-weight:900;font-size:1.05rem;color:#2a2340;line-height:1.45;margin-bottom:12px;">' + esc(ST.q.text) + '</div>'
+      +   opts
+      +   (showAns
+          ? '<div style="margin-top:6px;padding:11px 13px;border-radius:12px;background:#fff8e6;border:1.5px solid #ffd77a;font-family:\'Baloo 2\',sans-serif;font-size:0.86rem;color:#7a5a20;line-height:1.5;">'
+            + 'Зөв хариу нь <b>' + esc(ST.q.correct) + '</b>. Үүнийг дарж үргэлжлүүл.'
+            + (ST.q.hint ? '<br>' + esc(typeof ST.q.hint === 'string' ? ST.q.hint : (ST.q.hint.text || '')) : '')
+            + '</div>'
+          : '')
+      + '</div>';
+    if (window.mlRenderMath) window.mlRenderMath(el);
+  }
+
+  // ── үйлдлүүд ──
+  window.btPick = function (i) {
+    if (!ST || (ST.phase !== 'ask' && ST.phase !== 'learn')) return;
+    var o = ST.q.opts[i];
+    var ok = String(o) === String(ST.q.correct);
+
+    if (ST.phase === 'learn') {
+      if (!ok) return;                               // зөвийг нь дартал хүлээнэ
+      ST.phase = 'ask'; nextQuestion(); render(); return;
+    }
+    ST.picked = o;
+    if (ok) {
+      ST.right++; ST.foeHp--; ST.anim = 'hero';
+      render();
+      setTimeout(function () {
+        ST.anim = null;
+        if (ST.foeHp <= 0) {
+          ST.lv++;
+          if (ST.lv >= LEVELS.length) { finish(true); return; }
+          ST.foeHp = LEVELS[ST.lv].hp;
+        }
+        nextQuestion(); render();
+      }, 420);
+    } else {
+      ST.wrong++; ST.hp--; ST.anim = 'foe';
+      render();
+      setTimeout(function () {
+        ST.anim = null;
+        if (ST.hp <= 0) { finish(false); return; }
+        ST.phase = 'learn';                          // зөв хариуг сонгуулж сургана
+        save(); render();
+      }, 420);
+    }
+  };
+
+  function finish(win) {
+    ST.phase = 'over';
+    ST.xp = 0;
+    if (win) ST.xp = 5 * LEVELS.length + ST.right;
+    else ST.xp = Math.floor(ST.right / 2);
+    clearSave();
+    render();
+    // XP-г СЕРВЕР дээр нэмнэ (клиентийн тоололд шууд итгэхгүй)
+    try {
+      if (ST.xp > 0 && window._currentUser && window._currentUser.email && typeof authFetch === 'function') {
+        authFetch('/api/users', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: window._currentUser.email, action: 'addXp', amount: Math.min(60, ST.xp) })
+        }).catch(function () {});
+      }
+    } catch (e) {}
+  }
+
+  window.btStart = function () {
+    var saved = null;
+    try { saved = JSON.parse(localStorage.getItem('cm_battle') || 'null'); } catch (e) {}
+    ST = { lv: 0, foeHp: LEVELS[0].hp, hp: HERO_HP, right: 0, wrong: 0, seen: [], q: null, phase: 'loading', picked: null, anim: null, xp: 0 };
+    render();
+    function go() {
+      if (!POOL.length) { ST.phase = 'empty'; render(); return; }
+      if (saved && saved.q && saved.phase && saved.phase !== 'over' && saved.hp > 0) {
+        ST = saved; ST.anim = null;                  // хагас дундаас үргэлжлүүлнэ
+        if (!LEVELS[ST.lv]) { ST.lv = 0; ST.foeHp = LEVELS[0].hp; }
+      } else {
+        nextQuestion();
+      }
+      render();
+    }
+    if (POOL.length) go(); else fetchPool(go);
+  };
+  window.btClose = function () {
+    var a = document.getElementById('battle-area');
+    if (a) a.style.display = 'none';
+    var sel = document.getElementById('game-selector');
+    if (sel) sel.style.display = '';
+    ST = null;
+  };
+})();
+</script>
+
 <style>
 /* MathLive: жижиг keyboard/menu toggle icon-уудыг нуух */
 math-field::part(menu-toggle),
@@ -41235,6 +41476,19 @@ document.head.appendChild(cmStyle);
         <div class="game-card-badge" style="background:linear-gradient(135deg,#CE82FF,#9B3FD4);color:white;border:none;">8-9</div>
       </div>
 
+      <!-- Тулаан -->
+      <div class="game-card" onclick="startGame('battle')" style="border-color:#FF6B4A;background:linear-gradient(135deg,#fff6f3,#ffeee8);">
+        <div class="game-card-icon">
+          <svg viewBox="0 0 48 48" width="52" height="52" fill="none">
+            <path d="M34 8 L40 14 L18 36 L12 38 L14 32 Z" fill="#FF6B4A" stroke="#C7381A" stroke-width="1.8" stroke-linejoin="round"/>
+            <path d="M14 8 L8 14 L30 36 L36 38 L34 32 Z" fill="#FFC14A" stroke="#C78A1A" stroke-width="1.8" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="game-card-title">Тулаан</div>
+        <div class="game-card-desc">Зөв хариулж дайснаа ял</div>
+        <div class="game-card-badge" style="background:linear-gradient(135deg,#FF6B4A,#C7381A);color:white;border:none;">Шинэ</div>
+      </div>
+
       <!-- Chess Math -->
       <div class="game-card" onclick="startGame('chessmath')" style="border-color:#3a2a1c;background:linear-gradient(135deg,#1a1830,#0a0f1c);color:#fff;">
         <div class="game-card-icon">
@@ -41492,6 +41746,17 @@ document.head.appendChild(cmStyle);
         </div>
       </div>
       <iframe id="nicebattle-iframe" src="https://8-9-songon.vercel.app" style="width:100%;height:600px;border:none;border-radius:18px;box-shadow:0 4px 24px rgba(206,130,255,0.15);" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; fullscreen" allowfullscreen></iframe>
+    </div>
+
+    <div id="battle-area" style="display:none;margin-bottom:16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <svg viewBox="0 0 24 24" fill="none" width="30" height="30"><path d="M17 4 L20 7 L9 18 L6 19 L7 16 Z" fill="#FF6B4A" stroke="#C7381A" stroke-width="1.6" stroke-linejoin="round"/><path d="M7 4 L4 7 L15 18 L18 19 L17 16 Z" fill="#FFC14A" stroke="#C78A1A" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          <div style="font-family:'Baloo 2',sans-serif;font-size:1.1rem;font-weight:800;background:linear-gradient(135deg,#FF6B4A,#C7381A);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Тулаан</div>
+        </div>
+        <button onclick="btClose()" style="padding:6px 16px;border-radius:100px;border:2px solid #eeeaf8;background:white;font-weight:800;font-size:0.8rem;color:#888;cursor:pointer;font-family:'Baloo 2',sans-serif;">Буцах</button>
+      </div>
+      <div id="battle-stage"></div>
     </div>
 
     <div id="songon-area" style="display:none;margin-bottom:16px;">
@@ -56489,6 +56754,7 @@ function toggleAvatarSection() {
 
   /* Бодлого татдаг тоглоомууд — хичээл сонгогч нэмнэ */
   var CM_Q_GAMES = {
+    battle: 'battle-area',
     blockblast: 'blockblast-area', flagbattle: 'flagbattle-area', songon: 'songon-area',
     nicebattle: 'nicebattle-area', chessmath: 'chessmath-area', daam: 'daam-area',
     gomoku: 'gomoku-area', ludo: 'ludo-area', doroev: 'doroev-area', sbh: 'sbh-area',
@@ -56502,8 +56768,9 @@ function toggleAvatarSection() {
       } catch (e) {}
     }, 60);
     ['game-selector'].forEach(id => document.getElementById(id).style.display = 'none');
-    ['blockblast-area','flagbattle-area','songon-area','nicebattle-area','chessmath-area','daam-area','gomoku-area','ludo-area','numseq-area','doroev-area','sbh-area','xpdrop-area','myangat-area','sudoku-area','play2048-area','game-area'].forEach(id => { var el = document.getElementById(id); if (el) el.style.display = 'none'; });
+    ['battle-area','blockblast-area','flagbattle-area','songon-area','nicebattle-area','chessmath-area','daam-area','gomoku-area','ludo-area','numseq-area','doroev-area','sbh-area','xpdrop-area','myangat-area','sudoku-area','play2048-area','game-area'].forEach(id => { var el = document.getElementById(id); if (el) el.style.display = 'none'; });
     document.getElementById('game-selector').style.display = 'none';
+    if (type === 'battle') { document.getElementById('battle-area').style.display = 'block'; if (typeof btStart === 'function') btStart(); return; }
     if (type === 'blockblast') { document.getElementById('blockblast-area').style.display = 'block'; return; }
     if (type === 'flagbattle') { document.getElementById('flagbattle-area').style.display = 'block'; return; }
     if (type === 'songon')    { document.getElementById('songon-area').style.display = 'block'; return; }
@@ -56775,7 +57042,7 @@ function toggleAvatarSection() {
   }
 
   function _closeAllGames() {
-    ['blockblast-area','flagbattle-area','songon-area','nicebattle-area','chessmath-area','daam-area','gomoku-area','ludo-area','numseq-area','doroev-area','sbh-area','xpdrop-area','myangat-area','sudoku-area','play2048-area','game-area'].forEach(id => { var el = document.getElementById(id); if (el) el.style.display = 'none'; });
+    ['battle-area','blockblast-area','flagbattle-area','songon-area','nicebattle-area','chessmath-area','daam-area','gomoku-area','ludo-area','numseq-area','doroev-area','sbh-area','xpdrop-area','myangat-area','sudoku-area','play2048-area','game-area'].forEach(id => { var el = document.getElementById(id); if (el) el.style.display = 'none'; });
     document.getElementById('game-selector').style.display = '';
     if (typeof stopChessMath === 'function') stopChessMath();
     if (typeof stopDaam === 'function') stopDaam();
