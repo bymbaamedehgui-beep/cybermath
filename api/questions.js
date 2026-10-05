@@ -130,7 +130,12 @@ module.exports = async (req, res) => {
           vals.push(mg);
         }
       }
-      if (node_id) { conds.push(`node_id=$${vals.length+1}`); vals.push(parseInt(node_id)); }
+      // node_id=5 эсвэл node_id=5,7,12 (олон хичээлийн агуулгыг нэгтгэх)
+      if (node_id) {
+        const nIds = String(node_id).split(',').map(x => parseInt(x, 10)).filter(x => !isNaN(x)).slice(0, 60);
+        if (nIds.length === 1) { conds.push(`node_id=$${vals.length+1}`); vals.push(nIds[0]); }
+        else if (nIds.length) { conds.push(`node_id = ANY($${vals.length+1}::int[])`); vals.push(nIds); }
+      }
       // Тухайн ангийн БҮХ node-ийн бодлого (node_id өгөөгүй үед хяналтын жагсаалтад)
       if (node_grade && !node_id) {
         conds.push(`node_id IN (SELECT id FROM nodes WHERE grade = $${vals.length+1})`);

@@ -4199,6 +4199,7 @@ window.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('[data-game-time-picker]').forEach(function(el){
       el.innerHTML = window.gameTimePickerHtml() + window.gameLessonPickerHtml();
     });
+    document.querySelectorAll('.game-lesson-box').forEach(function(b){ window.cmPaintPicker(b); });
     if (typeof window.setGameTime === 'function') {
       window.setGameTime(window.gameQuestionSeconds == null ? 'inf' : window.gameQuestionSeconds);
     }
@@ -4217,89 +4218,133 @@ window.getUserMaxGrade = function() {
 };
 /* ── Тоглоомын агуулгын хүрээ ──
    null = бүх агуулга, тоо = тухайн хичээлийн (node) бодлого. */
-window.gameNodeId = (function(){
-  try { var v = localStorage.getItem('cm_game_node'); return v ? parseInt(v, 10) : null; }
-  catch (e) { return null; }
-})();
-window.setGameNode = function(id) {
-  var v = (id === '' || id == null) ? null : parseInt(id, 10);
-  window.gameNodeId = (v && !isNaN(v)) ? v : null;
+window.gameNodeIds = (function(){
   try {
-    if (window.gameNodeId) localStorage.setItem('cm_game_node', window.gameNodeId);
-    else localStorage.removeItem('cm_game_node');
+    var v = localStorage.getItem('cm_game_nodes');
+    if (!v) return [];
+    return JSON.parse(v).map(function(x){ return parseInt(x, 10); }).filter(function(x){ return !isNaN(x); });
+  } catch (e) { return []; }
+})();
+
+/* Тоглоомууд бодлогын сангаа нэг удаа татаад кэшилдэг тул сонголт
+   солигдоход тэдгээрийг цэвэрлэх ёстой — эс бөгөөс хуучин бодлого гарсаар байна. */
+window._cmPoolResets = [];
+window.cmRegisterPoolReset = function(fn) {
+  if (typeof fn === 'function') window._cmPoolResets.push(fn);
+};
+window.cmResetPools = function() {
+  window._cmPoolResets.forEach(function(fn){ try { fn(); } catch (e) {} });
+};
+
+function cmSaveGameNodes() {
+  try {
+    if (window.gameNodeIds.length) localStorage.setItem('cm_game_nodes', JSON.stringify(window.gameNodeIds));
+    else localStorage.removeItem('cm_game_nodes');
   } catch (e) {}
-  // Бүх сонгогчийг ижил утгатай болгоно
-  [].forEach.call(document.querySelectorAll('.game-lesson-sel'), function(sel) {
-    sel.value = window.gameNodeId ? String(window.gameNodeId) : '';
-  });
-  [].forEach.call(document.querySelectorAll('.game-lesson-note'), function(el) {
-    el.textContent = window.gameNodeId ? 'Тоглоом эхлэхэд мөрдөгдөнө' : '';
-  });
-  if (typeof showToast === 'function') {
-    showToast(window.gameNodeId ? 'Сонгосон хичээлийн бодлогоор тоглоно' : 'Бүх агуулгаар тоглоно');
-  }
+  window.cmResetPools();
+  [].forEach.call(document.querySelectorAll('.game-lesson-box'), function(box){ cmPaintPicker(box); });
+}
+window.toggleGameNode = function(id, on) {
+  var v = parseInt(id, 10); if (isNaN(v)) return;
+  var i = window.gameNodeIds.indexOf(v);
+  if (on && i < 0) window.gameNodeIds.push(v);
+  if (!on && i >= 0) window.gameNodeIds.splice(i, 1);
+  cmSaveGameNodes();
+};
+window.clearGameNodes = function() {
+  window.gameNodeIds = [];
+  cmSaveGameNodes();
+  if (typeof showToast === 'function') showToast('Бүх агуулгаар тоглоно');
 };
 
 // '/api/questions' эсвэл '/api/questions?...' дараа max_grade (+ сонгосон хичээл) нэмж буцаах
 window.qApiUrl = function(suffix) {
   var mg = window.getUserMaxGrade();
   var base = '/api/questions';
-  var extra = '&max_grade=' + mg + (window.gameNodeId ? '&node_id=' + window.gameNodeId : '');
+  var ids = window.gameNodeIds || [];
+  var extra = '&max_grade=' + mg + (ids.length ? '&node_id=' + ids.join(',') : '');
   if (!suffix) return base + '?' + extra.slice(1);
   if (suffix.charAt(0) === '?') return base + suffix + extra;
   return base + '?' + suffix + extra;
 };
 
 /* ── Хичээл сонгогч (бүх тоглоомд нийтлэг) ── */
-window.gameLessonPickerHtml = function() {
+/* Хэрэглэгчид харагдах node-ууд (ангиар нь бүлэглэсэн) */
+window.cmGameNodes = function() {
   var nodes = [];
   try { nodes = JSON.parse(localStorage.getItem('cm_nodes') || '[]'); } catch (e) {}
   var mg = window.getUserMaxGrade();
-  nodes = nodes.filter(function(x){
+  return nodes.filter(function(x){
     var g = parseInt(x.grade);
     return x && x.name && (isNaN(g) || g <= mg);
-  });
-  nodes.sort(function(a, b){
-    var ga = parseInt(a.grade) || 99, gb = parseInt(b.grade) || 99;
-    if (ga !== gb) return ga - gb;
+  }).sort(function(a, b){
     var sa = (a.sort_order == null ? a.id : a.sort_order), sb = (b.sort_order == null ? b.id : b.sort_order);
     return sa - sb || a.id - b.id;
   });
-  var cur = window.gameNodeId ? String(window.gameNodeId) : '';
-  var opts = '<option value="">Бүх агуулга</option>';
-  var lastG = null;
+};
+window.gameLessonPickerHtml = function() {
+  var nodes = window.cmGameNodes();
+  var grades = [];
   nodes.forEach(function(x){
     var g = String(x.grade || '—');
-    if (g !== lastG) {
-      if (lastG !== null) opts += '</optgroup>';
-      opts += '<optgroup label="' + (/^\d+$/.test(g) ? g + '-р анги' : g) + '">';
-      lastG = g;
-    }
-    var nm = String(x.name).replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    opts += '<option value="' + x.id + '"' + (cur === String(x.id) ? ' selected' : '') + '>' + nm + '</option>';
+    if (grades.indexOf(g) < 0) grades.push(g);
   });
-  if (lastG !== null) opts += '</optgroup>';
-  if (!nodes.length) opts = '<option value="">Бүх агуулга</option>';
+  grades.sort(function(a, b){ return (parseInt(a) || 99) - (parseInt(b) || 99); });
+  var gOpts = '<option value="">— Анги —</option>' + grades.map(function(g){
+    return '<option value="' + g + '">' + (/^[0-9]+$/.test(g) ? g + '-р анги' : g) + '</option>';
+  }).join('');
 
-  return '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;">'
-    + '<span style="font-size:0.78rem;font-weight:800;color:#aaa;">Агуулга</span>'
-    + '<select class="game-lesson-sel" onchange="setGameNode(this.value)" '
-    + 'style="flex:1;min-width:170px;max-width:340px;background:rgba(255,255,255,0.06);border:1.5px solid rgba(255,255,255,0.15);'
-    + 'color:#eee;border-radius:8px;padding:6px 9px;font-weight:700;font-size:0.8rem;font-family:inherit;cursor:pointer;">'
-    + opts + '</select>'
-    + '<span class="game-lesson-note" style="font-size:0.7rem;font-weight:700;color:#8a82ad;"></span>'
+  return '<div class="game-lesson-box" style="margin-top:8px;background:rgba(255,255,255,0.04);border:1.5px solid rgba(255,255,255,0.12);border-radius:10px;padding:9px 10px;">'
+    + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
+    +   '<span style="font-size:0.78rem;font-weight:800;color:#bbb;">Агуулга</span>'
+    +   '<select class="game-grade-sel" onchange="cmPickerGrade(this)" '
+    +     'style="background:rgba(255,255,255,0.07);border:1.5px solid rgba(255,255,255,0.16);color:#eee;border-radius:8px;'
+    +     'padding:5px 8px;font-weight:700;font-size:0.78rem;font-family:inherit;cursor:pointer;">' + gOpts + '</select>'
+    +   '<button type="button" onclick="clearGameNodes()" '
+    +     'style="background:rgba(255,255,255,0.07);border:1.5px solid rgba(255,255,255,0.16);color:#bbb;border-radius:8px;'
+    +     'padding:5px 10px;font-weight:800;font-size:0.74rem;font-family:inherit;cursor:pointer;">Бүх агуулга</button>'
+    +   '<span class="game-lesson-sum" style="font-size:0.74rem;font-weight:800;color:#8a82ad;margin-left:auto;"></span>'
+    + '</div>'
+    + '<div class="game-lesson-list" style="display:none;max-height:168px;overflow-y:auto;margin-top:8px;border-top:1px solid rgba(255,255,255,0.1);padding-top:7px;"></div>'
     + '</div>';
+};
+/* Анги сонгоход тэр ангийн хичээлүүдийг чекбоксоор гаргана */
+window.cmPickerGrade = function(sel) {
+  var box = sel.closest('.game-lesson-box');
+  if (!box) return;
+  var list = box.querySelector('.game-lesson-list');
+  var g = sel.value;
+  if (!g) { list.style.display = 'none'; list.innerHTML = ''; return; }
+  var nodes = window.cmGameNodes().filter(function(x){ return String(x.grade || '—') === g; });
+  list.innerHTML = nodes.map(function(x){
+    var nm = String(x.name).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    var on = window.gameNodeIds.indexOf(x.id) >= 0;
+    return '<label style="display:flex;align-items:center;gap:8px;padding:5px 3px;cursor:pointer;font-size:0.78rem;font-weight:700;color:#ddd;">'
+      + '<input type="checkbox" data-node="' + x.id + '"' + (on ? ' checked' : '') + ' onchange="toggleGameNode(' + x.id + ', this.checked)" '
+      + 'style="width:16px;height:16px;flex-shrink:0;accent-color:#7B52EE;cursor:pointer;">'
+      + '<span style="flex:1;min-width:0;">' + nm + '</span></label>';
+  }).join('') || '<div style="font-size:0.76rem;color:#888;padding:6px 3px;">Хичээл олдсонгүй</div>';
+  list.style.display = 'block';
+};
+/* Сонгогчийн төлөвийг (тоо, чекбокс) шинэчилнэ */
+window.cmPaintPicker = function(box) {
+  if (!box) return;
+  var sum = box.querySelector('.game-lesson-sum');
+  var k = window.gameNodeIds.length;
+  if (sum) sum.textContent = k ? (k + ' хичээл сонгосон') : 'Бүх агуулга';
+  [].forEach.call(box.querySelectorAll('input[data-node]'), function(cb){
+    cb.checked = window.gameNodeIds.indexOf(parseInt(cb.getAttribute('data-node'), 10)) >= 0;
+  });
 };
 /* Тухайн тоглоомын талбайн эхэнд сонгогчийг нэг удаа оруулна */
 window.cmEnsureGamePicker = function(areaId) {
   var area = document.getElementById(areaId);
-  if (!area || area.querySelector('.game-lesson-sel')) return;
+  if (!area || area.querySelector('.game-lesson-box')) return;
   var box = document.createElement('div');
   box.innerHTML = window.gameLessonPickerHtml();
   box.style.cssText = 'padding:0 2px 6px;';
   area.insertBefore(box, area.firstChild);
-  var sel = box.querySelector('.game-lesson-sel');
-  if (sel) sel.value = window.gameNodeId ? String(window.gameNodeId) : '';
+  window.cmPaintPicker(box.querySelector('.game-lesson-box'));
 };
 
 function initChatForUser() {
@@ -41829,6 +41874,7 @@ document.head.appendChild(cmStyle);
       var sbhBusy = false;
       var sbhCurCell = null;    // { row, col, q }
       var sbhPool = [];
+      if (window.cmRegisterPoolReset) window.cmRegisterPoolReset(function(){ sbhPool = []; try { fetchSbhPool(); } catch (e) {} });
       var sbhTimer = null;
 
       function newBoard(){
@@ -42179,7 +42225,8 @@ document.head.appendChild(cmStyle);
 
       var sbhCategories = ['Α АЛЬФА','Β БЕТА','Γ ГАММА','Δ ДЕЛЬТА','Ω ОМЕГА'];
       var sbhValues = [200, 400, 600, 800];
-      var sbhPool = [];          // [{text, choices, correct}, ...]
+      var sbhPool = [];
+      if (window.cmRegisterPoolReset) window.cmRegisterPoolReset(function(){ sbhPool = []; try { fetchSbhPool(); } catch (e) {} });          // [{text, choices, correct}, ...]
       var sbhGame = null;        // local copy of game state
       var sbhQTimer = null;
       var sbhAnswered = false;   // I already answered current question
@@ -43320,6 +43367,7 @@ document.head.appendChild(cmStyle);
     (function(){
       var drMode = null, drPlayMode = null, drBoard = null, drTurn = 'r', drStatus = 'playing', drBusy = false;
       var drPendingCol = -1, drScores = { r: 0, t: 0 }, drWinCells = [], drPool = [], drTimer = null;
+      if (window.cmRegisterPoolReset) window.cmRegisterPoolReset(function(){ drPool = []; try { fetchDrPool(); } catch (e) {} });
       var ROWS = 6, COLS = 7;
       function newBoard(){ var b = []; for (var r = 0; r < ROWS; r++) { var row = []; for (var c = 0; c < COLS; c++) row.push(null); b.push(row); } return b; }
       function dropRow(board, col){ for (var r = ROWS-1; r >= 0; r--) if (!board[r][col]) return r; return -1; }
@@ -63253,6 +63301,7 @@ function injectSpinButton() {}
   var cmCapturedB = [];
   var cmPendingMove = null;  // {fromR, fromC, toR, toC, isCapture, piece}
   var cmPool = [];           // cached questions from /api/questions
+  if (window.cmRegisterPoolReset) window.cmRegisterPoolReset(function(){ cmPool = []; try { fetchQuestionPool(); } catch (e) {} });
   var cmTimer = null;
   var cmBusy = false;
   var cmFlipped = false;     // true → board flipped (black at bottom). Online join-эгчид true.
@@ -64062,6 +64111,7 @@ function injectSpinButton() {}
   var dmCapturedW = 0, dmCapturedB = 0; // тоологдсон цагаан/хар хүү
   var dmPendingMove = null;
   var dmPool = [];
+  if (window.cmRegisterPoolReset) window.cmRegisterPoolReset(function(){ dmPool = []; try { fetchPool(); } catch (e) {} });
   var dmFlipped = false;
   var dmTimer = null;
   var dmBusy = false;
@@ -64811,6 +64861,7 @@ function injectSpinButton() {}
   var gmWinLine = null;   // [{r,c},...] 5 winning cells
   var gmPending = null;   // {r, c}
   var gmPool = [];
+  if (window.cmRegisterPoolReset) window.cmRegisterPoolReset(function(){ gmPool = []; try { fetchPool(); } catch (e) {} });
   var gmTimer = null;
   var gmBusy = false;
 
@@ -65547,6 +65598,7 @@ function injectSpinButton() {}
   var luScores = _emptyByColor();
   var luLastDice = _emptyByColor();
   var luPool = [];
+  if (window.cmRegisterPoolReset) window.cmRegisterPoolReset(function(){ luPool = []; try { fetchPool(); } catch (e) {} });
   var luTimer = null;
   var luBusy = false;
   var luPendingAction = null;
