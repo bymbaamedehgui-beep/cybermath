@@ -606,6 +606,62 @@ module.exports = async (req, res) => {
         return res.json({ ok: true, challenges: enriched });
       }
 
+      // ===== БАГШИЙН БОДЛОГЫН САН =====
+      /* Багш Mathlet-д үүсгэсэн бодлогоо дараа дахин ашиглана. */
+      let _tqReady = false;
+      async function ensureTeacherQuestions() {
+        if (_tqReady) return;
+        await pool.query(`CREATE TABLE IF NOT EXISTS teacher_questions (
+          id BIGSERIAL PRIMARY KEY,
+          teacher_email TEXT NOT NULL,
+          text TEXT NOT NULL,
+          type TEXT NOT NULL DEFAULT 'choice',
+          choices JSONB DEFAULT '[]'::jsonb,
+          correct TEXT NOT NULL,
+          hint TEXT,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )`).catch(() => {});
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_tq_teacher ON teacher_questions(teacher_email, id DESC)`).catch(() => {});
+        _tqReady = true;
+      }
+      /* Санд хадгална — яг ижил асуулт давхардуулахгүй. Нэг багшид 1000 хүртэл. */
+      async function saveTeacherQuestions(teacher, list) {
+        if (!Array.isArray(list) || !list.length) return 0;
+        await ensureTeacherQuestions();
+        const c = await pool.query('SELECT COUNT(*)::int AS n FROM teacher_questions WHERE teacher_email=$1', [teacher]);
+        let room = Math.max(0, 1000 - ((c.rows[0] || {}).n || 0));
+        let saved = 0;
+        for (const q of list) {
+          if (!room) break;
+          const ex = await pool.query(
+            'SELECT 1 FROM teacher_questions WHERE teacher_email=$1 AND text=$2 AND correct=$3 LIMIT 1',
+            [teacher, q.text, q.correct]);
+          if (ex.rows.length) continue;
+          await pool.query(
+            `INSERT INTO teacher_questions (teacher_email, text, type, choices, correct, hint)
+             VALUES ($1,$2,$3,$4,$5,$6)`,
+            [teacher, q.text, q.type || 'choice', JSON.stringify(q.choices || []), q.correct, q.hint || null]
+          ).catch(() => {});
+          saved++; room--;
+        }
+        return saved;
+      }
+
+      if (action === 'listTeacherQuestions') {
+        await ensureTeacherQuestions();
+        const r = await pool.query(
+          `SELECT id, text, type, choices, correct, hint, created_at FROM teacher_questions
+           WHERE teacher_email=$1 ORDER BY id DESC LIMIT 300`, [email]);
+        return res.json({ ok: true, questions: r.rows });
+      }
+      if (action === 'deleteTeacherQuestion') {
+        await ensureTeacherQuestions();
+        const qid = parseInt((req.body || {}).questionId, 10);
+        if (!qid) return res.json({ ok: false, error: 'questionId шаардлагатай' });
+        await pool.query('DELETE FROM teacher_questions WHERE id=$1 AND teacher_email=$2', [qid, email]);
+        return res.json({ ok: true });
+      }
+
       // ===== MATHLET TOURNAMENT =====
       /* Багшийн өөрөө үүсгэсэн бодлогыг цэвэрлэнэ.
          type: 'choice' (сонголттой тест) эсвэл 'fill' (хариугаа нөхөх).
@@ -741,6 +797,9 @@ module.exports = async (req, res) => {
             scores[s.email] = 0;
           });
         }
+
+        // Багшийн өөрийн бодлогуудыг санд нэмнэ (дараа дахин ашиглана)
+        if (myQs.length) { try { await saveTeacherQuestions(email, myQs); } catch (e) { console.error('[tq save]', e.message); } }
 
         const r = await pool.query(
           `INSERT INTO tournaments (room_code, teacher_email, classroom_id, title, questions, prize_xp, status, current_question, current_phase, seconds_per_question, mode, players, scores)

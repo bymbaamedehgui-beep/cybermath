@@ -3426,6 +3426,13 @@ math-field::part(menu-icon) {
   width: 0 !important;
   height: 0 !important;
 }
+/* Багшийн бодлого үүсгэх талбарт гарны товчийг харуулна */
+math-field.ml-edit::part(virtual-keyboard-toggle) {
+  display: inline-flex !important;
+  visibility: visible !important;
+  width: auto !important;
+  height: auto !important;
+}
 </style>
 <script>
 // Mathlive virtual keyboard тохиргоо
@@ -3435,7 +3442,8 @@ window.addEventListener('load', function() {
     // Menu-г бүх math-field-ээс нуух
     try { MathfieldElement.menuItems = []; } catch(e) {}
     if (window.mathVirtualKeyboard) {
-      mathVirtualKeyboard.layouts = ['numeric', 'symbols', 'alphabetic'];
+      // Бүх хэлбэрийн математик бичихэд грек үсэг ч хэрэгтэй
+      mathVirtualKeyboard.layouts = ['numeric', 'symbols', 'alphabetic', 'greek'];
     }
   }
 });
@@ -52855,11 +52863,100 @@ function toggleAvatarSection() {
     mlRenderCustom();
   };
 
+  /* LaTeX горимд math-field-ийн оронд энгийн текст талбар гаргана —
+     матриц, интеграл, cases гэх мэт ЯМАР Ч бичиглэлийг гараар бичиж болно.
+     math-field ба textarea хоёулаа .value-тай тул mlSync өөрчлөгдөхгүй. */
+  window._mlLatexMode = false;
+  window.mlToggleLatex = function() {
+    mlSync();
+    window._mlLatexMode = !window._mlLatexMode;
+    var b = document.getElementById('ml-latex-btn');
+    if (b) {
+      b.style.background = window._mlLatexMode ? '#7B52EE' : '#fff';
+      b.style.color = window._mlLatexMode ? '#fff' : '#7B52EE';
+      b.style.borderColor = window._mlLatexMode ? '#7B52EE' : '#e4ddfa';
+    }
+    mlRenderCustom();
+  };
   function mlField(id, val, ph) {
-    return '<math-field id="' + id + '" style="width:100%;min-height:42px;font-size:1.02rem;display:block;background:#fff;'
+    if (window._mlLatexMode) {
+      return '<textarea id="' + id + '" rows="2" placeholder="' + mlEsc(ph || '') + '" '
+        + 'style="width:100%;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:0.88rem;display:block;background:#fff;'
+        + 'border:1.5px solid #ddd;border-radius:10px;padding:8px 10px;box-sizing:border-box;color:#1a1040;resize:vertical;">'
+        + mlEsc(val || '') + '</textarea>';
+    }
+    return '<math-field id="' + id + '" class="ml-edit" style="width:100%;min-height:42px;font-size:1.02rem;display:block;background:#fff;'
       + 'border:1.5px solid #ddd;border-radius:10px;padding:7px 10px;box-sizing:border-box;color:#1a1040;" '
       + 'placeholder="' + mlEsc(ph || '') + '">' + mlEsc(val || '') + '</math-field>';
   }
+
+  /* ── Багшийн бодлогын сан ── */
+  window._mlBank = [];
+  window.mlOpenBank = function() {
+    var p = document.getElementById('ml-bank-panel');
+    var l = document.getElementById('ml-bank-list');
+    if (!p || !l) return;
+    p.style.display = 'block';
+    l.innerHTML = '<div style="font-size:0.8rem;color:#888;padding:8px;">Ачаалж байна…</div>';
+    authFetch('/api/users', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: _currentUser.email, action: 'listTeacherQuestions' })
+    }).then(function(r){ return r.json(); }).then(function(d){
+      window._mlBank = (d && d.ok && d.questions) ? d.questions : [];
+      mlRenderBank();
+    }).catch(function(){
+      l.innerHTML = '<div style="font-size:0.8rem;color:#dc2626;padding:8px;">Сан ачаалж чадсангүй</div>';
+    });
+  };
+  window.mlCloseBank = function() {
+    var p = document.getElementById('ml-bank-panel');
+    if (p) p.style.display = 'none';
+  };
+  function mlRenderBank() {
+    var l = document.getElementById('ml-bank-list');
+    if (!l) return;
+    if (!window._mlBank.length) {
+      l.innerHTML = '<div style="font-size:0.8rem;color:#888;padding:8px;line-height:1.5;">Сан хоосон байна. Бодлого үүсгээд тэмцээн эхлүүлбэл автоматаар энд хадгалагдана.</div>';
+      return;
+    }
+    l.innerHTML = window._mlBank.map(function(q, i) {
+      var tag = q.type === 'fill' ? 'Нөхөх' : 'Тест';
+      return '<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 4px;border-bottom:1px solid #f0ecfb;">'
+        + '<div style="flex:1;min-width:0;">'
+        +   '<div style="font-size:0.8rem;font-weight:800;color:#3C3C3C;word-break:break-word;">' + mlEsc(q.text) + '</div>'
+        +   '<div style="font-size:0.7rem;color:#8a82ad;margin-top:2px;">' + tag + ' · хариу: ' + mlEsc(q.correct) + '</div>'
+        + '</div>'
+        + '<button type="button" onclick="mlBankAdd(' + i + ')" style="flex-shrink:0;border:1.3px solid #c9b8ff;background:#fff;color:#7B52EE;border-radius:8px;padding:4px 10px;font-family:inherit;font-weight:800;font-size:0.73rem;cursor:pointer;">Нэмэх</button>'
+        + '<button type="button" onclick="mlBankDelete(' + q.id + ')" title="Устгах" style="flex-shrink:0;border:1.3px solid #f3c9c9;background:#fff;color:#dc2626;border-radius:8px;padding:4px 8px;font-family:inherit;font-weight:800;font-size:0.73rem;cursor:pointer;">×</button>'
+        + '</div>';
+    }).join('');
+  }
+  window.mlBankAdd = function(i) {
+    var q = window._mlBank[i]; if (!q) return;
+    mlSync();
+    var ch = q.choices;
+    if (typeof ch === 'string') { try { ch = JSON.parse(ch); } catch (e) { ch = []; } }
+    if (!Array.isArray(ch)) ch = [];
+    if (q.type === 'fill') {
+      window._mlCustom.push({ type: 'fill', text: q.text, choices: ['', ''], correctIdx: 0, correct: q.correct, hint: q.hint || '' });
+    } else {
+      var ci = Math.max(0, ch.indexOf(q.correct));
+      window._mlCustom.push({ type: 'choice', text: q.text, choices: ch.slice(), correctIdx: ci, hint: q.hint || '' });
+    }
+    mlRenderCustom();
+    if (typeof showToast === 'function') showToast('Бодлого нэмэгдлээ');
+  };
+  window.mlBankDelete = function(id) {
+    if (!confirm('Энэ бодлогыг сангаас устгах уу?')) return;
+    authFetch('/api/users', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: _currentUser.email, action: 'deleteTeacherQuestion', questionId: id })
+    }).then(function(r){ return r.json(); }).then(function(d){
+      if (d && d.ok) { window._mlBank = window._mlBank.filter(function(x){ return x.id !== id; }); mlRenderBank(); }
+    });
+  };
   function mlRenderCustom() {
     var box = document.getElementById('ml-custom-list');
     if (!box) return;
@@ -61759,6 +61856,17 @@ function sendAppChat(text) {
       </div>
       <div style="font-size:0.72rem;color:#888;line-height:1.5;margin-bottom:8px;">
         Математик бичихдээ талбар дээр дарж <b>гарны дүрс</b>-ийг ашиглана. Жишээ: бутархай, зэрэг, язгуур.
+      </div>
+      <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:8px;">
+        <button type="button" onclick="mlOpenBank()" style="flex:1;min-width:140px;padding:9px;border-radius:11px;border:1.6px solid #c9b8ff;background:#fff;color:#7B52EE;font-family:'Baloo 2',sans-serif;font-weight:900;font-size:0.8rem;cursor:pointer;">Сангаас нэмэх</button>
+        <button type="button" id="ml-latex-btn" onclick="mlToggleLatex()" style="flex:1;min-width:140px;padding:9px;border-radius:11px;border:1.6px solid #e4ddfa;background:#fff;color:#7B52EE;font-family:'Baloo 2',sans-serif;font-weight:900;font-size:0.8rem;cursor:pointer;">LaTeX горим</button>
+      </div>
+      <div id="ml-bank-panel" style="display:none;border:1.5px solid #ece7fb;border-radius:14px;padding:10px;margin-bottom:10px;background:#faf8ff;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px;">
+          <span style="font-weight:900;font-size:0.82rem;color:#3C3C3C;">Миний бодлогын сан</span>
+          <button type="button" onclick="mlCloseBank()" style="border:1.3px solid #ddd;background:#fff;color:#777;border-radius:8px;padding:3px 10px;font-family:inherit;font-weight:800;font-size:0.74rem;cursor:pointer;">Хаах</button>
+        </div>
+        <div id="ml-bank-list" style="max-height:220px;overflow-y:auto;"></div>
       </div>
       <div id="ml-custom-list"></div>
       <button type="button" onclick="mlAddQuestion()" style="width:100%;margin-top:8px;padding:11px;border-radius:12px;border:2px dashed #c9b8ff;background:#faf8ff;color:#7B52EE;font-family:'Baloo 2',sans-serif;font-weight:900;font-size:0.86rem;cursor:pointer;">+ Бодлого нэмэх</button>
