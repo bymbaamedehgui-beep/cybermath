@@ -699,6 +699,9 @@ module.exports = async (req, res) => {
              .replace(/\\left|\\right/g, '')
              .replace(/\\dfrac|\\tfrac/g, '\\frac')
              .replace(/\\cdot|\\times/g, '*')
+             // LaTeX-ийн зайн командууд (гараас \; орж ирдэг) — тооцохгүй
+             .replace(/\\qquad|\\quad|\\;|\\,|\\:|\\!|\\ /g, '')
+             .replace(/\\text\{([^}]*)\}/g, '$1')
              .replace(/[{}\s]/g, '')
              .replace(/,/g, '.')
              .toLowerCase();
