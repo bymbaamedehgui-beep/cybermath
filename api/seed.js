@@ -1,4 +1,5 @@
 const pool = require('./_db');
+const G12PATH = require('./_g12path');
 const { secretMissing, requireAdminOrSeedKey } = require('./_guard');
 
 module.exports = async (req, res) => {
@@ -2068,6 +2069,26 @@ module.exports = async (req, res) => {
 
 
     // Questions seed
+    // ── 12-р ангийн сурах зам (I–IV бүлэг, хичээл бүрт 20 бодлого) ──
+    let g12Added = 0;
+    for (const [id, name, type, icon, grade, so] of G12PATH.NODES) {
+      await pool.query(
+        'INSERT INTO nodes (id, name, type, icon, grade, sort_order) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO NOTHING',
+        [id, name, type, icon, grade, so]
+      );
+    }
+    {
+      const ex = await pool.query('SELECT text, node_id FROM questions WHERE node_id BETWEEN 601 AND 699');
+      const have = new Set(ex.rows.map(r => r.node_id + '|' + r.text));
+      for (const q of G12PATH.QUESTIONS) {
+        if (have.has(q.node_id + '|' + q.text)) continue;
+        await pool.query(
+          'INSERT INTO questions (text, node_id, correct, choices, hint) VALUES ($1,$2,$3,$4,$5)',
+          [q.text, q.node_id, q.correct, q.choices, q.hint ? JSON.stringify({ text: q.hint }) : null]
+        );
+        g12Added++;
+      }
+    }
     const seedQuestions = [
   {
     "node_id": 1,
