@@ -1,6 +1,7 @@
 // 12-р ангийн сурах замын хичээлүүд (сурах бичгийн I–IV бүлэг).
-// Хичээл бүрт 20 сонголттой бодлого. scratchpad/g12path_build.js-ээр үүсгэж,
-// хөндлөнгийн шалгуур (тоон уламжлал, олон гишүүнтийн утга) бүгдийг давсан.
+// Хичээл бүрт 20 сонголттой бодлого. Сонголт дотор LaTeX байвал $...$ хашилттай
+// байх ЁСТОЙ — эс бөгөөс дэлгэцэнд түүхий бичиглэл харагдана.
+// Энэ файлыг scripts/g12_resync_source.js нь DB-ээс дахин үүсгэдэг.
 // nodes: [id, name, type, icon, grade, sort_order]
 const NODES = [
  [
@@ -214,12 +215,12 @@ const QUESTIONS = [
   "node_id": 601,
   "text": "$\\left|\\sqrt{76}-9\\right|$ -ийг модулгүй бич.",
   "choices": [
-   "9-\\sqrt{76}",
-   "\\sqrt{76}-9",
-   "\\sqrt{76}+9",
-   "9"
+   "$9-\\sqrt{76}$",
+   "$\\sqrt{76}-9$",
+   "$\\sqrt{76}+9$",
+   "$9$"
   ],
-  "correct": "9-\\sqrt{76}",
+  "correct": "$9-\\sqrt{76}$",
   "hint": "Эхлээд $\\sqrt{76}$ ба $9$ -ийг жиш."
  },
  {
@@ -274,12 +275,12 @@ const QUESTIONS = [
   "node_id": 601,
   "text": "$\\left|\\sqrt{53}-7\\right|$ -ийг модулгүй бич.",
   "choices": [
-   "7-\\sqrt{53}",
-   "\\sqrt{53}+7",
-   "7",
-   "\\sqrt{53}-7"
+   "$7-\\sqrt{53}$",
+   "$\\sqrt{53}+7$",
+   "$7$",
+   "$\\sqrt{53}-7$"
   ],
-  "correct": "\\sqrt{53}-7",
+  "correct": "$\\sqrt{53}-7$",
   "hint": "Эхлээд $\\sqrt{53}$ ба $7$ -ийг жиш."
  },
  {
@@ -298,12 +299,12 @@ const QUESTIONS = [
   "node_id": 601,
   "text": "$\\left|\\sqrt{60}-8\\right|$ -ийг модулгүй бич.",
   "choices": [
-   "\\sqrt{60}-8",
-   "8",
-   "8-\\sqrt{60}",
-   "\\sqrt{60}+8"
+   "$\\sqrt{60}-8$",
+   "$8$",
+   "$8-\\sqrt{60}$",
+   "$\\sqrt{60}+8$"
   ],
-  "correct": "8-\\sqrt{60}",
+  "correct": "$8-\\sqrt{60}$",
   "hint": "Эхлээд $\\sqrt{60}$ ба $8$ -ийг жиш."
  },
  {
@@ -334,12 +335,12 @@ const QUESTIONS = [
   "node_id": 601,
   "text": "$\\left|\\sqrt{35}-6\\right|$ -ийг модулгүй бич.",
   "choices": [
-   "\\sqrt{35}-6",
-   "6",
-   "6-\\sqrt{35}",
-   "\\sqrt{35}+6"
+   "$\\sqrt{35}-6$",
+   "$6$",
+   "$6-\\sqrt{35}$",
+   "$\\sqrt{35}+6$"
   ],
-  "correct": "6-\\sqrt{35}",
+  "correct": "$6-\\sqrt{35}$",
   "hint": "Эхлээд $\\sqrt{35}$ ба $6$ -ийг жиш."
  },
  {
@@ -358,12 +359,12 @@ const QUESTIONS = [
   "node_id": 601,
   "text": "$\\left|\\sqrt{38}-6\\right|$ -ийг модулгүй бич.",
   "choices": [
-   "\\sqrt{38}+6",
-   "\\sqrt{38}-6",
-   "6",
-   "6-\\sqrt{38}"
+   "$\\sqrt{38}+6$",
+   "$\\sqrt{38}-6$",
+   "$6$",
+   "$6-\\sqrt{38}$"
   ],
-  "correct": "\\sqrt{38}-6",
+  "correct": "$\\sqrt{38}-6$",
   "hint": "Эхлээд $\\sqrt{38}$ ба $6$ -ийг жиш."
  },
  {
@@ -3298,240 +3299,240 @@ const QUESTIONS = [
   "node_id": 614,
   "text": "$\\sin\\dfrac{3\\pi}{2}$ -ийг ол.",
   "choices": [
-   "-1",
-   "\\dfrac{\\sqrt{2}}{2}",
-   "-\\dfrac{1}{2}",
-   "-\\dfrac{\\sqrt{3}}{2}"
+   "$-1$",
+   "$\\dfrac{\\sqrt{2}}{2}$",
+   "$-\\dfrac{1}{2}$",
+   "$-\\dfrac{\\sqrt{3}}{2}$"
   ],
-  "correct": "-1",
+  "correct": "$-1$",
   "hint": "Нэгж тойргийн гол утгуудыг сана."
  },
  {
   "node_id": 614,
   "text": "$\\operatorname{tg}0$ -ийг ол.",
   "choices": [
-   "\\dfrac{\\sqrt{2}}{2}",
-   "\\dfrac{\\sqrt{3}}{2}",
-   "-\\dfrac{1}{2}",
-   "0"
+   "$\\dfrac{\\sqrt{2}}{2}$",
+   "$\\dfrac{\\sqrt{3}}{2}$",
+   "$-\\dfrac{1}{2}$",
+   "$0$"
   ],
-  "correct": "0",
+  "correct": "$0$",
   "hint": "Нэгж тойргийн гол утгуудыг сана."
  },
  {
   "node_id": 614,
   "text": "$\\sin\\dfrac{5\\pi}{6}$ -ийг ол.",
   "choices": [
-   "\\dfrac{\\sqrt{3}}{2}",
-   "-\\dfrac{\\sqrt{3}}{2}",
-   "\\dfrac{\\sqrt{2}}{2}",
-   "\\dfrac{1}{2}"
+   "$\\dfrac{\\sqrt{3}}{2}$",
+   "$-\\dfrac{\\sqrt{3}}{2}$",
+   "$\\dfrac{\\sqrt{2}}{2}$",
+   "$\\dfrac{1}{2}$"
   ],
-  "correct": "\\dfrac{1}{2}",
+  "correct": "$\\dfrac{1}{2}$",
   "hint": "Нэгж тойргийн гол утгуудыг сана."
  },
  {
   "node_id": 614,
   "text": "$\\sin\\dfrac{\\pi}{3}$ -ийг ол.",
   "choices": [
-   "-\\dfrac{1}{2}",
-   "-\\dfrac{\\sqrt{2}}{2}",
-   "0",
-   "\\dfrac{\\sqrt{3}}{2}"
+   "$-\\dfrac{1}{2}$",
+   "$-\\dfrac{\\sqrt{2}}{2}$",
+   "$0$",
+   "$\\dfrac{\\sqrt{3}}{2}$"
   ],
-  "correct": "\\dfrac{\\sqrt{3}}{2}",
+  "correct": "$\\dfrac{\\sqrt{3}}{2}$",
   "hint": "Нэгж тойргийн гол утгуудыг сана."
  },
  {
   "node_id": 614,
   "text": "$\\cos\\pi$ -ийг ол.",
   "choices": [
-   "-1",
-   "-\\dfrac{\\sqrt{2}}{2}",
-   "\\dfrac{\\sqrt{3}}{2}",
-   "-\\dfrac{1}{2}"
+   "$-1$",
+   "$-\\dfrac{\\sqrt{2}}{2}$",
+   "$\\dfrac{\\sqrt{3}}{2}$",
+   "$-\\dfrac{1}{2}$"
   ],
-  "correct": "-1",
+  "correct": "$-1$",
   "hint": "Нэгж тойргийн гол утгуудыг сана."
  },
  {
   "node_id": 614,
   "text": "$\\sin\\dfrac{\\pi}{6}$ -ийг ол.",
   "choices": [
-   "-1",
-   "-\\dfrac{\\sqrt{3}}{2}",
-   "\\dfrac{1}{2}",
-   "-\\dfrac{1}{2}"
+   "$-1$",
+   "$-\\dfrac{\\sqrt{3}}{2}$",
+   "$\\dfrac{1}{2}$",
+   "$-\\dfrac{1}{2}$"
   ],
-  "correct": "\\dfrac{1}{2}",
+  "correct": "$\\dfrac{1}{2}$",
   "hint": "Нэгж тойргийн гол утгуудыг сана."
  },
  {
   "node_id": 614,
   "text": "$\\sin\\dfrac{7\\pi}{6}$ -ийг ол.",
   "choices": [
-   "-\\dfrac{1}{2}",
-   "\\dfrac{1}{2}",
-   "1",
-   "-\\dfrac{\\sqrt{3}}{2}"
+   "$-\\dfrac{1}{2}$",
+   "$\\dfrac{1}{2}$",
+   "$1$",
+   "$-\\dfrac{\\sqrt{3}}{2}$"
   ],
-  "correct": "-\\dfrac{1}{2}",
+  "correct": "$-\\dfrac{1}{2}$",
   "hint": "Нэгж тойргийн гол утгуудыг сана."
  },
  {
   "node_id": 614,
   "text": "$\\cos 2\\pi$ -ийг ол.",
   "choices": [
-   "1",
-   "\\dfrac{\\sqrt{3}}{2}",
-   "-\\dfrac{\\sqrt{3}}{2}",
-   "\\dfrac{\\sqrt{2}}{2}"
+   "$1$",
+   "$\\dfrac{\\sqrt{3}}{2}$",
+   "$-\\dfrac{\\sqrt{3}}{2}$",
+   "$\\dfrac{\\sqrt{2}}{2}$"
   ],
-  "correct": "1",
+  "correct": "$1$",
   "hint": "Нэгж тойргийн гол утгуудыг сана."
  },
  {
   "node_id": 614,
   "text": "$\\sin 0$ -ийг ол.",
   "choices": [
-   "-1",
-   "1",
-   "0",
-   "\\dfrac{1}{2}"
+   "$-1$",
+   "$1$",
+   "$0$",
+   "$\\dfrac{1}{2}$"
   ],
-  "correct": "0",
+  "correct": "$0$",
   "hint": "Нэгж тойргийн гол утгуудыг сана."
  },
  {
   "node_id": 614,
   "text": "$\\cos\\dfrac{5\\pi}{6}$ -ийг ол.",
   "choices": [
-   "1",
-   "0",
-   "-\\dfrac{\\sqrt{3}}{2}",
-   "\\dfrac{\\sqrt{2}}{2}"
+   "$1$",
+   "$0$",
+   "$-\\dfrac{\\sqrt{3}}{2}$",
+   "$\\dfrac{\\sqrt{2}}{2}$"
   ],
-  "correct": "-\\dfrac{\\sqrt{3}}{2}",
+  "correct": "$-\\dfrac{\\sqrt{3}}{2}$",
   "hint": "Нэгж тойргийн гол утгуудыг сана."
  },
  {
   "node_id": 614,
   "text": "$\\sin\\pi$ -ийг ол.",
   "choices": [
-   "\\dfrac{\\sqrt{3}}{2}",
-   "\\dfrac{\\sqrt{2}}{2}",
-   "0",
-   "-\\dfrac{1}{2}"
+   "$\\dfrac{\\sqrt{3}}{2}$",
+   "$\\dfrac{\\sqrt{2}}{2}$",
+   "$0$",
+   "$-\\dfrac{1}{2}$"
   ],
-  "correct": "0",
+  "correct": "$0$",
   "hint": "Нэгж тойргийн гол утгуудыг сана."
  },
  {
   "node_id": 614,
   "text": "$\\operatorname{tg}\\pi$ -ийг ол.",
   "choices": [
-   "-\\dfrac{\\sqrt{2}}{2}",
-   "-\\dfrac{1}{2}",
-   "\\dfrac{1}{2}",
-   "0"
+   "$-\\dfrac{\\sqrt{2}}{2}$",
+   "$-\\dfrac{1}{2}$",
+   "$\\dfrac{1}{2}$",
+   "$0$"
   ],
-  "correct": "0",
+  "correct": "$0$",
   "hint": "Нэгж тойргийн гол утгуудыг сана."
  },
  {
   "node_id": 614,
   "text": "$\\cos\\dfrac{3\\pi}{4}$ -ийг ол.",
   "choices": [
-   "-\\dfrac{1}{2}",
-   "1",
-   "-\\dfrac{\\sqrt{2}}{2}",
-   "0"
+   "$-\\dfrac{1}{2}$",
+   "$1$",
+   "$-\\dfrac{\\sqrt{2}}{2}$",
+   "$0$"
   ],
-  "correct": "-\\dfrac{\\sqrt{2}}{2}",
+  "correct": "$-\\dfrac{\\sqrt{2}}{2}$",
   "hint": "Нэгж тойргийн гол утгуудыг сана."
  },
  {
   "node_id": 614,
   "text": "$\\sin\\dfrac{\\pi}{4}$ -ийг ол.",
   "choices": [
-   "\\dfrac{\\sqrt{2}}{2}",
-   "\\dfrac{\\sqrt{3}}{2}",
-   "-\\dfrac{\\sqrt{3}}{2}",
-   "0"
+   "$\\dfrac{\\sqrt{2}}{2}$",
+   "$\\dfrac{\\sqrt{3}}{2}$",
+   "$-\\dfrac{\\sqrt{3}}{2}$",
+   "$0$"
   ],
-  "correct": "\\dfrac{\\sqrt{2}}{2}",
+  "correct": "$\\dfrac{\\sqrt{2}}{2}$",
   "hint": "Нэгж тойргийн гол утгуудыг сана."
  },
  {
   "node_id": 614,
   "text": "$\\cos\\dfrac{2\\pi}{3}$ -ийг ол.",
   "choices": [
-   "0",
-   "\\dfrac{\\sqrt{2}}{2}",
-   "-1",
-   "-\\dfrac{1}{2}"
+   "$0$",
+   "$\\dfrac{\\sqrt{2}}{2}$",
+   "$-1$",
+   "$-\\dfrac{1}{2}$"
   ],
-  "correct": "-\\dfrac{1}{2}",
+  "correct": "$-\\dfrac{1}{2}$",
   "hint": "Нэгж тойргийн гол утгуудыг сана."
  },
  {
   "node_id": 614,
   "text": "$\\sin 2\\pi$ -ийг ол.",
   "choices": [
-   "\\dfrac{\\sqrt{3}}{2}",
-   "-\\dfrac{\\sqrt{2}}{2}",
-   "\\dfrac{1}{2}",
-   "0"
+   "$\\dfrac{\\sqrt{3}}{2}$",
+   "$-\\dfrac{\\sqrt{2}}{2}$",
+   "$\\dfrac{1}{2}$",
+   "$0$"
   ],
-  "correct": "0",
+  "correct": "$0$",
   "hint": "Нэгж тойргийн гол утгуудыг сана."
  },
  {
   "node_id": 614,
   "text": "$\\cos\\dfrac{\\pi}{2}$ -ийг ол.",
   "choices": [
-   "\\dfrac{1}{2}",
-   "0",
-   "1",
-   "-\\dfrac{\\sqrt{3}}{2}"
+   "$\\dfrac{1}{2}$",
+   "$0$",
+   "$1$",
+   "$-\\dfrac{\\sqrt{3}}{2}$"
   ],
-  "correct": "0",
+  "correct": "$0$",
   "hint": "Нэгж тойргийн гол утгуудыг сана."
  },
  {
   "node_id": 614,
   "text": "$\\operatorname{tg}\\dfrac{\\pi}{4}$ -ийг ол.",
   "choices": [
-   "1",
-   "\\dfrac{\\sqrt{2}}{2}",
-   "-\\dfrac{1}{2}",
-   "-\\dfrac{\\sqrt{2}}{2}"
+   "$1$",
+   "$\\dfrac{\\sqrt{2}}{2}$",
+   "$-\\dfrac{1}{2}$",
+   "$-\\dfrac{\\sqrt{2}}{2}$"
   ],
-  "correct": "1",
+  "correct": "$1$",
   "hint": "Нэгж тойргийн гол утгуудыг сана."
  },
  {
   "node_id": 614,
   "text": "$\\cos\\dfrac{\\pi}{6}$ -ийг ол.",
   "choices": [
-   "-1",
-   "\\dfrac{\\sqrt{3}}{2}",
-   "0",
-   "-\\dfrac{\\sqrt{3}}{2}"
+   "$-1$",
+   "$\\dfrac{\\sqrt{3}}{2}$",
+   "$0$",
+   "$-\\dfrac{\\sqrt{3}}{2}$"
   ],
-  "correct": "\\dfrac{\\sqrt{3}}{2}",
+  "correct": "$\\dfrac{\\sqrt{3}}{2}$",
   "hint": "Нэгж тойргийн гол утгуудыг сана."
  },
  {
   "node_id": 614,
   "text": "$\\cos\\dfrac{3\\pi}{2}$ -ийг ол.",
   "choices": [
-   "-\\dfrac{\\sqrt{2}}{2}",
-   "0",
-   "\\dfrac{1}{2}",
-   "\\dfrac{\\sqrt{2}}{2}"
+   "$-\\dfrac{\\sqrt{2}}{2}$",
+   "$0$",
+   "$\\dfrac{1}{2}$",
+   "$\\dfrac{\\sqrt{2}}{2}$"
   ],
-  "correct": "0",
+  "correct": "$0$",
   "hint": "Нэгж тойргийн гол утгуудыг сана."
  },
  {
@@ -4030,24 +4031,24 @@ const QUESTIONS = [
   "node_id": 617,
   "text": "$y=\\sin x$ функцийн $x=\\dfrac{\\pi}{6}$ цэг дэх уламжлалын утга аль нь вэ?",
   "choices": [
-   "\\dfrac{\\sqrt{3}}{2}",
-   "-1",
-   "0",
-   "\\dfrac{\\sqrt{2}}{2}"
+   "$\\dfrac{\\sqrt{3}}{2}$",
+   "$-1$",
+   "$0$",
+   "$\\dfrac{\\sqrt{2}}{2}$"
   ],
-  "correct": "\\dfrac{\\sqrt{3}}{2}",
+  "correct": "$\\dfrac{\\sqrt{3}}{2}$",
   "hint": "$y'=\\cos x$."
  },
  {
   "node_id": 617,
   "text": "$y=\\sin x$ функцийн $x=0$ цэг дэх уламжлалын утга аль нь вэ?",
   "choices": [
-   "0",
-   "-1",
-   "\\dfrac{1}{2}",
-   "1"
+   "$0$",
+   "$-1$",
+   "$\\dfrac{1}{2}$",
+   "$1$"
   ],
-  "correct": "1",
+  "correct": "$1$",
   "hint": "$y'=\\cos x$."
  },
  {
@@ -4126,12 +4127,12 @@ const QUESTIONS = [
   "node_id": 617,
   "text": "$y=\\sin x$ функцийн $x=\\dfrac{\\pi}{3}$ цэг дэх уламжлалын утга аль нь вэ?",
   "choices": [
-   "\\dfrac{\\sqrt{3}}{2}",
-   "0",
-   "\\dfrac{1}{2}",
-   "-1"
+   "$\\dfrac{\\sqrt{3}}{2}$",
+   "$0$",
+   "$\\dfrac{1}{2}$",
+   "$-1$"
   ],
-  "correct": "\\dfrac{1}{2}",
+  "correct": "$\\dfrac{1}{2}$",
   "hint": "$y'=\\cos x$."
  },
  {
@@ -4174,12 +4175,12 @@ const QUESTIONS = [
   "node_id": 617,
   "text": "$y=\\sin x$ функцийн $x=\\dfrac{3\\pi}{2}$ цэг дэх уламжлалын утга аль нь вэ?",
   "choices": [
-   "0",
-   "1",
-   "\\dfrac{\\sqrt{3}}{2}",
-   "-1"
+   "$0$",
+   "$1$",
+   "$\\dfrac{\\sqrt{3}}{2}$",
+   "$-1$"
   ],
-  "correct": "0",
+  "correct": "$0$",
   "hint": "$y'=\\cos x$."
  },
  {
@@ -4222,12 +4223,12 @@ const QUESTIONS = [
   "node_id": 617,
   "text": "$y=\\sin x$ функцийн $x=\\dfrac{\\pi}{2}$ цэг дэх уламжлалын утга аль нь вэ?",
   "choices": [
-   "-1",
-   "1",
-   "0",
-   "\\dfrac{\\sqrt{3}}{2}"
+   "$-1$",
+   "$1$",
+   "$0$",
+   "$\\dfrac{\\sqrt{3}}{2}$"
   ],
-  "correct": "0",
+  "correct": "$0$",
   "hint": "$y'=\\cos x$."
  },
  {
@@ -4246,12 +4247,12 @@ const QUESTIONS = [
   "node_id": 617,
   "text": "$y=\\sin x$ функцийн $x=\\pi$ цэг дэх уламжлалын утга аль нь вэ?",
   "choices": [
-   "\\dfrac{1}{2}",
-   "-1",
-   "0",
-   "\\dfrac{\\sqrt{3}}{2}"
+   "$\\dfrac{1}{2}$",
+   "$-1$",
+   "$0$",
+   "$\\dfrac{\\sqrt{3}}{2}$"
   ],
-  "correct": "-1",
+  "correct": "$-1$",
   "hint": "$y'=\\cos x$."
  },
  {
@@ -4798,12 +4799,12 @@ const QUESTIONS = [
   "node_id": 620,
   "text": "$y=\\operatorname{tg}x$ функцийн $x=-\\dfrac{\\pi}{4}$ цэг дэх уламжлалын утга аль нь вэ?",
   "choices": [
-   "\\dfrac{1}{2}",
-   "2",
-   "4",
-   "-1"
+   "$\\dfrac{1}{2}$",
+   "$2$",
+   "$4$",
+   "$-1$"
   ],
-  "correct": "2",
+  "correct": "$2$",
   "hint": "$y'=\\dfrac{1}{\\cos^{2}x}$."
  },
  {
@@ -4834,24 +4835,24 @@ const QUESTIONS = [
   "node_id": 620,
   "text": "$y=\\operatorname{tg}x$ функцийн $x=2\\pi$ цэг дэх уламжлалын утга аль нь вэ?",
   "choices": [
-   "-1",
-   "0",
-   "\\dfrac{1}{2}",
-   "1"
+   "$-1$",
+   "$0$",
+   "$\\dfrac{1}{2}$",
+   "$1$"
   ],
-  "correct": "1",
+  "correct": "$1$",
   "hint": "$y'=\\dfrac{1}{\\cos^{2}x}$."
  },
  {
   "node_id": 620,
   "text": "$y=\\operatorname{tg}x$ функцийн $x=\\dfrac{\\pi}{4}$ цэг дэх уламжлалын утга аль нь вэ?",
   "choices": [
-   "0",
-   "\\dfrac{1}{2}",
-   "4",
-   "2"
+   "$0$",
+   "$\\dfrac{1}{2}$",
+   "$4$",
+   "$2$"
   ],
-  "correct": "2",
+  "correct": "$2$",
   "hint": "$y'=\\dfrac{1}{\\cos^{2}x}$."
  },
  {
