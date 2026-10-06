@@ -1,6 +1,63 @@
 const pool = require('./_db');
 const { secretMissing, requireAdmin, requireUser, rateLimit, clientIp } = require('./_guard');
 
+/* ── Давтагдахгүй эргэлт (pick=N) ──
+   Хэрэглэгч тухайн хичээл дээр үзсэн бодлогын id-г хадгалж, дараагийн удаад
+   үзээгүйг нь өгнө. Сан дуусмагц эргэлт шинээр эхэлнэ.
+   Нэг хэрэглэгч+хичээлд НЭГ мөр — id-уудыг массиваар хадгална. */
+let _cycleReady = false;
+async function ensureCycleTable() {
+  if (_cycleReady) return;
+  await pool.query(`CREATE TABLE IF NOT EXISTS q_cycle (
+    email TEXT NOT NULL,
+    node_id INT NOT NULL,
+    seen BIGINT[] NOT NULL DEFAULT '{}',
+    cycle INT NOT NULL DEFAULT 1,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (email, node_id)
+  )`);
+  _cycleReady = true;
+}
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; }
+  return a;
+}
+// rows: тухайн хичээлийн БҮХ бодлого. → сонгосон N мөр | null (DB алдаа → дуудагч өөрөө шийднэ)
+async function pickUnseen(email, nodeId, rows, n) {
+  try {
+    await ensureCycleTable();
+    const all = rows.map(r => Number(r.id));
+    const cur = await pool.query('SELECT seen, cycle FROM q_cycle WHERE email=$1 AND node_id=$2', [email, nodeId]);
+    let seen = cur.rows.length ? (cur.rows[0].seen || []).map(Number) : [];
+    let cycle = cur.rows.length ? (cur.rows[0].cycle || 1) : 1;
+    /* Устгагдсан бодлогын id-г хаяна — эс бөгөөс эргэлт хэзээ ч дуусахгүй */
+    const alive = new Set(all);
+    seen = seen.filter(id => alive.has(id));
+    let unseen = all.filter(id => seen.indexOf(id) < 0);
+    /* Үлдэгдэл хүрэхгүй бол эргэлтийг шинэчилнэ. Шинэ эргэлтийн эхэнд
+       сүүлийн багцыг дахин гаргахгүйг хичээнэ (дараалан давтагдахаас сэргийлнэ). */
+    if (unseen.length < n) {
+      const justSeen = new Set(seen.slice(-n));
+      cycle += 1;
+      seen = [];
+      unseen = all.filter(id => !justSeen.has(id));
+      if (unseen.length < n) unseen = all.slice();
+    }
+    const take = shuffle(unseen.slice()).slice(0, n);
+    const nextSeen = seen.concat(take);
+    await pool.query(
+      `INSERT INTO q_cycle (email, node_id, seen, cycle, updated_at) VALUES ($1,$2,$3,$4,NOW())
+       ON CONFLICT (email, node_id) DO UPDATE SET seen=EXCLUDED.seen, cycle=EXCLUDED.cycle, updated_at=NOW()`,
+      [email, nodeId, nextSeen, cycle]);
+    const byId = {};
+    rows.forEach(r => { byId[Number(r.id)] = r; });
+    return take.map(id => byId[id]).filter(Boolean);
+  } catch (e) {
+    console.error('[q_cycle]', e && e.message);
+    return null;
+  }
+}
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
@@ -144,6 +201,26 @@ module.exports = async (req, res) => {
       if (conds.length) q += ' WHERE ' + conds.join(' AND ');
       q += ' ORDER BY id ASC';
       const r = await pool.query(q, vals);
+
+      /* ── pick=N — давтагдахгүй эргэлт ──
+         Нэг хичээлийн сангаас N бодлогыг СОНГОНО. Хэрэглэгч тухайн хичээл дээр
+         өмнө нь үзсэн бодлогыг дахин авахгүй: 60 бодлоготой сан, pick=20 бол
+         3 оролтын дараа буюу 60 бодлогын дараа л эргэж давтагдана.
+         Нэвтрээгүй / pick өгөөгүй үед хуучин зан төлөв хэвээр (бүгдийг буцаана). */
+      const pick = parseInt(req.query.pick, 10);
+      const oneNode = node_id && String(node_id).indexOf(',') < 0;
+      if (Number.isFinite(pick) && pick > 0 && oneNode && r.rows.length > pick) {
+        const u = requireUser(req, { allowWs: true });
+        if (u) {
+          const nid = parseInt(node_id, 10);
+          const out = await pickUnseen(u.email, nid, r.rows, pick);
+          if (out) return res.json({ ok: true, questions: out });
+        }
+        /* Нэвтрээгүй эсвэл DB алдаа → энгийн санамсаргүй сонголт */
+        const sh = r.rows.slice();
+        for (let i = sh.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = sh[i]; sh[i] = sh[j]; sh[j] = t; }
+        return res.json({ ok: true, questions: sh.slice(0, pick) });
+      }
       return res.json({ ok: true, questions: r.rows });
     }
 
