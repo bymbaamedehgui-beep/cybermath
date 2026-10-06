@@ -65,6 +65,36 @@ function wsUsablePhone(row) {
 // Enumeration-д мэдрэг endpoint (ws_forgot / ws_resend): бодит илгээлттэй ижил хэлбэр
 function wsAccepted(masked, extra) { return Object.assign({ ok: true }, extra || {}, { sms: true, masked: masked }); }
 
+/* ── OTP: textbee (MT) эхлээд, унавал verify.mn (MO) ── api/auth.js-ийнхтэй ижил дүрэм.
+   textbee нь gateway утас унтарсан үед ч 200 буцаадаг тул илгээхийн ӨМНӨ heartbeat
+   шалгаад, утас үхсэн бол шууд MO руу. */
+const WS_MO_NO_FALLBACK = { SMS_UNCERTAIN: 1, SMS_COOLDOWN: 1, SMS_LIMIT: 1 };
+async function wsSendOtp(o) {
+  if (sms.moEnabled()) {
+    let alive = true;
+    try { alive = await sms.gatewayAlive(); } catch (e) {}
+    if (!alive) {
+      let first;
+      try { first = await sms.sendMo(o); } catch (e) {}
+      if (first && first.ok) return first;
+    }
+  }
+  const sent = await sms.sendCode(o);
+  if (sent.ok || !sms.moEnabled()) return sent;
+  if (sent.phoneQuota || WS_MO_NO_FALLBACK[sent.code]) return sent;
+  let mo;
+  try { mo = await sms.sendMo(o); } catch (e) { return sent; }
+  return (mo && mo.ok) ? mo : sent;
+}
+/* MO амжилттай бол хариунд нэмэх талбарууд (sessionId ЭНД БАЙХГҮЙ) */
+function wsMoFields(sent) {
+  if (!sent || sent.mode !== 'mo') return {};
+  return {
+    mode: 'mo', moText: sent.moText, smsUri: sent.smsUri,
+    shortcode: sent.shortcode, pollToken: sent.pollToken, expiresAt: sent.expiresAt,
+  };
+}
+
 // IP-г rate limit-ийн түлхүүр болгох: IPv4 бүтэн хаяг (::ffff: → IPv4), IPv6 эхний 4 бүлэг (/64).
 // Түүхий IP хадгалахгүйн тулд sha256-ийн эхний 16 hex-ийг ашиглана.
 function expandV6(s) {
@@ -692,7 +722,7 @@ module.exports = async (req, res) => {
           if (pf) return sms.failJson(res, pf, { reg: 'ws' });
           const hash = await bcrypt.hash(pass, 10);
           let raced = false;
-          const sent = await sms.sendCode({
+          const sent = await wsSendOtp({
             purpose: 'verify', kind: 'reg', phone: pn.local, email: email, ip: ip,
             store: async function (code) {
               const exp = new Date(Date.now() + sms.CODE_TTL_MS);
@@ -707,7 +737,7 @@ module.exports = async (req, res) => {
             },
             drop: function (code) { return dropCode(email, code); }, reuse: samePhone ? wsCodeReuse(email, true) : undefined,
           });
-          if (sent.ok) return res.json({ ok: true, needVerify: true, sms: true, masked: sent.masked2 });
+          if (sent.ok) return res.json(Object.assign({ ok: true, needVerify: true, sms: true, masked: sent.masked2 }, wsMoFields(sent)));
           if (raced) return res.json({ ok: true, needVerify: true, pending: true, message: MSG_PENDING });
           if (sent.code === 'SMS_UNCERTAIN') return sms.failJson(res, sent, { reg: 'ws', fields: { needVerify: true, sms: true, masked: sms.maskPhone(pn.local, 2) } });
           return sms.failJson(res, sent, { reg: 'ws' });
@@ -723,11 +753,11 @@ module.exports = async (req, res) => {
           // Олдоогүй / ашиглах утасгүй (баталгаажаагүй мөрийн утсыг өөр хүн бичсэн байж болно, H9) → хуурамч хариу, SMS 0
           const dest = wsUsablePhone(r.rows[0]);
           if (!dest) { await sms.padTo(t0); return res.json(wsAccepted(sms.fakeMask(email))); }
-          const sent = await sms.sendCode({
+          const sent = await wsSendOtp({
             purpose: 'reset', kind: 'acct', phone: dest, email: email, ip: ip,
             store: wsCodeStore(email, false), drop: function (code) { return dropCode(email, code); }, reuse: wsCodeReuse(email, false),
           });
-          if (sent.ok) return res.json(wsAccepted(sent.masked2));
+          if (sent.ok) return res.json(Object.assign(wsAccepted(sent.masked2), wsMoFields(sent)));
           if (sent.phoneQuota) { await sms.padTo(t0); return res.json(wsAccepted(sms.maskPhone(dest, 2))); }
           return sms.failJson(res, sent, { reg: 'ws' });
         }
@@ -747,6 +777,40 @@ module.exports = async (req, res) => {
           try { if (await wsEntitled(email)) tg.sendTelegram('WS нууц үг SMS-ээр сэргээгдлээ: ' + sms.maskEmail(email)).catch(() => {}); } catch (e) { sms.logErr('[ws reset tg]', e); }
           return wsIssue(req, res, email);
         }
+        /* MO төлөв. Зарцуулахгүй (consume:false) — Дасгалын төвд баталгаажуулах
+           агшинд нууц үг заавал тавигддаг тул дуусгалтыг ws_moVerify хийнэ. */
+        if (b.action === 'ws_moStatus') {
+          const c = await sms.moCheck(String(b.pollToken || ''), { consume: false });
+          if (!c.ok) return res.json({ ok: true, status: 'UNKNOWN' });
+          return res.json({ ok: true, status: c.status, purpose: c.purpose || null });
+        }
+        /* MO дуусгах — нууц үгтэй. ws_verify-ийн логикийг давтана, зөвхөн кодын
+           оролдлогыг verify.mn-ийн баталгаагаар сольсон (тэр дугаараас тэр текстийг
+           илгээсэн нь нотлогдсон). Эрхтэй имэйлийн хамгаалалт ХЭВЭЭР. */
+        if (b.action === 'ws_moVerify') {
+          const pass = String(b.pass || '');
+          if (pass.length < 6) return res.status(400).json({ ok: false, code: 'NEED_PASS', error: 'Нууц үг 6+ тэмдэгт байх ёстой' });
+          const pre = await sms.moCheck(String(b.pollToken || ''), { consume: false });
+          if (!pre.ok || pre.status !== 'VERIFIED') return res.status(400).json({ ok: false, error: MSG_CODE_BAD });
+          const mem = String(pre.email || '').toLowerCase();
+          const r = await pool.query('SELECT verified, name, phone, phone_verified_at FROM ws_login WHERE email=$1', [mem]);
+          if (!r.rows.length) return res.status(400).json({ ok: false, error: MSG_CODE_BAD });
+          if (r.rows[0].verified) return res.json({ ok: true, alreadyVerified: true });
+          if (!r.rows[0].phone_verified_at && await wsClaimBlocked(res, mem)) return;
+          /* Энд л зарцуулна — M5 */
+          const fin = await sms.moCheck(String(b.pollToken || ''), { consume: true });
+          if (!fin.ok || fin.status !== 'VERIFIED') return res.status(400).json({ ok: false, error: MSG_CODE_BAD });
+          const hash = await bcrypt.hash(pass, 10);
+          await pool.query('UPDATE ws_login SET pass_hash=$2, verified=TRUE, code=NULL, code_exp=NULL, code_attempts=0, phone_verified_at=NOW() WHERE email=$1', [mem, hash]);
+          await sms.markVerified(r.rows[0].phone);
+          try {
+            const u = r.rows[0];
+            sendTelegram('🆕 <b>Дасгалын төв — шинэ бүртгэл (verify.mn)</b>\n\n👤 ' + (u.name || '(нэргүй)') + '\n📧 ' + mem
+              + (u.phone ? ('\n📱 ' + sms.maskPhone(u.phone, 2)) : '')).catch(() => {});
+          } catch (e) {}
+          return wsIssue(req, res, mem);
+        }
+
         if (b.action === 'ws_verify') {
           const r = await pool.query('SELECT verified, name, phone, phone_verified_at FROM ws_login WHERE email=$1', [email]);
           if (!r.rows.length) return res.status(400).json({ ok: false, error: MSG_CODE_BAD });
@@ -795,11 +859,11 @@ module.exports = async (req, res) => {
             await sms.notify('tg:sms:claim', 3600, 'WS: эрхтэй имэйлийн баталгаажаагүй мөрөнд код хүсэв: ' + sms.maskEmail(email), 10);
             return fake();
           }
-          const sent = await sms.sendCode({
+          const sent = await wsSendOtp({
             purpose: 'verify', kind: 'reg', phone: pn.local, email: email, ip: ip,
             store: wsCodeStore(email, true), drop: function (code) { return dropCode(email, code); }, reuse: wsCodeReuse(email, true),
           });
-          if (sent.ok) return res.json(wsAccepted(sent.masked2, { needVerify: true }));
+          if (sent.ok) return res.json(Object.assign(wsAccepted(sent.masked2, { needVerify: true }), wsMoFields(sent)));
           if (sent.phoneQuota) return fake();
           return sms.failJson(res, sent, { reg: 'ws' });
         }

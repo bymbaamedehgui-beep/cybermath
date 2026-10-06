@@ -57788,6 +57788,56 @@ function toggleAvatarSection() {
     return 'sms:' + shortcode + (ios ? '&' : '?') + 'body=' + encodeURIComponent(text);
   }
 
+
+  /* MO блокийн HTML — бүртгэл ба нууц үг сэргээх хоёул ашиглана */
+  function _moBlockHtml(mo) {
+    var code = String(mo.moText || ''), sc = String(mo.shortcode || '144773');
+    return '<div style="border:2px dashed #c9b8f7;border-radius:14px;background:#faf8ff;padding:13px 12px;text-align:center;margin-bottom:10px;">'
+      + '<div style="font-size:.7rem;font-weight:800;color:#8b7fae;letter-spacing:.5px;">ИЛГЭЭХ КОД</div>'
+      + '<div style="font-size:1.9rem;font-weight:900;color:#4c23c4;letter-spacing:7px;font-family:ui-monospace,Menlo,Consolas,monospace;line-height:1.3;">' + _esc(code) + '</div>'
+      + '<div style="font-size:.76rem;color:#8b7fae;font-weight:700;">' + _esc(sc) + ' дугаарт</div></div>'
+      + '<a href="' + _esc(_moHref(sc, code)) + '" style="display:block;text-align:center;text-decoration:none;border-radius:14px;padding:13px;font-size:1rem;font-weight:900;color:#fff;background:linear-gradient(135deg,#7B52EE,#A855F7);">SMS бичих</a>'
+      + '<div style="font-size:.76rem;color:#8b8ba3;font-weight:600;line-height:1.5;margin-top:10px;text-align:center;">'
+      + (mo.masked ? 'Өөрийн <b>' + _esc(mo.masked) + '</b> дугаараасаа илгээнэ үү. ' : '')
+      + '2 SIM-тэй бол зөв SIM-ээ сонгоорой.</div>'
+      + '<div id="mo-status" style="margin-top:12px;font-size:.86rem;font-weight:800;color:#7B52EE;text-align:center;">Илгээхийг хүлээж байна…</div>'
+      + '<div id="mo-left" style="margin-top:3px;font-size:.78rem;color:#8b8ba3;font-weight:700;text-align:center;"></div>';
+  }
+
+  /* Нууц үг сэргээх дэлгэцэд MO харуулах */
+  function showMoReset(mo, email) {
+    _moStop();
+    var box = document.getElementById('reset-step-code');
+    if (!box) return false;
+    /* Код оруулах талбар, баталгаажуулах товчийг нуух */
+    var grp = box.querySelector('.auth-input-group'); if (grp) grp.style.display = 'none';
+    var btn = box.querySelector('button.auth-btn-primary'); if (btn) btn.style.display = 'none';
+    var mb = document.getElementById('mo-reset-box');
+    if (!mb) {
+      mb = document.createElement('div');
+      mb.id = 'mo-reset-box';
+      box.insertBefore(mb, grp || box.firstChild);
+    }
+    mb.style.display = 'block';
+    mb.innerHTML = '<div style="font-size:.86rem;color:#6c6486;font-weight:600;line-height:1.5;margin-bottom:10px;text-align:center;">'
+      + 'Доорх кодыг <b>' + _esc(String(mo.shortcode || '144773')) + '</b> дугаарт SMS-ээр илгээнэ үү.</div>'
+      + _moBlockHtml(mo);
+    _moToken = mo.pollToken || null;
+    var until = mo.expiresAt ? Date.parse(mo.expiresAt) : (Date.now() + 300000);
+    function tick() {
+      var el = document.getElementById('mo-left');
+      if (!el) { _moStop(); return; }
+      var left = Math.max(0, Math.round((until - Date.now()) / 1000));
+      el.textContent = left > 0 ? ('Үлдсэн хугацаа ' + Math.floor(left / 60) + ':' + (left % 60 < 10 ? '0' : '') + (left % 60)) : '';
+      if (left <= 0) _moExpired();
+    }
+    tick();
+    _moTick = setInterval(tick, 1000);
+    _moPoll = setInterval(_moCheck, 3000);
+    setTimeout(_moCheck, 1500);
+    return true;
+  }
+
   function showMoStep(email, mo, note) {
     _moStop();
     var form = document.getElementById('auth-form-register');
@@ -57889,10 +57939,18 @@ function toggleAvatarSection() {
   /* MO-гоор баталгаажсан нууц үг сэргээлт: кодыг талбарт нь бөглөөд үргэлжлүүлнэ */
   function _moResetReady(email, code) {
     try {
-      var inp = document.getElementById('reset-code-input') || document.getElementById('reset-code');
+      var mb = document.getElementById('mo-reset-box'); if (mb) mb.style.display = 'none';
+      var box = document.getElementById('reset-step-code');
+      if (box) {
+        var grp = box.querySelector('.auth-input-group'); if (grp) grp.style.display = '';
+        var btn = box.querySelector('button.auth-btn-primary'); if (btn) btn.style.display = '';
+      }
+      var inp = document.getElementById('reset-code');
       if (inp) inp.value = code;
-      var suc = document.getElementById('reset-success');
-      if (suc) { suc.style.color = '#16a34a'; suc.textContent = '✓ Баталгаажлаа — шинэ нууц үгээ оруулна уу'; }
+      /* Эзэмшил нотлогдсон — кодыг бөглөөд дараагийн алхам руу өөрөө шилжинэ */
+      if (typeof doVerifyResetCode === 'function') { doVerifyResetCode(); return; }
+      var suc = document.getElementById('auth-success');
+      if (suc) { suc.style.color = '#16a34a'; suc.textContent = '✓ Баталгаажлаа — «Баталгаажуулах» дарна уу'; }
     } catch (e) {}
   }
   window.showMoStep = showMoStep;
@@ -58008,6 +58066,8 @@ function toggleAvatarSection() {
       document.getElementById('reset-step-code').style.display = 'block';
       document.getElementById('reset-target-email').textContent = email + (d.masked ? ' · ' + d.masked : '');
       if (!d.ok) { err.textContent = d.error || 'Алдаа гарлаа'; return; }
+      /* verify.mn (MO): код хүлээхгүй, хэрэглэгч өөрөө илгээнэ */
+      if (d.mode === 'mo' && d.moText) { showMoReset(d, email); suc.textContent = ''; return; }
       suc.textContent = '✓ ' + (d.masked ? d.masked + ' дугаар руу' : 'Бүртгэлтэй утас руу') + ' SMS код илгээлээ';
     }).catch(function(){
       if (btn) { btn.textContent = 'Шалгах →'; btn.disabled = false; }

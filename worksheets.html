@@ -1408,6 +1408,7 @@ function openLogin(auto,view){
   o.style.cssText='position:fixed;inset:0;z-index:200;background:rgba(20,15,40,.6);display:grid;place-items:center;padding:16px;overflow:auto';
   var iS='width:100%;border:1.6px solid #e7ddff;border-radius:12px;padding:.7rem .9rem;font-size:.95rem;outline:none;margin-bottom:9px';
   var bS='width:100%;font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.75rem;font-size:.95rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2))';
+  /* MO үед нуух боломжтой байхаар id нэмэв */
   var spamNote='<div style="font-size:.76rem;color:var(--soft);background:transparent;border-left:3px solid #d9cff5;border-radius:8px;padding:7px 10px;margin-bottom:10px">Код <b>SMS</b>-ээр 1-2 минутад ирнэ. Ирэхгүй бол 10 минутын дараа дахин код авна уу.</div>';
   o.innerHTML='<div style="background:#fff;border-radius:20px;max-width:400px;width:100%;padding:24px;text-align:center;box-shadow:0 24px 60px -18px rgba(0,0,0,.5)">'
     +'<div style="width:54px;height:54px;margin:0 auto 6px;background:linear-gradient(135deg,var(--purple),var(--purple2));border-radius:15px;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="27" height="27" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg></div>'
@@ -1543,7 +1544,7 @@ function openLogin(auto,view){
     TITLES.register=on?'Урилгаар бүртгүүлэх':'Шинэ бүртгэл үүсгэх';
     if(q('#vRegister').style.display==='block')q('#liTitle').textContent=TITLES.register;
   }
-  function showView(v){ ['login','register','verify','forgot'].forEach(function(x){q('#v'+x.charAt(0).toUpperCase()+x.slice(1)).style.display=(x===v)?'block':'none';}); q('#liTitle').textContent=TITLES[v]; if(v!=='verify'){passAsked=false; var pwW=q('#vPassWrap'); if(pwW){pwW.style.display='none'; q('#vPass').value='';}} }
+  function showView(v){ ['login','register','verify','forgot'].forEach(function(x){q('#v'+x.charAt(0).toUpperCase()+x.slice(1)).style.display=(x===v)?'block':'none';}); q('#liTitle').textContent=TITLES[v]; if(v!=='verify'){try{wsMoHide();}catch(e){} passAsked=false; var pwW=q('#vPassWrap'); if(pwW){pwW.style.display='none'; q('#vPass').value='';}} }
   function done(token,email,fresh){ wsInviteClear(); if(token)lsSet('cm_ws_token',token); lsSet('cm_last_user',email); CM_USER={email:email}; if(fresh)resetNewBaseline(); renderAcct(); o.remove(); toast('✓ Тавтай морил'); ensurePin(); try{loadEvents();}catch(e){} if(window.__afterLogin){var _f=window.__afterLogin;window.__afterLogin=null;setTimeout(_f,180);} }
   var curEmail='',curPass='',passAsked=false;
   if(lsGet('cm_last_user'))q('#lgEmail').value=lsGet('cm_last_user');
@@ -1582,7 +1583,7 @@ function openLogin(auto,view){
         return;
       }
       if(x.s===403&&d&&d.deviceLimit){ showDeviceLimit(email,pass,d,m); return; }
-      if(d&&d.needVerify){curEmail=email;curPass=pass;q('#vMsg').textContent='';setVPhone('');api('ws_resend',{email:email}).then(resendResult).catch(function(){});q('#vEmail').textContent=email;showView('verify');return;}
+      if(d&&d.needVerify){curEmail=email;curPass=pass;q('#vMsg').textContent='';setVPhone('');api('ws_resend',{email:email}).then(function(rr){ var dd=rr&&rr.d; if(dd&&dd.mode==='mo'&&dd.moText){wsShowMo(dd);return;} resendResult(rr); }).catch(function(){});q('#vEmail').textContent=email;showView('verify');return;}
       m.style.color='#dc2626';m.textContent=(d&&d.error)||'Нэвтрэх боломжгүй';
     }).catch(function(){b.disabled=false;b.textContent='Нэвтрэх';m.style.color='#dc2626';m.textContent='Сүлжээний алдаа';});
   }
@@ -1603,7 +1604,7 @@ function openLogin(auto,view){
       // Урилгаар — SMS кодгүй шууд нэвтэрнэ
       if(d&&d.ok&&d.invited&&d.token){wsInviteClear();done(d.token,email,true);return;}
       if(d&&d.code==='INVITE_BAD'){wsInviteClear();applyInv();m.style.color='#dc2626';m.textContent=(d.error||'Урилгын линк хүчингүй байна.')+' Утасны дугаараа оруулж SMS кодоор бүртгүүлж болно.';return;}
-      if(d&&d.needVerify){curEmail=email;curPass=p1;q('#vEmail').textContent=email;setVPhone(d.masked);var vm=q('#vMsg');if(d.ok&&d.pending){vm.style.color='#dc2626';vm.textContent=d.message||'Энэ имэйлд саяхан код илгээсэн. Дугаараа буруу бичсэн бол 10 минутын дараа дахин бүртгүүлнэ үү.';}else if(d.ok){vm.style.color='var(--soft)';vm.textContent='Утсанд SMS-ээр ирсэн кодыг оруулна уу. Ирээгүй бол "Код дахин илгээх"-ийг дарна уу.';}else{vm.style.color='#dc2626';vm.textContent=d.error||'';}showView('verify');setTimeout(function(){q('#vCode').focus();},40);}
+      if(d&&d.needVerify){curEmail=email;curPass=p1;q('#vEmail').textContent=email;setVPhone(d.masked);if(d.mode==='mo'&&d.moText){showView('verify');wsShowMo(d);return;}var vm=q('#vMsg');if(d.ok&&d.pending){vm.style.color='#dc2626';vm.textContent=d.message||'Энэ имэйлд саяхан код илгээсэн. Дугаараа буруу бичсэн бол 10 минутын дараа дахин бүртгүүлнэ үү.';}else if(d.ok){vm.style.color='var(--soft)';vm.textContent='Утсанд SMS-ээр ирсэн кодыг оруулна уу. Ирээгүй бол "Код дахин илгээх"-ийг дарна уу.';}else{vm.style.color='#dc2626';vm.textContent=d.error||'';}showView('verify');setTimeout(function(){q('#vCode').focus();},40);}
       else if(d&&d.existed){m.style.color='#dc2626';m.innerHTML='Энэ имэйл бүртгэлтэй. <a href="#" data-go="login" style="color:var(--purple-d);font-weight:800">Нэвтрэх</a>';bindGo();}
       else if(d&&d.code==='NEED_LOGIN'&&d.prepared){q('#fgEmail').value=email;m.style.color='#dc2626';m.innerHTML='Энэ имэйлд данс бэлтгэгдсэн байна. <a href="#" data-go="forgot" style="color:var(--purple-d);font-weight:800">Нууц үг сэргээх</a>-ээр орно уу.';bindGo();}
       else{m.style.color='#dc2626';m.textContent=(d&&d.error)||'Алдаа гарлаа';}
@@ -1624,6 +1625,75 @@ function openLogin(auto,view){
       else{b.disabled=false;b.textContent='Баталгаажуулах';if(d&&d.code==='NEED_PASS'){askPass('Нууц үгээ оруулна уу (6+ тэмдэгт)');return;}m.style.color='#dc2626';m.textContent=(d&&d.error)||'Код буруу';}
     }).catch(function(){b.disabled=false;b.textContent='Баталгаажуулах';m.style.color='#dc2626';m.textContent='Сүлжээний алдаа';});
   }
+  /* ── verify.mn (MO): хэрэглэгч кодоо 144773 руу өөрөө илгээнэ ──
+     textbee ажиллахгүй үед сервер mode:'mo' буцаана. Код оруулах талбарыг нуугаад
+     илгээх зааврыг харуулж, 3 секунд тутам төлөв шалгана. Баталгаажмагц нууц үгтэй
+     нь ws_moVerify дуудаж дуусгана (Дасгалын төвд нууц үг заавал энэ алхамд тавигдана). */
+  var moP=null,moT=null,moTok=null;
+  function wsMoStop(){ if(moP){clearInterval(moP);moP=null;} if(moT){clearInterval(moT);moT=null;} moTok=null; }
+  function wsMoHide(){ wsMoStop(); var b=q('#vMo'); if(b)b.style.display='none';
+    ['#vCode','#vBtn'].forEach(function(x){var e=q(x); if(e)e.style.display='';});
+    var V=q('#vVerify'), p=V&&V.querySelector('p'); if(p)p.style.display='';
+    var sn=q('#vSpam'); if(sn)sn.style.display=''; }
+  function wsMoHref(sc,t){ var ua=navigator.userAgent||'';
+    var ios=/iPad|iPhone|iPod/.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+    return 'sms:'+sc+(ios?'&':'?')+'body='+encodeURIComponent(t); }
+
+  function wsShowMo(mo){
+    var V=q('#vVerify'); if(!V||!mo||!mo.moText) return false;
+    wsMoStop();
+    ['#vCode','#vBtn','#vPassWrap'].forEach(function(x){var e=q(x); if(e)e.style.display='none';});
+    var p=V.querySelector('p'); if(p)p.style.display='none';
+    var sn=q('#vSpam'); if(sn)sn.style.display='none';
+    var code=String(mo.moText), sc=String(mo.shortcode||'144773');
+    moTok=mo.pollToken||null;
+    var box=q('#vMo');
+    if(!box){ box=document.createElement('div'); box.id='vMo'; V.insertBefore(box, q('#vMsg')); }
+    box.style.display='block';
+    box.innerHTML='<p style="color:var(--soft);font-size:.85rem;margin-bottom:10px">'
+      +'Доорх кодыг <b>'+sc+'</b> дугаарт SMS-ээр илгээж баталгаажуулна уу.<br>'
+      +'<span style="font-size:.76rem">Данс: '+(curEmail||'')+'</span></p>'
+      +'<div style="border:2px dashed #c9b8f7;border-radius:14px;background:#faf8ff;padding:12px;text-align:center;margin-bottom:10px">'
+      +'<div style="font-size:.7rem;font-weight:800;color:#8b7fae;letter-spacing:.5px">ИЛГЭЭХ КОД</div>'
+      +'<div style="font-size:1.8rem;font-weight:900;color:#4c23c4;letter-spacing:7px;font-family:ui-monospace,Menlo,Consolas,monospace">'+code+'</div>'
+      +'<div style="font-size:.76rem;color:#8b7fae;font-weight:700">'+sc+' дугаарт</div></div>'
+      +'<a href="'+wsMoHref(sc,code)+'" style="display:block;text-align:center;text-decoration:none;border-radius:12px;padding:.75rem;font-weight:900;color:#fff;background:linear-gradient(135deg,#7B52EE,#A855F7)">SMS бичих</a>'
+      +'<div style="font-size:.74rem;color:var(--soft);font-weight:600;line-height:1.5;margin-top:8px">'
+      +(mo.masked?('Өөрийн <b>'+mo.masked+'</b> дугаараасаа илгээнэ үү. '):'')
+      +'2 SIM-тэй бол зөв SIM-ээ сонгоорой.</div>'
+      +'<div id="vMoLeft" style="font-size:.76rem;color:var(--soft);font-weight:700;margin-top:6px;text-align:center"></div>';
+
+    var m=q('#vMsg'); if(m){m.style.color='var(--soft)';m.textContent='Илгээхийг хүлээж байна…';}
+    var until=mo.expiresAt?Date.parse(mo.expiresAt):(Date.now()+300000);
+    function tick(){ var el=q('#vMoLeft'); if(!el||!q('#vMo')){wsMoStop();return;}
+      var left=Math.max(0,Math.round((until-Date.now())/1000));
+      el.textContent=left>0?('Үлдсэн хугацаа '+Math.floor(left/60)+':'+(left%60<10?'0':'')+(left%60)):'';
+      if(left<=0){ wsMoStop(); var mm=q('#vMsg'); if(mm){mm.style.color='#dc2626';mm.textContent='Хугацаа дууслаа. Дахин оролдоно уу.';} } }
+    tick(); moT=setInterval(tick,1000);
+    moP=setInterval(wsMoPoll,3000); setTimeout(wsMoPoll,1500);
+    return true;
+  }
+
+  function wsMoPoll(){
+    if(!moTok||!q('#vMo')){wsMoStop();return;}
+    var tok=moTok;
+    api('ws_moStatus',{pollToken:tok}).then(function(x){ var d=x.d;
+      if(!d||!d.ok||tok!==moTok) return;
+      if(d.status==='EXPIRED'){ wsMoStop(); var m=q('#vMsg'); if(m){m.style.color='#dc2626';m.textContent='Хугацаа дууслаа. Дахин оролдоно уу.';} return; }
+      if(d.status!=='VERIFIED') return;
+      wsMoStop();
+      var m=q('#vMsg'); if(m){m.style.color='#16a34a';m.textContent='✓ Баталгаажлаа — нэвтэрч байна…';}
+      /* Нууц үг: бүртгэлийн үед бичсэн нь curPass-д байна. Байхгүй бол асууна. */
+      var pass=curPass||(q('#vPass')?q('#vPass').value:'')||'';
+      if(!pass||pass.length<6){ wsMoHide(); askPass('Нууц үгээ оруулна уу (6+ тэмдэгт)'); return; }
+      api('ws_moVerify',{pollToken:tok,pass:pass}).then(function(y){ var r=y.d;
+        if(r&&r.ok&&r.token){ curPass=''; toast('✓ Бүртгэл амжилттай'); done(r.token,curEmail,true); }
+        else if(r&&r.ok&&r.alreadyVerified){ curPass=''; wsMoHide(); toLoginVerified(curEmail); }
+        else { wsMoHide(); var mm=q('#vMsg'); if(mm){mm.style.color='#dc2626';mm.textContent=(r&&r.error)||'Баталгаажуулж чадсангүй';} }
+      }).catch(function(){ var mm=q('#vMsg'); if(mm){mm.style.color='#dc2626';mm.textContent='Сүлжээний алдаа';} });
+    }).catch(function(){ /* түр саатал — дараагийн удаа */ });
+  }
+
   function askPass(msg){ passAsked=true; q('#vPassWrap').style.display='block'; var m=q('#vMsg'); m.style.color='#dc2626'; m.textContent=msg; setTimeout(function(){q('#vPass').focus();},40); }
   // FORGOT
   function doForgot(){

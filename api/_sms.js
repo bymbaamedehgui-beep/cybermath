@@ -1086,7 +1086,12 @@ async function sendMo(o) {
 /* Төлөв шалгах — ЗӨВХӨН pollToken-оор (M2).
    → { ok:true, status:'PENDING'|'VERIFIED'|'EXPIRED'|'UNKNOWN', email, purpose, kind }
    VERIFIED үед session-ийг consumed болгоно (M5) — давтан дуудахад PENDING биш EXPIRED. */
-async function moCheck(pollToken) {
+async function moCheck(pollToken, opts) {
+  /* opts.consume === false бол VERIFIED-ийг зөвхөн МЭДЭЭЛНЭ, session-ийг зарцуулахгүй.
+     Дасгалын төвд хэрэгтэй: тэнд баталгаажуулах агшинд нууц үг заавал тавигддаг тул
+     «баталгаажлаа» гэж харуулаад, нууц үгтэй нь дахин дуудаж (consume: true) дуусгана.
+     M5 (нэг session нэг л удаа) нь зарцуулалтын алхамд хэвээр хүчинтэй. */
+  const consume = !(opts && opts.consume === false);
   const tok = String(pollToken || '');
   if (!/^[0-9a-f]{48}$/.test(tok)) return { ok: false, status: 'UNKNOWN' };
   try {
@@ -1103,6 +1108,10 @@ async function moCheck(pollToken) {
     if (!st.ok) return { ok: false, status: 'UNKNOWN', cls: st.cls };
     if (st.status !== 'VERIFIED') return { ok: true, status: st.status };
 
+    // Зөвхөн мэдээлнэ — зарцуулахгүй (дуудагч дараа нь consume: true-гээр дуусгана)
+    if (!consume) {
+      return { ok: true, status: 'VERIFIED', pending: true, email: row.email, purpose: row.purpose, kind: row.kind };
+    }
     // M5 — яг нэг л удаа
     const up = await pool.query(
       `UPDATE vfm_sessions SET consumed_at = NOW() WHERE id = $1 AND consumed_at IS NULL RETURNING id`,

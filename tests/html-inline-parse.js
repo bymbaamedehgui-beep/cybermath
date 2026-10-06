@@ -25,7 +25,7 @@ function checkFile(rel, mustHave, mustNot) {
 }
 
 checkFile('index.html',
-  ['id="reg-phone"', 'function _smsTargetText(masked)', 'showVerifyModal(d.email, plan, d.masked)', 'resendVerifyCode()', 'Утсанд SMS-ээр ирсэн 6 оронтой код'],
+  ['id="reg-phone"', 'function _smsTargetText(masked)', 'showVerifyModal(d.email, plan, d.masked, null, d)', 'resendVerifyCode()', 'Утсанд SMS-ээр ирсэн 6 оронтой код'],
   ['И-мэйлд ирсэн 6 оронтой код', "resendVerifyCode(\\'' + email", 'хаягт 6 оронтой код илгээлээ', 'Spam / Junk / Хог']);
 checkFile('worksheets.html',
   ['id="rgPhone"', 'function setVPhone(masked)', 'id="vPhone"', "api('ws_verify',{email:curEmail,code:code,pass:pass})", 'id="vPass"', 'function askPass(msg)'],
