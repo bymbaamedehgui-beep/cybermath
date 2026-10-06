@@ -70,33 +70,22 @@ function wsAccepted(masked, extra) { return Object.assign({ ok: true }, extra ||
    шалгаад, утас үхсэн бол шууд MO руу. */
 const WS_MO_NO_FALLBACK = { SMS_UNCERTAIN: 1, SMS_COOLDOWN: 1, SMS_LIMIT: 1 };
 async function wsSendOtp(o) {
-  if (!sms.moEnabled()) return await sms.sendCode(o);
+  /* Дасгалын төв: verify.mn ҮНДСЭН зам.
+     Тоглоомын талаас ялгаатай — энд textbee-г эхлээд оролдохгүй. Шалтгаан:
+     эзэмшигчийн Android утаснаас огт хамаарахгүй болгох. Хэрэглэгч кодоо
+     144773 руу өөрөө илгээнэ: утас унтарсан, интернэтгүй, SIM солигдсон
+     ямар ч тохиолдолд нэвтрэлт зогсохгүй.
 
-  /* 1. Gateway утас үхсэн нь мэдэгдэж байвал textbee рүү огт хандахгүй */
-  let alive = true;
-  try { alive = await sms.gatewayAlive(); } catch (e) {}
-  if (!alive) {
-    let first;
-    try { first = await sms.sendMo(o); } catch (e) {}
-    if (first && first.ok) return first;
+     textbee нь ЗӨВХӨН сүүлчийн хамгаалалт: verify.mn тохируулагдаагүй эсвэл
+     түр ажиллахгүй үед Дасгалын төв бүрмөсөн хаагдахаас сэргийлнэ. */
+  if (sms.moEnabled()) {
+    let mo;
+    try { mo = await sms.sendMo(o); } catch (e) {}
+    if (mo && mo.ok) return mo;
+    /* Дугаарын cooldown/квотод хоригдсон бол textbee-гээр тойрохгүй */
+    if (mo && (mo.phoneQuota || WS_MO_NO_FALLBACK[mo.code])) return mo;
   }
-
-  /* 2. textbee ба нөөц MO session-ийг ЗЭРЭГ — нэмэлт саатал үүсгэхгүй.
-     companion: тухайн оролдлогыг textbee-гийн зам аль хэдийн квотод тооцсон
-     тул дугаарын cooldown-г дахин авахгүй (эс бөгөөс өөрөө өөрийгөө хаана). */
-  const moP = sms.sendMo(Object.assign({}, o, { companion: true })).catch(function () { return null; });
-  const sent = await sms.sendCode(o);
-  const comp = await moP;
-
-  if (sent.ok) {
-    /* textbee хүлээн авсан. Гэхдээ 200 нь "хүрлээ" гэсэн утга БИШ тул клиентэд
-       нөөцийг хамт өгнө — 30 секундэд код ирэхгүй бол өөрөө шилжинэ. */
-    if (comp && comp.ok) sent.moBackup = comp;
-    return sent;
-  }
-  /* Санаатай хоригуудыг нөгөө провайдераар тойрохгүй */
-  if (sent.phoneQuota || WS_MO_NO_FALLBACK[sent.code]) return sent;
-  return (comp && comp.ok) ? comp : sent;
+  return await sms.sendCode(o);
 }
 /* MO амжилттай бол хариунд нэмэх талбарууд (sessionId ЭНД БАЙХГҮЙ) */
 function wsMoFields(sent) {
@@ -801,6 +790,17 @@ module.exports = async (req, res) => {
         if (b.action === 'ws_moStatus') {
           const c = await sms.moCheck(String(b.pollToken || ''), { consume: false });
           if (!c.ok) return res.json({ ok: true, status: 'UNKNOWN' });
+          /* Нууц үг сэргээх: эзэмшил нотлогдсон тул энд зарцуулаад нэг удаагийн
+             код өгнө. Клиент байгаа ws_reset урсгалаар үргэлжилнэ — шинэ зам
+             нэмэхгүй, кодын шалгалт, оролдлогын хязгаар бүгд хэвээр. */
+          if (c.status === 'VERIFIED' && c.purpose === 'reset') {
+            const fin = await sms.moCheck(String(b.pollToken || ''), { consume: true });
+            if (!fin.ok || fin.status !== 'VERIFIED') return res.json({ ok: true, status: 'EXPIRED' });
+            const mem = String(fin.email || '').toLowerCase();
+            const one = String(require('crypto').randomInt(0, 1000000)).padStart(6, '0');
+            await wsCodeStore(mem, false)(one);
+            return res.json({ ok: true, status: 'VERIFIED', purpose: 'reset', email: mem, code: one });
+          }
           return res.json({ ok: true, status: c.status, purpose: c.purpose || null });
         }
         /* MO дуусгах — нууц үгтэй. ws_verify-ийн логикийг давтана, зөвхөн кодын

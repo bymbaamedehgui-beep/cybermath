@@ -1657,6 +1657,51 @@ function openLogin(auto,view){
     var ios=/iPad|iPhone|iPod/.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
     return 'sms:'+sc+(ios?'&':'?')+'body='+encodeURIComponent(t); }
 
+  /* Нууц үг сэргээх дэлгэцэд MO блок. Баталгаажмагц сервер нэг удаагийн код
+     өгнө — түүнийг нуугдмал талбарт бөглөөд хэрэглэгч зөвхөн шинэ нууц үгээ бичнэ. */
+  function wsShowMoForgot(mo){
+    var st=q('#fgStep2'); if(!st||!mo||!mo.moText) return false;
+    wsMoStop(); wsMoDisarm();
+    ['#fgCode','#fgPass','#fgPass2','#fgBtn2'].forEach(function(x){var e=q(x); if(e)e.style.display='none';});
+    var code=String(mo.moText), sc=String(mo.shortcode||'144773');
+    moTok=mo.pollToken||null;
+    var box=q('#fgMo');
+    if(!box){ box=document.createElement('div'); box.id='fgMo'; st.insertBefore(box, st.firstChild); }
+    box.style.display='block';
+    box.innerHTML='<div style="font-size:.84rem;color:var(--soft);margin-bottom:10px;line-height:1.5">'
+      +'Доорх кодыг <b>'+sc+'</b> дугаарт SMS-ээр илгээнэ үү.</div>'
+      +'<div style="border:2px dashed #c9b8f7;border-radius:14px;background:#faf8ff;padding:12px;text-align:center;margin-bottom:10px">'
+      +'<div style="font-size:.7rem;font-weight:800;color:#8b7fae;letter-spacing:.5px">ИЛГЭЭХ КОД</div>'
+      +'<div style="font-size:1.8rem;font-weight:900;color:#4c23c4;letter-spacing:7px;font-family:ui-monospace,Menlo,Consolas,monospace">'+code+'</div>'
+      +'<div style="font-size:.76rem;color:#8b7fae;font-weight:700">'+sc+' дугаарт</div></div>'
+      +'<a href="'+wsMoHref(sc,code)+'" style="display:block;text-align:center;text-decoration:none;border-radius:12px;padding:.75rem;font-weight:900;color:#fff;background:linear-gradient(135deg,#7B52EE,#A855F7)">SMS бичих</a>'
+      +'<div id="fgMoLeft" style="font-size:.76rem;color:var(--soft);font-weight:700;margin-top:8px;text-align:center"></div>';
+    var m=q('#fgMsg'); if(m){m.style.color='var(--soft)';m.textContent='Илгээхийг хүлээж байна…';}
+    var until=mo.expiresAt?Date.parse(mo.expiresAt):(Date.now()+300000);
+    function tick(){ var el=q('#fgMoLeft'); if(!el){wsMoStop();return;}
+      var left=Math.max(0,Math.round((until-Date.now())/1000));
+      el.textContent=left>0?('Үлдсэн хугацаа '+Math.floor(left/60)+':'+(left%60<10?'0':'')+(left%60)):'';
+      if(left<=0){ wsMoStop(); var mm=q('#fgMsg'); if(mm){mm.style.color='#dc2626';mm.textContent='Хугацаа дууслаа. Дахин оролдоно уу.';} } }
+    tick(); moT=setInterval(tick,1000);
+    moP=setInterval(wsMoForgotPoll,3000); setTimeout(wsMoForgotPoll,1500);
+    return true;
+  }
+  function wsMoForgotPoll(){
+    if(!moTok||!q('#fgMo')){wsMoStop();return;}
+    var tok=moTok;
+    api('ws_moStatus',{pollToken:tok}).then(function(x){ var d=x.d;
+      if(!d||!d.ok||tok!==moTok) return;
+      if(d.status==='EXPIRED'){ wsMoStop(); var m=q('#fgMsg'); if(m){m.style.color='#dc2626';m.textContent='Хугацаа дууслаа. Дахин оролдоно уу.';} return; }
+      if(d.status!=='VERIFIED'||!d.code) return;
+      wsMoStop();
+      var box=q('#fgMo'); if(box)box.style.display='none';
+      var c=q('#fgCode'); if(c){c.value=d.code;c.style.display='none';}   /* нуугдмал — хэрэглэгч бичих шаардлагагүй */
+      ['#fgPass','#fgPass2','#fgBtn2'].forEach(function(x){var e=q(x); if(e)e.style.display='';});
+      var m=q('#fgMsg'); if(m){m.style.color='#16a34a';m.textContent='✓ Баталгаажлаа — шинэ нууц үгээ оруулна уу';}
+      setTimeout(function(){ var p=q('#fgPass'); if(p)p.focus(); },40);
+    }).catch(function(){});
+  }
+
   function wsShowMo(mo){
     var V=q('#vVerify'); if(!V||!mo||!mo.moText) return false;
     wsMoStop(); wsMoDisarm();
@@ -1720,7 +1765,7 @@ function openLogin(auto,view){
     var b=q('#fgBtn');b.disabled=true;b.textContent='Илгээж байна…';m.textContent='';
     api('ws_forgot',{email:email}).then(function(x){var d=x.d;
       b.disabled=false;b.textContent='Код авах';
-      if(d&&((x.s===200&&d.ok)||d.codeStep)){curEmail=email;q('#fgStep1').style.display='none';q('#fgStep2').style.display='block';if(d.ok){m.style.color='#16a34a';m.textContent='✓ '+(d.masked?d.masked+' дугаар руу':'Утас руу')+' SMS код илгээлээ';}else{m.style.color='#dc2626';m.textContent=d.error||'';}}
+      if(d&&((x.s===200&&d.ok)||d.codeStep)){curEmail=email;q('#fgStep1').style.display='none';q('#fgStep2').style.display='block';if(d.mode==='mo'&&d.moText){wsShowMoForgot(d);return;}if(d.ok){m.style.color='#16a34a';m.textContent='✓ '+(d.masked?d.masked+' дугаар руу':'Утас руу')+' SMS код илгээлээ';}else{m.style.color='#dc2626';m.textContent=d.error||'';}}
       else{m.style.color='#dc2626';m.textContent=(d&&d.error)||'Алдаа';}
     }).catch(function(){b.disabled=false;b.textContent='Код авах';m.style.color='#dc2626';m.textContent='Сүлжээний алдаа';});
   }
