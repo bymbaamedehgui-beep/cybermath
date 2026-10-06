@@ -1112,12 +1112,51 @@ async function moCheck(pollToken) {
   } catch (e) { logErr('[mo] check', e); return { ok: false, status: 'UNKNOWN' }; }
 }
 
+
+/* ── gateway утас амьд эсэх ──
+   textbee-гийн API нь утас унтарсан, интернэтгүй, апп хаагдсан ч HTTP 200
+   буцаана (мессежийг дарааландаа тавиад). Тиймээс "илгээлээ" гэдэг нь
+   "хүрлээ" гэсэн утга БИШ. Илгээхийн өмнө heartbeat-ийг шалгаж, хуучирсан
+   бол шууд verify.mn (MO) руу шилжинэ.
+
+   Тодорхойгүй үед ҮРГЭЛЖ "амьд" гэж үзнэ — textbee-г дэмий хаахгүй:
+   API дэмждэггүй, алдаа гарсан, heartbeat талбаргүй бол true.
+   HB_CACHE_MS хугацаанд кэшилнэ — илгээлт бүрд нэмэлт дуудлага хийхгүй. */
+const HB_CACHE_MS = 60000;
+function hbStaleMin() { return intEnv('TEXTBEE_HEARTBEAT_STALE_MIN', 10); }
+let _hbCache = null;   // { at, alive }
+function gatewayCacheReset() { _hbCache = null; }   // тестэд
+async function gatewayAlive() {
+  if (envStr('TEXTBEE_HEARTBEAT_CHECK') === '0') return true;   // шалгалтыг унтраах
+  const now = Date.now();
+  if (_hbCache && now - _hbCache.at < HB_CACHE_MS) return _hbCache.alive;
+  let alive = true;
+  try {
+    const d = await deviceStatus();
+    if (d && d.ok && Array.isArray(d.devices) && d.devices.length) {
+      const limit = hbStaleMin() * 60000;
+      alive = d.devices.some(function (x) {
+        if (x.enabled === false) return false;
+        if (!x.last_heartbeat) return true;            // талбаргүй → шүүхгүй
+        const t = Date.parse(x.last_heartbeat);
+        if (!Number.isFinite(t)) return true;
+        return (now - t) < limit;
+      });
+    }
+    // d.ok=false (CONFIG/AUTH/DOWN/unsupported) эсвэл төхөөрөмж алга → alive=true хэвээр
+  } catch (e) { logErr('[sms] heartbeat', e); }
+  _hbCache = { at: now, alive: alive };
+  if (!alive) console.error('[sms]', 'gateway offline — MO руу шилжинэ');
+  return alive;
+}
+
 module.exports = {
   normalizePhone, maskPhone, maskEmail, fakeMask, phoneHash, ipKeys, codeText,
   precheck, sendCode, markVerified, publicOtpResponse, padTo, mkFail, ERR, failJson, notify,
   status, setPause, deviceStatus, textbeeSend, limits, logErr, safeMsg, ensureSmsTables, ensureUserColumns, maxAccountsPerPhone, trustLegacyPhone,
   promoNote, PROMO_NOTE, CODE_TTL_MS, COOLDOWN_SEC,
   sendMo, moCheck, moEnabled, ensureVfmTables, MO_TTL_SEC,
+  gatewayAlive, gatewayCacheReset,
   // тестэд
   promoCacheReset,
   _internal: { hit, readCounts, count, decr, periods, tKeys },

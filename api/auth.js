@@ -187,6 +187,20 @@ function smsAccepted(masked) { return { ok: true, sms: true, masked: masked }; }
    (verify.mn-д тийм хязгаар байхгүй). */
 const MO_NO_FALLBACK = { SMS_UNCERTAIN: 1, SMS_COOLDOWN: 1, SMS_LIMIT: 1 };
 async function sendOtp(o) {
+  /* textbee нь gateway утас унтарсан / интернэтгүй / апп хаагдсан үед ч HTTP 200
+     буцаадаг. Тиймээс "амжилттай"-д нь итгэж болохгүй — илгээхийн ӨМНӨ heartbeat
+     шалгаад, утас үхсэн бол шууд verify.mn руу. Эс бөгөөс код хаашаа ч хүрэхгүй
+     мөртлөө сервер амжилттай гэж үзэж, нөөц зам огт идэвхжихгүй. */
+  if (sms.moEnabled()) {
+    let alive = true;
+    try { alive = await sms.gatewayAlive(); } catch (e) {}
+    if (!alive) {
+      let first;
+      try { first = await sms.sendMo(o); } catch (e) {}
+      if (first && first.ok) return first;
+      /* MO ч бүтсэнгүй — textbee-г ямар ч байсан оролдоно (sendMo квотоо буцаасан) */
+    }
+  }
   const sent = await sms.sendCode(o);
   if (sent.ok || !sms.moEnabled()) return sent;
   if (sent.phoneQuota || MO_NO_FALLBACK[sent.code]) return sent;
