@@ -1127,6 +1127,12 @@ function hbStaleMin() { return intEnv('TEXTBEE_HEARTBEAT_STALE_MIN', 10); }
 let _hbCache = null;   // { at, alive }
 function gatewayCacheReset() { _hbCache = null; }   // тестэд
 async function gatewayAlive() {
+  /* ЗӨВХӨН ТУРШИЛТАД. Утсанд хүрэхгүйгээр, хүлээхгүйгээр MO урсгалыг шалгана.
+     Прод дээр үлдээвэл БҮХ хэрэглэгч MO дэлгэц рүү явна — туршаад шууд устга. */
+  if (envStr('TEXTBEE_FORCE_OFFLINE') === '1') {
+    console.error('[sms]', 'TEXTBEE_FORCE_OFFLINE=1 — бүх хэрэглэгч MO руу шилжиж байна');
+    return false;
+  }
   if (envStr('TEXTBEE_HEARTBEAT_CHECK') === '0') return true;   // шалгалтыг унтраах
   const now = Date.now();
   if (_hbCache && now - _hbCache.at < HB_CACHE_MS) return _hbCache.alive;
