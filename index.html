@@ -50508,6 +50508,151 @@ function toggleAvatarSection() {
     else window.addEventListener('load', boot);
   })();
 
+  /* ── Урамшууллын цонх ──
+     Идэвхтэй НИЙТИЙН хөнгөлөлтийн кодыг нэвтэрсэн, эрх АВААГҮЙ хэрэглэгчид
+     код тус бүрт НЭГ л удаа харуулна. Рекламын SMS-ийн оронд аппын дотор.
+     Эх сурвалж: /api/qpay?action=ws_promo_public (нээлттэй; personal, хугацаа
+     нь дууссан, хязгаар нь барагдсан кодыг сервер өөрөө шүүдэг). */
+  var CM_PROMO_SEEN = 'cm_promo_seen';
+  function cmPromoSeen() {
+    try { var v = JSON.parse(localStorage.getItem(CM_PROMO_SEEN) || '[]'); return Array.isArray(v) ? v : []; }
+    catch (e) { return []; }
+  }
+  function cmPromoMarkSeen(code) {
+    try {
+      var a = cmPromoSeen();
+      if (a.indexOf(code) === -1) a.push(code);
+      localStorage.setItem(CM_PROMO_SEEN, JSON.stringify(a.slice(-20)));
+    } catch (e) {}
+  }
+  function cmHasAccess() {
+    try {
+      if (!_currentUser) return false;
+      if (_currentUser.plan === 'premium') {
+        var e = _currentUser.premium_expiry || _currentUser.premium_until;
+        if (!e) return true;
+        return new Date(e).getTime() > Date.now();
+      }
+    } catch (e) {}
+    return false;
+  }
+  async function cmPromoPopup() {
+    try {
+      if (typeof _currentUser === 'undefined' || !_currentUser || !_currentUser.email) return;
+      if (document.getElementById('cm-promo-pop')) return;
+      if (document.getElementById('cm-streak-pop')) return;   /* streak цонхтой давхцуулахгүй */
+      if (cmHasAccess()) return;                                /* эрхтэй хүнд хямдрал харуулахгүй */
+
+      var r = await fetch('/api/qpay?action=ws_promo_public');
+      var d = await r.json();
+      var list = (d && d.ok && Array.isArray(d.promos)) ? d.promos : [];
+      var seen = cmPromoSeen();
+      list = list.filter(function (p) {
+        return p && p.code && seen.indexOf(p.code) === -1 && (parseInt(p.pct, 10) || 0) > 0;
+      });
+      if (!list.length) return;
+      /* Хамгийн сайн санал: хувь их нь; тэнцвэл хугацаа нь эхлээд дуусах нь */
+      list.sort(function (a, b) {
+        var dp = (parseInt(b.pct, 10) || 0) - (parseInt(a.pct, 10) || 0);
+        if (dp) return dp;
+        var ea = a.expires_at ? new Date(a.expires_at).getTime() : Infinity;
+        var eb = b.expires_at ? new Date(b.expires_at).getTime() : Infinity;
+        return ea - eb;
+      });
+      var p = list[0];
+      var code = String(p.code);
+      var pct = parseInt(p.pct, 10) || 0;
+      cmPromoMarkSeen(code);
+
+      /* Нэмэлт мэдээллийн тэмдэгүүд */
+      var chips = '';
+      function chip(txt) {
+        return '<span style="display:inline-block;background:#f3effe;color:#5b34d6;border-radius:100px;'
+          + 'padding:5px 12px;font-size:.78rem;font-weight:800;">' + txt + '</span>';
+      }
+      var months = parseInt(p.months, 10);
+      if (months > 0) chips += chip(months + ' сарын эрх');
+      var left = null;
+      if (p.expires_at) {
+        var ms = new Date(p.expires_at).getTime() - Date.now();
+        left = Math.ceil(ms / 86400000);
+        if (left > 0) chips += chip(left === 1 ? 'Өнөөдөр дуусна' : left + ' хоног үлдлээ');
+      }
+      var note = (p.note ? String(p.note) : '').trim();
+      var sub = note || 'Эрхээ одоо аваад бүх ажлын хуудас, хичээлийг онгойлго.';
+
+      var w = document.createElement('div');
+      w.id = 'cm-promo-pop';
+      w.style.cssText = 'position:fixed;inset:0;z-index:2147482000;background:rgba(18,12,38,.55);'
+        + 'display:flex;align-items:center;justify-content:center;padding:18px;font-family:inherit;';
+      w.innerHTML =
+        '<div style="position:relative;background:linear-gradient(180deg,#f4efff,#fff 44%);border-radius:24px;max-width:380px;width:100%;'
+        + 'padding:26px 22px 22px;box-shadow:0 26px 70px -18px rgba(40,20,80,.5);text-align:center;">'
+        + '<button id="cm-promo-x" title="Хаах" style="position:absolute;top:12px;right:12px;width:34px;height:34px;border-radius:10px;'
+        + 'border:2px solid #d9dbe6;background:#fff;color:#7b7b8f;cursor:pointer;display:flex;align-items:center;justify-content:center;">'
+        + '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>'
+        + '<div style="width:76px;height:76px;margin:4px auto 0;border-radius:22px;display:flex;align-items:center;justify-content:center;'
+        + 'background:linear-gradient(135deg,#7B52EE,#A77BFF);box-shadow:0 10px 24px -8px rgba(123,82,238,.7);">'
+        + '<svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        + '<path d="M20 12v9H4v-9"/><path d="M2 7h20v5H2z"/><path d="M12 21V7"/>'
+        + '<path d="M12 7S10.5 3 7.5 3 4 6 7 7h5zM12 7s1.5-4 4.5-4S20 6 17 7h-5z"/></svg></div>'
+        + '<div style="font-size:2.1rem;font-weight:900;color:#1a1035;margin-top:14px;line-height:1.1;">' + pct + '% хөнгөлөлт</div>'
+        + '<div style="font-size:.92rem;color:#6c6486;font-weight:600;line-height:1.5;margin-top:7px;">' + sub + '</div>'
+        + (chips ? '<div style="display:flex;gap:7px;justify-content:center;flex-wrap:wrap;margin-top:13px;">' + chips + '</div>' : '')
+        + '<div style="margin-top:17px;border:2px dashed #c9b8f7;border-radius:14px;background:#faf8ff;padding:13px 12px;">'
+        + '<div style="font-size:.72rem;font-weight:800;color:#8b7fae;letter-spacing:.5px;">ХӨНГӨЛӨЛТИЙН КОД</div>'
+        + '<div style="display:flex;align-items:center;justify-content:center;gap:9px;margin-top:6px;">'
+        + '<span style="font-size:1.3rem;font-weight:900;color:#4c23c4;letter-spacing:2px;font-family:ui-monospace,Menlo,Consolas,monospace;">' + code + '</span>'
+        + '<button id="cm-promo-copy" title="Хуулах" style="width:32px;height:32px;border-radius:9px;border:1.5px solid #c9b8f7;'
+        + 'background:#fff;color:#5b34d6;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;">'
+        + '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
+        + '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg></button>'
+        + '</div></div>'
+        + '<button id="cm-promo-go" style="width:100%;margin-top:16px;border:0;cursor:pointer;border-radius:14px;padding:13px;'
+        + 'font-size:1rem;font-weight:900;color:#fff;font-family:inherit;background:linear-gradient(135deg,#7B52EE,#A77BFF);">Эрх авах</button>'
+        + '<button id="cm-promo-later" style="width:100%;margin-top:8px;border:0;background:none;cursor:pointer;padding:8px;'
+        + 'font-size:.88rem;font-weight:700;color:#8b8ba3;font-family:inherit;">Дараа</button>'
+        + '</div>';
+      document.body.appendChild(w);
+
+      function close() { w.remove(); }
+      w.querySelector('#cm-promo-x').onclick = close;
+      w.querySelector('#cm-promo-later').onclick = close;
+      w.addEventListener('click', function (e) { if (e.target === w) close(); });
+      w.querySelector('#cm-promo-copy').onclick = function () {
+        var b = this;
+        function done() { b.style.borderColor = '#16a34a'; b.style.color = '#16a34a'; }
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(done, function () {});
+          else {
+            var ta = document.createElement('textarea');
+            ta.value = code; ta.style.position = 'fixed'; ta.style.opacity = '0';
+            document.body.appendChild(ta); ta.select();
+            document.execCommand('copy'); ta.remove(); done();
+          }
+        } catch (e) {}
+      };
+      w.querySelector('#cm-promo-go').onclick = function () {
+        close();
+        try {
+          if (typeof showPremiumInfo === 'function') { showPremiumInfo(); return; }
+        } catch (e) {}
+        location.href = '/promo';
+      };
+    } catch (e) {}
+  }
+  window.cmPromoPopup = cmPromoPopup;
+  /* Орж ирэхэд — streak цонхны дараа */
+  (function () {
+    function boot() {
+      setTimeout(function () {
+        try { if (window._currentUser && window._currentUser.email) cmPromoPopup(); } catch (e) {}
+      }, 3200);
+    }
+    if (document.readyState === 'complete') boot();
+    else window.addEventListener('load', boot);
+  })();
+
   // Call after lesson complete to mark streak
   function markStreakDay() {
     var today = new Date().toDateString();
@@ -57515,7 +57660,7 @@ function toggleAvatarSection() {
         // SMS илгээгдсэн эсэх тодорхойгүй (codeStep) — код ирвэл оруулах алхам руу шилжинэ
         if (d.needVerify && d.codeStep) {
           closeAuthModal();
-          showVerifyModal(d.email || email, plan, d.masked, d.error);
+          showVerifyModal(d.email || email, plan, d.masked, d.error, d);
           return;
         }
         err.textContent = d.error || 'Алдаа гарлаа';
@@ -57533,7 +57678,7 @@ function toggleAvatarSection() {
       }
       if (d.needVerify) {
         closeAuthModal();
-        showVerifyModal(d.email, plan, d.masked);
+        showVerifyModal(d.email, plan, d.masked, null, d);
         return;
       }
       // Шууд нэвтрэх (verification байхгүй үед)
@@ -57548,11 +57693,15 @@ function toggleAvatarSection() {
     }).catch(function(){ err.textContent = 'Сервертэй холбогдоход алдаа гарлаа.'; });
   }
 
-  function showVerifyModal(email, plan, masked, note) {
+  function showVerifyModal(email, plan, masked, note, mo) {
     window._verifyEmail = email;
     window._verifyPlan = plan;
     openAuthModal('register');
-    setTimeout(function(){ showVerifyStep(email, masked, note); }, 100);
+    /* mode:'mo' бол код оруулах биш, илгээх дэлгэц */
+    setTimeout(function(){
+      if (mo && mo.mode === 'mo' && mo.moText) showMoStep(email, mo, note);
+      else showVerifyStep(email, masked, note);
+    }, 100);
   }
 
   // "**** **07 дугаар руу" — сервер буцаасан маск (бүтэн дугаар хэзээ ч ирэхгүй)
@@ -57622,6 +57771,131 @@ function toggleAvatarSection() {
       if (errEl) { errEl.style.color = '#dc2626'; errEl.textContent = 'Сервертэй холбогдоход алдаа гарлаа.'; }
     });
   }
+
+  /* ══ verify.mn (MO) — ХЭРЭГЛЭГЧ кодоо 144773 руу илгээнэ ══
+     textbee ажиллахгүй үед л энэ дэлгэц гарна. Сервер mode:'mo' буцаавал.
+     Код энд харагдах ЁСТОЙ — хэрэглэгч үүнийг SMS-ээр илгээнэ. */
+  var _moPoll = null, _moTick = null, _moToken = null;
+  function _moStop() {
+    if (_moPoll) { clearInterval(_moPoll); _moPoll = null; }
+    if (_moTick) { clearInterval(_moTick); _moTick = null; }
+    _moToken = null;
+  }
+  /* iOS нь sms:NUM&body=..., Android нь sms:NUM?body=... гэж ойлгодог */
+  function _moHref(shortcode, text) {
+    var ua = navigator.userAgent || '';
+    var ios = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    return 'sms:' + shortcode + (ios ? '&' : '?') + 'body=' + encodeURIComponent(text);
+  }
+
+  function showMoStep(email, mo, note) {
+    _moStop();
+    var form = document.getElementById('auth-form-register');
+    var box = document.getElementById('auth-verify-section');
+    if (form) form.style.display = 'none';
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'auth-verify-section';
+      var t = document.getElementById('auth-register-tab');
+      if (t) t.appendChild(box);
+    }
+    box.style.display = 'block';
+
+    var code = String(mo.moText || '');
+    var sc = String(mo.shortcode || '144773');
+    _moToken = mo.pollToken || null;
+
+    box.innerHTML = '<div style="text-align:center;padding:8px 0;">'
+      + '<div style="text-align:left;margin-bottom:14px;"><button onclick="hideVerifyStep()" style="background:none;border:none;cursor:pointer;display:flex;align-items:center;gap:6px;color:#7B52EE;font-weight:800;font-size:0.9rem;font-family:\'Baloo 2\',sans-serif;padding:0;"><svg width="9" height="14" viewBox="0 0 9 14"><path d="M7 12L2 7L7 2" stroke="#7B52EE" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Буцах</button></div>'
+      + '<div style="width:56px;height:56px;margin:0 auto 8px;border-radius:16px;background:linear-gradient(135deg,#7B52EE,#A855F7);display:flex;align-items:center;justify-content:center;">'
+      + '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg></div>'
+      + '<div style="font-weight:900;font-size:1.05rem;color:#7B52EE;margin-bottom:3px;">Утаснаасаа илгээж баталгаажуулна уу</div>'
+      + (note ? '<div style="font-size:.82rem;color:#dc2626;font-weight:700;margin-bottom:6px;">' + _esc(note) + '</div>' : '')
+      + '<div style="font-size:.86rem;color:#6c6486;font-weight:600;line-height:1.5;margin-bottom:14px;">'
+      + 'Доорх кодыг <b>' + _esc(sc) + '</b> дугаарт SMS-ээр илгээнэ үү.</div>'
+      + '<div style="border:2px dashed #c9b8f7;border-radius:16px;background:#faf8ff;padding:14px 12px;margin-bottom:12px;">'
+      + '<div style="font-size:.7rem;font-weight:800;color:#8b7fae;letter-spacing:.5px;">ИЛГЭЭХ КОД</div>'
+      + '<div style="font-size:2rem;font-weight:900;color:#4c23c4;letter-spacing:7px;font-family:ui-monospace,Menlo,Consolas,monospace;line-height:1.3;">' + _esc(code) + '</div>'
+      + '<div style="font-size:.78rem;color:#8b7fae;font-weight:700;">' + _esc(sc) + ' дугаарт</div></div>'
+      + '<a href="' + _esc(_moHref(sc, code)) + '" style="display:block;text-decoration:none;border-radius:14px;padding:13px;font-size:1rem;font-weight:900;color:#fff;background:linear-gradient(135deg,#7B52EE,#A855F7);">SMS бичих</a>'
+      + '<div style="font-size:.76rem;color:#8b8ba3;font-weight:600;line-height:1.5;margin-top:10px;">'
+      + (mo.masked ? 'Өөрийн <b>' + _esc(mo.masked) + '</b> дугаараасаа илгээнэ үү. ' : '')
+      + '2 SIM-тэй бол зөв SIM-ээ сонгоорой. SMS-ийн төлбөр энгийн тарифаар.</div>'
+      + '<div id="mo-status" style="margin-top:14px;font-size:.86rem;font-weight:800;color:#7B52EE;">Илгээхийг хүлээж байна…</div>'
+      + '<div id="mo-left" style="margin-top:3px;font-size:.78rem;color:#8b8ba3;font-weight:700;"></div>'
+      + '</div>';
+
+    /* Тоолуур */
+    var until = mo.expiresAt ? Date.parse(mo.expiresAt) : (Date.now() + 300000);
+    function tick() {
+      var el = document.getElementById('mo-left');
+      if (!el) { _moStop(); return; }                       /* цонх хаагдсан */
+      var left = Math.max(0, Math.round((until - Date.now()) / 1000));
+      var m = Math.floor(left / 60), ss = left % 60;
+      el.textContent = left > 0 ? ('Үлдсэн хугацаа ' + m + ':' + (ss < 10 ? '0' : '') + ss) : '';
+      if (left <= 0) { _moExpired(); }
+    }
+    tick();
+    _moTick = setInterval(tick, 1000);
+
+    /* 3 секунд тутам төлөв шалгана */
+    _moPoll = setInterval(_moCheck, 3000);
+    setTimeout(_moCheck, 1500);
+  }
+
+  function _moExpired() {
+    _moStop();
+    var st = document.getElementById('mo-status');
+    if (st) { st.style.color = '#dc2626'; st.textContent = 'Хугацаа дууслаа. Дахин оролдоно уу.'; }
+    var lf = document.getElementById('mo-left'); if (lf) lf.textContent = '';
+  }
+
+  function _moCheck() {
+    if (!_moToken) { _moStop(); return; }
+    if (!document.getElementById('mo-status')) { _moStop(); return; }   /* цонх хаагдсан */
+    var tok = _moToken;
+    fetch('/api/auth', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'moStatus', pollToken: tok })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d || !d.ok || tok !== _moToken) return;
+      if (d.status === 'EXPIRED') { _moExpired(); return; }
+      if (d.status !== 'VERIFIED') return;
+      _moStop();
+      var st = document.getElementById('mo-status');
+      if (st) { st.style.color = '#16a34a'; st.textContent = '✓ Баталгаажлаа'; }
+      var lf0 = document.getElementById('mo-left'); if (lf0) lf0.textContent = '';
+
+      /* Нууц үг сэргээх — сервер нэг удаагийн код өгнө, байгаа урсгалаар үргэлжилнэ */
+      if (d.purpose === 'reset' && d.code) {
+        setTimeout(function () { _moResetReady(d.email, d.code); }, 500);
+        return;
+      }
+      /* Бүртгэл — шууд нэвтэрнэ */
+      if (d.user) {
+        setTimeout(function () {
+          _currentUser = d.user;
+          _saveCurrentUser();
+          closeAuthModal();
+          _onLogin();
+          if (d.user && d.user.plan === 'premium') setTimeout(function () { showPremiumInfo(); }, 600);
+        }, 600);
+        return;
+      }
+      if (d.alreadyVerified) { setTimeout(function () { closeAuthModal(); }, 600); }
+    }).catch(function () { /* сүлжээний түр саатал — дараагийн удаа дахин оролдоно */ });
+  }
+
+  /* MO-гоор баталгаажсан нууц үг сэргээлт: кодыг талбарт нь бөглөөд үргэлжлүүлнэ */
+  function _moResetReady(email, code) {
+    try {
+      var inp = document.getElementById('reset-code-input') || document.getElementById('reset-code');
+      if (inp) inp.value = code;
+      var suc = document.getElementById('reset-success');
+      if (suc) { suc.style.color = '#16a34a'; suc.textContent = '✓ Баталгаажлаа — шинэ нууц үгээ оруулна уу'; }
+    } catch (e) {}
+  }
+  window.showMoStep = showMoStep;
 
   function submitVerifyCode() {
     var code = (document.getElementById('verify-code-input')||{}).value || '';

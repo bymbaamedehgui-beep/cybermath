@@ -933,11 +933,191 @@ async function deviceStatus() {
   }
 }
 
+
+/* ═══════════════════════════════════════════════════════════════════════
+   MO урсгал — verify.mn. ХЭРЭГЛЭГЧ 144773 руу кодоо илгээнэ.
+   Дээрх textbee (MT) кодод хүрэхгүй: энэ нь зэрэгцээ, бие даасан зам.
+
+   Аюулгүй байдлын инвариант:
+     M1  MO код users.verify_code-д ХЭЗЭЭ Ч бичигдэхгүй. Эс бөгөөс халдагч
+         хариунаас кодыг хараад гараараа бичиж, утасгүйгээр нэвтрэх байсан.
+     M2  Төлвийг имэйлээр БИШ, зөвхөн pollToken-оор асууна. Эс бөгөөс халдагч
+         хохирогчийн имэйлээр асууж байгаад VERIFIED агшинг нь хулгайлах байсан.
+     M3  pollToken нь DB-д зөвхөн ХЭШ хэлбэрээр хадгалагдана.
+     M4  verify.mn-ийн sessionId клиент рүү гарахгүй.
+     M5  Нэг session нэг л удаа ашиглагдана (consumed_at).
+   ═══════════════════════════════════════════════════════════════════════ */
+
+const VFM = require('./_verifymn');
+
+// MO-ийн квот нь textbee-гийнхээс ТУСДАА: textbee-гийн хязгаар нь эзэмшигчийн Android
+// утасны хүчин чадлыг хамгаалдаг байсан. MO-д бид илгээхгүй тул тэр хязгаар утгагүй.
+// Үлдэх хамгаалалт: нэг дугаарын cooldown/өдрийн квот (доорх sendMo дотор) + нийт спам таг.
+function moLimits() {
+  return {
+    t30: intEnv('VERIFYMN_30MIN_MAX', 300),
+    day: intEnv('VERIFYMN_DAY_MAX', 4000),
+  };
+}
+const MO_TTL_SEC = 300;            // verify.mn session 5 минут
+
+let _vfmReady = false;
+async function ensureVfmTables() {
+  if (_vfmReady) return;
+  await pool.query(`CREATE TABLE IF NOT EXISTS vfm_sessions (
+    id BIGSERIAL PRIMARY KEY,
+    token_hash TEXT NOT NULL UNIQUE,
+    session_id TEXT NOT NULL,
+    email TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    phone_hash TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL,
+    consumed_at TIMESTAMPTZ
+  )`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS vfm_sessions_exp ON vfm_sessions (expires_at)`);
+  _vfmReady = true;
+}
+
+function moEnabled() { return VFM.enabled(); }
+
+// pollToken: клиентэд түүхий утга, DB-д хэш (M3)
+function newPollToken() { return crypto.randomBytes(24).toString('hex'); }
+function pollHash(tok) { return crypto.createHash('sha256').update(String(tok)).digest('hex'); }
+
+/* MO session үүсгэх.
+   o: { purpose, kind, phone, email, ip }
+   → { ok:true, mode:'mo', code, smsUri, shortcode, pollToken, expiresAt, masked2, masked4 }
+   | Fail  (дуудагч нь textbee рүү шилжиж болно) */
+async function sendMo(o) {
+  const purpose = o.purpose;
+  const kind = o.kind === 'acct' ? 'acct' : 'reg';
+  const UNAV = mkFail('SMS_UNAVAILABLE');
+  if (!SMS_TEXT[purpose]) { logErr('[mo] sendMo', new Error('bad purpose')); return UNAV; }
+  if (!moEnabled() || disabled()) return UNAV;
+
+  const p = normalizePhone(o.phone);
+  if (!p.ok) return mkFail(p.code);
+  if (!hashKey()) return UNAV;
+  const ph = phoneHash(p.local);
+  const masked2 = maskPhone(p.local, 2), masked4 = maskPhone(p.local, 4);
+
+  // 1. Дугаарын квот — textbee-тэй ИЖИЛ түлхүүр ашиглана: нэг дугаарт хоёр
+  //    провайдераар давхар спам хийхээс сэргийлнэ.
+  const phCd = 'sms:ph:cd:' + kind + ':' + ph;
+  const reserved = [];
+  const rollback = async () => { const ks = reserved.splice(0); for (const k of ks) await decr(k); };
+  let h = await hit(phCd, COOLDOWN_SEC);
+  if (!h) return UNAV;
+  if (h.count > 1) return mkFail('SMS_COOLDOWN', { wait: h.retryAfter, phoneQuota: true });
+  reserved.push(phCd);
+  h = await hit('sms:ph:' + kind + ':' + ph, DAY_WIN);
+  if (!h) { await rollback(); return UNAV; }
+  reserved.push('sms:ph:' + kind + ':' + ph);
+  if (h.count > (kind === 'reg' ? PH_REG_DAY_MAX : PH_ACCT_DAY_MAX)) { await rollback(); return mkFail('SMS_LIMIT', { phoneQuota: true }); }
+
+  // 2. MO-ийн нийт квот (спам таг)
+  const ML = moLimits();
+  const Pr = periods(Date.now());
+  for (const st of [
+    { key: 'sms:mo:t:' + Pr.b, win: T30_WIN, sum: tKeys('sms:mo:t:', Pr.b), max: ML.t30, code: 'SMS_BUSY' },
+    { key: 'sms:mo:d:' + Pr.d, win: DAY_WIN, max: ML.day, code: 'SMS_FULL', scope: 'day' },
+  ]) {
+    const r = await hit(st.key, st.win);
+    if (!r) { await rollback(); return UNAV; }
+    reserved.push(st.key);
+    let n = r.count;
+    if (st.sum) { const t = await count(st.sum); if (t == null) { await rollback(); return UNAV; } n = t; }
+    if (n > st.max) { await rollback(); return mkFail(st.code, { scope: st.scope }); }
+  }
+
+  // 3. Код. M1: users.verify_code-д БИЧИХГҮЙ — o.store дуудахгүй.
+  //    Баталгаажуулалт нь "тэр дугаараас тэр текстийг илгээсэн" гэдгээр verify.mn-ээс ирнэ.
+  const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+
+  // 4. Session үүсгэх
+  const cb = envStr('VERIFYMN_CALLBACK_URL') || null;
+  const v = await VFM.createSession({ phoneLocal: p.local, code, callback: cb });
+  if (!v.ok) {
+    await rollback();
+    console.error('[mo]', v.cls, v.http || '', masked2);
+    await notify('tg:mo:' + v.cls, T30_WIN, 'verify.mn: ' + v.cls + (v.http ? ' (HTTP ' + v.http + ')' : ''));
+    // mkFail нь танихгүй талбарыг хаядаг тул тэмдгийг дараа нь онооно.
+    // Дуудагч үүнийг хараад textbee (MT) рүү шилжинэ.
+    const f = mkFail('SMS_UNAVAILABLE');
+    f.moFailed = true;
+    return f;
+  }
+
+  // 5. Session хадгалах
+  const tok = newPollToken();
+  const expMs = v.expiresAt ? Date.parse(v.expiresAt) : NaN;
+  const expires = new Date(Number.isFinite(expMs) ? expMs : Date.now() + MO_TTL_SEC * 1000);
+  try {
+    await ensureVfmTables();
+    await pool.query(
+      `INSERT INTO vfm_sessions (token_hash, session_id, email, purpose, kind, phone_hash, expires_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [pollHash(tok), v.sessionId, String(o.email || '').toLowerCase(), purpose, kind, ph, expires]
+    );
+  } catch (e) {
+    await rollback(); logErr('[mo] store', e); return UNAV;
+  }
+  console.log('[mo]', 'session', v.ms + 'ms', masked2);
+
+  // Хааяа хуучин session цэвэрлэнэ
+  if (Math.random() < 0.02) {
+    try { await pool.query(`DELETE FROM vfm_sessions WHERE expires_at < NOW() - INTERVAL '1 day'`); }
+    catch (e) { logErr('[mo] cleanup', e); }
+  }
+
+  return {
+    ok: true, mode: 'mo',
+    moText: code,                    // хэрэглэгч үүнийг SMS-ээр илгээнэ — дэлгэцэнд гарах ЁСТОЙ.
+                                     // 'code' гэж нэрлэвэл алдааны code талбартай мөргөлдөнө.
+    smsUri: v.smsUri, shortcode: v.shortcode,
+    pollToken: tok,                  // M4: sessionId биш
+    expiresAt: expires.toISOString(),
+    masked2: masked2, masked4: masked4,
+  };
+}
+
+/* Төлөв шалгах — ЗӨВХӨН pollToken-оор (M2).
+   → { ok:true, status:'PENDING'|'VERIFIED'|'EXPIRED'|'UNKNOWN', email, purpose, kind }
+   VERIFIED үед session-ийг consumed болгоно (M5) — давтан дуудахад PENDING биш EXPIRED. */
+async function moCheck(pollToken) {
+  const tok = String(pollToken || '');
+  if (!/^[0-9a-f]{48}$/.test(tok)) return { ok: false, status: 'UNKNOWN' };
+  try {
+    await ensureVfmTables();
+    const r = await pool.query(
+      `SELECT id, session_id, email, purpose, kind, expires_at, consumed_at
+       FROM vfm_sessions WHERE token_hash = $1`, [pollHash(tok)]);
+    if (!r.rows.length) return { ok: false, status: 'UNKNOWN' };
+    const row = r.rows[0];
+    if (row.consumed_at) return { ok: true, status: 'EXPIRED', spent: true };
+    if (new Date(row.expires_at).getTime() < Date.now()) return { ok: true, status: 'EXPIRED' };
+
+    const st = await VFM.sessionStatus(row.session_id);   // V3: callback-т итгэхгүй
+    if (!st.ok) return { ok: false, status: 'UNKNOWN', cls: st.cls };
+    if (st.status !== 'VERIFIED') return { ok: true, status: st.status };
+
+    // M5 — яг нэг л удаа
+    const up = await pool.query(
+      `UPDATE vfm_sessions SET consumed_at = NOW() WHERE id = $1 AND consumed_at IS NULL RETURNING id`,
+      [row.id]);
+    if (!up.rows.length) return { ok: true, status: 'EXPIRED', spent: true };
+    return { ok: true, status: 'VERIFIED', email: row.email, purpose: row.purpose, kind: row.kind };
+  } catch (e) { logErr('[mo] check', e); return { ok: false, status: 'UNKNOWN' }; }
+}
+
 module.exports = {
   normalizePhone, maskPhone, maskEmail, fakeMask, phoneHash, ipKeys, codeText,
   precheck, sendCode, markVerified, publicOtpResponse, padTo, mkFail, ERR, failJson, notify,
   status, setPause, deviceStatus, textbeeSend, limits, logErr, safeMsg, ensureSmsTables, ensureUserColumns, maxAccountsPerPhone, trustLegacyPhone,
   promoNote, PROMO_NOTE, CODE_TTL_MS, COOLDOWN_SEC,
+  sendMo, moCheck, moEnabled, ensureVfmTables, MO_TTL_SEC,
   // тестэд
   promoCacheReset,
   _internal: { hit, readCounts, count, decr, periods, tKeys },

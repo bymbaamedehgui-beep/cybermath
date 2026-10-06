@@ -174,6 +174,35 @@ function userCodeDrop(email) {
 // Enumeration-д мэдрэг endpoint (resend/forgot): данс олдоогүй / ашиглах утасгүй / дугаарын квот → бодит илгээлттэй ижил хэлбэр
 function smsAccepted(masked) { return { ok: true, sms: true, masked: masked }; }
 
+/* ── OTP илгээх: textbee (MT) эхлээд, унавал verify.mn (MO) ──
+   Ихэнх хэрэглэгчийн туршлага хэвээр: код хүлээж авна. textbee ажиллахгүй үед л
+   «144773 руу илгээнэ үү» дэлгэц гарна — нэвтрэлт бүрмөсөн зогсохгүй.
+
+   Шилжихгүй тохиолдлууд:
+     SMS_UNCERTAIN            — textbee хүлээн авсан байж МАГАДГҮЙ. Хоёр өөр код
+                                явуулбал хэрэглэгч төөрнө.
+     phoneQuota / COOLDOWN    — санаатай тавьсан спам хориг. Нөгөө провайдераар
+     / SMS_LIMIT                тойрох нь хоригийн утгыг алдагдуулна.
+   SMS_BUSY / SMS_FULL нь эзэмшигчийн утасны хүчин чадлын хязгаар тул ШИЛЖИНЭ
+   (verify.mn-д тийм хязгаар байхгүй). */
+const MO_NO_FALLBACK = { SMS_UNCERTAIN: 1, SMS_COOLDOWN: 1, SMS_LIMIT: 1 };
+async function sendOtp(o) {
+  const sent = await sms.sendCode(o);
+  if (sent.ok || !sms.moEnabled()) return sent;
+  if (sent.phoneQuota || MO_NO_FALLBACK[sent.code]) return sent;
+  let mo;
+  try { mo = await sms.sendMo(o); } catch (e) { return sent; }
+  return (mo && mo.ok) ? mo : sent;      // MO ч унавал ЭХНИЙ алдааг буцаана
+}
+/* MO амжилттай бол хариунд нэмэх талбарууд. sessionId ЭНД БАЙХГҮЙ (M4). */
+function moFields(sent) {
+  if (!sent || sent.mode !== 'mo') return {};
+  return {
+    mode: 'mo', moText: sent.moText, smsUri: sent.smsUri,
+    shortcode: sent.shortcode, pollToken: sent.pollToken, expiresAt: sent.expiresAt,
+  };
+}
+
 // Буруу болон хугацаа дууссан код нэг ижил мессежтэй (хэрэглэгчид хоёр шалтгааныг хоёуланг нь хэлнэ)
 const BAD_CODE_MSG = 'Код буруу эсвэл хугацаа нь дууссан байна';
 function codeError(res, status) {
@@ -392,11 +421,11 @@ module.exports = async (req, res) => {
       if (carry) {
         await pool.query('UPDATE users SET verify_code=$2, code_attempts=$3 WHERE LOWER(email)=LOWER($1) AND verified=false', [email, carry.code, carry.attempts]);
       }
-      const sent = await sms.sendCode({
+      const sent = await sendOtp({
         purpose: 'verify', kind: 'reg', phone: smsPhone, email, ip,
         store: userCodeStore(email, false), drop: userCodeDrop(email), reuse: carry ? userCodeReuse(email, false) : undefined,
       });
-      if (sent.ok) return res.json({ ok: true, needVerify: true, email, sms: true, masked: sent.masked2 });
+      if (sent.ok) return res.json(Object.assign({ ok: true, needVerify: true, email, sms: true, masked: sent.masked2 }, moFields(sent)));
       if (sent.code === 'SMS_UNCERTAIN') {
         // textbee хүлээн авсан байж магадгүй — мөр ба код үлдэнэ, клиент код оруулах алхам руу шилжинэ
         return sms.failJson(res, sent, { reg: 'game', fields: { needVerify: true, email, sms: true, masked: sms.maskPhone(smsPhone, 2) } });
@@ -416,6 +445,41 @@ module.exports = async (req, res) => {
       if (email && !(action === 'reset' && !code && requireAdmin(req)) && !(await rateLimit('auth:code:em:day:' + email, 30, 86400))) {
         return res.status(429).json({ ok: false, error: TOO_MANY });
       }
+    }
+
+    /* MO төлөв шалгах. ЗӨВХӨН pollToken-оор (M2) — имэйлээр асуувал халдагч
+       хохирогчийн VERIFIED агшинг хулгайлах байсан. Код оруулахгүй: хэрэглэгч тэр
+       дугаараас тэр текстийг илгээснийг verify.mn баталсан нь баталгаа өөрөө. */
+    if (action === 'moStatus') {
+      const tok = String((req.body || {}).pollToken || '');
+      if (!(await rateLimit('auth:mo:ip:' + ip, 600, 3600))) return res.status(429).json({ ok: false, error: TOO_MANY });
+      const c = await sms.moCheck(tok);
+      if (!c.ok) return res.json({ ok: true, status: 'UNKNOWN' });
+      if (c.status !== 'VERIFIED') return res.json({ ok: true, status: c.status });
+
+      const em = String(c.email || '').toLowerCase();
+      const r = await pool.query('SELECT * FROM users WHERE LOWER(email)=LOWER($1)', [em]);
+      if (!r.rows.length) return res.json({ ok: true, status: 'UNKNOWN' });
+      const u = r.rows[0];
+
+      if (c.purpose === 'reset') {
+        /* Эзэмшил нотлогдсон тул нууц үг сэргээх нэг удаагийн код үүсгээд буцаана.
+           Клиент үүгээрээ байгаа resetWithCode урсгалаар явна (шинэ зам нэмэхгүй).
+           pollToken мэдэхгүй хүн энд хүрэхгүй тул аюулгүй. */
+        await ensureAttemptsColumn();
+        const one = String(require('crypto').randomInt(0, 1000000)).padStart(6, '0');
+        await userCodeStore(em, true)(one);
+        return res.json({ ok: true, status: 'VERIFIED', purpose: 'reset', email: em, code: one });
+      }
+
+      if (u.verified) return res.json({ ok: true, status: 'VERIFIED', alreadyVerified: true });
+      await pool.query('UPDATE users SET verified=true, verify_code=NULL, verify_expiry=NULL, phone_verified_at=NOW(), email_unverified=TRUE WHERE LOWER(email)=LOWER($1)', [em]);
+      await sms.markVerified(u.phone);
+      const isT = u.role === 'teacher' || u.grade === 'teacher';
+      const msg = `✅ <b>Шинэ хэрэглэгч баталгаажлаа (verify.mn)</b>\n\n👤 ${(u.last_name||'')} ${(u.first_name||'')}\n📧 ${em}\n${isT ? '👨‍🏫 Багш (имэйл баталгаажаагүй)' : '🎓 ' + u.grade + '-р анги'}${u.school ? '\n🏫 ' + u.school : ''}`;
+      sendTelegramNotification(msg).catch(()=>{});
+      const token = signToken(u.email, roleOf(u), u.token_version);
+      return res.json({ ok: true, status: 'VERIFIED', user: userPayload({ ...u, verified: true }, token) });
     }
 
     if (action === 'verify') {
@@ -456,11 +520,11 @@ module.exports = async (req, res) => {
         return res.json(smsAccepted(sms.fakeMask(email)));
       }
       await ensureAttemptsColumn();
-      const sent = await sms.sendCode({
+      const sent = await sendOtp({
         purpose: 'verify', kind: 'reg', phone: pn.local, email, ip,
         store: userCodeStore(email, false), drop: userCodeDrop(email), reuse: userCodeReuse(email, false),
       });
-      if (sent.ok) return res.json(smsAccepted(sent.masked2));
+      if (sent.ok) return res.json(Object.assign(smsAccepted(sent.masked2), moFields(sent)));
       if (sent.phoneQuota) { await sms.padTo(t0); return res.json(smsAccepted(sms.fakeMask(email))); }
       return sms.failJson(res, sent, { reg: 'game' });
     }
@@ -526,11 +590,11 @@ module.exports = async (req, res) => {
         return res.json(smsAccepted(sms.fakeMask(email)));
       }
       await ensureAttemptsColumn();
-      const sent = await sms.sendCode({
+      const sent = await sendOtp({
         purpose: 'reset', kind: 'acct', phone: dest, email, ip,
         store: userCodeStore(email, true), drop: userCodeDrop(email), reuse: userCodeReuse(email, true),
       });
-      if (sent.ok) return res.json(smsAccepted(sent.masked2));
+      if (sent.ok) return res.json(Object.assign(smsAccepted(sent.masked2), moFields(sent)));
       if (sent.phoneQuota) {
         // Дугаарын cooldown/өдрийн квот: өмнөх код хүчинтэй хэвээр; бүртгэлгүй имэйлийн хариутай ижил хэлбэр (спек S1 үл хамаарах)
         await sms.padTo(t0);
