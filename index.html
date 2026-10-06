@@ -57699,8 +57699,17 @@ function toggleAvatarSection() {
     openAuthModal('register');
     /* mode:'mo' бол код оруулах биш, илгээх дэлгэц */
     setTimeout(function(){
-      if (mo && mo.mode === 'mo' && mo.moText) showMoStep(email, mo, note);
-      else showVerifyStep(email, masked, note);
+      if (mo && mo.mode === 'mo' && mo.moText) { showMoStep(email, mo, note); return; }
+      showVerifyStep(email, masked, note);
+      /* SMS ирэхгүй бол 30 секундын дараа илгээх дэлгэц рүү */
+      if (mo && mo.moBackup && mo.moBackup.moText) {
+        _moArm(function () {
+          if (!document.getElementById('verify-code-input')) return;   /* цонх хаагдсан */
+          if (_moTyping('verify-code-input')) return;                  /* код бичиж байна */
+          var b = mo.moBackup; b.mode = 'mo';
+          showMoStep(email, b, 'SMS ирсэнгүй юу? Утаснаасаа илгээж баталгаажуулна уу.');
+        });
+      }
     }, 100);
   }
 
@@ -57789,6 +57798,24 @@ function toggleAvatarSection() {
   }
 
 
+
+  /* ── 30 секундэд код ирэхгүй бол MO руу шилжих ──
+     textbee "илгээлээ" гэж 200 буцаасан ч утас хүргэсэн эсэх нь мэдэгдэхгүй.
+     Тиймээс сервер нөөц session-ийг хамт үүсгэж өгдөг (moBackup). Хэрэглэгч
+     хүлээж суухын оронд 30 секундын дараа илгээх дэлгэц рүү өөрөө шилжинэ. */
+  var MO_WAIT_SEC = 30;
+  var _moArmT = null;
+  function _moDisarm() { if (_moArmT) { clearTimeout(_moArmT); _moArmT = null; } }
+  function _moArm(fn) {
+    _moDisarm();
+    _moArmT = setTimeout(function () { _moArmT = null; try { fn(); } catch (e) {} }, MO_WAIT_SEC * 1000);
+  }
+  /* Код бичиж эхэлсэн бол шилжүүлэхгүй — хэрэглэгчийн ажлыг таслахгүй */
+  function _moTyping(id) {
+    var i = document.getElementById(id);
+    return !!(i && String(i.value || '').replace(/\D/g, '').length >= 1);
+  }
+
   /* MO блокийн HTML — бүртгэл ба нууц үг сэргээх хоёул ашиглана */
   function _moBlockHtml(mo) {
     var code = String(mo.moText || ''), sc = String(mo.shortcode || '144773');
@@ -57806,7 +57833,7 @@ function toggleAvatarSection() {
 
   /* Нууц үг сэргээх дэлгэцэд MO харуулах */
   function showMoReset(mo, email) {
-    _moStop();
+    _moStop(); _moDisarm();
     var box = document.getElementById('reset-step-code');
     if (!box) return false;
     /* Код оруулах талбар, баталгаажуулах товчийг нуух */
@@ -57839,7 +57866,7 @@ function toggleAvatarSection() {
   }
 
   function showMoStep(email, mo, note) {
-    _moStop();
+    _moStop(); _moDisarm();
     var form = document.getElementById('auth-form-register');
     var box = document.getElementById('auth-verify-section');
     if (form) form.style.display = 'none';
@@ -57967,6 +57994,7 @@ function toggleAvatarSection() {
       body: JSON.stringify({ action: 'verify', email, code })
     }).then(function(r){ return r.json(); }).then(function(d){
       if (!d.ok) { if(errEl) errEl.textContent = d.error || 'Код буруу байна'; return; }
+      _moDisarm();
       // Амжилттай — нэвтрэх
       _currentUser = d.user;
       _saveCurrentUser();
@@ -58068,6 +58096,18 @@ function toggleAvatarSection() {
       if (!d.ok) { err.textContent = d.error || 'Алдаа гарлаа'; return; }
       /* verify.mn (MO): код хүлээхгүй, хэрэглэгч өөрөө илгээнэ */
       if (d.mode === 'mo' && d.moText) { showMoReset(d, email); suc.textContent = ''; return; }
+      /* SMS ирэхгүй бол 30 секундын дараа илгээх дэлгэц рүү */
+      if (d.moBackup && d.moBackup.moText) {
+        _moArm(function () {
+          var st = document.getElementById('reset-step-code');
+          if (!st || st.style.display === 'none') return;
+          if (_moTyping('reset-code')) return;
+          var b = d.moBackup; b.mode = 'mo';
+          showMoReset(b, email);
+          var e2 = document.getElementById('auth-error');
+          if (e2) { e2.style.color = '#7B52EE'; e2.textContent = 'SMS ирсэнгүй юу? Утаснаасаа илгээж баталгаажуулна уу.'; }
+        });
+      }
       suc.textContent = '✓ ' + (d.masked ? d.masked + ' дугаар руу' : 'Бүртгэлтэй утас руу') + ' SMS код илгээлээ';
     }).catch(function(){
       if (btn) { btn.textContent = 'Шалгах →'; btn.disabled = false; }

@@ -1005,17 +1005,24 @@ async function sendMo(o) {
 
   // 1. Дугаарын квот — textbee-тэй ИЖИЛ түлхүүр ашиглана: нэг дугаарт хоёр
   //    провайдераар давхар спам хийхээс сэргийлнэ.
+  //
+  //    o.companion: textbee илгээлттэй ЗЭРЭГ үүсгэж буй нөөц session. Тухайн
+  //    оролдлогыг textbee-гийн зам аль хэдийн квотод тооцсон тул дахин
+  //    тооцохгүй — эс бөгөөс өөрөө өөрийгөө cooldown-д хоригдоно. MO-ийн
+  //    нийт квот (алхам 2) ба бусад шалгалт хэвээр хүчинтэй.
   const phCd = 'sms:ph:cd:' + kind + ':' + ph;
   const reserved = [];
   const rollback = async () => { const ks = reserved.splice(0); for (const k of ks) await decr(k); };
-  let h = await hit(phCd, COOLDOWN_SEC);
-  if (!h) return UNAV;
-  if (h.count > 1) return mkFail('SMS_COOLDOWN', { wait: h.retryAfter, phoneQuota: true });
-  reserved.push(phCd);
-  h = await hit('sms:ph:' + kind + ':' + ph, DAY_WIN);
-  if (!h) { await rollback(); return UNAV; }
-  reserved.push('sms:ph:' + kind + ':' + ph);
-  if (h.count > (kind === 'reg' ? PH_REG_DAY_MAX : PH_ACCT_DAY_MAX)) { await rollback(); return mkFail('SMS_LIMIT', { phoneQuota: true }); }
+  if (!o.companion) {
+    let h = await hit(phCd, COOLDOWN_SEC);
+    if (!h) return UNAV;
+    if (h.count > 1) return mkFail('SMS_COOLDOWN', { wait: h.retryAfter, phoneQuota: true });
+    reserved.push(phCd);
+    h = await hit('sms:ph:' + kind + ':' + ph, DAY_WIN);
+    if (!h) { await rollback(); return UNAV; }
+    reserved.push('sms:ph:' + kind + ':' + ph);
+    if (h.count > (kind === 'reg' ? PH_REG_DAY_MAX : PH_ACCT_DAY_MAX)) { await rollback(); return mkFail('SMS_LIMIT', { phoneQuota: true }); }
+  }
 
   // 2. MO-ийн нийт квот (спам таг)
   const ML = moLimits();

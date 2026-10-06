@@ -191,26 +191,45 @@ async function sendOtp(o) {
      буцаадаг. Тиймээс "амжилттай"-д нь итгэж болохгүй — илгээхийн ӨМНӨ heartbeat
      шалгаад, утас үхсэн бол шууд verify.mn руу. Эс бөгөөс код хаашаа ч хүрэхгүй
      мөртлөө сервер амжилттай гэж үзэж, нөөц зам огт идэвхжихгүй. */
-  if (sms.moEnabled()) {
-    let alive = true;
-    try { alive = await sms.gatewayAlive(); } catch (e) {}
-    if (!alive) {
-      let first;
-      try { first = await sms.sendMo(o); } catch (e) {}
-      if (first && first.ok) return first;
-      /* MO ч бүтсэнгүй — textbee-г ямар ч байсан оролдоно (sendMo квотоо буцаасан) */
-    }
+  if (!sms.moEnabled()) return await sms.sendCode(o);
+
+  /* 1. Утас үхсэн нь мэдэгдэж байвал textbee рүү огт хандахгүй */
+  let alive = true;
+  try { alive = await sms.gatewayAlive(); } catch (e) {}
+  if (!alive) {
+    let first;
+    try { first = await sms.sendMo(o); } catch (e) {}
+    if (first && first.ok) return first;
+    /* MO ч бүтсэнгүй — textbee-г ямар ч байсан оролдоно */
   }
+
+  /* 2. textbee ба нөөц MO session-ийг ЗЭРЭГ — нэмэлт саатал үүсгэхгүй.
+     companion: энэ оролдлогыг textbee-гийн зам аль хэдийн квотод тооцсон тул
+     дугаарын cooldown-г дахин авахгүй (эс бөгөөс өөрөө өөрийгөө хаана). */
+  const moP = sms.sendMo(Object.assign({}, o, { companion: true })).catch(function () { return null; });
   const sent = await sms.sendCode(o);
-  if (sent.ok || !sms.moEnabled()) return sent;
+  const comp = await moP;
+
+  if (sent.ok) {
+    /* textbee хүлээн авсан ч "хүрлээ" гэсэн баталгаа биш. Клиентэд нөөцийг хамт
+       өгнө — 30 секундэд код ирэхгүй бол хэрэглэгч хүлээхгүй, өөрөө шилжинэ. */
+    if (comp && comp.ok) sent.moBackup = comp;
+    return sent;
+  }
+  /* Санаатай хоригуудыг нөгөө провайдераар тойрохгүй */
   if (sent.phoneQuota || MO_NO_FALLBACK[sent.code]) return sent;
-  let mo;
-  try { mo = await sms.sendMo(o); } catch (e) { return sent; }
-  return (mo && mo.ok) ? mo : sent;      // MO ч унавал ЭХНИЙ алдааг буцаана
+  return (comp && comp.ok) ? comp : sent;
 }
 /* MO амжилттай бол хариунд нэмэх талбарууд. sessionId ЭНД БАЙХГҮЙ (M4). */
 function moFields(sent) {
-  if (!sent || sent.mode !== 'mo') return {};
+  if (!sent) return {};
+  /* textbee амжилттай ч нөөц бэлэн — клиент 30 секундын дараа шилжинэ */
+  if (sent.mode !== 'mo') {
+    const b = sent.moBackup;
+    if (!b || !b.ok) return {};
+    return { moBackup: { moText: b.moText, smsUri: b.smsUri, shortcode: b.shortcode,
+      pollToken: b.pollToken, expiresAt: b.expiresAt, masked: b.masked2 } };
+  }
   return {
     mode: 'mo', moText: sent.moText, smsUri: sent.smsUri,
     shortcode: sent.shortcode, pollToken: sent.pollToken, expiresAt: sent.expiresAt,

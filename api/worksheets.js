@@ -70,25 +70,44 @@ function wsAccepted(masked, extra) { return Object.assign({ ok: true }, extra ||
    шалгаад, утас үхсэн бол шууд MO руу. */
 const WS_MO_NO_FALLBACK = { SMS_UNCERTAIN: 1, SMS_COOLDOWN: 1, SMS_LIMIT: 1 };
 async function wsSendOtp(o) {
-  if (sms.moEnabled()) {
-    let alive = true;
-    try { alive = await sms.gatewayAlive(); } catch (e) {}
-    if (!alive) {
-      let first;
-      try { first = await sms.sendMo(o); } catch (e) {}
-      if (first && first.ok) return first;
-    }
+  if (!sms.moEnabled()) return await sms.sendCode(o);
+
+  /* 1. Gateway утас үхсэн нь мэдэгдэж байвал textbee рүү огт хандахгүй */
+  let alive = true;
+  try { alive = await sms.gatewayAlive(); } catch (e) {}
+  if (!alive) {
+    let first;
+    try { first = await sms.sendMo(o); } catch (e) {}
+    if (first && first.ok) return first;
   }
+
+  /* 2. textbee ба нөөц MO session-ийг ЗЭРЭГ — нэмэлт саатал үүсгэхгүй.
+     companion: тухайн оролдлогыг textbee-гийн зам аль хэдийн квотод тооцсон
+     тул дугаарын cooldown-г дахин авахгүй (эс бөгөөс өөрөө өөрийгөө хаана). */
+  const moP = sms.sendMo(Object.assign({}, o, { companion: true })).catch(function () { return null; });
   const sent = await sms.sendCode(o);
-  if (sent.ok || !sms.moEnabled()) return sent;
+  const comp = await moP;
+
+  if (sent.ok) {
+    /* textbee хүлээн авсан. Гэхдээ 200 нь "хүрлээ" гэсэн утга БИШ тул клиентэд
+       нөөцийг хамт өгнө — 30 секундэд код ирэхгүй бол өөрөө шилжинэ. */
+    if (comp && comp.ok) sent.moBackup = comp;
+    return sent;
+  }
+  /* Санаатай хоригуудыг нөгөө провайдераар тойрохгүй */
   if (sent.phoneQuota || WS_MO_NO_FALLBACK[sent.code]) return sent;
-  let mo;
-  try { mo = await sms.sendMo(o); } catch (e) { return sent; }
-  return (mo && mo.ok) ? mo : sent;
+  return (comp && comp.ok) ? comp : sent;
 }
 /* MO амжилттай бол хариунд нэмэх талбарууд (sessionId ЭНД БАЙХГҮЙ) */
 function wsMoFields(sent) {
-  if (!sent || sent.mode !== 'mo') return {};
+  if (!sent) return {};
+  /* textbee амжилттай ч нөөц бэлэн — клиент 30 секундын дараа шилжинэ */
+  if (sent.mode !== 'mo') {
+    const b = sent.moBackup;
+    if (!b || !b.ok) return {};
+    return { moBackup: { moText: b.moText, smsUri: b.smsUri, shortcode: b.shortcode,
+      pollToken: b.pollToken, expiresAt: b.expiresAt, masked: b.masked2 } };
+  }
   return {
     mode: 'mo', moText: sent.moText, smsUri: sent.smsUri,
     shortcode: sent.shortcode, pollToken: sent.pollToken, expiresAt: sent.expiresAt,
