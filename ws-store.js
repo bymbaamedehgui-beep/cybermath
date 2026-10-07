@@ -444,7 +444,7 @@
   }
   function inIframe(){ try{return window.top!==window.self;}catch(e){return true;} }
   // Анги бүрийн хамгийн эхний ажлын хуудас — ҮНЭГҮЙ туршилт
-  var WS_FREE=["urjver-hurd.html","urjver-4x3-12.html","huvaalt-5x2-12.html","numshul-nemeh-hasah-12.html","daraalal-zui-togtol-12.html","zereg-uildel-12.html","troichlen-zadlal-12.html","grafik-ax2.html","kvadrat-tentsbish-grafik.html","camb-4a-factors.html"];
+  var WS_FREE=["hurd-tseejleh-arguud-1.html","urjver-hurd.html","urjver-4x3-12.html","huvaalt-5x2-12.html","numshul-nemeh-hasah-12.html","daraalal-zui-togtol-12.html","zereg-uildel-12.html","troichlen-zadlal-12.html","grafik-ax2.html","kvadrat-tentsbish-grafik.html","camb-4a-factors.html"];
   function curSlug(){ return (location.pathname.split('/').pop()||'').toLowerCase(); }
   function isFreeSheet(){ return WS_FREE.indexOf(curSlug())>=0; }
   function addFreeBadge(){
