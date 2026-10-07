@@ -51259,6 +51259,29 @@ function toggleAvatarSection() {
   var _myJoinedClassrooms = [];
   var _activeJoinedClassroomId = null;
 
+  /* ── Ангийн кэшийг дансаар хамгаалах ──
+     cm_classroom нь нэг төхөөрөмжид үлддэг тул өөр данс орвол өмнөхийнх нь
+     анги, багшийн даалгавар харагдах эрсдэлтэй. Эзэн имэйлийг хамт хадгалж,
+     таарахгүй бол кэшийг УСТГААД үл тоомсорлоно. */
+  function _clsOwner() { return (_currentUser && _currentUser.email || '').toLowerCase(); }
+  function _clsCacheSet(key, val) {
+    try {
+      localStorage.setItem(key, JSON.stringify(val));
+      localStorage.setItem('cm_classroom_owner', _clsOwner());
+    } catch (e) {}
+  }
+  function _clsCacheGet(key) {
+    try {
+      var own = (localStorage.getItem('cm_classroom_owner') || '').toLowerCase();
+      if (!own || own !== _clsOwner()) {
+        /* Өөр дансных — цэвэрлэнэ */
+        ['cm_classroom', 'cm_active_classroom_id', 'cm_classroom_lessons_seen', 'cm_classroom_owner']
+          .forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} });
+        return null;
+      }
+      return JSON.parse(localStorage.getItem(key) || 'null');
+    } catch (e) { return null; }
+  }
   function loadStudentClassroom() {
     var tv = document.getElementById('classroom-teacher-view');
     var sv = document.getElementById('classroom-student-view');
@@ -51277,7 +51300,7 @@ function toggleAvatarSection() {
         var list = (d && d.classrooms) || [];
         _myJoinedClassrooms = list;
         // Хуучин нэг ангитай төхөөрөмжид backward compat
-        var savedSingle = JSON.parse(localStorage.getItem('cm_classroom') || 'null');
+        var savedSingle = _clsCacheGet('cm_classroom');
         if (!list.length && savedSingle) {
           list = [savedSingle];
           _myJoinedClassrooms = list;
@@ -51296,13 +51319,13 @@ function toggleAvatarSection() {
         _activeJoinedClassroomId = active.id;
         localStorage.setItem('cm_active_classroom_id', String(active.id));
         // Backward compat: cm_classroom-д идэвхтэйг хадгалах
-        localStorage.setItem('cm_classroom', JSON.stringify(active));
+        _clsCacheSet('cm_classroom', active);
         renderJoinedClassroomsSwitcher();
         _displayActiveClassroom(active);
       })
       .catch(function(){
         // Сүлжээний алдаа — локалаас унших
-        var savedSingle = JSON.parse(localStorage.getItem('cm_classroom') || 'null');
+        var savedSingle = _clsCacheGet('cm_classroom');
         if (!savedSingle) {
           if (sv) sv.style.display = 'none';
           if (nv) nv.style.display = 'block';
@@ -51348,7 +51371,7 @@ function toggleAvatarSection() {
     if (!c) return;
     _activeJoinedClassroomId = cid;
     localStorage.setItem('cm_active_classroom_id', String(cid));
-    localStorage.setItem('cm_classroom', JSON.stringify(c));
+    _clsCacheSet('cm_classroom', c);
     renderJoinedClassroomsSwitcher();
     _displayActiveClassroom(c);
   };
@@ -58305,6 +58328,10 @@ function toggleAvatarSection() {
   }
 
   function doLogout() {
+    /* Ангийн кэшийг заавал цэвэрлэнэ — дараагийн данс өмнөхийн анги,
+       багшийн даалгаврыг харахаас сэргийлнэ. */
+    ['cm_classroom','cm_active_classroom_id','cm_classroom_lessons_seen','cm_classroom_owner']
+      .forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} });
     localStorage.removeItem('cm_session_token');
     _currentUser = null;
     localStorage.removeItem('cm_current');
