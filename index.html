@@ -51320,6 +51320,7 @@ function toggleAvatarSection() {
     if (nameEl) nameEl.textContent = c.name;
     if (codeEl) codeEl.textContent = 'Код: ' + c.join_code;
     _currentClassroomId = c.id;
+    try { renderClassroomChallengesForStudent(c); } catch (e) {}
     loadClassroomRanking(c.id, 'my-classroom-ranking');
   }
 
@@ -51354,6 +51355,102 @@ function toggleAvatarSection() {
 
   // Сурагчийн classroom view-д ангийн нууц хичээлийн картуудыг render хийх
   var _classroomLessonsCache = [];
+  /* ── Багшийн оноосон даалгавар (сурагчийн «Анги» дэлгэц) ──
+     classrooms.challenges-ээс уншина. Сурагчдын жагсаалтын ДЭЭР байрлана.
+     Дууссан эсэхийг хэрэглэгчийн completed_lessons-тэй тулгаж тогтооно. */
+  function _chDone() {
+    var d = (_currentUser && _currentUser.completed_lessons) || [];
+    if (typeof d === 'string') { try { d = JSON.parse(d); } catch (e) { d = []; } }
+    return (Array.isArray(d) ? d : []).map(function (x) { return parseInt(x, 10); });
+  }
+  function renderClassroomChallengesForStudent(c) {
+    var sv = document.getElementById('classroom-student-view');
+    if (!sv) return;
+    var old = document.getElementById('cls-challenges-section');
+    if (old) old.remove();
+
+    var list = (c && c.challenges) || [];
+    if (typeof list === 'string') { try { list = JSON.parse(list); } catch (e) { list = []; } }
+    if (!Array.isArray(list) || !list.length) return;
+    /* Шинээрээ эхэнд */
+    list = list.slice().sort(function (a, b) {
+      return String((b && b.assignedAt) || '').localeCompare(String((a && a.assignedAt) || ''));
+    });
+
+    var done = _chDone();
+    var sec = document.createElement('div');
+    sec.id = 'cls-challenges-section';
+    sec.style.cssText = 'background:#fff;border-radius:16px;padding:14px;margin-top:12px;box-shadow:0 2px 8px rgba(0,0,0,.08);';
+
+    var head = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;'
+      + 'font-family:\'Baloo 2\',sans-serif;font-weight:900;font-size:.95rem;color:#3C3C3C;">'
+      + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7B52EE" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+      + '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>'
+      + '<span>Багшийн даалгавар</span></div>';
+
+    var body = list.map(function (ch) {
+      var les = Array.isArray(ch.lessons) ? ch.lessons : [];
+      var ids = les.map(function (x) { return parseInt(x, 10); }).filter(function (x) { return !isNaN(x); });
+      var okN = ids.filter(function (id) { return done.indexOf(id) !== -1; }).length;
+      var all = ids.length > 0 && okN === ids.length;
+      var pct = ids.length ? Math.round(okN / ids.length * 100) : 0;
+
+      /* Хугацаа — өнгөрсөн бол улаан */
+      var due = '';
+      if (ch.dueDate) {
+        var dt = new Date(ch.dueDate);
+        if (!isNaN(dt.getTime())) {
+          var late = !all && dt.getTime() < Date.now();
+          due = '<span style="font-size:.72rem;font-weight:800;color:' + (late ? '#dc2626' : '#8b8ba3') + ';">'
+            + (late ? 'Хугацаа хэтэрсэн · ' : 'Дуусах: ')
+            + dt.toLocaleDateString('mn-MN') + '</span>';
+        }
+      }
+
+      /* Хичээл бүр — дарахад шууд нээнэ */
+      var chips = ids.map(function (id) {
+        var fin = done.indexOf(id) !== -1;
+        var nm = (typeof getNodeTitle === 'function' ? getNodeTitle(id) : null) || ('Хичээл ' + id);
+        return '<button onclick="_openChallengeLesson(' + id + ')" style="display:inline-flex;align-items:center;gap:5px;'
+          + 'border:1.5px solid ' + (fin ? '#bbf7d0' : '#e7ddff') + ';background:' + (fin ? '#f0fdf4' : '#faf8ff') + ';'
+          + 'border-radius:100px;padding:5px 11px;margin:3px 4px 0 0;cursor:pointer;font-family:inherit;'
+          + 'font-size:.76rem;font-weight:800;color:' + (fin ? '#16a34a' : '#4c23c4') + ';">'
+          + (fin ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>' : '')
+          + _esc(nm) + '</button>';
+      }).join('');
+
+      return '<div style="border:1.5px solid ' + (all ? '#bbf7d0' : '#ece6ff') + ';border-radius:14px;'
+        + 'background:' + (all ? '#f6fefa' : '#fff') + ';padding:11px 12px;margin-bottom:9px;">'
+        + '<div style="display:flex;align-items:center;gap:8px;">'
+        + '<div style="flex:1;min-width:0;font-family:\'Baloo 2\',sans-serif;font-weight:900;'
+        + 'font-size:.92rem;color:#1a1040;">' + _esc(ch.title || 'Даалгавар') + '</div>'
+        + (all ? '<span style="font-size:.74rem;font-weight:900;color:#16a34a;white-space:nowrap;">✓ Дууссан</span>'
+               : '<span style="font-size:.74rem;font-weight:900;color:#7B52EE;white-space:nowrap;">' + okN + '/' + ids.length + '</span>')
+        + '</div>'
+        + (due ? '<div style="margin-top:2px;">' + due + '</div>' : '')
+        + '<div style="height:6px;border-radius:100px;background:#efeaff;margin-top:8px;overflow:hidden;">'
+        + '<div style="height:100%;width:' + pct + '%;border-radius:100px;background:'
+        + (all ? '#16a34a' : 'linear-gradient(90deg,#7B52EE,#A855F7)') + ';"></div></div>'
+        + '<div style="margin-top:7px;">' + chips + '</div>'
+        + '</div>';
+    }).join('');
+
+    sec.innerHTML = head + body;
+    /* Сурагчдын жагсаалтын ДЭЭР байрлуулна */
+    var rank = document.getElementById('my-classroom-ranking');
+    var host = rank && rank.parentNode === sv ? rank : null;
+    if (!host && rank) { var p = rank; while (p && p.parentNode !== sv) p = p.parentNode; host = p; }
+    if (host) sv.insertBefore(sec, host); else sv.appendChild(sec);
+  }
+  /* Даалгаврын хичээлийг нээх — сурах замын node */
+  function _openChallengeLesson(id) {
+    try {
+      if (typeof tryOpenLesson === 'function') { tryOpenLesson(id); return; }
+      if (typeof openLesson === 'function') { openLesson(id); return; }
+    } catch (e) {}
+  }
+  window._openChallengeLesson = _openChallengeLesson;
+
   function renderClassroomLessonsForStudent(lessons) {
     _classroomLessonsCache = lessons || [];
     var sv = document.getElementById('classroom-student-view');

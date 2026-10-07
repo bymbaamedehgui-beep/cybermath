@@ -39,6 +39,7 @@ module.exports = async (req, res) => {
         // Сурагчийн нэгдсэн бүх ангиудыг буцаах
         const r = await pool.query(`
           SELECT c.id, c.name, c.join_code, c.teacher_email, c.grade, c.competition, c.lessons,
+                 COALESCE(c.challenges, '[]'::jsonb) AS challenges,
                  cm.joined_at
           FROM class_members cm
           JOIN classrooms c ON c.id = cm.classroom_id
