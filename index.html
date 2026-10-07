@@ -51442,10 +51442,23 @@ function toggleAvatarSection() {
     if (!host && rank) { var p = rank; while (p && p.parentNode !== sv) p = p.parentNode; host = p; }
     if (host) sv.insertBefore(sec, host); else sv.appendChild(sec);
   }
-  /* Даалгаврын хичээлийг нээх — сурах замын node */
+  /* Даалгаврын хичээлийг нээх.
+     tryOpenLesson-ийг ашиглаж БОЛОХГҮЙ, хоёр шалтгаантай:
+       1) Тэр нь СЛОТын дугаар хүлээдэг (cmNodeForSlot-оор хөрвүүлдэг), харин
+          даалгаварт NODE-ийн дугаар хадгалагддаг — буруу хичээл нээгдэнэ.
+       2) Тэр нь өмнөх слот дууссан эсэхийг шаарддаг. Багш тодорхой даалгавар
+          оноосон тул сурах замын дараалал үүнд хамаарах ёсгүй.
+     Зүрхний шалгалтыг хэвээр үлдээнэ — тоглоомын эдийн засаг өөрчлөгдөхгүй. */
   function _openChallengeLesson(id) {
     try {
-      if (typeof tryOpenLesson === 'function') { tryOpenLesson(id); return; }
+      if (typeof checkHeartRegen === 'function') checkHeartRegen();
+      var hearts = (_currentUser && _currentUser.hearts !== undefined && _currentUser.hearts !== null)
+        ? parseInt(_currentUser.hearts)
+        : parseInt((document.getElementById('heart-count') || {}).textContent || '5');
+      if (_currentUser && _currentUser.plan !== 'premium' && hearts <= 0) {
+        if (typeof showToast === 'function') showToast('💔 Зүрх дууссан! Сэргэсний дараа үргэлжлүүлнэ үү.');
+        return;
+      }
       if (typeof openLesson === 'function') { openLesson(id); return; }
     } catch (e) {}
   }
