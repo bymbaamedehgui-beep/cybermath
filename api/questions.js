@@ -23,9 +23,25 @@ function shuffle(a) {
   return a;
 }
 // rows: тухайн хичээлийн БҮХ бодлого. → сонгосон N мөр | null (DB алдаа → дуудагч өөрөө шийднэ)
+/* Нэг variant бүлгээс НЭГ мөр үлдээнэ.
+   Клиент cmPickVariants-аар ижлийг нь нэгтгэдэг тул түүхий мөрөөр N сонгоход
+   дэлгэц дээр N-ээс ЦӨӨН асуулт гардаг байв (20 мөр → 13 бүлэг → 13 асуулт). */
+function onePerVariant(rows) {
+  const by = {}, order = [];
+  (rows || []).forEach(r => {
+    const k = r.variant_key || ('q' + r.id);
+    if (!by[k]) { by[k] = []; order.push(k); }
+    by[k].push(r);
+  });
+  return order.map(k => {
+    const g = by[k];
+    return g.length === 1 ? g[0] : g[Math.floor(Math.random() * g.length)];
+  });
+}
 async function pickUnseen(email, nodeId, rows, n) {
   try {
     await ensureCycleTable();
+    rows = onePerVariant(rows);
     const all = rows.map(r => Number(r.id));
     const cur = await pool.query('SELECT seen, cycle FROM q_cycle WHERE email=$1 AND node_id=$2', [email, nodeId]);
     let seen = cur.rows.length ? (cur.rows[0].seen || []).map(Number) : [];
@@ -209,7 +225,7 @@ module.exports = async (req, res) => {
          Нэвтрээгүй / pick өгөөгүй үед хуучин зан төлөв хэвээр (бүгдийг буцаана). */
       const pick = parseInt(req.query.pick, 10);
       const oneNode = node_id && String(node_id).indexOf(',') < 0;
-      if (Number.isFinite(pick) && pick > 0 && oneNode && r.rows.length > pick) {
+      if (Number.isFinite(pick) && pick > 0 && oneNode && onePerVariant(r.rows).length > pick) {
         const u = requireUser(req, { allowWs: true });
         if (u) {
           const nid = parseInt(node_id, 10);
@@ -217,7 +233,7 @@ module.exports = async (req, res) => {
           if (out) return res.json({ ok: true, questions: out });
         }
         /* Нэвтрээгүй эсвэл DB алдаа → энгийн санамсаргүй сонголт */
-        const sh = r.rows.slice();
+        const sh = onePerVariant(r.rows);
         for (let i = sh.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = sh[i]; sh[i] = sh[j]; sh[j] = t; }
         return res.json({ ok: true, questions: sh.slice(0, pick) });
       }
