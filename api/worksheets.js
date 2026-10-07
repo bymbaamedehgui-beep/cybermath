@@ -745,6 +745,24 @@ module.exports = async (req, res) => {
             },
             drop: function (code) { return dropCode(email, code); }, reuse: samePhone ? wsCodeReuse(email, true) : undefined,
           });
+          /* MO (verify.mn) зам: sendMo нь store-ийг ДУУДДАГГҮЙ (M1 — MO код DB-д бичигдэхгүй).
+             Тиймээс ws_login мөрийг энд өөрсдөө үүсгэнэ — эс бөгөөс хэрэглэгч SMS илгээж
+             баталгаажсан ч ws_moVerify мөр олохгүй бөгөөд бүртгэл хэзээ ч дуусахгүй.
+             Код хадгалахгүй (code=NULL): баталгаа нь зөвхөн verify.mn-ээс ирнэ. */
+          if (sent.ok && sent.mode === 'mo') {
+            const up = await pool.query(
+              `INSERT INTO ws_login (email, pass_hash, verified, code, code_exp, name, phone)
+               VALUES ($1,$2,FALSE,NULL,NULL,$3,$4)
+               ON CONFLICT (email) DO UPDATE SET pass_hash=EXCLUDED.pass_hash, code=NULL, code_exp=NULL,
+                 code_attempts=0, name=EXCLUDED.name, phone=EXCLUDED.phone
+               WHERE ws_login.verified=FALSE AND ws_login.phone_verified_at IS NULL
+               RETURNING email`,
+              [email, hash, name, pn.local]);
+            if (!up.rows.length) {
+              /* Баталгаажсан эсвэл админ бэлтгэсэн мөрийг дарахгүй — бүртгэл үүсгэхгүй */
+              return sms.failJson(res, sms.mkFail('SMS_UNAVAILABLE'), { reg: 'ws' });
+            }
+          }
           if (sent.ok) return res.json(Object.assign({ ok: true, needVerify: true, sms: true, masked: sent.masked2 }, wsMoFields(sent)));
           if (raced) return res.json({ ok: true, needVerify: true, pending: true, message: MSG_PENDING });
           if (sent.code === 'SMS_UNCERTAIN') return sms.failJson(res, sent, { reg: 'ws', fields: { needVerify: true, sms: true, masked: sms.maskPhone(pn.local, 2) } });
