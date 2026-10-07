@@ -579,10 +579,14 @@ module.exports = async (req, res) => {
 
       // ── Дасгалын төвийн нэвтрэлт: бүртгэл → код → баталгаажуулах → нэвтрэх ──
       if (['ws_register','ws_verify','ws_login','ws_resend','ws_forgot','ws_reset',
-           'ws_devices','ws_device_remove','ws_device_admin'].indexOf(b.action) >= 0) {
+           'ws_devices','ws_device_remove','ws_device_admin',
+           'ws_moStatus','ws_moVerify'].indexOf(b.action) >= 0) {
         await ensureWsLogin();
         const email = String(b.email || '').trim().toLowerCase();
-        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ ok: false, error: 'Зөв имэйл оруулна уу' });
+        /* MO үйлдлүүд хэрэглэгчийг pollToken-оор таних тул имэйл шаардахгүй
+           (клиент имэйл явуулдаггүй; имэйлийг session-ээс сервер өөрөө олно). */
+        const moAction = b.action === 'ws_moStatus' || b.action === 'ws_moVerify';
+        if (!moAction && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ ok: false, error: 'Зөв имэйл оруулна уу' });
 
         if (b.action === 'ws_login') {
           const r = await pool.query('SELECT pass_hash, verified FROM ws_login WHERE email=$1', [email]);
