@@ -1021,10 +1021,18 @@ async function sendMo(o) {
      Спам хамгаалалт ХЭВЭЭР: нэг дугаарын ӨДРИЙН квот (reg 3 / acct 6) ба MO-ийн нийт
      квот (VERIFYMN_30MIN_MAX/DAY_MAX) хоёул доор хүчинтэй. */
   if (!o.companion) {
-    const h = await hit('sms:ph:' + kind + ':' + ph, DAY_WIN);
+    /* MO-д ӨӨРИЙН өдрийн квот. textbee-гийнх (reg 3 / acct 6) нь ИЛГЭЭЛТИЙН ЗАРДАЛ,
+       утасны ачааллыг хязгаарлах зорилготой — MO-д бид юу ч илгээдэггүй (хэрэглэгч
+       өөрөө илгээж, өөрөө төлдөг) тул тэр хязгаар энд хэтэрхий бага. Session үүсгэх
+       спамаас хамгаалах нь л зорилго тул өгөөмөр боловч хязгаартай.
+       Түлхүүр нь textbee-гийнхээс ТУСДАА: нэг нь нөгөөгөө барагдуулахгүй. */
+    const moKey = 'sms:moph:' + kind + ':' + ph;
+    const moMax = kind === 'reg' ? intEnv('VERIFYMN_PH_REG_DAY_MAX', 20)
+                                 : intEnv('VERIFYMN_PH_ACCT_DAY_MAX', 30);
+    const h = await hit(moKey, DAY_WIN);
     if (!h) return UNAV;
-    reserved.push('sms:ph:' + kind + ':' + ph);
-    if (h.count > (kind === 'reg' ? PH_REG_DAY_MAX : PH_ACCT_DAY_MAX)) { await rollback(); return mkFail('SMS_LIMIT', { phoneQuota: true }); }
+    reserved.push(moKey);
+    if (h.count > moMax) { await rollback(); return mkFail('SMS_LIMIT', { phoneQuota: true }); }
   }
 
   // 2. MO-ийн нийт квот (спам таг)
