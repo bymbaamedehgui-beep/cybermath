@@ -1093,6 +1093,35 @@ async function sendMo(o) {
 /* Төлөв шалгах — ЗӨВХӨН pollToken-оор (M2).
    → { ok:true, status:'PENDING'|'VERIFIED'|'EXPIRED'|'UNKNOWN', email, purpose, kind }
    VERIFIED үед session-ийг consumed болгоно (M5) — давтан дуудахад PENDING биш EXPIRED. */
+/* Сүүлийн MO session-уудын БОДИТ төлвийг verify.mn-ээс асууж харуулна (админд).
+   Манай DB дээрх төлөв (consumed_at/expires_at) ба verify.mn-ийн хэлж буйг ЗЭРЭГ
+   харуулна: хоёр нь зөрвөл асуудал хаана байгаа нь шууд мэдэгдэнэ.
+     ours=хүлээж байна, vfm=VERIFIED  → SMS таарсан ч манай тал боловсруулаагүй
+     ours=хүлээж байна, vfm=PENDING   → SMS огт таараагүй (дугаар/текст зөрсөн)
+   Бүтэн дугаар, sessionId, түлхүүр гарахгүй. */
+async function moRecent(n) {
+  const lim = Math.min(20, Math.max(1, parseInt(n, 10) || 10));
+  await ensureVfmTables();
+  const r = await pool.query(
+    `SELECT id, session_id, email, purpose, kind, created_at, expires_at, consumed_at
+     FROM vfm_sessions ORDER BY created_at DESC LIMIT ${lim}`);
+  const out = [];
+  for (const row of r.rows) {
+    const ours = row.consumed_at ? 'баталгаажсан'
+      : (new Date(row.expires_at).getTime() < Date.now() ? 'хугацаа дууссан' : 'хүлээж байна');
+    let vfm = '—';
+    try {
+      const st = await VFM.sessionStatus(row.session_id);
+      vfm = st.ok ? st.status : ('алдаа:' + (st.cls || '?'));
+    } catch (e) { vfm = 'алдаа'; }
+    out.push({
+      at: row.created_at, email: maskEmail(row.email), purpose: row.purpose, kind: row.kind,
+      ours: ours, verifymn: vfm,
+    });
+  }
+  return out;
+}
+
 async function moCheck(pollToken, opts) {
   /* opts.consume === false бол VERIFIED-ийг зөвхөн МЭДЭЭЛНЭ, session-ийг зарцуулахгүй.
      Дасгалын төвд хэрэгтэй: тэнд баталгаажуулах агшинд нууц үг заавал тавигддаг тул
@@ -1178,6 +1207,7 @@ module.exports = {
   status, setPause, deviceStatus, textbeeSend, limits, logErr, safeMsg, ensureSmsTables, ensureUserColumns, maxAccountsPerPhone, trustLegacyPhone,
   promoNote, PROMO_NOTE, CODE_TTL_MS, COOLDOWN_SEC,
   sendMo, moCheck, moEnabled, ensureVfmTables, MO_TTL_SEC,
+  moRecent,
   gatewayAlive, gatewayCacheReset,
   // тестэд
   promoCacheReset,

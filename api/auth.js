@@ -638,10 +638,13 @@ module.exports = async (req, res) => {
 
     // ═══ АДМИН: хэрэглэгчийн утас (SMS) ба SMS төлөв ═══
     if (action === 'adminUserPhone' || action === 'adminSetPhone' || action === 'smsStatus'
-        || action === 'smsPause' || action === 'smsResume' || action === 'smsDevice') {
+        || action === 'smsPause' || action === 'smsResume' || action === 'smsDevice'
+        || action === 'moSessions') {
       if (!requireAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
       if (action === 'smsStatus') return res.json({ ok: true, status: await sms.status() });
       if (action === 'smsDevice') return res.json({ ok: true, device: await sms.deviceStatus() });
+      /* verify.mn-ийн БОДИТ төлөв — манай DB-тэй зэрэгцүүлж харуулна */
+      if (action === 'moSessions') return res.json({ ok: true, sessions: await sms.moRecent((req.body||{}).n) });
       if (action === 'smsPause') {
         const min = parseInt((req.body || {}).minutes, 10);
         if (!(min >= 1 && min <= 1440)) return res.status(400).json({ ok: false, error: 'minutes 1..1440' });
