@@ -1640,6 +1640,74 @@ module.exports = async (req, res) => {
         }
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_g12c2_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
+      // ── Нэг удаагийн: 4-р анги I БҮЛЭГ ──
+      const cf_g3c1 = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_g3c1_v1'`);
+      if (!cf_g3c1.rows.length) {
+        let par_g3c1 = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='4-р анги' AND name LIKE 'I БҮЛЭГ%' AND parent_id IS NULL ORDER BY id LIMIT 1`);
+        let pid_g3c1;
+        if (par_g3c1.rows.length) { pid_g3c1 = Number(par_g3c1.rows[0].id); }
+        else {
+          const mxP = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='4-р анги'`);
+          const insP = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('4-р анги',$2,$1,NULL) RETURNING id`, [mxP.rows[0].p, "I БҮЛЭГ. ҮРЖИХ, ХУВААХ"]);
+          pid_g3c1 = Number(insP.rows[0].id);
+        }
+        const subs_g3c1 = [
+          { name: "1.01 Хүрд цээжлэх хялбар аргууд", slugs: ["hurd-tseejleh-arguud-1.html", "hurd-tseejleh-arguud-2.html", "hurd-tseejleh-arguud-3.html", "hurd-tseejleh-arguud-4.html"] },
+          { name: "1.02 Хүрдээр үржих, хуваах", slugs: ["hurdeer-urjih-huvaah-1.html", "hurdeer-urjih-huvaah-2.html", "hurdeer-urjih-huvaah-3.html"] },
+          { name: "1.03 Баганаар үржих", slugs: ["baganaar-urjih-1.html", "baganaar-urjih-2.html", "baganaar-urjih-3.html"] },
+          { name: "1.04 Баганаар хуваах", slugs: ["baganaar-huvaah-1.html", "baganaar-huvaah-2.html", "baganaar-huvaah-3.html"] },
+          { name: "1.05 Арав, зуугаар үржих хуваах", slugs: ["arav-zuugaar-urjih-huvaah-1.html", "arav-zuugaar-urjih-huvaah-2.html", "arav-zuugaar-urjih-huvaah-3.html"] },
+          { name: "1.06 Хэд хэдэн үйлдэлтэй илэрхийлэл", slugs: ["uildliin-daraalal-1.html", "uildliin-daraalal-2.html", "uildliin-daraalal-3.html"] },
+        ];
+        for (const sub of subs_g3c1) {
+          let sgr = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='4-р анги' AND name=$1`, [sub.name]);
+          let sid;
+          if (sgr.rows.length) { sid = Number(sgr.rows[0].id); }
+          else {
+            const mx = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='4-р анги'`);
+            const ins = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('4-р анги',$1,$2,$3) RETURNING id`, [sub.name, mx.rows[0].p, pid_g3c1]);
+            sid = Number(ins.rows[0].id);
+          }
+          for (const slug of sub.slugs) {
+            await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + sid, slug]);
+          }
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_g3c1_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
+
+      // ── Нэг удаагийн: 4-р анги II БҮЛЭГ ──
+      const cf_g3c2 = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_g3c2_v1'`);
+      if (!cf_g3c2.rows.length) {
+        let par_g3c2 = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='4-р анги' AND name LIKE 'II БҮЛЭГ%' AND parent_id IS NULL ORDER BY id LIMIT 1`);
+        let pid_g3c2;
+        if (par_g3c2.rows.length) { pid_g3c2 = Number(par_g3c2.rows[0].id); }
+        else {
+          const mxP = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='4-р анги'`);
+          const insP = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('4-р анги',$2,$1,NULL) RETURNING id`, [mxP.rows[0].p, "II БҮЛЭГ. ХЭМЖИГДЭХҮҮН БА БОДЛОГО"]);
+          pid_g3c2 = Number(insP.rows[0].id);
+        }
+        const subs_g3c2 = [
+          { name: "2.01 Хүндийг хэмжих", slugs: ["hundiig-hemjih-1.html", "hundiig-hemjih-2.html", "hundiig-hemjih-3.html"] },
+          { name: "2.02 Эзлэхүүнийг хэмжих", slugs: ["ezlehuuniig-hemjih-1.html", "ezlehuuniig-hemjih-2.html", "ezlehuuniig-hemjih-3.html", "ezlehuuniig-hemjih-4.html"] },
+          { name: "2.03 Урт, хугацааг хэмжих", slugs: ["urt-hugatsaa-hemjih-1.html", "urt-hugatsaa-hemjih-2.html", "urt-hugatsaa-hemjih-3.html"] },
+          { name: "2.04 Өгүүлбэртэй бодлого", slugs: ["oguulbertei-bodlogo-1.html", "oguulbertei-bodlogo-2.html", "oguulbertei-bodlogo-3.html"] },
+          { name: "2.05 Хоёр үйлдэлтэй бодлого", slugs: ["hoyor-uildelt-bodlogo-1.html", "hoyor-uildelt-bodlogo-2.html", "hoyor-uildelt-bodlogo-3.html"] },
+        ];
+        for (const sub of subs_g3c2) {
+          let sgr = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='4-р анги' AND name=$1`, [sub.name]);
+          let sid;
+          if (sgr.rows.length) { sid = Number(sgr.rows[0].id); }
+          else {
+            const mx = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='4-р анги'`);
+            const ins = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('4-р анги',$1,$2,$3) RETURNING id`, [sub.name, mx.rows[0].p, pid_g3c2]);
+            sid = Number(ins.rows[0].id);
+          }
+          for (const slug of sub.slugs) {
+            await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + sid, slug]);
+          }
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_g3c2_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
       // ── 10-р анги: хүнд түвшний нэмэлт ажлын хуудсууд ──
       const cf_g10h = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_g10_hard_v1'`);
       if (!cf_g10h.rows.length) {
