@@ -1013,13 +1013,16 @@ async function sendMo(o) {
   const phCd = 'sms:ph:cd:' + kind + ':' + ph;
   const reserved = [];
   const rollback = async () => { const ks = reserved.splice(0); for (const k of ks) await decr(k); };
+  /* 10 минутын cooldown-ыг MO-д ХЭРЭГЛЭХГҮЙ.
+     Шалтгаан: MO session 5 минутад хүчингүй болдог атал cooldown 10 минут байсан тул
+     хугацаа дуусахад хэрэглэгч 5 минут гацдаг — дахин код авах ч аргагүй. Түүнчлэн MO-д
+     бид юу ч илгээдэггүй (хэрэглэгч өөрөө илгээнэ) тул cooldown-ы анхны зорилго болох
+     "илгээлтийн зардал/утасны ачаалал" энд байхгүй.
+     Спам хамгаалалт ХЭВЭЭР: нэг дугаарын ӨДРИЙН квот (reg 3 / acct 6) ба MO-ийн нийт
+     квот (VERIFYMN_30MIN_MAX/DAY_MAX) хоёул доор хүчинтэй. */
   if (!o.companion) {
-    let h = await hit(phCd, COOLDOWN_SEC);
+    const h = await hit('sms:ph:' + kind + ':' + ph, DAY_WIN);
     if (!h) return UNAV;
-    if (h.count > 1) return mkFail('SMS_COOLDOWN', { wait: h.retryAfter, phoneQuota: true });
-    reserved.push(phCd);
-    h = await hit('sms:ph:' + kind + ':' + ph, DAY_WIN);
-    if (!h) { await rollback(); return UNAV; }
     reserved.push('sms:ph:' + kind + ':' + ph);
     if (h.count > (kind === 'reg' ? PH_REG_DAY_MAX : PH_ACCT_DAY_MAX)) { await rollback(); return mkFail('SMS_LIMIT', { phoneQuota: true }); }
   }

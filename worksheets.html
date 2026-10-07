@@ -1681,7 +1681,7 @@ function openLogin(auto,view){
     function tick(){ var el=q('#fgMoLeft'); if(!el){wsMoStop();return;}
       var left=Math.max(0,Math.round((until-Date.now())/1000));
       el.textContent=left>0?('Үлдсэн хугацаа '+Math.floor(left/60)+':'+(left%60<10?'0':'')+(left%60)):'';
-      if(left<=0){ wsMoStop(); var mm=q('#fgMsg'); if(mm){mm.style.color='#dc2626';mm.textContent='Хугацаа дууслаа. Дахин оролдоно уу.';} } }
+      if(left<=0){ moRetryFn=function(cb){wsMoRetry('ws_forgot',cb);}; wsMoExpired('#fgMsg','#fgMo'); } }
     tick(); moT=setInterval(tick,1000);
     moP=setInterval(wsMoForgotPoll,3000); setTimeout(wsMoForgotPoll,1500);
     return true;
@@ -1691,7 +1691,7 @@ function openLogin(auto,view){
     var tok=moTok;
     api('ws_moStatus',{pollToken:tok}).then(function(x){ var d=x.d;
       if(!d||!d.ok||tok!==moTok) return;
-      if(d.status==='EXPIRED'){ wsMoStop(); var m=q('#fgMsg'); if(m){m.style.color='#dc2626';m.textContent='Хугацаа дууслаа. Дахин оролдоно уу.';} return; }
+      if(d.status==='EXPIRED'){ moRetryFn=function(cb){wsMoRetry('ws_forgot',cb);}; wsMoExpired('#fgMsg','#fgMo'); return; }
       if(d.status!=='VERIFIED'||!d.code) return;
       wsMoStop();
       var box=q('#fgMo'); if(box)box.style.display='none';
@@ -1702,6 +1702,41 @@ function openLogin(auto,view){
     }).catch(function(){});
   }
 
+  /* Хугацаа дуусахад «Дахин код авах» — MO session 5 минут тул энэ зайлшгүй.
+     Сервер талд MO-гийн 10 минутын cooldown хассан тул шууд дахин авч чадна. */
+  var moRetryFn = null;
+  function wsMoExpired(msgEl, btnHost){
+    wsMoStop();
+    var m = q(msgEl); if(m){ m.style.color='#dc2626'; m.textContent='Хугацаа дууслаа.'; }
+    var host = q(btnHost); if(!host || q('#moRetryBtn')) return;
+    var b = document.createElement('button');
+    b.id = 'moRetryBtn';
+    b.textContent = 'Дахин код авах';
+    b.style.cssText = 'width:100%;margin-top:10px;border:0;cursor:pointer;border-radius:12px;padding:.75rem;'
+      + 'font-size:.95rem;font-weight:900;color:#fff;font-family:inherit;background:linear-gradient(135deg,#7B52EE,#A855F7)';
+    b.onclick = function(){
+      if(!moRetryFn) return;
+      b.disabled = true; b.textContent = 'Авч байна…';
+      moRetryFn(function(err){
+        var bb = q('#moRetryBtn');
+        if(err){ if(bb){ bb.disabled=false; bb.textContent='Дахин код авах'; }
+          var mm=q(msgEl); if(mm){ mm.style.color='#dc2626'; mm.textContent=err; } }
+        else if(bb) bb.remove();
+      });
+    };
+    host.appendChild(b);
+  }
+  function wsMoRetry(action, onDone){
+    api(action, {email: curEmail}).then(function(x){ var d = x.d;
+      if(!d || !d.ok){ onDone((d && d.error) || 'Дахин авч чадсангүй'); return; }
+      if(d.mode === 'mo' && d.moText){
+        if(action === 'ws_forgot') wsShowMoForgot(d); else wsShowMo(d);
+        onDone(null); return;
+      }
+      /* MO ирэхгүй бол (textbee руу шилжсэн) хуудсаа сэргээхийг хүснэ */
+      onDone('Код SMS-ээр илгээгдлээ. Хуудсаа сэргээнэ үү.');
+    }).catch(function(){ onDone('Сүлжээний алдаа'); });
+  }
   function wsShowMo(mo){
     var V=q('#vVerify'); if(!V||!mo||!mo.moText) return false;
     wsMoStop(); wsMoDisarm();
@@ -1731,7 +1766,7 @@ function openLogin(auto,view){
     function tick(){ var el=q('#vMoLeft'); if(!el||!q('#vMo')){wsMoStop();return;}
       var left=Math.max(0,Math.round((until-Date.now())/1000));
       el.textContent=left>0?('Үлдсэн хугацаа '+Math.floor(left/60)+':'+(left%60<10?'0':'')+(left%60)):'';
-      if(left<=0){ wsMoStop(); var mm=q('#vMsg'); if(mm){mm.style.color='#dc2626';mm.textContent='Хугацаа дууслаа. Дахин оролдоно уу.';} } }
+      if(left<=0){ moRetryFn=function(cb){wsMoRetry('ws_resend',cb);}; wsMoExpired('#vMsg','#vMo'); } }
     tick(); moT=setInterval(tick,1000);
     moP=setInterval(wsMoPoll,3000); setTimeout(wsMoPoll,1500);
     return true;
@@ -1742,7 +1777,7 @@ function openLogin(auto,view){
     var tok=moTok;
     api('ws_moStatus',{pollToken:tok}).then(function(x){ var d=x.d;
       if(!d||!d.ok||tok!==moTok) return;
-      if(d.status==='EXPIRED'){ wsMoStop(); var m=q('#vMsg'); if(m){m.style.color='#dc2626';m.textContent='Хугацаа дууслаа. Дахин оролдоно уу.';} return; }
+      if(d.status==='EXPIRED'){ moRetryFn=function(cb){wsMoRetry('ws_resend',cb);}; wsMoExpired('#vMsg','#vMo'); return; }
       if(d.status!=='VERIFIED') return;
       wsMoStop();
       var m=q('#vMsg'); if(m){m.style.color='#16a34a';m.textContent='✓ Баталгаажлаа — нэвтэрч байна…';}

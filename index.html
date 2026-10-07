@@ -57837,6 +57837,7 @@ function toggleAvatarSection() {
   /* Нууц үг сэргээх дэлгэцэд MO харуулах */
   function showMoReset(mo, email) {
     _moStop(); _moDisarm();
+    _moRetryFn = _moRetry('sendResetCode', email, function (d) { showMoReset(d, email); });
     var box = document.getElementById('reset-step-code');
     if (!box) return false;
     /* Код оруулах талбар, баталгаажуулах товчийг нуух */
@@ -57870,6 +57871,7 @@ function toggleAvatarSection() {
 
   function showMoStep(email, mo, note) {
     _moStop(); _moDisarm();
+    _moRetryFn = _moRetry('resend', email, function (d) { showMoStep(email, d, note); });
     var form = document.getElementById('auth-form-register');
     var box = document.getElementById('auth-verify-section');
     if (form) form.style.display = 'none';
@@ -57923,11 +57925,44 @@ function toggleAvatarSection() {
     setTimeout(_moCheck, 1500);
   }
 
+  /* Хугацаа дуусахад дахин код авах. MO session 5 минут тул энэ зайлшгүй;
+     сервер талд MO-гийн 10 минутын cooldown хассан тул шууд дахин авна. */
+  var _moRetryFn = null;
   function _moExpired() {
     _moStop();
     var st = document.getElementById('mo-status');
-    if (st) { st.style.color = '#dc2626'; st.textContent = 'Хугацаа дууслаа. Дахин оролдоно уу.'; }
+    if (st) { st.style.color = '#dc2626'; st.textContent = 'Хугацаа дууслаа.'; }
     var lf = document.getElementById('mo-left'); if (lf) lf.textContent = '';
+    if (!_moRetryFn || document.getElementById('mo-retry')) return;
+    var host = st && st.parentNode; if (!host) return;
+    var b = document.createElement('button');
+    b.id = 'mo-retry';
+    b.textContent = 'Дахин код авах';
+    b.style.cssText = 'width:100%;margin-top:12px;border:0;cursor:pointer;border-radius:14px;padding:13px;'
+      + 'font-size:1rem;font-weight:900;color:#fff;font-family:inherit;background:linear-gradient(135deg,#7B52EE,#A855F7);';
+    b.onclick = function () {
+      b.disabled = true; b.textContent = 'Авч байна…';
+      _moRetryFn(function (err) {
+        var bb = document.getElementById('mo-retry');
+        if (err) { if (bb) { bb.disabled = false; bb.textContent = 'Дахин код авах'; }
+          var s2 = document.getElementById('mo-status');
+          if (s2) { s2.style.color = '#dc2626'; s2.textContent = err; } }
+        else if (bb) bb.remove();
+      });
+    };
+    host.appendChild(b);
+  }
+  /* action: 'resend' (бүртгэл) | 'sendResetCode' (нууц үг сэргээх) */
+  function _moRetry(action, email, show) {
+    return function (done) {
+      fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: action, email: email }) })
+        .then(function (r) { return r.json(); }).then(function (d) {
+          if (!d || !d.ok) { done((d && d.error) || 'Дахин авч чадсангүй'); return; }
+          if (d.mode === 'mo' && d.moText) { show(d); done(null); return; }
+          done('Код SMS-ээр илгээгдлээ. Хуудсаа сэргээнэ үү.');
+        }).catch(function () { done('Сүлжээний алдаа'); });
+    };
   }
 
   function _moCheck() {
