@@ -1090,14 +1090,14 @@ module.exports = async (req, res) => {
         const act = await pool.query('SELECT COUNT(*)::int n FROM ws_grade_access WHERE expires_at > NOW()');
         // Ангиар хураангуй: худалдан авалт/орлого (ws_purchases) + идэвхтэй эрх (ws_grade_access)
         const sales = await pool.query(
-          `SELECT grade, COUNT(*)::int AS sales, COALESCE(SUM(amount),0)::int AS revenue
+          `SELECT grade, COUNT(*)::int AS sales
              FROM ws_purchases WHERE grade IS NOT NULL GROUP BY grade`);
         const actBy = await pool.query(
           `SELECT grade, COUNT(*)::int AS active FROM ws_grade_access WHERE expires_at > NOW() GROUP BY grade`);
         const map = {};
-        sales.rows.forEach(function (x) { map[x.grade] = { grade: x.grade, sales: x.sales, revenue: x.revenue, active: 0 }; });
+        sales.rows.forEach(function (x) { map[x.grade] = { grade: x.grade, sales: x.sales, active: 0 }; });
         actBy.rows.forEach(function (x) {
-          (map[x.grade] = map[x.grade] || { grade: x.grade, sales: 0, revenue: 0, active: 0 }).active = x.active;
+          (map[x.grade] = map[x.grade] || { grade: x.grade, sales: 0, active: 0 }).active = x.active;
         });
         const byGrade = Object.keys(map).map(function (k) { return map[k]; })
           .sort(function (a, b) { return (parseInt(a.grade, 10) || 0) - (parseInt(b.grade, 10) || 0); });
@@ -1199,8 +1199,9 @@ module.exports = async (req, res) => {
                   COALESCE(SUM(amount) FILTER (WHERE grade IS NOT NULL),0)::int AS sum_grade
              FROM ws_purchases`);
         const t = tot.rows[0];
-        return res.json({ ok: true, purchases: r.rows, count: t.n, total: t.sum,
-          count_all: t.n_all, total_all: t.sum_all, count_grade: t.n_grade, total_grade: t.sum_grade });
+        // Орлогын нийт дүнг энд буцаахгүй — зөвхөн Тайлан цэсэд (ws_report, PIN-тэй).
+        return res.json({ ok: true, purchases: r.rows, count: t.n,
+          count_all: t.n_all, count_grade: t.n_grade });
       }
       // Худалдаж аваагүй (идэвхтэй эрхгүй) бүртгэлтэй хэрэглэгчид рүү промо имэйл — багц-багцаар
       if (req.query.action === 'ws_broadcast') {
