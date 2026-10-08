@@ -1032,8 +1032,10 @@ module.exports = async (req, res) => {
         if (!stored) return res.json({ ok: false, needSetup: true, error: 'Тайлангийн PIN тохируулаагүй байна' });
         const pin = String(b.pin || '').trim();
         if (!/^\d{4}$/.test(pin)) return res.status(400).json({ ok: false, error: '4 оронтой код оруулна уу' });
-        if (!(await pinTry(req))) return res.json({ ok: false, error: 'Хэт олон оролдлого. 1 цагийн дараа дахин оролдоно уу.' });
-        if (!pinEq(pinHash(pin), stored)) return res.json({ ok: false, error: 'Код буруу байна' });
+        if (!pinEq(pinHash(pin), stored)) {
+          const okTry = await pinTry(req);   // квотыг зөвхөн буруу оролдлогод зарцуулна
+          return res.json({ ok: false, error: okTry ? 'Код буруу байна' : 'Хэт олон оролдлого. 1 цагийн дараа дахин оролдоно уу.' });
+        }
         return res.json(await revReport());
       }
       // ── Тайлангийн PIN тавих / солих ──
@@ -1042,8 +1044,10 @@ module.exports = async (req, res) => {
         const pin = String(b.pin || '').trim();
         if (!/^\d{4}$/.test(pin)) return res.status(400).json({ ok: false, error: '4 оронтой код оруулна уу' });
         if (stored) {
-          if (!(await pinTry(req))) return res.json({ ok: false, error: 'Хэт олон оролдлого. 1 цагийн дараа дахин оролдоно уу.' });
-          if (!pinEq(pinHash(String(b.old || '').trim()), stored)) return res.json({ ok: false, error: 'Хуучин код буруу байна' });
+          if (!pinEq(pinHash(String(b.old || '').trim()), stored)) {
+            const okTry = await pinTry(req);   // квотыг зөвхөн буруу оролдлогод зарцуулна
+            return res.json({ ok: false, error: okTry ? 'Хуучин код буруу байна' : 'Хэт олон оролдлого. 1 цагийн дараа дахин оролдоно уу.' });
+          }
         }
         await pool.query("INSERT INTO ws_settings (skey, sval) VALUES ('report_pin',$1) ON CONFLICT (skey) DO UPDATE SET sval=$1", [pinHash(pin)]);
         return res.json({ ok: true, changed: !!stored });
