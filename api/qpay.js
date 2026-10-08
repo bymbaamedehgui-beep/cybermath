@@ -983,7 +983,7 @@ module.exports = async (req, res) => {
     }
 
     // ── АДМИН: ажлын хуудсын промо код удирдах + борлуулалт харах ──
-    if (['ws_promo_create','ws_promo_list','ws_promo_update','ws_purchases_list','ws_users_list','ws_grade_users','ws_grant','ws_revoke','ws_reconcile','ws_broadcast','ws_report','ws_report_pin'].indexOf(req.query.action) >= 0) {
+    if (['ws_promo_create','ws_promo_list','ws_promo_update','ws_purchases_list','ws_users_list','ws_grade_users','ws_grant','ws_revoke','ws_reconcile','ws_broadcast','ws_report','ws_report_pin','ws_all_users'].indexOf(req.query.action) >= 0) {
       if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
       await ensureWsExtra();
       await ensureWsTable();
@@ -1116,6 +1116,42 @@ module.exports = async (req, res) => {
            FROM ws_access ORDER BY updated_at DESC LIMIT 1000`);
         const act = await pool.query('SELECT COUNT(*)::int n FROM ws_access WHERE expires_at > NOW()');
         return res.json({ ok: true, users: r.rows, total: r.rows.length, active: act.rows[0].n });
+      }
+      // ── Дасгалын төвийн НИЙТ БҮРТГЭЛ (нэр/утас/имэйлээр хайна) ──
+      if (req.query.action === 'ws_all_users') {
+        const q = String(b.q || '').trim().toLowerCase();
+        const vals = [];
+        let where = '';
+        if (q) {
+          vals.push('%' + q + '%');
+          // утсыг цэг, зураасгүйгээр ч хайна
+          vals.push('%' + q.replace(/\D/g, '') + '%');
+          where = `WHERE lower(l.email) LIKE $1 OR lower(COALESCE(l.name,'')) LIKE $1
+                     OR ($2 <> '%%' AND regexp_replace(COALESCE(l.phone,''), '\\D', '', 'g') LIKE $2)`;
+        }
+        const lim = Math.min(500, Math.max(20, parseInt(b.limit, 10) || 200));
+        const r = await pool.query(
+          `SELECT l.email, l.name, l.phone, l.verified, l.created_at, l.invite,
+                  (a.expires_at > NOW()) AS has_all,
+                  a.expires_at AS all_exp,
+                  COALESCE(g.n, 0)::int AS grade_cnt,
+                  g.grades AS grades,
+                  COALESCE(p.cnt, 0)::int AS buy_cnt
+             FROM ws_login l
+             LEFT JOIN ws_access a ON lower(a.email) = lower(l.email)
+             LEFT JOIN (SELECT lower(email) em, COUNT(*) n,
+                               string_agg(grade, ', ' ORDER BY grade) grades
+                          FROM ws_grade_access WHERE expires_at > NOW() GROUP BY lower(email)) g
+                    ON g.em = lower(l.email)
+             LEFT JOIN (SELECT lower(email) em, COUNT(*) cnt FROM ws_purchases GROUP BY lower(email)) p
+                    ON p.em = lower(l.email)
+            ${where}
+            ORDER BY l.created_at DESC NULLS LAST
+            LIMIT ${lim}`, vals);
+        const tot = await pool.query('SELECT COUNT(*)::int n FROM ws_login');
+        const ver = await pool.query('SELECT COUNT(*)::int n FROM ws_login WHERE verified = TRUE');
+        return res.json({ ok: true, users: r.rows, shown: r.rows.length,
+          total: tot.rows[0].n, verified: ver.rows[0].n, q: q, limit: lim });
       }
       if (req.query.action === 'ws_promo_list') {
         await pool.query(`CREATE TABLE IF NOT EXISTS ws_wheel (email TEXT PRIMARY KEY, prize TEXT, code TEXT, created_at TIMESTAMPTZ DEFAULT NOW())`).catch(()=>{});

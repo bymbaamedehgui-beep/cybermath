@@ -41,19 +41,30 @@ function admLogin() {
       if (err) err.textContent = 'Сервертэй холбогдох алдаа';
     });
 }
-function toggleTheme() {
-  var isDark = !document.body.classList.contains('light');
+/* Горимын дүрсийг солино — textContent БИЧИХГҮЙ (SVG устахгүйн тулд).
+   Лайт үед сар (дарк руу шилжих), дарк үед нар харуулна. */
+function admThemeIcon() {
   var btn = document.getElementById('theme-btn');
-  if (isDark) {
-    document.body.classList.add('light');
-    if (btn) btn.textContent = '🌙 Дарк';
-    localStorage.setItem('cm_admin_theme', 'light');
-  } else {
-    document.body.classList.remove('light');
-    if (btn) btn.textContent = '☀️ Лайт';
-    localStorage.setItem('cm_admin_theme', 'dark');
-  }
+  if (!btn) return;
+  var svg = btn.querySelector('svg');
+  if (!svg) return;
+  var light = document.body.classList.contains('light');
+  svg.innerHTML = light ? '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>' : '<path d="M12 4V2M12 22v-2M4 12H2M22 12h-2M5.6 5.6 4.2 4.2M19.8 19.8l-1.4-1.4M18.4 5.6l1.4-1.4M4.2 19.8l1.4-1.4"/><circle cx="12" cy="12" r="4.2"/>';
+  btn.setAttribute('title', light ? 'Дарк горим' : 'Лайт горим');
+  btn.setAttribute('aria-label', light ? 'Дарк горим' : 'Лайт горим');
 }
+function admThemeApply(light) {
+  document.body.classList.toggle('light', !!light);
+  try { localStorage.setItem('cm_admin_theme', light ? 'light' : 'dark'); } catch (e) {}
+  admThemeIcon();
+}
+function toggleTheme() { admThemeApply(!document.body.classList.contains('light')); }
+/* Анхдагч нь ЛАЙТ — хэрэглэгч дарк сонгосон тохиолдолд л дарк болно. */
+(function () {
+  var v = null; try { v = localStorage.getItem('cm_admin_theme'); } catch (e) {}
+  function go() { admThemeApply(v !== 'dark'); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
+})();
 
 function admLogout() {
   localStorage.removeItem('cm_admin_token');
@@ -132,8 +143,8 @@ if (document.readyState === 'loading') document.addEventListener('DOMContentLoad
 function showPage(name, btn) {
   admCloseNav();                                   // сонгосны дараа цэсийг хаана
   try {                                            // гамбургер дээр идэвхтэй хуудсын нэрийг бичнэ
-    var nb = document.getElementById('nb-page');
-    if (nb) nb.textContent = btn ? ('· ' + (btn.textContent || '').trim()) : '';
+    var nb = document.getElementById('nb-page');   /* одоо байхгүй — үлдээсэн нь нийцэл */
+    if (nb) nb.textContent = '';
   } catch (e) {}
   // Бүх page нуух
   document.querySelectorAll('.page').forEach(function(p) {
@@ -165,6 +176,56 @@ function showPage(name, btn) {
   if (name === 'tailan') tlLock();   // бүр болгонд кодоо шинээр асууна
 }
 
+
+
+/* ── Нийт бүртгэл (Дасгалын төв) ── */
+var _regTmr = null;
+function regClear() { var e = document.getElementById('reg-q'); if (e) e.value = ''; regLoad(); }
+function regLoad() {
+  var el = document.getElementById('reg-list'); if (!el) return;
+  var q = (document.getElementById('reg-q') || {}).value || '';
+  el.innerHTML = '<div style="color:var(--muted);padding:12px;">Уншиж байна…</div>';
+  wsPost('ws_all_users', { q: q, limit: 300 }).then(function (d) {
+    if (!d || !d.ok) { el.innerHTML = '<div style="color:#dc2626;padding:12px;">' + ((d && d.error) || 'Алдаа') + '</div>'; return; }
+    var c = document.getElementById('reg-count');
+    if (c) c.textContent = 'Нийт ' + wsNum(d.total) + ' · баталгаажсан ' + wsNum(d.verified)
+      + (d.q ? (' · олдсон ' + wsNum(d.shown)) : '');
+    var u = d.users || [];
+    if (!u.length) { el.innerHTML = '<div style="color:var(--muted);padding:12px;">Илэрц олдсонгүй.</div>'; return; }
+    el.innerHTML = '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.85rem;">'
+      + '<thead><tr>'
+      + '<th style="text-align:left;padding:8px;">Нэр</th>'
+      + '<th style="text-align:left;padding:8px;">И-мэйл</th>'
+      + '<th style="text-align:left;padding:8px;">Утас</th>'
+      + '<th style="text-align:left;padding:8px;">Эрх</th>'
+      + '<th style="text-align:left;padding:8px;">Бүртгүүлсэн</th></tr></thead><tbody>'
+      + u.map(function (x) {
+        var right = x.has_all
+          ? '<span style="background:#e0f2fe;color:#0369a1;border-radius:100px;padding:2px 9px;font-weight:800;font-size:0.73rem;white-space:nowrap;">Бүх анги</span>'
+          : (x.grade_cnt
+            ? '<span style="background:#ede9fe;color:#6d28d9;border-radius:100px;padding:2px 9px;font-weight:800;font-size:0.73rem;">' + wsEsc(x.grades || '') + '</span>'
+            : '<span style="color:var(--muted);">—</span>');
+        return '<tr style="border-top:1px solid var(--border);">'
+          + '<td style="padding:8px;font-weight:700;">' + wsEsc(x.name || '(нэргүй)')
+          +   (x.verified ? '' : '<div style="font-size:0.68rem;color:#f59e0b;font-weight:800;">баталгаажаагүй</div>') + '</td>'
+          + '<td style="padding:8px;">' + wsEsc(x.email) + '</td>'
+          + '<td style="padding:8px;white-space:nowrap;">' + wsEsc(x.phone || '—') + '</td>'
+          + '<td style="padding:8px;">' + right
+          +   (x.buy_cnt ? ('<div style="font-size:0.68rem;color:var(--muted);font-weight:700;">' + x.buy_cnt + ' худалдан авалт</div>') : '') + '</td>'
+          + '<td style="padding:8px;color:var(--muted);white-space:nowrap;">' + wsDate(x.created_at).slice(0, 10) + '</td>'
+          + '</tr>';
+      }).join('') + '</tbody></table></div>';
+  }).catch(function (e) { el.innerHTML = '<div style="color:#dc2626;padding:12px;">' + wsEsc(e.message) + '</div>'; });
+}
+window.regLoad = regLoad; window.regClear = regClear;
+/* Бичиж байхад автоматаар хайна */
+document.addEventListener('input', function (e) {
+  if (!e.target || e.target.id !== 'reg-q') return;
+  clearTimeout(_regTmr); _regTmr = setTimeout(regLoad, 350);
+});
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Enter' && e.target && e.target.id === 'reg-q') { clearTimeout(_regTmr); regLoad(); }
+});
 
 /* ───────── Орлогын тайлан ─────────
    Код зөв орох хүртэл сервер мөнгөн дүн БУЦААХГҮЙ (api/qpay.js: ws_report).
@@ -530,7 +591,7 @@ function admFoldInit(){
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',admFoldInit); else admFoldInit();
 
 /* ── Дасгалын төв удирдлага — хойшоо дэд цэс ── */
-var ADM_WS_TABS  = ['overview','promo','users','purchases','feedback'];
+var ADM_WS_TABS  = ['overview','regs','promo','users','purchases','feedback'];
 var ADM_WS_FOLDS = ['feedback','promo','users','gradeusers','purchases'];
 function admWsTab(name){
   if(ADM_WS_TABS.indexOf(name)<0) name='overview';
@@ -542,6 +603,7 @@ function admWsTab(name){
     if(b){ if(on)b.classList.add('on'); else b.classList.remove('on'); b.setAttribute('aria-selected', on?'true':'false'); }
   });
   try{ localStorage.setItem('admWsTab', name); }catch(e){}
+  if(name==='regs' && !window._regLoaded){ window._regLoaded=1; try{ regLoad(); }catch(e){} }
   try{ document.querySelectorAll('#page-wssales .fold').forEach(function(c){ admFoldSync(c); }); }catch(e){}
   admWsTabScroll();
 }
@@ -1758,7 +1820,7 @@ body { font-family:'Baloo 2',sans-serif; background:var(--bg); color:var(--text)
 .login-err { color:var(--red); font-size:0.82rem; font-weight:700; text-align:center; margin-top:10px; min-height:20px; }
 
 /* ── DASHBOARD ── */
-#dashboard { display:none; }
+#dashboard { display:none; flex-direction:column; }
 .topbar {
   display:flex; align-items:center; justify-content:space-between;
   padding:16px 24px; background:var(--surface); border-bottom:1px solid var(--border);
@@ -1778,7 +1840,7 @@ body { font-family:'Baloo 2',sans-serif; background:var(--bg); color:var(--text)
 }
 .logout-btn:hover { border-color:var(--red); color:var(--red); }
 
-.layout { display:flex; min-height:100vh; }
+.layout { display:block; min-height:100vh; min-width:0; }
 
 /* ── SIDEBAR ── */
 .sidebar {
@@ -1807,7 +1869,7 @@ body { font-family:'Baloo 2',sans-serif; background:var(--bg); color:var(--text)
 .nav-section { font-size:0.65rem; font-weight:900; color:rgba(136,128,170,0.5); text-transform:uppercase; letter-spacing:1.5px; padding:16px 14px 6px; }
 
 /* ── MAIN ── */
-.main { flex:1; padding:28px 28px; overflow-x:hidden; }
+.main { padding:24px 24px 48px; overflow-x:hidden; min-width:0; }
 .page { display:none; }
 .page.active { display:block; }
 .page-title { font-size:1.4rem; font-weight:900; color:var(--text); margin-bottom:6px; }
@@ -2052,10 +2114,11 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
 
 /* ── Утсан дээрх цэс (гамбургер + drawer) ── */
   /* Дээд мөр: зүүн талд гамбургер, баруун талд дарк/гарах */
-    .nav-burger { display:none; }   /* зөвхөн утсан дээр (доорх media) */
-.nav-topbar { display:flex; align-items:center; gap:6px;
+    .nav-topbar { display:flex; align-items:center; gap:6px;
     position:sticky; top:0; z-index:1000; width:100%;
-    padding:7px 10px; border-bottom:1px solid var(--border); background:var(--surface); }
+    padding:8px 12px; border-bottom:1px solid var(--border); background:var(--surface); }
+  /* Баруун талын хоёр товч үргэлж буланд — профайл маягаар */
+  .nav-topbar .nav-spacer { flex:1; }
   .nav-burger { display:flex; align-items:center; justify-content:center;
     background:none; border:none; color:var(--text); cursor:pointer;
     padding:7px 8px; border-radius:9px; }
@@ -2067,31 +2130,36 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
     cursor:pointer; padding:7px 9px; border-radius:9px; flex:none; }
   .nav-icbtn:hover { background:rgba(123,82,238,0.14); }
   .nav-icbtn-out { color:#ff6b6b; }
-  .nav-backdrop { display:none; }
+  /* Цэс нь БҮХ дэлгэцэд хажуугаас гарах drawer */
+.sidebar {
+  position:fixed; top:0; left:-290px; bottom:0; width:272px; z-index:1200;
+  overflow-y:auto; -webkit-overflow-scrolling:touch;
+  border-right:1px solid var(--border); box-shadow:4px 0 28px rgba(0,0,0,0.3);
+  transition:left 0.22s ease;
+}
+.sidebar.open { left:0; }
+.nav-backdrop {
+  display:block; position:fixed; inset:0; z-index:1100;
+  background:rgba(8,6,24,0.5); opacity:0; pointer-events:none; transition:opacity 0.22s ease;
+}
+.nav-backdrop.open { opacity:1; pointer-events:auto; }
 @media(max-width:768px) {
-  /* Sidebar-ыг нуухын оронд хажуугаас гарах цэс болгоно */
-  .sidebar {
-    position:fixed; top:0; left:-270px; bottom:0; width:258px; z-index:1200;
-    overflow-y:auto; -webkit-overflow-scrolling:touch;
-    border-right:1px solid var(--border); box-shadow:4px 0 24px rgba(0,0,0,0.35);
-    transition:left 0.22s ease;
-  }
-  .sidebar.open { left:0; }
-  .nav-burger { display:flex; }
-  .nav-backdrop {
-    display:block; position:fixed; inset:0; z-index:1100;
-    background:rgba(8,6,24,0.55); opacity:0; pointer-events:none; transition:opacity 0.22s ease;
-  }
-  .nav-backdrop.open { opacity:1; pointer-events:auto; }
   /* Гамбургер зөвхөн утсан дээр — компьютер дээр хажуугийн цэс байнга харагдана */
   .nav-topbar { padding:7px 10px; }
   /* Утсан дээр хуудас жижгэрэхгүй байх:
      #dashboard нь хэвтээ flex хэвээр байвал дээд мөр хажуу тийш зай эзэлнэ;
      flex item-ийн min-width:auto нь хүснэгт шахагдахаас татгалзаж бүхэл
      хуудсыг өргөсгөөд хөтөч бүгдийг багасгаж татдаг. */
-  #dashboard { flex-direction:column; }
-  .layout { min-width:0; width:100%; }
-  .main { min-width:0; padding:16px 14px 40px; }
+
+  /* Апп шиг мэдрэмж: үсэг автоматаар томрохгүй, дарахад саарал гялбаа гарахгүй,
+     өргөн агуулга хуудсыг тэлэхгүй. */
+  html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
+  body { overflow-x:hidden; }
+  * { -webkit-tap-highlight-color:rgba(123,82,238,0.12); }
+  img, svg, canvas, video { max-width:100%; height:auto; }
+  .table-card, .q-form { max-width:100%; overflow-x:auto; }
+  input, select, textarea, button { font-size:16px; }   /* iOS автомат zoom-оос сэргийлнэ */
+  .main { padding:16px 14px 40px; }
   .stats-grid { grid-template-columns:1fr 1fr; }
   .choices-row { grid-template-columns:1fr 1fr; }
   .form-row { grid-template-columns:1fr; }
@@ -2160,7 +2228,7 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
       <button class="nav-burger" onclick="admToggleNav()" aria-label="Цэс" title="Цэс">
         <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
       </button>
-      <span class="nb-page" id="nb-page"></span>
+      <div class="nav-spacer"></div>
       <button class="nav-icbtn" onclick="toggleTheme()" id="theme-btn" aria-label="Лайт / Дарк" title="Лайт / Дарк">
         <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
       </button>
@@ -2282,7 +2350,7 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
       </button>
         <button class="nav-item" onclick="showAdmPw()">
           <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><rect x="4" y="10" width="16" height="10" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="1.8"/></svg>
-          Нууц үг солих
+          Админ
         </button>
       </div>
     </div>
@@ -2933,6 +3001,7 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
 
         <div class="ws-tabs" id="ws-tabs" role="tablist">
           <button type="button" class="ws-tab" data-wstab="overview" role="tab" onclick="admWsTab('overview')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>Тойм</button>
+          <button type="button" class="ws-tab" data-wstab="regs" role="tab" onclick="admWsTab('regs')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>Нийт бүртгэл</button>
           <button type="button" class="ws-tab" data-wstab="promo" role="tab" onclick="admWsTab('promo')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0l-7.2-7.2A2 2 0 0 1 3 12V5a2 2 0 0 1 2-2h7a2 2 0 0 1 1.4.6l7.2 7.2a2 2 0 0 1 0 2.6z"/><line x1="7.5" y1="7.5" x2="7.51" y2="7.5"/></svg>Промо код</button>
           <button type="button" class="ws-tab" data-wstab="users" role="tab" onclick="admWsTab('users')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Хэрэглэгч</button>
           <button type="button" class="ws-tab" data-wstab="purchases" role="tab" onclick="admWsTab('purchases')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/></svg>Худалдан авалт</button>
@@ -2951,6 +3020,25 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
             <span id="ws-announce-msg" style="font-size:0.8rem;font-weight:700;"></span>
           </div>
         </div>
+        </div>
+
+        <div class="ws-tabpane" id="wstab-regs" role="tabpanel">
+          <div class="table-card" style="padding:14px 16px;">
+            <div class="table-header" style="margin-bottom:10px;">
+              <div class="table-title">Дасгалын төвд бүртгүүлсэн хүмүүс</div>
+              <span id="reg-count" style="font-size:0.76rem;color:var(--muted);font-weight:800;"></span>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+              <div style="position:relative;flex:1;min-width:200px;">
+                <svg style="position:absolute;left:11px;top:50%;transform:translateY(-50%);pointer-events:none;" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+                <input id="reg-q" type="search" placeholder="Нэр, утас эсвэл имэйлээр хайх…" autocomplete="off"
+                  style="width:100%;padding:9px 12px 9px 33px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-weight:700;outline:none;box-sizing:border-box;">
+              </div>
+              <button onclick="regLoad()" style="background:linear-gradient(135deg,#7B52EE,#A855F7);border:0;color:#fff;border-radius:9px;padding:9px 18px;cursor:pointer;font-weight:800;">Хайх</button>
+              <button onclick="regClear()" style="background:var(--surface2);border:1.4px solid var(--border);color:var(--text);border-radius:9px;padding:9px 14px;cursor:pointer;font-weight:700;">Арилгах</button>
+            </div>
+            <div id="reg-list"></div>
+          </div>
         </div>
 
         <div class="ws-tabpane" id="wstab-promo" role="tabpanel">
@@ -5911,12 +5999,7 @@ function openEditMathModal(targetId) {
 
   // ══ INIT ══
   document.addEventListener('DOMContentLoaded', function() {
-    // Theme сэргээх
-    if (localStorage.getItem('cm_admin_theme') === 'light') {
-      document.body.classList.add('light');
-      var b = document.getElementById('theme-btn');
-      if (b) b.textContent = '🌙 Дарк';
-    }
+    // Theme-ийг дээр нь (admThemeApply) хэрэглэсэн — энд давтахгүй.
     // MathLive virtual keyboard анхандаа нуух
     initMathKb();
     setInterval(updatePreview, 150);
