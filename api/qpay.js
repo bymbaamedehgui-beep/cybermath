@@ -986,7 +986,7 @@ module.exports = async (req, res) => {
     }
 
     // ── АДМИН: ажлын хуудсын промо код удирдах + борлуулалт харах ──
-    if (['ws_promo_create','ws_promo_list','ws_promo_update','ws_purchases_list','ws_users_list','ws_grade_users','ws_grant','ws_revoke','ws_reconcile','ws_broadcast'].indexOf(req.query.action) >= 0) {
+    if (['ws_promo_create','ws_promo_list','ws_promo_update','ws_purchases_list','ws_users_list','ws_grade_users','ws_grant','ws_revoke','ws_reconcile','ws_broadcast','ws_report','ws_report_pin'].indexOf(req.query.action) >= 0) {
       if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
       await ensureWsExtra();
       await ensureWsTable();
