@@ -398,95 +398,6 @@ window.loadWsSales = async function(){
   try{ var an=await wsPostW('getAnnounce',{}); var ai=document.getElementById('ws-announce'); if(ai)ai.value=(an&&an.announce)||''; }catch(e){}
   try{ var fb=await wsPostW('feedback_list',{}); renderWsFeedback((fb&&fb.feedback)||[]); }
   catch(e){ var fe=document.getElementById('ws-feedback-list'); if(fe)fe.innerHTML='<div style="color:#dc2626;padding:8px;">Алдаа: '+wsEsc(e.message)+'</div>'; }
-  try{ loadEventsAdmin(); }catch(e){}
-};
-window.loadEventsAdmin=async function(){
-  var el=document.getElementById('ev-list'); if(!el)return;
-  try{ var d=await wsPostW('event_list',{}); renderEventsAdmin((d&&d.events)||[]); }
-  catch(e){ el.innerHTML='<div style="color:#dc2626;padding:6px;">Алдаа: '+wsEsc(e.message)+'</div>'; }
-};
-var IC_TAG='<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0l-7-7A2 2 0 0 1 3 12.2V4.5A1.5 1.5 0 0 1 4.5 3h7.7a1.9 1.9 0 0 1 1.4.6l7 7a2 2 0 0 1 0 2.8Z"/><circle cx="7.5" cy="7.5" r="1.2"/></svg>';
-var IC_USERS='<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="3.2"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
-var IC_CLOCK='<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
-var IC_PENCIL='<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
-var IC_TRASH='<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>';
-var IC_CHECK='<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="20 6 9 17 4 12"/></svg>';
-function renderEventsAdmin(list){
-  var el=document.getElementById('ev-list'); if(!el)return;
-  if(!list.length){el.innerHTML='<div style="color:var(--muted);font-size:0.82rem;padding:4px;">Одоогоор сургалт алга.</div>';return;}
-  el.innerHTML='<div style="font-size:0.76rem;font-weight:800;color:var(--muted);margin-bottom:6px;">Зарласан сургалтууд</div>'+list.map(function(e){
-    var slots=(e.slots||[]).join(' · ');
-    return '<div style="border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:8px;background:var(--surface);">'
-      +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
-        +'<span style="font-weight:800;color:var(--text);">'+wsEsc(e.title)+'</span>'
-        +(e.active?'<span style="font-size:.68rem;font-weight:800;background:#eafff1;color:#16a34a;border-radius:999px;padding:1px 8px;">идэвхтэй</span>':'<span style="font-size:.68rem;font-weight:800;background:var(--surface2);color:var(--muted);border-radius:999px;padding:1px 8px;">идэвхгүй</span>')
-        +'<span style="margin-left:auto;font-size:.76rem;color:var(--muted);display:inline-flex;align-items:center;gap:4px;">'+IC_TAG+Number(e.price).toLocaleString()+'₮ · '+IC_USERS+e.paid_count+'/'+e.reg_count+' төлсөн</span>'
-      +'</div>'
-      +(slots?'<div style="font-size:.76rem;color:var(--muted);margin-top:4px;display:flex;align-items:center;gap:5px;">'+IC_CLOCK+wsEsc(slots)+'</div>':'')
-      +'<div style="display:flex;gap:6px;margin-top:8px;">'
-        +'<button onclick="wsEditEvent(\''+e.id+'\')" style="display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border);background:var(--surface2);color:var(--text);border-radius:8px;padding:5px 11px;cursor:pointer;font-weight:700;font-size:.78rem;">'+IC_PENCIL+'Засах</button>'
-        +'<button onclick="wsViewRegs(\''+e.id+'\')" style="display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border);background:var(--surface2);color:var(--text);border-radius:8px;padding:5px 11px;cursor:pointer;font-weight:700;font-size:.78rem;">'+IC_USERS+'Бүртгэл ('+e.reg_count+')</button>'
-        +'<button onclick="wsDeleteEvent(\''+e.id+'\')" style="display:inline-flex;align-items:center;gap:5px;border:0;background:transparent;color:#ef4444;cursor:pointer;font-weight:700;font-size:.78rem;margin-left:auto;">'+IC_TRASH+'Устгах</button>'
-      +'</div></div>';
-  }).join('');
-  window._EV_ADMIN=list;
-}
-window.wsEditEvent=function(id){
-  var e=(window._EV_ADMIN||[]).filter(function(x){return String(x.id)===String(id);})[0]; if(!e)return;
-  document.getElementById('ev-id').value=e.id;
-  document.getElementById('ev-title').value=e.title||'';
-  document.getElementById('ev-descr').value=e.descr||'';
-  document.getElementById('ev-price').value=e.price||20000;
-  document.getElementById('ev-active').value=e.active?'1':'0';
-  document.getElementById('ev-slots').value=(e.slots||[]).join('\n');
-  document.getElementById('ev-title').scrollIntoView({behavior:'smooth',block:'center'});
-};
-window.wsResetEventForm=function(){
-  document.getElementById('ev-id').value='';
-  document.getElementById('ev-title').value='';
-  document.getElementById('ev-descr').value='';
-  document.getElementById('ev-price').value='20000';
-  document.getElementById('ev-active').value='1';
-  document.getElementById('ev-slots').value='';
-  document.getElementById('ev-regs').innerHTML='';
-  var m=document.getElementById('ev-msg'); if(m)m.textContent='';
-};
-window.wsSaveEvent=async function(){
-  var m=document.getElementById('ev-msg');
-  var title=(document.getElementById('ev-title').value||'').trim();
-  if(!title){m.style.color='#dc2626';m.textContent='Гарчиг оруулна уу';return;}
-  var body={
-    id:document.getElementById('ev-id').value||undefined,
-    title:title,
-    descr:(document.getElementById('ev-descr').value||'').trim(),
-    price:parseInt(document.getElementById('ev-price').value,10)||20000,
-    slots:(document.getElementById('ev-slots').value||''),
-    active:document.getElementById('ev-active').value==='1'
-  };
-  m.style.color='var(--muted)';m.textContent='Хадгалж байна…';
-  try{ await wsPostW('event_save',body); m.style.color='#16a34a';m.textContent='✓ Хадгаллаа'; wsResetEventForm(); loadEventsAdmin(); }
-  catch(e){ m.style.color='#dc2626';m.textContent='Алдаа: '+e.message; }
-};
-window.wsDeleteEvent=async function(id){
-  if(!confirm('Энэ сургалтыг бүртгэлтэй нь бүрмөсөн устгах уу?'))return;
-  try{ await wsPostW('event_delete',{id:id}); loadEventsAdmin(); document.getElementById('ev-regs').innerHTML=''; }
-  catch(e){ alert('Алдаа: '+e.message); }
-};
-window.wsViewRegs=async function(id){
-  var el=document.getElementById('ev-regs'); el.innerHTML='<div style="color:var(--muted);font-size:0.8rem;padding:6px;">Ачааллаж байна…</div>';
-  try{ var d=await wsPostW('event_regs',{event_id:id}); var regs=(d&&d.regs)||[];
-    if(!regs.length){el.innerHTML='<div style="color:var(--muted);font-size:0.82rem;padding:6px;">Бүртгэл алга.</div>';return;}
-    el.innerHTML='<div style="font-size:0.76rem;font-weight:800;color:var(--muted);margin:4px 0 6px;">Бүртгэгдсэн хүмүүс ('+regs.length+')</div>'
-      +'<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.8rem;"><thead><tr style="color:var(--muted);text-align:left;">'
-      +'<th style="padding:4px 8px;">Төлөв</th><th style="padding:4px 8px;">Нэр/Имэйл</th><th style="padding:4px 8px;">Утас</th><th style="padding:4px 8px;">Цаг</th><th style="padding:4px 8px;">Огноо</th></tr></thead><tbody>'
-      +regs.map(function(r){return '<tr style="border-top:1px solid var(--border);">'
-        +'<td style="padding:5px 8px;white-space:nowrap;">'+(r.paid?'<span style="color:#16a34a;font-weight:800;display:inline-flex;align-items:center;gap:3px;">'+IC_CHECK+'Төлсөн</span>':'<span style="color:#f59e0b;font-weight:800;display:inline-flex;align-items:center;gap:3px;">'+IC_CLOCK+'Хүлээгдэж</span>')+'</td>'
-        +'<td style="padding:5px 8px;">'+wsEsc(r.name||'')+'<div style="color:var(--muted);font-size:.72rem;">'+wsEsc(r.email)+'</div></td>'
-        +'<td style="padding:5px 8px;">'+wsEsc(r.phone||'')+'</td>'
-        +'<td style="padding:5px 8px;">'+wsEsc(r.slot||'')+'</td>'
-        +'<td style="padding:5px 8px;color:var(--muted);">'+wsDate(r.created_at)+'</td></tr>';}).join('')
-      +'</tbody></table></div>';
-  }catch(e){ el.innerHTML='<div style="color:#dc2626;padding:6px;">Алдаа: '+wsEsc(e.message)+'</div>'; }
 };
 window.saveAnnounce=async function(){
   var t=(document.getElementById('ws-announce').value||'').trim();
@@ -841,31 +752,6 @@ window.toggleWsPromo = async function(code,active){
 };
 window.setWsPromoWelcome = async function(code,on){
   try{ await wsPost('ws_promo_update',{code:code,welcome:on}); loadWsSales(); }catch(e){ alert('Алдаа: '+e.message); }
-};
-window.wsBroadcastTest = async function(){
-  var to=(document.getElementById('wb-test-email').value||'').trim();
-  var st=document.getElementById('wb-status'); st.style.color='var(--muted)'; st.textContent='Тест илгээж байна…';
-  try{ var d=await wsPost('ws_broadcast',{test:true,email:to});
-    if(d&&d.ok){ st.style.color='#16a34a'; st.textContent='✓ Тест илгээгдлээ → '+d.to+' (имэйлээ шалгана уу)'; }
-    else { st.style.color='#dc2626'; st.textContent='Алдаа: '+((d&&d.error)||'илгээж чадсангүй'); }
-  }catch(e){ st.style.color='#dc2626'; st.textContent='Алдаа: '+e.message; }
-};
-window.wsBroadcastAll = async function(){
-  if(!confirm('Худалдаж аваагүй БҮХ бүртгэлтэй хэрэглэгч рүү промо имэйл илгээх үү?\n\nЭнэ нь буцаах боломжгүй. Эхлээд тест илгээж шалгасан эсэхээ баталгаажуулаарай.'))return;
-  var st=document.getElementById('wb-status'), btn=document.getElementById('wb-send'); btn.disabled=true;
-  var campaign='promo-'+new Date().toISOString().slice(0,10);
-  var totalSent=0,totalFail=0,guard=0;
-  st.style.color='var(--muted)'; st.textContent='Эхэлж байна…';
-  while(guard++<400){
-    var d;
-    try{ d=await wsPost('ws_broadcast',{campaign:campaign,batch:18}); }
-    catch(e){ st.style.color='#dc2626'; st.textContent='Алдаа: '+e.message+' ('+totalSent+' илгээгдсэн)'; btn.disabled=false; return; }
-    totalSent+=(d.sent||0); totalFail+=(d.failed||0);
-    if(!d.remaining){ st.style.color='#16a34a'; st.textContent='✓ Дууслаа — нийт '+totalSent+' имэйл илгээгдлээ'+(totalFail?(' · '+totalFail+' амжилтгүй'):''); break; }
-    st.textContent='Илгээж байна… '+totalSent+' илгээгдсэн'+(totalFail?(' · '+totalFail+' алдаа'):'')+' · '+d.remaining+' үлдсэн';
-    if((d.sent||0)===0 && (d.failed||0)===0){ st.style.color='#dc2626'; st.textContent='Зогслоо ('+totalSent+' илгээгдсэн · '+d.remaining+' үлдсэн — Gmail хязгаар эсвэл алдаа байж магадгүй)'; break; }
-  }
-  btn.disabled=false;
 };
 window.setWsPromoFake = async function(code,cur){
   var v=prompt('«'+code+'» кодыг /promo дээр харуулах ХУУРАМЧ ашиглалт.\nФормат: ашигласан/нийт (жиш: 6/10) эсвэл ганц тоо (8).\nБодит тоог харуулах бол хоосон орхино уу:', cur||'');
@@ -2935,41 +2821,6 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
           </div>
         </div>
 
-        <!-- Сургалт (Event) -->
-        <div class="table-card" style="padding:14px 16px;margin-bottom:18px;">
-          <div class="table-header" style="margin-bottom:10px;"><div class="table-title" style="display:inline-flex;align-items:center;gap:7px;"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10.5 12 6 3 10.5l9 4.5 9-4.5Z"/><path d="M7 12.5V17c0 .9 2.2 2 5 2s5-1.1 5-2v-4.5"/><path d="M21 10.5V15"/></svg>Сургалт зарлах <span style="font-size:0.72rem;color:var(--muted);font-weight:700;">(Дасгалын төвд баннераар гарна)</span></div></div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
-            <div style="grid-column:1/-1;">
-              <label style="font-size:0.76rem;font-weight:800;color:var(--muted);display:block;margin-bottom:4px;">Гарчиг</label>
-              <input id="ev-title" type="text" placeholder="Жнь: Тригонометрийн эрчимжүүлсэн хичээл" style="width:100%;padding:9px 12px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-weight:700;outline:none;box-sizing:border-box;">
-            </div>
-            <div style="grid-column:1/-1;">
-              <label style="font-size:0.76rem;font-weight:800;color:var(--muted);display:block;margin-bottom:4px;">Тайлбар</label>
-              <textarea id="ev-descr" rows="2" placeholder="Товч танилцуулга…" style="width:100%;padding:9px 12px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;outline:none;box-sizing:border-box;resize:vertical;"></textarea>
-            </div>
-            <div>
-              <label style="font-size:0.76rem;font-weight:800;color:var(--muted);display:block;margin-bottom:4px;">Төлбөр (₮)</label>
-              <input id="ev-price" type="number" value="20000" style="width:100%;padding:9px 12px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-weight:700;outline:none;box-sizing:border-box;">
-            </div>
-            <div>
-              <label style="font-size:0.76rem;font-weight:800;color:var(--muted);display:block;margin-bottom:4px;">Идэвхтэй эсэх</label>
-              <select id="ev-active" style="width:100%;padding:9px 12px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-weight:700;outline:none;box-sizing:border-box;"><option value="1">✓ Идэвхтэй (харагдана)</option><option value="0">Идэвхгүй</option></select>
-            </div>
-            <div style="grid-column:1/-1;">
-              <label style="font-size:0.76rem;font-weight:800;color:var(--muted);display:block;margin-bottom:4px;">Цагийн сонголтууд <span style="font-weight:600;">(мөр бүрд нэг)</span></label>
-              <textarea id="ev-slots" rows="3" placeholder="Ням гараг 14:00&#10;Мягмар 19:00&#10;Пүрэв 19:00" style="width:100%;padding:9px 12px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;outline:none;box-sizing:border-box;resize:vertical;"></textarea>
-            </div>
-          </div>
-          <div style="display:flex;gap:8px;align-items:center;">
-            <input type="hidden" id="ev-id" value="">
-            <button onclick="wsSaveEvent()" style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#7B52EE,#A855F7);border:0;color:#fff;border-radius:10px;padding:9px 18px;cursor:pointer;font-weight:800;font-size:0.85rem;"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>Хадгалах</button>
-            <button onclick="wsResetEventForm()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:9px 14px;cursor:pointer;font-weight:800;font-size:0.85rem;">Цэвэрлэх</button>
-            <span id="ev-msg" style="font-size:0.8rem;font-weight:700;"></span>
-          </div>
-          <div id="ev-list" style="margin-top:14px;"></div>
-          <div id="ev-regs" style="margin-top:12px;"></div>
-        </div>
-
         <!-- Санал хүсэлт -->
         <div class="table-card fold" data-fold="feedback" style="padding:14px 16px;margin-bottom:18px;">
           <div class="table-header fold-head" onclick="admFoldToggle(this)" style="margin-bottom:10px;display:flex;gap:8px;align-items:center;">
@@ -3035,18 +2886,6 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
             <button class="btn-sm" onclick="event.stopPropagation();loadWsSales()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 12px;cursor:pointer;font-weight:700;">↻ Шинэчлэх</button>
           </div>
           <div id="ws-promo-list" class="fold-body"></div>
-        </div>
-
-        <!-- Промо имэйл кампанит ажил -->
-        <div class="table-card" style="padding:14px 16px;margin-bottom:18px;border:1.5px solid rgba(245,158,11,.35);">
-          <div class="q-form-title" style="display:flex;align-items:center;gap:6px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/></svg>Промо имэйл — худалдаж аваагүйд</div>
-          <div style="font-size:0.8rem;color:var(--muted);margin:8px 0 12px;line-height:1.5;">Идэвхтэй эрхгүй, бүртгэлтэй (баталгаажсан) хэрэглэгчид рүү <b>cyber-math.com/promo</b> линктэй хямдралын имэйл илгээнэ. Gmail-ийн өдрийн хязгаар ~500 тул багц-багцаар илгээгдэнэ. <b>Буцаах боломжгүй</b> тул эхлээд тест илгээж шалгаарай.</div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
-            <input id="wb-test-email" type="email" placeholder="Тест хаяг (хоосон бол cybermath424@gmail.com)" style="flex:1;min-width:220px;padding:8px 11px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-weight:600;outline:none;box-sizing:border-box;">
-            <button onclick="wsBroadcastTest()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:800;">Тест илгээх</button>
-            <button id="wb-send" onclick="wsBroadcastAll()" style="background:linear-gradient(135deg,#f59e0b,#ef7a0b);border:0;color:#fff;border-radius:8px;padding:8px 16px;cursor:pointer;font-weight:800;">Бүгдэд илгээх →</button>
-          </div>
-          <div id="wb-status" style="font-size:0.85rem;font-weight:800;min-height:18px;"></div>
         </div>
 
         <!-- Хэрэглэгчийн бүртгэл (эрх авсан хүмүүс) -->
