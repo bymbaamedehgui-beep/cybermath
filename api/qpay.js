@@ -25,6 +25,7 @@ function wsBasePrice(months) { return WS_PRICES[wsNormMonths(months)]; }
 const WS_YEAR_PRICE = WS_PRICES[12];   // хуучин 'wsyear' нийцэл
 // ── Ажлын хуудсыг АНГИАР худалдан авах (нэг анги = сард 9900) ──
 const WG = require('./_wsgrade');
+const SMS = require('./_sms');
 const WDEV = require('./_wsdev');
 const WS_GRADE_PER_MONTH = parseInt(process.env.WS_GRADE_PRICE || '9900', 10);
 const WS_GRADE_MONTHS = [1, 3, 6, 12];
@@ -83,6 +84,129 @@ async function grantWsUntil(email, exp) {
   );
   return exp;
 }
+
+// ─────────── Админаас олгосон эрх + орлогын тайлан (PIN хамгаалалттай) ───────────
+// Үнэгүй олгосон эрхийг ч мөнгөн дүнгээр нь тооцож тайланд харуулна.
+let admGrantsReady = false;
+async function ensureAdminGrants() {
+  if (admGrantsReady) return;
+  await pool.query(`CREATE TABLE IF NOT EXISTS ws_admin_grants (
+    id BIGSERIAL PRIMARY KEY,
+    email TEXT NOT NULL,
+    grade TEXT,
+    months INT NOT NULL DEFAULT 1,
+    amount INT NOT NULL DEFAULT 0,
+    source TEXT NOT NULL DEFAULT 'admin',
+    note TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`).catch(() => {});
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_adm_grants_at ON ws_admin_grants(created_at)').catch(() => {});
+  admGrantsReady = true;
+  await backfillAdminGrants();
+}
+// Нэг удаагийн буцаан тооцоо: худалдан авалтгүй атлаа эрхтэй мөрүүдийг
+// (админ олголт, урилгын шагнал, азтаны хүрд) мөнгөн дүнгээр нь үнэлнэ.
+async function backfillAdminGrants() {
+  try {
+    const f = await pool.query("SELECT sval FROM ws_settings WHERE skey='adm_grants_backfill_v1'");
+    if (f.rows.length) return;
+  } catch (e) { return; }          // ws_settings байхгүй бол алгасна
+  try {
+    // Ангийн эрх: 9 900₮ × сар (хугацааны уртаас сарыг тооцно)
+    await pool.query(`
+      INSERT INTO ws_admin_grants (email, grade, months, amount, source, note, created_at)
+      SELECT lower(a.email), a.grade, m.mo, m.mo * $1::int, 'backfill', 'өмнөх (автоматаар тооцсон)', a.updated_at
+        FROM ws_grade_access a
+        CROSS JOIN LATERAL (SELECT GREATEST(1, ROUND(EXTRACT(EPOCH FROM (a.expires_at - a.updated_at)) / 2592000.0))::int AS mo) m
+       WHERE NOT EXISTS (SELECT 1 FROM ws_purchases p
+                          WHERE lower(p.email) = lower(a.email) AND p.grade = a.grade)`,
+      [WS_GRADE_PER_MONTH]);
+    // Бүх ангийн эрх: шаталсан үнээр (3/6/9/12 сар)
+    await pool.query(`
+      INSERT INTO ws_admin_grants (email, grade, months, amount, source, note, created_at)
+      SELECT lower(a.email), NULL, m.mo,
+             CASE WHEN m.mo >= 12 THEN $4::int WHEN m.mo >= 9 THEN $3::int WHEN m.mo >= 6 THEN $2::int ELSE $1::int END,
+             'backfill', 'өмнөх (автоматаар тооцсон)', a.updated_at
+        FROM ws_access a
+        CROSS JOIN LATERAL (SELECT GREATEST(1, ROUND(EXTRACT(EPOCH FROM (a.expires_at - a.updated_at)) / 2592000.0))::int AS mo) m
+       WHERE NOT EXISTS (SELECT 1 FROM ws_purchases p
+                          WHERE lower(p.email) = lower(a.email) AND p.grade IS NULL)`,
+      [WS_PRICES[3], WS_PRICES[6], WS_PRICES[9], WS_PRICES[12]]);
+    await pool.query("INSERT INTO ws_settings (skey, sval) VALUES ('adm_grants_backfill_v1','1') ON CONFLICT (skey) DO NOTHING");
+  } catch (e) { console.error('[adm grants backfill]', e.message); }
+}
+// Админ эрх олгох бүрт мөнгөн дүнг нь бүртгэнэ (тайланд нэмэгдэнэ)
+async function logAdminGrant(email, grade, months, note) {
+  try {
+    await ensureAdminGrants();
+    const amt = grade ? wsGradeBase(months) : (wsBasePrice(months) || 0);
+    await pool.query(
+      'INSERT INTO ws_admin_grants (email, grade, months, amount, source, note) VALUES ($1,$2,$3,$4,$5,$6)',
+      [String(email).trim().toLowerCase(), grade || null, months, amt, 'admin', note || null]);
+  } catch (e) { console.error('[adm grant log]', e.message); }
+}
+
+// ── Тайлангийн PIN ──
+function pinHash(pin) {
+  return crypto.createHmac('sha256', jwtSecret() || 'x').update('rpin|' + String(pin)).digest('hex');
+}
+async function pinStored() {
+  try {
+    const r = await pool.query("SELECT sval FROM ws_settings WHERE skey='report_pin'");
+    return r.rows.length ? String(r.rows[0].sval || '') : '';
+  } catch (e) { return ''; }
+}
+function pinEq(a, b) {
+  if (!a || !b || a.length !== b.length) return false;
+  try { return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b)); } catch (e) { return false; }
+}
+// 4 оронтой код = 10 000 хувилбар. Цагт 10 оролдлогоор хязгаарлана.
+async function pinTry(req) {
+  try {
+    const ip = clientIp(req) || 'x';
+    const h = await SMS._internal.hit('rpin:' + crypto.createHash('sha1').update(String(ip)).digest('hex').slice(0, 16), 3600);
+    if (!h) return false;                       // DB алдаа → хаана
+    return h.count <= 10;
+  } catch (e) { return false; }
+}
+
+async function revReport() {
+  await ensureAdminGrants();
+  const WIN = [['d1', '1 day'], ['d7', '7 days'], ['d30', '30 days'], ['all', null]];
+  const out = {};
+  for (const [key, iv] of WIN) {
+    const w = iv ? "WHERE created_at > NOW() - INTERVAL '" + iv + "'" : '';
+    const ws = await pool.query('SELECT COUNT(*)::int n, COALESCE(SUM(amount),0)::int s FROM ws_purchases ' + w);
+    const gm = await pool.query('SELECT COUNT(*)::int n, COALESCE(SUM(amount),0)::int s FROM pay_pending '
+      + (w ? w + ' AND granted = TRUE' : 'WHERE granted = TRUE'));
+    const ag = await pool.query('SELECT COUNT(*)::int n, COALESCE(SUM(amount),0)::int s FROM ws_admin_grants ' + w);
+    out[key] = {
+      ws: { n: ws.rows[0].n, sum: ws.rows[0].s },        // ажлын хуудас — худалдан авалт
+      game: { n: gm.rows[0].n, sum: gm.rows[0].s },      // тоглоомын эрх — худалдан авалт
+      granted: { n: ag.rows[0].n, sum: ag.rows[0].s },   // админаас нээсэн (үнэгүй)
+      paid: ws.rows[0].s + gm.rows[0].s,
+      total: ws.rows[0].s + gm.rows[0].s + ag.rows[0].s,
+    };
+  }
+  // Сүүлийн 30 хоногийн өдөр тутмын график
+  const daily = await pool.query(`
+    SELECT d::date AS day,
+           COALESCE((SELECT SUM(amount) FROM ws_purchases    WHERE created_at::date = d::date),0)::int AS ws,
+           COALESCE((SELECT SUM(amount) FROM pay_pending     WHERE granted = TRUE AND created_at::date = d::date),0)::int AS game,
+           COALESCE((SELECT SUM(amount) FROM ws_admin_grants WHERE created_at::date = d::date),0)::int AS granted
+      FROM generate_series(NOW() - INTERVAL '29 days', NOW(), INTERVAL '1 day') d
+     ORDER BY d`);
+  // Сүүлийн олголтууд
+  const recent = await pool.query(`
+    SELECT email, grade, months, amount, source, note, created_at FROM ws_admin_grants
+     ORDER BY created_at DESC LIMIT 40`);
+  const byGrade = await pool.query(`
+    SELECT COALESCE(grade,'(бүх анги)') AS grade, COUNT(*)::int n, COALESCE(SUM(amount),0)::int s
+      FROM ws_purchases WHERE created_at > NOW() - INTERVAL '30 days'
+     GROUP BY grade ORDER BY s DESC`);
+  return { ok: true, win: out, daily: daily.rows, recent: recent.rows, byGrade: byGrade.rows };
+}
+
 // ── Хоёр талын Referral (Dropbox маягаар) ──
 const REF_PCT       = parseInt(process.env.WS_REF_PCT  || '15', 10);  // уригдсан найзын хямдрал %
 const REF_PAIR      = parseInt(process.env.WS_REF_PAIR || '2',  10);  // хэдэн найз захиалбал шагнах вэ
@@ -902,6 +1026,28 @@ module.exports = async (req, res) => {
         }
         return res.json({ ok: true, checked: checked, granted_count: granted.length, granted: granted });
       }
+      // ── Орлогын тайлан (PIN шаардана) ──
+      if (req.query.action === 'ws_report') {
+        const stored = await pinStored();
+        if (!stored) return res.json({ ok: false, needSetup: true, error: 'Тайлангийн PIN тохируулаагүй байна' });
+        const pin = String(b.pin || '').trim();
+        if (!/^\d{4}$/.test(pin)) return res.status(400).json({ ok: false, error: '4 оронтой код оруулна уу' });
+        if (!(await pinTry(req))) return res.json({ ok: false, error: 'Хэт олон оролдлого. 1 цагийн дараа дахин оролдоно уу.' });
+        if (!pinEq(pinHash(pin), stored)) return res.json({ ok: false, error: 'Код буруу байна' });
+        return res.json(await revReport());
+      }
+      // ── Тайлангийн PIN тавих / солих ──
+      if (req.query.action === 'ws_report_pin') {
+        const stored = await pinStored();
+        const pin = String(b.pin || '').trim();
+        if (!/^\d{4}$/.test(pin)) return res.status(400).json({ ok: false, error: '4 оронтой код оруулна уу' });
+        if (stored) {
+          if (!(await pinTry(req))) return res.json({ ok: false, error: 'Хэт олон оролдлого. 1 цагийн дараа дахин оролдоно уу.' });
+          if (!pinEq(pinHash(String(b.old || '').trim()), stored)) return res.json({ ok: false, error: 'Хуучин код буруу байна' });
+        }
+        await pool.query("INSERT INTO ws_settings (skey, sval) VALUES ('report_pin',$1) ON CONFLICT (skey) DO UPDATE SET sval=$1", [pinHash(pin)]);
+        return res.json({ ok: true, changed: !!stored });
+      }
       // Админ шууд эрх олгох (хугацаагаар)
       if (req.query.action === 'ws_grant') {
         const email = String(b.email || '').trim().toLowerCase();
@@ -912,10 +1058,12 @@ module.exports = async (req, res) => {
           if (!wsGradeOk(gr)) return res.status(400).json({ ok: false, error: 'Анги буруу байна' });
           const gm = wsGradeMonths(b.months);
           const gexp = await WG.grantGradeMonths(email, gr, gm);
+          await logAdminGrant(email, gr, gm, String(b.note || '').slice(0, 200) || null);
           return res.json({ ok: true, email: email, grade: gr, months: gm, expires_at: gexp.toISOString() });
         }
         const months = wsNormMonths(b.months);
         const exp = await grantWsMonths(email, months);
+        await logAdminGrant(email, null, months, String(b.note || '').slice(0, 200) || null);
         return res.json({ ok: true, email: email, months: months, expires_at: exp.toISOString() });
       }
       // Админ эрх цуцлах

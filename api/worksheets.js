@@ -179,7 +179,7 @@ async function wsClaimBlocked(res, email, what) {
   try { ent = await wsEntitled(email); }
   catch (e) { sms.logErr('[ws entitled]', e); sms.failJson(res, sms.mkFail('SMS_UNAVAILABLE')); return true; }
   if (!ent) return false;
-  await sms.notify('tg:sms:claim', 3600, 'WS: эрхтэй имэйлд дансгүйгээр ' + (what || 'утсаар код хүсэв') + ': ' + sms.maskEmail(email), 10);
+  await sms.notify('tg:sms:claim', 3600, 'WS: эрхтэй имэйлд дансгүйгээр ' + (what || 'утсаар код хүсэв') + ': ' + sms.tgEmail(email), 10);
   sms.failJson(res, sms.mkFail('NEED_ADMIN'));
   return true;
 }
@@ -524,7 +524,7 @@ module.exports = async (req, res) => {
         const raw = b.phone;
         if (raw == null || String(raw).trim() === '') {
           const c = await pool.query('UPDATE ws_login SET phone=NULL, phone_verified_at=NULL, code=NULL, code_exp=NULL WHERE email=$1 RETURNING email', [email]);
-          tg.sendTelegram('WS админ утас арилгав: ' + sms.maskEmail(email)).catch(() => {});
+          tg.sendTelegram('WS админ утас арилгав: ' + sms.tgEmail(email)).catch(() => {});
           return res.json({ ok: true, email: email, exists: c.rows.length > 0, phone: null });
         }
         const pn = sms.normalizePhone(raw);
@@ -535,7 +535,7 @@ module.exports = async (req, res) => {
            RETURNING email, verified`,
           [email, pn.local]);
         const verified = !!(up.rows[0] && up.rows[0].verified);
-        tg.sendTelegram('WS админ утас тохируулав: ' + sms.maskEmail(email) + ' → ' + sms.maskPhone(pn.local, 2) + (verified ? '' : ' (нууц үг сэргээхээр идэвхжинэ)')).catch(() => {});
+        tg.sendTelegram('WS админ утас тохируулав: ' + sms.tgEmail(email) + ' → ' + sms.maskPhone(pn.local, 2) + (verified ? '' : ' (нууц үг сэргээхээр идэвхжинэ)')).catch(() => {});
         return res.json({ ok: true, email: email, phone: pn.local, verified: verified, entitled: entitled });
       }
 
@@ -659,7 +659,7 @@ module.exports = async (req, res) => {
             return res.status(400).json({ ok: false, error: 'Салгаж чадсангүй' });
           }
           try {
-            tg.sendTelegram('WS: төхөөрөмж салгалаа — ' + sms.maskEmail(email)).catch(function () {});
+            tg.sendTelegram('WS: төхөөрөмж салгалаа — ' + sms.tgEmail(email)).catch(function () {});
           } catch (e) {}
           return res.json({ ok: true, devices: await WDEV.list(email) });
         }
@@ -804,7 +804,7 @@ module.exports = async (req, res) => {
           const upd = await pool.query('UPDATE ws_login SET pass_hash=$2, verified=TRUE, code=NULL, code_exp=NULL, code_attempts=0, phone_verified_at=COALESCE(phone_verified_at, NOW()) WHERE email=$1 AND code=$3 RETURNING email', [email, hash, ca.code]);
           if (!upd.rows.length) return res.status(400).json({ ok: false, error: MSG_CODE_BAD });
           if (rrow) await sms.markVerified(rrow.phone);
-          try { if (await wsEntitled(email)) tg.sendTelegram('WS нууц үг SMS-ээр сэргээгдлээ: ' + sms.maskEmail(email)).catch(() => {}); } catch (e) { sms.logErr('[ws reset tg]', e); }
+          try { if (await wsEntitled(email)) tg.sendTelegram('WS нууц үг SMS-ээр сэргээгдлээ: ' + sms.tgEmail(email)).catch(() => {}); } catch (e) { sms.logErr('[ws reset tg]', e); }
           return wsIssue(req, res, email);
         }
         /* MO төлөв. Зарцуулахгүй (consume:false) — Дасгалын төвд баталгаажуулах
@@ -897,7 +897,7 @@ module.exports = async (req, res) => {
           try { ent = await wsEntitled(email); }
           catch (e) { sms.logErr('[ws entitled]', e); return sms.failJson(res, sms.mkFail('SMS_UNAVAILABLE')); }
           if (ent) {
-            await sms.notify('tg:sms:claim', 3600, 'WS: эрхтэй имэйлийн баталгаажаагүй мөрөнд код хүсэв: ' + sms.maskEmail(email), 10);
+            await sms.notify('tg:sms:claim', 3600, 'WS: эрхтэй имэйлийн баталгаажаагүй мөрөнд код хүсэв: ' + sms.tgEmail(email), 10);
             return fake();
           }
           const sent = await wsSendOtp({

@@ -130,7 +130,124 @@ function showPage(name, btn) {
   if (name === 'wssales') loadWsSales();
   if (name === 'smsphone') loadSmsStatus();
   if (name === 'stats') loadAllStats();
+  if (name === 'tailan') tlLock();   // бүр болгонд кодоо шинээр асууна
 }
+
+
+/* ───────── Орлогын тайлан ─────────
+   Код зөв орох хүртэл сервер мөнгөн дүн БУЦААХГҮЙ (api/qpay.js: ws_report).
+   Хуудас руу орох бүрт түгжигдэнэ — код хөтөч дээр хадгалагдахгүй. */
+function tlLock() {
+  var l = document.getElementById('tl-lock'), b = document.getElementById('tl-body');
+  if (l) l.style.display = 'block';
+  if (b) { b.style.display = 'none'; }
+  ['tl-cards', 'tl-chart', 'tl-grade', 'tl-recent'].forEach(function (id) {
+    var e = document.getElementById(id); if (e) e.innerHTML = '';
+  });
+  var p = document.getElementById('tl-pin'); if (p) p.value = '';
+  var m = document.getElementById('tl-msg'); if (m) m.textContent = '';
+  var sp = document.getElementById('tl-setpin'); if (sp) sp.style.display = 'none';
+}
+function tlPinForm() {
+  var sp = document.getElementById('tl-setpin');
+  if (sp) sp.style.display = sp.style.display === 'none' ? 'block' : 'none';
+}
+function tlPinSave() {
+  var oldv = (document.getElementById('tl-old') || {}).value || '';
+  var nv = (document.getElementById('tl-new') || {}).value || '';
+  var m = document.getElementById('tl-msg');
+  if (!/^\d{4}$/.test(nv)) { if (m) { m.style.color = '#dc2626'; m.textContent = 'Шинэ код 4 оронтой байх ёстой'; } return; }
+  wsPost('ws_report_pin', { pin: nv, old: oldv }).then(function (r) {
+    if (!m) return;
+    if (r && r.ok) { m.style.color = '#16a34a'; m.textContent = r.changed ? 'Код солигдлоо' : 'Код тохируулагдлаа'; tlPinForm(); }
+    else { m.style.color = '#dc2626'; m.textContent = (r && r.error) || 'Алдаа'; }
+  });
+}
+function tlOpen() {
+  var pin = (document.getElementById('tl-pin') || {}).value || '';
+  var m = document.getElementById('tl-msg');
+  if (!/^\d{4}$/.test(pin)) { if (m) { m.style.color = '#dc2626'; m.textContent = '4 оронтой код оруулна уу'; } return; }
+  if (m) { m.style.color = 'var(--muted)'; m.textContent = 'Шалгаж байна…'; }
+  wsPost('ws_report', { pin: pin }).then(function (r) {
+    if (r && r.needSetup) { if (m) { m.style.color = '#f59e0b'; m.textContent = 'Эхлээд код тохируулна уу'; } tlPinForm(); return; }
+    if (!r || !r.ok) { if (m) { m.style.color = '#dc2626'; m.textContent = (r && r.error) || 'Код буруу байна'; } return; }
+    if (m) m.textContent = '';
+    document.getElementById('tl-lock').style.display = 'none';
+    document.getElementById('tl-body').style.display = 'block';
+    tlRender(r);
+  }).catch(function () { if (m) { m.style.color = '#dc2626'; m.textContent = 'Сүлжээний алдаа'; } });
+}
+function tlTug(n) { return wsNum(n || 0) + '₮'; }
+function tlRender(r) {
+  var W = [['d1', 'Сүүлийн 1 хоног'], ['d7', 'Сүүлийн 7 хоног'], ['d30', 'Сүүлийн 1 сар'], ['all', 'Нийт']];
+  document.getElementById('tl-cards').innerHTML = W.map(function (w) {
+    var d = (r.win && r.win[w[0]]) || { ws: {}, game: {}, granted: {}, paid: 0, total: 0 };
+    return '<div class="table-card" style="padding:14px 16px;">'
+      + '<div style="font-size:0.72rem;color:var(--muted);font-weight:800;letter-spacing:.4px;">' + w[1] + '</div>'
+      + '<div style="font-size:1.48rem;font-weight:900;margin:5px 0 2px;color:var(--text);">' + tlTug(d.total) + '</div>'
+      + '<div style="font-size:0.72rem;color:var(--muted);font-weight:700;margin-bottom:9px;">нийт дүн</div>'
+      + '<div style="display:flex;justify-content:space-between;font-size:0.78rem;font-weight:700;padding:3px 0;">'
+      +   '<span style="color:#7B52EE;">Ажлын хуудас</span><span>' + tlTug(d.ws.sum) + ' <span style="color:var(--muted);font-weight:600;">(' + (d.ws.n || 0) + ')</span></span></div>'
+      + '<div style="display:flex;justify-content:space-between;font-size:0.78rem;font-weight:700;padding:3px 0;">'
+      +   '<span style="color:#22c55e;">Тоглоомын эрх</span><span>' + tlTug(d.game.sum) + ' <span style="color:var(--muted);font-weight:600;">(' + (d.game.n || 0) + ')</span></span></div>'
+      + '<div style="display:flex;justify-content:space-between;font-size:0.78rem;font-weight:700;padding:3px 0;border-top:1px dashed var(--border);margin-top:4px;padding-top:6px;">'
+      +   '<span style="color:#f59e0b;">Админаас нээсэн</span><span>' + tlTug(d.granted.sum) + ' <span style="color:var(--muted);font-weight:600;">(' + (d.granted.n || 0) + ')</span></span></div>'
+      + '<div style="display:flex;justify-content:space-between;font-size:0.78rem;font-weight:800;padding-top:5px;">'
+      +   '<span style="color:var(--muted);">Бодитоор орсон</span><span>' + tlTug(d.paid) + '</span></div>'
+      + '</div>';
+  }).join('');
+
+  // Өдрийн багана график
+  var rows = r.daily || [];
+  var mx = 1;
+  rows.forEach(function (x) { mx = Math.max(mx, (x.ws | 0) + (x.game | 0) + (x.granted | 0)); });
+  var W2 = Math.max(320, rows.length * 22), H = 150, pad = 20;
+  var bw = rows.length ? (W2 - pad) / rows.length : 10;
+  var bars = rows.map(function (x, i) {
+    var X = pad + i * bw + 2, w = Math.max(3, bw - 5), y = H - 18, out = '';
+    [['ws', '#7B52EE'], ['game', '#22c55e'], ['granted', '#f59e0b']].forEach(function (c) {
+      var v = x[c[0]] | 0; if (!v) return;
+      var h = Math.max(1, Math.round((H - 34) * v / mx));
+      y -= h;
+      out += '<rect x="' + X + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="1.5" fill="' + c[1] + '"><title>'
+           + String(x.day).slice(0, 10) + ' · ' + wsNum(v) + '₮</title></rect>';
+    });
+    if (i % 7 === 0) out += '<text x="' + (X + w / 2) + '" y="' + (H - 5) + '" text-anchor="middle" font-size="8.5" fill="var(--muted)">'
+      + String(x.day).slice(5, 10) + '</text>';
+    return out;
+  }).join('');
+  document.getElementById('tl-chart').innerHTML =
+    '<div style="overflow-x:auto;"><svg width="' + W2 + '" height="' + H + '" style="display:block;">'
+    + '<line x1="' + pad + '" y1="' + (H - 18) + '" x2="' + W2 + '" y2="' + (H - 18) + '" stroke="var(--border)" stroke-width="1"/>'
+    + bars + '</svg></div>'
+    + '<div style="font-size:0.72rem;color:var(--muted);font-weight:700;margin-top:4px;">дээд өдөр: ' + tlTug(mx) + '</div>';
+
+  // Ангиар
+  var g = r.byGrade || [];
+  document.getElementById('tl-grade').innerHTML = g.length
+    ? '<table style="width:100%;border-collapse:collapse;font-size:0.82rem;">'
+      + g.map(function (x) {
+        return '<tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 0;font-weight:700;">' + wsEsc(x.grade) + '</td>'
+          + '<td style="text-align:right;color:var(--muted);font-weight:700;">' + x.n + ' ш</td>'
+          + '<td style="text-align:right;font-weight:800;padding-left:10px;">' + tlTug(x.s) + '</td></tr>';
+      }).join('') + '</table>'
+    : '<div style="color:var(--muted);font-size:0.82rem;">Сүүлийн 30 хоногт худалдан авалт алга.</div>';
+
+  // Админаас нээсэн сүүлийн эрхүүд
+  var rc = r.recent || [];
+  document.getElementById('tl-recent').innerHTML = rc.length
+    ? '<table style="width:100%;border-collapse:collapse;font-size:0.8rem;">'
+      + rc.map(function (x) {
+        return '<tr style="border-bottom:1px solid var(--border);">'
+          + '<td style="padding:6px 0;"><div style="font-weight:700;">' + wsEsc(x.email) + '</div>'
+          +   '<div style="font-size:0.7rem;color:var(--muted);font-weight:700;">' + wsEsc(x.grade || 'бүх анги') + ' · ' + (x.months || 1) + ' сар'
+          +   (x.source === 'backfill' ? ' · өмнөх' : '') + '</div></td>'
+          + '<td style="text-align:right;font-weight:800;white-space:nowrap;">' + tlTug(x.amount)
+          +   '<div style="font-size:0.68rem;color:var(--muted);font-weight:700;">' + wsDate(x.created_at).slice(0, 10) + '</div></td></tr>';
+      }).join('') + '</table>'
+    : '<div style="color:var(--muted);font-size:0.82rem;">Бүртгэл алга.</div>';
+}
+window.tlOpen = tlOpen; window.tlLock = tlLock; window.tlPinForm = tlPinForm; window.tlPinSave = tlPinSave;
 
 // ─── Ажлын хуудас: промо код + борлуулалт ───
 function wsEsc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
@@ -2084,6 +2201,11 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
         Промо · борлуулалт
       </button>
 
+      <button class="nav-item" onclick="showPage('tailan',this)">
+        <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M4 20V10M10 20V4M16 20v-7M21 20H3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="18.5" cy="6.5" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M18.5 5.2v2.6M17.4 6.5h2.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        Тайлан
+      </button>
+
       <div class="nav-section">Бусад</div>
       <button class="nav-item" onclick="showPage('reports',this)" style="position:relative;">
         <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><line x1="4" y1="22" x2="4" y2="15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -3012,6 +3134,64 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
             <button class="btn-sm btn-purple" onclick="loadInviteList()">Шинэчлэх</button>
           </div>
           <div id="invite-list" style="padding:0 20px 16px;"></div>
+        </div>
+      </div>
+
+      <!-- Орлогын тайлан (4 оронтой кодоор хамгаалсан) -->
+      <div class="page" id="page-tailan" style="display:none;">
+        <div class="page-title">Орлогын тайлан</div>
+        <div class="page-sub">Худалдан авалт ба админаас нээсэн эрхийн мөнгөн дүн</div>
+
+        <!-- Кодын хаалт -->
+        <div id="tl-lock" class="table-card" style="padding:26px 20px;text-align:center;max-width:380px;margin:0 auto;">
+          <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="#7B52EE" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:10px;">
+            <rect x="4" y="10.5" width="16" height="10.5" rx="2.2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/><circle cx="12" cy="15.6" r="1.4" fill="#7B52EE" stroke="none"/>
+          </svg>
+          <div style="font-weight:900;font-size:1.02rem;margin-bottom:4px;">4 оронтой код</div>
+          <div style="font-size:0.8rem;color:var(--muted);margin-bottom:14px;">Мөнгөн дүнг харахын тулд кодоо оруулна уу</div>
+          <input id="tl-pin" type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="••••"
+            style="width:150px;padding:11px;text-align:center;letter-spacing:11px;font-size:1.3rem;font-weight:900;background:var(--surface);border:1.6px solid var(--border);border-radius:11px;color:var(--text);outline:none;">
+          <div style="margin-top:12px;">
+            <button onclick="tlOpen()" style="background:linear-gradient(135deg,#7B52EE,#A855F7);border:0;color:#fff;border-radius:9px;padding:10px 26px;cursor:pointer;font-weight:800;">Нээх</button>
+          </div>
+          <div id="tl-msg" style="margin-top:10px;font-size:0.82rem;font-weight:700;min-height:18px;"></div>
+          <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:10px;">
+            <button onclick="tlPinForm()" style="background:none;border:0;color:var(--muted);font-size:0.78rem;font-weight:700;cursor:pointer;text-decoration:underline;">Код тохируулах / солих</button>
+          </div>
+          <div id="tl-setpin" style="display:none;margin-top:10px;text-align:left;">
+            <label style="font-size:0.74rem;font-weight:800;color:var(--muted);display:block;margin-bottom:3px;">Хуучин код <span style="font-weight:600;">(анх удаа бол хоосон)</span></label>
+            <input id="tl-old" type="password" inputmode="numeric" maxlength="4" autocomplete="off" style="width:100%;padding:8px 10px;background:var(--surface);border:1.4px solid var(--border);border-radius:8px;color:var(--text);box-sizing:border-box;margin-bottom:8px;">
+            <label style="font-size:0.74rem;font-weight:800;color:var(--muted);display:block;margin-bottom:3px;">Шинэ код (4 орон)</label>
+            <input id="tl-new" type="password" inputmode="numeric" maxlength="4" autocomplete="off" style="width:100%;padding:8px 10px;background:var(--surface);border:1.4px solid var(--border);border-radius:8px;color:var(--text);box-sizing:border-box;margin-bottom:10px;">
+            <button onclick="tlPinSave()" style="width:100%;background:var(--surface2);border:1.4px solid var(--border);color:var(--text);border-radius:8px;padding:9px;cursor:pointer;font-weight:800;">Хадгалах</button>
+          </div>
+        </div>
+
+        <!-- Тайлан -->
+        <div id="tl-body" style="display:none;">
+          <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+            <button onclick="tlLock()" style="background:var(--surface2);border:1.4px solid var(--border);color:var(--text);border-radius:8px;padding:7px 14px;cursor:pointer;font-weight:800;font-size:0.8rem;">Хаах</button>
+          </div>
+          <div id="tl-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:18px;"></div>
+          <div class="table-card" style="padding:14px 16px;margin-bottom:18px;">
+            <div class="table-title" style="margin-bottom:10px;">Сүүлийн 30 хоног — өдрөөр</div>
+            <div id="tl-chart"></div>
+            <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:0.74rem;font-weight:700;color:var(--muted);">
+              <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#7B52EE;margin-right:5px;"></span>Ажлын хуудас</span>
+              <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#22c55e;margin-right:5px;"></span>Тоглоомын эрх</span>
+              <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#f59e0b;margin-right:5px;"></span>Админаас нээсэн</span>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;">
+            <div class="table-card" style="padding:14px 16px;">
+              <div class="table-title" style="margin-bottom:8px;">Ангиар (30 хоног)</div>
+              <div id="tl-grade"></div>
+            </div>
+            <div class="table-card" style="padding:14px 16px;">
+              <div class="table-title" style="margin-bottom:8px;">Админаас нээсэн сүүлийн эрхүүд</div>
+              <div id="tl-recent" style="max-height:330px;overflow:auto;"></div>
+            </div>
+          </div>
         </div>
       </div>
 

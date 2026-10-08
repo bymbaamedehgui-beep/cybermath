@@ -12,6 +12,7 @@
 //   normalizePhone(input)        → {ok:true, local:'99112233', e164:'+97699112233'} | {ok:false, code:'PHONE_INVALID'|'PHONE_FOREIGN'}
 //   maskPhone(local, n)          → n=4: '**** 2233', бусад: '**** **33'
 //   maskEmail(email)             → 'b***a@gmail.com'
+//   tgEmail(email)               → бүтэн имэйл (зөвхөн Telegram мэдэгдэлд)
 //   fakeMask(email)              → '**** **NN' (HMAC-аар тогтвортой, бүртгэлгүй имэйлийн хуурамч хариунд)
 //   phoneHash(local)             → hex16
 //   ipKeys(ip)                   → {ipk, ip24}  (IPv4 бүтэн | IPv6 /64 ; IPv4 /24 | IPv6 /48), HMAC hex16
@@ -156,6 +157,10 @@ function maskEmail(e) {
   const local = s.slice(0, at);
   return local[0] + '***' + (local.length > 1 ? local[local.length - 1] : '') + '@' + s.slice(at + 1);
 }
+
+// Telegram-д ЭЗЭМШИГЧИД харуулах имэйл — бүтнээр. (S2 нь утас/код/түлхүүрт хамаарна,
+// имэйл нь шинэ бүртгэлийн мэдэгдэлд аль хэдийн бүтнээр явдаг.)
+function tgEmail(e) { return normEmail(e) || '(имэйлгүй)'; }
 
 function fakeMask(email) {
   const n = parseInt(hmacHex('fake|' + normEmail(email)).slice(0, 8), 16) % 100;
@@ -633,7 +638,7 @@ async function precheck(o) {
   if (h.count > EM_IP_DAY_MAX) return mkFail('SMS_LIMIT');
   h = await hit(emDayKey(email), DAY_WIN);
   if (!h) return UNAV;
-  if (h.count === EM_DAY_MAX + 1) await notify('tg:sms:em:' + email, DAY_WIN, 'SMS: нэг имэйлд олон код хүсэв: ' + maskEmail(email));
+  if (h.count === EM_DAY_MAX + 1) await notify('tg:sms:em:' + email, DAY_WIN, 'SMS: нэг имэйлд олон код хүсэв: ' + tgEmail(email));
   if (h.count > EM_DAY_MAX) return mkFail('SMS_LIMIT');
   return null;
 }
@@ -1213,7 +1218,7 @@ async function gatewayAlive() {
 }
 
 module.exports = {
-  normalizePhone, maskPhone, maskEmail, fakeMask, phoneHash, ipKeys, codeText,
+  normalizePhone, maskPhone, maskEmail, tgEmail, fakeMask, phoneHash, ipKeys, codeText,
   precheck, sendCode, markVerified, publicOtpResponse, padTo, mkFail, ERR, failJson, notify,
   status, setPause, deviceStatus, textbeeSend, limits, logErr, safeMsg, ensureSmsTables, ensureUserColumns, maxAccountsPerPhone, trustLegacyPhone,
   promoNote, PROMO_NOTE, CODE_TTL_MS, COOLDOWN_SEC,

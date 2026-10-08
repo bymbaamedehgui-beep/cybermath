@@ -126,7 +126,7 @@ module.exports = async (req, res) => {
           if (cl.rows.length) {
             user = cl.rows[0];
             const isT = user.role === 'teacher' || user.grade === 'teacher';
-            tg.sendTelegram('Баталгаажаагүй имэйлтэй данс Google-ээр эзэмшигдлээ (нууц үг/утас арилгав): ' + sms.maskEmail(email) + ', багш=' + isT).catch(() => {});
+            tg.sendTelegram('Баталгаажаагүй имэйлтэй данс Google-ээр эзэмшигдлээ (нууц үг/утас арилгав): ' + sms.tgEmail(email) + ', багш=' + isT).catch(() => {});
           } else {
             const again = await pool.query('SELECT * FROM users WHERE id=$1', [user.id]);
             if (again.rows.length) user = again.rows[0];

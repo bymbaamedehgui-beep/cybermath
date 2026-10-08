@@ -597,7 +597,7 @@ module.exports = async (req, res) => {
         await sms.markVerified(r.rows[0].phone);
         const u = r.rows[0];
         if (u.role === 'teacher' || u.grade === 'teacher') {
-          tg.sendTelegram('Багшийн нууц үг SMS-ээр сэргээгдлээ: ' + sms.maskEmail(email)).catch(() => {});
+          tg.sendTelegram('Багшийн нууц үг SMS-ээр сэргээгдлээ: ' + sms.tgEmail(email)).catch(() => {});
         }
       }
       return res.json({ ok: true });
@@ -681,7 +681,7 @@ module.exports = async (req, res) => {
         [email, local, local != null]
       );
       if (!up.rows.length) return res.status(404).json({ ok: false, error: 'Хэрэглэгч олдсонгүй' });
-      tg.sendTelegram('Админ утас тохируулав: ' + sms.maskEmail(email) + ' → ' + (local ? sms.maskPhone(local, 2) : '(арилгав)')).catch(() => {});
+      tg.sendTelegram('Админ утас тохируулав: ' + sms.tgEmail(email) + ' → ' + (local ? sms.maskPhone(local, 2) : '(арилгав)')).catch(() => {});
       return res.json({ ok: true, email: up.rows[0].email, phone: local });
     }
 
