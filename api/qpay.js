@@ -102,38 +102,6 @@ async function ensureAdminGrants() {
   )`).catch(() => {});
   await pool.query('CREATE INDEX IF NOT EXISTS idx_adm_grants_at ON ws_admin_grants(created_at)').catch(() => {});
   admGrantsReady = true;
-  await backfillAdminGrants();
-}
-// Нэг удаагийн буцаан тооцоо: худалдан авалтгүй атлаа эрхтэй мөрүүдийг
-// (админ олголт, урилгын шагнал, азтаны хүрд) мөнгөн дүнгээр нь үнэлнэ.
-async function backfillAdminGrants() {
-  try {
-    const f = await pool.query("SELECT sval FROM ws_settings WHERE skey='adm_grants_backfill_v1'");
-    if (f.rows.length) return;
-  } catch (e) { return; }          // ws_settings байхгүй бол алгасна
-  try {
-    // Ангийн эрх: 9 900₮ × сар (хугацааны уртаас сарыг тооцно)
-    await pool.query(`
-      INSERT INTO ws_admin_grants (email, grade, months, amount, source, note, created_at)
-      SELECT lower(a.email), a.grade, m.mo, m.mo * $1::int, 'backfill', 'өмнөх (автоматаар тооцсон)', a.updated_at
-        FROM ws_grade_access a
-        CROSS JOIN LATERAL (SELECT GREATEST(1, ROUND(EXTRACT(EPOCH FROM (a.expires_at - a.updated_at)) / 2592000.0))::int AS mo) m
-       WHERE NOT EXISTS (SELECT 1 FROM ws_purchases p
-                          WHERE lower(p.email) = lower(a.email) AND p.grade = a.grade)`,
-      [WS_GRADE_PER_MONTH]);
-    // Бүх ангийн эрх: шаталсан үнээр (3/6/9/12 сар)
-    await pool.query(`
-      INSERT INTO ws_admin_grants (email, grade, months, amount, source, note, created_at)
-      SELECT lower(a.email), NULL, m.mo,
-             CASE WHEN m.mo >= 12 THEN $4::int WHEN m.mo >= 9 THEN $3::int WHEN m.mo >= 6 THEN $2::int ELSE $1::int END,
-             'backfill', 'өмнөх (автоматаар тооцсон)', a.updated_at
-        FROM ws_access a
-        CROSS JOIN LATERAL (SELECT GREATEST(1, ROUND(EXTRACT(EPOCH FROM (a.expires_at - a.updated_at)) / 2592000.0))::int AS mo) m
-       WHERE NOT EXISTS (SELECT 1 FROM ws_purchases p
-                          WHERE lower(p.email) = lower(a.email) AND p.grade IS NULL)`,
-      [WS_PRICES[3], WS_PRICES[6], WS_PRICES[9], WS_PRICES[12]]);
-    await pool.query("INSERT INTO ws_settings (skey, sval) VALUES ('adm_grants_backfill_v1','1') ON CONFLICT (skey) DO NOTHING");
-  } catch (e) { console.error('[adm grants backfill]', e.message); }
 }
 // Админ эрх олгох бүрт мөнгөн дүнг нь бүртгэнэ (тайланд нэмэгдэнэ)
 async function logAdminGrant(email, grade, months, note) {
@@ -170,41 +138,70 @@ async function pinTry(req) {
   } catch (e) { return false; }
 }
 
-async function revReport() {
-  await ensureAdminGrants();
+// from/to нь 'YYYY-MM-DD'. Буруу бол null.
+function revDay(x) {
+  const v = String(x || '').trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(Date.parse(v)) ? v : null;
+}
+async function revReport(opts) {
+  opts = opts || {};
+  let from = revDay(opts.from), to = revDay(opts.to);
+  if (from && to && from > to) { const t = from; from = to; to = t; }
+  const custom = from && to;
+
+  // ── Тогтмол цонхнууд ──
   const WIN = [['d1', '1 day'], ['d7', '7 days'], ['d30', '30 days'], ['all', null]];
   const out = {};
-  for (const [key, iv] of WIN) {
-    const w = iv ? "WHERE created_at > NOW() - INTERVAL '" + iv + "'" : '';
-    const ws = await pool.query('SELECT COUNT(*)::int n, COALESCE(SUM(amount),0)::int s FROM ws_purchases ' + w);
+  async function sums(where, params) {
+    const ws = await pool.query('SELECT COUNT(*)::int n, COALESCE(SUM(amount),0)::int s FROM ws_purchases ' + where, params);
     const gm = await pool.query('SELECT COUNT(*)::int n, COALESCE(SUM(amount),0)::int s FROM pay_pending '
-      + (w ? w + ' AND granted = TRUE' : 'WHERE granted = TRUE'));
-    const ag = await pool.query('SELECT COUNT(*)::int n, COALESCE(SUM(amount),0)::int s FROM ws_admin_grants ' + w);
-    out[key] = {
-      ws: { n: ws.rows[0].n, sum: ws.rows[0].s },        // ажлын хуудас — худалдан авалт
-      game: { n: gm.rows[0].n, sum: gm.rows[0].s },      // тоглоомын эрх — худалдан авалт
-      granted: { n: ag.rows[0].n, sum: ag.rows[0].s },   // админаас нээсэн (үнэгүй)
-      paid: ws.rows[0].s + gm.rows[0].s,
-      total: ws.rows[0].s + gm.rows[0].s + ag.rows[0].s,
+      + (where ? where + ' AND granted = TRUE' : 'WHERE granted = TRUE'), params);
+    return {
+      ws: { n: ws.rows[0].n, sum: ws.rows[0].s },
+      game: { n: gm.rows[0].n, sum: gm.rows[0].s },
+      total: ws.rows[0].s + gm.rows[0].s,
     };
   }
-  // Сүүлийн 30 хоногийн өдөр тутмын график
-  const daily = await pool.query(`
-    SELECT d::date AS day,
-           COALESCE((SELECT SUM(amount) FROM ws_purchases    WHERE created_at::date = d::date),0)::int AS ws,
-           COALESCE((SELECT SUM(amount) FROM pay_pending     WHERE granted = TRUE AND created_at::date = d::date),0)::int AS game,
-           COALESCE((SELECT SUM(amount) FROM ws_admin_grants WHERE created_at::date = d::date),0)::int AS granted
-      FROM generate_series(NOW() - INTERVAL '29 days', NOW(), INTERVAL '1 day') d
-     ORDER BY d`);
-  // Сүүлийн олголтууд
-  const recent = await pool.query(`
-    SELECT email, grade, months, amount, source, note, created_at FROM ws_admin_grants
-     ORDER BY created_at DESC LIMIT 40`);
-  const byGrade = await pool.query(`
-    SELECT COALESCE(grade,'(бүх анги)') AS grade, COUNT(*)::int n, COALESCE(SUM(amount),0)::int s
-      FROM ws_purchases WHERE created_at > NOW() - INTERVAL '30 days'
-     GROUP BY grade ORDER BY s DESC`);
-  return { ok: true, win: out, daily: daily.rows, recent: recent.rows, byGrade: byGrade.rows };
+  for (const [key, iv] of WIN) {
+    out[key] = await sums(iv ? "WHERE created_at > NOW() - INTERVAL '" + iv + "'" : '', []);
+  }
+  // Сонгосон хугацаа (to өдрийг ОРУУЛЖ тооцно)
+  const RNG = "WHERE created_at >= $1::date AND created_at < ($2::date + INTERVAL '1 day')";
+  if (custom) out.custom = await sums(RNG, [from, to]);
+
+  // ── Өдрийн график ──
+  // Сонгосон хугацаа байвал түүгээр, эс бөгөөс сүүлийн 30 хоног. Дээд тал нь 180 өдөр.
+  const daily = custom
+    ? await pool.query(`
+        SELECT d::date AS day,
+               COALESCE((SELECT SUM(amount) FROM ws_purchases WHERE created_at::date = d::date),0)::int AS ws,
+               COALESCE((SELECT SUM(amount) FROM pay_pending  WHERE granted = TRUE AND created_at::date = d::date),0)::int AS game
+          FROM generate_series($1::date, LEAST($2::date, $1::date + 179), INTERVAL '1 day') d
+         ORDER BY d`, [from, to])
+    : await pool.query(`
+        SELECT d::date AS day,
+               COALESCE((SELECT SUM(amount) FROM ws_purchases WHERE created_at::date = d::date),0)::int AS ws,
+               COALESCE((SELECT SUM(amount) FROM pay_pending  WHERE granted = TRUE AND created_at::date = d::date),0)::int AS game
+          FROM generate_series(NOW() - INTERVAL '29 days', NOW(), INTERVAL '1 day') d
+         ORDER BY d`);
+
+  // ── Ангиар ──
+  const byGrade = custom
+    ? await pool.query("SELECT COALESCE(grade,'(бүх анги)') AS grade, COUNT(*)::int n, COALESCE(SUM(amount),0)::int s"
+        + ' FROM ws_purchases ' + RNG + ' GROUP BY grade ORDER BY s DESC', [from, to])
+    : await pool.query("SELECT COALESCE(grade,'(бүх анги)') AS grade, COUNT(*)::int n, COALESCE(SUM(amount),0)::int s"
+        + " FROM ws_purchases WHERE created_at > NOW() - INTERVAL '30 days' GROUP BY grade ORDER BY s DESC");
+
+  // ── Админаас нээсэн эрхийн БҮРТГЭЛ (мөнгөн дүн ОРУУЛАХГҮЙ) ──
+  await ensureAdminGrants();
+  const grants = custom
+    ? await pool.query('SELECT email, grade, months, note, created_at FROM ws_admin_grants '
+        + RNG + ' ORDER BY created_at DESC LIMIT 300', [from, to])
+    : await pool.query("SELECT email, grade, months, note, created_at FROM ws_admin_grants"
+        + " WHERE created_at > NOW() - INTERVAL '30 days' ORDER BY created_at DESC LIMIT 300");
+
+  return { ok: true, win: out, daily: daily.rows, byGrade: byGrade.rows,
+           grants: grants.rows, range: custom ? { from: from, to: to } : null };
 }
 
 // ── Хоёр талын Referral (Dropbox маягаар) ──
@@ -1036,7 +1033,7 @@ module.exports = async (req, res) => {
           const okTry = await pinTry(req);   // квотыг зөвхөн буруу оролдлогод зарцуулна
           return res.json({ ok: false, error: okTry ? 'Код буруу байна' : 'Хэт олон оролдлого. 1 цагийн дараа дахин оролдоно уу.' });
         }
-        return res.json(await revReport());
+        return res.json(await revReport({ from: b.from, to: b.to }));
       }
       // ── Тайлангийн PIN тавих / солих ──
       if (req.query.action === 'ws_report_pin') {
