@@ -983,7 +983,7 @@ module.exports = async (req, res) => {
     }
 
     // ── АДМИН: ажлын хуудсын промо код удирдах + борлуулалт харах ──
-    if (['ws_promo_create','ws_promo_list','ws_promo_update','ws_purchases_list','ws_users_list','ws_grade_users','ws_grant','ws_revoke','ws_reconcile','ws_broadcast','ws_report','ws_report_pin','ws_all_users'].indexOf(req.query.action) >= 0) {
+    if (['ws_promo_create','ws_promo_list','ws_promo_update','ws_purchases_list','ws_users_list','ws_grade_users','ws_grant','ws_revoke','ws_reconcile','ws_broadcast','ws_report','ws_report_pin','ws_all_users','ws_badges'].indexOf(req.query.action) >= 0) {
       if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
       await ensureWsExtra();
       await ensureWsTable();
@@ -1152,6 +1152,24 @@ module.exports = async (req, res) => {
         const ver = await pool.query('SELECT COUNT(*)::int n FROM ws_login WHERE verified = TRUE');
         return res.json({ ok: true, users: r.rows, shown: r.rows.length,
           total: tot.rows[0].n, verified: ver.rows[0].n, q: q, limit: lim });
+      }
+      // ── Цэсний тэмдэглэгээ: сүүлд үзсэнээс хойшх шинэ худалдан авалт ──
+      if (req.query.action === 'ws_badges') {
+        const seen = Math.max(0, parseInt(b.seenPurchase, 10) || 0);
+        const r = await pool.query(
+          'SELECT COALESCE(MAX(id),0)::int AS last_id, COUNT(*) FILTER (WHERE id > $1)::int AS n_new FROM ws_purchases',
+          [seen]);
+        // Шинэ хүмүүсийн тоо ч мөн адил (Нийт бүртгэл цэсэнд)
+        const seenReg = String(b.seenReg || '').trim();
+        let nReg = 0;
+        if (seenReg && !isNaN(Date.parse(seenReg))) {
+          const g = await pool.query('SELECT COUNT(*)::int n FROM ws_login WHERE created_at > $1::timestamptz', [seenReg]);
+          nReg = g.rows[0].n;
+        }
+        const lastReg = await pool.query('SELECT MAX(created_at) AS t FROM ws_login');
+        return res.json({ ok: true,
+          purchases: { n_new: r.rows[0].n_new, last_id: r.rows[0].last_id },
+          regs: { n_new: nReg, last_at: lastReg.rows[0].t } });
       }
       if (req.query.action === 'ws_promo_list') {
         await pool.query(`CREATE TABLE IF NOT EXISTS ws_wheel (email TEXT PRIMARY KEY, prize TEXT, code TEXT, created_at TIMESTAMPTZ DEFAULT NOW())`).catch(()=>{});

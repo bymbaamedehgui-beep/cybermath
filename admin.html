@@ -32,6 +32,7 @@ function admLogin() {
         if (typeof refreshReportsBadge === 'function') {
           refreshReportsBadge();
           setInterval(refreshReportsBadge, 60000);
+          try { admBadges(); setInterval(admBadges, 60000); } catch (e) {}
         }
       } else {
         if (err) err.textContent = d.error || 'Нэвтрэх алдаа';
@@ -224,6 +225,50 @@ document.addEventListener('input', function (e) {
 document.addEventListener('keydown', function (e) {
   if (e.key === 'Enter' && e.target && e.target.id === 'reg-q') { clearTimeout(_regTmr); regLoad(); }
 });
+
+
+/* ── Шинэ худалдан авалт / бүртгэлийн тэмдэглэгээ ──
+   Сүүлд үзсэнийг localStorage-д хадгална. Орж хартал +1, +2 гэж харагдана,
+   тухайн цэсийг нээхэд тэглэгдэнэ. */
+function admBadgeSet(id, n) {
+  var e = document.getElementById(id);
+  if (!e) return;
+  e.style.display = n > 0 ? 'inline-block' : 'none';
+  e.textContent = n > 0 ? ('+' + (n > 99 ? '99' : n)) : '';
+}
+function admBadges() {
+  var seenP = 0, seenR = '';
+  try { seenP = parseInt(localStorage.getItem('admSeenPurchase'), 10) || 0; } catch (e) {}
+  try { seenR = localStorage.getItem('admSeenReg') || ''; } catch (e) {}
+  return wsPost('ws_badges', { seenPurchase: seenP, seenReg: seenR }).then(function (d) {
+    if (!d || !d.ok) return;
+    window._admLastPurchase = (d.purchases || {}).last_id || 0;
+    window._admLastReg = (d.regs || {}).last_at || '';
+    /* Анх удаа — одоогийнхыг "үзсэн" гэж тэмдэглээд дараагийнхаас тоолно */
+    if (!seenP) { try { localStorage.setItem('admSeenPurchase', String(window._admLastPurchase)); } catch (e) {} }
+    if (!seenR && window._admLastReg) { try { localStorage.setItem('admSeenReg', window._admLastReg); } catch (e) {} }
+    var np = (!seenP) ? 0 : ((d.purchases || {}).n_new || 0);
+    var nr = (!seenR) ? 0 : ((d.regs || {}).n_new || 0);
+    admBadgeSet('tab-badge-purchases', np);
+    admBadgeSet('tab-badge-regs', nr);
+    admBadgeSet('ws-badge', np + nr);
+  }).catch(function () {});
+}
+/* Тухайн цэсийг нээхэд тэглэнэ */
+function admBadgeSeen(which) {
+  if (which === 'purchases') {
+    try { localStorage.setItem('admSeenPurchase', String(window._admLastPurchase || 0)); } catch (e) {}
+    admBadgeSet('tab-badge-purchases', 0);
+  } else if (which === 'regs') {
+    try { if (window._admLastReg) localStorage.setItem('admSeenReg', window._admLastReg); } catch (e) {}
+    admBadgeSet('tab-badge-regs', 0);
+  }
+  /* Хажуугийн цэсний нийлбэрийг үлдсэн тэмдгүүдээс дахин бодно */
+  function val(id){ var e=document.getElementById(id); if(!e||e.style.display==='none') return 0;
+    return parseInt(String(e.textContent).replace(/[^0-9]/g,''),10)||0; }
+  admBadgeSet('ws-badge', val('tab-badge-purchases') + val('tab-badge-regs'));
+}
+window.admBadges = admBadges; window.admBadgeSeen = admBadgeSeen;
 
 /* ───────── Орлогын тайлан ─────────
    Код зөв орох хүртэл сервер мөнгөн дүн БУЦААХГҮЙ (api/qpay.js: ws_report).
@@ -602,6 +647,7 @@ function admWsTab(name){
   });
   try{ localStorage.setItem('admWsTab', name); }catch(e){}
   if(name==='regs' && !window._regLoaded){ window._regLoaded=1; try{ regLoad(); }catch(e){} }
+  try{ admBadgeSeen(name); }catch(e){}
   try{ document.querySelectorAll('#page-wssales .fold').forEach(function(c){ admFoldSync(c); }); }catch(e){}
   admWsTabScroll();
 }
@@ -2342,10 +2388,11 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
         <svg class="ng-caret" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
       </button>
       <div class="nav-grpbody" id="navgrp-ws">
-      <button class="nav-item" onclick="showPage('wssales',this)">
+      <button class="nav-item" onclick="showPage('wssales',this)" style="position:relative;">
         <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><rect x="3" y="4" width="18" height="16" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M3 9h18M8 14h5M8 17h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
         Дасгалын төв удирдлага
-      </button>
+        <span id="ws-badge" style="display:none;margin-left:auto;background:#16a34a;color:#fff;border-radius:100px;padding:2px 8px;font-size:0.64rem;font-weight:900;min-width:16px;text-align:center;"></span>
+        </button>
       <button class="nav-item" onclick="showPage('tailan',this)">
         <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M4 20V10M10 20V4M16 20v-7M21 20H3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="18.5" cy="6.5" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M18.5 5.2v2.6M17.4 6.5h2.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
         Тайлан
@@ -3034,10 +3081,10 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
 
         <div class="ws-tabs" id="ws-tabs" role="tablist">
           <button type="button" class="ws-tab" data-wstab="overview" role="tab" onclick="admWsTab('overview')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>Тойм</button>
-          <button type="button" class="ws-tab" data-wstab="regs" role="tab" onclick="admWsTab('regs')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>Нийт бүртгэл</button>
+          <button type="button" class="ws-tab" data-wstab="regs" role="tab" onclick="admWsTab('regs')"><span id="tab-badge-regs" style="display:none;margin-left:auto;background:#16a34a;color:#fff;border-radius:100px;padding:2px 8px;font-size:0.64rem;font-weight:900;min-width:16px;text-align:center;display:none;margin-left:0;"></span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>Нийт бүртгэл</button>
           <button type="button" class="ws-tab" data-wstab="promo" role="tab" onclick="admWsTab('promo')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0l-7.2-7.2A2 2 0 0 1 3 12V5a2 2 0 0 1 2-2h7a2 2 0 0 1 1.4.6l7.2 7.2a2 2 0 0 1 0 2.6z"/><line x1="7.5" y1="7.5" x2="7.51" y2="7.5"/></svg>Промо код</button>
           <button type="button" class="ws-tab" data-wstab="users" role="tab" onclick="admWsTab('users')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Хэрэглэгч</button>
-          <button type="button" class="ws-tab" data-wstab="purchases" role="tab" onclick="admWsTab('purchases')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/></svg>Худалдан авалт</button>
+          <button type="button" class="ws-tab" data-wstab="purchases" role="tab" onclick="admWsTab('purchases')"><span id="tab-badge-purchases" style="display:none;margin-left:auto;background:#16a34a;color:#fff;border-radius:100px;padding:2px 8px;font-size:0.64rem;font-weight:900;min-width:16px;text-align:center;display:none;margin-left:0;"></span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/></svg>Худалдан авалт</button>
           <button type="button" class="ws-tab" data-wstab="feedback" role="tab" onclick="admWsTab('feedback')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Санал хүсэлт</button>
         </div>
 
