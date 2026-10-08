@@ -26,10 +26,9 @@ function admLogin() {
         var db = document.getElementById('dashboard');
         if (ls) ls.style.display = 'none';
         if (db) db.style.display = 'flex';
+        // Зөвхөн нээлттэй байгаа хуудсаа ачаална. Бодлого, хэрэглэгч, node-ууд
+        // нь тухайн цэс рүү орох үед showPage()-ээс ачаалагдана (утас гацахгүй).
         if (typeof loadOverview === 'function') loadOverview();
-        if (typeof renderNodesList === 'function') renderNodesList();
-        if (typeof renderQuestions === 'function') renderQuestions();
-        if (typeof loadUsers === 'function') loadUsers();
         if (typeof refreshReportsBadge === 'function') {
           refreshReportsBadge();
           setInterval(refreshReportsBadge, 60000);
@@ -3810,9 +3809,10 @@ function closeMathModal() { closeChoiceMathModal(); }
           +'</tr>';
       }).join('');
     }).catch(function(){});
-    fetch(API + '/api/questions').then(r=>r.json()).then(function(d){
+    // Зөвхөн тоо — бүх бодлогыг (1 МБ+) татахгүй
+    fetch(API + '/api/questions?count=1').then(r=>r.json()).then(function(d){
       var elQ = document.getElementById('ov-questions') || document.getElementById('stat-questions');
-      if(elQ) elQ.textContent = (d.questions||[]).length;
+      if(elQ) elQ.textContent = (d && d.count != null) ? d.count : ((d.questions||[]).length);
     }).catch(function(){});
   }
 
@@ -4923,7 +4923,17 @@ function closeMathModal() { closeChoiceMathModal(); }
     return html;
   }
 
+  // "Цааш нь" дарахад дахин татахгүй — кэшээс нэмж буулгана
+  window.qShowMore = function () {
+    window._qMore = true;
+    window._qPage = (window._qShown || 150) + 150;
+    renderQuestions(window._qSearch || '');
+  };
   function renderQuestions(search) {
+    window._qSearch = search || '';
+    /* Шинэ хайлт/node бол эхний хуудаснаас. "Цааш нь" дарсан үед л нэмэгдэнэ. */
+    if (!window._qMore) window._qPage = 150;
+    window._qMore = false;
     var el = document.getElementById('q-list');
     if (!el) return;
     var nodeEl = document.getElementById('q-node');
@@ -4946,6 +4956,10 @@ function closeMathModal() { closeChoiceMathModal(); }
       var qs = data.questions || [];
       if (search) qs = qs.filter(function(q){ return q.text && q.text.toLowerCase().includes(search.toLowerCase()); });
       if (!qs.length) { el.innerHTML = '<div style="color:var(--muted);text-align:center;padding:32px;">Бодлого байхгүй байна</div>'; return; }
+      // Утсан дээр гацахаас сэргийлж хэсэгчлэн буулгана
+      window._qAll = qs;
+      window._qShown = Math.min(qs.length, (window._qPage || 150));
+      qs = qs.slice(0, window._qShown);
       el.innerHTML = qs.map(function(q, idx) {
         var choices = q.choices || [];
         // Hint-ыг JSON string бол object болгон хувиргах (edit form-д ашиглана)
@@ -5061,6 +5075,12 @@ function closeMathModal() { closeChoiceMathModal(); }
           + '</div></div>'
           + '</div>';
       }).join('');
+      if (window._qAll && window._qAll.length > window._qShown) {
+        el.innerHTML += '<div style="text-align:center;padding:14px;">'
+          + '<button onclick="qShowMore()" style="background:var(--surface2);border:1.5px solid var(--border);'
+          + 'color:var(--text);border-radius:10px;padding:10px 22px;cursor:pointer;font-weight:800;">'
+          + 'Цааш нь үзэх (' + (window._qAll.length - window._qShown) + ' үлдсэн)</button></div>';
+      }
     }).catch(function(){ el.innerHTML = '<div style="color:var(--muted);text-align:center;padding:32px;">Сервертэй холбогдоход алдаа гарлаа</div>'; });
   }
 

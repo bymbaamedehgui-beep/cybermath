@@ -107,6 +107,18 @@ module.exports = async (req, res) => {
       const examCondQ = _exam === '1' ? 'q.is_exam = true'
         : (_exam === 'all' ? 'TRUE' : '(q.is_exam = false OR q.is_exam IS NULL)');
 
+      // Зөвхөн ТОО — админы хяналтын самбар 1 МБ татахгүйн тулд
+      if (req.query.count) {
+        const cr = await pool.query('SELECT COUNT(*)::int AS n FROM questions q WHERE ' + examCondQ);
+        return res.json({ ok: true, count: cr.rows[0].n });
+      }
+
+      // Зөвхөн ТОО — админы хяналтын самбар 1 МБ татахгүйн тулд
+      if (req.query.count) {
+        const cr = await pool.query('SELECT COUNT(*)::int AS n FROM questions q WHERE ' + examCondQ);
+        return res.json({ ok: true, count: cr.rows[0].n });
+      }
+
       /* ── Хяналт: node тус бүрийн бодлогын тоо, хэлбэр/хувилбар, төрөл, түвшин ──
          Learning path-ыг анги ангиар нь нэг дор хянахад ашиглана. */
       if (stats) {
