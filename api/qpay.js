@@ -358,6 +358,7 @@ async function ensureWsExtra() {
   )`).catch(()=>{});
   await pool.query(`ALTER TABLE ws_promos ADD COLUMN IF NOT EXISTS months INT`).catch(()=>{});
   await pool.query(`ALTER TABLE ws_promos ADD COLUMN IF NOT EXISTS fake_uses TEXT`).catch(()=>{});
+  await pool.query('ALTER TABLE ws_promos ADD COLUMN IF NOT EXISTS lottery BOOLEAN NOT NULL DEFAULT FALSE').catch(()=>{});
   await pool.query(`ALTER TABLE ws_promos ADD COLUMN IF NOT EXISTS welcome BOOLEAN DEFAULT FALSE`).catch(()=>{});
   await pool.query(`ALTER TABLE ws_promos ADD COLUMN IF NOT EXISTS personal BOOLEAN DEFAULT FALSE`).catch(()=>{});
   await pool.query(`UPDATE ws_promos SET personal=TRUE WHERE personal IS NOT TRUE AND note='Азтаны хүрд'`).catch(()=>{});
@@ -923,16 +924,30 @@ module.exports = async (req, res) => {
       await ensureWheel();
       const prev = await pool.query('SELECT prize, code FROM ws_wheel WHERE email=$1', [email]);
       if (prev.rows.length) return res.json({ ok: true, already: true, prize: { label: prev.rows[0].prize, code: prev.rows[0].code } });
-      const idx = wheelPick();
-      const seg = WHEEL[idx];
-      // "Нууц" нүд бол доторх шагналыг тодорхойлно
-      let reward = seg, mystery = false;
-      if (seg.type === 'mystery') { reward = MYSTERY[pickFrom(MYSTERY)]; mystery = true; }
-      let applied = { code: null, detail: '' };
-      try { applied = await applyReward(email, reward); } catch (e) { console.error('[wheel]', e.message); }
+      /* ЗӨВХӨН админаас сугалаанд оруулсан, идэвхтэй, хүчинтэй,
+         хязгаараа дүүргээгүй промо кодуудаас санамсаргүй нэгийг өгнө.
+         Код автоматаар үүсгэхгүй, үнэгүй эрх шууд олгохгүй. */
+      await ensureWsExtra();
+      const pick = await pool.query(`
+        SELECT code, pct, months, expires_at FROM ws_promos
+         WHERE lottery = TRUE AND active = TRUE
+           AND (expires_at IS NULL OR expires_at > NOW())
+           AND (max_uses IS NULL OR used_count < max_uses)
+         ORDER BY random() LIMIT 1`);
+      let reward, applied = { code: null, detail: '' };
+      if (pick.rows.length) {
+        const pr = pick.rows[0];
+        const mTxt = { 3: '3 сар', 6: '6 сар', 9: '9 сар', 12: '1 жил' }[pr.months] || 'аль ч багцад';
+        reward = { label: pr.pct + '% хөнгөлөлт', type: 'discount', pct: pr.pct };
+        applied = { code: pr.code,
+          detail: mTxt + (pr.expires_at ? (' · ' + new Date(pr.expires_at).toISOString().slice(0, 10) + ' хүртэл') : '') };
+      } else {
+        reward = { label: 'Баярлалаа!', type: 'none' };
+        applied = { code: null, detail: 'Одоогоор сугалааны код дууссан байна' };
+      }
       await pool.query('INSERT INTO ws_wheel (email, prize, code) VALUES ($1,$2,$3) ON CONFLICT (email) DO NOTHING',
-        [email, (mystery ? 'Нууц → ' : '') + reward.label, applied.code]);
-      return res.json({ ok: true, index: idx, mystery: mystery,
+        [email, reward.label, applied.code]);
+      return res.json({ ok: true,
         prize: { label: reward.label, type: reward.type, pct: reward.pct || 0, code: applied.code, detail: applied.detail } });
     }
 
@@ -1173,7 +1188,7 @@ module.exports = async (req, res) => {
       }
       if (req.query.action === 'ws_promo_list') {
         await pool.query(`CREATE TABLE IF NOT EXISTS ws_wheel (email TEXT PRIMARY KEY, prize TEXT, code TEXT, created_at TIMESTAMPTZ DEFAULT NOW())`).catch(()=>{});
-        const r = await pool.query(`SELECT p.code,p.pct,p.max_uses,p.used_count,p.expires_at,p.active,p.note,p.months,p.fake_uses,p.welcome,p.personal,p.created_at, w.email AS won_by
+        const r = await pool.query(`SELECT p.code,p.pct,p.max_uses,p.used_count,p.expires_at,p.active,p.note,p.months,p.fake_uses,p.welcome,p.personal,p.lottery,p.created_at, w.email AS won_by
           FROM ws_promos p LEFT JOIN ws_wheel w ON w.code=p.code ORDER BY p.created_at DESC`);
         return res.json({ ok: true, promos: r.rows });
       }
@@ -1209,6 +1224,9 @@ module.exports = async (req, res) => {
         if (typeof b.fake_uses !== 'undefined') {
           const fv = (b.fake_uses === null || String(b.fake_uses).trim() === '') ? null : String(b.fake_uses).slice(0, 20);
           await pool.query('UPDATE ws_promos SET fake_uses=$2 WHERE code=$1', [code, fv]);
+        }
+        if (typeof b.lottery === 'boolean') {
+          await pool.query('UPDATE ws_promos SET lottery=$2 WHERE code=$1', [code, b.lottery]);
         }
         if (typeof b.welcome === 'boolean') {
           if (b.welcome) await pool.query('UPDATE ws_promos SET welcome=FALSE WHERE welcome=TRUE AND code<>$1', [code]);
