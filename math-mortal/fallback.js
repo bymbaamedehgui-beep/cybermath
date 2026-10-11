@@ -85,6 +85,10 @@ export function startFallback(reason = 'Reduced mode active.') {
     renderMathQuestion();
   }
 
+  window.addEventListener('arena:pool-ready', () => {
+    if (state === 'play' && currentMath && currentMath.local) generateMathQuestion();
+  });
+
   function renderMathQuestion() {
     const q = $('math-q');
     const choices = $('math-options');

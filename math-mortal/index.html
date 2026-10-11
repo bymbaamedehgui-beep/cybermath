@@ -10,8 +10,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+    <!-- KaTeX нь хуудсыг блоклохгүй — ирэхгүй бол бодлого энгийн текстээр харагдана -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css"
+          media="print" onload="this.media='all'">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js" async></script>
     <link rel="stylesheet" href="./rosebud-game-defaults.css" />
     <script src="./rosebud-game-defaults.js" defer></script>
     <script type="importmap">
@@ -267,6 +269,7 @@
         transition: opacity 500ms ease-in-out;
     }
 
+    #rosebud-exported-splash.is-hiding { pointer-events: none; }
     #rosebud-exported-splash.is-hiding {
         opacity: 0;
     }
@@ -484,11 +487,22 @@
             maybeHideSplash();
         }, 1000);
 
-        if (document.readyState === 'complete') {
+        /* load нь гадны нөөц (фонт, KaTeX) ирэхийг хүлээдэг тул удаан сүлжээнд
+           хэзээ ч болохгүй байж мэднэ. Тиймээс DOM бэлэн болмогц бэлэн гэж үзэх
+           бөгөөд SPLASH_HARD_CAP хугацааны дараа ямар ч тохиолдолд арилгана. */
+        const SPLASH_HARD_CAP = 4000;
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
             markReady();
         } else {
+            document.addEventListener('DOMContentLoaded', markReady, { once: true });
             window.addEventListener('load', markReady, { once: true });
         }
+        window.setTimeout(() => {
+            isMinimumVisibleTimeElapsed = true;
+            markReady();
+            /* Хэрэв ямар нэг шалтгаанаар арилаагүй бол хүчээр авна */
+            if (!isHidden) { isHidden = true; splashRoot.remove(); }
+        }, SPLASH_HARD_CAP);
 
         
     })();

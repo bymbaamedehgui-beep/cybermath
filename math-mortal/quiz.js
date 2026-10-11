@@ -174,8 +174,11 @@ function prefetch(grade, node) {
         if (opts.some(o => !o || visibleLength(o) > MAX_OPT_LEN)) continue;
         clean.push({ q: String(q.text), answer, options: opts });
       }
-      if (clean.length) { pool = clean; poolKey = key; }
-      else noServer.add(key);   /* тохиромжтой бодлого алга — цаашид бүү тат */
+      if (clean.length) {
+        pool = clean; poolKey = key;
+        /* Эхний бодлого дотоод генератораар гарсан бол сольж өгөхийн тулд мэдэгдэнэ */
+        window.dispatchEvent(new CustomEvent('arena:pool-ready', { detail: { key } }));
+      } else noServer.add(key);   /* тохиромжтой бодлого алга — цаашид бүү тат */
     })
     .catch(() => { noServer.add(key); /* сүлжээгүй — нөөц генератор ажиллана */ })
     .finally(() => { loading = null; });
@@ -266,7 +269,7 @@ export function createQuizQuestion(settings = getQuizSettings()) {
       return { q: picked.q, answer: picked.answer, options: picked.options.slice().sort(() => Math.random() - 0.5) };
     }
     prefetch(normalized.grade, normalized.node);
-    return mathQuestion(normalized.grade);
+    return Object.assign(mathQuestion(normalized.grade), { local: true });
   }
   const bank = QUESTION_BANKS[normalized.topic] || QUESTION_BANKS.science;
   const item = bank[Math.floor(Math.random() * bank.length)];

@@ -1248,6 +1248,10 @@ $('settings-toggle')?.addEventListener('click', () => {
     else $('overlay').style.display = 'flex';
 });
 $('music-toggle')?.addEventListener('click', toggleMute);
+/* Сан ачаалагдмагц дотоод генератораар гарсан бодлогыг жинхэнэ бодлогоор солино */
+window.addEventListener('arena:pool-ready', () => {
+    if (state === 'play' && currentMath && currentMath.local) generateMathQuestion();
+}, { signal: gameEvents.signal });
 window.addEventListener('arena:settings-changed', () => {
     const network = window.ArenaMultiplayer;
     if (network?.connected && network.role === 'guest') return;
