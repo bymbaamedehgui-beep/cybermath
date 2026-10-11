@@ -1072,10 +1072,13 @@ function fighterCountOnField() {
 /* Дайсны тал — хар нүүрсэн их бие, нил ягаан нөмрөг, улайсан лаавын ан цав.
    color = их биеийн өнгө, glow = ялгарах лаав/шившлэг. */
 const ENEMY_SKIN = {
-    goblin:  { color: 0x3a2f33, glow: 0xff4a14, glowStrength: 0.30, tint: 0.6, lift: 1.25 },
-    treant:  { color: 0x3d3526, glow: 0xff6a1a, glowStrength: 0.26, tint: 0.55, lift: 1.3 },
-    cultist: { color: 0x51275a, glow: 0xc026a0, glowStrength: 0.36, tint: 0.68, lift: 1.2 },
-    golem:   { color: 0x2d2228, glow: 0xff7a1a, glowStrength: 0.5,  tint: 0.62, lift: 1.15 }
+    /* Хар нүүрс шиг бараан их бие (lift < 1), дотроос нь лаав улайна (glow). */
+    /* Талбай улбар шар тул дайсныг ЭСРЭГ өнгөөр — ягаан, нил, хүчлийн ногоон.
+       Эх загварын палитр ч ийм байсан. */
+    treant:  { color: 0x6fd21f, glow: 0xa8ff3c, glowStrength: 0.30, tint: 0.92, lift: 1.6  },
+    goblin:  { color: 0xc42ab4, glow: 0xf252dc, glowStrength: 0.32, tint: 0.92, lift: 1.55 },
+    cultist: { color: 0x7a3cf0, glow: 0xa87cff, glowStrength: 0.36, tint: 0.92, lift: 1.55 },
+    golem:   { color: 0xff3a12, glow: 0xff9a28, glowStrength: 0.46, tint: 0.92, lift: 1.5  }
 };
 
 function createEnemy(waveNumber, spawnX = 10.5, spawnZ = 0) {
@@ -1889,7 +1892,9 @@ function combatFrontX() {
     if (!heroes.length) return avg(foes);
     const heroFront = Math.max(...heroes.map(f => f.group.position.x));
     const foeFront = Math.min(...foes.map(f => f.group.position.x));
-    return (heroFront + foeFront) * 0.5;
+    /* Хоёр тал ойрхон бол зодооны дунд цэг. Хол байвал дундуур нь харвал
+       хоосон талбай харагдана — тиймээс баатрынхаа урдуур дагана. */
+    return heroFront + Math.min((foeFront - heroFront) * 0.5, 2.5);
 }
 
 function updateCamera(dt) {

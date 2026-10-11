@@ -1314,7 +1314,7 @@ export function startFallback(reason = 'Reduced mode active.') {
     const heroesX = living.filter(f => f.team !== 'enemy').map(f => f.x);
     const foesX = living.filter(f => f.team === 'enemy').map(f => f.x);
     const frontX = (heroesX.length && foesX.length)
-      ? (Math.max(...heroesX) + Math.min(...foesX)) * 0.5
+      ? Math.max(...heroesX) + Math.min((Math.min(...foesX) - Math.max(...heroesX)) * 0.5, 2.5)
       : (heroesX.length ? heroesX.reduce((a, b) => a + b, 0) / heroesX.length
         : (foesX.length ? foesX.reduce((a, b) => a + b, 0) / foesX.length : 0));
     const follow = Math.max(-arenaRadius + halfSpan, Math.min(arenaRadius - halfSpan, frontX));
