@@ -190,9 +190,11 @@ export function createFighter(color, scale = 1, modelKey = null, opts = {}) {
         group, body, torso, legL, legR, armL, armR, sword, bowGroup, armor, scale,
         baseColor: new THREE.Color(color), walkPhase: 0, deathT: 0, weaponKey: modelKey,
         glowColor: new THREE.Color(opts.glow ?? color),
-        glowStrength: opts.glowStrength ?? 0.07,
-        tintAmount: opts.tint ?? 0.25,
-        lift: opts.lift ?? 2.3,
+        /* Анхдагч = баатрууд: загварынхаа эх текстурээр, зүгээр тод (дайсантай ижил
+           зарчим). Дайсан нь createEnemy-ээс өөрийн утгуудыг дамжуулна. */
+        glowStrength: opts.glowStrength ?? 0.05,
+        tintAmount: opts.tint ?? 0.1,
+        lift: opts.lift ?? 1.75,
         primitives, flashMats: [], model: null,
     };
     if (modelKey && MODELS[modelKey]) attachModel(f, modelKey);
