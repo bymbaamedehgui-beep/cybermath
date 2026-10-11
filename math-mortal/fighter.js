@@ -93,10 +93,11 @@ function buildWeapon(key) {
         const rock = new THREE.MeshStandardMaterial({ color: 0x2a2228, roughness: 0.95 });
         const lava = new THREE.MeshStandardMaterial({
             color: 0x30211c, emissive: 0xff5a12, emissiveIntensity: 1.6, roughness: 0.8 });
-        /* Торны алх маягийн жижиг чулуун алх */
-        add(new THREE.CylinderGeometry(0.055, 0.065, 0.95, 7), rock, 0.3);
-        add(new THREE.BoxGeometry(0.3, 0.22, 0.24), rock, 0.84);
-        add(new THREE.BoxGeometry(0.32, 0.05, 0.26), lava, 0.84);
+        /* Чулуун СҮХ — лаавын улайсан ирмэгтэй */
+        add(new THREE.CylinderGeometry(0.055, 0.065, 1.0, 7), rock, 0.32);
+        add(new THREE.BoxGeometry(0.12, 0.26, 0.14), rock, 0.86);
+        add(new THREE.BoxGeometry(0.08, 0.34, 0.34), rock, 0.86, 0.22);
+        add(new THREE.BoxGeometry(0.085, 0.36, 0.06), lava, 0.86, 0.40);
     } else if (key === 'cultist') {
         /* Шившлэгийн таяг — оройд нь ягаан гал */
         const staff = new THREE.MeshStandardMaterial({ color: 0x2e2434, roughness: 0.8 });
