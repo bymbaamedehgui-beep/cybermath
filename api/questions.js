@@ -237,7 +237,7 @@ module.exports = async (req, res) => {
         const idList = String(ids).split(',').map(function(x){ return parseInt(x); }).filter(function(x){ return !isNaN(x); });
         if (!idList.length) return res.json({ ok: true, questions: [] });
         const r0 = await pool.query('SELECT * FROM questions WHERE id = ANY($1::bigint[])', [idList]);
-        return res.json({ ok: true, questions: r0.rows });
+        return res.json({ ok: true, questions: shuffleChoices(r0.rows) });
       }
       let q = 'SELECT * FROM questions';
       const conds = [], vals = [];
@@ -292,7 +292,7 @@ module.exports = async (req, res) => {
           .map(function (id) { return byIdA[id]; }).filter(Boolean);
         return res.json({ ok: true, questions: shuffleChoices(sh.slice(0, pick)) });
       }
-      return res.json({ ok: true, questions: r.rows });
+      return res.json({ ok: true, questions: shuffleChoices(r.rows) });
     }
 
     if (req.method === 'POST') {
