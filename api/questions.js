@@ -38,6 +38,45 @@ function onePerVariant(rows) {
     return g.length === 1 ? g[0] : g[Math.floor(Math.random() * g.length)];
   });
 }
+/* Нэг багцад хялбар/дунд/хүнд гурвууланг холино.
+   Харьцаа 30/40/30 — боломжгүй бол байгаагаар нь нөхнө.
+   pool: сонгож болох id-ийн жагсаалт, byId: id → мөр */
+function mixByDifficulty(ids, byId, n) {
+  const WANT = { easy: 0.3, medium: 0.4, hard: 0.3 };
+  const bins = { easy: [], medium: [], hard: [] };
+  ids.forEach(function (id) {
+    const d = String((byId[id] || {}).difficulty || 'medium').toLowerCase();
+    (bins[d] || bins.medium).push(id);
+  });
+  Object.keys(bins).forEach(function (k) { bins[k] = shuffle(bins[k]); });
+  const out = [];
+  ['easy', 'medium', 'hard'].forEach(function (k) {
+    const want = Math.round(n * WANT[k]);
+    out.push.apply(out, bins[k].splice(0, want));
+  });
+  /* Дутвал үлдсэнээс нь дүүргэнэ */
+  if (out.length < n) {
+    const rest = shuffle(bins.easy.concat(bins.medium, bins.hard));
+    out.push.apply(out, rest.slice(0, n - out.length));
+  }
+  return shuffle(out).slice(0, n);
+}
+
+/* Сонголтуудыг илгээх бүрд холино.
+   correct нь УТГА (индекс биш) тул холих нь хариуг эвдэхгүй.
+   Зөвхөн 2+ сонголттой, зөв хариу нь сонголтуудын дотор байгаа үед. */
+function shuffleChoices(rows) {
+  return (rows || []).map(function (r) {
+    const ch = r && r.choices;
+    if (!Array.isArray(ch) || ch.length < 2) return r;
+    if (typeof r.correct === 'number') return r;          /* индекс хэлбэр — хөндөхгүй */
+    if (ch.map(String).indexOf(String(r.correct)) < 0) return r;
+    /* "Дээрх бүгд" маягийн сонголт нь байрлалаасаа хамаарна — хөндөхгүй */
+    if (ch.some(function (c) { return /дээрх|бүгд|аль нь ч/i.test(String(c)); })) return r;
+    return Object.assign({}, r, { choices: shuffle(ch.slice()) });
+  });
+}
+
 async function pickUnseen(email, nodeId, rows, n) {
   try {
     await ensureCycleTable();
@@ -59,7 +98,9 @@ async function pickUnseen(email, nodeId, rows, n) {
       unseen = all.filter(id => !justSeen.has(id));
       if (unseen.length < n) unseen = all.slice();
     }
-    const take = shuffle(unseen.slice()).slice(0, n);
+    const byId0 = {};
+    rows.forEach(function (r) { byId0[Number(r.id)] = r; });
+    const take = mixByDifficulty(unseen, byId0, n);
     const nextSeen = seen.concat(take);
     await pool.query(
       `INSERT INTO q_cycle (email, node_id, seen, cycle, updated_at) VALUES ($1,$2,$3,$4,NOW())
@@ -242,12 +283,14 @@ module.exports = async (req, res) => {
         if (u) {
           const nid = parseInt(node_id, 10);
           const out = await pickUnseen(u.email, nid, r.rows, pick);
-          if (out) return res.json({ ok: true, questions: out });
+          if (out) return res.json({ ok: true, questions: shuffleChoices(out) });
         }
         /* Нэвтрээгүй эсвэл DB алдаа → энгийн санамсаргүй сонголт */
-        const sh = onePerVariant(r.rows);
-        for (let i = sh.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = sh[i]; sh[i] = sh[j]; sh[j] = t; }
-        return res.json({ ok: true, questions: sh.slice(0, pick) });
+        const sh0 = onePerVariant(r.rows);
+        const byIdA = {}; sh0.forEach(function (x) { byIdA[Number(x.id)] = x; });
+        const sh = mixByDifficulty(sh0.map(function (x) { return Number(x.id); }), byIdA, pick)
+          .map(function (id) { return byIdA[id]; }).filter(Boolean);
+        return res.json({ ok: true, questions: shuffleChoices(sh.slice(0, pick)) });
       }
       return res.json({ ok: true, questions: r.rows });
     }
