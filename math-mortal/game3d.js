@@ -185,7 +185,12 @@ try {
     addStatusWarning('Sky image unavailable; using a procedural sunset.');
 }
 
-scene.add(new THREE.HemisphereLight(0xffe0b0, 0x402010, 1.2));
+scene.add(new THREE.HemisphereLight(0xffe0b0, 0x402010, 1.9));
+/* Нарны эсрэг талаас зөөлөн гэрэл — баатрууд хар дүрс болж харагдахгүй,
+   хувцасных нь өнгө ялгарна. */
+const fillLight = new THREE.DirectionalLight(0xbcd8ff, 1.15);
+fillLight.position.set(-12, 14, 16);
+scene.add(fillLight);
 const sun = new THREE.DirectionalLight(0xffc888, 2.2);
 sun.position.set(15, 25, 10);
 sun.castShadow = true;
@@ -762,7 +767,27 @@ const HERO_NAMES = { swordsman: 'SWORDSMAN', barbarian: 'BARBARIAN', spearman: '
 const ENEMY_NAMES = { treant: 'TREANT', cultist: 'DARK CULTIST', goblin: 'GOBLIN', golem: 'LAVA GOLEM' };
 
 let currentHeroKey = 'swordsman';
-let player = createFighter(0xfff3b8, 1, currentHeroKey);
+/* Баатар бүрийн хувцасны өнгө — бие биенээсээ ч, улаан дайснаас ч ялгарна.
+   Өөрчлөхдөө зөвхөн энэ хүснэгтийг засна. */
+const HERO_COLORS = {
+    swordsman: 0x5b8cf0,  /* СЭЛЭМЧИН — ган хөх */
+    barbarian: 0xd4603f,  /* БАРБАР   — зэв улаан */
+    spearman:  0x2ccb97,  /* ЖАДТАН   — хаш ногоон */
+    bomber:    0xf5ad33,  /* ТЭСРЭГЧ  — хув шар */
+    archer:    0xab8bfb   /* ХАРВААЧ  — нил ягаан */
+};
+const ALLY_TINT = 0.78;   /* нөхдийн өнгө багавтар цайвар — тоглогчоос ялгарна */
+function heroColor(key, ally) {
+    const c = HERO_COLORS[key] ?? HERO_COLORS.swordsman;
+    if (!ally) return c;
+    /* Нөхдийг арай цайвар болгоно */
+    const r = Math.min(255, Math.round(((c >> 16) & 255) + (255 - ((c >> 16) & 255)) * (1 - ALLY_TINT)));
+    const g = Math.min(255, Math.round(((c >> 8) & 255) + (255 - ((c >> 8) & 255)) * (1 - ALLY_TINT)));
+    const b = Math.min(255, Math.round((c & 255) + (255 - (c & 255)) * (1 - ALLY_TINT)));
+    return (r << 16) | (g << 8) | b;
+}
+
+let player = createFighter(heroColor(currentHeroKey), 1, currentHeroKey);
 player.group.visible = false;
 scene.add(player.group);
 let currentEnemy = null;
@@ -934,9 +959,27 @@ function installNetworkQuestion(message) {
     renderMathUI();
 }
 
+/* Анги бүрийн ҮНДСЭН ЗЭВСЭГ — тулаанд үүнийгээ л голчлон ашиглана */
+const HERO_WEAPON = {
+    swordsman: 'slash',   /* сэлэм */
+    barbarian: 'slash',   /* сүх */
+    spearman: 'spear',    /* жад */
+    bomber: 'bomb',       /* бөмбөг */
+    archer: 'arrow'       /* нум */
+};
+
 function actionForHero(fighter) {
-    const cycle = fighter.profile?.actionCycle || getHeroProfile(fighter.heroKey || currentHeroKey).actionCycle;
-    const action = cycle[(fighter.actionIndex || 0) % cycle.length];
+    const key = fighter.heroKey || currentHeroKey;
+    const weapon = HERO_WEAPON[key] || 'slash';
+    /* Тэнхээ хүрэх л бол зэвсгээ ашиглана */
+    if ((fighter.stamina ?? 0) >= (heroAction(fighter, weapon).cost ?? 0)) {
+        fighter.actionIndex = (fighter.actionIndex || 0) + 1;
+        return weapon;
+    }
+    /* Тэнхээ дууссан үед л гар, хөлийн цохилт */
+    const cycle = (fighter.profile?.actionCycle || getHeroProfile(key).actionCycle)
+        .filter(a => a !== weapon);
+    const action = cycle.length ? cycle[(fighter.actionIndex || 0) % cycle.length] : 'attack';
     fighter.actionIndex = (fighter.actionIndex || 0) + 1;
     return action;
 }
@@ -944,6 +987,8 @@ function orderAllHeroesToAct() {
     for (const fighter of [player, ...allies]) {
         if (fighter.dead) continue;
         if (!Array.isArray(fighter.commandQueue)) fighter.commandQueue = [];
+        /* Дараалал хуримтлагдахгүй — зайнаас гадуур байхад хуучин тушаал овоорохгүй */
+        if (fighter.commandQueue.length >= 2) continue;
         fighter.commandQueue.push(actionForHero(fighter));
     }
 }
@@ -1067,8 +1112,7 @@ function spawnPendingHeroes() {
     while (pendingHeroKeys.length && allies.length < MAX_FIGHTERS - 2 && fighterCountOnField() < MAX_FIGHTERS) {
         const selection = pendingHeroKeys.shift();
         const heroKey = selection.heroKey;
-        const colors = { swordsman: 0xfff3b8, barbarian: 0xfffdf4, spearman: 0xd8f0ff, bomber: 0xe2f7d3, archer: 0xdbf1ff };
-        const ally = createFighter(colors[heroKey] || 0x39825d, 0.92, heroKey);
+        const ally = createFighter(heroColor(heroKey, true), 0.92, heroKey);
         applyHeroProfile(ally, heroKey);
         initFighterStats(ally, ally.maxHp);
         attachFighterHealthBar(ally);
@@ -1128,9 +1172,8 @@ function startGame() {
     if (selectedHeroKey !== currentHeroKey) {
         scene.remove(player.group);
         disposeFighterHealthBar(player);
-        const heroColors = { swordsman: 0xfff3b8, barbarian: 0xfffdf4, spearman: 0xd8f0ff, bomber: 0xe2f7d3, archer: 0xdbf1ff };
         currentHeroKey = selectedHeroKey;
-        player = createFighter(heroColors[currentHeroKey] || heroColors.swordsman, 1, currentHeroKey);
+        player = createFighter(heroColor(currentHeroKey), 1, currentHeroKey);
         applyHeroProfile(player, currentHeroKey);
         player.group.visible = true;
         scene.add(player.group);
@@ -1149,7 +1192,7 @@ function startGame() {
     pendingHeroKeys = [];
     pendingHeroChoices = 0;
     pendingHeroRewardAttacks = [];
-    autoAttackTimer = 8;
+    autoAttackTimer = 1.5;
     updateRecruitPanel();
     currentEnemy = null;
     wave = 0;
@@ -1755,10 +1798,12 @@ function separateFighters() {
 function updateGame(dt) {
     updateTowerCollapse(dt);
     if (state !== 'play') return;
+    /* Тулаан автоматаар — баатрууд 1.5с тутамд зэвсгээ далайна.
+       Тэнхээ, хүлээлт, зай нь өөрөө хязгаарлах тул хэт олон болохгүй. */
     autoAttackTimer -= dt;
     if (autoAttackTimer <= 0) {
         orderAllHeroesToAct();
-        autoAttackTimer = 8;
+        autoAttackTimer = 1.5;
     }
     if (mathTimeLeft > 0) {
         mathTimeLeft = Math.max(0, mathTimeLeft - dt);

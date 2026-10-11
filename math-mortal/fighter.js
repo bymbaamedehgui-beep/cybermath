@@ -71,8 +71,15 @@ function attachModel(f, key) {
                 const sourceMaterials = Array.isArray(o.material) ? o.material : [o.material];
                 const tintedMaterials = sourceMaterials.map(sourceMaterial => {
                     const material = sourceMaterial.clone();
-                    if (material.color) material.color.lerp(f.baseColor, 0.74);
-                    if (material.emissive) f.flashMats.push(material);
+                    /* 0.74 нь загварын бүх нарийн ширийнийг дардаг байсан */
+                    if (material.color) material.color.lerp(f.baseColor, 0.68);
+                    if (material.emissive) {
+                        /* Загварын даавуу бараан текстуртэй тул зөвхөн color-оор будахад
+                           сүүдэрт хар дүрс болдог. Багахан ялгарал нэмж өнгийг нь гаргана. */
+                        material.emissive.copy(f.baseColor).multiplyScalar(0.26);
+                        material.emissiveIntensity = 1;
+                        f.flashMats.push(material);
+                    }
                     return material;
                 });
                 o.material = Array.isArray(o.material) ? tintedMaterials : tintedMaterials[0];

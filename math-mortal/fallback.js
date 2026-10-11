@@ -40,7 +40,7 @@ export function startFallback(reason = 'Reduced mode active.') {
   let banner = '', bannerTime = 0, shake = 0;
   let selectedHero = window.__selectedHeroKey || 'swordsman', playerPowerBoost = 1, boostTimer = 0;
   let pointerGesture = null;
-  let questionSerial = 0, mathTimeLeft = getQuizSettings().seconds, queuedTimeoutEnemies = 0, autoAttackTimer = 8;
+  let questionSerial = 0, mathTimeLeft = getQuizSettings().seconds, queuedTimeoutEnemies = 0, autoAttackTimer = 1.5;
   const MAX_FIGHTERS = 10;
   let pendingHeroKeys = [], pendingHeroChoices = 0, pendingHeroRewardAttacks = [];
   let correctHeroProgress = 0, wrongHeroProgress = 0, correctActionIndex = 0;
@@ -209,9 +209,18 @@ export function startFallback(reason = 'Reduced mode active.') {
     mathTimeLeft = Math.max(0, Math.min(getQuizSettings().seconds, Number(message.timeLeft) || getQuizSettings().seconds));
     renderMathQuestion();
   }
+  /* Анги бүрийн үндсэн зэвсэг — 3D хувилбартай ижил */
+  const HERO_WEAPON = { swordsman: 'slash', barbarian: 'slash', spearman: 'spear', bomber: 'bomb', archer: 'arrow' };
   function actionForHero(fighter) {
-    const cycle = fighter.profile?.actionCycle || getHeroProfile(fighter.heroKey).actionCycle;
-    const action = cycle[(fighter.actionIndex || 0) % cycle.length];
+    const key = fighter.heroKey;
+    const weapon = HERO_WEAPON[key] || 'slash';
+    const cost = (getHeroAction(key, weapon) || {}).cost ?? 0;
+    if ((fighter.stamina ?? 0) >= cost) {
+      fighter.actionIndex = (fighter.actionIndex || 0) + 1;
+      return weapon;
+    }
+    const cycle = (fighter.profile?.actionCycle || getHeroProfile(key).actionCycle).filter(a => a !== weapon);
+    const action = cycle.length ? cycle[(fighter.actionIndex || 0) % cycle.length] : 'attack';
     fighter.actionIndex = (fighter.actionIndex || 0) + 1;
     return action;
   }
@@ -219,6 +228,7 @@ export function startFallback(reason = 'Reduced mode active.') {
     for (const fighter of [player, ...allies]) {
       if (fighter.dead) continue;
       if (!Array.isArray(fighter.commandQueue)) fighter.commandQueue = [];
+      if (fighter.commandQueue.length >= 2) continue;
       fighter.commandQueue.push(actionForHero(fighter));
     }
   }
@@ -359,7 +369,7 @@ export function startFallback(reason = 'Reduced mode active.') {
     pendingHeroKeys = [];
     pendingHeroChoices = 0;
     pendingHeroRewardAttacks = [];
-    autoAttackTimer = 8;
+    autoAttackTimer = 1.5;
     updateRecruitPanel();
     correctHeroProgress = 0;
     wrongHeroProgress = 0;
@@ -912,10 +922,11 @@ export function startFallback(reason = 'Reduced mode active.') {
   }
 
   function update(dt) {
+    /* Тулаан автоматаар — баатрууд 1.5с тутамд зэвсгээ далайна */
     autoAttackTimer -= dt;
     if (autoAttackTimer <= 0) {
       orderAllHeroesToAct();
-      autoAttackTimer = 8;
+      autoAttackTimer = 1.5;
     }
     if (mathTimeLeft > 0) {
       mathTimeLeft = Math.max(0, mathTimeLeft - dt);
