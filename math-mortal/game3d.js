@@ -6,6 +6,13 @@ import { createFighter, animateFighter } from './fighter.js';
 import { createQuizQuestion, getQuizSettings, applyQuizSettings } from './quiz.js';
 import { HERO_PROFILES, getHeroProfile, getHeroAction } from './hero-profiles.js';
 
+/* PvP-ийн төлөв — доорх функцуудаас өмнө зарлагдсан байх ёстой, учир нь
+   initFighterStats() модуль ачаалах үедээ дуудагддаг. */
+let netIdSeq = 0;
+let pvpSendTimer = 0;
+let pvpStarted = false;
+const netFighters = new Map();     /* зочин дээр: netId → тулаанч */
+
 const ARENA_R = 18;
 const $ = id => document.getElementById(id);
 const healthBarWorldPosition = new THREE.Vector3();
@@ -997,6 +1004,8 @@ function orderAllHeroesToAct() {
 
 function solveMath(chosen, fromRemote = false) {
     if (state !== 'play') return false;
+    /* PvP: зочин дайсны талд — хариулт нь эзний талбайд нөлөөлнө */
+    if (isPvpGuest() && !fromRemote) { pvpGuestAnswer(chosen === currentMath.answer); return true; }
     const solvedQuestionId = currentMath.id;
     if (chosen === currentMath.answer) {
         correctActionIndex++;
@@ -1060,12 +1069,149 @@ function resetPlayer(f) {
     });
 }
 function initFighterStats(f, maxHp) {
+    if (!f.netId) f.netId = ++netIdSeq;
     f.maxHp = maxHp;
     resetPlayer(f);
 }
 applyHeroProfile(player, currentHeroKey);
 initFighterStats(player, player.maxHp);
 attachFighterHealthBar(player);
+
+/* ═══════════ PvP ═══════════
+   Эзэн (host) = БААТРЫН ТАЛ, зочин (guest) = ДАЙСНЫ ТАЛ.
+   Тулааныг зөвхөн эзэн тооцоолж, байдлаа зочинд дамжуулна. */
+const PVP_HZ = 15;                 /* секундэд хэдэн удаа байдлаа илгээх */
+const PVP_LERP = 12;               /* зочин дээрх зөөлрүүлэлт */
+const PVP_KEYS = ['swordsman', 'barbarian', 'spearman', 'bomber', 'archer',
+                  'treant', 'cultist', 'goblin', 'golem'];
+function netLink() { const n = window.ArenaMultiplayer; return (n && n.connected) ? n : null; }
+function isPvpHost() { const n = netLink(); return !!n && n.role === 'host'; }
+function isPvpGuest() { const n = netLink(); return !!n && n.role === 'guest'; }
+
+/* Эзэн: талбайн бүх тулаанчийн байдлыг нягт хэлбэрээр илгээнэ */
+function sendSnapshot() {
+    const n = netLink();
+    if (!n) return;
+    const all = [player, ...allies, ...enemies];
+    n.send({
+        t: 'snap', w: wave,
+        ht: Math.round(friendlyTower.hp), et: Math.round(enemyTower.hp),
+        f: all.map(f => [
+            f.netId || 0,
+            PVP_KEYS.indexOf(f.weaponKey || 'swordsman'),
+            f.team === 'enemy' ? 1 : 0,
+            Math.round(f.group.position.x * 50),
+            Math.round(f.group.position.z * 50),
+            Math.round(f.group.rotation.y * 100),
+            Math.round(Math.max(0, f.hp || 0)),
+            Math.round(f.maxHp || 1),
+            f.dead ? 1 : 0,
+            Math.round((f.scale || 1) * 100)
+        ])
+    });
+}
+
+/* Зочин: ирсэн байдлаар талбайгаа дахин зохион байгуулна */
+function applySnapshot(msg) {
+    if (!Array.isArray(msg.f)) return;
+    wave = msg.w || wave;
+    friendlyTower.hp = msg.ht;
+    enemyTower.hp = msg.et;
+    const seen = new Set();
+    for (const a of msg.f) {
+        const [id, ki, foe, x50, z50, ry100, hp, maxHp, dead, sc100] = a;
+        if (!id) continue;
+        seen.add(id);
+        const key = PVP_KEYS[ki] || 'swordsman';
+        let f = netFighters.get(id);
+        if (!f) {
+            const scale = (sc100 || 100) / 100;
+            if (foe) {
+                const skin = ENEMY_SKIN[key] || ENEMY_SKIN.goblin;
+                f = createFighter(skin.color, scale, key, skin);
+                f.team = 'enemy';
+            } else {
+                f = createFighter(heroColor(key), scale, key);
+                f.team = 'hero';
+                applyHeroProfile(f, key);
+            }
+            f.netId = id;
+            initFighterStats(f, maxHp || 100);
+            attachFighterHealthBar(f);
+            f.group.position.set(x50 / 50, 0, z50 / 50);
+            scene.add(f.group);
+            netFighters.set(id, f);
+        }
+        f.netX = x50 / 50;
+        f.netZ = z50 / 50;
+        f.netRy = ry100 / 100;
+        f.maxHp = maxHp || f.maxHp;
+        f.hp = hp;
+        if (dead && !f.dead) { f.dead = true; f.deathT = 0; }
+    }
+    for (const [id, f] of [...netFighters]) {
+        if (seen.has(id)) continue;
+        scene.remove(f.group);
+        disposeFighterHealthBar(f);
+        netFighters.delete(id);
+    }
+    /* Камер, HUD хуучин массивуудыг хэрэглэдэг тул тэднийг дүүргэнэ */
+    allies = [...netFighters.values()].filter(f => f.team !== 'enemy');
+    enemies = [...netFighters.values()].filter(f => f.team === 'enemy');
+}
+
+/* Зочны нэг алхам — тооцоолол байхгүй, зөвхөн зөөлрүүлэлт ба бодлогын цаг */
+function stepGuest(dt) {
+    if (mathTimeLeft > 0) {
+        mathTimeLeft = Math.max(0, mathTimeLeft - dt);
+        if (mathTimeLeft <= 0) {
+            const n = netLink();
+            if (n) n.send({ t: 'pvp', ok: false });
+            showBanner('ХУГАЦАА ДУУССАН · ДАЙСАН СУЛРАВ');
+            generateMathQuestion();
+        }
+    }
+    const k = Math.min(1, dt * PVP_LERP);
+    for (const f of netFighters.values()) {
+        if (f.netX === undefined) continue;
+        const px = f.group.position.x;
+        const pz = f.group.position.z;
+        f.group.position.x += (f.netX - px) * k;
+        f.group.position.z += (f.netZ - pz) * k;
+        let dy = f.netRy - f.group.rotation.y;
+        while (dy > Math.PI) dy -= Math.PI * 2;
+        while (dy < -Math.PI) dy += Math.PI * 2;
+        f.group.rotation.y += dy * k;
+        /* Алхалтын анимац ажиллахын тулд хурдыг нь гаргана */
+        const inv = 1 / Math.max(dt, 0.0001);
+        f.vel.set((f.group.position.x - px) * inv, 0, (f.group.position.z - pz) * inv);
+        if (f.dead) f.deathT += dt;
+        updateFighterHealthBar(f);
+    }
+}
+
+/* Зочин хариулахад — өөрийн талбайд биш, эзний талбайд нөлөөлнө */
+function pvpGuestAnswer(correct) {
+    const n = netLink();
+    if (n) n.send({ t: 'pvp', ok: !!correct });
+    showBanner(correct ? 'ЗӨВ! ДАЙСАН НЭМЭГДЛЭЭ' : 'АЛДАА · ДАЙСАН СУЛРАВ');
+    generateMathQuestion();
+}
+
+/* Зочныг тулаан харах горимд оруулна */
+function startPvpGuest() {
+    if (pvpStarted) return;
+    pvpStarted = true;
+    $('overlay').style.display = 'none';
+    state = 'play';
+    player.group.visible = false;   /* зочинд өөрийн баатар байхгүй */
+    player.dead = true;
+    enemies = [];
+    allies = [];
+    $('e-name') && ($('e-name').textContent = '⚔ БААТРУУДЫН ЦАЙЗ');
+    showBanner('ТА ДАЙСНЫ ТАЛД · ЗӨВ БОДОХ ТУТАМ ДАЙСАН НЭМЭГДЭНЭ');
+    generateMathQuestion();
+}
 
 function fighterCountOnField() {
     return 1 + allies.length + enemies.length;
@@ -1323,21 +1469,36 @@ window.addEventListener('arena:network-message', event => {
     const message = event.detail;
     const network = window.ArenaMultiplayer;
     if (!message || !network?.connected) return;
+    /* ── PvP мессежүүд ── */
+    if (message.t === 'snap' && isPvpGuest()) {
+        if (!pvpStarted) startPvpGuest();
+        applySnapshot(message);
+        return;
+    }
+    if (message.t === 'pvp' && isPvpHost() && state === 'play') {
+        if (message.ok) {
+            const spawned = spawnEnemyGroup(wave || 1, 2);
+            if (spawned < 2) queuedTimeoutEnemies += 2;
+            showBanner('ӨРСӨЛДӨГЧ ЗӨВ БОДЛОО · ДАЙСАН НЭМЭГДЛЭЭ');
+            playWhoosh(0.8);
+        } else {
+            for (const e of enemies) if (!e.dead) e.hp = Math.max(1, e.hp - 14);
+            showBanner('ӨРСӨЛДӨГЧ АЛДЛАА · ДАЙСАН СУЛРАВ');
+        }
+        return;
+    }
+    if (message.t === 'end' && isPvpGuest()) {
+        state = 'over';
+        $('overlay').querySelector('h1').textContent = message.won ? 'GAME OVER' : 'VICTORY!';
+        $('msg').textContent = message.won
+            ? 'Өрсөлдөгч дайсны цайзыг нураалаа. Та хожигдлоо.'
+            : 'Баатруудын цайз нурлаа! Та яллаа.';
+        $('play').style.display = 'none';
+        $('overlay').style.display = 'flex';
+        return;
+    }
     if (message.type === 'request-state' && network.role === 'host') {
         sendGameState();
-    } else if (message.type === 'state' && network.role === 'guest') {
-        applyQuizSettings(message.settings, true);
-        if (message.active && state === 'menu') beginChallenge();
-        else if (message.active && state === 'paused') resumeGame(true);
-        if (message.question) installNetworkQuestion(message);
-    } else if (message.type === 'answer' && network.role === 'host' && state === 'play' && message.questionId === currentMath.id) {
-        solveMath(message.answer, true);
-    } else if (message.type === 'question' && network.role === 'guest' && state === 'play') {
-        if (message.timedOut) {
-            applyFailedAnswerPenalty('ХУГАЦАА ДУУССАН');
-            if (state === 'play') addTimeoutEnemy();
-        }
-        if (state === 'play') installNetworkQuestion(message);
     } else if (message.type === 'pause') {
         pauseGame(undefined, true);
     } else if (message.type === 'resume') {
@@ -1482,6 +1643,7 @@ function finishMatch(won, defeatReason = 'tower') {
     const lvlEl = $('lb-reached');
     if (lvlEl) lvlEl.textContent = `Та ҮЕ ${reached}/${MAX_WAVE} хүртэл явлаа · ${score} оноо`;
     lbSubmit(reached, score);
+    if (isPvpHost()) { const n = netLink(); if (n) n.send({ t: 'end', won: !!won }); }
     sendGameState();
 }
 function damageTower(tower, amount, attacker) {
@@ -2068,11 +2230,20 @@ renderer.setAnimationLoop(time => {
             hitStop -= dt;
             dt *= 0.1;
         }
-        if (state === 'play' || state === 'over') {
+        if (isPvpGuest()) {
+            /* Зочин тооцоолохгүй — эзний илгээсэн байдлыг л зурна */
+            if (state === 'play') stepGuest(dt);
+            updateParticles(dt);
+        } else if (state === 'play' || state === 'over') {
             if (state === 'play') updateGame(dt);
             updateParticles(dt);
             updateBombs(dt);
             updateArrows(dt);
+            /* Эзэн: байдлаа тогтмол дамжуулна */
+            if (isPvpHost() && state === 'play') {
+                pvpSendTimer -= dt;
+                if (pvpSendTimer <= 0) { pvpSendTimer = 1 / PVP_HZ; sendSnapshot(); }
+            }
         }
         animateFighter(player, dt);
         enemies.forEach(e => animateFighter(e, dt));
