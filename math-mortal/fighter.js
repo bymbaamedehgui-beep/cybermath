@@ -75,14 +75,19 @@ function attachModel(f, key) {
                     /* 0.74 нь загварын бүх нарийн ширийнийг дардаг байсан */
                     /* Хувцсыг ЦАЙВАР болгоно — загварын даавуу бараан тул
                        өнгийг нь бараг бүрэн сольж, арай цайруулна. */
+                    /* Загварын өөрийн хуяг, арьс, нөмрөгийн текстурыг ХАДГАЛНА.
+                       Зөвхөн багахан аяс нэмж, бага зэрэг цайруулна — ингэснээр
+                       fantasy дайчны харагдах байдал нь алдагдахгүй. */
                     if (material.color) {
-                        material.color.lerp(f.baseColor, 0.92);
-                        material.color.lerp(WHITE, 0.34);
+                        material.color.lerp(f.baseColor, 0.25);
+                        /* Загварын даавуу маш бараан тул текстурыг хүчээр
+                           цайруулна (1-ээс их утга = гэрэлтүүлгийн өсгөлт). */
+                        material.color.multiplyScalar(2.3);
                     }
                     if (material.emissive) {
                         /* Загварын даавуу бараан текстуртэй тул зөвхөн color-оор будахад
                            сүүдэрт хар дүрс болдог. Багахан ялгарал нэмж өнгийг нь гаргана. */
-                        material.emissive.copy(f.baseColor).multiplyScalar(0.22);
+                        material.emissive.copy(f.baseColor).multiplyScalar(0.07);
                         material.emissiveIntensity = 1;
                         f.flashMats.push(material);
                     }
