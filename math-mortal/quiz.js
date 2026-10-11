@@ -14,12 +14,13 @@
 
 const STORAGE_KEY = 'mortal-arena-quiz-settings';
 const DEFAULTS = { grade: 7, topic: 'math', node: 0, seconds: 15 };
+const GRADE_MIN = 7, GRADE_MAX = 8;
 const TOPICS = new Set(['math', 'science', 'language']);
 const TIME_CHOICES = new Set([5, 10, 15, 20, 30, 45, 60]);
 
-/* CyberMath-ын learning path бодлогын сан байгаа ангиуд.
-   6-р ангид node байгаа ч бодлого ороогүй тул энд байхгүй — нөөц генератор ажиллана. */
-const CM_GRADES = new Set([7, 8, 9, 10, 11, 12]);
+/* Тоглоомд 7, 8-р ангийн ХЯЛБАР түвшний, цөөн үйлдэлтэй сэдвүүдийг л хэрэглэнэ.
+   Өгүүлбэртэй (нөхцөлтэй) бодлогыг сервер талдаа хасдаг — HUD дээр уншиж амжихгүй. */
+const CM_GRADES = new Set([7, 8]);
 const API_BASE = (typeof location !== 'undefined' && /cyber-math|localhost|127\.0\.0\.1/.test(location.host))
   ? '' : 'https://cyber-math.com';
 const BATCH = 40;
@@ -27,7 +28,7 @@ const MAX_LEN = 120;        /* HUD-д тохирох хамгийн урт бо�
 const MAX_OPT_LEN = 26;     /* нэг сонголтын хамгийн урт */
 
 function normalizeSettings(value = {}) {
-  const grade = Math.max(1, Math.min(12, Number.parseInt(value.grade, 10) || DEFAULTS.grade));
+  const grade = Math.max(GRADE_MIN, Math.min(GRADE_MAX, Number.parseInt(value.grade, 10) || DEFAULTS.grade));
   const topic = TOPICS.has(value.topic) ? value.topic : DEFAULTS.topic;
   const node = Math.max(0, Number.parseInt(value.node, 10) || 0);
   const requestedSeconds = Number.parseInt(value.seconds, 10) || DEFAULTS.seconds;

@@ -65,6 +65,43 @@ function mixByDifficulty(ids, byId, n) {
 /* Сонголтуудыг илгээх бүрд холино.
    correct нь УТГА (индекс биш) тул холих нь хариуг эвдэхгүй.
    Зөвхөн 2+ сонголттой, зөв хариу нь сонголтуудын дотор байгаа үед. */
+/* ── MATH MORTAL: тоглоомд тохирох бодлого эсэх ──
+   Өгүүлбэртэй (бодлогын нөхцөлтэй) бодлогыг хасна — тоглоомын HUD дээр уншиж
+   амжихгүй. Математикаас ГАДУУРХ утгатай үгийн тоогоор ялгана: "$19+(-23)$
+   илэрхийллийн утгыг ол" (3 үг) → тэнцэнэ; "Усан онгоцны өөрийн хурд…" → үгүй. */
+const ARENA_MAX_WORDS = 6;   /* математикаас гадуурх үгийн дээд тоо */
+const ARENA_MAX_OPS = 4;     /* нэмэх/хасах/үржих/хуваах/зэрэг/язгуурын дээд тоо */
+const ARENA_MAX_OPT = 26;    /* сонголтын дээд урт (тэмдэгт) */
+
+function arenaVisibleLen(x) {
+  return String(x == null ? '' : x)
+    .replace(/\$([^$]*)\$/g, '$1')
+    .replace(/\\[a-zA-Z]+\s*/g, 'x')
+    .replace(/[{}\\]/g, '')
+    .trim().length;
+}
+
+function arenaFits(row) {
+  const t = String((row && row.text) || '');
+  if (!t || /[\r\n]/.test(t.trim())) return false;
+  if (/<\s*(img|table|svg|br)/i.test(t)) return false;
+  if (/\\begin\{/.test(t)) return false;
+  if ((t.match(/(?<!\\)\$/g) || []).length % 2) return false;
+
+  const prose = t.replace(/\$[^$]*\$/g, ' ')
+    .replace(/[0-9().,;:!?«»"'’\-–—=+×÷%°²³]/g, ' ');
+  if (prose.split(/\s+/).filter(w => w.length > 1).length > ARENA_MAX_WORDS) return false;
+
+  const ops = (t.match(/[+×÷·]|\\cdot|\\times|\\div|\\sqrt|\^|(?<=[0-9a-zA-Z)}])\s*-\s*(?=[0-9a-zA-Z({\\])/g) || []).length;
+  if (ops > ARENA_MAX_OPS) return false;
+
+  const opts = (row.choices || []).map(c => String(c).trim());
+  if (opts.length !== 4 || new Set(opts).size !== 4) return false;
+  if (opts.indexOf(String(row.correct == null ? '' : row.correct).trim()) < 0) return false;
+  if (opts.some(o => !o || arenaVisibleLen(o) > ARENA_MAX_OPT)) return false;
+  return true;
+}
+
 function shuffleChoices(rows) {
   return (rows || []).map(function (r) {
     const ch = r && r.choices;
@@ -154,33 +191,39 @@ module.exports = async (req, res) => {
       if (req.query.arena) {
         const g = String(req.query.arena).trim();
         if (!/^[0-9]{1,2}x?$/.test(g)) return res.status(400).json({ ok: false, error: 'arena буруу' });
+        /* Тоглоомд зөвхөн ХЯЛБАР түвшний, өгүүлбэргүй, цөөн үйлдэлтэй бодлого */
+        const BASE = `FROM questions q JOIN nodes n ON n.id = q.node_id
+            WHERE n.grade = $1
+              AND q.difficulty = 'easy'
+              AND (q.is_exam = false OR q.is_exam IS NULL)
+              AND q.choices IS NOT NULL AND array_length(q.choices, 1) = 4`;
 
-        /* Тухайн ангийн СЭДВҮҮД — тоглоомын сонголтод. Бодлоготой сэдвийг л буцаана. */
+        /* Тухайн ангийн СЭДВҮҮД — тоглоомын сонголтод. Тохирох бодлого 4-ээс
+           дээш байгаа сэдвийг л буцаана. */
         if (req.query.topics) {
           const tp = await pool.query(
-            `SELECT n.id, n.name, COUNT(q.id)::int AS n
-               FROM nodes n JOIN questions q ON q.node_id = n.id
-              WHERE n.grade = $1
-                AND (q.is_exam = false OR q.is_exam IS NULL)
-                AND q.choices IS NOT NULL AND array_length(q.choices, 1) = 4
-              GROUP BY n.id, n.name, n.sort_order
-              HAVING COUNT(q.id) >= 4
-              ORDER BY n.sort_order NULLS LAST, n.id`, [g]);
-          return res.json({ ok: true, grade: g, topics: tp.rows });
+            `SELECT n.id, n.name, n.sort_order, q.text, q.choices, q.correct ${BASE}
+             ORDER BY n.sort_order NULLS LAST, n.id`, [g]);
+          const acc = new Map();
+          for (const row of tp.rows) {
+            if (!arenaFits(row)) continue;
+            const cur = acc.get(row.id);
+            if (cur) cur.n++; else acc.set(row.id, { id: row.id, name: row.name, n: 1 });
+          }
+          const topics = [...acc.values()].filter(t => t.n >= 4);
+          return res.json({ ok: true, grade: g, topics });
         }
 
         const lim = Math.min(60, Math.max(5, parseInt(req.query.n, 10) || 30));
         const node = parseInt(req.query.node, 10);
         const byNode = Number.isFinite(node) && node > 0;
+        /* Шүүлтүүр ~60% хасдаг тул нэр дэвшигчээ өргөн авна */
         const ar = await pool.query(
-          `SELECT q.id, q.text, q.choices, q.correct, q.difficulty
-             FROM questions q JOIN nodes n ON n.id = q.node_id
-            WHERE n.grade = $1
+          `SELECT q.id, q.text, q.choices, q.correct, q.difficulty ${BASE}
               AND ($3::int IS NULL OR q.node_id = $3)
-              AND (q.is_exam = false OR q.is_exam IS NULL)
-              AND q.choices IS NOT NULL AND array_length(q.choices, 1) = 4
-            ORDER BY random() LIMIT $2`, [g, lim, byNode ? node : null]);
-        return res.json({ ok: true, grade: g, node: byNode ? node : null, questions: shuffleChoices(ar.rows) });
+            ORDER BY random() LIMIT $2`, [g, Math.min(400, lim * 8), byNode ? node : null]);
+        const fit = ar.rows.filter(arenaFits).slice(0, lim);
+        return res.json({ ok: true, grade: g, node: byNode ? node : null, questions: shuffleChoices(fit) });
       }
 
       // Зөвхөн ТОО — админы хяналтын самбар 1 МБ татахгүйн тулд
