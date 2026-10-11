@@ -1069,11 +1069,21 @@ function fighterCountOnField() {
     return 1 + allies.length + enemies.length;
 }
 
+/* Дайсны тал — хар нүүрсэн их бие, нил ягаан нөмрөг, улайсан лаавын ан цав.
+   color = их биеийн өнгө, glow = ялгарах лаав/шившлэг. */
+const ENEMY_SKIN = {
+    goblin:  { color: 0x3a2f33, glow: 0xff4a14, glowStrength: 0.30, tint: 0.6, lift: 1.25 },
+    treant:  { color: 0x3d3526, glow: 0xff6a1a, glowStrength: 0.26, tint: 0.55, lift: 1.3 },
+    cultist: { color: 0x51275a, glow: 0xc026a0, glowStrength: 0.36, tint: 0.68, lift: 1.2 },
+    golem:   { color: 0x2d2228, glow: 0xff7a1a, glowStrength: 0.5,  tint: 0.62, lift: 1.15 }
+};
+
 function createEnemy(waveNumber, spawnX = 10.5, spawnZ = 0) {
     if (fighterCountOnField() >= MAX_FIGHTERS) return null;
     const isBoss = waveNumber % 3 === 0;
     const enemyKey = isBoss ? 'golem' : ENEMY_KEYS[(waveNumber - 1) % (ENEMY_KEYS.length - 1)];
-    const e = createFighter(isBoss ? 0xb81727 : 0xd52f3d, isBoss ? 1.3 : 1.1, enemyKey);
+    const skin = ENEMY_SKIN[enemyKey] || ENEMY_SKIN.goblin;
+    const e = createFighter(skin.color, isBoss ? 1.3 : 1.1, enemyKey, skin);
     e.team = 'enemy';
     initFighterStats(e, (isBoss ? 210 : 140) + waveNumber * (isBoss ? 14 : 10));
     attachFighterHealthBar(e);

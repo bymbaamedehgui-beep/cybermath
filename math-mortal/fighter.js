@@ -79,15 +79,15 @@ function attachModel(f, key) {
                        Зөвхөн багахан аяс нэмж, бага зэрэг цайруулна — ингэснээр
                        fantasy дайчны харагдах байдал нь алдагдахгүй. */
                     if (material.color) {
-                        material.color.lerp(f.baseColor, 0.25);
-                        /* Загварын даавуу маш бараан тул текстурыг хүчээр
-                           цайруулна (1-ээс их утга = гэрэлтүүлгийн өсгөлт). */
-                        material.color.multiplyScalar(2.3);
+                        material.color.lerp(f.baseColor, f.tintAmount);
+                        /* 1-ээс их утга = гэрэлтүүлгийн өсгөлт (бараан даавууг цайруулна),
+                           1-ээс бага = бараантуулна (дайсны хар их бие). */
+                        material.color.multiplyScalar(f.lift);
                     }
                     if (material.emissive) {
                         /* Загварын даавуу бараан текстуртэй тул зөвхөн color-оор будахад
                            сүүдэрт хар дүрс болдог. Багахан ялгарал нэмж өнгийг нь гаргана. */
-                        material.emissive.copy(f.baseColor).multiplyScalar(0.07);
+                        material.emissive.copy(f.glowColor).multiplyScalar(f.glowStrength);
                         material.emissiveIntensity = 1;
                         f.flashMats.push(material);
                     }
@@ -103,7 +103,12 @@ function attachModel(f, key) {
 }
 
 // Builds a warrior; shows a 3D model when modelKey is given and loads, primitives otherwise.
-export function createFighter(color, scale = 1, modelKey = null) {
+/* opts: { glow, glowStrength, tint, lift }
+     glow         — ялгарах өнгө (лаав, шившлэг). Өгөхгүй бол үндсэн өнгө.
+     glowStrength — ялгарлын хүч (0–1)
+     tint         — загварын өнгийг үндсэн өнгө рүү татах хэмжээ (0–1)
+     lift         — текстурыг цайруулах коэффициент (1 = хэвээр) */
+export function createFighter(color, scale = 1, modelKey = null, opts = {}) {
     const group = new THREE.Group();
     const body = new THREE.Group();
     body.scale.setScalar(scale);
@@ -184,6 +189,10 @@ export function createFighter(color, scale = 1, modelKey = null) {
     const f = {
         group, body, torso, legL, legR, armL, armR, sword, bowGroup, armor, scale,
         baseColor: new THREE.Color(color), walkPhase: 0, deathT: 0, weaponKey: modelKey,
+        glowColor: new THREE.Color(opts.glow ?? color),
+        glowStrength: opts.glowStrength ?? 0.07,
+        tintAmount: opts.tint ?? 0.25,
+        lift: opts.lift ?? 2.3,
         primitives, flashMats: [], model: null,
     };
     if (modelKey && MODELS[modelKey]) attachModel(f, modelKey);
