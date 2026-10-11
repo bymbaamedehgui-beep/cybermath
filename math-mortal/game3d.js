@@ -188,7 +188,7 @@ try {
 scene.add(new THREE.HemisphereLight(0xffe0b0, 0x402010, 1.9));
 /* Нарны эсрэг талаас зөөлөн гэрэл — баатрууд хар дүрс болж харагдахгүй,
    хувцасных нь өнгө ялгарна. */
-const fillLight = new THREE.DirectionalLight(0xbcd8ff, 1.15);
+const fillLight = new THREE.DirectionalLight(0xd4e6ff, 1.6);
 fillLight.position.set(-12, 14, 16);
 scene.add(fillLight);
 const sun = new THREE.DirectionalLight(0xffc888, 2.2);
@@ -770,11 +770,11 @@ let currentHeroKey = 'swordsman';
 /* Баатар бүрийн хувцасны өнгө — бие биенээсээ ч, улаан дайснаас ч ялгарна.
    Өөрчлөхдөө зөвхөн энэ хүснэгтийг засна. */
 const HERO_COLORS = {
-    swordsman: 0x5b8cf0,  /* СЭЛЭМЧИН — ган хөх */
-    barbarian: 0xd4603f,  /* БАРБАР   — зэв улаан */
-    spearman:  0x2ccb97,  /* ЖАДТАН   — хаш ногоон */
-    bomber:    0xf5ad33,  /* ТЭСРЭГЧ  — хув шар */
-    archer:    0xab8bfb   /* ХАРВААЧ  — нил ягаан */
+    swordsman: 0xa9c7f7,  /* СЭЛЭМЧИН — цайвар хөх */
+    barbarian: 0xf0b49f,  /* БАРБАР   — цайвар зэв */
+    spearman:  0xa6ead2,  /* ЖАДТАН   — цайвар хаш */
+    bomber:    0xf8d9a0,  /* ТЭСРЭГЧ  — цайвар хув */
+    archer:    0xd6c6fd   /* ХАРВААЧ  — цайвар нил */
 };
 const ALLY_TINT = 0.78;   /* нөхдийн өнгө багавтар цайвар — тоглогчоос ялгарна */
 function heroColor(key, ally) {

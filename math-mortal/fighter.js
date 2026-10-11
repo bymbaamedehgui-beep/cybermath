@@ -27,6 +27,7 @@ const CLIPS = {
     hit: ['Hit_Chest', 'Hit_Head'], death: ['Death01'],
 };
 const ONE_SHOT = { attack: 0.45, slash: 0.55, punch: 0.4, kick: 0.48, shoot: 0.48, bomb: 0.5, jump: 0.5, turn: 0.35, roll: 0.35, hit: 0.3 };
+const WHITE = new THREE.Color(0xffffff);
 const loader = new GLTFLoader();
 const modelCache = {};
 function loadModel(key) {
@@ -72,11 +73,16 @@ function attachModel(f, key) {
                 const tintedMaterials = sourceMaterials.map(sourceMaterial => {
                     const material = sourceMaterial.clone();
                     /* 0.74 нь загварын бүх нарийн ширийнийг дардаг байсан */
-                    if (material.color) material.color.lerp(f.baseColor, 0.68);
+                    /* Хувцсыг ЦАЙВАР болгоно — загварын даавуу бараан тул
+                       өнгийг нь бараг бүрэн сольж, арай цайруулна. */
+                    if (material.color) {
+                        material.color.lerp(f.baseColor, 0.92);
+                        material.color.lerp(WHITE, 0.34);
+                    }
                     if (material.emissive) {
                         /* Загварын даавуу бараан текстуртэй тул зөвхөн color-оор будахад
                            сүүдэрт хар дүрс болдог. Багахан ялгарал нэмж өнгийг нь гаргана. */
-                        material.emissive.copy(f.baseColor).multiplyScalar(0.26);
+                        material.emissive.copy(f.baseColor).multiplyScalar(0.22);
                         material.emissiveIntensity = 1;
                         f.flashMats.push(material);
                     }
