@@ -148,10 +148,21 @@ module.exports = async (req, res) => {
       const examCondQ = _exam === '1' ? 'q.is_exam = true'
         : (_exam === 'all' ? 'TRUE' : '(q.is_exam = false OR q.is_exam IS NULL)');
 
-      // Зөвхөн ТОО — админы хяналтын самбар 1 МБ татахгүйн тулд
-      if (req.query.count) {
-        const cr = await pool.query('SELECT COUNT(*)::int AS n FROM questions q WHERE ' + examCondQ);
-        return res.json({ ok: true, count: cr.rows[0].n });
+      /* ── MATH MORTAL (arena) — нээлттэй, хөнгөн багц ──
+         Тухайн ангийн node-уудаас санамсаргүй сонголттой бодлогууд.
+         questions.grade найдваргүй тул NODE-ийн ангиар шүүнэ. */
+      if (req.query.arena) {
+        const g = String(req.query.arena).trim();
+        if (!/^[0-9]{1,2}x?$/.test(g)) return res.status(400).json({ ok: false, error: 'arena буруу' });
+        const lim = Math.min(60, Math.max(5, parseInt(req.query.n, 10) || 30));
+        const ar = await pool.query(
+          `SELECT q.id, q.text, q.choices, q.correct, q.difficulty
+             FROM questions q JOIN nodes n ON n.id = q.node_id
+            WHERE n.grade = $1
+              AND (q.is_exam = false OR q.is_exam IS NULL)
+              AND q.choices IS NOT NULL AND array_length(q.choices, 1) = 4
+            ORDER BY random() LIMIT $2`, [g, lim]);
+        return res.json({ ok: true, grade: g, questions: shuffleChoices(ar.rows) });
       }
 
       // Зөвхөн ТОО — админы хяналтын самбар 1 МБ татахгүйн тулд
