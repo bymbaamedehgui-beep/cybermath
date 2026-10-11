@@ -1298,7 +1298,15 @@ export function startFallback(reason = 'Reduced mode active.') {
     const scale = Math.min(fitAll * 2.2, width / 15, height / 13);
     /* Камерын төв тоглогчийг дагах ба талбайн гадна гарахгүй */
     const halfSpan = width / (2 * scale);
-    const follow = Math.max(-arenaRadius + halfSpan, Math.min(arenaRadius - halfSpan, player.x));
+    /* Тоглогчийг биш, тулааны фронтыг дагана */
+    const living = [player, ...allies, ...enemies].filter(f => f && !f.dead);
+    const heroesX = living.filter(f => f.team !== 'enemy').map(f => f.x);
+    const foesX = living.filter(f => f.team === 'enemy').map(f => f.x);
+    const frontX = (heroesX.length && foesX.length)
+      ? (Math.max(...heroesX) + Math.min(...foesX)) * 0.5
+      : (heroesX.length ? heroesX.reduce((a, b) => a + b, 0) / heroesX.length
+        : (foesX.length ? foesX.reduce((a, b) => a + b, 0) / foesX.length : 0));
+    const follow = Math.max(-arenaRadius + halfSpan, Math.min(arenaRadius - halfSpan, frontX));
     const view = {
       cx: width / 2 - (halfSpan < arenaRadius ? follow * scale : 0) + shakeX,
       groundY: height * 0.72 + shakeY,

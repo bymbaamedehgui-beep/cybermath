@@ -1298,6 +1298,21 @@ document.addEventListener('keydown', event => {
 
 const gameCanvas = renderer.domElement;
 gameCanvas.style.touchAction = 'none';
+/* Дэлгэц дээр чирэхэд камер хажуу тийш харна; тавихад тулаан руугаа буцна */
+gameCanvas.addEventListener('pointerdown', event => {
+    camPanPointer = { id: event.pointerId, x: event.clientX };
+}, { signal: gameEvents.signal });
+gameCanvas.addEventListener('pointermove', event => {
+    if (!camPanPointer || event.pointerId !== camPanPointer.id) return;
+    const dx = event.clientX - camPanPointer.x;
+    camPanPointer.x = event.clientX;
+    camPan = THREE.MathUtils.clamp(camPan - dx * 0.04, -CAM_PAN_LIMIT, CAM_PAN_LIMIT);
+    camPanIdle = 0;
+}, { signal: gameEvents.signal });
+for (const type of ['pointerup', 'pointercancel', 'pointerleave']) {
+    gameCanvas.addEventListener(type, () => { camPanPointer = null; camPanIdle = 0; },
+        { signal: gameEvents.signal });
+}
 gameCanvas.addEventListener('contextmenu', event => event.preventDefault(), { signal: gameEvents.signal });
 
 // ---------- Combat ----------
@@ -1798,18 +1813,41 @@ function updateGame(dt) {
     }
 }
 
-/* Камер тулааны ДЭРГЭД зогсоно — бүх талбайг багтаахын оронд тоглогч болон
-   түүний ойролцоох тулаанчдыг л хүрээлнэ. */
-const CAM_NEAR_RANGE = 9.5;   /* тоглогчоос энэ зайд байгаа тулаанчдыг тооцно */
-const CAM_MIN_DIST = 8.5;     /* хамгийн ойр */
-const CAM_MAX_DIST = 17;      /* хамгийн хол */
+/* Камер тулааны ДЭРГЭД зогсоно. Тоглогчийг биш, тулаан болж буй ГАЗРЫГ дагана:
+   баатруудын хамгийн урд нэгэн ба дайсны хамгийн урд нэгний дунд цэг. */
+const CAM_NEAR_RANGE = 10;    /* фронтоос энэ зайд байгаа тулаанчдыг тооцно */
+const CAM_MIN_DIST = 10;      /* хамгийн ойр */
+const CAM_MAX_DIST = 21;      /* хамгийн хол */
+const CAM_PAN_LIMIT = 13;     /* гараар хажуу тийш харах дээд зай */
+
+let camPan = 0;        /* чирж харсан хэвтээ шилжилт */
+let camPanIdle = 0;    /* сүүлд чирснээс хойшхи хугацаа */
+let camPanPointer = null;
+
+/* Тулааны фронт — хаана зодоон болж байна */
+function combatFrontX() {
+    const living = [player, ...allies, ...enemies].filter(f => !f.dead);
+    const heroes = living.filter(f => f.team !== 'enemy');
+    const foes = living.filter(f => f.team === 'enemy');
+    const avg = list => list.reduce((a, f) => a + f.group.position.x, 0) / list.length;
+    if (!foes.length) return heroes.length ? avg(heroes) : 0;
+    if (!heroes.length) return avg(foes);
+    const heroFront = Math.max(...heroes.map(f => f.group.position.x));
+    const foeFront = Math.min(...foes.map(f => f.group.position.x));
+    return (heroFront + foeFront) * 0.5;
+}
 
 function updateCamera(dt) {
-    const px = player.group.position.x;
+    /* Чирээгүй бол аажмаар тулаан руугаа эргэнэ */
+    if (!camPanPointer) {
+        camPanIdle += dt;
+        if (camPanIdle > 1.6) camPan = THREE.MathUtils.lerp(camPan, 0, Math.min(1, dt * 1.8));
+    }
+    const px = combatFrontX() + camPan;
     const activeFighters = [player, ...allies, ...enemies].filter(fighter =>
         !fighter.dead && Math.abs(fighter.group.position.x - px) <= CAM_NEAR_RANGE);
-    let minX = px - 3.2;
-    let maxX = px + 3.2;
+    let minX = px - 3.6;
+    let maxX = px + 3.6;
     let minZ = -1.2;
     let maxZ = 1.2;
     let maxY = 4.4;
