@@ -154,15 +154,33 @@ module.exports = async (req, res) => {
       if (req.query.arena) {
         const g = String(req.query.arena).trim();
         if (!/^[0-9]{1,2}x?$/.test(g)) return res.status(400).json({ ok: false, error: 'arena буруу' });
+
+        /* Тухайн ангийн СЭДВҮҮД — тоглоомын сонголтод. Бодлоготой сэдвийг л буцаана. */
+        if (req.query.topics) {
+          const tp = await pool.query(
+            `SELECT n.id, n.name, COUNT(q.id)::int AS n
+               FROM nodes n JOIN questions q ON q.node_id = n.id
+              WHERE n.grade = $1
+                AND (q.is_exam = false OR q.is_exam IS NULL)
+                AND q.choices IS NOT NULL AND array_length(q.choices, 1) = 4
+              GROUP BY n.id, n.name, n.sort_order
+              HAVING COUNT(q.id) >= 4
+              ORDER BY n.sort_order NULLS LAST, n.id`, [g]);
+          return res.json({ ok: true, grade: g, topics: tp.rows });
+        }
+
         const lim = Math.min(60, Math.max(5, parseInt(req.query.n, 10) || 30));
+        const node = parseInt(req.query.node, 10);
+        const byNode = Number.isFinite(node) && node > 0;
         const ar = await pool.query(
           `SELECT q.id, q.text, q.choices, q.correct, q.difficulty
              FROM questions q JOIN nodes n ON n.id = q.node_id
             WHERE n.grade = $1
+              AND ($3::int IS NULL OR q.node_id = $3)
               AND (q.is_exam = false OR q.is_exam IS NULL)
               AND q.choices IS NOT NULL AND array_length(q.choices, 1) = 4
-            ORDER BY random() LIMIT $2`, [g, lim]);
-        return res.json({ ok: true, grade: g, questions: shuffleChoices(ar.rows) });
+            ORDER BY random() LIMIT $2`, [g, lim, byNode ? node : null]);
+        return res.json({ ok: true, grade: g, node: byNode ? node : null, questions: shuffleChoices(ar.rows) });
       }
 
       // Зөвхөн ТОО — админы хяналтын самбар 1 МБ татахгүйн тулд
