@@ -1073,12 +1073,12 @@ function fighterCountOnField() {
    color = их биеийн өнгө, glow = ялгарах лаав/шившлэг. */
 const ENEMY_SKIN = {
     /* Хар нүүрс шиг бараан их бие (lift < 1), дотроос нь лаав улайна (glow). */
-    /* Талбай улбар шар тул дайсныг ЭСРЭГ өнгөөр — ягаан, нил, хүчлийн ногоон.
-       Эх загварын палитр ч ийм байсан. */
-    treant:  { color: 0x6fd21f, glow: 0xa8ff3c, glowStrength: 0.30, tint: 0.92, lift: 1.6  },
-    goblin:  { color: 0xc42ab4, glow: 0xf252dc, glowStrength: 0.32, tint: 0.92, lift: 1.55 },
-    cultist: { color: 0x7a3cf0, glow: 0xa87cff, glowStrength: 0.36, tint: 0.92, lift: 1.55 },
-    golem:   { color: 0xff3a12, glow: 0xff9a28, glowStrength: 0.46, tint: 0.92, lift: 1.5  }
+    /* Загварын ӨӨРИЙН текстурыг харуулна — холтос, хуяг, нүдний гялбаа нь
+       тод гарна. tint бага = будахгүй, lift = зүгээр л цайруулж тодруулна. */
+    treant:  { color: 0x8a5a2a, glow: 0xff6a1a, glowStrength: 0.07, tint: 0.1,  lift: 1.75 },
+    goblin:  { color: 0x9ad04a, glow: 0xc0ff50, glowStrength: 0.07, tint: 0.12, lift: 1.75 },
+    cultist: { color: 0x8a4ad0, glow: 0xb070ff, glowStrength: 0.1,  tint: 0.14, lift: 1.7  },
+    golem:   { color: 0xff5a1e, glow: 0xff9a28, glowStrength: 0.2,  tint: 0.16, lift: 1.65 }
 };
 
 function createEnemy(waveNumber, spawnX = 10.5, spawnZ = 0) {
