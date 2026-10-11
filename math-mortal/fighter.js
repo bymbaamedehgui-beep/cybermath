@@ -31,6 +31,9 @@ const WHITE = new THREE.Color(0xffffff);
 /* Загварын GLB-д зэвсгийн геометр байхгүй (зөвхөн бие) тул зэвсгийг нь
    гарын ясанд нь зүүнэ. Ингэснээр анимацыг дагаж хөдөлнө. */
 const WEAPON_HAND = { archer: 'lefthand' };   /* нум — зүүн гарт */
+/* Дайсны биеийн хэмжээ 1.1–1.3 дахин том тул зэвсэг нь дэндүү том болдог.
+   Зөвхөн зэвсгийг нь багасгана (нэг нь хэт том бол энд засна). */
+const WEAPON_SCALE = { treant: 0.6, golem: 0.68, cultist: 0.58, goblin: 0.62 };
 /* three.js загвар ачаалахдаа нэрнээс ":" зэрэг тэмдэгтийг хасдаг
    (mixamorig:RightHand → mixamorigRightHand) тул нэрээр нь биш,
    ТӨГСГӨЛӨӨР нь хайна. */
@@ -204,7 +207,7 @@ function attachWeapon(f, model, key) {
     model.updateWorldMatrix(true, true);
     const ws = new THREE.Vector3();
     hand.getWorldScale(ws);
-    weapon.scale.setScalar((f.scale || 1) / Math.max(0.0001, ws.x));
+    weapon.scale.setScalar((f.scale || 1) * (WEAPON_SCALE[key] ?? 1) / Math.max(0.0001, ws.x));
     /* Mixamo-гийн гарын ясны +Y нь хуруу тийш чиглэдэг тул зэвсгийг
        эргүүлэхгүй — атгасан гараас шууд урагшаа сунана. */
     weapon.rotation.set(0, 0, 0);
