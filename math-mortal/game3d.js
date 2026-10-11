@@ -762,7 +762,9 @@ let shake = 0;
 let hitStop = 0;
 
 // ---------- Game state & Math Boost System ----------
-const ENEMY_KEYS = ['treant', 'cultist', 'goblin', 'golem'];
+/* Энгийн дайсны ээлж — дарга (golem) үүнд ордоггүй */
+const ENEMY_KEYS = ['treant', 'cultist', 'goblin'];
+const BOSS_KEY = 'golem';
 const HERO_NAMES = { swordsman: 'SWORDSMAN', barbarian: 'BARBARIAN', spearman: 'SPEARMAN', bomber: 'BOMBER', archer: 'ARCHER' };
 const ENEMY_NAMES = { treant: 'TREANT', cultist: 'DARK CULTIST', goblin: 'GOBLIN', golem: 'LAVA GOLEM' };
 
@@ -1075,16 +1077,16 @@ const ENEMY_SKIN = {
     /* Хар нүүрс шиг бараан их бие (lift < 1), дотроос нь лаав улайна (glow). */
     /* Загварын ӨӨРИЙН текстурыг харуулна — холтос, хуяг, нүдний гялбаа нь
        тод гарна. tint бага = будахгүй, lift = зүгээр л цайруулж тодруулна. */
-    treant:  { color: 0x8a5a2a, glow: 0xff6a1a, glowStrength: 0.07, tint: 0.1,  lift: 1.75 },
-    goblin:  { color: 0x9ad04a, glow: 0xc0ff50, glowStrength: 0.07, tint: 0.12, lift: 1.75 },
-    cultist: { color: 0x8a4ad0, glow: 0xb070ff, glowStrength: 0.1,  tint: 0.14, lift: 1.7  },
-    golem:   { color: 0xff5a1e, glow: 0xff9a28, glowStrength: 0.2,  tint: 0.16, lift: 1.65 }
+    treant:  { color: 0x8a5a2a, glow: 0xff6a1a, glowStrength: 0.22, tint: 0.06, lift: 1.7  },
+    goblin:  { color: 0x9ad04a, glow: 0xc0ff50, glowStrength: 0.30, tint: 0.06, lift: 1.7  },
+    cultist: { color: 0x8a4ad0, glow: 0xb070ff, glowStrength: 0.34, tint: 0.06, lift: 1.65 },
+    golem:   { color: 0xff5a1e, glow: 0xff9a28, glowStrength: 0.55, tint: 0.06, lift: 1.55 }
 };
 
-function createEnemy(waveNumber, spawnX = 10.5, spawnZ = 0) {
+function createEnemy(waveNumber, spawnX = 10.5, spawnZ = 0, bossSlot = waveNumber % 3 === 0) {
     if (fighterCountOnField() >= MAX_FIGHTERS) return null;
-    const isBoss = waveNumber % 3 === 0;
-    const enemyKey = isBoss ? 'golem' : ENEMY_KEYS[(waveNumber - 1) % (ENEMY_KEYS.length - 1)];
+    const isBoss = bossSlot;
+    const enemyKey = isBoss ? BOSS_KEY : ENEMY_KEYS[(waveNumber - 1) % ENEMY_KEYS.length];
     const skin = ENEMY_SKIN[enemyKey] || ENEMY_SKIN.goblin;
     const e = createFighter(skin.color, isBoss ? 1.3 : 1.1, enemyKey, skin);
     e.team = 'enemy';
@@ -1113,10 +1115,10 @@ function spawnEnemyGroup(waveNumber, requestedCount) {
     const count = Math.min(requestedCount, available - (available % 2));
     let spawned = 0;
     for (let i = 0; i < count; i++) {
-        // A boss wave brings one golem with a group of regular fighters.
-        const fighterWave = waveNumber % 3 === 0 && i > 0 ? waveNumber - 1 : waveNumber;
+        /* Даргын үед эхний нэг нь golem, бусад нь ТЭР ҮЕИЙН энгийн төрөл */
+        const bossSlot = waveNumber % 3 === 0 && i === 0;
         const lane = i - (count - 1) / 2;
-        if (createEnemy(fighterWave, 10.5 + Math.floor(i / 5) * 1.25, lane * 1.35)) spawned++;
+        if (createEnemy(waveNumber, 10.5 + Math.floor(i / 5) * 1.25, lane * 1.35, bossSlot)) spawned++;
     }
     return spawned;
 }

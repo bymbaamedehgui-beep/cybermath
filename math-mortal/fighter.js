@@ -28,6 +28,189 @@ const CLIPS = {
 };
 const ONE_SHOT = { attack: 0.45, slash: 0.55, punch: 0.4, kick: 0.48, shoot: 0.48, bomb: 0.5, jump: 0.5, turn: 0.35, roll: 0.35, hit: 0.3 };
 const WHITE = new THREE.Color(0xffffff);
+/* Загварын GLB-д зэвсгийн геометр байхгүй (зөвхөн бие) тул зэвсгийг нь
+   гарын ясанд нь зүүнэ. Ингэснээр анимацыг дагаж хөдөлнө. */
+const WEAPON_HAND = { archer: 'lefthand' };   /* нум — зүүн гарт */
+/* three.js загвар ачаалахдаа нэрнээс ":" зэрэг тэмдэгтийг хасдаг
+   (mixamorig:RightHand → mixamorigRightHand) тул нэрээр нь биш,
+   ТӨГСГӨЛӨӨР нь хайна. */
+function findBone(model, suffix) {
+    let found = null;
+    model.traverse(o => {
+        if (found) return;
+        if ((o.name || '').toLowerCase().replace(/[^a-z]/g, '').endsWith(suffix)) found = o;
+    });
+    return found;
+}
+function buildWeapon(key) {
+    const steel = new THREE.MeshStandardMaterial({ color: 0xc6d0de, metalness: 0.85, roughness: 0.28 });
+    const wood = new THREE.MeshStandardMaterial({ color: 0x5a3c22, roughness: 0.85 });
+    const dark = new THREE.MeshStandardMaterial({ color: 0x2a2018, roughness: 0.7 });
+    const g = new THREE.Group();
+    const add = (geo, mat, y, z = 0) => {
+        const m = new THREE.Mesh(geo, mat);
+        m.position.set(0, y, z);
+        m.castShadow = true;
+        g.add(m);
+        return m;
+    };
+    if (key === 'spearman') {
+        add(new THREE.CylinderGeometry(0.035, 0.035, 2.0, 8), wood, 0.5);
+        add(new THREE.ConeGeometry(0.085, 0.3, 8), steel, 1.62);
+    } else if (key === 'barbarian') {
+        add(new THREE.CylinderGeometry(0.045, 0.045, 0.95, 8), wood, 0.3);
+        add(new THREE.BoxGeometry(0.1, 0.42, 0.36), steel, 0.8, 0.07);
+    } else if (key === 'archer') {
+        const curve = new THREE.CatmullRomCurve3([
+            new THREE.Vector3(0, -0.62, 0), new THREE.Vector3(0, -0.3, 0.2),
+            new THREE.Vector3(0, 0, 0.26), new THREE.Vector3(0, 0.3, 0.2),
+            new THREE.Vector3(0, 0.62, 0)
+        ]);
+        const bow = new THREE.Mesh(new THREE.TubeGeometry(curve, 16, 0.035, 6, false),
+            new THREE.MeshStandardMaterial({ color: 0x3a2a18, roughness: 0.7 }));
+        bow.castShadow = true;
+        g.add(bow);
+        add(new THREE.CylinderGeometry(0.008, 0.008, 1.24, 5), steel, 0);
+    } else if (key === 'bomber') {
+        add(new THREE.SphereGeometry(0.16, 12, 10), dark, 0.18);
+        add(new THREE.CylinderGeometry(0.028, 0.028, 0.14, 6), steel, 0.38);
+    } else if (key === 'treant') {
+        /* Мушгиа модон таяг — төмөр үзүүргүй (жад биш), намхан, мөчиртэй */
+        const bark = new THREE.MeshStandardMaterial({ color: 0x6b4a2a, roughness: 0.95 });
+        const moss = new THREE.MeshStandardMaterial({ color: 0x5c7a32, roughness: 0.95 });
+        add(new THREE.CylinderGeometry(0.055, 0.075, 1.55, 7), bark, 0.42);
+        /* Оройн бүдүүн зангилаа */
+        add(new THREE.SphereGeometry(0.11, 8, 7), bark, 1.2);
+        /* Хоёр тийш сарвайсан мөчир */
+        const t1 = add(new THREE.CylinderGeometry(0.026, 0.034, 0.42, 6), bark, 1.08, 0.1);
+        t1.rotation.x = 0.85;
+        const t2 = add(new THREE.CylinderGeometry(0.024, 0.03, 0.34, 6), bark, 0.98, -0.08);
+        t2.rotation.x = -0.95;
+        /* Хөвд */
+        add(new THREE.SphereGeometry(0.06, 7, 6), moss, 0.72, 0.05);
+    } else if (key === 'golem') {
+        /* Лаавын бөөрөнхий сүх — чулуу, гэрэлтэй ан цав */
+        const rock = new THREE.MeshStandardMaterial({ color: 0x2a2228, roughness: 0.95 });
+        const lava = new THREE.MeshStandardMaterial({
+            color: 0x30211c, emissive: 0xff5a12, emissiveIntensity: 1.6, roughness: 0.8 });
+        /* Торны алх маягийн жижиг чулуун алх */
+        add(new THREE.CylinderGeometry(0.055, 0.065, 0.95, 7), rock, 0.3);
+        add(new THREE.BoxGeometry(0.3, 0.22, 0.24), rock, 0.84);
+        add(new THREE.BoxGeometry(0.32, 0.05, 0.26), lava, 0.84);
+    } else if (key === 'cultist') {
+        /* Шившлэгийн таяг — оройд нь ягаан гал */
+        const staff = new THREE.MeshStandardMaterial({ color: 0x2e2434, roughness: 0.8 });
+        const magic = new THREE.MeshStandardMaterial({
+            color: 0x3a1038, emissive: 0xe03cc0, emissiveIntensity: 2.2, roughness: 0.4 });
+        add(new THREE.CylinderGeometry(0.04, 0.05, 2.0, 7), staff, 0.55);
+        add(new THREE.TorusGeometry(0.17, 0.035, 6, 14), staff, 1.72);
+        add(new THREE.SphereGeometry(0.11, 10, 8), magic, 1.72);
+    } else if (key === 'goblin') {
+        /* Инженерийн том түлхүүр */
+        const iron = new THREE.MeshStandardMaterial({ color: 0x8d949c, metalness: 0.8, roughness: 0.4 });
+        const grip = new THREE.MeshStandardMaterial({ color: 0x4a3a28, roughness: 0.9 });
+        add(new THREE.BoxGeometry(0.09, 1.0, 0.1), iron, 0.4);
+        add(new THREE.CylinderGeometry(0.055, 0.055, 0.34, 7), grip, 0.08);
+        add(new THREE.BoxGeometry(0.4, 0.14, 0.13), iron, 0.92);
+        add(new THREE.BoxGeometry(0.12, 0.26, 0.13), iron, 1.04, 0);
+        const jaw = add(new THREE.BoxGeometry(0.12, 0.26, 0.13), iron, 1.04, 0);
+        jaw.position.x = 0.16;
+    } else {
+        /* сэлэм */
+        add(new THREE.CylinderGeometry(0.032, 0.032, 0.24, 8), wood, 0.08);
+        add(new THREE.BoxGeometry(0.28, 0.06, 0.09), dark, 0.22);
+        add(new THREE.BoxGeometry(0.075, 0.98, 0.028), steel, 0.74);
+        add(new THREE.ConeGeometry(0.052, 0.16, 4), steel, 1.3);
+    }
+    return g;
+}
+
+/* Галын зөөлөн толбо — зурган texture-ийг кодоор зурна (нэмэлт файлгүй) */
+let FLAME_TEX = null;
+function flameTexture() {
+    if (FLAME_TEX) return FLAME_TEX;
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const x = c.getContext('2d');
+    const grad = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, 'rgba(255,245,200,1)');
+    grad.addColorStop(0.3, 'rgba(255,170,50,0.85)');
+    grad.addColorStop(0.65, 'rgba(255,90,20,0.35)');
+    grad.addColorStop(1, 'rgba(255,50,10,0)');
+    x.fillStyle = grad;
+    x.fillRect(0, 0, 64, 64);
+    FLAME_TEX = new THREE.CanvasTexture(c);
+    return FLAME_TEX;
+}
+
+/* LAVA GOLEM-ийн гал — дээш хөөрч бүдгэрэх тоосонцрууд */
+const FLAME_COUNT = 14;
+function buildFlame() {
+    const g = new THREE.Group();
+    const tex = flameTexture();
+    for (let i = 0; i < FLAME_COUNT; i++) {
+        const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+            map: tex, color: 0xffffff, transparent: true, depthWrite: false,
+            blending: THREE.AdditiveBlending, opacity: 0.9
+        }));
+        /* Тус бүр өөрийн "амьдралын" үе шаттай — тархсан харагдана */
+        sp.userData = {
+            t: i / FLAME_COUNT,
+            speed: 0.9 + Math.random() * 0.5,
+            x: (Math.random() - 0.5) * 0.34,
+            z: (Math.random() - 0.5) * 0.34,
+            size: 0.34 + Math.random() * 0.22
+        };
+        g.add(sp);
+    }
+    return g;
+}
+
+/* Дөлийг хөдөлгөнө — тоосонцор бүр дээш хөөрч, жижгэрч бүдгэрнэ */
+function stepFlame(f, dt) {
+    for (const sp of f.flame.children) {
+        const d = sp.userData;
+        d.t += dt * d.speed;
+        if (d.t > 1) {
+            d.t -= 1;
+            d.x = (Math.random() - 0.5) * 0.34;
+            d.z = (Math.random() - 0.5) * 0.34;
+            d.size = 0.34 + Math.random() * 0.22;
+        }
+        const k = d.t;
+        sp.position.set(d.x * (1 - k * 0.5), k * 0.9, d.z * (1 - k * 0.5));
+        const sc = d.size * (1 - k * 0.65);
+        sp.scale.set(sc, sc, sc);
+        sp.material.opacity = 0.95 * (1 - k) * (1 - k);
+    }
+}
+
+function attachFlame(f, model, key) {
+    if (key !== 'golem') return;
+    /* Ясны масштаб загвар бүрт өөр тул ясанд биш, тулаанчийн БИЕД нь зүүнэ —
+       энэ нь дэлхийн нэгжтэй шууд тохирно. */
+    const flame = buildFlame();
+    flame.position.set(0, 2.15, 0);
+    f.body.add(flame);
+    f.flame = flame;
+}
+
+function attachWeapon(f, model, key) {
+    const hand = findBone(model, WEAPON_HAND[key] || 'righthand') || findBone(model, 'righthand');
+    if (!hand) return;
+    const weapon = buildWeapon(key);
+    /* Ясны масштабыг нөхөж, зэвсгийг бодит хэмжээтэй болгоно */
+    model.updateWorldMatrix(true, true);
+    const ws = new THREE.Vector3();
+    hand.getWorldScale(ws);
+    weapon.scale.setScalar((f.scale || 1) / Math.max(0.0001, ws.x));
+    /* Mixamo-гийн гарын ясны +Y нь хуруу тийш чиглэдэг тул зэвсгийг
+       эргүүлэхгүй — атгасан гараас шууд урагшаа сунана. */
+    weapon.rotation.set(0, 0, 0);
+    hand.add(weapon);
+    f.heldWeapon = weapon;
+}
+
 const loader = new GLTFLoader();
 const modelCache = {};
 function loadModel(key) {
@@ -85,9 +268,17 @@ function attachModel(f, key) {
                         material.color.multiplyScalar(f.lift);
                     }
                     if (material.emissive) {
-                        /* Загварын даавуу бараан текстуртэй тул зөвхөн color-оор будахад
-                           сүүдэрт хар дүрс болдог. Багахан ялгарал нэмж өнгийг нь гаргана. */
-                        material.emissive.copy(f.glowColor).multiplyScalar(f.glowStrength);
+                        /* Загварт emissive давхарга байдаггүй — лаавын ан цав, шившлэг,
+                           улайсан нүд нь зөвхөн baseColor текстурт будагдсан. Тиймээс
+                           ТЭР ТЕКСТУРИЙГ ӨӨРИЙГ нь emissive map болгоно: гэрэлтэй
+                           хэсэг нь (лаав, гал, нүд) гэрэлтэж, бараан чулуу нь бараан
+                           хэвээр үлдэнэ. */
+                        if (material.map) {
+                            material.emissiveMap = material.map;
+                            material.emissive.setScalar(f.glowStrength);
+                        } else {
+                            material.emissive.copy(f.glowColor).multiplyScalar(f.glowStrength);
+                        }
                         material.emissiveIntensity = 1;
                         f.flashMats.push(material);
                     }
@@ -97,6 +288,8 @@ function attachModel(f, key) {
             }
         });
         f.primitives.forEach(m => { m.visible = false; });
+        attachWeapon(f, model, key);
+        attachFlame(f, model, key);
         f.body.add(model);
         f.model = model;
     });
@@ -203,6 +396,7 @@ export function createFighter(color, scale = 1, modelKey = null, opts = {}) {
 
 // Procedural animation driven by fighter state.
 export function animateFighter(f, dt) {
+    if (f.flame) stepFlame(f, dt);
     const speed = Math.hypot(f.vel?.x || 0, f.vel?.z || 0);
     f.walkPhase += dt * speed * 2.2;
     const swing = Math.sin(f.walkPhase) * Math.min(1, speed / 4) * 0.7;
