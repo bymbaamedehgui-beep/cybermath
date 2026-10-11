@@ -109,7 +109,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x3a2418);
 scene.fog = new THREE.Fog(0x8a5a3a, 40, 110);
 const camera = new THREE.PerspectiveCamera(44, window.innerWidth / Math.max(1, window.innerHeight), 0.1, 300);
-camera.position.set(0, 8, 30);
+camera.position.set(0, 3.4, 13);
 camera.lookAt(0, 1.6, 0);
 
 window.addEventListener('resize', () => {
@@ -1794,13 +1794,21 @@ function updateGame(dt) {
     }
 }
 
+/* Камер тулааны ДЭРГЭД зогсоно — бүх талбайг багтаахын оронд тоглогч болон
+   түүний ойролцоох тулаанчдыг л хүрээлнэ. */
+const CAM_NEAR_RANGE = 9.5;   /* тоглогчоос энэ зайд байгаа тулаанчдыг тооцно */
+const CAM_MIN_DIST = 8.5;     /* хамгийн ойр */
+const CAM_MAX_DIST = 17;      /* хамгийн хол */
+
 function updateCamera(dt) {
-    const activeFighters = [player, ...allies, ...enemies].filter(fighter => !fighter.dead);
-    let minX = friendlyTower.position.x - 1.8;
-    let maxX = enemyTower.position.x + 1.8;
-    let minZ = -1.6;
-    let maxZ = 1.6;
-    let maxY = 6.3;
+    const px = player.group.position.x;
+    const activeFighters = [player, ...allies, ...enemies].filter(fighter =>
+        !fighter.dead && Math.abs(fighter.group.position.x - px) <= CAM_NEAR_RANGE);
+    let minX = px - 3.2;
+    let maxX = px + 3.2;
+    let minZ = -1.2;
+    let maxZ = 1.2;
+    let maxY = 4.4;
     for (const fighter of activeFighters) {
         const radius = 0.8 * fighter.scale;
         minX = Math.min(minX, fighter.group.position.x - radius);
@@ -1810,17 +1818,20 @@ function updateCamera(dt) {
         maxY = Math.max(maxY, fighter.group.position.y + 2.5 * fighter.scale);
     }
 
-    const targetX = THREE.MathUtils.clamp((minX + maxX) * 0.5, -2, 2);
-    const targetZ = THREE.MathUtils.clamp((minZ + maxZ) * 0.5, -2.5, 2.5);
-    const target = new THREE.Vector3(targetX, 1.7, targetZ);
-    const pitch = 0.19;
+    /* Камер талбайн гадна гарахгүй */
+    const edge = enemyTower.position.x - 3.5;
+    const targetX = THREE.MathUtils.clamp((minX + maxX) * 0.5, -edge, edge);
+    const targetZ = THREE.MathUtils.clamp((minZ + maxZ) * 0.5, -2, 2);
+    const target = new THREE.Vector3(targetX, 1.45, targetZ);
+    const pitch = 0.16;
     const verticalHalfFov = THREE.MathUtils.degToRad(camera.fov * 0.5);
     const horizontalHalfFov = Math.atan(Math.tan(verticalHalfFov) * camera.aspect);
-    const halfWidth = (maxX - minX) * 0.5 + 1.5;
-    const projectedHeight = (maxY * Math.cos(pitch)) + (maxZ - minZ) * Math.sin(pitch) + 1.8;
+    const halfWidth = (maxX - minX) * 0.5 + 0.9;
+    const projectedHeight = (maxY * Math.cos(pitch)) + (maxZ - minZ) * Math.sin(pitch) + 0.9;
     const widthDistance = halfWidth / Math.tan(horizontalHalfFov);
     const heightDistance = projectedHeight * 0.5 / Math.tan(verticalHalfFov);
-    const distance = Math.max(22, widthDistance, heightDistance);
+    const distance = THREE.MathUtils.clamp(
+        Math.max(widthDistance, heightDistance), CAM_MIN_DIST, CAM_MAX_DIST);
     const desiredPosition = new THREE.Vector3(
         target.x,
         target.y + Math.sin(pitch) * distance,

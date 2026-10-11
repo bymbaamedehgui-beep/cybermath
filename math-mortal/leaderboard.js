@@ -43,6 +43,9 @@ function note(text) {
 export async function lbLoad() {
   const list = el('lb-list');
   if (!list) return;
+  /* Өргөн дэлгэцэд хүснэгт нээлттэй; утсан дээр хураалттай — товч доош түлхэгдэхгүй */
+  const box = el('lb');
+  if (box && !box.dataset.init) { box.dataset.init = '1'; box.open = window.innerWidth > 700; }
   list.textContent = '';
   const wait = document.createElement('li');
   wait.className = 'lb-empty';
@@ -89,7 +92,7 @@ export async function lbSubmit(level, score) {
       body: JSON.stringify({ level: lvl, score: Math.max(0, Math.round(Number(score) || 0)) })
     });
     const d = await r.json();
-    if (d && d.ok) { await lbLoad(); return d; }
+    if (d && d.ok) { const box = el('lb'); if (box) box.open = true; await lbLoad(); return d; }
     note((d && d.error) || 'Дүн бүртгэгдсэнгүй.');
   } catch { note('Дүн бүртгэхэд сүлжээний алдаа.'); }
   return null;

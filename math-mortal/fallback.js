@@ -1289,9 +1289,14 @@ export function startFallback(reason = 'Reduced mode active.') {
     ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
     const shakeX = shake ? (Math.random() - 0.5) * Math.min(10, width * 0.015) : 0;
     const shakeY = shake ? (Math.random() - 0.5) * Math.min(10, height * 0.015) : 0;
-    const scale = Math.max(0.1, Math.min(width / (arenaRadius * 2 + 3), height / 28));
+    /* Тулааныг ойроос — бүх талбайг багтаахын оронд тоглогчийг дагана */
+    const fitAll = Math.max(0.1, Math.min(width / (arenaRadius * 2 + 3), height / 28));
+    const scale = Math.min(fitAll * 2.2, width / 15, height / 13);
+    /* Камерын төв тоглогчийг дагах ба талбайн гадна гарахгүй */
+    const halfSpan = width / (2 * scale);
+    const follow = Math.max(-arenaRadius + halfSpan, Math.min(arenaRadius - halfSpan, player.x));
     const view = {
-      cx: width / 2 + shakeX,
+      cx: width / 2 - (halfSpan < arenaRadius ? follow * scale : 0) + shakeX,
       groundY: height * 0.72 + shakeY,
       scale,
       spriteScale: Math.min(height / 26, scale * 1.75),
