@@ -1433,7 +1433,10 @@ function toggleMute() {
     }
     const button = $('music-toggle');
     if (button) {
-        button.textContent = muted ? '🔇 ДУУГҮЙ' : '🔊 ДУУ';
+        /* SVG дүрсийг дарахгүйн тулд зөвхөн бичгийн хэсгийг солино */
+        const label = $('music-label');
+        if (label) label.textContent = muted ? 'ДУУ ХААЛТТАЙ' : 'ДУУ АСААЛТТАЙ';
+        else button.textContent = muted ? 'ДУУ ХААЛТТАЙ' : 'ДУУ АСААЛТТАЙ';
         button.setAttribute('aria-pressed', String(muted));
     }
     setStatus(muted ? 'Дуу хаалттай · M дарж асаана.' : 'Дуу асаалттай.');

@@ -3,6 +3,26 @@ import { lbLoad } from './leaderboard.js';
 import { initMultiplayer } from './multiplayer.js';
 import { HERO_PROFILES } from './hero-profiles.js';
 
+/* Дээд баруун булангийн нэгдсэн цэс */
+(() => {
+  const btn = document.getElementById('quick-menu-btn');
+  const menu = document.getElementById('quick-menu');
+  if (!btn || !menu) return;
+  const close = () => { menu.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); };
+  btn.addEventListener('click', event => {
+    event.stopPropagation();
+    const open = !menu.classList.contains('open');
+    menu.classList.toggle('open', open);
+    btn.setAttribute('aria-expanded', String(open));
+  });
+  /* Сонгосны дараа, гадна дарахад, Esc дарахад хаана */
+  menu.addEventListener('click', () => close());
+  document.addEventListener('pointerdown', event => {
+    if (!menu.contains(event.target) && event.target !== btn) close();
+  });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape') close(); });
+})();
+
 initQuizSettings();
 initMultiplayer();
 lbLoad();
