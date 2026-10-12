@@ -27,6 +27,8 @@ const WS_YEAR_PRICE = WS_PRICES[12];   // хуучин 'wsyear' нийцэл
 const WG = require('./_wsgrade');
 const SMS = require('./_sms');
 const WDEV = require('./_wsdev');
+// Тоглоомын төлбөр (1 тоглоом × 30 хоног) — каталог/эрх api/_games.js-д
+const GM = require('./_games');
 const WS_GRADE_PER_MONTH = parseInt(process.env.WS_GRADE_PRICE || '9900', 10);
 const WS_GRADE_MONTHS = [1, 3, 6, 12];
 // catalog.js ачаалагдаагүй (жагсаалт хоосон) тохиолдолд "N-р анги" хэлбэрээр зөвшөөрнө
@@ -475,13 +477,18 @@ async function ensurePayPending() {
     created_at TIMESTAMPTZ DEFAULT NOW()
   )`).catch(()=>{});
   await pool.query(`ALTER TABLE pay_pending ADD COLUMN IF NOT EXISTS promo_code TEXT`).catch(()=>{});
+  // Тоглоомын нэхэмжлэх (plan='game'): аль тоглоом, аль realm ('ws' Дасгалын төв / 'cm' cyber-math.com)
+  await pool.query(`ALTER TABLE pay_pending ADD COLUMN IF NOT EXISTS game_key TEXT`).catch(()=>{});
+  await pool.query(`ALTER TABLE pay_pending ADD COLUMN IF NOT EXISTS realm TEXT`).catch(()=>{});
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_pay_pending_email ON pay_pending(email, granted)`).catch(()=>{});
   payPendingReady = true;
 }
+// check/callback/reconcile гурвуулаа ИЖИЛ баганын жагсаалтаар уншина (game_key/realm дутвал тоглоом олгогдохгүй)
+const PAY_COLS = 'invoice_id, email, plan, months, amount, event_id, granted, promo_code, game_key, realm';
 async function payPendingRow(invoiceId) {
   if (!invoiceId) return null;
   await ensurePayPending();
-  const r = await pool.query('SELECT invoice_id, email, plan, months, amount, event_id, granted, promo_code FROM pay_pending WHERE invoice_id=$1',
+  const r = await pool.query('SELECT ' + PAY_COLS + ' FROM pay_pending WHERE invoice_id=$1',
     [String(invoiceId)]);
   return r.rows[0] || null;
 }
@@ -535,11 +542,50 @@ async function settleWsOnce(row) {
   try { return { already: false, exp: await settleWsPending(row) }; }
   catch (e) { await unclaimPending('ws_pending', row.invoice_id); throw e; }
 }
-// Premium / friends / event нэхэмжлэхийг ХАДГАЛСАН мөрөөр НЭГ УДАА олгоно.
+// pay_pending мөрийн plan-ийн allowlist. Үүнээс гадуурх plan ЮУ Ч олгохгүй (Premium руу чимээгүй унахгүй).
+// 'premium' — premiumPlanNorm-оос өмнөх хуучин мөрүүдийн нийцэл (1 сар).
+const PAY_PREMIUM_PLANS = ['monthly', 'yearly', 'friends', 'premium'];
+// Тоглоомын мөр бүрэн эсэх: game_key серверийн allowlist-д, realm 'ws'|'cm'
+function gameRowOk(row) { return GM.isGame(row.game_key) && !!GM.normRealm(row.realm); }
+// Тоглоом (plan='game'): claim хийсэн дуудлага л (realm, email, game_key)-д +30 хоног НЭМЭГДДЭГ олгоно.
+// users.plan/premium_expiry-д ОГТ хүрэхгүй. Олголт алдаа гарвал claim буцаана (дараагийн check/callback/reconcile оролдоно).
+async function settleGame(row, email, claimed) {
+  const key = row.game_key, realm = GM.normRealm(row.realm);
+  if (!claimed) {
+    let exp = null;
+    try { exp = await GM.currentExpiry(realm, email, key); } catch (e) { console.error('[game expiry]', e.message); }
+    return { granted: false, out: { ok: true, paid: true, game: key, realm: realm, expiry: exp ? exp.toISOString() : null } };
+  }
+  const months = Math.min(12, Math.max(1, parseInt(row.months, 10) || 1));
+  const days = GM.GAME_DAYS * months;
+  let exp;
+  try { exp = await GM.grantGame(realm, email, key, days); }
+  catch (e) { await unclaimPending('pay_pending', row.invoice_id); throw e; }
+  // Борлуулалтын бүртгэл (тайлан төлсөн өдрөөр) — алдаа гарвал эрхийг буцаахгүй, зөвхөн лог
+  try {
+    await GM.recordPurchase({ invoice_id: row.invoice_id, realm: realm, email: email, game_key: key,
+      amount: row.amount, days: days, expires_at: exp });
+  } catch (e) { console.error('[game ledger]', row.invoice_id, e.message); }
+  await notifyTelegram('<b>Тоглоом худалдан авлаа</b>\n' + escTg(GM.GAMES[key].title) + ' · ' + escTg(email) +
+    ' (' + (realm === 'ws' ? 'Дасгалын төв' : 'cyber-math.com') + ')\n' + escTg(row.amount) + '₮ · ' +
+    exp.toISOString().slice(0, 10) + ' хүртэл');
+  return { granted: true, out: { ok: true, paid: true, game: key, realm: realm, expiry: exp.toISOString() } };
+}
+// Premium / friends / event / game нэхэмжлэхийг ХАДГАЛСАН мөрөөр НЭГ УДАА олгоно.
 // Буцаах: { granted: энэ дуудлага эрх олгосон эсэх, out: клиентийн хариу (бүтэц хуучинтай ижил) }
 async function settlePay(row) {
   const email = String(row.email).trim().toLowerCase();
+  // Буруу/үл мэдэгдэх мөрийг claim хийхээс ӨМНӨ татгалзана — granted=FALSE хэвээр, админ тулгаж шалгана
+  if (row.plan !== 'event' && row.plan !== 'game' && PAY_PREMIUM_PLANS.indexOf(row.plan) < 0) {
+    console.error('[qpay settle] үл мэдэгдэх plan — эрх олгохгүй', row.invoice_id, row.plan);
+    throw new Error('Тариф буруу (' + String(row.plan).slice(0, 20) + ')');
+  }
+  if (row.plan === 'game' && !gameRowOk(row)) {
+    console.error('[qpay settle] тоглоомын мөр буруу — эрх олгохгүй', row.invoice_id, row.game_key, row.realm);
+    throw new Error('Тоглоомын нэхэмжлэх буруу');
+  }
   const claimed = await claimPending('pay_pending', row.invoice_id);
+  if (row.plan === 'game') return settleGame(row, email, claimed);
   if (row.plan === 'event') {
     if (!claimed) return { granted: false, out: { ok: true, paid: true } };
     let upd;
@@ -561,7 +607,12 @@ async function settlePay(row) {
     } catch (e) {}
     return { granted: true, out: { ok: true, paid: true } };
   }
-  // Premium (monthly/yearly/friends)
+  // Premium (monthly/yearly/friends) — давхар хамгаалалт: allowlist-ээс гадуурх мөр Premium БОЛОХГҮЙ
+  if (PAY_PREMIUM_PLANS.indexOf(row.plan) < 0) {
+    if (claimed) await unclaimPending('pay_pending', row.invoice_id);
+    console.error('[qpay settle] Premium биш мөр premium салбарт хүрэв', row.invoice_id, row.plan);
+    throw new Error('Тариф буруу');
+  }
   if (!claimed) {
     let exp = null;
     try {
@@ -691,8 +742,25 @@ module.exports = async (req, res) => {
       // amount-ыг клиентээс АВАХГҮЙ — үнийг зөвхөн сервер тогтооно
       const plan = (req.body || {}).plan;
       const isWsPlan = ['wsyear', 'wsmonths', 'wsgrade'].indexOf(plan) >= 0;
+      const isGamePlan = plan === 'game';
       let email;
-      if (isWsPlan) {
+      // Тоглоом — 1 тоглоом × 30 хоног. realm-ээр имэйлийг ЗӨВХӨН тухайн сайтын токеноос авна:
+      //   'ws' → body.wstoken (ws:true), 'cm' → Authorization: Bearer cm_token (tv шалгана).
+      // body.email/amount/promo/ref/months-д огт итгэхгүй; game нь серверийн allowlist-д байх ёстой.
+      let gameKey = null, gameRealm = null;
+      if (isGamePlan) {
+        const b = req.body || {};
+        gameRealm = GM.normRealm(b.realm);
+        if (!gameRealm) return res.status(400).json({ ok: false, error: 'Тариф буруу байна' });
+        // normEmail — grantGame-ийн шалгалттай ижил: олгож чадахгүй имэйлээр мөнгө авахгүй
+        if (gameRealm === 'ws') email = GM.normEmail(emailFromToken(b.wstoken));
+        else { const cu = await GM.cmUser(req); email = cu ? GM.normEmail(cu.email) : null; }
+        if (!email) return res.status(401).json({ ok: false, needLogin: true, error: 'Худалдан авахын тулд эхлээд нэвтэрнэ үү.' });
+        gameKey = typeof b.game === 'string' ? b.game.trim() : '';
+        if (!GM.isGame(gameKey)) return res.status(400).json({ ok: false, error: 'Тоглоом олдсонгүй' });
+        if (!(await rateLimit('game_inv:' + gameRealm + ':' + email.slice(0, 254), 20, 600)))
+          return res.status(429).json({ ok: false, error: 'Хэт олон оролдлого. Түр хүлээгээд дахин оролдоно уу.' });
+      } else if (isWsPlan) {
         // Ажлын хуудасны эрхийг зөвхөн НЭВТЭРСЭН данс худалдан авна (H6): имэйлийг ЗӨВХӨН ws токеноос авна,
         // body.email-д огт итгэхгүй. Тоглоомын токен хүчингүй (emailFromToken нь ws:true шаардана).
         email = emailFromToken((req.body || {}).wstoken);
@@ -703,7 +771,7 @@ module.exports = async (req, res) => {
       }
       const emailLc = email.trim().toLowerCase();
       const premiumPlan = premiumPlanNorm(plan);
-      if (!premiumPlan && ['wsyear', 'wsmonths', 'wsgrade', 'event'].indexOf(plan) < 0)
+      if (!premiumPlan && ['wsyear', 'wsmonths', 'wsgrade', 'event', 'game'].indexOf(plan) < 0)
         return res.status(400).json({ ok: false, error: 'Тариф буруу байна' });
 
       // Email-ыг богиносгож аюулгүй болгох — QPay-н sender_invoice_no/customer_code 45 тэмдэгт хязгаартай
@@ -746,7 +814,8 @@ module.exports = async (req, res) => {
         premiumAmount = PREMIUM_PRICES[isTeacher ? 'teacher' : 'student'][premiumPlan];
       }
 
-      const desc = wgGrade != null ? `CyberMath ${wgGrade} — ${wgMonths} сар`.slice(0, 100)
+      const desc = isGamePlan ? `CyberMath тоглоом — ${GM.GAMES[gameKey].title} — 1 сар`.slice(0, 100)
+                 : wgGrade != null ? `CyberMath ${wgGrade} — ${wgMonths} сар`.slice(0, 100)
                  : wsMonths != null ? `CyberMath Ажлын хуудас — ${wsMonths} сар`
                  : plan === 'event' ? ('Сургалт — ' + (eventTitle || 'CyberMath')).slice(0, 100)
                  : premiumPlan === 'friends' ? 'CyberMath Найзууд багц (3 хүн)'
@@ -770,6 +839,8 @@ module.exports = async (req, res) => {
         invAmount = wsGradePrice(pi.pct, wgMonths);
       } else if (plan === 'event') {
         invAmount = eventPrice;
+      } else if (isGamePlan) {
+        invAmount = GM.gamePrice();   // хөнгөлөлт/промо/ref тоглоомд хамаарахгүй
       }
 
       const token = await getToken();
@@ -801,6 +872,12 @@ module.exports = async (req, res) => {
                ON CONFLICT (invoice_id) DO NOTHING`,
               [invoice.invoice_id, emailLc, wsMonths != null ? wsMonths : wgMonths,
                promo, invAmount, refStore, wgGrade]);
+          } else if (isGamePlan) {
+            await ensurePayPending();
+            await pool.query(
+              `INSERT INTO pay_pending (invoice_id, email, plan, months, amount, event_id, game_key, realm) VALUES ($1,$2,'game',1,$3,NULL,$4,$5)
+               ON CONFLICT (invoice_id) DO NOTHING`,
+              [invoice.invoice_id, emailLc, invAmount, gameKey, gameRealm]);
           } else {
             await ensurePayPending();
             await pool.query(
@@ -821,7 +898,8 @@ module.exports = async (req, res) => {
             [invoice.invoice_id, invAmount, eventId, emailLc]);
         } catch (e) { console.error('[event invoice link]', e.message); }
       }
-      // ws plan: аль данс руу худалдан авч буйг (токены имэйл) клиентэд буцаана — check-д энэ имэйлийг илгээнэ
+      // ws/game plan: аль данс руу худалдан авч буйг (токены имэйл) клиентэд буцаана — check-д энэ имэйлийг илгээнэ
+      if (isGamePlan) return res.json({ ok: true, invoice, email: emailLc, game: gameKey, realm: gameRealm, amount: invAmount });
       return res.json(isWsPlan ? { ok: true, invoice, email: emailLc } : { ok: true, invoice });
     }
 
@@ -833,6 +911,11 @@ module.exports = async (req, res) => {
       const invoiceId = String(b.invoice_id || '').trim();
       if (!email) return res.status(400).json({ ok: false, error: 'Missing email' });
       if (!invoiceId) return res.status(400).json({ ok: false, error: 'Нэхэмжлэх олдсонгүй' });
+      // QPay payment/check-ийг спамдуулахгүй: нэхэмжлэх тутам 240/10мин (3 сек poll = 200), IP тутам 3000/10мин
+      // (мобайл операторын CGNAT-ийн ард олон хэрэглэгч нэг IP-тэй тул IP хязгаарыг өндөр байлгана)
+      if (!(await rateLimit('qpay_chk_inv:' + invoiceId.slice(0, 80), 240, 600)) ||
+          !(await rateLimit('qpay_chk_ip:' + clientIp(req), 3000, 600)))
+        return res.status(429).json({ ok: false, paid: false, error: 'Хэт олон хүсэлт. Түр хүлээнэ үү.' });
       const wrow = await wsPendingRow(invoiceId);
       const prow = wrow ? null : await payPendingRow(invoiceId);
       const row = wrow || prow;
@@ -880,7 +963,7 @@ module.exports = async (req, res) => {
       try {
         await ensurePayPending();
         const pend = await pool.query(
-          `SELECT invoice_id, email, plan, months, amount, event_id, granted, promo_code FROM pay_pending
+          `SELECT ${PAY_COLS} FROM pay_pending
             WHERE email=$1 AND granted=FALSE AND created_at > NOW() - INTERVAL '3 days'
             ORDER BY created_at DESC LIMIT 10`, [email]);
         for (const row of pend.rows) {
@@ -1021,7 +1104,7 @@ module.exports = async (req, res) => {
         // Premium / friends / event — сүүлийн 30 хоногийн олгогдоогүй нэхэмжлэхүүд
         await ensurePayPending();
         const ppend = await pool.query(
-          `SELECT invoice_id, email, plan, months, amount, event_id, granted, promo_code FROM pay_pending
+          `SELECT ${PAY_COLS} FROM pay_pending
             WHERE granted=FALSE AND created_at > NOW() - INTERVAL '30 days'
             ORDER BY created_at DESC LIMIT 200`);
         for (const row of ppend.rows) {
@@ -1032,6 +1115,7 @@ module.exports = async (req, res) => {
               if (!s.granted) continue;
               const g = { email: row.email, plan: row.plan, months: row.months, amount: row.amount };
               if (row.plan === 'event') g.event_id = row.event_id;
+              if (row.plan === 'game') { g.game = row.game_key; g.realm = row.realm; }
               granted.push(g);
             }
           } catch (e) { console.error('[reconcile pay row]', row.invoice_id, e.message); }
