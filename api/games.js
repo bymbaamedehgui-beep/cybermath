@@ -22,7 +22,8 @@
 //        (url = найздаа илгээх харьцангуй холбоос)
 //
 // Дасгалын төвийн токен: 2 төхөөрөмжийн хязгаар (api/_wsdev.js checkReq — wsstatus-ийн логик) status/launch/invite бүгдэд.
-// DB алдаа → 503 (fail-closed). GAME_PAYWALL=off → бүх тоглоом нээлттэй (launch нэвтрэлт шаардахгүй, тасалбаргүй url).
+// DB алдаа → 503 (fail-closed). GAME_PAYWALL=off (эсвэл тавиагүй + GM.PAYWALL_DEFAULT_ON=false) → бүх тоглоом нээлттэй
+// (launch нэвтрэлт шаардахгүй, тасалбаргүй url).
 'use strict';
 const guard = require('./_guard');
 const GM = require('./_games');

@@ -9,7 +9,8 @@
 //
 // Шийдвэрийн дараалал:
 //   1) GET/HEAD л. g нь FILES allowlist-д, f нь regex + бодит файлын жагсаалтад (path traversal → 404).
-//   2) GAME_PAYWALL=off → шууд өгнө (?t= байвал тасалбаргүй URL руу 302).
+//   2) GAME_PAYWALL=off (эсвэл тавиагүй + GM.PAYWALL_DEFAULT_ON=false — launch UI деплойдох хүртэл) → шууд өгнө
+//      (?t= байвал тасалбаргүй URL руу 302).
 //   3) ?t=<launch тасалбар> (зөвхөн эхлэх хуудсанд; api/games.js launch гаргана): verifyTicket(g) → useJti (НЭГ удаа) →
 //      sessionExp → Set-Cookie __Host-cmg_<g> (HttpOnly; Secure; SameSite=Lax; Path=/; ≤2 цаг, урилга 30 мин,
 //      эрхийн дуусах огнооноос хэтрэхгүй) → 302 тасалбаргүй URL (URL-ийг хуулж хуваалцах боломжгүй).

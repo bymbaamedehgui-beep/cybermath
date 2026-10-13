@@ -6,7 +6,8 @@
 // API:
 //   GAMES, GAME_KEYS, GAME_DAYS
 //   gamePrice()                          → int  (env GAME_PRICE, анхдагч 1900)
-//   paywallOn()                          → bool (env GAME_PAYWALL=off → бүх тоглоом нээлттэй)
+//   paywallOn()                          → bool (env GAME_PAYWALL=off → бүх тоглоом нээлттэй; тавиагүй → PAYWALL_DEFAULT_ON —
+//                                          launch UI деплойдох хүртэл false, scripts/check-game-routes.js (8) шалгана)
 //   isGame(key), normRealm(r), normEmail(e), publicCatalog()
 //   GAMES[key] = { title, kind: 'file'|'inline'|'external', multi: олон тоглогчтой (host л төлнө), path?/url? }
 //   ensureGameTables()                   → Promise (lazy, амжилтгүй бол дараагийн дуудлага дахин оролдоно).
@@ -79,9 +80,18 @@ function gamePrice() {
   const n = parseInt(process.env.GAME_PRICE || '', 10);
   return Number.isFinite(n) && n >= 100 && n <= 1000000 ? n : 1900;
 }
-// Kill-switch: GAME_PAYWALL=off (мөн false/0/no) → бүх тоглоом нээлттэй. Бусад бүх утга (тавиагүй ч) → төлбөртэй.
+// GAME_PAYWALL тавиагүй (хоосон) үеийн анхдагч. Хэрэглэгчийн launch UI (index.html + worksheets.html + тоглоомыг
+// шууд ачаалдаг play/team/xp.html — /api/games?action=launch) деплойдоогүй байхад төлбөр асаалттай байвал gate бүх файл
+// тоглоомыг түгжинэ: эрхтэй, Premium хэрэглэгч ч тоглож чадахгүй, худалдан авах зам ч байхгүй. Тиймээс UI бэлэн болтол
+// false (одоогийнх шиг нээлттэй). Launch UI-г нэмсэн алхам үүнийг true болгоно. scripts/check-game-routes.js (8) ба
+// tests/games-gate.test.js «деплойн бэлэн байдал» нь «UI бэлэн ⇔ анхдагч асаалттай»-г хоёр чиглэлд шалгана (мартвал унана).
+// Preview дээр UI-гүйгээр gate-ийг турших: GAME_PAYWALL=on.
+const PAYWALL_DEFAULT_ON = false;
+// Kill-switch: GAME_PAYWALL=off (мөн false/0/no) → бүх тоглоом нээлттэй. Тавиагүй/хоосон → PAYWALL_DEFAULT_ON.
+// Бусад бүх утга (on, true, 1, алдаатай бичсэн 'offf' ч) → төлбөртэй (fail-closed).
 function paywallOn() {
   const v = String(process.env.GAME_PAYWALL || '').trim().toLowerCase();
+  if (!v) return PAYWALL_DEFAULT_ON;
   return !(v === 'off' || v === 'false' || v === '0' || v === 'no');
 }
 // hasOwnProperty — '__proto__', 'constructor' гэх мэт түлхүүр allowlist-ийг давахгүй
@@ -489,7 +499,7 @@ async function redeemInvite(tok, realm, key, devKey) {
 }
 
 module.exports = {
-  GAMES, GAME_KEYS, GAME_DAYS, gamePrice, paywallOn, isGame, normRealm, normEmail, publicCatalog,
+  GAMES, GAME_KEYS, GAME_DAYS, gamePrice, PAYWALL_DEFAULT_ON, paywallOn, isGame, normRealm, normEmail, publicCatalog,
   ensureGameTables, entitlement, entitled, activeGames, isCmPremium,
   grantGame, currentExpiry, revokeGame, recordPurchase, cmUser,
   TICKET_TTL, INVITE_TTL, SESSION_TTL, INVITE_SESSION_TTL, inviteUses, inviteDaily, subjectOf,

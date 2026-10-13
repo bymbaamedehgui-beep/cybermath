@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // Деплойн дараах шалгалт (preview/prod) — тоглоомын сервер gate.
-//   node scripts/verify-game-gate.js --base https://cyber-math.com            (GAME_PAYWALL асаалттай үед)
-//   node scripts/verify-game-gate.js --base https://<preview> --expect off   (GAME_PAYWALL=off үед)
+//   node scripts/verify-game-gate.js --base https://cyber-math.com            (төлбөр асаалттай: GAME_PAYWALL=on, эсвэл
+//                                                                               тавиагүй + api/_games.js PAYWALL_DEFAULT_ON=true)
+//   node scripts/verify-game-gate.js --base https://<preview> --expect off   (GAME_PAYWALL=off, эсвэл тавиагүй +
+//                                                                               PAYWALL_DEFAULT_ON=false — launch UI деплойдохоос өмнө)
 // Зөвхөн cookie-гүй GET/HEAD хүсэлт илгээнэ (юу ч бичихгүй). Шалгах зүйлс:
 //   on : хамгаалсан зам бүр 403 + X-Game-Gate: locked, ≤8KB, тоглоомын код агуулаагүй, no-store, Set-Cookie-гүй;
 //        /math-mortal/<нэр>.js → 403 locked (JS биш); /games/*.html шууд → 404; /gate/game.js?g=… → 403

@@ -339,18 +339,25 @@ test('GAME_PAYWALL=off → бүх 16 тоглоом нээлттэй (нэвтр
     assert.strictEqual((await GM.entitlement('cm', 'a@x.mn', 'ludo')).via, 'off');
   }
   // Төлбөртэй үед үүсгэсэн нэхэмжлэхийг kill-switch асаасны дараа төлсөн → мөнгө авсан тул эрх олгоно
-  delete process.env.GAME_PAYWALL;
+  process.env.GAME_PAYWALL = 'on';
   const inv = await buyWs('off@x.mn', 'sudoku');
   process.env.GAME_PAYWALL = 'off';
   F.qp.paid.set(inv, 1900);
   assert.strictEqual((await check(inv, 'off@x.mn')).body.paid, true);
   near(daysLeft(access('ws', 'off@x.mn', 'sudoku').expires_at), 30, 'kill-switch үед ч төлсөн нэхэмжлэх олгогдоно');
-  for (const v of ['on', '', 'offf', 'true']) {
+  for (const v of ['on', ' ON ', 'offf', 'true', '1', 'yes']) {
     process.env.GAME_PAYWALL = v;
     assert.strictEqual(GM.paywallOn(), true, JSON.stringify(v));
     assert.strictEqual(await GM.entitled('ws', 'nobody@x.mn', 'sudoku'), false, JSON.stringify(v));
   }
-  delete process.env.GAME_PAYWALL;
+  // Тавиагүй/хоосон → api/_games.js PAYWALL_DEFAULT_ON (launch UI деплойдох хүртэл false — games-gate.test.js шалгана)
+  assert.strictEqual(typeof GM.PAYWALL_DEFAULT_ON, 'boolean');
+  for (const v of [undefined, '', '  ']) {
+    if (v === undefined) delete process.env.GAME_PAYWALL; else process.env.GAME_PAYWALL = v;
+    assert.strictEqual(GM.paywallOn(), GM.PAYWALL_DEFAULT_ON, JSON.stringify(v));
+    assert.strictEqual(await GM.entitled('ws', 'nobody@x.mn', 'sudoku'), !GM.PAYWALL_DEFAULT_ON, JSON.stringify(v));
+  }
+  process.env.GAME_PAYWALL = 'on';
   assert.strictEqual(await GM.entitled('ws', 'off@x.mn', 'sudoku'), true, 'худалдаж авсан эрх хэвээр');
 });
 
@@ -521,7 +528,7 @@ test('create: cm Premium / GAME_PAYWALL=off → 409 already (нэхэмжлэх 
   assert.strictEqual((await Q('create', { plan: 'game', realm: 'ws', game: 'sudoku' })).statusCode, 401);
   assert.strictEqual((await Q('create', { plan: 'game', realm: 'ws', game: 'hack', wstoken: wsTok('k@x.mn') })).statusCode, 400);
   assert.strictEqual(F.qp.invoices.length, 3, 'off үед нэхэмжлэх үүсээгүй');
-  delete process.env.GAME_PAYWALL;
+  process.env.GAME_PAYWALL = 'on';
 
   // Эрх шалгах DB алдаа → нэхэмжлэх үүсгэхгүй (fail-closed)
   F.db.failEnt = true;

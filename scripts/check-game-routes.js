@@ -12,6 +12,10 @@
 //      index.html, play.html, team.html, xp.html …) нийтийн замаараа gate эсвэл статик руу шийдэгдэнэ;
 //      /games/… бодит зам руу холбоогүй (нийтэд 404). CLI нь index.html-ээс бусад хэрэглэгч хуудсыг мэдээлнэ —
 //      GAME_PAYWALL асаалттай үед эдгээр нь launch тасалбаргүй бол түгжээтэй хуудас харуулна.
+//   8) деплойн бэлэн байдал: launch UI бэлэн (index.html + worksheets.html, мөн тоглоомыг шууд ачаалдаг бусад хуудас бүр
+//      /api/games?action=launch дууддаг) ⇔ api/_games.js PAYWALL_DEFAULT_ON === true. UI-гүйгээр анхдагч асаалттай бол
+//      GAME_PAYWALL тавиагүй деплойд бүх файл тоглоом түгжигдэнэ (эрхтэй/Premium ч тоглож чадахгүй, худалдан авах зам ч
+//      байхгүй); UI бэлэн атал анхдагч унтраалттай бол тавиагүй деплойд бүх тоглоом үнэгүй. Аль аль нь алдаа.
 // Vercel legacy routes: эхний таарсан маршрут (continue-гүй) шийднэ; src нь ^…$-аар бэхлэгдэнэ.
 'use strict';
 const fs = require('fs');
@@ -144,8 +148,52 @@ function consumerProblem(pub, ctx) {
   return 'redirect давталт';
 }
 
-// → { ok, errors: [], checked: n, consumers: [{ file, line, ref, pub }] }
-// opts: { root, gate, games, pages } — pages өгвөл root-ийн хуудсыг уншихын оронд түүнийг шалгана (тест).
+// ───────────── 8) launch UI бэлэн байдал ↔ GAME_PAYWALL-ийн анхдагч ─────────────
+// Тоглоом эхлүүлэх хост хуудсууд: cyber-math.com (index.html) ба Дасгалын төв (worksheets.html) — 16 тоглоом хоёуланд.
+const LAUNCH_HOSTS = Object.freeze(['index.html', 'worksheets.html']);
+// Хуудас тоглоомыг launch-аар (тасалбартай url) нээдэг эсэх: /api/games endpoint + 'launch' action хоёулаа байна.
+function hasLaunch(text) {
+  const s = String(text == null ? '' : text);
+  return /\/api\/games\b/.test(s) && /action=launch\b|['"`]launch['"`]/.test(s);
+}
+// Нийтийн зам → gate-ийн g (redirect-ийг 3 хүртэл дагана) | null (статик/маршрутгүй)
+function gateOf(pub, ctx) {
+  let p = pub;
+  for (let hop = 0; hop < 3; hop++) {
+    const hit = firstRoute(ctx.routes, p);
+    if (!hit) return null;
+    const r = resolveRoute(hit);
+    if (r.redirect) { p = r.redirect; continue; }
+    return r.path === GATE_DEST && r.query.g ? r.query.g : null;
+  }
+  return null;
+}
+function textOf(p) { return !p ? '' : (typeof p.text === 'function' ? p.text() : String(p.text || '')); }
+// pages: [{ file, text }], cons: consumers(gate, pages) (өгөөгүй бол тооцно), ctx: { routes, gate }
+// → { ready, missing: [{ file, why }] } — LAUNCH_HOSTS бүр launch ашигладаг, мөн gate-ийн тоглоомыг шууд ачаалдаг
+//   бусад хуудас бүр launch ашигладаг үед л бэлэн.
+function launchReadiness(pages, cons, ctx) {
+  const byFile = new Map();
+  (pages || []).forEach(function (p) { byFile.set(p.file, p); });
+  const missing = [];
+  LAUNCH_HOSTS.forEach(function (f) {
+    if (!byFile.has(f)) missing.push({ file: f, why: 'хуудас алга' });
+    else if (!hasLaunch(textOf(byFile.get(f)))) missing.push({ file: f, why: '/api/games?action=launch дуудлага алга' });
+  });
+  const direct = {};
+  (cons || consumers(ctx.gate, pages)).forEach(function (c) {
+    if (LAUNCH_HOSTS.indexOf(c.file) >= 0 || !gateOf(c.pub, ctx)) return;
+    (direct[c.file] = direct[c.file] || []).push(c.pub + ' (:' + c.line + ')');
+  });
+  Object.keys(direct).sort().forEach(function (f) {
+    if (!hasLaunch(textOf(byFile.get(f)))) missing.push({ file: f, why: 'тоглоомыг шууд ачаалдаг (' + direct[f].join(', ') + '), launch алга' });
+  });
+  return { ready: missing.length === 0, missing: missing };
+}
+
+// → { ok, errors: [], checked: n, consumers: [{ file, line, ref, pub }], readiness: { ready, missing } | null }
+// opts: { root, gate, games, pages, readiness } — pages өгвөл root-ийн хуудсыг уншихын оронд түүнийг шалгана (тест);
+//       тэр үед (8) зөвхөн readiness=true бол ажиллана.
 function check(vercel, opts) {
   opts = opts || {};
   const root = opts.root || ROOT;
@@ -264,7 +312,9 @@ function check(vercel, opts) {
   Object.keys(gate.FILES).forEach(function (k) { if (!GM.GAMES[k]) err('gate FILES.' + k + ' каталогт алга'); });
 
   // 7) сайтын хуудсууд дахь тоглоомын холбоос — нийтийн зам хэвээр gate/статик руу шийдэгдэнэ
-  const cons = consumers(gate, opts.pages || rootPages(root));
+  // хуудас бүрийг НЭГ л удаа уншина (7 ба 8 хуваалцана; index.html ~10МБ)
+  const pages = (opts.pages || rootPages(root)).map(function (p) { return { file: p.file, text: textOf(p) }; });
+  const cons = consumers(gate, pages);
   const ctx = { routes: routes, gate: gate, root: root, staticBuilds: staticBuilds };
   cons.forEach(function (c) {
     checked++;
@@ -275,10 +325,28 @@ function check(vercel, opts) {
     err('index.html-ээс тоглоомын холбоос олдсонгүй (холбоос хайгч эвдэрсэн эсвэл index.html өөрчлөгдсөн)');
   }
 
-  return { ok: errors.length === 0, errors: errors, checked: checked, consumers: cons };
+  // 8) launch UI бэлэн ⇔ GAME_PAYWALL-ийн анхдагч асаалттай (бодит root хуудсууд; opts.pages-тэй үед opts.readiness=true бол)
+  let readiness = null;
+  if (!opts.pages || opts.readiness) {
+    checked++;
+    readiness = launchReadiness(pages, cons, ctx);
+    const def = GM.PAYWALL_DEFAULT_ON;
+    const miss = readiness.missing.map(function (m) { return m.file + ' — ' + m.why; }).join('; ');
+    if (typeof def !== 'boolean') err('api/_games.js PAYWALL_DEFAULT_ON (true/false) экспортлогдоогүй');
+    else if (def && !readiness.ready) {
+      err('GAME_PAYWALL-ийн анхдагч асаалттай (api/_games.js PAYWALL_DEFAULT_ON=true) боловч launch UI бэлэн биш — ' +
+        'GAME_PAYWALL тавиагүй деплойд файл тоглоом бүгд түгжигдэж, эрхтэй/Premium хэрэглэгч ч тоглож чадахгүй: ' + miss);
+    } else if (!def && readiness.ready) {
+      err('launch UI бэлэн (' + LAUNCH_HOSTS.join(', ') + ') — api/_games.js PAYWALL_DEFAULT_ON = true болгоно уу ' +
+        '(эс бөгөөс GAME_PAYWALL тавиагүй деплойд бүх тоглоом үнэгүй)');
+    }
+  }
+
+  return { ok: errors.length === 0, errors: errors, checked: checked, consumers: cons, readiness: readiness };
 }
 
-module.exports = { check, globToRe, globMatch, routeRe, firstRoute, resolveRoute, consumers, consumerProblem, refRe };
+module.exports = { check, globToRe, globMatch, routeRe, firstRoute, resolveRoute, consumers, consumerProblem, refRe,
+  LAUNCH_HOSTS, hasLaunch, gateOf, launchReadiness };
 
 if (require.main === module) {
   const file = path.resolve(process.argv[2] || path.join(ROOT, 'vercel.json'));
@@ -292,12 +360,15 @@ if (require.main === module) {
     process.exit(1);
   }
   console.log('OK — тоглоомын gate маршрут/build шалгалт (' + r.checked + ' шалгалт)');
-  // index.html-ээс бусад хэрэглэгч хуудас: GAME_PAYWALL асаалттай үед launch тасалбаргүй бол түгжээ харуулна
-  const other = {};
-  r.consumers.forEach(function (c) { if (c.file !== 'index.html') (other[c.file] = other[c.file] || []).push(c.pub + ' (:' + c.line + ')'); });
-  const files = Object.keys(other);
-  if (files.length) {
-    console.log('Мэдээлэл — index.html-ээс гадна тоглоомын файлыг шууд ачаалдаг хуудсууд (launch тасалбар/эрх шаардлагатай):');
-    files.forEach(function (f) { console.log('  - ' + f + ': ' + other[f].join(', ')); });
+  const GM = require(path.join(ROOT, 'api', '_games.js'));
+  if (r.readiness && r.readiness.ready) {
+    console.log('Launch UI бэлэн — PAYWALL_DEFAULT_ON=true: GAME_PAYWALL тавиагүй деплойд тоглоом төлбөртэй.');
+    console.log('  Деплойн дараа: node scripts/verify-game-gate.js --base <url>   (Vercel-д GAME_PAYWALL=off бол --expect off)');
+  } else if (r.readiness) {
+    console.log('Launch UI бэлэн биш — PAYWALL_DEFAULT_ON=false: GAME_PAYWALL тавиагүй деплойд тоглоом нээлттэй (одоогийнх шиг).');
+    r.readiness.missing.forEach(function (m) { console.log('  - ' + m.file + ': ' + m.why); });
+    console.log('  Production-д GAME_PAYWALL=on БҮҮ тавь (зөвхөн gate-ийг турших preview-д); деплойн дараа:');
+    console.log('  node scripts/verify-game-gate.js --base <url> --expect off');
+    if (GM.paywallOn()) console.log('АНХААР: энэ shell-д GAME_PAYWALL асаалттай — UI бэлэн болтол зөвхөн preview туршилтад.');
   }
 }

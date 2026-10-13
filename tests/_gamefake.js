@@ -16,6 +16,9 @@ Object.assign(process.env, {
   QPAY_USERNAME: 'fakeuser', QPAY_PASSWORD: 'fakepass', QPAY_INVOICE_CODE: 'FAKE_INVOICE',
 });
 ['GAME_PRICE', 'GAME_PAYWALL', 'GAME_INVITE_USES', 'GAME_INVITE_DAILY', 'WS_TOKEN_IAT_MIN', 'WS_PAYWALL'].forEach(k => { delete process.env[k]; });
+// Төлбөр асаалттай орчинд тестлэнэ: GAME_PAYWALL тавиагүй үеийн анхдагч (api/_games.js PAYWALL_DEFAULT_ON) нь launch UI
+// деплойдох хүртэл false тул тодорхой 'on'. Анхдагчийг өөрийг нь games-gate.test.js «деплойн бэлэн байдал» шалгана.
+process.env.GAME_PAYWALL = 'on';
 
 const DAY = 864e5;
 const db = {
@@ -462,6 +465,7 @@ function reset() {
   qp.invoices.length = 0; qp.paid.clear(); qp.checks.length = 0;
   tg.length = 0;
   ['GAME_PRICE', 'GAME_PAYWALL', 'GAME_INVITE_USES', 'GAME_INVITE_DAILY', 'WS_TOKEN_IAT_MIN'].forEach(k => { delete process.env[k]; });
+  process.env.GAME_PAYWALL = 'on';
 }
 function addUser(email, o) {
   const e = lc(email);

@@ -289,7 +289,7 @@ test('launch: cm Premium → бүх тоглоом (ws-д биш); GAME_PAYWALL=
   const offI = await G('launch', { game: 'gomoku', realm: 'cm' });
   assert.strictEqual(offI.body.ok, true);
   assert.strictEqual((await G('launch', { game: 'hack', realm: 'cm' })).statusCode, 400, 'off үед ч allowlist');
-  delete process.env.GAME_PAYWALL;
+  process.env.GAME_PAYWALL = 'on';
 
   const a = await G('launch', { game: 'myangat', realm: 'cm' }, { headers: ADMIN });
   assert.strictEqual(a.statusCode, 200);
