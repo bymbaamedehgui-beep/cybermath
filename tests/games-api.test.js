@@ -11,6 +11,7 @@ const fs = require('fs');
 const games = require(path.join(F.API, 'games.js'));
 const GM = require(path.join(F.API, '_games.js'));
 const guard = require(path.join(F.API, '_guard.js'));
+const WDEV = require(path.join(F.API, '_wsdev.js'));
 const jwt = require(require.resolve('jsonwebtoken', { paths: [F.API] }));
 const SEC = process.env.JWT_SECRET;
 
@@ -375,32 +376,36 @@ test('тасалбар: хуурамч/өөрчилсөн/хугацаа дуу�
   try { assert.strictEqual(GM.verifyTicket(t, 'sudoku'), null); } finally { process.env.JWT_SECRET = saved; }
 });
 
-// ───────────────────────── 2 төхөөрөмжийн хязгаар ─────────────────────────
-test('ws: 2 төхөөрөмжийн хязгаар — 3 дахь төхөөрөмж deviceBlocked (launch/status/invite), тасалбар гарахгүй; cm хязгааргүй', async () => {
+// ───────────────────────── төхөөрөмжийн хязгаар ─────────────────────────
+// Хязгаарыг WDEV.MAX_DEVICES-ээс уншина (env WS_MAX_DEVICES; анхдагч 2 → 4 болсон, g5 96f8df6) — тоог хатуу бичихгүй.
+test('ws: төхөөрөмжийн хязгаар (WDEV.MAX_DEVICES) — дүүрсний дараах шинэ төхөөрөмж deviceBlocked (launch/status/invite), тасалбар гарахгүй; cm хязгааргүй', async () => {
+  const MAX = WDEV.MAX_DEVICES;
+  assert.ok(Number.isInteger(MAX) && MAX >= 1, 'MAX_DEVICES=' + MAX);
+  const ids = Array.from({ length: MAX }, (_, i) => 'devfill' + String(i).padStart(3, '0'));
+  const extra = 'devextra99';
   give('ws', 'a@x.mn', 'sudoku');
   give('ws', 'a@x.mn', 'sbh');
-  assert.strictEqual((await launchWs('a@x.mn', 'sudoku', { headers: dev('devaaaa1') })).statusCode, 200);
-  assert.strictEqual((await launchWs('a@x.mn', 'sudoku', { headers: dev('devbbbb2') })).statusCode, 200);
-  assert.strictEqual((await launchWs('a@x.mn', 'sudoku', { headers: dev('devaaaa1') })).statusCode, 200, 'бүртгэлтэй төхөөрөмж');
-  const c = await launchWs('a@x.mn', 'sudoku', { headers: dev('devcccc3') });
+  for (const id of ids) assert.strictEqual((await launchWs('a@x.mn', 'sudoku', { headers: dev(id) })).statusCode, 200, id);
+  assert.strictEqual((await launchWs('a@x.mn', 'sudoku', { headers: dev(ids[0]) })).statusCode, 200, 'бүртгэлтэй төхөөрөмж');
+  const c = await launchWs('a@x.mn', 'sudoku', { headers: dev(extra) });
   assert.strictEqual(c.statusCode, 403, JSON.stringify(c.body));
   assert.strictEqual(c.body.deviceBlocked, true);
   assert.strictEqual(c.body.reason, 'DEVICE_LIMIT');
-  assert.strictEqual(c.body.max, 2);
+  assert.strictEqual(c.body.max, MAX);
   assert.strictEqual(c.body.url, undefined);
-  assert.deepStrictEqual(c.body.devices.map((d) => d.id).sort(), ['devaaaa1', 'devbbbb2']);
-  assert.ok(F.db.devBlocks.some((b) => b.email === 'a@x.mn' && b.why === 'DEVICE_LIMIT' && b.device_id === 'devcccc3'));
+  assert.deepStrictEqual(c.body.devices.map((d) => d.id).sort(), ids.slice().sort());
+  assert.ok(F.db.devBlocks.some((b) => b.email === 'a@x.mn' && b.why === 'DEVICE_LIMIT' && b.device_id === extra));
 
-  const st = await G('status', { realm: 'ws', wstoken: wsTok('a@x.mn') }, { headers: dev('devcccc3') });
+  const st = await G('status', { realm: 'ws', wstoken: wsTok('a@x.mn') }, { headers: dev(extra) });
   assert.strictEqual(st.statusCode, 403);
   assert.strictEqual(st.body.deviceBlocked, true);
   assert.strictEqual(st.body.games, undefined);
-  const iv = await G('invite', { game: 'sbh', realm: 'ws', wstoken: wsTok('a@x.mn') }, { headers: dev('devcccc3') });
+  const iv = await G('invite', { game: 'sbh', realm: 'ws', wstoken: wsTok('a@x.mn') }, { headers: dev(extra) });
   assert.strictEqual(iv.statusCode, 403);
   assert.strictEqual(iv.body.invite, undefined);
   assert.strictEqual(F.db.invites.size, 0);
 
-  // толгой илгээхгүй → токеноос гарсан 'tk…' түлхүүр байр эзэлнэ (2 дүүрсэн тул хаагдана)
+  // толгой илгээхгүй → токеноос гарсан 'tk…' түлхүүр байр эзэлнэ (дүүрсэн тул хаагдана)
   const nh = await G('launch', { game: 'sudoku', realm: 'ws', wstoken: wsTok('a@x.mn') });
   assert.strictEqual(nh.statusCode, 403);
   assert.ok(F.db.devBlocks.some((b) => /^tk[a-f0-9]{16}$/.test(b.device_id)));
@@ -635,15 +640,18 @@ test('урилга купон биш: анх нэгдсэн төхөөрөмжи
   assert.strictEqual(s5.statusCode, 403);
   assert.strictEqual(s5.body.reason, 'full');
 
-  // ws: 2 төхөөрөмж дүүрсэн хэрэглэгч урилгаар (найз шиг) л орно — төхөөрөмжийн байр нэмэгдэхгүй
+  // ws: төхөөрөмжийн хязгаар (WDEV.MAX_DEVICES) дүүрсэн хэрэглэгч урилгаар (найз шиг) л орно — төхөөрөмжийн байр нэмэгдэхгүй
   give('ws', 'busy@x.mn', 'play2048');
-  await launchWs('busy@x.mn', 'play2048', { headers: dev('busydev1') });
-  await launchWs('busy@x.mn', 'play2048', { headers: dev('busydev2') });
+  for (let i = 1; i <= WDEV.MAX_DEVICES; i++) {
+    assert.strictEqual((await launchWs('busy@x.mn', 'play2048', { headers: dev('busydev' + i) })).statusCode, 200, 'busydev' + i);
+  }
+  const over = 'busydev' + (WDEV.MAX_DEVICES + 1);
+  assert.strictEqual((await launchWs('busy@x.mn', 'play2048', { headers: dev(over) })).body.deviceBlocked, true, 'хязгаар дүүрсэн');
   const inv3 = (await G('invite', { game: 'sbh', realm: 'ws', wstoken: wsTok('host@x.mn') }, { headers: dev('hostdev01') })).body.invite;
-  const bj = await G('launch', { game: 'sbh', realm: 'ws', wstoken: wsTok('busy@x.mn'), invite: inv3 }, { headers: dev('busydev3') });
+  const bj = await G('launch', { game: 'sbh', realm: 'ws', wstoken: wsTok('busy@x.mn'), invite: inv3 }, { headers: dev(over) });
   assert.strictEqual(bj.statusCode, 200, JSON.stringify(bj.body));
   assert.strictEqual(bj.body.via, 'invite');
-  assert.ok(!F.db.devices.has('busy@x.mn|busydev3'), 'урилга нь хэрэглэгчийн төхөөрөмжийн байрыг нэмэхгүй');
+  assert.ok(!F.db.devices.has('busy@x.mn|' + over), 'урилга нь хэрэглэгчийн төхөөрөмжийн байрыг нэмэхгүй');
 });
 
 test('урилгын farm (шалгагчийн repro): 1 худалдан авалт + 25 урилга × 25 танихгүй хүн → бүтэн тасалбар ≤ 5 (өмнө нь 400)', async () => {

@@ -8,6 +8,10 @@
 //   4) math-mortal/assets/** ба cover.webp статикаар үйлчлэгдэнэ; /mortal, /math-mortal → /math-mortal/ руу redirect
 //   5) GM.GAMES-ийн path-тай тоглоом бүр gate-д бүртгэлтэй, каноник зам нь таарна
 //   6) ямар ч маршрут /games/... эсвэл /gate/... руу (gate-ээс бусад) шууд чиглүүлэхгүй
+//   7) сайтын хуудсууд (root-ийн *.html, *.js) доторх тоглоомын холбоос (iframe src, location.href, CSS url —
+//      index.html, play.html, team.html, xp.html …) нийтийн замаараа gate эсвэл статик руу шийдэгдэнэ;
+//      /games/… бодит зам руу холбоогүй (нийтэд 404). CLI нь index.html-ээс бусад хэрэглэгч хуудсыг мэдээлнэ —
+//      GAME_PAYWALL асаалттай үед эдгээр нь launch тасалбаргүй бол түгжээтэй хуудас харуулна.
 // Vercel legacy routes: эхний таарсан маршрут (continue-гүй) шийднэ; src нь ^…$-аар бэхлэгдэнэ.
 'use strict';
 const fs = require('fs');
@@ -76,7 +80,72 @@ function listFiles(dir, rel) {
   return out;
 }
 
-// → { ok, errors: [], checked: n }
+// ───────────── 7) сайтын хуудсууд дахь тоглоомын холбоос ─────────────
+// Мөрийн/url() доторх: [./|/][games/]<нэр>.html, [./|/]math-mortal/…, /sbh, /mortal, /math-mortal
+function refRe(gate) {
+  const names = [];
+  Object.keys(gate.FILES).forEach(function (g) {
+    const F = gate.FILES[g];
+    if (F.file) names.push(path.basename(F.file, '.html').replace(/[^A-Za-z0-9_-]/g, ''));
+  });
+  return new RegExp('([\'"`(])((?:\\.?/)?(?:games/)?(?:' + names.join('|') + ')\\.html|(?:\\.?/)?math-mortal/[A-Za-z0-9._/-]*' +
+    '|/(?:sbh|mortal|math-mortal))(?=[?#\'"`)])', 'g');
+}
+// root-ийн нийтлэгдэх хуудсууд (_tmp_* г.м. '_'-аар эхэлсэн, .bak алгасна)
+function rootPages(root) {
+  let names = [];
+  try { names = fs.readdirSync(root); } catch (e) { return []; }
+  return names.filter(function (n) { return /^[^_.][^/]*\.(html|js)$/i.test(n); }).sort().map(function (n) {
+    return { file: n, text: function () { return fs.readFileSync(path.join(root, n), 'utf8'); } };
+  });
+}
+// pages: [{ file, text: string | () => string }] → [{ file, line, ref, pub }]
+// root-ийн хуудсууд бүгд нэг түвшний нийтийн замаар (/, /play, /xp …) үйлчилдэг тул харьцангуй зам '/'-ээс шийдэгдэнэ.
+function consumers(gate, pages) {
+  const re = refRe(gate);
+  const out = [];
+  (pages || []).forEach(function (p) {
+    const s = typeof p.text === 'function' ? p.text() : String(p.text || '');
+    re.lastIndex = 0;
+    let m, line = 1, at = 0;
+    while ((m = re.exec(s))) {
+      for (let i = at; i < m.index; i++) if (s.charCodeAt(i) === 10) line++;
+      at = m.index;
+      const ref = m[2];
+      const pub = ref[0] === '/' ? ref : '/' + ref.replace(/^\.\//, '');
+      out.push({ file: p.file, line: line, ref: ref, pub: pub });
+    }
+  });
+  return out;
+}
+// Нийтийн зам → алдааны тайлбар | null (redirect-ийг 3 хүртэл дагана)
+function consumerProblem(pub, ctx) {
+  if (pub.indexOf('/games/') === 0) return 'хамгаалсан файлын бодит зам (нийтэд 404) — нийтийн замыг (/sudoku.html г.м.) ашиглана';
+  let p = pub;
+  for (let hop = 0; hop < 3; hop++) {
+    const hit = firstRoute(ctx.routes, p);
+    let dest = p, query = {};
+    if (hit) {
+      const r = resolveRoute(hit);
+      if (r.redirect) { p = r.redirect; continue; }
+      dest = r.path; query = r.query;
+    }
+    if (dest === GATE_DEST) {
+      const F = Object.prototype.hasOwnProperty.call(ctx.gate.FILES, query.g) ? ctx.gate.FILES[query.g] : null;
+      if (!F) return 'gate g="' + query.g + '" бүртгэлгүй';
+      if (F.dir && query.f && query.f !== F.index && !fs.existsSync(path.join(ctx.root, F.dir, query.f))) return F.dir + '/' + query.f + ' файл алга';
+      return null;
+    }
+    const rel = String(dest || '').replace(/^\//, '');
+    if (rel && fs.existsSync(path.join(ctx.root, rel)) && fs.statSync(path.join(ctx.root, rel)).isFile() &&
+        ctx.staticBuilds.some(function (b) { return globMatch(b.src, rel); })) return null;
+    return (hit ? 'маршрут #' + hit.index + ' → ' + dest : 'маршрутгүй') + ' — нийтэд 404 болно';
+  }
+  return 'redirect давталт';
+}
+
+// → { ok, errors: [], checked: n, consumers: [{ file, line, ref, pub }] }
+// opts: { root, gate, games, pages } — pages өгвөл root-ийн хуудсыг уншихын оронд түүнийг шалгана (тест).
 function check(vercel, opts) {
   opts = opts || {};
   const root = opts.root || ROOT;
@@ -194,10 +263,22 @@ function check(vercel, opts) {
   });
   Object.keys(gate.FILES).forEach(function (k) { if (!GM.GAMES[k]) err('gate FILES.' + k + ' каталогт алга'); });
 
-  return { ok: errors.length === 0, errors: errors, checked: checked };
+  // 7) сайтын хуудсууд дахь тоглоомын холбоос — нийтийн зам хэвээр gate/статик руу шийдэгдэнэ
+  const cons = consumers(gate, opts.pages || rootPages(root));
+  const ctx = { routes: routes, gate: gate, root: root, staticBuilds: staticBuilds };
+  cons.forEach(function (c) {
+    checked++;
+    const why = consumerProblem(c.pub, ctx);
+    if (why) err(c.file + ':' + c.line + ' "' + c.ref + '" → ' + why);
+  });
+  if (!opts.pages && !cons.some(function (c) { return c.file === 'index.html'; })) {
+    err('index.html-ээс тоглоомын холбоос олдсонгүй (холбоос хайгч эвдэрсэн эсвэл index.html өөрчлөгдсөн)');
+  }
+
+  return { ok: errors.length === 0, errors: errors, checked: checked, consumers: cons };
 }
 
-module.exports = { check, globToRe, globMatch, routeRe, firstRoute, resolveRoute };
+module.exports = { check, globToRe, globMatch, routeRe, firstRoute, resolveRoute, consumers, consumerProblem, refRe };
 
 if (require.main === module) {
   const file = path.resolve(process.argv[2] || path.join(ROOT, 'vercel.json'));
@@ -211,4 +292,12 @@ if (require.main === module) {
     process.exit(1);
   }
   console.log('OK — тоглоомын gate маршрут/build шалгалт (' + r.checked + ' шалгалт)');
+  // index.html-ээс бусад хэрэглэгч хуудас: GAME_PAYWALL асаалттай үед launch тасалбаргүй бол түгжээ харуулна
+  const other = {};
+  r.consumers.forEach(function (c) { if (c.file !== 'index.html') (other[c.file] = other[c.file] || []).push(c.pub + ' (:' + c.line + ')'); });
+  const files = Object.keys(other);
+  if (files.length) {
+    console.log('Мэдээлэл — index.html-ээс гадна тоглоомын файлыг шууд ачаалдаг хуудсууд (launch тасалбар/эрх шаардлагатай):');
+    files.forEach(function (f) { console.log('  - ' + f + ': ' + other[f].join(', ')); });
+  }
 }

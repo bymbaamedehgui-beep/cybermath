@@ -593,3 +593,62 @@ test('HTTP: verify-game-gate.js эмуляторын эсрэг OK (on/off); х�
   assert.ok(bad.results.some((x) => !x.ok && x.path === '/math-mortal/main.js'), JSON.stringify(bad.results.filter((x) => !x.ok).slice(0, 3)));
   assert.deepStrictEqual(F.db.unknown, []);
 });
+
+// ───────────────────────── сайтын хуудсууд (gp-s3b) ─────────────────────────
+// index.html-ийн iframe src (/sudoku.html г.м.) болон play/team/xp.html-ийн 'xpdrop.html' нийтийн замаараа хэвээр ажиллана:
+// off → яг ижил файл 200; on → cookie-гүй бол 403 түгжээ (404 БИШ — iframe-д postMessage очно); cover.webp статик.
+test('сайтын хуудсууд: index.html iframe src + play/team/xp.html — нийтийн зам хэвээр (off → ижил файл, on → түгжээ, 404 үгүй)', async () => {
+  const r = CHK.check(VERCEL);
+  assert.deepStrictEqual(r.errors, []);
+  const byFile = (f) => r.consumers.filter((c) => c.file === f).map((c) => c.pub);
+  assert.deepStrictEqual(byFile('index.html').slice().sort(), ['/math-mortal/cover.webp', '/math-mortal/index.html', '/myangat.html',
+    '/numseq.html', '/play2048.html', '/sudoku.html', '/xpdrop.html']);
+  for (const f of ['play.html', 'team.html', 'xp.html']) assert.deepStrictEqual(byFile(f), ['/xpdrop.html'], f + ' — харьцангуй xpdrop.html');
+
+  const G_OF = { '/sudoku.html': 'sudoku', '/play2048.html': 'play2048', '/numseq.html': 'numseq', '/myangat.html': 'myangat',
+    '/xpdrop.html': 'xpdrop', '/math-mortal/index.html': 'mathmortal' };
+  const base = await listen(VERCEL);
+  const pubs = Array.from(new Set(r.consumers.map((c) => c.pub)));
+  for (const p of pubs) {
+    if (G_OF[p]) {
+      process.env.GAME_PAYWALL = 'off';
+      const off = await rawGet(base + p);
+      assert.strictEqual(off.status, 200, p + ' off');
+      assert.strictEqual(off.headers['x-game-gate'], 'off', p);
+      assert.ok(off.body.equals(FILE(ENTRY[G_OF[p]])), p + ': off үед яг ижил файл');
+      delete process.env.GAME_PAYWALL;
+      const on = await rawGet(base + p);
+      assert.strictEqual(on.status, 403, p + ' on → түгжээ (404 биш)');
+      assert.strictEqual(on.headers['x-game-gate'], 'locked', p);
+      assert.ok(on.body.toString('utf8').indexOf('cm-game-locked') > 0, p + ': iframe-д postMessage');
+    } else {
+      const st = await rawGet(base + p);
+      assert.strictEqual(st.status, 200, p + ' статик');
+      assert.ok(st.body.equals(FILE(p.slice(1))), p);
+    }
+  }
+  // xp.html: location.href = 'xpdrop.html?grade=…' → тасалбартай орсны дараа grade хадгалагдана
+  const xr = await rawGet(base + '/xpdrop.html?grade=7&t=' + encodeURIComponent(ticket('xpdrop')));
+  assert.strictEqual(xr.status, 302);
+  assert.strictEqual(xr.headers.location, '/xpdrop.html?grade=7');
+
+  // Мутаци: /games/ бодит зам, байхгүй math-mortal файл, маршрут алга → алдаа (хуудас, мөрөөр)
+  const bad = CHK.check(VERCEL, { pages: [
+    { file: 'a.html', text: "x\nf.src = '/games/sudoku.html';" },
+    { file: 'b.html', text: "s.src = './math-mortal/nope.js';" },
+    { file: 'c.html', text: "u = 'math-mortal/assets/none.glb';" },
+  ] });
+  assert.strictEqual(bad.ok, false);
+  assert.ok(bad.errors.some((e) => /^a\.html:2 "\/games\/sudoku\.html" → хамгаалсан файлын бодит зам/.test(e)), JSON.stringify(bad.errors));
+  assert.ok(bad.errors.some((e) => /^b\.html:1 .*math-mortal\/nope\.js файл алга/.test(e)), JSON.stringify(bad.errors));
+  assert.ok(bad.errors.some((e) => /^c\.html:1 .*404/.test(e)), JSON.stringify(bad.errors));
+  const v = JSON.parse(JSON.stringify(VERCEL));
+  v.routes.find((x) => x.dest === '/gate/game.js?g=$1').src = '^/(sudoku|play2048|numseq|myangat)(\\.html)?$';
+  const nr = CHK.check(v);
+  assert.ok(nr.errors.some((e) => /^play\.html:2094 "xpdrop\.html" → маршрутгүй/.test(e)), JSON.stringify(nr.errors.slice(0, 6)));
+  assert.ok(nr.errors.some((e) => /^index\.html:\d+ "\/xpdrop\.html"/.test(e)));
+  // хайгч: зөвхөн мөр/url() доторх холбоос, гадны домэйн биш
+  const found = CHK.consumers(gate, [{ file: 'd.html', text: "a='https://x.mn/math-mortal/main.js'; b=\"/sbh\"; c=url(/math-mortal/cover.webp); d='/mortal?x=1'" }]);
+  assert.deepStrictEqual(found.map((c) => c.pub), ['/sbh', '/math-mortal/cover.webp', '/mortal']);
+  assert.deepStrictEqual(CHK.check(VERCEL, { pages: [{ file: 'd.html', text: "b='/sbh'; d='/mortal'; e='/math-mortal'" }] }).errors, []);
+});
