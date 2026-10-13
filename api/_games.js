@@ -9,7 +9,9 @@
 //   paywallOn()                          → bool (env GAME_PAYWALL=off → бүх тоглоом нээлттэй)
 //   isGame(key), normRealm(r), normEmail(e), publicCatalog()
 //   GAMES[key] = { title, kind: 'file'|'inline'|'external', multi: олон тоглогчтой (host л төлнө), path?/url? }
-//   ensureGameTables()                   → Promise (lazy, амжилтгүй бол дараагийн дуудлага дахин оролдоно)
+//   ensureGameTables()                   → Promise (lazy, амжилтгүй бол дараагийн дуудлага дахин оролдоно).
+//                                          db (транзакц) дамжуулах функцуудаас ӨМНӨ, BEGIN-ээс гадна дуудна —
+//                                          эс бөгөөс grant/revoke/recordPurchase(…, db) DDL ажиллуулахгүйгээр throw.
 //   entitlement(realm, email, key)       → { ok, via: 'off'|'premium'|'access'|null, expires_at }
 //   entitled(realm, email, key)          → bool  (GAME_PAYWALL=off → allowlist-ийн тоглоомд true;
 //                                                 cm + идэвхтэй Premium → true; DB алдаа → throw: дуудагч fail-closed)
@@ -101,6 +103,7 @@ const DDL_SOFT = [
   'ALTER TABLE pay_pending ADD COLUMN IF NOT EXISTS realm TEXT',
 ];
 let _ready = null;
+let _tablesOk = false;
 function ensureGameTables() {
   if (!_ready) {
     _ready = (async function () {
@@ -110,9 +113,17 @@ function ensureGameTables() {
         catch (e) { if (!(e && (e.code === '42P07' || e.code === '23505' || e.code === '42701'))) throw e; }
       }
       for (const sql of DDL_SOFT) { try { await pool.query(sql); } catch (e) { /* pay_pending байхгүй байж болно */ } }
+      _tablesOk = true;
     })().catch(function (e) { _ready = null; throw e; });
   }
   return _ready;
+}
+// db (транзакцын client) дамжуулсан бол DDL-ийг ЭНД ажиллуулахгүй: DDL нь pool-ийн ӨӨР холболтоор явж
+// ALTER TABLE pay_pending (ACCESS EXCLUSIVE) нь энэ транзакцын түгжсэн pay_pending мөрийг хүлээнэ,
+// транзакц нь DDL-ийг хүлээнэ → апп өөрөө гацна (Postgres deadlock гэж илрүүлэхгүй). Дуудагч BEGIN-ээс ӨМНӨ ensureGameTables().
+async function tablesFor(db) {
+  if (!db) return ensureGameTables();
+  if (!_tablesOk) throw new Error('game: хүснэгт бэлэн биш — ensureGameTables()-ийг транзакцаас ӨМНӨ дуудна');
 }
 
 // ───────────────────────── эрх ─────────────────────────
@@ -176,12 +187,12 @@ function checkArgs(realm, email, key) {
 
 // Нэмэгддэг сунгалт: хугацаа дуусаагүй бол ҮЛДСЭН хоног дээр нэмнэ (Premium qpay.js-ийн хэв маяг).
 // ws/grade-ийн GREATEST(хуучин, NOW()+хоног) хэлбэрийг ХУУЛАХГҮЙ — эрт сунгавал үлдсэн хоног алдагдана.
-// db: transaction доторх client (заавал биш).
+// db: transaction доторх client (заавал биш; дамжуулбал ensureGameTables() өмнө нь дуудагдсан байх ёстой — tablesFor).
 async function grantGame(realm, email, key, days, db) {
   const a = checkArgs(realm, email, key);
   const d = days == null ? GAME_DAYS : parseInt(days, 10);
   if (!Number.isInteger(d) || d < 1 || d > 3660) throw new Error('game: хоног буруу');
-  await ensureGameTables();
+  await tablesFor(db);
   const r = await (db || pool).query(
     `INSERT INTO game_access (realm, email, game_key, expires_at, updated_at)
      VALUES ($1, $2, $3, NOW() + make_interval(days => $4::int), NOW())
@@ -202,7 +213,7 @@ async function currentExpiry(realm, email, key) {
 
 async function revokeGame(realm, email, key, db) {
   const a = checkArgs(realm, email, key);
-  await ensureGameTables();
+  await tablesFor(db);
   const r = await (db || pool).query(
     'DELETE FROM game_access WHERE realm=$1 AND email=$2 AND game_key=$3 RETURNING game_key', [a.realm, a.email, key]);
   return r.rows.length;
@@ -212,7 +223,7 @@ async function revokeGame(realm, email, key, db) {
 async function recordPurchase(p, db) {
   const a = checkArgs(p.realm, p.email, p.game_key);
   if (!p.invoice_id) throw new Error('game: invoice_id дутуу');
-  await ensureGameTables();
+  await tablesFor(db);
   const r = await (db || pool).query(
     `INSERT INTO game_purchases (invoice_id, realm, email, game_key, amount, days, expires_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (invoice_id) DO NOTHING RETURNING id`,

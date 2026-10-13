@@ -494,8 +494,9 @@ async function payPendingRow(invoiceId) {
 }
 // Нэг удаа зарцуулах: granted=FALSE → TRUE атомаар. Мөр буцвал л энэ дуудлага олгоно.
 const PENDING_TABLES = { ws_pending: 'ws_pending', pay_pending: 'pay_pending' };
-async function claimPending(table, invoiceId) {
-  const r = await pool.query(`UPDATE ${PENDING_TABLES[table]} SET granted=TRUE WHERE invoice_id=$1 AND granted=FALSE RETURNING invoice_id`, [String(invoiceId)]);
+// db: транзакцын client (заавал биш) — тэгвэл claim нь тэр транзакцын COMMIT-оор л баталгаажна
+async function claimPending(table, invoiceId, db) {
+  const r = await (db || pool).query(`UPDATE ${PENDING_TABLES[table]} SET granted=TRUE WHERE invoice_id=$1 AND granted=FALSE RETURNING invoice_id`, [String(invoiceId)]);
   return r.rows.length > 0;
 }
 async function unclaimPending(table, invoiceId) {
@@ -548,27 +549,54 @@ const PAY_PREMIUM_PLANS = ['monthly', 'yearly', 'friends', 'premium'];
 // Тоглоомын мөр бүрэн эсэх: game_key серверийн allowlist-д, realm 'ws'|'cm'
 function gameRowOk(row) { return GM.isGame(row.game_key) && !!GM.normRealm(row.realm); }
 // Тоглоом (plan='game'): claim хийсэн дуудлага л (realm, email, game_key)-д +30 хоног НЭМЭГДДЭГ олгоно.
-// users.plan/premium_expiry-д ОГТ хүрэхгүй. Олголт алдаа гарвал claim буцаана (дараагийн check/callback/reconcile оролдоно).
-async function settleGame(row, email, claimed) {
+// users.plan/premium_expiry-д ОГТ хүрэхгүй.
+// claim (granted=TRUE) + олголт (game_access) + бүртгэл (game_purchases) НЭГ транзакцад: функц хооронд нь тасарвал
+// (Vercel timeout/crash) Postgres бүгдийг буцаана → granted=FALSE хэвээр, check/callback/reconcile дахин олгоно.
+// Зэрэг дуудлага: ялагдсан нь ялагчийн claim-ийн мөрийн түгжээг COMMIT/ROLLBACK болтол хүлээнэ (давхар олголтгүй,
+// хариунд expiry:null гарахгүй). Олголт алдаа → ROLLBACK (unclaim хэрэггүй).
+// Бүртгэлийн алдааг SAVEPOINT-оор тусгаарлана: эрх олгогдоно (мөнгө авсан), бүртгэл дутсаныг лог + Telegram-аар мэдэгдэнэ.
+async function settleGame(row, email) {
   const key = row.game_key, realm = GM.normRealm(row.realm);
-  if (!claimed) {
-    let exp = null;
-    try { exp = await GM.currentExpiry(realm, email, key); } catch (e) { console.error('[game expiry]', e.message); }
-    return { granted: false, out: { ok: true, paid: true, game: key, realm: realm, expiry: exp ? exp.toISOString() : null } };
-  }
   const months = Math.min(12, Math.max(1, parseInt(row.months, 10) || 1));
   const days = GM.GAME_DAYS * months;
-  let exp;
-  try { exp = await GM.grantGame(realm, email, key, days); }
-  catch (e) { await unclaimPending('pay_pending', row.invoice_id); throw e; }
-  // Борлуулалтын бүртгэл (тайлан төлсөн өдрөөр) — алдаа гарвал эрхийг буцаахгүй, зөвхөн лог
+  // DDL-ийг транзакцаас ӨМНӨ (транзакц дотор өөр холболтоор ALTER pay_pending хийвэл гацна — _games.js tablesFor)
+  await GM.ensureGameTables();
+  const client = await pool.connect();
+  let claimed = false, exp = null, ledgerOk = true;
   try {
-    await GM.recordPurchase({ invoice_id: row.invoice_id, realm: realm, email: email, game_key: key,
-      amount: row.amount, days: days, expires_at: exp });
-  } catch (e) { console.error('[game ledger]', row.invoice_id, e.message); }
+    await client.query('BEGIN');
+    claimed = await claimPending('pay_pending', row.invoice_id, client);
+    if (claimed) {
+      exp = await GM.grantGame(realm, email, key, days, client);
+      await client.query('SAVEPOINT game_ledger');
+      try {
+        await GM.recordPurchase({ invoice_id: row.invoice_id, realm: realm, email: email, game_key: key,
+          amount: row.amount, days: days, expires_at: exp }, client);
+        await client.query('RELEASE SAVEPOINT game_ledger');
+      } catch (e) {
+        ledgerOk = false;
+        console.error('[game ledger]', row.invoice_id, e.message);
+        await client.query('ROLLBACK TO SAVEPOINT game_ledger');
+      }
+    }
+    await client.query('COMMIT');
+  } catch (e) {
+    // ROLLBACK амжилтгүй (холболт тасарсан) бол холболтыг pool-д буцаахгүй — release(err) устгана
+    let broken;
+    try { await client.query('ROLLBACK'); } catch (re) { broken = re; }
+    client.release(broken);
+    throw e;
+  }
+  client.release();
+  if (!claimed) {
+    let cur = null;
+    try { cur = await GM.currentExpiry(realm, email, key); } catch (e) { console.error('[game expiry]', e.message); }
+    return { granted: false, out: { ok: true, paid: true, game: key, realm: realm, expiry: cur ? cur.toISOString() : null } };
+  }
   await notifyTelegram('<b>Тоглоом худалдан авлаа</b>\n' + escTg(GM.GAMES[key].title) + ' · ' + escTg(email) +
     ' (' + (realm === 'ws' ? 'Дасгалын төв' : 'cyber-math.com') + ')\n' + escTg(row.amount) + '₮ · ' +
-    exp.toISOString().slice(0, 10) + ' хүртэл');
+    exp.toISOString().slice(0, 10) + ' хүртэл' +
+    (ledgerOk ? '' : '\n<b>Анхаар:</b> борлуулалтын бүртгэл (game_purchases) бичигдсэнгүй — ' + escTg(row.invoice_id) + ' гараар нэмнэ үү'));
   return { granted: true, out: { ok: true, paid: true, game: key, realm: realm, expiry: exp.toISOString() } };
 }
 // Premium / friends / event / game нэхэмжлэхийг ХАДГАЛСАН мөрөөр НЭГ УДАА олгоно.
@@ -584,8 +612,9 @@ async function settlePay(row) {
     console.error('[qpay settle] тоглоомын мөр буруу — эрх олгохгүй', row.invoice_id, row.game_key, row.realm);
     throw new Error('Тоглоомын нэхэмжлэх буруу');
   }
+  // Тоглоом: claim нь олголттой НЭГ транзакцад (settleGame) — энд autocommit-оор claim хийхгүй
+  if (row.plan === 'game') return settleGame(row, email);
   const claimed = await claimPending('pay_pending', row.invoice_id);
-  if (row.plan === 'game') return settleGame(row, email, claimed);
   if (row.plan === 'event') {
     if (!claimed) return { granted: false, out: { ok: true, paid: true } };
     let upd;
@@ -760,6 +789,23 @@ module.exports = async (req, res) => {
         if (!GM.isGame(gameKey)) return res.status(400).json({ ok: false, error: 'Тоглоом олдсонгүй' });
         if (!(await rateLimit('game_inv:' + gameRealm + ':' + email.slice(0, 254), 20, 600)))
           return res.status(429).json({ ok: false, error: 'Хэт олон оролдлого. Түр хүлээгээд дахин оролдоно уу.' });
+        // Аль хэдийн үнэгүй (GAME_PAYWALL=off эсвэл cm-ийн идэвхтэй Premium) бол мөнгө авахгүй — нэхэмжлэх үүсгэхгүй.
+        // via='access' (идэвхтэй худалдан авсан эрх) нь хориг биш: дахин авбал үлдсэн хоног дээр НЭМЭГДЭНЭ.
+        // Эрх шалгаж чадахгүй (DB) бол нэхэмжлэх үүсгэхгүй (fail-closed).
+        let freeVia = null;
+        try {
+          const ent = await GM.entitlement(gameRealm, email, gameKey);
+          if (ent.via === 'off' || ent.via === 'premium') freeVia = ent.via;
+          // entitlement нь худалдан авсан эрхийг Premium-ээс ӨМНӨ шалгадаг — cm Premium-тэй бол тэр үед ч үнэгүй
+          else if (ent.via === 'access' && gameRealm === 'cm' && await GM.isCmPremium(email)) freeVia = 'premium';
+        } catch (e) {
+          console.error('[game create entitlement]', e.message);
+          return res.status(503).json({ ok: false, error: 'Түр алдаа гарлаа. Дахин оролдоно уу.' });
+        }
+        if (freeVia)
+          return res.status(409).json({ ok: false, already: true, via: freeVia, game: gameKey, realm: gameRealm,
+            error: freeVia === 'premium' ? 'Таны Premium эрхэд бүх тоглоом багтсан тул худалдан авах шаардлагагүй.'
+                                         : 'Тоглоомууд одоогоор үнэгүй нээлттэй байна.' });
       } else if (isWsPlan) {
         // Ажлын хуудасны эрхийг зөвхөн НЭВТЭРСЭН данс худалдан авна (H6): имэйлийг ЗӨВХӨН ws токеноос авна,
         // body.email-д огт итгэхгүй. Тоглоомын токен хүчингүй (emailFromToken нь ws:true шаардана).

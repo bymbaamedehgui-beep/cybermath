@@ -29,9 +29,17 @@ const db = {
   regs: [],             // ws_event_regs
   unknown: [],
   claims: [],           // pay_pending claim оролдлогын invoice_id-ууд
-  failGrant: false, failLedger: false, failRate: false, noPremUntil: false,
+  ddl: [],              // ажилласан CREATE/ALTER (транзакц дотор DDL ажиллаагүйг шалгана)
+  txLog: [],            // BEGIN/COMMIT/ROLLBACK/SAVEPOINT дараалал
+  txLeaks: [],          // нээлттэй транзакцтайгаар алдаагүй release() хийсэн client (pool-д tx дотор буцсан холболт)
+  locks: new Map(),     // pay_pending invoice_id → { tx, wait: Promise, done: fn } (мөрийн түгжээ)
+  failGrant: false, failLedger: false, failRate: false, noPremUntil: false, failEnt: false, failConnect: false,
+  hangOn: null,         // RegExp: таарсан асуулт хэзээ ч дуусахгүй (Vercel timeout/crash-ийг дуурайна)
   nextId: 1,
 };
+// hangOn-д таарсан асуултад хүрэхэд resolve болно (тест dropConnections()-ыг яг тэр мөчид дуудна)
+let hangHit = null;
+function hangReached() { return new Promise(function (r) { hangHit = r; }); }
 function now() { return Date.now(); }
 function norm(s) { return String(s).replace(/\s+/g, ' ').trim(); }
 function lc(e) { return String(e == null ? '' : e).toLowerCase(); }
@@ -40,11 +48,33 @@ function akey(r, e, k) { return r + '|' + e + '|' + k; }
 function dbErr(msg, code) { const e = new Error(msg); e.code = code || '57P01'; return e; }
 const STRICT = /\b(pay_pending|ws_pending|game_access|game_purchases|users|rate_limits|ws_events|ws_event_regs)\b/;
 
-async function query(sql, p) {
+// tx — транзакцын контекст (client.query) эсвэл null (autocommit). tx дотор өөрчлөлт бүр tx.undo-д бүртгэгдэнэ.
+// pay_pending мөрийн түгжээ: өөр транзакц тухайн мөрийг өөрчилсөн бол COMMIT/ROLLBACK хүртэл хүлээнэ (PG READ COMMITTED).
+async function waitRowLock(inv, tx) {
+  for (;;) {
+    const l = db.locks.get(inv);
+    if (!l || l.tx === tx) return;
+    await l.wait;
+  }
+}
+function takeRowLock(inv, tx) {
+  if (!tx || db.locks.has(inv)) return;
+  let done; const wait = new Promise(function (r) { done = r; });
+  db.locks.set(inv, { tx: tx, wait: wait, done: done });
+  tx.locks.push(inv);
+}
+async function query(sql, p, tx) {
   p = p || [];
   const q = norm(sql);
   let m;
-  if (/^(CREATE|ALTER)\b/i.test(q)) return { rows: [] };
+  if (/^(CREATE|ALTER)\b/i.test(q)) {
+    if (tx) { db.unknown.push('DDL in tx: ' + q); throw new Error('mock: транзакц дотор DDL'); }
+    // Бодит PG: өөр холболт pay_pending-ийн мөрийг түгжсэн байхад ALTER TABLE pay_pending (ACCESS EXCLUSIVE) хүлээнэ —
+    // тэр транзакц энэ DDL-ийг хүлээж байвал апп өөрөө гацна. Fake: илрүүлээд алдаа.
+    if (db.locks.size && /\bpay_pending\b/.test(q)) { db.unknown.push('DDL while pay_pending row locked: ' + q); throw new Error('mock: гацах DDL'); }
+    db.ddl.push(q); return { rows: [] };
+  }
+  const undo = tx ? function (fn) { tx.undo.push(fn); } : function () {};
 
   // ── rate_limits (_guard.rateLimit) ──
   if (/^INSERT INTO rate_limits \(key, window_start, count\) VALUES \(\$1, NOW\(\), 1\) ON CONFLICT \(key\) DO UPDATE SET .* RETURNING count$/.test(q)) {
@@ -92,13 +122,20 @@ async function query(sql, p) {
     return { rows: [] };
   }
   if (q === 'UPDATE pay_pending SET granted=TRUE WHERE invoice_id=$1 AND granted=FALSE RETURNING invoice_id') {
-    const r = db.pay.get(String(p[0]));
-    db.claims.push(String(p[0]));
+    const inv = String(p[0]);
+    db.claims.push(inv);
+    await waitRowLock(inv, tx);
+    const r = db.pay.get(inv);
     if (!r || r.granted !== false) return { rows: [] };
-    r.granted = true; return { rows: [{ invoice_id: r.invoice_id }] };
+    r.granted = true; takeRowLock(inv, tx); undo(function () { r.granted = false; });
+    return { rows: [{ invoice_id: r.invoice_id }] };
   }
   if (q === 'UPDATE pay_pending SET granted=FALSE WHERE invoice_id=$1') {
-    const r = db.pay.get(String(p[0])); if (r) r.granted = false; return { rows: [] };
+    const inv = String(p[0]);
+    await waitRowLock(inv, tx);
+    const r = db.pay.get(inv);
+    if (r) { const was = r.granted; r.granted = false; takeRowLock(inv, tx); undo(function () { r.granted = was; }); }
+    return { rows: [] };
   }
 
   // ── users ──
@@ -136,9 +173,11 @@ async function query(sql, p) {
     const old = db.access.get(k);
     const exp = old ? new Date(Math.max(old.expires_at.getTime(), now()) + d) : new Date(now() + d);
     db.access.set(k, { realm: p[0], email: p[1], game_key: p[2], expires_at: exp, updated_at: new Date() });
+    undo(function () { if (old) db.access.set(k, old); else db.access.delete(k); });
     return { rows: [{ expires_at: exp }] };
   }
   if (q === 'SELECT expires_at FROM game_access WHERE realm=$1 AND email=$2 AND game_key=$3 AND expires_at > NOW()') {
+    if (db.failEnt) throw dbErr('db down');
     const r = db.access.get(akey(p[0], p[1], p[2]));
     return { rows: r && r.expires_at.getTime() > now() ? [{ expires_at: r.expires_at }] : [] };
   }
@@ -152,7 +191,8 @@ async function query(sql, p) {
   if (q === 'DELETE FROM game_access WHERE realm=$1 AND email=$2 AND game_key=$3 RETURNING game_key') {
     const k = akey(p[0], p[1], p[2]); const r = db.access.get(k);
     if (!r) return { rows: [] };
-    db.access.delete(k); return { rows: [{ game_key: r.game_key }] };
+    db.access.delete(k); undo(function () { db.access.set(k, r); });
+    return { rows: [{ game_key: r.game_key }] };
   }
 
   // ── game_purchases ──
@@ -160,8 +200,12 @@ async function query(sql, p) {
     if (db.failLedger) throw dbErr('ledger failed');
     if (db.purch.some(x => x.invoice_id === p[0])) return { rows: [] };
     const row = { id: db.nextId++, invoice_id: p[0], realm: p[1], email: p[2], game_key: p[3], amount: p[4], days: p[5], expires_at: p[6], created_at: new Date() };
-    db.purch.push(row); return { rows: [{ id: row.id }] };
+    db.purch.push(row); undo(function () { const i = db.purch.indexOf(row); if (i >= 0) db.purch.splice(i, 1); });
+    return { rows: [{ id: row.id }] };
   }
+
+  // Транзакц дотор зөвхөн дээрх (undo-тэй) өөрчлөлт зөвшөөрнө — бусад өөрчлөх SQL-ийг буцааж чадахгүй
+  if (tx && /^(INSERT|UPDATE|DELETE)\b/.test(q)) { db.unknown.push('tx: ' + q); throw new Error('mock: tx-д дэмжигдээгүй SQL'); }
 
   // ── сургалт (event) — одоогийн замын регресс ──
   if (q === 'SELECT title, price FROM ws_events WHERE id=$1 AND active=TRUE') {
@@ -180,7 +224,81 @@ async function query(sql, p) {
   if (STRICT.test(q)) { db.unknown.push(q); throw new Error('mock: unknown SQL'); }
   return { rows: [] }; // ws_settings, ws_promos гэх мэт — энэ тестэд хамаагүй
 }
-const pool = { query: query };
+// ── Холболт / транзакц (pg Pool-ийн хялбаршуулсан загвар) ──
+//  - client.query('BEGIN'|'COMMIT'|'ROLLBACK'|'SAVEPOINT x'|'RELEASE SAVEPOINT x'|'ROLLBACK TO SAVEPOINT x')
+//  - Алдаа гарсны дараа (aborted) ROLLBACK [TO SAVEPOINT]-оос бусад бүх асуулт 25P02; aborted үед COMMIT = ROLLBACK (PG шиг).
+//  - release(err) — err-тэй бол холболтыг устгана (нээлттэй tx буцаана); алдаагүй release() нээлттэй tx-тэй бол txLeaks.
+//  - dropConnections() — функц тасарсан/timeout: бүх холболт үхэж, commit хийгдээгүй tx-үүд буцна (PG backend abort).
+const conns = new Set();
+let connSeq = 0;
+// undo-г len урт хүртэл буцаана (ROLLBACK TO SAVEPOINT). Түгжээг суллахгүй (энгийнчилсэн).
+function undoTo(t, len) { while (t.undo.length > len) { try { t.undo.pop()(); } catch (e) { /* ignore */ } } }
+// COMMIT (commit=true) эсвэл ROLLBACK: өөрчлөлтийг үлдээх/буцаах, мөрийн түгжээг суллах
+function endTx(t, commit) {
+  if (commit) t.undo.length = 0; else undoTo(t, 0);
+  t.locks.forEach(function (inv) { const l = db.locks.get(inv); if (l && l.tx === t) { db.locks.delete(inv); l.done(); } });
+  t.locks.length = 0;
+}
+function mkClient() {
+  const c = { id: ++connSeq, tx: null, dead: false, released: false };
+  conns.add(c);
+  c.query = async function (sql, p) {
+    if (c.released) throw new Error('mock: release хийсэн client ашиглав');
+    if (c.dead) throw dbErr('Connection terminated unexpectedly', '57P01');
+    const q = norm(sql);
+    let m;
+    const t = c.tx;
+    if (q === 'BEGIN') { if (!t) c.tx = { undo: [], sp: [], locks: [], aborted: false }; db.txLog.push('BEGIN'); return { rows: [] }; }
+    if (q === 'COMMIT') {
+      c.tx = null;
+      if (t) { endTx(t, !t.aborted); db.txLog.push(t.aborted ? 'COMMIT(aborted)->ROLLBACK' : 'COMMIT'); }
+      return { rows: [] };
+    }
+    if (q === 'ROLLBACK') { c.tx = null; if (t) endTx(t, false); db.txLog.push('ROLLBACK'); return { rows: [] }; }
+    if ((m = q.match(/^ROLLBACK TO SAVEPOINT (\w+)$/))) {
+      const i = t ? t.sp.map(function (s) { return s.name; }).lastIndexOf(m[1]) : -1;
+      if (i < 0) { if (t) t.aborted = true; throw dbErr('savepoint "' + m[1] + '" does not exist', '3B001'); }
+      undoTo(t, t.sp[i].len);
+      t.sp.length = i + 1; t.aborted = false; db.txLog.push('ROLLBACK TO ' + m[1]);
+      return { rows: [] };
+    }
+    if (t && t.aborted) throw dbErr('current transaction is aborted, commands ignored until end of transaction block', '25P02');
+    if ((m = q.match(/^SAVEPOINT (\w+)$/))) {
+      if (!t) throw dbErr('SAVEPOINT can only be used in transaction blocks', '25P01');
+      t.sp.push({ name: m[1], len: t.undo.length }); db.txLog.push('SAVEPOINT ' + m[1]); return { rows: [] };
+    }
+    if ((m = q.match(/^RELEASE SAVEPOINT (\w+)$/))) {
+      const i = t ? t.sp.map(function (s) { return s.name; }).lastIndexOf(m[1]) : -1;
+      if (i < 0) { if (t) t.aborted = true; throw dbErr('savepoint "' + m[1] + '" does not exist', '3B001'); }
+      t.sp.length = i; db.txLog.push('RELEASE ' + m[1]); return { rows: [] };
+    }
+    if (db.hangOn && db.hangOn.test(q)) {
+      if (hangHit) { const h = hangHit; hangHit = null; h(c); }
+      await new Promise(function () {});   // хэзээ ч дуусахгүй — процесс энд "үхсэн"
+    }
+    try { return await query(sql, p, c.tx); }
+    catch (e) { if (c.tx) c.tx.aborted = true; throw e; }
+  };
+  c.release = function (err) {
+    if (c.released) throw new Error('mock: давхар release');
+    c.released = true; conns.delete(c);
+    if (c.tx) {
+      if (!err) db.txLeaks.push(c.id);
+      endTx(c.tx, false); c.tx = null;
+    }
+  };
+  return c;
+}
+const pool = {
+  // autocommit: асуулт бүр өөрийн түр холболтоор
+  query: async function (sql, p) { const c = mkClient(); try { return await c.query(sql, p); } finally { if (!c.released) c.release(); } },
+  connect: async function () { if (db.failConnect) throw dbErr('connect failed', '08006'); return mkClient(); },
+};
+function dropConnections() {
+  conns.forEach(function (c) { c.dead = true; if (c.tx) { endTx(c.tx, false); c.tx = null; } });
+  conns.clear();
+}
+function openTx() { let n = 0; conns.forEach(function (c) { if (c.tx) n++; }); return n; }
 
 // ── require cache stub ──
 function stub(rel, exports) {
@@ -240,7 +358,9 @@ async function call(handler, o) {
 function reset() {
   db.rl.clear(); db.users.clear(); db.pay.clear(); db.wsPending.clear(); db.access.clear(); db.purch.length = 0;
   db.events.clear(); db.regs.length = 0; db.claims.length = 0;
-  db.failGrant = false; db.failLedger = false; db.failRate = false; db.noPremUntil = false;
+  db.failGrant = false; db.failLedger = false; db.failRate = false; db.noPremUntil = false; db.failEnt = false; db.failConnect = false;
+  db.hangOn = null; hangHit = null;
+  dropConnections(); db.locks.clear(); db.txLog.length = 0; db.txLeaks.length = 0;
   qp.invoices.length = 0; qp.paid.clear(); qp.checks.length = 0;
   tg.length = 0;
   ['GAME_PRICE', 'GAME_PAYWALL'].forEach(k => { delete process.env[k]; });
@@ -251,4 +371,4 @@ function addUser(email, o) {
   db.users.set(e, u); return u;
 }
 
-module.exports = { WT, API, DAY, db, pool, qp, tg, logs, call, reset, addUser, QPAY };
+module.exports = { WT, API, DAY, db, pool, qp, tg, logs, call, reset, addUser, QPAY, dropConnections, openTx, hangReached };

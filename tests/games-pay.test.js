@@ -199,6 +199,11 @@ test('зэрэг check×3 + callback + reconcile → яг НЭГ олголт (+
   rs.forEach((r, i) => assert.strictEqual(r.statusCode, 200, 'i=' + i + ' ' + JSON.stringify(r.body)));
   [0, 2, 4].forEach((i) => assert.strictEqual(rs[i].body.paid, true, 'check ' + i));
   near(daysLeft(access('cm', 'cc@x.mn', 'ludo').expires_at), 30, 'нэг удаа');
+  // claim-д ялагдсан дуудлага нь ялагчийн транзакц COMMIT болтол хүлээдэг тул expiry:null биш — бүгд ижил хугацаа
+  const exps = [0, 2, 4].map((i) => rs[i].body.expiry);
+  assert.ok(exps.every((e) => e && e === access('cm', 'cc@x.mn', 'ludo').expires_at.toISOString()), JSON.stringify(exps));
+  assert.strictEqual(F.openTx(), 0, 'нээлттэй транзакц үлдээгүй');
+  assert.deepStrictEqual(F.db.txLeaks, []);
   assert.strictEqual(F.db.purch.length, 1);
   assert.strictEqual(F.tg.filter((t) => /Тоглоом/.test(t)).length, 1);
   // дараалсан давталт
@@ -293,6 +298,7 @@ test('сунгалт НЭМЭГДДЭГ: дуусаагүй → хуучин+30;
 });
 
 test('grantGame transaction client (db) дээр ажиллана', async () => {
+  await GM.ensureGameTables();   // db дамжуулахаас өмнө (транзакцаас гадна) хүснэгт бэлэн байх ёстой
   const seen = [];
   const client = { query: async (sql, p) => { seen.push(sql); return F.pool.query(sql, p); } };
   near(daysLeft(await GM.grantGame('cm', 'tx@x.mn', 'sbh', 30, client)), 30);
@@ -321,7 +327,7 @@ test('realm тусгаарлалт: ижил имэйл — ws-д авсан э�
   assert.strictEqual(await GM.entitled('ws', 'same@x.mn', 'hack'), false);
 });
 
-test('GAME_PAYWALL=off → бүх 16 тоглоом нээлттэй (нэвтрээгүй ч), allowlist-гүй түлхүүр хаалттай; худалдан авалт ажилласаар', async () => {
+test('GAME_PAYWALL=off → бүх 16 тоглоом нээлттэй (нэвтрээгүй ч), allowlist-гүй түлхүүр хаалттай; өмнө үүсгэсэн нэхэмжлэхийн төлбөр олгогдсоор', async () => {
   for (const v of ['off', 'OFF', ' Off ', 'false', '0', 'no']) {
     process.env.GAME_PAYWALL = v;
     assert.strictEqual(GM.paywallOn(), false, v);
@@ -332,11 +338,13 @@ test('GAME_PAYWALL=off → бүх 16 тоглоом нээлттэй (нэвтр
     assert.strictEqual(await GM.entitled('ws', 'nobody@x.mn', 'hack'), false);
     assert.strictEqual((await GM.entitlement('cm', 'a@x.mn', 'ludo')).via, 'off');
   }
-  process.env.GAME_PAYWALL = 'off';
+  // Төлбөртэй үед үүсгэсэн нэхэмжлэхийг kill-switch асаасны дараа төлсөн → мөнгө авсан тул эрх олгоно
+  delete process.env.GAME_PAYWALL;
   const inv = await buyWs('off@x.mn', 'sudoku');
+  process.env.GAME_PAYWALL = 'off';
   F.qp.paid.set(inv, 1900);
   assert.strictEqual((await check(inv, 'off@x.mn')).body.paid, true);
-  near(daysLeft(access('ws', 'off@x.mn', 'sudoku').expires_at), 30, 'kill-switch үед ч төлбөр бүртгэгдэнэ');
+  near(daysLeft(access('ws', 'off@x.mn', 'sudoku').expires_at), 30, 'kill-switch үед ч төлсөн нэхэмжлэх олгогдоно');
   for (const v of ['on', '', 'offf', 'true']) {
     process.env.GAME_PAYWALL = v;
     assert.strictEqual(GM.paywallOn(), true, JSON.stringify(v));
@@ -373,21 +381,156 @@ test('олголт алдаа → claim буцна (дараагийн check о�
   F.db.failGrant = true;
   let r = await check(inv, 'fx@x.mn');
   assert.strictEqual(r.statusCode, 500);
-  assert.strictEqual(F.db.pay.get(inv).granted, false, 'unclaim');
+  assert.strictEqual(F.db.pay.get(inv).granted, false, 'ROLLBACK → claim буцсан');
   assert.strictEqual(F.db.access.size, 0);
+  assert.ok(F.db.txLog.indexOf('ROLLBACK') >= 0, JSON.stringify(F.db.txLog));
   F.db.failGrant = false;
   r = await check(inv, 'fx@x.mn');
   assert.strictEqual(r.body.paid, true);
   near(daysLeft(access('cm', 'fx@x.mn', 'blockblast').expires_at), 30);
 
+  // Ledger алдаа: SAVEPOINT-оор тусгаарлана — эрх COMMIT болно (aborted транзакц COMMIT → ROLLBACK болж эрх алдагдахгүй)
   const inv2 = await buyCm('fx@x.mn', 'flagbattle');
   F.qp.paid.set(inv2, 1900);
   F.db.failLedger = true;
+  F.tg.length = 0;
   r = await check(inv2, 'fx@x.mn');
   assert.strictEqual(r.body.paid, true);
   assert.strictEqual(await GM.entitled('cm', 'fx@x.mn', 'flagbattle'), true);
+  assert.strictEqual(F.db.pay.get(inv2).granted, true);
   assert.strictEqual(F.db.purch.filter((p) => p.game_key === 'flagbattle').length, 0);
   assert.ok(F.logs.some((l) => l.indexOf('[game ledger]') >= 0));
+  assert.ok(F.db.txLog.indexOf('ROLLBACK TO game_ledger') >= 0, JSON.stringify(F.db.txLog));
+  assert.ok(F.tg.some((t) => t.indexOf('game_purchases') >= 0), 'Telegram-д бүртгэл дутсан тухай анхааруулга');
+  F.db.failLedger = false;
+
+  // Холболт авч чадахгүй → юу ч claim хийгдэхгүй, дараа нь олгоно
+  const inv3 = await buyCm('fx@x.mn', 'songon');
+  F.qp.paid.set(inv3, 1900);
+  F.db.failConnect = true;
+  const nClaims = F.db.claims.length;
+  r = await check(inv3, 'fx@x.mn');
+  assert.strictEqual(r.statusCode, 500);
+  assert.strictEqual(F.db.claims.length, nClaims, 'claim оролдоогүй');
+  assert.strictEqual(F.db.pay.get(inv3).granted, false);
+  F.db.failConnect = false;
+  assert.strictEqual((await check(inv3, 'fx@x.mn')).body.paid, true);
+  near(daysLeft(access('cm', 'fx@x.mn', 'songon').expires_at), 30);
+  assert.strictEqual(F.openTx(), 0);
+  assert.deepStrictEqual(F.db.txLeaks, [], 'холболт tx дотор pool-д буцаагүй');
+});
+
+test('claim + олголт + бүртгэл НЭГ транзакц: claim-ийн дараа функц тасарвал (timeout/crash) бүгд буцна → check/reconcile дахин олгоно', async () => {
+  F.addUser('cr@x.mn');
+  // Тасрах цэг: (1) claim-ийн дараа, олголтын өмнө; (2) олголтын дараа, бүртгэлийн өмнө
+  const points = [
+    { at: /^INSERT INTO game_access/, game: 'numseq', recover: 'reconcile' },
+    { at: /^INSERT INTO game_purchases/, game: 'sudoku', recover: 'check' },
+  ];
+  for (const pt of points) {
+    const inv = await buyWs('cr@x.mn', pt.game);
+    F.qp.paid.set(inv, 1900);
+    F.db.hangOn = pt.at;
+    const hit = F.hangReached();
+    check(inv, 'cr@x.mn');   // await хийхгүй: энэ "функц" тасрах цэг дээр зогсож, дахин хэзээ ч үргэлжлэхгүй
+    await hit;
+    assert.ok(F.db.claims.indexOf(inv) >= 0, pt.game + ': claim хийгдсэн байсан');
+    F.dropConnections();    // Vercel функц тасарлаа → Postgres COMMIT хийгдээгүй транзакцыг буцаана
+    F.db.hangOn = null;
+    assert.strictEqual(F.db.pay.get(inv).granted, false, pt.game + ': granted=TRUE гацаж үлдээгүй');
+    assert.strictEqual(access('ws', 'cr@x.mn', pt.game), null, pt.game + ': хагас олголт үлдээгүй');
+    assert.strictEqual(F.db.purch.filter((p) => p.invoice_id === inv).length, 0);
+
+    if (pt.recover === 'reconcile') {
+      const rc = await reconcile();
+      assert.strictEqual(rc.body.granted_count, 1, pt.game + ': reconcile нөхнө');
+    }
+    const nChecks = F.qp.checks.length;
+    const r = await check(inv, 'cr@x.mn');
+    assert.deepStrictEqual([r.statusCode, r.body.paid, r.body.game, r.body.realm], [200, true, pt.game, 'ws'], JSON.stringify(r.body));
+    if (pt.recover === 'check') assert.strictEqual(F.qp.checks.length, nChecks + 1, 'QPay-ээр дахин баталгаажуулав');
+    assert.ok(r.body.expiry, pt.game + ': expiry:null биш');
+    near(daysLeft(r.body.expiry), 30, pt.game);
+    near(daysLeft(access('ws', 'cr@x.mn', pt.game).expires_at), 30, pt.game + ': нэг удаа (+60 биш)');
+    assert.strictEqual(F.db.purch.filter((p) => p.invoice_id === inv).length, 1);
+    assert.strictEqual(F.db.pay.get(inv).granted, true);
+  }
+  assert.strictEqual(F.openTx(), 0);
+  assert.deepStrictEqual(F.db.txLeaks, []);
+});
+
+test('grantGame/recordPurchase(db): хүснэгт бэлэн болоогүй бол транзакц дотор DDL ажиллуулахгүй, шууд алдаа', async () => {
+  // Шинэ модуль (ensureGameTables хараахан дуудагдаагүй) — бусад тестийн төлөвөөс хамаарахгүй
+  const f = require.resolve(path.join(F.API, '_games.js'));
+  const saved = require.cache[f];
+  delete require.cache[f];
+  let G2;
+  try { G2 = require(f); } finally { require.cache[f] = saved; }
+  assert.notStrictEqual(G2, GM);
+  const seen = [];
+  const client = { query: async (sql, p) => { seen.push(sql); return F.pool.query(sql, p); } };
+  const nDdl = F.db.ddl.length;
+  await assert.rejects(G2.grantGame('ws', 'nd@x.mn', 'sudoku', 30, client), /транзакц/);
+  await assert.rejects(G2.recordPurchase({ invoice_id: 'ND1', realm: 'ws', email: 'nd@x.mn', game_key: 'sudoku', amount: 1900 }, client), /транзакц/);
+  await assert.rejects(G2.revokeGame('ws', 'nd@x.mn', 'sudoku', client), /транзакц/);
+  assert.deepStrictEqual(seen, [], 'client-ээр юу ч явуулаагүй');
+  assert.strictEqual(F.db.ddl.length, nDdl, 'DDL ажиллаагүй');
+  assert.strictEqual(access('ws', 'nd@x.mn', 'sudoku'), null);
+  await G2.ensureGameTables();
+  near(daysLeft(await G2.grantGame('ws', 'nd@x.mn', 'sudoku', 30, client)), 30);
+  // db-гүй дуудлага өөрөө ensureGameTables хийнэ (хуучин хэв маяг)
+  delete require.cache[f];
+  let G3;
+  try { G3 = require(f); } finally { require.cache[f] = saved; }
+  near(daysLeft(await G3.grantGame('ws', 'nd3@x.mn', 'sudoku')), 30);
+});
+
+test('create: cm Premium / GAME_PAYWALL=off → 409 already (нэхэмжлэх үүсэхгүй); ws realm, дууссан Premium, идэвхтэй эрх (сунгалт) → 200; DB алдаа → 503', async () => {
+  F.addUser('pr@x.mn', { plan: 'premium', premium_expiry: new Date(Date.now() + 9 * F.DAY) });
+  F.addUser('ex@x.mn', { plan: 'premium', premium_expiry: new Date(Date.now() - F.DAY) });
+  let r = await Q('create', { plan: 'game', realm: 'cm', game: 'sudoku' }, { headers: bearer(cmTok('pr@x.mn')) });
+  assert.strictEqual(r.statusCode, 409, JSON.stringify(r.body));
+  assert.deepStrictEqual([r.body.ok, r.body.already, r.body.via], [false, true, 'premium']);
+  assert.ok(r.body.error);
+  assert.strictEqual(F.qp.invoices.length, 0, 'QPay нэхэмжлэх үүсээгүй');
+  assert.strictEqual(F.db.pay.size, 0);
+  assert.strictEqual((await GM.entitlement('cm', 'pr@x.mn', 'sudoku')).via, 'premium');
+  // Premium-ээс өмнө худалдаж авсан идэвхтэй эрхтэй (entitlement via='access') ч Premium хэвээр → 409
+  F.db.access.set('cm|pr@x.mn|ludo', { realm: 'cm', email: 'pr@x.mn', game_key: 'ludo', expires_at: new Date(Date.now() + 3 * F.DAY) });
+  assert.strictEqual((await GM.entitlement('cm', 'pr@x.mn', 'ludo')).via, 'access');
+  r = await Q('create', { plan: 'game', realm: 'cm', game: 'ludo' }, { headers: bearer(cmTok('pr@x.mn')) });
+  assert.deepStrictEqual([r.statusCode, r.body.already, r.body.via], [409, true, 'premium'], JSON.stringify(r.body));
+  assert.strictEqual(F.qp.invoices.length, 0);
+
+  await buyWs('pr@x.mn', 'sudoku');   // Premium нь ws realm-д хамаарахгүй → худалдан авна
+  await buyCm('ex@x.mn', 'sudoku');   // дууссан Premium → худалдан авна
+  F.db.access.set('ws|ac@x.mn|ludo', { realm: 'ws', email: 'ac@x.mn', game_key: 'ludo', expires_at: new Date(Date.now() + 5 * F.DAY) });
+  await buyWs('ac@x.mn', 'ludo');     // идэвхтэй эрх → НЭМЭГДДЭГ сунгалтыг зөвшөөрнө
+  assert.strictEqual(F.qp.invoices.length, 3);
+
+  process.env.GAME_PAYWALL = 'off';
+  for (const [body, headers, who] of [
+    [{ plan: 'game', realm: 'ws', game: 'play2048', wstoken: wsTok('k@x.mn') }, null, 'ws'],
+    [{ plan: 'game', realm: 'cm', game: 'mathmortal' }, bearer(cmTok('ex@x.mn')), 'cm'],
+  ]) {
+    r = await Q('create', body, headers ? { headers: headers } : undefined);
+    assert.strictEqual(r.statusCode, 409, who + ' ' + JSON.stringify(r.body));
+    assert.deepStrictEqual([r.body.ok, r.body.already, r.body.via], [false, true, 'off'], who);
+  }
+  // kill-switch үед ч нэвтрэлт/allowlist шалгалт хэвээр
+  assert.strictEqual((await Q('create', { plan: 'game', realm: 'ws', game: 'sudoku' })).statusCode, 401);
+  assert.strictEqual((await Q('create', { plan: 'game', realm: 'ws', game: 'hack', wstoken: wsTok('k@x.mn') })).statusCode, 400);
+  assert.strictEqual(F.qp.invoices.length, 3, 'off үед нэхэмжлэх үүсээгүй');
+  delete process.env.GAME_PAYWALL;
+
+  // Эрх шалгах DB алдаа → нэхэмжлэх үүсгэхгүй (fail-closed)
+  F.db.failEnt = true;
+  r = await Q('create', { plan: 'game', realm: 'ws', game: 'xpdrop', wstoken: wsTok('k@x.mn') });
+  assert.strictEqual(r.statusCode, 503, JSON.stringify(r.body));
+  assert.notStrictEqual(r.body.ok, true);
+  assert.strictEqual(F.qp.invoices.length, 3);
+  F.db.failEnt = false;
+  await buyWs('k@x.mn', 'xpdrop');
 });
 
 test('check rate limit: нэхэмжлэх тутам 240/10мин, IP тутам 3000/10мин', async () => {
