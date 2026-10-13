@@ -33,7 +33,13 @@ const db = {
   txLog: [],            // BEGIN/COMMIT/ROLLBACK/SAVEPOINT дараалал
   txLeaks: [],          // нээлттэй транзакцтайгаар алдаагүй release() хийсэн client (pool-д tx дотор буцсан холболт)
   locks: new Map(),     // pay_pending invoice_id → { tx, wait: Promise, done: fn } (мөрийн түгжээ)
+  devices: new Map(),   // ws_devices 'email|device_id' → {email, device_id, label, ua, ip, fp, fp_changed_at, first_seen, last_seen}
+  devIps: new Map(),    // ws_device_ips 'email|device_id|ip' → last_seen
+  devBlocks: [],        // ws_device_blocks
+  tix: new Map(),       // game_ticket_used jti → exp
+  invites: new Map(),   // game_invites jti → {jti, realm, email, game_key, expires_at(ms), uses}
   failGrant: false, failLedger: false, failRate: false, noPremUntil: false, failEnt: false, failConnect: false,
+  failDev: false, failTix: false, failInv: false,
   hangOn: null,         // RegExp: таарсан асуулт хэзээ ч дуусахгүй (Vercel timeout/crash-ийг дуурайна)
   nextId: 1,
 };
@@ -46,7 +52,8 @@ function lc(e) { return String(e == null ? '' : e).toLowerCase(); }
 function pick(row, cols) { const o = {}; cols.split(',').map(s => s.trim()).forEach(c => { o[c] = row[c] === undefined ? null : row[c]; }); return o; }
 function akey(r, e, k) { return r + '|' + e + '|' + k; }
 function dbErr(msg, code) { const e = new Error(msg); e.code = code || '57P01'; return e; }
-const STRICT = /\b(pay_pending|ws_pending|game_access|game_purchases|users|rate_limits|ws_events|ws_event_regs)\b/;
+const STRICT = /\b(pay_pending|ws_pending|game_access|game_purchases|users|rate_limits|ws_events|ws_event_regs|ws_devices|ws_device_ips|ws_device_blocks|ws_device_swaps|game_ticket_used|game_invites)\b/;
+function dkey(e, d) { return e + '|' + d; }
 
 // tx — транзакцын контекст (client.query) эсвэл null (autocommit). tx дотор өөрчлөлт бүр tx.undo-д бүртгэгдэнэ.
 // pay_pending мөрийн түгжээ: өөр транзакц тухайн мөрийг өөрчилсөн бол COMMIT/ROLLBACK хүртэл хүлээнэ (PG READ COMMITTED).
@@ -207,6 +214,82 @@ async function query(sql, p, tx) {
   // Транзакц дотор зөвхөн дээрх (undo-тэй) өөрчлөлт зөвшөөрнө — бусад өөрчлөх SQL-ийг буцааж чадахгүй
   if (tx && /^(INSERT|UPDATE|DELETE)\b/.test(q)) { db.unknown.push('tx: ' + q); throw new Error('mock: tx-д дэмжигдээгүй SQL'); }
 
+  // ── game_ticket_used (launch тасалбарын нэг удаагийн jti) ──
+  if (q === 'INSERT INTO game_ticket_used (jti, exp) VALUES ($1, $2) ON CONFLICT (jti) DO NOTHING RETURNING jti') {
+    if (db.failTix) throw dbErr('db down');
+    if (db.tix.has(p[0])) return { rows: [] };
+    db.tix.set(p[0], new Date(p[1])); return { rows: [{ jti: p[0] }] };
+  }
+  if (q === "DELETE FROM game_ticket_used WHERE exp < NOW() - INTERVAL '1 day'") {
+    db.tix.forEach(function (ex, k) { if (ex.getTime() < now() - DAY) db.tix.delete(k); }); return { rows: [] };
+  }
+
+  // ── game_invites ──
+  if (q === 'INSERT INTO game_invites (jti, realm, email, game_key, expires_at) VALUES ($1, $2, $3, $4, $5)') {
+    if (db.failInv) throw dbErr('db down');
+    if (db.invites.has(p[0])) throw dbErr('duplicate key', '23505');
+    if (['ws', 'cm'].indexOf(p[1]) < 0) throw dbErr('check constraint', '23514');
+    db.invites.set(p[0], { jti: p[0], realm: p[1], email: p[2], game_key: p[3], expires_at: new Date(p[4]).getTime(), uses: 0 });
+    return { rows: [] };
+  }
+  if (q === 'UPDATE game_invites SET uses = uses + 1 WHERE jti=$1 AND realm=$2 AND game_key=$3 AND expires_at > NOW() AND uses < $4 RETURNING email, uses') {
+    if (db.failInv) throw dbErr('db down');
+    const r = db.invites.get(p[0]);
+    if (!r || r.realm !== p[1] || r.game_key !== p[2] || !(r.expires_at > now()) || !(r.uses < Number(p[3]))) return { rows: [] };
+    r.uses += 1; return { rows: [{ email: r.email, uses: r.uses }] };
+  }
+  if (q === "DELETE FROM game_invites WHERE expires_at < NOW() - INTERVAL '1 day'") {
+    db.invites.forEach(function (r, k) { if (r.expires_at < now() - DAY) db.invites.delete(k); }); return { rows: [] };
+  }
+
+  // ── ws_devices (api/_wsdev.js check/list/logBlock) ──
+  if (/\bws_device(s|_ips|_blocks|_swaps)\b/.test(q) && db.failDev) throw dbErr('db down');
+  if (q === 'SELECT device_id, fp, fp_changed_at FROM ws_devices WHERE email=$1 AND device_id=$2') {
+    const r = db.devices.get(dkey(p[0], p[1])); return { rows: r ? [{ device_id: r.device_id, fp: r.fp, fp_changed_at: r.fp_changed_at }] : [] };
+  }
+  if (q === 'UPDATE ws_devices SET last_seen=NOW(), ip=COALESCE($3, ip), fp=COALESCE(fp, $4) WHERE email=$1 AND device_id=$2') {
+    const r = db.devices.get(dkey(p[0], p[1]));
+    if (r) { r.last_seen = new Date(); if (p[2] != null) r.ip = p[2]; if (r.fp == null) r.fp = p[3]; }
+    return { rows: [] };
+  }
+  if (q === 'UPDATE ws_devices SET fp=$3, fp_changed_at=NOW(), last_seen=NOW(), ip=COALESCE($4, ip), ua=$5, label=$6 WHERE email=$1 AND device_id=$2') {
+    const r = db.devices.get(dkey(p[0], p[1]));
+    if (r) { r.fp = p[2]; r.fp_changed_at = new Date(); r.last_seen = new Date(); if (p[3] != null) r.ip = p[3]; r.ua = p[4]; r.label = p[5]; }
+    return { rows: [] };
+  }
+  if (q === 'UPDATE ws_devices SET last_seen=NOW(), ip=COALESCE($3, ip) WHERE email=$1 AND device_id=$2 RETURNING device_id') {
+    const r = db.devices.get(dkey(p[0], p[1]));
+    if (!r) return { rows: [] };
+    r.last_seen = new Date(); if (p[2] != null) r.ip = p[2];
+    return { rows: [{ device_id: r.device_id }] };
+  }
+  if ((m = q.match(/^DELETE FROM ws_devices WHERE email=\$1 AND last_seen < NOW\(\) - INTERVAL '(\d+) days'$/))) {
+    const lim = now() - Number(m[1]) * DAY;
+    db.devices.forEach(function (r, k) { if (r.email === p[0] && r.last_seen.getTime() < lim) db.devices.delete(k); });
+    return { rows: [] };
+  }
+  if (q === 'SELECT COUNT(*)::int AS n FROM ws_devices WHERE email=$1') {
+    let n = 0; db.devices.forEach(function (r) { if (r.email === p[0]) n++; }); return { rows: [{ n: n }] };
+  }
+  if (q === 'INSERT INTO ws_devices (email, device_id, label, ua, ip, fp, fp_changed_at) VALUES ($1,$2,$3,$4,$5,$6,NOW()) ON CONFLICT (email, device_id) DO UPDATE SET last_seen=NOW()') {
+    const k = dkey(p[0], p[1]); const old = db.devices.get(k);
+    if (old) old.last_seen = new Date();
+    else db.devices.set(k, { email: p[0], device_id: p[1], label: p[2], ua: p[3], ip: p[4], fp: p[5], fp_changed_at: new Date(), first_seen: new Date(), last_seen: new Date() });
+    return { rows: [] };
+  }
+  if (q === 'INSERT INTO ws_device_ips (email, device_id, ip) VALUES ($1,$2,$3) ON CONFLICT (email, device_id, ip) DO UPDATE SET last_seen=NOW()') {
+    db.devIps.set(p[0] + '|' + p[1] + '|' + p[2], new Date()); return { rows: [] };
+  }
+  if (q === 'INSERT INTO ws_device_blocks (email, device_id, fp, ip, why, ua) VALUES ($1,$2,$3,$4,$5,$6)') {
+    db.devBlocks.push({ email: p[0], device_id: p[1], fp: p[2], ip: p[3], why: p[4], ua: p[5] }); return { rows: [] };
+  }
+  if (/^SELECT d\.device_id, d\.label, d\.ip, d\.fp, d\.first_seen, d\.last_seen, \(SELECT COUNT\(\*\)::int FROM ws_device_ips i .*\) AS ip_count FROM ws_devices d WHERE d\.email=\$1 ORDER BY d\.last_seen DESC$/.test(q)) {
+    const rows = Array.from(db.devices.values()).filter(function (r) { return r.email === p[0]; })
+      .sort(function (a, b) { return b.last_seen - a.last_seen; })
+      .map(function (r) { return { device_id: r.device_id, label: r.label, ip: r.ip, fp: r.fp, first_seen: r.first_seen, last_seen: r.last_seen, ip_count: 1 }; });
+    return { rows: rows };
+  }
+
   // ── сургалт (event) — одоогийн замын регресс ──
   if (q === 'SELECT title, price FROM ws_events WHERE id=$1 AND active=TRUE') {
     const e = db.events.get(Number(p[0])); return { rows: e && e.active ? [{ title: e.title, price: e.price }] : [] };
@@ -359,11 +442,13 @@ function reset() {
   db.rl.clear(); db.users.clear(); db.pay.clear(); db.wsPending.clear(); db.access.clear(); db.purch.length = 0;
   db.events.clear(); db.regs.length = 0; db.claims.length = 0;
   db.failGrant = false; db.failLedger = false; db.failRate = false; db.noPremUntil = false; db.failEnt = false; db.failConnect = false;
+  db.failDev = false; db.failTix = false; db.failInv = false;
+  db.devices.clear(); db.devIps.clear(); db.devBlocks.length = 0; db.tix.clear(); db.invites.clear();
   db.hangOn = null; hangHit = null;
   dropConnections(); db.locks.clear(); db.txLog.length = 0; db.txLeaks.length = 0;
   qp.invoices.length = 0; qp.paid.clear(); qp.checks.length = 0;
   tg.length = 0;
-  ['GAME_PRICE', 'GAME_PAYWALL'].forEach(k => { delete process.env[k]; });
+  ['GAME_PRICE', 'GAME_PAYWALL', 'GAME_INVITE_USES', 'WS_TOKEN_IAT_MIN'].forEach(k => { delete process.env[k]; });
 }
 function addUser(email, o) {
   const e = lc(email);

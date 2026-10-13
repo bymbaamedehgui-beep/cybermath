@@ -8,6 +8,8 @@
 //   requireAdminOrSeedKey(req)          → bool            (админ JWT ЭСВЭЛ x-seed-key === env SEED_KEY)
 //   rateLimit(key, max, windowSec)      → Promise<bool>   (true = зөвшөөрнө; DB алдаа → false, fail-closed)
 //   clientIp(req)                       → string          (x-forwarded-for эхний утга)
+//   wsPayload(tok)                      → decoded | null  (Дасгалын төвийн ws:true токен, HS256, WS_TOKEN_IAT_MIN)
+//   wsEmail(tok)                        → string | null   (wsPayload-ийн имэйл, жижиг үсгээр)
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const pool = require('./_db');
@@ -57,6 +59,28 @@ function requireUser(req, opts) {
   const email = d.email.trim().toLowerCase();
   if (!email || email.indexOf('@') < 1) return null;
   return { email: email, role: d.role || null };
+}
+
+// ── Дасгалын төвийн (ws:true) токен ── worksheets.js wsSign {email, ws:true, dev?}, HS256.
+// env WS_TOKEN_IAT_MIN (epoch сек) тавьсан бол түүнээс өмнө олгосон токеныг хүчингүй гэж үзнэ (тавиагүй бол нөлөөгүй).
+// cyber-math.com-ийн токен ({email, role} / {email, id}), admin, alg≠HS256 → null.
+function wsIatOk(d) {
+  const min = parseInt(process.env.WS_TOKEN_IAT_MIN || '', 10);
+  if (!Number.isFinite(min) || min <= 0) return true;
+  return !!d && typeof d.iat === 'number' && d.iat >= min;
+}
+function wsPayload(tok) {
+  const secret = jwtSecret();
+  if (!secret || !tok || typeof tok !== 'string') return null;
+  try {
+    const d = jwt.verify(tok, secret, { algorithms: ['HS256'] });
+    if (!d || typeof d !== 'object' || d.ws !== true || !wsIatOk(d)) return null;
+    return d;
+  } catch (e) { return null; }
+}
+function wsEmail(tok) {
+  const d = wsPayload(tok);
+  return d && typeof d.email === 'string' && d.email.trim() ? d.email.trim().toLowerCase() : null;
 }
 
 function safeEqual(a, b) {
@@ -127,4 +151,4 @@ async function rateLimit(key, max, windowSec) {
   }
 }
 
-module.exports = { jwtSecret, secretMissing, verifyBearer, requireAdmin, requireUser, requireAdminOrSeedKey, rateLimit, clientIp };
+module.exports = { jwtSecret, secretMissing, verifyBearer, requireAdmin, requireUser, requireAdminOrSeedKey, rateLimit, clientIp, wsPayload, wsEmail };

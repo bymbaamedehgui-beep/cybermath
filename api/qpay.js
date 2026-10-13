@@ -1,7 +1,7 @@
 const pool = require('./_db');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const { rateLimit, clientIp } = require('./_guard');
+const { rateLimit, clientIp, wsEmail, wsPayload: guardWsPayload } = require('./_guard');
 // Telegram HTML мессежэнд хэрэглэгчийн утгыг аюулгүй оруулах
 function escTg(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 // JWT нууц түлхүүр — ЗААВАЛ env-ээс (default fallback байхгүй). Байхгүй бол handler 500 буцаана.
@@ -317,27 +317,12 @@ function wsToken(email) {
   if (!jwtSecret()) throw new Error('JWT_SECRET тохируулаагүй');
   return jwt.sign({ email: email, ws: true }, jwtSecret(), { expiresIn: '400d' });
 }
-// env WS_TOKEN_IAT_MIN (epoch сек) тавьсан бол түүнээс өмнө олгосон ws:true токеныг хүчингүй гэж үзнэ (тавиагүй бол нөлөөгүй)
-function wsIatOk(d) {
-  const min = parseInt(process.env.WS_TOKEN_IAT_MIN || '', 10);
-  if (!Number.isFinite(min) || min <= 0) return true;
-  return !!d && typeof d.iat === 'number' && d.iat >= min;
-}
 // Ажлын хуудасны (ws:true) токеноос л имэйл гаргана. Тоглоомын токен ({email, role} / {email, id}) ОГТ хүлээн авахгүй:
 // тоглоомын урилгын бүртгэл имэйл баталгаажуулдаггүй тул өөр хүний имэйлээр токен авч болно (H8).
 // Дуудагчид: wsstatus, wheel_spin, ws_ref, ws plan-уудын create — бүгд ажлын хуудасны зам.
-function emailFromToken(tok) {
-  const d = wsPayload(tok);
-  return d && typeof d.email === 'string' && d.email.trim() ? d.email.trim().toLowerCase() : null;
-}
-function wsPayload(tok) {
-  if (!jwtSecret() || !tok || typeof tok !== 'string') return null;
-  try {
-    const d = jwt.verify(tok, jwtSecret(), { algorithms: ['HS256'] });
-    if (!d || d.ws !== true || !wsIatOk(d)) return null;
-    return d;
-  } catch (e) { return null; }
-}
+// Шалгагч нэг газар (api/_guard.js wsPayload/wsEmail — HS256, ws:true, WS_TOKEN_IAT_MIN); api/games.js ч үүнийг ашиглана.
+function emailFromToken(tok) { return wsEmail(tok); }
+function wsPayload(tok) { return guardWsPayload(tok); }
 function isAdmin(req) {
   const auth = req.headers.authorization || req.headers.Authorization || '';
   if (!auth.startsWith('Bearer ') || !jwtSecret()) return false;

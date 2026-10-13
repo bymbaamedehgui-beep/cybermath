@@ -22,7 +22,17 @@
 //   revokeGame(realm, email, key, db?)   → устгасан мөрийн тоо
 //   recordPurchase(p, db?)               → bool  (game_purchases, invoice_id давхардахгүй)
 //   cmUser(req)                          → { email, role } | null  (Bearer cm_token, tv шалгана)
+//   --- тасалбар / урилга (api/games.js, gate) — түлхүүр = HMAC-SHA256(JWT_SECRET, зориулалт), typ шалгана ---
+//   TICKET_TTL (120 сек), INVITE_TTL (3 цаг), inviteUses() (env GAME_INVITE_USES, анхдагч 20)
+//   signTicket({g, r, sub})              → { token, jti, exp }   (typ 'glt')
+//   verifyTicket(tok, g?)                → claims | null
+//   useJti(jti, exp)                     → bool  (анх удаа true, давтвал false; DB алдаа → throw)
+//   createInvite(realm, email, key)      → { token, jti, expires_at, max_uses }  (зөвхөн multi; токенд имэйл байхгүй)
+//   verifyInvite(tok, g?)                → claims | null          (typ 'gi')
+//   redeemInvite(tok, realm, key)        → { ok, realm, host, jti, uses } | { ok:false, reason }
 'use strict';
+const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
 const pool = require('./_db');
 const guard = require('./_guard');
 const SMS = require('./_sms');
@@ -96,6 +106,23 @@ const DDL = [
   )`,
   'CREATE INDEX IF NOT EXISTS idx_game_purch_at ON game_purchases(created_at)',
   'CREATE INDEX IF NOT EXISTS idx_game_purch_email ON game_purchases(email)',
+  // launch тасалбарын нэг удаагийн jti (gate хэрэглэнэ)
+  `CREATE TABLE IF NOT EXISTS game_ticket_used (
+    jti TEXT PRIMARY KEY,
+    exp TIMESTAMPTZ NOT NULL
+  )`,
+  // олон тоглогчийн урилга: токенд имэйл ОРОХГҮЙ (найздаа харагдахгүй) — host-ийг jti-ээр эндээс олно
+  `CREATE TABLE IF NOT EXISTS game_invites (
+    jti TEXT PRIMARY KEY,
+    realm TEXT NOT NULL CHECK (realm IN ('ws','cm')),
+    email TEXT NOT NULL,
+    game_key TEXT NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    uses INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`,
+  'CREATE INDEX IF NOT EXISTS idx_game_tix_exp ON game_ticket_used(exp)',
+  'CREATE INDEX IF NOT EXISTS idx_game_inv_exp ON game_invites(expires_at)',
 ];
 // pay_pending-ийг api/qpay.js ensurePayPending үүсгэдэг (тэнд ч мөн ALTER хийнэ) — энд best-effort
 const DDL_SOFT = [
@@ -250,8 +277,115 @@ async function cmUser(req) {
   return { email: email, role: u.role || null };
 }
 
+// ───────────────────────── тасалбар / урилга ─────────────────────────
+// Түлхүүр бүр JWT_SECRET-ээс HMAC-аар гарна (зориулалт тус бүр өөр) — нэвтрэлтийн токен, тасалбар, урилга,
+// gate-ийн сесс бие биеийнхээ оронд ХЭЗЭЭ Ч хүчинтэй болохгүй (typ ч мөн шалгагдана).
+const KEY_PURPOSE = Object.freeze({
+  glt: 'cybermath/game-launch/v1',
+  gi: 'cybermath/game-invite/v1',
+  gs: 'cybermath/game-session/v1',
+});
+const TICKET_TTL = 120;          // сек — launch тасалбар (нэг удаагийн, gate jti-г game_ticket_used-д бичнэ)
+const INVITE_TTL = 3 * 3600;     // сек — олон тоглогчийн урилга
+const JTI_RE = /^[a-f0-9]{32}$/;
+function deriveKey(typ) {
+  const s = guard.jwtSecret();
+  if (!s) throw new Error('game: JWT_SECRET тохируулаагүй');
+  if (!Object.prototype.hasOwnProperty.call(KEY_PURPOSE, typ)) throw new Error('game: түлхүүрийн зориулалт буруу');
+  return crypto.createHmac('sha256', s).update(KEY_PURPOSE[typ]).digest();
+}
+function newJti() { return crypto.randomBytes(16).toString('hex'); }
+// Нэг урилгаар хэдэн удаа нэгдэж болох (дахин ачаалалт орно). env GAME_INVITE_USES, анхдагч 20.
+function inviteUses() {
+  const n = parseInt(process.env.GAME_INVITE_USES || '', 10);
+  return Number.isFinite(n) && n >= 1 && n <= 500 ? n : 20;
+}
+// typ, түлхүүр, хугацааны дээд хэмжээг шалгаад claims (эсвэл null). g өгвөл тохирох ёстой.
+function verifyTyped(tok, typ, ttl, g) {
+  if (typeof tok !== 'string' || !tok || tok.length > 2048) return null;
+  let d;
+  try { d = jwt.verify(tok, deriveKey(typ), { algorithms: ['HS256'] }); } catch (e) { return null; }
+  if (!d || typeof d !== 'object' || d.typ !== typ) return null;
+  if (!isGame(d.g) || (d.r !== 'ws' && d.r !== 'cm')) return null;
+  if (typeof d.jti !== 'string' || !JTI_RE.test(d.jti)) return null;
+  // Хугацааг заавал агуулна, зөвшөөрөгдсөнөөс урт амьдралтай (гарын үсэг зөв ч) токеныг хүлээн авахгүй
+  if (typeof d.exp !== 'number' || typeof d.iat !== 'number' || d.exp - d.iat > ttl || d.exp - d.iat <= 0) return null;
+  if (g !== undefined && d.g !== g) return null;
+  return d;
+}
+
+// Launch тасалбар: { g, r, sub } → { token, jti, exp: Date }. TTL 120 сек, jti санамсаргүй 128 бит.
+function signTicket(o) {
+  o = o || {};
+  if (!isGame(o.g)) throw new Error('game: тоглоом буруу');
+  const r = normRealm(o.r);
+  if (!r) throw new Error('game: realm буруу');
+  const sub = typeof o.sub === 'string' ? o.sub.trim().slice(0, 300) : '';
+  if (!sub) throw new Error('game: sub дутуу');
+  const jti = newJti();
+  const iat = Math.floor(Date.now() / 1000);
+  const token = jwt.sign({ typ: 'glt', g: o.g, r: r, sub: sub, iat: iat, exp: iat + TICKET_TTL }, deriveKey('glt'),
+    { algorithm: 'HS256', jwtid: jti });
+  return { token: token, jti: jti, exp: new Date((iat + TICKET_TTL) * 1000) };
+}
+function verifyTicket(tok, g) {
+  const d = verifyTyped(tok, 'glt', TICKET_TTL, g);
+  return d && typeof d.sub === 'string' && d.sub ? d : null;
+}
+// Тасалбарын jti-г НЭГ л удаа хэрэглэнэ: анх удаа → true, давтвал → false. DB алдаа → throw (gate fail-closed).
+// exp: Date | epoch сек (claims.exp).
+async function useJti(jti, exp) {
+  if (typeof jti !== 'string' || !JTI_RE.test(jti)) return false;
+  const ex = exp instanceof Date ? exp : new Date((Number(exp) || 0) * 1000);
+  if (!Number.isFinite(ex.getTime())) return false;
+  await ensureGameTables();
+  const r = await pool.query(
+    'INSERT INTO game_ticket_used (jti, exp) VALUES ($1, $2) ON CONFLICT (jti) DO NOTHING RETURNING jti', [jti, ex.toISOString()]);
+  if (Math.random() < 0.01) pool.query("DELETE FROM game_ticket_used WHERE exp < NOW() - INTERVAL '1 day'").catch(function () {});
+  return r.rows.length > 0;
+}
+
+// Олон тоглогчийн урилга (зөвхөн multi тоглоом). Эрхийг дуудагч (api/games.js) ӨМНӨ нь шалгана.
+// Токен: { typ:'gi', g, r, jti, iat, exp } — host-ийн имэйл токенд байхгүй, game_invites-д хадгална.
+async function createInvite(realm, email, key) {
+  const a = checkArgs(realm, email, key);
+  if (!GAMES[key].multi) throw new Error('game: олон тоглогчтой тоглоом биш');
+  await ensureGameTables();
+  const jti = newJti();
+  const iat = Math.floor(Date.now() / 1000);
+  const exp = iat + INVITE_TTL;
+  await pool.query(
+    'INSERT INTO game_invites (jti, realm, email, game_key, expires_at) VALUES ($1, $2, $3, $4, $5)',
+    [jti, a.realm, a.email, key, new Date(exp * 1000).toISOString()]);
+  if (Math.random() < 0.01) pool.query("DELETE FROM game_invites WHERE expires_at < NOW() - INTERVAL '1 day'").catch(function () {});
+  const token = jwt.sign({ typ: 'gi', g: key, r: a.realm, iat: iat, exp: exp }, deriveKey('gi'), { algorithm: 'HS256', jwtid: jti });
+  return { token: token, jti: jti, expires_at: new Date(exp * 1000), max_uses: inviteUses() };
+}
+function verifyInvite(tok, g) {
+  const d = verifyTyped(tok, 'gi', INVITE_TTL, g);
+  return d && GAMES[d.g].multi ? d : null;
+}
+// Урилгаар нэгдэх: гарын үсэг/typ/тоглоом/realm → хэрэглээг атомаар +1 (хязгаар, хугацаа) → host-ийн эрх ОДОО ч хүчинтэй эсэх.
+// → { ok:true, realm, host, jti, uses } | { ok:false, reason: 'invalid'|'realm'|'used_up'|'host' }. DB алдаа → throw.
+async function redeemInvite(tok, realm, key) {
+  const d = verifyInvite(tok, key);
+  if (!d) return { ok: false, reason: 'invalid' };
+  if (normRealm(realm) !== d.r) return { ok: false, reason: 'realm' };
+  await ensureGameTables();
+  const r = await pool.query(
+    `UPDATE game_invites SET uses = uses + 1
+      WHERE jti=$1 AND realm=$2 AND game_key=$3 AND expires_at > NOW() AND uses < $4
+      RETURNING email, uses`, [d.jti, d.r, d.g, inviteUses()]);
+  if (!r.rows.length) return { ok: false, reason: 'used_up' };
+  const host = normEmail(r.rows[0].email);
+  const ent = host ? await entitlement(d.r, host, d.g) : { ok: false };
+  if (!ent.ok) return { ok: false, reason: 'host' };
+  return { ok: true, realm: d.r, host: host, jti: d.jti, uses: Number(r.rows[0].uses) || 0 };
+}
+
 module.exports = {
   GAMES, GAME_KEYS, GAME_DAYS, gamePrice, paywallOn, isGame, normRealm, normEmail, publicCatalog,
   ensureGameTables, entitlement, entitled, activeGames, isCmPremium,
   grantGame, currentExpiry, revokeGame, recordPurchase, cmUser,
+  TICKET_TTL, INVITE_TTL, inviteUses, signTicket, verifyTicket, useJti, createInvite, verifyInvite, redeemInvite,
 };

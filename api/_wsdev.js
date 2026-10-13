@@ -14,6 +14,7 @@
 //   deviceIdFrom(req)                             → string | null
 //   ensureTable()                                 → Promise
 //   check(email, devId, req)                      → { ok, error?, devices?, slot? }
+//   checkReq(req, email, wstoken, tokDev)         → check()-тэй ижил + DEVICE_MISMATCH (wsstatus-ийн логик)
 //   list(email)                                   → Promise<[{device_id,label,last_seen,...}]>
 //   remove(email, devId)                          → Promise<{ ok, error? }>
 //   labelFromUA(ua)                               → "Android утас" гэх мэт
@@ -236,6 +237,24 @@ async function check(email, devId, req) {
   return { ok: true, slot: 'new' };
 }
 
+/* Хүсэлт + ws токеноор шалгах (api/qpay.js wsstatus-ийн логиктой ИЖИЛ; wsstatus өөрөө үүнийг дуудахгүй хэвээр):
+   • токенд dev байгаа бөгөөд хүсэлтийн x-device-id өөр бол → DEVICE_MISMATCH (токен хуулсан)
+   • эс бөгөөс x-device-id || токены dev || токеноос гаргасан 'tk…' түлхүүрээр check() (2 төхөөрөмжийн хязгаар)
+   Буцаах: check()-тэй ижил { ok, error?, max?, devices? }. DB алдаа → throw (дуудагч fail-closed шийднэ).
+   Дуудагч: api/games.js (status/launch/invite). */
+async function checkReq(req, email, wstoken, tokDev) {
+  const e = String(email || '').trim().toLowerCase();
+  if (!e) return { ok: false, error: 'NO_EMAIL' };
+  const td = clean(tokDev);
+  const cur = deviceIdFrom(req);
+  if (td && cur && td !== cur) {
+    await logBlock(e, cur, fpFrom(req), ipOf(req), 'DEVICE_MISMATCH', uaOf(req));
+    return { ok: false, error: 'DEVICE_MISMATCH', max: MAX_DEVICES, devices: await list(e) };
+  }
+  const useDev = cur || td || keyFromToken(wstoken);
+  return check(e, useDev, req);
+}
+
 // Төхөөрөмж салгах — сүүлийн 30 хоногт SWAP_MAX-аас олон удаа болохгүй
 async function remove(email, devId) {
   await ensureTable();
@@ -254,4 +273,4 @@ async function remove(email, devId) {
   return { ok: true };
 }
 
-module.exports = { MAX_DEVICES, SWAP_MAX, SWAP_DAYS, ensureTable, deviceIdFrom, fpFrom, keyFromToken, logBlock, check, list, remove, labelFromUA };
+module.exports = { MAX_DEVICES, SWAP_MAX, SWAP_DAYS, ensureTable, deviceIdFrom, fpFrom, keyFromToken, logBlock, check, checkReq, list, remove, labelFromUA };
