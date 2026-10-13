@@ -91,7 +91,7 @@
   function lset(k,v){try{localStorage.setItem(k,v);}catch(e){}}
   // ws токены payload-аас имэйлийг ЗӨВХӨН харуулахын тулд уншина (баталгаажуулалт нь серверт)
   function tokEmail(t){try{var p=String(t).split('.')[1].replace(/-/g,'+').replace(/_/g,'/');while(p.length%4)p+='=';var d=JSON.parse(atob(p));return d&&typeof d.email==='string'?d.email.trim().toLowerCase():'';}catch(e){return '';}}
-  /* Энэ хөтчийн тогтмол дугаар. Нэг имэйл → дээд тал нь 2 төхөөрөмж гэдгийг
+  /* Энэ хөтчийн тогтмол дугаар. Нэг имэйл → дээд тал нь 4 төхөөрөмж гэдгийг
      сервер энэ дугаараар тоолно (api/_wsdev.js). */
   function wsDev(){
     try{

@@ -3,14 +3,14 @@
 //
 // Ажиллах зарчим:
 //   • Хөтөч бүр өөрийн санамсаргүй device_id-г localStorage-д хадгална (cm_device).
-//   • Нэвтрэхэд тэр id-г бүртгэнэ. Бүртгэлтэй 2 төхөөрөмж дүүрсэн бол 3 дахь нь ОРОХГҮЙ.
+//   • Нэвтрэхэд тэр id-г бүртгэнэ. Бүртгэлтэй 4 төхөөрөмж дүүрсэн бол 5 дахь нь ОРОХГҮЙ.
 //   • Токен дотор dev=<device_id> явна. Хуудас нээх бүрд (qpay wsstatus) device_id
 //     бүртгэлтэй эсэхийг ШАЛГАНА — тиймээс токеноо хуулж өгөөд ч өнгөрөхгүй.
 //   • Хуучин (dev-гүй) токен: тухайн төхөөрөмжийг сул байр байвал автоматаар бүртгэнэ,
 //     дүүрсэн бол татгалзана. Ингэснээр одоо нэвтэрсэн хүмүүс дахин нэвтрэх шаардлагагүй.
 //
 // API:
-//   MAX_DEVICES                                   → 2
+//   MAX_DEVICES                                   → 4
 //   deviceIdFrom(req)                             → string | null
 //   ensureTable()                                 → Promise
 //   check(email, devId, req)                      → { ok, error?, devices?, slot? }
@@ -20,7 +20,7 @@
 const pool = require('./_db');
 const crypto = require('crypto');
 
-const MAX_DEVICES = parseInt(process.env.WS_MAX_DEVICES || '2', 10) || 2;
+const MAX_DEVICES = parseInt(process.env.WS_MAX_DEVICES || '4', 10) || 4;
 // Нэг төхөөрөмжийг салгаад өөрийг нь холбох нь 30 хоногт дээд тал нь 3 удаа.
 // Ингэхгүй бол «салгаад → найздаа холбоод» гэж дахин зарах зам нээлттэй үлдэнэ.
 const SWAP_MAX = parseInt(process.env.WS_DEVICE_SWAPS || '3', 10) || 3;

@@ -1330,7 +1330,7 @@ module.exports = async (req, res) => {
         grade_months: WS_GRADE_MONTHS, grade_per_month: WS_GRADE_PER_MONTH,
         prices: WS_PRICES, months: WS_MONTHS };
 
-      /* ── Нэг имэйл → дээд тал нь 2 төхөөрөмж ──
+      /* ── Нэг имэйл → дээд тал нь 4 төхөөрөмж ──
          Токенд dev байвал одоогийн төхөөрөмжтэй ТААРАХ ёстой (токен хуулахыг таслана).
          dev-гүй хуучин токен бол сул байр байвал энэ төхөөрөмжийг бүртгэнэ. */
       if (email) {
