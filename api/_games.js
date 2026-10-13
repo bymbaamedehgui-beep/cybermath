@@ -31,6 +31,8 @@
 //                                          sx = gate-ийн сессийн дээд хугацаа: эрх/урилгын дуусах огноо)
 //   verifyTicket(tok, g?)                → claims | null
 //   sessionExp(claims, nowSec?)          → epoch сек — gate-ийн сесс: min(now + 2 цаг | урилга 30 мин, sx); 0 → сессгүй
+//   signSession(claims, exp)             → token (typ 'gs' — gate/game.js-ийн HttpOnly cookie, имэйлгүй)
+//   verifySession(tok, g?)               → claims | null
 //   useJti(jti, exp)                     → bool  (анх удаа true, давтвал false; DB алдаа → throw)
 //   createInvite(realm, email, key)      → { token, jti, expires_at, max_uses, guests }  (зөвхөн multi; токенд имэйл байхгүй)
 //   verifyInvite(tok, g?)                → claims | null          (typ 'gi')
@@ -385,6 +387,25 @@ function sessionExp(c, nowSec) {
   if (typeof c.sx === 'number' && c.sx < exp) exp = Math.floor(c.sx);
   return exp > now ? exp : 0;
 }
+// Gate-ийн сесс (gate/game.js-ийн HttpOnly cookie): хүчинтэй launch тасалбарыг НЭГ удаа солиход гарна.
+// c = verifyTicket-ийн claims, exp = sessionExp(c) (epoch сек). Түлхүүр 'gs' зориулалтаар — тасалбар/урилга/нэвтрэлтийн
+// токен сессийн оронд хүчингүй (эсрэгээрээ ч мөн). Claims: { typ:'gs', g, r, sub, iat, exp, jti } — имэйлгүй.
+function signSession(c, exp) {
+  if (!c || !isGame(c.g)) throw new Error('game: тоглоом буруу');
+  const r = normRealm(c.r);
+  if (!r) throw new Error('game: realm буруу');
+  if (typeof c.sub !== 'string' || !SUB_RE.test(c.sub)) throw new Error('game: sub буруу');
+  const iat = Math.floor(Date.now() / 1000);
+  const ex = epochOf(exp);
+  if (ex == null || ex <= iat || ex - iat > SESSION_TTL) throw new Error('game: сессийн хугацаа буруу');
+  return jwt.sign({ typ: 'gs', g: c.g, r: r, sub: c.sub, iat: iat, exp: ex }, deriveKey('gs'), { algorithm: 'HS256', jwtid: newJti() });
+}
+// → claims | null. g өгвөл тохирох ёстой (sudoku-гийн сесс play2048-ийг нээхгүй).
+function verifySession(tok, g) {
+  const d = verifyTyped(tok, 'gs', SESSION_TTL, g);
+  if (!d || typeof d.sub !== 'string' || !SUB_RE.test(d.sub)) return null;
+  return d;
+}
 // Тасалбарын jti-г НЭГ л удаа хэрэглэнэ: анх удаа → true, давтвал → false. DB алдаа → throw (gate fail-closed).
 // exp: Date | epoch сек (claims.exp).
 async function useJti(jti, exp) {
@@ -472,5 +493,5 @@ module.exports = {
   ensureGameTables, entitlement, entitled, activeGames, isCmPremium,
   grantGame, currentExpiry, revokeGame, recordPurchase, cmUser,
   TICKET_TTL, INVITE_TTL, SESSION_TTL, INVITE_SESSION_TTL, inviteUses, inviteDaily, subjectOf,
-  signTicket, verifyTicket, sessionExp, useJti, createInvite, verifyInvite, redeemInvite,
+  signTicket, verifyTicket, sessionExp, signSession, verifySession, useJti, createInvite, verifyInvite, redeemInvite,
 };
