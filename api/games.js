@@ -5,16 +5,21 @@
 //
 //   GET  ?action=catalog                       (нийтийн) → { ok, enabled, price, days, invite_hours, games:[{key,title,kind,multi}] }
 //   POST ?action=status  {realm, wstoken?}     → { ok, enabled, realm, email, premium, price, days, games:{key: expires_at} }
-//   POST ?action=launch  {game, realm, wstoken?, invite?}
+//   POST ?action=launch  {game, realm, wstoken?, invite?}   (+ x-device-id толгой — урилгаар нэгдэхэд төхөөрөмж уяна)
+//        Дараалал: Bearer admin → нэвтэрсэн бөгөөд өөрийн эрхтэй (урилга ЗАРЦУУЛАХГҮЙ) → урилга → 401/403/402.
 //        эрхтэй   → { ok:true, game, kind, via, expires_at?, url? }
-//                   kind='file'     → url = <тоглоомын зам>?t=<launch тасалбар> (120 сек, нэг удаагийн jti — gate шалгана)
+//                   kind='file'     → url = <тоглоомын зам>?t=<launch тасалбар> (120 сек, нэг удаагийн jti — gate шалгана;
+//                                     sub = тунгалаг 'u:…' — имэйл URL-д орохгүй; sx = эрхийн дуусах огноо)
 //                   kind='inline'   → url байхгүй (клиент gate)
 //                   kind='external' → url = гадны хаяг (клиент gate)
 //        эрхгүй   → 402 { ok:false, needBuy:true, price, days }
-//        invite   → host-ийн урилга (олон тоглогчтой тоглоом): өөрийн эрхгүй, нэвтрээгүй ч зөвшөөрнө (хэрэглээ хязгаартай)
-//        Bearer admin → зөвшөөрнө (туршилт)
-//   POST ?action=invite  {game, realm, wstoken?} (зөвхөн multi тоглоом, зөвхөн эрхтэй host)
-//        → { ok:true, game, realm, invite, expires_at, max_uses, url }   (url = найздаа илгээх харьцангуй холбоос)
+//        invite   → host-ийн урилга (олон тоглогчтой тоглоом): өөрийн эрхгүй, нэвтрээгүй ч зөвшөөрнө. Урилга анх нэгдсэн
+//                   төхөөрөмж(үүд)-д уягдана (≤ GAMES[g].guests; өөр төхөөрөмж → 403 reason 'full'), нийт ачаалалт
+//                   ≤ GAME_INVITE_USES. Тасалбарын sub='inv:<jti>' → gate богино (30 мин) сесс (GM.sessionExp).
+//                   invite '' / null → урилгагүй гэж үзнэ.
+//   POST ?action=invite  {game, realm, wstoken?} (зөвхөн multi тоглоом, зөвхөн эрхтэй host; host нэг тоглоомд өдөрт
+//        GAME_INVITE_DAILY (5) урилга) → { ok:true, game, realm, invite, expires_at, max_uses, guests, url }
+//        (url = найздаа илгээх харьцангуй холбоос)
 //
 // Дасгалын төвийн токен: 2 төхөөрөмжийн хязгаар (api/_wsdev.js checkReq — wsstatus-ийн логик) status/launch/invite бүгдэд.
 // DB алдаа → 503 (fail-closed). GAME_PAYWALL=off → бүх тоглоом нээлттэй (launch нэвтрэлт шаардахгүй, тасалбаргүй url).
@@ -32,6 +37,7 @@ const MSG = {
   multi: 'Энэ тоглоом олон тоглогчтой биш тул урилга үүсгэх боломжгүй.',
   invite: 'Урилга хүчингүй эсвэл хугацаа нь дууссан байна. Найзаасаа шинэ урилга аваарай.',
   inviteUsed: 'Энэ урилгаар нэгдэх боломж дууссан байна. Найзаасаа шинэ урилга аваарай.',
+  inviteFull: 'Энэ урилгаар өөр төхөөрөмжөөс аль хэдийн нэгдсэн байна. Найзаасаа шинэ урилга аваарай.',
   inviteRealm: 'Энэ урилга өөр сайтынх байна.',
   mismatch: 'Энэ нэвтрэлт өөр төхөөрөмжийнх байна. Энэ төхөөрөмж дээрээ дахин нэвтэрнэ үү.',
 };
@@ -40,6 +46,23 @@ function msgDeviceLimit(max) {
 }
 function msgNeedBuy(price) {
   return 'Энэ тоглоомыг тоглохын тулд 1 сарын эрх (' + price + '₮) авна уу.';
+}
+function msgInviteDaily(n) {
+  return 'Энэ тоглоомын урилгын өдрийн хязгаар (' + n + ') дууссан. Өмнө илгээсэн урилгаа ашиглана уу эсвэл маргааш дахин оролдоно уу.';
+}
+function msgInvite(reason) {
+  if (reason === 'used_up') return MSG.inviteUsed;
+  if (reason === 'full') return MSG.inviteFull;
+  if (reason === 'realm') return MSG.inviteRealm;
+  return MSG.invite;
+}
+// Урилгаар нэгдэж буй найзын төхөөрөмжийн түлхүүр: x-device-id (Дасгалын төвийн cm_device-тэй ижил), байхгүй бол ip|ua.
+// Утга нь хэрэглэгчийн мэдэлд ч хязгаар нь «ялгаатай түлхүүрийн тоо ≤ guests» тул өөр утга илгээх нь шинэ байр л эзэлнэ.
+function inviteDevKey(req, ip) {
+  const d = WDEV.deviceIdFrom(req);
+  if (d) return 'd:' + d;
+  const h = (req && req.headers) || {};
+  return 'h:' + ip + '|' + String(h['user-agent'] || '').slice(0, 200);
 }
 // Урилгыг нээх хуудас (харьцангуй; клиент location.origin-оо урд нь залгана)
 const INVITE_PAGE = Object.freeze({ cm: '/', ws: '/worksheets' });
@@ -80,14 +103,15 @@ async function identify(req, b, realm) {
   return { ok: true, realm: 'ws', email: email };
 }
 
-// Амжилттай launch-ийн хариу. who = { r, sub } бол файл тоглоомд тасалбар гаргана; who=null (GAME_PAYWALL=off) бол тасалбаргүй.
+// Амжилттай launch-ийн хариу. who = { r, sub, sx? } бол файл тоглоомд тасалбар гаргана; who=null (GAME_PAYWALL=off) бол тасалбаргүй.
+// sub: GM.subjectOf(...) | 'inv:<jti>' | 'admin' — имэйл ХЭЗЭЭ Ч биш (signTicket шалгана).
 function launchOut(key, who, via, expiresAt) {
   const G = GM.GAMES[key];
   const o = { ok: true, game: key, kind: G.kind, via: via };
   if (expiresAt) o.expires_at = new Date(expiresAt).toISOString();
   if (G.kind === 'file') {
     if (who) {
-      const t = GM.signTicket({ g: key, r: who.r, sub: who.sub });
+      const t = GM.signTicket({ g: key, r: who.r, sub: who.sub, sx: who.sx || null });
       o.url = G.path + '?t=' + encodeURIComponent(t.token);
       o.ticket_ttl = GM.TICKET_TTL;
     } else {
@@ -153,30 +177,35 @@ module.exports = async function handler(req, res) {
       // Kill-switch: бүгд нээлттэй (одоогийнх шиг) — нэвтрэлт, тасалбар шаардахгүй
       if (!GM.paywallOn()) return res.json(launchOut(key, null, 'off', null));
 
-      // Урилгаар нэгдэх (зөвхөн multi тоглоом; host-ийн эрх ОДОО хүчинтэй байх ёстой)
-      if (b.invite != null) {
-        if (typeof b.invite !== 'string' || !b.invite) return res.status(400).json({ ok: false, error: MSG.bad });
-        if (await limited('games_ij_ip:' + ip, 60, 600)) return res.status(429).json({ ok: false, error: MSG.rate });
-        const inv = await GM.redeemInvite(b.invite, realm, key);
-        if (!inv.ok) {
-          return res.status(403).json({ ok: false, inviteInvalid: true, reason: inv.reason,
-            error: inv.reason === 'used_up' ? MSG.inviteUsed : (inv.reason === 'realm' ? MSG.inviteRealm : MSG.invite) });
-        }
-        return res.json(launchOut(key, { r: realm, sub: 'inv:' + inv.jti }, 'invite', null));
-      }
-
       // Админ (туршилт)
       if (guard.requireAdmin(req)) return res.json(launchOut(key, { r: realm, sub: 'admin' }, 'admin', null));
 
+      // invite: '' / null → урилгагүй; мөр биш бол 400
+      const invTok = b.invite == null || b.invite === '' ? null : b.invite;
+      if (invTok !== null && typeof invTok !== 'string') return res.status(400).json({ ok: false, error: MSG.bad });
+
+      // 1) Нэвтэрсэн бөгөөд өөрийн эрхтэй бол урилгыг ЗАРЦУУЛАХГҮЙ (хүчингүй урилга эрхтэй хэрэглэгчийг хаахгүй).
+      //    Токенгүй бол identify DB-д хандалгүй 401 буцаана.
       const id = await identify(req, b, realm);
-      if (!id.ok) return res.status(id.status).json(id.body);
-      if (await limited('games_l:' + realm + ':' + id.email.slice(0, 254), 60, 600)) return res.status(429).json({ ok: false, error: MSG.rate });
-      const ent = await GM.entitlement(realm, id.email, key);
-      if (!ent.ok) {
-        const price = GM.gamePrice();
-        return res.status(402).json({ ok: false, needBuy: true, game: key, realm: realm, price: price, days: GM.GAME_DAYS, error: msgNeedBuy(price) });
+      if (id.ok) {
+        if (await limited('games_l:' + realm + ':' + id.email.slice(0, 254), 60, 600)) return res.status(429).json({ ok: false, error: MSG.rate });
+        const ent = await GM.entitlement(realm, id.email, key);
+        if (ent.ok) {
+          return res.json(launchOut(key, { r: realm, sub: GM.subjectOf(realm, id.email), sx: ent.expires_at }, ent.via, ent.expires_at));
+        }
       }
-      return res.json(launchOut(key, { r: realm, sub: id.email }, ent.via, ent.expires_at));
+
+      // 2) Урилгаар нэгдэх (зөвхөн multi тоглоом; host-ийн эрх ОДОО хүчинтэй; урилга найзын төхөөрөмжид уягдана)
+      if (invTok !== null) {
+        if (await limited('games_ij_ip:' + ip, 60, 600)) return res.status(429).json({ ok: false, error: MSG.rate });
+        const inv = await GM.redeemInvite(invTok, realm, key, inviteDevKey(req, ip));
+        if (!inv.ok) return res.status(403).json({ ok: false, inviteInvalid: true, reason: inv.reason, error: msgInvite(inv.reason) });
+        return res.json(launchOut(key, { r: realm, sub: 'inv:' + inv.jti, sx: inv.expires_at }, 'invite', null));
+      }
+
+      if (!id.ok) return res.status(id.status).json(id.body);
+      const price = GM.gamePrice();
+      return res.status(402).json({ ok: false, needBuy: true, game: key, realm: realm, price: price, days: GM.GAME_DAYS, error: msgNeedBuy(price) });
     }
 
     // ── Олон тоглогчийн урилга (зөвхөн эрхтэй host) ──
@@ -184,21 +213,25 @@ module.exports = async function handler(req, res) {
     if (await limited('games_inv_ip:' + ip, 120, 600)) return res.status(429).json({ ok: false, error: MSG.rate });
     const id = await identify(req, b, realm);
     if (!id.ok) return res.status(id.status).json(id.body);
-    if (await limited('games_inv:' + realm + ':' + id.email.slice(0, 254), 20, 3600)) return res.status(429).json({ ok: false, error: MSG.rate });
     const page = INVITE_PAGE[realm] + '?game=' + encodeURIComponent(key);
     if (!GM.paywallOn()) {
       // Бүгд нээлттэй үед урилгын токен хэрэггүй — найз шууд тоглоно
-      return res.json({ ok: true, game: key, realm: realm, via: 'off', invite: null, expires_at: null, max_uses: null, url: page });
+      return res.json({ ok: true, game: key, realm: realm, via: 'off', invite: null, expires_at: null, max_uses: null, guests: null, url: page });
     }
     const ent = await GM.entitlement(realm, id.email, key);
     if (!ent.ok) {
       const price = GM.gamePrice();
       return res.status(402).json({ ok: false, needBuy: true, game: key, realm: realm, price: price, days: GM.GAME_DAYS, error: msgNeedBuy(price) });
     }
+    // Host нэг тоглоомд өдөрт GAME_INVITE_DAILY (эрхтэй үед л тоолно — эрх авахаас өмнөх оролдлого хязгаарыг идэхгүй)
+    const daily = GM.inviteDaily();
+    if (await limited('games_inv_d:' + realm + ':' + key + ':' + id.email.slice(0, 254), daily, 86400)) {
+      return res.status(429).json({ ok: false, inviteLimit: true, max: daily, error: msgInviteDaily(daily) });
+    }
     const inv = await GM.createInvite(realm, id.email, key);
     return res.json({
       ok: true, game: key, realm: realm, via: ent.via, invite: inv.token,
-      expires_at: inv.expires_at.toISOString(), max_uses: inv.max_uses,
+      expires_at: inv.expires_at.toISOString(), max_uses: inv.max_uses, guests: inv.guests,
       url: page + '&ginv=' + encodeURIComponent(inv.token),
     });
   } catch (e) {

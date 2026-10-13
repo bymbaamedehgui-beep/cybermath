@@ -23,13 +23,21 @@
 //   recordPurchase(p, db?)               → bool  (game_purchases, invoice_id давхардахгүй)
 //   cmUser(req)                          → { email, role } | null  (Bearer cm_token, tv шалгана)
 //   --- тасалбар / урилга (api/games.js, gate) — түлхүүр = HMAC-SHA256(JWT_SECRET, зориулалт), typ шалгана ---
-//   TICKET_TTL (120 сек), INVITE_TTL (3 цаг), inviteUses() (env GAME_INVITE_USES, анхдагч 20)
-//   signTicket({g, r, sub})              → { token, jti, exp }   (typ 'glt')
+//   TICKET_TTL (120 сек), INVITE_TTL (3 цаг), inviteUses() (env GAME_INVITE_USES, анхдагч 20 — нийт ачаалалт),
+//   inviteDaily() (env GAME_INVITE_DAILY, анхдагч 5 — host нэг тоглоомд өдөрт үүсгэх урилга),
+//   GAMES[key].guests — нэг урилгаар нэгдэх найзын (өөр төхөөрөмжийн) дээд тоо (2 тоглогчтой → 1, sbh → 4)
+//   subjectOf(realm, email)              → 'u:<32 hex>'  (тасалбарын sub — имэйл URL-д ил гарахгүй)
+//   signTicket({g, r, sub, sx?})         → { token, jti, exp }   (typ 'glt'; sub: 'u:…' | 'inv:<jti>' | 'admin',
+//                                          sx = gate-ийн сессийн дээд хугацаа: эрх/урилгын дуусах огноо)
 //   verifyTicket(tok, g?)                → claims | null
+//   sessionExp(claims, nowSec?)          → epoch сек — gate-ийн сесс: min(now + 2 цаг | урилга 30 мин, sx); 0 → сессгүй
 //   useJti(jti, exp)                     → bool  (анх удаа true, давтвал false; DB алдаа → throw)
-//   createInvite(realm, email, key)      → { token, jti, expires_at, max_uses }  (зөвхөн multi; токенд имэйл байхгүй)
+//   createInvite(realm, email, key)      → { token, jti, expires_at, max_uses, guests }  (зөвхөн multi; токенд имэйл байхгүй)
 //   verifyInvite(tok, g?)                → claims | null          (typ 'gi')
-//   redeemInvite(tok, realm, key)        → { ok, realm, host, jti, uses } | { ok:false, reason }
+//   redeemInvite(tok, realm, key, devKey) → { ok, realm, host, jti, uses, guests, expires_at }
+//                                          | { ok:false, reason: 'invalid'|'realm'|'host'|'full'|'used_up' }
+//                                          host-ийн эрхийг хэрэглээ зарцуулахаас ӨМНӨ шалгана; урилга анх нэгдсэн
+//                                          төхөөрөмж(үүд)-д уягдана (дахин ачаалалт шинэ байр эзлэхгүй, өөр төхөөрөмж → 'full')
 'use strict';
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
@@ -41,7 +49,10 @@ const GAME_DAYS = 30;
 
 // kind: 'file' — тусдаа HTML (сервер gate-ээр хаагдана), 'inline' — index.html дотор, 'external' — гадны домэйн.
 // multi: олон тоглогчтой (зөвхөн өрөө үүсгэгч төлнө — урилгаар найз нь нэгдэнэ).
-function g(title, kind, multi, extra) { return Object.freeze(Object.assign({ title: title, kind: kind, multi: !!multi }, extra || {})); }
+// guests: нэг урилгаар нэгдэх найзын дээд тоо = тоглогчийн тоо − host (multi биш → 0).
+function g(title, kind, multi, extra) {
+  return Object.freeze(Object.assign({ title: title, kind: kind, multi: !!multi, guests: multi ? 1 : 0 }, extra || {}));
+}
 const GAMES = Object.freeze({
   mathmortal: g('MATH MORTAL', 'file', true, { path: '/math-mortal/' }),
   blockblast: g('Block Blast Math', 'external', false, { url: 'https://blockblast-math.vercel.app' }),
@@ -54,7 +65,7 @@ const GAMES = Object.freeze({
   ludo:       g('Ludo Math', 'inline', true),
   numseq:     g('Тоон дараалал', 'file', false, { path: '/numseq.html' }),
   doroev:     g('Дөрөв', 'inline', true),
-  sbh:        g('Сонго · Бод · Хож', 'inline', true, { path: '/songobodkhozh.html' }),
+  sbh:        g('Сонго · Бод · Хож', 'inline', true, { path: '/songobodkhozh.html', guests: 4 }),   // 3–5 тоглогч
   play2048:   g('2048', 'file', false, { path: '/play2048.html' }),
   sudoku:     g('Судоку', 'file', false, { path: '/sudoku.html' }),
   xpdrop:     g('500 XP-ны уналт', 'file', false, { path: '/xpdrop.html' }),
@@ -111,7 +122,8 @@ const DDL = [
     jti TEXT PRIMARY KEY,
     exp TIMESTAMPTZ NOT NULL
   )`,
-  // олон тоглогчийн урилга: токенд имэйл ОРОХГҮЙ (найздаа харагдахгүй) — host-ийг jti-ээр эндээс олно
+  // олон тоглогчийн урилга: токенд имэйл ОРОХГҮЙ (найздаа харагдахгүй) — host-ийг jti-ээр эндээс олно.
+  // devs: нэгдсэн найзын төхөөрөмжийн hash (≤ GAMES[g].guests) — урилга эдгээрт уягдана.
   `CREATE TABLE IF NOT EXISTS game_invites (
     jti TEXT PRIMARY KEY,
     realm TEXT NOT NULL CHECK (realm IN ('ws','cm')),
@@ -119,8 +131,10 @@ const DDL = [
     game_key TEXT NOT NULL,
     expires_at TIMESTAMPTZ NOT NULL,
     uses INT NOT NULL DEFAULT 0,
+    devs TEXT[] NOT NULL DEFAULT '{}',
     created_at TIMESTAMPTZ DEFAULT NOW()
   )`,
+  "ALTER TABLE game_invites ADD COLUMN IF NOT EXISTS devs TEXT[] NOT NULL DEFAULT '{}'",
   'CREATE INDEX IF NOT EXISTS idx_game_tix_exp ON game_ticket_used(exp)',
   'CREATE INDEX IF NOT EXISTS idx_game_inv_exp ON game_invites(expires_at)',
 ];
@@ -284,10 +298,15 @@ const KEY_PURPOSE = Object.freeze({
   glt: 'cybermath/game-launch/v1',
   gi: 'cybermath/game-invite/v1',
   gs: 'cybermath/game-session/v1',
+  gsub: 'cybermath/game-subject/v1',   // тасалбарын sub (realm|имэйл → тунгалаг таних тэмдэг), JWT түлхүүр биш
 });
 const TICKET_TTL = 120;          // сек — launch тасалбар (нэг удаагийн, gate jti-г game_ticket_used-д бичнэ)
 const INVITE_TTL = 3 * 3600;     // сек — олон тоглогчийн урилга
+const SESSION_TTL = 2 * 3600;    // сек — gate-ийн сесс (эрхтэй хэрэглэгч / админ)
+const INVITE_SESSION_TTL = 30 * 60;  // сек — урилгаар орсон найзын gate сесс (богино; дахин ачаалбал урилгаар шинэ тасалбар)
 const JTI_RE = /^[a-f0-9]{32}$/;
+// Тасалбарын sub: имэйл БИШ (URL → лог/түүх/iframe src-д үлдэнэ). 'u:<hmac>' | 'inv:<урилгын jti>' | 'admin'.
+const SUB_RE = /^(?:admin|u:[a-f0-9]{32}|inv:[a-f0-9]{32})$/;
 function deriveKey(typ) {
   const s = guard.jwtSecret();
   if (!s) throw new Error('game: JWT_SECRET тохируулаагүй');
@@ -295,10 +314,27 @@ function deriveKey(typ) {
   return crypto.createHmac('sha256', s).update(KEY_PURPOSE[typ]).digest();
 }
 function newJti() { return crypto.randomBytes(16).toString('hex'); }
-// Нэг урилгаар хэдэн удаа нэгдэж болох (дахин ачаалалт орно). env GAME_INVITE_USES, анхдагч 20.
+// Нэг урилгаар нийт хэдэн удаа ачаалж болох (уягдсан төхөөрөмжүүдийн дахин ачаалалт орно). env GAME_INVITE_USES, анхдагч 20.
 function inviteUses() {
   const n = parseInt(process.env.GAME_INVITE_USES || '', 10);
   return Number.isFinite(n) && n >= 1 && n <= 500 ? n : 20;
+}
+// Host нэг тоглоомд өдөрт үүсгэх урилгын дээд тоо. env GAME_INVITE_DAILY, анхдагч 5.
+function inviteDaily() {
+  const n = parseInt(process.env.GAME_INVITE_DAILY || '', 10);
+  return Number.isFinite(n) && n >= 1 && n <= 100 ? n : 5;
+}
+// realm|имэйл → 'u:<32 hex>' (HMAC, түлхүүр JWT_SECRET-ээс гарна). Имэйлийг тасалбараас сэргээх боломжгүй.
+function subjectOf(realm, email) {
+  const rl = normRealm(realm), em = normEmail(email);
+  if (!rl || !em) throw new Error('game: realm/имэйл буруу');
+  return 'u:' + crypto.createHmac('sha256', deriveKey('gsub')).update(rl + '|' + em).digest('hex').slice(0, 32);
+}
+// Date | epoch сек → бүхэл epoch сек (эсвэл null)
+function epochOf(v) {
+  if (v == null) return null;
+  const n = v instanceof Date ? Math.floor(v.getTime() / 1000) : Math.floor(Number(v));
+  return Number.isFinite(n) ? n : null;
 }
 // typ, түлхүүр, хугацааны дээд хэмжээг шалгаад claims (эсвэл null). g өгвөл тохирох ёстой.
 function verifyTyped(tok, typ, ttl, g) {
@@ -314,23 +350,40 @@ function verifyTyped(tok, typ, ttl, g) {
   return d;
 }
 
-// Launch тасалбар: { g, r, sub } → { token, jti, exp: Date }. TTL 120 сек, jti санамсаргүй 128 бит.
+// Launch тасалбар: { g, r, sub, sx? } → { token, jti, exp: Date }. TTL 120 сек, jti санамсаргүй 128 бит.
+// sub нь SUB_RE-д таарах ёстой (имэйл орж ирвэл throw). sx (Date | epoch сек) — gate-ийн сессийн дээд хугацаа.
 function signTicket(o) {
   o = o || {};
   if (!isGame(o.g)) throw new Error('game: тоглоом буруу');
   const r = normRealm(o.r);
   if (!r) throw new Error('game: realm буруу');
-  const sub = typeof o.sub === 'string' ? o.sub.trim().slice(0, 300) : '';
-  if (!sub) throw new Error('game: sub дутуу');
+  const sub = typeof o.sub === 'string' ? o.sub : '';
+  if (!SUB_RE.test(sub)) throw new Error('game: sub буруу');
   const jti = newJti();
   const iat = Math.floor(Date.now() / 1000);
-  const token = jwt.sign({ typ: 'glt', g: o.g, r: r, sub: sub, iat: iat, exp: iat + TICKET_TTL }, deriveKey('glt'),
-    { algorithm: 'HS256', jwtid: jti });
+  const claims = { typ: 'glt', g: o.g, r: r, sub: sub, iat: iat, exp: iat + TICKET_TTL };
+  if (o.sx != null) {
+    const sx = epochOf(o.sx);
+    if (sx == null || sx <= iat) throw new Error('game: sx буруу (эрх дууссан)');
+    claims.sx = sx;
+  }
+  const token = jwt.sign(claims, deriveKey('glt'), { algorithm: 'HS256', jwtid: jti });
   return { token: token, jti: jti, exp: new Date((iat + TICKET_TTL) * 1000) };
 }
 function verifyTicket(tok, g) {
   const d = verifyTyped(tok, 'glt', TICKET_TTL, g);
-  return d && typeof d.sub === 'string' && d.sub ? d : null;
+  if (!d || typeof d.sub !== 'string' || !SUB_RE.test(d.sub)) return null;
+  if (d.sx !== undefined && !(typeof d.sx === 'number' && Number.isFinite(d.sx))) return null;
+  return d;
+}
+// Gate-ийн сессийн дуусах хугацаа (epoch сек): урилгаар орсон (sub 'inv:…') → 30 мин, бусад → 2 цаг; sx-ээс хэтрэхгүй.
+// 0 → сесс гаргахгүй (эрх/урилга аль хэдийн дууссан).
+function sessionExp(c, nowSec) {
+  if (!c || typeof c.sub !== 'string') return 0;
+  const now = nowSec == null ? Math.floor(Date.now() / 1000) : Math.floor(nowSec);
+  let exp = now + (c.sub.indexOf('inv:') === 0 ? INVITE_SESSION_TTL : SESSION_TTL);
+  if (typeof c.sx === 'number' && c.sx < exp) exp = Math.floor(c.sx);
+  return exp > now ? exp : 0;
 }
 // Тасалбарын jti-г НЭГ л удаа хэрэглэнэ: анх удаа → true, давтвал → false. DB алдаа → throw (gate fail-closed).
 // exp: Date | epoch сек (claims.exp).
@@ -359,33 +412,65 @@ async function createInvite(realm, email, key) {
     [jti, a.realm, a.email, key, new Date(exp * 1000).toISOString()]);
   if (Math.random() < 0.01) pool.query("DELETE FROM game_invites WHERE expires_at < NOW() - INTERVAL '1 day'").catch(function () {});
   const token = jwt.sign({ typ: 'gi', g: key, r: a.realm, iat: iat, exp: exp }, deriveKey('gi'), { algorithm: 'HS256', jwtid: jti });
-  return { token: token, jti: jti, expires_at: new Date(exp * 1000), max_uses: inviteUses() };
+  return { token: token, jti: jti, expires_at: new Date(exp * 1000), max_uses: inviteUses(), guests: GAMES[key].guests };
 }
 function verifyInvite(tok, g) {
   const d = verifyTyped(tok, 'gi', INVITE_TTL, g);
   return d && GAMES[d.g].multi ? d : null;
 }
-// Урилгаар нэгдэх: гарын үсэг/typ/тоглоом/realm → хэрэглээг атомаар +1 (хязгаар, хугацаа) → host-ийн эрх ОДОО ч хүчинтэй эсэх.
-// → { ok:true, realm, host, jti, uses } | { ok:false, reason: 'invalid'|'realm'|'used_up'|'host' }. DB алдаа → throw.
-async function redeemInvite(tok, realm, key) {
+// Найзын төхөөрөмжийн түлхүүр (api/games.js: x-device-id, байхгүй бол ip|ua) → 32 hex. Түүхий утгыг хадгалахгүй.
+function inviteDevHash(k) {
+  if (typeof k !== 'string' || !k || k.length > 400) return null;
+  return crypto.createHash('sha256').update('cybermath/game-invite-dev/v1|' + k).digest('hex').slice(0, 32);
+}
+// Урилгаар нэгдэх:
+//   1) гарын үсэг/typ/тоглоом/realm/төхөөрөмж
+//   2) урилга DB-д хүчинтэй эсэх, host-ийн эрх ОДОО ч хүчинтэй эсэх — хэрэглээ зарцуулахаас ӨМНӨ
+//   3) нэг атомар UPDATE: нийт ачаалалт < inviteUses() БА (энэ төхөөрөмж аль хэдийн уягдсан ЭСВЭЛ уягдсан < guests) →
+//      uses+1, шинэ төхөөрөмж бол devs-д нэмнэ. Ингэснээр урилга нь анх нэгдсэн найз(ууд)-д уягдаж, өөр хүнд дамжихгүй.
+// → { ok:true, realm, host, jti, uses, guests, expires_at } | { ok:false, reason: 'invalid'|'realm'|'host'|'full'|'used_up' }.
+// DB алдаа → throw.
+async function redeemInvite(tok, realm, key, devKey) {
   const d = verifyInvite(tok, key);
   if (!d) return { ok: false, reason: 'invalid' };
   if (normRealm(realm) !== d.r) return { ok: false, reason: 'realm' };
+  const dh = inviteDevHash(devKey);
+  if (!dh) return { ok: false, reason: 'invalid' };
   await ensureGameTables();
-  const r = await pool.query(
-    `UPDATE game_invites SET uses = uses + 1
-      WHERE jti=$1 AND realm=$2 AND game_key=$3 AND expires_at > NOW() AND uses < $4
-      RETURNING email, uses`, [d.jti, d.r, d.g, inviteUses()]);
-  if (!r.rows.length) return { ok: false, reason: 'used_up' };
-  const host = normEmail(r.rows[0].email);
+  const s = await pool.query(
+    'SELECT email, uses, devs FROM game_invites WHERE jti=$1 AND realm=$2 AND game_key=$3 AND expires_at > NOW()',
+    [d.jti, d.r, d.g]);
+  if (!s.rows.length) return { ok: false, reason: 'invalid' };
+  const host = normEmail(s.rows[0].email);
   const ent = host ? await entitlement(d.r, host, d.g) : { ok: false };
   if (!ent.ok) return { ok: false, reason: 'host' };
-  return { ok: true, realm: d.r, host: host, jti: d.jti, uses: Number(r.rows[0].uses) || 0 };
+  const guests = GAMES[d.g].guests;
+  const r = await pool.query(
+    `UPDATE game_invites
+        SET uses = uses + 1,
+            devs = CASE WHEN $5::text = ANY(devs) THEN devs ELSE array_append(devs, $5::text) END
+      WHERE jti=$1 AND realm=$2 AND game_key=$3 AND expires_at > NOW() AND uses < $4::int
+        AND ($5::text = ANY(devs) OR cardinality(devs) < $6::int)
+      RETURNING uses, cardinality(devs) AS guests`,
+    [d.jti, d.r, d.g, inviteUses(), dh, guests]);
+  if (!r.rows.length) {
+    // Шалтгааныг одоогийн мөрөөс (зэрэг нэгдсэн хүсэлт байрыг түрүүлж авсан байж болно)
+    const n = await pool.query(
+      'SELECT email, uses, devs FROM game_invites WHERE jti=$1 AND realm=$2 AND game_key=$3 AND expires_at > NOW()',
+      [d.jti, d.r, d.g]);
+    const devs = n.rows.length && Array.isArray(n.rows[0].devs) ? n.rows[0].devs : [];
+    return { ok: false, reason: n.rows.length && devs.indexOf(dh) < 0 && devs.length >= guests ? 'full' : 'used_up' };
+  }
+  return {
+    ok: true, realm: d.r, host: host, jti: d.jti, uses: Number(r.rows[0].uses) || 0,
+    guests: Number(r.rows[0].guests) || 0, expires_at: new Date(d.exp * 1000),
+  };
 }
 
 module.exports = {
   GAMES, GAME_KEYS, GAME_DAYS, gamePrice, paywallOn, isGame, normRealm, normEmail, publicCatalog,
   ensureGameTables, entitlement, entitled, activeGames, isCmPremium,
   grantGame, currentExpiry, revokeGame, recordPurchase, cmUser,
-  TICKET_TTL, INVITE_TTL, inviteUses, signTicket, verifyTicket, useJti, createInvite, verifyInvite, redeemInvite,
+  TICKET_TTL, INVITE_TTL, SESSION_TTL, INVITE_SESSION_TTL, inviteUses, inviteDaily, subjectOf,
+  signTicket, verifyTicket, sessionExp, useJti, createInvite, verifyInvite, redeemInvite,
 };

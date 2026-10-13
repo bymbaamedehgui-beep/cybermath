@@ -15,7 +15,7 @@ Object.assign(process.env, {
   TELEGRAM_CHAT_ID: '1',
   QPAY_USERNAME: 'fakeuser', QPAY_PASSWORD: 'fakepass', QPAY_INVOICE_CODE: 'FAKE_INVOICE',
 });
-['GAME_PRICE', 'GAME_PAYWALL', 'WS_TOKEN_IAT_MIN', 'WS_PAYWALL'].forEach(k => { delete process.env[k]; });
+['GAME_PRICE', 'GAME_PAYWALL', 'GAME_INVITE_USES', 'GAME_INVITE_DAILY', 'WS_TOKEN_IAT_MIN', 'WS_PAYWALL'].forEach(k => { delete process.env[k]; });
 
 const DAY = 864e5;
 const db = {
@@ -37,7 +37,8 @@ const db = {
   devIps: new Map(),    // ws_device_ips 'email|device_id|ip' → last_seen
   devBlocks: [],        // ws_device_blocks
   tix: new Map(),       // game_ticket_used jti → exp
-  invites: new Map(),   // game_invites jti → {jti, realm, email, game_key, expires_at(ms), uses}
+  invites: new Map(),   // game_invites jti → {jti, realm, email, game_key, expires_at(ms), uses, devs[]}
+  invUpdates: 0,        // амжилттай урилгын хэрэглээ (UPDATE) — зарцуулалтын тоо
   failGrant: false, failLedger: false, failRate: false, noPremUntil: false, failEnt: false, failConnect: false,
   failDev: false, failTix: false, failInv: false,
   hangOn: null,         // RegExp: таарсан асуулт хэзээ ч дуусахгүй (Vercel timeout/crash-ийг дуурайна)
@@ -229,14 +230,26 @@ async function query(sql, p, tx) {
     if (db.failInv) throw dbErr('db down');
     if (db.invites.has(p[0])) throw dbErr('duplicate key', '23505');
     if (['ws', 'cm'].indexOf(p[1]) < 0) throw dbErr('check constraint', '23514');
-    db.invites.set(p[0], { jti: p[0], realm: p[1], email: p[2], game_key: p[3], expires_at: new Date(p[4]).getTime(), uses: 0 });
+    db.invites.set(p[0], { jti: p[0], realm: p[1], email: p[2], game_key: p[3], expires_at: new Date(p[4]).getTime(), uses: 0, devs: [] });
     return { rows: [] };
   }
-  if (q === 'UPDATE game_invites SET uses = uses + 1 WHERE jti=$1 AND realm=$2 AND game_key=$3 AND expires_at > NOW() AND uses < $4 RETURNING email, uses') {
+  const invLive = (r) => r && r.realm === p[1] && r.game_key === p[2] && r.expires_at > now();
+  if (q === 'SELECT email, uses, devs FROM game_invites WHERE jti=$1 AND realm=$2 AND game_key=$3 AND expires_at > NOW()') {
     if (db.failInv) throw dbErr('db down');
     const r = db.invites.get(p[0]);
-    if (!r || r.realm !== p[1] || r.game_key !== p[2] || !(r.expires_at > now()) || !(r.uses < Number(p[3]))) return { rows: [] };
-    r.uses += 1; return { rows: [{ email: r.email, uses: r.uses }] };
+    return { rows: invLive(r) ? [{ email: r.email, uses: r.uses, devs: r.devs.slice() }] : [] };
+  }
+  // Нэг мөрийн атомар UPDATE (PG: мөрийн түгжээ + WHERE-ийг дахин үнэлнэ) — JS-д синхрон хэсэг тул атомар
+  if (q === 'UPDATE game_invites SET uses = uses + 1, devs = CASE WHEN $5::text = ANY(devs) THEN devs ELSE array_append(devs, $5::text) END WHERE jti=$1 AND realm=$2 AND game_key=$3 AND expires_at > NOW() AND uses < $4::int AND ($5::text = ANY(devs) OR cardinality(devs) < $6::int) RETURNING uses, cardinality(devs) AS guests') {
+    if (db.failInv) throw dbErr('db down');
+    const r = db.invites.get(p[0]);
+    if (!invLive(r) || !(r.uses < Number(p[3]))) return { rows: [] };
+    const has = r.devs.indexOf(String(p[4])) >= 0;
+    if (!(has || r.devs.length < Number(p[5]))) return { rows: [] };
+    r.uses += 1;
+    if (!has) r.devs.push(String(p[4]));
+    db.invUpdates += 1;
+    return { rows: [{ uses: r.uses, guests: r.devs.length }] };
   }
   if (q === "DELETE FROM game_invites WHERE expires_at < NOW() - INTERVAL '1 day'") {
     db.invites.forEach(function (r, k) { if (r.expires_at < now() - DAY) db.invites.delete(k); }); return { rows: [] };
@@ -443,12 +456,12 @@ function reset() {
   db.events.clear(); db.regs.length = 0; db.claims.length = 0;
   db.failGrant = false; db.failLedger = false; db.failRate = false; db.noPremUntil = false; db.failEnt = false; db.failConnect = false;
   db.failDev = false; db.failTix = false; db.failInv = false;
-  db.devices.clear(); db.devIps.clear(); db.devBlocks.length = 0; db.tix.clear(); db.invites.clear();
+  db.devices.clear(); db.devIps.clear(); db.devBlocks.length = 0; db.tix.clear(); db.invites.clear(); db.invUpdates = 0;
   db.hangOn = null; hangHit = null;
   dropConnections(); db.locks.clear(); db.txLog.length = 0; db.txLeaks.length = 0;
   qp.invoices.length = 0; qp.paid.clear(); qp.checks.length = 0;
   tg.length = 0;
-  ['GAME_PRICE', 'GAME_PAYWALL', 'GAME_INVITE_USES', 'WS_TOKEN_IAT_MIN'].forEach(k => { delete process.env[k]; });
+  ['GAME_PRICE', 'GAME_PAYWALL', 'GAME_INVITE_USES', 'GAME_INVITE_DAILY', 'WS_TOKEN_IAT_MIN'].forEach(k => { delete process.env[k]; });
 }
 function addUser(email, o) {
   const e = lc(email);
