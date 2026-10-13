@@ -149,8 +149,8 @@
     var sh=document.getElementById('sheet'); if(sh){sh.style.filter='blur(6px)';sh.style.pointerEvents='none';}
     var pb=document.querySelector('.bar .btn:not(.refresh)'); // хэвлэх товч (эхнийх refresh)
     var o=document.createElement('div');o.id='wsLock';
-    o.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(20,15,40,.62);display:grid;place-items:center;padding:16px;font-family:"Segoe UI",Arial,sans-serif';
-    o.innerHTML='<div style="position:relative;background:#fff;border-radius:20px;max-width:430px;width:100%;padding:24px;text-align:center;box-shadow:0 24px 60px -18px rgba(0,0,0,.5)">'
+    o.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(20,15,40,.62);display:flex;justify-content:center;align-items:flex-start;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;box-sizing:border-box;padding:16px 12px;font-family:"Segoe UI",Arial,sans-serif';
+    o.innerHTML='<div style="position:relative;background:#fff;border-radius:20px;max-width:430px;width:100%;min-width:0;box-sizing:border-box;margin:auto;padding:24px clamp(14px,4.5vw,24px);text-align:center;box-shadow:0 24px 60px -18px rgba(0,0,0,.5)">'
       +'<button id="wsBack" style="position:absolute;top:14px;left:14px;display:inline-flex;align-items:center;gap:5px;border:1.4px solid #e7ddff;background:#faf7ff;color:#5a32d6;font-weight:800;font-size:.82rem;border-radius:999px;padding:.4rem .8rem;cursor:pointer;font-family:inherit"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>Буцах</button>'
       +'<div style="width:60px;height:60px;margin:2px auto 4px;background:linear-gradient(135deg,#7B52EE,#A855F7);border-radius:16px;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 18px -6px rgba(123,82,238,.6)"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10.5" rx="2.2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/><circle cx="12" cy="15" r="1.4" fill="#fff" stroke="none"/><path d="M12 16v2.2"/></svg></div>'
       +'<h3 style="color:#5a32d6;font-size:1.25rem;font-weight:900;margin:6px 0 2px">Ажлын хуудсын эрх</h3>'
@@ -160,7 +160,7 @@
       +'<div id="wsDur" style="display:flex;gap:6px;margin-bottom:12px"></div>'
       +'<div id="wsPriceBox" style="font-size:1.7rem;font-weight:900;color:#16a34a;margin-bottom:4px"></div>'
       +'<div id="wsCmp" style="font-size:.82rem;margin-bottom:12px;min-height:1em"></div>'
-      +'<input id="wsEmail" type="email" placeholder="Имэйл хаяг" style="width:100%;border:1.6px solid #e7ddff;border-radius:12px;padding:.7rem .9rem;font-size:.95rem;outline:none;margin-bottom:10px" />'
+      +'<input id="wsEmail" type="email" placeholder="Имэйл хаяг" style="width:100%;box-sizing:border-box;border:1.6px solid #e7ddff;border-radius:12px;padding:.7rem .9rem;font-size:.95rem;outline:none;margin-bottom:10px" />'
       +'<div style="display:flex;gap:6px;margin-bottom:4px">'
         +'<input id="wsPromo" type="text" placeholder="Урамшууллын код (заавал биш)" style="flex:1;min-width:0;border:1.6px solid #e7ddff;border-radius:12px;padding:.7rem .9rem;font-size:.9rem;outline:none;text-transform:uppercase" />'
         +'<button id="wsPromoBtn" style="flex-shrink:0;font-weight:800;border:1.6px solid #c9b8ff;background:#f4efff;color:#5a32d6;cursor:pointer;border-radius:12px;padding:0 1rem;font-size:.88rem">Хэрэглэх</button>'
@@ -229,7 +229,7 @@
     function prices(){ return PLAN==='grade'?P_GR:P_ALL; }
     function monthsList(){ return PLAN==='grade'?M_GR:M_ALL; }
     function planBtnCss(on){
-      return 'flex:1;cursor:pointer;font-weight:800;font-size:.84rem;border-radius:12px;padding:.55rem .3rem;line-height:1.25;transition:.12s;'
+      return 'flex:1;min-width:0;cursor:pointer;font-weight:800;font-size:.84rem;border-radius:12px;padding:.55rem .3rem;line-height:1.25;transition:.12s;'
         +(on?'border:1.8px solid #7B52EE;background:#f4efff;color:#5a32d6;box-shadow:0 4px 12px -8px rgba(123,82,238,.9)'
             :'border:1.6px solid #ece6fb;background:#fff;color:#9a92b5');
     }
@@ -261,7 +261,7 @@
     function styleDur(){
       [].forEach.call(durRow.querySelectorAll('.wsd'),function(b){
         var on=(+b.getAttribute('data-m')===selMonths);
-        b.style.cssText='flex:1;cursor:pointer;font-weight:800;font-size:.82rem;border-radius:11px;padding:.5rem .2rem;transition:.12s;'
+        b.style.cssText='flex:1;min-width:0;cursor:pointer;font-weight:800;font-size:.82rem;border-radius:11px;padding:.5rem .2rem;transition:.12s;'
           +(on?'border:1.6px solid #7B52EE;background:linear-gradient(135deg,#7B52EE,#A855F7);color:#fff;box-shadow:0 6px 14px -8px rgba(123,82,238,.9)'
               :'border:1.6px solid #e7ddff;background:#fff;color:#5a32d6');
       });
@@ -395,9 +395,11 @@
           if(!inv||!inv.invoice_id){msg.style.color='';msg.textContent='Нэхэмжлэх үүсгэж чадсангүй. Дахин оролдоно уу.';resetBtn();return;}
           var email=String(d.email||acctEmail||'').toLowerCase();
           if(email)showAcct(email);
-          var img=inv.qr_image?('<img src="data:image/png;base64,'+inv.qr_image+'" style="width:190px;height:190px" alt="QPay QR"/>'):'';
+          var img=inv.qr_image?('<img src="data:image/png;base64,'+inv.qr_image+'" style="display:block;margin:0 auto;width:190px;max-width:100%;height:auto;aspect-ratio:1" alt="QPay QR"/>'):'';
           var link=inv.qPay_shortUrl?('<div style="margin-top:8px"><a href="'+inv.qPay_shortUrl+'" target="_blank" style="display:inline-flex;align-items:center;gap:5px;color:#5a32d6;font-weight:700;font-size:.85rem;text-decoration:none"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg>Утаснаас төлөх</a></div>'):'';
           qr.innerHTML='<div style="font-size:.82rem;color:#7a7390;margin-bottom:6px">QPay аппаар уншуулж төлнө үү</div>'+img+link;
+          /* Утасны жижиг дэлгэцэнд QR харагдах хэсэгт гүйлгэнэ */
+          setTimeout(function(){try{qr.scrollIntoView({block:'center'});}catch(e){}},60);
           btn.style.display='none';
           msg.style.color='';msg.textContent='Төлбөрийг хүлээж байна…';
           pollT=setInterval(function(){
@@ -857,8 +859,8 @@
   function openBatch(){
     if(document.getElementById('cm-batchModal'))return;
     var o=document.createElement('div');o.id='cm-batchModal';
-    o.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(20,15,40,.6);display:grid;place-items:center;padding:16px;font-family:"Segoe UI",Arial,sans-serif';
-    o.innerHTML='<div style="background:#fff;border-radius:18px;max-width:440px;width:100%;padding:22px;box-shadow:0 24px 60px -18px rgba(0,0,0,.5)">'
+    o.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(20,15,40,.6);display:flex;justify-content:center;align-items:flex-start;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;box-sizing:border-box;padding:16px 12px;font-family:"Segoe UI",Arial,sans-serif';
+    o.innerHTML='<div style="background:#fff;border-radius:18px;max-width:440px;width:100%;min-width:0;box-sizing:border-box;margin:auto;padding:22px clamp(14px,4.5vw,22px);box-shadow:0 24px 60px -18px rgba(0,0,0,.5)">'
       +'<div style="display:flex;align-items:center;gap:7px;font-weight:900;color:#5a32d6;font-size:1.12rem;margin-bottom:3px"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Ангиар хэвлэх</div>'
       +'<p style="color:#7a7390;font-size:.85rem;margin-bottom:10px;line-height:1.4"><b>Хүүхдийн тоог</b> оруулбал нэр хоосон (сурагч өөрөө бичнэ) хуудсууд үүснэ. Эсвэл доор <b>нэрсийг</b> мөр бүрд бичвэл нэр бүрд тусдаа хуудас. Бүгд <b>нэг дор</b> хэвлэгдэнэ.</p>'
       +'<label style="display:block;font-size:.86rem;color:#3a2d5e;font-weight:700;margin-bottom:5px">Хүүхдийн тоо</label>'
