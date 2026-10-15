@@ -530,7 +530,7 @@ window.loadWsSales = async function(){
   catch(e){ var ul=document.getElementById('ws-purchase-list'); if(ul)ul.innerHTML='<div style="color:#dc2626;padding:10px;">Алдаа: '+wsEsc(e.message)+'</div>'; }
   try{ var us=await wsPost('ws_users_list',{}); renderWsUsers(us||{}); }
   catch(e){ var uu=document.getElementById('ws-users-list'); if(uu)uu.innerHTML='<div style="color:#dc2626;padding:10px;">Алдаа: '+wsEsc(e.message)+'</div>'; }
-  try{ var gu=await wsPost('ws_grade_users',{}); if(gu&&gu.ok===false)throw new Error(gu.error||'хандах эрхгүй'); renderWsGradeUsers(gu||{}); }
+  try{ var gu=await wsPost('ws_grade_users',{}); if(gu&&gu.ok===false)throw new Error(gu.error||'хандах эрхгүй'); await wsGradeList(); renderWsGradeUsers(gu||{}); }
   catch(e){ var gl=document.getElementById('ws-grade-users-list'); if(gl)gl.innerHTML='<div style="color:#dc2626;padding:10px;">Алдаа: '+wsEsc(e.message)+'</div>'; }
   try{ var an=await wsPostW('getAnnounce',{}); var ai=document.getElementById('ws-announce'); if(ai)ai.value=(an&&an.announce)||''; }catch(e){}
   try{ var fb=await wsPostW('feedback_list',{}); renderWsFeedback((fb&&fb.feedback)||[]); }
@@ -729,8 +729,17 @@ window.revokeWsAccess=async function(email){
   try{ var d=await wsPost('ws_revoke',{email:email}); if(!d||!d.ok){ alert('Алдаа: '+((d&&d.error)||'цуцалж чадсангүй')); return; } loadWsSales(); }catch(e){ alert('Алдаа: '+e.message); }
 };
 // ─── Ангиар эрх авсан хэрэглэгчид (ws_grade_access) ───
-var WS_GRADES=['3-р анги','4-р анги','5-р анги','6-р анги','7-р анги','8-р анги','9-р анги','10-р анги','11-р анги','12-р анги'];
-function wsGradeGen(g){ return String(g||'').replace(/анги$/,'ангийн'); }
+// Сонголтын жагсаалт серверээс (catalog.js-ийн бүх бүлэг = WG.allGrades(), ws_grant үүгээр шалгадаг). Энэ нь зөвхөн нөөц.
+var WS_GRADES=['3-р анги','4-р анги','5-р анги','6-р анги','7-р анги','8-р анги','9-р анги','10-р анги','11-р анги','12-р анги','Монгол хэл 3-р анги','ЭЕШ'];
+var WS_GRADES_SRV=null;
+async function wsGradeList(){
+  if(WS_GRADES_SRV)return WS_GRADES_SRV;
+  try{ var r=await fetch('/api/qpay?action=wsprices'); var d=await r.json();
+    if(d&&Array.isArray(d.grades)&&d.grades.length)WS_GRADES_SRV=d.grades.map(String); }catch(e){}
+  return WS_GRADES_SRV||WS_GRADES;
+}
+// "6-р анги" → "6-р ангийн", "ЭЕШ" → "ЭЕШ-ийн" (харьяалахын тийн ялгал)
+function wsGradeGen(g){ g=String(g||''); if(/анги$/.test(g))return g.replace(/анги$/,'ангийн'); if(/хэл$/.test(g))return g+'ний'; return g?g+'-ийн':g; }
 function renderWsGradeUsers(d){
   var el=document.getElementById('ws-grade-users-list'); if(!el)return;
   var list=d.rows||[], by=d.by_grade||[], pend=d.pending||[];
@@ -738,7 +747,7 @@ function renderWsGradeUsers(d){
   var form='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:14px;">'
     +'<span style="font-weight:800;font-size:0.82rem;color:var(--text);">Ангийн эрх олгох:</span>'
     +'<input id="wsgEmail" type="email" placeholder="Имэйл хаяг" style="flex:1;min-width:170px;'+inp+'" onkeydown="if(event.key===\'Enter\')grantWsGradeAccess()">'
-    +'<select id="wsgGrade" style="'+inp+'font-weight:700;">'+WS_GRADES.map(function(g){return '<option value="'+wsEsc(g)+'">'+wsEsc(g)+'</option>';}).join('')+'</select>'
+    +'<select id="wsgGrade" style="'+inp+'font-weight:700;">'+(WS_GRADES_SRV||WS_GRADES).map(function(g){return '<option value="'+wsEsc(g)+'">'+wsEsc(g)+'</option>';}).join('')+'</select>'
     +'<select id="wsgMonths" style="'+inp+'font-weight:700;"><option value="1" selected>1 сар</option><option value="3">3 сар</option><option value="6">6 сар</option><option value="12">1 жил</option></select>'
     +'<button onclick="grantWsGradeAccess()" style="background:linear-gradient(135deg,#7B52EE,#A855F7);border:0;color:#fff;border-radius:8px;padding:8px 16px;cursor:pointer;font-weight:800;font-size:0.85rem;">+ Олгох</button>'
     +'<span id="wsgMsg" style="font-size:0.8rem;font-weight:700;"></span></div>';
