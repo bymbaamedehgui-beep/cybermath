@@ -103,12 +103,25 @@ async function ensureAdminGrants() {
     created_at TIMESTAMPTZ DEFAULT NOW()
   )`).catch(() => {});
   await pool.query('CREATE INDEX IF NOT EXISTS idx_adm_grants_at ON ws_admin_grants(created_at)').catch(() => {});
+  // Тоглоомын олголт (game_grant): аль тоглоом, аль сайт ('ws'|'cm'), хэдэн хоног. Бусад мөрөнд NULL.
+  await pool.query('ALTER TABLE ws_admin_grants ADD COLUMN IF NOT EXISTS game_key TEXT').catch(() => {});
+  await pool.query('ALTER TABLE ws_admin_grants ADD COLUMN IF NOT EXISTS realm TEXT').catch(() => {});
+  await pool.query('ALTER TABLE ws_admin_grants ADD COLUMN IF NOT EXISTS days INT').catch(() => {});
   admGrantsReady = true;
 }
-// Админ эрх олгох бүрт мөнгөн дүнг нь бүртгэнэ (тайланд нэмэгдэнэ)
-async function logAdminGrant(email, grade, months, note) {
+// Админ эрх олгох бүрт мөнгөн дүнг нь бүртгэнэ — зөвхөн «үнэлгээ», revReport-ийн орлогод НЭМЭГДЭХГҮЙ (мөнгөгүй бүртгэл).
+// game = { game_key, realm, days } — тоглоомын олголт: дүн = GAME_PRICE × хоног/30.
+async function logAdminGrant(email, grade, months, note, game) {
   try {
     await ensureAdminGrants();
+    if (game) {
+      const days = parseInt(game.days, 10) || GM.GAME_DAYS;
+      await pool.query(
+        'INSERT INTO ws_admin_grants (email, grade, months, amount, source, note, game_key, realm, days) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+        [String(email).trim().toLowerCase(), null, months, Math.round(GM.gamePrice() * days / GM.GAME_DAYS), 'admin', note || null,
+         game.game_key, game.realm, days]);
+      return;
+    }
     const amt = grade ? wsGradeBase(months) : (wsBasePrice(months) || 0);
     await pool.query(
       'INSERT INTO ws_admin_grants (email, grade, months, amount, source, note) VALUES ($1,$2,$3,$4,$5,$6)',
@@ -152,16 +165,29 @@ async function revReport(opts) {
   const custom = from && to;
 
   // ── Тогтмол цонхнууд ──
+  // Гурван сав (давхардалгүй):
+  //   ws    = ws_purchases (ажлын хуудас)
+  //   prem  = pay_pending granted, plan <> 'game' (Premium / найзууд / сургалт; хуучин нэр нь 'game' байсан)
+  //   games = game_purchases (тоглоом, ТӨЛСӨН огноогоор). pay_pending-ийн plan='game' мөрийг prem-д ОРУУЛАХГҮЙ —
+  //           эс бөгөөс нэг худалдан авалт хоёр удаа тоологдоно.
+  //   Админы олголт (ws_admin_grants) — зөвхөн бүртгэл, нийлбэрт орохгүй.
   const WIN = [['d1', '1 day'], ['d7', '7 days'], ['d30', '30 days'], ['all', null]];
   const out = {};
+  // game_purchases хүснэгтийг бэлдэнэ. Амжилтгүй бол тоглоомын сав 0 (тайлан бүхэлдээ унахгүй), gamesErr=true.
+  let gamesOk = true;
+  try { await GM.ensureGameTables(); } catch (e) { gamesOk = false; console.error('[report games]', e.message); }
+  const NO_PREM_GAME = "granted = TRUE AND COALESCE(plan,'') <> 'game'";
+  async function gq(sql, params, empty) { return gamesOk ? pool.query(sql, params) : { rows: empty }; }
   async function sums(where, params) {
     const ws = await pool.query('SELECT COUNT(*)::int n, COALESCE(SUM(amount),0)::int s FROM ws_purchases ' + where, params);
-    const gm = await pool.query('SELECT COUNT(*)::int n, COALESCE(SUM(amount),0)::int s FROM pay_pending '
-      + (where ? where + ' AND granted = TRUE' : 'WHERE granted = TRUE'), params);
+    const pr = await pool.query('SELECT COUNT(*)::int n, COALESCE(SUM(amount),0)::int s FROM pay_pending '
+      + (where ? where + ' AND ' + NO_PREM_GAME : 'WHERE ' + NO_PREM_GAME), params);
+    const gm = await gq('SELECT COUNT(*)::int n, COALESCE(SUM(amount),0)::int s FROM game_purchases ' + where, params, [{ n: 0, s: 0 }]);
     return {
       ws: { n: ws.rows[0].n, sum: ws.rows[0].s },
-      game: { n: gm.rows[0].n, sum: gm.rows[0].s },
-      total: ws.rows[0].s + gm.rows[0].s,
+      prem: { n: pr.rows[0].n, sum: pr.rows[0].s },
+      games: { n: gm.rows[0].n, sum: gm.rows[0].s },
+      total: ws.rows[0].s + pr.rows[0].s + gm.rows[0].s,
     };
   }
   for (const [key, iv] of WIN) {
@@ -172,18 +198,18 @@ async function revReport(opts) {
   if (custom) out.custom = await sums(RNG, [from, to]);
 
   // ── Өдрийн график ──
-  // Сонгосон хугацаа байвал түүгээр, эс бөгөөс сүүлийн 30 хоног. Дээд тал нь 180 өдөр.
+  // Сонгосон хугацаа байвал түүгээр, эс бөгөөс сүүлийн 30 хоног. Дээд тал нь 180 өдөр. Баганууд: ws, prem, games.
+  const DAY_COLS = `
+               COALESCE((SELECT SUM(amount) FROM ws_purchases WHERE created_at::date = d::date),0)::int AS ws,
+               COALESCE((SELECT SUM(amount) FROM pay_pending  WHERE ${NO_PREM_GAME} AND created_at::date = d::date),0)::int AS prem,
+               ${gamesOk ? 'COALESCE((SELECT SUM(amount) FROM game_purchases WHERE created_at::date = d::date),0)::int' : '0'} AS games`;
   const daily = custom
     ? await pool.query(`
-        SELECT d::date AS day,
-               COALESCE((SELECT SUM(amount) FROM ws_purchases WHERE created_at::date = d::date),0)::int AS ws,
-               COALESCE((SELECT SUM(amount) FROM pay_pending  WHERE granted = TRUE AND created_at::date = d::date),0)::int AS game
+        SELECT d::date AS day,${DAY_COLS}
           FROM generate_series($1::date, LEAST($2::date, $1::date + 179), INTERVAL '1 day') d
          ORDER BY d`, [from, to])
     : await pool.query(`
-        SELECT d::date AS day,
-               COALESCE((SELECT SUM(amount) FROM ws_purchases WHERE created_at::date = d::date),0)::int AS ws,
-               COALESCE((SELECT SUM(amount) FROM pay_pending  WHERE granted = TRUE AND created_at::date = d::date),0)::int AS game
+        SELECT d::date AS day,${DAY_COLS}
           FROM generate_series(NOW() - INTERVAL '29 days', NOW(), INTERVAL '1 day') d
          ORDER BY d`);
 
@@ -194,16 +220,25 @@ async function revReport(opts) {
     : await pool.query("SELECT COALESCE(grade,'(бүх анги)') AS grade, COUNT(*)::int n, COALESCE(SUM(amount),0)::int s"
         + " FROM ws_purchases WHERE created_at > NOW() - INTERVAL '30 days' GROUP BY grade ORDER BY s DESC");
 
+  // ── Тоглоомоор (тоглоом × сайт) — game_purchases, төлсөн огноогоор ──
+  const BYG = 'SELECT game_key, realm, COUNT(*)::int n, COALESCE(SUM(amount),0)::int s FROM game_purchases ';
+  const byGame = custom
+    ? await gq(BYG + RNG + ' GROUP BY game_key, realm ORDER BY s DESC, game_key', [from, to], [])
+    : await gq(BYG + "WHERE created_at > NOW() - INTERVAL '30 days' GROUP BY game_key, realm ORDER BY s DESC, game_key", [], []);
+
   // ── Админаас нээсэн эрхийн БҮРТГЭЛ (мөнгөн дүн ОРУУЛАХГҮЙ) ──
   await ensureAdminGrants();
+  const GCOLS = 'SELECT email, grade, months, note, created_at, game_key, realm, days FROM ws_admin_grants';
   const grants = custom
-    ? await pool.query('SELECT email, grade, months, note, created_at FROM ws_admin_grants '
-        + RNG + ' ORDER BY created_at DESC LIMIT 300', [from, to])
-    : await pool.query("SELECT email, grade, months, note, created_at FROM ws_admin_grants"
-        + " WHERE created_at > NOW() - INTERVAL '30 days' ORDER BY created_at DESC LIMIT 300");
+    ? await pool.query(GCOLS + ' ' + RNG + ' ORDER BY created_at DESC LIMIT 300', [from, to])
+    : await pool.query(GCOLS + " WHERE created_at > NOW() - INTERVAL '30 days' ORDER BY created_at DESC LIMIT 300");
+  const gTitle = function (k) { return GM.isGame(k) ? GM.GAMES[k].title : (k || null); };
 
   return { ok: true, win: out, daily: daily.rows, byGrade: byGrade.rows,
-           grants: grants.rows, range: custom ? { from: from, to: to } : null };
+           byGame: byGame.rows.map(function (x) { return Object.assign({ title: gTitle(x.game_key) }, x); }),
+           grants: grants.rows.map(function (x) { return x.game_key ? Object.assign({ game_title: gTitle(x.game_key) }, x) : x; }),
+           game_price: GM.gamePrice(), games_err: !gamesOk || undefined,
+           range: custom ? { from: from, to: to } : null };
 }
 
 // ── Хоёр талын Referral (Dropbox маягаар) ──
@@ -533,6 +568,13 @@ async function settleWsOnce(row) {
 const PAY_PREMIUM_PLANS = ['monthly', 'yearly', 'friends', 'premium'];
 // Тоглоомын мөр бүрэн эсэх: game_key серверийн allowlist-д, realm 'ws'|'cm'
 function gameRowOk(row) { return GM.isGame(row.game_key) && !!GM.normRealm(row.realm); }
+// Админы тоглоомын олголтын хугацаа (game_grant): days (1–366) эсвэл months (1–12 → ×30). Аль нь ч байхгүй → 30. Буруу → 0.
+function gameGrantDays(b) {
+  const has = function (v) { return v != null && String(v).trim() !== ''; };
+  if (has(b.days)) { const d = Number(b.days); return Number.isInteger(d) && d >= 1 && d <= 366 ? d : 0; }
+  if (has(b.months)) { const m = Number(b.months); return Number.isInteger(m) && m >= 1 && m <= 12 ? m * GM.GAME_DAYS : 0; }
+  return GM.GAME_DAYS;
+}
 // Тоглоом (plan='game'): claim хийсэн дуудлага л (realm, email, game_key)-д +30 хоног НЭМЭГДДЭГ олгоно.
 // users.plan/premium_expiry-д ОГТ хүрэхгүй.
 // claim (granted=TRUE) + олголт (game_access) + бүртгэл (game_purchases) НЭГ транзакцад: функц хооронд нь тасарвал
@@ -1112,7 +1154,8 @@ module.exports = async (req, res) => {
     }
 
     // ── АДМИН: ажлын хуудсын промо код удирдах + борлуулалт харах ──
-    if (['ws_promo_create','ws_promo_list','ws_promo_update','ws_purchases_list','ws_users_list','ws_grade_users','ws_grant','ws_revoke','ws_reconcile','ws_broadcast','ws_report','ws_report_pin','ws_all_users','ws_badges'].indexOf(req.query.action) >= 0) {
+    // Тоглоом: game_grant / game_revoke / game_list — энэ allowlist-д байхгүй action 405 болно
+    if (['ws_promo_create','ws_promo_list','ws_promo_update','ws_purchases_list','ws_users_list','ws_grade_users','ws_grant','ws_revoke','ws_reconcile','ws_broadcast','ws_report','ws_report_pin','ws_all_users','ws_badges','game_grant','game_revoke','game_list'].indexOf(req.query.action) >= 0) {
       if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
       await ensureWsExtra();
       await ensureWsTable();
@@ -1206,6 +1249,98 @@ module.exports = async (req, res) => {
         await pool.query('DELETE FROM ws_access WHERE lower(email)=$1', [email]);
         return res.json({ ok: true, revoked: email });
       }
+      // ── ТОГЛООМ: админ гараар олгох (мөнгөгүй бүртгэл) ──
+      // {realm:'ws'|'cm', email, game, days? (1–366) | months? (1–12), note?}. Нэмэгддэг: GREATEST(хуучин, NOW()) + хоног.
+      // Данс тухайн сайтад бүртгэлтэй байх ёстой (ws → ws_login, cm → users) — үсгийн алдаагаар хоосон эрх олгохгүй.
+      // game_purchases-д БИЧИХГҮЙ (QPay-гүй) → тайлангийн орлогод орохгүй; зөвхөн ws_admin_grants-д бүртгэнэ.
+      if (req.query.action === 'game_grant') {
+        const realm = GM.normRealm(b.realm);
+        if (!realm) return res.status(400).json({ ok: false, error: 'Сайт буруу байна (Дасгалын төв эсвэл cyber-math.com)' });
+        const email = GM.normEmail(b.email);
+        if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ ok: false, error: 'Зөв имэйл оруулна уу' });
+        const key = typeof b.game === 'string' ? b.game.trim() : '';
+        if (!GM.isGame(key)) return res.status(400).json({ ok: false, error: 'Тоглоом олдсонгүй' });
+        const days = gameGrantDays(b);
+        if (!days) return res.status(400).json({ ok: false, error: 'Хугацаа буруу байна (1–366 хоног эсвэл 1–12 сар)' });
+        const acct = await pool.query(realm === 'ws'
+          ? 'SELECT 1 FROM ws_login WHERE lower(email)=$1 LIMIT 1'
+          : 'SELECT 1 FROM users WHERE lower(email)=$1 LIMIT 1', [email]);
+        if (!acct.rows.length) return res.status(400).json({ ok: false, noAccount: true,
+          error: 'Данс олдсонгүй: ' + email + ' ' + (realm === 'ws' ? 'Дасгалын төвд' : 'cyber-math.com-д') + ' бүртгэлгүй байна' });
+        const exp = await GM.grantGame(realm, email, key, days);
+        await logAdminGrant(email, null, Math.max(1, Math.round(days / GM.GAME_DAYS)), String(b.note || '').slice(0, 200) || null,
+          { game_key: key, realm: realm, days: days });
+        return res.json({ ok: true, realm: realm, email: email, game: key, title: GM.GAMES[key].title, days: days,
+          expires_at: exp.toISOString() });
+      }
+      // ── ТОГЛООМ: эрх цуцлах {realm, email, game} ──
+      // Шинээр нээх (launch) болон урилга шууд хаагдана; аль хэдийн нээсэн gate-ийн сесс (cookie) 2 цаг хүртэл үргэлжилж болно.
+      if (req.query.action === 'game_revoke') {
+        const realm = GM.normRealm(b.realm), email = GM.normEmail(b.email);
+        const key = typeof b.game === 'string' ? b.game.trim() : '';
+        if (!realm || !email || !GM.isGame(key)) return res.status(400).json({ ok: false, error: 'Сайт, имэйл, тоглоомоо зөв оруулна уу' });
+        const n = await GM.revokeGame(realm, email, key);
+        const out = { ok: true, revoked: n, realm: realm, email: email, game: key,
+          note: 'Аль хэдийн нээсэн тоглоом 2 цаг хүртэл үргэлжилж болно. Шинээр нээх, урилга шууд хаагдана.' };
+        // cyber-math.com-ийн идэвхтэй Premium хэрэглэгчид бүх тоглоом үнэгүй хэвээр — админд мэдэгдэнэ
+        if (realm === 'cm') { try { if (await GM.isCmPremium(email)) out.premium = true; } catch (e) {} }
+        return res.json(out);
+      }
+      // ── ТОГЛООМ: эрхийн жагсаалт {q?, game?, realm?, status?: 'active'|'expired', limit?} ──
+      // Мөр бүрт худалдан авалтын тоо/дүн (game_purchases). Тоглоом тус бүрийн хураангуйд орлогын нийт дүн ОРОХГҮЙ
+      // (зөвхөн Тайлан цэст, PIN-тэй) — ws_grade_users-ийн хэв маяг.
+      if (req.query.action === 'game_list') {
+        await GM.ensureGameTables();
+        const q = String(b.q || '').trim().toLowerCase().slice(0, 100);
+        const fGame = GM.isGame(b.game) ? b.game : '';
+        const fRealm = GM.normRealm(b.realm) || '';
+        const fStatus = b.status === 'active' || b.status === 'expired' ? b.status : '';
+        const like = q ? '%' + q.replace(/[\\%_]/g, '\\$&') + '%' : '';
+        const lim = Math.min(1000, Math.max(20, parseInt(b.limit, 10) || 500));
+        const r = await pool.query(
+          `SELECT a.realm, a.email, a.game_key, a.expires_at, a.updated_at, (a.expires_at > NOW()) AS active,
+                  COALESCE(p.cnt,0)::int AS paid_count, COALESCE(p.total,0)::int AS paid_sum, p.last_at AS paid_last
+             FROM game_access a
+             LEFT JOIN (SELECT realm, email, game_key, COUNT(*) AS cnt, SUM(amount) AS total, MAX(created_at) AS last_at
+                          FROM game_purchases GROUP BY realm, email, game_key) p
+                    ON p.realm = a.realm AND p.email = a.email AND p.game_key = a.game_key
+            WHERE ($1::text = '' OR a.email LIKE $1::text) AND ($2::text = '' OR a.game_key = $2::text)
+              AND ($3::text = '' OR a.realm = $3::text)
+              AND ($4::text = '' OR ($4::text = 'active') = (a.expires_at > NOW()))
+            ORDER BY a.updated_at DESC LIMIT ${lim}`, [like, fGame, fRealm, fStatus]);
+        // Тоглоом × сайт: идэвхтэй эрх (game_access) + худалдан авалтын тоо (game_purchases)
+        const acc = await pool.query(
+          `SELECT game_key, realm, COUNT(*) FILTER (WHERE expires_at > NOW())::int AS active, COUNT(*)::int AS n
+             FROM game_access GROUP BY game_key, realm`);
+        const sal = await pool.query('SELECT game_key, realm, COUNT(*)::int AS sales FROM game_purchases GROUP BY game_key, realm');
+        const by = {};
+        GM.GAME_KEYS.forEach(function (k) {
+          by[k] = { key: k, title: GM.GAMES[k].title, kind: GM.GAMES[k].kind, multi: GM.GAMES[k].multi,
+                    active: 0, active_ws: 0, active_cm: 0, sales: 0, sales_ws: 0, sales_cm: 0 };
+        });
+        let totalRows = 0, totalActive = 0;
+        acc.rows.forEach(function (x) {
+          totalRows += x.n; totalActive += x.active;
+          const g = by[x.game_key]; if (!g) return;
+          g.active += x.active; if (x.realm === 'ws' || x.realm === 'cm') g['active_' + x.realm] += x.active;
+        });
+        sal.rows.forEach(function (x) {
+          const g = by[x.game_key]; if (!g) return;
+          g.sales += x.sales; if (x.realm === 'ws' || x.realm === 'cm') g['sales_' + x.realm] += x.sales;
+        });
+        const purch = await pool.query(
+          'SELECT id, invoice_id, realm, email, game_key, amount, days, expires_at, created_at FROM game_purchases ORDER BY id DESC LIMIT 100');
+        // Сүүлийн 30 хоногийн төлөгдөөгүй (олгогдоогүй) тоглоомын нэхэмжлэх
+        await ensurePayPending();
+        const pend = await pool.query(
+          `SELECT invoice_id, email, realm, game_key, amount, created_at FROM pay_pending
+            WHERE plan='game' AND granted=FALSE AND created_at > NOW() - INTERVAL '30 days'
+            ORDER BY created_at DESC LIMIT 100`);
+        return res.json({ ok: true, rows: r.rows, shown: r.rows.length, total: totalRows, active: totalActive,
+          by_game: GM.GAME_KEYS.map(function (k) { return by[k]; }), purchases: purch.rows, pending: pend.rows,
+          catalog: GM.publicCatalog(), price: GM.gamePrice(), days: GM.GAME_DAYS, paywall: GM.paywallOn(),
+          filter: { q: q, game: fGame, realm: fRealm, status: fStatus, limit: lim } });
+      }
       // Ангиар эрхтэй хэрэглэгчид
       if (req.query.action === 'ws_grade_users') {
         await WG.ensureGradeTable();
@@ -1297,9 +1432,20 @@ module.exports = async (req, res) => {
           nReg = g.rows[0].n;
         }
         const lastReg = await pool.query('SELECT MAX(created_at) AS t FROM ws_login');
+        // Тоглоомын шинэ худалдан авалт (game_purchases.id > seenGame). Алдаа гарвал 0 — бусад тэмдэг ажилласаар.
+        let games = { n_new: 0, last_id: 0 };
+        try {
+          await GM.ensureGameTables();
+          const seenG = Math.max(0, parseInt(b.seenGame, 10) || 0);
+          const g = await pool.query(
+            'SELECT COALESCE(MAX(id),0)::int AS last_id, COUNT(*) FILTER (WHERE id > $1)::int AS n_new FROM game_purchases',
+            [seenG]);
+          games = { n_new: g.rows[0].n_new, last_id: g.rows[0].last_id };
+        } catch (e) { console.error('[badges games]', e.message); }
         return res.json({ ok: true,
           purchases: { n_new: r.rows[0].n_new, last_id: r.rows[0].last_id },
-          regs: { n_new: nReg, last_at: lastReg.rows[0].t } });
+          regs: { n_new: nReg, last_at: lastReg.rows[0].t },
+          games: games });
       }
       if (req.query.action === 'ws_promo_list') {
         await pool.query(`CREATE TABLE IF NOT EXISTS ws_wheel (email TEXT PRIMARY KEY, prize TEXT, code TEXT, created_at TIMESTAMPTZ DEFAULT NOW())`).catch(()=>{});
