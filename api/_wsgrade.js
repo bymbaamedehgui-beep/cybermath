@@ -83,8 +83,9 @@ async function loadPlacements() {
     const sgGrade = {};
     sg.rows.forEach(r => { sgGrade['sg:' + r.id] = r.grade; });
     const p = await pool.query("SELECT grp, slug, kind FROM ws_place");
+    const known = new Set(allGrades());                       // каталогийн тоон бус бүлэг (ЭЕШ, Монгол хэл …)
     for (const r of p.rows) {
-      const grade = sgGrade[r.grp] || (/^\d+-р анги$/.test(r.grp) ? r.grp : null);
+      const grade = sgGrade[r.grp] || ((/^\d+-р анги$/.test(r.grp) || known.has(r.grp)) ? r.grp : null);
       if (!grade) continue;                                   // танихгүй бүлэг — алгасна
       const slug = String(r.slug || '').toLowerCase();
       const bag = r.kind === 'remove' ? out.remove : out.add;

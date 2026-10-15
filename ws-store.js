@@ -25,6 +25,8 @@
     if(!items.length){alert('Хадгалах бодлого алга. Эхлээд "Шинэ бодлого" дарна уу.');return;}
     var h1=document.querySelector('#sheet .head h1, .head h1');
     var title=(h1&&(h1.textContent||'').trim())||window.WS_TITLE||document.title||'Дасгал';
+    // Олон хувилбартай хуудас (ж: ЭЕШ) хувилбарын дугаараа гарчигт залгана — хадгалсан хуудсыг хувилбартай нь холбоно
+    if(typeof window.WS_TITLE_SUFFIX==='string'&&window.WS_TITLE_SUFFIX)title+=window.WS_TITLE_SUFFIX;
     // Тэмдэглэл бичих (хүсвэл) — Cancel дарвал хадгалахгүй
     var note=window.prompt('Тэмдэглэл бичнэ үү (жнь: 9А анги, гэрийн даалгавар):', '');
     if(note===null)return;
@@ -155,7 +157,7 @@
       +'<div style="width:60px;height:60px;margin:2px auto 4px;background:linear-gradient(135deg,#7B52EE,#A855F7);border-radius:16px;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 18px -6px rgba(123,82,238,.6)"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10.5" rx="2.2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/><circle cx="12" cy="15" r="1.4" fill="#fff" stroke="none"/><path d="M12 16v2.2"/></svg></div>'
       +'<h3 style="color:#5a32d6;font-size:1.25rem;font-weight:900;margin:6px 0 2px">Ажлын хуудсын эрх</h3>'
       +'<p id="wsSubTitle" style="color:#7a7390;font-size:.9rem;margin-bottom:8px">Бүх ажлын хуудсыг сонгосон хугацаанд <b>хязгааргүй</b> ашиглах</p>'
-      +'<div style="font-size:.8rem;color:#16a34a;font-weight:700;background:#eafff1;border:1px solid #b6f0cd;border-radius:9px;padding:6px 10px;margin-bottom:12px">Санамж: анги бүрийн <b>эхний хуудас үнэгүй</b> — эхлээд туршаад үзээрэй!</div>'
+      +'<div id="wsFreeNote" style="font-size:.8rem;color:#16a34a;font-weight:700;background:#eafff1;border:1px solid #b6f0cd;border-radius:9px;padding:6px 10px;margin-bottom:12px">Санамж: анги бүрийн <b>эхний хуудас үнэгүй</b> — эхлээд туршаад үзээрэй!</div>'
       +'<div id="wsPlan" style="display:none;gap:6px;margin-bottom:10px"></div>'
       +'<div id="wsDur" style="display:flex;gap:6px;margin-bottom:12px"></div>'
       +'<div id="wsPriceBox" style="font-size:1.7rem;font-weight:900;color:#16a34a;margin-bottom:4px"></div>'
@@ -219,8 +221,8 @@
     var LABEL={1:'1 сар',3:'3 сар',6:'6 сар',9:'9 сар',12:'1 жил'};
     var LABD ={1:'1 сард',3:'3 сард',6:'6 сард',9:'9 сард',12:'1 жилд'};   // өгөх оршихын тийн ялгал
     var PLAN='all', GRADE=null, applied=false, lastPlan=null;
-    // "6-р анги" → "6-р ангийн" (харьяалахын тийн ялгал)
-    function gGen(g){ return String(g||'').replace(/анги$/,'ангийн'); }
+    // "6-р анги" → "6-р ангийн", "ЭЕШ" → "ЭЕШ-ийн" (харьяалахын тийн ялгал)
+    function gGen(g){ g=String(g||''); if(/анги$/.test(g))return g.replace(/анги$/,'ангийн'); if(/хэл$/.test(g))return g+'ний'; return g?g+'-ийн':g; }
     var selMonths=3, appliedPromo=null, curPct=0;
     var priceBox=o.querySelector('#wsPriceBox'), cmpBox=o.querySelector('#wsCmp');
     var planRow=o.querySelector('#wsPlan'), durRow=o.querySelector('#wsDur');
@@ -352,6 +354,8 @@
         if(d.grade_months&&d.grade_months.length)M_GR=d.grade_months;
         if(d.grade)GRADE=d.grade;
       }
+      // «Анги бүрийн эхний хуудас үнэгүй» — зөвхөн дугаартай ангид үнэн (ЭЕШ г.м. бүлэгт үнэгүй хуудас алга)
+      var fnote=o.querySelector('#wsFreeNote'); if(fnote)fnote.style.display=(GRADE&&!/\d/.test(GRADE))?'none':'';
       buildPlans();
       if(first||!userPicked)setPlan(GRADE?'grade':'all');   // хэрэглэгч аль хэдийн сонгосон бол багцыг нь солихгүй
       else setPlan(PLAN,selMonths);
@@ -922,6 +926,8 @@
       box.appendChild(clone);
     }
     document.body.appendChild(box);
+    // Хуудас өөрөө нэмэлт хуудас (ж: ЭЕШ — бүх хувилбарын хариуны түлхүүр) залгаж болно
+    if(typeof window.WS_BATCH_DONE==='function'){ try{window.WS_BATCH_DONE(box);}catch(e){} }
     injectBatchPrintCSS();
     modal.remove();
     function cleanup(){ var bx=document.getElementById('cm-batch'); if(bx)bx.remove(); window.removeEventListener('afterprint',cleanup); setPrint12(false); restoreWork();
