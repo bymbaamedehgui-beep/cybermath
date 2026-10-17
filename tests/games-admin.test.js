@@ -519,6 +519,240 @@ test('admin.html: inline script parse; «Тоглоом» таб, +1 тэмдэ�
   assert.ok(tabs && /'games'/.test(tabs[1]), 'ADM_WS_TABS-д games');
 });
 
+// ───────── Бүртгэл (game_purchases) дутсан төлсөн тоглоом — тайлан/жагсаалт/тулгалт pay_pending-ээс нөхнө ─────────
+test('ledger heal: game_purchases бичигдээгүй төлсөн тоглоом тайланд (games) орно, «Админ олгосон» биш; давхардахгүй', async () => {
+  wsLogin('lost@x.mn');
+  F.db.failLedger = true;                       // settleGame-ийн recordPurchase унана (SAVEPOINT) — эрх олгогдоно
+  const inv = await buyWs('lost@x.mn', 'sudoku');
+  assert.strictEqual(F.db.pay.get(inv).granted, true, 'claim хийгдсэн');
+  const acc = access('ws', 'lost@x.mn', 'sudoku');
+  assert.ok(acc, 'эрх олгогдсон');
+  assert.strictEqual(F.db.purch.length, 0, 'бүртгэл дутуу');
+  assert.ok(F.tg.some((t) => /game_purchases/.test(t) && /автоматаар нөхөгдөнө/.test(t) && t.indexOf(inv) >= 0), 'Telegram: автоматаар нөхөгдөнө');
+  // нөхөлт өөрөө унавал (DB) тайлан унахгүй, 0 харуулна — дараагийн удаа дахин оролдоно
+  let r = await report();
+  assert.deepStrictEqual(r.win.all.games, { n: 0, sum: 0 });
+  assert.strictEqual(r.games_healed, undefined);
+  F.db.failLedger = false;
+  // нөхөх ЁСГҮЙ мөрүүд: төлөгдөөгүй тоглоом, Premium, allowlist-гүй тоглоом, буруу сайт, админы олголт
+  rawPay({ invoice_id: 'UNPAID', email: 'u@x.mn', plan: 'game', game_key: 'ludo', realm: 'ws', granted: false });
+  rawPay({ invoice_id: 'PREM', email: 'p@x.mn', plan: 'monthly', amount: 9900, granted: true });
+  rawPay({ invoice_id: 'BADKEY', email: 'b@x.mn', plan: 'game', game_key: 'hack', realm: 'ws', granted: true });
+  rawPay({ invoice_id: 'BADREALM', email: 'b@x.mn', plan: 'game', game_key: 'ludo', realm: 'xx', granted: true });
+  wsLogin('gift@x.mn'); await A('game_grant', { realm: 'ws', email: 'gift@x.mn', game: 'play2048' });
+
+  r = await report();
+  assert.strictEqual(r.games_healed, 1);
+  assert.deepStrictEqual(r.win.d1, { ws: { n: 0, sum: 0 }, prem: { n: 1, sum: 9900 }, games: { n: 1, sum: 1900 }, total: 11800 });
+  assert.deepStrictEqual(r.win.all.games, { n: 1, sum: 1900 });
+  assert.strictEqual(r.daily[r.daily.length - 1].games, 1900);
+  assert.deepStrictEqual(r.byGame.map((x) => [x.game_key, x.realm, x.n, x.s]), [['sudoku', 'ws', 1, 1900]]);
+  assert.strictEqual(F.db.purch.length, 1);
+  const p = F.db.purch[0];
+  assert.deepStrictEqual([p.invoice_id, p.realm, p.email, p.game_key, p.amount, p.days], [inv, 'ws', 'lost@x.mn', 'sudoku', 1900, 30]);
+  assert.strictEqual(new Date(p.expires_at).getTime(), acc.expires_at.getTime(), 'expires_at = эрхийн дуусах огноо');
+
+  // дахин нээхэд давхардахгүй
+  r = await report();
+  assert.strictEqual(r.games_healed, undefined);
+  assert.deepStrictEqual(r.win.all.games, { n: 1, sum: 1900 });
+  assert.strictEqual(F.db.purch.length, 1);
+  // жагсаалт: төлсөн гэж харагдана (админы олголт хэвээр төлбөргүй)
+  const l = (await A('game_list', {})).body;
+  const row = (e, k) => l.rows.find((x) => x.email === e && x.game_key === k);
+  assert.deepStrictEqual([row('lost@x.mn', 'sudoku').paid_count, row('lost@x.mn', 'sudoku').paid_sum], [1, 1900]);
+  assert.deepStrictEqual([row('gift@x.mn', 'play2048').paid_count, row('gift@x.mn', 'play2048').paid_sum], [0, 0]);
+  assert.deepStrictEqual(l.purchases.map((x) => x.invoice_id), [inv]);
+  assert.strictEqual(l.by_game.find((x) => x.key === 'sudoku').sales, 1);
+  // +1 тэмдэг: нөхсөн бүртгэл шинэ худалдан авалт болж харагдана
+  assert.deepStrictEqual((await A('ws_badges', { seenGame: 0 })).body.games, { n_new: 1, last_id: p.id });
+  // ахин check хийхэд дахин олгохгүй, бүртгэл нэмэгдэхгүй
+  const c = await Q('check', { invoice_id: inv, email: 'lost@x.mn' });
+  assert.strictEqual(c.body.paid, true);
+  near(daysLeft(access('ws', 'lost@x.mn', 'sudoku').expires_at), 30, 'дахин сунгахгүй');
+  assert.strictEqual(F.db.purch.length, 1);
+});
+
+test('ledger heal: «Тоглоом» таб (game_list) ба «Төлбөр тулгах» (ws_reconcile) ч нөхнө', async () => {
+  wsLogin('l2@x.mn');
+  F.db.failLedger = true;
+  const inv1 = await buyWs('l2@x.mn', 'numseq');
+  F.db.failLedger = false;
+  let l = (await A('game_list', {})).body;
+  assert.strictEqual(l.ok, true);
+  assert.deepStrictEqual(l.rows.map((x) => [x.email, x.game_key, x.paid_count, x.paid_sum]), [['l2@x.mn', 'numseq', 1, 1900]]);
+  assert.deepStrictEqual(l.purchases.map((x) => x.invoice_id), [inv1]);
+
+  F.db.failLedger = true;
+  const inv2 = await buyWs('l2@x.mn', 'xpdrop');
+  F.db.failLedger = false;
+  let rc = await A('ws_reconcile', {});
+  assert.deepStrictEqual([rc.statusCode, rc.body.ok, rc.body.granted_count, rc.body.ledger_healed], [200, true, 0, 1]);
+  rc = await A('ws_reconcile', {});
+  assert.strictEqual(rc.body.ledger_healed, undefined, 'дахин нөхөхгүй');
+  assert.deepStrictEqual(F.db.purch.map((x) => x.invoice_id).sort(), [inv1, inv2].sort());
+  // нөхөлт унасан ч тулгалт ажилласаар (алдаагүй хариу)
+  F.db.failLedger = true;
+  rc = await A('ws_reconcile', {});
+  assert.deepStrictEqual([rc.statusCode, rc.body.ok, rc.body.ledger_healed], [200, true, undefined]);
+  F.db.failLedger = false;
+  const r = await report();
+  assert.deepStrictEqual(r.win.all.games, { n: 2, sum: 3800 });
+});
+
+// ───────── admin.html-ийн рендер (vm + хуурамч DOM): XSS escape, +1 тэмдгийн нийлбэр ─────────
+// Бодит хуудасны inline script-ийг (gmRender/tlRender/admBadges агуулсан) ажиллуулж, функцуудыг шууд дуудна.
+// readyState='loading' — init функцууд DOMContentLoaded-ийг хүлээнэ (ажиллахгүй). Сүлжээ, таймер 0.
+function adminSandbox() {
+  const html = fs.readFileSync(path.join(F.WT, 'admin.html'), 'utf8');
+  const re = /<script(\s[^>]*)?>([\s\S]*?)<\/script>/gi;
+  let m, src = null;
+  while ((m = re.exec(html))) {
+    if (!/\bsrc=/.test(m[1] || '') && m[2].indexOf('function gmRender(') >= 0) { src = m[2]; break; }
+  }
+  assert.ok(src, 'gmRender агуулсан inline script');
+  const noop = function () {};
+  const els = new Map();
+  function mkEl(id) {
+    const attrs = {};
+    return {
+      id: id, innerHTML: '', textContent: '', value: '', disabled: false, style: {}, dataset: {},
+      classList: { contains: () => false, add: noop, remove: noop, toggle: noop },
+      setAttribute: (k, v) => { attrs[k] = String(v); }, getAttribute: (k) => (k in attrs ? attrs[k] : null),
+      removeAttribute: (k) => { delete attrs[k]; },
+      querySelector: () => null, querySelectorAll: () => [], addEventListener: noop, appendChild: (c) => c,
+      closest: () => null, scrollIntoView: noop, focus: noop,
+    };
+  }
+  const store = new Map();
+  const document = Object.assign(mkEl('#document'), {
+    readyState: 'loading', cookie: '',
+    getElementById: (id) => { if (!els.has(id)) els.set(id, mkEl(id)); return els.get(id); },
+    createElement: () => mkEl(''), body: mkEl('body'), documentElement: mkEl('html'), head: mkEl('head'),
+  });
+  const ctx = {
+    document: document, console: { log: noop, warn: noop, error: noop, info: noop },
+    localStorage: { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => { store.set(k, String(v)); }, removeItem: (k) => { store.delete(k); } },
+    sessionStorage: { getItem: () => null, setItem: noop, removeItem: noop },
+    location: { href: 'https://cyber-math.com/admin.html', hash: '', search: '', pathname: '/admin.html', origin: 'https://cyber-math.com' },
+    navigator: { userAgent: 'node-test' }, history: { replaceState: noop, pushState: noop },
+    fetch: () => Promise.reject(new Error('sandbox: сүлжээгүй')),
+    setTimeout: () => 0, clearTimeout: noop, setInterval: () => 0, clearInterval: noop, requestAnimationFrame: () => 0,
+    alert: noop, confirm: () => false, prompt: () => null,
+    MutationObserver: function () { return { observe: noop, disconnect: noop }; },
+    matchMedia: () => ({ matches: false, addEventListener: noop, addListener: noop }),
+    getComputedStyle: () => ({}), addEventListener: noop, removeEventListener: noop, scrollTo: noop,
+  };
+  ctx.window = ctx; ctx.self = ctx;
+  vm.createContext(ctx);
+  vm.runInContext(src, ctx, { filename: 'admin.html#gm' });
+  return { ctx: ctx, el: (id) => document.getElementById(id), store: store };
+}
+const EVIL = '"><img src=x onerror=alert(1)>';
+const EVIL_EM = EVIL + '@evil.mn';
+function noRawHtml(h, where) {
+  assert.ok(h.indexOf('<img') < 0, where + ': escape хийгдээгүй <img: ' + h.slice(0, 200));
+  assert.ok(h.indexOf(EVIL) < 0, where + ': payload түүхий хэлбэрээр (атрибутаас гарах "> ч орно)');
+}
+const plain = (x) => JSON.parse(JSON.stringify(x));   // vm-ийн объектыг (өөр Object.prototype) энгийн болгоно
+
+test('admin.html gmRender: имэйл/тоглоом/сайт/гарчгийг escape хийнэ (хүснэгт, худалдан авалт, төлөгдөөгүй, хураангуй, сонголт)', () => {
+  const sb = adminSandbox();
+  const now = new Date().toISOString();
+  const d = {
+    ok: true, paywall: true, price: 1900, days: 30, total: 3, active: 2, shown: 3,
+    catalog: [{ key: 'sudoku', title: EVIL, kind: 'file', multi: false }, { key: EVIL, title: 'X', kind: 'file', multi: true }],
+    rows: [
+      { realm: 'ws', email: EVIL_EM, game_key: 'sudoku', expires_at: now, updated_at: now, active: true, paid_count: 2, paid_sum: 3800 },
+      { realm: EVIL, email: 'a@x.mn', game_key: EVIL, expires_at: now, updated_at: now, active: false, paid_count: 0, paid_sum: 0 },
+      { realm: 'cm', email: 'b@x.mn', game_key: 'nope' + EVIL, expires_at: now, updated_at: now, active: true, paid_count: 0, paid_sum: 0 },
+    ],
+    by_game: [{ key: EVIL, title: EVIL, active: 1, active_ws: 1, active_cm: 0, sales: 1, sales_ws: 1, sales_cm: 0 }],
+    // каталогт байхгүй түлхүүр → gmTitle түлхүүрийг өөрийг нь буцаана (escape шаардлагатай)
+    purchases: [{ id: 1, invoice_id: EVIL, realm: EVIL, email: 'c@x.mn', game_key: 'p' + EVIL, amount: 1900, days: 30, expires_at: now, created_at: now },
+                { id: 2, invoice_id: 'I2', realm: 'ws', email: EVIL_EM, game_key: 'sudoku', amount: 1900, days: 30, expires_at: now, created_at: now }],
+    pending: [{ invoice_id: EVIL, email: 'd@x.mn', realm: EVIL, game_key: 'q' + EVIL, amount: 1900, created_at: now },
+              { invoice_id: 'I3', email: EVIL_EM, realm: 'cm', game_key: 'ludo', amount: 1900, created_at: now }],
+  };
+  sb.ctx._gmData = d;            // gmTitle каталогоос гарчиг авна (gmLoad-ийн адил)
+  sb.ctx.gmRender(d);
+  ['gm-list', 'gm-purch', 'gm-pend', 'gm-summary', 'gm-g-game', 'gm-f-game', 'gm-status', 'gm-chips'].forEach((id) => {
+    noRawHtml(sb.el(id).innerHTML, id);
+  });
+  // хоосон биш — payload escape хийгдсэн хэлбэрээр зурагдсан (тест хоосон шалгалт биш)
+  ['gm-list', 'gm-purch', 'gm-pend', 'gm-summary', 'gm-g-game'].forEach((id) => {
+    assert.ok(sb.el(id).innerHTML.indexOf('&lt;img src=x onerror=alert(1)&gt;') >= 0, id + ': escape хийсэн payload');
+  });
+  const list = sb.el('gm-list').innerHTML;
+  assert.ok(list.indexOf('data-email="&quot;&gt;&lt;img') >= 0, 'data-email атрибут escape');
+  assert.ok(/3,800₮/.test(list) && /Админ олгосон/.test(list), 'төлсөн / админ олгосон баганууд');
+});
+
+test('admin.html tlRender: тайлангийн тоглоом/анги/олголтын нэр, имэйл, тэмдэглэлийг escape хийнэ; гурван сав', () => {
+  const sb = adminSandbox();
+  const now = new Date().toISOString();
+  const b = (n, s) => ({ n: n, sum: s });
+  const win = { ws: b(1, 39900), prem: b(1, 9900), games: b(2, 3800), total: 53600 };
+  sb.ctx.tlRender({
+    ok: true, win: { d1: win, d7: win, d30: win, all: win }, game_price: 1900, range: null,
+    daily: [{ day: now.slice(0, 10), ws: 39900, prem: 9900, games: 3800 }],
+    byGrade: [{ grade: EVIL, n: 1, s: 39900 }],
+    byGame: [{ title: EVIL, game_key: EVIL, realm: 'ws', n: 2, s: 3800 }],
+    grants: [
+      { email: EVIL_EM, grade: null, months: 1, note: EVIL, created_at: now, game_key: 'sudoku', game_title: EVIL, realm: 'cm', days: 30 },
+      { email: EVIL_EM, grade: EVIL, months: 3, note: EVIL, created_at: now, game_key: null, realm: null, days: null },
+    ],
+  });
+  ['tl-cards', 'tl-chart', 'tl-grade', 'tl-games', 'tl-grants'].forEach((id) => noRawHtml(sb.el(id).innerHTML, id));
+  ['tl-grade', 'tl-games', 'tl-grants'].forEach((id) => {
+    assert.ok(sb.el(id).innerHTML.indexOf('&lt;img src=x onerror=alert(1)&gt;') >= 0, id + ': escape хийсэн payload');
+  });
+  const cards = sb.el('tl-cards').innerHTML;
+  assert.ok(cards.indexOf('Тоглоом (1,900₮)') >= 0 && cards.indexOf('3,800₮') >= 0 && cards.indexOf('53,600₮') >= 0, 'тоглоомын мөр');
+  assert.ok(cards.indexOf('Premium · сургалт') >= 0 && cards.indexOf('Ажлын хуудас') >= 0);
+  assert.ok(sb.el('tl-chart').innerHTML.indexOf('#0ea5e9') >= 0, 'графикт тоглоомын давхарга');
+});
+
+test('admin.html admBadges: ws-badge = худалдан авалт + бүртгэл + тоглоом; таб нээхэд тоглоомын тэмдэг тэглэгдэж нийлбэр дахин бодогдоно', async () => {
+  const sb = adminSandbox();
+  const calls = [];
+  const resp = { ok: true, purchases: { n_new: 2, last_id: 5 }, regs: { n_new: 1, last_at: '2026-10-17T00:00:00.000Z' }, games: { n_new: 3, last_id: 9 } };
+  sb.ctx.wsPost = (action, body) => { calls.push([action, body]); return Promise.resolve(resp); };
+  const shown = (id) => (sb.el(id).style.display === 'none' ? '' : sb.el(id).textContent);
+  // анх удаа (admSeenGame байхгүй): тоглоомын тэмдэг 0, одоогийн last_id-г «үзсэн» гэж хадгална
+  sb.store.set('admSeenPurchase', '1'); sb.store.set('admSeenReg', '2026-01-01T00:00:00.000Z');
+  await sb.ctx.admBadges();
+  assert.deepStrictEqual(plain(calls[0]), ['ws_badges', { seenPurchase: 1, seenReg: '2026-01-01T00:00:00.000Z', seenGame: 0 }]);
+  assert.deepStrictEqual([shown('tab-badge-purchases'), shown('tab-badge-regs'), shown('tab-badge-games'), shown('ws-badge')], ['+2', '+1', '', '+3']);
+  assert.strictEqual(sb.store.get('admSeenGame'), '9');
+  // дараагийн удаа: үзсэн (0 ч байсан) → тоглоом тоологдоно, ws-badge-д нэмэгдэнэ
+  sb.store.set('admSeenGame', '0');
+  await sb.ctx.admBadges();
+  assert.strictEqual(calls[1][1].seenGame, 0);
+  assert.deepStrictEqual([shown('tab-badge-games'), shown('ws-badge')], ['+3', '+6']);
+  // «Худалдан авалт» таб нээв → нийлбэр = бүртгэл 1 + тоглоом 3 (тоглоом хасагдахгүй)
+  sb.ctx.admBadgeSeen('purchases');
+  assert.deepStrictEqual([shown('tab-badge-purchases'), shown('tab-badge-games'), shown('ws-badge')], ['', '+3', '+4']);
+  // «Тоглоом» таб нээв → тоглоомын тэмдэг тэг, нийлбэр = бүртгэл 1
+  sb.ctx.admBadgeSeen('games');
+  assert.deepStrictEqual([shown('tab-badge-games'), shown('ws-badge')], ['', '+1']);
+  assert.strictEqual(sb.store.get('admSeenGame'), '9');
+});
+
+test('admin.html gmReconcile: тулгалтын хариунд нөхсөн бүртгэлийн тоог харуулна', async () => {
+  const sb = adminSandbox();
+  sb.ctx.gmLoad = () => Promise.resolve();
+  sb.ctx.wsPost = () => Promise.resolve({ ok: true, checked: 4, granted_count: 1, granted: [{ plan: 'game' }], ledger_healed: 2 });
+  await sb.ctx.gmReconcile();
+  await new Promise((r) => setImmediate(r));
+  assert.strictEqual(sb.el('gm-rec-msg').textContent, 'Шалгасан: 4 · нөхөж олгосон: 1 (тоглоом 1) · дутсан бүртгэл нөхсөн: 2');
+  assert.strictEqual(sb.el('gm-rec-btn').disabled, false);
+  sb.ctx.wsPost = () => Promise.resolve({ ok: true, checked: 0, granted_count: 0, granted: [] });
+  await sb.ctx.gmReconcile();
+  await new Promise((r) => setImmediate(r));
+  assert.strictEqual(sb.el('gm-rec-msg').textContent, 'Шалгасан: 0 · нөхөж олгосон: 0');
+});
+
 test('тодорхойгүй SQL алга, бодит сүлжээ рүү хандаагүй', () => {
   assert.deepStrictEqual(F.db.unknown, []);
   assert.deepStrictEqual(F.qp.other, []);

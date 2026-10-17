@@ -158,6 +158,30 @@ function revDay(x) {
   const v = String(x || '').trim();
   return /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(Date.parse(v)) ? v : null;
 }
+// Тоглоомын бүртгэл (game_purchases) дутсан ТӨЛСӨН нэхэмжлэхийг нөхнө. settleGame нь recordPurchase унасан ч эрхийг
+// олгодог (мөнгө авсан, SAVEPOINT) — pay_pending.granted=TRUE, game_purchases-д мөргүй. Ийм мөр тайлангийн гурван савын
+// алинд ч орохгүй (prem нь plan='game'-ийг хасдаг), жагсаалтад «Админ олгосон» гэж харагдана. Тайлан (ws_report),
+// «Тоглоом» таб (game_list), «Төлбөр тулгах» (ws_reconcile)-ийн өмнө pay_pending-ээс нөхөж бичнэ.
+// Зөвхөн QPay-ээр баталгаажиж claim хийгдсэн мөр (granted=TRUE — settleGame л тавина), серверийн дүн, allowlist-тэй
+// тоглоом, ws|cm. invoice_id давхардахгүй (NOT EXISTS + ON CONFLICT) — дахин дуудахад аюулгүй. Админы олголт
+// (pay_pending-гүй) хэзээ ч орохгүй. Огноо = нэхэмжлэх үүссэн огноо (төлсөн огноо pay_pending-д хадгалагддаггүй),
+// expires_at = одоогийн дуусах огноо. Алдаа → 0 (тайлан/жагсаалт унахгүй, дараагийн удаа дахин оролдоно).
+const HEAL_GAME_LEDGER_SQL = `INSERT INTO game_purchases (invoice_id, realm, email, game_key, amount, days, expires_at, created_at)
+     SELECT p.invoice_id, p.realm, LOWER(TRIM(p.email)), p.game_key, COALESCE(p.amount, 0),
+            $2::int * GREATEST(1, LEAST(12, COALESCE(p.months, 1))), a.expires_at, COALESCE(p.created_at, NOW())
+       FROM pay_pending p
+       LEFT JOIN game_access a ON a.realm = p.realm AND a.email = LOWER(TRIM(p.email)) AND a.game_key = p.game_key
+      WHERE p.plan = 'game' AND p.granted = TRUE AND p.realm IN ('ws', 'cm') AND p.game_key = ANY($1::text[])
+        AND NOT EXISTS (SELECT 1 FROM game_purchases g WHERE g.invoice_id = p.invoice_id)
+     ON CONFLICT (invoice_id) DO NOTHING RETURNING invoice_id`;
+async function healGameLedger() {
+  try {
+    await ensurePayPending();
+    const r = await pool.query(HEAL_GAME_LEDGER_SQL, [GM.GAME_KEYS, GM.GAME_DAYS]);
+    if (r.rows.length) console.warn('[game ledger heal] нөхөв:', r.rows.map(function (x) { return x.invoice_id; }).join(', '));
+    return r.rows.length;
+  } catch (e) { console.error('[game ledger heal]', e.message); return 0; }
+}
 async function revReport(opts) {
   opts = opts || {};
   let from = revDay(opts.from), to = revDay(opts.to);
@@ -176,6 +200,8 @@ async function revReport(opts) {
   // game_purchases хүснэгтийг бэлдэнэ. Амжилтгүй бол тоглоомын сав 0 (тайлан бүхэлдээ унахгүй), gamesErr=true.
   let gamesOk = true;
   try { await GM.ensureGameTables(); } catch (e) { gamesOk = false; console.error('[report games]', e.message); }
+  // Бүртгэл дутсан төлсөн тоглоомыг games савд оруулна (prem-ээс хасагдсан тул эс бөгөөс орлогоос алга болно)
+  const healed = gamesOk ? await healGameLedger() : 0;
   const NO_PREM_GAME = "granted = TRUE AND COALESCE(plan,'') <> 'game'";
   async function gq(sql, params, empty) { return gamesOk ? pool.query(sql, params) : { rows: empty }; }
   async function sums(where, params) {
@@ -237,7 +263,7 @@ async function revReport(opts) {
   return { ok: true, win: out, daily: daily.rows, byGrade: byGrade.rows,
            byGame: byGame.rows.map(function (x) { return Object.assign({ title: gTitle(x.game_key) }, x); }),
            grants: grants.rows.map(function (x) { return x.game_key ? Object.assign({ game_title: gTitle(x.game_key) }, x) : x; }),
-           game_price: GM.gamePrice(), games_err: !gamesOk || undefined,
+           game_price: GM.gamePrice(), games_err: !gamesOk || undefined, games_healed: healed || undefined,
            range: custom ? { from: from, to: to } : null };
 }
 
@@ -623,7 +649,8 @@ async function settleGame(row, email) {
   await notifyTelegram('<b>Тоглоом худалдан авлаа</b>\n' + escTg(GM.GAMES[key].title) + ' · ' + escTg(email) +
     ' (' + (realm === 'ws' ? 'Дасгалын төв' : 'cyber-math.com') + ')\n' + escTg(row.amount) + '₮ · ' +
     exp.toISOString().slice(0, 10) + ' хүртэл' +
-    (ledgerOk ? '' : '\n<b>Анхаар:</b> борлуулалтын бүртгэл (game_purchases) бичигдсэнгүй — ' + escTg(row.invoice_id) + ' гараар нэмнэ үү'));
+    (ledgerOk ? '' : '\n<b>Анхаар:</b> борлуулалтын бүртгэл (game_purchases) бичигдсэнгүй — ' + escTg(row.invoice_id) +
+      '. Админ › Тоглоом таб, Тайлан эсвэл «Төлбөр тулгах» нээхэд pay_pending-ээс автоматаар нөхөгдөнө'));
   return { granted: true, out: { ok: true, paid: true, game: key, realm: realm, expiry: exp.toISOString() } };
 }
 // Premium / friends / event / game нэхэмжлэхийг ХАДГАЛСАН мөрөөр НЭГ УДАА олгоно.
@@ -1194,7 +1221,12 @@ module.exports = async (req, res) => {
             }
           } catch (e) { console.error('[reconcile pay row]', row.invoice_id, e.message); }
         }
-        return res.json({ ok: true, checked: checked, granted_count: granted.length, granted: granted });
+        // Тоглоом: эрх олгогдсон атлаа борлуулалтын бүртгэл дутсан (game_purchases) төлбөрийг нөхнө
+        let healed = 0;
+        try { await GM.ensureGameTables(); healed = await healGameLedger(); }
+        catch (e) { console.error('[reconcile game ledger]', e.message); }
+        return res.json({ ok: true, checked: checked, granted_count: granted.length, granted: granted,
+          ledger_healed: healed || undefined });
       }
       // ── Орлогын тайлан (PIN шаардана) ──
       if (req.query.action === 'ws_report') {
@@ -1291,6 +1323,8 @@ module.exports = async (req, res) => {
       // (зөвхөн Тайлан цэст, PIN-тэй) — ws_grade_users-ийн хэв маяг.
       if (req.query.action === 'game_list') {
         await GM.ensureGameTables();
+        // Бүртгэл дутсан төлсөн тоглоом «Админ олгосон» гэж харагдахгүй (paid_count/sales/purchases-д орно)
+        await healGameLedger();
         const q = String(b.q || '').trim().toLowerCase().slice(0, 100);
         const fGame = GM.isGame(b.game) ? b.game : '';
         const fRealm = GM.normRealm(b.realm) || '';
