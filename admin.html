@@ -237,21 +237,27 @@ function admBadgeSet(id, n) {
   e.textContent = n > 0 ? ('+' + (n > 99 ? '99' : n)) : '';
 }
 function admBadges() {
-  var seenP = 0, seenR = '';
+  var seenP = 0, seenR = '', seenG = 0, hasG = false;
   try { seenP = parseInt(localStorage.getItem('admSeenPurchase'), 10) || 0; } catch (e) {}
   try { seenR = localStorage.getItem('admSeenReg') || ''; } catch (e) {}
-  return wsPost('ws_badges', { seenPurchase: seenP, seenReg: seenR }).then(function (d) {
+  /* Тоглоом: худалдан авалт 0 байхад ч "үзсэн"-ийг (0) хадгална — эс бөгөөс анхны худалдан авалт +1 болохгүй */
+  try { var rg = localStorage.getItem('admSeenGame'); hasG = rg !== null && rg !== ''; seenG = parseInt(rg, 10) || 0; } catch (e) {}
+  return wsPost('ws_badges', { seenPurchase: seenP, seenReg: seenR, seenGame: seenG }).then(function (d) {
     if (!d || !d.ok) return;
     window._admLastPurchase = (d.purchases || {}).last_id || 0;
     window._admLastReg = (d.regs || {}).last_at || '';
+    window._admLastGame = (d.games || {}).last_id || 0;
     /* Анх удаа — одоогийнхыг "үзсэн" гэж тэмдэглээд дараагийнхаас тоолно */
     if (!seenP) { try { localStorage.setItem('admSeenPurchase', String(window._admLastPurchase)); } catch (e) {} }
     if (!seenR && window._admLastReg) { try { localStorage.setItem('admSeenReg', window._admLastReg); } catch (e) {} }
+    if (!hasG) { try { localStorage.setItem('admSeenGame', String(window._admLastGame)); } catch (e) {} }
     var np = (!seenP) ? 0 : ((d.purchases || {}).n_new || 0);
     var nr = (!seenR) ? 0 : ((d.regs || {}).n_new || 0);
+    var ng = (!hasG) ? 0 : ((d.games || {}).n_new || 0);
     admBadgeSet('tab-badge-purchases', np);
     admBadgeSet('tab-badge-regs', nr);
-    admBadgeSet('ws-badge', np + nr);
+    admBadgeSet('tab-badge-games', ng);
+    admBadgeSet('ws-badge', np + nr + ng);
   }).catch(function () {});
 }
 /* Тухайн цэсийг нээхэд тэглэнэ */
@@ -262,11 +268,15 @@ function admBadgeSeen(which) {
   } else if (which === 'regs') {
     try { if (window._admLastReg) localStorage.setItem('admSeenReg', window._admLastReg); } catch (e) {}
     admBadgeSet('tab-badge-regs', 0);
+  } else if (which === 'games') {
+    /* admBadges хараахан хариулаагүй бол (_admLastGame тодорхойгүй) "үзсэн"-ийг хөндөхгүй */
+    if (typeof window._admLastGame === 'number') { try { localStorage.setItem('admSeenGame', String(window._admLastGame)); } catch (e) {} }
+    admBadgeSet('tab-badge-games', 0);
   }
   /* Хажуугийн цэсний нийлбэрийг үлдсэн тэмдгүүдээс дахин бодно */
   function val(id){ var e=document.getElementById(id); if(!e||e.style.display==='none') return 0;
     return parseInt(String(e.textContent).replace(/[^0-9]/g,''),10)||0; }
-  admBadgeSet('ws-badge', val('tab-badge-purchases') + val('tab-badge-regs'));
+  admBadgeSet('ws-badge', val('tab-badge-purchases') + val('tab-badge-regs') + val('tab-badge-games'));
 }
 window.admBadges = admBadges; window.admBadgeSeen = admBadgeSeen;
 
@@ -278,7 +288,7 @@ function tlLock() {
   var l = document.getElementById('tl-lock'), b = document.getElementById('tl-body');
   if (l) l.style.display = 'block';
   if (b) { b.style.display = 'none'; }
-  ['tl-cards', 'tl-chart', 'tl-grade', 'tl-grants'].forEach(function (id) {
+  ['tl-cards', 'tl-chart', 'tl-grade', 'tl-games', 'tl-grants'].forEach(function (id) {
     var e = document.getElementById(id); if (e) e.innerHTML = '';
   });
   var p = document.getElementById('tl-pin'); if (p) p.value = '';
@@ -354,28 +364,35 @@ function tlQuick(k) {
 function tlRender(r) {
   var W = [['d1', 'Сүүлийн 1 хоног'], ['d7', 'Сүүлийн 7 хоног'], ['d30', 'Сүүлийн 1 сар'], ['all', 'Нийт']];
   if (r.range) W.unshift(['custom', r.range.from + ' — ' + r.range.to]);
+  /* Гурван сав (сервер давхардуулахгүй тоолно): ажлын хуудас · Premium/сургалт · тоглоом (game_purchases, төлсөн огноогоор) */
+  var gPrice = r.game_price ? (' (' + wsNum(r.game_price) + '₮)') : '';
+  function tlLine(color, label, b) {
+    b = b || {};
+    return '<div style="display:flex;justify-content:space-between;gap:8px;font-size:0.78rem;font-weight:700;padding:3px 0;">'
+      + '<span style="color:' + color + ';">' + label + '</span><span style="white-space:nowrap;">' + tlTug(b.sum)
+      + ' <span style="color:var(--muted);font-weight:600;">(' + (b.n || 0) + ')</span></span></div>';
+  }
   document.getElementById('tl-cards').innerHTML = W.map(function (w) {
-    var d = (r.win && r.win[w[0]]) || { ws: {}, game: {}, total: 0 };
+    var d = (r.win && r.win[w[0]]) || { ws: {}, prem: {}, games: {}, total: 0 };
     return '<div class="table-card" style="padding:14px 16px;">'
       + '<div style="font-size:0.72rem;color:var(--muted);font-weight:800;letter-spacing:.4px;">' + w[1] + '</div>'
       + '<div style="font-size:1.48rem;font-weight:900;margin:5px 0 2px;color:var(--text);">' + tlTug(d.total) + '</div>'
       + '<div style="font-size:0.72rem;color:var(--muted);font-weight:700;margin-bottom:9px;">нийт дүн</div>'
-      + '<div style="display:flex;justify-content:space-between;font-size:0.78rem;font-weight:700;padding:3px 0;">'
-      +   '<span style="color:#7B52EE;">Ажлын хуудас</span><span>' + tlTug(d.ws.sum) + ' <span style="color:var(--muted);font-weight:600;">(' + (d.ws.n || 0) + ')</span></span></div>'
-      + '<div style="display:flex;justify-content:space-between;font-size:0.78rem;font-weight:700;padding:3px 0;">'
-      +   '<span style="color:#22c55e;">Тоглоомын эрх</span><span>' + tlTug(d.game.sum) + ' <span style="color:var(--muted);font-weight:600;">(' + (d.game.n || 0) + ')</span></span></div>'
+      + tlLine('#7B52EE', 'Ажлын хуудас', d.ws)
+      + tlLine('#22c55e', 'Premium · сургалт', d.prem)
+      + tlLine('#0ea5e9', 'Тоглоом' + gPrice, d.games)
       + '</div>';
   }).join('');
 
   // Өдрийн багана график
   var rows = r.daily || [];
   var mx = 1;
-  rows.forEach(function (x) { mx = Math.max(mx, (x.ws | 0) + (x.game | 0)); });
+  rows.forEach(function (x) { mx = Math.max(mx, (x.ws | 0) + (x.prem | 0) + (x.games | 0)); });
   var W2 = Math.max(320, rows.length * 22), H = 150, pad = 20;
   var bw = rows.length ? (W2 - pad) / rows.length : 10;
   var bars = rows.map(function (x, i) {
     var X = pad + i * bw + 2, w = Math.max(3, bw - 5), y = H - 18, out = '';
-    [['ws', '#7B52EE'], ['game', '#22c55e']].forEach(function (c) {
+    [['ws', '#7B52EE'], ['prem', '#22c55e'], ['games', '#0ea5e9']].forEach(function (c) {
       var v = x[c[0]] | 0; if (!v) return;
       var h = Math.max(1, Math.round((H - 34) * v / mx));
       y -= h;
@@ -407,16 +424,36 @@ function tlRender(r) {
       }).join('') + '</table>'
     : '<div style="color:var(--muted);font-size:0.82rem;">Энэ хугацаанд худалдан авалт алга.</div>';
 
+  // Тоглоомоор (тоглоом × сайт) — game_purchases
+  var gt2 = document.getElementById('tl-games-ttl');
+  if (gt2) gt2.textContent = r.range ? ('Тоглоомоор · ' + r.range.from + ' — ' + r.range.to) : 'Тоглоомоор (30 хоног)';
+  var bg = r.byGame || [];
+  var tg = document.getElementById('tl-games');
+  if (tg) tg.innerHTML = bg.length
+    ? '<table style="width:100%;border-collapse:collapse;font-size:0.82rem;">'
+      + bg.map(function (x) {
+        return '<tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 0;"><div style="font-weight:700;">' + wsEsc(x.title || x.game_key) + '</div>'
+          + '<div style="font-size:0.7rem;color:var(--muted);font-weight:700;">' + (x.realm === 'cm' ? 'cyber-math.com' : 'Дасгалын төв') + '</div></td>'
+          + '<td style="text-align:right;color:var(--muted);font-weight:700;white-space:nowrap;">' + x.n + ' ш</td>'
+          + '<td style="text-align:right;font-weight:800;padding-left:10px;white-space:nowrap;">' + tlTug(x.s) + '</td></tr>';
+      }).join('') + '</table>'
+    : '<div style="color:var(--muted);font-size:0.82rem;">Энэ хугацаанд тоглоом худалдан аваагүй.</div>';
+
   // Админаас нээсэн эрх — бүртгэл. Мөнгөн дүн ЗОРИУД харуулахгүй.
   var gr = r.grants || [];
   document.getElementById('tl-grants').innerHTML = gr.length
     ? '<div style="font-size:0.74rem;color:var(--muted);font-weight:800;margin-bottom:6px;">' + gr.length + ' эрх</div>'
       + '<table style="width:100%;border-collapse:collapse;font-size:0.8rem;">'
       + gr.map(function (x) {
+        /* Тоглоомын олголт: «Тоглоом: Судоку · Дасгалын төв · 1 сар» (30-д хуваагдахгүй бол хоногоор) */
+        var what = x.game_key
+          ? ('Тоглоом: ' + wsEsc(x.game_title || x.game_key) + ' · ' + (x.realm === 'cm' ? 'cyber-math.com' : 'Дасгалын төв')
+             + ' · ' + (x.days && x.days % 30 ? (x.days + ' хоног') : ((x.days ? x.days / 30 : (x.months || 1)) + ' сар')))
+          : (wsEsc(x.grade || 'бүх анги') + ' · ' + (x.months || 1) + ' сар');
         return '<tr style="border-bottom:1px solid var(--border);">'
           + '<td style="padding:6px 0;"><div style="font-weight:700;">' + wsEsc(x.email) + '</div>'
-          +   '<div style="font-size:0.7rem;color:var(--muted);font-weight:700;">' + wsEsc(x.grade || 'бүх анги')
-          +   ' · ' + (x.months || 1) + ' сар' + (x.note ? (' · ' + wsEsc(x.note)) : '') + '</div></td>'
+          +   '<div style="font-size:0.7rem;color:var(--muted);font-weight:700;">' + what
+          +   (x.note ? (' · ' + wsEsc(x.note)) : '') + '</div></td>'
           + '<td style="text-align:right;font-size:0.72rem;color:var(--muted);font-weight:700;white-space:nowrap;vertical-align:top;padding-top:8px;">'
           +   wsDate(x.created_at).slice(0, 10) + '</td></tr>';
       }).join('') + '</table>'
@@ -535,6 +572,7 @@ window.loadWsSales = async function(){
   try{ var an=await wsPostW('getAnnounce',{}); var ai=document.getElementById('ws-announce'); if(ai)ai.value=(an&&an.announce)||''; }catch(e){}
   try{ var fb=await wsPostW('feedback_list',{}); renderWsFeedback((fb&&fb.feedback)||[]); }
   catch(e){ var fe=document.getElementById('ws-feedback-list'); if(fe)fe.innerHTML='<div style="color:#dc2626;padding:8px;">Алдаа: '+wsEsc(e.message)+'</div>'; }
+  try{ await gmLoad(); }catch(e){}   /* Тоглоом таб — алдааг gmLoad өөрөө харуулна */
 };
 window.saveAnnounce=async function(){
   var t=(document.getElementById('ws-announce').value||'').trim();
@@ -634,8 +672,8 @@ function admFoldInit(){
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',admFoldInit); else admFoldInit();
 
 /* ── Дасгалын төв удирдлага — хойшоо дэд цэс ── */
-var ADM_WS_TABS  = ['overview','regs','promo','pkg','grade','purchases','feedback'];
-var ADM_WS_FOLDS = ['feedback','promo','users','gradeusers','purchases'];
+var ADM_WS_TABS  = ['overview','regs','promo','pkg','grade','purchases','games','feedback'];
+var ADM_WS_FOLDS = ['feedback','promo','users','gradeusers','purchases','games','gamepurch'];
 function admWsTab(name){
   if(ADM_WS_TABS.indexOf(name)<0) name='overview';
   ADM_WS_TABS.forEach(function(t){
@@ -647,6 +685,8 @@ function admWsTab(name){
   });
   try{ localStorage.setItem('admWsTab', name); }catch(e){}
   if(name==='regs' && !window._regLoaded){ window._regLoaded=1; try{ regLoad(); }catch(e){} }
+  /* Тоглоом: нэвтэрсэн (токентой) үед л анх нээхэд ачаална; loadWsSales ч мөн ачаална */
+  if(name==='games' && !_gmData && !_gmSeq){ try{ if(localStorage.getItem('cm_admin_token')) gmLoad(); }catch(e){} }
   try{ admBadgeSeen(name); }catch(e){}
   try{ document.querySelectorAll('#page-wssales .fold').forEach(function(c){ admFoldSync(c); }); }catch(e){}
   admWsTabScroll();
@@ -672,6 +712,195 @@ function admWsTabInit(){
 }
 window.admWsTab=admWsTab; window.admWsTabInit=admWsTabInit;
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',admWsTabInit); else admWsTabInit();
+
+/* ── Тоглоом: эрхийн жагсаалт / олголт / цуцлалт (api/qpay.js game_list, game_grant, game_revoke) ──
+   Сайт тус бүрийн эрх тусдаа: ws = Дасгалын төв, cm = cyber-math.com.
+   Орлогын нийт дүн энд харагдахгүй — зөвхөн Тайлан цэст, 4 оронтой кодын цаана. */
+var GM_ST={q:'',game:'',realm:'',status:''}, _gmData=null, _gmSeq=0, _gmTmr=null;
+var GM_RL={ws:'Дасгалын төв',cm:'cyber-math.com'};
+function gmRealm(r){ return '<span class="gm-pill '+(r==='cm'?'cm':'ws')+'">'+(GM_RL[r]||wsEsc(r))+'</span>'; }
+function gmTitle(k){
+  var c=(_gmData&&_gmData.catalog)||[];
+  for(var i=0;i<c.length;i++){ if(c[i].key===k) return c[i].title; }
+  return k||'';
+}
+function gmLoad(){
+  var el=document.getElementById('gm-list'); if(!el) return Promise.resolve();
+  var my=++_gmSeq;   /* шүүлтүүр хурдан солигдвол зөвхөн сүүлийн хариуг зурна */
+  return wsPost('game_list',{q:GM_ST.q,game:GM_ST.game,realm:GM_ST.realm,status:GM_ST.status}).then(function(d){
+    if(my!==_gmSeq) return;
+    if(!d||!d.ok) throw new Error((d&&d.error)||'Алдаа');
+    _gmData=d; gmRender(d);
+  }).catch(function(e){
+    if(my!==_gmSeq) return;
+    el.innerHTML='<div style="color:#dc2626;padding:10px;">Алдаа: '+wsEsc(e.message)+'</div>';
+  });
+}
+function gmFillSelects(cat){
+  [['gm-g-game','Тоглоом сонгох…'],['gm-f-game','Бүх тоглоом']].forEach(function(s){
+    var el=document.getElementById(s[0]); if(!el||el.getAttribute('data-filled')||!cat.length) return;
+    el.innerHTML='<option value="">'+s[1]+'</option>'+cat.map(function(g){
+      return '<option value="'+wsEsc(g.key)+'">'+wsEsc(g.title)+(g.multi?' · олон тоглогч':'')+'</option>';
+    }).join('');
+    el.setAttribute('data-filled','1');
+    if(s[0]==='gm-f-game') el.value=GM_ST.game;
+  });
+}
+function gmChips(){
+  var el=document.getElementById('gm-chips'); if(!el) return;
+  function chip(k,v,label){ return '<button type="button" class="gm-chip'+(GM_ST[k]===v?' on':'')+'" data-k="'+k+'" data-v="'+v+'">'+label+'</button>'; }
+  el.innerHTML=chip('realm','','Бүх сайт')+chip('realm','ws','Дасгалын төв')+chip('realm','cm','cyber-math.com')
+    +'<span style="flex:0 0 1px;align-self:stretch;background:var(--border);margin:0 4px;"></span>'
+    +chip('status','','Бүгд')+chip('status','active','Идэвхтэй')+chip('status','expired','Дууссан');
+}
+function gmSetFilter(k,v){
+  if(!(k in GM_ST)) return;
+  GM_ST[k]=v||'';
+  if(k==='game'){ var s=document.getElementById('gm-f-game'); if(s) s.value=GM_ST.game; }
+  gmChips(); gmLoad();
+}
+function gmRender(d){
+  gmFillSelects(d.catalog||[]);
+  gmChips();
+  var muted='color:var(--muted);font-size:0.82rem;padding:10px;';
+  // Төлбөрийн төлөв
+  var st=document.getElementById('gm-status');
+  if(st) st.innerHTML=d.paywall
+    ? '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:0.8rem;font-weight:700;color:var(--muted);">'
+      +'<span class="gm-pill" style="background:#dcfce7;color:#16a34a;">Төлбөр асаалттай</span>'
+      +'<span>1 тоглоом · '+wsNum(d.price||0)+'₮ / '+(d.days||30)+' хоног · cyber-math.com-ийн Premium хэрэглэгчдэд бүх тоглоом үнэгүй</span></div>'
+    : '<div style="border-left:3px solid #A855F7;padding:8px 12px;font-size:0.8rem;font-weight:700;color:var(--text);">'
+      +'Төлбөр унтраалттай (GAME_PAYWALL=off) — бүх тоглоом үнэгүй нээлттэй. Худалдан авалт, олголт бүртгэгдсээр байна.</div>';
+  // Тоглоом тус бүрийн хураангуй (идэвхтэй эрх, худалдан авалтын тоо — мөнгөн дүнгүй)
+  var by=(d.by_game||[]).filter(function(g){ return g.active||g.sales; });
+  var sum=document.getElementById('gm-summary');
+  if(sum) sum.innerHTML='<div style="font-size:0.78rem;color:var(--muted);font-weight:700;margin-bottom:8px;">Нийт '+wsNum(d.total||0)+' эрх · идэвхтэй '+wsNum(d.active||0)+'</div>'
+    +(by.length
+      ? '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(170px,100%),1fr));gap:8px;">'+by.map(function(g){
+          var on=(GM_ST.game===g.key);
+          return '<div class="table-card gm-sum" role="button" tabindex="0" data-game="'+wsEsc(g.key)+'" title="Энэ тоглоомоор шүүх" style="padding:10px 12px;cursor:pointer;min-width:0;'
+            +(on?'border-color:#7B52EE;box-shadow:0 0 0 1px #7B52EE inset;':'')+'">'
+            +'<div style="font-weight:900;font-size:0.86rem;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+wsEsc(g.title)+'</div>'
+            +'<div style="font-size:0.74rem;color:var(--muted);font-weight:700;margin-top:3px;">идэвхтэй '+wsNum(g.active||0)
+            +' <span style="opacity:.8;">(ДТ '+wsNum(g.active_ws||0)+' · CM '+wsNum(g.active_cm||0)+')</span></div>'
+            +'<div style="font-size:0.74rem;color:var(--muted);font-weight:700;">'+wsNum(g.sales||0)+' худалдан авалт</div></div>';
+        }).join('')+'</div>'
+      : '<div style="'+muted+'padding-left:0;">Одоогоор тоглоомын эрх алга.</div>');
+  // Эрхийн хүснэгт
+  var el=document.getElementById('gm-list');
+  var list=d.rows||[], filtered=!!(GM_ST.q||GM_ST.game||GM_ST.realm||GM_ST.status);
+  if(el){
+    if(!list.length){ el.innerHTML='<div style="'+muted+'">'+(filtered?'Илэрц олдсонгүй.':'Тоглоомын эрх хараахан алга.')+'</div>'; }
+    else el.innerHTML='<div style="font-size:0.76rem;color:var(--muted);font-weight:700;margin-bottom:8px;">'+(filtered?'Олдсон ':'Сүүлд шинэчлэгдсэн ')+wsNum(d.shown||list.length)+' мөр</div>'
+      +'<div style="overflow-x:auto;"><table class="gm-tbl"><thead><tr><th>И-мэйл</th><th>Сайт</th><th>Тоглоом</th><th>Дуусах</th><th class="r">Төлсөн</th><th>Төлөв</th><th class="r">Үйлдэл</th></tr></thead><tbody>'
+      +list.map(function(u){
+        var stt=u.active
+          ?'<span class="gm-pill" style="background:#dcfce7;color:#16a34a;">Идэвхтэй</span>'
+          :'<span class="gm-pill" style="background:var(--surface2);color:var(--muted);">Дууссан</span>';
+        var paid=(u.paid_count>0)
+          ?'<span style="font-weight:800;">'+wsNum(u.paid_sum)+'₮</span>'+(u.paid_count>1?'<div style="font-size:0.7rem;color:var(--muted);">'+wsNum(u.paid_count)+' удаа</div>':'')
+          :'<span style="color:var(--muted);font-size:0.78rem;">Админ олгосон</span>';
+        return '<tr>'
+          +'<td style="font-weight:700;word-break:break-all;min-width:140px;">'+wsEsc(u.email)+'</td>'
+          +'<td>'+gmRealm(u.realm)+'</td>'
+          +'<td style="font-weight:700;">'+wsEsc(gmTitle(u.game_key))+'</td>'
+          +'<td class="dim">'+wsDate(u.expires_at)+'</td>'
+          +'<td class="r" style="white-space:nowrap;">'+paid+'</td>'
+          +'<td>'+stt+'</td>'
+          +'<td class="r"><button type="button" class="gm-revoke" data-realm="'+wsEsc(u.realm)+'" data-email="'+wsEsc(u.email)+'" data-game="'+wsEsc(u.game_key)+'">Цуцлах</button></td>'
+          +'</tr>';
+      }).join('')+'</tbody></table></div>';
+  }
+  // Сүүлийн худалдан авалт
+  var gp=document.getElementById('gm-purch'), pu=d.purchases||[];
+  if(gp) gp.innerHTML=pu.length
+    ? '<div style="overflow-x:auto;"><table class="gm-tbl"><thead><tr><th>Огноо</th><th>И-мэйл</th><th>Сайт</th><th>Тоглоом</th><th>Дуусах</th><th class="r">Дүн</th></tr></thead><tbody>'
+      +pu.map(function(p){
+        return '<tr><td class="dim">'+wsDate(p.created_at)+'</td>'
+          +'<td style="font-weight:700;word-break:break-all;min-width:140px;">'+wsEsc(p.email)+'</td>'
+          +'<td>'+gmRealm(p.realm)+'</td>'
+          +'<td style="font-weight:700;">'+wsEsc(gmTitle(p.game_key))+'</td>'
+          +'<td class="dim">'+wsDate(p.expires_at).slice(0,10)+'</td>'
+          +'<td class="r" style="font-weight:800;white-space:nowrap;">'+wsNum(p.amount||0)+'₮</td></tr>';
+      }).join('')+'</tbody></table></div>'
+    : '<div style="'+muted+'">Тоглоомын худалдан авалт хараахан алга.</div>';
+  // Төлөгдөөгүй нэхэмжлэх (30 хоног)
+  var pd=document.getElementById('gm-pend'), pe=d.pending||[];
+  if(pd) pd.innerHTML=pe.length
+    ? '<details style="margin-bottom:16px;border:1px solid var(--border);border-radius:10px;padding:8px 12px;background:var(--surface);">'
+      +'<summary style="cursor:pointer;font-weight:800;font-size:0.8rem;color:var(--muted);">Төлөгдөөгүй тоглоомын нэхэмжлэх — сүүлийн 30 хоног ('+wsNum(pe.length)+')</summary>'
+      +'<div style="font-size:0.74rem;color:var(--muted);margin:6px 0 8px;">QPay-ээр төлсөн атлаа тоглоом нь нээгдээгүй гэж хэрэглэгч хандвал дээрх «Төлбөр тулгах» товчийг дарна уу — төлсөн нь автоматаар олгогдоно.</div>'
+      +'<div style="overflow-x:auto;"><table class="gm-tbl" style="font-size:0.8rem;"><thead><tr><th>Огноо</th><th>И-мэйл</th><th>Сайт</th><th>Тоглоом</th><th class="r">Дүн</th></tr></thead><tbody>'
+      +pe.map(function(p){
+        return '<tr><td class="dim">'+wsDate(p.created_at)+'</td><td style="word-break:break-all;">'+wsEsc(p.email)+'</td>'
+          +'<td>'+gmRealm(p.realm)+'</td><td>'+wsEsc(gmTitle(p.game_key))+'</td>'
+          +'<td class="r">'+wsNum(p.amount||0)+'₮</td></tr>';
+      }).join('')+'</tbody></table></div></details>'
+    : '';
+}
+window.gmGrant=function(){
+  var em=(document.getElementById('gm-g-email').value||'').trim().toLowerCase();
+  var realm=document.getElementById('gm-g-realm').value;
+  var game=document.getElementById('gm-g-game').value;
+  var dur=document.getElementById('gm-g-dur').value;
+  var note=(document.getElementById('gm-g-note').value||'').trim();
+  var msg=document.getElementById('gm-g-msg'), btn=document.getElementById('gm-g-btn');
+  function say(ok,t){ msg.style.color=ok===null?'var(--muted)':(ok?'#16a34a':'#dc2626'); msg.textContent=t; }
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)){ say(false,'Зөв имэйл оруулна уу'); return; }
+  if(!game){ say(false,'Тоглоом сонгоно уу'); return; }
+  var body={realm:realm,email:em,game:game,note:note};
+  if(dur==='d7') body.days=7; else body.months=parseInt(dur,10)||1;
+  say(null,'Олгож байна…'); btn.disabled=true;
+  wsPost('game_grant',body).then(function(d){
+    if(d&&d.ok){
+      say(true,'Олголоо: '+(d.title||gmTitle(game))+' · '+(GM_RL[d.realm]||d.realm)+' · '+wsDate(d.expires_at).slice(0,10)+' хүртэл');
+      document.getElementById('gm-g-email').value=''; document.getElementById('gm-g-note').value='';
+      gmLoad();
+    } else say(false,(d&&d.error)||'Олгож чадсангүй');
+  }).catch(function(e){ say(false,'Алдаа: '+e.message); }).then(function(){ btn.disabled=false; });
+};
+window.gmRevoke=function(realm,email,game){
+  if(!confirm('"'+email+'" ('+(GM_RL[realm]||realm)+') хэрэглэгчийн «'+gmTitle(game)+'» эрхийг цуцлах уу?\n\nШинээр нээх, урилга шууд хаагдана. Аль хэдийн нээсэн тоглоом 2 цаг хүртэл үргэлжилж болно.'))return;
+  wsPost('game_revoke',{realm:realm,email:email,game:game}).then(function(d){
+    if(!d||!d.ok){ alert('Алдаа: '+((d&&d.error)||'цуцалж чадсангүй')); return; }
+    if(d.premium) alert('Цуцаллаа. Анхаар: энэ хэрэглэгч cyber-math.com-ийн идэвхтэй Premium тул бүх тоглоом үнэгүй хэвээр байна.');
+    gmLoad();
+  }).catch(function(e){ alert('Алдаа: '+e.message); });
+};
+window.gmReconcile=function(){
+  var b=document.getElementById('gm-rec-btn'), m=document.getElementById('gm-rec-msg');
+  b.disabled=true; m.style.color='var(--muted)'; m.textContent='Тулгаж байна…';
+  wsPost('ws_reconcile',{}).then(function(d){
+    if(d&&d.ok){
+      var g=(d.granted||[]).filter(function(x){ return x.plan==='game'; });
+      m.style.color='#16a34a'; m.textContent='Шалгасан: '+d.checked+' · нөхөж олгосон: '+d.granted_count+(g.length?(' (тоглоом '+g.length+')'):'')
+        +(d.ledger_healed?(' · дутсан бүртгэл нөхсөн: '+d.ledger_healed):'');
+      gmLoad();
+    } else { m.style.color='#dc2626'; m.textContent='Алдаа: '+((d&&d.error)||''); }
+  }).catch(function(e){ m.style.color='#dc2626'; m.textContent='Алдаа: '+e.message; }).then(function(){ b.disabled=false; });
+};
+window.gmLoad=gmLoad; window.gmSetFilter=gmSetFilter;
+/* Цуцлах / шүүлтүүрийн chip / хураангуйн карт — data атрибутаас уншина (онцгой тэмдэгттэй имэйлд ч аюулгүй) */
+document.addEventListener('click',function(e){
+  var t=e.target; if(!t||!t.closest) return;
+  var rv=t.closest('.gm-revoke'); if(rv){ gmRevoke(rv.getAttribute('data-realm'),rv.getAttribute('data-email'),rv.getAttribute('data-game')); return; }
+  var ch=t.closest('.gm-chip'); if(ch){ gmSetFilter(ch.getAttribute('data-k'),ch.getAttribute('data-v')); return; }
+  var sm=t.closest('.gm-sum'); if(sm){
+    var k=sm.getAttribute('data-game');
+    gmSetFilter('game', GM_ST.game===k ? '' : k);
+    var fc=document.querySelector('#wstab-games .fold[data-fold="games"]');
+    if(fc && !fc.classList.contains('fold-open')){ var h=fc.querySelector('.fold-head'); if(h) admFoldToggle(h); }
+  }
+});
+document.addEventListener('keydown',function(e){
+  if((e.key==='Enter'||e.key===' ') && e.target && e.target.classList && e.target.classList.contains('gm-sum')){ e.preventDefault(); e.target.click(); }
+});
+/* Бичиж байхад автоматаар хайна */
+document.addEventListener('input',function(e){
+  if(!e.target||e.target.id!=='gm-q') return;
+  var v=e.target.value;
+  clearTimeout(_gmTmr); _gmTmr=setTimeout(function(){ GM_ST.q=(v||'').trim(); gmLoad(); },350);
+});
 
 function renderWsUsers(d){
   var el=document.getElementById('ws-users-list'); if(!el)return;
@@ -1996,6 +2225,30 @@ body { font-family:'Baloo 2',sans-serif; background:var(--bg); color:var(--text)
   .ws-tabs { border-radius:12px; padding:3px; }
   .ws-tab { padding:8px 12px; font-size:0.8rem; gap:6px; }
 }
+/* ── Тоглоом (Дасгалын төв удирдлага › Тоглоом) ── */
+.gm-form { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.gm-form input, .gm-form select { padding:8px 12px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--text); font-size:0.85rem; font-family:inherit; box-sizing:border-box; min-width:0; }
+.gm-form select { flex:1 1 140px; font-weight:700; }
+.gm-form .gm-email { flex:2 1 200px; }
+.gm-form .gm-note { flex:2 1 170px; }
+.gm-btn { flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center; gap:6px; background:linear-gradient(135deg,#0ea5e9,#7B52EE); border:0; color:#fff; border-radius:8px; padding:9px 16px; cursor:pointer; font-weight:800; font-size:0.85rem; font-family:inherit; }
+.gm-btn:disabled { opacity:.6; cursor:default; }
+.gm-chip { border:1px solid var(--border); background:var(--surface); color:var(--text); border-radius:999px; padding:4px 12px; cursor:pointer; font-weight:800; font-size:0.78rem; font-family:inherit; }
+.gm-chip.on { border-color:#7B52EE; background:#ede9fe; color:#6d28d9; }
+.gm-pill { display:inline-block; border-radius:100px; padding:2px 9px; font-weight:800; font-size:0.72rem; white-space:nowrap; }
+.gm-pill.ws { background:#ede9fe; color:#6d28d9; }
+.gm-pill.cm { background:#e0f2fe; color:#0369a1; }
+.gm-tbl { width:100%; border-collapse:collapse; font-size:0.85rem; }
+.gm-tbl th { text-align:left; padding:8px; white-space:nowrap; }
+.gm-tbl td { padding:8px; border-top:1px solid var(--border); vertical-align:middle; }
+.gm-tbl .r { text-align:right; }
+.gm-tbl .dim { color:var(--muted); white-space:nowrap; }
+.gm-revoke { background:rgba(220,38,38,.12); border:1px solid rgba(220,38,38,.3); color:#dc2626; border-radius:6px; padding:4px 10px; cursor:pointer; font-weight:700; font-family:inherit; }
+@media (max-width:640px){
+  .gm-form > * { flex:1 1 100% !important; }
+  .gm-tbl { font-size:0.8rem; }
+  .gm-tbl th, .gm-tbl td { padding:6px; }
+}
 
 /* ── САНАЛ ХҮСЭЛТ ── */
 .fb-item { border:1px solid var(--border); border-left:4px solid var(--border); border-radius:14px; margin-bottom:10px; background:var(--surface); overflow:hidden; transition:border-color .15s, box-shadow .15s; }
@@ -3099,6 +3352,7 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
           <button type="button" class="ws-tab" data-wstab="pkg" role="tab" onclick="admWsTab('pkg')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Багцаар</button>
           <button type="button" class="ws-tab" data-wstab="grade" role="tab" onclick="admWsTab('grade')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10.5 12 6 3 10.5l9 4.5 9-4.5Z"/><path d="M7 12.5V17c0 .9 2.2 2 5 2s5-1.1 5-2v-4.5"/></svg>Анги ангиар</button>
           <button type="button" class="ws-tab" data-wstab="purchases" role="tab" onclick="admWsTab('purchases')"><span id="tab-badge-purchases" style="display:none;margin-left:auto;background:#16a34a;color:#fff;border-radius:100px;padding:2px 8px;font-size:0.64rem;font-weight:900;min-width:16px;text-align:center;display:none;margin-left:0;"></span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/></svg>Худалдан авалт</button>
+          <button type="button" class="ws-tab" data-wstab="games" role="tab" onclick="admWsTab('games')"><span id="tab-badge-games" style="display:none;margin-left:auto;background:#16a34a;color:#fff;border-radius:100px;padding:2px 8px;font-size:0.64rem;font-weight:900;min-width:16px;text-align:center;display:none;margin-left:0;"></span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 11h4M8 9v4"/><path d="M15 12h.01M18 10h.01"/><path d="M17.3 5H6.7a4 4 0 0 0-4 3.6C2.6 9.4 2 14.5 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.4-1.4A2 2 0 0 1 9.8 16h4.4a2 2 0 0 1 1.4.6L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.5-.6-6.6-.7-7.3A4 4 0 0 0 17.3 5z"/></svg>Тоглоом</button>
           <button type="button" class="ws-tab" data-wstab="feedback" role="tab" onclick="admWsTab('feedback')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Санал хүсэлт</button>
         </div>
 
@@ -3230,6 +3484,57 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
           </div>
           <div id="ws-purchase-list" class="fold-body"></div>
         </div>
+        </div>
+
+        <div class="ws-tabpane" id="wstab-games" role="tabpanel">
+        <!-- Тоглоом: төлбөрийн төлөв + гараар олгох + эрхийн жагсаалт (api/qpay.js game_list/game_grant/game_revoke) -->
+        <div id="gm-status" style="margin-bottom:12px;"></div>
+        <div class="table-card" style="padding:14px 16px;margin-bottom:16px;">
+          <div class="table-title" style="margin-bottom:4px;display:flex;align-items:center;gap:7px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.75;flex:0 0 auto;"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Тоглоомын эрх олгох</div>
+          <div style="font-size:0.74rem;color:var(--muted);font-weight:700;margin-bottom:10px;">Мөнгөгүй бүртгэл — орлогод тооцохгүй. Хугацаа дуусаагүй бол үлдсэн хоног дээр нэмэгдэнэ. Имэйл тухайн сайтад бүртгэлтэй байх ёстой.</div>
+          <div class="gm-form">
+            <input id="gm-g-email" class="gm-email" type="email" placeholder="Имэйл хаяг" autocomplete="off" onkeydown="if(event.key==='Enter')gmGrant()">
+            <select id="gm-g-realm" title="Аль сайтын эрх"><option value="ws">Дасгалын төв</option><option value="cm">cyber-math.com</option></select>
+            <select id="gm-g-game" title="Тоглоом"><option value="">Тоглоом сонгох…</option></select>
+            <select id="gm-g-dur" title="Хугацаа"><option value="d7">7 хоног</option><option value="1" selected>1 сар</option><option value="2">2 сар</option><option value="3">3 сар</option><option value="6">6 сар</option><option value="12">1 жил</option></select>
+            <input id="gm-g-note" class="gm-note" type="text" maxlength="200" placeholder="Тэмдэглэл (заавал биш)" onkeydown="if(event.key==='Enter')gmGrant()">
+            <button type="button" id="gm-g-btn" class="gm-btn" onclick="gmGrant()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Олгох</button>
+          </div>
+          <div id="gm-g-msg" style="margin-top:8px;font-size:0.8rem;font-weight:700;min-height:16px;"></div>
+        </div>
+        <div id="gm-summary" style="margin-bottom:16px;"></div>
+        <!-- Эрхийн жагсаалт -->
+        <div class="table-card fold" data-fold="games" style="padding:14px 16px;margin-bottom:16px;">
+          <div class="table-header fold-head" onclick="admFoldToggle(this)" style="margin-bottom:12px;display:flex;gap:8px;align-items:center;">
+            <svg class="fold-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+            <div class="table-title" style="flex:1;min-width:0;">Тоглоомын эрх <span style="font-size:0.72rem;color:var(--muted);font-weight:700;">(худалдан авсан ба олгосон)</span></div>
+            <span class="fold-count"></span>
+            <button type="button" onclick="event.stopPropagation();gmLoad()" title="Шинэчлэх" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 10px;cursor:pointer;font-weight:700;display:inline-flex;align-items:center;gap:5px;font-family:inherit;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"/><path d="M21 3v5h-5"/></svg>Шинэчлэх</button>
+          </div>
+          <div class="fold-body">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
+              <div style="position:relative;flex:2 1 200px;min-width:0;">
+                <svg style="position:absolute;left:11px;top:50%;transform:translateY(-50%);pointer-events:none;" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+                <input id="gm-q" type="search" placeholder="Имэйлээр хайх…" autocomplete="off" style="width:100%;padding:9px 12px 9px 33px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-weight:700;outline:none;box-sizing:border-box;">
+              </div>
+              <select id="gm-f-game" onchange="gmSetFilter('game',this.value)" style="flex:1 1 150px;min-width:0;padding:9px 10px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-weight:700;box-sizing:border-box;"><option value="">Бүх тоглоом</option></select>
+            </div>
+            <div id="gm-chips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;"></div>
+            <div id="gm-list"><div style="color:var(--muted);padding:10px;">Ачааллаж байна…</div></div>
+          </div>
+        </div>
+        <!-- Тоглоомын худалдан авалт (сүүлийн 100) -->
+        <div class="table-card fold" data-fold="gamepurch" style="padding:14px 16px;margin-bottom:16px;">
+          <div class="table-header fold-head" onclick="admFoldToggle(this)" style="margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <svg class="fold-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+            <div class="table-title" style="flex:1;min-width:0;">Тоглоомын худалдан авалт <span style="font-size:0.72rem;color:var(--muted);font-weight:700;">(сүүлийн 100)</span></div>
+            <span class="fold-count"></span>
+            <button type="button" id="gm-rec-btn" onclick="event.stopPropagation();gmReconcile()" title="Төлсөн атлаа олгогдоогүй төлбөрийг QPay-тэй тулгаж нөхөж олгоно" style="background:linear-gradient(135deg,#0ea5e9,#1d6c8c);border:0;color:#fff;border-radius:8px;padding:7px 14px;cursor:pointer;font-weight:800;font-size:0.82rem;font-family:inherit;">Төлбөр тулгах</button>
+            <span id="gm-rec-msg" style="font-size:0.8rem;font-weight:700;"></span>
+          </div>
+          <div id="gm-purch" class="fold-body"></div>
+        </div>
+        <div id="gm-pend"></div>
         </div>
 
         <div class="ws-tabpane" id="wstab-feedback" role="tabpanel">
@@ -3398,13 +3703,18 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
             <div id="tl-chart"></div>
             <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:0.74rem;font-weight:700;color:var(--muted);">
               <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#7B52EE;margin-right:5px;"></span>Ажлын хуудас</span>
-              <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#22c55e;margin-right:5px;"></span>Тоглоомын эрх</span>
+              <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#22c55e;margin-right:5px;"></span>Premium · сургалт</span>
+              <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#0ea5e9;margin-right:5px;"></span>Тоглоом</span>
             </div>
           </div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:14px;">
             <div class="table-card" style="padding:14px 16px;">
               <div class="table-title" style="margin-bottom:8px;" id="tl-grade-ttl">Ангиар</div>
               <div id="tl-grade"></div>
+            </div>
+            <div class="table-card" style="padding:14px 16px;">
+              <div class="table-title" style="margin-bottom:8px;" id="tl-games-ttl">Тоглоомоор</div>
+              <div id="tl-games"></div>
             </div>
             <div class="table-card" style="padding:14px 16px;">
               <div class="table-title" style="margin-bottom:3px;">Админаас нээсэн эрх</div>

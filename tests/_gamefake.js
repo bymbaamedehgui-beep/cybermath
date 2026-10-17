@@ -56,6 +56,14 @@ function lc(e) { return String(e == null ? '' : e).toLowerCase(); }
 function pick(row, cols) { const o = {}; cols.split(',').map(s => s.trim()).forEach(c => { o[c] = row[c] === undefined ? null : row[c]; }); return o; }
 function akey(r, e, k) { return r + '|' + e + '|' + k; }
 function dbErr(msg, code) { const e = new Error(msg); e.code = code || '57P01'; return e; }
+// api/qpay.js HEAL_GAME_LEDGER_SQL (хоосон зай нормчилсон) — өөрчлөгдвөл энд ч шинэчилнэ (танихгүй SQL → тест унана)
+const HEAL_SQL = "INSERT INTO game_purchases (invoice_id, realm, email, game_key, amount, days, expires_at, created_at) " +
+  "SELECT p.invoice_id, p.realm, LOWER(TRIM(p.email)), p.game_key, COALESCE(p.amount, 0), " +
+  "$2::int * GREATEST(1, LEAST(12, COALESCE(p.months, 1))), a.expires_at, COALESCE(p.created_at, NOW()) " +
+  "FROM pay_pending p LEFT JOIN game_access a ON a.realm = p.realm AND a.email = LOWER(TRIM(p.email)) AND a.game_key = p.game_key " +
+  "WHERE p.plan = 'game' AND p.granted = TRUE AND p.realm IN ('ws', 'cm') AND p.game_key = ANY($1::text[]) " +
+  "AND NOT EXISTS (SELECT 1 FROM game_purchases g WHERE g.invoice_id = p.invoice_id) " +
+  "ON CONFLICT (invoice_id) DO NOTHING RETURNING invoice_id";
 const STRICT = /\b(pay_pending|ws_pending|game_access|game_purchases|users|rate_limits|ws_events|ws_event_regs|ws_devices|ws_device_ips|ws_device_blocks|ws_device_swaps|game_ticket_used|game_invites)\b/;
 function dkey(e, d) { return e + '|' + d; }
 
@@ -213,6 +221,25 @@ async function query(sql, p, tx) {
     const row = { id: db.nextId++, invoice_id: p[0], realm: p[1], email: p[2], game_key: p[3], amount: p[4], days: p[5], expires_at: p[6], created_at: new Date() };
     db.purch.push(row); undo(function () { const i = db.purch.indexOf(row); if (i >= 0) db.purch.splice(i, 1); });
     return { rows: [{ id: row.id }] };
+  }
+  // api/qpay.js healGameLedger: эрх олгогдсон (granted) тоглоомын pay_pending мөрөөс бүртгэл дутсаныг нөхнө (нэг statement)
+  if (q === HEAL_SQL) {
+    if (db.failLedger) throw dbErr('ledger failed');
+    const keys = Array.isArray(p[0]) ? p[0].map(String) : [];
+    const out = [];
+    Array.from(db.pay.values()).forEach(function (r) {
+      if (r.plan !== 'game' || r.granted !== true || ['ws', 'cm'].indexOf(r.realm) < 0 || keys.indexOf(r.game_key) < 0) return;
+      if (db.purch.some(function (x) { return x.invoice_id === r.invoice_id; })) return;
+      const em = lc(String(r.email).trim());
+      const a = db.access.get(akey(r.realm, em, r.game_key));
+      const months = Math.max(1, Math.min(12, r.months == null ? 1 : Number(r.months)));
+      const row = { id: db.nextId++, invoice_id: r.invoice_id, realm: r.realm, email: em, game_key: r.game_key,
+        amount: r.amount == null ? 0 : r.amount, days: Number(p[1]) * months, expires_at: a ? a.expires_at : null,
+        created_at: r.created_at == null ? new Date() : new Date(r.created_at) };
+      db.purch.push(row); undo(function () { const i = db.purch.indexOf(row); if (i >= 0) db.purch.splice(i, 1); });
+      out.push({ invoice_id: r.invoice_id });
+    });
+    return { rows: out };
   }
 
   // Транзакц дотор зөвхөн дээрх (undo-тэй) өөрчлөлт зөвшөөрнө — бусад өөрчлөх SQL-ийг буцааж чадахгүй
