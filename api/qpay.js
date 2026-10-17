@@ -1489,6 +1489,9 @@ module.exports = async (req, res) => {
         ok: true, enabled: true, active: active,
         scope: allActive ? 'all' : (gradeHit ? 'grade' : null),
         email: active ? email : null,
+        // Токен хүчинтэй + төхөөрөмж зөвшөөрөгдсөн данс (эрхгүй ч, ж: зөвхөн тоглоом авсан) — Дасгалын төвийн толгойн
+        // «Нэвтэрсэн» төлөвт л. Эрх олгохгүй, ws_token буцаахгүй (active-аас хамаарна).
+        account: email,
         expires_at: allActive ? r.rows[0].expires_at : (gradeHit ? (owned.filter(function (x) { return x.grade === gradeHit; })[0] || {}).expires_at : null),
         grades: owned,
         ws_token: active ? wsToken(email) : null }, gradePrices));
