@@ -164,6 +164,9 @@ const WS_ENTITLED_SQL = [
   'SELECT 1 FROM ws_purchases WHERE LOWER(email)=$1 LIMIT 1',
   'SELECT 1 FROM ws_pending WHERE LOWER(email)=$1 AND granted LIMIT 1',
   'SELECT 1 FROM ws_event_regs WHERE LOWER(email)=$1 AND paid LIMIT 1',
+  // Дасгалын төвийн тоглоомын эрх/худалдан авалт (api/_games.js, realm 'ws') — тоглоом авсан дансыг ч SMS-ээр булаахгүй
+  "SELECT 1 FROM game_access WHERE realm='ws' AND LOWER(email)=$1 LIMIT 1",
+  "SELECT 1 FROM game_purchases WHERE realm='ws' AND LOWER(email)=$1 LIMIT 1",
 ];
 async function wsEntitled(email) {
   for (const q of WS_ENTITLED_SQL) {
