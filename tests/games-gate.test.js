@@ -700,10 +700,19 @@ test('деплойн бэлэн байдал: GAME_PAYWALL тавиагүй → 
     const cat = await F.call(games, { method: 'GET', query: { action: 'catalog' } });
     assert.strictEqual(cat.body.enabled, GM.PAYWALL_DEFAULT_ON, 'каталог (клиент UI) gate-тэй ижил төлөв');
     if (!GM.PAYWALL_DEFAULT_ON) {
-      // одоогийн launch (нэвтрэлтгүй) → тасалбаргүй url → маршрут → файл
-      const L = await F.call(games, { query: { action: 'launch' }, body: { game: 'play2048', realm: 'ws' } });
+      // cyber-math.com (cm) — одоогийн launch (нэвтрэлтгүй) → тасалбаргүй url → маршрут → файл
+      const L = await F.call(games, { query: { action: 'launch' }, body: { game: 'play2048', realm: 'cm' } });
       assert.deepStrictEqual([L.statusCode, L.body.via, L.body.url], [200, 'off', '/play2048.html']);
       assert.strictEqual((await rawGet(base + L.body.url)).status, 200);
+      const cc = await F.call(games, { method: 'GET', query: { action: 'catalog', realm: 'cm' } });
+      assert.strictEqual(cc.body.enabled, false, 'cm каталог — үнэгүй (хуучин шигээ)');
+      // Эхний ээлж: Дасгалын төв (ws) төлбөртэй — gate нээлттэй хэвээр (cm-ийн шууд URL-ууд эвдрэхгүй)
+      const wsOn = GM.WS_PAYWALL_DEFAULT_ON;
+      const wc = await F.call(games, { method: 'GET', query: { action: 'catalog', realm: 'ws' } });
+      assert.strictEqual(wc.body.enabled, wsOn, 'ws каталог');
+      const LW = await F.call(games, { query: { action: 'launch' }, body: { game: 'play2048', realm: 'ws' } });
+      if (wsOn) assert.deepStrictEqual([LW.statusCode, LW.body.needLogin, LW.body.url], [401, true, undefined], 'ws: нэвтрэлт/эрх шаардана');
+      else assert.deepStrictEqual([LW.statusCode, LW.body.via], [200, 'off']);
     }
     const v = await VER.verify(base, { expect: GM.PAYWALL_DEFAULT_ON ? 'on' : 'off' });
     assert.deepStrictEqual(v.results.filter((x) => !x.ok), [], 'verify-game-gate --expect ' + (GM.PAYWALL_DEFAULT_ON ? 'on' : 'off'));

@@ -3,12 +3,14 @@
 // 'cm' = cyber-math.com (Authorization: Bearer cm_token, tv шалгана). Нэг realm-ийн токен нөгөөд хүчингүй.
 // Энэ endpoint эрх ОЛГОХГҮЙ — зөвхөн уншиж, тасалбар/урилга гаргана (олголт: api/qpay.js settlePay + админ).
 //
-//   GET  ?action=catalog                       (нийтийн) → { ok, enabled, price, days, invite_hours, games:[{key,title,kind,multi}] }
+//   GET  ?action=catalog[&realm=ws|cm]         (нийтийн) → { ok, enabled, realm?, price, days, invite_hours, games:[{key,title,kind,multi}] }
+//                                              (enabled = GM.paywallOn(realm); realm байхгүй бол gate-ийн төлөв)
 //   POST ?action=status  {realm, wstoken?}     → { ok, enabled, realm, email, premium, price, days, games:{key: expires_at} }
 //   POST ?action=launch  {game, realm, wstoken?, invite?}   (+ x-device-id толгой — урилгаар нэгдэхэд төхөөрөмж уяна)
 //        Дараалал: Bearer admin → нэвтэрсэн бөгөөд өөрийн эрхтэй (урилга ЗАРЦУУЛАХГҮЙ) → урилга → 401/403/402.
 //        эрхтэй   → { ok:true, game, kind, via, expires_at?, url? }
-//                   kind='file'     → url = <тоглоомын зам>?t=<launch тасалбар> (120 сек, нэг удаагийн jti — gate шалгана;
+//                   kind='file'     → url = <тоглоомын зам>?t=<launch тасалбар> (gate хаалттай үед; нээлттэй бол шууд зам;
+//                                     120 сек, нэг удаагийн jti — gate шалгана;
 //                                     sub = тунгалаг 'u:…' — имэйл URL-д орохгүй; sx = эрхийн дуусах огноо)
 //                   kind='inline'   → url байхгүй (клиент gate)
 //                   kind='external' → url = гадны хаяг (клиент gate)
@@ -22,8 +24,9 @@
 //        (url = найздаа илгээх харьцангуй холбоос)
 //
 // Дасгалын төвийн токен: 2 төхөөрөмжийн хязгаар (api/_wsdev.js checkReq — wsstatus-ийн логик) status/launch/invite бүгдэд.
-// DB алдаа → 503 (fail-closed). GAME_PAYWALL=off (эсвэл тавиагүй + GM.PAYWALL_DEFAULT_ON=false) → бүх тоглоом нээлттэй
-// (launch нэвтрэлт шаардахгүй, тасалбаргүй url).
+// DB алдаа → 503 (fail-closed). Төлбөр асаалттай эсэх нь realm-ээр: GM.paywallOn(realm) — GAME_PAYWALL=off → бүгд нээлттэй;
+// тавиагүй → 'ws' асаалттай (эхний ээлж, GM.WS_PAYWALL_DEFAULT_ON), 'cm' нь GM.PAYWALL_DEFAULT_ON (false → хуучин шигээ үнэгүй).
+// Нээлттэй realm-д launch нэвтрэлт шаардахгүй, тасалбаргүй url. catalog ?realm=ws|cm → тухайн realm-ийн enabled.
 'use strict';
 const guard = require('./_guard');
 const GM = require('./_games');
@@ -111,7 +114,9 @@ function launchOut(key, who, via, expiresAt) {
   const o = { ok: true, game: key, kind: G.kind, via: via };
   if (expiresAt) o.expires_at = new Date(expiresAt).toISOString();
   if (G.kind === 'file') {
-    if (who) {
+    // Тасалбар зөвхөн gate хаалттай үед (GM.paywallOn() — realm-гүй = gate-ийн төлөв). Эхний ээлжинд gate нээлттэй
+    // (cm хуучин шигээ) тул ws-ийн эрхтэй хэрэглэгчид ч шууд зам — gate ?t=-г зүгээр л 302-оор цэвэрлэх байсан.
+    if (who && GM.paywallOn()) {
       const t = GM.signTicket({ g: key, r: who.r, sub: who.sub, sx: who.sx || null });
       o.url = G.path + '?t=' + encodeURIComponent(t.token);
       o.ticket_ttl = GM.TICKET_TTL;
@@ -138,10 +143,14 @@ module.exports = async function handler(req, res) {
     if (action === 'catalog') {
       if (req.method !== 'GET') return res.status(405).json({ ok: false, error: MSG.bad });
       res.setHeader('Cache-Control', 'public, max-age=60');
-      return res.json({
-        ok: true, enabled: GM.paywallOn(), price: GM.gamePrice(), days: GM.GAME_DAYS,
+      // ?realm=ws|cm → тухайн сайтын төлбөрийн төлөв (URL-аар ялгарах тул public кэш зөв); байхгүй бол gate-ийн төлөв
+      const cr = GM.normRealm((req.query || {}).realm);
+      const out = {
+        ok: true, enabled: GM.paywallOn(cr), price: GM.gamePrice(), days: GM.GAME_DAYS,
         invite_hours: GM.INVITE_TTL / 3600, games: GM.publicCatalog(),
-      });
+      };
+      if (cr) out.realm = cr;
+      return res.json(out);
     }
 
     res.setHeader('Cache-Control', 'no-store');
@@ -163,7 +172,7 @@ module.exports = async function handler(req, res) {
       const games = await GM.activeGames(realm, id.email);
       const premium = realm === 'cm' ? await GM.isCmPremium(id.email) : false;
       return res.json({
-        ok: true, enabled: GM.paywallOn(), realm: realm, email: id.email, premium: premium,
+        ok: true, enabled: GM.paywallOn(realm), realm: realm, email: id.email, premium: premium,
         price: GM.gamePrice(), days: GM.GAME_DAYS, games: games,
       });
     }
@@ -175,8 +184,8 @@ module.exports = async function handler(req, res) {
     // ── Тоглоом эхлүүлэх ──
     if (action === 'launch') {
       if (await limited('games_l_ip:' + ip, 300, 600)) return res.status(429).json({ ok: false, error: MSG.rate });
-      // Kill-switch: бүгд нээлттэй (одоогийнх шиг) — нэвтрэлт, тасалбар шаардахгүй
-      if (!GM.paywallOn()) return res.json(launchOut(key, null, 'off', null));
+      // Kill-switch / энэ realm-д төлбөргүй: бүгд нээлттэй (одоогийнх шиг) — нэвтрэлт, тасалбар шаардахгүй
+      if (!GM.paywallOn(realm)) return res.json(launchOut(key, null, 'off', null));
 
       // Админ (туршилт)
       if (guard.requireAdmin(req)) return res.json(launchOut(key, { r: realm, sub: 'admin' }, 'admin', null));
@@ -215,7 +224,7 @@ module.exports = async function handler(req, res) {
     const id = await identify(req, b, realm);
     if (!id.ok) return res.status(id.status).json(id.body);
     const page = INVITE_PAGE[realm] + '?game=' + encodeURIComponent(key);
-    if (!GM.paywallOn()) {
+    if (!GM.paywallOn(realm)) {
       // Бүгд нээлттэй үед урилгын токен хэрэггүй — найз шууд тоглоно
       return res.json({ ok: true, game: key, realm: realm, via: 'off', invite: null, expires_at: null, max_uses: null, guests: null, url: page });
     }

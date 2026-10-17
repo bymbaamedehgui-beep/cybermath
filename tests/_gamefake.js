@@ -26,6 +26,7 @@ const db = {
   users: new Map(),     // lower(email) → {email, role, grade, plan, premium_expiry, token_version}
   pay: new Map(),       // pay_pending invoice_id → row
   wsPending: new Map(), // ws_pending (энэ тестэд хоосон)
+  wsAccess: new Map(),  // ws_access lower(email) → expires_at (Date) — зөвхөн api/qpay.js wsstatus-ийн уншилт
   access: new Map(),    // game_access 'realm|email|key' → row
   purch: [],            // game_purchases
   events: new Map(),    // ws_events id → {id, title, price, active}
@@ -347,6 +348,12 @@ async function query(sql, p, tx) {
     return { rows: out };
   }
 
+  // ── ws_access (api/qpay.js wsstatus — ажлын хуудасны бүх ангийн эрх) ──
+  if (q === 'SELECT expires_at FROM ws_access WHERE email=$1 AND expires_at > NOW()') {
+    const ex = db.wsAccess.get(lc(p[0]));
+    return { rows: ex && new Date(ex).getTime() > now() ? [{ expires_at: new Date(ex) }] : [] };
+  }
+
   if (STRICT.test(q)) { db.unknown.push(q); throw new Error('mock: unknown SQL'); }
   return { rows: [] }; // ws_settings, ws_promos гэх мэт — энэ тестэд хамаагүй
 }
@@ -482,7 +489,7 @@ async function call(handler, o) {
 }
 
 function reset() {
-  db.rl.clear(); db.users.clear(); db.pay.clear(); db.wsPending.clear(); db.access.clear(); db.purch.length = 0;
+  db.rl.clear(); db.users.clear(); db.pay.clear(); db.wsPending.clear(); db.wsAccess.clear(); db.access.clear(); db.purch.length = 0;
   db.events.clear(); db.regs.length = 0; db.claims.length = 0;
   db.failGrant = false; db.failLedger = false; db.failRate = false; db.noPremUntil = false; db.failEnt = false; db.failConnect = false;
   db.failDev = false; db.failTix = false; db.failInv = false;

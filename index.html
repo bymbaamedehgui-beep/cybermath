@@ -3488,6 +3488,236 @@ window.addEventListener('load', function() {
   opacity: 1;
 }
 </style>
+<!-- ═══ Дасгалын төвийн embed горим (/?embed=<key>&realm=ws) — бие даасан блок, бусад кодыг өөрчлөхгүй ═══ -->
+<style id="gp-embed-css">
+  html.cm-embed,html.cm-embed body{margin:0!important;padding:0!important;min-height:100%;overflow-x:hidden!important;background:#0f0b24!important}
+  html.cm-embed #landing-page,html.cm-embed #cm-splash,html.cm-embed #cm-chat-btn,html.cm-embed #cm-chatbot,
+  html.cm-embed #app-chat-btn,html.cm-embed #app-chatbot,html.cm-embed #game-selector,html.cm-embed .cm-emb-hide{display:none!important}
+  html.cm-embed #cybermath-app,html.cm-embed #tab-games{display:block!important}
+  html.cm-embed #tab-games{margin:0!important;padding:8px!important;max-width:none!important;width:auto!important}
+  #gp-emb{position:fixed;inset:0;z-index:100000;display:grid;place-items:center;grid-template-columns:minmax(0,1fr);padding:16px 12px;overflow-y:auto;box-sizing:border-box;background:#0f0b24;font-family:'Baloo 2',system-ui,-apple-system,'Segoe UI',sans-serif}
+  #gp-emb[hidden]{display:none}
+  #gp-emb .c{box-sizing:border-box;min-width:0;width:100%;max-width:400px;margin:auto;background:#fff;color:#1a1030;border-radius:20px;padding:26px 22px;text-align:center;box-shadow:0 24px 60px -18px rgba(0,0,0,.6)}
+  #gp-emb .i{width:64px;height:64px;margin:0 auto 12px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;background:linear-gradient(135deg,#7B52EE,#A855F7)}
+  #gp-emb .i.spin svg{animation:gpEmbSpin .9s linear infinite}
+  @keyframes gpEmbSpin{to{transform:rotate(360deg)}}
+  #gp-emb h1{font-size:1.2rem;line-height:1.3;margin:0 0 6px;color:#5a32d6}
+  #gp-emb p{margin:0 0 16px;font-size:.92rem;line-height:1.5;color:#6b6585}
+  #gp-emb .b{display:flex;flex-direction:column;gap:8px}
+  #gp-emb .b button,#gp-emb .b a{display:block;width:100%;box-sizing:border-box;border:0;cursor:pointer;font-family:inherit;font-weight:800;font-size:.95rem;border-radius:999px;padding:.72rem 1rem;text-decoration:none;text-align:center}
+  #gp-emb .b .p{color:#fff;background:linear-gradient(135deg,#7B52EE,#A855F7)}
+  #gp-emb .b .s{color:#5a32d6;background:#fff;border:1.5px solid #e7ddff}
+</style>
+<script id="gp-embed">
+/* ═══ Дасгалын төвийн embed горим ═══
+   index.html доторх тоглоомыг (chessmath, daam, gomoku, ludo, doroev, sbh) worksheets.html-ийн overlay iframe-д ГАНЦААРАА
+   харуулна:  /?embed=<key>&realm=ws[&einv=<найзын урилгын токен>]   (games-host.js embedUrl)
+   - cyber-math.com-ийн нэвтрэлт/эрх ШААРДАХГҮЙ. Эрхийг ЗӨВХӨН Дасгалын төвийн realm-ээр шалгана:
+       POST /api/games?action=launch {game, realm:'ws', wstoken: localStorage.cm_ws_token, invite}
+       (+ X-Device-Id 'cm_device' / X-Device-Fp — ws-store.js-тэй ижил; админ бол Bearer cm_admin_token).
+   - Зөвшөөрвөл window.CM_EMBED.ok=true болгож window.startGame(key, true)-г дуудна. 2 дахь аргумент true нь
+     cyber-math.com-ийн тоглоомын gate-ийг (startGame(type, gpOk) — gpOk===true бол алгасна) тойрох тохиролцоо:
+     эрхийг энд ws realm-ээр аль хэдийн шалгасан. CM_EMBED.ok/key-г бусад код «embed горим» гэж таньж болно.
+   - Бусад бүх хэсгийг (landing, навигаци, бусад таб/тоглоом, popup) нууна: html.cm-embed + .cm-emb-hide.
+   - Parent руу (ижил домэйн, targetOrigin = location.origin):
+       {type:'cm-embed-ready', game, via} | {type:'cm-embed-close', game} | {type:'cm-embed-buy', game} |
+       {type:'cm-game-locked', game, reason: 'needBuy'|'login'|'device'|'invite'|'invalid'|'error', error}
+   Inline тоглоом зөвхөн клиент gate-тэй (консолоос эхлүүлж болно) — жинхэнэ хамгаалалт файл тоглоомд (gate/game.js). */
+(function () {
+  'use strict';
+  var q = String(location.search || '');
+  var km = /[?&]embed=([a-z0-9]{2,24})(?=&|#|$)/.exec(q);
+  if (!km) return;
+  var AREAS = { chessmath: 'chessmath-area', daam: 'daam-area', gomoku: 'gomoku-area', ludo: 'ludo-area', doroev: 'doroev-area', sbh: 'sbh-area' };
+  var CLOSERS = /^\s*(closeChessMath|closeDaam|closeGomoku|closeLudo|closeDoroev|closeSbh|_closeAllGames)\s*\(\s*\)/;
+  var KEEP = ['toast', 'fs-overlay-bg', 'fs-close-btn', 'gp-emb'];
+  var key = km[1];
+  var rm = /[?&]realm=([a-z]{2})(?=&|#|$)/.exec(q);
+  var realm = rm ? rm[1] : 'ws';
+  var inv = null;
+  var im = /[?&]einv=([^&#]{20,3000})/.exec(q);
+  if (im) {
+    try { inv = decodeURIComponent(im[1]); } catch (e) { inv = null; }
+    if (inv && !/^[A-Za-z0-9_.-]{20,2048}$/.test(inv)) inv = null;
+  }
+  document.documentElement.classList.add('cm-embed');
+  var E = window.CM_EMBED = { key: key, realm: realm, ok: false, via: null, state: 'init' };
+  var SVGA = 'width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
+  var IC = {
+    lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+    warn: '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5"/><circle cx="12" cy="16.5" r="1" fill="currentColor"/>',
+    spin: '<path d="M21 12a9 9 0 1 1-6.2-8.6"/>',
+    play: '<path d="M7 5l12 7-12 7z"/>'
+  };
+  var MSG = {
+    needBuy: ['Эрх шаардлагатай', 'Энэ тоглоомыг тоглохын тулд Дасгалын төвөөс 1 сарын эрх авна уу.'],
+    login: ['Нэвтрэх шаардлагатай', 'Дасгалын төвд нэвтэрсний дараа тоглоомоо дахин нээнэ үү.'],
+    device: ['Төхөөрөмжийн хязгаар', 'Энэ бүртгэл төхөөрөмжийн хязгаарт хүрсэн байна. Дасгалын төвд дахин нэвтэрч, хуучин төхөөрөмжөө салгана уу.'],
+    invite: ['Урилга хүчингүй', 'Урилга хүчингүй эсвэл хугацаа нь дууссан байна. Найзаасаа шинэ урилга аваарай.'],
+    invalid: ['Тоглоом олдсонгүй', 'Энэ холбоосоор тоглоом нээгдэхгүй.'],
+    error: ['Түр алдаа гарлаа', 'Тоглоомыг нээж чадсангүй. Дахин оролдоно уу.'],
+    closed: ['Тоглоом хаагдлаа', 'Дахин тоглох эсвэл Дасгалын төв рүү буцна уу.']
+  };
+  function ls(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function inFrame() { try { return window.parent !== window; } catch (e) { return true; } }
+  function post(msg) {
+    msg.game = key;
+    try { if (inFrame()) window.parent.postMessage(msg, location.origin); } catch (e) {}
+  }
+  // ws-store.js / games-host.js-тэй ЯГ ижил төхөөрөмжийн дугаар ба хурууны хээ (эс бөгөөс сервер шинэ төхөөрөмж гэж үзнэ)
+  function dev() {
+    try {
+      var v = localStorage.getItem('cm_device');
+      if (!v || v.length < 8) {
+        v = ''; var a = new Uint8Array(16);
+        if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(a);
+        else for (var j = 0; j < 16; j++) a[j] = Math.floor(Math.random() * 256);
+        for (var i = 0; i < a.length; i++) v += ('0' + a[i].toString(16)).slice(-2);
+        localStorage.setItem('cm_device', v);
+      }
+      return v;
+    } catch (e) { return ''; }
+  }
+  function fp() {
+    try {
+      var nv = navigator || {}, sc = screen || {}, ua = String(nv.userAgent || '');
+      var tz = ''; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {}
+      var os = /Windows/.test(ua) ? 'win' : /Android/.test(ua) ? 'and' : /iPhone|iPad|iPod/.test(ua) ? 'ios' : /Mac/.test(ua) ? 'mac' : /Linux/.test(ua) ? 'lin' : 'oth';
+      var br = /Edg\//.test(ua) ? 'edge' : /OPR\//.test(ua) ? 'opera' : /Firefox\//.test(ua) ? 'ff' : /Chrome\//.test(ua) ? 'chr' : /Safari\//.test(ua) ? 'saf' : 'oth';
+      var raw = [os, br, (sc.width || 0) + 'x' + (sc.height || 0), sc.colorDepth || 0, tz, String(nv.language || ''), nv.hardwareConcurrency || 0].join('|');
+      var h = 2166136261;
+      for (var i = 0; i < raw.length; i++) { h ^= raw.charCodeAt(i); h = (h * 16777619) >>> 0; }
+      return ('0000000' + h.toString(16)).slice(-8);
+    } catch (e) { return ''; }
+  }
+  function adminTok() {
+    var t = ls('cm_admin_token');
+    if (!t) return null;
+    try {
+      var p = JSON.parse(atob(String(t).split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+      if (p && p.exp && p.exp * 1000 < Date.now()) return null;
+    } catch (e) { return null; }
+    return t;
+  }
+  // Төлөвийн карт (ачаалж байна / түгжээ / алдаа) — текстийг textContent-оор (серверийн мессеж HTML болохгүй)
+  function card(icon, title, text, btns) {
+    var el = document.getElementById('gp-emb');
+    if (!el) { el = document.createElement('div'); el.id = 'gp-emb'; el.setAttribute('role', 'dialog'); document.body.appendChild(el); }
+    el.hidden = false;
+    el.innerHTML = '<div class="c"><div class="i' + (icon === 'spin' ? ' spin' : '') + '"><svg ' + SVGA + '>' + (IC[icon] || '') + '</svg></div><h1></h1><p></p><div class="b"></div></div>';
+    el.querySelector('h1').textContent = title;
+    var p = el.querySelector('p');
+    if (text) p.textContent = text; else p.parentNode.removeChild(p);
+    var b = el.querySelector('.b');
+    (btns || []).forEach(function (x) {
+      var n;
+      if (x.href) { n = document.createElement('a'); n.href = x.href; n.target = '_top'; }
+      else { n = document.createElement('button'); n.type = 'button'; n.onclick = x.fn; }
+      n.className = x.cls;
+      n.textContent = x.label;
+      b.appendChild(n);
+    });
+  }
+  function hideCard() { var el = document.getElementById('gp-emb'); if (el) el.hidden = true; }
+  function backBtn(cls) { return { cls: cls, label: 'Дасгалын төв рүү', href: '/worksheets#games' }; }
+  function locked(reason, err) {
+    E.ok = false;
+    E.state = reason;
+    var t = MSG[reason] || MSG.error;
+    var btns = [];
+    if (reason === 'error') btns.push({ cls: 'p', label: 'Дахин оролдох', fn: verify });
+    if (inFrame()) {
+      if (reason === 'needBuy') btns.push({ cls: 'p', label: 'Худалдан авах', fn: function () { post({ type: 'cm-embed-buy' }); } });
+      btns.push({ cls: 's', label: 'Хаах', fn: function () { post({ type: 'cm-embed-close' }); } });
+    } else btns.push(backBtn(btns.length ? 's' : 'p'));
+    card(reason === 'error' || reason === 'invalid' ? 'warn' : 'lock', t[0], err || t[1], btns);
+    post({ type: 'cm-game-locked', reason: reason, error: err || null });
+  }
+  function start() {
+    try { if (typeof window.startGame === 'function') window.startGame(key, true); } catch (e) { console.error('[embed]', e && e.message); }
+    var area = document.getElementById(AREAS[key]);
+    if (area) area.style.display = 'block';
+  }
+  function verify() {
+    E.state = 'checking';
+    card('spin', 'Тоглоом нээж байна…', '', []);
+    var h = { 'Content-Type': 'application/json' };
+    var d = dev(); if (d) h['X-Device-Id'] = d;
+    var f = fp(); if (f) h['X-Device-Fp'] = f;
+    var a = adminTok(); if (a) h.Authorization = 'Bearer ' + a;
+    var b = { game: key, realm: 'ws' };
+    var t = ls('cm_ws_token'); if (t) b.wstoken = t;
+    if (inv) b.invite = inv;
+    fetch('/api/games?action=launch', { method: 'POST', headers: h, body: JSON.stringify(b), credentials: 'same-origin' })
+      .then(function (r) {
+        return r.json().then(function (j) { return { s: r.status, d: j && typeof j === 'object' ? j : {} }; },
+          function () { return { s: r.status, d: {} }; });
+      })
+      .then(function (x) {
+        var r = x.d;
+        if (x.s === 200 && r.ok === true && r.game === key && r.kind === 'inline') {
+          E.ok = true; E.via = r.via || null; E.state = 'open';
+          hideCard(); start();
+          post({ type: 'cm-embed-ready', via: E.via });
+          return;
+        }
+        if (r.inviteInvalid) return locked('invite', r.error);
+        if (r.deviceBlocked) return locked('device', r.error);
+        if (r.needBuy || x.s === 402) return locked('needBuy');
+        if (r.needLogin || x.s === 401) return locked('login');
+        if (x.s === 400 || (r.ok === true && r.kind !== 'inline')) return locked('invalid');
+        locked('error', r.error);
+      }, function () { locked('error'); });
+  }
+  function keepEl(el) {
+    return /^(SCRIPT|STYLE|LINK|META|TEMPLATE|NOSCRIPT)$/.test(el.tagName) || KEEP.indexOf(el.id) >= 0 ||
+      !!(el.classList && el.classList.contains('ol-modal'));
+  }
+  // Тоглоомын талбар + түүний өвөг элементээс бусдыг нууна. Онлайн өрөөний модал (.ol-modal), #toast, бүтэн дэлгэцийн товч үлдэнэ.
+  function isolate(area) {
+    var node = area;
+    while (node && node !== document.body && node.parentNode) {
+      var p = node.parentNode;
+      for (var i = 0; i < p.children.length; i++) {
+        var c = p.children[i];
+        if (c !== node && !keepEl(c)) c.classList.add('cm-emb-hide');
+      }
+      node = p;
+    }
+    // Хожим body-д нэмэгдэх popup-ыг ч нууна (inline тоглоомууд body-д элемент нэмдэггүй)
+    try {
+      new MutationObserver(function (ms) {
+        ms.forEach(function (m) {
+          [].forEach.call(m.addedNodes, function (n) {
+            if (n.nodeType === 1 && n.parentNode === document.body && !keepEl(n)) n.classList.add('cm-emb-hide');
+          });
+        });
+      }).observe(document.body, { childList: true });
+    } catch (e) {}
+  }
+  // Талбарын «Гарах» товч → parent overlay-г хаана (iframe-гүй бол дахин тоглох карт)
+  function hookClose(area) {
+    area.addEventListener('click', function (e) {
+      var b = e.target && e.target.closest ? e.target.closest('[onclick]') : null;
+      if (!b || !CLOSERS.test(b.getAttribute('onclick') || '')) return;
+      if (inFrame()) { post({ type: 'cm-embed-close' }); return; }
+      setTimeout(function () {
+        card('play', MSG.closed[0], MSG.closed[1], [{ cls: 'p', label: 'Дахин тоглох', fn: function () { hideCard(); start(); } }, backBtn('s')]);
+      }, 0);
+    }, true);
+  }
+  function boot() {
+    if (!Object.prototype.hasOwnProperty.call(AREAS, key) || realm !== 'ws') return locked('invalid');
+    var area = document.getElementById(AREAS[key]);
+    if (!area || typeof window.startGame !== 'function') return locked('error');
+    isolate(area);
+    hookClose(area);
+    verify();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})();
+</script>
 </head>
 <body>
 <!-- ═══ Welcome Splash ═══ -->

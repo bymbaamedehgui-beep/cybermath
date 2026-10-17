@@ -13,7 +13,8 @@
 //      /games/… бодит зам руу холбоогүй (нийтэд 404). CLI нь index.html-ээс бусад хэрэглэгч хуудсыг мэдээлнэ —
 //      GAME_PAYWALL асаалттай үед эдгээр нь launch тасалбаргүй бол түгжээтэй хуудас харуулна.
 //   8) деплойн бэлэн байдал: launch UI бэлэн (index.html + worksheets.html, мөн тоглоомыг шууд ачаалдаг бусад хуудас бүр
-//      /api/games?action=launch дууддаг) ⇔ api/_games.js PAYWALL_DEFAULT_ON === true. UI-гүйгээр анхдагч асаалттай бол
+//      /api/games?action=launch дууддаг; index.html-ийн Дасгалын төвийн embed блок <script id="gp-embed"> тооцогдохгүй,
+//      хуудасны <script src="/x.js"> локал скрипт тооцогдоно) ⇔ api/_games.js PAYWALL_DEFAULT_ON === true. UI-гүйгээр анхдагч асаалттай бол
 //      GAME_PAYWALL тавиагүй деплойд бүх файл тоглоом түгжигдэнэ (эрхтэй/Premium ч тоглож чадахгүй, худалдан авах зам ч
 //      байхгүй); UI бэлэн атал анхдагч унтраалттай бол тавиагүй деплойд бүх тоглоом үнэгүй. Аль аль нь алдаа.
 // Vercel legacy routes: эхний таарсан маршрут (continue-гүй) шийднэ; src нь ^…$-аар бэхлэгдэнэ.
@@ -169,16 +170,37 @@ function gateOf(pub, ctx) {
   return null;
 }
 function textOf(p) { return !p ? '' : (typeof p.text === 'function' ? p.text() : String(p.text || '')); }
-// pages: [{ file, text }], cons: consumers(gate, pages) (өгөөгүй бол тооцно), ctx: { routes, gate }
+// Хуудасны ачаалдаг root-ийн локал скриптүүд (<script src="/games-host.js"> г.м.) — launch дуудлага тэнд байж болно.
+// root өгөөгүй (тестийн хуурамч хуудас) бол хоосон.
+function localScriptsText(text, root) {
+  if (!root) return '';
+  const out = [];
+  const re = /<script\b[^>]*\bsrc=["']\/?([A-Za-z0-9][A-Za-z0-9._-]*\.js)["']/gi;
+  let m;
+  while ((m = re.exec(String(text || '')))) {
+    try { out.push(fs.readFileSync(path.join(root, m[1]), 'utf8')); } catch (e) { /* файл алга — тооцохгүй */ }
+  }
+  return out.join('\n');
+}
+// index.html-ийн Дасгалын төвийн embed блок (<script id="gp-embed"> — зөвхөн realm 'ws'-ийн launch) нь cyber-math.com-ийн
+// өөрийн тоглоомын UI биш: түүнийг тооцвол cm UI (gp-s5) байхгүй ч index.html «бэлэн» гэж андуурагдана.
+const EMBED_BLOCK_RE = /<script\b[^>]*\bid=["']gp-embed["'][^>]*>[\s\S]*?<\/script>/gi;
+function withoutEmbed(text) { return String(text == null ? '' : text).replace(EMBED_BLOCK_RE, ''); }
+// Хуудас (эсвэл түүний ачаалдаг локал скрипт) launch ашигладаг эсэх (embed блокийг тооцохгүй)
+function pageHasLaunch(p, root) {
+  const t = withoutEmbed(textOf(p));
+  return hasLaunch(t) || hasLaunch(localScriptsText(t, root));
+}
+// pages: [{ file, text }], cons: consumers(gate, pages) (өгөөгүй бол тооцно), ctx: { routes, gate, root? }
 // → { ready, missing: [{ file, why }] } — LAUNCH_HOSTS бүр launch ашигладаг, мөн gate-ийн тоглоомыг шууд ачаалдаг
-//   бусад хуудас бүр launch ашигладаг үед л бэлэн.
+//   бусад хуудас бүр launch ашигладаг үед л бэлэн. ctx.root өгвөл хуудасны <script src="/x.js"> локал скриптийг ч уншина.
 function launchReadiness(pages, cons, ctx) {
   const byFile = new Map();
   (pages || []).forEach(function (p) { byFile.set(p.file, p); });
   const missing = [];
   LAUNCH_HOSTS.forEach(function (f) {
     if (!byFile.has(f)) missing.push({ file: f, why: 'хуудас алга' });
-    else if (!hasLaunch(textOf(byFile.get(f)))) missing.push({ file: f, why: '/api/games?action=launch дуудлага алга' });
+    else if (!pageHasLaunch(byFile.get(f), ctx && ctx.root)) missing.push({ file: f, why: '/api/games?action=launch дуудлага алга' });
   });
   const direct = {};
   (cons || consumers(ctx.gate, pages)).forEach(function (c) {
@@ -186,7 +208,7 @@ function launchReadiness(pages, cons, ctx) {
     (direct[c.file] = direct[c.file] || []).push(c.pub + ' (:' + c.line + ')');
   });
   Object.keys(direct).sort().forEach(function (f) {
-    if (!hasLaunch(textOf(byFile.get(f)))) missing.push({ file: f, why: 'тоглоомыг шууд ачаалдаг (' + direct[f].join(', ') + '), launch алга' });
+    if (!pageHasLaunch(byFile.get(f), ctx && ctx.root)) missing.push({ file: f, why: 'тоглоомыг шууд ачаалдаг (' + direct[f].join(', ') + '), launch алга' });
   });
   return { ready: missing.length === 0, missing: missing };
 }
@@ -346,7 +368,7 @@ function check(vercel, opts) {
 }
 
 module.exports = { check, globToRe, globMatch, routeRe, firstRoute, resolveRoute, consumers, consumerProblem, refRe,
-  LAUNCH_HOSTS, hasLaunch, gateOf, launchReadiness };
+  LAUNCH_HOSTS, hasLaunch, gateOf, launchReadiness, localScriptsText, pageHasLaunch, withoutEmbed };
 
 if (require.main === module) {
   const file = path.resolve(process.argv[2] || path.join(ROOT, 'vercel.json'));
@@ -365,8 +387,9 @@ if (require.main === module) {
     console.log('Launch UI бэлэн — PAYWALL_DEFAULT_ON=true: GAME_PAYWALL тавиагүй деплойд тоглоом төлбөртэй.');
     console.log('  Деплойн дараа: node scripts/verify-game-gate.js --base <url>   (Vercel-д GAME_PAYWALL=off бол --expect off)');
   } else if (r.readiness) {
-    console.log('Launch UI бэлэн биш — PAYWALL_DEFAULT_ON=false: GAME_PAYWALL тавиагүй деплойд тоглоом нээлттэй (одоогийнх шиг).');
+    console.log('Launch UI бэлэн биш — PAYWALL_DEFAULT_ON=false: GAME_PAYWALL тавиагүй деплойд cyber-math.com-ийн тоглоом, gate нээлттэй (одоогийнх шиг).');
     r.readiness.missing.forEach(function (m) { console.log('  - ' + m.file + ': ' + m.why); });
+    if (GM.WS_PAYWALL_DEFAULT_ON) console.log('  Эхний ээлж: Дасгалын төв (realm ws) WS_PAYWALL_DEFAULT_ON=true — worksheets.html-д тоглоом төлбөртэй.');
     console.log('  Production-д GAME_PAYWALL=on БҮҮ тавь (зөвхөн gate-ийг турших preview-д); деплойн дараа:');
     console.log('  node scripts/verify-game-gate.js --base <url> --expect off');
     if (GM.paywallOn()) console.log('АНХААР: энэ shell-д GAME_PAYWALL асаалттай — UI бэлэн болтол зөвхөн preview туршилтад.');

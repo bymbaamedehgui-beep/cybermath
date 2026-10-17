@@ -6,7 +6,8 @@
 // API:
 //   GAMES, GAME_KEYS, GAME_DAYS
 //   gamePrice()                          → int  (env GAME_PRICE, анхдагч 1900)
-//   paywallOn()                          → bool (env GAME_PAYWALL=off → бүх тоглоом нээлттэй; тавиагүй → PAYWALL_DEFAULT_ON —
+//   paywallOn(realm?)                    → bool (env GAME_PAYWALL=off → бүх тоглоом нээлттэй; тавиагүй → realm 'ws' бол
+//                                          WS_PAYWALL_DEFAULT_ON (эхний ээлж: true), бусад/realm-гүй (gate) → PAYWALL_DEFAULT_ON —
 //                                          launch UI деплойдох хүртэл false, scripts/check-game-routes.js (8) шалгана)
 //   isGame(key), normRealm(r), normEmail(e), publicCatalog()
 //   GAMES[key] = { title, kind: 'file'|'inline'|'external', multi: олон тоглогчтой (host л төлнө), path?/url? }
@@ -87,11 +88,19 @@ function gamePrice() {
 // tests/games-gate.test.js «деплойн бэлэн байдал» нь «UI бэлэн ⇔ анхдагч асаалттай»-г хоёр чиглэлд шалгана (мартвал унана).
 // Preview дээр UI-гүйгээр gate-ийг турших: GAME_PAYWALL=on.
 const PAYWALL_DEFAULT_ON = false;
-// Kill-switch: GAME_PAYWALL=off (мөн false/0/no) → бүх тоглоом нээлттэй. Тавиагүй/хоосон → PAYWALL_DEFAULT_ON.
-// Бусад бүх утга (on, true, 1, алдаатай бичсэн 'offf' ч) → төлбөртэй (fail-closed).
-function paywallOn() {
+// Эхний ээлж (эзэмшигчийн шийдвэр «эхний ээлжинд дасгалын төвд л»): төлбөртэй тоглоом ЗӨВХӨН Дасгалын төвд.
+// GAME_PAYWALL тавиагүй үед realm 'ws' → WS_PAYWALL_DEFAULT_ON (асаалттай: worksheets.html launch/худалдан авах UI-тай),
+// realm 'cm' болон realm-гүй дуудлага (gate/game.js, нийтийн каталог) → PAYWALL_DEFAULT_ON (false): cyber-math.com-ийн
+// тоглоом, play/team/xp.html, шууд URL (/sudoku.html г.м.) хуучин шигээ нээлттэй. Gate нээлттэй тул ws-ийн файл тоглоомын
+// хамгаалалт энэ ээлжинд клиент талынх (шууд URL нээлттэй — эзэмшигч зөвшөөрсөн). cm UI (gp-s5) нэгтгэсний дараа
+// PAYWALL_DEFAULT_ON=true болгоход хоёр realm + gate хамт асна (энэ тогтмол тэр үед ач холбогдолгүй болно).
+const WS_PAYWALL_DEFAULT_ON = true;
+// Kill-switch: GAME_PAYWALL=off (мөн false/0/no) → бүх тоглоом нээлттэй (хоёр realm, gate). Тавиагүй/хоосон → realm-ийн
+// анхдагч (дээрхийг үз). Бусад бүх утга (on, true, 1, алдаатай бичсэн 'offf' ч) → хоёр realm + gate төлбөртэй (fail-closed).
+// realm: 'ws' | 'cm' | (байхгүй — gate/каталог).
+function paywallOn(realm) {
   const v = String(process.env.GAME_PAYWALL || '').trim().toLowerCase();
-  if (!v) return PAYWALL_DEFAULT_ON;
+  if (!v) return normRealm(realm) === 'ws' ? (WS_PAYWALL_DEFAULT_ON || PAYWALL_DEFAULT_ON) : PAYWALL_DEFAULT_ON;
   return !(v === 'off' || v === 'false' || v === '0' || v === 'no');
 }
 // hasOwnProperty — '__proto__', 'constructor' гэх мэт түлхүүр allowlist-ийг давахгүй
@@ -207,7 +216,7 @@ async function isCmPremium(email) {
 // Эрх өөр realm-ээс ОГТ уншигдахгүй (имэйл ижил ч).
 async function entitlement(realm, email, key) {
   if (!isGame(key)) return { ok: false, via: null, expires_at: null };
-  if (!paywallOn()) return { ok: true, via: 'off', expires_at: null };
+  if (!paywallOn(realm)) return { ok: true, via: 'off', expires_at: null };
   const rl = normRealm(realm), em = normEmail(email);
   if (!rl || !em) return { ok: false, via: null, expires_at: null };
   await ensureGameTables();
@@ -499,7 +508,7 @@ async function redeemInvite(tok, realm, key, devKey) {
 }
 
 module.exports = {
-  GAMES, GAME_KEYS, GAME_DAYS, gamePrice, PAYWALL_DEFAULT_ON, paywallOn, isGame, normRealm, normEmail, publicCatalog,
+  GAMES, GAME_KEYS, GAME_DAYS, gamePrice, PAYWALL_DEFAULT_ON, WS_PAYWALL_DEFAULT_ON, paywallOn, isGame, normRealm, normEmail, publicCatalog,
   ensureGameTables, entitlement, entitled, activeGames, isCmPremium,
   grantGame, currentExpiry, revokeGame, recordPurchase, cmUser,
   TICKET_TTL, INVITE_TTL, SESSION_TTL, INVITE_SESSION_TTL, inviteUses, inviteDaily, subjectOf,

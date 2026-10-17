@@ -200,7 +200,8 @@ async function query(sql, p) {
   if (q === 'UPDATE admin_invites SET uses = uses + 1 WHERE token=$1') { const i = db.invites.get(p[0]); if (i) i.uses++; return { rows: [] }; }
 
   // ws entitlement (api/worksheets.js wsEntitled)
-  if ((m = q.match(/^SELECT 1 FROM (ws_access|ws_grade_access|ws_purchases|ws_pending|ws_event_regs) WHERE LOWER\(email\)=\$1/))) {
+  if ((m = q.match(/^SELECT 1 FROM (ws_access|ws_grade_access|ws_purchases|ws_pending|ws_event_regs) WHERE LOWER\(email\)=\$1/)) ||
+      (m = q.match(/^SELECT 1 FROM (game_access|game_purchases) WHERE realm='ws' AND LOWER\(email\)=\$1 LIMIT 1$/))) {
     if (db.entFail) { const e = new Error('db down'); e.code = '57P01'; throw e; }
     const s = db.entitled.get(m[1]); return { rows: s && s.has(p[0]) ? [{ '?column?': 1 }] : [] };
   }
