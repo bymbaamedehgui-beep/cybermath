@@ -499,7 +499,8 @@
       '.cm-fill{display:inline-block;min-width:90px;outline:none;font-weight:800;color:#1a1030;cursor:text}'+
       '.cm-fill:focus{background:#f5efff;border-radius:4px}'+
       '.cm-fill:empty:not(:focus)::before{content:attr(data-ph);color:#c7bde6;font-weight:600}'+
-      '@media print{.cm-fill{min-width:50px}.cm-fill:empty::before{content:""}}'+
+      // хэвлэхэд placeholder-ийг нуух: дээрх дүрэмтэй ИЖИЛ specificity (0,3,1)-тэй байх ёстой, эс бөгөөс «нэр…» хэвлэгдэнэ
+      '@media print{.cm-fill{min-width:50px}.cm-fill:empty::before,.cm-fill:empty:not(:focus)::before{content:""}}'+
       // Багш заавар/тайлбарыг шууд засах талбарууд
       '.cm-ed{outline:none;transition:background .12s}'+
       '.cm-ed:hover{background:rgba(123,82,238,.06);border-radius:5px;box-shadow:inset 0 0 0 1px rgba(123,82,238,.22)}'+
