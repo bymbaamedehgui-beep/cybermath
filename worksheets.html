@@ -2285,12 +2285,13 @@ var PROMO_MONTHS=0;
 var PROMO_CODE=(function(){var m=location.search.match(/[?&]promo=([^&?#]+)/);if(!m)return null;var mm=location.search.match(/[?&]months=(\d+)/);if(mm){var v=parseInt(mm[1],10);if([3,6,9,12].indexOf(v)>=0)PROMO_MONTHS=v;}var c=decodeURIComponent(m[1]).toUpperCase().replace(/[^A-Z0-9]/g,'');try{history.replaceState(null,'',location.pathname);}catch(e){}return c||null;})();
 /* Ажлын хуудасны түгжээнээс "Нууц үгээрээ нэвтэрнэ үү" (?login=1&next=/xxx.html) — нэвтэрсний дараа тэр хуудас руу буцна */
 var LOGIN_REQ=(function(){
-  if(!/[?&]login=1(?:[&#]|$)/.test(location.search))return null;
+  if(!/[?&](?:login|signup)=1(?:[&#]|$)/.test(location.search))return null;
+  var view=/[?&]signup=1(?:[&#]|$)/.test(location.search)?'register':null;   /* ?signup=1 — бүртгүүлэх цонх шууд (FB чатбот г.м.) */
   var m=location.search.match(/[?&]next=([^&#]*)/),n='';
   try{n=m?decodeURIComponent(m[1]):'';}catch(e){n='';}
   if(!/^\/[A-Za-z0-9._~\-\/]*$/.test(n)||/^\/\//.test(n))n='';   // зөвхөн ижил сайтын зам
   if(!PROMO_CODE){try{history.replaceState(null,'',location.pathname);}catch(e){}}
-  return {next:n};
+  return {next:n,view:view};
 })();
 function startPromoBuy(){
   if(!PROMO_CODE)return;
@@ -2363,7 +2364,7 @@ if(!isAdmin()){
     var _hasTok=!!(CM_USER||lsGet('cm_ws_token'));
     if(WS_INVITE && _hasTok){ wsInviteClear(); }   // аль хэдийн нэвтэрсэн (эрхгүй ч) — урилга хэрэггүй
     if(WS_INVITE && !_hasTok){ openInvite(); }
-    else if(LOGIN_REQ && !CM_USER && !PROMO_CODE){ if(LOGIN_REQ.next)window.__afterLogin=function(){location.href=LOGIN_REQ.next;}; openLogin(false); }
+    else if(LOGIN_REQ && !CM_USER && !PROMO_CODE){ if(LOGIN_REQ.next)window.__afterLogin=function(){location.href=LOGIN_REQ.next;}; openLogin(false,LOGIN_REQ.view||undefined); }
     else if(!CM_USER && ((window.GW && GW.autoKey) || /[?&]game=[a-z0-9]{2,24}(?:[&#]|$)/.test(location.search))){ /* найзын тоглоомын урилгаар орсон — нэвтрэлт/PIN асуухгүй, тоглоом шууд нээгдэнэ */ }
     else if(!CM_USER && !PAYWALL_OFF && !lsGet('cm_ws_dismissed') && !PROMO_CODE) initWelcomeOffer(function(shown){ if(shown)return; if(WS_ACCT) ensurePin(); else openLogin(true); });   /* токен хүчинтэй (эрхгүй) данснаас дахин нэвтрэхийг асуухгүй */
     else ensurePin();
