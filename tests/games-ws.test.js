@@ -545,13 +545,14 @@ async function gateHit(gate, q) {
   await gate({ method: 'GET', url: '/gate/game.js?' + new URLSearchParams(q).toString(), query: q, headers: {} }, res);
   return res;
 }
-test('эхний ээлж (GAME_PAYWALL тавиагүй): ws төлбөртэй, cm/gate/шууд URL хуучин шигээ нээлттэй', async () => {
+test('эхний ээлж (GAME_PAYWALL, GAME_PAYWALL_REALMS тавиагүй): ws төлбөртэй, cm/gate/шууд URL хуучин шигээ нээлттэй', async () => {
   const gate = require(path.join(F.WT, 'gate', 'game.js'));
   delete process.env.GAME_PAYWALL;
+  delete process.env.GAME_PAYWALL_REALMS;
   try {
-    assert.strictEqual(GM.PAYWALL_DEFAULT_ON, false, 'PAYWALL_DEFAULT_ON өөрчлөгдөөгүй (cm UI нэгтгэгдээгүй)');
-    assert.strictEqual(GM.WS_PAYWALL_DEFAULT_ON, true);
-    assert.deepStrictEqual([GM.paywallOn(), GM.paywallOn('cm'), GM.paywallOn('ws'), GM.paywallOn('xx')], [false, false, true, false]);
+    assert.deepStrictEqual(Array.from(GM.DEFAULT_PAYWALL_REALMS), ['ws'], 'анхдагч: зөвхөн Дасгалын төв (cm UI нэгтгэгдээгүй)');
+    assert.deepStrictEqual(GM.paywallRealms(), ['ws']);
+    assert.deepStrictEqual([GM.paywallOn(), GM.gateOn(), GM.paywallOn('cm'), GM.paywallOn('ws'), GM.paywallOn('xx')], [false, false, false, true, false]);
 
     // gate (cyber-math.com-ийн iframe, play/team/xp.html, шууд URL) — тасалбаргүй нээлттэй
     for (const g of ['sudoku', 'play2048', 'xpdrop', 'myangat', 'numseq', 'sbh']) {
@@ -622,6 +623,7 @@ test('эхний ээлж (GAME_PAYWALL тавиагүй): ws төлбөртэй
     assert.strictEqual((await anonW.CMGamesHost.catalog(true, 'ws')).enabled, false);
   } finally {
     process.env.GAME_PAYWALL = 'on';
+    process.env.GAME_PAYWALL_REALMS = 'ws,cm';
   }
 });
 
@@ -686,8 +688,10 @@ test('index.html: #gp-embed бие даасан блок (синтакс, эмо
   assert.strictEqual(CR.pageHasLaunch({ file: 'index.html', text: INDEX }), CR.hasLaunch(CR.withoutEmbed(INDEX)));
   assert.strictEqual(CR.withoutEmbed(INDEX).indexOf('id="gp-embed"'), -1);
   assert.ok(CR.withoutEmbed(INDEX).indexOf('function startGame(') > 0, 'зөвхөн embed блок хасагдана');
-  // PAYWALL_DEFAULT_ON ⇔ readiness (cm UI нэгтгэгдээгүй энэ branch-д хоёулаа false)
-  assert.strictEqual(GM.PAYWALL_DEFAULT_ON, out.readiness.ready);
+  // realm бүр: DEFAULT_PAYWALL_REALMS ⇔ readiness (ws бэлэн → төлбөртэй; cm UI нэгтгэгдээгүй → үнэгүй)
+  assert.deepStrictEqual([out.readiness.realms.ws.ready, out.readiness.realms.cm.ready], [true, false]);
+  assert.strictEqual(GM.DEFAULT_PAYWALL_REALMS.includes('ws'), out.readiness.realms.ws.ready);
+  assert.strictEqual(GM.DEFAULT_PAYWALL_REALMS.includes('cm'), out.readiness.realms.cm.ready);
 });
 
 test('сүлжээ 0, тодорхойгүй SQL алга', () => {

@@ -15,10 +15,12 @@ Object.assign(process.env, {
   TELEGRAM_CHAT_ID: '1',
   QPAY_USERNAME: 'fakeuser', QPAY_PASSWORD: 'fakepass', QPAY_INVOICE_CODE: 'FAKE_INVOICE',
 });
-['GAME_PRICE', 'GAME_PAYWALL', 'GAME_INVITE_USES', 'GAME_INVITE_DAILY', 'WS_TOKEN_IAT_MIN', 'WS_PAYWALL'].forEach(k => { delete process.env[k]; });
-// Төлбөр асаалттай орчинд тестлэнэ: GAME_PAYWALL тавиагүй үеийн анхдагч (api/_games.js PAYWALL_DEFAULT_ON) нь launch UI
-// деплойдох хүртэл false тул тодорхой 'on'. Анхдагчийг өөрийг нь games-gate.test.js «деплойн бэлэн байдал» шалгана.
+['GAME_PRICE', 'GAME_PAYWALL', 'GAME_PAYWALL_REALMS', 'GAME_INVITE_USES', 'GAME_INVITE_DAILY', 'WS_TOKEN_IAT_MIN', 'WS_PAYWALL'].forEach(k => { delete process.env[k]; });
+// Хоёр сайт (ws + cm) болон gate төлбөртэй орчинд тестлэнэ: тавиагүй үеийн анхдагч (api/_games.js DEFAULT_PAYWALL_REALMS)
+// нь эхний ээлжинд зөвхөн ['ws'] (cm UI нэгтгэгдээгүй) тул тодорхой 'ws,cm'. Анхдагчийг өөрийг нь games-realm.test.js,
+// games-gate.test.js «деплойн бэлэн байдал» шалгана. GAME_PAYWALL='on' — kill-switch биш (жагсаалтад нөлөөлөхгүй).
 process.env.GAME_PAYWALL = 'on';
+process.env.GAME_PAYWALL_REALMS = 'ws,cm';
 
 const DAY = 864e5;
 const db = {
@@ -498,8 +500,9 @@ function reset() {
   dropConnections(); db.locks.clear(); db.txLog.length = 0; db.txLeaks.length = 0;
   qp.invoices.length = 0; qp.paid.clear(); qp.checks.length = 0;
   tg.length = 0;
-  ['GAME_PRICE', 'GAME_PAYWALL', 'GAME_INVITE_USES', 'GAME_INVITE_DAILY', 'WS_TOKEN_IAT_MIN'].forEach(k => { delete process.env[k]; });
+  ['GAME_PRICE', 'GAME_PAYWALL', 'GAME_PAYWALL_REALMS', 'GAME_INVITE_USES', 'GAME_INVITE_DAILY', 'WS_TOKEN_IAT_MIN'].forEach(k => { delete process.env[k]; });
   process.env.GAME_PAYWALL = 'on';
+  process.env.GAME_PAYWALL_REALMS = 'ws,cm';
 }
 function addUser(email, o) {
   const e = lc(email);

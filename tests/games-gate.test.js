@@ -653,24 +653,32 @@ test('сайтын хуудсууд: index.html iframe src + play/team/xp.html �
   assert.deepStrictEqual(CHK.check(VERCEL, { pages: [{ file: 'd.html', text: "b='/sbh'; d='/mortal'; e='/math-mortal'" }] }).errors, []);
 });
 
-// ───────────────────────── деплойн бэлэн байдал (gp-s3-fix1) ─────────────────────────
+// ───────────────────────── деплойн бэлэн байдал (gp-s3-fix1 → gp-merge: realm бүрээр) ─────────────────────────
 // Алдаа байсан: GAME_PAYWALL тавиагүй үед төлбөр асаалттай (анхдагч) атал launch UI (index.html, worksheets.html — /api/games
 // launch; play/team/xp.html xpdrop.html-ийг шууд ачаалдаг) хараахан алга. Энэ branch-ийг env-гүй деплойдвол 6 файл тоглоом
 // бүгд 403 түгжээ: эрхтэй, Premium хэрэглэгч ч тоглож чадахгүй, худалдан авах зам ч байхгүй.
-// Засвар: тавиагүй үеийн анхдагч = api/_games.js PAYWALL_DEFAULT_ON, check-game-routes (8) «UI бэлэн ⇔ анхдагч асаалттай».
-test('деплойн бэлэн байдал: GAME_PAYWALL тавиагүй → анхдагч ⇔ launch UI бэлэн; UI-гүй үед одоогийн хуудсууд тоглоомоо нээнэ (түгжээ биш)', async () => {
+// Засвар: тавиагүй үеийн төлбөртэй realm-ууд = api/_games.js DEFAULT_PAYWALL_REALMS, check-game-routes (8) realm бүрт
+// «UI бэлэн ⇔ анхдагчид орсон». Эхний ээлж: ws (worksheets.html) бэлэн → ['ws']; cm UI (gp-s5) нэгтгэгдээгүй → gate нээлттэй.
+test('деплойн бэлэн байдал: realm бүр анхдагч ⇔ launch UI бэлэн; env тавиагүй деплойд cyber-math.com/gate хуучин шигээ, Дасгалын төв төлбөртэй', async () => {
   const r = CHK.check(VERCEL);
   assert.deepStrictEqual(r.errors, []);
-  assert.ok(r.readiness && typeof r.readiness.ready === 'boolean');
-  assert.strictEqual(typeof GM.PAYWALL_DEFAULT_ON, 'boolean');
-  assert.strictEqual(GM.PAYWALL_DEFAULT_ON, r.readiness.ready, r.readiness.ready
-    ? 'launch UI бэлэн — api/_games.js PAYWALL_DEFAULT_ON = true болгоно уу'
-    : 'launch UI бэлэн биш — PAYWALL_DEFAULT_ON=true бол GAME_PAYWALL тавиагүй деплойд тоглоом түгжигдэнэ: ' + JSON.stringify(r.readiness.missing));
-  if (!r.readiness.ready) {
-    // бэлэн биш хуудас бүр нь хост эсвэл gate-ийн тоглоомыг шууд ачаалдаг хуудас
-    const direct = new Set(r.consumers.filter((c) => CHK.gateOf(c.pub, { routes: VERCEL.routes })).map((c) => c.file));
-    r.readiness.missing.forEach((m) => assert.ok(CHK.LAUNCH_HOSTS.includes(m.file) || direct.has(m.file), JSON.stringify(m)));
+  assert.ok(r.readiness && r.readiness.realms && typeof r.readiness.ready === 'boolean');
+  assert.ok(Array.isArray(GM.DEFAULT_PAYWALL_REALMS));
+  const def = GM.DEFAULT_PAYWALL_REALMS;
+  for (const k of ['ws', 'cm']) {
+    assert.strictEqual(def.includes(k), r.readiness.realms[k].ready, r.readiness.realms[k].ready
+      ? 'realm ' + k + ' launch UI бэлэн — api/_games.js DEFAULT_PAYWALL_REALMS-д нэмнэ үү'
+      : 'realm ' + k + ' launch UI бэлэн биш — DEFAULT_PAYWALL_REALMS-д байвал тавиагүй деплойд түгжигдэнэ: ' + JSON.stringify(r.readiness.realms[k].missing));
   }
+  // Энэ branch: Дасгалын төв бэлэн, cyber-math.com-ийн UI нэгтгэгдээгүй (эзэмшигчийн шийдвэр «эхний ээлжинд дасгалын төвд л»)
+  assert.deepStrictEqual([r.readiness.realms.ws.ready, r.readiness.realms.cm.ready], [true, false]);
+  // бэлэн биш хуудас бүр нь хост эсвэл gate-ийн тоглоомыг шууд ачаалдаг хуудас (cm-д хамаарна)
+  const direct = new Set(r.consumers.filter((c) => CHK.gateOf(c.pub, { routes: VERCEL.routes })).map((c) => c.file));
+  r.readiness.missing.forEach((m) => {
+    assert.ok(CHK.LAUNCH_HOSTS.includes(m.file) || direct.has(m.file), JSON.stringify(m));
+    assert.strictEqual(m.realm, CHK.REALM_HOSTS.ws.includes(m.file) ? 'ws' : 'cm', JSON.stringify(m));
+  });
+  const cmOn = def.includes('cm'), wsOn = def.includes('ws');
 
   // Шалгагчийн repro: env тавиагүй → сайтын хуудсуудын ашигладаг нийтийн зам бүр (маршрутаар) + gate шууд
   const base = await listen(VERCEL);
@@ -680,54 +688,60 @@ test('деплойн бэлэн байдал: GAME_PAYWALL тавиагүй → 
   r.consumers.forEach((c) => { const g = CHK.gateOf(c.pub, { routes: VERCEL.routes }); if (g) { pubs.add(c.pub); G_OF[c.pub] = G_OF[c.pub] || g; } });
   assert.ok(pubs.has('/sudoku.html') && pubs.has('/xpdrop.html') && pubs.has('/math-mortal/index.html'));
   delete process.env.GAME_PAYWALL;
+  delete process.env.GAME_PAYWALL_REALMS;
   try {
-    assert.strictEqual(GM.paywallOn(), GM.PAYWALL_DEFAULT_ON);
+    assert.strictEqual(GM.gateOn(), cmOn);
+    assert.strictEqual(GM.paywallOn(), cmOn, 'realm-гүй = gate');
     for (const p of pubs) {
       const x = await rawGet(base + p);
-      if (GM.PAYWALL_DEFAULT_ON) {
+      if (cmOn) {
         assert.strictEqual(x.status, 403, p);
         assert.strictEqual(x.headers['x-game-gate'], 'locked', p);
       } else {
-        assert.strictEqual(x.status, 200, p + ': UI-гүй деплойд тоглоом нээгдэх ёстой (түгжээ биш)');
+        assert.strictEqual(x.status, 200, p + ': cm UI-гүй деплойд тоглоом нээгдэх ёстой (түгжээ биш)');
         assert.strictEqual(x.headers['x-game-gate'], 'off', p);
         const F_ = gate.FILES[G_OF[p]];
         if (F_.file || /index\.html$|\/$/.test(p)) assert.ok(x.body.equals(FILE(F_.file || (F_.dir + '/' + F_.index))), p + ': яг ижил файл');
       }
     }
     const d = await hit({ g: 'sudoku' });
-    assert.strictEqual(d.statusCode, GM.PAYWALL_DEFAULT_ON ? 403 : 200);
-    assert.strictEqual(d.headers['x-game-gate'], GM.PAYWALL_DEFAULT_ON ? 'locked' : 'off');
+    assert.strictEqual(d.statusCode, cmOn ? 403 : 200);
+    assert.strictEqual(d.headers['x-game-gate'], cmOn ? 'locked' : 'off');
     const cat = await F.call(games, { method: 'GET', query: { action: 'catalog' } });
-    assert.strictEqual(cat.body.enabled, GM.PAYWALL_DEFAULT_ON, 'каталог (клиент UI) gate-тэй ижил төлөв');
-    if (!GM.PAYWALL_DEFAULT_ON) {
+    assert.strictEqual(cat.body.enabled, cmOn, 'realm-гүй каталог gate-тэй ижил төлөв');
+    const cc = await F.call(games, { method: 'GET', query: { action: 'catalog', realm: 'cm' } });
+    assert.strictEqual(cc.body.enabled, cmOn, 'cm каталог');
+    if (!cmOn) {
       // cyber-math.com (cm) — одоогийн launch (нэвтрэлтгүй) → тасалбаргүй url → маршрут → файл
       const L = await F.call(games, { query: { action: 'launch' }, body: { game: 'play2048', realm: 'cm' } });
       assert.deepStrictEqual([L.statusCode, L.body.via, L.body.url], [200, 'off', '/play2048.html']);
       assert.strictEqual((await rawGet(base + L.body.url)).status, 200);
-      const cc = await F.call(games, { method: 'GET', query: { action: 'catalog', realm: 'cm' } });
-      assert.strictEqual(cc.body.enabled, false, 'cm каталог — үнэгүй (хуучин шигээ)');
-      // Эхний ээлж: Дасгалын төв (ws) төлбөртэй — gate нээлттэй хэвээр (cm-ийн шууд URL-ууд эвдрэхгүй)
-      const wsOn = GM.WS_PAYWALL_DEFAULT_ON;
-      const wc = await F.call(games, { method: 'GET', query: { action: 'catalog', realm: 'ws' } });
-      assert.strictEqual(wc.body.enabled, wsOn, 'ws каталог');
-      const LW = await F.call(games, { query: { action: 'launch' }, body: { game: 'play2048', realm: 'ws' } });
-      if (wsOn) assert.deepStrictEqual([LW.statusCode, LW.body.needLogin, LW.body.url], [401, true, undefined], 'ws: нэвтрэлт/эрх шаардана');
-      else assert.deepStrictEqual([LW.statusCode, LW.body.via], [200, 'off']);
     }
-    const v = await VER.verify(base, { expect: GM.PAYWALL_DEFAULT_ON ? 'on' : 'off' });
-    assert.deepStrictEqual(v.results.filter((x) => !x.ok), [], 'verify-game-gate --expect ' + (GM.PAYWALL_DEFAULT_ON ? 'on' : 'off'));
-    // хоосон утга = тавиагүй; тодорхой 'on' → preview туршилтад UI-гүйгээр түгжинэ
+    // Дасгалын төв (ws) төлбөртэй — gate нээлттэй хэвээр (cm-ийн шууд URL-ууд эвдрэхгүй)
+    const wc = await F.call(games, { method: 'GET', query: { action: 'catalog', realm: 'ws' } });
+    assert.strictEqual(wc.body.enabled, wsOn, 'ws каталог');
+    const LW = await F.call(games, { query: { action: 'launch' }, body: { game: 'play2048', realm: 'ws' } });
+    if (wsOn) assert.deepStrictEqual([LW.statusCode, LW.body.needLogin, LW.body.url], [401, true, undefined], 'ws: нэвтрэлт/эрх шаардана');
+    else assert.deepStrictEqual([LW.statusCode, LW.body.via], [200, 'off']);
+    const v = await VER.verify(base, { expect: cmOn ? 'on' : 'off' });
+    assert.deepStrictEqual(v.results.filter((x) => !x.ok), [], 'verify-game-gate --expect ' + (cmOn ? 'on' : 'off'));
+    // хоосон утга = тавиагүй; GAME_PAYWALL='on' нь kill-switch биш — cm-ийг асаахгүй (зөвхөн GAME_PAYWALL_REALMS)
     process.env.GAME_PAYWALL = '  ';
-    assert.strictEqual(GM.paywallOn(), GM.PAYWALL_DEFAULT_ON);
+    process.env.GAME_PAYWALL_REALMS = ' ';
+    assert.strictEqual(GM.paywallOn(), cmOn);
+    process.env.GAME_PAYWALL = 'on';
+    assert.strictEqual(GM.gateOn(), cmOn, "GAME_PAYWALL='on' жагсаалтыг өөрчлөхгүй");
+    assert.strictEqual((await hit({ g: 'sudoku' })).statusCode, cmOn ? 403 : 200);
   } finally {
     process.env.GAME_PAYWALL = 'on';
+    process.env.GAME_PAYWALL_REALMS = 'ws,cm';
   }
-  assert.strictEqual((await hit({ g: 'sudoku' })).statusCode, 403, 'GAME_PAYWALL=on → түгжээ');
+  assert.strictEqual((await hit({ g: 'sudoku' })).statusCode, 403, 'GAME_PAYWALL_REALMS=ws,cm → түгжээ');
   assert.deepStrictEqual(F.db.unknown, []);
 
-  // check-game-routes (8) — хоёр чиглэлийн мутаци (synthetic хуудсууд, opts.readiness)
-  const GMon = Object.assign({}, GM, { PAYWALL_DEFAULT_ON: true });
-  const GMoff = Object.assign({}, GM, { PAYWALL_DEFAULT_ON: false });
+  // check-game-routes (8) — realm бүрийн хоёр чиглэлийн мутаци (synthetic хуудсууд, opts.readiness)
+  const GMx = (realms) => Object.assign({}, GM, { DEFAULT_PAYWALL_REALMS: realms });
+  const GMw = GMx(['ws']), GMwc = GMx(['ws', 'cm']), GMc = GMx(['cm']), GM0 = GMx([]);
   const notReady = [
     { file: 'index.html', text: "f.src = '/sudoku.html'; launchConfetti(); fetch('/api/gamesx?action=launch');" },
     { file: 'worksheets.html', text: "fetch('/api/games?action=catalog')" },
@@ -740,23 +754,54 @@ test('деплойн бэлэн байдал: GAME_PAYWALL тавиагүй → 
     { file: 'xp.html', text: "const u = await fetch('/api/games?action=launch'); location.href = 'xpdrop.html?grade=' + g;" },
     { file: 'z.html', text: "a { background: url(/math-mortal/cover.webp) }" },
   ];
-  const nr = CHK.check(VERCEL, { pages: notReady, readiness: true, games: GMon });
+  // Энэ branch-ийн хэлбэр: Дасгалын төв бэлэн, cyber-math.com (index.html embed-ээс өөр launch-гүй + xp.html) бэлэн биш
+  const wsOnly = [
+    { file: 'index.html', text: "<script id=\"gp-embed\">fetch('/api/games?action=launch')</script> f.src = '/sudoku.html';" },
+    { file: 'worksheets.html', text: "api('/api/games?action=' + a, { a: 'launch' })" },
+    { file: 'xp.html', text: "location.href = 'xpdrop.html?grade=' + g;" },
+  ];
+  const chk = (pages, G, env) => CHK.check(VERCEL, { pages: pages, readiness: true, games: G, env: env });
+  const nr = chk(notReady, GMwc);
   assert.strictEqual(nr.ok, false);
-  assert.ok(nr.errors.some((e) => /PAYWALL_DEFAULT_ON=true.*launch UI бэлэн биш/.test(e) && /index\.html/.test(e) &&
-    /worksheets\.html/.test(e) && /xp\.html — тоглоомыг шууд ачаалдаг \(\/xpdrop\.html/.test(e) && !/z\.html/.test(e)), JSON.stringify(nr.errors));
+  assert.ok(nr.errors.some((e) => /^cyber-math\.com \(realm cm\) анхдагчаар төлбөртэй.*launch UI бэлэн биш/.test(e) && /index\.html/.test(e) &&
+    /xp\.html — тоглоомыг шууд ачаалдаг \(\/xpdrop\.html/.test(e) && !/worksheets\.html/.test(e) && !/z\.html/.test(e)), JSON.stringify(nr.errors));
+  assert.ok(nr.errors.some((e) => /^Дасгалын төв \(realm ws\) анхдагчаар төлбөртэй.*worksheets\.html/.test(e) && !/xp\.html/.test(e)), JSON.stringify(nr.errors));
   assert.deepStrictEqual(nr.readiness.missing.map((m) => m.file), ['index.html', 'worksheets.html', 'xp.html']);
-  assert.deepStrictEqual(CHK.check(VERCEL, { pages: notReady, readiness: true, games: GMoff }).errors, []);
-  const rd = CHK.check(VERCEL, { pages: ready, readiness: true, games: GMoff });
-  assert.ok(rd.errors.some((e) => /launch UI бэлэн.*PAYWALL_DEFAULT_ON = true болгоно/.test(e)), JSON.stringify(rd.errors));
+  assert.deepStrictEqual(nr.readiness.missing.map((m) => m.realm), ['cm', 'ws', 'cm']);
+  assert.deepStrictEqual(chk(notReady, GM0).errors, []);
+  const rd = chk(ready, GM0);
+  assert.strictEqual(rd.errors.length, 2, JSON.stringify(rd.errors));
+  assert.ok(rd.errors.some((e) => /^Дасгалын төв \(realm ws\) launch UI бэлэн.*DEFAULT_PAYWALL_REALMS-д 'ws' нэмнэ/.test(e)), JSON.stringify(rd.errors));
+  assert.ok(rd.errors.some((e) => /^cyber-math\.com \(realm cm\) launch UI бэлэн.*'cm' нэмнэ/.test(e)), JSON.stringify(rd.errors));
   assert.strictEqual(rd.readiness.ready, true);
-  assert.deepStrictEqual(CHK.check(VERCEL, { pages: ready, readiness: true, games: GMon }).errors, []);
-  // хост хуудас алга → бэлэн биш; анхдагч экспортлоогүй → алдаа
-  const noWs = CHK.check(VERCEL, { pages: ready.filter((p) => p.file !== 'worksheets.html'), readiness: true, games: GMon });
+  assert.deepStrictEqual(chk(ready, GMwc).errors, []);
+  // эхний ээлж: ws бэлэн, cm бэлэн биш → зөвхөн ['ws'] зөв
+  const w = chk(wsOnly, GMw);
+  assert.deepStrictEqual(w.errors, []);
+  assert.deepStrictEqual([w.readiness.realms.ws.ready, w.readiness.realms.cm.ready, w.readiness.ready], [true, false, false]);
+  assert.deepStrictEqual(w.readiness.realms.cm.missing.map((m) => m.file), ['index.html', 'xp.html'], 'embed блок cm-ийн UI биш');
+  assert.ok(chk(wsOnly, GMwc).errors.some((e) => /^cyber-math\.com \(realm cm\) анхдагчаар төлбөртэй/.test(e)), 'cm UI-гүйгээр cm асаахгүй');
+  assert.ok(chk(wsOnly, GM0).errors.some((e) => /'ws' нэмнэ/.test(e)), 'ws UI бэлэн атал ws үнэгүй — алдаа');
+  assert.ok(chk(wsOnly, GMc).errors.length === 2, 'анхдагч [cm] — хоёр чиглэлд буруу');
+  // энэ орчны GAME_PAYWALL_REALMS (CLI: process.env): UI бэлэн биш cm орсон бол алдаа; kill-switch → алдаагүй; буруу утга → алдаа
+  const envErr = (env) => chk(wsOnly, GMw, env).errors;
+  assert.ok(envErr({ GAME_PAYWALL_REALMS: 'ws,cm' }).some((e) => /^Энэ орчны GAME_PAYWALL_REALMS-д cyber-math\.com \('cm'\).*бэлэн биш.*'cm'-ийг хас/.test(e)),
+    JSON.stringify(envErr({ GAME_PAYWALL_REALMS: 'ws,cm' })));
+  assert.ok(envErr({ GAME_PAYWALL_REALMS: 'cm' }).length === 1);
+  assert.deepStrictEqual(envErr({ GAME_PAYWALL_REALMS: 'ws' }), []);
+  assert.deepStrictEqual(envErr({}), []);
+  assert.deepStrictEqual(envErr({ GAME_PAYWALL_REALMS: 'ws,cm', GAME_PAYWALL: 'off' }), [], 'kill-switch: бүгд нээлттэй');
+  assert.ok(envErr({ GAME_PAYWALL_REALMS: 'wss' }).some((e) => /GAME_PAYWALL_REALMS="wss" буруу/.test(e)));
+  assert.deepStrictEqual(chk(ready, GMwc, { GAME_PAYWALL_REALMS: 'ws,cm' }).errors, [], 'cm UI бэлэн болсны дараа cm асааж болно');
+  assert.deepStrictEqual(chk(wsOnly, GMw, { GAME_PAYWALL_REALMS: 'ws,cm' }).readiness.env, ['ws', 'cm']);
+  // хост хуудас алга → бэлэн биш; анхдагч экспортлоогүй/буруу → алдаа
+  const noWs = chk(ready.filter((p) => p.file !== 'worksheets.html'), GMwc);
   assert.ok(noWs.errors.some((e) => /worksheets\.html — хуудас алга/.test(e)), JSON.stringify(noWs.errors));
-  const GMnone = Object.assign({}, GM); delete GMnone.PAYWALL_DEFAULT_ON;
-  assert.ok(CHK.check(VERCEL, { pages: ready, readiness: true, games: GMnone }).errors.some((e) => /PAYWALL_DEFAULT_ON .*экспортлогдоогүй/.test(e)));
+  const GMnone = Object.assign({}, GM); delete GMnone.DEFAULT_PAYWALL_REALMS;
+  assert.ok(chk(ready, GMnone).errors.some((e) => /DEFAULT_PAYWALL_REALMS .*экспортлогдоогүй/.test(e)));
+  assert.ok(chk(ready, GMx(['ws', 'xx'])).errors.some((e) => /DEFAULT_PAYWALL_REALMS .*буруу/.test(e)));
   // opts.pages (readiness-гүй) → (8) ажиллахгүй
-  assert.strictEqual(CHK.check(VERCEL, { pages: notReady, games: GMon }).readiness, null);
+  assert.strictEqual(CHK.check(VERCEL, { pages: notReady, games: GMwc }).readiness, null);
   // hasLaunch: зөвхөн /api/games + 'launch' action
   assert.strictEqual(CHK.hasLaunch("fetch('/api/games?action=launch')"), true);
   assert.strictEqual(CHK.hasLaunch("fetch('/api/games', {body: JSON.stringify({x:1})}); act = \"launch\""), true);

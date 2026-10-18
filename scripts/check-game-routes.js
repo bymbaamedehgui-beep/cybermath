@@ -11,12 +11,14 @@
 //   7) сайтын хуудсууд (root-ийн *.html, *.js) доторх тоглоомын холбоос (iframe src, location.href, CSS url —
 //      index.html, play.html, team.html, xp.html …) нийтийн замаараа gate эсвэл статик руу шийдэгдэнэ;
 //      /games/… бодит зам руу холбоогүй (нийтэд 404). CLI нь index.html-ээс бусад хэрэглэгч хуудсыг мэдээлнэ —
-//      GAME_PAYWALL асаалттай үед эдгээр нь launch тасалбаргүй бол түгжээтэй хуудас харуулна.
-//   8) деплойн бэлэн байдал: launch UI бэлэн (index.html + worksheets.html, мөн тоглоомыг шууд ачаалдаг бусад хуудас бүр
-//      /api/games?action=launch дууддаг; index.html-ийн Дасгалын төвийн embed блок <script id="gp-embed"> тооцогдохгүй,
-//      хуудасны <script src="/x.js"> локал скрипт тооцогдоно) ⇔ api/_games.js PAYWALL_DEFAULT_ON === true. UI-гүйгээр анхдагч асаалттай бол
-//      GAME_PAYWALL тавиагүй деплойд бүх файл тоглоом түгжигдэнэ (эрхтэй/Premium ч тоглож чадахгүй, худалдан авах зам ч
-//      байхгүй); UI бэлэн атал анхдагч унтраалттай бол тавиагүй деплойд бүх тоглоом үнэгүй. Аль аль нь алдаа.
+//      gate түгжээтэй үед (GAME_PAYWALL_REALMS-д 'cm') эдгээр нь launch тасалбаргүй бол түгжээтэй хуудас харуулна.
+//   8) деплойн бэлэн байдал, realm бүрээр: launch UI бэлэн ⇔ api/_games.js DEFAULT_PAYWALL_REALMS-д орсон.
+//        ws — worksheets.html (эсвэл түүний <script src="/x.js"> локал скрипт, ж: /games-host.js) /api/games?action=launch дууддаг;
+//        cm — index.html (Дасгалын төвийн embed блок <script id="gp-embed"> тооцогдохгүй) ба тоглоомыг шууд ачаалдаг
+//             бусад хуудас бүр (play/team/xp.html) launch дууддаг.
+//      UI-гүйгээр анхдагчаар төлбөртэй бол GAME_PAYWALL_REALMS тавиагүй деплойд тэр сайтын тоглоом түгжигдэнэ (cm бол gate
+//      бүх файл тоглоомыг — эрхтэй/Premium ч тоглож чадахгүй); UI бэлэн атал анхдагчид ороогүй бол тэнд бүх тоглоом үнэгүй.
+//      CLI нь энэ shell-ийн GAME_PAYWALL_REALMS-ийг ч шалгана: UI бэлэн биш realm (одоо 'cm') орсон бол алдаа.
 // Vercel legacy routes: эхний таарсан маршрут (continue-гүй) шийднэ; src нь ^…$-аар бэхлэгдэнэ.
 'use strict';
 const fs = require('fs');
@@ -149,9 +151,13 @@ function consumerProblem(pub, ctx) {
   return 'redirect давталт';
 }
 
-// ───────────── 8) launch UI бэлэн байдал ↔ GAME_PAYWALL-ийн анхдагч ─────────────
+// ───────────── 8) launch UI бэлэн байдал ↔ төлбөртэй realm-ууд ─────────────
 // Тоглоом эхлүүлэх хост хуудсууд: cyber-math.com (index.html) ба Дасгалын төв (worksheets.html) — 16 тоглоом хоёуланд.
 const LAUNCH_HOSTS = Object.freeze(['index.html', 'worksheets.html']);
+// realm → хост хуудас. Gate-ийн тоглоомыг шууд URL-аар ачаалдаг бусад хуудас (play/team/xp.html) нь cm-д хамаарна:
+// gate зөвхөн 'cm' төлбөртэй үед түгжинэ (api/_games.js gateOn).
+const REALM_HOSTS = Object.freeze({ ws: Object.freeze(['worksheets.html']), cm: Object.freeze(['index.html']) });
+const REALM_NAMES = Object.freeze({ ws: 'Дасгалын төв', cm: 'cyber-math.com' });
 // Хуудас тоглоомыг launch-аар (тасалбартай url) нээдэг эсэх: /api/games endpoint + 'launch' action хоёулаа байна.
 function hasLaunch(text) {
   const s = String(text == null ? '' : text);
@@ -192,15 +198,18 @@ function pageHasLaunch(p, root) {
   return hasLaunch(t) || hasLaunch(localScriptsText(t, root));
 }
 // pages: [{ file, text }], cons: consumers(gate, pages) (өгөөгүй бол тооцно), ctx: { routes, gate, root? }
-// → { ready, missing: [{ file, why }] } — LAUNCH_HOSTS бүр launch ашигладаг, мөн gate-ийн тоглоомыг шууд ачаалдаг
-//   бусад хуудас бүр launch ашигладаг үед л бэлэн. ctx.root өгвөл хуудасны <script src="/x.js"> локал скриптийг ч уншина.
+// → { ready, missing: [{ file, why, realm }], realms: { ws: { ready, missing }, cm: { ready, missing } } }
+//   ws — worksheets.html launch ашигладаг үед бэлэн.
+//   cm — index.html (embed блокгүйгээр) launch ашигладаг, мөн gate-ийн тоглоомыг шууд ачаалдаг бусад хуудас бүр launch
+//        ашигладаг үед бэлэн. ready = хоёулаа бэлэн. ctx.root өгвөл хуудасны <script src="/x.js"> локал скриптийг ч уншина.
 function launchReadiness(pages, cons, ctx) {
   const byFile = new Map();
   (pages || []).forEach(function (p) { byFile.set(p.file, p); });
   const missing = [];
   LAUNCH_HOSTS.forEach(function (f) {
-    if (!byFile.has(f)) missing.push({ file: f, why: 'хуудас алга' });
-    else if (!pageHasLaunch(byFile.get(f), ctx && ctx.root)) missing.push({ file: f, why: '/api/games?action=launch дуудлага алга' });
+    const realm = REALM_HOSTS.ws.indexOf(f) >= 0 ? 'ws' : 'cm';
+    if (!byFile.has(f)) missing.push({ file: f, why: 'хуудас алга', realm: realm });
+    else if (!pageHasLaunch(byFile.get(f), ctx && ctx.root)) missing.push({ file: f, why: '/api/games?action=launch дуудлага алга', realm: realm });
   });
   const direct = {};
   (cons || consumers(ctx.gate, pages)).forEach(function (c) {
@@ -208,9 +217,14 @@ function launchReadiness(pages, cons, ctx) {
     (direct[c.file] = direct[c.file] || []).push(c.pub + ' (:' + c.line + ')');
   });
   Object.keys(direct).sort().forEach(function (f) {
-    if (!pageHasLaunch(byFile.get(f), ctx && ctx.root)) missing.push({ file: f, why: 'тоглоомыг шууд ачаалдаг (' + direct[f].join(', ') + '), launch алга' });
+    if (!pageHasLaunch(byFile.get(f), ctx && ctx.root)) missing.push({ file: f, why: 'тоглоомыг шууд ачаалдаг (' + direct[f].join(', ') + '), launch алга', realm: 'cm' });
   });
-  return { ready: missing.length === 0, missing: missing };
+  const realms = {};
+  Object.keys(REALM_HOSTS).forEach(function (r) {
+    const m = missing.filter(function (x) { return x.realm === r; });
+    realms[r] = { ready: m.length === 0, missing: m };
+  });
+  return { ready: missing.length === 0, missing: missing, realms: realms };
 }
 
 // → { ok, errors: [], checked: n, consumers: [{ file, line, ref, pub }], readiness: { ready, missing } | null }
@@ -347,20 +361,44 @@ function check(vercel, opts) {
     err('index.html-ээс тоглоомын холбоос олдсонгүй (холбоос хайгч эвдэрсэн эсвэл index.html өөрчлөгдсөн)');
   }
 
-  // 8) launch UI бэлэн ⇔ GAME_PAYWALL-ийн анхдагч асаалттай (бодит root хуудсууд; opts.pages-тэй үед opts.readiness=true бол)
+  // 8) realm бүр: launch UI бэлэн ⇔ анхдагчаар төлбөртэй (api/_games.js DEFAULT_PAYWALL_REALMS) — бодит root хуудсууд;
+  //    opts.pages-тэй үед opts.readiness=true бол. opts.env өгвөл (CLI: process.env) тэр орчны GAME_PAYWALL_REALMS-д
+  //    орсон realm бүрийн UI бэлэн байх ёстой (ж: cm UI нэгтгэгдээгүй байхад GAME_PAYWALL_REALMS=ws,cm → алдаа).
   let readiness = null;
   if (!opts.pages || opts.readiness) {
     checked++;
     readiness = launchReadiness(pages, cons, ctx);
-    const def = GM.PAYWALL_DEFAULT_ON;
-    const miss = readiness.missing.map(function (m) { return m.file + ' — ' + m.why; }).join('; ');
-    if (typeof def !== 'boolean') err('api/_games.js PAYWALL_DEFAULT_ON (true/false) экспортлогдоогүй');
-    else if (def && !readiness.ready) {
-      err('GAME_PAYWALL-ийн анхдагч асаалттай (api/_games.js PAYWALL_DEFAULT_ON=true) боловч launch UI бэлэн биш — ' +
-        'GAME_PAYWALL тавиагүй деплойд файл тоглоом бүгд түгжигдэж, эрхтэй/Premium хэрэглэгч ч тоглож чадахгүй: ' + miss);
-    } else if (!def && readiness.ready) {
-      err('launch UI бэлэн (' + LAUNCH_HOSTS.join(', ') + ') — api/_games.js PAYWALL_DEFAULT_ON = true болгоно уу ' +
-        '(эс бөгөөс GAME_PAYWALL тавиагүй деплойд бүх тоглоом үнэгүй)');
+    const def = GM.DEFAULT_PAYWALL_REALMS;
+    const missOf = function (r) { return readiness.realms[r].missing.map(function (m) { return m.file + ' — ' + m.why; }).join('; '); };
+    if (!Array.isArray(def) || def.some(function (r) { return !REALM_HOSTS[r]; })) {
+      err('api/_games.js DEFAULT_PAYWALL_REALMS (["ws"] г.м.) экспортлогдоогүй эсвэл буруу');
+    } else {
+      Object.keys(REALM_HOSTS).forEach(function (r) {
+        const on = def.indexOf(r) >= 0, rr = readiness.realms[r];
+        if (on && !rr.ready) {
+          err(REALM_NAMES[r] + ' (realm ' + r + ') анхдагчаар төлбөртэй (api/_games.js DEFAULT_PAYWALL_REALMS) боловч launch UI бэлэн биш — ' +
+            (r === 'cm' ? 'gate бүх файл тоглоомыг түгжиж, эрхтэй/Premium хэрэглэгч ч тоглож чадахгүй: '
+                        : 'худалдан авах/тоглох зам байхгүй: ') + missOf(r));
+        } else if (!on && rr.ready) {
+          err(REALM_NAMES[r] + ' (realm ' + r + ') launch UI бэлэн (' + REALM_HOSTS[r].join(', ') + ') — api/_games.js ' +
+            "DEFAULT_PAYWALL_REALMS-д '" + r + "' нэмнэ үү (эс бөгөөс GAME_PAYWALL_REALMS тавиагүй деплойд тэнд тоглоом үнэгүй)");
+        }
+      });
+    }
+    if (opts.env) {
+      const raw = String(opts.env.GAME_PAYWALL_REALMS || '').trim();
+      if (raw && typeof GM.parseRealms === 'function' && !GM.parseRealms(raw)) {
+        err('GAME_PAYWALL_REALMS="' + raw.slice(0, 40) + '" буруу (зөвшөөрөгдөх: ws, cm — таслалаар) — анхдагч руу буцна');
+      }
+      const eff = typeof GM.paywallRealms === 'function' ? GM.paywallRealms(opts.env) : [];
+      eff.forEach(function (r) {
+        if (REALM_HOSTS[r] && !readiness.realms[r].ready) {
+          err('Энэ орчны GAME_PAYWALL_REALMS-д ' + REALM_NAMES[r] + " ('" + r + "') төлбөртэй боловч launch UI бэлэн биш — " +
+            (r === 'cm' ? 'cyber-math.com-ийн тоглоом, play/team/xp.html, шууд URL түгжигдэнэ: ' : '') + missOf(r) +
+            (r === 'cm' ? ". GAME_PAYWALL_REALMS-аас 'cm'-ийг хас (cm UI нэгтгэгдэх хүртэл)" : ''));
+        }
+      });
+      readiness.env = eff;
     }
   }
 
@@ -368,14 +406,14 @@ function check(vercel, opts) {
 }
 
 module.exports = { check, globToRe, globMatch, routeRe, firstRoute, resolveRoute, consumers, consumerProblem, refRe,
-  LAUNCH_HOSTS, hasLaunch, gateOf, launchReadiness, localScriptsText, pageHasLaunch, withoutEmbed };
+  LAUNCH_HOSTS, REALM_HOSTS, hasLaunch, gateOf, launchReadiness, localScriptsText, pageHasLaunch, withoutEmbed };
 
 if (require.main === module) {
   const file = path.resolve(process.argv[2] || path.join(ROOT, 'vercel.json'));
   let v;
   try { v = JSON.parse(fs.readFileSync(file, 'utf8')); }
   catch (e) { console.error('vercel.json уншигдсангүй: ' + e.message); process.exit(1); }
-  const r = check(v);
+  const r = check(v, { env: process.env });
   if (!r.ok) {
     console.error('АЛДАА (' + r.errors.length + '):');
     r.errors.forEach(function (s) { console.error('  - ' + s); });
@@ -383,15 +421,19 @@ if (require.main === module) {
   }
   console.log('OK — тоглоомын gate маршрут/build шалгалт (' + r.checked + ' шалгалт)');
   const GM = require(path.join(ROOT, 'api', '_games.js'));
-  if (r.readiness && r.readiness.ready) {
-    console.log('Launch UI бэлэн — PAYWALL_DEFAULT_ON=true: GAME_PAYWALL тавиагүй деплойд тоглоом төлбөртэй.');
-    console.log('  Деплойн дараа: node scripts/verify-game-gate.js --base <url>   (Vercel-д GAME_PAYWALL=off бол --expect off)');
-  } else if (r.readiness) {
-    console.log('Launch UI бэлэн биш — PAYWALL_DEFAULT_ON=false: GAME_PAYWALL тавиагүй деплойд cyber-math.com-ийн тоглоом, gate нээлттэй (одоогийнх шиг).');
-    r.readiness.missing.forEach(function (m) { console.log('  - ' + m.file + ': ' + m.why); });
-    if (GM.WS_PAYWALL_DEFAULT_ON) console.log('  Эхний ээлж: Дасгалын төв (realm ws) WS_PAYWALL_DEFAULT_ON=true — worksheets.html-д тоглоом төлбөртэй.');
-    console.log('  Production-д GAME_PAYWALL=on БҮҮ тавь (зөвхөн gate-ийг турших preview-д); деплойн дараа:');
-    console.log('  node scripts/verify-game-gate.js --base <url> --expect off');
-    if (GM.paywallOn()) console.log('АНХААР: энэ shell-д GAME_PAYWALL асаалттай — UI бэлэн болтол зөвхөн preview туршилтад.');
+  if (r.readiness) {
+    const def = GM.DEFAULT_PAYWALL_REALMS;
+    Object.keys(REALM_HOSTS).forEach(function (k) {
+      const rr = r.readiness.realms[k];
+      console.log((def.indexOf(k) >= 0 ? 'Төлбөртэй' : 'Үнэгүй   ') + ' (анхдагч) — ' + REALM_NAMES[k] + ' (realm ' + k + '): launch UI ' +
+        (rr.ready ? 'бэлэн' : 'бэлэн биш'));
+      rr.missing.forEach(function (m) { console.log('    - ' + m.file + ': ' + m.why); });
+    });
+    console.log('  Gate (/sudoku.html г.м. шууд URL): ' + (def.indexOf('cm') >= 0 ? 'түгжээтэй' : 'нээлттэй (cyber-math.com хуучин шигээ)') +
+      ' — GAME_PAYWALL_REALMS тавиагүй деплойд.');
+    console.log('  Энэ shell: GAME_PAYWALL_REALMS=' + JSON.stringify(process.env.GAME_PAYWALL_REALMS || '') +
+      ' → төлбөртэй: [' + GM.paywallRealms().join(', ') + '], gate ' + (GM.gateOn() ? 'түгжээтэй' : 'нээлттэй'));
+    console.log('  Деплойн дараа: node scripts/verify-game-gate.js --base <url>' + (def.indexOf('cm') >= 0 ? '' : ' --expect off') +
+      '   (cm-ийг Vercel-д GAME_PAYWALL_REALMS-аар асаасан бол --expect-гүй)');
   }
 }

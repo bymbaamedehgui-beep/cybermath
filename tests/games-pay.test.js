@@ -350,21 +350,27 @@ test('GAME_PAYWALL=off → бүх 16 тоглоом нээлттэй (нэвтр
     assert.strictEqual(GM.paywallOn(), true, JSON.stringify(v));
     assert.strictEqual(await GM.entitled('ws', 'nobody@x.mn', 'sudoku'), false, JSON.stringify(v));
   }
-  // Тавиагүй/хоосон → realm-гүй (gate) ба 'cm' нь api/_games.js PAYWALL_DEFAULT_ON (launch UI деплойдох хүртэл false —
-  // games-gate.test.js шалгана); 'ws' нь эхний ээлжинд WS_PAYWALL_DEFAULT_ON (Дасгалын төвд л төлбөртэй).
-  assert.strictEqual(typeof GM.PAYWALL_DEFAULT_ON, 'boolean');
-  assert.strictEqual(typeof GM.WS_PAYWALL_DEFAULT_ON, 'boolean');
-  const wsDef = GM.WS_PAYWALL_DEFAULT_ON || GM.PAYWALL_DEFAULT_ON;
+  // GAME_PAYWALL_REALMS тавиагүй/хоосон → api/_games.js DEFAULT_PAYWALL_REALMS (эхний ээлж ['ws'] — Дасгалын төвд л
+  // төлбөртэй, cm + gate нээлттэй; games-realm.test.js, games-gate.test.js дэлгэрэнгүй шалгана). GAME_PAYWALL нь
+  // kill-switch л — тавиагүй/'on' жагсаалтад нөлөөлөхгүй.
+  assert.ok(Array.isArray(GM.DEFAULT_PAYWALL_REALMS));
+  const wsDef = GM.DEFAULT_PAYWALL_REALMS.includes('ws'), cmDef = GM.DEFAULT_PAYWALL_REALMS.includes('cm');
   for (const v of [undefined, '', '  ']) {
-    if (v === undefined) delete process.env.GAME_PAYWALL; else process.env.GAME_PAYWALL = v;
-    assert.strictEqual(GM.paywallOn(), GM.PAYWALL_DEFAULT_ON, JSON.stringify(v));
-    assert.strictEqual(GM.paywallOn('cm'), GM.PAYWALL_DEFAULT_ON, JSON.stringify(v));
-    assert.strictEqual(GM.paywallOn('ws'), wsDef, JSON.stringify(v));
-    assert.strictEqual(await GM.entitled('ws', 'nobody@x.mn', 'sudoku'), !wsDef, JSON.stringify(v));
-    assert.strictEqual(await GM.entitled('cm', 'nobody@x.mn', 'sudoku'), !GM.PAYWALL_DEFAULT_ON, JSON.stringify(v));
-    assert.strictEqual(await GM.entitled('ws', 'off@x.mn', 'sudoku'), true, 'худалдаж авсан ws эрх ' + JSON.stringify(v));
+    for (const pw of [undefined, 'on']) {
+      if (v === undefined) delete process.env.GAME_PAYWALL_REALMS; else process.env.GAME_PAYWALL_REALMS = v;
+      if (pw === undefined) delete process.env.GAME_PAYWALL; else process.env.GAME_PAYWALL = pw;
+      const tag = JSON.stringify([v, pw]);
+      assert.strictEqual(GM.paywallOn(), cmDef, tag + ' gate = cm');
+      assert.strictEqual(GM.gateOn(), cmDef, tag);
+      assert.strictEqual(GM.paywallOn('cm'), cmDef, tag);
+      assert.strictEqual(GM.paywallOn('ws'), wsDef, tag);
+      assert.strictEqual(await GM.entitled('ws', 'nobody@x.mn', 'sudoku'), !wsDef, tag);
+      assert.strictEqual(await GM.entitled('cm', 'nobody@x.mn', 'sudoku'), !cmDef, tag);
+      assert.strictEqual(await GM.entitled('ws', 'off@x.mn', 'sudoku'), true, 'худалдаж авсан ws эрх ' + tag);
+    }
   }
   process.env.GAME_PAYWALL = 'on';
+  process.env.GAME_PAYWALL_REALMS = 'ws,cm';
   assert.strictEqual(await GM.entitled('ws', 'off@x.mn', 'sudoku'), true, 'худалдаж авсан эрх хэвээр');
 });
 

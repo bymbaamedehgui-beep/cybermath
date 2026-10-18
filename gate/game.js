@@ -9,8 +9,9 @@
 //
 // Шийдвэрийн дараалал:
 //   1) GET/HEAD л. g нь FILES allowlist-д, f нь regex + бодит файлын жагсаалтад (path traversal → 404).
-//   2) GAME_PAYWALL=off (эсвэл тавиагүй + GM.PAYWALL_DEFAULT_ON=false — launch UI деплойдох хүртэл) → шууд өгнө
-//      (?t= байвал тасалбаргүй URL руу 302).
+//   2) GM.gateOn() === false → шууд өгнө (?t= байвал тасалбаргүй URL руу 302). Gate зөвхөн cyber-math.com (realm 'cm')
+//      төлбөртэй үед түгжинэ (env GAME_PAYWALL_REALMS-д 'cm'; анхдагч ['ws'] — эхний ээлжинд Дасгалын төвд л төлбөртэй,
+//      cyber-math.com-ийн шууд URL /sudoku.html, play/team/xp.html-ийн xpdrop г.м. хуучин шигээ нээлттэй). GAME_PAYWALL=off → нээлттэй.
 //   3) ?t=<launch тасалбар> (зөвхөн эхлэх хуудсанд; api/games.js launch гаргана): verifyTicket(g) → useJti (НЭГ удаа) →
 //      sessionExp → Set-Cookie __Host-cmg_<g> (HttpOnly; Secure; SameSite=Lax; Path=/; ≤2 цаг, урилга 30 мин,
 //      эрхийн дуусах огнооноос хэтрэхгүй) → 302 тасалбаргүй URL (URL-ийг хуулж хуваалцах боломжгүй).
@@ -278,8 +279,8 @@ async function gate(req, res) {
   }
   const tok = t.entry && typeof q.t === 'string' && q.t ? q.t : null;
   try {
-    // Kill-switch: бүгд нээлттэй (одоогийнх шиг)
-    if (!GM.paywallOn()) {
+    // Gate нээлттэй (cyber-math.com төлбөргүй — эхний ээлж, эсвэл kill-switch): бүгд нээлттэй (одоогийнх шиг)
+    if (!GM.gateOn()) {
       if (tok) return redirect(res, cleanUrl(req, t.g, q), null);
       return serveFile(req, res, t, 'off', head);
     }

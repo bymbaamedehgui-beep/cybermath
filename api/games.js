@@ -9,7 +9,7 @@
 //   POST ?action=launch  {game, realm, wstoken?, invite?}   (+ x-device-id толгой — урилгаар нэгдэхэд төхөөрөмж уяна)
 //        Дараалал: Bearer admin → нэвтэрсэн бөгөөд өөрийн эрхтэй (урилга ЗАРЦУУЛАХГҮЙ) → урилга → 401/403/402.
 //        эрхтэй   → { ok:true, game, kind, via, expires_at?, url? }
-//                   kind='file'     → url = <тоглоомын зам>?t=<launch тасалбар> (gate хаалттай үед; нээлттэй бол шууд зам;
+//                   kind='file'     → url = <тоглоомын зам>?t=<launch тасалбар> (gate түгжээтэй үед; нээлттэй бол шууд зам;
 //                                     120 сек, нэг удаагийн jti — gate шалгана;
 //                                     sub = тунгалаг 'u:…' — имэйл URL-д орохгүй; sx = эрхийн дуусах огноо)
 //                   kind='inline'   → url байхгүй (клиент gate)
@@ -24,9 +24,10 @@
 //        (url = найздаа илгээх харьцангуй холбоос)
 //
 // Дасгалын төвийн токен: 2 төхөөрөмжийн хязгаар (api/_wsdev.js checkReq — wsstatus-ийн логик) status/launch/invite бүгдэд.
-// DB алдаа → 503 (fail-closed). Төлбөр асаалттай эсэх нь realm-ээр: GM.paywallOn(realm) — GAME_PAYWALL=off → бүгд нээлттэй;
-// тавиагүй → 'ws' асаалттай (эхний ээлж, GM.WS_PAYWALL_DEFAULT_ON), 'cm' нь GM.PAYWALL_DEFAULT_ON (false → хуучин шигээ үнэгүй).
-// Нээлттэй realm-д launch нэвтрэлт шаардахгүй, тасалбаргүй url. catalog ?realm=ws|cm → тухайн realm-ийн enabled.
+// DB алдаа → 503 (fail-closed). Төлбөр асаалттай эсэх нь realm-ээр: GM.paywallOn(realm) — env GAME_PAYWALL_REALMS
+// (тавиагүй → GM.DEFAULT_PAYWALL_REALMS = ['ws']: эхний ээлжинд Дасгалын төвд л), GAME_PAYWALL=off → бүгд нээлттэй.
+// Төлбөргүй realm-д launch нэвтрэлт шаардахгүй (via 'off'), файл тоглоомд gate түгжээтэй үед л тасалбар (launchOut).
+// catalog ?realm=ws|cm → тухайн realm-ийн enabled; realm-гүй → gate-ийн төлөв (GM.gateOn()).
 'use strict';
 const guard = require('./_guard');
 const GM = require('./_games');
@@ -107,16 +108,19 @@ async function identify(req, b, realm) {
   return { ok: true, realm: 'ws', email: email };
 }
 
-// Амжилттай launch-ийн хариу. who = { r, sub, sx? } бол файл тоглоомд тасалбар гаргана; who=null (GAME_PAYWALL=off) бол тасалбаргүй.
-// sub: GM.subjectOf(...) | 'inv:<jti>' | 'admin' — имэйл ХЭЗЭЭ Ч биш (signTicket шалгана).
-function launchOut(key, who, via, expiresAt) {
+// Амжилттай launch-ийн хариу. who = { r, sub, sx? } — эрхтэй хэрэглэгч/урилга/админ; who=null — realm төлбөргүй (via 'off').
+// sub: GM.subjectOf(...) | 'inv:<jti>' | 'admin' | 'open' — имэйл ХЭЗЭЭ Ч биш (signTicket шалгана).
+// Файл тоглоомын тасалбар зөвхөн gate түгжээтэй үед (GM.gateOn() — 'cm' төлбөртэй). Эхний ээлжинд ('ws' л төлбөртэй)
+// gate нээлттэй тул ws-ийн эрхтэй хэрэглэгчид ч шууд зам (gate ?t=-г зүгээр л 302-оор цэвэрлэх байсан).
+// Gate түгжээтэй атал энэ realm төлбөргүй бол (ж: GAME_PAYWALL_REALMS=cm үеийн ws) нэвтрэлтгүй 'open' тасалбар —
+// эс бөгөөс тасалбаргүй url түгжээтэй хуудас харуулна.
+function launchOut(key, who, via, expiresAt, realm) {
   const G = GM.GAMES[key];
   const o = { ok: true, game: key, kind: G.kind, via: via };
   if (expiresAt) o.expires_at = new Date(expiresAt).toISOString();
   if (G.kind === 'file') {
-    // Тасалбар зөвхөн gate хаалттай үед (GM.paywallOn() — realm-гүй = gate-ийн төлөв). Эхний ээлжинд gate нээлттэй
-    // (cm хуучин шигээ) тул ws-ийн эрхтэй хэрэглэгчид ч шууд зам — gate ?t=-г зүгээр л 302-оор цэвэрлэх байсан.
-    if (who && GM.paywallOn()) {
+    if (!who && realm) who = { r: realm, sub: 'open' };
+    if (who && GM.gateOn()) {
       const t = GM.signTicket({ g: key, r: who.r, sub: who.sub, sx: who.sx || null });
       o.url = G.path + '?t=' + encodeURIComponent(t.token);
       o.ticket_ttl = GM.TICKET_TTL;
@@ -185,7 +189,7 @@ module.exports = async function handler(req, res) {
     if (action === 'launch') {
       if (await limited('games_l_ip:' + ip, 300, 600)) return res.status(429).json({ ok: false, error: MSG.rate });
       // Kill-switch / энэ realm-д төлбөргүй: бүгд нээлттэй (одоогийнх шиг) — нэвтрэлт, тасалбар шаардахгүй
-      if (!GM.paywallOn(realm)) return res.json(launchOut(key, null, 'off', null));
+      if (!GM.paywallOn(realm)) return res.json(launchOut(key, null, 'off', null, realm));
 
       // Админ (туршилт)
       if (guard.requireAdmin(req)) return res.json(launchOut(key, { r: realm, sub: 'admin' }, 'admin', null));

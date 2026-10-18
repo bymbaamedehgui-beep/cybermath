@@ -1372,7 +1372,9 @@ module.exports = async (req, res) => {
             ORDER BY created_at DESC LIMIT 100`);
         return res.json({ ok: true, rows: r.rows, shown: r.rows.length, total: totalRows, active: totalActive,
           by_game: GM.GAME_KEYS.map(function (k) { return by[k]; }), purchases: purch.rows, pending: pend.rows,
-          catalog: GM.publicCatalog(), price: GM.gamePrice(), days: GM.GAME_DAYS, paywall: GM.paywallOn(),
+          // paywall: аль нэг сайтад төлбөртэй эсэх; paywall_realms: төлбөртэй сайтууд (эхний ээлж ['ws'] — cyber-math.com үнэгүй)
+          catalog: GM.publicCatalog(), price: GM.gamePrice(), days: GM.GAME_DAYS,
+          paywall: GM.paywallRealms().length > 0, paywall_realms: GM.paywallRealms(),
           filter: { q: q, game: fGame, realm: fRealm, status: fStatus, limit: lim } });
       }
       // Ангиар эрхтэй хэрэглэгчид
