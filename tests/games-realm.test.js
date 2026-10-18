@@ -27,7 +27,8 @@ const launchWs = (email, game, dev) => G('launch', { game: game, realm: 'ws', ws
 const launchCm = (email, game) => G('launch', { game: game, realm: 'cm' }, { headers: bearer(cmTok(email)) });
 const anon = (realm, game) => G('launch', { game: game, realm: realm });
 const payload = (tok) => JSON.parse(Buffer.from(String(tok).split('.')[1], 'base64url').toString('utf8'));
-const ticketOf = (url) => decodeURIComponent(String(url).split('?t=')[1] || '');
+// url-ийн ?t= (ws бол /<зам>?realm=ws&t=…, cm бол /<зам>?t=…)
+const ticketOf = (url) => new URL(String(url), 'https://cyber-math.com').searchParams.get('t') || '';
 const FILE_KEYS = Object.keys(gate.FILES);
 function give(realm, email, key, days) {
   F.db.access.set(realm + '|' + email + '|' + key, { realm: realm, email: email, game_key: key,
@@ -232,44 +233,84 @@ test('GAME_PAYWALL_REALMS=ws,cm: cm төлбөртэй (401/402, QPay нэхэм
     const r = await gateHit(gate.FILES[k].paths[0]);
     assert.deepStrictEqual([r.statusCode, r.headers['x-game-gate']], [403, 'locked'], k);
   }
-  // ws эрхтэй → тасалбар (r:'ws', имэйлгүй) → 302 + HttpOnly cookie → файл
+  // ws эрхтэй → тасалбар (r:'ws', имэйлгүй) → 302 + HttpOnly cookie (ws-ийнх) → Дасгалын төвийн URL (?realm=ws) → файл
   give('ws', 'kid@x.mn', 'sudoku');
   const l = await launchWs('kid@x.mn', 'sudoku');
   assert.strictEqual(l.statusCode, 200, JSON.stringify(l.body));
-  assert.ok(/^\/sudoku\.html\?t=/.test(l.body.url), l.body.url);
+  assert.ok(/^\/sudoku\.html\?realm=ws&t=/.test(l.body.url), l.body.url);
   const pl = payload(ticketOf(l.body.url));
   assert.deepStrictEqual([pl.typ, pl.g, pl.r], ['glt', 'sudoku', 'ws']);
   assert.ok(/^u:[a-f0-9]{32}$/.test(pl.sub) && JSON.stringify(pl).indexOf('kid@') < 0, 'имэйлгүй');
   const t = await gateHit(l.body.url);
-  assert.deepStrictEqual([t.statusCode, t.headers.location], [302, '/sudoku.html']);
+  assert.deepStrictEqual([t.statusCode, t.headers.location], [302, '/sudoku.html?realm=ws']);
   const ck = cookiePair(t);
-  assert.ok(/^__Host-cmg_sudoku=/.test(ck), ck);
+  assert.ok(/^__Host-cmgw_sudoku=/.test(ck), ck);
   assert.ok(/HttpOnly; Secure; SameSite=Lax/.test(String([].concat(t.headers['set-cookie'])[0])));
-  const f = await gateHit('/sudoku.html', ck);
+  const f = await gateHit('/sudoku.html?realm=ws', ck);
   assert.deepStrictEqual([f.statusCode, f.headers['x-game-gate']], [200, 'open']);
   assert.strictEqual((await gateHit(l.body.url)).statusCode, 403, 'тасалбар нэг удаагийн');
-  // ws-ийн эрх cm-д хамаарахгүй
+  // ws-ийн эрх cm-д хамаарахгүй: API (402) ч, gate (cyber-math.com-ийн /sudoku.html, /sudoku — ижил хөтөч, ws cookie-той) ч
   F.addUser('kid@x.mn');
   assert.strictEqual((await launchCm('kid@x.mn', 'sudoku')).statusCode, 402, 'realm тусдаа');
+  for (const p of ['/sudoku.html', '/sudoku']) {
+    const x = await gateHit(p, ck);
+    assert.deepStrictEqual([x.statusCode, x.headers['x-game-gate']], [403, 'locked'], p + ': Дасгалын төвийн cookie cyber-math.com-д хүчингүй');
+  }
+  // cm-ийн эрхтэй хэрэглэгч → cm cookie → cyber-math.com-ийн URL; Дасгалын төвийн URL-ийг нээхгүй
+  give('cm', 'cmbuyer@x.mn', 'sudoku');
+  const lc = await launchCm('cmbuyer@x.mn', 'sudoku');
+  assert.ok(/^\/sudoku\.html\?t=/.test(lc.body.url), lc.body.url);
+  const tc = await gateHit(lc.body.url);
+  assert.deepStrictEqual([tc.statusCode, tc.headers.location], [302, '/sudoku.html']);
+  const cc = cookiePair(tc);
+  assert.ok(/^__Host-cmg_sudoku=/.test(cc), cc);
+  assert.strictEqual((await gateHit('/sudoku.html', cc)).statusCode, 200);
+  assert.strictEqual((await gateHit('/sudoku.html?realm=ws', cc)).statusCode, 403, 'cm cookie Дасгалын төвд хүчингүй');
+  // ws урилга (host ws-ийн эрхтэй) → найзын сесс ws-ийнх → cm-ийн хуудсыг нээхгүй
+  give('ws', 'kid@x.mn', 'mathmortal');
+  const iv = await G('invite', { game: 'mathmortal', realm: 'ws', wstoken: wsTok('kid@x.mn') }, { headers: { 'x-device-id': 'devrealm0001' } });
+  assert.strictEqual(iv.statusCode, 200, JSON.stringify(iv.body));
+  const fl = await G('launch', { game: 'mathmortal', realm: 'ws', invite: iv.body.invite }, { headers: { 'x-device-id': 'friendrealm9' } });
+  assert.deepStrictEqual([fl.statusCode, fl.body.via], [200, 'invite']);
+  assert.ok(/^\/math-mortal\/\?realm=ws&t=/.test(fl.body.url), fl.body.url);
+  const ti = await gateHit(fl.body.url);
+  const ci = cookiePair(ti);
+  assert.ok(/^__Host-cmgw_mathmortal=/.test(ci), ci);
+  assert.strictEqual((await gateHit('/math-mortal/?realm=ws', ci)).statusCode, 200);
+  assert.strictEqual((await gateHit('/math-mortal/', ci)).statusCode, 403, 'ws урилга cyber-math.com-д хүчингүй');
+  assert.strictEqual((await gateHit('/math-mortal/index.html', ci)).statusCode, 403);
 });
 
-test("GAME_PAYWALL_REALMS=cm: ws үнэгүй (via off) атал gate түгжээтэй → ws launch нэвтрэлтгүй 'open' тасалбар → файл", async () => {
+// gp-final (шалгагчийн минор): өмнө нь энэ горимд ws launch нэвтрэлтгүй 'open' тасалбар гаргадаг байсан → gate
+// __Host-cmg_<g> cookie (2 цаг) → нэвтрээгүй хэн ч cyber-math.com-ийн төлбөртэй файл тоглоомыг үнэгүй нээдэг байв.
+test("GAME_PAYWALL_REALMS=cm: ws үнэгүй (via off) → тасалбаргүй ?realm=ws url (gate тэр realm-д нээлттэй); cm-ийн хуудас түгжээтэй хэвээр, 'open' тасалбар байхгүй", async () => {
   setEnv('cm', undefined);
   assert.deepStrictEqual([GM.paywallOn('ws'), GM.paywallOn('cm'), GM.gateOn()], [false, true, true]);
-  const l = await anon('ws', 'play2048');
-  assert.deepStrictEqual([l.statusCode, l.body.via], [200, 'off']);
-  assert.ok(/^\/play2048\.html\?t=/.test(l.body.url), l.body.url);
-  assert.deepStrictEqual([payload(ticketOf(l.body.url)).sub, payload(ticketOf(l.body.url)).r], ['open', 'ws']);
-  const t = await gateHit(l.body.url);
-  assert.strictEqual(t.statusCode, 302);
-  assert.strictEqual((await gateHit('/play2048.html', cookiePair(t))).statusCode, 200);
-  assert.strictEqual((await gateHit('/play2048.html')).statusCode, 403, 'cookie-гүй — түгжээтэй');
+  for (const k of FILE_KEYS.filter((x) => GM.GAMES[x].kind === 'file')) {
+    const l = await anon('ws', k);
+    assert.deepStrictEqual([l.statusCode, l.body.via], [200, 'off'], k);
+    assert.strictEqual(l.body.url, GM.GAMES[k].path + '?realm=ws', k + ': тасалбаргүй, realm-тэй');
+    assert.strictEqual(ticketOf(l.body.url), '', k);
+    const g = await gateHit(l.body.url);
+    assert.deepStrictEqual([g.statusCode, g.headers['x-game-gate'], g.headers['set-cookie']], [200, 'off', undefined], k);
+    // ws URL-аар cookie гарахгүй тул cyber-math.com-ийн хуудас нэвтрээгүй хүнд түгжээтэй хэвээр
+    const c = await gateHit(gate.FILES[k].paths[0]);
+    assert.deepStrictEqual([c.statusCode, c.headers['x-game-gate']], [403, 'locked'], k + ': cm түгжээтэй');
+  }
+  // шалгагчийн repro: ws launch (токенгүй) → url-ийг gate-д → cookie үгүй → /sudoku.html 403
+  const r = await anon('ws', 'sudoku');
+  const rg = await gateHit(r.body.url + '&t=garbage');
+  assert.deepStrictEqual([rg.statusCode, rg.headers.location, rg.headers['set-cookie']], [302, '/sudoku.html?realm=ws', undefined]);
+  assert.strictEqual((await gateHit('/sudoku.html')).statusCode, 403);
+  assert.strictEqual(F.db.tix.size, 0, 'тасалбар огт гараагүй');
   const il = await anon('ws', 'ludo');
   assert.deepStrictEqual([il.statusCode, il.body.kind, il.body.via], [200, 'inline', 'off']);
   assert.strictEqual((await anon('cm', 'play2048')).statusCode, 401, 'cm төлбөртэй');
-  // 'open' sub нь тасалбарын sub дүрэмд л (session-д ч) — имэйл/дурын утга хэвээр татгалзана
-  assert.throws(() => GM.signTicket({ g: 'sudoku', r: 'ws', sub: 'free' }), /sub буруу/);
-  assert.throws(() => GM.signTicket({ g: 'sudoku', r: 'ws', sub: 'kid@x.mn' }), /sub буруу/);
+  // 'open' (нэвтрэлтгүй) sub-тай тасалбар/сесс хийх боломжгүй; имэйл/дурын утга хэвээр татгалзана
+  for (const sub of ['open', 'free', 'kid@x.mn']) {
+    assert.throws(() => GM.signTicket({ g: 'sudoku', r: 'ws', sub: sub }), /sub буруу/, sub);
+    assert.throws(() => GM.signSession({ g: 'sudoku', r: 'cm', sub: sub }, Math.floor(Date.now() / 1000) + 60), /sub буруу/, sub);
+  }
 });
 
 test('GAME_PAYWALL=off (GAME_PAYWALL_REALMS=ws,cm ч): бүх сайт + gate нээлттэй, нэхэмжлэх үүсгэхгүй', async () => {

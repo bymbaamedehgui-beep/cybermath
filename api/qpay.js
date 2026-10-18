@@ -655,6 +655,11 @@ async function settleGame(row, email) {
 }
 // Premium / friends / event / game нэхэмжлэхийг ХАДГАЛСАН мөрөөр НЭГ УДАА олгоно.
 // Буцаах: { granted: энэ дуудлага эрх олгосон эсэх, out: клиентийн хариу (бүтэц хуучинтай ижил) }
+// ДЕПЛОЙН АНХААРУУЛГА (rollback): энэ салбараас өмнөх хувилбар (origin/main) 'event'-ээс бусад бүх мөрийг Premium гэж олгодог.
+// Тоглоомын төлбөр деплойлогдсоны дараа Instant Rollback / git revert хийвэл тэр хуучин callback/check/ws_reconcile нь төлсөн
+// атлаа олгогдоогүй plan='game' мөрийг claim хийж (granted=TRUE) ижил имэйлтэй users-д 30 хоногийн Premium өгнө, тоглоомын
+// эрх олгогдохгүй. Яаралтай үед rollback биш env GAME_PAYWALL=off (шинэ нэхэмжлэх зогсоно, settle хэвээр) ашиглана; эсвэл
+// энэ allowlist (PAY_PREMIUM_PLANS + 'game' хориг)-ийг main-д урьдчилан тусад нь нэгтгэнэ.
 async function settlePay(row) {
   const email = String(row.email).trim().toLowerCase();
   // Буруу/үл мэдэгдэх мөрийг claim хийхээс ӨМНӨ татгалзана — granted=FALSE хэвээр, админ тулгаж шалгана

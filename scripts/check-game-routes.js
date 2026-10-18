@@ -435,5 +435,8 @@ if (require.main === module) {
       ' → төлбөртэй: [' + GM.paywallRealms().join(', ') + '], gate ' + (GM.gateOn() ? 'түгжээтэй' : 'нээлттэй'));
     console.log('  Деплойн дараа: node scripts/verify-game-gate.js --base <url>' + (def.indexOf('cm') >= 0 ? '' : ' --expect off') +
       '   (cm-ийг Vercel-д GAME_PAYWALL_REALMS-аар асаасан бол --expect-гүй)');
+    console.log('  Яаралтай үед: Instant Rollback / git revert БИШ — Vercel env GAME_PAYWALL=off (+ redeploy). Тоглоомын төлбөргүй' +
+      ' хуучин хувилбар (settlePay-д plan=\'game\' салбаргүй) төлсөн атлаа олгогдоогүй тоглоомын нэхэмжлэхийг cyber-math.com' +
+      ' Premium болгож олгоно (api/qpay.js settlePay-ийн тайлбар).');
   }
 }

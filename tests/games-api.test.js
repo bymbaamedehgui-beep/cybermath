@@ -27,7 +27,8 @@ const G = (action, body, o) => F.call(games, Object.assign({ query: { action: ac
 const launchWs = (email, game, o) => G('launch', { game: game, realm: 'ws', wstoken: wsTok(email) }, Object.assign({ headers: dev('devaaaa1') }, o || {}));
 const launchCm = (email, game, o) => G('launch', { game: game, realm: 'cm' }, Object.assign({ headers: bearer(cmTok(email)) }, o || {}));
 const daysLeft = (d) => (new Date(d).getTime() - Date.now()) / F.DAY;
-const ticketOf = (url) => decodeURIComponent(String(url).split('?t=')[1] || '');
+// url-ийн ?t= (ws бол /<зам>?realm=ws&t=…, cm бол /<зам>?t=…)
+const ticketOf = (url) => new URL(String(url), 'https://cyber-math.com').searchParams.get('t') || '';
 function payload(tok) { return JSON.parse(Buffer.from(String(tok).split('.')[1], 'base64url').toString('utf8')); }
 function give(realm, email, key, days) {
   F.db.access.set(realm + '|' + email + '|' + key, { realm: realm, email: email, game_key: key, expires_at: new Date(Date.now() + (days == null ? 30 : days) * F.DAY), updated_at: new Date() });
@@ -176,7 +177,7 @@ test('launch: эрхтэй файл тоглоом → gate руу чиглэх 
   assert.strictEqual(r.body.via, 'access');
   assert.ok(Math.abs(daysLeft(r.body.expires_at) - 7) < 0.01);
   assert.strictEqual(r.body.ticket_ttl, 120);
-  assert.ok(r.body.url.indexOf('/sudoku.html?t=') === 0, r.body.url);
+  assert.ok(r.body.url.indexOf('/sudoku.html?realm=ws&t=') === 0, 'Дасгалын төвийн url realm-тэй: ' + r.body.url);
   const t = ticketOf(r.body.url);
   const c = GM.verifyTicket(t, 'sudoku');
   assert.ok(c, 'тасалбар хүчинтэй');
@@ -689,7 +690,7 @@ test('тасалбарын sub: имэйл URL-д ил гарахгүй (ws/cm/p
   const inv = (await G('invite', { game: 'mathmortal', realm: 'cm' }, { headers: bearer(cmTok('mix@x.mn')) })).body.invite;
   urls.push((await G('launch', { game: 'mathmortal', realm: 'cm', invite: inv }, { headers: dev('friendzz9') })).body.url);
   for (const u of urls) {
-    assert.ok(typeof u === 'string' && u.indexOf('?t=') > 0, String(u));
+    assert.ok(typeof u === 'string' && /[?&]t=/.test(u), String(u));
     const t = ticketOf(u);
     assert.ok(!/@|x\.mn|mix/i.test(Buffer.from(t.split('.')[1], 'base64url').toString('utf8')), 'payload-д имэйл: ' + u);
     assert.ok(!/%40|@/.test(u));

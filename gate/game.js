@@ -7,16 +7,25 @@
 //   /math-mortal/ ба /math-mortal/index.html → f=index.html;  /math-mortal/<нэр>.(js|css) → f=<нэр>
 //   /math-mortal/assets/**, /math-mortal/cover.webp — статик (нууц биш);  /mortal, /math-mortal → 301 /math-mortal/
 //
+// Realm (сайт) тусдаа: хоёр сайт ижил файлыг ижил нийтийн замаар үйлчилдэг тул эхлэх хуудасны хүсэлтийн realm-ийг URL-аар
+// ялгана — ?realm=ws → Дасгалын төв (api/games.js launch-ийн ws url), бусад (realm-гүй) → cyber-math.com (index.html,
+// play/team/xp.html-ийн шууд URL). Сесс cookie нь realm бүрт тусдаа (cm: __Host-cmg_<g>, ws: __Host-cmgw_<g>) бөгөөд
+// сессийн r нь хүсэлтийн realm-тай тэнцүү байх ёстой: Дасгалын төвд авсан эрх/урилга cyber-math.com-ийн /sudoku.html-ийг
+// нээхгүй (эсрэгээрээ ч мөн). math-mortal-ийн дэд js/css харьцангуй URL-аар ачаалагддаг тул realm-гүй (доор 2б).
+//
 // Шийдвэрийн дараалал:
 //   1) GET/HEAD л. g нь FILES allowlist-д, f нь regex + бодит файлын жагсаалтад (path traversal → 404).
 //   2) GM.gateOn() === false → шууд өгнө (?t= байвал тасалбаргүй URL руу 302). Gate зөвхөн cyber-math.com (realm 'cm')
 //      төлбөртэй үед түгжинэ (env GAME_PAYWALL_REALMS-д 'cm'; анхдагч ['ws'] — эхний ээлжинд Дасгалын төвд л төлбөртэй,
 //      cyber-math.com-ийн шууд URL /sudoku.html, play/team/xp.html-ийн xpdrop г.м. хуучин шигээ нээлттэй). GAME_PAYWALL=off → нээлттэй.
+//      Нээлттэй үед статик файл шиг кэшлэгдэнэ (public, max-age=0, must-revalidate + ETag → 304), noindex-гүй.
+//   2а) Эхлэх хуудасны realm төлбөргүй (ж: GAME_PAYWALL_REALMS=cm үеийн ?realm=ws) → тэр realm-д нээлттэй (2-тай адил).
+//   2б) Дэд файл: аль нэг realm төлбөргүй бол нээлттэй; үгүй бол энэ тоглоомын аль нэг realm-ийн хүчинтэй сесс → файл.
 //   3) ?t=<launch тасалбар> (зөвхөн эхлэх хуудсанд; api/games.js launch гаргана): verifyTicket(g) → useJti (НЭГ удаа) →
-//      sessionExp → Set-Cookie __Host-cmg_<g> (HttpOnly; Secure; SameSite=Lax; Path=/; ≤2 цаг, урилга 30 мин,
-//      эрхийн дуусах огнооноос хэтрэхгүй) → 302 тасалбаргүй URL (URL-ийг хуулж хуваалцах боломжгүй).
-//      Тасалбар хүчингүй/давтагдсан ч энэ тоглоомын хүчинтэй cookie байвал → 302 цэвэр URL (cookie шинэчлэхгүй).
-//   4) Энэ тоглоомын хүчинтэй сесс (GM.verifySession(tok, g) — өөр тоглоомын сесс хүчингүй) → файл.
+//      sessionExp → Set-Cookie <тасалбарын realm-ийн cookie> (HttpOnly; Secure; SameSite=Lax; Path=/; ≤2 цаг, урилга 30 мин,
+//      эрхийн дуусах огнооноос хэтрэхгүй) → 302 тасалбаргүй URL (ws бол ?realm=ws-тэй; URL-ийг хуулж хуваалцах боломжгүй).
+//      Тасалбар хүчингүй/давтагдсан ч энэ тоглоом + realm-ийн хүчинтэй cookie байвал → 302 цэвэр URL (cookie шинэчлэхгүй).
+//   4) Энэ тоглоом + хүсэлтийн realm-ийн хүчинтэй сесс (GM.verifySession(tok, g), claims.r === realm) → файл.
 //   5) Бусад → 403 түгжээтэй хуудас (≤8KB, тоглоомын код агуулахгүй; iframe дотор бол parent-д
 //      postMessage({type:'cm-game-locked', game})). DB алдаа → 503 (fail-closed).
 // Cookie шалгалт DB-д хандахгүй: админ эрх цуцалснаас хойш ≤2 цагт хүчингүй болно (шинэ launch тэр даруй татгалзагдана).
@@ -24,6 +33,7 @@
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
+const crypto = require('crypto');
 const GM = require('../api/_games');
 
 // Тоглоом → файл. paths[0] = каноник нийтийн зам (= GM.GAMES[g].path), бусад нь ижил файлын хуучин богино зам.
@@ -45,11 +55,16 @@ const TYPES = Object.freeze({
   '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
 });
-const COOKIE_PREFIX = '__Host-cmg_';
+const COOKIE_PREFIX = '__Host-cmg_';      // cyber-math.com (realm 'cm') — __Host-cmg_<g>
+const COOKIE_PREFIX_WS = '__Host-cmgw_';  // Дасгалын төв (realm 'ws') — __Host-cmgw_<g>
+const REALM_Q = 'realm';                  // эхлэх хуудасны realm: ?realm=ws (Дасгалын төв), байхгүй → cm
 const LOCKED_MAX = 8192;
 const GZIP_MIN = 1024;
+// Gate нээлттэй үеийн кэш (хуучин @vercel/static-тэй адил: хөтөч хадгалж, ETag-аар дахин шалгана → 304)
+const CACHE_PUBLIC = 'public, max-age=0, must-revalidate';
 
-function cookieName(g) { return COOKIE_PREFIX + g; }
+function cookieName(g, realm) { return (realm === 'ws' ? COOKIE_PREFIX_WS : COOKIE_PREFIX) + g; }
+function reqRealm(q) { return q[REALM_Q] === 'ws' ? 'ws' : 'cm'; }
 function has(o, k) { return typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k); }
 
 // ───────────────────────── файл ─────────────────────────
@@ -92,9 +107,23 @@ function load(rel) {
   // Давхар хамгаалалт: зөвхөн games/ эсвэл math-mortal/-ийн ШУУД хүүхэд файл (api/, .env гэх мэт хэзээ ч биш)
   const dir = path.dirname(abs);
   if (dir !== path.join(base, 'games') && dir !== path.join(base, FILES.mathmortal.dir)) throw new Error('gate: зам буруу');
-  c = { raw: fs.readFileSync(abs), gz: null, type: TYPES[path.extname(rel)] || 'application/octet-stream' };
+  const raw = fs.readFileSync(abs);
+  const h = crypto.createHash('sha256').update(raw).digest('base64url').slice(0, 27);
+  // ETag representation бүрт өөр (Vary: Accept-Encoding): түүхий "g<hash>", gzip "g<hash>-gz"
+  c = { raw: raw, gz: null, type: TYPES[path.extname(rel)] || 'application/octet-stream', etag: '"g' + h + '"', etagGz: '"g' + h + '-gz"' };
   _cache.set(rel, c);
   return c;
+}
+// If-None-Match (жагсаалт, W/ угтвар, *) нь энэ ETag-тай таарах эсэх
+function etagMatch(req, tag) {
+  const v = req && req.headers && req.headers['if-none-match'];
+  if (typeof v !== 'string' || !v) return false;
+  return v.split(',').some(function (x) {
+    x = x.trim();
+    if (x === '*') return true;
+    if (x.slice(0, 2) === 'W/') x = x.slice(2);
+    return x === tag;
+  });
 }
 
 // ───────────────────────── хүсэлт ─────────────────────────
@@ -119,13 +148,14 @@ function pathOf(req) {
   return i >= 0 ? u.slice(0, i) : u;
 }
 // Тасалбаргүй цэвэр URL: хэрэглэгчийн нээсэн нийтийн зам (allowlist-д байвал) эсвэл каноник зам + бусад query (g/f/t-гүй).
-// Зөвхөн allowlist-ийн замаас бүтнэ — open redirect боломжгүй.
-const DROP_Q = ['g', 'f', 't'];
-function cleanUrl(req, g, q) {
+// realm: 'ws' → ?realm=ws (эхэнд), бусад → realm-гүй (ирсэн realm-ийг хасна). Зөвхөн allowlist-ийн замаас бүтнэ — open redirect боломжгүй.
+const DROP_Q = ['g', 'f', 't', REALM_Q];
+function cleanUrl(req, g, q, realm) {
   const F = FILES[g];
   const p = pathOf(req);
   const base = F.paths.indexOf(p) >= 0 ? p : F.paths[0];
   const sp = new URLSearchParams();
+  if (realm === 'ws') sp.append(REALM_Q, 'ws');
   let n = 0;
   Object.keys(q).forEach(function (k) {
     if (DROP_Q.indexOf(k) >= 0 || n >= 20 || k.length > 64 || q[k].length > 512) return;
@@ -148,21 +178,24 @@ function cookieOf(req, name) {
   }
   return null;
 }
-// → { present, claims } — claims нь зөвхөн ЭНЭ тоглоомын хүчинтэй сесс (typ 'gs', g тохирно, хугацаа дуусаагүй)
-function sessionOf(req, g) {
-  const v = cookieOf(req, cookieName(g));
+// → { present, claims } — claims нь зөвхөн ЭНЭ тоглоом + ЭНЭ realm-ийн хүчинтэй сесс (typ 'gs', g тохирно, r === realm,
+// хугацаа дуусаагүй). Өөр realm-ийн сессийг энэ realm-ийн cookie нэрээр илгээсэн ч хүчингүй.
+function sessionOf(req, g, realm) {
+  const v = cookieOf(req, cookieName(g, realm));
   if (!v) return { present: false, claims: null };
-  return { present: true, claims: GM.verifySession(v, g) };
+  const c = GM.verifySession(v, g);
+  return { present: true, claims: c && c.r === realm ? c : null };
 }
-function setCookie(g, token, maxAge) {
-  return cookieName(g) + '=' + token + '; Path=/; Max-Age=' + maxAge + '; HttpOnly; Secure; SameSite=Lax';
+function setCookie(g, realm, token, maxAge) {
+  return cookieName(g, realm) + '=' + token + '; Path=/; Max-Age=' + maxAge + '; HttpOnly; Secure; SameSite=Lax';
 }
-function clearCookie(g) { return cookieName(g) + '=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax'; }
+function clearCookie(g, realm) { return cookieName(g, realm) + '=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax'; }
 
 // ───────────────────────── хариу ─────────────────────────
-function common(res) {
-  res.setHeader('Cache-Control', 'private, no-store');
-  res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+// pub: gate нээлттэй (mode 'off') — кэшлэгдэх, индекслэгдэх нийтийн файл. Бусад (түгжээ, сесстэй файл) — private, no-store, noindex.
+function common(res, pub) {
+  res.setHeader('Cache-Control', pub ? CACHE_PUBLIC : 'private, no-store');
+  if (!pub) res.setHeader('X-Robots-Tag', 'noindex, nofollow');
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'same-origin');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
@@ -184,19 +217,27 @@ function redirect(res, loc, cookie) {
   if (cookie) res.setHeader('Set-Cookie', cookie);
   res.end();
 }
+// mode: 'off' (gate/realm нээлттэй — нийтийн кэш + ETag/304) | 'open' (сесстэй — private, no-store, ETag-гүй)
 function serveFile(req, res, t, mode, head) {
   let c;
   try { c = load(t.rel); }
   catch (e) {
     console.error('[gate] файл олдсонгүй (includeFiles?)', t.rel, e && e.message);
-    return locked(res, t, 503, false, head);
+    return locked(res, t, 503, null, head);
   }
-  common(res);
-  res.setHeader('Vary', 'Cookie, Accept-Encoding');
+  const pub = mode === 'off';
+  common(res, pub);
+  res.setHeader('Vary', pub ? 'Accept-Encoding' : 'Cookie, Accept-Encoding');
   res.setHeader('X-Game-Gate', mode);
-  let body = c.raw;
   const ae = String((req.headers && req.headers['accept-encoding']) || '');
-  if (body.length >= GZIP_MIN && /\bgzip\b/i.test(ae)) {
+  const gz = c.raw.length >= GZIP_MIN && /\bgzip\b/i.test(ae);
+  if (pub) {
+    const tag = gz ? c.etagGz : c.etag;
+    res.setHeader('ETag', tag);
+    if (etagMatch(req, tag)) { res.statusCode = 304; return res.end(); }
+  }
+  let body = c.raw;
+  if (gz) {
     if (!c.gz) c.gz = zlib.gzipSync(c.raw, { level: 6 });
     body = c.gz;
     res.setHeader('Content-Encoding', 'gzip');
@@ -251,12 +292,12 @@ function lockedHtml(g, status) {
     ',location.origin);}}catch(e){}})();</script></body></html>';
 }
 // Эхлэх хуудас → HTML түгжээ; дэд файл (js/css) → богино текст (nosniff — ажиллахгүй).
-// clear: хүчингүй cookie ирсэн бол устгана.
-function locked(res, t, status, clear, head) {
-  common(res);
+// clearRealm: тэр realm-ийн хүчингүй cookie ирсэн бол устгана (null → устгахгүй).
+function locked(res, t, status, clearRealm, head) {
+  common(res, false);
   res.setHeader('Vary', 'Cookie');
   res.setHeader('X-Game-Gate', status === 503 ? 'error' : 'locked');
-  if (clear) res.setHeader('Set-Cookie', clearCookie(t.g));
+  if (clearRealm) res.setHeader('Set-Cookie', clearCookie(t.g, clearRealm));
   if (t.entry) return send(res, status, 'text/html; charset=utf-8', Buffer.from(lockedHtml(t.g, status), 'utf8'), head);
   return send(res, status, 'text/plain; charset=utf-8', Buffer.from(status === 503 ? 'unavailable' : 'locked', 'utf8'), head);
 }
@@ -278,31 +319,45 @@ async function gate(req, res) {
     return send(res, 404, 'text/plain; charset=utf-8', Buffer.from('not found'), head);
   }
   const tok = t.entry && typeof q.t === 'string' && q.t ? q.t : null;
+  const rq = t.entry ? reqRealm(q) : null;   // эхлэх хуудасны realm (дэд файлд realm-гүй)
   try {
     // Gate нээлттэй (cyber-math.com төлбөргүй — эхний ээлж, эсвэл kill-switch): бүгд нээлттэй (одоогийнх шиг)
     if (!GM.gateOn()) {
-      if (tok) return redirect(res, cleanUrl(req, t.g, q), null);
+      if (tok) return redirect(res, cleanUrl(req, t.g, q, rq), null);
       return serveFile(req, res, t, 'off', head);
     }
-    const sess = sessionOf(req, t.g);
+    // math-mortal-ийн дэд js/css: аль нэг realm төлбөргүй бол (тэр realm-ийн эхлэх хуудас нээлттэй) нээлттэй, үгүй бол
+    // энэ тоглоомын аль нэг realm-ийн хүчинтэй сесс. Эхлэх хуудас нь realm-аараа түгжээтэй хэвээр тул өөр сайтад нээгдэхгүй.
+    if (!t.entry) {
+      if (GM.REALMS.some(function (r) { return !GM.paywallOn(r); })) return serveFile(req, res, t, 'off', head);
+      if (GM.REALMS.some(function (r) { return !!sessionOf(req, t.g, r).claims; })) return serveFile(req, res, t, 'open', head);
+      return locked(res, t, 403, null, head);
+    }
+    // Энэ эхлэх хуудасны realm төлбөргүй (ж: GAME_PAYWALL_REALMS=cm үеийн ?realm=ws) — тэр realm-д нээлттэй
+    if (!GM.paywallOn(rq)) {
+      if (tok) return redirect(res, cleanUrl(req, t.g, q, rq), null);
+      return serveFile(req, res, t, 'off', head);
+    }
+    const sess = sessionOf(req, t.g, rq);
     if (tok) {
       const c = GM.verifyTicket(tok, t.g);
       // jti-г НЭГ удаа: давтсан тасалбар (URL хуулж хуваалцсан) cookie гаргахгүй. DB алдаа → throw → 503.
+      // Cookie + цэвэр URL нь тасалбарын realm-аар (c.r) — URL-ийн ?realm-ийг сольсон ч өөр сайтын сесс гарахгүй.
       if (c && await GM.useJti(c.jti, c.exp)) {
         const exp = GM.sessionExp(c);
         if (exp) {
           const maxAge = exp - Math.floor(Date.now() / 1000);
-          if (maxAge > 0) return redirect(res, cleanUrl(req, t.g, q), setCookie(t.g, GM.signSession(c, exp), maxAge));
+          if (maxAge > 0) return redirect(res, cleanUrl(req, t.g, q, c.r), setCookie(t.g, c.r, GM.signSession(c, exp), maxAge));
         }
       }
-      if (sess.claims) return redirect(res, cleanUrl(req, t.g, q), null);
-      return locked(res, t, 403, sess.present, head);
+      if (sess.claims) return redirect(res, cleanUrl(req, t.g, q, rq), null);
+      return locked(res, t, 403, sess.present ? rq : null, head);
     }
     if (sess.claims) return serveFile(req, res, t, 'open', head);
-    return locked(res, t, 403, sess.present, head);
+    return locked(res, t, 403, sess.present ? rq : null, head);
   } catch (e) {
     console.error('[gate]', t.g, e && e.message);
-    return locked(res, t, 503, false, head);
+    return locked(res, t, 503, null, head);
   }
 }
 
@@ -310,6 +365,9 @@ module.exports = gate;
 module.exports.FILES = FILES;
 module.exports.SUB_FILE_RE = SUB_FILE_RE;
 module.exports.COOKIE_PREFIX = COOKIE_PREFIX;
+module.exports.COOKIE_PREFIX_WS = COOKIE_PREFIX_WS;
+module.exports.REALM_Q = REALM_Q;
+module.exports.CACHE_PUBLIC = CACHE_PUBLIC;
 module.exports.LOCKED_MAX = LOCKED_MAX;
 module.exports.cookieName = cookieName;
 module.exports.lockedHtml = lockedHtml;

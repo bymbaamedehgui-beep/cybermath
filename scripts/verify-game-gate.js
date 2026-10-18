@@ -7,7 +7,7 @@
 // Зөвхөн cookie-гүй GET/HEAD хүсэлт илгээнэ (юу ч бичихгүй). Шалгах зүйлс:
 //   on : хамгаалсан зам бүр 403 + X-Game-Gate: locked, ≤8KB, тоглоомын код агуулаагүй, no-store, Set-Cookie-гүй;
 //        /math-mortal/<нэр>.js → 403 locked (JS биш); /games/*.html шууд → 404; /gate/game.js?g=… → 403
-//   off: хамгаалсан зам бүр 200 + X-Game-Gate: off
+//   off: хамгаалсан зам бүр 200 + X-Game-Gate: off, нийтийн кэш (no-store/private биш, ETag-тай), noindex-гүй
 //   үргэлж: /math-mortal/cover.webp 200 (статик), /mortal ба /math-mortal → 301 /math-mortal/
 'use strict';
 const fs = require('fs');
@@ -45,6 +45,17 @@ function markerOf(rel) {
   } catch (e) { return null; }
 }
 
+// Gate нээлттэй үеийн хариу хуучин статик файл шиг кэшлэгдэж (no-store биш, ETag), индекслэгдэх (noindex-гүй) ёстой.
+// → '' (зөв) | шалтгаан
+function offWhy(r) {
+  const why = [];
+  const cc = String(r.headers['cache-control'] || '');
+  if (/no-store|private/.test(cc)) why.push('Cache-Control "' + cc + '"');
+  if (!r.headers.etag) why.push('ETag байхгүй');
+  if (/noindex/i.test(String(r.headers['x-robots-tag'] || ''))) why.push('X-Robots-Tag noindex');
+  return why.join(', ');
+}
+
 // → { ok, results: [{ path, ok, why }] }
 async function verify(base, opts) {
   opts = opts || {};
@@ -67,7 +78,8 @@ async function verify(base, opts) {
     const gh = String(r.headers['x-game-gate'] || '');
     const body = r.body.toString('utf8');
     if (expect === 'off') {
-      rec(e.p, r.status === 200 && gh === 'off', 'хүлээсэн 200 + off, ирсэн ' + r.status + ' ' + gh);
+      const ow = offWhy(r);
+      rec(e.p, r.status === 200 && gh === 'off' && !ow, 'хүлээсэн 200 + off (нийтийн кэш), ирсэн ' + r.status + ' ' + gh + (ow ? '; ' + ow : ''));
       continue;
     }
     const why = [];
@@ -90,7 +102,10 @@ async function verify(base, opts) {
       let r;
       try { r = await get(b + p); } catch (err) { rec(p, false, 'сүлжээ: ' + err.message); continue; }
       const gh = String(r.headers['x-game-gate'] || '');
-      if (expect === 'off') rec(p, r.status === 200 && gh === 'off', 'хүлээсэн 200 + off, ирсэн ' + r.status + ' ' + gh);
+      if (expect === 'off') {
+        const ow = offWhy(r);
+        rec(p, r.status === 200 && gh === 'off' && !ow, 'хүлээсэн 200 + off (нийтийн кэш), ирсэн ' + r.status + ' ' + gh + (ow ? '; ' + ow : ''));
+      }
       else rec(p, r.status === 403 && gh === 'locked' && r.size < 64 && !/\bimport\b|function/.test(r.body.toString('utf8')),
         'хүлээсэн 403 locked (кодгүй), ирсэн ' + r.status + ' ' + gh + ' ' + r.size + 'B');
     }

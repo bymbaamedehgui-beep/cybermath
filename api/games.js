@@ -9,7 +9,8 @@
 //   POST ?action=launch  {game, realm, wstoken?, invite?}   (+ x-device-id толгой — урилгаар нэгдэхэд төхөөрөмж уяна)
 //        Дараалал: Bearer admin → нэвтэрсэн бөгөөд өөрийн эрхтэй (урилга ЗАРЦУУЛАХГҮЙ) → урилга → 401/403/402.
 //        эрхтэй   → { ok:true, game, kind, via, expires_at?, url? }
-//                   kind='file'     → url = <тоглоомын зам>?t=<launch тасалбар> (gate түгжээтэй үед; нээлттэй бол шууд зам;
+//                   kind='file'     → url = <тоглоомын зам>?t=<launch тасалбар> (cm) | <зам>?realm=ws&t=<тасалбар> (ws)
+//                                     (gate түгжээтэй үед; нээлттэй бол шууд зам;
 //                                     120 сек, нэг удаагийн jti — gate шалгана;
 //                                     sub = тунгалаг 'u:…' — имэйл URL-д орохгүй; sx = эрхийн дуусах огноо)
 //                   kind='inline'   → url байхгүй (клиент gate)
@@ -109,21 +110,28 @@ async function identify(req, b, realm) {
 }
 
 // Амжилттай launch-ийн хариу. who = { r, sub, sx? } — эрхтэй хэрэглэгч/урилга/админ; who=null — realm төлбөргүй (via 'off').
-// sub: GM.subjectOf(...) | 'inv:<jti>' | 'admin' | 'open' — имэйл ХЭЗЭЭ Ч биш (signTicket шалгана).
+// sub: GM.subjectOf(...) | 'inv:<jti>' | 'admin' — имэйл ХЭЗЭЭ Ч биш (signTicket шалгана).
 // Файл тоглоомын тасалбар зөвхөн gate түгжээтэй үед (GM.gateOn() — 'cm' төлбөртэй). Эхний ээлжинд ('ws' л төлбөртэй)
 // gate нээлттэй тул ws-ийн эрхтэй хэрэглэгчид ч шууд зам (gate ?t=-г зүгээр л 302-оор цэвэрлэх байсан).
-// Gate түгжээтэй атал энэ realm төлбөргүй бол (ж: GAME_PAYWALL_REALMS=cm үеийн ws) нэвтрэлтгүй 'open' тасалбар —
-// эс бөгөөс тасалбаргүй url түгжээтэй хуудас харуулна.
+// Gate түгжээтэй үед url нь realm-тэй: Дасгалын төв → <зам>?realm=ws (gate ws-ийн cookie/сессийг л хүлээн авна),
+// cyber-math.com → <зам> (realm-гүй). Нэг realm-ийн тасалбар/сесс нөгөө сайтын хуудсыг нээхгүй (gate/game.js).
+// who=null (энэ realm төлбөргүй, ж: GAME_PAYWALL_REALMS=cm үеийн ws) → тасалбаргүй realm-тэй url — gate тэр realm-д
+// нээлттэй. Нэвтрэлтгүй тасалбар ХЭЗЭЭ Ч гаргахгүй (өмнөх 'open' тасалбар cm-ийн cookie болж хувирдаг байсан).
 function launchOut(key, who, via, expiresAt, realm) {
   const G = GM.GAMES[key];
   const o = { ok: true, game: key, kind: G.kind, via: via };
   if (expiresAt) o.expires_at = new Date(expiresAt).toISOString();
   if (G.kind === 'file') {
-    if (!who && realm) who = { r: realm, sub: 'open' };
-    if (who && GM.gateOn()) {
-      const t = GM.signTicket({ g: key, r: who.r, sub: who.sub, sx: who.sx || null });
-      o.url = G.path + '?t=' + encodeURIComponent(t.token);
-      o.ticket_ttl = GM.TICKET_TTL;
+    if (GM.gateOn()) {
+      const rl = who ? who.r : realm;
+      const base = rl === 'ws' ? G.path + '?realm=ws' : G.path;
+      if (who) {
+        const t = GM.signTicket({ g: key, r: who.r, sub: who.sub, sx: who.sx || null });
+        o.url = base + (base.indexOf('?') >= 0 ? '&' : '?') + 't=' + encodeURIComponent(t.token);
+        o.ticket_ttl = GM.TICKET_TTL;
+      } else {
+        o.url = base;
+      }
     } else {
       o.url = G.path;
     }

@@ -203,7 +203,7 @@ test('host↔API: каталог; токенгүй → нэвтрэх; ws ток
   const l1 = await H.launch('sudoku', { realm: 'ws' });
   assert.strictEqual(l1.s, 200);
   assert.strictEqual(l1.d.kind, 'file');
-  assert.match(l1.d.url, /^\/sudoku\.html\?t=[A-Za-z0-9._%-]+$/, 'gate тасалбартай url');
+  assert.match(l1.d.url, /^\/sudoku\.html\?realm=ws&t=[A-Za-z0-9._%-]+$/, 'gate тасалбартай url (Дасгалын төвийн realm-тэй)');
   assert.strictEqual((await H.launch('play2048', { realm: 'ws' })).s, 402, 'өөр тоглоом эрхгүй хэвээр');
 
   // эрх идэвхтэй байхад дахин авбал үлдсэн хоног дээр нэмэгдэнэ
@@ -298,7 +298,8 @@ const EMBED_SRC = (function () {
 })();
 
 // Хамгийн бага DOM: getElementById, classList, children/parentNode, innerHTML → querySelector нь stub элемент
-function fakeDom() {
+// build(ctx) өгвөл анхдагч бүтцийн оронд түүгээр мод байгуулна (ctx = { html, body, El, add }).
+function fakeDom(build) {
   const reg = new Map();
   class CL {
     constructor() { this.s = new Set(); }
@@ -312,7 +313,7 @@ function fakeDom() {
       this.id = id || '';
     }
     get id() { return this._id; }
-    set id(v) { this._id = v; if (v) reg.set(v, this); }
+    set id(v) { this._id = v; if (v && !reg.has(v)) reg.set(v, this); }   // getElementById → баримт дахь эхнийх
     get innerHTML() { return this._html; }
     set innerHTML(v) { this._html = String(v); this._q = {}; }
     appendChild(c) { c.parentNode = this; this.children.push(c); return c; }
@@ -323,9 +324,19 @@ function fakeDom() {
     addEventListener(t, f) { (this.ls[t] = this.ls[t] || []).push(f); }
     closest() { return this; }
   }
+  const add = (p, tag, id, cls) => p.appendChild(new El(tag, id, cls));
+  if (build) {
+    const b = build({ El: El, add: add });
+    const doc0 = {
+      documentElement: b.html, body: b.body, readyState: 'complete',
+      getElementById: (id) => reg.get(id) || null,
+      createElement: (t) => new El(t),
+      addEventListener() {},
+    };
+    return { doc: doc0, reg, El };
+  }
   const html = new El('html'), body = new El('body');
   html.appendChild(body);
-  const add = (p, tag, id, cls) => p.appendChild(new El(tag, id, cls));
   add(body, 'div', 'cm-splash');
   add(body, 'div', 'landing-page');
   const app = add(body, 'div', 'cybermath-app');
@@ -346,10 +357,49 @@ function fakeDom() {
   };
   return { doc, reg, El };
 }
-// o: { search, ls, fetch, inFrame (анхдагч true), noStartGame }
+// index.html-ийн БОДИТ элементийн мод (зөвхөн tag/id/class + эцэг-хүү): script/style/textarea-ийн агуулгыг алгасна,
+// тайлбар (<!-- -->) хасна, хаах tag ирэхэд стекийн тохирох элемент хүртэл хаана (HTML-ийн хаагаагүй tag-ийг тэсвэрлэнэ).
+// gp-final: embed-ийн isolate() бодит бүтэц дээр (тоглоомын модал талбарын ах дүү) зөв ажиллахыг шалгахад.
+function indexBuild(ctx) {
+  const VOIDS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
+  const RAW = new Set(['script', 'style', 'textarea']);
+  const re = /<!--[\s\S]*?-->|<(\/?)([a-zA-Z][a-zA-Z0-9-]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/g;
+  const root = new ctx.El('#root');
+  const stack = [root];
+  let html = null, body = null, m;
+  while ((m = re.exec(INDEX))) {
+    if (!m[2]) continue;
+    const tag = m[2].toLowerCase();
+    if (m[1]) {
+      let k = stack.length - 1;
+      while (k > 0 && stack[k].tagName !== tag.toUpperCase()) k--;
+      if (k > 0) stack.length = k;
+      continue;
+    }
+    const idm = /\sid\s*=\s*"([^"]*)"/.exec(m[3]);
+    const clm = /\sclass\s*=\s*"([^"]*)"/.exec(m[3]);
+    const el = new ctx.El(tag, idm ? idm[1] : '');
+    if (clm) clm[1].split(/\s+/).filter(Boolean).forEach((c) => el.classList.add(c));
+    stack[stack.length - 1].appendChild(el);
+    if (tag === 'html' && !html) html = el;
+    if (tag === 'body' && !body) body = el;
+    if (VOIDS.has(tag) || /\/\s*$/.test(m[3])) continue;
+    if (RAW.has(tag)) {
+      const end = new RegExp('</' + tag + '\\s*>', 'ig');
+      end.lastIndex = re.lastIndex;
+      const e = end.exec(INDEX);
+      re.lastIndex = e ? end.lastIndex : INDEX.length;
+      continue;
+    }
+    stack.push(el);
+  }
+  assert.ok(html && body, 'index.html: <html>, <body>');
+  return { html: html, body: body };
+}
+// o: { search, ls, fetch, inFrame (анхдагч true), noStartGame, build (fakeDom-д) }
 function embed(o) {
   o = o || {};
-  const D = fakeDom();
+  const D = fakeDom(o.build);
   const posts = [], starts = [], fetches = [];
   const S = {
     document: D.doc,
@@ -447,6 +497,75 @@ test('embed: ws эрхтэй → launch(realm ws, wstoken, урилга, төх�
   const btn = new E.D.El('button'); btn.setAttribute('onclick', 'closeChessMath()');
   E.$('chessmath-area').ls.click[0]({ target: { closest: () => btn } });
   assert.deepStrictEqual(types(E), ['cm-embed-ready', 'cm-embed-close']);
+});
+
+// gp-final (шалгагчийн КРИТИК): тоглоом бүрийн «бодоод нүүх» модал (#cm-math-modal г.м.) талбар дотор биш, түүний ах дүү
+// (#tab-games, doroev-ийнх #cybermath-app-ийн шууд хүүхэд) тул isolate() бүгдийг нь .cm-emb-hide (display:none!important)
+// болгож, Дасгалын төвийн 6 inline тоглоомд бодлого харагдахгүй, нүүдэл хийгдэхгүй байв. Бодит index.html-ийн мод дээр шалгана.
+test('embed (бодит index.html бүтэц): 6 inline тоглоом бүрд өөрийн бодлогын модал + талбар + өвөг харагдана; бусад хэсэг нуугдана', async () => {
+  const GAME_MODAL = { chessmath: 'cm-math-modal', daam: 'dm-math-modal', gomoku: 'gm-math-modal', ludo: 'lu-math-modal', doroev: 'dr-math-modal', sbh: 'sbh-q-modal' };
+  for (const key of Object.keys(GAME_MODAL)) {
+    const E = embed({
+      build: indexBuild,
+      search: '?embed=' + key + '&realm=ws',
+      ls: { cm_ws_token: 'WS.TOK.X' },
+      fetch: reply(200, { ok: true, game: key, kind: 'inline', via: 'access' }),
+    });
+    await ticks();
+    assert.deepStrictEqual(E.starts, [[key, true]], key);
+    const area = E.$(key + '-area');
+    const modal = E.$(GAME_MODAL[key]);
+    assert.ok(area && modal, key + ': талбар ба модал index.html-д байна');
+    // модал талбар дотор БИШ (тиймээс тусгайлан үлдээх ёстой) — бүтэц өөрчлөгдвөл тестийг шинэчилнэ
+    let inside = false;
+    for (let n = modal.parentNode; n; n = n.parentNode) if (n === area) inside = true;
+    assert.strictEqual(inside, false, key + ': модал талбарын гадна (ах дүү)');
+    // модал, түүний бүх өвөг, талбар, түүний бүх өвөг — нуугдахгүй
+    for (const start of [modal, area]) {
+      for (let n = start; n && n !== E.D.doc.body; n = n.parentNode) {
+        assert.ok(!n.classList.contains('cm-emb-hide'), key + ': ' + (n.id || n.tagName) + ' нуугдах ёсгүй');
+      }
+    }
+    // бусад тоглоомын талбар, навигаци, landing нуугдана
+    Object.keys(GAME_MODAL).filter((k) => k !== key).forEach((k) => {
+      const other = E.$(k + '-area');
+      let hid = false;
+      for (let n = other; n && n !== E.D.doc.body; n = n.parentNode) if (n.classList.contains('cm-emb-hide')) hid = true;
+      assert.ok(hid, key + ': ' + k + '-area нуугдана');
+    });
+    assert.ok(E.$('landing-page').classList.contains('cm-emb-hide'), key + ': landing нуугдана');
+    assert.ok(!E.$('toast').classList.contains('cm-emb-hide'), key + ': #toast үлдэнэ');
+    ['ol-setup-modal', 'ol-wait-modal'].forEach((id) => assert.ok(!E.$(id).classList.contains('cm-emb-hide'), key + ': ' + id));
+  }
+});
+
+// gp-final (шалгагчийн минор): index.html ачаалахдаа 1.2 сек-ийн дараа нөхцөлгүй «👋 Тавтай морил! Хичээлийг эхлүүлнэ үү.»
+// toast гаргадаг байсан → #toast KEEP-д тул Дасгалын төвийн тоглоомын overlay дотор эможитой cm-ийн мессеж гарч байв.
+test('embed: cyber-math.com-ийн мэндчилгээний toast embed горимд гарахгүй, энгийн үед хуучин шигээ гарна', async () => {
+  const lines = INDEX.split(/\r?\n/).filter((l) => l.indexOf('Тавтай морил! Хичээлийг эхлүүлнэ үү.') >= 0 && /showToast\(/.test(l));
+  assert.strictEqual(lines.length, 1, 'мэндчилгээний toast нэг л газар');
+  const run = (ctx) => {
+    const shown = [];
+    ctx.showToast = (m) => shown.push(String(m));
+    ctx.setTimeout = (f) => f();
+    if (!ctx.window) ctx.window = ctx;
+    vm.createContext(ctx);
+    vm.runInContext(lines[0], ctx);
+    return shown;
+  };
+  // cyber-math.com (embed-гүй): хуучин шигээ
+  assert.strictEqual(run({}).length, 1);
+  // ?embed=…&realm=ws — бодит #gp-embed блок CM_EMBED-ийг тавина → toast гарахгүй (хүчингүй түлхүүрт ч embed горим)
+  for (const s of ['?embed=gomoku&realm=ws', '?embed=sudoku&realm=ws']) {
+    const E = embed({ search: s, ls: { cm_ws_token: 'WS.TOK.X' }, fetch: reply(200, { ok: true, game: 'gomoku', kind: 'inline', via: 'access' }) });
+    await ticks();
+    assert.ok(E.S.CM_EMBED, s);
+    assert.deepStrictEqual(run(E.S), [], s + ': toast үгүй');
+  }
+  // ?embed байхгүй бол CM_EMBED тавигдахгүй → toast гарна
+  const E0 = embed({ search: '?tab=games' });
+  assert.strictEqual(E0.S.CM_EMBED, undefined);
+  assert.strictEqual(run(E0.S).length, 1);
 });
 
 test('embed: эрхгүй/нэвтрээгүй/төхөөрөмж/урилга/алдаа → тоглоом ЭХЛЭХГҮЙ, түгжээний карт + parent руу шалтгаан', async () => {

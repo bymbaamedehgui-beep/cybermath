@@ -30,8 +30,8 @@
 //   inviteDaily() (env GAME_INVITE_DAILY, анхдагч 5 — host нэг тоглоомд өдөрт үүсгэх урилга),
 //   GAMES[key].guests — нэг урилгаар нэгдэх найзын (өөр төхөөрөмжийн) дээд тоо (2 тоглогчтой → 1, sbh → 4)
 //   subjectOf(realm, email)              → 'u:<32 hex>'  (тасалбарын sub — имэйл URL-д ил гарахгүй)
-//   signTicket({g, r, sub, sx?})         → { token, jti, exp }   (typ 'glt'; sub: 'u:…' | 'inv:<jti>' | 'admin' |
-//                                          'open' (realm нь төлбөргүй атал gate түгжээтэй үед — нэвтрэлтгүй тасалбар),
+//   signTicket({g, r, sub, sx?})         → { token, jti, exp }   (typ 'glt'; sub: 'u:…' | 'inv:<jti>' | 'admin';
+//                                          нэвтрэлтгүй тасалбар байхгүй — r нь gate-ийн сессийн realm (сайт),
 //                                          sx = gate-ийн сессийн дээд хугацаа: эрх/урилгын дуусах огноо)
 //   verifyTicket(tok, g?)                → claims | null
 //   sessionExp(claims, nowSec?)          → epoch сек — gate-ийн сесс: min(now + 2 цаг | урилга 30 мин, sx); 0 → сессгүй
@@ -127,6 +127,9 @@ function paywallRealms(env) {
 // эдгээрийг шууд URL-аар ачаалдаг (index.html, play/team/xp.html) тул gate зөвхөн 'cm' төлбөртэй үед түгжинэ. 'ws' л
 // төлбөртэй үед gate нээлттэй — Дасгалын төвийн файл тоглоомыг шууд URL-аар үнэгүй нээж болно (cyber-math.com дээр аль
 // хэдийн үнэгүй тул хүлээн зөвшөөрсөн; Дасгалын төвийн хамгаалалт энэ ээлжинд UI/launch талынх).
+// Gate түгжээтэй үед realm-ийг URL-аар ялгана (Дасгалын төв ?realm=ws, cyber-math.com realm-гүй), сесс cookie realm бүрт
+// тусдаа — нэг realm-ийн эрх нөгөө сайтын хуудсыг нээхгүй. GAME_PAYWALL_REALMS=cm (ws үнэгүй) үед файл тоглоом ?realm=ws-ээр
+// бүгдэд нээлттэй (Дасгалын төвд үнэгүй тул) — cyber-math.com-ийн хуудас (realm-гүй URL) cm-ийн эрхээр л нээгдэнэ.
 function gateOn() { return paywallRealms().indexOf('cm') >= 0; }
 // realm: 'ws' | 'cm' → тухайн сайт төлбөртэй эсэх. realm-гүй/буруу → gateOn() (gate, realm-гүй каталог).
 function paywallOn(realm) {
@@ -358,10 +361,10 @@ const INVITE_TTL = 3 * 3600;     // сек — олон тоглогчийн у�
 const SESSION_TTL = 2 * 3600;    // сек — gate-ийн сесс (эрхтэй хэрэглэгч / админ)
 const INVITE_SESSION_TTL = 30 * 60;  // сек — урилгаар орсон найзын gate сесс (богино; дахин ачаалбал урилгаар шинэ тасалбар)
 const JTI_RE = /^[a-f0-9]{32}$/;
-// Тасалбарын sub: имэйл БИШ (URL → лог/түүх/iframe src-д үлдэнэ). 'u:<hmac>' | 'inv:<урилгын jti>' | 'admin' |
-// 'open' — realm нь төлбөргүй атал gate түгжээтэй (ж: GAME_PAYWALL_REALMS=cm) үед тэр realm-ийн нэвтрэлтгүй launch
-// (api/games.js launchOut). Тухайн realm-д тоглоом аль хэдийн үнэгүй тул эрх нэмж олгохгүй.
-const SUB_RE = /^(?:admin|open|u:[a-f0-9]{32}|inv:[a-f0-9]{32})$/;
+// Тасалбарын sub: имэйл БИШ (URL → лог/түүх/iframe src-д үлдэнэ). 'u:<hmac>' | 'inv:<урилгын jti>' | 'admin'.
+// Нэвтрэлтгүй ('open') тасалбар байхгүй: төлбөргүй realm-ийн файл тоглоомыг gate тэр realm-д (?realm=…) тасалбаргүй
+// нээдэг (gate/game.js) — нэвтрэлтгүй тасалбар нь gate-ийн сесс болж өөр (төлбөртэй) сайтын хуудсыг нээх байсан.
+const SUB_RE = /^(?:admin|u:[a-f0-9]{32}|inv:[a-f0-9]{32})$/;
 function deriveKey(typ) {
   const s = guard.jwtSecret();
   if (!s) throw new Error('game: JWT_SECRET тохируулаагүй');

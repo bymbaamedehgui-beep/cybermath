@@ -477,7 +477,7 @@ test('GW: худалдан авах → QPay QR → poll (paid:false → амж�
   assert.deepStrictEqual([l.status, l.body.game, l.body.realm], [200, 'sudoku', 'ws']);
   const gm = P.$('gameM');
   assert.ok(gm, 'overlay');
-  assert.match(gm.querySelector('iframe').src, /^\/sudoku\.html\?t=[A-Za-z0-9._%-]+$/);
+  assert.match(gm.querySelector('iframe').src, /^\/sudoku\.html\?realm=ws&t=[A-Za-z0-9._%-]+$/);
   assert.match(gm.querySelector('.gm-t').textContent, /Судоку/);
 });
 
@@ -596,7 +596,7 @@ test('GW: overlay — gate түгжээ (locked) → нэг удаа шинэ т
   const gm = P.$('gameM');
   const fr = gm.querySelector('iframe');
   const u1 = fr.src;
-  assert.match(u1, /^\/sudoku\.html\?t=/);
+  assert.match(u1, /^\/sudoku\.html\?realm=ws&t=/);
   const send = (data, src) => P.W._ls.message.forEach((f) => f({ source: src || fr.contentWindow, origin: ORIGIN, data: data }));
   send({ type: 'cm-game-locked', game: 'sudoku', reason: 'locked' }, {});   // өөр эх сурвалж → үл тоомсорлоно
   send({ type: 'cm-game-locked', game: 'daam', reason: 'locked' });         // өөр тоглоом → үл тоомсорлоно
@@ -605,7 +605,7 @@ test('GW: overlay — gate түгжээ (locked) → нэг удаа шинэ т
   send({ type: 'cm-game-locked', game: 'sudoku', reason: 'locked' });
   await ticks();
   assert.strictEqual(P.W.log.filter((x) => x.action === 'launch').length, 2, 'шинэ тасалбар');
-  assert.match(fr.src, /^\/sudoku\.html\?t=/);
+  assert.match(fr.src, /^\/sudoku\.html\?realm=ws&t=/);
   assert.notStrictEqual(fr.src, u1);
   assert.ok(P.$('gameM'), 'overlay хэвээр');
   send({ type: 'cm-game-locked', game: 'sudoku', reason: 'locked' });

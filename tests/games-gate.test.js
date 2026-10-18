@@ -56,7 +56,7 @@ async function hit(o) {
   assert.strictEqual(res.ended, 1, 'res.end() яг нэг удаа');
   return res;
 }
-const SC_RE = /^(__Host-cmg_[a-z0-9]+)=([^;]+); Path=\/; Max-Age=(\d+); HttpOnly; Secure; SameSite=Lax$/;
+const SC_RE = /^(__Host-cmgw?_[a-z0-9]+)=([^;]+); Path=\/; Max-Age=(\d+); HttpOnly; Secure; SameSite=Lax$/;
 function cookieOf(res) {
   const sc = res.headers['set-cookie'];
   const m = SC_RE.exec(String(sc || ''));
@@ -313,6 +313,170 @@ test('GAME_PAYWALL=off → cookie-гүй шууд өгнө (X-Game-Gate: off); ?
   assert.strictEqual((await hit({ g: 'mathmortal', f: '../api/qpay.js' })).statusCode, 404);
 });
 
+// gp-final (шалгагчийн минор): gate нээлттэй үед (эхний ээлж / kill-switch) cyber-math.com-ийн файл тоглоомууд өмнөх
+// @vercel/static шиг кэшлэгдэж, индекслэгдэнэ — өмнө нь private, no-store + noindex байсан тул ачаалал бүрт бүтэн татагдаж
+// (myangat gzip ~943KB), хайлтаас гардаг байв. Түгжээтэй үеийн хариу (сесстэй файл, түгжээ, 302) private хэвээр.
+test('gate нээлттэй: public, max-age=0, must-revalidate + ETag → 304, noindex-гүй; түгжээтэй үед private/no-store, ETag-гүй', async () => {
+  const offModes = [['GAME_PAYWALL=off', () => { process.env.GAME_PAYWALL = 'off'; }],
+    ['эхний ээлж (env тавиагүй)', () => { delete process.env.GAME_PAYWALL; delete process.env.GAME_PAYWALL_REALMS; }]];
+  for (const [label, set] of offModes) {
+    F.reset();
+    set();
+    assert.strictEqual(GM.gateOn(), false, label);
+    const tags = new Set();
+    for (const g of Object.keys(gate.FILES)) {
+      const r = await hit({ g: g });
+      const m = label + ' ' + g;
+      assert.deepStrictEqual([r.statusCode, r.headers['x-game-gate']], [200, 'off'], m);
+      assert.strictEqual(r.headers['cache-control'], 'public, max-age=0, must-revalidate', m);
+      assert.strictEqual(gate.CACHE_PUBLIC, 'public, max-age=0, must-revalidate');
+      assert.strictEqual(r.headers['x-robots-tag'], undefined, m + ': noindex-гүй (хуучин шигээ индекслэгдэнэ)');
+      assert.strictEqual(r.headers.vary, 'Accept-Encoding', m + ': cookie-оос хамаарахгүй');
+      assert.match(r.headers.etag, /^"g[A-Za-z0-9_-]{27}"$/, m);
+      tags.add(r.headers.etag);
+      assert.strictEqual(r.headers['set-cookie'], undefined, m);
+      // дахин шалгах (хөтчийн кэш) → 304, бие үгүй
+      const n = await hit({ g: g, headers: { 'if-none-match': r.headers.etag } });
+      assert.strictEqual(n.statusCode, 304, m + ' 304');
+      assert.strictEqual(n.body, null, m + ' 304 биегүй');
+      assert.strictEqual(n.headers.etag, r.headers.etag);
+      assert.strictEqual(n.headers['cache-control'], 'public, max-age=0, must-revalidate');
+      assert.strictEqual((await hit({ g: g, headers: { 'if-none-match': 'W/' + r.headers.etag } })).statusCode, 304, m + ' W/');
+      assert.strictEqual((await hit({ g: g, headers: { 'if-none-match': '"x", ' + r.headers.etag } })).statusCode, 304, m + ' жагсаалт');
+      assert.strictEqual((await hit({ g: g, method: 'HEAD', headers: { 'if-none-match': r.headers.etag } })).statusCode, 304, m + ' HEAD');
+      const o = await hit({ g: g, headers: { 'if-none-match': '"gother"' } });
+      assert.strictEqual(o.statusCode, 200, m + ' өөр ETag → бүтэн');
+      assert.ok(o.body.equals(FILE(ENTRY[g])), m);
+    }
+    assert.strictEqual(tags.size, Object.keys(gate.FILES).length, 'файл бүр өөр ETag');
+    // gzip representation өөр ETag-тай (Vary: Accept-Encoding)
+    const z = await hit({ g: 'myangat', headers: { 'accept-encoding': 'gzip' } });
+    assert.strictEqual(z.headers['content-encoding'], 'gzip');
+    assert.match(z.headers.etag, /-gz"$/);
+    const zr = await hit({ g: 'myangat' });
+    assert.notStrictEqual(z.headers.etag, zr.headers.etag);
+    assert.strictEqual((await hit({ g: 'myangat', headers: { 'accept-encoding': 'gzip', 'if-none-match': z.headers.etag } })).statusCode, 304);
+    assert.strictEqual((await hit({ g: 'myangat', headers: { 'if-none-match': z.headers.etag } })).statusCode, 200, 'gzip-ийн ETag түүхийд таарахгүй');
+    // math-mortal-ийн дэд файл ч мөн
+    const j = await hit({ g: 'mathmortal', f: 'main.js' });
+    assert.deepStrictEqual([j.statusCode, j.headers['cache-control'], j.headers['x-robots-tag']], [200, 'public, max-age=0, must-revalidate', undefined]);
+    assert.strictEqual((await hit({ g: 'mathmortal', f: 'main.js', headers: { 'if-none-match': j.headers.etag } })).statusCode, 304);
+    // ?t= → 302 нь кэшлэгдэхгүй хэвээр
+    const t = await hit({ g: 'sudoku', t: 'x', url: '/sudoku.html?t=x' });
+    assert.deepStrictEqual([t.statusCode, t.headers['cache-control']], [302, 'private, no-store']);
+    assert.strictEqual(F.db.tix.size, 0);
+  }
+  // Gate түгжээтэй (ws,cm): сесстэй файл private/no-store/noindex, ETag-гүй; If-None-Match-аар 304 өгөхгүй
+  F.reset();
+  process.env.GAME_PAYWALL = 'off';
+  const off = (await hit({ g: 'sudoku' })).headers.etag;
+  process.env.GAME_PAYWALL = 'on';
+  const c = await enter('sudoku');
+  const o = await hit({ g: 'sudoku', cookie: c.pair, headers: { 'if-none-match': off } });
+  assert.strictEqual(o.statusCode, 200, 'түгжээтэй үед кэшийн 304 үгүй');
+  assert.strictEqual(o.headers.etag, undefined);
+  assert.strictEqual(o.headers['cache-control'], 'private, no-store');
+  assert.match(o.headers['x-robots-tag'], /noindex/);
+  const l = await hit({ g: 'sudoku', headers: { 'if-none-match': off } });
+  assertLocked(l, 'sudoku');
+  assert.strictEqual(l.headers.etag, undefined);
+});
+
+// gp-final (шалгагчийн минор): realm тусдаа — Дасгалын төвийн (ws) тасалбар/сесс cyber-math.com-ийн (cm) хуудсыг нээхгүй,
+// эсрэгээрээ ч мөн. Өмнө нь cookie нь тоглоомоор л (__Host-cmg_<g>) байсан тул GAME_PAYWALL_REALMS=ws,cm үед Дасгалын төвд
+// авсан эрх (эсвэл ws урилга) нэг хөтөч дээр cyber-math.com-ийн /sudoku.html-ийг 2 цаг нээдэг байв.
+test('realm тусгаарлалт: ws тасалбар → __Host-cmgw_<g> + ?realm=ws; ws сесс cm-ийн URL-ийг нээхгүй (эсрэгээрээ ч); дэд файл аль нэг сессээр', async () => {
+  const wsT = (g, o) => GM.signTicket(Object.assign({ g: g, r: 'ws', sub: GM.subjectOf('ws', 'kid@x.mn') }, o || {})).token;
+  // ws тасалбар → ws cookie, цэвэр URL ?realm=ws-тэй
+  const a = await hit({ g: 'sudoku', url: '/sudoku.html?realm=ws&t=x&lvl=2', query: { realm: 'ws', t: wsT('sudoku'), lvl: '2' } });
+  assert.strictEqual(a.statusCode, 302);
+  assert.strictEqual(a.headers.location, '/sudoku.html?realm=ws&lvl=2');
+  const w = cookieOf(a);
+  assert.strictEqual(w.name, '__Host-cmgw_sudoku');
+  assert.strictEqual(payload(w.value).r, 'ws');
+  // URL-ээс realm-ийг хассан ч тасалбарын realm шийднэ (ws cookie, ?realm=ws руу)
+  const a2 = await hit({ g: 'sudoku', url: '/sudoku.html?t=x', query: { t: wsT('sudoku') } });
+  assert.deepStrictEqual([a2.statusCode, a2.headers.location, cookieOf(a2).name], [302, '/sudoku.html?realm=ws', '__Host-cmgw_sudoku']);
+  // cm тасалбарыг ?realm=ws URL-д → cm cookie, cm-ийн цэвэр URL
+  const b = await hit({ g: 'sudoku', url: '/sudoku.html?realm=ws&t=x', query: { realm: 'ws', t: ticket('sudoku') } });
+  assert.deepStrictEqual([b.statusCode, b.headers.location, cookieOf(b).name], [302, '/sudoku.html', '__Host-cmg_sudoku']);
+  const c = cookieOf(b);
+
+  const WS = { url: '/sudoku.html?realm=ws', query: { realm: 'ws' } };
+  // ws сесс → Дасгалын төвийн URL нээгдэнэ, cyber-math.com-ийн URL түгжээтэй (cookie-г нь устгахгүй — өөр realm-ийнх)
+  const o = await hit(Object.assign({ g: 'sudoku', cookie: w.pair }, WS));
+  assert.deepStrictEqual([o.statusCode, o.headers['x-game-gate']], [200, 'open']);
+  const x = await hit({ g: 'sudoku', cookie: w.pair });
+  assertLocked(x, 'sudoku');
+  assert.strictEqual(x.headers['set-cookie'], undefined);
+  // ws сессийг cm-ийн cookie нэрээр → хүчингүй + устгана
+  const x2 = await hit({ g: 'sudoku', cookie: '__Host-cmg_sudoku=' + w.value });
+  assertLocked(x2, 'sudoku');
+  assert.strictEqual(x2.headers['set-cookie'], '__Host-cmg_sudoku=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax');
+  // cm сесс → cm URL нээгдэнэ, ws URL түгжээтэй; cm сессийг ws нэрээр → хүчингүй + устгана
+  assert.strictEqual((await hit({ g: 'sudoku', cookie: c.pair })).statusCode, 200);
+  assertLocked(await hit(Object.assign({ g: 'sudoku', cookie: c.pair }, WS)), 'sudoku');
+  const x3 = await hit(Object.assign({ g: 'sudoku', cookie: '__Host-cmgw_sudoku=' + c.value }, WS));
+  assertLocked(x3, 'sudoku');
+  assert.strictEqual(x3.headers['set-cookie'], '__Host-cmgw_sudoku=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax');
+  // хоёулаа байвал хоёр сайт тус тусдаа нээгдэнэ
+  const both = c.pair + '; ' + w.pair;
+  assert.strictEqual((await hit({ g: 'sudoku', cookie: both })).statusCode, 200);
+  assert.strictEqual((await hit(Object.assign({ g: 'sudoku', cookie: both }, WS))).statusCode, 200);
+  // ?realm=<буруу> → cm гэж үзнэ (ws сесс хүчингүй)
+  assertLocked(await hit({ g: 'sudoku', cookie: w.pair, url: '/sudoku.html?realm=WS', query: { realm: 'WS' } }), 'sudoku');
+  // ws-ийн давтсан тасалбар + ws cookie → ws цэвэр URL руу 302 (cookie шинэчлэхгүй)
+  const rt = wsT('sudoku');
+  assert.strictEqual((await hit(Object.assign({ g: 'sudoku', t: rt }, { url: '/sudoku.html?realm=ws&t=1', query: { realm: 'ws', t: rt } }))).statusCode, 302);
+  const rr = await hit({ g: 'sudoku', cookie: w.pair, url: '/sudoku.html?realm=ws&t=1', query: { realm: 'ws', t: rt } });
+  assert.deepStrictEqual([rr.statusCode, rr.headers.location, rr.headers['set-cookie']], [302, '/sudoku.html?realm=ws', undefined]);
+  // ws урилга (sub inv:…) → ws cookie 30 мин, cm-ийн хуудсыг нээхгүй
+  const iv = await hit({ g: 'sbh', url: '/sbh?realm=ws&t=1', query: { realm: 'ws', t: wsT('sbh', { sub: 'inv:' + hex32() }) } });
+  const ic = cookieOf(iv);
+  assert.deepStrictEqual([iv.headers.location, ic.name], ['/sbh?realm=ws', '__Host-cmgw_sbh']);
+  assert.ok(ic.maxAge <= 1800);
+  assert.strictEqual((await hit({ g: 'sbh', cookie: ic.pair, url: '/sbh?realm=ws', query: { realm: 'ws' } })).statusCode, 200);
+  assertLocked(await hit({ g: 'sbh', cookie: ic.pair, url: '/sbh' }), 'sbh');
+  // math-mortal: эхлэх хуудас realm-аараа, дэд js/css аль нэг realm-ийн ЭНЭ тоглоомын сессээр
+  const mw = cookieOf(await hit({ g: 'mathmortal', f: 'index.html', url: '/math-mortal/?realm=ws&t=1', query: { realm: 'ws', t: wsT('mathmortal') } }));
+  const mc = await enter('mathmortal', { req: { f: 'index.html' } });
+  assert.deepStrictEqual([mw.name, mc.name], ['__Host-cmgw_mathmortal', '__Host-cmg_mathmortal']);
+  assert.strictEqual((await hit({ g: 'mathmortal', f: 'index.html', cookie: mw.pair, url: '/math-mortal/?realm=ws', query: { realm: 'ws' } })).statusCode, 200);
+  assertLocked(await hit({ g: 'mathmortal', f: 'index.html', cookie: mw.pair, url: '/math-mortal/' }), 'mathmortal');
+  for (const ck of [mw.pair, mc.pair]) {
+    const s = await hit({ g: 'mathmortal', f: 'main.js', cookie: ck });
+    assert.deepStrictEqual([s.statusCode, s.headers['x-game-gate'], s.headers['cache-control']], [200, 'open', 'private, no-store'], ck.split('=')[0]);
+  }
+  assertLocked(await hit({ g: 'mathmortal', f: 'main.js', cookie: '__Host-cmgw_mathmortal=' + w.value }), 'mathmortal');   // sudoku-гийн сесс
+  assertLocked(await hit({ g: 'mathmortal', f: 'main.js' }), 'mathmortal');
+});
+
+// GAME_PAYWALL_REALMS=cm (ws үнэгүй): Дасгалын төвийн URL (?realm=ws) тасалбаргүй нээлттэй, cyber-math.com-ийн URL cm-ийн
+// эрхээр л. Нэвтрэлтгүй тасалбар/cookie гарахгүй (шалгагчийн repro: ws 'open' тасалбар → __Host-cmg_<g> → cm үнэгүй).
+test("GAME_PAYWALL_REALMS=cm: ?realm=ws нээлттэй (off), cm-ийн URL түгжээтэй; ws URL-аас cm-ийн cookie гарахгүй", async () => {
+  process.env.GAME_PAYWALL_REALMS = 'cm';
+  assert.deepStrictEqual([GM.paywallOn('ws'), GM.paywallOn('cm'), GM.gateOn()], [false, true, true]);
+  for (const g of Object.keys(gate.FILES)) {
+    const pub = gate.FILES[g].paths[0];
+    const q = gate.FILES[g].dir ? { f: 'index.html', realm: 'ws' } : { realm: 'ws' };
+    const r = await hit({ g: g, url: pub + '?realm=ws', query: q });
+    assert.deepStrictEqual([r.statusCode, r.headers['x-game-gate']], [200, 'off'], g);
+    assert.strictEqual(r.headers['set-cookie'], undefined, g);
+    assertLocked(await hit({ g: g, f: gate.FILES[g].dir ? 'index.html' : undefined, url: pub }), g);
+  }
+  // ws URL дээрх дурын ?t= → цэвэр ws URL (тасалбар зарцуулахгүй, cookie үгүй) → cm хуудас түгжээтэй хэвээр
+  const t = await hit({ g: 'play2048', url: '/play2048.html?realm=ws&t=abc', query: { realm: 'ws', t: 'abc' } });
+  assert.deepStrictEqual([t.statusCode, t.headers.location, t.headers['set-cookie']], [302, '/play2048.html?realm=ws', undefined]);
+  assertLocked(await hit({ g: 'play2048' }), 'play2048');
+  // дэд файл: ws үнэгүй тул нээлттэй (ws-ийн эхлэх хуудас нээлттэй)
+  assert.deepStrictEqual([(await hit({ g: 'mathmortal', f: 'main.js' })).headers['x-game-gate']], ['off']);
+  // cm тасалбар → cm cookie → cm хуудас
+  const c = await enter('sudoku');
+  assert.strictEqual(c.name, '__Host-cmg_sudoku');
+  assert.strictEqual((await hit({ g: 'sudoku', cookie: c.pair })).statusCode, 200);
+  assert.strictEqual(F.db.tix.size, 1);
+});
+
 test('DB алдаа (jti бичих) → 503 fail-closed, cookie үгүй; DB сэргэхэд ижил тасалбар ажиллана', async () => {
   const t = ticket('myangat');
   F.db.failTix = true;
@@ -416,12 +580,15 @@ test('бүтэн урсгал: launch (cm/ws/админ) → url → маршр�
 
   const ws = await L({ game: 'mathmortal', realm: 'ws', wstoken: wsTok('w@x.mn') }, { 'x-device-id': 'devaaaa1' });
   assert.strictEqual(ws.statusCode, 200, JSON.stringify(ws.body));
-  assert.match(ws.body.url, /^\/math-mortal\/\?t=/);
+  assert.match(ws.body.url, /^\/math-mortal\/\?realm=ws&t=/);
   const wr = await viaRoute(ws.body.url);
   assert.strictEqual(wr.statusCode, 302);
-  assert.strictEqual(wr.headers.location, '/math-mortal/');
+  assert.strictEqual(wr.headers.location, '/math-mortal/?realm=ws');
   const wc = cookieOf(wr);
+  assert.strictEqual(wc.name, '__Host-cmgw_mathmortal', 'Дасгалын төвийн сесс тусдаа cookie-д');
   assert.ok(wc.maxAge <= 0.01 * 86400 + 1, 'эрхийн үлдсэн хугацаанаас хэтрэхгүй: ' + wc.maxAge);
+  assert.strictEqual((await viaRoute('/math-mortal/?realm=ws', wc.pair)).statusCode, 200);
+  assertLocked(await viaRoute('/math-mortal/', wc.pair), 'mathmortal');   // cyber-math.com-ийн хуудас ws-ийн эрхээр нээгдэхгүй
   assert.strictEqual((await viaRoute('/math-mortal/main.js', wc.pair)).statusCode, 200);
   assert.strictEqual((await viaRoute('/math-mortal/game3d.js', wc.pair)).statusCode, 200);
   assertLocked(await viaRoute('/math-mortal/main.js'), 'mathmortal');
