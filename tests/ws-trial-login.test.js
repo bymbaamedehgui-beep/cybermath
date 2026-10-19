@@ -1,5 +1,6 @@
-// Шинэ дансны үнэгүй туршилт — нэвтрэлтийн замууд (api/worksheets.js wsIssue → api/_wstrial.js start).
-// Анхны амжилттай нэвтрэлт (бүртгүүлээд автоматаар нэвтэрсэн ч) туршилтыг эхлүүлнэ; дахин нэвтрэлт СУНГАХГҮЙ;
+// Үнэгүй туршилт — нэвтрэлтийн замууд (api/worksheets.js wsIssue → api/_wstrial.js start).
+// Эрх ХЭЗЭЭ Ч аваагүй данс (шинэ ч, хуучин ч) — дараагийн амжилттай нэвтрэлт (бүртгүүлээд автоматаар нэвтэрсэн ч)
+// туршилтыг эхлүүлнэ; ws_access / ws_grade_access мөртэй данс туршилтгүй; дахин нэвтрэлт СУНГАХГҮЙ;
 // туршилтын алдаа нэвтрэлтийг зогсоохгүй; төхөөрөмжийн хязгаарт (403) туршилт эхлэхгүй; wsEntitled туршилтыг тооцохгүй.
 // Ажиллуулах: node --test tests/ws-trial-login.test.js   (бодит DB/textbee 0 — tests/_smsfake.js)
 'use strict';
@@ -67,11 +68,30 @@ test('нууц үгээр анх нэвтрэх → эхэлнэ; дахин н�
   assert.strictEqual(d.body.trial.until, a.body.trial.until);
 });
 
-test('хуучин данс (created_at < WS_TRIAL_FROM) → хариу урьдын адил (trial түлхүүргүй), юу ч бичихгүй', async () => {
-  acct('old@x.mn', { created_at: new Date(Date.now() - 40 * 864e5) });
+test('хуучин (деплойгоос өмнөх) эрхгүй данс → дараагийн нэвтрэлтэд туршилт эхэлнэ; SMS-ээс өмнөх данс ч', async () => {
+  acct('old@x.mn', { phone: '99113301', created_at: new Date(Date.now() - 400 * 864e5) });
   const r = await login('old@x.mn', DEV);
   assert.strictEqual(r.statusCode, 200);
-  assert.deepStrictEqual(Object.keys(r.body).sort(), ['email', 'ok', 'token']);
+  assert.ok(r.body.token);
+  assert.deepStrictEqual([r.body.trial.active, r.body.trial.denied, span(r.body.trial)], [true, null, 300000]);
+  F.db.trial.shift = 30000;
+  assert.strictEqual((await login('old@x.mn', DEV2)).body.trial.until, r.body.trial.until, 'сунгахгүй');
+  // SMS-ээс өмнөх (имэйлээр баталгаажсан, phone_verified_at-гүй, урилгын бус)
+  acct('legacy@x.mn', { phone: '99113302', phone_verified_at: null, created_at: new Date(Date.now() - 400 * 864e5) });
+  const l = await login('legacy@x.mn', 'devlegacy000001');
+  assert.deepStrictEqual([l.statusCode, l.body.trial.active, l.body.trial.denied], [200, true, null]);
+});
+
+test('эрх авсан данс (ws_access / ws_grade_access — хугацаа дууссан ч) → хариу урьдын адил (trial түлхүүргүй), юу ч бичихгүй', async () => {
+  F.entitle('ws_access', 'acc@x.mn');            // мөр байгаа = авсан (хугацаа, олголтын төрөл хамаагүй)
+  F.entitle('ws_grade_access', 'gr@x.mn');
+  acct('acc@x.mn', { phone: '99113311', created_at: new Date(Date.now() - 40 * 864e5) });
+  acct('gr@x.mn', { phone: '99113312' });
+  for (const e of ['acc@x.mn', 'gr@x.mn']) {
+    const r = await login(e, DEV);
+    assert.strictEqual(r.statusCode, 200);
+    assert.deepStrictEqual(Object.keys(r.body).sort(), ['email', 'ok', 'token'], e);
+  }
   assert.strictEqual(F.db.trial.trials.size, 0);
   assert.strictEqual(F.db.trial.marks.size, 0);
   // баталгаажаагүй → 403 needVerify (хуучин шигээ), туршилтгүй
@@ -107,9 +127,10 @@ test('урилгаар бүртгүүлсэн (SMS-гүй) данс → турш
   assert.deepStrictEqual([r.body.trial.active, r.body.trial.denied, span(r.body.trial)], [true, null, 300000]);
 });
 
-test('хуучин хэрэглэгч (деплойгоос өмнөх) ижил утсаараа шинэ имэйл SMS-ээр бүртгүүлэв → denied phone (ижил төхөөрөмж дээр ч)', async () => {
+test('төлсөн хэрэглэгч (эрхтэй хуучин данс) ижил утсаараа шинэ имэйл SMS-ээр бүртгүүлэв → denied phone (ижил төхөөрөмж дээр ч)', async () => {
   acct('old@x.mn', { phone: '88001122', created_at: new Date(Date.now() - 365 * 864e5) });
-  assert.strictEqual((await login('old@x.mn', DEV)).body.trial, undefined, 'хуучин данс туршилтгүй');
+  F.entitle('ws_access', 'old@x.mn');
+  assert.strictEqual((await login('old@x.mn', DEV)).body.trial, undefined, 'эрх авсан данс туршилтгүй');
   let r = await W({ action: 'ws_register', email: 'old2@x.mn', pass: 'secret1', name: 'O', phone: '88001122' });
   assert.strictEqual(r.statusCode, 200);
   r = await W({ action: 'ws_verify', email: 'old2@x.mn', pass: 'secret1', code: F.lastCode() }, { headers: { 'x-device-id': DEV } });

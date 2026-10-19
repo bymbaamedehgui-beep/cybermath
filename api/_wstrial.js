@@ -1,14 +1,21 @@
-// Шинэ дансны ҮНЭГҮЙ ТУРШИЛТ — Дасгалын төвийн ажлын хуудас (бүх анги, ws_access шиг), анхдагч 5 минут.
+// ҮНЭГҮЙ ТУРШИЛТ — Дасгалын төвийн ажлын хуудас (бүх анги, ws_access шиг), анхдагч 5 минут. Бүртгэлтэй, ажлын
+// хуудасны эрх ХЭЗЭЭ Ч аваагүй данс бүрт НЭГ удаа — шинэ данс ч, деплойгоос өмнөх хуучин данс ч (бүртгэсэн огноо хамаагүй).
 //
 // Дүрэм:
-//   • «Шинэ хэрэглэгч» = ws_login.created_at ≥ деплойн мөч (fromIso), баталгаажсан (verified), нууц үгтэй
-//     (pass_hash <> '!'), УТАС НЬ БАТЛАГДСАН (phone_verified_at — SMS/verify.mn) данс. Хуучин данс, админ бэлтгэсэн мөр,
-//     урилгын линкээр SMS-гүй үүссэн данс туршилт авахгүй (урилгаар хязгааргүй шинэ имэйл нээж туршилт цуглуулна;
+//   • Эрх бүхий (eligible) данс = ws_login: баталгаажсан (verified), нууц үгтэй (pass_hash <> '!'), утас нь SMS-ээр
+//     батлагдсан (phone_verified_at — SMS/verify.mn) ЭСВЭЛ урилгын бус (invite IS NULL — SMS-ээс өмнө имэйлээр
+//     баталгаажсан хуучин данс; PHONE_TOO_MANY-тэй ижил дүрэм), МӨН ws_access, ws_grade_access-д НЭГ Ч мөргүй —
+//     хугацаа нь дууссан эрх, админы олголт (мөнгөгүй) ч «худалдаж авсан» гэж тооцно. Админ бэлтгэсэн мөр, урилгын
+//     линкээр SMS-гүй үүссэн данс туршилт авахгүй (урилгаар хязгааргүй шинэ имэйл нээж туршилт цуглуулна;
 //     батлагдаагүй утсаар хүний 'ph:' тэмдгийг түрүүлж эзэлнэ). Урилгын данс SMS-ээр утсаа баталбал (ws_reset) л болно.
-//   • Деплойгоос ӨМНӨХ данснууд тэмдэг бичээгүй тул тэдний утас/төхөөрөмжийг шууд шалгана (PRIOR): ижил батлагдсан
-//     утастай эсвэл энэ cm_device-ийг ашигласан хуучин данс байвал denied='phone'|'dev' (хуучин хэрэглэгч шинэ имэйл).
-//   • Эхлэх цэг = АНХНЫ амжилттай нэвтрэлт (api/worksheets.js wsIssue → start()). Бүртгүүлээд автоматаар нэвтэрсэн
-//     бол тэр мөч. Дахин нэвтэрсэн, токен/төхөөрөмж сольсон ч СУНГАХГҮЙ (ws_trials PK + ON CONFLICT DO NOTHING).
+//     SMS-гүй шинэ урилгын бус данс одоо үүсэх замгүй (бүртгэл/сэргээлт бүр phone_verified_at тавьдаг) — хуучнууд л.
+//   • Төлсөн хэрэглэгч шинэ имэйлээр туршилт авахгүй (PRIOR): ижил утастай (батлагдсан, эсвэл урилгын бус) эсвэл энэ
+//     cm_device-ийг (ws_devices) ашигласан, эрх АВСАН (ws_access / ws_grade_access мөртэй) өөр данс байвал
+//     denied='phone'|'dev'. Эрхгүй өөр данс хаахгүй — тэднийг доорх тэмдэг (нэг төхөөрөмж/утас = нэг туршилт) зохицуулна.
+//   • Эхлэх цэг = дараагийн амжилттай нэвтрэлт (api/worksheets.js wsIssue → start(); бүртгүүлээд автоматаар нэвтэрсэн
+//     бол тэр мөч) ЭСВЭЛ эрх шалгах (api/qpay.js wsstatus → status() нөөц зам) — аль нь түрүүлсэн. Токентой хуучин
+//     хэрэглэгч ихэвчлэн хуудас нээх үед (status) эхэлнэ. Дахин нэвтэрсэн, токен/төхөөрөмж сольсон ч СУНГАХГҮЙ
+//     (ws_trials PK + ON CONFLICT DO NOTHING). Туршилт эхэлсний дараа эрх авсан ч мөр нь хэвээр (дахин эхлэхгүй).
 //   • Хугацааг ЗӨВХӨН серверийн (DB) цагаар: trial_until = NOW() + seconds, идэвхтэй эсэх = trial_until > NOW()
 //     (SQL дотор). Клиентийн цаг/параметрт итгэхгүй — клиент зөвхөн server_now-оор зөрүүгээ засаж тоолуур зурна.
 //   • Нэг төхөөрөмж (cm_device) / нэг утас → нэг туршилт (ws_trial_marks). Өөр данс эзэмшсэн бол туршилт
@@ -19,15 +26,17 @@
 //
 // env (дуудлага бүрд уншина):
 //   WS_TRIAL_SECONDS  анхдагч 300; 0 эсвэл off = бүрэн унтраалттай (SQL 0). Дээд тал 3600.
-//   WS_TRIAL_FROM     ISO огноо — үүнээс хойш бүртгүүлсэн данс «шинэ». Тавиагүй (эсвэл буруу) бол DB-ийн
-//                     ws_trial_cfg('from') — энэ код PRODUCTION-д (canAnchor) анх ажилласан мөч (= деплой), нэг л удаа
-//                     бичигдэж хэзээ ч өөрчлөгдөхгүй. Preview/локал (.env.local нь prod DB!) үүнийг ҮҮСГЭХГҮЙ — зөвхөн
-//                     уншина; байхгүй бол туршилт унтраалттай. Кодонд хатуу огноо БАЙХГҮЙ (коммит ≠ деплой).
+//   WS_TRIAL_FROM     ISO огноо — тавьсан (хүчинтэй) бол туршилтыг идэвхжүүлнэ (тест/гар удирдлага). Тавиагүй (эсвэл
+//                     буруу) бол DB-ийн ws_trial_cfg('from') — энэ код PRODUCTION-д (canAnchor) анх ажилласан мөч
+//                     (= деплой), нэг л удаа бичигдэж хэзээ ч өөрчлөгдөхгүй. Preview/локал (.env.local нь prod DB!) үүнийг
+//                     ҮҮСГЭХГҮЙ — зөвхөн уншина; байхгүй бол туршилт унтраалттай. Огноо нь SQL нөхцөлд ОРОХГҮЙ (бүртгэсэн
+//                     огноогоор шүүхгүй) — зөвхөн «preview/локалаас prod DB-д туршилт эхлүүлэхгүй» хамгаалалт.
+//                     Кодонд хатуу огноо БАЙХГҮЙ (коммит ≠ деплой).
 //   WS_TRIAL_IP_DAY   анхдагч 0 (унтраалттай). N>0 бол нэг IP-ээс өдөрт N туршилт, хэтэрвэл denied='ip'.
 //
 // API:
 //   start(email, req)   → view | null   (wsIssue: нэвтрэлт бүрд; аль хэдийн эхэлсэн бол тэр хэвээр)
-//   status(email, req)  → view | null   (qpay wsstatus: эрхгүй үед; эхлээгүй ч шинэ данс бол нөөц start)
+//   status(email, req)  → view | null   (qpay wsstatus: идэвхтэй эрхгүй үед; эхлээгүй ч eligible бол нөөц start)
 //   view = { until, started_at, server_now (ms), seconds, active, denied }
 'use strict';
 const pool = require('./_db');
@@ -52,9 +61,10 @@ function envFrom() {
   const t = raw ? Date.parse(raw) : NaN;
   return Number.isFinite(t) ? new Date(t).toISOString() : null;
 }
-/* «Шинэ данс»-ны доод хил (ISO) | null (= туршилт энэ дуудлагад унтраалттай). env → DB anchor. Anchor-ийг зөвхөн
-   production үүсгэнэ: коммитоос деплой хүртэл, эсвэл локал/preview-оор prod DB-д хүрсэн үед бүртгүүлсэн данс «шинэ»
-   болохгүй. Нэг удаа уншаад cold start-ын турш кэшилнэ (өөрчлөгддөггүй). Алдаа → шиднэ (дуудагч туршилтгүй гэж үзнэ). */
+/* Туршилт идэвхтэй эсэхийн хаалга: ISO | null (= туршилт энэ дуудлагад унтраалттай). env → DB anchor. Anchor-ийг
+   зөвхөн production үүсгэнэ: деплойгоос өмнө локал/preview-оор prod DB-д хүрсэн үед туршилт эхлэхгүй. Утгыг SQL-д
+   ашиглахгүй (бүртгэсэн огноогоор шүүхгүй). Нэг удаа уншаад cold start-ын турш кэшилнэ (өөрчлөгддөггүй).
+   Алдаа → шиднэ (дуудагч туршилтгүй гэж үзнэ). */
 let anchor = null, warned = false;
 // Production деплой уу: VERCEL_ENV=production; Vercel-ийн системийн хувьсагчийг ил гаргаагүй (VERCEL_ENV байхгүй)
 // төсөлд — серверлесс runtime (AWS_LAMBDA_FUNCTION_NAME) дээр. preview/development, локал node/тест → үгүй.
@@ -82,16 +92,22 @@ function ipDayMax() {
 
 // tests/_gamefake.js, tests/_smsfake.js яг эдгээр мөрийг (хоосон зай нормчилсон) таньдаг — өөрчилбөл тэнд ч шинэчилнэ.
 const SQL = {
-  ELIG: "SELECT l.phone, (l.verified = TRUE AND l.pass_hash <> '!' AND l.phone_verified_at IS NOT NULL "
-    + 'AND l.created_at >= $2::timestamptz) AS eligible, '
+  /* eligible: баталгаажсан, нууц үгтэй, утас SMS-ээр батлагдсан эсвэл урилгын бус, ажлын хуудасны эрх (ws_access /
+     ws_grade_access — дууссан ч, админы олголт ч) ХЭЗЭЭ Ч аваагүй. created_at-аар шүүхгүй. */
+  ELIG: "SELECT l.phone, (l.verified = TRUE AND l.pass_hash <> '!' AND (l.phone_verified_at IS NOT NULL OR l.invite IS NULL) "
+    + 'AND NOT EXISTS (SELECT 1 FROM ws_access a WHERE LOWER(a.email) = l.email) '
+    + 'AND NOT EXISTS (SELECT 1 FROM ws_grade_access g WHERE LOWER(g.email) = l.email)) AS eligible, '
     + 't.started_at, t.trial_until, t.seconds, t.denied, (t.trial_until > NOW()) AS active, NOW() AS now '
     + 'FROM ws_login l LEFT JOIN ws_trials t ON t.email = l.email WHERE l.email = $1',
-  /* Деплойгоос өмнөх (created_at < $3) данс энэ утсыг (батлагдсан, эсвэл урилгын бус — PHONE_TOO_MANY-тэй ижил дүрэм)
-     эсвэл энэ cm_device-ийг ($4, ws_devices) эзэмшдэг эсэх. $2/$4 NULL бол тухайн шалгалт false. */
+  /* Эрх АВСАН (ws_access / ws_grade_access мөртэй) өөр данс энэ утсыг (батлагдсан, эсвэл урилгын бус —
+     PHONE_TOO_MANY-тэй ижил дүрэм) эсвэл энэ cm_device-ийг ($3, ws_devices) эзэмшдэг эсэх. $2/$3 NULL бол тухайн шалгалт false. */
   PRIOR: 'SELECT EXISTS (SELECT 1 FROM ws_login o WHERE o.phone = $2 AND o.email <> $1 AND o.verified = TRUE '
-    + 'AND (o.phone_verified_at IS NOT NULL OR o.invite IS NULL) AND o.created_at < $3::timestamptz) AS phone, '
-    + 'EXISTS (SELECT 1 FROM ws_devices d JOIN ws_login o ON o.email = d.email WHERE d.device_id = $4 AND d.email <> $1 '
-    + 'AND o.created_at < $3::timestamptz) AS dev',
+    + 'AND (o.phone_verified_at IS NOT NULL OR o.invite IS NULL) '
+    + 'AND (EXISTS (SELECT 1 FROM ws_access a WHERE LOWER(a.email) = o.email) '
+    + 'OR EXISTS (SELECT 1 FROM ws_grade_access g WHERE LOWER(g.email) = o.email))) AS phone, '
+    + 'EXISTS (SELECT 1 FROM ws_devices d WHERE d.device_id = $3 AND d.email <> $1 '
+    + 'AND (EXISTS (SELECT 1 FROM ws_access a WHERE LOWER(a.email) = d.email) '
+    + 'OR EXISTS (SELECT 1 FROM ws_grade_access g WHERE LOWER(g.email) = d.email))) AS dev',
   CFG_INS: "INSERT INTO ws_trial_cfg (k, at) VALUES ('from', NOW()) ON CONFLICT (k) DO NOTHING",
   CFG_GET: "SELECT at FROM ws_trial_cfg WHERE k = 'from'",
   MARK_OWNERS: 'SELECT mark, email FROM ws_trial_marks WHERE mark = ANY($1::text[])',
@@ -149,7 +165,8 @@ function view(r) {
   };
 }
 // Тэмдэг: 'dev:<cm_device>' (байвал), 'ph:<sha256(утас)>' (хүчинтэй утас байвал). Түүхий утас хадгалахгүй.
-// Утас нь eligible (phone_verified_at) данснаас л ирнэ — батлагдаагүй утас тэмдэг болохгүй.
+// Утас нь eligible данснаас л ирнэ (SMS-ээр батлагдсан, эсвэл SMS-ээс өмнөх урилгын бус хуучин данс — PHONE_TOO_MANY
+// тэдний утсыг эзэмшсэн гэж тооцдогтой ижил) — урилгын батлагдаагүй утас тэмдэг болохгүй.
 function devMark(dev) { return dev ? 'dev:' + dev : null; }
 function phoneLocal(phone) { const pn = sms.normalizePhone(phone); return pn.ok ? pn.local : null; }
 function phoneMark(local) {
@@ -171,20 +188,19 @@ async function start(email, req) {
   email = lc(email);
   if (!email) return null;
   await ensure();
-  const from = await fromIso();
-  if (!from) return null;                                    // деплойн мөч тодорхойгүй (preview/локал) — туршилтгүй
-  const row = (await pool.query(SQL.ELIG, [email, from])).rows[0];
-  return begin(email, req, row, from, secs);
+  if (!(await fromIso())) return null;                       // деплойн мөч тодорхойгүй (preview/локал) — туршилтгүй
+  const row = (await pool.query(SQL.ELIG, [email])).rows[0];
+  return begin(email, req, row, secs);
 }
-async function begin(email, req, row, from, secs) {
+async function begin(email, req, row, secs) {
   if (!row) return null;
   if (row.trial_until != null) return view(row);            // аль хэдийн эхэлсэн (эсвэл дууссан) — СУНГАХГҮЙ
-  if (!row.eligible) return null;                            // хуучин / баталгаажаагүй / бэлтгэсэн / урилгын данс — юу ч бичихгүй
+  if (!row.eligible) return null;                            // эрх авсан / баталгаажаагүй / бэлтгэсэн / урилгын данс — юу ч бичихгүй
   const dev = WDEV.deviceIdFrom(req), ph = phoneLocal(row.phone);
   let denied = null;
-  // Деплойгоос өмнөх данснууд тэмдэг бичээгүй — тэдний утас/төхөөрөмжийг шууд шалгана
+  // Эрх авсан өөр данс (төлсөн хэрэглэгч шинэ имэйлээр) — тэд тэмдэг бичээгүй тул утас/төхөөрөмжийг шууд шалгана
   if (ph || dev) {
-    const pr = (await pool.query(SQL.PRIOR, [email, ph, from, dev])).rows[0] || {};
+    const pr = (await pool.query(SQL.PRIOR, [email, ph, dev])).rows[0] || {};
     denied = pr.phone === true ? 'phone' : pr.dev === true ? 'dev' : null;
   }
   const marks = [devMark(dev), phoneMark(ph)].filter(Boolean);
@@ -209,13 +225,12 @@ async function status(email, req) {
   email = lc(email);
   if (!email) return null;
   await ensure();
-  const from = await fromIso();
-  if (!from) return null;
-  const row = (await pool.query(SQL.ELIG, [email, from])).rows[0];
+  if (!(await fromIso())) return null;
+  const row = (await pool.query(SQL.ELIG, [email])).rows[0];
   if (!row) return null;
-  /* Нөөц зам: нэвтрэх үеийн start DB алдаагаар унасан, эсвэл деплойн мөчөөс хойш үүссэн ч шинэ код
-     ажиллахаас өмнө нэвтэрсэн данс — эрх шалгах үед эхлүүлнэ (нэг л удаа). */
-  if (row.trial_until == null) return row.eligible ? begin(email, req, row, from, secs) : null;
+  /* Нөөц зам: токентой (дахин нэвтрэхгүй) хуучин хэрэглэгч, эсвэл нэвтрэх үеийн start DB алдаагаар унасан данс —
+     эрх шалгах (хуудас нээх) үед эхлүүлнэ (нэг л удаа). */
+  if (row.trial_until == null) return row.eligible ? begin(email, req, row, secs) : null;
   return view(row);
 }
 

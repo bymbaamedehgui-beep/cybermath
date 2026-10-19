@@ -58,10 +58,12 @@ const db = {
   wsGrade: [],          // ws_grade_access [{email, grade, expires_at}] — api/_wsgrade.js activeGrades
 };
 // ws_trials / ws_trial_marks / ws_trial_cfg (tests/_trialfake.js): db.trial.trials, db.trial.marks, db.trial.cfgFrom,
-// db.trial.shift (DB NOW шилжилт), db.trial.fail. PRIOR: db.wsLogin (ижил утас) + db.devices (ws_devices)
+// db.trial.shift (DB NOW шилжилт), db.trial.fail. PRIOR: db.wsLogin (ижил утас) + db.devices (ws_devices).
+// «Эрх авсан» (ELIG/PRIOR) = db.wsAccess эсвэл db.wsGrade-д мөртэй (хугацаа дууссан ч)
 db.trial = require('./_trialfake').create(function (e) { return db.wsLogin.get(e); }, {
   logins: function () { return Array.from(db.wsLogin, function (kv) { return Object.assign({}, kv[1], { email: kv[0] }); }); },
   devices: function () { return Array.from(db.devices.values()); },
+  bought: function (e) { return db.wsAccess.has(e) || db.wsGrade.some(function (r) { return lc(r.email) === e; }); },
 });
 // hangOn-д таарсан асуултад хүрэхэд resolve болно (тест dropConnections()-ыг яг тэр мөчид дуудна)
 let hangHit = null;

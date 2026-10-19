@@ -8,7 +8,7 @@ const { rateLimit, clientIp } = require('./_guard');
 const sms = require('./_sms');
 const tg = require('./_telegram');
 const WDEV = require('./_wsdev');
-// Шинэ дансны 5 минутын үнэгүй туршилт (серверийн цаг) — анхны амжилттай нэвтрэлтэд эхэлнэ
+// 5 минутын үнэгүй туршилт (серверийн цаг) — худалдаж аваагүй данс бүрт нэг удаа, дараагийн амжилттай нэвтрэлтэд эхэлнэ
 const WT = require('./_wstrial');
 const JWT_SECRET = process.env.JWT_SECRET || 'cybermath-default-secret-change-in-prod';
 
@@ -18,7 +18,8 @@ function wsSign(email, dev) {
   if (dev) p.dev = dev;
   return jwt.sign(p, JWT_SECRET, { expiresIn: '400d' });
 }
-/* Үнэгүй туршилт (api/_wstrial.js): шинэ дансны АНХНЫ нэвтрэлтэд эхэлнэ, дараагийн нэвтрэлтэд тэр хэвээр (сунгахгүй).
+/* Үнэгүй туршилт (api/_wstrial.js): эрх хэзээ ч аваагүй дансны энэ нэвтрэлтэд эхэлнэ (эсвэл wsstatus түрүүлж эхлүүлсэн),
+   дараагийн нэвтрэлтэд тэр хэвээр (сунгахгүй).
    Туршилтын алдаа нэвтрэлтийг ХЭЗЭЭ Ч зогсоохгүй. Туршилтгүй бол trial түлхүүр огт нэмэгдэхгүй. */
 async function wsTrialExtra(req, email) {
   let tr = null;

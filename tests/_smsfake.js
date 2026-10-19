@@ -41,9 +41,13 @@ const db = {
   nextId: 1,
 };
 // ws_trials / ws_trial_marks / ws_trial_cfg (tests/_trialfake.js) — ELIG/PRIOR нь db.ws (ws_login) мөрийг уншина;
-// created_at байхгүй бол NOW. ws_devices-ийг энэ fake загварчлахгүй (PRIOR dev = false)
+// ws_devices-ийг энэ fake загварчлахгүй (PRIOR dev = false). «Эрх авсан» = db.entitled-ийн ws_access /
+// ws_grade_access Set-д имэйл байгаа (wsEntitled-тэй ижил эх сурвалж)
 db.trial = require('./_trialfake').create(function (e) { return db.ws.get(e); }, {
   logins: function () { return Array.from(db.ws, function (kv) { return Object.assign({}, kv[1], { email: kv[0] }); }); },
+  bought: function (e) {
+    return ['ws_access', 'ws_grade_access'].some(function (t) { const s = db.entitled.get(t); return !!s && s.has(e); });
+  },
 });
 function now() { return Date.now(); }
 function norm(s) { return String(s).replace(/\s+/g, ' ').trim(); }

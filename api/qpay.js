@@ -27,7 +27,7 @@ const WS_YEAR_PRICE = WS_PRICES[12];   // хуучин 'wsyear' нийцэл
 const WG = require('./_wsgrade');
 const SMS = require('./_sms');
 const WDEV = require('./_wsdev');
-// Шинэ дансны үнэгүй туршилт (ажлын хуудас, серверийн цаг) — api/_wstrial.js
+// Үнэгүй туршилт — худалдаж аваагүй бүртгэлтэй данс бүрт нэг удаа (ажлын хуудас, серверийн цаг) — api/_wstrial.js
 const WT = require('./_wstrial');
 // Тоглоомын төлбөр (1 тоглоом × 30 хоног) — каталог/эрх api/_games.js-д
 const GM = require('./_games');
@@ -1705,7 +1705,8 @@ module.exports = async (req, res) => {
       const ownedNames = owned.map(function (x) { return x.grade; });
       const gradeHit = slugGrades.filter(function (g) { return ownedNames.indexOf(g) >= 0; })[0] || null;
 
-      /* Шинэ дансны үнэгүй туршилт — төлсөн эрх байхгүй үед л. Бүх анги, бүх slug (ЭЕШ г.м.) ws_access шиг.
+      /* Үнэгүй туршилт (эрх хэзээ ч аваагүй данс бүрт нэг удаа; эхлээгүй бол энд эхэлнэ) — идэвхтэй эрх байхгүй үед л.
+         Бүх анги, бүх slug (ЭЕШ г.м.) ws_access шиг.
          Хугацааг ЗӨВХӨН DB-ийн NOW()-оор (api/_wstrial.js). Алдаа гарвал туршилтгүй (туршилтад fail-closed,
          төлсөн эрхэд нөлөөгүй). Туршилтад ws_token ГАРГАХГҮЙ. */
       let trial = null;

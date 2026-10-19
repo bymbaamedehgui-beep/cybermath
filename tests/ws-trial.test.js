@@ -1,6 +1,8 @@
-// Шинэ дансны 5 минутын үнэгүй туршилт — сервер (api/_wstrial.js + api/qpay.js wsstatus), серверийн (DB) цагаар.
-//  • шинэ данс → 300 сек; 299 сек дээр нээлттэй, 300 сек дээр хаалттай (DB NOW()-ийг fake clock-оор шилжүүлнэ)
-//  • хуучин / баталгаажаагүй / бэлтгэсэн данс → туршилтгүй; хоёр дахь эхлэл/нэвтрэлт СУНГАХГҮЙ
+// 5 минутын үнэгүй туршилт — сервер (api/_wstrial.js + api/qpay.js wsstatus), серверийн (DB) цагаар.
+//  • эрх ХЭЗЭЭ Ч аваагүй бүртгэлтэй данс (шинэ ч, деплойгоос өмнөх хуучин ч) → 300 сек; 299 сек дээр нээлттэй, 300 сек
+//    дээр хаалттай (DB NOW()-ийг fake clock-оор шилжүүлнэ)
+//  • ws_access / ws_grade_access мөртэй (дууссан ч, админы олголт ч), баталгаажаагүй, бэлтгэсэн, урилгын SMS-гүй данс →
+//    туршилтгүй; эрх авсан өөр данстай ижил утас/төхөөрөмж → denied; хоёр дахь эхлэл/нэвтрэлт СУНГАХГҮЙ
 //  • клиентийн цаг/параметрээр сунгах боломжгүй; төлсөн эрхтэй хэрэглэгчид нөлөөгүй; WS_TRIAL_SECONDS env
 // Ажиллуулах: node --test tests/ws-trial.test.js   (бодит DB/QPay 0 — tests/_gamefake.js)
 'use strict';
@@ -57,6 +59,15 @@ test('SQL: fake-ууд api/_wstrial.js-ийн ЯГ мөрүүдийг таньд
   const src = fs.readFileSync(path.join(F.API, '_wstrial.js'), 'utf8');
   assert.doesNotMatch(src, /ALTER TABLE ws_login/);
   assert.doesNotMatch(src, /INSERT INTO ws_access|UPDATE ws_access/);
+  // Бүртгэсэн огноогоор шүүхгүй (хуучин данс ч туршилт авна); «эрх авсан» = ws_access / ws_grade_access-д МӨР байгаа
+  // эсэх (expires_at-аар шүүхгүй — дууссан эрх ч тооцно)
+  assert.doesNotMatch(WT.SQL.ELIG + WT.SQL.PRIOR, /created_at|timestamptz|expires_at/);
+  assert.match(WT.SQL.ELIG, /\(l\.phone_verified_at IS NOT NULL OR l\.invite IS NULL\)/);
+  assert.match(WT.SQL.ELIG, /NOT EXISTS \(SELECT 1 FROM ws_access a WHERE LOWER\(a\.email\) = l\.email\)/);
+  assert.match(WT.SQL.ELIG, /NOT EXISTS \(SELECT 1 FROM ws_grade_access g WHERE LOWER\(g\.email\) = l\.email\)/);
+  // параметрийн тоо (pg: илүү параметр → bind алдаа): ELIG $1, PRIOR $1..$3
+  assert.deepStrictEqual(WT.SQL.ELIG.match(/\$\d/g).filter((v, i, a) => a.indexOf(v) === i), ['$1']);
+  assert.deepStrictEqual(WT.SQL.PRIOR.match(/\$\d/g).filter((v, i, a) => a.indexOf(v) === i).sort(), ['$1', '$2', '$3']);
 });
 
 test('шинэ данс: wsstatus → scope trial, 300 сек (DB цагаар), ws_token ГАРГАХГҮЙ, server_now байна; 299с нээлттэй, 300с хаалттай', async () => {
@@ -131,11 +142,41 @@ test('хоёр дахь эхлэл / дахин нэвтрэлт / төхөөр�
   assert.strictEqual(F.db.trial.trials.size, 1);
 });
 
-test('хуучин данс (created_at < WS_TRIAL_FROM), баталгаажаагүй, админ бэлтгэсэн (pass_hash !) → туршилтгүй, юу ч бичихгүй', async () => {
-  acct('old@x.mn', { created_at: new Date(Date.now() - 30 * 864e5) });
+test('хуучин (деплойгоос өмнөх) эрхгүй данс → туршилт авна: токентой (дахин нэвтрэхгүй) хуудас нээхэд эхэлнэ; SMS-ээс өмнөх данс ч', async () => {
+  const YEAR = 365 * 864e5;
+  // WS_TRIAL_FROM-оос 1 жилийн өмнө бүртгүүлсэн, нэвтрэлт (start) огт дуудагдаагүй — хуучин токеноор хуудас нээв
+  acct('old@x.mn', { phone: '99140001', created_at: new Date(Date.now() - YEAR) });
+  const d = await status('old@x.mn', { dev: 'devold000000001' });
+  assert.deepStrictEqual([d.active, d.scope, d.ws_token, d.trial.active, d.trial.denied, d.trial.seconds], [true, 'trial', null, true, null, 300]);
+  assert.strictEqual(Date.parse(d.trial.until) - Date.parse(d.trial.started_at), 300000);
+  assert.strictEqual(F.db.trial.trials.get('old@x.mn').device_id, 'devold000000001');
+  // дараа нь нэвтэрсэн ч (start) СУНГАХГҮЙ
+  F.db.trial.shift = 60000;
+  const s = await WT.start('old@x.mn', req('devold000000001'));
+  assert.deepStrictEqual([s.until, s.started_at], [d.trial.until, d.trial.started_at]);
+  // Хуучин данс нэвтэрч эхлүүлэх (start) зам ч мөн адил
+  acct('old2@x.mn', { phone: '99140004', created_at: new Date(Date.now() - 90 * F.DAY) });
+  const st = await WT.start('old2@x.mn', req('devold200000001'));
+  assert.deepStrictEqual([st.active, st.seconds, st.denied], [true, 300, null]);
+  // SMS-ээс өмнөх (имэйлээр баталгаажсан, phone_verified_at-гүй, урилгын бус) хуучин данс
+  acct('legacy@x.mn', { phone: '99140002', phone_verified_at: null, invite: null, created_at: new Date(Date.now() - YEAR) });
+  const l = await status('legacy@x.mn', { dev: 'devlegacy000001' });
+  assert.deepStrictEqual([l.active, l.scope, l.trial.denied], [true, 'trial', null]);
+  // утасгүй хуучин данс — зөвхөн төхөөрөмжийн тэмдгээр
+  acct('nophone@x.mn', { phone: null, phone_verified_at: null, created_at: new Date(Date.now() - YEAR) });
+  assert.strictEqual((await status('nophone@x.mn', { dev: 'devnophone00001' })).scope, 'trial');
+  assert.strictEqual(F.db.trial.marks.has('dev:devnophone00001'), true);
+  // WS_TRIAL_FROM-ийн огноо SQL-д орохгүй — ирээдүйн огноо ч зөвхөн «идэвхтэй» гэсэн хаалга
+  process.env.WS_TRIAL_FROM = new Date(Date.now() + HOUR).toISOString();
+  acct('early@x.mn', { phone: '99140003' });
+  assert.strictEqual((await status('early@x.mn', { dev: 'devearly0000001' })).scope, 'trial');
+  assert.strictEqual(F.db.trial.trials.size, 5);
+});
+
+test('баталгаажаагүй, админ бэлтгэсэн (pass_hash !), ws_login мөргүй → туршилтгүй, юу ч бичихгүй', async () => {
   acct('unv@x.mn', { verified: false });
   acct('prep@x.mn', { pass_hash: '!' });
-  for (const e of ['old@x.mn', 'unv@x.mn', 'prep@x.mn']) {
+  for (const e of ['unv@x.mn', 'prep@x.mn']) {
     assert.strictEqual(await WT.start(e, req(DEV)), null, e);
     const d = await status(e);
     assert.deepStrictEqual([d.active, d.scope, d.trial], [false, null, undefined], e);
@@ -145,9 +186,36 @@ test('хуучин данс (created_at < WS_TRIAL_FROM), баталгаажаа
   // ws_login мөргүй токен
   const g = await status('ghost@x.mn');
   assert.deepStrictEqual([g.active, g.trial], [false, undefined]);
-  process.env.WS_TRIAL_FROM = new Date(Date.now() + HOUR).toISOString();   // ирээдүйд → өнөөдрийн данс ч хуучин
-  acct('early@x.mn');
-  assert.strictEqual((await status('early@x.mn')).active, false);
+});
+
+test('эрх авсан данс (ws_access / ws_grade_access — хугацаа дууссан ч, админы олголт ч) → туршилт ХЭЗЭЭ Ч авахгүй, юу ч бичихгүй', async () => {
+  const devOf = (e) => 'dev' + e.split('@')[0] + '00000000';
+  // хугацаа нь дууссан бүх ангийн эрх (wsstatus идэвхтэй эрх олохгүй → туршилт шалгагдана)
+  acct('exp@x.mn', { phone: '99150001' });
+  F.db.wsAccess.set('exp@x.mn', new Date(Date.now() - 3 * F.DAY));
+  // админы гараар олгосон (мөнгөгүй) эрх ч ws_access-ийн мөр — дууссан, хуучин данс
+  acct('adm@x.mn', { phone: '99150002', created_at: new Date(Date.now() - 200 * F.DAY) });
+  F.db.wsAccess.set('adm@x.mn', new Date(Date.now() - 1000));
+  // хугацаа нь дууссан ангийн эрх — тэр ангийн ч, өөр ангийн ч хуудсанд
+  acct('gexp@x.mn', { phone: '99150003' });
+  F.db.wsGrade.push({ email: 'gexp@x.mn', grade: '6-р анги', expires_at: new Date(Date.now() - F.DAY) });
+  // идэвхтэй ангийн эрх — өөр ангийн хуудас (G9), ЭЕШ, slug-гүй нүүрэнд туршилтгүй
+  acct('gact@x.mn', { phone: '99150004' });
+  F.db.wsGrade.push({ email: 'gact@x.mn', grade: '6-р анги', expires_at: new Date(Date.now() + 20 * F.DAY) });
+  const cases = [['exp@x.mn', G6], ['exp@x.mn', EESH], ['adm@x.mn', G9], ['gexp@x.mn', G6], ['gexp@x.mn', G9], ['gact@x.mn', G9], ['gact@x.mn', EESH], ['gact@x.mn', '']];
+  for (const [e, slug] of cases) {
+    const d = await status(e, { dev: devOf(e), body: { slug: slug } });
+    assert.deepStrictEqual([d.active, d.scope, d.trial, d.ws_token, d.account], [false, null, undefined, null, e], e + ' ' + slug);
+    assert.strictEqual(await WT.start(e, req(devOf(e))), null, e);
+  }
+  assert.strictEqual(F.db.trial.trials.size, 0, 'ws_trials-д юу ч бичигдэхгүй');
+  assert.strictEqual(F.db.trial.marks.size, 0, 'тэмдэг үүсэхгүй (эрх авсан данс утас/төхөөрөмжөө тэмдгээр эзлэхгүй — PRIOR шалгана)');
+  assert.deepStrictEqual(F.db.trial.queries.filter((v, i, a) => a.indexOf(v) === i), ['ELIG'], 'ELIG-ээс цааш явахгүй');
+  // өөрийн ангийн хуудсанд төлсөн эрх хэвээр (туршилтын SQL огт ажиллахгүй)
+  F.db.trial.queries.length = 0;
+  const own = await status('gact@x.mn', { dev: devOf('gact@x.mn'), slug: G6 });
+  assert.deepStrictEqual([own.active, own.scope, own.trial], [true, 'grade', undefined]);
+  assert.strictEqual(F.db.trial.queries.length, 0);
 });
 
 test('деплойн мөч: кодонд хатуу огноогүй; WS_TRIAL_FROM-гүй бол production-ийн АНХНЫ ажиллалт (ws_trial_cfg), preview/локал үүсгэхгүй', async () => {
@@ -171,7 +239,7 @@ test('деплойн мөч: кодонд хатуу огноогүй; WS_TRIAL_
   assert.strictEqual(F.db.trial.queries.indexOf('CFG_INS'), -1);
   assert.strictEqual(F.db.trial.trials.size, 0);
   assert.ok(F.logs.some(l => /\[wstrial\] деплойн мөч алга/.test(l)), 'унтраалттайг логт анхааруулна');
-  // Production деплой: анхны дуудлагын (DB) мөч = деплойн мөч. Түүнээс өмнө бүртгүүлсэн → туршилтгүй
+  // Production деплой: анхны дуудлагын (DB) мөч = деплойн мөч. Огноо нь зөвхөн хаалга — өмнө бүртгүүлсэн ч туршилт авна
   delete process.env.AWS_LAMBDA_FUNCTION_NAME;
   process.env.VERCEL_ENV = 'production';
   WT._resetReady();
@@ -181,7 +249,7 @@ test('деплойн мөч: кодонд хатуу огноогүй; WS_TRIAL_
   assert.strictEqual(a, F.db.trial.cfgFrom.toISOString());
   assert.ok(Math.abs(Date.parse(a) - (Date.now() + 5000)) < 2000, 'DB NOW()');
   const dp = await status('pre@x.mn');
-  assert.deepStrictEqual([dp.active, dp.trial], [false, undefined], 'деплойгоос өмнөх бүртгэл');
+  assert.deepStrictEqual([dp.active, dp.scope, dp.trial.denied], [true, 'trial', null], 'деплойгоос өмнөх бүртгэл ч (огноогоор шүүхгүй)');
   acct('post@x.mn', { phone: '99130002', created_at: new Date(Date.now() + 6000) });
   const dn = await status('post@x.mn', { dev: 'devpost00000001' });
   assert.deepStrictEqual([dn.active, dn.scope], [true, 'trial'], 'деплойн дараах бүртгэл');
@@ -241,38 +309,59 @@ test('урилгын линкээр (SMS-гүй, утас батлагдаагү
   assert.strictEqual((await status('invok@x.mn', { dev: 'devinvok0000001' })).scope, 'trial');
 });
 
-test('хуучин хэрэглэгч (деплойгоос өмнөх данс) шинэ имэйл: ижил утас → denied phone (ижил төхөөрөмж дээр ч); ижил cm_device → denied dev', async () => {
+test('төлсөн хэрэглэгч шинэ имэйл: эрх АВСАН өөр данстай ижил утас → denied phone (өөр төхөөрөмжөөс ч); ижил cm_device → denied dev', async () => {
   const YEAR = 365 * 864e5;
-  // S2: old@x.mn (1 жилийн өмнө, утас 88001122, төхөөрөмж D — ws_devices-д бүртгэлтэй) → туршилтгүй
-  acct('old@x.mn', { phone: '88001122', created_at: new Date(Date.now() - YEAR) });
-  F.db.devices.set('old@x.mn|' + DEV, { email: 'old@x.mn', device_id: DEV, label: 'PC', ua: '', ip: '10.0.0.1', fp: 'f', fp_changed_at: new Date(), first_seen: new Date(Date.now() - YEAR), last_seen: new Date() });
-  assert.strictEqual((await status('old@x.mn')).trial, undefined);
-  acct('old2@x.mn', { phone: '88001122' });
-  const s = await status('old2@x.mn', { dev: DEV });
+  const devRow = (e, d) => F.db.devices.set(e + '|' + d, { email: e, device_id: d, label: 'PC', ua: '', ip: '10.0.0.1', fp: 'f', fp_changed_at: new Date(), first_seen: new Date(Date.now() - YEAR), last_seen: new Date() });
+  // paid@x.mn: 1 жилийн өмнө бүх ангийн эрх авсан (одоо дууссан), утас 88001122, төхөөрөмж DEV (ws_devices)
+  acct('paid@x.mn', { phone: '88001122', created_at: new Date(Date.now() - YEAR) });
+  F.db.wsAccess.set('paid@x.mn', new Date(Date.now() - 30 * F.DAY));
+  devRow('paid@x.mn', DEV);
+  assert.strictEqual((await status('paid@x.mn')).trial, undefined, 'эрх авсан данс өөрөө туршилтгүй');
+  acct('new1@x.mn', { phone: '88001122' });
+  const s = await status('new1@x.mn', { dev: DEV });
   assert.deepStrictEqual([s.active, s.scope, s.trial.active, s.trial.denied, s.trial.seconds], [false, null, false, 'phone', 0]);
   // өөр төхөөрөмжөөс ч мөн адил (утас = хүн)
-  acct('old3@x.mn', { phone: '88001122' });
-  assert.strictEqual((await status('old3@x.mn', { dev: DEV2 })).trial.denied, 'phone');
-  // хуучин дансны төхөөрөмж дээр өөр (шинэ) утсаар → denied dev
-  acct('old4@x.mn', { phone: '88001133' });
-  const d4 = await status('old4@x.mn', { dev: DEV });
-  assert.deepStrictEqual([d4.active, d4.trial.denied, d4.trial.seconds], [false, 'dev', 0]);
+  acct('new2@x.mn', { phone: '88001122' });
+  assert.strictEqual((await status('new2@x.mn', { dev: DEV2 })).trial.denied, 'phone');
+  // төлсөн дансны төхөөрөмж дээр өөр (шинэ) утсаар → denied dev
+  acct('new3@x.mn', { phone: '88001133' });
+  const d3 = await status('new3@x.mn', { dev: DEV });
+  assert.deepStrictEqual([d3.active, d3.trial.denied, d3.trial.seconds], [false, 'dev', 0]);
   // татгалзал тэмдэг бичихгүй — гэхдээ данс нэг удаагийн эрхээ зарцуулсан (дахин оролдоход denied хэвээр)
   assert.strictEqual(F.db.trial.marks.size, 0);
-  assert.strictEqual((await status('old4@x.mn', { dev: 'devfresh0000001' })).trial.denied, 'dev');
-  // Хуучин данс хаахгүй тохиолдлууд: баталгаажаагүй мөр, урилгын батлагдаагүй утас, деплойн дараах данс, өөр утас/төхөөрөмж
-  acct('oldunv@x.mn', { phone: '88002201', verified: false, phone_verified_at: null, created_at: new Date(Date.now() - YEAR) });
-  acct('oldinv@x.mn', { phone: '88002202', phone_verified_at: null, invite: 'T', created_at: new Date(Date.now() - YEAR) });
+  assert.strictEqual((await status('new3@x.mn', { dev: 'devfresh0000001' })).trial.denied, 'dev');
+  // ангийн эрх (ws_grade_access) авсан данс ч мөн адил — утас ба төхөөрөмж
+  acct('gpaid@x.mn', { phone: '88001144' });
+  F.db.wsGrade.push({ email: 'gpaid@x.mn', grade: '9-р анги', expires_at: new Date(Date.now() + 10 * F.DAY) });
+  devRow('gpaid@x.mn', 'devgpaid0000001');
+  acct('new4@x.mn', { phone: '88001144' });
+  assert.strictEqual((await status('new4@x.mn', { dev: 'devnew40000001' })).trial.denied, 'phone');
+  acct('new5@x.mn', { phone: '88001155' });
+  assert.strictEqual((await status('new5@x.mn', { dev: 'devgpaid0000001' })).trial.denied, 'dev');
+  // SMS-ээс өмнөх (имэйлээр баталгаажсан, phone_verified_at-гүй, урилгын бус) ЭРХТЭЙ хуучин данс — PHONE_TOO_MANY-тэй ижил: хаана
+  acct('legacypaid@x.mn', { phone: '88002204', phone_verified_at: null, created_at: new Date(Date.now() - YEAR) });
+  F.db.wsAccess.set('legacypaid@x.mn', new Date(Date.now() - YEAR / 2));
+  acct('n4@x.mn', { phone: '88002204' });
+  assert.strictEqual((await status('n4@x.mn', { dev: 'devn4000000001' })).trial.denied, 'phone');
+  // PRIOR хаахгүй: эрхтэй ч баталгаажаагүй мөр (админ олгосон, бүртгэл дуусаагүй), урилгын батлагдаагүй утастай эрхтэй данс,
+  // эрхгүй хуучин данс (туршилтаа хараахан эхлүүлээгүй)
+  acct('unvpaid@x.mn', { phone: '88002201', verified: false, phone_verified_at: null, created_at: new Date(Date.now() - YEAR) });
+  F.db.wsAccess.set('unvpaid@x.mn', new Date(Date.now() + 100 * F.DAY));
+  acct('invpaid@x.mn', { phone: '88002202', phone_verified_at: null, invite: 'T', created_at: new Date(Date.now() - YEAR) });
+  F.db.wsAccess.set('invpaid@x.mn', new Date(Date.now() + 100 * F.DAY));
+  acct('oldfree@x.mn', { phone: '88002203', created_at: new Date(Date.now() - YEAR) });
+  devRow('oldfree@x.mn', 'devoldfree00001');
   acct('n1@x.mn', { phone: '88002201' });
   acct('n2@x.mn', { phone: '88002202' });
   acct('n3@x.mn', { phone: '88002203' });
-  assert.strictEqual((await status('n1@x.mn', { dev: 'devn1000000001' })).scope, 'trial', 'баталгаажаагүй хуучин мөр хаахгүй');
+  assert.strictEqual((await status('n1@x.mn', { dev: 'devn1000000001' })).scope, 'trial', 'баталгаажаагүй эрхтэй мөр хаахгүй');
   assert.strictEqual((await status('n2@x.mn', { dev: 'devn2000000001' })).scope, 'trial', 'урилгын батлагдаагүй утас хаахгүй');
-  assert.strictEqual((await status('n3@x.mn', { dev: 'devn3000000001' })).scope, 'trial');
-  // SMS-ээс өмнөх (имэйлээр баталгаажсан, phone_verified_at-гүй) хуучин данс — PHONE_TOO_MANY-тэй ижил: хаана
-  acct('legacy@x.mn', { phone: '88002204', phone_verified_at: null, created_at: new Date(Date.now() - YEAR) });
-  acct('n4@x.mn', { phone: '88002204' });
-  assert.strictEqual((await status('n4@x.mn', { dev: 'devn4000000001' })).trial.denied, 'phone');
+  assert.strictEqual((await status('n3@x.mn', { dev: 'devn3000000001' })).scope, 'trial', 'эрхгүй хуучин данстай ижил утас — PRIOR хаахгүй');
+  acct('n5@x.mn', { phone: '88002205' });
+  assert.strictEqual((await status('n5@x.mn', { dev: 'devoldfree00001' })).scope, 'trial', 'эрхгүй хуучин дансны төхөөрөмж — PRIOR хаахгүй');
+  // …харин нэг утас / нэг төхөөрөмж = нэг туршилт: эрхгүй хуучин данс одоо орвол тэмдгээр denied
+  const of = await status('oldfree@x.mn', { dev: 'devoldfree00001' });
+  assert.deepStrictEqual([of.active, of.trial.denied, of.trial.seconds], [false, 'dev', 0]);
   // хариу/SQL: PRIOR нь зөвхөн туршилт ЭХЛЭХ үед (эхэлсэн туршилтын wsstatus-д ажиллахгүй)
   F.db.trial.queries.length = 0;
   await status('n3@x.mn', { dev: 'devn3000000001' });
@@ -310,7 +399,7 @@ test('зэрэг эхлэл (2 нэвтрэлт) → нэг мөр, ижил х�
   assert.strictEqual(b.denied, null, 'өөрийн тэмдэг өөрт нь саад болохгүй');
 });
 
-test('төлсөн эрх (ws_access / өөрийн анги) → scope all/grade, туршилтын SQL огт ажиллахгүй; өөр ангийн хуудсанд туршилт', async () => {
+test('төлсөн эрх (ws_access / өөрийн анги) → scope all/grade, туршилтын SQL огт ажиллахгүй; өөр ангийн хуудсанд туршилтгүй', async () => {
   acct('paid@x.mn');
   F.db.wsAccess.set('paid@x.mn', new Date(Date.now() + 40 * F.DAY));
   const p = await status('paid@x.mn');
@@ -325,15 +414,21 @@ test('төлсөн эрх (ws_access / өөрийн анги) → scope all/grad
   assert.deepStrictEqual([g.active, g.scope, g.trial], [true, 'grade', undefined]);
   assert.ok(g.ws_token);
   assert.strictEqual(F.db.trial.queries.length, 0);
-  const o = await status('gr@x.mn', { slug: G9 });                  // өөр ангийн хуудас — шинэ данс тул туршилт
-  assert.deepStrictEqual([o.active, o.scope, o.ws_token], [true, 'trial', null]);
+  const o = await status('gr@x.mn', { slug: G9 });                  // өөр ангийн хуудас — анги худалдаж авсан тул туршилтгүй
+  assert.deepStrictEqual([o.active, o.scope, o.ws_token, o.trial], [false, null, null, undefined]);
+  assert.strictEqual(F.db.trial.trials.size, 0);
   // туршилтын DB алдаа → туршилтгүй (fail-closed), төлсөн эрхэд нөлөөгүй
+  acct('free@x.mn', { phone: '99160001' });
   F.db.trial.fail = true;
-  const f1 = await status('gr@x.mn', { slug: G9 });
+  const f1 = await status('free@x.mn', { dev: 'devfree00000001' });
   assert.deepStrictEqual([f1.active, f1.scope, f1.trial], [false, null, undefined]);
   const f2 = await status('paid@x.mn');
   assert.deepStrictEqual([f2.active, f2.scope], [true, 'all']);
+  const f3 = await status('gr@x.mn', { slug: G6 });
+  assert.deepStrictEqual([f3.active, f3.scope], [true, 'grade']);
   assert.ok(F.logs.some(l => /\[wstrial status\]/.test(l)));
+  F.db.trial.fail = false;
+  assert.strictEqual((await status('free@x.mn', { dev: 'devfree00000001' })).scope, 'trial', 'DB сэргэвэл эхэлнэ');
 });
 
 test('byEmail / токенгүй / төхөөрөмжийн хязгаар → туршилтгүй (SQL 0); WS_PAYWALL=off хэвээр', async () => {

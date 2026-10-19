@@ -7,14 +7,18 @@ function norm(s) { return String(s).replace(/\s+/g, ' ').trim(); }
 // «DB сервер»-ийн цаг: процессын Date.now-ийг тест сольсон ч (клиент/функцийн цаг) нөлөөлөхгүй
 const DB_CLOCK = Date.now.bind(Date);
 const SQL = {
-  ELIG: "SELECT l.phone, (l.verified = TRUE AND l.pass_hash <> '!' AND l.phone_verified_at IS NOT NULL "
-    + 'AND l.created_at >= $2::timestamptz) AS eligible, '
+  ELIG: "SELECT l.phone, (l.verified = TRUE AND l.pass_hash <> '!' AND (l.phone_verified_at IS NOT NULL OR l.invite IS NULL) "
+    + 'AND NOT EXISTS (SELECT 1 FROM ws_access a WHERE LOWER(a.email) = l.email) '
+    + 'AND NOT EXISTS (SELECT 1 FROM ws_grade_access g WHERE LOWER(g.email) = l.email)) AS eligible, '
     + 't.started_at, t.trial_until, t.seconds, t.denied, (t.trial_until > NOW()) AS active, NOW() AS now '
     + 'FROM ws_login l LEFT JOIN ws_trials t ON t.email = l.email WHERE l.email = $1',
   PRIOR: 'SELECT EXISTS (SELECT 1 FROM ws_login o WHERE o.phone = $2 AND o.email <> $1 AND o.verified = TRUE '
-    + 'AND (o.phone_verified_at IS NOT NULL OR o.invite IS NULL) AND o.created_at < $3::timestamptz) AS phone, '
-    + 'EXISTS (SELECT 1 FROM ws_devices d JOIN ws_login o ON o.email = d.email WHERE d.device_id = $4 AND d.email <> $1 '
-    + 'AND o.created_at < $3::timestamptz) AS dev',
+    + 'AND (o.phone_verified_at IS NOT NULL OR o.invite IS NULL) '
+    + 'AND (EXISTS (SELECT 1 FROM ws_access a WHERE LOWER(a.email) = o.email) '
+    + 'OR EXISTS (SELECT 1 FROM ws_grade_access g WHERE LOWER(g.email) = o.email))) AS phone, '
+    + 'EXISTS (SELECT 1 FROM ws_devices d WHERE d.device_id = $3 AND d.email <> $1 '
+    + 'AND (EXISTS (SELECT 1 FROM ws_access a WHERE LOWER(a.email) = d.email) '
+    + 'OR EXISTS (SELECT 1 FROM ws_grade_access g WHERE LOWER(g.email) = d.email))) AS dev',
   CFG_INS: "INSERT INTO ws_trial_cfg (k, at) VALUES ('from', NOW()) ON CONFLICT (k) DO NOTHING",
   CFG_GET: "SELECT at FROM ws_trial_cfg WHERE k = 'from'",
   MARK_OWNERS: 'SELECT mark, email FROM ws_trial_marks WHERE mark = ANY($1::text[])',
@@ -28,11 +32,14 @@ const N = {};
 Object.keys(SQL).forEach(function (k) { N[k] = norm(SQL[k]); });
 
 // login(email) → ws_login мөр {phone, verified, pass_hash, phone_verified_at, invite, created_at} | null/undefined
-// src.logins() → ws_login мөрүүд [{email, …}] (PRIOR: ижил утастай хуучин данс), src.devices() → ws_devices [{email, device_id}]
+// src.logins() → ws_login мөрүүд [{email, …}] (PRIOR: ижил утастай данс), src.devices() → ws_devices [{email, device_id}]
+// src.bought(email) → ws_access ЭСВЭЛ ws_grade_access-д (хугацаа дууссан ч) мөртэй эсэх (LOWER(email) харьцуулалт)
 function create(login, src) {
   src = src || {};
   const logins = src.logins || function () { return []; };
   const devices = src.devices || function () { return []; };
+  const boughtFn = src.bought || function () { return false; };
+  const bought = function (e) { return !!boughtFn(String(e == null ? '' : e).toLowerCase()); };
   const st = {
     trials: new Map(),   // email → {email, started_at, trial_until, seconds, device_id, fp, denied}
     marks: new Map(),    // mark → {mark, email, at}
@@ -46,7 +53,8 @@ function create(login, src) {
     return { started_at: t.started_at, trial_until: t.trial_until, seconds: t.seconds, denied: t.denied,
       active: t.trial_until.getTime() > now, now: new Date(now) };
   }
-  function created(l, now) { return l.created_at == null ? now : new Date(l.created_at).getTime(); }
+  // ws_login-ийн утас эзэмшлийн дүрэм (PHONE_TOO_MANY-тэй ижил): SMS-ээр батлагдсан эсвэл урилгын бус
+  function phoneOwned(l) { return l.phone_verified_at != null || l.invite == null; }
   // q — нормчилсон SQL. Туршилтын SQL биш бол undefined
   st.handle = function (q, p) {
     let name = null;
@@ -56,25 +64,26 @@ function create(login, src) {
     if (st.fail) { const e = new Error('db down (trial)'); e.code = '57P01'; throw e; }
     const now = st.now();
     if (name === 'ELIG') {
+      if (p.length !== 1) throw new Error('trialfake: ELIG параметр 1 байх ёстой (' + p.length + ')');
       const l = login(String(p[0]));
       if (!l) return { rows: [] };
       const t = st.trials.get(String(p[0]));
-      const from = new Date(p[1]).getTime();
       return { rows: [{
         phone: l.phone == null ? null : l.phone,
-        eligible: l.verified === true && l.pass_hash !== '!' && l.phone_verified_at != null && created(l, now) >= from,
+        eligible: l.verified === true && l.pass_hash !== '!' && phoneOwned(l) && !bought(p[0]),
         started_at: t ? t.started_at : null, trial_until: t ? t.trial_until : null,
         seconds: t ? t.seconds : null, denied: t ? t.denied : null,
         active: t ? t.trial_until.getTime() > now : null, now: new Date(now),
       }] };
     }
     if (name === 'PRIOR') {
-      const me = String(p[0]), ph = p[1] == null ? null : String(p[1]), from = new Date(p[2]).getTime(), dev = p[3] == null ? null : String(p[3]);
-      const old = function (l) { return !!l && created(l, now) < from; };
+      // pg: илгээсэн параметрийн тоо SQL-ийн $n-тэй таарах ёстой (илүү/дутуу бол bind алдаа)
+      if (p.length !== 3) throw new Error('trialfake: PRIOR параметр 3 байх ёстой (' + p.length + ')');
+      const me = String(p[0]), ph = p[1] == null ? null : String(p[1]), dev = p[2] == null ? null : String(p[2]);
       const phone = ph != null && logins().some(function (o) {
-        return o.phone === ph && o.email !== me && o.verified === true && (o.phone_verified_at != null || o.invite == null) && old(o);
+        return o.phone === ph && o.email !== me && o.verified === true && phoneOwned(o) && bought(o.email);
       });
-      const dv = dev != null && devices().some(function (d) { return d.device_id === dev && d.email !== me && old(login(d.email)); });
+      const dv = dev != null && devices().some(function (d) { return d.device_id === dev && d.email !== me && bought(d.email); });
       return { rows: [{ phone: phone, dev: dv }] };
     }
     if (name === 'CFG_INS') { if (!st.cfgFrom) st.cfgFrom = new Date(now); return { rows: [] }; }
