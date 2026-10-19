@@ -288,10 +288,65 @@ test('ws-store: TRIAL маркертай блок бие даасан, эмож�
   assert.match(TRIAL_SRC, /^\/\* ═══ TRIAL \(api\/_wstrial\.js\) ═══/);
   assert.doesNotMatch(TRIAL_SRC + AUTH_SRC, /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u, 'эможи хэрэглэхгүй');
   assert.match(TRIAL_SRC, /@media print\{#cmTrialBar,#cmTrialSpacer\{display:none!important\}\}/);
-  assert.match(WSS, /@media print\{html\.cm-ws-locked body>\*\{display:none!important\}\}/);
+  assert.match(WSS, /var LOCK_PRINT_SEL='html\.cm-ws-locked body>\*:not\(#cm-lk0\):not\(#cm-lk1\):not\(#cm-lk2\)';/);
+  assert.match(WSS, /st\.textContent='@media print\{'\+LOCK_PRINT_SEL\+'\{display:none!important\}\}';/);
   assert.match(AUTH_SRC, /@media print\{#cmTrialBar,#cmTrialSpacer\{display:none!important\}\}/);
   // шар хайрцаггүй — тунгалаг + ягаан зүүн ирмэг
   assert.match(TRIAL_SRC, /background:transparent;border-left:3px solid #ec4899/);
+});
+
+// CSS specificity [id, class/attr/pseudo-class, element] — :not(x) нь аргументынхаа specificity-тэй
+function specOf(sel) {
+  let s = String(sel).trim().replace(/:not\(/g, ' ').replace(/\)/g, ' ');
+  const a = (s.match(/#[\w-]+/g) || []).length; s = s.replace(/#[\w-]+/g, ' ');
+  const pe = (s.match(/::[\w-]+/g) || []).length; s = s.replace(/::[\w-]+/g, ' ');
+  const b = (s.match(/\.[\w-]+|\[[^\]]*\]|:[\w-]+/g) || []).length; s = s.replace(/\.[\w-]+|\[[^\]]*\]|:[\w-]+/g, ' ');
+  const c = (s.match(/(?:^|[\s>+~])[a-zA-Z][\w-]*/g) || []).length + pe;
+  return [a, b, c];
+}
+const gtSpec = (x, y) => x[0] !== y[0] ? x[0] > y[0] : x[1] !== y[1] ? x[1] > y[1] : x[2] > y[2];
+
+test('ws-store: түгжээний хэвлэх дүрэм ажлын хуудас БҮРИЙН ID-тай «display:…!important» дүрмээс хүчтэй (Олон хувилбар / ангиар хэвлэх)', () => {
+  const lockSel = /var LOCK_PRINT_SEL='([^']+)'/.exec(WSS)[1];
+  const lockSpec = specOf(lockSel);
+  assert.deepStrictEqual(lockSpec, [3, 1, 2]);
+  assert.deepStrictEqual(specOf('body>#cm-vbatch'), [1, 0, 1]);
+  assert.deepStrictEqual(specOf('html.cm-ws-locked body>*'), [0, 1, 2], 'хуучин дүрэм — #cm-vbatch-д ялагддаг байсан');
+  // «sel{… display:<none биш> !important …}» — CSS (<style>) ба JS мөр ('…'+'…') доторх дүрмийн selector-ууд
+  function importantShows(s) {
+    const out = [], re = /display:\s*([a-z-]+)\s*!important/g;
+    let m;
+    while ((m = re.exec(s))) {
+      if (m[1] === 'none') continue;
+      const ob = s.lastIndexOf('{', m.index);
+      if (ob < 0 || s.lastIndexOf('}', m.index) > ob) continue;
+      let i = ob - 1;
+      while (i >= 0 && '{}\'"+;\n'.indexOf(s[i]) < 0) i--;
+      s.slice(i + 1, ob).split(',').map((x) => x.trim()).filter((x) => x.indexOf('#') >= 0).forEach((x) => out.push(x));
+    }
+    return out;
+  }
+  const seen = new Set();
+  let pages = 0;
+  const check = (nm, sel) => {
+    seen.add(sel);
+    assert.ok(gtSpec(lockSpec, specOf(sel)), nm + ': «' + sel + '» ' + JSON.stringify(specOf(sel)) + ' түгжээг давна');
+  };
+  for (const f of fs.readdirSync(WT).filter((x) => x.endsWith('.html'))) {
+    const src = fs.readFileSync(path.join(WT, f), 'utf8');
+    if (src.indexOf('ws-store.js') < 0) continue;
+    pages++;
+    if (src.indexOf('!important') >= 0) importantShows(src).forEach((sel) => check(f, sel));
+  }
+  importantShows(WSS).forEach((sel) => check('ws-store.js', sel));
+  assert.ok(pages > 1000, 'ажлын хуудсууд: ' + pages);
+  assert.ok(seen.has('body>#cm-vbatch'), 'шалгалтын «Олон хувилбар» дүрэм шалгагдав');
+  assert.ok(seen.has('#cm-batch'), 'ангиар хэвлэх дүрэм шалгагдав');
+  // Түгжээ хуудасны ямар ч fixed цонхноос дээр (шалгалтын #cm-vmodal 10000)
+  const lockZ = Number(/o\.id='wsLock';[\s\S]{0,200}?z-index:(\d+)/.exec(WSS)[1]);
+  const vm1 = fs.readFileSync(path.join(WT, 'shalgalt-material-1-9.html'), 'utf8');
+  const vmZ = Number(/o\.id='cm-vmodal';o\.style\.cssText='position:fixed;inset:0;z-index:(\d+)/.exec(vm1)[1]);
+  assert.ok(lockZ > vmZ && lockZ > 10000, 'wsLock z ' + lockZ + ' > «Олон хувилбар» ' + vmZ);
 });
 
 test('ws-store: тоолуур m:ss секунд бүр, сүүлийн минут улаан; ЯГ deadline дээр түгжээ + баннер + бүх үйлдэл хаалттай', async () => {
@@ -659,4 +714,71 @@ test('worksheets.html: клиентийн цаг зөрсөн, нуугдсан 
   await ticks();
   assert.strictEqual(N.ws(), 0);
   assert.strictEqual(N.$('cmTrialBar'), null);
+});
+
+test('ws-store: шалгалтын «Олон хувилбар» цонх 0:00 үед нээлттэй → устгагдана (түгжээний дээр үлдэхгүй), бэлдсэн багц арилна; түгжээ хамгийн дээр', async () => {
+  // Хуудасны бодит openVariantModal (21 шалгалтын хуудсанд ижил) — genVariants-ийг бүртгэгчээр сольсон
+  const pageSrc = fs.readFileSync(path.join(WT, 'shalgalt-material-1-9.html'), 'utf8');
+  const OPEN_VM = between(pageSrc, 'function openVariantModal(){', 'genVariants(n);};}');
+  const P = await startStore({ slug: 'shalgalt-material-1-9.html' });
+  vm.runInContext(OPEN_VM + '\nvar GEN=[];function genVariants(n){GEN.push(n);}', P.W, { filename: 'shalgalt-material-1-9.html#openVariantModal' });
+  P.C.advance(299000);                                             // 0:01
+  assert.strictEqual(P.$('cmTrialT').textContent, '0:01');
+  P.W.openVariantModal();
+  assert.ok(P.$('cm-vmodal'), '«Олон хувилбар» нээгдэв');
+  assert.match(P.$('cm-vmodal').style.cssText, /z-index:10000/);
+  const vb = P.doc.createElement('div'); vb.id = 'cm-vbatch'; P.doc.body.appendChild(vb);   // хэвлэхээр бэлдсэн багц
+  P.srv = () => rEnded(P.C);
+  P.C.advance(1100);                                               // 0:00
+  assert.strictEqual(P.locked(), true);
+  // (DOM объектыг assert-д шууд өгөхгүй — алдааны мессеж үүсгэх нь цикл графаас болж гацна)
+  assert.strictEqual(P.$('cm-vmodal') === null, true, 'цонх устгагдана — «Гаргах» (genVariants → print) дарагдахгүй');
+  assert.strictEqual(P.$('cm-vbatch') === null, true, 'бэлдсэн хувилбар/хариун түлхүүр арилна');
+  assert.strictEqual(P.W.GEN.length, 0);
+  assert.match(P.$('wsLock').style.cssText, /z-index:2147483000;/, 'түгжээ хуудасны цонхнуудаас (10000) дээр');
+  assert.ok(P.doc.documentElement.classList.contains('cm-ws-locked'));
+  assert.match(P.$('cm-lock-css').textContent, /^@media print\{html\.cm-ws-locked body>\*:not\(#cm-lk0\):not\(#cm-lk1\):not\(#cm-lk2\)\{display:none!important\}\}$/);
+  // Түгжээ аль хэдийн байх үед дахин түгжих (жишээ нь хожуу ирсэн хариу) — шинээр гарсан цонхыг ч хаана
+  P.W.openVariantModal();
+  assert.ok(P.$('cm-vmodal'));
+  P.W.showLock({ why: 'trial' });
+  assert.strictEqual(P.$('cm-vmodal') === null, true, 'дахин түгжихэд ч хаагдана');
+  assert.strictEqual(P.doc.querySelectorAll('#wsLock').length, 1);
+  // Энгийн (туршилтгүй) түгжээ ч мөн адил хамгийн дээд давхарга
+  const Q = storePage({ slug: 'shalgalt-material-1-9.html', srv: () => ({ ok: true, enabled: true, active: false, scope: null, grades: [] }) });
+  Q.W.enforcePaywall();
+  assert.match(Q.$('wsLock').style.cssText, /z-index:2147483000;/);
+});
+
+test('worksheets.html: 0:00 үед PIN үүсгэх (#wsPin 210) / бусад цонх нээлттэй байсан ч төлбөрийн цонх ХАМГИЙН ДЭЭР гарна', async () => {
+  const P = catPage();
+  P.W.verifyUser();
+  await ticks();
+  // Бүртгүүлмэгц done() → ensurePin() → openPinCreate (бодит z-index 210)
+  const pinZ = Number(/o\.id='wsPin';\s*o\.style\.cssText='position:fixed;inset:0;z-index:(\d+)/.exec(WSH)[1]);
+  assert.strictEqual(pinZ, 210);
+  const pin = P.doc.createElement('div'); pin.id = 'wsPin'; pin.style.zIndex = String(pinZ); P.doc.body.appendChild(pin);
+  P.srv = () => rEnded(P.C);
+  P.C.advance(300100);
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(P.W.buys)), [{ trialEnd: true }]);
+  const buyZ = Number(P.$('wsBuyM').style.zIndex);
+  assert.strictEqual(buyZ, 260);
+  assert.ok(buyZ > pinZ, 'PIN цонхны ДЭЭР');
+  // worksheets.html-ийн бусад бүх давхарга (PIN/урилга/мэдээ 210, тоглоомын .gp-ov 240, нэвтрэх 200…) доор
+  const zs = (WSH.match(/z-index:(\d+)/g) || []).map((x) => Number(x.slice(8)));
+  assert.ok(zs.length > 10);
+  assert.ok(zs.every((z) => z < buyZ), 'хамгийн өндөр: ' + Math.max.apply(null, zs));
+  // Бодит openBuy: trialEnd үед ижил дээд z-index (тоолуурын «Эрх авах» товчноос нээсэн ч)
+  assert.match(WSH, /o\.id='wsBuyM';\s*o\.style\.cssText='position:fixed;inset:0;z-index:'\+\(opts\.trialEnd\?WS_TRIAL_BUY_Z:200\)\+';/);
+  // Аль хэдийн нээлттэй байсан (энгийн) худалдан авах цонх дээр баннер нэмэгдэж, мөн дээш гарна
+  const Q = catPage();
+  Q.W.verifyUser();
+  await ticks();
+  Q.W.openBuy({});
+  assert.strictEqual(Q.$('wsBuyM').style.zIndex, undefined);
+  Q.srv = () => rEnded(Q.C);
+  Q.C.advance(300100);
+  assert.strictEqual(Q.W.buys.length, 1, 'давхар нээхгүй');
+  assert.ok(Q.$('buTrialEnd'), 'баннер');
+  assert.strictEqual(Q.$('wsBuyM').style.zIndex, '260');
 });

@@ -21,8 +21,9 @@ const G6 = 'jishig-daalgavar-1-6.html', G9 = 'troichlen-zadlal-12.html', EESH = 
 const tok = (e, dev) => jwt.sign(dev ? { email: e, ws: true, dev: dev } : { email: e, ws: true }, SEC);
 const HOUR = 3600e3;
 
+// Анхдагч: SMS-ээр бүртгүүлсэн шинэ данс (утас батлагдсан)
 function acct(email, o) {
-  const r = Object.assign({ email: email, phone: '99112233', verified: true, pass_hash: '$2a$04$hash', created_at: new Date() }, o || {});
+  const r = Object.assign({ email: email, phone: '99112233', verified: true, pass_hash: '$2a$04$hash', phone_verified_at: new Date(), invite: null, created_at: new Date() }, o || {});
   F.db.wsLogin.set(email, r);
   return r;
 }
@@ -40,6 +41,7 @@ const req = (dev, extra) => ({ headers: Object.assign(dev ? { 'x-device-id': dev
 
 beforeEach(() => {
   F.reset();
+  WT._resetReady();                     // деплойн мөчийн anchor кэш (cold start)
   process.env.WS_TRIAL_SECONDS = '300';
   process.env.WS_TRIAL_FROM = new Date(Date.now() - HOUR).toISOString();
 });
@@ -143,14 +145,138 @@ test('хуучин данс (created_at < WS_TRIAL_FROM), баталгаажаа
   // ws_login мөргүй токен
   const g = await status('ghost@x.mn');
   assert.deepStrictEqual([g.active, g.trial], [false, undefined]);
-  // WS_TRIAL_FROM тавиагүй → кодын DEFAULT_FROM (коммитын мөч); буруу утга → DEFAULT_FROM
-  delete process.env.WS_TRIAL_FROM;
-  assert.strictEqual(WT.fromIso(), new Date(WT.DEFAULT_FROM).toISOString());
-  process.env.WS_TRIAL_FROM = 'not-a-date';
-  assert.strictEqual(WT.fromIso(), new Date(WT.DEFAULT_FROM).toISOString());
   process.env.WS_TRIAL_FROM = new Date(Date.now() + HOUR).toISOString();   // ирээдүйд → өнөөдрийн данс ч хуучин
   acct('early@x.mn');
   assert.strictEqual((await status('early@x.mn')).active, false);
+});
+
+test('деплойн мөч: кодонд хатуу огноогүй; WS_TRIAL_FROM-гүй бол production-ийн АНХНЫ ажиллалт (ws_trial_cfg), preview/локал үүсгэхгүй', async () => {
+  const src = fs.readFileSync(path.join(F.API, '_wstrial.js'), 'utf8');
+  assert.doesNotMatch(src, /DEFAULT_FROM|['"]20\d\d-\d\d-\d\dT/, 'коммитын мөчийг хатуу бичихгүй');
+  assert.strictEqual(WT.DEFAULT_FROM, undefined);
+  delete process.env.WS_TRIAL_FROM;
+  // Коммит/локал туршилтын үед prod DB-д хүрсэн ч (.env.local) — anchor үүсгэхгүй, туршилтгүй, юу ч бичихгүй
+  acct('pre@x.mn', { phone: '99130001', created_at: new Date(Date.now() - 2 * HOUR) });   // «коммитын дараа, деплойгоос өмнө»
+  // [VERCEL_ENV, AWS_LAMBDA_FUNCTION_NAME]: локал node/тест, vercel dev, preview (lambda дээр ч)
+  for (const [env, lambda] of [[undefined, undefined], ['development', undefined], ['preview', 'fn-preview']]) {
+    if (env === undefined) delete process.env.VERCEL_ENV; else process.env.VERCEL_ENV = env;
+    if (lambda === undefined) delete process.env.AWS_LAMBDA_FUNCTION_NAME; else process.env.AWS_LAMBDA_FUNCTION_NAME = lambda;
+    WT._resetReady();
+    assert.strictEqual(await WT.fromIso(), null, String(env));
+    const d = await status('pre@x.mn');
+    assert.deepStrictEqual([d.active, d.trial], [false, undefined], String(env));
+    assert.strictEqual(await WT.start('pre@x.mn', req(DEV)), null);
+  }
+  assert.strictEqual(F.db.trial.cfgFrom, null, 'non-production → anchor бичихгүй');
+  assert.strictEqual(F.db.trial.queries.indexOf('CFG_INS'), -1);
+  assert.strictEqual(F.db.trial.trials.size, 0);
+  assert.ok(F.logs.some(l => /\[wstrial\] деплойн мөч алга/.test(l)), 'унтраалттайг логт анхааруулна');
+  // Production деплой: анхны дуудлагын (DB) мөч = деплойн мөч. Түүнээс өмнө бүртгүүлсэн → туршилтгүй
+  delete process.env.AWS_LAMBDA_FUNCTION_NAME;
+  process.env.VERCEL_ENV = 'production';
+  WT._resetReady();
+  F.db.trial.shift = 5000;                                         // DB цаг (процессын цагаас тусдаа)
+  const a = await WT.fromIso();
+  assert.ok(F.db.trial.cfgFrom, 'anchor бичигдэв');
+  assert.strictEqual(a, F.db.trial.cfgFrom.toISOString());
+  assert.ok(Math.abs(Date.parse(a) - (Date.now() + 5000)) < 2000, 'DB NOW()');
+  const dp = await status('pre@x.mn');
+  assert.deepStrictEqual([dp.active, dp.trial], [false, undefined], 'деплойгоос өмнөх бүртгэл');
+  acct('post@x.mn', { phone: '99130002', created_at: new Date(Date.now() + 6000) });
+  const dn = await status('post@x.mn', { dev: 'devpost00000001' });
+  assert.deepStrictEqual([dn.active, dn.scope], [true, 'trial'], 'деплойн дараах бүртгэл');
+  // anchor өөрчлөгдөхгүй: дахин деплой / cold start / DB цаг урагшилсан ч эхний мөч хэвээр
+  F.db.trial.shift = 10 * HOUR;
+  WT._resetReady();
+  assert.strictEqual(await WT.fromIso(), a);
+  const nIns = F.db.trial.queries.filter(q => q === 'CFG_GET').length;
+  await WT.fromIso(); await WT.fromIso();
+  assert.strictEqual(F.db.trial.queries.filter(q => q === 'CFG_GET').length, nIns, 'cold start-ын турш кэш');
+  // WS_TRIAL_FROM тавьсан бол тэр нь давамгайлна; буруу утга → anchor
+  process.env.WS_TRIAL_FROM = '2026-01-01T00:00:00Z';
+  assert.strictEqual(await WT.fromIso(), '2026-01-01T00:00:00.000Z');
+  process.env.WS_TRIAL_FROM = 'not-a-date';
+  assert.strictEqual(await WT.fromIso(), a);
+  // Системийн хувьсагчийг ил гаргаагүй Vercel төсөл (VERCEL_ENV байхгүй) — серверлесс runtime дээр anchor үүснэ
+  delete process.env.WS_TRIAL_FROM; delete process.env.VERCEL_ENV;
+  F.db.trial.cfgFrom = null;
+  process.env.AWS_LAMBDA_FUNCTION_NAME = 'fn-prod';
+  WT._resetReady();
+  try {
+    assert.ok(await WT.fromIso(), 'lambda + VERCEL_ENV-гүй → anchor');
+    assert.ok(F.db.trial.cfgFrom);
+  } finally { delete process.env.AWS_LAMBDA_FUNCTION_NAME; }
+  // anchor-ийн DB алдаа → туршилтгүй (fail-closed), нэвтрэлт/эрхэд нөлөөгүй
+  WT._resetReady();
+  F.db.trial.fail = true;
+  const f = await status('post@x.mn');
+  assert.deepStrictEqual([f.active, f.trial], [false, undefined]);
+});
+
+test('урилгын линкээр (SMS-гүй, утас батлагдаагүй) данс → туршилтгүй; cm_device сольсон, толгойгүй ч; хүний утсыг түрүүлж эзлэхгүй', async () => {
+  // fake дээрх бодит урсгал: утасгүй 4 урилгын данс, cm_device бүрт өөр; 3 нь x-device-id толгойгүй
+  for (let i = 0; i < 4; i++) acct('inv' + i + '@x.mn', { phone: null, phone_verified_at: null, invite: 'T' });
+  for (let i = 0; i < 3; i++) acct('invnd' + i + '@x.mn', { phone: null, phone_verified_at: null, invite: 'T' });
+  for (let i = 0; i < 4; i++) {
+    const d = await status('inv' + i + '@x.mn', { dev: 'devinv00000000' + i });
+    assert.deepStrictEqual([d.active, d.scope, d.trial], [false, null, undefined], 'inv' + i);
+    assert.strictEqual(await WT.start('inv' + i + '@x.mn', req('devinv00000000' + i)), null);
+  }
+  for (let i = 0; i < 3; i++) {
+    const d = await status('invnd' + i + '@x.mn', { dev: null });
+    assert.deepStrictEqual([d.active, d.trial], [false, undefined], 'invnd' + i);
+  }
+  assert.strictEqual(F.db.trial.trials.size, 0, 'ws_trials-д юу ч бичигдэхгүй');
+  assert.strictEqual(F.db.trial.marks.size, 0, 'dev:/ph: тэмдэг үүсэхгүй');
+  // Урилгаар хүний (батлагдаагүй) утсыг бичсэн → 'ph:' эзлэхгүй; жинхэнэ эзэн SMS-ээр бүртгүүлбэл туршилт авна
+  acct('squat@x.mn', { phone: '99135555', phone_verified_at: null, invite: 'T' });
+  assert.strictEqual((await status('squat@x.mn', { dev: 'devsquat0000001' })).trial, undefined);
+  acct('owner@x.mn', { phone: '99135555' });
+  const o = await status('owner@x.mn', { dev: 'devowner0000001' });
+  assert.deepStrictEqual([o.active, o.scope, o.trial.denied], [true, 'trial', null], 'жинхэнэ эзэн denied биш');
+  // Урилгын данс дараа нь утсаа SMS-ээр баталбал (ws_reset → phone_verified_at) энгийн шинэ данс шиг — нэг утсанд нэг
+  acct('invok@x.mn', { phone: '99135556', phone_verified_at: null, invite: 'T' });
+  assert.strictEqual((await status('invok@x.mn', { dev: 'devinvok0000001' })).trial, undefined);
+  F.db.wsLogin.get('invok@x.mn').phone_verified_at = new Date();
+  assert.strictEqual((await status('invok@x.mn', { dev: 'devinvok0000001' })).scope, 'trial');
+});
+
+test('хуучин хэрэглэгч (деплойгоос өмнөх данс) шинэ имэйл: ижил утас → denied phone (ижил төхөөрөмж дээр ч); ижил cm_device → denied dev', async () => {
+  const YEAR = 365 * 864e5;
+  // S2: old@x.mn (1 жилийн өмнө, утас 88001122, төхөөрөмж D — ws_devices-д бүртгэлтэй) → туршилтгүй
+  acct('old@x.mn', { phone: '88001122', created_at: new Date(Date.now() - YEAR) });
+  F.db.devices.set('old@x.mn|' + DEV, { email: 'old@x.mn', device_id: DEV, label: 'PC', ua: '', ip: '10.0.0.1', fp: 'f', fp_changed_at: new Date(), first_seen: new Date(Date.now() - YEAR), last_seen: new Date() });
+  assert.strictEqual((await status('old@x.mn')).trial, undefined);
+  acct('old2@x.mn', { phone: '88001122' });
+  const s = await status('old2@x.mn', { dev: DEV });
+  assert.deepStrictEqual([s.active, s.scope, s.trial.active, s.trial.denied, s.trial.seconds], [false, null, false, 'phone', 0]);
+  // өөр төхөөрөмжөөс ч мөн адил (утас = хүн)
+  acct('old3@x.mn', { phone: '88001122' });
+  assert.strictEqual((await status('old3@x.mn', { dev: DEV2 })).trial.denied, 'phone');
+  // хуучин дансны төхөөрөмж дээр өөр (шинэ) утсаар → denied dev
+  acct('old4@x.mn', { phone: '88001133' });
+  const d4 = await status('old4@x.mn', { dev: DEV });
+  assert.deepStrictEqual([d4.active, d4.trial.denied, d4.trial.seconds], [false, 'dev', 0]);
+  // татгалзал тэмдэг бичихгүй — гэхдээ данс нэг удаагийн эрхээ зарцуулсан (дахин оролдоход denied хэвээр)
+  assert.strictEqual(F.db.trial.marks.size, 0);
+  assert.strictEqual((await status('old4@x.mn', { dev: 'devfresh0000001' })).trial.denied, 'dev');
+  // Хуучин данс хаахгүй тохиолдлууд: баталгаажаагүй мөр, урилгын батлагдаагүй утас, деплойн дараах данс, өөр утас/төхөөрөмж
+  acct('oldunv@x.mn', { phone: '88002201', verified: false, phone_verified_at: null, created_at: new Date(Date.now() - YEAR) });
+  acct('oldinv@x.mn', { phone: '88002202', phone_verified_at: null, invite: 'T', created_at: new Date(Date.now() - YEAR) });
+  acct('n1@x.mn', { phone: '88002201' });
+  acct('n2@x.mn', { phone: '88002202' });
+  acct('n3@x.mn', { phone: '88002203' });
+  assert.strictEqual((await status('n1@x.mn', { dev: 'devn1000000001' })).scope, 'trial', 'баталгаажаагүй хуучин мөр хаахгүй');
+  assert.strictEqual((await status('n2@x.mn', { dev: 'devn2000000001' })).scope, 'trial', 'урилгын батлагдаагүй утас хаахгүй');
+  assert.strictEqual((await status('n3@x.mn', { dev: 'devn3000000001' })).scope, 'trial');
+  // SMS-ээс өмнөх (имэйлээр баталгаажсан, phone_verified_at-гүй) хуучин данс — PHONE_TOO_MANY-тэй ижил: хаана
+  acct('legacy@x.mn', { phone: '88002204', phone_verified_at: null, created_at: new Date(Date.now() - YEAR) });
+  acct('n4@x.mn', { phone: '88002204' });
+  assert.strictEqual((await status('n4@x.mn', { dev: 'devn4000000001' })).trial.denied, 'phone');
+  // хариу/SQL: PRIOR нь зөвхөн туршилт ЭХЛЭХ үед (эхэлсэн туршилтын wsstatus-д ажиллахгүй)
+  F.db.trial.queries.length = 0;
+  await status('n3@x.mn', { dev: 'devn3000000001' });
+  assert.deepStrictEqual(F.db.trial.queries, ['ELIG']);
 });
 
 test('нэг төхөөрөмж / нэг утас → нэг туршилт: дараагийн шинэ данс denied (0 сек, шууд дууссан)', async () => {

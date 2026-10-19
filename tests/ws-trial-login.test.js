@@ -81,15 +81,41 @@ test('хуучин данс (created_at < WS_TRIAL_FROM) → хариу урьд
   assert.strictEqual(F.db.trial.trials.size, 0);
 });
 
-test('урилгаар бүртгүүлсэн (утасгүй) шинэ данс → туршилт; ижил төхөөрөмжөөс 2 дахь данс → denied dev', async () => {
-  const c = await W({ action: 'ws_invite_create', maxUses: 5, expiresInDays: 7 }, ADMIN);
+test('урилгаар бүртгүүлсэн (SMS-гүй) данс → туршилтгүй: утасгүй, cm_device сольсон, толгойгүй ч; хүний утсыг бичсэн ч тэмдэг эзлэхгүй', async () => {
+  const c = await W({ action: 'ws_invite_create', maxUses: 100, expiresInDays: 0 }, ADMIN);
   const t = c.body.token;
-  const a = await W({ action: 'ws_register', email: 'inv1@x.mn', pass: 'secret1', name: 'A', invite: t }, { headers: { 'x-device-id': DEV } });
-  assert.deepStrictEqual([a.statusCode, a.body.invited, a.body.trial.active, span(a.body.trial)], [200, true, true, 300000]);
-  const b = await W({ action: 'ws_register', email: 'inv2@x.mn', pass: 'secret1', name: 'B', invite: t }, { headers: { 'x-device-id': DEV } });
-  assert.deepStrictEqual([b.statusCode, b.body.trial.active, b.body.trial.denied, b.body.trial.seconds], [200, false, 'dev', 0]);
-  const d = await W({ action: 'ws_register', email: 'inv3@x.mn', pass: 'secret1', name: 'C', invite: t }, { headers: { 'x-device-id': DEV2 } });
-  assert.strictEqual(d.body.trial.active, true, 'өөр төхөөрөмж, утасгүй — туршилт');
+  // localStorage цэвэрлэх / incognito = cm_device бүрт өөр; толгойгүй хөтөч
+  const devs = ['devinvite000001', 'devinvite000002', 'devinvite000003', null, null];
+  for (let i = 0; i < devs.length; i++) {
+    const r = await W({ action: 'ws_register', email: 'inv' + i + '@x.mn', pass: 'secret1', name: 'A', invite: t }, { headers: devs[i] ? { 'x-device-id': devs[i] } : {} });
+    assert.deepStrictEqual([r.statusCode, r.body.invited, !!r.body.token, r.body.trial], [200, true, true, undefined], 'inv' + i);
+    // дахин нэвтэрсэн ч туршилт эхлэхгүй
+    const l = await login('inv' + i + '@x.mn', devs[i] || 'devinvlogin0001');
+    assert.deepStrictEqual([l.statusCode, l.body.trial], [200, undefined]);
+  }
+  assert.strictEqual(F.db.trial.trials.size, 0);
+  assert.strictEqual(F.db.trial.marks.size, 0);
+  // Хүний дугаарыг урилгаар (баталгаагүй) бичсэн → тэр хүн SMS-ээр бүртгүүлэхэд туршилт авна (denied 'phone' биш)
+  const s = await W({ action: 'ws_register', email: 'squat@x.mn', pass: 'secret1', name: 'S', invite: t, phone: '99117788' }, { headers: { 'x-device-id': 'devsquat0000001' } });
+  assert.deepStrictEqual([s.statusCode, s.body.trial], [200, undefined]);
+  assert.strictEqual(F.db.ws.get('squat@x.mn').phone, '99117788');
+  assert.strictEqual(F.db.ws.get('squat@x.mn').phone_verified_at == null, true);
+  let r = await W({ action: 'ws_register', email: 'owner@x.mn', pass: 'secret1', name: 'O', phone: '99117788' });
+  assert.strictEqual(r.statusCode, 200);
+  r = await W({ action: 'ws_verify', email: 'owner@x.mn', pass: 'secret1', code: F.lastCode() }, { headers: { 'x-device-id': 'devowner0000001' } });
+  assert.strictEqual(r.statusCode, 200);
+  assert.deepStrictEqual([r.body.trial.active, r.body.trial.denied, span(r.body.trial)], [true, null, 300000]);
+});
+
+test('хуучин хэрэглэгч (деплойгоос өмнөх) ижил утсаараа шинэ имэйл SMS-ээр бүртгүүлэв → denied phone (ижил төхөөрөмж дээр ч)', async () => {
+  acct('old@x.mn', { phone: '88001122', created_at: new Date(Date.now() - 365 * 864e5) });
+  assert.strictEqual((await login('old@x.mn', DEV)).body.trial, undefined, 'хуучин данс туршилтгүй');
+  let r = await W({ action: 'ws_register', email: 'old2@x.mn', pass: 'secret1', name: 'O', phone: '88001122' });
+  assert.strictEqual(r.statusCode, 200);
+  r = await W({ action: 'ws_verify', email: 'old2@x.mn', pass: 'secret1', code: F.lastCode() }, { headers: { 'x-device-id': DEV } });
+  assert.strictEqual(r.statusCode, 200);
+  assert.ok(r.body.token, 'нэвтрэлт хэвийн');
+  assert.deepStrictEqual([r.body.trial.active, r.body.trial.denied, r.body.trial.seconds], [false, 'phone', 0]);
 });
 
 test('ижил утастай өөр шинэ данс (өөр төхөөрөмж) → denied phone', async () => {

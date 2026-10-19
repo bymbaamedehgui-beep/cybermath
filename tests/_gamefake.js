@@ -24,7 +24,7 @@ process.env.GAME_PAYWALL_REALMS = 'ws,cm';
 // Шинэ дансны үнэгүй туршилт (api/_wstrial.js) анхдагчаар УНТРААЛТТАЙ — хуучин тестийн хариу (deepStrictEqual) өөрчлөгдөхгүй.
 // tests/ws-trial-*.test.js өөрөө асаана.
 process.env.WS_TRIAL_SECONDS = '0';
-delete process.env.WS_TRIAL_FROM; delete process.env.WS_TRIAL_IP_DAY;
+delete process.env.WS_TRIAL_FROM; delete process.env.WS_TRIAL_IP_DAY; delete process.env.VERCEL_ENV; delete process.env.AWS_LAMBDA_FUNCTION_NAME;
 
 const DAY = 864e5;
 const db = {
@@ -53,11 +53,15 @@ const db = {
   failDev: false, failTix: false, failInv: false,
   hangOn: null,         // RegExp: таарсан асуулт хэзээ ч дуусахгүй (Vercel timeout/crash-ийг дуурайна)
   nextId: 1,
-  wsLogin: new Map(),   // ws_login email → {email, phone, verified, pass_hash, created_at} — зөвхөн туршилтын ELIG уншина
+  wsLogin: new Map(),   // ws_login email → {email, phone, verified, pass_hash, phone_verified_at, invite, created_at} — зөвхөн туршилтын ELIG/PRIOR уншина
   wsGrade: [],          // ws_grade_access [{email, grade, expires_at}] — api/_wsgrade.js activeGrades
 };
-// ws_trials / ws_trial_marks (tests/_trialfake.js): db.trial.trials, db.trial.marks, db.trial.shift (DB NOW шилжилт), db.trial.fail
-db.trial = require('./_trialfake').create(function (e) { return db.wsLogin.get(e); });
+// ws_trials / ws_trial_marks / ws_trial_cfg (tests/_trialfake.js): db.trial.trials, db.trial.marks, db.trial.cfgFrom,
+// db.trial.shift (DB NOW шилжилт), db.trial.fail. PRIOR: db.wsLogin (ижил утас) + db.devices (ws_devices)
+db.trial = require('./_trialfake').create(function (e) { return db.wsLogin.get(e); }, {
+  logins: function () { return Array.from(db.wsLogin, function (kv) { return Object.assign({}, kv[1], { email: kv[0] }); }); },
+  devices: function () { return Array.from(db.devices.values()); },
+});
 // hangOn-д таарсан асуултад хүрэхэд resolve болно (тест dropConnections()-ыг яг тэр мөчид дуудна)
 let hangHit = null;
 function hangReached() { return new Promise(function (r) { hangHit = r; }); }
@@ -75,7 +79,7 @@ const HEAL_SQL = "INSERT INTO game_purchases (invoice_id, realm, email, game_key
   "WHERE p.plan = 'game' AND p.granted = TRUE AND p.realm IN ('ws', 'cm') AND p.game_key = ANY($1::text[]) " +
   "AND NOT EXISTS (SELECT 1 FROM game_purchases g WHERE g.invoice_id = p.invoice_id) " +
   "ON CONFLICT (invoice_id) DO NOTHING RETURNING invoice_id";
-const STRICT = /\b(pay_pending|ws_pending|game_access|game_purchases|users|rate_limits|ws_events|ws_event_regs|ws_devices|ws_device_ips|ws_device_blocks|ws_device_swaps|game_ticket_used|game_invites|ws_trials|ws_trial_marks)\b/;
+const STRICT = /\b(pay_pending|ws_pending|game_access|game_purchases|users|rate_limits|ws_events|ws_event_regs|ws_devices|ws_device_ips|ws_device_blocks|ws_device_swaps|game_ticket_used|game_invites|ws_trials|ws_trial_marks|ws_trial_cfg)\b/;
 function dkey(e, d) { return e + '|' + d; }
 
 // tx — транзакцын контекст (client.query) эсвэл null (autocommit). tx дотор өөрчлөлт бүр tx.undo-д бүртгэгдэнэ.
@@ -519,7 +523,7 @@ function reset() {
   process.env.GAME_PAYWALL = 'on';
   process.env.GAME_PAYWALL_REALMS = 'ws,cm';
   db.wsLogin.clear(); db.wsGrade.length = 0; db.trial.reset();
-  process.env.WS_TRIAL_SECONDS = '0'; delete process.env.WS_TRIAL_FROM; delete process.env.WS_TRIAL_IP_DAY;
+  process.env.WS_TRIAL_SECONDS = '0'; delete process.env.WS_TRIAL_FROM; delete process.env.WS_TRIAL_IP_DAY; delete process.env.VERCEL_ENV; delete process.env.AWS_LAMBDA_FUNCTION_NAME;
 }
 function addUser(email, o) {
   const e = lc(email);

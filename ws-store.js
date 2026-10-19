@@ -152,20 +152,28 @@
   var pollT=null;
   // Түгжээтэй үед ард байгаа товч/хуудсыг гараар (Tab+Enter) ч дарж болохгүй
   function lockInert(on){ try{ [].forEach.call(document.querySelectorAll('.bar, #sheet'),function(el){ try{ el.inert=!!on; }catch(e){} }); }catch(e){} }
-  // Түгжээтэй хуудсыг Ctrl+P-гээр ч хэвлэхгүй (хоосон хуудас гарна)
+  /* Түгжээтэй хуудсыг Ctrl+P-гээр ч хэвлэхгүй (хоосон хуудас гарна). Хуудасны өөрийн хэвлэх дүрэм ID-тай
+     (ж: шалгалтын «Олон хувилбар» — body>#cm-vbatch{display:block!important}, 1,0,1; ангиар хэвлэх #cm-batch) тул
+     :not(#…)×3-аар specificity (3,1,2) болгож ямагт давна. */
+  var LOCK_PRINT_SEL='html.cm-ws-locked body>*:not(#cm-lk0):not(#cm-lk1):not(#cm-lk2)';
   function injectLockCSS(){
     if(document.getElementById('cm-lock-css'))return;
     var st=document.createElement('style'); st.id='cm-lock-css';
-    st.textContent='@media print{html.cm-ws-locked body>*{display:none!important}}';
+    st.textContent='@media print{'+LOCK_PRINT_SEL+'{display:none!important}}';
     document.head.appendChild(st);
   }
+  /* Түгжээний ард/дээр үлдэх ёсгүй хэвлэх/үүсгэх цонхнууд: ангиар хэвлэх (ws-store), шалгалтын «Олон хувилбар»
+     (хуудсанд, z-index 10000) ба тэдний бэлдсэн багц — түгжих мөчид нээлттэй байсан ч устгана. */
+  var LOCK_SWEEP=['cm-batchModal','cm-batch','cm-vmodal','cm-vbatch'];
+  function lockSweep(){ try{ LOCK_SWEEP.forEach(function(id){ var el=document.getElementById(id); if(el&&el.parentNode)el.parentNode.removeChild(el); }); }catch(e){} }
   function unlockWs(){ if(pollT){clearInterval(pollT);pollT=null;} var o=document.getElementById('wsLock'); if(o)o.parentNode.removeChild(o); var sh=document.getElementById('sheet'); if(sh){sh.style.filter='';sh.style.pointerEvents='';} lockInert(false); try{document.documentElement.classList.remove('cm-ws-locked');}catch(e){} /* Хэвлэх/PDF товчийг эргүүлж харуулах */ [].forEach.call(document.querySelectorAll('.bar .btn'),function(b){b.style.display='';}); }
   /* opts.why==='trial' — үнэгүй туршилт дууссан мөчид (баннертай). opts.soft — үнэгүй (WS_FREE) хуудас: агуулгыг
      бүдгэрүүлэхгүй, цонхыг «Хаах»-аар хааж болно. */
   function showLock(opts){
     opts=opts||{};
-    if(document.getElementById('wsLock'))return;                     // давхар цонх үүсгэхгүй
     var soft=!!opts.soft;
+    if(!soft)lockSweep();                                            // цонх аль хэдийн байсан ч хэвлэх цонхнуудыг хаана
+    if(document.getElementById('wsLock'))return;                     // давхар цонх үүсгэхгүй
     var sh=document.getElementById('sheet');
     if(!soft){
       if(sh){sh.style.filter='blur(6px)';sh.style.pointerEvents='none';}
@@ -174,7 +182,8 @@
     }
     var pb=document.querySelector('.bar .btn:not(.refresh)'); // хэвлэх товч (эхнийх refresh)
     var o=document.createElement('div');o.id='wsLock';
-    o.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(20,15,40,.62);display:flex;justify-content:center;align-items:flex-start;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;box-sizing:border-box;padding:16px 12px;font-family:"Segoe UI",Arial,sans-serif';
+    // Хамгийн дээд давхарга: хуудасны ямар ч цонх (ж: «Олон хувилбар» z 10000) түгжээний ДЭЭР гарахгүй
+    o.style.cssText='position:fixed;inset:0;z-index:2147483000;background:rgba(20,15,40,.62);display:flex;justify-content:center;align-items:flex-start;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;box-sizing:border-box;padding:16px 12px;font-family:"Segoe UI",Arial,sans-serif';
     o.innerHTML='<div style="position:relative;background:#fff;border-radius:20px;max-width:430px;width:100%;min-width:0;box-sizing:border-box;margin:auto;padding:24px clamp(14px,4.5vw,24px);text-align:center;box-shadow:0 24px 60px -18px rgba(0,0,0,.5)">'
       +'<button id="wsBack" style="position:absolute;top:14px;left:14px;display:inline-flex;align-items:center;gap:5px;border:1.4px solid #e7ddff;background:#faf7ff;color:#5a32d6;font-weight:800;font-size:.82rem;border-radius:999px;padding:.4rem .8rem;cursor:pointer;font-family:inherit"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>Буцах</button>'
       +'<div style="width:60px;height:60px;margin:2px auto 4px;background:linear-gradient(135deg,#7B52EE,#A855F7);border-radius:16px;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 18px -6px rgba(123,82,238,.6)"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10.5" rx="2.2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/><circle cx="12" cy="15" r="1.4" fill="#fff" stroke="none"/><path d="M12 16v2.2"/></svg></div>'
@@ -617,8 +626,8 @@
     if(TR.done)return;
     TR.done=true; TR.on=false; trClear(); trUnbar();
     trCacheSet(Date.now(),TR.secs);
-    // Ангиар хэвлэх цонх/бэлдсэн багц, фокустай товч — бүгдийг хаана
-    try{ ['cm-batchModal','cm-batch'].forEach(function(id){ var el=document.getElementById(id); if(el&&el.parentNode)el.parentNode.removeChild(el); }); }catch(e){}
+    // Ангиар хэвлэх / «Олон хувилбар» цонх, бэлдсэн багц, фокустай товч — бүгдийг хаана
+    lockSweep();
     try{ var ae=document.activeElement; if(ae&&ae!==document.body&&typeof ae.blur==='function')ae.blur(); }catch(e){}
     if(WS_ST){ WS_ST.active=false; WS_ST.scope=null; if(WS_ST.trial)WS_ST.trial.active=false; }
     showLock(TR.soft?{soft:true,why:'trial'}:{why:'trial'});

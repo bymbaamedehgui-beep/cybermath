@@ -19,7 +19,7 @@ Object.assign(process.env, {
 });
 ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID', 'SMS_DISABLED', 'SMS_HASH_KEY', 'SMS_MN_MOBILE_RE', 'WS_TOKEN_IAT_MIN',
  'SMS_DAY_MAX', 'SMS_30MIN_MAX', 'SMS_MONTH_MAX', 'SMS_REG_DAY_MAX', 'SMS_REG_30MIN_MAX', 'SMS_REG_MONTH_MAX',
- 'SMS_IP_HOUR_MAX', 'SMS_IP24_HOUR_MAX', 'CONTACT_TEXT', 'GMAIL_APP_PASSWORD', 'WS_TRIAL_FROM', 'WS_TRIAL_IP_DAY'].forEach(k => { delete process.env[k]; });
+ 'SMS_IP_HOUR_MAX', 'SMS_IP24_HOUR_MAX', 'CONTACT_TEXT', 'GMAIL_APP_PASSWORD', 'WS_TRIAL_FROM', 'WS_TRIAL_IP_DAY', 'VERCEL_ENV', 'AWS_LAMBDA_FUNCTION_NAME'].forEach(k => { delete process.env[k]; });
 // Шинэ дансны үнэгүй туршилт (api/_wstrial.js) анхдагчаар УНТРААЛТТАЙ — нэвтрэлтийн хариу (deepStrictEqual) өөрчлөгдөхгүй.
 // tests/ws-trial-login.test.js өөрөө асаана.
 process.env.WS_TRIAL_SECONDS = '0';
@@ -40,8 +40,11 @@ const db = {
   beforeWsUpsert: null,
   nextId: 1,
 };
-// ws_trials / ws_trial_marks (tests/_trialfake.js) — ELIG нь db.ws (ws_login) мөрийг уншина; created_at байхгүй бол NOW
-db.trial = require('./_trialfake').create(function (e) { return db.ws.get(e); });
+// ws_trials / ws_trial_marks / ws_trial_cfg (tests/_trialfake.js) — ELIG/PRIOR нь db.ws (ws_login) мөрийг уншина;
+// created_at байхгүй бол NOW. ws_devices-ийг энэ fake загварчлахгүй (PRIOR dev = false)
+db.trial = require('./_trialfake').create(function (e) { return db.ws.get(e); }, {
+  logins: function () { return Array.from(db.ws, function (kv) { return Object.assign({}, kv[1], { email: kv[0] }); }); },
+});
 function now() { return Date.now(); }
 function norm(s) { return String(s).replace(/\s+/g, ' ').trim(); }
 function pick(row, fields) { const o = {}; fields.forEach(f => { o[f] = row[f]; }); return o; }
@@ -324,7 +327,7 @@ async function query(sql, p) {
   // ws_trials / ws_trial_marks (api/_wstrial.js)
   { const tr = db.trial.handle(q, p); if (tr) return tr; }
 
-  if (/\b(users|ws_login|rate_limits|sms_log|sms_state|ws_access|ws_grade_access|ws_purchases|ws_pending|ws_event_regs|admin_invites|ws_invites|ws_promos|ws_trials|ws_trial_marks)\b/.test(q)) {
+  if (/\b(users|ws_login|rate_limits|sms_log|sms_state|ws_access|ws_grade_access|ws_purchases|ws_pending|ws_event_regs|admin_invites|ws_invites|ws_promos|ws_trials|ws_trial_marks|ws_trial_cfg)\b/.test(q)) {
     db.unknown.push(q);
     throw new Error('mock: unknown SQL');
   }
@@ -403,7 +406,7 @@ function reset() {
   process.env.SMS_PAD_MS = '0';
   process.env.TEXTBEE_API_KEY = FAKE_KEY;
   db.promos = []; db.promoMode = null; db.promoQueries = 0; db.reuseFail = false; db.reuseQueries = 0; delete process.env.SMS_PROMO_NOTE;
-  db.trial.reset(); process.env.WS_TRIAL_SECONDS = '0'; delete process.env.WS_TRIAL_FROM; delete process.env.WS_TRIAL_IP_DAY;
+  db.trial.reset(); process.env.WS_TRIAL_SECONDS = '0'; delete process.env.WS_TRIAL_FROM; delete process.env.WS_TRIAL_IP_DAY; delete process.env.VERCEL_ENV; delete process.env.AWS_LAMBDA_FUNCTION_NAME;
   const smsMod = require.cache[require.resolve(path.join(API, '_sms.js'))];
   if (smsMod && smsMod.exports && smsMod.exports.promoCacheReset) smsMod.exports.promoCacheReset();
 }

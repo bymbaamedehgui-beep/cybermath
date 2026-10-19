@@ -1446,6 +1446,7 @@ function wsLogout(){lsDel('cm_ws_token');lsDel('cm_last_user');lsDel('cm_ws_pin'
    Нуугдсан табаас буцах/фокус/bfcache үед шууд дахин шалгана. Ажлын хуудас бүр өөрөө (ws-store.js) түгжинэ.
    Энэ хэсэг бие даасан (tests/ws-trial-ui.test.js, games-ws-ui.test.js таслан ажиллуулдаг). */
 var WS_TRIAL={on:false,done:false,dDate:0,dPerf:0,iv:null,to:null,secs:0,last:'',low:null};
+var WS_TRIAL_BUY_Z=260;   // туршилт дууссаны төлбөрийн цонх (openBuy({trialEnd:true})) — бусад бүх цонхноос (≤240) дээр
 var WS_TRIAL_ICO='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2"/><path d="M9.5 2.5h5"/></svg>';
 function wsTrialPerf(){try{var p=window.performance;if(p&&typeof p.now==='function')return p.now();}catch(e){}return Date.now();}
 function wsTrialDur(s){s=Math.max(0,Math.round(Number(s)||0));return (s&&s%60===0)?(s/60)+' минут':s+' секунд';}
@@ -1530,8 +1531,10 @@ function wsTrialExpire(){
   var em=(CM_USER&&CM_USER.email)||(WS_ACCT&&WS_ACCT.email)||lsGet('cm_last_user')||'';
   CM_USER=null;WS_ACCT=em?{email:em}:null;renderAcct();
   var m=document.getElementById('wsBuyM');
-  if(!m)openBuy({trialEnd:true});
+  if(!m){openBuy({trialEnd:true});m=document.getElementById('wsBuyM');}
   else if(!document.getElementById('buTrialEnd')){var h=m.querySelector('h3');if(h&&h.parentNode&&h.parentNode.insertBefore){var tw=document.createElement('div');tw.innerHTML=wsTrialEndHtml();if(tw.firstChild)h.parentNode.insertBefore(tw.firstChild,h);}}
+  // Төлбөрийн цонх ХАМГИЙН ДЭЭР: бүртгүүлмэгц нээгддэг PIN (#wsPin 210), урилга/мэдээ (210), тоглоомын (.gp-ov 240) цонхны ард үлдэхгүй
+  if(m&&m.style)m.style.zIndex=String(WS_TRIAL_BUY_Z);
   // Сервер баталгаажуулна: ЗӨВХӨН төлсөн эрх ирвэл (wsTrialApply → wsTrialStop: done=false) цонхыг хааж тоолуурыг арилгана.
   // Сүлжээний алдаа (verifyUser-ийн catch нь CM_USER-ийг сэргээдэг) эсвэл «trial» хариу ирвэл цонх хэвээр.
   verifyUser(function(){ if(CM_USER&&!WS_TRIAL.done){var mm=document.getElementById('wsBuyM');if(mm&&mm.parentNode)mm.parentNode.removeChild(mm);wsTrialStop();} });
@@ -2088,7 +2091,7 @@ function openBuy(opts){
   function fmt(n){return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,',');}
   function okEmail(e){return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);}
   var o=document.createElement('div');o.id='wsBuyM';
-  o.style.cssText='position:fixed;inset:0;z-index:200;background:rgba(20,15,40,.6);display:grid;place-items:center;grid-template-columns:minmax(0,1fr);padding:16px 12px;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain';
+  o.style.cssText='position:fixed;inset:0;z-index:'+(opts.trialEnd?WS_TRIAL_BUY_Z:200)+';background:rgba(20,15,40,.6);display:grid;place-items:center;grid-template-columns:minmax(0,1fr);padding:16px 12px;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain';
   o.innerHTML='<div style="position:relative;background:#fff;border-radius:20px;max-width:420px;width:100%;padding:24px;text-align:center;box-shadow:0 24px 60px -18px rgba(0,0,0,.5)">'
     +'<button id="buBack" style="position:absolute;top:14px;left:14px;display:inline-flex;align-items:center;gap:5px;border:1.4px solid #e7ddff;background:#faf7ff;color:#5a32d6;font-weight:800;font-size:.82rem;border-radius:999px;padding:.4rem .8rem;cursor:pointer"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>Буцах</button>'
     +'<div style="width:56px;height:56px;margin:2px auto 4px;background:linear-gradient(135deg,var(--purple),var(--purple2));border-radius:15px;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10.5" rx="2.2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg></div>'
