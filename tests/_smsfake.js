@@ -19,7 +19,10 @@ Object.assign(process.env, {
 });
 ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID', 'SMS_DISABLED', 'SMS_HASH_KEY', 'SMS_MN_MOBILE_RE', 'WS_TOKEN_IAT_MIN',
  'SMS_DAY_MAX', 'SMS_30MIN_MAX', 'SMS_MONTH_MAX', 'SMS_REG_DAY_MAX', 'SMS_REG_30MIN_MAX', 'SMS_REG_MONTH_MAX',
- 'SMS_IP_HOUR_MAX', 'SMS_IP24_HOUR_MAX', 'CONTACT_TEXT', 'GMAIL_APP_PASSWORD'].forEach(k => { delete process.env[k]; });
+ 'SMS_IP_HOUR_MAX', 'SMS_IP24_HOUR_MAX', 'CONTACT_TEXT', 'GMAIL_APP_PASSWORD', 'WS_TRIAL_FROM', 'WS_TRIAL_IP_DAY'].forEach(k => { delete process.env[k]; });
+// Шинэ дансны үнэгүй туршилт (api/_wstrial.js) анхдагчаар УНТРААЛТТАЙ — нэвтрэлтийн хариу (deepStrictEqual) өөрчлөгдөхгүй.
+// tests/ws-trial-login.test.js өөрөө асаана.
+process.env.WS_TRIAL_SECONDS = '0';
 
 // ── санах ойн DB ──
 const db = {
@@ -37,6 +40,8 @@ const db = {
   beforeWsUpsert: null,
   nextId: 1,
 };
+// ws_trials / ws_trial_marks (tests/_trialfake.js) — ELIG нь db.ws (ws_login) мөрийг уншина; created_at байхгүй бол NOW
+db.trial = require('./_trialfake').create(function (e) { return db.ws.get(e); });
 function now() { return Date.now(); }
 function norm(s) { return String(s).replace(/\s+/g, ' ').trim(); }
 function pick(row, fields) { const o = {}; fields.forEach(f => { o[f] = row[f]; }); return o; }
@@ -316,7 +321,10 @@ async function query(sql, p) {
   if (/^SELECT column_name FROM information_schema\.columns WHERE table_name = 'users' AND column_name = ANY\(\$1\)$/.test(q)) return { rows: [] };
   if (q === "SELECT indexname FROM pg_indexes WHERE tablename = 'users' AND indexname = 'idx_users_phone'") return { rows: [] };
 
-  if (/\b(users|ws_login|rate_limits|sms_log|sms_state|ws_access|ws_grade_access|ws_purchases|ws_pending|ws_event_regs|admin_invites|ws_invites|ws_promos)\b/.test(q)) {
+  // ws_trials / ws_trial_marks (api/_wstrial.js)
+  { const tr = db.trial.handle(q, p); if (tr) return tr; }
+
+  if (/\b(users|ws_login|rate_limits|sms_log|sms_state|ws_access|ws_grade_access|ws_purchases|ws_pending|ws_event_regs|admin_invites|ws_invites|ws_promos|ws_trials|ws_trial_marks)\b/.test(q)) {
     db.unknown.push(q);
     throw new Error('mock: unknown SQL');
   }
@@ -395,6 +403,7 @@ function reset() {
   process.env.SMS_PAD_MS = '0';
   process.env.TEXTBEE_API_KEY = FAKE_KEY;
   db.promos = []; db.promoMode = null; db.promoQueries = 0; db.reuseFail = false; db.reuseQueries = 0; delete process.env.SMS_PROMO_NOTE;
+  db.trial.reset(); process.env.WS_TRIAL_SECONDS = '0'; delete process.env.WS_TRIAL_FROM; delete process.env.WS_TRIAL_IP_DAY;
   const smsMod = require.cache[require.resolve(path.join(API, '_sms.js'))];
   if (smsMod && smsMod.exports && smsMod.exports.promoCacheReset) smsMod.exports.promoCacheReset();
 }

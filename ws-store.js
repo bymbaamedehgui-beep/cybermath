@@ -133,28 +133,52 @@
     // slug илгээснээр сервер энэ хуудас ямар ангийнх болохыг тодорхойлж, ангийн эрхийг ч шалгана
     // Зөвхөн ажлын хуудасны токен (cm_ws_token) — тоглоомын токеныг сервер хүлээн авахгүй
     var body={wstoken:ls('cm_ws_token'),email:ls('cm_last_user'),slug:curSlug()};
+    var t0=Date.now(), p0=trPerf();                                  // үнэгүй туршилтын тоолуур: серверийн цагийн зөрүү + RTT
     return fetch('/api/qpay?action=wsstatus',{method:'POST',headers:wsHdr(),body:JSON.stringify(body)})
       .then(function(r){return r.json();})
       .then(function(d){
         WS_ST=d||null;
+        trSync(d,t0,p0);                                             // TRIAL блок (доор) — алдаа шиддэггүй
         if(!d)return true;
         if(d.enabled===false)return true;                            // серверийн kill-switch
+        // Энэ хуудсан дээр туршилт аль хэдийн дууссан (0:00) — хожуу ирсэн «trial» хариугаар дахин нээхгүй
+        if(d.active&&d.scope==='trial'&&TR.done){ if(typeof window.__wsLockApply==='function')window.__wsLockApply(d); return false; }
         if(d.active){ if(d.ws_token)lset('cm_ws_token',d.ws_token); return true; }
         if(typeof window.__wsLockApply==='function')window.__wsLockApply(d);
         return false;
       })
-      .catch(function(){return true;});                              // API алдаа → түгжихгүй (fail-open)
+      .catch(function(){ return trOffline(); });                     // API алдаа → түгжихгүй (fail-open); дууссан туршилтыг л түгжээтэй үлдээнэ
   }
   var pollT=null;
-  function unlockWs(){ if(pollT){clearInterval(pollT);pollT=null;} var o=document.getElementById('wsLock'); if(o)o.parentNode.removeChild(o); var sh=document.getElementById('sheet'); if(sh){sh.style.filter='';sh.style.pointerEvents='';} /* Хэвлэх/PDF товчийг эргүүлж харуулах */ [].forEach.call(document.querySelectorAll('.bar .btn'),function(b){b.style.display='';}); }
-  function showLock(){
-    var sh=document.getElementById('sheet'); if(sh){sh.style.filter='blur(6px)';sh.style.pointerEvents='none';}
+  // Түгжээтэй үед ард байгаа товч/хуудсыг гараар (Tab+Enter) ч дарж болохгүй
+  function lockInert(on){ try{ [].forEach.call(document.querySelectorAll('.bar, #sheet'),function(el){ try{ el.inert=!!on; }catch(e){} }); }catch(e){} }
+  // Түгжээтэй хуудсыг Ctrl+P-гээр ч хэвлэхгүй (хоосон хуудас гарна)
+  function injectLockCSS(){
+    if(document.getElementById('cm-lock-css'))return;
+    var st=document.createElement('style'); st.id='cm-lock-css';
+    st.textContent='@media print{html.cm-ws-locked body>*{display:none!important}}';
+    document.head.appendChild(st);
+  }
+  function unlockWs(){ if(pollT){clearInterval(pollT);pollT=null;} var o=document.getElementById('wsLock'); if(o)o.parentNode.removeChild(o); var sh=document.getElementById('sheet'); if(sh){sh.style.filter='';sh.style.pointerEvents='';} lockInert(false); try{document.documentElement.classList.remove('cm-ws-locked');}catch(e){} /* Хэвлэх/PDF товчийг эргүүлж харуулах */ [].forEach.call(document.querySelectorAll('.bar .btn'),function(b){b.style.display='';}); }
+  /* opts.why==='trial' — үнэгүй туршилт дууссан мөчид (баннертай). opts.soft — үнэгүй (WS_FREE) хуудас: агуулгыг
+     бүдгэрүүлэхгүй, цонхыг «Хаах»-аар хааж болно. */
+  function showLock(opts){
+    opts=opts||{};
+    if(document.getElementById('wsLock'))return;                     // давхар цонх үүсгэхгүй
+    var soft=!!opts.soft;
+    var sh=document.getElementById('sheet');
+    if(!soft){
+      if(sh){sh.style.filter='blur(6px)';sh.style.pointerEvents='none';}
+      lockInert(true); injectLockCSS();
+      try{document.documentElement.classList.add('cm-ws-locked');}catch(e){}
+    }
     var pb=document.querySelector('.bar .btn:not(.refresh)'); // хэвлэх товч (эхнийх refresh)
     var o=document.createElement('div');o.id='wsLock';
     o.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(20,15,40,.62);display:flex;justify-content:center;align-items:flex-start;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;box-sizing:border-box;padding:16px 12px;font-family:"Segoe UI",Arial,sans-serif';
     o.innerHTML='<div style="position:relative;background:#fff;border-radius:20px;max-width:430px;width:100%;min-width:0;box-sizing:border-box;margin:auto;padding:24px clamp(14px,4.5vw,24px);text-align:center;box-shadow:0 24px 60px -18px rgba(0,0,0,.5)">'
       +'<button id="wsBack" style="position:absolute;top:14px;left:14px;display:inline-flex;align-items:center;gap:5px;border:1.4px solid #e7ddff;background:#faf7ff;color:#5a32d6;font-weight:800;font-size:.82rem;border-radius:999px;padding:.4rem .8rem;cursor:pointer;font-family:inherit"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>Буцах</button>'
       +'<div style="width:60px;height:60px;margin:2px auto 4px;background:linear-gradient(135deg,#7B52EE,#A855F7);border-radius:16px;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 18px -6px rgba(123,82,238,.6)"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10.5" rx="2.2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/><circle cx="12" cy="15" r="1.4" fill="#fff" stroke="none"/><path d="M12 16v2.2"/></svg></div>'
+      +(opts.why==='trial'?trEndHtml((WS_ST&&WS_ST.trial)||null):'')
       +'<h3 style="color:#5a32d6;font-size:1.25rem;font-weight:900;margin:6px 0 2px">Ажлын хуудсын эрх</h3>'
       +'<p id="wsSubTitle" style="color:#7a7390;font-size:.9rem;margin-bottom:8px">Бүх ажлын хуудсыг сонгосон хугацаанд <b>хязгааргүй</b> ашиглах</p>'
       +'<div id="wsFreeNote" style="font-size:.8rem;color:#16a34a;font-weight:700;background:#eafff1;border:1px solid #b6f0cd;border-radius:9px;padding:6px 10px;margin-bottom:12px">Санамж: анги бүрийн <b>эхний хуудас үнэгүй</b> — эхлээд туршаад үзээрэй!</div>'
@@ -174,8 +198,13 @@
       +'<a id="wsRestore" href="#" style="display:inline-block;margin-top:10px;font-size:.82rem;color:#5a32d6;font-weight:700;text-decoration:none">Эрхээ сэргээх (имэйлээр)</a>'
       +'</div>';
     document.body.appendChild(o);
-    if(pb)pb.style.display='none';
-    o.querySelector('#wsBack').onclick=function(){
+    if(pb&&!soft)pb.style.display='none';
+    if(soft){
+      // Үнэгүй хуудас: зөвхөн цонхыг хаана (агуулга үнэгүй хэвээр)
+      var bk=o.querySelector('#wsBack');
+      bk.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>Хаах';
+      bk.onclick=function(){ if(pollT){clearInterval(pollT);pollT=null;} if(o.parentNode)o.parentNode.removeChild(o); };
+    } else o.querySelector('#wsBack').onclick=function(){
       if(pollT){clearInterval(pollT);pollT=null;}
       // Шинэ табд нээгдсэн бол (history.length<=1) history.back() ажиллахгүй → каталог руу
       var sameOriginRef=document.referrer&&document.referrer.indexOf(location.origin)===0;
@@ -331,6 +360,11 @@
     }
     var appliedData=false, userPicked=false;
     window.__wsLockApply=function(d){
+      /* Үнэгүй туршилт дууссан (хожим нээсэн хуудас ч) эсвэл энэ төхөөрөмж/дугаарт өмнө нь ашиглагдсан — баннер */
+      if(d&&d.trial&&(!d.trial.active||TR.done)&&!o.querySelector('#wsTrialEnd')){
+        var h3=o.querySelector('h3');
+        if(h3&&h3.parentNode){ var tw=document.createElement('div'); tw.innerHTML=trEndHtml(d.trial); if(tw.firstChild)h3.parentNode.insertBefore(tw.firstChild,h3); }
+      }
       /* Төхөөрөмжийн хязгаар — эрх байгаа ч энэ хөтөч бүртгэлгүй */
       if(d&&d.deviceBlocked){
         var mm=document.getElementById('wsMsg');
@@ -463,11 +497,153 @@
   function enforcePaywall(){
     if(IS_QR)return;                                 // QR/сурагчийн горим — багшийн хуваалцсан ганц материал, төлбөргүй
     if(inIframe())return;                            // iframe доторх урьдчилан харах/танилцуулга — цоожгүй
-    if(isFreeSheet()){ addFreeBadge(); return; }     // анги бүрийн эхний хуудас — үнэгүй
+    if(isFreeSheet()){                               // анги бүрийн эхний хуудас — үнэгүй
+      addFreeBadge();
+      // Нэвтэрсэн бол туршилтын тоолуур харагдана; 0:00 үед хаагддаг (soft) худалдан авах цонх гарна, агуулга үнэгүй хэвээр
+      if(ls('cm_ws_token')&&!ls('cm_admin_token')){ TR.soft=true; checkAccess(); }
+      return;
+    }
     if(ls('cm_admin_token'))return;                 // админ — цоожгүй, flash-гүй
     showLock();                                      // нээмэгц шууд төлбөрийн хэсэг харуулна
     checkAccess().then(function(ok){ if(ok)unlockWs(); }); // эрхтэй/алдаа бол буцааж нээнэ
   }
+
+  /* ═══ TRIAL (api/_wstrial.js) ═══
+     Шинэ дансны үнэгүй туршилт: дээд талд тоолуур (секунд бүр), серверийн цагаар ЯГ дуусах мөчид түгжээ + худалдан авах цонх.
+     • Хугацааг сервер шийднэ (trial.until, trial.server_now). Клиент зөвхөн зөрүүгээ засна:
+       left = until − server_now − RTT/2 → Date.now() болон performance.now() дээр тус тусдаа deadline; аль нь
+       түрүүлж дуусна, тэр мөчид түгжинэ (системийн цагийг хойшлуулж сунгахгүй, sleep-ийн үед Date барина).
+     • Background таб (timer throttling): visibilitychange/focus/pageshow/beforeprint үед шууд дахин шалгана.
+     • Дуусмагц: түгжээ (blur, inert, хэвлэлт хоосон, Ctrl+Enter/«Шинэ бодлого»/бөөнөөр хэвлэх хаалттай) + төлбөрийн цонх
+       автоматаар. Сервер ТӨЛСӨН эрх (all/grade) баталбал л нээнэ — сүлжээний алдаа, «trial» хариу ирвэл түгжээтэй хэвээр.
+     • localStorage-д туршилтыг ЭРХ болгож хадгалахгүй: cm_ws_trial_end нь зөвхөн нэмэлт ТҮГЖЭЭ (сүлжээний алдаа үед
+       дууссан туршилтыг fail-open-оор нээхгүй). Хэзээ ч нээдэггүй. */
+  var TR={on:false,soft:false,done:false,dDate:0,dPerf:0,iv:null,to:null,secs:0,last:'',low:null};
+  var TR_KEY='cm_ws_trial_end';
+  var TR_ICO='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2"/><path d="M9.5 2.5h5"/></svg>';
+  function trPerf(){ try{ var p=window.performance; if(p&&typeof p.now==='function')return p.now(); }catch(e){} return Date.now(); }
+  function trDur(s){ s=Math.max(0,Math.round(Number(s)||0)); return (s&&s%60===0)?(s/60)+' минут':s+' секунд'; }
+  function trFmt(ms){ var s=Math.max(0,Math.ceil(ms/1000)); return Math.floor(s/60)+':'+('0'+(s%60)).slice(-2); }
+  function trLeft(){ return Math.min(TR.dDate-Date.now(), TR.dPerf-trPerf()); }
+  // Түгжээний цонхны баннер: дууссан эсвэл (энэ төхөөрөмж/дугаарт) өмнө нь ашиглагдсан
+  function trEndHtml(tr){
+    var den=tr&&tr.denied, secs=(tr&&Number(tr.seconds))||TR.secs||300;
+    var head=den==='phone'?'Энэ утасны дугаарт үнэгүй туршилт өмнө нь ашиглагдсан.'
+      :den==='dev'?'Энэ төхөөрөмж дээр үнэгүй туршилт өмнө нь ашиглагдсан.'
+      :den==='ip'?'Энэ сүлжээнээс өнөөдөр үнэгүй туршилт хэт олон удаа авсан.'
+      :'Үнэгүй '+trDur(secs)+' дууслаа.';
+    return '<div id="wsTrialEnd" role="status" style="display:flex;align-items:flex-start;gap:8px;text-align:left;background:transparent;border-left:3px solid #ec4899;border-radius:8px;padding:8px 10px;margin:6px 0 10px;font-size:.85rem;color:#3a2d5e;line-height:1.45">'
+      +'<span style="flex:none;color:#ec4899;margin-top:1px">'+TR_ICO+'</span>'
+      +'<span><b>'+head+'</b> Үргэлжлүүлэхийн тулд доорх багцаас сонгоно уу.</span></div>';
+  }
+  function trCss(){
+    if(document.getElementById('cm-trial-css'))return;
+    var st=document.createElement('style'); st.id='cm-trial-css';
+    st.textContent='#cmTrialBar{position:fixed;top:0;left:0;right:0;z-index:9998;box-sizing:border-box;min-height:36px;padding:env(safe-area-inset-top,0px) 10px 0;'
+      +'display:flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;overflow:hidden;'
+      +"font:800 .84rem/1.2 'Segoe UI',Arial,sans-serif;color:#fff;background:linear-gradient(135deg,#7B52EE,#A855F7);box-shadow:0 6px 16px -10px rgba(60,20,140,.75)}"
+      +'#cmTrialBar svg{display:block}'
+      +'#cmTrialBar b{font-variant-numeric:tabular-nums;font-weight:900;font-size:.95rem;letter-spacing:.3px}'
+      +'#cmTrialBar.low{background:linear-gradient(135deg,#be123c,#e11d48)}'
+      +'#cmTrialSpacer{height:calc(36px + env(safe-area-inset-top,0px))}'
+      +'@media print{#cmTrialBar,#cmTrialSpacer{display:none!important}}';
+    document.head.appendChild(st);
+  }
+  function trBar(){
+    var b=document.getElementById('cmTrialBar'); if(b)return b;
+    trCss();
+    var bd=document.body; if(!bd)return null;
+    var sp=document.createElement('div'); sp.id='cmTrialSpacer';
+    if(bd.insertBefore&&bd.firstChild)bd.insertBefore(sp,bd.firstChild); else bd.appendChild(sp);
+    b=document.createElement('div'); b.id='cmTrialBar';
+    b.setAttribute('role','timer'); b.setAttribute('aria-label','Үнэгүй туршилтын үлдсэн хугацаа');
+    b.innerHTML=TR_ICO+'<span>Үнэгүй туршилт</span><span aria-hidden="true">·</span><b id="cmTrialT">'+trFmt(trLeft())+'</b>';
+    bd.appendChild(b);
+    try{document.documentElement.classList.add('cm-trial');}catch(e){}
+    return b;
+  }
+  function trUnbar(){
+    ['cmTrialBar','cmTrialSpacer'].forEach(function(id){ var el=document.getElementById(id); if(el&&el.parentNode)el.parentNode.removeChild(el); });
+    try{document.documentElement.classList.remove('cm-trial');}catch(e){}
+  }
+  function trClear(){ if(TR.to){clearTimeout(TR.to);TR.to=null;} if(TR.iv){clearInterval(TR.iv);TR.iv=null;} }
+  // Нэмэлт түгжээний тэмдэглэл (зөвхөн түгжинэ): {e: имэйл, ms: дуусах мөч (энэ хөтчийн цагаар), s: секунд}
+  function trCacheGet(){ try{ var c=JSON.parse(ls(TR_KEY)||'null'), e=tokEmail(ls('cm_ws_token')); return (c&&e&&c.e===e&&typeof c.ms==='number')?c:null; }catch(x){ return null; } }
+  function trCacheSet(ms,secs){
+    var e=tokEmail(ls('cm_ws_token')); if(!e||!isFinite(ms))return;
+    var c=trCacheGet(); if(c&&c.ms<=ms)return;                       // эрт дуусах мөчийг л хадгална
+    lset(TR_KEY,JSON.stringify({e:e,ms:Math.round(ms),s:Number(secs)||0}));
+  }
+  function trCacheClear(){ try{localStorage.removeItem(TR_KEY);}catch(e){} }
+  // checkAccess сүлжээний алдаа: дууссан туршилт → түгжээтэй (false); үргэлжилж буй бол тэмдэглэлээр тоолуураа үргэлжлүүлнэ
+  function trOffline(){
+    var c=trCacheGet(); if(!c)return true;
+    if(Date.now()>=c.ms){
+      try{ if(typeof window.__wsLockApply==='function')window.__wsLockApply({trial:{active:false,seconds:c.s}}); }catch(e){}
+      return false;
+    }
+    if(!TR.on&&!TR.done){ try{ trArmLeft(c.ms-Date.now(),c.s); }catch(e){} }
+    return true;
+  }
+  function trArmLeft(left,secs){
+    var t1=Date.now(), p1=trPerf(), dD=t1+left, dP=p1+left;
+    if(TR.on){ dD=Math.min(dD,TR.dDate); dP=Math.min(dP,TR.dPerf); }   // дахин ирсэн хариу хугацааг СУНГАХГҮЙ
+    TR.dDate=dD; TR.dPerf=dP; TR.on=true; if(secs)TR.secs=secs;
+    trCacheSet(dD,TR.secs);
+    trBar();
+    trClear();
+    TR.to=setTimeout(trCheck,Math.max(0,Math.min(dD-t1,dP-p1))+15);
+    TR.iv=setInterval(trCheck,250);
+    trCheck();
+  }
+  function trArm(tr,t0,p0){
+    var until=Date.parse(tr.until), sn=Number(tr.server_now);
+    if(!isFinite(until)||!isFinite(sn))return;
+    var rtt=trPerf()-p0; if(!isFinite(rtt)||rtt<0)rtt=Math.max(0,Date.now()-t0);
+    trArmLeft(until-sn-rtt/2,Number(tr.seconds)||0);                // серверийн цагаар үлдсэн хугацаа
+  }
+  function trCheck(){
+    if(!TR.on||TR.done)return;
+    var left=trLeft();
+    if(!(left>0)){ trExpire(); return; }
+    var txt=trFmt(left);
+    if(txt!==TR.last){ TR.last=txt; var t=document.getElementById('cmTrialT'); if(t)t.textContent=txt; }
+    var low=left<=60000;
+    if(low!==TR.low){ TR.low=low; var b=document.getElementById('cmTrialBar'); if(b){ if(low)b.classList.add('low'); else b.classList.remove('low'); } }
+    if(left<260){ if(TR.to)clearTimeout(TR.to); TR.to=setTimeout(trCheck,left+5); }   // яг deadline дээр
+  }
+  function trStop(){ trClear(); TR.on=false; TR.done=false; TR.last=''; TR.low=null; trUnbar(); }
+  function trExpire(){
+    if(TR.done)return;
+    TR.done=true; TR.on=false; trClear(); trUnbar();
+    trCacheSet(Date.now(),TR.secs);
+    // Ангиар хэвлэх цонх/бэлдсэн багц, фокустай товч — бүгдийг хаана
+    try{ ['cm-batchModal','cm-batch'].forEach(function(id){ var el=document.getElementById(id); if(el&&el.parentNode)el.parentNode.removeChild(el); }); }catch(e){}
+    try{ var ae=document.activeElement; if(ae&&ae!==document.body&&typeof ae.blur==='function')ae.blur(); }catch(e){}
+    if(WS_ST){ WS_ST.active=false; WS_ST.scope=null; if(WS_ST.trial)WS_ST.trial.active=false; }
+    showLock(TR.soft?{soft:true,why:'trial'}:{why:'trial'});
+    // Сервер баталгаажуулна: ЗӨВХӨН төлсөн эрх (all/grade) ирвэл нээнэ. fail-open boolean-д итгэхгүй.
+    checkAccess().then(function(){ var d=WS_ST; if(d&&d.active&&d.scope&&d.scope!=='trial')unlockWs(); });
+  }
+  // checkAccess бүрд (C2): серверийн хариугаар тоолуурыг эхлүүлэх / зогсоох / дуусгах
+  function trSync(d,t0,p0){
+    try{
+      if(!d||d.enabled===false)return;
+      if(d.active&&d.scope&&d.scope!=='trial'){ trCacheClear(); if(TR.on)trStop(); return; }   // төлсөн эрх
+      if(!d.active&&d.trial&&!d.trial.active)trCacheSet(Date.now(),d.trial.seconds);
+      if(TR.done)return;
+      if(d.active&&d.scope==='trial'&&d.trial){ trArm(d.trial,t0,p0); return; }
+      if(TR.on&&!d.active)trExpire();
+    }catch(e){}
+  }
+  function trWake(){ if(TR.on&&!TR.done)trCheck(); }
+  try{
+    document.addEventListener('visibilitychange',trWake);
+    window.addEventListener('focus',trWake);
+    window.addEventListener('pageshow',trWake);
+    window.addEventListener('beforeprint',trWake);                  // хэвлэхийн өмнө дууссан бол түгжээд хоосон хэвлэнэ
+  }catch(e){}
+  /* ═══ /TRIAL ═══ */
 
   // ─── CyberMath усан тэмдэг (тамга) + сурталчилгааны линк — хэвлэсэн хуудсанд ч гарна ───
   var WS_PROMO='cyber-math.com/dasgal';

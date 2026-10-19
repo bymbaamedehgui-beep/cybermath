@@ -8,6 +8,8 @@ const { rateLimit, clientIp } = require('./_guard');
 const sms = require('./_sms');
 const tg = require('./_telegram');
 const WDEV = require('./_wsdev');
+// Шинэ дансны 5 минутын үнэгүй туршилт (серверийн цаг) — анхны амжилттай нэвтрэлтэд эхэлнэ
+const WT = require('./_wstrial');
 const JWT_SECRET = process.env.JWT_SECRET || 'cybermath-default-secret-change-in-prod';
 
 // Дасгалын төвийн нэвтрэлт — имэйл + нууц үг + баталгаажуулах код (тусдаа ws_login)
@@ -16,7 +18,14 @@ function wsSign(email, dev) {
   if (dev) p.dev = dev;
   return jwt.sign(p, JWT_SECRET, { expiresIn: '400d' });
 }
-/* Нэвтрэлт амжилттай болмогц төхөөрөмжийг бүртгэнэ. Хязгаар дүүрсэн бол 403.
+/* Үнэгүй туршилт (api/_wstrial.js): шинэ дансны АНХНЫ нэвтрэлтэд эхэлнэ, дараагийн нэвтрэлтэд тэр хэвээр (сунгахгүй).
+   Туршилтын алдаа нэвтрэлтийг ХЭЗЭЭ Ч зогсоохгүй. Туршилтгүй бол trial түлхүүр огт нэмэгдэхгүй. */
+async function wsTrialExtra(req, email) {
+  let tr = null;
+  try { tr = await WT.start(email, req); } catch (e) { console.error('[wstrial start]', e.message); }
+  return tr ? { trial: tr } : {};
+}
+/* Нэвтрэлт амжилттай болмогц төхөөрөмжийг бүртгэнэ. Хязгаар дүүрсэн бол 403 (туршилт эхлэхгүй).
    Токен дотор dev явна — хуудас нээх бүрд (qpay wsstatus) дахин шалгагдана. */
 async function wsIssue(req, res, email, extra) {
   const dev = WDEV.deviceIdFrom(req);
@@ -26,7 +35,7 @@ async function wsIssue(req, res, email, extra) {
   if (!chk.ok) {
     /* Дугаар ирээгүй (хуучин кэштэй хөтөч) — нэвтрэлтийг зогсоохгүй. Байр эзлэхгүй
        ч wsstatus дээр токеноос гарсан түлхүүрээр ЗААВАЛ шалгагдана. */
-    if (chk.error === 'NO_DEVICE') return res.json(Object.assign({ ok: true, token: wsSign(email), email: email }, extra || {}));
+    if (chk.error === 'NO_DEVICE') return res.json(Object.assign({ ok: true, token: wsSign(email), email: email }, extra || {}, await wsTrialExtra(req, email)));
     return res.status(403).json({
       ok: false, deviceLimit: true, max: chk.max,
       error: 'Энэ бүртгэл аль хэдийн ' + chk.max + ' төхөөрөмж дээр нэвтэрсэн байна. Шинэ төхөөрөмж нэмэхийн тулд хуучнаас нь нэгийг салгана уу.',
@@ -35,7 +44,7 @@ async function wsIssue(req, res, email, extra) {
       }),
     });
   }
-  return res.json(Object.assign({ ok: true, token: wsSign(email, dev), email: email }, extra || {}));
+  return res.json(Object.assign({ ok: true, token: wsSign(email, dev), email: email }, extra || {}, await wsTrialExtra(req, email)));
 }
 // env WS_TOKEN_IAT_MIN (epoch сек) тавьсан бол түүнээс өмнө олгосон ws токеныг хүчингүй гэж үзнэ (тавиагүй бол нөлөөгүй)
 function wsIatOk(d) {
