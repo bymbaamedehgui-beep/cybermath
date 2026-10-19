@@ -447,7 +447,12 @@ test('GW: худалдан авах → QPay QR → poll (paid:false → амж�
   assert.match(P.q('gpBuy', '.gp-price').textContent, /^1 900₮/);
   const go = P.q('gpBuy', '[data-gp-go]');
   // анги ЗААВАЛ: сонгоогүй үед QPay товч идэвхгүй, дарсан ч нэхэмжлэх үүсэхгүй
-  assert.strictEqual(P.doc.querySelectorAll('#gpBuy [data-gr]').length, 7, '6–12-р анги');
+  assert.strictEqual(P.doc.querySelectorAll('#gpBuy [data-gr]').length, 6, '6–10, 12-р анги (сонгох боломжтой)');
+  // 11-р анги «Тун удахгүй»: харагдана, идэвхгүй, сонгогдохгүй
+  const s11 = P.q('gpBuy', '[data-gr-soon="11"]');
+  assert.ok(s11 && s11.disabled, '11-р анги идэвхгүй');
+  assert.match(s11.getAttribute('title'), /Тун удахгүй/);
+  assert.match(P.q('gpBuy', '[data-gp-soon]').textContent, /11-р анги — Тун удахгүй/);
   assert.strictEqual(go.disabled, true, 'анги сонгоогүй → идэвхгүй');
   go.onclick();
   await ticks();
@@ -734,13 +739,14 @@ test('GW: overlay — gate түгжээ (locked) → нэг удаа шинэ т
   // хариу ирэхгүй бол (хуучин index.html) шинэ embed url-ээр дахин ачаална
   g2.querySelectorAll('[data-gm-tool]').filter((b) => /Анги\/сэдэв/.test(b.getAttribute('title')))[0].onclick();
   await ticks();
-  await P.grade('gpSel', '11');
-  assert.strictEqual(P.q('gpSel', '[data-gp-topic]').hidden, true, '11-р анги — зөвхөн «Бүх сэдэв»');
-  assert.match(P.q('gpSel', '[data-gp-hint]').textContent, /11-р ангид одоогоор бүх сэдвээс/);
+  // «Анги/сэдэв» солих цонхонд ч 11-р анги идэвхгүй (data-gr биш — дарахад сонгогдохгүй)
+  assert.strictEqual(P.q('gpSel', '[data-gr="11"]'), null);
+  assert.ok(P.q('gpSel', '[data-gr-soon="11"]').disabled);
+  await P.grade('gpSel', '12');
   P.q('gpSel', '[data-gp-ok]').onclick();
   await ticks();
   P.T.flush();
-  assert.strictEqual(f2.src, '/?embed=chessmath&realm=ws&grade=11&topic=0');
+  assert.strictEqual(f2.src, '/?embed=chessmath&realm=ws&grade=12&topic=0');
   // embed-ээс «Худалдан авах» → overlay хаагаад худалдан авах
   P.W._ls.message.forEach((f) => f({ source: g2.querySelector('iframe').contentWindow, origin: ORIGIN, data: { type: 'cm-embed-buy', game: 'chessmath' } }));
   assert.strictEqual(P.$('gameM'), null);
@@ -753,8 +759,8 @@ test('GW: overlay — gate түгжээ (locked) → нэг удаа шинэ т
   const iv = P.last('invite');
   assert.strictEqual(iv.status, 200);
   const inp = P.q('gpInv', '.gp-link input');
-  assert.strictEqual(inp.value, ORIGIN + iv.res.url + '&grade=11&topic=0', 'host-ийн одоогийн анги/сэдэв урилгад');
-  assert.match(inp.value, /^https:\/\/cyber-math\.com\/worksheets\?game=chessmath&ginv=[^&]+&grade=11&topic=0$/);
+  assert.strictEqual(inp.value, ORIGIN + iv.res.url + '&grade=12&topic=0', 'host-ийн одоогийн анги/сэдэв урилгад');
+  assert.match(inp.value, /^https:\/\/cyber-math\.com\/worksheets\?game=chessmath&ginv=[^&]+&grade=12&topic=0$/);
   assert.match(P.q('gpInv', '.gp-note').textContent, /3 цаг/);
   // эрхгүй тоглоомд урилга → худалдан авах санал
   P.$('gpInv')._close();
@@ -883,7 +889,9 @@ test('анги/сэдэв: Мянгат/500 XP — бодлогыг /api/questio
   assert.ok(post, 'бодлого илгээсэн');
   assert.strictEqual(post[1], ORIGIN);
   assert.strictEqual(post[0].questions.length, 15);
-  const diff = post[0].questions.map((q) => Number(q.text.slice(1)) % 3).map((i) => D[i]);
+  // сэдвийн 3 бодлого (T1–T3, hard) үлдэж, ангийн сангаас НӨХӨГДСӨН
+  assert.strictEqual(post[0].questions.filter((q) => /^T/.test(q.text)).map((q) => q.text).sort().join(','), 'T1,T2,T3', 'сэдвийнх хадгалагдана');
+  const diff = post[0].questions.map((q) => (/^T/.test(q.text) ? 'hard' : D[Number(q.text.slice(1)) % 3]));
   assert.deepStrictEqual(diff, diff.slice().sort((a, b) => ['easy', 'medium', 'hard'].indexOf(a) - ['easy', 'medium', 'hard'].indexOf(b)), 'хялбараас хүнд рүү');
   assert.strictEqual(post[0].questions[0].options.length, 4);
   P.$('gameM').querySelector('[data-gm="close"]').onclick();
@@ -907,6 +915,27 @@ test('worksheets.html: анги/сэдвийн сонгогчийн CSS утса
   const chip = between(WSH, '/* Анги/сэдвийн чип (картан дээр)', '.gmore{');
   assert.match(chip, /\.gsel span\{[^}]*text-overflow:ellipsis/);
   [css, chip].forEach((s) => assert.doesNotMatch(s, /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/u));
+});
+
+test('анги: шинэ төхөөрөмжид худалдан авахад дансны серверийн сүүлийн анги (status.lastGrade) урьдчилан; хадгалсан 11 («Тун удахгүй») → анги дахин асууна', async () => {
+  F.db.access.set('ws|srv@x.mn|ludo', { realm: 'ws', email: 'srv@x.mn', game_key: 'ludo', expires_at: new Date(Date.now() + 20 * F.DAY), updated_at: new Date(), grade: '10' });
+  F.db.access.set('ws|srv@x.mn|gomoku', { realm: 'ws', email: 'srv@x.mn', game_key: 'gomoku', expires_at: new Date(Date.now() + 5 * F.DAY), updated_at: new Date(), grade: null });
+  const P = page({ ls: Object.assign({ cm_ws_token: wsTok('srv@x.mn') }, selLs({ 'srv@x.mn|gomoku': { g: '11', t: '0', n: '', at: 9 } })), gw: true });
+  await ticks();
+  // шинэ тоглоом (sudoku) — localStorage-д анги алга (11 тооцохгүй) → серверийн lastGrade = 10
+  P.btn('sudoku', 'buy').click();
+  assert.ok(P.$('gpBuy'));
+  assert.strictEqual(P.q('gpBuy', '[data-gr="10"]').getAttribute('aria-checked'), 'true', 'серверийн сүүлийн анги урьдчилан');
+  assert.strictEqual(P.q('gpBuy', '[data-gp-go]').disabled, false);
+  P.$('gpBuy')._close();
+  // хадгалсан 11 → сонголт хүчингүй: чип «Анги сонгоогүй», «Тоглох» → сонгогч (11 биш, 10 урьдчилан)
+  assert.match(P.card('gomoku').querySelector('.gsel').textContent, /Анги сонгоогүй/);
+  P.btn('gomoku', 'play').click();
+  assert.ok(P.$('gpSel'), 'анги дахин асууна');
+  assert.strictEqual(P.last('launch'), undefined);
+  assert.strictEqual(P.q('gpSel', '[data-gr="10"]').getAttribute('aria-checked'), 'true');
+  assert.ok(P.q('gpSel', '[data-gr-soon="11"]').disabled);
+  P.$('gpSel')._close();
 });
 
 test('сүлжээ 0, тодорхойгүй SQL алга', () => {

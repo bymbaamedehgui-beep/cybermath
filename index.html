@@ -3553,8 +3553,10 @@ window.addEventListener('load', function() {
   // Үнэ/эрхэд нөлөөгүй — зөвхөн бодлогын санг сонгоно: window.qApiUrl → /api/questions?game=<анги>&topic=<сэдэв>&n=60.
   // Parent-аас {type:'cm-embed-config', grade, topic} ирвэл (ижил домэйн) сонголтыг сольж бодлогын санг шинэчилнэ.
   // cyber-math.com-той хуваалцдаг localStorage-д (cm_game_nodes) БИЧИХГҮЙ.
-  var GRADE_RE = /^(6|7|8|9|10|11|12)$/;
-  var MIN_Q = { sbh: 20 };   // сэдвээс ирсэн бодлого үүнээс цөөн бол ангийн бүх сэдвээс (topic=0) дахин татна
+  // 11-р анги «Тун удахгүй» — embed-д сонголт болохгүй (хуучин зан төлөв; сервер ?game=11 → 400)
+  var GRADE_RE = /^(6|7|8|9|10|12)$/;
+  // Сэдвээс ирсэн бодлого үүнээс цөөн бол ангийн бүх сэдвээс (topic=0) НӨХНӨ (games-host.js MIN_DEF / MIN.sbh-тэй ижил)
+  var MIN_Q = { sbh: 20 }, MIN_Q_DEF = 8;
   function selOf(g, t) {
     g = g == null ? '' : String(g);
     if (!GRADE_RE.test(g)) return null;
@@ -3677,7 +3679,7 @@ window.addEventListener('load', function() {
   // Нэг зэрэг ирсэн ижил хүсэлт (cmResetPools бүх inline тоглоомын санг зэрэг шинэчилдэг) нэг л удаа сүлжээнд гарна.
   var pend = {};
   function gameFetch(f0, url, opts) {
-    var min = MIN_Q[key] || 1;
+    var min = MIN_Q[key] || MIN_Q_DEF;
     var mg = /[?&]game=(\d+)/.exec(url), mt = /[?&]topic=(\d+)/.exec(url);
     var topic = mt ? mt[1] : '0';
     function rd(u) {
@@ -3689,9 +3691,17 @@ window.addEventListener('load', function() {
     function qs(x) { return x.s === 200 && x.d && Array.isArray(x.d.questions) ? x.d.questions : []; }
     if (!pend[url]) {
       pend[url] = rd(url).then(function (x) {
-        if (qs(x).length >= min || topic === '0') return x;
-        if (mg) thin[mg[1] + '|' + topic] = true;
-        return rd(url.replace(/([?&]topic=)\d+/, '$10'));
+        var own = qs(x);
+        if (own.length >= min || topic === '0') return x;
+        // Сэдэвт огт алга (400 / хоосон) → цаашид шууд topic=0. Цөөн бол сэдвийнхийг эхэнд үлдээж ангийн сангаас нөхнө.
+        if (mg && !own.length) thin[mg[1] + '|' + topic] = true;
+        return rd(url.replace(/([?&]topic=)\d+/, '$10')).then(function (y) {
+          if (!own.length) return y;
+          var seen = {}, all = own.slice();
+          own.forEach(function (q) { if (q && q.id != null) seen[String(q.id)] = 1; });
+          qs(y).forEach(function (q) { if (q && !(q.id != null && seen[String(q.id)])) all.push(q); });
+          return { s: 200, d: { ok: true, grade: x.d.grade, topic: x.d.topic, fill: 'grade', questions: all } };
+        }, function () { return x; });
       }).then(function (x) {
         delete pend[url];
         offline(!qs(x).length);
@@ -4644,6 +4654,14 @@ window.qApiUrl = function(suffix) {
   var mg = window.getUserMaxGrade();
   var base = '/api/questions';
   var ids = window.gameNodeIds || [];
+  // «Тун удахгүй» (11-р анги) хичээлийг өмнө нь сонгосон байсан бол хасна
+  if (ids.length) {
+    try {
+      var soon = {};
+      (JSON.parse(localStorage.getItem('cm_nodes') || '[]') || []).forEach(function(x){ if (x && String(x.grade) === '11') soon[x.id] = 1; });
+      ids = ids.filter(function(id){ return !soon[id]; });
+    } catch (e) {}
+  }
   var extra = '&max_grade=' + mg + (ids.length ? '&node_id=' + ids.join(',') : '');
   if (!suffix) return base + '?' + extra.slice(1);
   if (suffix.charAt(0) === '?') return base + suffix + extra;
@@ -4673,6 +4691,8 @@ window.gameLessonPickerHtml = function() {
   });
   grades.sort(function(a, b){ return (parseInt(a) || 99) - (parseInt(b) || 99); });
   var gOpts = '<option value="">— Анги —</option>' + grades.map(function(g){
+    // 11-р анги «Тун удахгүй» — харагдана, сонгогдохгүй
+    if (CM_SOON_GRADES[g]) return '<option value="' + g + '" disabled>' + g + '-р анги — Тун удахгүй</option>';
     return '<option value="' + g + '">' + (/^[0-9]+$/.test(g) ? g + '-р анги' : g) + '</option>';
   }).join('');
 
@@ -4690,14 +4710,46 @@ window.gameLessonPickerHtml = function() {
     + '<div class="game-lesson-list" style="display:none;max-height:168px;overflow-y:auto;margin-top:8px;border-top:1px solid rgba(255,255,255,0.1);padding-top:7px;"></div>'
     + '</div>';
 };
+/* Тоглоомд ТОХИРОХ бодлогын тоо (сэдэв бүрээр) — /api/questions?game_topics=<анги> (6–10, 12; анги тус бүрд нэг удаа).
+   Сонгогч зөвхөн тоглоомын доод хэмжээнээс (CM_PICK_MIN — games-host.js MIN-тэй ижил) олон бодлоготой сэдвийг харуулна —
+   эс бөгөөс бодлогогүй сэдэв сонгогдож тоглоом арифметик жишиг бодлогоор явдаг байв (9-р ангийн хоосон сэдвүүд). */
+var CM_SOON_GRADES = { '11': 1 };
+var CM_PICK_MIN = { 'sbh-area': 20, 'xpdrop-area': 10, 'flagbattle-area': 10, 'songon-area': 10, 'nicebattle-area': 10 };
+var CM_PICK_MIN_DEF = 8;
+var _cmGameTopicN = {};
+window.cmGameTopicCounts = function(g) {
+  g = String(g == null ? '' : g);
+  if (!/^(6|7|8|9|10|12)$/.test(g)) return Promise.resolve(null);   // 1–5-р анги: тоглоомын сан биш — шүүхгүй
+  if (_cmGameTopicN[g]) return _cmGameTopicN[g];
+  _cmGameTopicN[g] = fetch('/api/questions?game_topics=' + g).then(function(r){ return r.json(); }).then(function(d){
+    if (!d || d.ok !== true || !Array.isArray(d.chapters)) throw new Error('topics');
+    var m = {};
+    d.chapters.forEach(function(ch){ ((ch && ch.topics) || []).forEach(function(t){ if (t && t.id != null) m[String(t.id)] = Number(t.n) || 0; }); });
+    return m;
+  }).catch(function(){ _cmGameTopicN[g] = null; return null; });   // алдаа → шүүлтгүй (хуучнаараа), дараа дахин оролдоно
+  return _cmGameTopicN[g];
+};
+function cmPickMin(box) {
+  for (var el = box; el; el = el.parentNode) { if (el.id && CM_PICK_MIN[el.id]) return CM_PICK_MIN[el.id]; }
+  return CM_PICK_MIN_DEF;
+}
 /* Анги сонгоход тэр ангийн хичээлүүдийг чекбоксоор гаргана */
 window.cmPickerGrade = function(sel) {
   var box = sel.closest('.game-lesson-box');
   if (!box) return;
   var list = box.querySelector('.game-lesson-list');
   var g = sel.value;
-  if (!g) { list.style.display = 'none'; list.innerHTML = ''; return; }
+  if (!g || CM_SOON_GRADES[g]) { list.style.display = 'none'; list.innerHTML = ''; return; }
   var nodes = window.cmGameNodes().filter(function(x){ return String(x.grade || '—') === g; });
+  list.innerHTML = '<div style="font-size:0.76rem;color:#888;padding:6px 3px;">Хичээл ачаалж байна…</div>';
+  list.style.display = 'block';
+  var min = cmPickMin(box);
+  window.cmGameTopicCounts(g).then(function(cnt){
+    if (sel.value !== g) return;   // хариу ирэх хооронд анги солигдсон
+    cmPickerList(list, cnt ? nodes.filter(function(x){ return (cnt[String(x.id)] || 0) >= min; }) : nodes);
+  });
+};
+function cmPickerList(list, nodes) {
   list.innerHTML = nodes.map(function(x){
     var nm = String(x.name).replace(/</g, '&lt;').replace(/>/g, '&gt;');
     var on = window.gameNodeIds.indexOf(x.id) >= 0;
@@ -4705,7 +4757,7 @@ window.cmPickerGrade = function(sel) {
       + '<input type="checkbox" data-node="' + x.id + '"' + (on ? ' checked' : '') + ' onchange="toggleGameNode(' + x.id + ', this.checked)" '
       + 'style="width:16px;height:16px;flex-shrink:0;accent-color:#7B52EE;cursor:pointer;">'
       + '<span style="flex:1;min-width:0;">' + nm + '</span></label>';
-  }).join('') || '<div style="font-size:0.76rem;color:#888;padding:6px 3px;">Хичээл олдсонгүй</div>';
+  }).join('') || '<div style="font-size:0.76rem;color:#888;padding:6px 3px;">Энэ ангид тоглоомд тохирох бодлоготой хичээл одоогоор алга</div>';
   list.style.display = 'block';
 };
 /* Сонгогчийн төлөвийг (тоо, чекбокс) шинэчилнэ */

@@ -46,7 +46,17 @@ const RX = {
   nodes: /^SELECT n\.id, n\.name FROM nodes n WHERE n\.grade = \$1 ORDER BY COALESCE\(NULLIF\(n\.sort_order, 0\), n\.id\), n\.id$/,
   game: /^SELECT q\.id, q\.node_id, n\.name AS topic_name, q\.text, q\.choices, q\.correct, q\.hint, q\.difficulty, q\.variant_key, q\.type, q\.image, q\.is_exam FROM questions q JOIN nodes n ON n\.id = q\.node_id WHERE n\.grade = \$1 AND q\.node_id = ANY\(\$2::int\[\]\) AND (.+) ORDER BY random\(\) LIMIT \$3$/,
   arenaBase: "FROM questions q JOIN nodes n ON n.id = q.node_id WHERE n.grade = $1 AND (q.is_exam = false OR q.is_exam IS NULL) AND (q.image IS NULL OR q.image = '') AND q.choices IS NOT NULL AND array_length(q.choices, 1) = 4",
+  hudTopics: /^SELECT q\.node_id, q\.text, q\.choices, q\.correct, q\.type, q\.image, q\.is_exam FROM questions q JOIN nodes n ON n\.id = q\.node_id WHERE n\.grade = \$1 AND (.+)$/,
+  legacyFill: /^SELECT q\.\* FROM questions q WHERE q\.node_id IN \(SELECT n2\.id FROM nodes n2 WHERE n2\.grade IN \(SELECT n1\.grade FROM nodes n1 WHERE n1\.id = ANY\(\$1::int\[\]\)\)\) AND NOT \(q\.node_id = ANY\(\$1::int\[\]\)\) AND .+ AND \(SELECT CASE .+ <= \$4 .+\) ORDER BY random\(\) LIMIT (\d+)$/,
 };
+// legacyMaxGradeSql-ийн PG утга: анги = COALESCE(NULLIF(btrim(q.grade),''), nodes.grade); хоосон → бүх ангид, тоо → <= mg, бусад → үгүй
+function emuLegacyGrade(q, mg) {
+  const own = q.grade == null ? '' : String(q.grade).trim();
+  const n = nodeById(q.node_id);
+  const v = own !== '' ? own : (n ? n.grade : null);
+  if (v == null || String(v).trim() === '') return true;
+  return /^[0-9]+$/.test(String(v).trim()) ? parseInt(v, 10) <= mg : false;
+}
 function out(q, extra) {
   const n = nodeById(q.node_id);
   return Object.assign({ id: String(q.id), node_id: q.node_id, text: q.text, choices: q.choices, correct: q.correct, hint: q.hint,
@@ -84,6 +94,32 @@ const pool = {
         rows = shuffled(rows).sort((a, b) => (a.difficulty === 'easy' ? 0 : 1) - (b.difficulty === 'easy' ? 0 : 1));
         return { rows: rows.slice(0, p[1]).map(q => ({ id: String(q.id), text: q.text, choices: q.choices, correct: q.correct, difficulty: q.difficulty })) };
       }
+    }
+    // ?game_topics=&hud=1 — ангийн бүх тохирох мөр (arenaFits-ийг JS-д тоолно)
+    if ((m = RX.hudTopics.exec(s))) {
+      const g = p[0], T = p[1], R = p[2];
+      return { rows: db.qs.filter(q => { const n = nodeById(q.node_id); return n && n.grade === g && emuFit(q, T, R); })
+        .map(q => ({ node_id: q.node_id, text: q.text, choices: q.choices, correct: q.correct, type: q.type, image: q.image, is_exam: q.is_exam })) };
+    }
+    // хуучин зам (cyber-math.com qApiUrl): SELECT * FROM questions WHERE <exam> AND <max_grade> [AND node_id…] ORDER BY id ASC
+    if (/^SELECT \* FROM questions WHERE /.test(s) && / ORDER BY id ASC$/.test(s)) {
+      let rows = db.qs.slice();
+      if (s.indexOf('(is_exam = false OR is_exam IS NULL)') >= 0) rows = rows.filter(q => q.is_exam === false || q.is_exam == null);
+      const mg = /CAST\(btrim\(gx\.v\) AS INT\) <= \$(\d+)/.exec(s);
+      const coal = s.indexOf("COALESCE(NULLIF(btrim(questions.grade), ''), (SELECT nn.grade FROM nodes nn WHERE nn.id = questions.node_id))") >= 0;
+      if (mg && coal) rows = rows.filter(q => emuLegacyGrade(q, p[Number(mg[1]) - 1]));
+      else if (/max_grade|<= \$/.test(s)) { db.unknown.push(s); throw new Error('mock: хуучин max_grade нөхцөл'); }
+      const one = /node_id=\$(\d+)/.exec(s), many = /node_id = ANY\(\$(\d+)::int\[\]\)/.exec(s);
+      if (one) rows = rows.filter(q => q.node_id === p[Number(one[1]) - 1]);
+      if (many) rows = rows.filter(q => p[Number(many[1]) - 1].indexOf(q.node_id) >= 0);
+      return { rows: rows.sort((a, b) => a.id - b.id).map(q => out(q)) };
+    }
+    // хуучин замын нөхөлт: сонгосон хичээлийн АНГИЙН (nodes.grade) бусад сэдвээс, тоглоомд тохирох, max_grade
+    if ((m = RX.legacyFill.exec(s))) {
+      const ids = p[0], T = p[1], R = p[2], mgv = p[3];
+      const grades = ids.map(nodeById).filter(Boolean).map(n => n.grade);
+      const rows = db.qs.filter(q => { const n = nodeById(q.node_id); return n && grades.indexOf(n.grade) >= 0 && ids.indexOf(q.node_id) < 0 && emuFit(q, T, R) && emuLegacyGrade(q, mgv); });
+      return { rows: shuffled(rows).slice(0, Number(m[1])).map(q => out(q)) };
     }
     db.unknown.push(s);
     throw new Error('mock: танихгүй SQL: ' + s.slice(0, 120));
@@ -212,8 +248,13 @@ test('game_topics: хавтгай анги (бататгалгүй) → нэг �
   assert.strictEqual(r.statusCode, 200);
   assert.deepStrictEqual(r.body.chapters, [{ name: '', topics: [{ id: 1, name: 'Рационал тоо', n: 7 }, { id: 40, name: 'Квадрат тэгшитгэл', n: 2 }] }]);
   assert.strictEqual(r.body.total, 9);
-  const e = await get({ game_topics: '11' });
+  const e = await get({ game_topics: '10' });
   assert.deepStrictEqual([e.statusCode, e.body.total, e.body.chapters], [200, 0, []]);
+  // 11-р анги «Тун удахгүй» → 400 {soon}, SQL ажиллахгүй
+  const n0 = db.log.length;
+  const s = await get({ game_topics: '11' });
+  assert.deepStrictEqual([s.statusCode, s.body.ok, s.body.soon], [400, false, true]);
+  assert.strictEqual(db.log.length, n0);
 });
 
 test('game_topics: SQL нөхцөл — choice, шалгалтын биш, зураггүй, 4 ялгаатай, зөв хариу дотор, HTML/$ шалгалт', async () => {
@@ -385,9 +426,16 @@ test('game: сонголтыг холино (зөв хариу хадгалаг�
 test('game: тохирох бодлогогүй сэдэв → 200, хоосон', async () => {
   const r = await get({ game: '8', topic: '505' });
   assert.deepStrictEqual([r.statusCode, r.body.ok, r.body.questions], [200, true, []]);
-  const r2 = await get({ game: '11' });
+  const r2 = await get({ game: '10' });
   assert.deepStrictEqual([r2.statusCode, r2.body.questions], [200, []]);
-  assert.ok(!db.log.some(x => RX.game.test(x.sql) && x.p[0] === '11'), '11-р ангид node алга — бодлогын SQL ажиллахгүй');
+  assert.ok(!db.log.some(x => RX.game.test(x.sql) && x.p[0] === '10'), '10-р ангид node алга — бодлогын SQL ажиллахгүй');
+  // 11-р анги «Тун удахгүй» → 400 (клиентээр тойрох боломжгүй), SQL 0
+  const n0 = db.log.length;
+  for (const qy of [{ game: '11' }, { game: '11', topic: '0', n: '20' }, { game: ' 11 ' }]) {
+    const s = await get(qy);
+    assert.deepStrictEqual([s.statusCode, s.body.ok, s.body.soon], [400, false, true], JSON.stringify(qy));
+  }
+  assert.strictEqual(db.log.length, n0);
 });
 
 test('game/game_topics: токен, админ шаардахгүй; OPTIONS 200', async () => {
@@ -432,6 +480,103 @@ test('arena: хялбар хүрэлцэхэд зөвхөн хялбар, дут
   const b = await get({ arena: '12', node: '602', n: '20' });
   assert.strictEqual(b.body.questions.length, 20);
   assert.strictEqual(b.body.questions.filter(x => x.difficulty === 'easy').length, 12);
+});
+
+// ───────────── gg-fix: MATH MORTAL hud=1, хуучин max_grade/node_id замын нөхөлт ─────────────
+const PROSE = 'Усан онгоцны өөрийн хурд 20 км/ц, урсгалын хурд 3 км/ц бол урсгал сөрж явах хурдыг ол';
+function seedHud() {
+  node(610, '12', 'Тэгшитгэл', 10);
+  for (let i = 0; i < 6; i++) qq(610, { text: '$x+' + i + '=9$ бол $x$?', choices: [String(9 - i), String(10 - i), String(11 - i), String(12 - i)], correct: String(9 - i) });
+  for (let i = 0; i < 6; i++) qq(610, { text: PROSE + ' (' + i + ')', choices: ['17', '23', '20', '3'], correct: '17' });
+  for (let i = 0; i < 3; i++) qq(610, { text: '$1+2+3+4+5+' + i + '$', choices: ['21', '20', '22', '19'], correct: '21' });
+}
+
+test('gg-fix hud=1: game_topics нь HUD-д тохирох (өгүүлбэргүй, ≤4 үйлдэл) бодлогыг л тоолно; hud-гүй хэвээр', async () => {
+  seedHud();
+  const plain = await get({ game_topics: '12' });
+  assert.deepStrictEqual(plain.body.chapters, [{ name: '', topics: [{ id: 610, name: 'Тэгшитгэл', n: 15 }] }]);
+  const hud = await get({ game_topics: '12', hud: '1' });
+  assert.strictEqual(hud.statusCode, 200);
+  assert.deepStrictEqual(hud.body.chapters, [{ name: '', topics: [{ id: 610, name: 'Тэгшитгэл', n: 6 }] }]);
+  assert.strictEqual(hud.body.total, 6);
+  // hud=0 / буруу утга → энгийн тоо
+  for (const v of ['0', 'x', '']) assert.strictEqual((await get({ game_topics: '12', hud: v })).body.total, 15, v);
+  // 11 → 400 hud-тай ч
+  assert.strictEqual((await get({ game_topics: '11', hud: '1' })).statusCode, 400);
+});
+
+test('gg-fix hud=1: game нь өгүүлбэртэй/олон үйлдэлтэй бодлогыг сонголтоос ӨМНӨ хасна (arenaFits — origin/main-ийн arena шүүлт)', async () => {
+  seedHud();
+  const all = await get({ game: '12', topic: '610', n: '20' });
+  assert.strictEqual(all.body.questions.length, 15, 'hud-гүй — бүгд');
+  const h = await get({ game: '12', topic: '610', n: '20', hud: '1' });
+  assert.strictEqual(h.body.questions.length, 6);
+  assert.ok(h.body.questions.every(q => /^\$x\+\d=9\$ бол \$x\$\?$/.test(q.text)), 'өгүүлбэртэй/олон үйлдэлтэй хасагдсан');
+  assert.ok(h.body.questions.every(q => G.arenaFits(q)));
+  // topic=0: нэр дэвшигч өргөн (LIMIT 400 — шүүлт ихийг хасдаг)
+  db.log.length = 0;
+  const z = await get({ game: '12', topic: '0', n: '10', hud: '1' });
+  assert.ok(z.body.questions.length >= 6 && z.body.questions.every(q => G.arenaFits(q)));
+  assert.strictEqual(db.log.find(x => RX.game.test(x.sql)).p[2], 400);
+  // arenaFits: жишээнүүд
+  assert.strictEqual(G.arenaFits({ text: '$19+(-23)$ илэрхийллийн утгыг ол', choices: ['-4', '4', '42', '-42'], correct: '-4' }), true);
+  assert.strictEqual(G.arenaFits({ text: PROSE, choices: ['17', '23', '20', '3'], correct: '17' }), false);
+  assert.strictEqual(G.arenaFits({ text: '$1+2+3+4+5+6$', choices: ['21', '20', '22', '19'], correct: '21' }), false);
+});
+
+test('gg-fix хуучин зам: max_grade + node_id — хичээлд тоглоомд тохирох бодлого < 8 бол тэр АНГИЙН (nodes.grade) бусад сэдвээс нөхнө', async () => {
+  // 9-р анги: node 40 — 2 тохирох; бусад 9-р ангийн node 1 (7), 26 (3), 31 (3)
+  const r = await get({ max_grade: '9', node_id: '40' });
+  assert.strictEqual(r.statusCode, 200);
+  assert.strictEqual(r.body.fill, 'grade');
+  assert.strictEqual(r.body.questions.length, 15);
+  assert.deepStrictEqual(r.body.questions.slice(0, 2).map(q => q.node_id), [40, 40], 'сонгосон хичээлийнх эхэнд');
+  assert.ok(r.body.questions.every(q => nodeById(q.node_id).grade === '9'), 'зөвхөн тухайн ангийн');
+  assert.ok(r.body.questions.slice(2).every(q => q.node_id !== 40 && G.gameFit(q)), 'нөхөлт — тоглоомд тохирох, давхардалгүй');
+  // бодлогогүй хичээл (505 — 8-р анги, бүгд муу) → 8-р ангийн сангаас
+  const e = await get({ max_grade: '12', node_id: '505' });
+  assert.strictEqual(e.body.fill, 'grade');
+  assert.ok(e.body.questions.filter(G.gameFit).length >= 8);
+  assert.ok(e.body.questions.filter(G.gameFit).every(q => nodeById(q.node_id).grade === '8'));
+  // хангалттай (≥ 8) бол нөхөхгүй
+  qq(1);
+  db.log.length = 0;
+  const ok = await get({ max_grade: '9', node_id: '1' });
+  assert.strictEqual(ok.body.fill, undefined);
+  assert.strictEqual(ok.body.questions.length, 8);
+  assert.ok(!db.log.some(x => RX.legacyFill.test(x.sql)));
+  // max_grade-гүй (хичээл/админ) ба pick / exam=1 хүсэлтэд нөхөхгүй
+  for (const qy of [{ node_id: '40' }, { max_grade: '9', node_id: '40', pick: '5' }, { max_grade: '9', node_id: '40', exam: '1' }]) {
+    db.log.length = 0;
+    const x = await get(qy);
+    assert.strictEqual(x.statusCode, 200, JSON.stringify(qy));
+    assert.strictEqual(x.body.fill, undefined, JSON.stringify(qy));
+    assert.ok(!db.log.some(y => RX.legacyFill.test(y.sql)), JSON.stringify(qy));
+  }
+  // олон хичээл: нийлбэр < 8 → нөхнө
+  const m = await get({ max_grade: '9', node_id: '40,31' });
+  assert.strictEqual(m.body.fill, 'grade');
+  assert.deepStrictEqual(m.body.questions.slice(0, 5).map(q => q.node_id).sort(), [31, 31, 31, 40, 40]);
+});
+
+test('gg-fix хуучин зам: max_grade шүүлт = COALESCE(questions.grade, nodes.grade) (өмнө нь grade=NULL бол бүх ангид гардаг байв)', async () => {
+  const own6 = qq(701, { grade: '6' });                   // 7-р ангийн node, гэхдээ өөрийн анги 6
+  const free = qq(null, { grade: null });                 // node-гүй, ангигүй → бүх ангид
+  const old = qq(143, { grade: ' ' });                    // node анги '10x' (тоо биш) → үгүй
+  const r6 = await get({ max_grade: '6' });
+  const ids6 = r6.body.questions.map(q => Number(q.id));
+  assert.ok(ids6.indexOf(own6.id) >= 0, 'өөрийн анги 6');
+  assert.ok(ids6.indexOf(free.id) >= 0, 'ангигүй — бүх ангид');
+  assert.ok(ids6.indexOf(old.id) < 0, "'10x' node");
+  assert.ok(!r6.body.questions.some(q => q.node_id === 701 && Number(q.id) !== own6.id), '7-р ангийн node-ийн (grade NULL) бодлого 6-р ангид гарахгүй');
+  assert.ok(!r6.body.questions.some(q => q.node_id && nodeById(q.node_id) && /^\d+$/.test(nodeById(q.node_id).grade) && Number(nodeById(q.node_id).grade) > 6 && Number(q.id) !== own6.id));
+  const r9 = await get({ max_grade: '9' });
+  assert.ok(r9.body.questions.some(q => q.node_id === 701) && r9.body.questions.some(q => q.node_id === 1));
+  assert.ok(r9.body.questions.some(q => q.node_id === 501), '8-р ангийн node ≤ 9 → гарна');
+  // SQL-д CAST зөвхөн тоон утгад (CASE), alias-гүй хүсэлтэд questions.* хүснэгтээр
+  const sql = G.legacyMaxGradeSql('questions', 1);
+  assert.match(sql, /WHEN btrim\(gx\.v\) ~ '\^\[0-9\]\+\$' THEN CAST\(btrim\(gx\.v\) AS INT\) <= \$1/);
+  assert.match(G.legacyMaxGradeSql('q', 4), /nn\.id = q\.node_id[\s\S]*<= \$4|<= \$4[\s\S]*nn\.id = q\.node_id/);
 });
 
 test('танихгүй SQL алга', () => {

@@ -13,6 +13,7 @@
 //          - хүчинтэй grade + өөрийн идэвхтэй эрх (via 'access') → game_access.grade-ийг UPDATE (GM.setGameGrade —
 //            мөр үүсгэхгүй, expires_at-д хүрэхгүй; алдааг залгина). Урилга/админ/'off'/premium үед бичихгүй.
 //          - url-д ?grade=&topic= залгана (file, external). Буруу/байхгүй grade → үл тоомсорлоно (url хуучнаараа).
+//          - «Тун удахгүй» анги (GM.SOON_GRADES — 11) → 400 { ok:false, badGrade:true, soon:true } (клиент ангийг дахин асууна).
 //        эрхтэй   → { ok:true, game, kind, via, expires_at?, url? }
 //                   kind='file'     → url = <тоглоомын зам>?t=<launch тасалбар> (cm) | <зам>?realm=ws&t=<тасалбар> (ws)
 //                                     (gate түгжээтэй үед; нээлттэй бол шууд зам;
@@ -154,6 +155,13 @@ function selOf(b) {
   if (!grade) return null;
   return { grade: grade, topic: GM.normTopic(b.topic) || '0' };
 }
+function isSoonGrade(v) {
+  return (typeof v === 'string' || typeof v === 'number') && GM.SOON_GRADES.indexOf(String(v).trim()) >= 0;
+}
+function soonBody(v) {
+  const g = String(v).trim();
+  return { ok: false, badGrade: true, soon: true, grade: g, error: g + '-р анги тун удахгүй нээгдэнэ — өөр анги сонгоно уу' };
+}
 function withSel(url, sel) {
   if (!sel) return url;
   return url + (url.indexOf('?') >= 0 ? '&' : '?') + 'grade=' + sel.grade + '&topic=' + sel.topic;
@@ -204,6 +212,7 @@ module.exports = async function handler(req, res) {
       return res.json({
         ok: true, enabled: GM.paywallOn(realm), realm: realm, email: id.email, premium: premium,
         price: GM.gamePrice(), days: GM.GAME_DAYS, games: info.games, grades: info.grades,
+        lastGrade: info.lastGrade || null,   // дансны сүүлийн анги (шинэ тоглоом худалдан авахад урьдчилан сонгоно)
       });
     }
 
@@ -214,6 +223,8 @@ module.exports = async function handler(req, res) {
     // ── Тоглоом эхлүүлэх ──
     if (action === 'launch') {
       if (await limited('games_l_ip:' + ip, 300, 600)) return res.status(429).json({ ok: false, error: MSG.rate });
+      // «Тун удахгүй» анги (11) — 400 {soon} (клиент ангийг дахин асууна). Бусад буруу анги үл тоомсорлогдоно (доор).
+      if (isSoonGrade(b.grade)) return res.status(400).json(soonBody(b.grade));
       // Тоглоомын анги/сэдэв (заавал биш) — эрх шалгалтад ОРОЛЦОХГҮЙ, зөвхөн url + game_access.grade
       const sel = selOf(b);
       // Kill-switch / энэ realm-д төлбөргүй: бүгд нээлттэй (одоогийнх шиг) — нэвтрэлт, тасалбар шаардахгүй

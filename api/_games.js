@@ -22,7 +22,8 @@
 //   activeGameInfo(realm, email)         → { games: { key: expires_at }, grades: { key: '6'..'12' } }  (нэг асуулт)
 //   isCmPremium(email)                   → bool
 //   --- анги (тоглоомын бодлогын анги — ҮНЭ/ЭРХЭД НӨЛӨӨЛӨХГҮЙ, зөвхөн бүртгэл + анхдагч сонголт) ---
-//   GRADES = ['6'..'12'], normGrade(v) → '6'..'12' | null, normTopic(v) → '0'..'999999' | null (learning path-ийн node id)
+//   GRADES = ['6'..'12'], SOON_GRADES = ['11'] («Тун удахгүй» — сонгогдохгүй),
+//   normGrade(v) → '6'..'12' (11-ээс бусад) | null, normTopic(v) → '0'..'999999' | null (learning path-ийн node id)
 //   game_access.grade    — ОДООГИЙН анги (худалдан авахад тавигдана, launch-аар шинэчлэгдэнэ — setGameGrade)
 //   game_purchases.grade — худалдан авах үеийн анги (өөрчлөгдөхгүй), pay_pending.game_grade — нэхэмжлэх дээрх анги
 //   grantGame(realm, email, key, days?, db?, grade?) → Date  (нэмэгддэг: GREATEST(хуучин, NOW()) + days;
@@ -157,10 +158,13 @@ function publicCatalog() {
 }
 // Тоглоомын бодлогын анги (6–12). Үнэ/эрх ангиас ОГТ хамаарахгүй — зөвхөн allowlist-ээр шалгаж бүртгэнэ.
 const GRADES = Object.freeze(['6', '7', '8', '9', '10', '11', '12']);
+// «Тун удахгүй» анги (эзэмшигчийн шийдвэр: 11-р ангийн бодлого хангалтгүй) — худалдан авах (qpay create 400 badGrade),
+// launch (үл тоомсорлоно), админы олголт (400)-д СОНГОГДОХГҮЙ. Хадгалсан 11 → null (клиент ангийг дахин асууна).
+const SOON_GRADES = Object.freeze(['11']);
 function normGrade(v) {
   if (typeof v !== 'string' && typeof v !== 'number') return null;
   const s = String(v).trim();
-  return GRADES.indexOf(s) >= 0 ? s : null;
+  return GRADES.indexOf(s) >= 0 && SOON_GRADES.indexOf(s) < 0 ? s : null;
 }
 // Сэдэв = learning path-ийн node id (0 = ангийн бүх сэдэв). Зөвхөн URL-д дамжуулна, серверт хадгалахгүй.
 function normTopic(v) {
@@ -293,16 +297,22 @@ async function entitled(realm, email, key) { return (await entitlement(realm, em
 // (grades-д зөвхөн анги нь тодорхой тоглоом — хуучин NULL мөр орохгүй).
 async function activeGameInfo(realm, email) {
   const rl = normRealm(realm), em = normEmail(email);
-  const out = { games: {}, grades: {} };
+  const out = { games: {}, grades: {}, lastGrade: null };
   if (!rl || !em) return out;
   await ensureGameTables();
   const r = await pool.query(
     'SELECT game_key, expires_at, grade FROM game_access WHERE realm=$1 AND email=$2 AND expires_at > NOW()', [rl, em]);
+  let lastAt = -1;
   r.rows.forEach(function (x) {
     if (!isGame(x.game_key)) return;
     out.games[x.game_key] = new Date(x.expires_at).toISOString();
     const gr = normGrade(x.grade);
-    if (gr) out.grades[x.game_key] = gr;
+    if (gr) {
+      out.grades[x.game_key] = gr;
+      // Сүүлд худалдан авсан/сунгасан (хамгийн хожуу дуусах) тоглоомын анги — шинэ тоглоом авахад урьдчилан сонгоно
+      const at = new Date(x.expires_at).getTime();
+      if (at > lastAt) { lastAt = at; out.lastGrade = gr; }
+    }
   });
   return out;
 }
@@ -597,7 +607,7 @@ async function redeemInvite(tok, realm, key, devKey) {
 
 module.exports = {
   GAMES, GAME_KEYS, GAME_DAYS, gamePrice, REALMS, DEFAULT_PAYWALL_REALMS, parseRealms, paywallRealms, paywallOn, gateOn,
-  isGame, normRealm, normEmail, publicCatalog, GRADES, normGrade, normTopic,
+  isGame, normRealm, normEmail, publicCatalog, GRADES, SOON_GRADES, normGrade, normTopic,
   ensureGameTables, entitlement, entitled, activeGames, activeGameInfo, isCmPremium,
   grantGame, setGameGrade, currentExpiry, revokeGame, recordPurchase, cmUser,
   TICKET_TTL, INVITE_TTL, SESSION_TTL, INVITE_SESSION_TTL, inviteUses, inviteDaily, subjectOf,

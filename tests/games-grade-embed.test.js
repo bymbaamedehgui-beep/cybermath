@@ -139,7 +139,7 @@ test('embed: grade/topic шалгалт — 6..12 ба /^\\d{1,6}$/ л; буру
     ['&grade=10&topic=007', { grade: '10', topic: '7' }],
     ['&grade=9&topic=abc', { grade: '9', topic: '0' }],
     ['&grade=9&topic=1234567', { grade: '9', topic: '0' }],
-    ['&grade=11&topic=-5', { grade: '11', topic: '0' }],
+    ['&grade=12&topic=-5', { grade: '12', topic: '0' }],
     ['&topic=5&grade=7', { grade: '7', topic: '5' }],
   ]) {
     const E = embed({ search: '?embed=daam&realm=ws' + s, launch: { ok: true, game: 'daam', kind: 'inline', via: 'access' } });
@@ -147,7 +147,8 @@ test('embed: grade/topic шалгалт — 6..12 ба /^\\d{1,6}$/ л; буру
     assert.deepStrictEqual(J(E.S.CM_EMBED.sel), want, s);
     assert.strictEqual(E.S.qApiUrl(), '/api/questions?game=' + want.grade + '&topic=' + want.topic + '&n=60', s);
   }
-  for (const s of ['', '&grade=5', '&grade=13', '&grade=10x', '&grade=abc', '&grade=', '&g=8', '&max_grade=8', '&grade=%38']) {
+  // 11-р анги «Тун удахгүй» — сонголт болохгүй (хуучин зан төлөв)
+  for (const s of ['', '&grade=5', '&grade=13', '&grade=10x', '&grade=abc', '&grade=', '&g=8', '&max_grade=8', '&grade=%38', '&grade=11', '&grade=11&topic=5']) {
     const E = embed({ search: '?embed=daam&realm=ws' + s, launch: { ok: true, game: 'daam', kind: 'inline', via: 'access' } });
     await ticks();
     assert.strictEqual(E.S.CM_EMBED.sel, null, s);
@@ -182,14 +183,25 @@ test('embed: сэдвээс бодлого ирээгүй / 400 → ангийн
   r = await E.gameFetch(E.S.qApiUrl());
   assert.strictEqual(r.d.questions.length, 15);
   assert.strictEqual(E.fetches.filter((f) => f.url.indexOf('game=') > 0).length, 1);
-  // sbh: 15 < 20 → topic=0
-  E = embed({ search: '?embed=sbh&realm=ws&grade=11&topic=5', launch: { ok: true, game: 'sbh', kind: 'inline', via: 'access' },
-    q: (u) => ({ status: 200, body: { ok: true, grade: '11', questions: /topic=0&/.test(u) ? Q(26) : Q(15) } }) });
+  // sbh: 15 < 20 → сэдвийн 15 + ангийн сангаас НӨХНӨ (id давхардалгүй, сэдвийнх эхэнд)
+  E = embed({ search: '?embed=sbh&realm=ws&grade=9&topic=5', launch: { ok: true, game: 'sbh', kind: 'inline', via: 'access' },
+    q: (u) => ({ status: 200, body: { ok: true, grade: '9', questions: /topic=0&/.test(u) ? Q(26, { node_id: 600 }) : Q(15) } }) });
   await ticks();
   r = await E.gameFetch(E.S.qApiUrl());
   assert.strictEqual(r.d.questions.length, 26);
+  assert.deepStrictEqual(r.d.questions.slice(0, 15).map((q) => q.node_id), Array(15).fill(512), 'сэдвийн бодлого эхэнд');
+  assert.strictEqual(r.d.fill, 'grade');
   assert.deepStrictEqual(E.fetches.filter((f) => f.url.indexOf('game=') > 0).map((f) => f.url),
-    ['/api/questions?game=11&topic=5&n=60', '/api/questions?game=11&topic=0&n=60']);
+    ['/api/questions?game=9&topic=5&n=60', '/api/questions?game=9&topic=0&n=60']);
+  assert.strictEqual(E.S.qApiUrl(), '/api/questions?game=9&topic=5&n=60', 'цөөн (хоосон биш) сэдэв хэвээр — дараа нь ч нөхнө');
+  // 9-р анги, daam: сэдэвт 3 бодлого (< 8) → ангийн сангаас нөхнө (арифметик жишиг рүү унахгүй)
+  E = embed({ search: '?embed=daam&realm=ws&grade=9&topic=44', launch: { ok: true, game: 'daam', kind: 'inline', via: 'access' },
+    q: (u) => ({ status: 200, body: { ok: true, grade: '9', questions: /topic=0&/.test(u) ? Q(40, { node_id: 1 }).map((q) => Object.assign(q, { id: q.id + 100 })) : Q(3, { node_id: 44 }) } }) });
+  await ticks();
+  r = await E.gameFetch(E.S.qApiUrl());
+  assert.strictEqual(r.d.questions.length, 43);
+  assert.deepStrictEqual(r.d.questions.slice(0, 3).map((q) => q.node_id), [44, 44, 44]);
+  assert.strictEqual(E.D.reg.get('gp-emb-off') ? E.D.reg.get('gp-emb-off').hidden : true, true, 'офлайн тэмдэггүй');
   // topic=0 хоосон бол дахин татахгүй (тоглоомын жишиг бодлого + «Офлайн» тэмдэг)
   E = embed({ search: '?embed=daam&realm=ws&grade=6', launch: { ok: true, game: 'daam', kind: 'inline', via: 'access' },
     q: () => ({ status: 200, body: { ok: true, grade: '6', questions: [] } }) });
@@ -306,8 +318,9 @@ test('MATH MORTAL quiz.js: 6–12-р анги, URL grade/topic (хадгалах
   assert.deepStrictEqual(T.normalizeSettings({ grade: 12 }).grade, 12);
   assert.deepStrictEqual(T.normalizeSettings({ grade: 13 }).grade, 12);
   assert.deepStrictEqual(T.normalizeSettings({ grade: 3 }).grade, 6);
+  assert.deepStrictEqual(T.normalizeSettings({ grade: 11 }).grade, 7, '11-р анги «Тун удахгүй» → анхдагч анги');
   assert.deepStrictEqual(T.urlSelection(), { grade: 10, node: 1234 });
-  for (const [s, want] of [['?grade=6', { grade: 6, node: 0 }], ['?grade=12&topic=x', { grade: 12, node: 0 }], ['?grade=5', null], ['?grade=10x', null], ['?g=8', null], ['', null]]) {
+  for (const [s, want] of [['?grade=6', { grade: 6, node: 0 }], ['?grade=12&topic=x', { grade: 12, node: 0 }], ['?grade=5', null], ['?grade=10x', null], ['?g=8', null], ['', null], ['?grade=11', null], ['?grade=11&topic=5', null]]) {
     global.location = { search: s, host: 'cyber-math.com' };
     assert.deepStrictEqual(T.urlSelection(), want, s);
   }
@@ -333,17 +346,179 @@ test('MATH MORTAL quiz.js: 6–12-р анги, URL grade/topic (хадгалах
   assert.deepStrictEqual(T.cleanQuestions(g, 7), [], 'өөр ангийн хариу');
 });
 
+// gg-fix: cyber-math.com-ийн «Агуулга» сонгогч (cmEnsureGamePicker / cmPickerGrade) — тоглоомын доод хэмжээнээс (game_topics n)
+// цөөн бодлоготой хичээлийг харуулахгүй; 11-р анги «Тун удахгүй» (харагдана, сонгогдохгүй); qApiUrl-аас 11-р ангийн хичээлийг хасна.
+function pickerSandbox(o) {
+  const a = INDEX.indexOf('window.getUserMaxGrade = function()'), b = INDEX.indexOf('function initChatForUser()');
+  assert.ok(a > 0 && b > a, 'index.html: сонгогчийн хэсэг');
+  const ls = storage(Object.assign({ cm_current: JSON.stringify({ grade: '12' }) }, o.ls || {}));
+  const fetches = [];
+  const S = {
+    localStorage: ls, console, Promise, JSON, String, Number, parseInt, isNaN, Object, Array, Math,
+    document: { querySelectorAll: () => [], getElementById: () => null, createElement: () => ({ style: {}, querySelector: () => null }) },
+    fetch: (u) => { fetches.push(u); return o.fetch ? o.fetch(u) : Promise.reject(new Error('net')); },
+    showToast() {},
+  };
+  S.window = S;
+  vm.createContext(S);
+  vm.runInContext(INDEX.slice(a, b), S);
+  return { S, fetches, ls };
+}
+function pickerEls(areaId, g) {
+  const list = { style: {}, innerHTML: '' };
+  const area = { id: areaId, parentNode: null };
+  const box = { id: '', parentNode: area, querySelector: (s) => (s === '.game-lesson-list' ? list : null) };
+  const sel = { value: g, closest: () => box };
+  return { list, box, sel };
+}
+const NODES = [
+  { id: 901, grade: '9', name: 'Квадрат тэгшитгэл', sort_order: 1 }, { id: 902, grade: '9', name: 'Хоосон сэдэв', sort_order: 2 },
+  { id: 903, grade: '9', name: 'Цөөн сэдэв', sort_order: 3 }, { id: 904, grade: '9', name: 'Олон бодлоготой', sort_order: 4 },
+  { id: 1101, grade: '11', name: 'Интеграл', sort_order: 1 }, { id: 501, grade: '5', name: 'Бутархай', sort_order: 1 },
+];
+const TOPICS9 = { ok: true, grade: '9', total: 47, chapters: [{ name: '', topics: [{ id: 901, name: 'Квадрат тэгшитгэл', n: 9 }, { id: 903, name: 'Цөөн сэдэв', n: 3 }, { id: 904, name: 'Олон бодлоготой', n: 35 }] }] };
+test('cyber-math.com «Агуулга»: бодлогогүй/доод хэмжээнээс цөөн хичээл харагдахгүй (game_topics n), 11-р анги «Тун удахгүй»', async () => {
+  const P = pickerSandbox({ ls: { cm_nodes: JSON.stringify(NODES) }, fetch: () => Promise.resolve({ json: async () => TOPICS9 }) });
+  // анги сонгогч: 11 харагдана, disabled
+  const html = P.S.gameLessonPickerHtml();
+  assert.match(html, /<option value="11" disabled>11-р анги — Тун удахгүй<\/option>/);
+  assert.match(html, /<option value="9">9-р анги<\/option>/);
+  // daam (анхдагч 8): 901 (9) ба 904 (35) — 902 (0), 903 (3) харагдахгүй
+  let E = pickerEls('daam-area', '9');
+  P.S.cmPickerGrade(E.sel);
+  assert.match(E.list.innerHTML, /ачаалж байна/);
+  await ticks();
+  assert.deepStrictEqual([...E.list.innerHTML.matchAll(/data-node="(\d+)"/g)].map((m) => m[1]), ['901', '904']);
+  assert.deepStrictEqual(P.fetches, ['/api/questions?game_topics=9']);
+  // sbh (20): зөвхөн 904; кэш — дахин татахгүй
+  E = pickerEls('sbh-area', '9');
+  P.S.cmPickerGrade(E.sel);
+  await ticks();
+  assert.deepStrictEqual([...E.list.innerHTML.matchAll(/data-node="(\d+)"/g)].map((m) => m[1]), ['904']);
+  assert.strictEqual(P.fetches.length, 1);
+  // 11-р анги (disabled-ыг тойрсон ч) — жагсаалт хоосон, сүлжээ 0
+  E = pickerEls('daam-area', '11');
+  P.S.cmPickerGrade(E.sel);
+  assert.deepStrictEqual([E.list.style.display, E.list.innerHTML], ['none', '']);
+  assert.strictEqual(P.fetches.length, 1);
+  // 1–5-р анги: тоглоомын сан биш — шүүхгүй (хуучнаараа), сүлжээ 0
+  E = pickerEls('daam-area', '5');
+  P.S.cmPickerGrade(E.sel);
+  await ticks();
+  assert.deepStrictEqual([...E.list.innerHTML.matchAll(/data-node="(\d+)"/g)].map((m) => m[1]), ['501']);
+  assert.strictEqual(P.fetches.length, 1);
+  // сонгосон сэдэвт тохирох хичээл алга → ойлгомжтой мессеж
+  const P0 = pickerSandbox({ ls: { cm_nodes: JSON.stringify(NODES) }, fetch: () => Promise.resolve({ json: async () => ({ ok: true, grade: '9', total: 0, chapters: [] }) }) });
+  E = pickerEls('daam-area', '9');
+  P0.S.cmPickerGrade(E.sel);
+  await ticks();
+  assert.match(E.list.innerHTML, /тоглоомд тохирох бодлоготой хичээл одоогоор алга/);
+  // game_topics алдаа → шүүлтгүй (хуучнаараа) бүх хичээл
+  const P1 = pickerSandbox({ ls: { cm_nodes: JSON.stringify(NODES) } });
+  E = pickerEls('daam-area', '9');
+  P1.S.cmPickerGrade(E.sel);
+  await ticks();
+  assert.deepStrictEqual([...E.list.innerHTML.matchAll(/data-node="(\d+)"/g)].map((m) => m[1]), ['901', '902', '903', '904']);
+});
+test('cyber-math.com qApiUrl: өмнө сонгосон 11-р ангийн хичээлийг хасна; max_grade хэвээр', () => {
+  let P = pickerSandbox({ ls: { cm_nodes: JSON.stringify(NODES), cm_game_nodes: JSON.stringify([901, 1101]) } });
+  assert.strictEqual(P.S.qApiUrl(), '/api/questions?max_grade=12&node_id=901');
+  P = pickerSandbox({ ls: { cm_nodes: JSON.stringify(NODES), cm_game_nodes: JSON.stringify([1101]) } });
+  assert.strictEqual(P.S.qApiUrl(), '/api/questions?max_grade=12');
+  P = pickerSandbox({ ls: { cm_nodes: JSON.stringify(NODES), cm_game_nodes: JSON.stringify([901, 904]) } });
+  assert.strictEqual(P.S.qApiUrl('?x=1'), '/api/questions?x=1&max_grade=12&node_id=901,904');
+});
+
+// gg-fix: өгүүлбэртэй / урт нөхцөлтэй бодлого тулааны HUD-д гарахгүй (origin/main-ийн arena шүүлт — сервер arenaFits-тэй ИЖИЛ)
+function serverArenaFits() {
+  const dbFile = require.resolve(path.join(WT, 'api', '_db.js'));
+  if (!require.cache[dbFile]) require.cache[dbFile] = { id: dbFile, filename: dbFile, loaded: true, exports: { query: async () => { throw new Error('DB 0'); } } };
+  return require(path.join(WT, 'api', 'questions.js'))._game.arenaFits;
+}
+const HUD_SAMPLES = [
+  ['$19+(-23)$ илэрхийллийн утгыг ол', true],
+  ['$2+3=?$', true],
+  ['$x^2=9$ бол x?', true],
+  ['$\\frac{3}{4}+\\frac{1}{4}$ хэд вэ?', true],
+  ['Усан онгоцны өөрийн хурд 20 км/ц, урсгалын хурд 3 км/ц бол урсгал сөрж явах хурдыг ол', false],
+  ['Ангид 12 охин, 15 хүү байна. Нийт сурагчдын хэдэн хувь нь охид вэ?', false],
+  ['Дэлгүүрт өчигдөр 40 ширхэг, өнөөдөр 25 ширхэг талх зарагдсан бол нийт хэд вэ', false],
+  ['$1+2+3+4+5+6$', false],
+  ['$2\\cdot3\\cdot4\\cdot5\\cdot6\\cdot7$', false],
+  ['$\\begin{cases}x+y=3\\\\x-y=1\\end{cases}$', false],
+  ['$x+1', false],
+];
+test('MATH MORTAL fitsHud: өгүүлбэртэй/олон үйлдэлтэй бодлогыг хасна — сервер arenaFits-тэй ижил дүгнэлт', async () => {
+  global.location = { search: '', host: 'cyber-math.com' };
+  const T = (await import(pathToFileURL(path.join(WT, 'math-mortal', 'quiz.js')).href + '?hud=' + Date.now())).__test;
+  delete global.location;
+  const AF = serverArenaFits();
+  const ch = { choices: ['1', '2', '3', '4'], correct: '1' };
+  for (const [text, want] of HUD_SAMPLES) {
+    assert.strictEqual(T.fitsHud({ text }), want, 'клиент: ' + text);
+    assert.strictEqual(AF(Object.assign({ text }, ch)), want, 'сервер: ' + text);
+  }
+  // cleanQuestions-аар ч өгүүлбэртэй нь хасагдана
+  const d = { ok: true, grade: '9', questions: HUD_SAMPLES.map(([text], i) => ({ id: i + 1, text, choices: ['1', '2', '3', '4'], correct: '1', difficulty: 'medium' })) };
+  assert.deepStrictEqual(T.cleanQuestions(d, 9).map((q) => q.q), HUD_SAMPLES.filter((x) => x[1]).map((x) => x[0]));
+});
+
+test('MATH MORTAL prefetch: сэдвийн HUD бодлого хүрэлцэхгүй / 400 бол ангийн бүх сэдвээс (topic=0) нөхнө; hud=1 дамжина', async () => {
+  global.location = { search: '', host: 'cyber-math.com' };
+  const T = (await import(pathToFileURL(path.join(WT, 'math-mortal', 'quiz.js')).href + '?pf=' + Date.now())).__test;
+  delete global.location;
+  const urls = [];
+  const mk = (n, base, prose) => Array.from({ length: n }, (_, i) => ({ id: base + i, text: prose ? 'Усан онгоцны өөрийн хурд 20 км/ц, урсгалын хурд 3 км/ц бол урсгал сөрж явах хурдыг ол ' + i : '$' + (base + i) + '+1$', choices: ['1', '2', '3', '4'], correct: '1', difficulty: 'easy' }));
+  global.window = new EventTarget();
+  global.fetch = async (u) => {
+    urls.push(u);
+    const topic = /[?&]topic=(\d+)/.exec(u)[1];
+    let body;
+    if (topic === '0') body = { ok: true, grade: '9', topic: 0, questions: mk(30, 1000) };
+    else if (topic === '44') body = { ok: true, grade: '9', topic: 44, questions: mk(2, 10).concat(mk(20, 50, true)) };   // 2 HUD + 20 өгүүлбэртэй
+    else if (topic === '45') return { ok: false, status: 400, json: async () => ({ ok: false, error: 'topic буруу' }) };
+    else body = { ok: true, grade: '9', topic: Number(topic), questions: mk(12, 200) };
+    return { ok: true, status: 200, json: async () => body };
+  };
+  try {
+    await T.prefetch(9, 44);
+    let st = T.poolState();
+    assert.deepStrictEqual(urls, ['/api/questions?game=9&topic=44&n=60&hud=1', '/api/questions?game=9&topic=0&n=60&hud=1']);
+    assert.strictEqual(st.poolKey, '9|44');
+    assert.deepStrictEqual(st.pool.slice(0, 2).map((x) => x.q), ['$10+1$', '$11+1$'], 'сэдвийн HUD бодлого эхэнд');
+    assert.strictEqual(st.pool.length, 32);
+    assert.ok(st.pool.every((x) => !/Усан онгоц/.test(x.q)), 'өгүүлбэртэй бодлого HUD-д орохгүй');
+    // 400 → topic=0
+    urls.length = 0;
+    await T.prefetch(9, 45);
+    st = T.poolState();
+    assert.deepStrictEqual(urls, ['/api/questions?game=9&topic=45&n=60&hud=1', '/api/questions?game=9&topic=0&n=60&hud=1']);
+    assert.deepStrictEqual([st.poolKey, st.pool.length], ['9|45', 30]);
+    // хангалттай сэдэв → нэг хүсэлт
+    urls.length = 0;
+    await T.prefetch(9, 77);
+    assert.deepStrictEqual(urls, ['/api/questions?game=9&topic=77&n=60&hud=1']);
+    assert.strictEqual(T.poolState().pool.length, 12);
+    // 11-р анги — сервер рүү огт явахгүй (нөөц генератор)
+    urls.length = 0;
+    await T.prefetch(11, 0);
+    assert.deepStrictEqual(urls, []);
+  } finally { delete global.window; delete global.fetch; }
+});
+
 test('MATH MORTAL: index.html-д 6–12-р ангийн сонголт + «Офлайн» тэмдэг (эможигүй); quiz.js шинэ endpoint-ийг ашиглана', () => {
   const html = fs.readFileSync(path.join(WT, 'math-mortal', 'index.html'), 'utf8');
   const sel = /<select id="grade-select">([\s\S]*?)<\/select>/.exec(html)[1];
   assert.deepStrictEqual([...sel.matchAll(/value="(\d+)"/g)].map((m) => m[1]), ['6', '7', '8', '9', '10', '11', '12']);
+  assert.match(sel, /<option value="11" disabled[^>]*>11-р анги — Тун удахгүй<\/option>/, '11-р анги харагдана, сонгогдохгүй');
+  assert.deepStrictEqual([...sel.matchAll(/<option value="(\d+)"(?![^>]*disabled)/g)].map((m) => m[1]), ['6', '7', '8', '9', '10', '12']);
   const off = /<span id="math-offline"[^>]*hidden>([\s\S]*?)<\/span>/.exec(html);
   assert.ok(off, '#math-offline (анхдагч нуугдсан)');
   assert.match(off[1], /<svg /);
   assert.ok(!/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(off[1]));
   const src = fs.readFileSync(path.join(WT, 'math-mortal', 'quiz.js'), 'utf8');
-  assert.ok(src.indexOf('/api/questions?game_topics=${grade}') >= 0);
-  assert.ok(src.indexOf('/api/questions?game=${g}&topic=${topic}&n=${BATCH}') >= 0);
+  assert.ok(src.indexOf('/api/questions?game_topics=${grade}&hud=1') >= 0);
+  assert.ok(src.indexOf('/api/questions?game=${g}&topic=${topic}&n=${BATCH}&hud=1') >= 0);
   assert.ok(src.indexOf('arena=') < 0, 'хуучин arena салбарыг хэрэглэхгүй');
 });
 
@@ -389,7 +564,7 @@ for (const [rel, min] of [['games/play2048.html', 8], ['games/sudoku.html', 12]]
     assert.deepStrictEqual(r.bank, [], 'correct сонголтод байхгүй → хасна');
     r = await bank(rel, '?grade=10', (u) => ({ questions: Q(5) }));
     assert.deepStrictEqual(r.bank, [], 'grade-гүй (хуучин сервер) хариу → жишиг бодлого');
-    for (const s of ['', '?grade=5', '?grade=13', '?g=8', '?grade=8x']) {
+    for (const s of ['', '?grade=5', '?grade=13', '?g=8', '?grade=8x', '?grade=11', '?grade=11&topic=4']) {   // 11 «Тун удахгүй» → хуучнаараа
       r = await bank(rel, s, (u) => ({ ok: true, questions: [{ id: 1, type: 'choice', text: 'a', choices: ['1', '2'], correct: '1' }, { id: 2, type: 'fill', text: 'b', correct: '3' }] }));
       assert.strictEqual(r.sel, null, s);
       assert.deepStrictEqual(r.urls, ['/api/questions?max_grade=10'], s + ': хуучин зам');

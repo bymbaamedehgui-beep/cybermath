@@ -45,8 +45,10 @@ beforeEach(() => F.reset());
 
 test('_games: normGrade / normTopic allowlist (6–12; бусад → null)', () => {
   assert.deepStrictEqual(GM.GRADES, ['6', '7', '8', '9', '10', '11', '12']);
-  ['6', '7', '10', '12', ' 8 ', 9, 11].forEach((v) => assert.strictEqual(GM.normGrade(v), String(v).trim(), JSON.stringify(v)));
-  ['5', '13', '0', '08', '7a', 'abc', '', null, undefined, 6.5, [], {}, ['8'], true, '__proto__'].forEach((v) =>
+  assert.deepStrictEqual(GM.SOON_GRADES, ['11']);
+  ['6', '7', '10', '12', ' 8 ', 9, 12].forEach((v) => assert.strictEqual(GM.normGrade(v), String(v).trim(), JSON.stringify(v)));
+  // 11-р анги «Тун удахгүй» → null (худалдан авах/launch/олголтод сонгогдохгүй)
+  ['5', '13', '0', '08', '7a', 'abc', '', null, undefined, 6.5, [], {}, ['8'], true, '__proto__', '11', 11, ' 11 '].forEach((v) =>
     assert.strictEqual(GM.normGrade(v), null, JSON.stringify(v)));
   assert.strictEqual(GM.normTopic('512'), '512');
   assert.strictEqual(GM.normTopic(0), '0');
@@ -77,7 +79,13 @@ test('create: буруу анги (5, 13, 7a, 08, массив) → 400, нэх�
 
 test('create: анги ҮНЭД нөлөөлөхгүй (6–12 бүгд ижил, GAME_PRICE); нэхэмжлэх дээр анги, тайлбарт «N-р анги»', async () => {
   const amounts = [];
-  for (const g of GM.GRADES) {
+  // 11-р анги «Тун удахгүй» → 400 {badGrade, soon}, нэхэмжлэх үүсэхгүй
+  const n0 = F.qp.invoices.length;
+  const s11 = await Q('create', { plan: 'game', realm: 'ws', game: 'mathmortal', wstoken: wsTok('g11@x.mn'), game_grade: '11' });
+  assert.deepStrictEqual([s11.statusCode, s11.body.badGrade, s11.body.soon], [400, true, true]);
+  assert.match(s11.body.error, /тун удахгүй/);
+  assert.strictEqual(F.qp.invoices.length, n0);
+  for (const g of GM.GRADES.filter((x) => GM.SOON_GRADES.indexOf(x) < 0)) {
     const r = await Q('create', { plan: 'game', realm: 'ws', game: 'mathmortal', wstoken: wsTok('g' + g + '@x.mn'), game_grade: g, amount: 1, months: 12 });
     assert.strictEqual(r.statusCode, 200, JSON.stringify(r.body));
     assert.strictEqual(r.body.grade, g);
@@ -145,7 +153,15 @@ test('status: grades — тоглоом бүрийн одоогийн анги (
   assert.deepStrictEqual(Object.keys(r.body.games).sort(), ['chessmath', 'sudoku']);
   assert.ok(Object.values(r.body.games).every((v) => typeof v === 'string' && !isNaN(Date.parse(v))), 'games {key: ISO}');
   assert.deepStrictEqual(r.body.grades, { sudoku: '8' });
+  assert.strictEqual(r.body.lastGrade, '8', 'дансны сүүлийн анги');
   assert.deepStrictEqual(await GM.activeGames('ws', 'a@x.mn'), r.body.games, 'activeGames хуучин хэлбэрээрээ');
+  // lastGrade = хамгийн хожуу дуусах (сүүлд авсан/сунгасан) ангитай эрх; хадгалсан 11 («Тун удахгүй») тооцохгүй
+  give('ws', 'a@x.mn', 'gomoku', 25, '10');
+  give('ws', 'a@x.mn', 'ludo', 40, '11');
+  const r2 = await G('status', { realm: 'ws', wstoken: wsTok('a@x.mn') }, { headers: dev('devgrade1') });
+  assert.deepStrictEqual([r2.body.lastGrade, r2.body.grades.ludo], ['10', undefined]);
+  const r3 = await G('status', { realm: 'ws', wstoken: wsTok('none@x.mn') }, { headers: dev('devgrade2') });
+  assert.strictEqual(r3.body.lastGrade, null);
 });
 
 test('launch: эрхтэй + хүчинтэй анги → game_access.grade UPDATE (мөр үүсгэхгүй, хугацаа/updated_at өөрчлөхгүй); url-д ?grade=&topic=', async () => {
@@ -170,6 +186,13 @@ test('launch: эрхтэй + хүчинтэй анги → game_access.grade UPD
     assert.strictEqual(r.statusCode, 200);
     assert.match(r.body.url, /^\/sudoku\.html\?realm=ws&t=[A-Za-z0-9._%-]+$/, JSON.stringify(bad));
   }
+  // '11' — «Тун удахгүй»: 400 {soon} (клиентээр тойрох боломжгүй; анги url-д ч, game_access-д ч орохгүй, тасалбар гарахгүй)
+  for (const soon of ['11', 11, ' 11 ']) {
+    r = await launchWs('k@x.mn', 'sudoku', { grade: soon, topic: '9' });
+    assert.deepStrictEqual([r.statusCode, r.body.ok, r.body.soon, r.body.badGrade, r.body.url], [400, false, true, true, undefined], JSON.stringify(soon));
+    assert.match(r.body.error, /11-р анги тун удахгүй/);
+  }
+  assert.strictEqual(access('ws', 'k@x.mn', 'sudoku').grade, '10');
   r = await launchWs('k@x.mn', 'sudoku', { grade: '9', topic: '<script>' });
   assert.match(r.body.url, /\?realm=ws&grade=9&topic=0&t=/, 'буруу сэдэв → 0');
   assert.strictEqual(F.db.access.size, 1, 'шинэ мөр үүсээгүй');
@@ -184,9 +207,9 @@ test('launch: эрхтэй + хүчинтэй анги → game_access.grade UPD
   assert.strictEqual(access('ws', 'k@x.mn', 'numseq').grade, '6');
   // DB алдаа (UPDATE) тоглоомыг хаахгүй
   F.db.failGradeSet = true;
-  r = await launchWs('k@x.mn', 'sudoku', { grade: '11' });
+  r = await launchWs('k@x.mn', 'sudoku', { grade: '12' });
   assert.strictEqual(r.statusCode, 200);
-  assert.match(r.body.url, /grade=11&topic=0/);
+  assert.match(r.body.url, /grade=12&topic=0/);
 });
 
 test('launch: external → <хаяг>/?grade=&topic=; inline → url-гүй (клиент embedUrl); анги нь эрх шалгалтад оролцохгүй', async () => {
@@ -206,7 +229,7 @@ test('launch: урилга / админ / GAME_PAYWALL=off / cm Premium → url-
   give('ws', 'host@x.mn', 'chessmath', 5, '7');
   const iv = await G('invite', { game: 'chessmath', realm: 'ws', wstoken: wsTok('host@x.mn') });
   assert.strictEqual(iv.statusCode, 200, JSON.stringify(iv.body));
-  let r = await G('launch', { game: 'chessmath', realm: 'ws', invite: iv.body.invite, grade: '11', topic: '3' }, { headers: dev('friend001') });
+  let r = await G('launch', { game: 'chessmath', realm: 'ws', invite: iv.body.invite, grade: '12', topic: '3' }, { headers: dev('friend001') });
   assert.deepStrictEqual([r.statusCode, r.body.via], [200, 'invite']);
   assert.strictEqual(access('ws', 'host@x.mn', 'chessmath').grade, '7', 'найз host-ийн ангийг өөрчлөхгүй');
   // админ

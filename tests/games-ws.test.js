@@ -146,10 +146,15 @@ test('games-host: анги/сэдэв — normSel / withSel / embedUrl(sel) / pa
   assert.deepStrictEqual(H0.normSel({ grade: 8, topic: '512', name: '\u{1F4DD}  Шугаман  тэгшитгэл ' }), { grade: '8', topic: '512', name: 'Шугаман тэгшитгэл' });
   assert.deepStrictEqual(H0.normSel({ grade: '12', topic: 'x' }), { grade: '12', topic: '0', name: '' });
   assert.deepStrictEqual(H0.normSel({ grade: '9', topic: '0', name: 'X' }), { grade: '9', topic: '0', name: '' }, 'бүх сэдэвт нэргүй');
-  [null, {}, { grade: '5' }, { grade: '13' }, { grade: 'g' }, { topic: '5' }, 'x'].forEach((v) => assert.strictEqual(H0.normSel(v), null, JSON.stringify(v)));
+  // 11-р анги «Тун удахгүй»: сонголт болохгүй (хадгалсан 11 → null → анги дахин асууна)
+  [null, {}, { grade: '5' }, { grade: '13' }, { grade: 'g' }, { topic: '5' }, 'x', { grade: '11' }, { grade: 11, topic: '3' }].forEach((v) => assert.strictEqual(H0.normSel(v), null, JSON.stringify(v)));
+  assert.deepStrictEqual([H0.isSoon('11'), H0.isSoon(11), H0.isSoon('12'), H0.isSoon(null), H0.normGrade('11')], [true, true, false, false, null]);
   const s = { grade: '8', topic: '512', name: 'Шугаман' };
   assert.strictEqual(H0.selLabel(s), '8-р анги · Шугаман');
-  assert.strictEqual(H0.selLabel({ grade: '11', topic: '0' }), '11-р анги · Бүх сэдэв');
+  assert.strictEqual(H0.selLabel({ grade: '12', topic: '0' }), '12-р анги · Бүх сэдэв');
+  assert.strictEqual(H0.selLabel({ grade: '11', topic: '0' }), '');
+  assert.strictEqual(H0.embedUrl('daam', 'ws', null, { grade: '11' }), '/?embed=daam&realm=ws', '11 URL-д орохгүй');
+  assert.deepStrictEqual(H0.parseInvite('?game=ludo&grade=11&topic=4'), { key: 'ludo', inv: null });
   assert.strictEqual(H0.selLabel({ grade: '7', topic: '9' }), '7-р анги · Сонгосон сэдэв');
   assert.strictEqual(H0.selLabel(null), '');
   // withSel: ? / & / # / замгүй гадны хаяг / аль хэдийн grade= байвал хэвээр / sel буруу бол хэвээр
@@ -240,6 +245,31 @@ test('games-host: сонголтын хадгалалт (cm_game_sel_<realm>) и
 });
 
 // ───────────────────────── games-host.js ↔ api/games.js + api/qpay.js ─────────────────────────
+test('games-host: topics(g, force, key) — MATH MORTAL-д ?hud=1 (HUD-д тохирох тоо, тусдаа кэш); 11-р анги → татахгүй', async () => {
+  const W = browser({});
+  const H = W.CMGamesHost;
+  const urls = [];
+  W.fetch = async (u) => {
+    urls.push(String(u));
+    const g = /game_topics=(\d+)/.exec(String(u))[1], hud = /[?&]hud=1(&|$)/.test(String(u));
+    return { status: 200, ok: true, json: async () => ({ ok: true, grade: g, total: hud ? 6 : 40,
+      chapters: [{ name: '', topics: [{ id: 801, name: 'Сэдэв', n: hud ? 3 : 40 }, { id: 802, name: 'Өгүүлбэртэй', n: hud ? 6 : 30 }] }] }) };
+  };
+  const a = await H.topics('8', false, 'chessmath');
+  const b = await H.topics('8', false, 'mathmortal');
+  await H.topics('8', false, 'chessmath');
+  await H.topics('8', false, 'mathmortal');
+  await H.topics('8');
+  assert.deepStrictEqual(urls, ['/api/questions?game_topics=8', '/api/questions?game_topics=8&hud=1'], 'тусдаа кэш, дахин татахгүй');
+  assert.deepStrictEqual([a.total, b.total], [40, 6]);
+  // MIN.mathmortal 4: hud тоогоор 801 (3) хасагдана
+  assert.deepStrictEqual(J(H.topicGroups(b, 'mathmortal').groups), [{ name: '', topics: [{ id: '802', name: 'Өгүүлбэртэй', n: 6 }] }]);
+  await assert.rejects(H.topics('11', false, 'mathmortal'));
+  assert.strictEqual(urls.length, 2);
+  // worksheets.html сонгогч тоглоомын түлхүүрийг дамжуулна
+  assert.ok(WSH.indexOf('H.topics(g,false,k)') >= 0);
+});
+
 test('host↔API: каталог; токенгүй → нэвтрэх; ws токеноор худалдан авах (QPay QR) → төлбөр баталгаажих → тоглох', async () => {
   const KID = wsTok('kid@x.mn');   // нэг удаа (iat секунд солигдвол дахин гарын үсэглэсэн токен өөр болно)
   const W = browser({ ls: { cm_ws_token: KID } });

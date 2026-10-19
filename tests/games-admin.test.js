@@ -718,9 +718,12 @@ test('ws_report byGame тоглоом × сайт × АНГИ; game_list мөр/
   wsLogin('gift@x.mn');
   assert.strictEqual((await A('game_grant', { realm: 'ws', email: 'gift@x.mn', game: 'daam', grade: '5' })).statusCode, 400);
   assert.strictEqual(access('ws', 'gift@x.mn', 'daam'), null);
-  const g = await A('game_grant', { realm: 'ws', email: 'gift@x.mn', game: 'daam', grade: '11' });
-  assert.deepStrictEqual([g.statusCode, g.body.grade], [200, '11']);
-  assert.strictEqual(access('ws', 'gift@x.mn', 'daam').grade, '11');
+  // 11-р анги «Тун удахгүй» — админ ч олгохгүй (400)
+  assert.strictEqual((await A('game_grant', { realm: 'ws', email: 'gift@x.mn', game: 'daam', grade: '11' })).statusCode, 400);
+  assert.strictEqual(access('ws', 'gift@x.mn', 'daam'), null);
+  const g = await A('game_grant', { realm: 'ws', email: 'gift@x.mn', game: 'daam', grade: '12' });
+  assert.deepStrictEqual([g.statusCode, g.body.grade], [200, '12']);
+  assert.strictEqual(access('ws', 'gift@x.mn', 'daam').grade, '12');
   // тайлангийн «Тоглоомоор» дэд шошгонд анги (admin.html)
   const sb = adminSandbox();
   sb.ctx.tlRender(Object.assign({}, r, { byGame: r.byGame }));

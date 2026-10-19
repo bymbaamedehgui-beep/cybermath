@@ -22,11 +22,13 @@
      getInvite(realm, key) / setInvite(realm, key, tok|null), inviteSel(realm, key) → sel | null (урилгын host-ийн анги/сэдэв)
      cardState(o), rounds(qs, o), parseInvite(search), fmt(n), ymd(v)   — цэвэр туслахууд (тест)
    Анги/сэдэв (тоглоомын бодлогын сонголт — ҮНЭ/ЭРХЭД НӨЛӨӨЛӨХГҮЙ; эрх нь тоглоом бүхэлдээ):
-     GRADES ['6'..'12'], normGrade(v), normTopic(v), normSel({grade, topic, name}) → {grade, topic, name} | null
+     GRADES ['6'..'12'] (сонгогчид харуулах), SOON {'11'} / isSoon(g) — «Тун удахгүй» (саарал, сонгогдохгүй; normGrade → null,
+     хадгалсан 11 → сонголтгүй → анги дахин асууна), normGrade(v), normTopic(v), normSel({grade, topic, name}) → {grade, topic, name} | null
      sel = { grade: '6'..'12', topic: node id | '0' (бүх сэдэв), name: сэдвийн нэр ('' = бүх сэдэв) }
      MIN[key] / minFor(key)               — сэдэвт байх доод бодлогын тоо (sbh 20, myangat 15, sudoku 12, …; анхдагч 8)
      hasTopics(key)                       — сэдэв сонгох эсэх (numseq — зөвхөн анги); ALL_ONLY[grade] — зөвхөн «Бүх сэдэв» (11)
-     topics(grade, force) → Promise<{ok, grade, total, chapters:[{name, topics:[{id, name, n}]}]}>  GET /api/questions?game_topics=<g>
+     topics(grade, force, key?) → Promise<{ok, grade, total, chapters:[{name, topics:[{id, name, n}]}]}>  GET /api/questions?game_topics=<g>
+                                          (key 'mathmortal' → &hud=1 — HUD-д тохирох бодлогын тоо)
                                             (анги тус бүрд 5 мин кэш)
      topicGroups(data, key) → { total, few, allOnly, count, groups:[{name, topics:[{id, name, n}]}] }  (цэвэр; n ≥ minFor(key))
      getSel(realm, email, key) / setSel(realm, email, key, sel|null) / lastGrade(realm, email)
@@ -131,14 +133,16 @@
   var MIN_DEF = 8;
   var TOPICLESS = { numseq: 1 };       // сэдэв хамаарахгүй (дотоод генератор — ангиар түвшин тохирно)
   var ALL_ONLY = { '11': 1 };          // эзэмшигчийн шийдвэр: 11-р ангид зөвхөн «Бүх сэдэв» (сэдвийн бодлого цөөн)
+  var SOON = { '11': 1 };              // «Тун удахгүй» — сонгогчид саарал, сонгогдохгүй (сервер ч 400/үл тоомсорлоно)
   var TOPIC_TTL = 5 * 60 * 1000;
   var SEL_KEY = 'cm_game_sel_';        // + realm → {'<имэйл>|<key>': {g, t, n, at}}
   var SEL_MAX = 80;
   function normGrade(v) {
     if (typeof v !== 'string' && typeof v !== 'number') return null;
     var s = String(v).trim();
-    return GRADES.indexOf(s) >= 0 ? s : null;
+    return GRADES.indexOf(s) >= 0 && !has(SOON, s) ? s : null;
   }
+  function isSoon(v) { return (typeof v === 'string' || typeof v === 'number') && has(SOON, String(v).trim()); }
   function normTopic(v) {
     if (typeof v !== 'string' && typeof v !== 'number') return null;
     var s = String(v).trim();
@@ -173,22 +177,25 @@
     if (/^https?:\/\/[^\/?#]+$/i.test(url)) url += '/';
     return url + (url.indexOf('?') >= 0 ? '&' : '?') + 'grade=' + s.grade + '&topic=' + s.topic + h;
   }
-  // Ангийн сэдвийн жагсаалт (core API) — анги тус бүрд кэш
+  // Ангийн сэдвийн жагсаалт (core API) — анги тус бүрд кэш. key = 'mathmortal' бол ?hud=1 (HUD-д тохирох —
+  // өгүүлбэргүй, цөөн үйлдэлтэй — бодлогын тоо; MATH MORTAL өөрөө ч энэ тоогоор сэдвээ харуулдаг).
+  var HUD_KEYS = { mathmortal: 1 };
   var _tp = {}, _tpAt = {}, _tpP = {};
-  function topics(g, force) {
+  function topics(g, force, key) {
     var gr = normGrade(g);
     if (!gr) return Promise.reject(new Error('grade'));
-    if (!force && _tp[gr] && Date.now() - _tpAt[gr] < TOPIC_TTL) return Promise.resolve(_tp[gr]);
-    if (_tpP[gr]) return _tpP[gr];
-    _tpP[gr] = W.fetch(Q_API + '?game_topics=' + gr, { credentials: 'same-origin' })
+    var hud = has(HUD_KEYS, key), ck = gr + (hud ? 'h' : '');
+    if (!force && _tp[ck] && Date.now() - _tpAt[ck] < TOPIC_TTL) return Promise.resolve(_tp[ck]);
+    if (_tpP[ck]) return _tpP[ck];
+    _tpP[ck] = W.fetch(Q_API + '?game_topics=' + gr + (hud ? '&hud=1' : ''), { credentials: 'same-origin' })
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        _tpP[gr] = null;
+        _tpP[ck] = null;
         if (!d || d.ok !== true || !Array.isArray(d.chapters)) throw new Error('topics');
-        _tp[gr] = d; _tpAt[gr] = Date.now();
+        _tp[ck] = d; _tpAt[ck] = Date.now();
         return d;
-      }, function (e) { _tpP[gr] = null; throw e; });
-    return _tpP[gr];
+      }, function (e) { _tpP[ck] = null; throw e; });
+    return _tpP[ck];
   }
   // Цэвэр: тоглоомд тохирох сэдвүүд (n ≥ minFor(key)), бүлгээр. allOnly — сэдэв сонгохгүй (numseq / 11-р анги).
   // few — ангийн нийт тохирох бодлого доод хязгаараас цөөн (тоглоом өөрийн жишиг бодлогыг холино).
@@ -197,8 +204,8 @@
     if (!d || typeof d !== 'object') return out;
     out.total = Math.max(0, Number(d.total) || 0);
     out.few = out.total < min;
-    var gr = normGrade(d.grade);
-    if (!hasTopics(key) || (gr && has(ALL_ONLY, gr))) { out.allOnly = true; return out; }
+    var gr = typeof d.grade === 'string' || typeof d.grade === 'number' ? String(d.grade).trim() : '';
+    if (!hasTopics(key) || has(ALL_ONLY, gr) || isSoon(gr)) { out.allOnly = true; return out; }
     var seen = {};
     (Array.isArray(d.chapters) ? d.chapters : []).forEach(function (c) {
       if (!c || typeof c !== 'object') return;
@@ -530,8 +537,12 @@
     var s = normSel(c.sel), n = FEED_N[kind] || 10;
     var p = !s ? getQs(Q_API) : getQs(qUrl(s, n)).then(function (qs) {
       if (qs.length >= n || s.topic === '0') return qs;
-      return getQs(qUrl({ grade: s.grade, topic: '0' }, n)).then(function (q2) { return q2.length > qs.length ? q2 : qs; },
-        function () { return qs; });
+      // Сэдвийн бодлого дутвал ангийн бүх сэдвээс НӨХНӨ (сэдвийнх эхэнд, давхардалгүй)
+      return getQs(qUrl({ grade: s.grade, topic: '0' }, n)).then(function (q2) {
+        var seen = {};
+        qs.forEach(function (q) { if (q && q.id != null) seen[String(q.id)] = 1; });
+        return qs.concat(q2.filter(function (q) { return q && !(q.id != null && seen[String(q.id)]); })).slice(0, n);
+      }, function () { return qs; });
     });
     p.then(function (qs) {
       if (CUR !== c || !c.frame || !c.frame.contentWindow) return;
@@ -666,7 +677,7 @@
     embedUrl: embedUrl, overlay: overlay, current: current,
     parseInvite: parseInvite, takeUrlInvite: takeUrlInvite, getInvite: getInvite, setInvite: setInvite,
     inviteSel: inviteSel, setInviteSel: setInviteSel,
-    GRADES: GRADES, MIN: MIN, ALL_ONLY: ALL_ONLY, normGrade: normGrade, normTopic: normTopic, normSel: normSel,
+    GRADES: GRADES, SOON: SOON, isSoon: isSoon, MIN: MIN, ALL_ONLY: ALL_ONLY, normGrade: normGrade, normTopic: normTopic, normSel: normSel,
     minFor: minFor, hasTopics: hasTopics, selLabel: selLabel, withSel: withSel, topics: topics, topicGroups: topicGroups,
     getSel: getSel, setSel: setSel, lastGrade: lastGrade, byDifficulty: byDifficulty,
     cardState: cardState, rounds: rounds, ls: ls, lset: lset,

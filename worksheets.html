@@ -350,6 +350,11 @@
   .gp-gr:hover{border-color:#b9a3f5}
   .gp-gr.on{border-color:transparent;background:linear-gradient(135deg,var(--purple),var(--purple2));color:#fff;box-shadow:0 6px 14px -8px rgba(123,82,238,.9)}
   .gp-gr:disabled{opacity:.55;cursor:default}
+  .gp-gr.soon{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:.32rem 0;border-style:dashed;background:#f4f2f8;color:#9a93ab;opacity:1;cursor:not-allowed}
+  .gp-gr.soon i{font-style:normal;font-weight:800;font-size:.5rem;letter-spacing:.01em;line-height:1;color:#8f88a3;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .gp-gr.soon:hover{border-color:#e7ddff}
+  .gp-soon{display:flex;align-items:center;gap:5px;margin:-6px 2px 12px;font-size:.74rem;font-weight:700;color:var(--soft)}
+  .gp-soon svg{flex:none}
   .gp-topic{display:block;width:100%;max-width:100%;box-sizing:border-box;min-width:0;border:1.6px solid #e7ddff;border-radius:12px;padding:.6rem .7rem;font-size:.88rem;background:#faf7ff;color:#3a2d5e;font-weight:700;font-family:inherit}
   .gp-topic:disabled{opacity:.6}
   .gp-topic[hidden],.gp-lbl[hidden]{display:none}
@@ -2457,6 +2462,7 @@ fetch('/api/worksheets?titles=1').then(function(r){return r.json();})
     down:'<path d="M6 9l6 6 6-6"/>',
     layers:'<path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="M2 12l10 5 10-5"/><path d="M2 17l10 5 10-5"/>',
     cap:'<path d="M22 10 12 5 2 10l10 5 10-5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>',
+    clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     book:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5V21h16"/>'
   };
   function svg(n,s){return '<svg width="'+s+'" height="'+s+'" '+SVGA+'>'+(IC[n]||'')+'</svg>';}
@@ -2492,14 +2498,20 @@ fetch('/api/worksheets?titles=1').then(function(r){return r.json();})
     return H.getInvite(REALM,k)?H.inviteSel(REALM,k):null;
   }
   function saveSel(k,s){H.setSel(REALM,acctEmail(),k,s);}
-  function defSel(k){var s=selFor(k);if(s)return s;var g=H.lastGrade(REALM,acctEmail());return g?{grade:g,topic:'0',name:''}:null;}
+  /* Шинэ тоглоом: энэ төхөөрөмжийн сүүлийн анги → дансны серверт хадгалагдсан сүүлийн анги (status.lastGrade) */
+  function defSel(k){var s=selFor(k);if(s)return s;var g=H.lastGrade(REALM,acctEmail())||(S.st?H.normGrade(S.st.lastGrade):null);return g?{grade:g,topic:'0',name:''}:null;}
   var SEL_NOTE={doroev:'Бодлого зөвхөн бодлоготой горимд гарна — «зүгээр тоглох» горимд анги нөлөөлөхгүй.',
     numseq:'Энэ тоглоомд сэдэв хамаарахгүй — ангиар түвшин тохирно.'};
   function selBoxHtml(k){
-    var gs=H.GRADES.map(function(g){return '<button type="button" class="gp-gr" data-gr="'+g+'" role="radio" aria-checked="false" title="'+g+'-р анги">'+g+'</button>';}).join('');
+    /* «Тун удахгүй» анги (11) — харагдана, гэхдээ саарал/идэвхгүй (H.isSoon; сервер ч татгалзана) */
+    var soon=H.GRADES.filter(function(g){return H.isSoon(g);});
+    var gs=H.GRADES.map(function(g){
+      if(H.isSoon(g))return '<button type="button" class="gp-gr soon" data-gr-soon="'+g+'" disabled aria-disabled="true" title="'+g+'-р анги — Тун удахгүй">'+g+'<i>удахгүй</i></button>';
+      return '<button type="button" class="gp-gr" data-gr="'+g+'" role="radio" aria-checked="false" title="'+g+'-р анги">'+g+'</button>';}).join('');
     return '<div class="gp-sel" data-gp-sel>'
       +'<div class="gp-lbl">'+svg('cap',15)+'Анги <small>· заавал</small></div>'
       +'<div class="gp-grades" role="radiogroup" aria-label="Анги">'+gs+'</div>'
+      +(soon.length?'<div class="gp-soon" data-gp-soon>'+svg('clock',13)+esc(soon.join(', '))+'-р анги — Тун удахгүй</div>':'')
       +(H.hasTopics(k)?'<div class="gp-lbl" data-gp-tl>'+svg('book',15)+'Сэдэв <small>· заавал биш</small></div>'
         +'<select class="gp-topic" data-gp-topic aria-label="Сэдэв" disabled><option value="0">Эхлээд ангиа сонгоно уу</option></select>':'')
       +'<div class="gp-hint" data-gp-hint>'+esc(SEL_NOTE[k]||'')+'</div></div>';
@@ -2523,7 +2535,7 @@ fetch('/api/worksheets?titles=1').then(function(r){return r.json();})
       tsel.disabled=true;tsel.hidden=false;if(tl)tl.hidden=false;
       tsel.innerHTML='<option value="0">Сэдвүүд ачаалж байна…</option>';tsel.value='0';
       setHint('');
-      H.topics(g).then(function(d){
+      H.topics(g,false,k).then(function(d){
         if(my!==seq||!cur||cur.grade!==g)return;
         var tg=H.topicGroups(d,k);
         names={};
@@ -2692,6 +2704,8 @@ fetch('/api/worksheets?titles=1').then(function(r){return r.json();})
     if(d.needBuy||(x&&x.s===402))return buy(k);
     if(d.deviceBlocked){S.note={kind:'device',msg:d.error};render();scrollTo();return;}
     if(d.needLogin||(x&&x.s===401))return loginThen(function(){play(k);});
+    /* «Тун удахгүй» анги (хуучин хадгалсан сонголт) — сонголтыг арилгаад ангийг дахин асууна */
+    if(d.soon){saveSel(k,null);render();say(d.error||'Энэ анги тун удахгүй нээгдэнэ — өөр анги сонгоно уу.');return pickSel(k,{},function(s){play(k,{invite:inv,sel:s});});}
     say(d.error||'Түр алдаа гарлаа. Дахин оролдоно уу.');
   }
   /* o: {invite, sel} — sel байхгүй бол сүүлийн сонголт (selFor), тэр ч байхгүй бол сонгогч цонх.

@@ -23,8 +23,10 @@ const TIME_CHOICES = new Set([5, 10, 15, 20, 30, 45, 60]);
 
 /* Тоглоомд 6–12-р ангийн, цөөн үйлдэлтэй (HUD-д багтах) бодлогыг хэрэглэнэ.
    Урт / өгүүлбэртэй бодлогыг fitsHud() хасна — HUD дээр уншиж амжихгүй. */
-const CM_GRADES = new Set([6, 7, 8, 9, 10, 11, 12]);
-const GRADE_RE = /^(6|7|8|9|10|11|12)$/;
+/* 11-р анги «Тун удахгүй» (сонголтод саарал, сонгогдохгүй; сервер ?game=11 → 400) */
+const SOON_GRADES = new Set([11]);
+const CM_GRADES = new Set([6, 7, 8, 9, 10, 12]);
+const GRADE_RE = /^(6|7|8|9|10|12)$/;
 const API_BASE = (typeof location !== 'undefined' && /cyber-math|localhost|127\.0\.0\.1/.test(location.host))
   ? '' : 'https://cyber-math.com';
 const BATCH = 60;
@@ -32,6 +34,10 @@ const MIN_TOPIC = 4;        /* сонголтод гарах сэдвийн ха
 const EASY_BIAS = 0.6;      /* хялбар бодлого сонгогдох магадлал (санд байвал) */
 const MAX_LEN = 120;        /* HUD-д тохирох хамгийн урт бодлого (тэмдэгт) */
 const MAX_OPT_LEN = 26;     /* нэг сонголтын хамгийн урт */
+/* Өгүүлбэртэй (нөхцөлтэй) бодлогын шүүлт — сервер arenaFits-тэй ИЖИЛ (origin/main-ийн arena салбар):
+   "$19+(-23)$ илэрхийллийн утгыг ол" (3 үг) → тэнцэнэ; "Усан онгоцны өөрийн хурд…" → үгүй. */
+const MAX_WORDS = 6;        /* математикаас гадуурх үгийн дээд тоо */
+const MAX_OPS = 4;          /* нэмэх/хасах/үржих/хуваах/зэрэг/язгуурын дээд тоо */
 
 /* Дасгалын төвөөс ирсэн анги/сэдэв: ?grade=<6..12>&topic=<node_id|0> ('g' нэрийг gate хасдаг) */
 function urlSelection() {
@@ -46,7 +52,8 @@ function urlSelection() {
 }
 
 function normalizeSettings(value = {}) {
-  const grade = Math.max(GRADE_MIN, Math.min(GRADE_MAX, Number.parseInt(value.grade, 10) || DEFAULTS.grade));
+  let grade = Math.max(GRADE_MIN, Math.min(GRADE_MAX, Number.parseInt(value.grade, 10) || DEFAULTS.grade));
+  if (SOON_GRADES.has(grade)) grade = DEFAULTS.grade;   /* хадгалсан 11 → анхдагч анги (дахин сонгоно) */
   const topic = TOPICS.has(value.topic) ? value.topic : DEFAULTS.topic;
   const node = Math.max(0, Number.parseInt(value.node, 10) || 0);
   const requestedSeconds = Number.parseInt(value.seconds, 10) || DEFAULTS.seconds;
@@ -103,7 +110,7 @@ async function fetchTopics(grade) {
   if (!CM_GRADES.has(grade)) return [];
   if (topicCache.has(grade)) return topicCache.get(grade);
   try {
-    const r = await fetch(`${API_BASE}/api/questions?game_topics=${grade}`);
+    const r = await fetch(`${API_BASE}/api/questions?game_topics=${grade}&hud=1`);
     const d = await r.json();
     const list = topicsOf(d, grade);
     topicCache.set(grade, list);
@@ -193,6 +200,13 @@ function fitsHud(q) {
   if (/\\begin\{/.test(t)) return false;                      /* матриц, тэнцэтгэлийн систем */
   if ((t.match(/(?<!\\)\$/g) || []).length % 2) return false; /* эвдэрсэн LaTeX */
   if (/[\r\n]/.test(t.trim())) return false;                  /* олон мөр */
+  /* Өгүүлбэртэй бодлого: $…$-ээс гадуурх (тоо/тэмдэгт биш) үгийн тоо */
+  const prose = t.replace(/\$[^$]*\$/g, ' ')
+    .replace(/[0-9().,;:!?«»"'’\-–—=+×÷%°²³]/g, ' ');
+  if (prose.split(/\s+/).filter(w => w.length > 1).length > MAX_WORDS) return false;
+  /* Олон үйлдэлтэй (HUD-д бодож амжихгүй) */
+  const ops = (t.match(/[+×÷·]|\\cdot|\\times|\\div|\\sqrt|\^|(?<=[0-9a-zA-Z)}])\s*-\s*(?=[0-9a-zA-Z({\\])/g) || []).length;
+  if (ops > MAX_OPS) return false;
   return true;
 }
 
@@ -238,9 +252,18 @@ function prefetch(grade, node) {
   }
   if (poolKey === key && pool.length > 8) return Promise.resolve();
   if (loading) return loading;
-  const load = (topic) => fetch(`${API_BASE}/api/questions?game=${g}&topic=${topic}&n=${BATCH}`)
+  /* hud=1 — сервер өгүүлбэртэй/олон үйлдэлтэй бодлогыг сонголтоос ӨМНӨ хасна (клиент fitsHud давхар шалгана) */
+  const load = (topic) => fetch(`${API_BASE}/api/questions?game=${g}&topic=${topic}&n=${BATCH}&hud=1`)
     .then(r => r.json())
     .then(d => cleanQuestions(d, g));
+  /* Сэдвийн бодлого шүүлтийн дараа хүрэлцэхгүй (MIN_TOPIC-оос цөөн) бол ангийн бүх сэдвээс (topic=0) нөхнө */
+  const fill = (clean) => {
+    if (!nd || clean.length >= MIN_TOPIC) return clean;
+    return load(0).then(all => {
+      const seen = new Set(clean.map(x => x.q));
+      return clean.concat(all.filter(x => !seen.has(x.q)));
+    }, () => clean);
+  };
   const offlineIfCurrent = () => {
     try {
       const s = getQuizSettings();
@@ -248,8 +271,8 @@ function prefetch(grade, node) {
     } catch { /* ignore */ }
   };
   loading = load(nd)
-    /* Сэдвээс HUD-д тохирох бодлого олдоогүй бол ангийн бүх сэдвээс */
-    .then(clean => (clean.length || !nd) ? clean : load(0))
+    /* Сэдвээс HUD-д тохирох бодлого хүрэлцэхгүй / 400 бол ангийн бүх сэдвээс */
+    .then(fill, () => (nd ? load(0) : Promise.reject(new Error('net'))))
     .then(clean => {
       if (clean.length) {
         pool = clean; poolKey = key;
@@ -363,4 +386,5 @@ export function createQuizQuestion(settings = getQuizSettings()) {
 }
 
 /* Тестэд */
-export const __test = { visibleLength, fitsHud, normalizeSettings, urlSelection, topicsOf, cleanQuestions };
+export const __test = { visibleLength, fitsHud, normalizeSettings, urlSelection, topicsOf, cleanQuestions,
+  prefetch, poolState: () => ({ pool: pool.slice(), poolKey, noServer: [...noServer] }) };

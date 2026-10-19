@@ -862,7 +862,11 @@ module.exports = async (req, res) => {
         const gRaw = b.game_grade != null && b.game_grade !== '' ? b.game_grade : (b.grade != null && b.grade !== '' ? b.grade : null);
         if (gRaw != null) {
           gameGrade = GM.normGrade(gRaw);
-          if (!gameGrade) return res.status(400).json({ ok: false, badGrade: true, error: 'Анги буруу байна (6–12-р анги сонгоно уу)' });
+          if (!gameGrade) {
+            const soon = GM.SOON_GRADES.indexOf(String(gRaw).trim()) >= 0;   // 11-р анги — «Тун удахгүй»
+            return res.status(400).json({ ok: false, badGrade: true, soon: soon || undefined,
+              error: soon ? String(gRaw).trim() + '-р анги тун удахгүй нээгдэнэ — өөр анги сонгоно уу' : 'Анги буруу байна (6–12-р анги сонгоно уу)' });
+          }
         }
         if (!(await rateLimit('game_inv:' + gameRealm + ':' + email.slice(0, 254), 20, 600)))
           return res.status(429).json({ ok: false, error: 'Хэт олон оролдлого. Түр хүлээгээд дахин оролдоно уу.' });
@@ -1320,7 +1324,11 @@ module.exports = async (req, res) => {
         if (!days) return res.status(400).json({ ok: false, error: 'Хугацаа буруу байна (1–366 хоног эсвэл 1–12 сар)' });
         const hasGrade = b.grade != null && String(b.grade).trim() !== '';
         const grade = hasGrade ? GM.normGrade(b.grade) : null;
-        if (hasGrade && !grade) return res.status(400).json({ ok: false, error: 'Анги буруу байна (6–12)' });
+        if (hasGrade && !grade) {
+          const soon = GM.SOON_GRADES.indexOf(String(b.grade).trim()) >= 0;   // 11-р анги — «Тун удахгүй»
+          return res.status(400).json({ ok: false, soon: soon || undefined,
+            error: soon ? String(b.grade).trim() + '-р анги тун удахгүй нээгдэнэ — өөр анги сонгоно уу' : 'Анги буруу байна (6–12)' });
+        }
         const acct = await pool.query(realm === 'ws'
           ? 'SELECT 1 FROM ws_login WHERE lower(email)=$1 LIMIT 1'
           : 'SELECT 1 FROM users WHERE lower(email)=$1 LIMIT 1', [email]);
