@@ -168,9 +168,11 @@ function revDay(x) {
 // тоглоом, ws|cm. invoice_id давхардахгүй (NOT EXISTS + ON CONFLICT) — дахин дуудахад аюулгүй. Админы олголт
 // (pay_pending-гүй) хэзээ ч орохгүй. Огноо = нэхэмжлэх үүссэн огноо (төлсөн огноо pay_pending-д хадгалагддаггүй),
 // expires_at = одоогийн дуусах огноо. Алдаа → 0 (тайлан/жагсаалт унахгүй, дараагийн удаа дахин оролдоно).
-const HEAL_GAME_LEDGER_SQL = `INSERT INTO game_purchases (invoice_id, realm, email, game_key, amount, days, expires_at, created_at)
+// grade = нэхэмжлэх дээрх анги (pay_pending.game_grade, create-д 6–12 allowlist-ээр шалгагдсан; NULL байж болно).
+const HEAL_GAME_LEDGER_SQL = `INSERT INTO game_purchases (invoice_id, realm, email, game_key, amount, days, expires_at, created_at, grade)
      SELECT p.invoice_id, p.realm, LOWER(TRIM(p.email)), p.game_key, COALESCE(p.amount, 0),
-            $2::int * GREATEST(1, LEAST(12, COALESCE(p.months, 1))), a.expires_at, COALESCE(p.created_at, NOW())
+            $2::int * GREATEST(1, LEAST(12, COALESCE(p.months, 1))), a.expires_at, COALESCE(p.created_at, NOW()),
+            CASE WHEN p.game_grade = ANY($3::text[]) THEN p.game_grade END
        FROM pay_pending p
        LEFT JOIN game_access a ON a.realm = p.realm AND a.email = LOWER(TRIM(p.email)) AND a.game_key = p.game_key
       WHERE p.plan = 'game' AND p.granted = TRUE AND p.realm IN ('ws', 'cm') AND p.game_key = ANY($1::text[])
@@ -179,7 +181,7 @@ const HEAL_GAME_LEDGER_SQL = `INSERT INTO game_purchases (invoice_id, realm, ema
 async function healGameLedger() {
   try {
     await ensurePayPending();
-    const r = await pool.query(HEAL_GAME_LEDGER_SQL, [GM.GAME_KEYS, GM.GAME_DAYS]);
+    const r = await pool.query(HEAL_GAME_LEDGER_SQL, [GM.GAME_KEYS, GM.GAME_DAYS, GM.GRADES]);
     if (r.rows.length) console.warn('[game ledger heal] нөхөв:', r.rows.map(function (x) { return x.invoice_id; }).join(', '));
     return r.rows.length;
   } catch (e) { console.error('[game ledger heal]', e.message); return 0; }
@@ -248,11 +250,11 @@ async function revReport(opts) {
     : await pool.query("SELECT COALESCE(grade,'(бүх анги)') AS grade, COUNT(*)::int n, COALESCE(SUM(amount),0)::int s"
         + " FROM ws_purchases WHERE created_at > NOW() - INTERVAL '30 days' GROUP BY grade ORDER BY s DESC");
 
-  // ── Тоглоомоор (тоглоом × сайт) — game_purchases, төлсөн огноогоор ──
-  const BYG = 'SELECT game_key, realm, COUNT(*)::int n, COALESCE(SUM(amount),0)::int s FROM game_purchases ';
+  // ── Тоглоомоор (тоглоом × сайт × анги) — game_purchases, төлсөн огноогоор. grade = худалдан авах үеийн анги (NULL = тодорхойгүй) ──
+  const BYG = 'SELECT game_key, realm, grade, COUNT(*)::int n, COALESCE(SUM(amount),0)::int s FROM game_purchases ';
   const byGame = custom
-    ? await gq(BYG + RNG + ' GROUP BY game_key, realm ORDER BY s DESC, game_key', [from, to], [])
-    : await gq(BYG + "WHERE created_at > NOW() - INTERVAL '30 days' GROUP BY game_key, realm ORDER BY s DESC, game_key", [], []);
+    ? await gq(BYG + RNG + ' GROUP BY game_key, realm, grade ORDER BY s DESC, game_key, grade', [from, to], [])
+    : await gq(BYG + "WHERE created_at > NOW() - INTERVAL '30 days' GROUP BY game_key, realm, grade ORDER BY s DESC, game_key, grade", [], []);
 
   // ── Админаас нээсэн эрхийн БҮРТГЭЛ (мөнгөн дүн ОРУУЛАХГҮЙ) ──
   await ensureAdminGrants();
@@ -528,11 +530,13 @@ async function ensurePayPending() {
   // Тоглоомын нэхэмжлэх (plan='game'): аль тоглоом, аль realm ('ws' Дасгалын төв / 'cm' cyber-math.com)
   await pool.query(`ALTER TABLE pay_pending ADD COLUMN IF NOT EXISTS game_key TEXT`).catch(()=>{});
   await pool.query(`ALTER TABLE pay_pending ADD COLUMN IF NOT EXISTS realm TEXT`).catch(()=>{});
+  // Тоглоомын анги (6–12) — үнэ/эрхэд нөлөөгүй, settleGame → game_access.grade + game_purchases.grade
+  await pool.query(`ALTER TABLE pay_pending ADD COLUMN IF NOT EXISTS game_grade TEXT`).catch(()=>{});
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_pay_pending_email ON pay_pending(email, granted)`).catch(()=>{});
   payPendingReady = true;
 }
 // check/callback/reconcile гурвуулаа ИЖИЛ баганын жагсаалтаар уншина (game_key/realm дутвал тоглоом олгогдохгүй)
-const PAY_COLS = 'invoice_id, email, plan, months, amount, event_id, granted, promo_code, game_key, realm';
+const PAY_COLS = 'invoice_id, email, plan, months, amount, event_id, granted, promo_code, game_key, realm, game_grade';
 async function payPendingRow(invoiceId) {
   if (!invoiceId) return null;
   await ensurePayPending();
@@ -610,10 +614,13 @@ function gameGrantDays(b) {
 // Зэрэг дуудлага: ялагдсан нь ялагчийн claim-ийн мөрийн түгжээг COMMIT/ROLLBACK болтол хүлээнэ (давхар олголтгүй,
 // хариунд expiry:null гарахгүй). Олголт алдаа → ROLLBACK (unclaim хэрэггүй).
 // Бүртгэлийн алдааг SAVEPOINT-оор тусгаарлана: эрх олгогдоно (мөнгө авсан), бүртгэл дутсаныг лог + Telegram-аар мэдэгдэнэ.
+// Анги (pay_pending.game_grade): game_access.grade (одоогийн) + game_purchases.grade (худалдан авалтынх). Үнэ/хоногт нөлөөгүй;
+// NULL/буруу анги олголтыг зогсоохгүй (хуучин клиент, cm).
 async function settleGame(row, email) {
   const key = row.game_key, realm = GM.normRealm(row.realm);
   const months = Math.min(12, Math.max(1, parseInt(row.months, 10) || 1));
   const days = GM.GAME_DAYS * months;
+  const grade = GM.normGrade(row.game_grade);
   // DDL-ийг транзакцаас ӨМНӨ (транзакц дотор өөр холболтоор ALTER pay_pending хийвэл гацна — _games.js tablesFor)
   await GM.ensureGameTables();
   const client = await pool.connect();
@@ -622,11 +629,11 @@ async function settleGame(row, email) {
     await client.query('BEGIN');
     claimed = await claimPending('pay_pending', row.invoice_id, client);
     if (claimed) {
-      exp = await GM.grantGame(realm, email, key, days, client);
+      exp = await GM.grantGame(realm, email, key, days, client, grade);
       await client.query('SAVEPOINT game_ledger');
       try {
         await GM.recordPurchase({ invoice_id: row.invoice_id, realm: realm, email: email, game_key: key,
-          amount: row.amount, days: days, expires_at: exp }, client);
+          amount: row.amount, days: days, expires_at: exp, grade: grade }, client);
         await client.query('RELEASE SAVEPOINT game_ledger');
       } catch (e) {
         ledgerOk = false;
@@ -648,12 +655,15 @@ async function settleGame(row, email) {
     try { cur = await GM.currentExpiry(realm, email, key); } catch (e) { console.error('[game expiry]', e.message); }
     return { granted: false, out: { ok: true, paid: true, game: key, realm: realm, expiry: cur ? cur.toISOString() : null } };
   }
-  await notifyTelegram('<b>Тоглоом худалдан авлаа</b>\n' + escTg(GM.GAMES[key].title) + ' · ' + escTg(email) +
+  await notifyTelegram('<b>Тоглоом худалдан авлаа</b>\n' + escTg(GM.GAMES[key].title) + (grade ? ' · ' + grade + '-р анги' : '') +
+    ' · ' + escTg(email) +
     ' (' + (realm === 'ws' ? 'Дасгалын төв' : 'cyber-math.com') + ')\n' + escTg(row.amount) + '₮ · ' +
     exp.toISOString().slice(0, 10) + ' хүртэл' +
     (ledgerOk ? '' : '\n<b>Анхаар:</b> борлуулалтын бүртгэл (game_purchases) бичигдсэнгүй — ' + escTg(row.invoice_id) +
       '. Админ › Тоглоом таб, Тайлан эсвэл «Төлбөр тулгах» нээхэд pay_pending-ээс автоматаар нөхөгдөнө'));
-  return { granted: true, out: { ok: true, paid: true, game: key, realm: realm, expiry: exp.toISOString() } };
+  const out = { ok: true, paid: true, game: key, realm: realm, expiry: exp.toISOString() };
+  if (grade) out.grade = grade;
+  return { granted: true, out: out };
 }
 // Premium / friends / event / game нэхэмжлэхийг ХАДГАЛСАН мөрөөр НЭГ УДАА олгоно.
 // Буцаах: { granted: энэ дуудлага эрх олгосон эсэх, out: клиентийн хариу (бүтэц хуучинтай ижил) }
@@ -837,7 +847,7 @@ module.exports = async (req, res) => {
       // Тоглоом — 1 тоглоом × 30 хоног. realm-ээр имэйлийг ЗӨВХӨН тухайн сайтын токеноос авна:
       //   'ws' → body.wstoken (ws:true), 'cm' → Authorization: Bearer cm_token (tv шалгана).
       // body.email/amount/promo/ref/months-д огт итгэхгүй; game нь серверийн allowlist-д байх ёстой.
-      let gameKey = null, gameRealm = null;
+      let gameKey = null, gameRealm = null, gameGrade = null;
       if (isGamePlan) {
         const b = req.body || {};
         gameRealm = GM.normRealm(b.realm);
@@ -848,6 +858,18 @@ module.exports = async (req, res) => {
         if (!email) return res.status(401).json({ ok: false, needLogin: true, error: 'Худалдан авахын тулд эхлээд нэвтэрнэ үү.' });
         gameKey = typeof b.game === 'string' ? b.game.trim() : '';
         if (!GM.isGame(gameKey)) return res.status(400).json({ ok: false, error: 'Тоглоом олдсонгүй' });
+        // Тоглоомын анги (6–12): Дасгалын төвд худалдан авахдаа сонгоно. Үнэ/эрх/хоногт ОГТ нөлөөлөхгүй — зөвхөн
+        // pay_pending.game_grade → game_purchases.grade / game_access.grade. Байхгүй бол NULL (cm, хуучин клиент);
+        // буруу утга (5, 13, '7a' …) → 400, нэхэмжлэх үүсэхгүй. body.game_grade (body.grade — ижил утгатай нэр).
+        const gRaw = b.game_grade != null && b.game_grade !== '' ? b.game_grade : (b.grade != null && b.grade !== '' ? b.grade : null);
+        if (gRaw != null) {
+          gameGrade = GM.normGrade(gRaw);
+          if (!gameGrade) {
+            const soon = GM.SOON_GRADES.indexOf(String(gRaw).trim()) >= 0;   // 11-р анги — «Тун удахгүй»
+            return res.status(400).json({ ok: false, badGrade: true, soon: soon || undefined,
+              error: soon ? String(gRaw).trim() + '-р анги тун удахгүй нээгдэнэ — өөр анги сонгоно уу' : 'Анги буруу байна (6–12-р анги сонгоно уу)' });
+          }
+        }
         if (!(await rateLimit('game_inv:' + gameRealm + ':' + email.slice(0, 254), 20, 600)))
           return res.status(429).json({ ok: false, error: 'Хэт олон оролдлого. Түр хүлээгээд дахин оролдоно уу.' });
         // Аль хэдийн үнэгүй (GAME_PAYWALL=off эсвэл cm-ийн идэвхтэй Premium) бол мөнгө авахгүй — нэхэмжлэх үүсгэхгүй.
@@ -921,7 +943,7 @@ module.exports = async (req, res) => {
         premiumAmount = PREMIUM_PRICES[isTeacher ? 'teacher' : 'student'][premiumPlan];
       }
 
-      const desc = isGamePlan ? `CyberMath тоглоом — ${GM.GAMES[gameKey].title} — 1 сар`.slice(0, 100)
+      const desc = isGamePlan ? `CyberMath тоглоом — ${GM.GAMES[gameKey].title}${gameGrade ? ' — ' + gameGrade + '-р анги' : ''} — 1 сар`.slice(0, 100)
                  : wgGrade != null ? `CyberMath ${wgGrade} — ${wgMonths} сар`.slice(0, 100)
                  : wsMonths != null ? `CyberMath Ажлын хуудас — ${wsMonths} сар`
                  : plan === 'event' ? ('Сургалт — ' + (eventTitle || 'CyberMath')).slice(0, 100)
@@ -982,9 +1004,9 @@ module.exports = async (req, res) => {
           } else if (isGamePlan) {
             await ensurePayPending();
             await pool.query(
-              `INSERT INTO pay_pending (invoice_id, email, plan, months, amount, event_id, game_key, realm) VALUES ($1,$2,'game',1,$3,NULL,$4,$5)
+              `INSERT INTO pay_pending (invoice_id, email, plan, months, amount, event_id, game_key, realm, game_grade) VALUES ($1,$2,'game',1,$3,NULL,$4,$5,$6)
                ON CONFLICT (invoice_id) DO NOTHING`,
-              [invoice.invoice_id, emailLc, invAmount, gameKey, gameRealm]);
+              [invoice.invoice_id, emailLc, invAmount, gameKey, gameRealm, gameGrade]);
           } else {
             await ensurePayPending();
             await pool.query(
@@ -1006,7 +1028,7 @@ module.exports = async (req, res) => {
         } catch (e) { console.error('[event invoice link]', e.message); }
       }
       // ws/game plan: аль данс руу худалдан авч буйг (токены имэйл) клиентэд буцаана — check-д энэ имэйлийг илгээнэ
-      if (isGamePlan) return res.json({ ok: true, invoice, email: emailLc, game: gameKey, realm: gameRealm, amount: invAmount });
+      if (isGamePlan) return res.json({ ok: true, invoice, email: emailLc, game: gameKey, realm: gameRealm, amount: invAmount, grade: gameGrade });
       return res.json(isWsPlan ? { ok: true, invoice, email: emailLc } : { ok: true, invoice });
     }
 
@@ -1223,7 +1245,7 @@ module.exports = async (req, res) => {
               if (!s.granted) continue;
               const g = { email: row.email, plan: row.plan, months: row.months, amount: row.amount };
               if (row.plan === 'event') g.event_id = row.event_id;
-              if (row.plan === 'game') { g.game = row.game_key; g.realm = row.realm; }
+              if (row.plan === 'game') { g.game = row.game_key; g.realm = row.realm; if (GM.normGrade(row.game_grade)) g.grade = GM.normGrade(row.game_grade); }
               granted.push(g);
             }
           } catch (e) { console.error('[reconcile pay row]', row.invoice_id, e.message); }
@@ -1289,7 +1311,8 @@ module.exports = async (req, res) => {
         return res.json({ ok: true, revoked: email });
       }
       // ── ТОГЛООМ: админ гараар олгох (мөнгөгүй бүртгэл) ──
-      // {realm:'ws'|'cm', email, game, days? (1–366) | months? (1–12), note?}. Нэмэгддэг: GREATEST(хуучин, NOW()) + хоног.
+      // {realm:'ws'|'cm', email, game, days? (1–366) | months? (1–12), grade? (6–12), note?}. Нэмэгддэг: GREATEST(хуучин, NOW()) + хоног.
+      // grade — тоглоомын анги (заавал биш; өгвөл game_access.grade, өгөөгүй бол хуучнаараа). Буруу анги → 400.
       // Данс тухайн сайтад бүртгэлтэй байх ёстой (ws → ws_login, cm → users) — үсгийн алдаагаар хоосон эрх олгохгүй.
       // game_purchases-д БИЧИХГҮЙ (QPay-гүй) → тайлангийн орлогод орохгүй; зөвхөн ws_admin_grants-д бүртгэнэ.
       if (req.query.action === 'game_grant') {
@@ -1301,16 +1324,25 @@ module.exports = async (req, res) => {
         if (!GM.isGame(key)) return res.status(400).json({ ok: false, error: 'Тоглоом олдсонгүй' });
         const days = gameGrantDays(b);
         if (!days) return res.status(400).json({ ok: false, error: 'Хугацаа буруу байна (1–366 хоног эсвэл 1–12 сар)' });
+        const hasGrade = b.grade != null && String(b.grade).trim() !== '';
+        const grade = hasGrade ? GM.normGrade(b.grade) : null;
+        if (hasGrade && !grade) {
+          const soon = GM.SOON_GRADES.indexOf(String(b.grade).trim()) >= 0;   // 11-р анги — «Тун удахгүй»
+          return res.status(400).json({ ok: false, soon: soon || undefined,
+            error: soon ? String(b.grade).trim() + '-р анги тун удахгүй нээгдэнэ — өөр анги сонгоно уу' : 'Анги буруу байна (6–12)' });
+        }
         const acct = await pool.query(realm === 'ws'
           ? 'SELECT 1 FROM ws_login WHERE lower(email)=$1 LIMIT 1'
           : 'SELECT 1 FROM users WHERE lower(email)=$1 LIMIT 1', [email]);
         if (!acct.rows.length) return res.status(400).json({ ok: false, noAccount: true,
           error: 'Данс олдсонгүй: ' + email + ' ' + (realm === 'ws' ? 'Дасгалын төвд' : 'cyber-math.com-д') + ' бүртгэлгүй байна' });
-        const exp = await GM.grantGame(realm, email, key, days);
+        const exp = await GM.grantGame(realm, email, key, days, null, grade);
         await logAdminGrant(email, null, Math.max(1, Math.round(days / GM.GAME_DAYS)), String(b.note || '').slice(0, 200) || null,
           { game_key: key, realm: realm, days: days });
-        return res.json({ ok: true, realm: realm, email: email, game: key, title: GM.GAMES[key].title, days: days,
-          expires_at: exp.toISOString() });
+        const gOut = { ok: true, realm: realm, email: email, game: key, title: GM.GAMES[key].title, days: days,
+          expires_at: exp.toISOString() };
+        if (grade) gOut.grade = grade;
+        return res.json(gOut);
       }
       // ── ТОГЛООМ: эрх цуцлах {realm, email, game} ──
       // Шинээр нээх (launch) болон урилга шууд хаагдана; аль хэдийн нээсэн gate-ийн сесс (cookie) 2 цаг хүртэл үргэлжилж болно.
@@ -1340,7 +1372,7 @@ module.exports = async (req, res) => {
         const lim = Math.min(1000, Math.max(20, parseInt(b.limit, 10) || 500));
         const r = await pool.query(
           `SELECT a.realm, a.email, a.game_key, a.expires_at, a.updated_at, (a.expires_at > NOW()) AS active,
-                  COALESCE(p.cnt,0)::int AS paid_count, COALESCE(p.total,0)::int AS paid_sum, p.last_at AS paid_last
+                  COALESCE(p.cnt,0)::int AS paid_count, COALESCE(p.total,0)::int AS paid_sum, p.last_at AS paid_last, a.grade
              FROM game_access a
              LEFT JOIN (SELECT realm, email, game_key, COUNT(*) AS cnt, SUM(amount) AS total, MAX(created_at) AS last_at
                           FROM game_purchases GROUP BY realm, email, game_key) p
@@ -1370,11 +1402,11 @@ module.exports = async (req, res) => {
           g.sales += x.sales; if (x.realm === 'ws' || x.realm === 'cm') g['sales_' + x.realm] += x.sales;
         });
         const purch = await pool.query(
-          'SELECT id, invoice_id, realm, email, game_key, amount, days, expires_at, created_at FROM game_purchases ORDER BY id DESC LIMIT 100');
+          'SELECT id, invoice_id, realm, email, game_key, amount, days, expires_at, created_at, grade FROM game_purchases ORDER BY id DESC LIMIT 100');
         // Сүүлийн 30 хоногийн төлөгдөөгүй (олгогдоогүй) тоглоомын нэхэмжлэх
         await ensurePayPending();
         const pend = await pool.query(
-          `SELECT invoice_id, email, realm, game_key, amount, created_at FROM pay_pending
+          `SELECT invoice_id, email, realm, game_key, amount, created_at, game_grade FROM pay_pending
             WHERE plan='game' AND granted=FALSE AND created_at > NOW() - INTERVAL '30 days'
             ORDER BY created_at DESC LIMIT 100`);
         return res.json({ ok: true, rows: r.rows, shown: r.rows.length, total: totalRows, active: totalActive,

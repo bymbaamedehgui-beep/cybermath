@@ -141,7 +141,135 @@ test('games-host: cardState / embedUrl / parseInvite / fmt / ymd / esc / rounds'
   assert.strictEqual(H0.rounds(qs.concat(qs, qs), { max: 3 }).length, 3);
 });
 
+test('games-host: анги/сэдэв — normSel / withSel / embedUrl(sel) / parseInvite(sel) / selLabel / topicGroups (MIN, 11-р анги, numseq)', () => {
+  assert.deepStrictEqual(H0.GRADES, ['6', '7', '8', '9', '10', '11', '12']);
+  assert.deepStrictEqual(H0.normSel({ grade: 8, topic: '512', name: '\u{1F4DD}  Шугаман  тэгшитгэл ' }), { grade: '8', topic: '512', name: 'Шугаман тэгшитгэл' });
+  assert.deepStrictEqual(H0.normSel({ grade: '12', topic: 'x' }), { grade: '12', topic: '0', name: '' });
+  assert.deepStrictEqual(H0.normSel({ grade: '9', topic: '0', name: 'X' }), { grade: '9', topic: '0', name: '' }, 'бүх сэдэвт нэргүй');
+  // 11-р анги «Тун удахгүй»: сонголт болохгүй (хадгалсан 11 → null → анги дахин асууна)
+  [null, {}, { grade: '5' }, { grade: '13' }, { grade: 'g' }, { topic: '5' }, 'x', { grade: '11' }, { grade: 11, topic: '3' }].forEach((v) => assert.strictEqual(H0.normSel(v), null, JSON.stringify(v)));
+  assert.deepStrictEqual([H0.isSoon('11'), H0.isSoon(11), H0.isSoon('12'), H0.isSoon(null), H0.normGrade('11')], [true, true, false, false, null]);
+  const s = { grade: '8', topic: '512', name: 'Шугаман' };
+  assert.strictEqual(H0.selLabel(s), '8-р анги · Шугаман');
+  assert.strictEqual(H0.selLabel({ grade: '12', topic: '0' }), '12-р анги · Бүх сэдэв');
+  assert.strictEqual(H0.selLabel({ grade: '11', topic: '0' }), '');
+  assert.strictEqual(H0.embedUrl('daam', 'ws', null, { grade: '11' }), '/?embed=daam&realm=ws', '11 URL-д орохгүй');
+  assert.deepStrictEqual(H0.parseInvite('?game=ludo&grade=11&topic=4'), { key: 'ludo', inv: null });
+  assert.strictEqual(H0.selLabel({ grade: '7', topic: '9' }), '7-р анги · Сонгосон сэдэв');
+  assert.strictEqual(H0.selLabel(null), '');
+  // withSel: ? / & / # / замгүй гадны хаяг / аль хэдийн grade= байвал хэвээр / sel буруу бол хэвээр
+  assert.strictEqual(H0.withSel('/sudoku.html', s), '/sudoku.html?grade=8&topic=512');
+  assert.strictEqual(H0.withSel('/sudoku.html?realm=ws&t=abc', s), '/sudoku.html?realm=ws&t=abc&grade=8&topic=512');
+  assert.strictEqual(H0.withSel('/math-mortal/#x', s), '/math-mortal/?grade=8&topic=512#x');
+  assert.strictEqual(H0.withSel('https://8-9-songon.vercel.app', s), 'https://8-9-songon.vercel.app/?grade=8&topic=512');
+  assert.strictEqual(H0.withSel('/x.html?grade=10&topic=0', s), '/x.html?grade=10&topic=0', 'сервер залгасан бол давхарлахгүй');
+  assert.strictEqual(H0.withSel('/x.html', { grade: '5' }), '/x.html');
+  assert.strictEqual(H0.withSel('/x.html', null), '/x.html');
+  // 'g' параметр ХЭРЭГЛЭХГҮЙ (gate/game.js хасдаг)
+  assert.doesNotMatch(H0.withSel('/x.html', s), /[?&]g=/);
+  // embedUrl sel
+  const inv = 'a'.repeat(30) + '.b-c_d';
+  assert.strictEqual(H0.embedUrl('chessmath', 'ws', null, s), '/?embed=chessmath&realm=ws&grade=8&topic=512');
+  assert.strictEqual(H0.embedUrl('daam', 'ws', inv, { grade: '6' }), '/?embed=daam&realm=ws&einv=' + inv + '&grade=6&topic=0');
+  assert.strictEqual(H0.embedUrl('daam', 'ws', null, { grade: '<x>' }), '/?embed=daam&realm=ws', 'буруу анги URL-д орохгүй');
+  // parseInvite: host-ийн анги/сэдэв (байвал л)
+  assert.deepStrictEqual(H0.parseInvite('?game=chessmath&ginv=' + inv + '&grade=9&topic=77'),
+    { key: 'chessmath', inv: inv, sel: { grade: '9', topic: '77', name: '' } });
+  assert.deepStrictEqual(H0.parseInvite('?game=ludo&grade=13'), { key: 'ludo', inv: null });
+  assert.deepStrictEqual(H0.parseInvite('?grade=8'), { key: null, inv: null }, 'тоглоомгүй бол үл тоомсорлоно');
+  // topicGroups — тоглоомын доод хязгаар (MIN), бүлэг, давхардал, эможи, 11-р анги, numseq
+  const d = { ok: true, grade: '8', total: 70, chapters: [
+    { name: 'I бүлэг', topics: [{ id: 1, name: 'A', n: 30 }, { id: 2, name: 'B', n: 10 }, { id: 3, name: '', n: 50 }, { id: 'x', name: 'C', n: 50 }] },
+    { name: '\u{1F3C6} Бататгал', topics: [{ id: 1, name: 'A dup', n: 30 }, { id: 4, name: 'D', n: 25 }] },
+    { name: 'Хоосон', topics: [{ id: 5, name: 'E', n: 3 }] }] };
+  const tg = H0.topicGroups(d, 'sudoku');   // MIN 12
+  assert.deepStrictEqual(tg.groups, [{ name: 'I бүлэг', topics: [{ id: '1', name: 'A', n: 30 }] }, { name: 'Бататгал', topics: [{ id: '4', name: 'D', n: 25 }] }]);
+  assert.deepStrictEqual([tg.total, tg.count, tg.few, tg.allOnly], [70, 2, false, false]);
+  assert.strictEqual(H0.topicGroups(d, 'chessmath').count, 3, 'анхдагч MIN 8 → B (10) орно');
+  assert.strictEqual(H0.topicGroups(d, 'sbh').count, 2, 'sbh MIN 20');
+  assert.strictEqual(H0.topicGroups(d, 'sbh').few, false);
+  assert.strictEqual(H0.topicGroups({ ok: true, grade: '9', total: 15, chapters: [] }, 'sbh').few, true, 'нийт < 20');
+  const g11 = H0.topicGroups({ ok: true, grade: '11', total: 26, chapters: d.chapters }, 'chessmath');
+  assert.deepStrictEqual([g11.allOnly, g11.groups.length], [true, 0], '11-р анги — зөвхөн «Бүх сэдэв»');
+  assert.strictEqual(H0.topicGroups(d, 'numseq').allOnly, true, 'numseq сэдэвгүй');
+  assert.strictEqual(H0.hasTopics('numseq'), false);
+  assert.strictEqual(H0.hasTopics('sudoku'), true);
+  assert.deepStrictEqual([H0.minFor('sbh'), H0.minFor('myangat'), H0.minFor('sudoku'), H0.minFor('xpdrop'), H0.minFor('daam')], [20, 15, 12, 10, 8]);
+  assert.deepStrictEqual(H0.topicGroups(null, 'sudoku').groups, []);
+  // мянгатын эрэмбэ
+  assert.deepStrictEqual(H0.byDifficulty([{ difficulty: 'hard', i: 1 }, { difficulty: 'easy', i: 2 }, { i: 3 }, { difficulty: 'easy', i: 4 }]).map((q) => q.i), [2, 4, 3, 1]);
+});
+
+test('games-host: сонголтын хадгалалт (cm_game_sel_<realm>) имэйл×тоглоом, realm тусдаа; lastGrade; урилгын sel (sessionStorage); hosт → API body', async () => {
+  const W = browser({ ls: { cm_ws_token: wsTok('kid@x.mn') } });
+  const H = W.CMGamesHost;
+  assert.strictEqual(H.getSel('ws', 'kid@x.mn', 'sudoku'), null);
+  H.setSel('ws', 'Kid@X.mn ', 'sudoku', { grade: '8', topic: '512', name: 'Шугаман' });
+  H.setSel('ws', 'kid@x.mn', 'play2048', { grade: '10', topic: '0' });
+  H.setSel('ws', 'kid@x.mn', '__proto__', { grade: '9' });
+  H.setSel('ws', 'kid@x.mn', 'ludo', { grade: '13' });   // буруу → хадгалахгүй
+  assert.deepStrictEqual(J(H.getSel('ws', 'kid@x.mn', 'sudoku')), { grade: '8', topic: '512', name: 'Шугаман' });
+  assert.strictEqual(H.getSel('ws', 'other@x.mn', 'sudoku'), null, 'өөр данс');
+  assert.strictEqual(H.getSel('cm', 'kid@x.mn', 'sudoku'), null, 'өөр realm');
+  assert.strictEqual(H.getSel('ws', 'kid@x.mn', 'ludo'), null);
+  assert.ok(['8', '10'].indexOf(H.lastGrade('ws', 'kid@x.mn')) >= 0, 'хамгийн сүүлд хадгалсан анги');
+  assert.strictEqual(H.lastGrade('ws', 'nobody@x.mn'), null);
+  const raw = JSON.parse(W.localStorage.getItem('cm_game_sel_ws'));
+  assert.deepStrictEqual(Object.keys(raw).sort(), ['kid@x.mn|play2048', 'kid@x.mn|sudoku']);
+  H.setSel('ws', 'kid@x.mn', 'sudoku', null);
+  assert.strictEqual(H.getSel('ws', 'kid@x.mn', 'sudoku'), null, 'null → устгана');
+  W.localStorage.setItem('cm_game_sel_ws', '{bad json');
+  assert.strictEqual(H.getSel('ws', 'kid@x.mn', 'play2048'), null, 'эвдэрхий JSON → null (унахгүй)');
+  // урилгын sel: takeUrlInvite → sessionStorage, setInvite(null) → арилна
+  const FW = browser({ path: '/worksheets?game=chessmath&ginv=' + 'a'.repeat(30) + '&grade=7&topic=12&x=1' });
+  const got = FW.CMGamesHost.takeUrlInvite('ws');
+  assert.deepStrictEqual(J(got.sel), { grade: '7', topic: '12', name: '' });
+  assert.strictEqual(FW.location.search, '?x=1', 'game/ginv/grade/topic арилсан, бусад хэвээр');
+  assert.deepStrictEqual(J(FW.CMGamesHost.inviteSel('ws', 'chessmath')), { grade: '7', topic: '12', name: '' });
+  FW.CMGamesHost.setInvite('ws', 'chessmath', null);
+  assert.strictEqual(FW.CMGamesHost.inviteSel('ws', 'chessmath'), null);
+  // API body: buyCreate → game_grade (зөвхөн хүчинтэй), launch → grade/topic
+  await H.buyCreate('sudoku', { realm: 'ws', grade: '9' });
+  let cb = W.log.filter((x) => x.action === 'create').pop().body;
+  assert.deepStrictEqual(Object.keys(cb).sort(), ['game', 'game_grade', 'plan', 'realm', 'wstoken']);
+  assert.strictEqual(cb.game_grade, '9');
+  await H.buyCreate('sudoku', { realm: 'ws', grade: '13' });
+  cb = W.log.filter((x) => x.action === 'create').pop().body;
+  assert.strictEqual(cb.game_grade, undefined, 'буруу анги илгээхгүй (сервер NULL)');
+  await H.launch('sudoku', { realm: 'ws', sel: { grade: '8', topic: '512' } });
+  const lb = W.log.filter((x) => x.action === 'launch').pop().body;
+  assert.deepStrictEqual([lb.grade, lb.topic], ['8', '512']);
+  await H.launch('sudoku', { realm: 'ws' });
+  const lb2 = W.log.filter((x) => x.action === 'launch').pop().body;
+  assert.deepStrictEqual([lb2.grade, lb2.topic], [undefined, undefined], 'сонголтгүй → хуучин body');
+});
+
 // ───────────────────────── games-host.js ↔ api/games.js + api/qpay.js ─────────────────────────
+test('games-host: topics(g, force, key) — MATH MORTAL-д ?hud=1 (HUD-д тохирох тоо, тусдаа кэш); 11-р анги → татахгүй', async () => {
+  const W = browser({});
+  const H = W.CMGamesHost;
+  const urls = [];
+  W.fetch = async (u) => {
+    urls.push(String(u));
+    const g = /game_topics=(\d+)/.exec(String(u))[1], hud = /[?&]hud=1(&|$)/.test(String(u));
+    return { status: 200, ok: true, json: async () => ({ ok: true, grade: g, total: hud ? 6 : 40,
+      chapters: [{ name: '', topics: [{ id: 801, name: 'Сэдэв', n: hud ? 3 : 40 }, { id: 802, name: 'Өгүүлбэртэй', n: hud ? 6 : 30 }] }] }) };
+  };
+  const a = await H.topics('8', false, 'chessmath');
+  const b = await H.topics('8', false, 'mathmortal');
+  await H.topics('8', false, 'chessmath');
+  await H.topics('8', false, 'mathmortal');
+  await H.topics('8');
+  assert.deepStrictEqual(urls, ['/api/questions?game_topics=8', '/api/questions?game_topics=8&hud=1'], 'тусдаа кэш, дахин татахгүй');
+  assert.deepStrictEqual([a.total, b.total], [40, 6]);
+  // MIN.mathmortal 4: hud тоогоор 801 (3) хасагдана
+  assert.deepStrictEqual(J(H.topicGroups(b, 'mathmortal').groups), [{ name: '', topics: [{ id: '802', name: 'Өгүүлбэртэй', n: 6 }] }]);
+  await assert.rejects(H.topics('11', false, 'mathmortal'));
+  assert.strictEqual(urls.length, 2);
+  // worksheets.html сонгогч тоглоомын түлхүүрийг дамжуулна
+  assert.ok(WSH.indexOf('H.topics(g,false,k)') >= 0);
+});
+
 test('host↔API: каталог; токенгүй → нэвтрэх; ws токеноор худалдан авах (QPay QR) → төлбөр баталгаажих → тоглох', async () => {
   const KID = wsTok('kid@x.mn');   // нэг удаа (iat секунд солигдвол дахин гарын үсэглэсэн токен өөр болно)
   const W = browser({ ls: { cm_ws_token: KID } });
@@ -763,9 +891,10 @@ test('worksheets.html: #gamesSec + games-host.js + GW (realm ws), утсан д�
   const gw = between(WSH, '/* ═══ Дасгалын төв — Тоглоом (window.GW)', '</script>').replace(/<\/script>$/, '');
   new vm.Script(gw, { filename: 'worksheets.html#GW' });
   assert.match(gw, /var REALM='ws'/);
-  assert.match(gw, /H\.buyCreate\(k,\{realm:REALM\}\)/);
-  assert.match(gw, /H\.launch\(k,\{realm:REALM,invite:inv\}\)/);
-  assert.match(gw, /H\.embedUrl\(k,REALM,inv\)/);
+  // худалдан авахад зөвхөн анги (үнэ/дүн биш), тоглоход анги/сэдэв (sel) дамжина
+  assert.match(gw, /H\.buyCreate\(k,\{realm:REALM,grade:s\.grade\}\)/);
+  assert.match(gw, /H\.launch\(k,\{realm:REALM,invite:inv,sel:sel\}\)/);
+  assert.match(gw, /H\.embedUrl\(k,REALM,inv,sel\)/);
   assert.match(gw, /scrollIntoView\(\{block:'center'\}\)/, 'QR гарсны дараа төв рүү гүйлгэнэ');
   assert.doesNotMatch(gw, /cm_token/, 'Дасгалын төв cyber-math.com-ийн токен ашиглахгүй');
   assert.doesNotMatch(gw, /amount|months|promo/i, 'клиент дүн/хугацаа/промо илгээхгүй');

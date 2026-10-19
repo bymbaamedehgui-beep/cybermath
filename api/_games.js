@@ -19,11 +19,19 @@
 //   entitled(realm, email, key)          → bool  (realm төлбөргүй / GAME_PAYWALL=off → allowlist-ийн тоглоомд true;
 //                                                 cm + идэвхтэй Premium → true; DB алдаа → throw: дуудагч fail-closed)
 //   activeGames(realm, email)            → { key: expires_at }
+//   activeGameInfo(realm, email)         → { games: { key: expires_at }, grades: { key: '6'..'12' } }  (нэг асуулт)
 //   isCmPremium(email)                   → bool
-//   grantGame(realm, email, key, days?, db?) → Date  (нэмэгддэг: GREATEST(хуучин, NOW()) + days)
+//   --- анги (тоглоомын бодлогын анги — ҮНЭ/ЭРХЭД НӨЛӨӨЛӨХГҮЙ, зөвхөн бүртгэл + анхдагч сонголт) ---
+//   GRADES = ['6'..'12'], SOON_GRADES = ['11'] («Тун удахгүй» — сонгогдохгүй),
+//   normGrade(v) → '6'..'12' (11-ээс бусад) | null, normTopic(v) → '0'..'999999' | null (learning path-ийн node id)
+//   game_access.grade    — ОДООГИЙН анги (худалдан авахад тавигдана, launch-аар шинэчлэгдэнэ — setGameGrade)
+//   game_purchases.grade — худалдан авах үеийн анги (өөрчлөгдөхгүй), pay_pending.game_grade — нэхэмжлэх дээрх анги
+//   grantGame(realm, email, key, days?, db?, grade?) → Date  (нэмэгддэг: GREATEST(хуучин, NOW()) + days;
+//                                          grade өгвөл game_access.grade-ийг тавина, өгөөгүй/буруу бол хуучнаараа)
+//   setGameGrade(realm, email, key, grade) → bool  (зөвхөн UPDATE идэвхтэй мөрөнд — мөр үүсгэхгүй, expires_at-д хүрэхгүй)
 //   currentExpiry(realm, email, key)     → Date | null
 //   revokeGame(realm, email, key, db?)   → устгасан мөрийн тоо
-//   recordPurchase(p, db?)               → bool  (game_purchases, invoice_id давхардахгүй)
+//   recordPurchase(p, db?)               → bool  (game_purchases, invoice_id давхардахгүй; p.grade → game_purchases.grade)
 //   cmUser(req)                          → { email, role } | null  (Bearer cm_token, tv шалгана)
 //   --- тасалбар / урилга (api/games.js, gate) — түлхүүр = HMAC-SHA256(JWT_SECRET, зориулалт), typ шалгана ---
 //   TICKET_TTL (120 сек), INVITE_TTL (3 цаг), inviteUses() (env GAME_INVITE_USES, анхдагч 20 — нийт ачаалалт),
@@ -62,7 +70,8 @@ function g(title, kind, multi, extra) {
 const GAMES = Object.freeze({
   mathmortal: g('MATH MORTAL', 'file', true, { path: '/math-mortal/' }),
   blockblast: g('Block Blast Math', 'external', false, { url: 'https://blockblast-math.vercel.app' }),
-  flagbattle: g('Flag Battle', 'external', false, { url: 'https://6-7-songon.vercel.app' }),
+  // Flag Battle — багшийн тэмцээн (bracket): анги, сэдвээ сонгоод оролцоно (түлхүүр flagbattle — идэвхтэй эрх бий, СОЛИХГҮЙ)
+  flagbattle: g('Flag Battle — Тэмцээн', 'external', false, { url: 'https://6-7-songon.vercel.app' }),
   songon:     g('Grade Battle', 'external', false, { url: 'https://10-11-songon.vercel.app' }),
   nicebattle: g('Nice Battle', 'external', false, { url: 'https://8-9-songon.vercel.app' }),
   chessmath:  g('Chess Math', 'inline', true),
@@ -147,6 +156,22 @@ function normEmail(e) {
 function publicCatalog() {
   return GAME_KEYS.map(function (k) { const x = GAMES[k]; return { key: k, title: x.title, kind: x.kind, multi: x.multi }; });
 }
+// Тоглоомын бодлогын анги (6–12). Үнэ/эрх ангиас ОГТ хамаарахгүй — зөвхөн allowlist-ээр шалгаж бүртгэнэ.
+const GRADES = Object.freeze(['6', '7', '8', '9', '10', '11', '12']);
+// «Тун удахгүй» анги (эзэмшигчийн шийдвэр: 11-р ангийн бодлого хангалтгүй) — худалдан авах (qpay create 400 badGrade),
+// launch (үл тоомсорлоно), админы олголт (400)-д СОНГОГДОХГҮЙ. Хадгалсан 11 → null (клиент ангийг дахин асууна).
+const SOON_GRADES = Object.freeze(['11']);
+function normGrade(v) {
+  if (typeof v !== 'string' && typeof v !== 'number') return null;
+  const s = String(v).trim();
+  return GRADES.indexOf(s) >= 0 && SOON_GRADES.indexOf(s) < 0 ? s : null;
+}
+// Сэдэв = learning path-ийн node id (0 = ангийн бүх сэдэв). Зөвхөн URL-д дамжуулна, серверт хадгалахгүй.
+function normTopic(v) {
+  if (typeof v !== 'string' && typeof v !== 'number') return null;
+  const s = String(v).trim();
+  return /^\d{1,6}$/.test(s) ? String(parseInt(s, 10)) : null;
+}
 
 // ───────────────────────── хүснэгт ─────────────────────────
 const DDL = [
@@ -191,11 +216,16 @@ const DDL = [
   "ALTER TABLE game_invites ADD COLUMN IF NOT EXISTS devs TEXT[] NOT NULL DEFAULT '{}'",
   'CREATE INDEX IF NOT EXISTS idx_game_tix_exp ON game_ticket_used(exp)',
   'CREATE INDEX IF NOT EXISTS idx_game_inv_exp ON game_invites(expires_at)',
+  // Тоглоомын бодлогын анги (6–12, NULL = тодорхойгүй — хуучин мөр). Эрх/үнэд нөлөөгүй.
+  'ALTER TABLE game_access ADD COLUMN IF NOT EXISTS grade TEXT',
+  'ALTER TABLE game_purchases ADD COLUMN IF NOT EXISTS grade TEXT',
 ];
 // pay_pending-ийг api/qpay.js ensurePayPending үүсгэдэг (тэнд ч мөн ALTER хийнэ) — энд best-effort
 const DDL_SOFT = [
   'ALTER TABLE pay_pending ADD COLUMN IF NOT EXISTS game_key TEXT',
   'ALTER TABLE pay_pending ADD COLUMN IF NOT EXISTS realm TEXT',
+  // нэхэмжлэх дээрх тоглоомын анги ('grade' биш — ws_pending.grade (ажлын хуудасны анги)-тай андуурахгүй)
+  'ALTER TABLE pay_pending ADD COLUMN IF NOT EXISTS game_grade TEXT',
 ];
 let _ready = null;
 let _tablesOk = false;
@@ -263,16 +293,30 @@ async function entitlement(realm, email, key) {
 }
 async function entitled(realm, email, key) { return (await entitlement(realm, email, key)).ok; }
 
-async function activeGames(realm, email) {
+// Идэвхтэй эрх + одоогийн анги НЭГ асуултаар: { games: { key: ISO }, grades: { key: '6'..'12' } }
+// (grades-д зөвхөн анги нь тодорхой тоглоом — хуучин NULL мөр орохгүй).
+async function activeGameInfo(realm, email) {
   const rl = normRealm(realm), em = normEmail(email);
-  const out = {};
+  const out = { games: {}, grades: {}, lastGrade: null };
   if (!rl || !em) return out;
   await ensureGameTables();
   const r = await pool.query(
-    'SELECT game_key, expires_at FROM game_access WHERE realm=$1 AND email=$2 AND expires_at > NOW()', [rl, em]);
-  r.rows.forEach(function (x) { if (isGame(x.game_key)) out[x.game_key] = new Date(x.expires_at).toISOString(); });
+    'SELECT game_key, expires_at, grade FROM game_access WHERE realm=$1 AND email=$2 AND expires_at > NOW()', [rl, em]);
+  let lastAt = -1;
+  r.rows.forEach(function (x) {
+    if (!isGame(x.game_key)) return;
+    out.games[x.game_key] = new Date(x.expires_at).toISOString();
+    const gr = normGrade(x.grade);
+    if (gr) {
+      out.grades[x.game_key] = gr;
+      // Сүүлд худалдан авсан/сунгасан (хамгийн хожуу дуусах) тоглоомын анги — шинэ тоглоом авахад урьдчилан сонгоно
+      const at = new Date(x.expires_at).getTime();
+      if (at > lastAt) { lastAt = at; out.lastGrade = gr; }
+    }
+  });
   return out;
 }
+async function activeGames(realm, email) { return (await activeGameInfo(realm, email)).games; }
 
 function checkArgs(realm, email, key) {
   const rl = normRealm(realm), em = normEmail(email);
@@ -285,20 +329,37 @@ function checkArgs(realm, email, key) {
 // Нэмэгддэг сунгалт: хугацаа дуусаагүй бол ҮЛДСЭН хоног дээр нэмнэ (Premium qpay.js-ийн хэв маяг).
 // ws/grade-ийн GREATEST(хуучин, NOW()+хоног) хэлбэрийг ХУУЛАХГҮЙ — эрт сунгавал үлдсэн хоног алдагдана.
 // db: transaction доторх client (заавал биш; дамжуулбал ensureGameTables() өмнө нь дуудагдсан байх ёстой — tablesFor).
-async function grantGame(realm, email, key, days, db) {
+// grade: тоглоомын анги ('6'..'12') — өгвөл game_access.grade-ийг тавина, өгөөгүй/буруу бол хуучнаараа (COALESCE).
+// Буруу анги олголтыг ЗОГСООХГҮЙ (мөнгө авсан settle-ийг ангиас болж унагахгүй) — дуудагч өмнө нь normGrade-ээр шалгана.
+async function grantGame(realm, email, key, days, db, grade) {
   const a = checkArgs(realm, email, key);
   const d = days == null ? GAME_DAYS : parseInt(days, 10);
   if (!Number.isInteger(d) || d < 1 || d > 3660) throw new Error('game: хоног буруу');
   await tablesFor(db);
   const r = await (db || pool).query(
-    `INSERT INTO game_access (realm, email, game_key, expires_at, updated_at)
-     VALUES ($1, $2, $3, NOW() + make_interval(days => $4::int), NOW())
+    `INSERT INTO game_access (realm, email, game_key, expires_at, updated_at, grade)
+     VALUES ($1, $2, $3, NOW() + make_interval(days => $4::int), NOW(), $5::text)
      ON CONFLICT (realm, email, game_key) DO UPDATE
-       SET expires_at = GREATEST(game_access.expires_at, NOW()) + make_interval(days => $4::int), updated_at = NOW()
+       SET expires_at = GREATEST(game_access.expires_at, NOW()) + make_interval(days => $4::int), updated_at = NOW(),
+           grade = COALESCE(EXCLUDED.grade, game_access.grade)
      RETURNING expires_at`,
-    [a.realm, a.email, key, d]);
+    [a.realm, a.email, key, d, normGrade(grade)]);
   if (!r.rows.length || !r.rows[0].expires_at) throw new Error('game: олголт бичигдсэнгүй');
   return new Date(r.rows[0].expires_at);
+}
+// Одоогийн ангийг шинэчилнэ (launch — сурагч ангиа сольсон). ЗӨВХӨН идэвхтэй мөрийг UPDATE: мөр үүсгэхгүй (эрх олгохгүй),
+// expires_at/updated_at-д хүрэхгүй, ижил анги бол бичихгүй. → true (өөрчлөгдсөн) | false. Буруу анги → false (асуултгүй).
+async function setGameGrade(realm, email, key, grade) {
+  const a = checkArgs(realm, email, key);
+  const gr = normGrade(grade);
+  if (!gr) return false;
+  await ensureGameTables();
+  const r = await pool.query(
+    `UPDATE game_access SET grade = $4::text
+      WHERE realm=$1 AND email=$2 AND game_key=$3 AND expires_at > NOW() AND grade IS DISTINCT FROM $4::text
+      RETURNING game_key`,
+    [a.realm, a.email, key, gr]);
+  return r.rows.length > 0;
 }
 
 async function currentExpiry(realm, email, key) {
@@ -316,16 +377,16 @@ async function revokeGame(realm, email, key, db) {
   return r.rows.length;
 }
 
-// Борлуулалтын бүртгэл (төлсөн огноогоор). invoice_id давхардвал юу ч хийхгүй.
+// Борлуулалтын бүртгэл (төлсөн огноогоор). invoice_id давхардвал юу ч хийхгүй. p.grade — худалдан авах үеийн анги (NULL байж болно).
 async function recordPurchase(p, db) {
   const a = checkArgs(p.realm, p.email, p.game_key);
   if (!p.invoice_id) throw new Error('game: invoice_id дутуу');
   await tablesFor(db);
   const r = await (db || pool).query(
-    `INSERT INTO game_purchases (invoice_id, realm, email, game_key, amount, days, expires_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (invoice_id) DO NOTHING RETURNING id`,
+    `INSERT INTO game_purchases (invoice_id, realm, email, game_key, amount, days, expires_at, grade)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (invoice_id) DO NOTHING RETURNING id`,
     [String(p.invoice_id), a.realm, a.email, p.game_key, parseInt(p.amount, 10) || 0,
-     parseInt(p.days, 10) || GAME_DAYS, p.expires_at ? new Date(p.expires_at).toISOString() : null]);
+     parseInt(p.days, 10) || GAME_DAYS, p.expires_at ? new Date(p.expires_at).toISOString() : null, normGrade(p.grade)]);
   return r.rows.length > 0;
 }
 
@@ -546,9 +607,9 @@ async function redeemInvite(tok, realm, key, devKey) {
 
 module.exports = {
   GAMES, GAME_KEYS, GAME_DAYS, gamePrice, REALMS, DEFAULT_PAYWALL_REALMS, parseRealms, paywallRealms, paywallOn, gateOn,
-  isGame, normRealm, normEmail, publicCatalog,
-  ensureGameTables, entitlement, entitled, activeGames, isCmPremium,
-  grantGame, currentExpiry, revokeGame, recordPurchase, cmUser,
+  isGame, normRealm, normEmail, publicCatalog, GRADES, SOON_GRADES, normGrade, normTopic,
+  ensureGameTables, entitlement, entitled, activeGames, activeGameInfo, isCmPremium,
+  grantGame, setGameGrade, currentExpiry, revokeGame, recordPurchase, cmUser,
   TICKET_TTL, INVITE_TTL, SESSION_TTL, INVITE_SESSION_TTL, inviteUses, inviteDaily, subjectOf,
   signTicket, verifyTicket, sessionExp, signSession, verifySession, useJti, createInvite, verifyInvite, redeemInvite,
 };

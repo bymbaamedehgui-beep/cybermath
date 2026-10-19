@@ -433,7 +433,8 @@ function tlRender(r) {
     ? '<table style="width:100%;border-collapse:collapse;font-size:0.82rem;">'
       + bg.map(function (x) {
         return '<tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 0;"><div style="font-weight:700;">' + wsEsc(x.title || x.game_key) + '</div>'
-          + '<div style="font-size:0.7rem;color:var(--muted);font-weight:700;">' + (x.realm === 'cm' ? 'cyber-math.com' : 'Дасгалын төв') + '</div></td>'
+          + '<div style="font-size:0.7rem;color:var(--muted);font-weight:700;">' + (x.realm === 'cm' ? 'cyber-math.com' : 'Дасгалын төв')
+          + ' · ' + (x.grade ? wsEsc(x.grade) + '-р анги' : 'анги тодорхойгүй') + '</div></td>'
           + '<td style="text-align:right;color:var(--muted);font-weight:700;white-space:nowrap;">' + x.n + ' ш</td>'
           + '<td style="text-align:right;font-weight:800;padding-left:10px;white-space:nowrap;">' + tlTug(x.s) + '</td></tr>';
       }).join('') + '</table>'
@@ -719,6 +720,8 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 var GM_ST={q:'',game:'',realm:'',status:''}, _gmData=null, _gmSeq=0, _gmTmr=null;
 var GM_RL={ws:'Дасгалын төв',cm:'cyber-math.com'};
 function gmRealm(r){ return '<span class="gm-pill '+(r==='cm'?'cm':'ws')+'">'+(GM_RL[r]||wsEsc(r))+'</span>'; }
+/* Тоглоомын бодлогын анги (6–12; үнэ/эрхэд нөлөөгүй). Хуучин мөр NULL → «—» */
+function gmGrade(g){ return g ? '<span style="font-weight:800;white-space:nowrap;">'+wsEsc(g)+'-р</span>' : '<span style="color:var(--muted);">—</span>'; }
 function gmTitle(k){
   var c=(_gmData&&_gmData.catalog)||[];
   for(var i=0;i<c.length;i++){ if(c[i].key===k) return c[i].title; }
@@ -798,7 +801,7 @@ function gmRender(d){
   if(el){
     if(!list.length){ el.innerHTML='<div style="'+muted+'">'+(filtered?'Илэрц олдсонгүй.':'Тоглоомын эрх хараахан алга.')+'</div>'; }
     else el.innerHTML='<div style="font-size:0.76rem;color:var(--muted);font-weight:700;margin-bottom:8px;">'+(filtered?'Олдсон ':'Сүүлд шинэчлэгдсэн ')+wsNum(d.shown||list.length)+' мөр</div>'
-      +'<div style="overflow-x:auto;"><table class="gm-tbl"><thead><tr><th>И-мэйл</th><th>Сайт</th><th>Тоглоом</th><th>Дуусах</th><th class="r">Төлсөн</th><th>Төлөв</th><th class="r">Үйлдэл</th></tr></thead><tbody>'
+      +'<div style="overflow-x:auto;"><table class="gm-tbl"><thead><tr><th>И-мэйл</th><th>Сайт</th><th>Тоглоом</th><th title="Одоогийн анги (сурагч сольж болно)">Анги</th><th>Дуусах</th><th class="r">Төлсөн</th><th>Төлөв</th><th class="r">Үйлдэл</th></tr></thead><tbody>'
       +list.map(function(u){
         var stt=u.active
           ?'<span class="gm-pill" style="background:#dcfce7;color:#16a34a;">Идэвхтэй</span>'
@@ -810,6 +813,7 @@ function gmRender(d){
           +'<td style="font-weight:700;word-break:break-all;min-width:140px;">'+wsEsc(u.email)+'</td>'
           +'<td>'+gmRealm(u.realm)+'</td>'
           +'<td style="font-weight:700;">'+wsEsc(gmTitle(u.game_key))+'</td>'
+          +'<td>'+gmGrade(u.grade)+'</td>'
           +'<td class="dim">'+wsDate(u.expires_at)+'</td>'
           +'<td class="r" style="white-space:nowrap;">'+paid+'</td>'
           +'<td>'+stt+'</td>'
@@ -820,12 +824,13 @@ function gmRender(d){
   // Сүүлийн худалдан авалт
   var gp=document.getElementById('gm-purch'), pu=d.purchases||[];
   if(gp) gp.innerHTML=pu.length
-    ? '<div style="overflow-x:auto;"><table class="gm-tbl"><thead><tr><th>Огноо</th><th>И-мэйл</th><th>Сайт</th><th>Тоглоом</th><th>Дуусах</th><th class="r">Дүн</th></tr></thead><tbody>'
+    ? '<div style="overflow-x:auto;"><table class="gm-tbl"><thead><tr><th>Огноо</th><th>И-мэйл</th><th>Сайт</th><th>Тоглоом</th><th title="Худалдан авах үед сонгосон анги">Анги</th><th>Дуусах</th><th class="r">Дүн</th></tr></thead><tbody>'
       +pu.map(function(p){
         return '<tr><td class="dim">'+wsDate(p.created_at)+'</td>'
           +'<td style="font-weight:700;word-break:break-all;min-width:140px;">'+wsEsc(p.email)+'</td>'
           +'<td>'+gmRealm(p.realm)+'</td>'
           +'<td style="font-weight:700;">'+wsEsc(gmTitle(p.game_key))+'</td>'
+          +'<td>'+gmGrade(p.grade)+'</td>'
           +'<td class="dim">'+wsDate(p.expires_at).slice(0,10)+'</td>'
           +'<td class="r" style="font-weight:800;white-space:nowrap;">'+wsNum(p.amount||0)+'₮</td></tr>';
       }).join('')+'</tbody></table></div>'
@@ -836,10 +841,10 @@ function gmRender(d){
     ? '<details style="margin-bottom:16px;border:1px solid var(--border);border-radius:10px;padding:8px 12px;background:var(--surface);">'
       +'<summary style="cursor:pointer;font-weight:800;font-size:0.8rem;color:var(--muted);">Төлөгдөөгүй тоглоомын нэхэмжлэх — сүүлийн 30 хоног ('+wsNum(pe.length)+')</summary>'
       +'<div style="font-size:0.74rem;color:var(--muted);margin:6px 0 8px;">QPay-ээр төлсөн атлаа тоглоом нь нээгдээгүй гэж хэрэглэгч хандвал дээрх «Төлбөр тулгах» товчийг дарна уу — төлсөн нь автоматаар олгогдоно.</div>'
-      +'<div style="overflow-x:auto;"><table class="gm-tbl" style="font-size:0.8rem;"><thead><tr><th>Огноо</th><th>И-мэйл</th><th>Сайт</th><th>Тоглоом</th><th class="r">Дүн</th></tr></thead><tbody>'
+      +'<div style="overflow-x:auto;"><table class="gm-tbl" style="font-size:0.8rem;"><thead><tr><th>Огноо</th><th>И-мэйл</th><th>Сайт</th><th>Тоглоом</th><th>Анги</th><th class="r">Дүн</th></tr></thead><tbody>'
       +pe.map(function(p){
         return '<tr><td class="dim">'+wsDate(p.created_at)+'</td><td style="word-break:break-all;">'+wsEsc(p.email)+'</td>'
-          +'<td>'+gmRealm(p.realm)+'</td><td>'+wsEsc(gmTitle(p.game_key))+'</td>'
+          +'<td>'+gmRealm(p.realm)+'</td><td>'+wsEsc(gmTitle(p.game_key))+'</td><td>'+gmGrade(p.game_grade)+'</td>'
           +'<td class="r">'+wsNum(p.amount||0)+'₮</td></tr>';
       }).join('')+'</tbody></table></div></details>'
     : '';
@@ -849,6 +854,7 @@ window.gmGrant=function(){
   var realm=document.getElementById('gm-g-realm').value;
   var game=document.getElementById('gm-g-game').value;
   var dur=document.getElementById('gm-g-dur').value;
+  var gse=document.getElementById('gm-g-grade'), grade=gse?gse.value:'';
   var note=(document.getElementById('gm-g-note').value||'').trim();
   var msg=document.getElementById('gm-g-msg'), btn=document.getElementById('gm-g-btn');
   function say(ok,t){ msg.style.color=ok===null?'var(--muted)':(ok?'#16a34a':'#dc2626'); msg.textContent=t; }
@@ -856,10 +862,11 @@ window.gmGrant=function(){
   if(!game){ say(false,'Тоглоом сонгоно уу'); return; }
   var body={realm:realm,email:em,game:game,note:note};
   if(dur==='d7') body.days=7; else body.months=parseInt(dur,10)||1;
+  if(/^(6|7|8|9|10|11|12)$/.test(grade)) body.grade=grade;   /* заавал биш — эрх/хугацаанд нөлөөгүй */
   say(null,'Олгож байна…'); btn.disabled=true;
   wsPost('game_grant',body).then(function(d){
     if(d&&d.ok){
-      say(true,'Олголоо: '+(d.title||gmTitle(game))+' · '+(GM_RL[d.realm]||d.realm)+' · '+wsDate(d.expires_at).slice(0,10)+' хүртэл');
+      say(true,'Олголоо: '+(d.title||gmTitle(game))+' · '+(GM_RL[d.realm]||d.realm)+(d.grade?' · '+d.grade+'-р анги':'')+' · '+wsDate(d.expires_at).slice(0,10)+' хүртэл');
       document.getElementById('gm-g-email').value=''; document.getElementById('gm-g-note').value='';
       gmLoad();
     } else say(false,(d&&d.error)||'Олгож чадсангүй');
@@ -3503,6 +3510,7 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
             <select id="gm-g-realm" title="Аль сайтын эрх"><option value="ws">Дасгалын төв</option><option value="cm">cyber-math.com</option></select>
             <select id="gm-g-game" title="Тоглоом"><option value="">Тоглоом сонгох…</option></select>
             <select id="gm-g-dur" title="Хугацаа"><option value="d7">7 хоног</option><option value="1" selected>1 сар</option><option value="2">2 сар</option><option value="3">3 сар</option><option value="6">6 сар</option><option value="12">1 жил</option></select>
+            <select id="gm-g-grade" title="Тоглоомын бодлогын анги (заавал биш)"><option value="">Анги (заавал биш)</option><option value="6">6-р анги</option><option value="7">7-р анги</option><option value="8">8-р анги</option><option value="9">9-р анги</option><option value="10">10-р анги</option><option value="11" disabled>11-р анги — Тун удахгүй</option><option value="12">12-р анги</option></select>
             <input id="gm-g-note" class="gm-note" type="text" maxlength="200" placeholder="Тэмдэглэл (заавал биш)" onkeydown="if(event.key==='Enter')gmGrant()">
             <button type="button" id="gm-g-btn" class="gm-btn" onclick="gmGrant()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Олгох</button>
           </div>

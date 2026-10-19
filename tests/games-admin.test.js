@@ -134,9 +134,10 @@ function adminQuery(q, p) {
     const rows = X.wsPurch.filter(whereFn(m[1] || '', p)).map((r) => Object.assign({}, r, { grade: r.grade || '(бүх анги)' }));
     return { rows: groupBy(rows, ['grade']).sort((a, b) => b.s - a.s) };
   }
-  if ((m = q.match(/^SELECT game_key, realm, COUNT\(\*\)::int n, COALESCE\(SUM\(amount\),0\)::int s FROM game_purchases (?:WHERE (.*) )?GROUP BY game_key, realm ORDER BY s DESC, game_key$/))) {
-    const rows = F.db.purch.filter(whereFn(m[1] || '', p));
-    return { rows: groupBy(rows, ['game_key', 'realm']).sort((a, b) => b.s - a.s || (a.game_key < b.game_key ? -1 : 1)) };
+  if ((m = q.match(/^SELECT game_key, realm, grade, COUNT\(\*\)::int n, COALESCE\(SUM\(amount\),0\)::int s FROM game_purchases (?:WHERE (.*) )?GROUP BY game_key, realm, grade ORDER BY s DESC, game_key, grade$/))) {
+    const rows = F.db.purch.filter(whereFn(m[1] || '', p)).map((r) => Object.assign({}, r, { grade: r.grade == null ? null : r.grade }));
+    const gk = (x) => (x.grade == null ? '~' : String(x.grade));   // PG: TEXT дараалал, NULL сүүлд (ASC)
+    return { rows: groupBy(rows, ['game_key', 'realm', 'grade']).sort((a, b) => b.s - a.s || (a.game_key < b.game_key ? -1 : a.game_key > b.game_key ? 1 : gk(a) < gk(b) ? -1 : 1)) };
   }
   // ── ws_badges ──
   if (q === 'SELECT COALESCE(MAX(id),0)::int AS last_id, COUNT(*) FILTER (WHERE id > $1)::int AS n_new FROM ws_purchases') {
@@ -167,7 +168,7 @@ function adminQuery(q, p) {
         const ps = F.db.purch.filter((x) => x.realm === a.realm && x.email === a.email && x.game_key === a.game_key);
         return { realm: a.realm, email: a.email, game_key: a.game_key, expires_at: a.expires_at, updated_at: a.updated_at,
           active: a.expires_at.getTime() > Date.now(), paid_count: ps.length, paid_sum: sumOf(ps),
-          paid_last: ps.length ? new Date(Math.max.apply(null, ps.map(tms))) : null };
+          paid_last: ps.length ? new Date(Math.max.apply(null, ps.map(tms))) : null, grade: a.grade == null ? null : a.grade };
       });
     return { rows: rows };
   }
@@ -183,13 +184,13 @@ function adminQuery(q, p) {
   if (q === 'SELECT game_key, realm, COUNT(*)::int AS sales FROM game_purchases GROUP BY game_key, realm') {
     return { rows: groupBy(F.db.purch, ['game_key', 'realm']).map((x) => ({ game_key: x.game_key, realm: x.realm, sales: x.n })) };
   }
-  if (q === 'SELECT id, invoice_id, realm, email, game_key, amount, days, expires_at, created_at FROM game_purchases ORDER BY id DESC LIMIT 100') {
-    return { rows: F.db.purch.slice().sort((a, b) => b.id - a.id).slice(0, 100).map((x) => Object.assign({}, x)) };
+  if (q === 'SELECT id, invoice_id, realm, email, game_key, amount, days, expires_at, created_at, grade FROM game_purchases ORDER BY id DESC LIMIT 100') {
+    return { rows: F.db.purch.slice().sort((a, b) => b.id - a.id).slice(0, 100).map((x) => Object.assign({ grade: null }, x)) };
   }
-  if (q === "SELECT invoice_id, email, realm, game_key, amount, created_at FROM pay_pending WHERE plan='game' AND granted=FALSE AND created_at > NOW() - INTERVAL '30 days' ORDER BY created_at DESC LIMIT 100") {
+  if (q === "SELECT invoice_id, email, realm, game_key, amount, created_at, game_grade FROM pay_pending WHERE plan='game' AND granted=FALSE AND created_at > NOW() - INTERVAL '30 days' ORDER BY created_at DESC LIMIT 100") {
     return { rows: Array.from(F.db.pay.values()).filter((r) => r.plan === 'game' && r.granted === false && r.created_at > Date.now() - 30 * DAY)
       .sort((a, b) => b.created_at - a.created_at).slice(0, 100)
-      .map((r) => ({ invoice_id: r.invoice_id, email: r.email, realm: r.realm, game_key: r.game_key, amount: r.amount, created_at: new Date(r.created_at) })) };
+      .map((r) => ({ invoice_id: r.invoice_id, email: r.email, realm: r.realm, game_key: r.game_key, amount: r.amount, created_at: new Date(r.created_at), game_grade: r.game_grade == null ? null : r.game_grade })) };
   }
   return null;
 }
@@ -447,7 +448,7 @@ test('ws_report: ws / prem / games гурван сав; pay_pending-ийн plan=
   assert.strictEqual(r.daily.reduce((s, x) => s + x.prem, 0), 9900);
   assert.strictEqual(r.daily.reduce((s, x) => s + x.games, 0), 1900, '40 хоногийн өмнөх график 30 хоногт орохгүй');
   // тоглоомоор (30 хоног)
-  assert.deepStrictEqual(r.byGame, [{ title: 'Судоку', game_key: 'sudoku', realm: 'ws', n: 1, s: 1900 }]);
+  assert.deepStrictEqual(r.byGame, [{ title: 'Судоку', game_key: 'sudoku', realm: 'ws', grade: null, n: 1, s: 1900 }]);
   assert.strictEqual(r.game_price, 1900);
   // админы олголт: бүртгэлд тоглоомын нэртэй, мөнгөн дүнгүй
   const gg = r.grants.find((x) => x.game_key === 'ludo');
@@ -663,16 +664,16 @@ test('admin.html gmRender: имэйл/тоглоом/сайт/гарчгийг e
     ok: true, paywall: true, price: 1900, days: 30, total: 3, active: 2, shown: 3,
     catalog: [{ key: 'sudoku', title: EVIL, kind: 'file', multi: false }, { key: EVIL, title: 'X', kind: 'file', multi: true }],
     rows: [
-      { realm: 'ws', email: EVIL_EM, game_key: 'sudoku', expires_at: now, updated_at: now, active: true, paid_count: 2, paid_sum: 3800 },
-      { realm: EVIL, email: 'a@x.mn', game_key: EVIL, expires_at: now, updated_at: now, active: false, paid_count: 0, paid_sum: 0 },
+      { realm: 'ws', email: EVIL_EM, game_key: 'sudoku', expires_at: now, updated_at: now, active: true, paid_count: 2, paid_sum: 3800, grade: '8' },
+      { realm: EVIL, email: 'a@x.mn', game_key: EVIL, expires_at: now, updated_at: now, active: false, paid_count: 0, paid_sum: 0, grade: EVIL },
       { realm: 'cm', email: 'b@x.mn', game_key: 'nope' + EVIL, expires_at: now, updated_at: now, active: true, paid_count: 0, paid_sum: 0 },
     ],
     by_game: [{ key: EVIL, title: EVIL, active: 1, active_ws: 1, active_cm: 0, sales: 1, sales_ws: 1, sales_cm: 0 }],
     // каталогт байхгүй түлхүүр → gmTitle түлхүүрийг өөрийг нь буцаана (escape шаардлагатай)
-    purchases: [{ id: 1, invoice_id: EVIL, realm: EVIL, email: 'c@x.mn', game_key: 'p' + EVIL, amount: 1900, days: 30, expires_at: now, created_at: now },
-                { id: 2, invoice_id: 'I2', realm: 'ws', email: EVIL_EM, game_key: 'sudoku', amount: 1900, days: 30, expires_at: now, created_at: now }],
-    pending: [{ invoice_id: EVIL, email: 'd@x.mn', realm: EVIL, game_key: 'q' + EVIL, amount: 1900, created_at: now },
-              { invoice_id: 'I3', email: EVIL_EM, realm: 'cm', game_key: 'ludo', amount: 1900, created_at: now }],
+    purchases: [{ id: 1, invoice_id: EVIL, realm: EVIL, email: 'c@x.mn', game_key: 'p' + EVIL, amount: 1900, days: 30, expires_at: now, created_at: now, grade: EVIL },
+                { id: 2, invoice_id: 'I2', realm: 'ws', email: EVIL_EM, game_key: 'sudoku', amount: 1900, days: 30, expires_at: now, created_at: now, grade: '10' }],
+    pending: [{ invoice_id: EVIL, email: 'd@x.mn', realm: EVIL, game_key: 'q' + EVIL, amount: 1900, created_at: now, game_grade: EVIL },
+              { invoice_id: 'I3', email: EVIL_EM, realm: 'cm', game_key: 'ludo', amount: 1900, created_at: now, game_grade: '12' }],
   };
   sb.ctx._gmData = d;            // gmTitle каталогоос гарчиг авна (gmLoad-ийн адил)
   sb.ctx.gmRender(d);
@@ -686,6 +687,60 @@ test('admin.html gmRender: имэйл/тоглоом/сайт/гарчгийг e
   const list = sb.el('gm-list').innerHTML;
   assert.ok(list.indexOf('data-email="&quot;&gt;&lt;img') >= 0, 'data-email атрибут escape');
   assert.ok(/3,800₮/.test(list) && /Админ олгосон/.test(list), 'төлсөн / админ олгосон баганууд');
+  // «Анги» багана: эрх (одоогийн), худалдан авалт, төлөгдөөгүй нэхэмжлэх; NULL → «—»
+  assert.ok(/<th[^>]*>Анги<\/th>/.test(list) && />8-р</.test(list) && />—</.test(list), 'эрхийн хүснэгтэд анги');
+  assert.ok(/<th[^>]*>Анги<\/th>/.test(sb.el('gm-purch').innerHTML) && />10-р</.test(sb.el('gm-purch').innerHTML), 'худалдан авалтад анги');
+  assert.ok(/<th>Анги<\/th>/.test(sb.el('gm-pend').innerHTML) && />12-р</.test(sb.el('gm-pend').innerHTML), 'төлөгдөөгүйд анги');
+});
+
+test('ws_report byGame тоглоом × сайт × АНГИ; game_list мөр/худалдан авалт/төлөгдөөгүйд анги; game_grant анги', async () => {
+  const buyG = async (email, game, grade) => {
+    const r = await Q('create', { plan: 'game', realm: 'ws', game: game, wstoken: wsTok(email), game_grade: grade });
+    assert.strictEqual(r.statusCode, 200, JSON.stringify(r.body));
+    F.qp.paid.set(r.body.invoice.invoice_id, 1900);
+    assert.strictEqual((await Q('check', { invoice_id: r.body.invoice.invoice_id, email: email })).body.paid, true);
+    return r.body.invoice.invoice_id;
+  };
+  await buyG('a@x.mn', 'sudoku', '8');
+  await buyG('b@x.mn', 'sudoku', '8');
+  await buyG('c@x.mn', 'sudoku', '10');
+  await buyWs('d@x.mn', 'sudoku');                                  // ангигүй (хуучин клиент)
+  const pend = await Q('create', { plan: 'game', realm: 'ws', game: 'ludo', wstoken: wsTok('e@x.mn'), game_grade: '12' });
+  const r = await report();
+  assert.deepStrictEqual(r.byGame.map((x) => [x.game_key, x.realm, x.grade, x.n, x.s]),
+    [['sudoku', 'ws', '8', 2, 3800], ['sudoku', 'ws', '10', 1, 1900], ['sudoku', 'ws', null, 1, 1900]]);
+  const l = (await A('game_list', {})).body;
+  const row = (e) => l.rows.find((x) => x.email === e);
+  assert.deepStrictEqual(['a@x.mn', 'c@x.mn', 'd@x.mn'].map((e) => row(e).grade), ['8', '10', null]);
+  assert.deepStrictEqual(l.purchases.map((p) => p.grade).sort(), ['10', '8', '8', null].sort());
+  assert.deepStrictEqual(l.pending.map((p) => [p.invoice_id, p.game_grade]), [[pend.body.invoice.invoice_id, '12']]);
+  // админ олголт анги тавина (заавал биш), буруу анги → 400
+  wsLogin('gift@x.mn');
+  assert.strictEqual((await A('game_grant', { realm: 'ws', email: 'gift@x.mn', game: 'daam', grade: '5' })).statusCode, 400);
+  assert.strictEqual(access('ws', 'gift@x.mn', 'daam'), null);
+  // 11-р анги «Тун удахгүй» — админ ч олгохгүй (400)
+  assert.strictEqual((await A('game_grant', { realm: 'ws', email: 'gift@x.mn', game: 'daam', grade: '11' })).statusCode, 400);
+  assert.strictEqual(access('ws', 'gift@x.mn', 'daam'), null);
+  const g = await A('game_grant', { realm: 'ws', email: 'gift@x.mn', game: 'daam', grade: '12' });
+  assert.deepStrictEqual([g.statusCode, g.body.grade], [200, '12']);
+  assert.strictEqual(access('ws', 'gift@x.mn', 'daam').grade, '12');
+  // тайлангийн «Тоглоомоор» дэд шошгонд анги (admin.html)
+  const sb = adminSandbox();
+  sb.ctx.tlRender(Object.assign({}, r, { byGame: r.byGame }));
+  const tg = sb.el('tl-games').innerHTML;
+  assert.ok(tg.indexOf('Дасгалын төв · 8-р анги') >= 0 && tg.indexOf('анги тодорхойгүй') >= 0, tg.slice(0, 300));
+});
+// ledger heal (pay_pending → game_purchases) ангийг ч хуулна
+test('ledger heal: game_purchases бичигдээгүй төлсөн тоглоомын ангийг pay_pending.game_grade-аас нөхнө (allowlist)', async () => {
+  F.db.failLedger = true;
+  const r = await Q('create', { plan: 'game', realm: 'ws', game: 'sudoku', wstoken: wsTok('h@x.mn'), game_grade: '9' });
+  F.qp.paid.set(r.body.invoice.invoice_id, 1900);
+  assert.strictEqual((await Q('check', { invoice_id: r.body.invoice.invoice_id, email: 'h@x.mn' })).body.paid, true);
+  F.db.failLedger = false;
+  rawPay({ invoice_id: 'BADG', email: 'z@x.mn', plan: 'game', game_key: 'ludo', realm: 'ws', granted: true, game_grade: '99' });
+  const rc = await A('ws_reconcile', {});
+  assert.strictEqual(rc.body.ledger_healed, 2);
+  assert.deepStrictEqual(F.db.purch.map((p) => [p.invoice_id, p.grade]).sort(), [['BADG', null], [r.body.invoice.invoice_id, '9']].sort());
 });
 
 test('admin.html tlRender: тайлангийн тоглоом/анги/олголтын нэр, имэйл, тэмдэглэлийг escape хийнэ; гурван сав', () => {

@@ -152,6 +152,236 @@ async function pickUnseen(email, nodeId, rows, n) {
   }
 }
 
+/* ── Тоглоомын нийтлэг бодлогын сан (Дасгалын төв ба гадны тоглоомууд) ──
+   GET ?game_topics=<6..12>                      → бүлэг → сэдэв (node) + тоглоомд тохирох бодлогын тоо
+   GET ?game=<6..12>&topic=<node_id|0>&n=<1..60> → санамсаргүй тохирох бодлого (topic=0 → ангийн бүх сэдэв)
+   Анги = NODE-ийн анги (questions.grade найдваргүй: 12-р ангид NULL). Нийтийн, админ/токен шаардахгүй.
+   «Тохирох» бодлого: type='choice', шалгалтын биш, зураггүй, хоосон биш 4 ЯЛГААТАЙ сонголт, зөв хариу
+   сонголтуудын дотор, текст/сонголтод HTML шошго ба сондгой тооны $ (эвдэрсэн KaTeX) байхгүй.
+   Шүүлт SQL-д (gameFitSql — тоолох, ачаалал багасгах) ба JS-д (gameFit — давхар хамгаалалт) ИЖИЛ дүрмээр. */
+const GAME_GRADE_RE = /^(6|7|8|9|10|11|12)$/;
+/* «Тун удахгүй» анги (эзэмшигчийн шийдвэр: 11-р ангийн бодлого хангалтгүй) — тоглоомын салбарт 400 {soon:true}.
+   Клиентээр тойрох боломжгүй (games.js launch / qpay create мөн _games.js normGrade-ээр татгалзана). */
+const GAME_SOON = { '11': 1 };
+const GAME_N_DEF = 20;
+const GAME_N_MAX = 60;
+const GAME_TRIM = ' \t\r\n\xa0';                    /* SQL btrim-д параметрээр — JS-тэй яг ижил тэмдэгтүүд */
+const GAME_TRIM_RE = /^[ \t\r\n\xa0]+|[ \t\r\n\xa0]+$/g;   /* \xa0 = NBSP */
+/* HTML шошго ("<br>", "<img src=…>", "</table>"). TeX-ийн "$a<b$", "$x < y$" таарахгүй.
+   PG ARE ба JS RegExp хоёуланд ижил утгатай (SQL-д параметрээр дамжина). */
+const GAME_TAG_SRC = '<\\s*/?\\s*(img|table|tbody|thead|tr|td|th|svg|br|hr|div|span|sup|sub|em|strong|ul|ol|li|iframe|script|style|canvas|video|audio|object|embed|font|center|h[1-6]|input|button|form|figure|picture|source|math)(\\s[^<>$]*)?/?>';
+const GAME_TAG_RE = new RegExp(GAME_TAG_SRC, 'i');
+/* 📝 Бататгал / 🏆 Эцсийн сорил — сэдэв биш, бүлгийн хил (index.html cmBuildExamMap-тай ижил) */
+const GAME_EXAM_PREFIX = ['\u{1F4DD}', '\u{1F3C6}'];
+
+function gTrim(s) { return String(s == null ? '' : s).replace(GAME_TRIM_RE, ''); }
+/* "\$" (escape хийсэн) -ээс бусад $-ийн тоо тэгш байх ёстой */
+function gameDollarsOk(s) { return (String(s).replace(/\\\$/g, '').split('$').length - 1) % 2 === 0; }
+function gameDollarOddSql(x) {
+  const y = `replace(${x}, chr(92) || '$', '')`;
+  return `((length(${y}) - length(replace(${y}, '$', ''))) % 2 = 1)`;
+}
+/* T = trim тэмдэгтийн параметр ($N), R = HTML шошгоны regex параметр ($M) */
+function gameFitSql(T, R) {
+  return `q.type = 'choice'
+    AND (q.is_exam = false OR q.is_exam IS NULL)
+    AND btrim(COALESCE(q.image, ''), ${T}) = ''
+    AND btrim(COALESCE(q.text, ''), ${T}) <> ''
+    AND q.text !~* ${R}
+    AND NOT ${gameDollarOddSql('q.text')}
+    AND q.choices IS NOT NULL AND array_ndims(q.choices) = 1 AND array_length(q.choices, 1) = 4
+    AND (SELECT COUNT(DISTINCT btrim(c, ${T})) FROM unnest(q.choices) AS c
+          WHERE btrim(COALESCE(c, ''), ${T}) <> '') = 4
+    AND btrim(COALESCE(q.correct, ''), ${T}) IN (SELECT btrim(c, ${T}) FROM unnest(q.choices) AS c)
+    AND NOT EXISTS (SELECT 1 FROM unnest(q.choices) AS c WHERE c ~* ${R} OR ${gameDollarOddSql('c')})`;
+}
+function gameFit(row) {
+  if (!row || row.type !== 'choice' || row.is_exam === true) return false;
+  if (gTrim(row.image)) return false;
+  const t = gTrim(row.text);
+  if (!t || GAME_TAG_RE.test(t) || !gameDollarsOk(t)) return false;
+  const ch = row.choices;
+  if (!Array.isArray(ch) || ch.length !== 4) return false;
+  const opts = ch.map(gTrim);
+  if (opts.some(o => !o) || new Set(opts).size !== 4) return false;
+  if (opts.indexOf(gTrim(row.correct)) < 0) return false;
+  if (ch.some(o => GAME_TAG_RE.test(String(o == null ? '' : o)) || !gameDollarsOk(o == null ? '' : o))) return false;
+  return true;
+}
+/* 'exam' (бүлгийн хил) | 'junk' (нэргүй / зөвхөн тоо — 9-р ангийн хоосон node-ууд) | 'topic' */
+function gameNodeKind(name) {
+  const nm = gTrim(name);
+  if (GAME_EXAM_PREFIX.some(p => nm.indexOf(p) === 0)) return 'exam';
+  if (!/\p{L}/u.test(nm)) return 'junk';
+  return 'topic';
+}
+/* "📝 Бататгал — Тоон олонлог" → "Тоон олонлог"; "📝 Шалгалт: Геометр" → "Геометр"; "🏆 Эцсийн сорил" → '' */
+function gameChapterName(name) {
+  const m = /[—–:]\s*(.+)$/.exec(gTrim(name));
+  return m ? gTrim(m[1]) : '';
+}
+/* nodes: sort_order-оор эрэмбэлсэн [{id, name, cnt}] → [{name, topics:[{id, name, n}]}] (n ≥ 1 сэдэв л) */
+function gameChapters(nodes) {
+  const raw = [];
+  let bucket = [];
+  (nodes || []).forEach(function (nd) {
+    const k = gameNodeKind(nd.name);
+    if (k === 'exam') {
+      if (bucket.length) raw.push({ name: gameChapterName(nd.name), topics: bucket });
+      bucket = [];
+    } else if (k === 'topic') bucket.push(nd);
+  });
+  if (bucket.length) raw.push({ name: '', topics: bucket });
+  const out = [];
+  raw.forEach(function (ch) {
+    const topics = ch.topics.filter(t => Number(t.cnt) >= 1)
+      .map(t => ({ id: Number(t.id), name: gTrim(t.name), n: Number(t.cnt) }));
+    if (!topics.length) return;
+    const last = out[out.length - 1];
+    if (last && last.name === ch.name) last.topics.push.apply(last.topics, topics);
+    else out.push({ name: ch.name, topics: topics });
+  });
+  return out;
+}
+/* Олон variant бүлгээс эхлээд бүлэг бүрээс нэгийг (30/40/30 түвшин), дутвал бүлгийн бусад гишүүнээр нөхнө */
+function gamePick(rows, n) {
+  const byId = {};
+  rows.forEach(function (r) { byId[Number(r.id)] = r; });
+  const reps = onePerVariant(rows).map(r => Number(r.id));
+  let take = mixByDifficulty(reps, byId, n);
+  if (take.length < n) {
+    const used = new Set(take);
+    const rest = shuffle(rows.map(r => Number(r.id)).filter(id => !used.has(id)));
+    take = take.concat(rest.slice(0, n - take.length));
+  }
+  return take.map(id => byId[id]).filter(Boolean);
+}
+function gameHint(h) {
+  const t0 = (h && typeof h === 'object') ? h.text : h;
+  if (typeof t0 !== 'string') return null;
+  const t = gTrim(t0);
+  if (!t || GAME_TAG_RE.test(t) || !gameDollarsOk(t)) return null;
+  return { text: t };
+}
+function gameOut(r) {
+  const d = String(r.difficulty || '').toLowerCase();
+  return {
+    id: Number(r.id),
+    type: 'choice',                                    /* хуучин клиентүүдийн q.type шалгалтад */
+    text: gTrim(r.text),
+    choices: r.choices.map(gTrim),
+    correct: gTrim(r.correct),
+    hint: gameHint(r.hint),
+    difficulty: ['easy', 'medium', 'hard'].indexOf(d) >= 0 ? d : 'medium',
+    node_id: Number(r.node_id),
+    topic_name: gTrim(r.topic_name),
+  };
+}
+/* '' / байхгүй → def; цифрээс өөр → NaN */
+function gameInt(v, def) {
+  if (v == null) return def;
+  const s = String(v).trim();
+  if (s === '') return def;
+  return /^\d{1,6}$/.test(s) ? parseInt(s, 10) : NaN;
+}
+function gameBad(res, msg) {
+  res.setHeader('Cache-Control', 'no-store');
+  return res.status(400).json({ ok: false, error: msg });
+}
+function gameSoon(res, g) {
+  res.setHeader('Cache-Control', 'no-store');
+  return res.status(400).json({ ok: false, soon: true, grade: g, error: g + '-р анги — тун удахгүй' });
+}
+/* ?hud=1 — MATH MORTAL: өгүүлбэргүй, цөөн үйлдэлтэй бодлого л (arenaFits — HUD дээр уншиж амжихуйц) */
+function gameHud(q) { return String((q && q.hud) == null ? '' : q.hud).trim() === '1'; }
+/* Ангийн node-ууд [{id, name}] — sort_order-оор (index.html-ийн эрэмбэтэй ижил) */
+async function gameNodes(g) {
+  const r = await pool.query(
+    `SELECT n.id, n.name FROM nodes n WHERE n.grade = $1
+     ORDER BY COALESCE(NULLIF(n.sort_order, 0), n.id), n.id`, [g]);
+  return r.rows;
+}
+async function gameTopicsHandler(req, res) {
+  const g = String(req.query.game_topics == null ? '' : req.query.game_topics).trim();
+  if (!GAME_GRADE_RE.test(g)) return gameBad(res, 'game_topics: анги 6–12 байх ёстой');
+  if (GAME_SOON[g]) return gameSoon(res, g);
+  let rows;
+  if (gameHud(req.query)) {
+    /* HUD-д тохирох бодлогын тоо (arenaFits нь regex/үгийн тоо — SQL-д биш JS-д тоолно) */
+    const [nd, qr] = await Promise.all([gameNodes(g), pool.query(
+      `SELECT q.node_id, q.text, q.choices, q.correct, q.type, q.image, q.is_exam
+         FROM questions q JOIN nodes n ON n.id = q.node_id
+        WHERE n.grade = $1 AND ${gameFitSql('$2', '$3')}`, [g, GAME_TRIM, GAME_TAG_SRC])]);
+    const cnt = {};
+    qr.rows.forEach(function (x) { if (gameFit(x) && arenaFits(x)) cnt[x.node_id] = (cnt[x.node_id] || 0) + 1; });
+    rows = nd.map(x => ({ id: x.id, name: x.name, cnt: cnt[x.id] || 0 }));
+  } else {
+    const r = await pool.query(
+      `SELECT n.id, n.name, COUNT(q.id)::int AS cnt
+         FROM nodes n
+         LEFT JOIN questions q ON q.node_id = n.id AND ${gameFitSql('$2', '$3')}
+        WHERE n.grade = $1
+        GROUP BY n.id, n.name, n.sort_order
+        ORDER BY COALESCE(NULLIF(n.sort_order, 0), n.id), n.id`, [g, GAME_TRIM, GAME_TAG_SRC]);
+    rows = r.rows;
+  }
+  const chapters = gameChapters(rows);
+  const total = chapters.reduce((s, ch) => s + ch.topics.reduce((a, t) => a + t.n, 0), 0);
+  res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=300');
+  return res.json({ ok: true, grade: g, total: total, chapters: chapters });
+}
+async function gameQuestionsHandler(req, res) {
+  const q = req.query;
+  const g = String(q.game == null ? '' : q.game).trim();
+  if (!GAME_GRADE_RE.test(g)) return gameBad(res, 'game: анги 6–12 байх ёстой');
+  if (GAME_SOON[g]) return gameSoon(res, g);
+  const hud = gameHud(q);
+  const topic = gameInt(q.topic, 0);
+  if (!Number.isFinite(topic)) return gameBad(res, 'topic буруу');
+  let n = gameInt(q.n, GAME_N_DEF);
+  if (!Number.isFinite(n) || n < 1) return gameBad(res, 'n: 1–' + GAME_N_MAX);
+  n = Math.min(GAME_N_MAX, n);
+
+  const nodes = (await gameNodes(g)).filter(nd => gameNodeKind(nd.name) === 'topic');
+  let ids;
+  if (topic) {
+    if (!nodes.some(nd => Number(nd.id) === topic)) return gameBad(res, 'topic энэ ангийн сэдэв биш');
+    ids = [topic];
+  } else ids = nodes.map(nd => Number(nd.id));
+
+  let rows = [];
+  if (ids.length) {
+    /* Нэг сэдэв: бүх тохирох мөрийг аваад variant/түвшнээр сонгоно. Бүх сэдэв: санамсаргүй n×4 нэр дэвшигч. */
+    /* hud: шүүлт ~60%-ийг хасдаг тул нэр дэвшигчийг өргөн авна */
+    const lim = (topic || hud) ? 400 : Math.min(400, n * 4);
+    const r = await pool.query(
+      `SELECT q.id, q.node_id, n.name AS topic_name, q.text, q.choices, q.correct, q.hint, q.difficulty,
+              q.variant_key, q.type, q.image, q.is_exam
+         FROM questions q JOIN nodes n ON n.id = q.node_id
+        WHERE n.grade = $1 AND q.node_id = ANY($2::int[])
+          AND ${gameFitSql('$4', '$5')}
+        ORDER BY random() LIMIT $3`, [g, ids, lim, GAME_TRIM, GAME_TAG_SRC]);
+    rows = r.rows.filter(gameFit);
+    if (hud) rows = rows.filter(arenaFits);
+  }
+  const questions = shuffleChoices(gamePick(rows, n).map(gameOut));
+  res.setHeader('Cache-Control', 'no-store');
+  return res.json({ ok: true, grade: g, topic: topic, questions: questions });
+}
+/* Хуучин (cyber-math.com qApiUrl) max_grade шүүлт: анги = COALESCE(questions.grade, nodes.grade).
+   Хоосон → бүх ангид; тоо → <= max_grade; бусад ('6-old' г.м.) → үгүй. CASE — CAST зөвхөн тоон утгад ажиллана.
+   tbl = 'questions' (alias-гүй хүсэлт) эсвэл 'q'; k = max_grade-ийн параметрийн дугаар. */
+const LEGACY_FILL_MIN = 8;     /* сонгосон хичээлд тоглоомд тохирох бодлого үүнээс цөөн бол ангийн сангаас нөхнө */
+const LEGACY_FILL_LIM = 120;
+function legacyMaxGradeSql(tbl, k) {
+  const gx = `COALESCE(NULLIF(btrim(${tbl}.grade), ''), (SELECT nn.grade FROM nodes nn WHERE nn.id = ${tbl}.node_id))`;
+  return `(SELECT CASE WHEN gx.v IS NULL OR btrim(gx.v) = '' THEN TRUE
+                       WHEN btrim(gx.v) ~ '^[0-9]+$' THEN CAST(btrim(gx.v) AS INT) <= $${k}
+                       ELSE FALSE END
+             FROM (SELECT ${gx} AS v) gx)`;
+}
+function hasQ(q, k) { return !!q && Object.prototype.hasOwnProperty.call(q, k); }
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
@@ -172,6 +402,10 @@ module.exports = async (req, res) => {
       if (!requireAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
     }
 
+    /* Тоглоомын сан — lazy ALTER-аас ӨМНӨ (хүсэлт бүрт DDL ажиллуулахгүй) */
+    if (req.method === 'GET' && hasQ(_q, 'game_topics')) return await gameTopicsHandler(req, res);
+    if (req.method === 'GET' && hasQ(_q, 'game')) return await gameQuestionsHandler(req, res);
+
     // Lazy migration — difficulty column нэмэх
     await pool.query(`ALTER TABLE questions ADD COLUMN IF NOT EXISTS difficulty TEXT DEFAULT 'medium'`).catch(()=>{});
     // is_exam — шалгалтын бодлого эсэхийг тэмдэглэх
@@ -191,11 +425,13 @@ module.exports = async (req, res) => {
       if (req.query.arena) {
         const g = String(req.query.arena).trim();
         if (!/^[0-9]{1,2}x?$/.test(g)) return res.status(400).json({ ok: false, error: 'arena буруу' });
-        /* Тоглоомд зөвхөн ХЯЛБАР түвшний, өгүүлбэргүй, цөөн үйлдэлтэй бодлого */
+        /* Тоглоомд өгүүлбэргүй, цөөн үйлдэлтэй бодлого. ХЯЛБАР түвшнийг ИЛҮҮД үзнэ
+           (доорх ORDER BY), гэхдээ зөвхөн хялбараар хязгаарлахгүй — эс бөгөөс 9, 11, 12-р
+           ангид (хялбар бодлого бараг алга) нэг ч сэдэв гардаггүй байв. */
         const BASE = `FROM questions q JOIN nodes n ON n.id = q.node_id
             WHERE n.grade = $1
-              AND q.difficulty = 'easy'
               AND (q.is_exam = false OR q.is_exam IS NULL)
+              AND (q.image IS NULL OR q.image = '')
               AND q.choices IS NOT NULL AND array_length(q.choices, 1) = 4`;
 
         /* Тухайн ангийн СЭДВҮҮД — тоглоомын сонголтод. Тохирох бодлого 4-ээс
@@ -217,12 +453,14 @@ module.exports = async (req, res) => {
         const lim = Math.min(60, Math.max(5, parseInt(req.query.n, 10) || 30));
         const node = parseInt(req.query.node, 10);
         const byNode = Number.isFinite(node) && node > 0;
-        /* Шүүлтүүр ~60% хасдаг тул нэр дэвшигчээ өргөн авна */
+        /* Шүүлтүүр ~60% хасдаг тул нэр дэвшигчээ өргөн авна. Хялбар нь эхэнд — хүрэлцэхгүй
+           үед л дунд/хүнд нэмэгдэнэ; эцэст нь дарааллыг холино. */
         const ar = await pool.query(
           `SELECT q.id, q.text, q.choices, q.correct, q.difficulty ${BASE}
               AND ($3::int IS NULL OR q.node_id = $3)
-            ORDER BY random() LIMIT $2`, [g, Math.min(400, lim * 8), byNode ? node : null]);
-        const fit = ar.rows.filter(arenaFits).slice(0, lim);
+            ORDER BY CASE WHEN q.difficulty = 'easy' THEN 0 ELSE 1 END, random() LIMIT $2`,
+          [g, Math.min(400, lim * 8), byNode ? node : null]);
+        const fit = shuffle(ar.rows.filter(arenaFits).slice(0, lim));
         return res.json({ ok: true, grade: g, node: byNode ? node : null, questions: shuffleChoices(fit) });
       }
 
@@ -320,17 +558,19 @@ module.exports = async (req, res) => {
       else if (examParam !== 'all') conds.push('(is_exam = false OR is_exam IS NULL)');
       if (topic)   { conds.push(`topic=$${vals.length+1}`); vals.push(topic); }
       if (grade)   { conds.push(`(grade=$${vals.length+1} OR grade IS NULL OR grade='')`); vals.push(grade); }
+      const mgNum = max_grade ? parseInt(max_grade) : NaN;
       if (max_grade) {
-        // Анги <= max_grade буюу анги хоосон (бүх ангид зориулсан) бодлогууд
-        const mg = parseInt(max_grade);
-        if (!isNaN(mg)) {
-          conds.push(`(grade IS NULL OR grade='' OR (grade ~ '^[0-9]+$' AND CAST(grade AS INT) <= $${vals.length+1}))`);
-          vals.push(mg);
+        // Анги <= max_grade буюу анги хоосон (бүх ангид зориулсан) бодлогууд.
+        // questions.grade хоосон бол NODE-ийн ангиар (9, 12-р ангийн бодлого grade=NULL — өмнө нь бүх ангид гардаг байв)
+        if (!isNaN(mgNum)) {
+          conds.push(legacyMaxGradeSql('questions', vals.length + 1));
+          vals.push(mgNum);
         }
       }
       // node_id=5 эсвэл node_id=5,7,12 (олон хичээлийн агуулгыг нэгтгэх)
+      let nIds = [];
       if (node_id) {
-        const nIds = String(node_id).split(',').map(x => parseInt(x, 10)).filter(x => !isNaN(x)).slice(0, 60);
+        nIds = String(node_id).split(',').map(x => parseInt(x, 10)).filter(x => !isNaN(x)).slice(0, 60);
         if (nIds.length === 1) { conds.push(`node_id=$${vals.length+1}`); vals.push(nIds[0]); }
         else if (nIds.length) { conds.push(`node_id = ANY($${vals.length+1}::int[])`); vals.push(nIds); }
       }
@@ -342,6 +582,23 @@ module.exports = async (req, res) => {
       if (conds.length) q += ' WHERE ' + conds.join(' AND ');
       q += ' ORDER BY id ASC';
       const r = await pool.query(q, vals);
+
+      /* ── cyber-math.com-ийн тоглоом (qApiUrl: max_grade + node_id) — сонгосон хичээлд тоглоомд тохирох
+         бодлого дутвал (жишээ: 9-р ангийн бодлогогүй сэдэв) тоглоом арифметик жишиг рүү унахгүйн тулд
+         ТУХАЙН ХИЧЭЭЛИЙН АНГИЙН (nodes.grade) бусад сэдвээс нөхнө. Хичээлийн/админы node_id хүсэлтэд (max_grade-гүй) хамаарахгүй. */
+      const pickN = parseInt(req.query.pick, 10);
+      if (!isNaN(mgNum) && nIds.length && !(Number.isFinite(pickN) && pickN > 0) && _exam !== '1'
+          && r.rows.filter(gameFit).length < LEGACY_FILL_MIN) {
+        const fr = await pool.query(
+          `SELECT q.* FROM questions q
+            WHERE q.node_id IN (SELECT n2.id FROM nodes n2 WHERE n2.grade IN (SELECT n1.grade FROM nodes n1 WHERE n1.id = ANY($1::int[])))
+              AND NOT (q.node_id = ANY($1::int[]))
+              AND ${gameFitSql('$2', '$3')}
+              AND ${legacyMaxGradeSql('q', 4)}
+            ORDER BY random() LIMIT ${LEGACY_FILL_LIM}`, [nIds, GAME_TRIM, GAME_TAG_SRC, mgNum]);
+        const fill = fr.rows.filter(gameFit);
+        if (fill.length) return res.json({ ok: true, fill: 'grade', questions: shuffleChoices(r.rows.concat(fill)) });
+      }
 
       /* ── pick=N — давтагдахгүй эргэлт ──
          Нэг хичээлийн сангаас N бодлогыг СОНГОНО. Хэрэглэгч тухайн хичээл дээр
@@ -494,3 +751,6 @@ module.exports = async (req, res) => {
     res.status(500).json({ ok: false, error: e.message });
   }
 };
+/* Тест ба зөвхөн-унших аудитад (handler-ийн зан төлөвт нөлөөгүй) */
+module.exports._game = { gameFit, gameFitSql, gameChapters, gameNodeKind, gameChapterName, gameHint, GAME_TAG_SRC, GAME_TRIM,
+  arenaFits, legacyMaxGradeSql, GAME_SOON, LEGACY_FILL_MIN };
