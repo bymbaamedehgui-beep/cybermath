@@ -1,11 +1,14 @@
 /* MATH MORTAL — бодлогын эх сурвалж.
  *
- * Бодлогыг АНГИ + СЭДЭВ-ээр нь сонгоно:
- *   GET /api/questions?arena=<анги>&topics=1        → тухайн ангийн сэдвүүд
- *   GET /api/questions?arena=<анги>&node=<сэдэв>&n=40 → тэр сэдвийн бодлогууд
- * Сэдэв сонгоогүй бол ангийн бүх сэдвээс холино.
+ * Бодлогыг АНГИ (6–12) + СЭДЭВ-ээр нь сонгоно (тоглоомуудын нийтлэг сан):
+ *   GET /api/questions?game_topics=<анги>               → тухайн ангийн бүлэг/сэдвүүд {chapters:[{name, topics:[{id,name,n}]}]}
+ *   GET /api/questions?game=<анги>&topic=<сэдэв|0>&n=60 → тэр сэдвийн (0 бол ангийн бүх сэдвийн) 4 сонголттой бодлогууд
+ * Сэдэв сонгоогүй бол ангийн бүх сэдвээс холино. Сэдвээс HUD-д тохирох бодлого
+ * олдохгүй бол ангийн бүх сэдвээс авна. Хялбар бодлогыг илүүд үзнэ.
+ * URL-ийн ?grade=<6..12>&topic=<node_id> (Дасгалын төв) нь анги/сэдвийг урьдчилан
+ * сонгоно — сольж болно, гэхдээ localStorage-д ХАДГАЛАХГҮЙ (cyber-math.com-той хуваалцдаг).
  * Сүлжээгүй / API алдаа гарвал доорх нөөц генератор ажиллана тул тоглоом
- * хэзээ ч зогсохгүй.
+ * хэзээ ч зогсохгүй («Офлайн — жишиг бодлого» тэмдэг гарна).
  *
  * Бодлогын текстийг LaTeX хэлбэрээр ХЭВЭЭР нь дамжуулна ($x^2$, \frac{a}{b}).
  * mathtext.js доторх setMathText() үүнийг KaTeX-ээр жинхэнэ математик бичиглэл
@@ -14,18 +17,33 @@
 
 const STORAGE_KEY = 'mortal-arena-quiz-settings';
 const DEFAULTS = { grade: 7, topic: 'math', node: 0, seconds: 15 };
-const GRADE_MIN = 7, GRADE_MAX = 8;
+const GRADE_MIN = 6, GRADE_MAX = 12;
 const TOPICS = new Set(['math', 'science', 'language']);
 const TIME_CHOICES = new Set([5, 10, 15, 20, 30, 45, 60]);
 
-/* Тоглоомд 7, 8-р ангийн ХЯЛБАР түвшний, цөөн үйлдэлтэй сэдвүүдийг л хэрэглэнэ.
-   Өгүүлбэртэй (нөхцөлтэй) бодлогыг сервер талдаа хасдаг — HUD дээр уншиж амжихгүй. */
-const CM_GRADES = new Set([7, 8]);
+/* Тоглоомд 6–12-р ангийн, цөөн үйлдэлтэй (HUD-д багтах) бодлогыг хэрэглэнэ.
+   Урт / өгүүлбэртэй бодлогыг fitsHud() хасна — HUD дээр уншиж амжихгүй. */
+const CM_GRADES = new Set([6, 7, 8, 9, 10, 11, 12]);
+const GRADE_RE = /^(6|7|8|9|10|11|12)$/;
 const API_BASE = (typeof location !== 'undefined' && /cyber-math|localhost|127\.0\.0\.1/.test(location.host))
   ? '' : 'https://cyber-math.com';
-const BATCH = 40;
+const BATCH = 60;
+const MIN_TOPIC = 4;        /* сонголтод гарах сэдвийн хамгийн бага бодлогын тоо */
+const EASY_BIAS = 0.6;      /* хялбар бодлого сонгогдох магадлал (санд байвал) */
 const MAX_LEN = 120;        /* HUD-д тохирох хамгийн урт бодлого (тэмдэгт) */
 const MAX_OPT_LEN = 26;     /* нэг сонголтын хамгийн урт */
+
+/* Дасгалын төвөөс ирсэн анги/сэдэв: ?grade=<6..12>&topic=<node_id|0> ('g' нэрийг gate хасдаг) */
+function urlSelection() {
+  try {
+    if (typeof location === 'undefined') return null;
+    const sp = new URLSearchParams(location.search || '');
+    const g = sp.get('grade');
+    if (!g || !GRADE_RE.test(g)) return null;
+    const t = sp.get('topic') || '';
+    return { grade: Number(g), node: /^\d{1,6}$/.test(t) ? Number.parseInt(t, 10) : 0 };
+  } catch { return null; }
+}
 
 function normalizeSettings(value = {}) {
   const grade = Math.max(GRADE_MIN, Math.min(GRADE_MAX, Number.parseInt(value.grade, 10) || DEFAULTS.grade));
@@ -65,21 +83,35 @@ export function applyQuizSettings(settings, persist = true) {
 }
 
 /* ───────── Сэдвийн жагсаалт ───────── */
-const topicCache = new Map();          /* анги → [{id, name, n}] */
+const topicCache = new Map();          /* анги → [{id, name, n, chapter}] */
+
+/* game_topics хариуг хавтгай жагсаалт болгоно (бүлгийн нэртэй) */
+function topicsOf(d, grade) {
+  const list = [];
+  if (!d || d.ok === false || String(d.grade) !== String(grade)) return list;
+  for (const ch of (Array.isArray(d.chapters) ? d.chapters : [])) {
+    for (const t of (ch && Array.isArray(ch.topics) ? ch.topics : [])) {
+      const id = Number.parseInt(t && t.id, 10);
+      const n = Number(t && t.n) || 0;
+      if (id > 0 && t.name && n >= MIN_TOPIC) list.push({ id, name: String(t.name), n, chapter: String((ch && ch.name) || '') });
+    }
+  }
+  return list;
+}
 
 async function fetchTopics(grade) {
   if (!CM_GRADES.has(grade)) return [];
   if (topicCache.has(grade)) return topicCache.get(grade);
   try {
-    const r = await fetch(`${API_BASE}/api/questions?arena=${grade}&topics=1`);
+    const r = await fetch(`${API_BASE}/api/questions?game_topics=${grade}`);
     const d = await r.json();
-    const list = (d && d.topics) || [];
+    const list = topicsOf(d, grade);
     topicCache.set(grade, list);
     return list;
   } catch { topicCache.set(grade, []); return []; }
 }
 
-/* Сэдвийн сонголтыг тухайн ангийн жагсаалтаар дүүргэнэ */
+/* Сэдвийн сонголтыг тухайн ангийн жагсаалтаар дүүргэнэ (бүлэгтэй бол optgroup) */
 async function fillTopicSelect(grade, wantNode) {
   const sel = document.getElementById('node-select');
   const field = document.getElementById('node-field');
@@ -87,7 +119,23 @@ async function fillTopicSelect(grade, wantNode) {
   sel.disabled = true;
   sel.replaceChildren(new Option('Бүх сэдэв', '0'));
   const list = await fetchTopics(grade);
-  for (const t of list) sel.appendChild(new Option(t.name, String(t.id)));
+  /* Хариу ирэх хооронд анги солигдсон бол хуучин жагсаалтыг бүү тавь */
+  const curGrade = document.getElementById('grade-select')?.value;
+  if (curGrade && curGrade !== String(grade)) return;
+  let group = null, groupName = null;
+  for (const t of list) {
+    let parent = sel;
+    if (t.chapter) {
+      if (groupName !== t.chapter) {
+        group = document.createElement('optgroup');
+        group.label = t.chapter;
+        groupName = t.chapter;
+        sel.appendChild(group);
+      }
+      parent = group;
+    }
+    parent.appendChild(new Option(t.name, String(t.id)));
+  }
   sel.disabled = false;
   /* Өмнөх сонголт энэ ангид байвал сэргээнэ */
   sel.value = list.some(t => String(t.id) === String(wantNode)) ? String(wantNode) : '0';
@@ -98,11 +146,17 @@ async function fillTopicSelect(grade, wantNode) {
 export function initQuizSettings() {
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); } catch { /* Ignore invalid stored preferences. */ }
-  const applied = applyQuizSettings(saved || DEFAULTS, false);
+  /* Дасгалын төвөөс ирсэн анги/сэдэв хадгалсан тохиргоог дарна — гэхдээ хадгалахгүй */
+  const fromUrl = urlSelection();
+  const persist = !fromUrl;
+  const initial = fromUrl
+    ? { ...DEFAULTS, ...(saved || {}), topic: 'math', grade: fromUrl.grade, node: fromUrl.node }
+    : (saved || DEFAULTS);
+  const applied = applyQuizSettings(initial, false);
   fillTopicSelect(applied.grade, applied.node);
 
   const changed = (reloadTopics) => {
-    const settings = applyQuizSettings(getQuizSettings());
+    const settings = applyQuizSettings(getQuizSettings(), persist);
     if (reloadTopics) fillTopicSelect(settings.grade, settings.node);
     else prefetch(settings.grade, settings.node);
     window.dispatchEvent(new CustomEvent('arena:settings-changed', { detail: settings }));
@@ -150,6 +204,30 @@ const noServer = new Set();   /* тохиромжтой бодлого ирээ�
 
 function keyOf(grade, node) { return grade + '|' + (node || 0); }
 
+/* «Офлайн — жишиг бодлого» тэмдэг (#math-offline) — серверээс бодлого ирээгүй үед */
+function setOffline(on) {
+  try {
+    const el = document.getElementById('math-offline');
+    if (el) el.hidden = !on;
+  } catch { /* DOM-гүй орчин */ }
+}
+
+/* /api/questions?game=… хариуг HUD-д тохирох бодлого болгоно */
+function cleanQuestions(d, grade) {
+  const clean = [];
+  if (!d || d.ok === false || String(d.grade) !== String(grade) || !Array.isArray(d.questions)) return clean;
+  for (const q of d.questions) {
+    if (!q || !fitsHud(q)) continue;
+    const opts = (Array.isArray(q.choices) ? q.choices : []).map(c => String(c).trim());
+    const answer = String(q.correct ?? '').trim();
+    if (opts.length !== 4 || new Set(opts).size !== 4) continue;
+    if (!opts.includes(answer)) continue;
+    if (opts.some(o => !o || visibleLength(o) > MAX_OPT_LEN)) continue;
+    clean.push({ q: String(q.text), answer, options: opts, easy: q.difficulty === 'easy' });
+  }
+  return clean;
+}
+
 function prefetch(grade, node) {
   const g = Number(grade);
   const nd = Number(node) || 0;
@@ -160,27 +238,26 @@ function prefetch(grade, node) {
   }
   if (poolKey === key && pool.length > 8) return Promise.resolve();
   if (loading) return loading;
-  const url = `${API_BASE}/api/questions?arena=${g}&n=${BATCH}` + (nd ? `&node=${nd}` : '');
-  loading = fetch(url)
+  const load = (topic) => fetch(`${API_BASE}/api/questions?game=${g}&topic=${topic}&n=${BATCH}`)
     .then(r => r.json())
-    .then(d => {
-      const clean = [];
-      for (const q of (d && d.questions) || []) {
-        if (!fitsHud(q)) continue;
-        const opts = (q.choices || []).map(c => String(c).trim());
-        const answer = String(q.correct ?? '').trim();
-        if (opts.length !== 4 || new Set(opts).size !== 4) continue;
-        if (!opts.includes(answer)) continue;
-        if (opts.some(o => !o || visibleLength(o) > MAX_OPT_LEN)) continue;
-        clean.push({ q: String(q.text), answer, options: opts });
-      }
+    .then(d => cleanQuestions(d, g));
+  const offlineIfCurrent = () => {
+    try {
+      const s = getQuizSettings();
+      if (s.topic === 'math' && keyOf(s.grade, s.node) === key) setOffline(true);
+    } catch { /* ignore */ }
+  };
+  loading = load(nd)
+    /* Сэдвээс HUD-д тохирох бодлого олдоогүй бол ангийн бүх сэдвээс */
+    .then(clean => (clean.length || !nd) ? clean : load(0))
+    .then(clean => {
       if (clean.length) {
         pool = clean; poolKey = key;
         /* Эхний бодлого дотоод генератораар гарсан бол сольж өгөхийн тулд мэдэгдэнэ */
         window.dispatchEvent(new CustomEvent('arena:pool-ready', { detail: { key } }));
-      } else noServer.add(key);   /* тохиромжтой бодлого алга — цаашид бүү тат */
+      } else { noServer.add(key); offlineIfCurrent(); }   /* тохиромжтой бодлого алга — цаашид бүү тат */
     })
-    .catch(() => { noServer.add(key); /* сүлжээгүй — нөөц генератор ажиллана */ })
+    .catch(() => { noServer.add(key); offlineIfCurrent(); /* сүлжээгүй — нөөц генератор ажиллана */ })
     .finally(() => { loading = null; });
   return loading;
 }
@@ -264,17 +341,26 @@ export function createQuizQuestion(settings = getQuizSettings()) {
     const key = keyOf(normalized.grade, normalized.node);
     /* CyberMath-ын санд байвал түүнээс — сан багасахад дахин татна */
     if (poolKey === key && pool.length) {
-      const picked = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+      /* Хялбар бодлогыг илүүд үзнэ (санд байвал EASY_BIAS магадлалаар) */
+      const easy = [];
+      pool.forEach((p, i) => { if (p.easy) easy.push(i); });
+      const idx = (easy.length && Math.random() < EASY_BIAS)
+        ? easy[Math.floor(Math.random() * easy.length)]
+        : Math.floor(Math.random() * pool.length);
+      const picked = pool.splice(idx, 1)[0];
       if (pool.length < 8) prefetch(normalized.grade, normalized.node);
+      setOffline(false);
       return { q: picked.q, answer: picked.answer, options: picked.options.slice().sort(() => Math.random() - 0.5) };
     }
     prefetch(normalized.grade, normalized.node);
+    setOffline(noServer.has(key));
     return Object.assign(mathQuestion(normalized.grade), { local: true });
   }
+  setOffline(false);
   const bank = QUESTION_BANKS[normalized.topic] || QUESTION_BANKS.science;
   const item = bank[Math.floor(Math.random() * bank.length)];
   return { q: item.q, answer: item.answer, options: makeOptions(item.answer, item.wrong) };
 }
 
 /* Тестэд */
-export const __test = { visibleLength, fitsHud, normalizeSettings };
+export const __test = { visibleLength, fitsHud, normalizeSettings, urlSelection, topicsOf, cleanQuestions };

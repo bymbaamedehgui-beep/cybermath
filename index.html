@@ -3507,11 +3507,17 @@ window.addEventListener('load', function() {
   #gp-emb .b button,#gp-emb .b a{display:block;width:100%;box-sizing:border-box;border:0;cursor:pointer;font-family:inherit;font-weight:800;font-size:.95rem;border-radius:999px;padding:.72rem 1rem;text-decoration:none;text-align:center}
   #gp-emb .b .p{color:#fff;background:linear-gradient(135deg,#7B52EE,#A855F7)}
   #gp-emb .b .s{color:#5a32d6;background:#fff;border:1.5px solid #e7ddff}
+  html.cm-embed-sel .game-lesson-box{display:none!important}
+  #gp-emb-off{position:fixed;left:50%;bottom:10px;transform:translateX(-50%);z-index:99990;display:inline-flex;align-items:center;gap:6px;box-sizing:border-box;max-width:calc(100vw - 32px);padding:5px 12px;border-radius:999px;background:rgba(15,11,36,.9);color:#ffd9a8;border:1px solid rgba(255,190,110,.45);font:700 12px/1.25 'Baloo 2',system-ui,-apple-system,'Segoe UI',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+  #gp-emb-off[hidden]{display:none}
+  #gp-emb-off svg{flex:none}
 </style>
 <script id="gp-embed">
 /* ═══ Дасгалын төвийн embed горим ═══
    index.html доторх тоглоомыг (chessmath, daam, gomoku, ludo, doroev, sbh) worksheets.html-ийн overlay iframe-д ГАНЦААРАА
-   харуулна:  /?embed=<key>&realm=ws[&einv=<найзын урилгын токен>]   (games-host.js embedUrl)
+   харуулна:  /?embed=<key>&realm=ws[&einv=<найзын урилгын токен>][&grade=<6..12>&topic=<node_id|0>]   (games-host.js embedUrl)
+   - grade/topic: Дасгалын төвд сонгосон анги/сэдэв. Бодлогыг /api/questions?game=&topic=&n=60-аас авна (window.qApiUrl-г дарна);
+     parent → {type:'cm-embed-config', grade, topic} ирвэл санг шинэчилж {type:'cm-embed-sel', grade, topic} буцаана.
    - cyber-math.com-ийн нэвтрэлт/эрх ШААРДАХГҮЙ. Эрхийг ЗӨВХӨН Дасгалын төвийн realm-ээр шалгана:
        POST /api/games?action=launch {game, realm:'ws', wstoken: localStorage.cm_ws_token, invite}
        (+ X-Device-Id 'cm_device' / X-Device-Fp — ws-store.js-тэй ижил; админ бол Bearer cm_admin_token).
@@ -3533,7 +3539,7 @@ window.addEventListener('load', function() {
   // Үлдээх элементүүд. Тоглоом бүрийн «бодоод нүүх» модал нь талбар дотор биш, түүний ах дүү (#tab-games / #cybermath-app-ийн
   // шууд хүүхэд) тул энд заавал нэрлэнэ — эс бөгөөс .cm-emb-hide (!important) модалыг дарж бодлого харагдахгүй, нүүдэл хийгдэхгүй.
   var GAME_MODALS = ['cm-math-modal', 'dm-math-modal', 'gm-math-modal', 'lu-math-modal', 'dr-math-modal', 'sbh-q-modal'];
-  var KEEP = ['toast', 'fs-overlay-bg', 'fs-close-btn', 'gp-emb'].concat(GAME_MODALS);
+  var KEEP = ['toast', 'fs-overlay-bg', 'fs-close-btn', 'gp-emb', 'gp-emb-off'].concat(GAME_MODALS);
   var key = km[1];
   var rm = /[?&]realm=([a-z]{2})(?=&|#|$)/.exec(q);
   var realm = rm ? rm[1] : 'ws';
@@ -3543,8 +3549,22 @@ window.addEventListener('load', function() {
     try { inv = decodeURIComponent(im[1]); } catch (e) { inv = null; }
     if (inv && !/^[A-Za-z0-9_.-]{20,2048}$/.test(inv)) inv = null;
   }
+  // Дасгалын төвөөс сонгосон анги/сэдэв (games-host.js embedUrl sel): &grade=<6..12>&topic=<node_id|0>.
+  // Үнэ/эрхэд нөлөөгүй — зөвхөн бодлогын санг сонгоно: window.qApiUrl → /api/questions?game=<анги>&topic=<сэдэв>&n=60.
+  // Parent-аас {type:'cm-embed-config', grade, topic} ирвэл (ижил домэйн) сонголтыг сольж бодлогын санг шинэчилнэ.
+  // cyber-math.com-той хуваалцдаг localStorage-д (cm_game_nodes) БИЧИХГҮЙ.
+  var GRADE_RE = /^(6|7|8|9|10|11|12)$/;
+  var MIN_Q = { sbh: 20 };   // сэдвээс ирсэн бодлого үүнээс цөөн бол ангийн бүх сэдвээс (topic=0) дахин татна
+  function selOf(g, t) {
+    g = g == null ? '' : String(g);
+    if (!GRADE_RE.test(g)) return null;
+    t = t == null ? '' : String(t);
+    return { grade: g, topic: /^\d{1,6}$/.test(t) ? String(parseInt(t, 10)) : '0' };
+  }
+  var gm = /[?&]grade=([^&#]*)/.exec(q), tm = /[?&]topic=([^&#]*)/.exec(q);
+  var sel0 = gm ? selOf(gm[1], tm ? tm[1] : '0') : null;
   document.documentElement.classList.add('cm-embed');
-  var E = window.CM_EMBED = { key: key, realm: realm, ok: false, via: null, state: 'init' };
+  var E = window.CM_EMBED = { key: key, realm: realm, ok: false, via: null, state: 'init', sel: sel0 };
   var SVGA = 'width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
   var IC = {
     lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
@@ -3622,6 +3642,96 @@ window.addEventListener('load', function() {
     });
   }
   function hideCard() { var el = document.getElementById('gp-emb'); if (el) el.hidden = true; }
+  // ── Анги/сэдвийн бодлогын сан ──
+  var thin = {};   // 'анги|сэдэв' → тухайн сэдвийн бодлого хүрэлцээгүй байсан (дараагийн татаас шууд topic=0)
+  function qUrl() {
+    var s = E.sel;
+    if (!s) return '/api/questions';
+    var t = thin[s.grade + '|' + s.topic] ? '0' : s.topic;
+    return '/api/questions?game=' + s.grade + '&topic=' + t + '&n=60';
+  }
+  // Сүлжээ тасарсан / сан хоосон → тоглоом өөрийн жишиг (арифметик) бодлогоор үргэлжилнэ — жижиг тэмдэг харуулна
+  function offline(on) {
+    var el = document.getElementById('gp-emb-off');
+    if (!on) { if (el) el.hidden = true; return; }
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'gp-emb-off';
+      el.setAttribute('role', 'status');
+      el.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+        '<path d="M2 8.5a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16.2a5 5 0 0 1 6 0"/><path d="M3 3l18 18"/></svg><span></span>';
+      el.querySelector('span').textContent = 'Офлайн — жишиг бодлого';
+      document.body.appendChild(el);
+    }
+    el.hidden = false;
+  }
+  function resp(d, st) {
+    var body = JSON.stringify(d);
+    try {
+      if (typeof Response === 'function') return new Response(body, { status: st, headers: { 'Content-Type': 'application/json' } });
+    } catch (e) {}
+    return { ok: st >= 200 && st < 300, status: st, json: function () { return Promise.resolve(JSON.parse(body)); } };
+  }
+  // /api/questions?game=…-ийн хариуг шалгана: сэдвээс хангалттай бодлого ирээгүй (хоосон, 400 — өөр ангийн сэдэв г.м.) бол
+  // ангийн бүх сэдвээс (topic=0) дахин татна. Тоглоомууд fetch(qApiUrl()).then(r => r.json()) хэлбэрээр уншдаг.
+  // Нэг зэрэг ирсэн ижил хүсэлт (cmResetPools бүх inline тоглоомын санг зэрэг шинэчилдэг) нэг л удаа сүлжээнд гарна.
+  var pend = {};
+  function gameFetch(f0, url, opts) {
+    var min = MIN_Q[key] || 1;
+    var mg = /[?&]game=(\d+)/.exec(url), mt = /[?&]topic=(\d+)/.exec(url);
+    var topic = mt ? mt[1] : '0';
+    function rd(u) {
+      return f0.call(window, u, opts).then(function (r) {
+        return r.json().then(function (d) { return { s: r.status, d: d && typeof d === 'object' ? d : {} }; },
+          function () { return { s: r.status, d: {} }; });
+      });
+    }
+    function qs(x) { return x.s === 200 && x.d && Array.isArray(x.d.questions) ? x.d.questions : []; }
+    if (!pend[url]) {
+      pend[url] = rd(url).then(function (x) {
+        if (qs(x).length >= min || topic === '0') return x;
+        if (mg) thin[mg[1] + '|' + topic] = true;
+        return rd(url.replace(/([?&]topic=)\d+/, '$10'));
+      }).then(function (x) {
+        delete pend[url];
+        offline(!qs(x).length);
+        return x;
+      }, function (e) { delete pend[url]; offline(true); throw e; });
+    }
+    return pend[url].then(function (x) { return resp(x.d, x.s || 200); });
+  }
+  var hooked = false;
+  // index.html-ийн тоглоомын нийтлэг глобалуудыг (window.qApiUrl г.м.) сонголтоор дарна — DOMContentLoaded-ийн дараа
+  // (тэдгээр нь body-ийн скриптэд тодорхойлогддог). Нэг л удаа.
+  function hookSel() {
+    if (hooked) return;
+    hooked = true;
+    document.documentElement.classList.add('cm-embed-sel');   // «Агуулга» сонгогчийг нууна
+    window.qApiUrl = function () { return qUrl(); };
+    window.getUserMaxGrade = function () { return E.sel ? parseInt(E.sel.grade, 10) : 12; };
+    window.gameNodeIds = [];
+    window.cmSaveGameNodes = function () { if (typeof window.cmResetPools === 'function') window.cmResetPools(); };
+    var f0 = window.fetch;
+    if (typeof f0 !== 'function') return;
+    window.fetch = function (url, opts) {
+      if (typeof url === 'string' && url.indexOf('/api/questions?game=') === 0) return gameFetch(f0, url, opts);
+      return f0.apply(window, arguments);
+    };
+  }
+  // Parent (Дасгалын төв) анги/сэдвийг солих: {type:'cm-embed-config', grade, topic} → бодлогын санг дахин татна.
+  function onCfg(e) {
+    if (!e || e.origin !== location.origin) return;
+    var d = e.data;
+    if (!d || typeof d !== 'object' || d.type !== 'cm-embed-config') return;
+    try { if (e.source !== window.parent) return; } catch (x) { return; }
+    var s = selOf(d.grade, d.topic);
+    if (!s) return;
+    var same = !!(E.sel && E.sel.grade === s.grade && E.sel.topic === s.topic);
+    E.sel = s;
+    hookSel();
+    if (!same && E.ok && typeof window.cmResetPools === 'function') { try { window.cmResetPools(); } catch (x) {} }
+    post({ type: 'cm-embed-sel', grade: s.grade, topic: s.topic });
+  }
   function backBtn(cls) { return { cls: cls, label: 'Дасгалын төв рүү', href: '/worksheets#games' }; }
   function locked(reason, err) {
     E.ok = false;
@@ -3651,6 +3761,7 @@ window.addEventListener('load', function() {
     var b = { game: key, realm: 'ws' };
     var t = ls('cm_ws_token'); if (t) b.wstoken = t;
     if (inv) b.invite = inv;
+    if (E.sel) b.grade = E.sel.grade;   // одоогийн анги (сервер зөвхөн game_access.grade-ийг шинэчилнэ — эрх/хугацаанд нөлөөгүй)
     fetch('/api/games?action=launch', { method: 'POST', headers: h, body: JSON.stringify(b), credentials: 'same-origin' })
       .then(function (r) {
         return r.json().then(function (j) { return { s: r.status, d: j && typeof j === 'object' ? j : {} }; },
@@ -3716,6 +3827,8 @@ window.addEventListener('load', function() {
     if (!area || typeof window.startGame !== 'function') return locked('error');
     isolate(area);
     hookClose(area);
+    if (E.sel) hookSel();
+    if (inFrame()) { try { window.addEventListener('message', onCfg); } catch (e) {} }
     verify();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

@@ -260,6 +260,14 @@
   .modal-msg { font-size: 0.85rem; font-weight: 700; flex: 1; }
   .modal-msg.ok { color: #10b981; }
   .modal-msg.err { color: #dc2626; }
+  .ch-off {
+    display: inline-flex; align-items: center; gap: 5px;
+    margin: -4px 0 10px; padding: 3px 10px; border-radius: 100px;
+    border: 1px solid #e3c48a; background: #fbf3e2; color: #8a5a12;
+    font-weight: 800; font-size: 0.72rem;
+  }
+  .ch-off[hidden] { display: none; }
+  .ch-off svg { flex: none; }
   .modal-cancel {
     background: transparent;
     border: 1.5px solid #1c1a14;
@@ -337,6 +345,7 @@
       <div class="modal-title">Бодлого бод</div>
       <div class="modal-num" id="ch-num">?</div>
     </div>
+    <div class="ch-off" id="ch-off" role="status" hidden><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8.5a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16.2a5 5 0 0 1 6 0"/><path d="M3 3l18 18"/></svg>Офлайн — жишиг бодлого</div>
     <div class="q-text" id="ch-text">Уншиж байна...</div>
     <div class="choices" id="ch-choices" style="display:none;"></div>
     <div class="q-input-wrap" id="ch-input-wrap" style="display:none;">
@@ -576,7 +585,48 @@ function shuffleBank() {
   bankIdx = 0;
 }
 
+// Дасгалын төвөөс сонгосон анги/сэдэв: ?grade=<6..12>&topic=<node_id|0> — байвал тоглоомуудын нийтлэг сангаас
+// (/api/questions?game=&topic=&n=60, зөвхөн 4 сонголттой бодлого). Байхгүй бол хуучнаараа (cyber-math.com).
+var CM_SEL = (function(){
+  try {
+    var sp = new URLSearchParams(location.search || '');
+    var g = sp.get('grade');
+    if (!g || !/^(6|7|8|9|10|11|12)$/.test(g)) return null;
+    var t = sp.get('topic') || '';
+    return { grade: g, topic: /^\d{1,6}$/.test(t) ? String(parseInt(t, 10)) : '0' };
+  } catch(e) { return null; }
+})();
+var CM_MIN_Q = 12;  // нэг тоглолтод ~45–55 бодлого — сэдвээс үүнээс цөөн ирвэл ангийн бүх сэдвээс (topic=0)
+
+async function fetchGameQs(topic) {
+  var r = await fetch('/api/questions?game=' + CM_SEL.grade + '&topic=' + topic + '&n=60');
+  var d = await r.json();
+  if (!d || d.ok === false || String(d.grade) !== CM_SEL.grade || !Array.isArray(d.questions)) return [];
+  return d.questions.filter(function(q){
+    return q && q.text && Array.isArray(q.choices) && q.choices.length >= 2 && q.correct != null && q.choices.indexOf(q.correct) >= 0;
+  }).map(function(q){
+    return { id: q.id, text: q.text, choices: q.choices.slice(), correct: q.correct, type: 'choice', difficulty: q.difficulty };
+  });
+}
+
+function setOffline(on) {
+  var el = document.getElementById('ch-off');
+  if (el) el.hidden = !on;
+}
+
 async function loadQuestionBank() {
+  if (CM_SEL) {
+    try {
+      var qs = await fetchGameQs(CM_SEL.topic);
+      if (qs.length < CM_MIN_Q && CM_SEL.topic !== '0') {
+        var all = await fetchGameQs('0');
+        if (all.length > qs.length) qs = all;
+      }
+      questionsBank = qs;
+    } catch(e) { questionsBank = []; }
+    shuffleBank();
+    return;
+  }
   try {
     var r = await fetch('/api/questions?max_grade=10');
     var d = await r.json();
@@ -615,6 +665,7 @@ function renderTex(s) {
 function openChallenge(num) {
   pendingNum = num;
   var q = nextQuestion();
+  setOffline(!!CM_SEL && !q);
   if (!q) {
     // Fallback — энгийн арифметик
     q = generateMathQuestion();
