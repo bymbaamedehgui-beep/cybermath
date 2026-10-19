@@ -286,6 +286,14 @@
   .gbtn:disabled{opacity:.6;cursor:default}
   .glink{border:0;background:none;cursor:pointer;font-family:inherit;font-weight:800;font-size:.76rem;color:var(--purple-d);padding:.3rem .35rem;border-radius:8px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px}
   .glink:hover{background:#f3eeff}
+  /* Анги/сэдвийн чип (картан дээр) — «8-р анги · Сэдэв · Солих» */
+  .gselrow{display:flex;min-width:0}
+  .gsel{display:inline-flex;align-items:center;gap:5px;max-width:100%;min-width:0;border:1px dashed #d9c9ff;background:#faf7ff;color:#5a32d6;font-family:inherit;font-weight:800;font-size:.72rem;border-radius:999px;padding:.24rem .6rem;cursor:pointer;line-height:1.2;text-align:left}
+  .gsel:hover{border-color:#b9a3f5;background:#f3eeff}
+  .gsel svg{flex:none}
+  .gsel span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .gsel u{flex:none;text-decoration:none;color:var(--purple-d);border-left:1px solid #e7ddff;padding-left:6px}
+  .gsel.none{border-style:solid;border-color:#f5d0fe;background:#fdf4ff;color:#a21caf}
   .gmore{display:block;margin:12px auto 0;border:1.5px solid var(--line);background:#fff;color:var(--purple-d);font-family:inherit;font-weight:800;font-size:.82rem;border-radius:999px;padding:.45rem 1.1rem;cursor:pointer}
   .gmore[hidden]{display:none}
   .chip.gamesc{color:#a21caf;border-color:#f5d0fe}
@@ -332,6 +340,22 @@
   .gp-link{display:flex;gap:6px;margin:8px 0}
   .gp-link input{flex:1;min-width:0;border:1.6px solid #e7ddff;border-radius:10px;padding:.6rem .7rem;font-size:.8rem;background:#faf7ff;color:#3a2d5e;font-weight:700}
   .gp-link button{flex:none;font-weight:800;border:0;background:linear-gradient(135deg,var(--purple),var(--purple2));color:#fff;border-radius:10px;padding:0 .9rem;cursor:pointer;font-family:inherit}
+  /* Анги (заавал) + сэдэв (заавал биш) сонгогч — худалдан авах / тоглох модал. 360px-д 7 анги нэг мөрөнд багтана */
+  .gp-sel{text-align:left;margin:6px 0 12px;min-width:0}
+  .gp-lbl{display:flex;align-items:center;gap:6px;font-size:.8rem;font-weight:900;color:#3a2d5e;margin:0 0 6px 2px}
+  .gp-lbl small{font-weight:700;font-size:.72rem;color:var(--soft)}
+  .gp-lbl svg{flex:none;color:var(--purple)}
+  .gp-grades{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;margin:0 0 12px}
+  .gp-gr{min-width:0;border:1.6px solid #e7ddff;background:#fff;color:#3a2d5e;font-family:inherit;font-weight:900;font-size:.95rem;border-radius:10px;padding:.5rem 0;cursor:pointer;line-height:1.1}
+  .gp-gr:hover{border-color:#b9a3f5}
+  .gp-gr.on{border-color:transparent;background:linear-gradient(135deg,var(--purple),var(--purple2));color:#fff;box-shadow:0 6px 14px -8px rgba(123,82,238,.9)}
+  .gp-gr:disabled{opacity:.55;cursor:default}
+  .gp-topic{display:block;width:100%;max-width:100%;box-sizing:border-box;min-width:0;border:1.6px solid #e7ddff;border-radius:12px;padding:.6rem .7rem;font-size:.88rem;background:#faf7ff;color:#3a2d5e;font-weight:700;font-family:inherit}
+  .gp-topic:disabled{opacity:.6}
+  .gp-topic[hidden],.gp-lbl[hidden]{display:none}
+  .gp-hint{font-size:.76rem;color:var(--soft);margin:6px 2px 0;line-height:1.45}
+  .gp-hint:empty{display:none}
+  .gp-hint.warn{color:#7a4b00}
 </style>
 </head>
 <body>
@@ -2398,7 +2422,12 @@ fetch('/api/worksheets?titles=1').then(function(r){return r.json();})
    Эрх (realm 'ws', имэйл, тоглоом)-оор — cyber-math.com-ийн эрхээс ТУСДАА. Үнэ/хоног /api/games?action=catalog-оос.
    Тоглох: файл тоглоом → /api/games launch (120 сек тасалбартай url) → overlay iframe;
            inline (chessmath, daam, gomoku, ludo, doroev, sbh) → index.html embed горим (/?embed=<key>&realm=ws);
-           гадны тоглоом → launch (эрх шалгана) → гадны url. Урилга: ?game=<key>&ginv=<токен>. Тусламж: /games-host.js */
+           гадны тоглоом → launch (эрх шалгана) → гадны url. Урилга: ?game=<key>&ginv=<токен>[&grade=&topic=]. Тусламж: /games-host.js
+   Анги/сэдэв: худалдан авахад анги (6–12) ЗААВАЛ + сэдэв (заавал биш, «Бүх сэдэв») сонгоно → QPay create game_grade.
+           Эрх нь тоглоом бүхэлдээ (үнэ/хугацаа ангиас үл хамаарна) — анги нь зөвхөн бодлогын санг сонгоно.
+           «Тоглох» → сүүлийн сонголтоор шууд (localStorage cm_game_sel_ws → status.grades → урилгын host-ийн анги);
+           сонголтгүй бол сонгогч цонх. Карт дээр «8-р анги · сэдэв · Солих» чип, тоглоомын toolbar-т «Анги/сэдэв».
+           url-д ?grade=&topic= (file/external — launch; inline — embedUrl; xpdrop/myangat — feedQuestions). */
 (function(){
   'use strict';
   var H=window.CMGamesHost, sec=document.getElementById('gamesSec');
@@ -2425,7 +2454,10 @@ fetch('/api/worksheets?titles=1').then(function(r){return r.json();})
     share:'<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/>',
     user:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
     x:'<path d="M18 6L6 18M6 6l12 12"/>',
-    down:'<path d="M6 9l6 6 6-6"/>'
+    down:'<path d="M6 9l6 6 6-6"/>',
+    layers:'<path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="M2 12l10 5 10-5"/><path d="M2 17l10 5 10-5"/>',
+    cap:'<path d="M22 10 12 5 2 10l10 5 10-5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>',
+    book:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5V21h16"/>'
   };
   function svg(n,s){return '<svg width="'+s+'" height="'+s+'" '+SVGA+'>'+(IC[n]||'')+'</svg>';}
   var esc=H.esc, fmt=H.fmt, ymd=H.ymd;
@@ -2450,6 +2482,123 @@ fetch('/api/worksheets?titles=1').then(function(r){return r.json();})
   function tokEmail(t){try{var p=String(t).split('.')[1].replace(/-/g,'+').replace(/_/g,'/');while(p.length%4)p+='=';var d=JSON.parse(atob(p));return d&&typeof d.email==='string'?d.email.trim().toLowerCase():'';}catch(e){return '';}}
   function acctEmail(){return (S.st&&S.st.email)||tokEmail(tok()||'')||'';}
 
+  /* ───── анги / сэдэв (бодлогын сонголт — үнэ/эрхэд нөлөөлөхгүй) ─────
+     Дараалал: энэ дансны хадгалсан сонголт (localStorage) → серверийн одоогийн анги (status.grades, «Бүх сэдэв») →
+     урилгын холбоосын host-ийн анги/сэдэв → null (сонгогч цонх). */
+  function selFor(k){
+    var s=H.getSel(REALM,acctEmail(),k);if(s)return s;
+    var g=S.st&&S.st.grades?H.normGrade(S.st.grades[k]):null;
+    if(g)return {grade:g,topic:'0',name:''};
+    return H.getInvite(REALM,k)?H.inviteSel(REALM,k):null;
+  }
+  function saveSel(k,s){H.setSel(REALM,acctEmail(),k,s);}
+  function defSel(k){var s=selFor(k);if(s)return s;var g=H.lastGrade(REALM,acctEmail());return g?{grade:g,topic:'0',name:''}:null;}
+  var SEL_NOTE={doroev:'Бодлого зөвхөн бодлоготой горимд гарна — «зүгээр тоглох» горимд анги нөлөөлөхгүй.',
+    numseq:'Энэ тоглоомд сэдэв хамаарахгүй — ангиар түвшин тохирно.'};
+  function selBoxHtml(k){
+    var gs=H.GRADES.map(function(g){return '<button type="button" class="gp-gr" data-gr="'+g+'" role="radio" aria-checked="false" title="'+g+'-р анги">'+g+'</button>';}).join('');
+    return '<div class="gp-sel" data-gp-sel>'
+      +'<div class="gp-lbl">'+svg('cap',15)+'Анги <small>· заавал</small></div>'
+      +'<div class="gp-grades" role="radiogroup" aria-label="Анги">'+gs+'</div>'
+      +(H.hasTopics(k)?'<div class="gp-lbl" data-gp-tl>'+svg('book',15)+'Сэдэв <small>· заавал биш</small></div>'
+        +'<select class="gp-topic" data-gp-topic aria-label="Сэдэв" disabled><option value="0">Эхлээд ангиа сонгоно уу</option></select>':'')
+      +'<div class="gp-hint" data-gp-hint>'+esc(SEL_NOTE[k]||'')+'</div></div>';
+  }
+  /* Сонгогчийн удирдлага: root = [data-gp-sel], sel0 = анхны сонголт (null байж болно), onChange(sel|null) */
+  function selCtl(root,k,sel0,onChange){
+    var cur=H.normSel(sel0), names={}, seq=0, locked=false;
+    var tsel=root.querySelector('[data-gp-topic]'), tl=root.querySelector('[data-gp-tl]'), hint=root.querySelector('[data-gp-hint]');
+    var base=SEL_NOTE[k]||'';
+    function setHint(t,warn){hint.className='gp-hint'+(warn?' warn':'');hint.textContent=t||base;}
+    function chips(){
+      [].forEach.call(root.querySelectorAll('[data-gr]'),function(b){
+        var on=!!cur&&b.getAttribute('data-gr')===cur.grade;
+        b.classList.toggle('on',on);b.setAttribute('aria-checked',on?'true':'false');b.disabled=locked;
+      });
+    }
+    function fire(){if(typeof onChange==='function')onChange(cur?H.normSel(cur):null);}
+    function opts(g){
+      if(!tsel)return;
+      var my=++seq;
+      tsel.disabled=true;tsel.hidden=false;if(tl)tl.hidden=false;
+      tsel.innerHTML='<option value="0">Сэдвүүд ачаалж байна…</option>';tsel.value='0';
+      setHint('');
+      H.topics(g).then(function(d){
+        if(my!==seq||!cur||cur.grade!==g)return;
+        var tg=H.topicGroups(d,k);
+        names={};
+        if(tg.allOnly){
+          tsel.innerHTML='<option value="0">Бүх сэдэв</option>';tsel.value='0';tsel.hidden=true;if(tl)tl.hidden=true;
+          cur.topic='0';cur.name='';
+          setHint(g+'-р ангид одоогоор бүх сэдвээс холимог бодлого гарна.'+(tg.few?' Бодлого цөөн тул тоглоомын жишиг бодлого холилдоно.':''),tg.few);
+          fire();return;
+        }
+        var h='<option value="0">Бүх сэдэв (холимог)</option>';
+        tg.groups.forEach(function(gr){
+          var o=gr.topics.map(function(t){names[t.id]=t.name;return '<option value="'+esc(t.id)+'">'+esc(t.name)+'</option>';}).join('');
+          h+=gr.name?'<optgroup label="'+esc(gr.name)+'">'+o+'</optgroup>':o;
+        });
+        tsel.innerHTML=h;
+        if(cur.topic!=='0'&&!names[cur.topic]){cur.topic='0';cur.name='';}
+        if(cur.topic!=='0')cur.name=names[cur.topic];
+        tsel.value=cur.topic;tsel.disabled=false;
+        if(tg.few)setHint('Энэ ангид тохирох бодлого цөөн байна — тоглоом өөрийн жишиг бодлогыг холино.',true);
+        else if(!tg.count)setHint('Энэ ангид сэдвээр ялгах хангалттай бодлого алга — бүх сэдвээс холимог гарна.');
+        else setHint('');
+        fire();
+      },function(){
+        if(my!==seq||!cur||cur.grade!==g)return;
+        tsel.innerHTML='<option value="0">Бүх сэдэв</option>';tsel.value='0';tsel.disabled=false;
+        cur.topic='0';cur.name='';
+        setHint('Сэдвийн жагсаалт ачаалагдсангүй — «Бүх сэдэв»-ээр тоглоно.',true);
+        fire();
+      });
+    }
+    function pick(g){
+      if(locked||!H.normGrade(g))return;
+      var same=cur&&cur.grade===g;
+      cur=same?cur:{grade:g,topic:'0',name:''};
+      chips();fire();
+      if(!same||(tsel&&tsel.disabled))opts(g);
+    }
+    root.addEventListener('click',function(e){var b=e.target.closest('[data-gr]');if(b&&!b.disabled)pick(b.getAttribute('data-gr'));});
+    if(tsel)tsel.onchange=function(){
+      if(!cur)return;
+      var v=H.normTopic(tsel.value)||'0';
+      cur.topic=v==='0'||names[v]?v:'0';cur.name=cur.topic==='0'?'':names[cur.topic];
+      fire();
+    };
+    chips();
+    if(cur&&tsel)opts(cur.grade);
+    return {
+      get:function(){return cur?H.normSel(cur):null;},
+      lock:function(on){locked=!!on;chips();}       /* зөвхөн анги түгжигдэнэ — сэдвийг сольж болно */
+    };
+  }
+  /* Сонгогч цонх (тоглохын өмнө / карт дээрх «Солих» / тоглоомын «Анги/сэдэв»).
+     o: {change:bool — «Хадгалах» товчтой}, cb(sel) — «Тоглох»/«Хадгалаад тоглох»; o.onSave(sel) — «Хадгалах» (тоглохгүй) */
+  function pickSel(k,o,cb){
+    o=o||{};
+    var m=modal('gpSel');
+    m.card.innerHTML=head(k,null,title(k),o.change?'Анги, сэдвээ солих':'Ангиа сонгоод тоглоорой. Дараа нь хүссэн үедээ сольж болно.')
+      +selBoxHtml(k)
+      +'<button type="button" class="gp-go play" data-gp-ok disabled>'+svg('play',16)+(o.change&&o.inGame?'Хадгалаад үргэлжлүүлэх':'Тоглох')+'</button>'
+      +(o.onSave?'<button type="button" class="gp-sec" data-gp-save disabled>'+svg('check',15)+'Зөвхөн хадгалах</button>':'');
+    var ok=m.card.querySelector('[data-gp-ok]'),sv=m.card.querySelector('[data-gp-save]');
+    var ctl=selCtl(m.card.querySelector('[data-gp-sel]'),k,o.sel||defSel(k),function(s){ok.disabled=!s;if(sv)sv.disabled=!s;});
+    ok.disabled=!ctl.get();if(sv)sv.disabled=!ctl.get();
+    m.card.querySelector('[data-gp-x]').onclick=m.close;
+    ok.onclick=function(){var s=ctl.get();if(!s)return;saveSel(k,s);m.close();render();if(cb)cb(s);};
+    if(sv)sv.onclick=function(){var s=ctl.get();if(!s)return;saveSel(k,s);m.close();render();o.onSave(s);};
+    return m;
+  }
+  function selChip(k){
+    var s=selFor(k);
+    if(!s)return '<div class="gselrow"><button type="button" class="gsel none" data-ga="sel" data-gk="'+k+'" title="Анги, сэдвээ сонгох">'+svg('cap',12)+'<span>Анги сонгоогүй</span><u>Сонгох</u></button></div>';
+    return '<div class="gselrow"><button type="button" class="gsel" data-ga="sel" data-gk="'+k+'" title="Анги/сэдэв солих">'+svg('layers',12)
+      +'<span>'+esc(H.selLabel(s))+'</span><u>Солих</u></button></div>';
+  }
+
   /* ───── карт ───── */
   function btn(a,k,cls,ic,txt){return '<button type="button" class="'+cls+'" data-ga="'+a+'" data-gk="'+k+'">'+(ic?svg(ic,14):'')+esc(txt)+'</button>';}
   function cardHtml(k,st,extra){
@@ -2464,10 +2613,12 @@ fetch('/api/worksheets?titles=1').then(function(r){return r.json();})
     else if(st.st==='buy'){b='<span class="gbadge lock">'+svg('lock',12)+esc(priceTxt())+'</span>';a=btn('buy',k,'gbtn','lock','Худалдан авах');}
     else {b='<span class="gbadge lock">'+svg('lock',12)+esc(priceTxt())+'</span>';a=btn('login',k,'gbtn','login','Нэвтэрч худалдан авах');}
     if(multi(k))b+='<span class="gbadge multi" title="Олон тоглогчтой — зөвхөн өрөө үүсгэгч төлнө">'+svg('group',12)+'Олуулаа</span>';
+    /* Тоглох боломжтой картад одоогийн анги/сэдэв (худалдан авах/нэвтрэх төлөвт сонголт модал дотор) */
+    var chip=(st.st==='active'||st.st==='free'||st.st==='admin'||st.st==='invite')?selChip(k):'';
     return '<div class="gcard'+(st.st==='active'?' on':'')+(extra?' gx':'')+'" data-gk="'+k+'">'
       +'<div class="gtop"><span class="gico" style="background:linear-gradient(135deg,'+M.c[0]+','+M.c[1]+')">'+H.icon(k,22)+'</span>'
       +'<div class="gtt"><div class="gname" title="'+esc(title(k))+'">'+esc(title(k))+'</div><div class="gdesc">'+esc(M.d)+'</div></div></div>'
-      +'<div class="gmeta">'+b+'</div><div class="gacts">'+a+'</div></div>';
+      +'<div class="gmeta">'+b+'</div>'+chip+'<div class="gacts">'+a+'</div></div>';
   }
   function noteHtml(){
     var n=S.note;
@@ -2543,45 +2694,91 @@ fetch('/api/worksheets?titles=1').then(function(r){return r.json();})
     if(d.needLogin||(x&&x.s===401))return loginThen(function(){play(k);});
     say(d.error||'Түр алдаа гарлаа. Дахин оролдоно уу.');
   }
+  /* o: {invite, sel} — sel байхгүй бол сүүлийн сонголт (selFor), тэр ч байхгүй бол сонгогч цонх.
+     Эрхгүй нь тодорхой (худалдан авах / нэвтрэх төлөв, урилгагүй) бол сонголт асуухгүй — худалдан авах модал өөрөө асууна. */
   function play(k,o){
     o=o||{};
     if(!H.isKey(k))return;
     var inv=o.invite||H.getInvite(REALM,k);
     var st=stateOf(k).st;
+    var locked=!inv&&(st==='buy'||st==='login');
     if(kind(k)==='inline'){
       /* Эрхгүй нь тодорхой бол index.html (том хуудас)-ийг ачаалахгүй — шууд худалдан авах / нэвтрэх */
       if(!inv&&st==='buy')return buy(k);
       if(!inv&&st==='login')return loginThen(function(){play(k);});
-      return openFrame(k,H.embedUrl(k,REALM,inv),{invite:inv});
     }
+    var sel=H.normSel(o.sel)||selFor(k);
+    if(!sel&&!locked)return pickSel(k,{},function(s){play(k,{invite:o.invite,sel:s});});
+    if(sel)saveSel(k,sel);
+    if(kind(k)==='inline')return openFrame(k,H.embedUrl(k,REALM,inv,sel),{invite:inv,sel:sel});
     if(S.busy[k])return;
     S.busy[k]=true;busyCard(k,true);
-    H.launch(k,{realm:REALM,invite:inv}).then(function(x){
+    H.launch(k,{realm:REALM,invite:inv,sel:sel}).then(function(x){
       S.busy[k]=false;busyCard(k,false);
       var d=x.d||{};
-      if(d.ok&&d.url)return openFrame(k,d.url,{invite:d.via==='invite'?inv:null,via:d.via});
+      if(d.ok&&d.url){
+        /* хуучин клиентээс (сонголтгүй) эрхтэй нь батлагдвал — анги сонгуулаад дахин эхлүүлнэ */
+        if(!sel)return pickSel(k,{},function(s){play(k,{invite:o.invite,sel:s});});
+        return openFrame(k,H.withSel(d.url,sel),{invite:d.via==='invite'?inv:null,via:d.via,sel:sel});
+      }
       fail(k,x,inv);
     },function(){S.busy[k]=false;busyCard(k,false);say('Сүлжээний алдаа. Дахин оролдоно уу.');});
+  }
+  function frameSub(k,viaInv,sel){
+    var e=ent(k), t=viaInv?'Найзын урилгаар':(e?ymd(e)+' хүртэл':'');
+    var l=H.selLabel(sel);
+    return l?(l+(t?' · '+t:'')):t;
   }
   function openFrame(k,url,o){
     o=o||{};
     var e=ent(k), viaInv=!!(o.invite&&!e);
-    var tools=[];
+    var tools=[], cur=H.normSel(o.sel), ready=false, ackT=null;
+    tools.push({icon:'sel',label:'Анги/сэдэв',onClick:function(){
+      pickSel(k,{change:true,inGame:true,sel:cur},function(s){applySel(s);});
+    }});
     if(multi(k)&&e&&!viaInv)tools.push({icon:'users',label:'Найзаа урих',onClick:function(){inviteFor(k);}});
     var relaunched=false, c=null;
-    c=H.overlay({key:k,title:title(k),sub:viaInv?'Найзын урилгаар':(e?ymd(e)+' хүртэл':''),url:url,tools:tools,
+    /* Тоглоом доторх сонголтыг солих: inline → embed-д cm-embed-config (дахин ачаалалгүй; хариу ирэхгүй бол шинэ url),
+       бусад → шинэ сонголттой launch (файл тоглоомд gate-ийн шинэ тасалбар) */
+    function applySel(s){
+      s=H.normSel(s);if(!s)return;
+      var same=cur&&cur.grade===s.grade&&cur.topic===s.topic;
+      cur=s;c.setSel(s);c.setSub(frameSub(k,viaInv,s));
+      if(same)return;
+      if(kind(k)==='inline'){
+        var u=H.embedUrl(k,REALM,o.invite||null,s);
+        if(!ready){c.setUrl(u);return;}
+        c.post({type:'cm-embed-config',grade:s.grade,topic:s.topic});
+        if(ackT)clearTimeout(ackT);
+        ackT=setTimeout(function(){ackT=null;if(cur===s)c.setUrl(u);},2500);
+        /* одоогийн ангийг серверт (зөвхөн өөрийн эрхтэй үед — урилгын хэрэглээ зарцуулахгүй) */
+        if(ent(k)&&!viaInv)H.launch(k,{realm:REALM,sel:s}).then(function(){},function(){});
+        return;
+      }
+      H.launch(k,{realm:REALM,invite:o.invite||null,sel:s}).then(function(x){
+        if(x.d&&x.d.ok&&x.d.url){if(cur===s)c.setUrl(H.withSel(x.d.url,s));return;}
+        c.close();fail(k,x,o.invite);
+      },function(){say('Сүлжээний алдаа. Дахин оролдоно уу.');});
+    }
+    c=H.overlay({key:k,title:title(k),sub:frameSub(k,viaInv,cur),url:url,tools:tools,sel:cur,
       onMessage:function(d){
         if(d.game&&d.game!==k)return;
+        if(d.type==='cm-embed-ready'){ready=true;return;}
+        if(d.type==='cm-embed-sel'){
+          if(cur&&H.normGrade(d.grade)===cur.grade&&String(d.topic)===cur.topic&&ackT){clearTimeout(ackT);ackT=null;}
+          return;
+        }
         if(d.type==='cm-embed-close'){c.close();return;}
         if(d.type==='cm-embed-buy'){c.close();buy(k);return;}
         if(d.type!=='cm-game-locked')return;
+        ready=false;
         var r=d.reason||'locked';
         if(r==='error')return;                      /* түр алдаа — хуудас өөрөө «дахин оролдох» харуулна */
         if(r==='locked'&&kind(k)!=='inline'&&!relaunched){
           /* gate cookie дууссан/алга — нэг удаа шинэ тасалбар авч дахин ачаална */
           relaunched=true;
-          H.launch(k,{realm:REALM,invite:o.invite||null}).then(function(x){
-            if(x.d&&x.d.ok&&x.d.url){c.setUrl(x.d.url);return;}
+          H.launch(k,{realm:REALM,invite:o.invite||null,sel:cur}).then(function(x){
+            if(x.d&&x.d.ok&&x.d.url){c.setUrl(H.withSel(x.d.url,cur));return;}
             c.close();fail(k,x,o.invite);
           },function(){c.close();say('Сүлжээний алдаа. Дахин оролдоно уу.');});
           return;
@@ -2637,25 +2834,34 @@ fetch('/api/worksheets?titles=1').then(function(r){return r.json();})
     if(!H.isKey(k))return;
     if(!tok())return loginThen(function(){buy(k);});
     if(!enabled())return play(k);
-    var m=modal('gpBuy'),e=ent(k),pollT=null,polls=0,email=acctEmail(),inv=null;
+    var m=modal('gpBuy'),e=ent(k),pollT=null,polls=0,email=acctEmail(),inv=null,creating=false;
     m.onClose(function(){if(pollT){clearInterval(pollT);pollT=null;}});
     var pr=price();
+    /* Анги ЗААВАЛ (худалдан авалтад бүртгэгдэнэ), сэдэв заавал биш. Эрх/үнэ ангиас үл хамаарна — дараа нь сольж болно. */
     m.card.innerHTML=head(k,null,title(k),'1 сарын эрх · '+days()+' хоног')
+      +selBoxHtml(k)
       +'<div class="gp-price">'+(pr?fmt(pr)+'₮':'—')+' <span>/ '+days()+' хоног</span></div>'
       +'<div class="gp-note">'+svg('info',15)+(e
         ?'Одоогийн эрх <b>'+esc(ymd(e))+'</b> хүртэл. Одоо сунгавал үлдсэн хоног дээр '+days()+' хоног нэмэгдэнэ.'
-        :'Төлбөр баталгаажмагц тоглоом шууд нээгдэнэ. Хугацаа дуусаагүй байхад сунгавал үлдсэн хоног дээр нэмэгдэнэ.')+'</div>'
+        :'Төлбөр баталгаажмагц тоглоом шууд нээгдэнэ. Хугацаа дуусаагүй байхад сунгавал үлдсэн хоног дээр нэмэгдэнэ.')
+        +' Эрх нь тоглоом бүхэлдээ — ангиа дараа нь хүссэн үедээ сольж болно.</div>'
       +inappNote()
       +(email?'<div class="gp-acct">'+svg('user',13)+'Худалдан авах данс</div><div class="gp-mail">'+esc(email)+'</div>':'')
-      +'<button type="button" class="gp-go" data-gp-go>'+svg('lock',16)+'QPay-аар худалдан авах</button>'
+      +'<button type="button" class="gp-go" data-gp-go disabled>'+svg('lock',16)+'QPay-аар худалдан авах</button>'
       +'<div class="gp-qr" data-gp-qr></div><div class="gp-msg" data-gp-msg></div><div data-gp-after></div>';
     var go=m.card.querySelector('[data-gp-go]'),qr=m.card.querySelector('[data-gp-qr]'),msg=m.card.querySelector('[data-gp-msg]'),after=m.card.querySelector('[data-gp-after]');
+    var ctl=selCtl(m.card.querySelector('[data-gp-sel]'),k,defSel(k),function(s){
+      if(!creating&&!inv)go.disabled=!s;
+      if(s&&inv)saveSel(k,s);                       /* нэхэмжлэх үүссэний дараа сэдвийг л сольж болно */
+      if(s&&msg.className==='gp-msg err'&&/ангиа/.test(msg.textContent))setMsg('','');
+    });
+    go.disabled=!ctl.get();
     m.card.querySelector('[data-gp-x]').onclick=m.close;
     var cp=m.card.querySelector('[data-gp-copy]');if(cp)cp.onclick=function(){copyText(location.href,cp);};
     function setMsg(cls,html){msg.className='gp-msg'+(cls?' '+cls:'');msg.innerHTML=html;}
     function playBtn(){
       after.innerHTML='<button type="button" class="gp-go play" style="margin-top:10px">'+svg('play',16)+'Тоглох</button>';
-      after.firstChild.onclick=function(){m.close();play(k);};
+      after.firstChild.onclick=function(){m.close();play(k,{sel:ctl.get()});};
     }
     function needLogin(){
       setMsg('err','Худалдан авахын тулд дахин нэвтэрнэ үү.');
@@ -2688,15 +2894,20 @@ fetch('/api/worksheets?titles=1').then(function(r){return r.json();})
     }
     go.onclick=function(){
       if(!tok()){needLogin();return;}
-      go.disabled=true;go.innerHTML='Нэхэмжлэх үүсгэж байна…';
-      H.buyCreate(k,{realm:REALM}).then(function(x){
+      var s=ctl.get();
+      if(!s){setMsg('err','Эхлээд ангиа сонгоно уу.');return;}
+      creating=true;go.disabled=true;go.innerHTML='Нэхэмжлэх үүсгэж байна…';
+      H.buyCreate(k,{realm:REALM,grade:s.grade}).then(function(x){
         var d=x.d||{};
-        function reset(){go.disabled=false;go.innerHTML=svg('lock',16)+'QPay-аар худалдан авах';}
+        function reset(){creating=false;inv=null;go.disabled=!ctl.get();go.innerHTML=svg('lock',16)+'QPay-аар худалдан авах';}
         if(x.s===401||d.needLogin){reset();needLogin();return;}
-        if(x.s===409&&d.already){go.style.display='none';setMsg('ok',svg('check',15)+esc(d.error||'Энэ тоглоом одоогоор үнэгүй.'));playBtn();load();return;}
+        if(x.s===409&&d.already){creating=false;saveSel(k,ctl.get());go.style.display='none';setMsg('ok',svg('check',15)+esc(d.error||'Энэ тоглоом одоогоор үнэгүй.'));playBtn();load();return;}
         inv=d.invoice;
         if(!d.ok||!inv||!inv.invoice_id){reset();setMsg('err',esc(d.error||'Нэхэмжлэх үүсгэж чадсангүй. Дахин оролдоно уу.'));return;}
+        creating=false;
         if(d.email)email=String(d.email).toLowerCase();
+        /* Нэхэмжлэх энэ ангиар бүртгэгдсэн — анги түгжигдэнэ (сэдвийг сольж болно); сонголтыг тоглоход хадгална */
+        ctl.lock(true);saveSel(k,ctl.get());
         go.style.display='none';
         var img=typeof inv.qr_image==='string'?inv.qr_image.replace(/\s+/g,''):'';
         var h='<div class="cap">QPay эсвэл банкны аппаар уншуулж төлнө үү</div>';
@@ -2708,7 +2919,7 @@ fetch('/api/worksheets?titles=1').then(function(r){return r.json();})
         /* Утасны жижиг дэлгэцэнд QR харагдах хэсэгт гүйлгэнэ */
         setTimeout(function(){try{qr.scrollIntoView({block:'center'});}catch(e){}},60);
         poll();
-      },function(){go.disabled=false;go.innerHTML=svg('lock',16)+'QPay-аар худалдан авах';setMsg('err','Сүлжээний алдаа. Дахин оролдоно уу.');});
+      },function(){creating=false;inv=null;go.disabled=!ctl.get();go.innerHTML=svg('lock',16)+'QPay-аар худалдан авах';setMsg('err','Сүлжээний алдаа. Дахин оролдоно уу.');});
     };
   }
   function inviteFor(k){
@@ -2728,7 +2939,8 @@ fetch('/api/worksheets?titles=1').then(function(r){return r.json();})
       }
       if(x.s===401||d.needLogin){box.innerHTML='<div class="gp-msg err">Дахин нэвтэрнэ үү.</div>';m.close();loginThen(function(){inviteFor(k);});return;}
       if(!d.ok||!d.url){box.innerHTML='<div class="gp-msg err">'+esc(d.error||'Урилга үүсгэж чадсангүй. Дахин оролдоно уу.')+'</div>';return;}
-      var url=location.origin+d.url;
+      /* host-ийн одоогийн анги/сэдэв → найзын анхдагч сонголт (найз өөрөө сольж болно) */
+      var url=H.withSel(location.origin+d.url,selFor(k));
       var hrs=(S.cat&&S.cat.invite_hours)||3;
       var info=d.invite
         ?'Холбоос <b>'+esc(hrs)+' цаг</b> хүчинтэй'+(d.guests?', <b>'+esc(d.guests)+'</b> найз (өөр төхөөрөмж) нэгдэнэ':'')+'. Найз тань нэвтрэх, төлөх шаардлагагүй.'
@@ -2751,6 +2963,7 @@ fetch('/api/worksheets?titles=1').then(function(r){return r.json();})
     if(a==='play')play(k);
     else if(a==='buy')buy(k);
     else if(a==='invite')inviteFor(k);
+    else if(a==='sel')pickSel(k,{change:true,onSave:function(){}},function(s){play(k,{sel:s});});
     else if(a==='login')loginThen(function(){if(stateOf(k).st==='active')play(k);else buy(k);});
   });
   document.getElementById('gamesNote').addEventListener('click',function(e){

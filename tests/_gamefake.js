@@ -46,8 +46,9 @@ const db = {
   invites: new Map(),   // game_invites jti → {jti, realm, email, game_key, expires_at(ms), uses, devs[]}
   invUpdates: 0,        // амжилттай урилгын хэрэглээ (UPDATE) — зарцуулалтын тоо
   failGrant: false, failLedger: false, failRate: false, noPremUntil: false, failEnt: false, failConnect: false,
-  failDev: false, failTix: false, failInv: false,
-  hangOn: null,         // RegExp: таарсан асуулт хэзээ ч дуусахгүй (Vercel timeout/crash-ийг дуурайна)
+  failDev: false, failTix: false, failInv: false, failGradeSet: false,
+  gradeSets: [],        // setGameGrade-ийн UPDATE оролдлогууд [realm, email, key, grade]
+  hangOn: null,        // RegExp: таарсан асуулт хэзээ ч дуусахгүй (Vercel timeout/crash-ийг дуурайна)
   nextId: 1,
 };
 // hangOn-д таарсан асуултад хүрэхэд resolve болно (тест dropConnections()-ыг яг тэр мөчид дуудна)
@@ -60,9 +61,10 @@ function pick(row, cols) { const o = {}; cols.split(',').map(s => s.trim()).forE
 function akey(r, e, k) { return r + '|' + e + '|' + k; }
 function dbErr(msg, code) { const e = new Error(msg); e.code = code || '57P01'; return e; }
 // api/qpay.js HEAL_GAME_LEDGER_SQL (хоосон зай нормчилсон) — өөрчлөгдвөл энд ч шинэчилнэ (танихгүй SQL → тест унана)
-const HEAL_SQL = "INSERT INTO game_purchases (invoice_id, realm, email, game_key, amount, days, expires_at, created_at) " +
+const HEAL_SQL = "INSERT INTO game_purchases (invoice_id, realm, email, game_key, amount, days, expires_at, created_at, grade) " +
   "SELECT p.invoice_id, p.realm, LOWER(TRIM(p.email)), p.game_key, COALESCE(p.amount, 0), " +
-  "$2::int * GREATEST(1, LEAST(12, COALESCE(p.months, 1))), a.expires_at, COALESCE(p.created_at, NOW()) " +
+  "$2::int * GREATEST(1, LEAST(12, COALESCE(p.months, 1))), a.expires_at, COALESCE(p.created_at, NOW()), " +
+  "CASE WHEN p.game_grade = ANY($3::text[]) THEN p.game_grade END " +
   "FROM pay_pending p LEFT JOIN game_access a ON a.realm = p.realm AND a.email = LOWER(TRIM(p.email)) AND a.game_key = p.game_key " +
   "WHERE p.plan = 'game' AND p.granted = TRUE AND p.realm IN ('ws', 'cm') AND p.game_key = ANY($1::text[]) " +
   "AND NOT EXISTS (SELECT 1 FROM game_purchases g WHERE g.invoice_id = p.invoice_id) " +
@@ -135,12 +137,12 @@ async function query(sql, p, tx) {
     const rows = Array.from(db.pay.values()).filter(r => r.granted === false && r.created_at > now() - 30 * DAY);
     return { rows: rows.reverse().slice(0, 200).map(r => pick(r, m[1])) };
   }
-  if (q === "INSERT INTO pay_pending (invoice_id, email, plan, months, amount, event_id, game_key, realm) VALUES ($1,$2,'game',1,$3,NULL,$4,$5) ON CONFLICT (invoice_id) DO NOTHING") {
-    if (!db.pay.has(p[0])) db.pay.set(p[0], { invoice_id: p[0], email: p[1], plan: 'game', months: 1, amount: p[2], event_id: null, granted: false, promo_code: null, game_key: p[3], realm: p[4], created_at: now() });
+  if (q === "INSERT INTO pay_pending (invoice_id, email, plan, months, amount, event_id, game_key, realm, game_grade) VALUES ($1,$2,'game',1,$3,NULL,$4,$5,$6) ON CONFLICT (invoice_id) DO NOTHING") {
+    if (!db.pay.has(p[0])) db.pay.set(p[0], { invoice_id: p[0], email: p[1], plan: 'game', months: 1, amount: p[2], event_id: null, granted: false, promo_code: null, game_key: p[3], realm: p[4], game_grade: p[5] == null ? null : p[5], created_at: now() });
     return { rows: [] };
   }
   if (q === 'INSERT INTO pay_pending (invoice_id, email, plan, months, amount, event_id) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (invoice_id) DO NOTHING') {
-    if (!db.pay.has(p[0])) db.pay.set(p[0], { invoice_id: p[0], email: p[1], plan: p[2], months: p[3], amount: p[4], event_id: p[5], granted: false, promo_code: null, game_key: null, realm: null, created_at: now() });
+    if (!db.pay.has(p[0])) db.pay.set(p[0], { invoice_id: p[0], email: p[1], plan: p[2], months: p[3], amount: p[4], event_id: p[5], granted: false, promo_code: null, game_key: null, realm: null, game_grade: null, created_at: now() });
     return { rows: [] };
   }
   if (q === 'UPDATE pay_pending SET granted=TRUE WHERE invoice_id=$1 AND granted=FALSE RETURNING invoice_id') {
@@ -188,15 +190,25 @@ async function query(sql, p, tx) {
   }
 
   // ── game_access ──
-  if (q === 'INSERT INTO game_access (realm, email, game_key, expires_at, updated_at) VALUES ($1, $2, $3, NOW() + make_interval(days => $4::int), NOW()) ON CONFLICT (realm, email, game_key) DO UPDATE SET expires_at = GREATEST(game_access.expires_at, NOW()) + make_interval(days => $4::int), updated_at = NOW() RETURNING expires_at') {
+  if (q === 'INSERT INTO game_access (realm, email, game_key, expires_at, updated_at, grade) VALUES ($1, $2, $3, NOW() + make_interval(days => $4::int), NOW(), $5::text) ON CONFLICT (realm, email, game_key) DO UPDATE SET expires_at = GREATEST(game_access.expires_at, NOW()) + make_interval(days => $4::int), updated_at = NOW(), grade = COALESCE(EXCLUDED.grade, game_access.grade) RETURNING expires_at') {
     if (db.failGrant) throw dbErr('grant failed');
     if (['ws', 'cm'].indexOf(p[0]) < 0) throw dbErr('check constraint', '23514');
     const k = akey(p[0], p[1], p[2]), d = Number(p[3]) * DAY;
     const old = db.access.get(k);
     const exp = old ? new Date(Math.max(old.expires_at.getTime(), now()) + d) : new Date(now() + d);
-    db.access.set(k, { realm: p[0], email: p[1], game_key: p[2], expires_at: exp, updated_at: new Date() });
+    const grade = p[4] != null ? String(p[4]) : (old && old.grade != null ? old.grade : null);
+    db.access.set(k, { realm: p[0], email: p[1], game_key: p[2], expires_at: exp, updated_at: new Date(), grade: grade });
     undo(function () { if (old) db.access.set(k, old); else db.access.delete(k); });
     return { rows: [{ expires_at: exp }] };
+  }
+  // api/_games.js setGameGrade — зөвхөн идэвхтэй мөр, ижил анги бол бичихгүй, expires_at/updated_at-д хүрэхгүй
+  if (q === 'UPDATE game_access SET grade = $4::text WHERE realm=$1 AND email=$2 AND game_key=$3 AND expires_at > NOW() AND grade IS DISTINCT FROM $4::text RETURNING game_key') {
+    if (db.failGradeSet) throw dbErr('db down');
+    db.gradeSets.push([p[0], p[1], p[2], p[3]]);
+    const r = db.access.get(akey(p[0], p[1], p[2]));
+    if (!r || r.expires_at.getTime() <= now() || (r.grade == null ? null : r.grade) === String(p[3])) return { rows: [] };
+    const was = r.grade; r.grade = String(p[3]); undo(function () { r.grade = was; });
+    return { rows: [{ game_key: r.game_key }] };
   }
   if (q === 'SELECT expires_at FROM game_access WHERE realm=$1 AND email=$2 AND game_key=$3 AND expires_at > NOW()') {
     if (db.failEnt) throw dbErr('db down');
@@ -206,9 +218,9 @@ async function query(sql, p, tx) {
   if (q === 'SELECT expires_at FROM game_access WHERE realm=$1 AND email=$2 AND game_key=$3') {
     const r = db.access.get(akey(p[0], p[1], p[2])); return { rows: r ? [{ expires_at: r.expires_at }] : [] };
   }
-  if (q === 'SELECT game_key, expires_at FROM game_access WHERE realm=$1 AND email=$2 AND expires_at > NOW()') {
+  if (q === 'SELECT game_key, expires_at, grade FROM game_access WHERE realm=$1 AND email=$2 AND expires_at > NOW()') {
     return { rows: Array.from(db.access.values()).filter(r => r.realm === p[0] && r.email === p[1] && r.expires_at.getTime() > now())
-      .map(r => ({ game_key: r.game_key, expires_at: r.expires_at })) };
+      .map(r => ({ game_key: r.game_key, expires_at: r.expires_at, grade: r.grade == null ? null : r.grade })) };
   }
   if (q === 'DELETE FROM game_access WHERE realm=$1 AND email=$2 AND game_key=$3 RETURNING game_key') {
     const k = akey(p[0], p[1], p[2]); const r = db.access.get(k);
@@ -218,10 +230,10 @@ async function query(sql, p, tx) {
   }
 
   // ── game_purchases ──
-  if (q === 'INSERT INTO game_purchases (invoice_id, realm, email, game_key, amount, days, expires_at) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (invoice_id) DO NOTHING RETURNING id') {
+  if (q === 'INSERT INTO game_purchases (invoice_id, realm, email, game_key, amount, days, expires_at, grade) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (invoice_id) DO NOTHING RETURNING id') {
     if (db.failLedger) throw dbErr('ledger failed');
     if (db.purch.some(x => x.invoice_id === p[0])) return { rows: [] };
-    const row = { id: db.nextId++, invoice_id: p[0], realm: p[1], email: p[2], game_key: p[3], amount: p[4], days: p[5], expires_at: p[6], created_at: new Date() };
+    const row = { id: db.nextId++, invoice_id: p[0], realm: p[1], email: p[2], game_key: p[3], amount: p[4], days: p[5], expires_at: p[6], created_at: new Date(), grade: p[7] == null ? null : p[7] };
     db.purch.push(row); undo(function () { const i = db.purch.indexOf(row); if (i >= 0) db.purch.splice(i, 1); });
     return { rows: [{ id: row.id }] };
   }
@@ -236,9 +248,11 @@ async function query(sql, p, tx) {
       const em = lc(String(r.email).trim());
       const a = db.access.get(akey(r.realm, em, r.game_key));
       const months = Math.max(1, Math.min(12, r.months == null ? 1 : Number(r.months)));
+      const grades = Array.isArray(p[2]) ? p[2].map(String) : [];
       const row = { id: db.nextId++, invoice_id: r.invoice_id, realm: r.realm, email: em, game_key: r.game_key,
         amount: r.amount == null ? 0 : r.amount, days: Number(p[1]) * months, expires_at: a ? a.expires_at : null,
-        created_at: r.created_at == null ? new Date() : new Date(r.created_at) };
+        created_at: r.created_at == null ? new Date() : new Date(r.created_at),
+        grade: r.game_grade != null && grades.indexOf(String(r.game_grade)) >= 0 ? String(r.game_grade) : null };
       db.purch.push(row); undo(function () { const i = db.purch.indexOf(row); if (i >= 0) db.purch.splice(i, 1); });
       out.push({ invoice_id: r.invoice_id });
     });
@@ -494,7 +508,7 @@ function reset() {
   db.rl.clear(); db.users.clear(); db.pay.clear(); db.wsPending.clear(); db.wsAccess.clear(); db.access.clear(); db.purch.length = 0;
   db.events.clear(); db.regs.length = 0; db.claims.length = 0;
   db.failGrant = false; db.failLedger = false; db.failRate = false; db.noPremUntil = false; db.failEnt = false; db.failConnect = false;
-  db.failDev = false; db.failTix = false; db.failInv = false;
+  db.failDev = false; db.failTix = false; db.failInv = false; db.failGradeSet = false; db.gradeSets.length = 0;
   db.devices.clear(); db.devIps.clear(); db.devBlocks.length = 0; db.tix.clear(); db.invites.clear(); db.invUpdates = 0;
   db.hangOn = null; hangHit = null;
   dropConnections(); db.locks.clear(); db.txLog.length = 0; db.txLeaks.length = 0;

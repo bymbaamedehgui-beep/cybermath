@@ -203,6 +203,26 @@ function storage(init) {
   const m = new Map(Object.entries(init || {}));
   return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k), _m: m };
 }
+// /api/questions (core API, api/questions.js — энэ тестийн хүрээнээс гадуур) хуурамч хариу:
+//   ?game_topics=<g> → { ok, grade, total, chapters:[{name, topics:[{id, name, n}]}] }
+//   ?game=<g>&topic=<t>&n=<N> → { ok, grade, topic, questions:[…] }   (QF.qs(grade, topic, n) өөрчилж болно)
+const QF = { topics: {}, fail: false, calls: [], qs: null };
+function qreset() { QF.topics = {}; QF.fail = false; QF.calls = []; QF.qs = null; }
+function qfake(query) {
+  QF.calls.push(Object.assign({}, query));
+  if (QF.fail) return { status: 503, body: { ok: false } };
+  if (query.game_topics) {
+    const g = String(query.game_topics);
+    return { status: 200, body: QF.topics[g] || { ok: true, grade: g, total: 100, chapters: [{ name: '', topics: [{ id: 700 + Number(g), name: 'Сэдэв ' + g, n: 40 }] }] } };
+  }
+  if (query.game) {
+    const n = Number(query.n) || 10;
+    const qs = QF.qs ? QF.qs(String(query.game), String(query.topic || '0'), n) : Array.from({ length: n }, (_, i) => ({
+      id: i + 1, text: 'Q' + query.game + '-' + query.topic + '-' + i, choices: ['1', '2', '3', '4'], correct: '2', hint: null, difficulty: 'medium', node_id: Number(query.topic) || 1 }));
+    return { status: 200, body: { ok: true, grade: String(query.game), topic: Number(query.topic) || 0, questions: qs } };
+  }
+  return { status: 400, body: { ok: false } };
+}
 // fetch → api handler. override(path, action, body) → {status, body} | undefined (жинхэнэ handler руу)
 function apiFetch(log, ip, override) {
   return async function (url, opts) {
@@ -211,9 +231,10 @@ function apiFetch(log, ip, override) {
     const query = {}; u.searchParams.forEach((v, k) => { query[k] = v; });
     const headers = {}; Object.keys(opts.headers || {}).forEach((k) => { headers[k.toLowerCase()] = opts.headers[k]; });
     let body = {}; try { body = opts.body ? JSON.parse(opts.body) : {}; } catch (e) { body = {}; }
-    const ent = { path: u.pathname, action: query.action, method: opts.method || 'GET', headers: headers, body: body };
+    const ent = { path: u.pathname, action: query.action, method: opts.method || 'GET', headers: headers, body: body, query: query };
     log.push(ent);
     let r = override ? override(u.pathname, query.action, body) : undefined;
+    if (!r && u.pathname === '/api/questions') r = qfake(query);
     if (!r) {
       const h = u.pathname === '/api/games' ? games : u.pathname === '/api/qpay' ? qpay : null;
       if (!h) throw new Error('blocked ' + u.pathname);
@@ -230,7 +251,7 @@ function page(o) {
   const doc = makeDoc();
   doc.body.innerHTML = '<div id="acctArea"></div><span class="pill gpill" id="gamesPill" role="button" tabindex="0"></span>' + SEC_HTML + '<div id="toast"></div>';
   const T = clock();
-  const loc = { origin: ORIGIN, href: ORIGIN + '/worksheets', pathname: '/worksheets', search: '', hash: '' };
+  const loc = { origin: ORIGIN, href: ORIGIN + '/worksheets' + (o.search || ''), pathname: '/worksheets', search: o.search || '', hash: '' };
   const W = {
     document: doc, localStorage: storage(o.ls), sessionStorage: storage(o.ss), location: loc,
     history: { state: null, replaceState: function (s, t, p) { const n = new URL(p, ORIGIN); loc.href = n.href; loc.pathname = n.pathname; loc.search = n.search; loc.hash = n.hash; } },
@@ -260,10 +281,16 @@ function page(o) {
     btn: (k, a) => doc.querySelector('#gcards .gcard[data-gk="' + k + '"] [data-ga="' + a + '"]'),
     q: (id, sel) => { const r = $(id); return r ? r.querySelector(sel) : null; },
     last: (action) => W.log.filter((x) => x.action === action).pop(),
+    // модал (id) дотор анги сонгох → сэдвийн жагсаалт ачаалагдана
+    grade: async (id, g) => { const b = $(id).querySelector('[data-gr="' + g + '"]'); assert.ok(b, id + ': анги ' + g); b.click(); await ticks(); },
+    // модал дотор сэдэв сонгох (select.value + onchange)
+    topic: (id, t) => { const s = $(id).querySelector('[data-gp-topic]'); assert.ok(s, id + ': сэдвийн select'); s.value = String(t); s.onchange(); },
   };
 }
+// localStorage-ийн хадгалсан сонголт: { '<имэйл>|<key>': {g, t, n, at} }
+const selLs = (m) => ({ cm_game_sel_ws: JSON.stringify(m) });
 
-beforeEach(() => F.reset());
+beforeEach(() => { F.reset(); qreset(); });
 
 // ───────────────────────── 1. толгойн данс ─────────────────────────
 test('толгой: зөвхөн тоглоом авсан (ажлын хуудасны эрхгүй) ws данс «Нэвтэрсэн» + Гарах; нэвтрэх цонх автоматаар нээгдэхгүй; CM_USER хэвээр null', async () => {
@@ -419,15 +446,31 @@ test('GW: худалдан авах → QPay QR → poll (paid:false → амж�
   assert.ok(ov, 'модал');
   assert.match(P.q('gpBuy', '.gp-price').textContent, /^1 900₮/);
   const go = P.q('gpBuy', '[data-gp-go]');
+  // анги ЗААВАЛ: сонгоогүй үед QPay товч идэвхгүй, дарсан ч нэхэмжлэх үүсэхгүй
+  assert.strictEqual(P.doc.querySelectorAll('#gpBuy [data-gr]').length, 7, '6–12-р анги');
+  assert.strictEqual(go.disabled, true, 'анги сонгоогүй → идэвхгүй');
+  go.onclick();
+  await ticks();
+  assert.strictEqual(P.last('create'), undefined, 'ангигүй нэхэмжлэх үүсэхгүй');
+  assert.match(P.q('gpBuy', '[data-gp-msg]').textContent, /ангиа сонгоно уу/);
+  await P.grade('gpBuy', '8');
+  assert.strictEqual(go.disabled, false, 'анги сонгосон → идэвхтэй');
+  assert.strictEqual(P.q('gpBuy', '[data-gr="8"]').getAttribute('aria-checked'), 'true');
+  assert.ok(QF.calls.some((c) => c.game_topics === '8'), 'сэдвийн жагсаалт /api/questions?game_topics=8');
   go.onclick();
   assert.strictEqual(go.disabled, true);
   await ticks();
-  // нэхэмжлэх: клиент зөвхөн тоглоом/realm/токен илгээнэ
+  // нэхэмжлэх: клиент зөвхөн тоглоом/realm/токен/анги илгээнэ (дүн/имэйл биш)
   const cr = P.last('create');
-  assert.deepStrictEqual(Object.keys(cr.body).sort(), ['game', 'plan', 'realm', 'wstoken']);
-  assert.deepStrictEqual([cr.body.plan, cr.body.game, cr.body.realm], ['game', 'sudoku', 'ws']);
+  assert.deepStrictEqual(Object.keys(cr.body).sort(), ['game', 'game_grade', 'plan', 'realm', 'wstoken']);
+  assert.deepStrictEqual([cr.body.plan, cr.body.game, cr.body.realm, cr.body.game_grade], ['game', 'sudoku', 'ws', '8']);
   const inv = cr.res.invoice.invoice_id;
-  assert.strictEqual(F.db.pay.get(inv).amount, 1900);
+  assert.strictEqual(F.db.pay.get(inv).amount, 1900, 'үнэ ангиас үл хамаарна');
+  assert.strictEqual(F.db.pay.get(inv).game_grade, '8', 'нэхэмжлэх дээр анги');
+  assert.strictEqual(P.q('gpBuy', '[data-gr="9"]').disabled, true, 'нэхэмжлэх үүссэний дараа анги түгжигдэнэ');
+  assert.strictEqual(P.q('gpBuy', '[data-gp-topic]').disabled, false, 'сэдвийг сольж болно (нэхэмжлэхэд хамаарахгүй)');
+  P.topic('gpBuy', '708');                          // хуурамч жагсаалт: 8-р анги → {id:708, name:'Сэдэв 8'}
+  assert.strictEqual(F.db.pay.get(inv).game_grade, '8', 'сэдэв нэхэмжлэхэд нөлөөлөхгүй');
   const qr = P.q('gpBuy', '[data-gp-qr]');
   assert.ok(qr.querySelector('img[alt="QPay QR"]'), 'QR зураг');
   assert.strictEqual(qr.querySelector('img').src, 'data:image/png;base64,QR');
@@ -462,6 +505,11 @@ test('GW: худалдан авах → QPay QR → poll (paid:false → амж�
   assert.strictEqual(qr.innerHTML, '');
   assert.match(P.card('sudoku').textContent, /Идэвхтэй/);
   assert.strictEqual(P.doc.querySelectorAll('#gcards .gcard')[0].getAttribute('data-gk'), 'sudoku', 'идэвхтэй карт эхэнд');
+  // анги худалдан авалтад бүртгэгдсэн (game_purchases.grade) + одоогийн анги (game_access.grade); карт дээр чип
+  assert.strictEqual(F.db.purch[0].grade, '8');
+  assert.strictEqual(F.db.access.get('ws|kid@x.mn|sudoku').grade, '8');
+  assert.match(P.card('sudoku').querySelector('.gsel').textContent, /8-р анги · Сэдэв 8/);
+  assert.match(P.card('sudoku').querySelector('.gsel').textContent, /Солих/);
   // poll дахин цохисон ч давхар check хийхгүй
   const nChecks = P.W.log.filter((x) => x.action === 'check').length;
   P.T.fire(3000); await ticks();
@@ -474,17 +522,20 @@ test('GW: худалдан авах → QPay QR → poll (paid:false → амж�
   assert.strictEqual(P.$('gpBuy'), null, 'модал хаагдсан');
   await ticks();
   const l = P.last('launch');
-  assert.deepStrictEqual([l.status, l.body.game, l.body.realm], [200, 'sudoku', 'ws']);
+  assert.deepStrictEqual([l.status, l.body.game, l.body.realm, l.body.grade, l.body.topic], [200, 'sudoku', 'ws', '8', '708']);
+  assert.strictEqual(P.$('gpSel'), null, 'худалдан авахдаа сонгосон тул дахин асуухгүй');
   const gm = P.$('gameM');
   assert.ok(gm, 'overlay');
-  assert.match(gm.querySelector('iframe').src, /^\/sudoku\.html\?realm=ws&t=[A-Za-z0-9._%-]+$/);
+  assert.match(gm.querySelector('iframe').src, /^\/sudoku\.html\?realm=ws&grade=8&topic=708&t=[A-Za-z0-9._%-]+$/);
   assert.match(gm.querySelector('.gm-t').textContent, /Судоку/);
+  assert.match(gm.querySelector('.gm-t small').textContent, /8-р анги · Сэдэв 8/);
 });
 
 test('GW: modal хаасны дараа poll зогсоно; сүлжээний алдаа / нэхэмжлэх үүсээгүй / 401 → амжилт гарахгүй', async () => {
   const P = page({ ls: { cm_ws_token: wsTok('kid@x.mn') }, gw: true });
   await ticks();
   P.btn('play2048', 'buy').click();
+  await P.grade('gpBuy', '7');
   P.q('gpBuy', '[data-gp-go]').onclick();
   await ticks();
   assert.strictEqual(P.T.active(3000), 1);
@@ -498,6 +549,7 @@ test('GW: modal хаасны дараа poll зогсоно; сүлжээний 
     override: (p, action) => (action === 'check' ? (mode === 'err' ? { status: 500, body: { ok: false } } : { status: 200, body: { paid: 'yes' } }) : undefined) });
   await ticks();
   Q.btn('daam', 'buy').click();
+  await Q.grade('gpBuy', '12');
   Q.q('gpBuy', '[data-gp-go]').onclick();
   await ticks();
   Q.T.fire(3000); await ticks();
@@ -510,6 +562,7 @@ test('GW: modal хаасны дараа poll зогсоно; сүлжээний 
     const R = page({ ls: { cm_ws_token: wsTok('kid@x.mn') }, gw: true, override: (p, action) => (action === 'create' ? res : undefined) });
     await ticks();
     R.btn('ludo', 'buy').click();
+    await R.grade('gpBuy', '6');
     R.q('gpBuy', '[data-gp-go]').onclick();
     await ticks();
     assert.match(R.q('gpBuy', '[data-gp-msg]').textContent, re);
@@ -577,8 +630,16 @@ test('GW: тоглох — 402 → худалдан авах модал; 401 →
   const ib = S.btn('mathmortal', 'play');
   assert.match(ib.textContent, /Урилгаар тоглох/);
   ib.click();
+  // сонголтгүй урилга → эхлээд анги сонгогч (эрх/урилгыг шалгахаас өмнө)
+  assert.ok(S.$('gpSel'), 'анги сонгогч');
+  assert.strictEqual(S.last('launch'), undefined);
+  assert.strictEqual(S.q('gpSel', '[data-gp-ok]').disabled, true, 'анги сонгоогүй → «Тоглох» идэвхгүй');
+  await S.grade('gpSel', '9');
+  S.q('gpSel', '[data-gp-ok]').onclick();
+  assert.strictEqual(S.$('gpSel'), null);
   await ticks();
   const sl = S.last('launch');
+  assert.deepStrictEqual([sl.body.grade, sl.body.topic], ['9', '0']);
   assert.deepStrictEqual([sl.status, sl.body.invite, sl.res.inviteInvalid], [403, bogus, true]);
   assert.strictEqual(S.W.sessionStorage.getItem('gp_inv_ws'), null, 'хүчингүй урилга арилсан');
   assert.ok(S.W.toasts.some((t) => /Урилга/.test(t)), JSON.stringify(S.W.toasts));
@@ -589,14 +650,20 @@ test('GW: тоглох — 402 → худалдан авах модал; 401 →
 test('GW: overlay — gate түгжээ (locked) → нэг удаа шинэ тасалбар; дахин түгжигдвэл хаагаад худалдан авах; inline → embed url; урилга үүсгэх', async () => {
   give('kid@x.mn', 'sudoku', 9);
   give('kid@x.mn', 'chessmath', 9);
-  const P = page({ ls: { cm_ws_token: wsTok('kid@x.mn') }, gw: true });
+  F.db.access.get('ws|kid@x.mn|chessmath').grade = '9';   // серверийн одоогийн анги (өөр төхөөрөмж дээр сонгосон)
+  // sudoku: энэ төхөөрөмж дээр хадгалсан сүүлийн сонголт (7-р анги, бүх сэдэв) → «Тоглох» шууд
+  const P = page({ ls: Object.assign({ cm_ws_token: wsTok('kid@x.mn') }, selLs({ 'kid@x.mn|sudoku': { g: '7', t: '0', n: '', at: 1 } })), gw: true });
   await ticks();
+  assert.match(P.card('sudoku').querySelector('.gsel').textContent, /7-р анги · Бүх сэдэв/);
+  assert.match(P.card('chessmath').querySelector('.gsel').textContent, /9-р анги · Бүх сэдэв/, 'status.grades-аас');
   P.btn('sudoku', 'play').click();
+  assert.strictEqual(P.$('gpSel'), null, 'сүүлийн сонголтоор шууд тоглоно');
   await ticks();
   const gm = P.$('gameM');
   const fr = gm.querySelector('iframe');
   const u1 = fr.src;
-  assert.match(u1, /^\/sudoku\.html\?realm=ws&t=/);
+  assert.match(u1, /^\/sudoku\.html\?realm=ws&grade=7&topic=0&t=/);
+  assert.strictEqual(F.db.access.get('ws|kid@x.mn|sudoku').grade, '7', 'launch → game_access.grade');
   const send = (data, src) => P.W._ls.message.forEach((f) => f({ source: src || fr.contentWindow, origin: ORIGIN, data: data }));
   send({ type: 'cm-game-locked', game: 'sudoku', reason: 'locked' }, {});   // өөр эх сурвалж → үл тоомсорлоно
   send({ type: 'cm-game-locked', game: 'daam', reason: 'locked' });         // өөр тоглоом → үл тоомсорлоно
@@ -605,9 +672,35 @@ test('GW: overlay — gate түгжээ (locked) → нэг удаа шинэ т
   send({ type: 'cm-game-locked', game: 'sudoku', reason: 'locked' });
   await ticks();
   assert.strictEqual(P.W.log.filter((x) => x.action === 'launch').length, 2, 'шинэ тасалбар');
-  assert.match(fr.src, /^\/sudoku\.html\?realm=ws&t=/);
+  assert.match(fr.src, /^\/sudoku\.html\?realm=ws&grade=7&topic=0&t=/, 'дахин эхлүүлэхэд сонголт хадгалагдана');
   assert.notStrictEqual(fr.src, u1);
   assert.ok(P.$('gameM'), 'overlay хэвээр');
+  // toolbar «Анги/сэдэв» → сонгогч → 10-р анги, сэдэв → шинэ тасалбартай url (overlay хаагдахгүй), game_access.grade = 10
+  const tb = gm.querySelectorAll('[data-gm-tool]').filter((b) => /Анги\/сэдэв/.test(b.getAttribute('title')))[0];
+  assert.ok(tb, '«Анги/сэдэв» товч');
+  tb.onclick();
+  assert.ok(P.$('gpSel'), 'сонгогч overlay дээр');
+  assert.strictEqual(P.q('gpSel', '[data-gr="7"]').getAttribute('aria-checked'), 'true', 'одоогийн анги сонгогдсон');
+  await ticks();
+  QF.topics['10'] = { ok: true, grade: '10', total: 200, chapters: [
+    { name: 'Функц', topics: [{ id: 901, name: 'Квадрат функц', n: 40 }, { id: 902, name: 'Цөөн бодлоготой', n: 9 }] },
+    { name: 'Тригонометр', topics: [{ id: 903, name: 'Синус', n: 12 }] }] };
+  await P.grade('gpSel', '10');
+  const ts = P.q('gpSel', '[data-gp-topic]');
+  assert.strictEqual(ts.disabled, false);
+  assert.deepStrictEqual(ts.querySelectorAll('option').map((o) => o.getAttribute('value')), ['0', '901', '903'], 'судоку MIN 12 — n=9 сэдэв орохгүй');
+  assert.deepStrictEqual(ts.querySelectorAll('optgroup').map((o) => o.getAttribute('label')), ['Функц', 'Тригонометр']);
+  P.topic('gpSel', '903');
+  P.q('gpSel', '[data-gp-ok]').onclick();
+  assert.strictEqual(P.$('gpSel'), null);
+  await ticks();
+  const l3 = P.last('launch');
+  assert.deepStrictEqual([l3.body.grade, l3.body.topic], ['10', '903']);
+  assert.match(fr.src, /^\/sudoku\.html\?realm=ws&grade=10&topic=903&t=/);
+  assert.ok(P.$('gameM'), 'overlay хэвээр');
+  assert.match(gm.querySelector('.gm-t small').textContent, /10-р анги · Синус/);
+  assert.strictEqual(F.db.access.get('ws|kid@x.mn|sudoku').grade, '10');
+  assert.deepStrictEqual(J(JSON.parse(P.W.localStorage.getItem('cm_game_sel_ws'))['kid@x.mn|sudoku']).g, '10');
   send({ type: 'cm-game-locked', game: 'sudoku', reason: 'locked' });
   await ticks();
   assert.strictEqual(P.$('gameM'), null, 'хоёр дахь удаа → хаана');
@@ -619,9 +712,35 @@ test('GW: overlay — gate түгжээ (locked) → нэг удаа шинэ т
   const nL = P.W.log.filter((x) => x.action === 'launch').length;
   P.btn('chessmath', 'play').click();
   const g2 = P.$('gameM');
-  assert.strictEqual(g2.querySelector('iframe').src, '/?embed=chessmath&realm=ws');
+  assert.strictEqual(g2.querySelector('iframe').src, '/?embed=chessmath&realm=ws&grade=9&topic=0', 'серверийн одоогийн анги');
   assert.strictEqual(P.W.log.filter((x) => x.action === 'launch').length, nL);
-  assert.ok(g2.querySelector('[data-gm-tool]'), 'урих хэрэгсэл');
+  assert.ok(g2.querySelectorAll('[data-gm-tool]').some((b) => /Найзаа урих/.test(b.getAttribute('title'))), 'урих хэрэгсэл');
+  // embed бэлэн → «Анги/сэдэв» солиход дахин ачаалалгүй cm-embed-config; хариу (cm-embed-sel) ирвэл url солихгүй
+  const f2 = g2.querySelector('iframe');
+  const emsg = (data) => P.W._ls.message.forEach((f) => f({ source: f2.contentWindow, origin: ORIGIN, data: Object.assign({ game: 'chessmath' }, data) }));
+  emsg({ type: 'cm-embed-ready', via: 'access' });
+  g2.querySelectorAll('[data-gm-tool]').filter((b) => /Анги\/сэдэв/.test(b.getAttribute('title')))[0].onclick();
+  await ticks();
+  await P.grade('gpSel', '8');
+  P.q('gpSel', '[data-gp-ok]').onclick();
+  await ticks();
+  const cfg = f2.contentWindow.posts.filter((x) => x[0] && x[0].type === 'cm-embed-config');
+  assert.deepStrictEqual(J(cfg.map((x) => x[0])), [{ type: 'cm-embed-config', grade: '8', topic: '0' }]);
+  assert.strictEqual(cfg[0][1], ORIGIN, 'зөвхөн ижил домэйн руу');
+  emsg({ type: 'cm-embed-sel', grade: '8', topic: '0' });
+  P.T.flush();
+  assert.strictEqual(f2.src, '/?embed=chessmath&realm=ws&grade=9&topic=0', 'хариу ирсэн → дахин ачаалахгүй');
+  assert.strictEqual(F.db.access.get('ws|kid@x.mn|chessmath').grade, '8', 'одоогийн анги серверт (launch)');
+  // хариу ирэхгүй бол (хуучин index.html) шинэ embed url-ээр дахин ачаална
+  g2.querySelectorAll('[data-gm-tool]').filter((b) => /Анги\/сэдэв/.test(b.getAttribute('title')))[0].onclick();
+  await ticks();
+  await P.grade('gpSel', '11');
+  assert.strictEqual(P.q('gpSel', '[data-gp-topic]').hidden, true, '11-р анги — зөвхөн «Бүх сэдэв»');
+  assert.match(P.q('gpSel', '[data-gp-hint]').textContent, /11-р ангид одоогоор бүх сэдвээс/);
+  P.q('gpSel', '[data-gp-ok]').onclick();
+  await ticks();
+  P.T.flush();
+  assert.strictEqual(f2.src, '/?embed=chessmath&realm=ws&grade=11&topic=0');
   // embed-ээс «Худалдан авах» → overlay хаагаад худалдан авах
   P.W._ls.message.forEach((f) => f({ source: g2.querySelector('iframe').contentWindow, origin: ORIGIN, data: { type: 'cm-embed-buy', game: 'chessmath' } }));
   assert.strictEqual(P.$('gameM'), null);
@@ -634,8 +753,8 @@ test('GW: overlay — gate түгжээ (locked) → нэг удаа шинэ т
   const iv = P.last('invite');
   assert.strictEqual(iv.status, 200);
   const inp = P.q('gpInv', '.gp-link input');
-  assert.strictEqual(inp.value, ORIGIN + iv.res.url);
-  assert.match(inp.value, /^https:\/\/cyber-math\.com\/worksheets\?game=chessmath&ginv=/);
+  assert.strictEqual(inp.value, ORIGIN + iv.res.url + '&grade=11&topic=0', 'host-ийн одоогийн анги/сэдэв урилгад');
+  assert.match(inp.value, /^https:\/\/cyber-math\.com\/worksheets\?game=chessmath&ginv=[^&]+&grade=11&topic=0$/);
   assert.match(P.q('gpInv', '.gp-note').textContent, /3 цаг/);
   // эрхгүй тоглоомд урилга → худалдан авах санал
   P.$('gpInv')._close();
@@ -654,10 +773,140 @@ test('GW: GAME_PAYWALL=off → бүх карт «Үнэгүй», нэвтрэл�
   assert.match(P.$('gamesSub').textContent, /үнэгүй/);
   P.W.GW.buy('sudoku');   // нэвтрээгүй → нэвтрэх (худалдан авахад токен шаардлагатай)
   assert.deepStrictEqual(J(P.W.logins), ['manual']);
+  assert.match(P.card('sudoku').querySelector('.gsel').textContent, /Анги сонгоогүй/, 'үнэгүй үед ч анги сонгоно');
   P.btn('sudoku', 'play').click();
+  assert.ok(P.$('gpSel'), 'анги сонгогч');
+  await P.grade('gpSel', '6');
+  P.q('gpSel', '[data-gp-ok]').onclick();
   await ticks();
-  assert.strictEqual(P.$('gameM').querySelector('iframe').src, '/sudoku.html');
+  assert.strictEqual(P.$('gameM').querySelector('iframe').src, '/sudoku.html?grade=6&topic=0');
   assert.strictEqual(F.qp.invoices.length, 0);
+  assert.strictEqual(F.db.access.size, 0, 'үнэгүй үед эрхийн мөр үүсэхгүй');
+});
+
+// ───────────────────────── 3. анги / сэдэв (gg-ws) ─────────────────────────
+test('анги/сэдэв: хуучин (анги NULL) эрхтэй → «Анги сонгоогүй» чип; «Тоглох» → сонгогч (сүүлийн ангиар урьдчилан) → launch анги тавина; «Зөвхөн хадгалах»', async () => {
+  give('old@x.mn', 'play2048', 20);                 // анги NULL (gg-ws-ээс өмнөх худалдан авалт)
+  give('old@x.mn', 'numseq', 20);
+  const P = page({ ls: Object.assign({ cm_ws_token: wsTok('old@x.mn') }, selLs({ 'old@x.mn|sudoku': { g: '9', t: '0', n: '', at: 5 } })), gw: true });
+  await ticks();
+  const chip = P.card('play2048').querySelector('.gsel');
+  assert.match(chip.textContent, /Анги сонгоогүй/);
+  assert.ok(chip.classList.contains('none'));
+  P.btn('play2048', 'play').click();
+  assert.ok(P.$('gpSel'), 'анги тодорхойгүй → сонгогч');
+  assert.strictEqual(P.last('launch'), undefined, 'сонгохоос өмнө launch хийхгүй');
+  assert.strictEqual(P.q('gpSel', '[data-gr="9"]').getAttribute('aria-checked'), 'true', 'дансны сүүлийн анги урьдчилан');
+  assert.strictEqual(P.q('gpSel', '[data-gp-ok]').disabled, false);
+  P.q('gpSel', '[data-gp-ok]').onclick();
+  await ticks();
+  const l = P.last('launch');
+  assert.deepStrictEqual([l.status, l.body.grade, l.body.topic], [200, '9', '0']);
+  assert.strictEqual(F.db.access.get('ws|old@x.mn|play2048').grade, '9', 'одоогийн анги серверт');
+  near(F.db.access.get('ws|old@x.mn|play2048').expires_at.getTime(), Date.now() + 20 * F.DAY, 'хугацаа өөрчлөгдөөгүй');
+  assert.match(P.$('gameM').querySelector('iframe').src, /^\/play2048\.html\?realm=ws&grade=9&topic=0&t=/);
+  P.$('gameM').querySelector('[data-gm="close"]').onclick();
+  // numseq: сэдэвгүй (зөвхөн анги) — чипээр солих, «Зөвхөн хадгалах» → тоглохгүй
+  P.card('numseq').querySelector('.gsel').click();
+  assert.ok(P.$('gpSel'));
+  assert.strictEqual(P.q('gpSel', '[data-gp-topic]'), null, 'numseq — сэдвийн select байхгүй');
+  assert.match(P.q('gpSel', '[data-gp-hint]').textContent, /сэдэв хамаарахгүй/);
+  await P.grade('gpSel', '12');
+  const nl = P.W.log.filter((x) => x.action === 'launch').length;
+  P.q('gpSel', '[data-gp-save]').onclick();
+  await ticks();
+  assert.strictEqual(P.W.log.filter((x) => x.action === 'launch').length, nl, '«Зөвхөн хадгалах» → тоглохгүй');
+  assert.match(P.card('numseq').querySelector('.gsel').textContent, /12-р анги · Бүх сэдэв/);
+  assert.ok(!QF.calls.some((c) => c.game_topics === '12'), 'numseq сэдвийн жагсаалт татахгүй');
+});
+function near(a, b, msg) { assert.ok(Math.abs(a - b) < 5000, (msg || '') + ' ' + a + ' ≈ ' + b); }
+
+test('анги/сэдэв: сэдэв сонгоход нэр чипэнд; сэдвийн жагсаалт ачаалагдахгүй бол «Бүх сэдэв» + анхааруулга; хадгалсан буруу анги үл тоомсорлоно', async () => {
+  give('kid@x.mn', 'sudoku', 9);
+  QF.topics['8'] = { ok: true, grade: '8', total: 90, chapters: [
+    { name: 'I бүлэг', topics: [{ id: 512, name: 'Шугаман тэгшитгэл', n: 30 }, { id: 513, name: '\u{1F4DD} Бататгал', n: 20 }] }] };
+  const P = page({ ls: Object.assign({ cm_ws_token: wsTok('kid@x.mn') }, selLs({ 'kid@x.mn|sudoku': { g: '13', t: '5', at: 1 } })), gw: true });
+  await ticks();
+  assert.match(P.card('sudoku').querySelector('.gsel').textContent, /Анги сонгоогүй/, '13-р анги хүчингүй');
+  P.card('sudoku').querySelector('.gsel').click();
+  await P.grade('gpSel', '8');
+  const opts = P.q('gpSel', '[data-gp-topic]').querySelectorAll('option');
+  assert.deepStrictEqual(opts.map((o) => o.textContent), ['Бүх сэдэв (холимог)', 'Шугаман тэгшитгэл', 'Бататгал'], 'эможи хасагдана');
+  P.topic('gpSel', '512');
+  P.q('gpSel', '[data-gp-ok]').onclick();
+  await ticks();
+  assert.deepStrictEqual([P.last('launch').body.grade, P.last('launch').body.topic], ['8', '512']);
+  assert.match(P.$('gameM').querySelector('iframe').src, /grade=8&topic=512/);
+  P.$('gameM').querySelector('[data-gm="close"]').onclick();
+  assert.match(P.card('sudoku').querySelector('.gsel').textContent, /8-р анги · Шугаман тэгшитгэл/);
+  // жагсаалтад байхгүй сэдэв (sel хадгалагдсан) → «Бүх сэдэв» руу буцна
+  QF.fail = true;
+  P.card('sudoku').querySelector('.gsel').click();
+  await P.grade('gpSel', '7');
+  assert.deepStrictEqual(P.q('gpSel', '[data-gp-topic]').querySelectorAll('option').map((o) => o.getAttribute('value')), ['0']);
+  assert.match(P.q('gpSel', '[data-gp-hint]').textContent, /ачаалагдсангүй/);
+  assert.strictEqual(P.q('gpSel', '[data-gp-ok]').disabled, false, 'жагсаалтгүй ч ангиар тоглож болно');
+});
+
+test('анги/сэдэв: найзын урилгын холбоос host-ийн анги/сэдвийг дамжуулна — найз сонгогчгүй шууд нэгдэнэ, URL-аас арилна', async () => {
+  give('host@x.mn', 'chessmath', 5);
+  const iv = await F.call(games, { query: { action: 'invite' }, body: { game: 'chessmath', realm: 'ws', wstoken: wsTok('host@x.mn') } });
+  assert.strictEqual(iv.statusCode, 200, JSON.stringify(iv.body));
+  const P = page({ search: '?game=chessmath&ginv=' + encodeURIComponent(iv.body.invite) + '&grade=8&topic=512', gw: true });
+  await ticks();
+  assert.strictEqual(P.W.location.search, '', 'game/ginv/grade/topic URL-аас арилсан');
+  assert.strictEqual(P.$('gpSel'), null, 'host-ийн сонголтоор шууд');
+  const gm = P.$('gameM');
+  assert.ok(gm, 'урилгаар нээгдсэн');
+  assert.strictEqual(gm.querySelector('iframe').src, '/?embed=chessmath&realm=ws&einv=' + encodeURIComponent(iv.body.invite) + '&grade=8&topic=512');
+  assert.match(gm.querySelector('.gm-t small').textContent, /8-р анги · Сонгосон сэдэв · Найзын урилгаар/);
+  assert.strictEqual(F.db.access.get('ws|host@x.mn|chessmath').grade, undefined, 'найз host-ийн мөрийг өөрчлөхгүй');
+});
+
+test('анги/сэдэв: Мянгат/500 XP — бодлогыг /api/questions?game=&topic=&n=-ээр; сэдвээс цөөн бол бүх сэдвээс; Мянгат хялбараас хүнд рүү', async () => {
+  give('kid@x.mn', 'myangat', 9);
+  give('kid@x.mn', 'xpdrop', 9);
+  const D = ['hard', 'easy', 'medium'];
+  QF.qs = (g, t, n) => (t === '512' ? [1, 2, 3].map((i) => ({ id: i, text: 'T' + i, choices: ['a', 'b', 'c', 'd'], correct: 'b', difficulty: 'hard' }))
+    : Array.from({ length: n }, (_, i) => ({ id: 100 + i, text: 'A' + i, choices: ['a', 'b', 'c', 'd'], correct: 'c', difficulty: D[i % 3] })));
+  const P = page({ ls: Object.assign({ cm_ws_token: wsTok('kid@x.mn') }, selLs({ 'kid@x.mn|myangat': { g: '8', t: '512', n: 'Шугаман', at: 2 }, 'kid@x.mn|xpdrop': { g: '10', t: '0', at: 1 } })), gw: true });
+  await ticks();
+  P.btn('myangat', 'play').click();
+  await ticks();
+  const fr = P.$('gameM').querySelector('iframe');
+  assert.match(fr.src, /^\/myangat\.html\?realm=ws&grade=8&topic=512&t=/);
+  P.W._ls.message.forEach((f) => f({ source: fr.contentWindow, origin: ORIGIN, data: { type: 'myangat-need-questions' } }));
+  await ticks();
+  const qc = QF.calls.filter((c) => c.game);
+  assert.deepStrictEqual(qc.map((c) => [c.game, c.topic, c.n]), [['8', '512', '15'], ['8', '0', '15']], 'сэдвээс 3 < 15 → бүх сэдвээс');
+  const post = fr.contentWindow.posts.filter((x) => x[0].type === 'myangat-questions')[0];
+  assert.ok(post, 'бодлого илгээсэн');
+  assert.strictEqual(post[1], ORIGIN);
+  assert.strictEqual(post[0].questions.length, 15);
+  const diff = post[0].questions.map((q) => Number(q.text.slice(1)) % 3).map((i) => D[i]);
+  assert.deepStrictEqual(diff, diff.slice().sort((a, b) => ['easy', 'medium', 'hard'].indexOf(a) - ['easy', 'medium', 'hard'].indexOf(b)), 'хялбараас хүнд рүү');
+  assert.strictEqual(post[0].questions[0].options.length, 4);
+  P.$('gameM').querySelector('[data-gm="close"]').onclick();
+  // 500 XP: 10 бодлого, ангийн бүх сэдэв
+  QF.calls.length = 0;
+  P.btn('xpdrop', 'play').click();
+  await ticks();
+  const fx = P.$('gameM').querySelector('iframe');
+  P.W._ls.message.forEach((f) => f({ source: fx.contentWindow, origin: ORIGIN, data: { type: 'xpdrop-need-questions' } }));
+  await ticks();
+  assert.deepStrictEqual(QF.calls.filter((c) => c.game).map((c) => [c.game, c.topic, c.n]), [['10', '0', '10']]);
+  const px = fx.contentWindow.posts.filter((x) => x[0].type === 'xpdrop-questions')[0];
+  assert.strictEqual(px[0].rounds.length, 10);
+});
+
+test('worksheets.html: анги/сэдвийн сонгогчийн CSS утсан дээр (7 анги нэг мөрөнд, select багтана), эможигүй', () => {
+  const css = between(WSH, '/* Анги (заавал) + сэдэв (заавал биш) сонгогч', '</style>');
+  assert.match(css, /\.gp-grades\{[^}]*grid-template-columns:repeat\(7,minmax\(0,1fr\)\)/);
+  assert.match(css, /\.gp-gr\{[^}]*min-width:0/);
+  assert.match(css, /\.gp-topic\{[^}]*width:100%[^}]*max-width:100%[^}]*box-sizing:border-box[^}]*min-width:0/);
+  const chip = between(WSH, '/* Анги/сэдвийн чип (картан дээр)', '.gmore{');
+  assert.match(chip, /\.gsel span\{[^}]*text-overflow:ellipsis/);
+  [css, chip].forEach((s) => assert.doesNotMatch(s, /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/u));
 });
 
 test('сүлжээ 0, тодорхойгүй SQL алга', () => {

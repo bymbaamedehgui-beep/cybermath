@@ -8,20 +8,35 @@
      isKey(k), meta(k), icon(k, size)     — allowlist, мета, SVG
      dev(), fp(), headers(o)              — 'cm_device' (ws-store.js-тэй ижил) + хурууны хээ (ws-store.js wsFp-тэй ижил алгоритм)
      catalog(force, realm) → Promise<{ok, enabled, realm?, price, days, invite_hours, games}>  (enabled — тухайн realm-д төлбөртэй эсэх)
-     status(o)      → Promise<{s, d}>  POST /api/games?action=status  {realm, wstoken}
-     launch(key, o) → Promise<{s, d}>  POST /api/games?action=launch  {game, realm, wstoken, invite}
+     status(o)      → Promise<{s, d}>  POST /api/games?action=status  {realm, wstoken}  (d.grades — {key: одоогийн анги})
+     launch(key, o) → Promise<{s, d}>  POST /api/games?action=launch  {game, realm, wstoken, invite, grade?, topic?}  (o.sel)
      invite(key, o) → Promise<{s, d}>  POST /api/games?action=invite  {game, realm, wstoken}
-     buyCreate(key, o) → Promise<{s, d}>  POST /api/qpay?action=create {wstoken, plan:'game', realm, game}
+     buyCreate(key, o) → Promise<{s, d}>  POST /api/qpay?action=create {wstoken, plan:'game', realm, game, game_grade?}  (o.grade)
      buyCheck(invoiceId, email) → Promise<{s, d}>  POST /api/qpay?action=check
-     embedUrl(key, realm, inv)            — inline тоглоом: '/?embed=<key>&realm=<realm>[&einv=<урилга>]' (index.html #gp-embed)
-     overlay({key, title, sub, url, tools, onClose, onMessage}) → { el, frame, key, close(), setUrl(url) }
+     embedUrl(key, realm, inv, sel)       — inline тоглоом: '/?embed=<key>&realm=<realm>[&einv=<урилга>][&grade=<g>&topic=<t>]'
+                                            (index.html #gp-embed)
+     overlay({key, title, sub, url, sel, tools, onClose, onMessage}) → { el, frame, key, sel, close(), setUrl(url), setSel(sel), setSub(t), post(msg) }
                                             бүтэн дэлгэцийн iframe (#gameM). Esc / «Хаах» → src='about:blank'.
-     takeUrlInvite(realm)                 — ?game=<key>&ginv=<токен> → sessionStorage 'gp_inv_<realm>', URL-аас арилгана → {key, inv}
-     getInvite(realm, key) / setInvite(realm, key, tok|null)
+     takeUrlInvite(realm)                 — ?game=<key>&ginv=<токен>[&grade=&topic=] → sessionStorage 'gp_inv_<realm>' (+ 'gp_isel_<realm>'),
+                                            URL-аас арилгана → {key, inv, sel?}
+     getInvite(realm, key) / setInvite(realm, key, tok|null), inviteSel(realm, key) → sel | null (урилгын host-ийн анги/сэдэв)
      cardState(o), rounds(qs, o), parseInvite(search), fmt(n), ymd(v)   — цэвэр туслахууд (тест)
+   Анги/сэдэв (тоглоомын бодлогын сонголт — ҮНЭ/ЭРХЭД НӨЛӨӨЛӨХГҮЙ; эрх нь тоглоом бүхэлдээ):
+     GRADES ['6'..'12'], normGrade(v), normTopic(v), normSel({grade, topic, name}) → {grade, topic, name} | null
+     sel = { grade: '6'..'12', topic: node id | '0' (бүх сэдэв), name: сэдвийн нэр ('' = бүх сэдэв) }
+     MIN[key] / minFor(key)               — сэдэвт байх доод бодлогын тоо (sbh 20, myangat 15, sudoku 12, …; анхдагч 8)
+     hasTopics(key)                       — сэдэв сонгох эсэх (numseq — зөвхөн анги); ALL_ONLY[grade] — зөвхөн «Бүх сэдэв» (11)
+     topics(grade, force) → Promise<{ok, grade, total, chapters:[{name, topics:[{id, name, n}]}]}>  GET /api/questions?game_topics=<g>
+                                            (анги тус бүрд 5 мин кэш)
+     topicGroups(data, key) → { total, few, allOnly, count, groups:[{name, topics:[{id, name, n}]}] }  (цэвэр; n ≥ minFor(key))
+     getSel(realm, email, key) / setSel(realm, email, key, sel|null) / lastGrade(realm, email)
+                                            — localStorage 'cm_game_sel_<realm>' = {'<имэйл>|<key>': {g, t, n, at}}
+     selLabel(sel) → '8-р анги · <сэдэв>'   withSel(url, sel) → url + ?grade=&topic= (аль хэдийн байвал хэвээр)
    Гүүр (overlay-ийн iframe-ээс л, e.source === frame.contentWindow, ижил домэйн):
-     'myangat-need-questions' / 'xpdrop-need-questions' → /api/questions → KaTeX → postMessage(…, location.origin)
-     'cm-game-locked' / 'cm-embed-close' / 'cm-embed-ready' / 'cm-embed-buy' → overlay-ийн onMessage(d)
+     'myangat-need-questions' / 'xpdrop-need-questions' → /api/questions?game=<g>&topic=<t>&n=15|10 (сонголтгүй бол хуучин
+       параметргүй) → KaTeX → postMessage(…, location.origin). Мянгат: хялбараас хүнд рүү (difficulty) эрэмбэлнэ.
+     'cm-game-locked' / 'cm-embed-close' / 'cm-embed-ready' / 'cm-embed-buy' / 'cm-embed-sel' → overlay-ийн onMessage(d)
+     Parent → embed: post({type:'cm-embed-config', grade, topic}) — inline тоглоомын санг дахин ачаалалгүй солино.
      XP/шагналын мессежийг ҮЛ ТООМСОРЛОНО (Дасгалын төвийн хэрэглэгч cyber-math.com-ийн XP-гүй). */
 (function (root, factory) {
   var api = factory(root);
@@ -44,11 +59,11 @@
       '<path d="M14.5 17.5 3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="M16 16l4 4"/><path d="M19 21l2-2"/><path d="M14.5 6.5 18 3h3v3l-3.5 3.5"/><path d="M5 14l4 4"/><path d="M7 17l-3 3"/><path d="M3 19l2 2"/>'),
     blockblast: m('Block Blast Math', 'external', false, 'Блок байрлуулж, бодлогоор оноогоо өсгө', ['#6d28d9', '#8b5cf6'],
       '<rect x="14" y="3" width="7" height="7" rx="1"/><path d="M10 21V8a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1H3"/>'),
-    flagbattle: m('Flag Battle', 'external', false, '6–7-р ангийн бодлогоор тулалд', ['#dc2626', '#f97316'],
+    flagbattle: m('Flag Battle — Тэмцээн', 'external', false, 'Анги, сэдвээ сонгоод тэмцээнд оролц', ['#dc2626', '#f97316'],
       '<path d="M4 22V4"/><path d="M4 4h13l-2.5 4L17 12H4"/>'),
-    songon: m('Grade Battle', 'external', false, '10–11-р ангийн бодлогоор өрсөлд', ['#16a34a', '#22c55e'],
+    songon: m('Grade Battle', 'external', false, 'Анги, сэдвээ сонгоод өрсөлд', ['#16a34a', '#22c55e'],
       '<circle cx="12" cy="15" r="6"/><path d="M8.2 10.4 5 3h4l3 5 3-5h4l-3.2 7.4"/><path d="M12 13v4"/>'),
-    nicebattle: m('Nice Battle', 'external', false, '8–9-р ангийн бодлогоор тулалд', ['#a855f7', '#ec4899'],
+    nicebattle: m('Nice Battle', 'external', false, 'Анги, сэдвээ сонгоод тулалд', ['#a855f7', '#ec4899'],
       '<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>'),
     chessmath: m('Chess Math', 'inline', true, 'Шатар + бодлого: зөв бодвол нүүнэ', ['#1e1b4b', '#4338ca'],
       '<path d="m2 6 3.5 11h13L22 6l-5.5 5L12 4l-4.5 7z"/><path d="M5 20h14"/>'),
@@ -88,6 +103,7 @@
     full: '<path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/>',
     users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/>',
     spin: '<path d="M21 12a9 9 0 1 1-6.2-8.6"/>',
+    sel: '<path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="M2 12l10 5 10-5"/><path d="M2 17l10 5 10-5"/>',
   };
   function ui(n, s) { return svgOf(IC[n] || '', s || 18); }
 
@@ -106,6 +122,130 @@
   function lset(k, v) { try { W.localStorage.setItem(k, v); } catch (e) {} }
   function ssGet(k) { try { return W.sessionStorage.getItem(k); } catch (e) { return null; } }
   function ssSet(k, v) { try { if (v == null) W.sessionStorage.removeItem(k); else W.sessionStorage.setItem(k, v); } catch (e) {} }
+
+  // ───────────── анги / сэдэв (тоглоомын бодлогын сонголт — үнэ/эрхэд НӨЛӨӨЛӨХГҮЙ) ─────────────
+  // URL-ийн параметр: grade=<6..12>&topic=<node_id|0>. 'g' нэрийг ХЭРЭГЛЭХГҮЙ (gate/game.js DROP_Q хасдаг).
+  var GRADES = ['6', '7', '8', '9', '10', '11', '12'];
+  // Сэдэвт байх доод бодлогын тоо (үүнээс цөөн сэдэв жагсаалтад гарахгүй) — тоглоом нэг тоглолтод хэдэн бодлого шаарддагаар
+  var MIN = { sbh: 20, myangat: 15, sudoku: 12, xpdrop: 10, flagbattle: 10, songon: 10, nicebattle: 10, mathmortal: 4 };
+  var MIN_DEF = 8;
+  var TOPICLESS = { numseq: 1 };       // сэдэв хамаарахгүй (дотоод генератор — ангиар түвшин тохирно)
+  var ALL_ONLY = { '11': 1 };          // эзэмшигчийн шийдвэр: 11-р ангид зөвхөн «Бүх сэдэв» (сэдвийн бодлого цөөн)
+  var TOPIC_TTL = 5 * 60 * 1000;
+  var SEL_KEY = 'cm_game_sel_';        // + realm → {'<имэйл>|<key>': {g, t, n, at}}
+  var SEL_MAX = 80;
+  function normGrade(v) {
+    if (typeof v !== 'string' && typeof v !== 'number') return null;
+    var s = String(v).trim();
+    return GRADES.indexOf(s) >= 0 ? s : null;
+  }
+  function normTopic(v) {
+    if (typeof v !== 'string' && typeof v !== 'number') return null;
+    var s = String(v).trim();
+    return /^\d{1,6}$/.test(s) ? String(parseInt(s, 10)) : null;
+  }
+  // Сэдвийн нэрийн эхэнд байгаа үсэг/тоо биш тэмдэгт (бататгалын node-ийн эможи г.м.)-ийг хасна — UI-д эможи гаргахгүй
+  var LEAD_RE = null;
+  try { LEAD_RE = new RegExp('^[^\\p{L}\\p{N}(«"]+', 'u'); } catch (e) { LEAD_RE = /^[^0-9A-Za-zЀ-ӿ(«"]+/; }
+  function cleanName(s) { return String(s == null ? '' : s).replace(LEAD_RE, '').replace(/\s+/g, ' ').trim().slice(0, 120); }
+  // { grade, topic, name } → хэвийн сонголт | null (анги буруу/байхгүй). topic буруу → '0' (бүх сэдэв).
+  function normSel(o) {
+    if (!o || typeof o !== 'object') return null;
+    var g = normGrade(o.grade);
+    if (!g) return null;
+    var t = normTopic(o.topic) || '0';
+    return { grade: g, topic: t, name: t !== '0' && typeof o.name === 'string' ? cleanName(o.name) : '' };
+  }
+  function minFor(k) { return has(MIN, k) ? MIN[k] : MIN_DEF; }
+  function hasTopics(k) { return !has(TOPICLESS, k); }
+  function selLabel(sel) {
+    var s = normSel(sel);
+    if (!s) return '';
+    return s.grade + '-р анги · ' + (s.topic === '0' ? 'Бүх сэдэв' : (s.name || 'Сонгосон сэдэв'));
+  }
+  // url + grade/topic (аль хэдийн grade= байвал хэвээр — серверийн launch залгасан байж болно). '#…'-ийн өмнө; замгүй
+  // гадны хаягт ('https://host') '/' нэмнэ.
+  function withSel(url, sel) {
+    var s = normSel(sel);
+    if (!s || typeof url !== 'string' || !url || /[?&]grade=/.test(url)) return url;
+    var h = '', i = url.indexOf('#');
+    if (i >= 0) { h = url.slice(i); url = url.slice(0, i); }
+    if (/^https?:\/\/[^\/?#]+$/i.test(url)) url += '/';
+    return url + (url.indexOf('?') >= 0 ? '&' : '?') + 'grade=' + s.grade + '&topic=' + s.topic + h;
+  }
+  // Ангийн сэдвийн жагсаалт (core API) — анги тус бүрд кэш
+  var _tp = {}, _tpAt = {}, _tpP = {};
+  function topics(g, force) {
+    var gr = normGrade(g);
+    if (!gr) return Promise.reject(new Error('grade'));
+    if (!force && _tp[gr] && Date.now() - _tpAt[gr] < TOPIC_TTL) return Promise.resolve(_tp[gr]);
+    if (_tpP[gr]) return _tpP[gr];
+    _tpP[gr] = W.fetch(Q_API + '?game_topics=' + gr, { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        _tpP[gr] = null;
+        if (!d || d.ok !== true || !Array.isArray(d.chapters)) throw new Error('topics');
+        _tp[gr] = d; _tpAt[gr] = Date.now();
+        return d;
+      }, function (e) { _tpP[gr] = null; throw e; });
+    return _tpP[gr];
+  }
+  // Цэвэр: тоглоомд тохирох сэдвүүд (n ≥ minFor(key)), бүлгээр. allOnly — сэдэв сонгохгүй (numseq / 11-р анги).
+  // few — ангийн нийт тохирох бодлого доод хязгаараас цөөн (тоглоом өөрийн жишиг бодлогыг холино).
+  function topicGroups(d, key) {
+    var min = minFor(key), out = { total: 0, few: false, allOnly: false, count: 0, groups: [] };
+    if (!d || typeof d !== 'object') return out;
+    out.total = Math.max(0, Number(d.total) || 0);
+    out.few = out.total < min;
+    var gr = normGrade(d.grade);
+    if (!hasTopics(key) || (gr && has(ALL_ONLY, gr))) { out.allOnly = true; return out; }
+    var seen = {};
+    (Array.isArray(d.chapters) ? d.chapters : []).forEach(function (c) {
+      if (!c || typeof c !== 'object') return;
+      var ts = [];
+      (Array.isArray(c.topics) ? c.topics : []).forEach(function (t) {
+        if (!t || typeof t !== 'object') return;
+        var id = normTopic(t.id), n = Math.max(0, Number(t.n) || 0), nm = cleanName(t.name);
+        if (!id || id === '0' || seen[id] || n < min || !nm) return;
+        seen[id] = 1;
+        ts.push({ id: id, name: nm, n: n });
+      });
+      if (ts.length) { out.groups.push({ name: cleanName(c.name), topics: ts }); out.count += ts.length; }
+    });
+    return out;
+  }
+  function rk(realm) { return realm === 'cm' ? 'cm' : 'ws'; }
+  function selMap(realm) {
+    try { var m0 = JSON.parse(ls(SEL_KEY + rk(realm)) || '{}'); return m0 && typeof m0 === 'object' && !Array.isArray(m0) ? m0 : {}; } catch (e) { return {}; }
+  }
+  function selId(email, key) { return String(email == null ? '' : email).trim().toLowerCase().slice(0, 254) + '|' + key; }
+  function getSel(realm, email, key) {
+    if (!isKey(key)) return null;
+    var x = selMap(realm)[selId(email, key)];
+    return x && typeof x === 'object' ? normSel({ grade: x.g, topic: x.t, name: x.n }) : null;
+  }
+  function setSel(realm, email, key, sel) {
+    if (!isKey(key)) return;
+    var m0 = selMap(realm), id = selId(email, key), s = normSel(sel);
+    if (s) m0[id] = { g: s.grade, t: s.topic, n: s.name, at: Date.now() };
+    else delete m0[id];
+    var ks = Object.keys(m0);
+    if (ks.length > SEL_MAX) {   // хамгийн хуучныг хасна
+      ks.sort(function (a, b) { return ((m0[a] && m0[a].at) || 0) - ((m0[b] && m0[b].at) || 0); });
+      ks.slice(0, ks.length - SEL_MAX).forEach(function (k) { delete m0[k]; });
+    }
+    lset(SEL_KEY + rk(realm), JSON.stringify(m0));
+  }
+  // Энэ дансны хамгийн сүүлд сонгосон анги (шинэ тоглоом худалдан авахад урьдчилан сонгоно)
+  function lastGrade(realm, email) {
+    var m0 = selMap(realm), pre = selId(email, ''), best = null, at = -1;
+    Object.keys(m0).forEach(function (k) {
+      var x = m0[k];
+      if (k.indexOf(pre) !== 0 || !x || !normGrade(x.g) || !isKey(k.slice(pre.length))) return;
+      if ((Number(x.at) || 0) > at) { at = Number(x.at) || 0; best = normGrade(x.g); }
+    });
+    return best;
+  }
 
   // ───────────── төхөөрөмж (ws-store.js-тэй ЯГ ижил — эс бөгөөс сервер DEVICE_MISMATCH/шинэ байр гэж үзнэ) ─────────────
   function dev() {
@@ -192,23 +332,32 @@
     return _catP[rk];
   }
   function status(o) { return jpost(GAMES_API + '?action=status', body(o), headers(o)); }
+  // o.sel = { grade, topic } — тоглоомын анги/сэдэв (сервер url-д залгаж, өөрийн эрхтэй үед game_access.grade-ийг шинэчилнэ)
   function launch(key, o) {
     o = o || {};
-    return jpost(GAMES_API + '?action=launch', body(o, { game: key, invite: o.invite || null }), headers({ realm: o.realm, token: o.token, admin: true }));
+    var s = normSel(o.sel);
+    return jpost(GAMES_API + '?action=launch', body(o, { game: key, invite: o.invite || null, grade: s ? s.grade : null, topic: s ? s.topic : null }),
+      headers({ realm: o.realm, token: o.token, admin: true }));
   }
   function invite(key, o) { return jpost(GAMES_API + '?action=invite', body(o, { game: key }), headers(o)); }
-  // Тоглоомын эрх худалдан авах нэхэмжлэх: дүн/имэйлийг сервер тогтооно (клиентээс зөвхөн тоглоом + realm + токен)
-  function buyCreate(key, o) { return jpost(QPAY_API + '?action=create', body(o, { plan: 'game', game: key }), headers(o)); }
+  // Тоглоомын эрх худалдан авах нэхэмжлэх: дүн/имэйлийг сервер тогтооно (клиентээс зөвхөн тоглоом + realm + токен + анги).
+  // o.grade — худалдан авалтад бүртгэх анги (6–12; үнэд нөлөөлөхгүй).
+  function buyCreate(key, o) {
+    return jpost(QPAY_API + '?action=create', body(o, { plan: 'game', game: key, game_grade: normGrade(o && o.grade) }), headers(o));
+  }
   function buyCheck(invoiceId, email) { return jpost(QPAY_API + '?action=check', { invoice_id: invoiceId, email: email }, {}); }
 
-  function embedUrl(key, realm, inv) {
+  function embedUrl(key, realm, inv, sel) {
     if (!has(INLINE, key)) return null;
     var u = '/?embed=' + key + '&realm=' + (realm === 'cm' ? 'cm' : 'ws');
     if (typeof inv === 'string' && INV_RE.test(inv)) u += '&einv=' + encodeURIComponent(inv);
+    var s = normSel(sel);
+    if (s) u += '&grade=' + s.grade + '&topic=' + s.topic;
     return u;
   }
 
   // ───────────── урилга (?game=<key>&ginv=<токен>) — gp-s5 GPAY-тэй ижил sessionStorage формат ─────────────
+  // ?game=<key>[&ginv=<токен>][&grade=<6..12>&topic=<id>] → { key, inv, sel? } (sel — host-ийн анги/сэдэв, байвал л)
   function parseInvite(search) {
     var out = { key: null, inv: null };
     var s = String(search || '');
@@ -221,11 +370,14 @@
       try { t = decodeURIComponent(im[1]); } catch (e) { t = ''; }
       if (INV_RE.test(t)) out.inv = t;
     }
+    var gm = /[?&]grade=([^&#]{1,8})/.exec(s), tm = /[?&]topic=([^&#]{1,8})/.exec(s);
+    var sl = gm ? normSel({ grade: gm[1], topic: tm ? tm[1] : '0' }) : null;
+    if (sl) out.sel = { grade: sl.grade, topic: sl.topic, name: '' };
     return out;
   }
   function invKey(realm) { return 'gp_inv_' + (realm === 'cm' ? 'cm' : 'ws'); }
-  function invMap(realm) {
-    try { var m0 = JSON.parse(ssGet(invKey(realm)) || '{}'); return m0 && typeof m0 === 'object' ? m0 : {}; } catch (e) { return {}; }
+  function invMap(realm, pre) {
+    try { var m0 = JSON.parse(ssGet((pre || 'gp_inv_') + rk(realm)) || '{}'); return m0 && typeof m0 === 'object' ? m0 : {}; } catch (e) { return {}; }
   }
   function getInvite(realm, key) { var m0 = invMap(realm); return isKey(key) && typeof m0[key] === 'string' ? m0[key] : null; }
   function setInvite(realm, key, tok) {
@@ -233,16 +385,31 @@
     var m0 = invMap(realm);
     if (tok && INV_RE.test(tok)) m0[key] = tok; else delete m0[key];
     ssSet(invKey(realm), Object.keys(m0).length ? JSON.stringify(m0) : null);
+    if (!(tok && INV_RE.test(tok))) setInviteSel(realm, key, null);
+  }
+  // Урилгын холбоосоор ирсэн host-ийн анги/сэдэв (sessionStorage 'gp_isel_<realm>') — найзын анхдагч сонголт
+  function inviteSel(realm, key) {
+    if (!isKey(key)) return null;
+    var x = invMap(realm, 'gp_isel_')[key];
+    return x && typeof x === 'object' ? normSel(x) : null;
+  }
+  function setInviteSel(realm, key, sel) {
+    if (!isKey(key)) return;
+    var m0 = invMap(realm, 'gp_isel_'), s = normSel(sel);
+    if (s) m0[key] = { grade: s.grade, topic: s.topic }; else delete m0[key];
+    ssSet('gp_isel_' + rk(realm), Object.keys(m0).length ? JSON.stringify(m0) : null);
   }
   function takeUrlInvite(realm) {
     var loc = W && W.location;
     if (!loc) return { key: null, inv: null };
     var r = parseInvite(loc.search);
     if (r.key && r.inv) setInvite(realm, r.key, r.inv);
+    if (r.key && r.sel) setInviteSel(realm, r.key, r.sel);
     if (/[?&](game|ginv)=/.test(loc.search || '')) {
       try {
         var u = new URL(loc.href);
         u.searchParams.delete('game'); u.searchParams.delete('ginv');
+        if (r.key) { u.searchParams.delete('grade'); u.searchParams.delete('topic'); }
         W.history.replaceState(W.history.state, '', u.pathname + u.search + u.hash);
       } catch (e) {}
     }
@@ -345,13 +512,32 @@
       doc.head.appendChild(el);
     } catch (e) {}
   }
+  // Сонгосон анги/сэдвээс (c.sel) тоглоомд тохирох бодлого: /api/questions?game=<g>&topic=<t>&n=<N>. Сэдвээс цөөн ирвэл
+  // ангийн бүх сэдвээс (topic=0) дахин татна. Сонголтгүй (cyber-math.com / хуучин) → өмнөх шигээ параметргүй.
+  var FEED_N = { myangat: 15, xpdrop: 10 };
+  var DIFF_RANK = { easy: 0, medium: 1, hard: 2 };
+  function qUrl(s, n) { return Q_API + '?game=' + s.grade + '&topic=' + s.topic + '&n=' + n; }
+  function getQs(u) {
+    return W.fetch(u, { credentials: 'same-origin' }).then(function (r) { return r.json(); })
+      .then(function (d) { return d && Array.isArray(d.questions) ? d.questions : []; });
+  }
+  // Мянгат: шат хялбараас хүнд рүү — difficulty-аар тогтвортой эрэмбэ (тодорхойгүй → дунд)
+  function byDifficulty(qs) {
+    return qs.map(function (q, i) { return { q: q, i: i, r: q && has(DIFF_RANK, q.difficulty) ? DIFF_RANK[q.difficulty] : 1 }; })
+      .sort(function (a, b) { return a.r - b.r || a.i - b.i; }).map(function (x) { return x.q; });
+  }
   function feedQuestions(c, kind) {
-    W.fetch(Q_API, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (data) {
+    var s = normSel(c.sel), n = FEED_N[kind] || 10;
+    var p = !s ? getQs(Q_API) : getQs(qUrl(s, n)).then(function (qs) {
+      if (qs.length >= n || s.topic === '0') return qs;
+      return getQs(qUrl({ grade: s.grade, topic: '0' }, n)).then(function (q2) { return q2.length > qs.length ? q2 : qs; },
+        function () { return qs; });
+    });
+    p.then(function (qs) {
       if (CUR !== c || !c.frame || !c.frame.contentWindow) return;
-      var qs = (data && data.questions) || [];
       var cw = c.frame.contentWindow;
       if (kind === 'myangat') {
-        cw.postMessage({ type: 'myangat-questions', questions: rounds(qs) }, W.location.origin);
+        cw.postMessage({ type: 'myangat-questions', questions: s ? rounds(byDifficulty(qs), { shuffle: false }) : rounds(qs) }, W.location.origin);
         injectCss(c.frame, 'katex-css-myangat', null, KATEX_CSS);
       } else {
         cw.postMessage({ type: 'xpdrop-questions', rounds: rounds(qs, { max: 10, placeholder: true }) }, W.location.origin);
@@ -396,7 +582,7 @@
     if (!d || typeof d !== 'object' || typeof d.type !== 'string') return;
     if (d.type === 'myangat-need-questions' && c.key === 'myangat') return feedQuestions(c, 'myangat');
     if (d.type === 'xpdrop-need-questions' && c.key === 'xpdrop') return feedQuestions(c, 'xpdrop');
-    if (/^cm-(game-locked|embed-close|embed-ready|embed-buy)$/.test(d.type) && typeof c.onMessage === 'function') {
+    if (/^cm-(game-locked|embed-close|embed-ready|embed-buy|embed-sel)$/.test(d.type) && typeof c.onMessage === 'function') {
       try { c.onMessage(d); } catch (err) {}
     }
   }
@@ -419,7 +605,7 @@
     ov.innerHTML = '<div class="gm-bar">'
       + '<button type="button" class="gm-btn" data-gm="close" title="Хаах (Esc)">' + ui('x', 16) + '<span>Хаах</span></button>'
       + '<div class="gm-t"><span class="gm-ic">' + icon(o.key, 18) + '</span><b>' + esc(o.title || '') + '</b>'
-      + (o.sub ? '<small>' + esc(o.sub) + '</small>' : '') + '</div>'
+      + '<small' + (o.sub ? '' : ' hidden') + '>' + esc(o.sub || '') + '</small></div>'
       + tools
       + '<button type="button" class="gm-btn" data-gm="full" title="Бүтэн дэлгэц">' + ui('full', 16) + '<span>Бүтэн дэлгэц</span></button>'
       + '</div><div class="gm-body"><div class="gm-load">' + ui('spin', 20) + 'Ачаалж байна…</div>'
@@ -429,7 +615,7 @@
     var frame = ov.querySelector('iframe');
     var load = ov.querySelector('.gm-load');
     var closed = false;
-    var c = { key: o.key, frame: frame, el: ov, onMessage: o.onMessage };
+    var c = { key: o.key, frame: frame, el: ov, onMessage: o.onMessage, sel: normSel(o.sel) };
     c.close = function () {
       if (closed) return;
       closed = true;
@@ -441,6 +627,16 @@
       if (typeof o.onClose === 'function') { try { o.onClose(); } catch (e) {} }
     };
     c.setUrl = function (u) { load.style.display = ''; frame.src = u; };
+    // Анги/сэдэв солиход: feedQuestions дараагийн хүсэлтэд шинэ сонголтыг хэрэглэнэ
+    c.setSel = function (s) { c.sel = normSel(s); };
+    c.setSub = function (t) {
+      var sm = ov.querySelector('.gm-t small');
+      if (!sm) return;
+      sm.textContent = String(t || '');
+      sm.hidden = !t;
+    };
+    // Ижил домэйны iframe руу мессеж (cm-embed-config г.м.)
+    c.post = function (msg) { try { if (frame.contentWindow) frame.contentWindow.postMessage(msg, W.location.origin); } catch (e) {} };
     frame.addEventListener('load', function () {
       load.style.display = 'none';
       if (o.key === 'myangat') injectCss(frame, 'myangat-mobile-css', MYANGAT_CSS);
@@ -469,6 +665,10 @@
     catalog: catalog, status: status, launch: launch, invite: invite, buyCreate: buyCreate, buyCheck: buyCheck,
     embedUrl: embedUrl, overlay: overlay, current: current,
     parseInvite: parseInvite, takeUrlInvite: takeUrlInvite, getInvite: getInvite, setInvite: setInvite,
+    inviteSel: inviteSel, setInviteSel: setInviteSel,
+    GRADES: GRADES, MIN: MIN, ALL_ONLY: ALL_ONLY, normGrade: normGrade, normTopic: normTopic, normSel: normSel,
+    minFor: minFor, hasTopics: hasTopics, selLabel: selLabel, withSel: withSel, topics: topics, topicGroups: topicGroups,
+    getSel: getSel, setSel: setSel, lastGrade: lastGrade, byDifficulty: byDifficulty,
     cardState: cardState, rounds: rounds, ls: ls, lset: lset,
   };
 });

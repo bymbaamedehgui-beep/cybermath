@@ -5,16 +5,22 @@
 //
 //   GET  ?action=catalog[&realm=ws|cm]         (нийтийн) → { ok, enabled, realm?, price, days, invite_hours, games:[{key,title,kind,multi}] }
 //                                              (enabled = GM.paywallOn(realm); realm байхгүй бол gate-ийн төлөв)
-//   POST ?action=status  {realm, wstoken?}     → { ok, enabled, realm, email, premium, price, days, games:{key: expires_at} }
-//   POST ?action=launch  {game, realm, wstoken?, invite?}   (+ x-device-id толгой — урилгаар нэгдэхэд төхөөрөмж уяна)
+//   POST ?action=status  {realm, wstoken?}     → { ok, enabled, realm, email, premium, price, days, games:{key: expires_at},
+//                                                  grades:{key: '6'..'12'} }  (grades — одоогийн анги, тодорхой нь л)
+//   POST ?action=launch  {game, realm, wstoken?, invite?, grade?, topic?}   (+ x-device-id толгой — урилгаар нэгдэхэд төхөөрөмж уяна)
 //        Дараалал: Bearer admin → нэвтэрсэн бөгөөд өөрийн эрхтэй (урилга ЗАРЦУУЛАХГҮЙ) → урилга → 401/403/402.
+//        grade (6–12) / topic (node id, 0 = бүх сэдэв) — тоглоомын бодлогын сонголт. Эрх/үнэд ОГТ нөлөөлөхгүй:
+//          - хүчинтэй grade + өөрийн идэвхтэй эрх (via 'access') → game_access.grade-ийг UPDATE (GM.setGameGrade —
+//            мөр үүсгэхгүй, expires_at-д хүрэхгүй; алдааг залгина). Урилга/админ/'off'/premium үед бичихгүй.
+//          - url-д ?grade=&topic= залгана (file, external). Буруу/байхгүй grade → үл тоомсорлоно (url хуучнаараа).
 //        эрхтэй   → { ok:true, game, kind, via, expires_at?, url? }
 //                   kind='file'     → url = <тоглоомын зам>?t=<launch тасалбар> (cm) | <зам>?realm=ws&t=<тасалбар> (ws)
 //                                     (gate түгжээтэй үед; нээлттэй бол шууд зам;
 //                                     120 сек, нэг удаагийн jti — gate шалгана;
 //                                     sub = тунгалаг 'u:…' — имэйл URL-д орохгүй; sx = эрхийн дуусах огноо)
-//                   kind='inline'   → url байхгүй (клиент gate)
-//                   kind='external' → url = гадны хаяг (клиент gate)
+//                                     grade өгвөл: <зам>?[realm=ws&]grade=<g>&topic=<t>[&t=<тасалбар>] (gate cleanUrl хадгална)
+//                   kind='inline'   → url байхгүй (клиент gate; embed url-ийг клиент үүсгэнэ — games-host.js embedUrl)
+//                   kind='external' → url = гадны хаяг (клиент gate); grade өгвөл <хаяг>/?grade=<g>&topic=<t>
 //        эрхгүй   → 402 { ok:false, needBuy:true, price, days }
 //        invite   → host-ийн урилга (олон тоглогчтой тоглоом): өөрийн эрхгүй, нэвтрээгүй ч зөвшөөрнө. Урилга анх нэгдсэн
 //                   төхөөрөмж(үүд)-д уягдана (≤ GAMES[g].guests; өөр төхөөрөмж → 403 reason 'full'), нийт ачаалалт
@@ -117,14 +123,15 @@ async function identify(req, b, realm) {
 // cyber-math.com → <зам> (realm-гүй). Нэг realm-ийн тасалбар/сесс нөгөө сайтын хуудсыг нээхгүй (gate/game.js).
 // who=null (энэ realm төлбөргүй, ж: GAME_PAYWALL_REALMS=cm үеийн ws) → тасалбаргүй realm-тэй url — gate тэр realm-д
 // нээлттэй. Нэвтрэлтгүй тасалбар ХЭЗЭЭ Ч гаргахгүй (өмнөх 'open' тасалбар cm-ийн cookie болж хувирдаг байсан).
-function launchOut(key, who, via, expiresAt, realm) {
+// sel = { grade, topic } | null (selOf) — url-д ?grade=&topic= залгана (тасалбараас ӨМНӨ; gate cleanUrl хадгална).
+function launchOut(key, who, via, expiresAt, realm, sel) {
   const G = GM.GAMES[key];
   const o = { ok: true, game: key, kind: G.kind, via: via };
   if (expiresAt) o.expires_at = new Date(expiresAt).toISOString();
   if (G.kind === 'file') {
     if (GM.gateOn()) {
       const rl = who ? who.r : realm;
-      const base = rl === 'ws' ? G.path + '?realm=ws' : G.path;
+      const base = withSel(rl === 'ws' ? G.path + '?realm=ws' : G.path, sel);
       if (who) {
         const t = GM.signTicket({ g: key, r: who.r, sub: who.sub, sx: who.sx || null });
         o.url = base + (base.indexOf('?') >= 0 ? '&' : '?') + 't=' + encodeURIComponent(t.token);
@@ -133,12 +140,23 @@ function launchOut(key, who, via, expiresAt, realm) {
         o.url = base;
       }
     } else {
-      o.url = G.path;
+      o.url = withSel(G.path, sel);
     }
   } else if (G.kind === 'external') {
-    o.url = G.url;
+    // 'https://host' → 'https://host/?grade=…' (замгүй хаягт '/' нэмнэ)
+    o.url = sel ? withSel(/^https?:\/\/[^/?#]+$/.test(G.url) ? G.url + '/' : G.url, sel) : G.url;
   }
   return o;
+}
+// body.grade / body.topic → { grade: '6'..'12', topic: '0'.. } | null (буруу/байхгүй анги → null; сэдэв буруу → '0')
+function selOf(b) {
+  const grade = GM.normGrade(b.grade);
+  if (!grade) return null;
+  return { grade: grade, topic: GM.normTopic(b.topic) || '0' };
+}
+function withSel(url, sel) {
+  if (!sel) return url;
+  return url + (url.indexOf('?') >= 0 ? '&' : '?') + 'grade=' + sel.grade + '&topic=' + sel.topic;
 }
 
 async function limited(key, max, win) { return !(await guard.rateLimit(key, max, win)); }
@@ -181,11 +199,11 @@ module.exports = async function handler(req, res) {
       if (await limited('games_st_ip:' + ip, 300, 600)) return res.status(429).json({ ok: false, error: MSG.rate });
       const id = await identify(req, b, realm);
       if (!id.ok) return res.status(id.status).json(id.body);
-      const games = await GM.activeGames(realm, id.email);
+      const info = await GM.activeGameInfo(realm, id.email);
       const premium = realm === 'cm' ? await GM.isCmPremium(id.email) : false;
       return res.json({
         ok: true, enabled: GM.paywallOn(realm), realm: realm, email: id.email, premium: premium,
-        price: GM.gamePrice(), days: GM.GAME_DAYS, games: games,
+        price: GM.gamePrice(), days: GM.GAME_DAYS, games: info.games, grades: info.grades,
       });
     }
 
@@ -196,11 +214,13 @@ module.exports = async function handler(req, res) {
     // ── Тоглоом эхлүүлэх ──
     if (action === 'launch') {
       if (await limited('games_l_ip:' + ip, 300, 600)) return res.status(429).json({ ok: false, error: MSG.rate });
+      // Тоглоомын анги/сэдэв (заавал биш) — эрх шалгалтад ОРОЛЦОХГҮЙ, зөвхөн url + game_access.grade
+      const sel = selOf(b);
       // Kill-switch / энэ realm-д төлбөргүй: бүгд нээлттэй (одоогийнх шиг) — нэвтрэлт, тасалбар шаардахгүй
-      if (!GM.paywallOn(realm)) return res.json(launchOut(key, null, 'off', null, realm));
+      if (!GM.paywallOn(realm)) return res.json(launchOut(key, null, 'off', null, realm, sel));
 
       // Админ (туршилт)
-      if (guard.requireAdmin(req)) return res.json(launchOut(key, { r: realm, sub: 'admin' }, 'admin', null));
+      if (guard.requireAdmin(req)) return res.json(launchOut(key, { r: realm, sub: 'admin' }, 'admin', null, null, sel));
 
       // invite: '' / null → урилгагүй; мөр биш бол 400
       const invTok = b.invite == null || b.invite === '' ? null : b.invite;
@@ -213,7 +233,11 @@ module.exports = async function handler(req, res) {
         if (await limited('games_l:' + realm + ':' + id.email.slice(0, 254), 60, 600)) return res.status(429).json({ ok: false, error: MSG.rate });
         const ent = await GM.entitlement(realm, id.email, key);
         if (ent.ok) {
-          return res.json(launchOut(key, { r: realm, sub: GM.subjectOf(realm, id.email), sx: ent.expires_at }, ent.via, ent.expires_at));
+          // Одоогийн анги (сурагч сольсон бол): зөвхөн өөрийн худалдан авсан эрхийн мөрийг UPDATE — алдаа тоглоомыг хаахгүй
+          if (sel && ent.via === 'access') {
+            try { await GM.setGameGrade(realm, id.email, key, sel.grade); } catch (e) { console.error('[games grade]', e && e.message); }
+          }
+          return res.json(launchOut(key, { r: realm, sub: GM.subjectOf(realm, id.email), sx: ent.expires_at }, ent.via, ent.expires_at, null, sel));
         }
       }
 
@@ -222,7 +246,7 @@ module.exports = async function handler(req, res) {
         if (await limited('games_ij_ip:' + ip, 60, 600)) return res.status(429).json({ ok: false, error: MSG.rate });
         const inv = await GM.redeemInvite(invTok, realm, key, inviteDevKey(req, ip));
         if (!inv.ok) return res.status(403).json({ ok: false, inviteInvalid: true, reason: inv.reason, error: msgInvite(inv.reason) });
-        return res.json(launchOut(key, { r: realm, sub: 'inv:' + inv.jti, sx: inv.expires_at }, 'invite', null));
+        return res.json(launchOut(key, { r: realm, sub: 'inv:' + inv.jti, sx: inv.expires_at }, 'invite', null, null, sel));
       }
 
       if (!id.ok) return res.status(id.status).json(id.body);
