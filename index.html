@@ -42649,7 +42649,22 @@ document.head.appendChild(cmStyle);
         { bg: 'rgba(255,75,75,0.15)', border: '#FF4B4B', emoji: '🔴' }
       ];
 
-      function userEmail(){ return (window._currentUser && _currentUser.email) || null; }
+      // Дасгалын төвийн embed горим (?embed=sbh&realm=ws — window.CM_EMBED.ok, эрхийг ws realm-ээр шалгасан): cyber-math.com-д
+      // нэвтрээгүй хэрэглэгч ба урилгаар орсон найз зочин ID-аар өрөө үүсгэж/нэгдэнэ — бусад 2 тоглогчтой тоглоомын meIdentity()-тэй
+      // ижил ('guest_' + localStorage cm_guest_id). /api/onlinegame зөвхөн email мөр шаарддаг (нэвтрэлт шалгадаггүй).
+      // cyber-math.com-ийн энгийн горимд (CM_EMBED алга) өөрчлөлтгүй — нэвтрээгүй бол «Эхлээд нэвтэрнэ үү».
+      var sbhGuestMem = null;
+      function sbhEmbedGuest(){
+        var E = window.CM_EMBED;
+        if (!E || E.ok !== true || E.key !== 'sbh') return null;
+        var id = null;
+        try {
+          id = localStorage.getItem('cm_guest_id');
+          if (!id) { id = Math.random().toString(36).slice(2,9); localStorage.setItem('cm_guest_id', id); }
+        } catch (e) { id = sbhGuestMem || (sbhGuestMem = Math.random().toString(36).slice(2,9)); }
+        return 'guest_' + id;
+      }
+      function userEmail(){ return (window._currentUser && _currentUser.email) || sbhEmbedGuest(); }
       function userName(){
         var u = window._currentUser;
         return (u && (u.firstName || u.first_name || u.email)) || 'Тоглогч';

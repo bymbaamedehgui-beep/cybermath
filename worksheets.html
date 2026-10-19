@@ -361,6 +361,19 @@
   .gp-hint{font-size:.76rem;color:var(--soft);margin:6px 2px 0;line-height:1.45}
   .gp-hint:empty{display:none}
   .gp-hint.warn{color:#7a4b00}
+  /* Тоглоомын танилцуулга (games-intros.js) — .gp-ov дотор гүйлгэгдэнэ; урт үг 360px-д тасарна (overflow-wrap) */
+  .gp-card.gi-card{max-width:520px}
+  .gi{text-align:left;margin:6px 0 4px;min-width:0}
+  .gi-sec{margin:0 0 12px;min-width:0}
+  .gi-h{display:flex;align-items:center;gap:6px;font-size:.84rem;font-weight:900;color:var(--purple-d);margin:0 0 5px}
+  .gi-h svg{flex:none;color:var(--purple)}
+  .gi p{margin:0;font-size:.84rem;color:#3a2d5e;line-height:1.5;overflow-wrap:anywhere}
+  .gi p+p{margin-top:6px}
+  .gi ol,.gi ul{margin:0;padding-left:1.25rem;font-size:.84rem;color:#3a2d5e;line-height:1.5}
+  .gi li{margin:0 0 4px;overflow-wrap:anywhere}
+  .gi ol li::marker{font-weight:900;color:var(--purple)}
+  .gi-acc{background:transparent;border-left:3px solid #d946ef;border-radius:8px;padding:7px 10px}
+  .glink.gintro{color:#6b5a99}
 </style>
 </head>
 <body>
@@ -2421,6 +2434,7 @@ fetch('/api/worksheets?titles=1').then(function(r){return r.json();})
   .then(function(){computeNew();renderCatalog();updateNewCount();initReorder();});
 </script>
 <script src="/games-host.js"></script>
+<script src="/games-intros.js"></script>
 <script>
 /* ═══ Дасгалын төв — Тоглоом (window.GW) ═══
    16 тоглоомын карт, худалдан авах (QPay, realm 'ws'), тоглох (overlay iframe), олон тоглогчийн урилга.
@@ -2625,6 +2639,7 @@ fetch('/api/worksheets?titles=1').then(function(r){return r.json();})
     else if(st.st==='buy'){b='<span class="gbadge lock">'+svg('lock',12)+esc(priceTxt())+'</span>';a=btn('buy',k,'gbtn','lock','Худалдан авах');}
     else {b='<span class="gbadge lock">'+svg('lock',12)+esc(priceTxt())+'</span>';a=btn('login',k,'gbtn','login','Нэвтэрч худалдан авах');}
     if(multi(k))b+='<span class="gbadge multi" title="Олон тоглогчтой — зөвхөн өрөө үүсгэгч төлнө">'+svg('group',12)+'Олуулаа</span>';
+    if(gi()&&gi().has(k))a+=btn('intro',k,'glink gintro','info','Танилцуулга');   /* games-intros.js */
     /* Тоглох боломжтой картад одоогийн анги/сэдэв (худалдан авах/нэвтрэх төлөвт сонголт модал дотор) */
     var chip=(st.st==='active'||st.st==='free'||st.st==='admin'||st.st==='invite')?selChip(k):'';
     return '<div class="gcard'+(st.st==='active'?' on':'')+(extra?' gx':'')+'" data-gk="'+k+'">'
@@ -2970,6 +2985,41 @@ fetch('/api/worksheets?titles=1').then(function(r){return r.json();})
     },function(){if(!m.closed())box.innerHTML='<div class="gp-msg err">Сүлжээний алдаа. Дахин оролдоно уу.</div>';});
   }
 
+  /* ───── танилцуулга (games-intros.js — window.GAME_INTROS) ─────
+     Карт бүрийн «Танилцуулга»: юу вэ, хэрхэн тоглох, сургах чадвар, горим, удирдлага, зөвлөмж, анги/сэдэв, эрх (үнэ/хоног каталогоос).
+     Доод товч картын одоогийн үйлдлийг дуудна (Тоглох / Урилгаар тоглох / Худалдан авах / Нэвтэрч худалдан авах). Esc / гадна / X — хаана. */
+  function gi(){var G=window.GAME_INTROS;return G&&typeof G.html==='function'&&typeof G.has==='function'?G:null;}
+  function introAct(k){
+    var st=stateOf(k).st;
+    if(st==='buy')return {a:'buy',ic:'lock',t:'Худалдан авах',cls:'gp-go'};
+    if(st==='login')return {a:'login',ic:'login',t:'Нэвтэрч худалдан авах',cls:'gp-go'};
+    return {a:'play',ic:'play',t:st==='invite'?'Урилгаар тоглох':'Тоглох',cls:'gp-go play'};
+  }
+  function intro(k){
+    var G=gi();if(!H.isKey(k)||!G||!G.has(k))return null;
+    var I=G.get(k),act=introAct(k),m=modal('gpIntro');
+    m.card.className='gp-card gi-card';
+    m.card.innerHTML=head(k,null,title(k),esc(I.tagline||''))
+      +G.html(k,{price:price()?fmt(price()):'',days:days(),hours:(S.cat&&S.cat.invite_hours)||3,multi:multi(k),enabled:enabled()})
+      +'<button type="button" class="'+act.cls+'" data-gi-go>'+svg(act.ic,16)+esc(act.t)+'</button>'
+      +'<button type="button" class="gp-sec" data-gi-x>Хаах</button>';
+    function onKey(e){if(e&&(e.key==='Escape'||e.key==='Esc'))m.close();}
+    document.addEventListener('keydown',onKey);
+    m.onClose(function(){document.removeEventListener('keydown',onKey);});
+    var x=m.card.querySelector('[data-gp-x]');
+    x.onclick=m.close;
+    m.card.querySelector('[data-gi-x]').onclick=m.close;
+    m.card.querySelector('[data-gi-go]').onclick=function(){
+      m.close();
+      if(act.a==='buy')buy(k);
+      else if(act.a==='login')loginThen(function(){if(stateOf(k).st==='active')play(k);else buy(k);});
+      else play(k);
+    };
+    try{x.focus();}catch(e){}
+    return m;
+  }
+  GW.intro=intro;
+
   /* ───── үйл явдал ───── */
   document.getElementById('gcards').addEventListener('click',function(e){
     var b=e.target.closest('[data-ga]');if(!b||b.disabled)return;
@@ -2979,6 +3029,7 @@ fetch('/api/worksheets?titles=1').then(function(r){return r.json();})
     else if(a==='invite')inviteFor(k);
     else if(a==='sel')pickSel(k,{change:true,onSave:function(){}},function(s){play(k,{sel:s});});
     else if(a==='login')loginThen(function(){if(stateOf(k).st==='active')play(k);else buy(k);});
+    else if(a==='intro')intro(k);
   });
   document.getElementById('gamesNote').addEventListener('click',function(e){
     var b=e.target.closest('[data-gn]');if(!b)return;
