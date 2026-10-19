@@ -222,7 +222,7 @@ function cleanQuestions(d, grade) {
     const answer = String(q.correct ?? '').trim();
     if (opts.length !== 4 || new Set(opts).size !== 4) continue;
     if (!opts.includes(answer)) continue;
-    if (opts.some(o => !o || visibleLength(o) > MAX_OPT_LEN)) continue;
+    if (opts.some(o => !o || visibleLength(o) > MAX_OPT_LEN || /\\begin\{/.test(o))) continue;   /* матриц сонголт HUD-д багтахгүй */
     clean.push({ q: String(q.text), answer, options: opts, easy: q.difficulty === 'easy' });
   }
   return clean;

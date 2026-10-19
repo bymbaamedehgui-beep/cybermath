@@ -327,7 +327,8 @@ test('MATH MORTAL quiz.js: 6–12-р анги, URL grade/topic (хадгалах
     { id: 2, text: '$x^2=9$ бол x?', choices: ['3', '-3', '9', '0'], correct: '3', difficulty: 'hard' },
     { id: 3, text: 'Урт '.repeat(60), choices: ['1', '2', '3', '4'], correct: '1' },
     { id: 4, text: '1+1', choices: ['2', '2', '3', '4'], correct: '2' },
-    { id: 5, text: '1+2', choices: ['3', '4', '5', '6'], correct: '9' }] };
+    { id: 5, text: '1+2', choices: ['3', '4', '5', '6'], correct: '9' },
+    { id: 6, text: 'Матриц?', choices: ['$\\begin{pmatrix}1\\end{pmatrix}$', '2', '3', '4'], correct: '2' }] };
   assert.deepStrictEqual(T.cleanQuestions(g, 8).map((q) => [q.q, q.answer, q.easy]), [['$2+3=?$', '5', true], ['$x^2=9$ бол x?', '3', false]]);
   assert.deepStrictEqual(T.cleanQuestions(g, 7), [], 'өөр ангийн хариу');
 });
