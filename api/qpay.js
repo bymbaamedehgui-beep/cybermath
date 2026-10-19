@@ -1669,9 +1669,13 @@ module.exports = async (req, res) => {
       /* ── Нэг имэйл → дээд тал нь 4 төхөөрөмж ──
          Токенд dev байвал одоогийн төхөөрөмжтэй ТААРАХ ёстой (токен хуулахыг таслана).
          dev-гүй хуучин токен бол сул байр байвал энэ төхөөрөмжийг бүртгэнэ. */
+      // Үнэгүй туршилтын төхөөрөмж (api/_wstrial.js): толгой, байхгүй бол токены dev — толгойгүй хүсэлт «нэг төхөөрөмж =
+      // нэг туршилт» / PRIOR dev шалгалтыг алгасахгүй. Толгой≠токен бол доор хаана (туршилт хүртэл хүрэхгүй).
+      let trialDev = null;
       if (email) {
         const tokDev = (wsPayload(b.wstoken) || {}).dev || null;
         const curDev = WDEV.deviceIdFrom(req);
+        trialDev = curDev || tokDev;
         /* Толгой илгээхгүй байж шалгалтыг алгасах зам хаалттай: дугаар байхгүй бол
            токеноосоо тогтвортой түлхүүр гаргаад ТЭР нь байр эзэлнэ. */
         const useDev = curDev || tokDev || WDEV.keyFromToken(b.wstoken);
@@ -1711,7 +1715,7 @@ module.exports = async (req, res) => {
          төлсөн эрхэд нөлөөгүй). Туршилтад ws_token ГАРГАХГҮЙ. */
       let trial = null;
       if (!allActive && !gradeHit) {
-        try { trial = await WT.status(email, req); } catch (e) { console.error('[wstrial status]', e.message); trial = null; }
+        try { trial = await WT.status(email, req, { dev: trialDev }); } catch (e) { console.error('[wstrial status]', e.message); trial = null; }
       }
       const trialOn = !!(trial && trial.active);
       const active = allActive || !!gradeHit || trialOn;

@@ -655,6 +655,40 @@ test('worksheets.html: verifyUser (trial) → strip «Үнэгүй туршил�
   assert.strictEqual(P.doc.documentElement.classList.contains('cm-trial'), false);
 });
 
+test('worksheets.html: verifyUser / wsTrialSync → wsstatus-д x-device-id (cm_device) + x-device-fp — нэвтрэх цонх нээгээгүй ч (хуучин токен)', async () => {
+  const P = catPage({ ls: { cm_ws_token: TOK, cm_last_user: E, cm_device: 'abcdef0123456789' } });
+  P.W.screen = { width: 1920, height: 1080, colorDepth: 24 };
+  // openLogin-ийн wsDev (window.cmWsDevice) хуудас ачаалахад хараахан байхгүй — verifyUser түүнээс хамаарахгүй
+  assert.strictEqual(P.W.cmWsDevice, undefined);
+  P.W.verifyUser();
+  await ticks();
+  P.W.wsTrialSync(false);
+  await ticks();
+  const ws = P.log.filter((x) => x.action === 'wsstatus');
+  assert.strictEqual(ws.length, 2);
+  for (const x of ws) {
+    assert.strictEqual(x.headers['Content-Type'], 'application/json');
+    assert.strictEqual(x.headers['x-device-id'], 'abcdef0123456789', 'ws-store.js / games-host.js-тэй ижил cm_device');
+    assert.match(x.headers['x-device-fp'], /^[0-9a-f]{8}$/);
+    assert.strictEqual(x.body.wstoken, TOK);
+  }
+  // cm_device байхгүй (анх) → ws-store.js-тэй ижил 32 hex үүсгэж хадгална; дараагийн дуудлагад ижил
+  const Q = catPage();
+  Q.W.verifyUser();
+  await ticks();
+  const d1 = Q.log[0].headers['x-device-id'];
+  assert.match(d1, /^[0-9a-f]{32}$/);
+  assert.strictEqual(Q.W.localStorage.getItem('cm_device'), d1);
+  Q.W.verifyUser();
+  await ticks();
+  assert.strictEqual(Q.log[1].headers['x-device-id'], d1);
+  // Каталогийн туслах = openLogin-ийн wsDev/wsFp (cm_device үүсгэх, хурууны хээ) — ижил алгоритм
+  const norm = (s) => s.replace(/\s+/g, '').replace(/^function\w+\(\)/, 'F');
+  const body = (a, b) => norm(WSH.slice(WSH.indexOf(a), WSH.indexOf(b, WSH.indexOf(a))));
+  assert.strictEqual(body('function cmDevId(){', 'function cmDevFp(){'), body('  function wsDev(){', 'window.cmWsDevice=wsDev;'));
+  assert.strictEqual(body('function cmDevFp(){', 'function wsStatusHdr('), body('  function wsFp(){', 'window.cmWsFp=wsFp;'));
+});
+
 test('worksheets.html: дуусах үеийн шалгалт — сүлжээний алдаа цонхыг ХААХГҮЙ; төлсөн бол цонх хаагдаж strip арилна', async () => {
   const P = catPage();
   P.W.verifyUser();

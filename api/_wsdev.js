@@ -273,4 +273,4 @@ async function remove(email, devId) {
   return { ok: true };
 }
 
-module.exports = { MAX_DEVICES, SWAP_MAX, SWAP_DAYS, ensureTable, deviceIdFrom, fpFrom, keyFromToken, logBlock, check, checkReq, list, remove, labelFromUA };
+module.exports = { MAX_DEVICES, SWAP_MAX, SWAP_DAYS, ensureTable, clean, deviceIdFrom, fpFrom, keyFromToken, logBlock, check, checkReq, list, remove, labelFromUA };

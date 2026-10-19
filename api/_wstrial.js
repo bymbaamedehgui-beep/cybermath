@@ -4,14 +4,18 @@
 // Дүрэм:
 //   • Эрх бүхий (eligible) данс = ws_login: баталгаажсан (verified), нууц үгтэй (pass_hash <> '!'), утас нь SMS-ээр
 //     батлагдсан (phone_verified_at — SMS/verify.mn) ЭСВЭЛ урилгын бус (invite IS NULL — SMS-ээс өмнө имэйлээр
-//     баталгаажсан хуучин данс; PHONE_TOO_MANY-тэй ижил дүрэм), МӨН ws_access, ws_grade_access-д НЭГ Ч мөргүй —
-//     хугацаа нь дууссан эрх, админы олголт (мөнгөгүй) ч «худалдаж авсан» гэж тооцно. Админ бэлтгэсэн мөр, урилгын
+//     баталгаажсан хуучин данс; PHONE_TOO_MANY-тэй ижил дүрэм), МӨН «эрх авсан» мөр НЭГ Ч байхгүй (bought(): ws_access,
+//     ws_grade_access, ws_purchases, ws_admin_grants game_key IS NULL) — хугацаа нь дууссан эрх, админы олголт (мөнгөгүй),
+//     админ цуцалсан (ws_access мөр устсан ч төлбөр/олголтын бүртгэл үлддэг) ч «худалдаж авсан» гэж тооцно. Админ бэлтгэсэн мөр, урилгын
 //     линкээр SMS-гүй үүссэн данс туршилт авахгүй (урилгаар хязгааргүй шинэ имэйл нээж туршилт цуглуулна;
 //     батлагдаагүй утсаар хүний 'ph:' тэмдгийг түрүүлж эзэлнэ). Урилгын данс SMS-ээр утсаа баталбал (ws_reset) л болно.
 //     SMS-гүй шинэ урилгын бус данс одоо үүсэх замгүй (бүртгэл/сэргээлт бүр phone_verified_at тавьдаг) — хуучнууд л.
 //   • Төлсөн хэрэглэгч шинэ имэйлээр туршилт авахгүй (PRIOR): ижил утастай (батлагдсан, эсвэл урилгын бус) эсвэл энэ
-//     cm_device-ийг (ws_devices) ашигласан, эрх АВСАН (ws_access / ws_grade_access мөртэй) өөр данс байвал
+//     cm_device-ийг (ws_devices) ашигласан, эрх АВСАН (bought()) өөр данс байвал
 //     denied='phone'|'dev'. Эрхгүй өөр данс хаахгүй — тэднийг доорх тэмдэг (нэг төхөөрөмж/утас = нэг туршилт) зохицуулна.
+//   • Төхөөрөмж (cm_device) = x-device-id толгой, байхгүй бол wsstatus-ийн токены dev (нэвтрэх үеийн, серверийн гарын
+//     үсэгтэй — status(email, req, { dev })). Толгойгүй хүсэлтээр (хуучин кэштэй хуудас) «нэг төхөөрөмж = нэг туршилт» ба
+//     PRIOR dev шалгалтыг алгасахгүй.
 //   • Эхлэх цэг = дараагийн амжилттай нэвтрэлт (api/worksheets.js wsIssue → start(); бүртгүүлээд автоматаар нэвтэрсэн
 //     бол тэр мөч) ЭСВЭЛ эрх шалгах (api/qpay.js wsstatus → status() нөөц зам) — аль нь түрүүлсэн. Токентой хуучин
 //     хэрэглэгч ихэвчлэн хуудас нээх үед (status) эхэлнэ. Дахин нэвтэрсэн, токен/төхөөрөмж сольсон ч СУНГАХГҮЙ
@@ -36,7 +40,8 @@
 //
 // API:
 //   start(email, req)   → view | null   (wsIssue: нэвтрэлт бүрд; аль хэдийн эхэлсэн бол тэр хэвээр)
-//   status(email, req)  → view | null   (qpay wsstatus: идэвхтэй эрхгүй үед; эхлээгүй ч eligible бол нөөц start)
+//   status(email, req, o) → view | null (qpay wsstatus: идэвхтэй эрхгүй үед; эхлээгүй ч eligible бол нөөц start;
+//                                        o.dev — токены dev, толгой байхгүй үед төхөөрөмж болно)
 //   view = { until, started_at, server_now (ms), seconds, active, denied }
 'use strict';
 const pool = require('./_db');
@@ -90,24 +95,31 @@ function ipDayMax() {
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
+/* «Ажлын хуудасны эрх АВСАН» данс (col — имэйлийн багана): ELIG ба PRIOR-ын НЭГ тодорхойлолт. Хугацаа дууссан ч
+   (expires_at-аар шүүхгүй), админ цуцалсан ч (ws_revoke нь ws_access/ws_grade_access мөрийг устгадаг — төлбөр
+   ws_purchases, админы олголт ws_admin_grants-д бүртгэл үлддэг). ws_admin_grants-ийн game_key-тэй мөр = тоглоомын
+   олголт → тооцохгүй. Хүснэгт байхгүйгээс унахгүйн тулд ensure() үүсгэнэ. */
+function bought(col) {
+  return 'EXISTS (SELECT 1 FROM ws_access a WHERE LOWER(a.email) = ' + col + ') '
+    + 'OR EXISTS (SELECT 1 FROM ws_grade_access g WHERE LOWER(g.email) = ' + col + ') '
+    + 'OR EXISTS (SELECT 1 FROM ws_purchases p WHERE LOWER(p.email) = ' + col + ') '
+    + 'OR EXISTS (SELECT 1 FROM ws_admin_grants m WHERE LOWER(m.email) = ' + col + ' AND m.game_key IS NULL)';
+}
 // tests/_gamefake.js, tests/_smsfake.js яг эдгээр мөрийг (хоосон зай нормчилсон) таньдаг — өөрчилбөл тэнд ч шинэчилнэ.
 const SQL = {
-  /* eligible: баталгаажсан, нууц үгтэй, утас SMS-ээр батлагдсан эсвэл урилгын бус, ажлын хуудасны эрх (ws_access /
-     ws_grade_access — дууссан ч, админы олголт ч) ХЭЗЭЭ Ч аваагүй. created_at-аар шүүхгүй. */
+  /* eligible: баталгаажсан, нууц үгтэй, утас SMS-ээр батлагдсан эсвэл урилгын бус, ажлын хуудасны эрх (bought —
+     дууссан ч, админы олголт ч, цуцлагдсан ч) ХЭЗЭЭ Ч аваагүй. created_at-аар шүүхгүй. */
   ELIG: "SELECT l.phone, (l.verified = TRUE AND l.pass_hash <> '!' AND (l.phone_verified_at IS NOT NULL OR l.invite IS NULL) "
-    + 'AND NOT EXISTS (SELECT 1 FROM ws_access a WHERE LOWER(a.email) = l.email) '
-    + 'AND NOT EXISTS (SELECT 1 FROM ws_grade_access g WHERE LOWER(g.email) = l.email)) AS eligible, '
+    + 'AND NOT (' + bought('l.email') + ')) AS eligible, '
     + 't.started_at, t.trial_until, t.seconds, t.denied, (t.trial_until > NOW()) AS active, NOW() AS now '
     + 'FROM ws_login l LEFT JOIN ws_trials t ON t.email = l.email WHERE l.email = $1',
-  /* Эрх АВСАН (ws_access / ws_grade_access мөртэй) өөр данс энэ утсыг (батлагдсан, эсвэл урилгын бус —
-     PHONE_TOO_MANY-тэй ижил дүрэм) эсвэл энэ cm_device-ийг ($3, ws_devices) эзэмшдэг эсэх. $2/$3 NULL бол тухайн шалгалт false. */
+  /* Эрх АВСАН (bought) өөр данс энэ утсыг (батлагдсан, эсвэл урилгын бус — PHONE_TOO_MANY-тэй ижил дүрэм) эсвэл
+     энэ cm_device-ийг ($3, ws_devices) эзэмшдэг эсэх. $2/$3 NULL бол тухайн шалгалт false. */
   PRIOR: 'SELECT EXISTS (SELECT 1 FROM ws_login o WHERE o.phone = $2 AND o.email <> $1 AND o.verified = TRUE '
     + 'AND (o.phone_verified_at IS NOT NULL OR o.invite IS NULL) '
-    + 'AND (EXISTS (SELECT 1 FROM ws_access a WHERE LOWER(a.email) = o.email) '
-    + 'OR EXISTS (SELECT 1 FROM ws_grade_access g WHERE LOWER(g.email) = o.email))) AS phone, '
+    + 'AND (' + bought('o.email') + ')) AS phone, '
     + 'EXISTS (SELECT 1 FROM ws_devices d WHERE d.device_id = $3 AND d.email <> $1 '
-    + 'AND (EXISTS (SELECT 1 FROM ws_access a WHERE LOWER(a.email) = d.email) '
-    + 'OR EXISTS (SELECT 1 FROM ws_grade_access g WHERE LOWER(g.email) = d.email))) AS dev',
+    + 'AND (' + bought('d.email') + ')) AS dev',
   CFG_INS: "INSERT INTO ws_trial_cfg (k, at) VALUES ('from', NOW()) ON CONFLICT (k) DO NOTHING",
   CFG_GET: "SELECT at FROM ws_trial_cfg WHERE k = 'from'",
   MARK_OWNERS: 'SELECT mark, email FROM ws_trial_marks WHERE mark = ANY($1::text[])',
@@ -142,6 +154,35 @@ async function ensure() {
       k TEXT PRIMARY KEY,
       at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`);
+    /* bought()-ын хүснэгтүүд — api/qpay.js ensureWsExtra / ensureAdminGrants-тай ЯГ ИЖИЛ бүтэц (тэд CREATE IF NOT EXISTS +
+       ADD COLUMN IF NOT EXISTS тул аль нь түрүүлж үүсгэсэн ч ижил). Худалдан авалт / админы олголт хэзээ ч болоогүй DB-д
+       хүснэгт байхгүйгээс ELIG/PRIOR унаж туршилт бүхэлдээ унтрахаас сэргийлнэ. Өгөгдөл БИЧИХГҮЙ. */
+    await pool.query(`CREATE TABLE IF NOT EXISTS ws_purchases (
+      id BIGSERIAL PRIMARY KEY,
+      email TEXT NOT NULL,
+      amount INT NOT NULL,
+      promo TEXT,
+      invoice_id TEXT UNIQUE,
+      months INT,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      grade TEXT
+    )`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS ws_admin_grants (
+      id BIGSERIAL PRIMARY KEY,
+      email TEXT NOT NULL,
+      grade TEXT,
+      months INT NOT NULL DEFAULT 1,
+      amount INT NOT NULL DEFAULT 0,
+      source TEXT NOT NULL DEFAULT 'admin',
+      note TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      game_key TEXT,
+      realm TEXT,
+      days INT
+    )`);
+    // Тоглоомын олголтоос өмнөх хүснэгтэд game_key байхгүй байж болно. Багана байвал ALTER (ACCESS EXCLUSIVE түгжээ) хийхгүй.
+    const gk = await pool.query("SELECT column_name FROM information_schema.columns WHERE table_name = 'ws_admin_grants' AND column_name = 'game_key'");
+    if (!gk.rows.length) await pool.query('ALTER TABLE ws_admin_grants ADD COLUMN IF NOT EXISTS game_key TEXT');
     ready = true;
   } catch (e) { console.error('[wstrial ddl]', e.message); }
 }
@@ -190,13 +231,14 @@ async function start(email, req) {
   await ensure();
   if (!(await fromIso())) return null;                       // деплойн мөч тодорхойгүй (preview/локал) — туршилтгүй
   const row = (await pool.query(SQL.ELIG, [email])).rows[0];
-  return begin(email, req, row, secs);
+  return begin(email, req, row, secs, null);
 }
-async function begin(email, req, row, secs) {
+// tokDev — wsstatus-ийн токены dev (status-оос). Толгой (x-device-id) давамгайлна (толгой≠токен бол qpay аль хэдийн хаасан).
+async function begin(email, req, row, secs, tokDev) {
   if (!row) return null;
   if (row.trial_until != null) return view(row);            // аль хэдийн эхэлсэн (эсвэл дууссан) — СУНГАХГҮЙ
   if (!row.eligible) return null;                            // эрх авсан / баталгаажаагүй / бэлтгэсэн / урилгын данс — юу ч бичихгүй
-  const dev = WDEV.deviceIdFrom(req), ph = phoneLocal(row.phone);
+  const dev = WDEV.deviceIdFrom(req) || WDEV.clean(tokDev), ph = phoneLocal(row.phone);
   let denied = null;
   // Эрх авсан өөр данс (төлсөн хэрэглэгч шинэ имэйлээр) — тэд тэмдэг бичээгүй тул утас/төхөөрөмжийг шууд шалгана
   if (ph || dev) {
@@ -219,7 +261,7 @@ async function begin(email, req, row, secs) {
   return r ? view(r) : null;
 }
 
-async function status(email, req) {
+async function status(email, req, o) {
   const secs = seconds();
   if (!secs) return null;
   email = lc(email);
@@ -230,7 +272,7 @@ async function status(email, req) {
   if (!row) return null;
   /* Нөөц зам: токентой (дахин нэвтрэхгүй) хуучин хэрэглэгч, эсвэл нэвтрэх үеийн start DB алдаагаар унасан данс —
      эрх шалгах (хуудас нээх) үед эхлүүлнэ (нэг л удаа). */
-  if (row.trial_until == null) return row.eligible ? begin(email, req, row, secs) : null;
+  if (row.trial_until == null) return row.eligible ? begin(email, req, row, secs, (o && o.dev) || null) : null;
   return view(row);
 }
 

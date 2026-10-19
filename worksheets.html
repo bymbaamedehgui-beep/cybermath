@@ -1458,12 +1458,43 @@ function renderAcct(){
 }
 function toggleAcctMenu(e){ if(e){e.stopPropagation();} var m=document.getElementById('acctMenu'); if(!m)return; var open=m.style.display!=='none'; m.style.display=open?'none':'block'; if(!open){ setTimeout(function(){ document.addEventListener('click',closeAcctMenu); },0); } }
 function closeAcctMenu(){ var m=document.getElementById('acctMenu'); if(m)m.style.display='none'; document.removeEventListener('click',closeAcctMenu); }
+/* wsstatus-ийн толгой: энэ хөтчийн cm_device (x-device-id) + хурууны хээ (x-device-fp) — ws-store.js wsHdr, games-host.js
+   headers()-тэй ИЖИЛ ('cm_device', ижил алгоритм). Сервер токены dev-тэй тулгаж, үнэгүй туршилтын «нэг төхөөрөмж = нэг
+   туршилт» тэмдгийг үүгээр тавина (api/_wstrial.js). openLogin-ийн wsDev/wsFp (window.cmWsDevice) нэвтрэх цонх нээгдсэний
+   дараа л тодорхойлогддог, games-host.js энэ скриптийн ДАРАА ачаалагддаг тул хуудас ачаалахад (verifyUser) энд уншина/үүсгэнэ. */
+function cmDevId(){
+  try{
+    var v=localStorage.getItem('cm_device');
+    if(!v||v.length<8){
+      v='';var a=new Uint8Array(16);
+      if(window.crypto&&window.crypto.getRandomValues)window.crypto.getRandomValues(a);
+      else for(var j=0;j<16;j++)a[j]=Math.floor(Math.random()*256);
+      for(var i=0;i<a.length;i++)v+=('0'+a[i].toString(16)).slice(-2);
+      localStorage.setItem('cm_device',v);
+    }
+    return v;
+  }catch(e){return '';}
+}
+function cmDevFp(){
+  try{
+    var nv=navigator||{}, sc=screen||{}, ua=String(nv.userAgent||"");
+    var tz=""; try{tz=Intl.DateTimeFormat().resolvedOptions().timeZone||"";}catch(e){}
+    var os=/Windows/.test(ua)?"win":/Android/.test(ua)?"and":/iPhone|iPad|iPod/.test(ua)?"ios":/Mac/.test(ua)?"mac":/Linux/.test(ua)?"lin":"oth";
+    var br=/Edg\//.test(ua)?"edge":/OPR\//.test(ua)?"opera":/Firefox\//.test(ua)?"ff":/Chrome\//.test(ua)?"chr":/Safari\//.test(ua)?"saf":"oth";
+    var raw=[os,br,(sc.width||0)+"x"+(sc.height||0),sc.colorDepth||0,tz,
+             String(nv.language||""),nv.hardwareConcurrency||0].join("|");
+    var h=2166136261;
+    for(var i=0;i<raw.length;i++){h^=raw.charCodeAt(i);h=(h*16777619)>>>0;}
+    return ("0000000"+h.toString(16)).slice(-8);
+  }catch(e){return "";}
+}
+function wsStatusHdr(){ var h={'Content-Type':'application/json'}; var d=cmDevId(); if(d)h['x-device-id']=d; var f=cmDevFp(); if(f)h['x-device-fp']=f; return h; }
 var PAYWALL_OFF=false, WS_NEED_LOGIN=false;
 function verifyUser(cb){
   var tok=lsGet('cm_ws_token'),email=lsGet('cm_last_user');
   if(!tok&&!email){CM_USER=null;WS_ACCT=null;wsTrialStop();renderAcct();if(cb)cb();return;}
   var t0=Date.now(),p0=wsTrialPerf();   // үнэгүй туршилтын тоолуур: серверийн цагийн зөрүү + RTT
-  fetch('/api/qpay?action=wsstatus',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({wstoken:tok,email:email})})
+  fetch('/api/qpay?action=wsstatus',{method:'POST',headers:wsStatusHdr(),body:JSON.stringify({wstoken:tok,email:email})})
     .then(function(r){return r.json();}).then(function(d){
       WS_NEED_LOGIN=!!(d&&d.needLogin);   // токен байхгүй/хүчингүй — нууц үгээр нэвтрэх шаардлагатай
       // Энэ хуудсан дээр туршилт аль хэдийн 0:00 болсон — хожуу ирсэн «trial» хариуг эрх гэж үзэхгүй
@@ -1594,10 +1625,8 @@ function wsTrialApply(d,t0,p0){
 // Нэвтэрсний / бүртгүүлсний дараа (done()) — зөвхөн туршилтын UI (CM_USER-т хүрэхгүй)
 function wsTrialSync(fresh){
   var tok=lsGet('cm_ws_token'); if(!tok)return;
-  var h={'Content-Type':'application/json'};
-  try{var dv=window.cmWsDevice?window.cmWsDevice():'';if(dv)h['x-device-id']=dv;var fv=window.cmWsFp?window.cmWsFp():'';if(fv)h['x-device-fp']=fv;}catch(e){}
   var t0=Date.now(),p0=wsTrialPerf();
-  fetch('/api/qpay?action=wsstatus',{method:'POST',headers:h,body:JSON.stringify({wstoken:tok})})
+  fetch('/api/qpay?action=wsstatus',{method:'POST',headers:wsStatusHdr(),body:JSON.stringify({wstoken:tok})})
     .then(function(r){return r.json();}).then(function(d){
       if(!d)return;
       wsTrialApply(d,t0,p0);
