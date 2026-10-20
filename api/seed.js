@@ -1640,6 +1640,78 @@ module.exports = async (req, res) => {
         }
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_g12c2_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
+      // ── 12-р анги: III БҮЛЭГ. ФУНКЦ БА ГРАФИК (сурах бичгийн 43–94 х.) ──
+      const cf_g12c3 = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_g12c3_v1'`);
+      if (!cf_g12c3.rows.length) {
+        let par_g12c3 = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='12-р анги' AND name LIKE 'III БҮЛЭГ%' AND parent_id IS NULL ORDER BY id LIMIT 1`);
+        let pid_g12c3;
+        if (par_g12c3.rows.length) { pid_g12c3 = Number(par_g12c3.rows[0].id); }
+        else {
+          const mxP13 = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='12-р анги'`);
+          const insP13 = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('12-р анги',$2,$1,NULL) RETURNING id`, [mxP13.rows[0].p, "III БҮЛЭГ. ФУНКЦ БА ГРАФИК"]);
+          pid_g12c3 = Number(insP13.rows[0].id);
+        }
+        const subs_g12c3 = [
+          { name: "3.1 Тооны логарифм", slugs: ["too-logarifm-1-12.html", "too-logarifm-2-12.html", "too-logarifm-3-12.html", "too-logarifm-4-12.html", "too-logarifm-5-12.html"] },
+          { name: "3.2 Логарифмын чанар", slugs: ["logarifm-chanar-1-12.html", "logarifm-chanar-2-12.html", "logarifm-chanar-3-12.html", "logarifm-chanar-4-12.html", "logarifm-chanar-5-12.html", "logarifm-chanar-6-12.html"] },
+          { name: "3.3 Хялбар илтгэгч тэгшитгэл, тэнцэтгэл биш", slugs: ["iltgegch-tegshitgel-1-12.html", "iltgegch-tegshitgel-2-12.html", "iltgegch-tegshitgel-3-12.html", "iltgegch-tegshitgel-4-12.html", "iltgegch-tegshitgel-5-12.html", "iltgegch-tegshitgel-6-12.html"] },
+          { name: "3.4 Логарифм функц", slugs: ["logarifm-funkts-1-12.html", "logarifm-funkts-2-12.html", "logarifm-funkts-3-12.html", "logarifm-funkts-4-12.html", "logarifm-funkts-5-12.html", "logarifm-funkts-6-12.html", "logarifm-funkts-7-12.html"] },
+          { name: "3.5 y = eˣ ба y = ln x функц", slugs: ["ex-lnx-funkts-1-12.html", "ex-lnx-funkts-2-12.html", "ex-lnx-funkts-3-12.html", "ex-lnx-funkts-4-12.html", "ex-lnx-funkts-5-12.html"] },
+          { name: "3.6 Рационал функц", slugs: ["ratsional-funkts-1-12.html", "ratsional-funkts-2-12.html", "ratsional-funkts-3-12.html", "ratsional-funkts-4-12.html", "ratsional-funkts-5-12.html", "ratsional-funkts-6-12.html"] },
+          { name: "3.7 Тоон аргументтай тригонометр функц", slugs: ["toon-trig-funkts-1-12.html", "toon-trig-funkts-2-12.html", "toon-trig-funkts-3-12.html", "toon-trig-funkts-4-12.html", "toon-trig-funkts-5-12.html", "toon-trig-funkts-6-12.html"] },
+          { name: "3.8 III бүлгийн нэмэлт даалгавар", slugs: ["funkts-grafik-nemelt-1-12.html", "funkts-grafik-nemelt-2-12.html", "funkts-grafik-nemelt-3-12.html"] },
+        ];
+        for (const sub of subs_g12c3) {
+          let sgr = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='12-р анги' AND name=$1`, [sub.name]);
+          let sid;
+          if (sgr.rows.length) { sid = Number(sgr.rows[0].id); }
+          else {
+            const mx = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='12-р анги'`);
+            const ins = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('12-р анги',$1,$2,$3) RETURNING id`, [sub.name, mx.rows[0].p, pid_g12c3]);
+            sid = Number(ins.rows[0].id);
+          }
+          for (const slug of sub.slugs) {
+            await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + sid, slug]);
+          }
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_g12c3_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
+      // ── 12-р анги: IV БҮЛЭГ. ФУНКЦИЙН УЛАМЖЛАЛ (сурах бичгийн 95–124 х.) ──
+      const cf_g12c4 = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_g12c4_v1'`);
+      if (!cf_g12c4.rows.length) {
+        let par_g12c4 = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='12-р анги' AND name LIKE 'IV БҮЛЭГ%' AND parent_id IS NULL ORDER BY id LIMIT 1`);
+        let pid_g12c4;
+        if (par_g12c4.rows.length) { pid_g12c4 = Number(par_g12c4.rows[0].id); }
+        else {
+          const mxP14 = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='12-р анги'`);
+          const insP14 = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('12-р анги',$2,$1,NULL) RETURNING id`, [mxP14.rows[0].p, "IV БҮЛЭГ. ФУНКЦИЙН УЛАМЖЛАЛ"]);
+          pid_g12c4 = Number(insP14.rows[0].id);
+        }
+        const subs_g12c4 = [
+          { name: "4.1 y = eˣ функцийн уламжлал", slugs: ["ex-ulamjlal-1-12.html", "ex-ulamjlal-2-12.html", "ex-ulamjlal-3-12.html", "ex-ulamjlal-4-12.html", "ex-ulamjlal-5-12.html"] },
+          { name: "4.2 y = ln x функцийн уламжлал", slugs: ["lnx-ulamjlal-1-12.html", "lnx-ulamjlal-2-12.html", "lnx-ulamjlal-3-12.html", "lnx-ulamjlal-4-12.html", "lnx-ulamjlal-5-12.html", "lnx-ulamjlal-6-12.html"] },
+          { name: "4.3 y = sin x ба y = cos x функцийн уламжлал", slugs: ["sin-cos-ulamjlal-1-12.html", "sin-cos-ulamjlal-2-12.html", "sin-cos-ulamjlal-3-12.html", "sin-cos-ulamjlal-4-12.html", "sin-cos-ulamjlal-5-12.html"] },
+          { name: "4.4 Үржвэр функцийн уламжлал", slugs: ["urjver-ulamjlal-1-12.html", "urjver-ulamjlal-2-12.html", "urjver-ulamjlal-3-12.html", "urjver-ulamjlal-4-12.html", "urjver-ulamjlal-5-12.html", "urjver-ulamjlal-6-12.html"] },
+          { name: "4.5 Ногдвор функцийн уламжлал", slugs: ["nogdvor-ulamjlal-1-12.html", "nogdvor-ulamjlal-2-12.html", "nogdvor-ulamjlal-3-12.html", "nogdvor-ulamjlal-4-12.html", "nogdvor-ulamjlal-5-12.html", "nogdvor-ulamjlal-6-12.html"] },
+          { name: "4.6 y = tg x функцийн уламжлал", slugs: ["tg-ulamjlal-1-12.html", "tg-ulamjlal-2-12.html", "tg-ulamjlal-3-12.html", "tg-ulamjlal-4-12.html", "tg-ulamjlal-5-12.html", "tg-ulamjlal-6-12.html"] },
+          { name: "4.7 Давхар функцийн уламжлал", slugs: ["davhar-funkts-ulamjlal-1-12.html", "davhar-funkts-ulamjlal-2-12.html", "davhar-funkts-ulamjlal-3-12.html", "davhar-funkts-ulamjlal-4-12.html", "davhar-funkts-ulamjlal-5-12.html", "davhar-funkts-ulamjlal-6-12.html", "davhar-funkts-ulamjlal-7-12.html"] },
+          { name: "4.8 IV бүлгийн нэмэлт даалгавар", slugs: ["ulamjlal-nemelt-1-12.html", "ulamjlal-nemelt-2-12.html", "ulamjlal-nemelt-3-12.html"] },
+        ];
+        for (const sub of subs_g12c4) {
+          let sgr = await pool.query(`SELECT id FROM ws_subgroups WHERE grade='12-р анги' AND name=$1`, [sub.name]);
+          let sid;
+          if (sgr.rows.length) { sid = Number(sgr.rows[0].id); }
+          else {
+            const mx = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade='12-р анги'`);
+            const ins = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ('12-р анги',$1,$2,$3) RETURNING id`, [sub.name, mx.rows[0].p, pid_g12c4]);
+            sid = Number(ins.rows[0].id);
+          }
+          for (const slug of sub.slugs) {
+            await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + sid, slug]);
+          }
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_g12c4_v1','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
+      }
       // ── Нэг удаагийн: 4-р анги I БҮЛЭГ ──
       const cf_g3c1 = await pool.query(`SELECT sval FROM ws_settings WHERE skey='place_g3c1_v1'`);
       if (!cf_g3c1.rows.length) {
