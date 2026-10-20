@@ -1081,6 +1081,12 @@ function g_42_stat() {
 // Дасгал 21, 27, 28, 29; Жишээ 3: монотон завсар, шинжилгээ, хамгийн бага утга
 // ════════════════════════════════════════════════════════════
 function h42_iv(x0, right, dec) { return right ? '\\left]' + h42_num(x0, dec) + ';\\ +\\infty\\right[' : '\\left]0;\\ ' + h42_num(x0, dec) + '\\right['; }
+// Нэг хуудсанд нэг функц нэг л удаа (decr, decrQ, slopeMin, analyze нийтлэг key):
+// f = A·x² + B·x + C·ln x + K-ийн ТООН утгаар — бичлэгээс үл хамаарна
+// (гишүүдийн дараалал, \ln x^{n} = n\ln x, \ln 4 = 2\ln 2, сул гишүүн ln-тэй эсэх).
+function h42_fk(A, B, C, K) {
+  return 'g42f:' + [A, B, C, K].map(function (v) { var x = typeof v === 'number' ? v : v.n / v.d; return (Math.abs(x) < 1e-9 ? 0 : x).toFixed(9); }).join(':');
+}
 // Дасгал 27 (шугаман): y = px - q ln x, y = q ln x - px
 function g_42_decr() {
   var p = rnd(1, 6), q = rnd(1, 9), x0 = h42_F(q, p), c = rnd(0, 1) ? 0 : nz(-9, 9), right = rnd(0, 1) === 1, Q, D;
@@ -1090,17 +1096,17 @@ function g_42_decr() {
   return {
     q: '$y=' + body + '$',
     a: "$y'=" + h42_sum(D) + "\\lt 0$ байх завсар: $" + h42_iv(x0, right) + '$',
-    key: 'g42d:' + h42_sum(D)
+    key: right ? h42_fk(0, -p, q, c) : h42_fk(0, p, -q, c)
   };
 }
 // Дасгал 27 (квадрат, ln x^n, буурах завсаргүй)
 function g_42_decrQ() {
-  var ty = pick([3, 3, 3, 4, 4, 4, 5]), c = rnd(0, 1) ? 0 : nz(-9, 9), Q, D, body;
+  var ty = pick([3, 3, 3, 4, 4, 4, 5]), c = rnd(0, 1) ? 0 : nz(-9, 9), Q, D, body, K;
   if (ty === 5) {                                   // буурах завсаргүй
-    if (rnd(0, 1)) { var p = rnd(1, 6), q = rnd(1, 9); Q = [{ c: p, t: 'x' }, { c: q, t: '\\ln x' }, { c: c, t: '' }]; D = [{ c: p, t: '' }, { c: q, den: 'x' }]; }
-    else { var a2 = rnd(1, 6), b = rnd(1, 9) * rnd(1, 5); Q = [{ c: h42_F(a2, 2), t: 'x^{2}' }, { c: b, t: '\\ln x' }, { c: c, t: '' }]; D = [{ c: a2, t: 'x' }, { c: b, den: 'x' }]; }
+    if (rnd(0, 1)) { var p = rnd(1, 6), q = rnd(1, 9); Q = [{ c: p, t: 'x' }, { c: q, t: '\\ln x' }, { c: c, t: '' }]; D = [{ c: p, t: '' }, { c: q, den: 'x' }]; K = h42_fk(0, p, q, c); }
+    else { var a2 = rnd(1, 6), b = rnd(1, 9) * rnd(1, 5); Q = [{ c: h42_F(a2, 2), t: 'x^{2}' }, { c: b, t: '\\ln x' }, { c: c, t: '' }]; D = [{ c: a2, t: 'x' }, { c: b, den: 'x' }]; K = h42_fk(h42_F(a2, 2), 0, b, c); }
     body = h42_sum(Q, true);
-    return { q: '$y=' + body + '$', a: "$y'=" + h42_sum(D) + "\\gt 0$ ($x\\gt 0$) тул буурах завсаргүй", key: 'g42d:' + h42_sum(D) };
+    return { q: '$y=' + body + '$', a: "$y'=" + h42_sum(D) + "\\gt 0$ ($x\\gt 0$) тул буурах завсаргүй", key: K };
   }
   var A2 = rnd(1, 6), x0 = rnd(1, 4), B = A2 * x0 * x0, right = ty === 4, sg = right ? -1 : 1;
   if (B > 100) return null;
@@ -1111,7 +1117,7 @@ function g_42_decrQ() {
   return {
     q: '$y=' + body + '$',
     a: "$y'=" + h42_sum(D) + "\\lt 0$ байх завсар: $" + h42_iv(x0, right) + '$',
-    key: 'g42d:' + h42_sum(D)
+    key: h42_fk(h42_F(sg * A2, 2), 0, -sg * B, c)
   };
 }
 // Дасгал 21: шүргэгчийн налалт ба минимум цэгийн абсцисс
@@ -1124,17 +1130,18 @@ function g_42_slopeMin() {
   return {
     q: '$y=' + body + ',\\ x_0=' + x0 + '$',
     a: "$y'=" + h42_sum([{ c: p, t: '' }, { c: -q, den: 'x' }]) + "$, $k=y'(" + x0 + ')=' + fTex(k) + "$<br>$y'=0\\Rightarrow x=" + fTex(xm) + '$ (минимум)',
-    key: 'g42sm:' + body + '@' + x0
+    key: h42_fk(0, p, -q, c)
   };
 }
 // Жишээ 3, Дасгал 28: өсөх/буурах завсар, экстремумын цэг
 function g_42_analyze() {
-  var T, D, x0, y0, isMax;
+  var T, D, x0, y0, isMax, K;
   if (rnd(0, 1)) {                                  // y = ax^2 + B ln x - B ln x0 + d
     var a2 = pick([-4, -3, -2, -1, 1, 2, 3, 4]); x0 = rnd(1, 4); y0 = nz(-6, 6);
-    var B = -a2 * x0 * x0;
-    T = [{ c: h42_F(a2, 2), t: 'x^{2}' }, { c: B, t: '\\ln x' }, h42_lnc(-B, x0), { c: fSub(h42_F(y0), h42_F(a2 * x0 * x0, 2)), t: '' }];
+    var B = -a2 * x0 * x0, d1 = fSub(h42_F(y0), h42_F(a2 * x0 * x0, 2));
+    T = [{ c: h42_F(a2, 2), t: 'x^{2}' }, { c: B, t: '\\ln x' }, h42_lnc(-B, x0), { c: d1, t: '' }];
     D = [{ c: a2, t: 'x' }, { c: B, den: 'x' }];
+    K = h42_fk(h42_F(a2, 2), 0, B, -B * Math.log(x0) + d1.n / d1.d);
     isMax = a2 < 0;
   } else {                                          // y = px + q ln x - q ln x0 + d,  q = -p·x0
     var p = nz(-5, 5); x0 = rnd(1, 3); y0 = nz(-5, 5);
@@ -1142,6 +1149,7 @@ function g_42_analyze() {
     var P1 = { c: p, t: 'x' }, P2 = { c: q, t: '\\ln x' };
     T = (rnd(0, 1) ? [P1, P2] : [P2, P1]).concat([h42_lnc(-q, x0), { c: y0 - p * x0, t: '' }]);
     D = T[0] === P1 ? [{ c: p, t: '' }, { c: q, den: 'x' }] : [{ c: q, den: 'x' }, { c: p, t: '' }];
+    K = h42_fk(0, p, q, -q * Math.log(x0) + y0 - p * x0);
     isMax = p < 0;
   }
   var body = h42_sum(T, true);
@@ -1149,7 +1157,7 @@ function g_42_analyze() {
     q: '$y=' + body + '$',
     a: "$x\\gt 0$, $y'=" + h42_sum(D) + '=0\\Rightarrow x=' + x0 + '$<br>$' + h42_iv(x0, false) + '$-д ' + (isMax ? 'өснө' : 'буурна') + ', $' + h42_iv(x0, true) + '$-д ' + (isMax ? 'буурна' : 'өснө')
        + '<br>' + (isMax ? 'Максимум' : 'Минимум') + ' $' + h42_pt(x0, y0) + '$',
-    key: 'g42an:' + body
+    key: K
   };
 }
 // Дасгал 29: BC хэрчмийн хамгийн бага урт (зурагтай)
