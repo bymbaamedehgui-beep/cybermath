@@ -1,8 +1,9 @@
 // 5 минутын үнэгүй туршилт — сервер (api/_wstrial.js + api/qpay.js wsstatus), серверийн (DB) цагаар.
 //  • эрх ХЭЗЭЭ Ч аваагүй бүртгэлтэй данс (шинэ ч, деплойгоос өмнөх хуучин ч) → 300 сек; 299 сек дээр нээлттэй, 300 сек
 //    дээр хаалттай (DB NOW()-ийг fake clock-оор шилжүүлнэ)
-//  • ws_access / ws_grade_access мөртэй (дууссан ч, админы олголт ч), баталгаажаагүй, бэлтгэсэн, урилгын SMS-гүй данс →
-//    туршилтгүй; эрх авсан өөр данстай ижил утас/төхөөрөмж → denied; хоёр дахь эхлэл/нэвтрэлт СУНГАХГҮЙ
+//  • ws_access / ws_grade_access / ws_purchases / ws_admin_grants (game_key NULL) мөртэй (дууссан ч, админы олголт ч,
+//    цуцлагдсан ч), баталгаажаагүй, бэлтгэсэн, урилгын SMS-гүй данс → туршилтгүй; эрх авсан өөр данстай ижил
+//    утас/төхөөрөмж → denied; хоёр дахь эхлэл/нэвтрэлт СУНГАХГҮЙ; толгойгүй wsstatus → токены dev = төхөөрөмж
 //  • клиентийн цаг/параметрээр сунгах боломжгүй; төлсөн эрхтэй хэрэглэгчид нөлөөгүй; WS_TRIAL_SECONDS env
 // Ажиллуулах: node --test tests/ws-trial.test.js   (бодит DB/QPay 0 — tests/_gamefake.js)
 'use strict';
@@ -63,8 +64,31 @@ test('SQL: fake-ууд api/_wstrial.js-ийн ЯГ мөрүүдийг таньд
   // эсэх (expires_at-аар шүүхгүй — дууссан эрх ч тооцно)
   assert.doesNotMatch(WT.SQL.ELIG + WT.SQL.PRIOR, /created_at|timestamptz|expires_at/);
   assert.match(WT.SQL.ELIG, /\(l\.phone_verified_at IS NOT NULL OR l\.invite IS NULL\)/);
-  assert.match(WT.SQL.ELIG, /NOT EXISTS \(SELECT 1 FROM ws_access a WHERE LOWER\(a\.email\) = l\.email\)/);
-  assert.match(WT.SQL.ELIG, /NOT EXISTS \(SELECT 1 FROM ws_grade_access g WHERE LOWER\(g\.email\) = l\.email\)/);
+  /* «Эрх авсан» (bought) — ELIG (NOT …), PRIOR утас (o.email), PRIOR төхөөрөмж (d.email): 4 хүснэгт БҮГД. ws_purchases /
+     ws_admin_grants — админ цуцалж ws_access мөр устсан ч бүртгэл үлддэг; ws_admin_grants-ийн тоглоомын мөр (game_key) тооцохгүй */
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const own = (c) => [
+    'EXISTS (SELECT 1 FROM ws_access a WHERE LOWER(a.email) = ' + c + ')',
+    'EXISTS (SELECT 1 FROM ws_grade_access g WHERE LOWER(g.email) = ' + c + ')',
+    'EXISTS (SELECT 1 FROM ws_purchases p WHERE LOWER(p.email) = ' + c + ')',
+    'EXISTS (SELECT 1 FROM ws_admin_grants m WHERE LOWER(m.email) = ' + c + ' AND m.game_key IS NULL)',
+  ];
+  const ownRe = (c) => new RegExp('\\(' + own(c).map(esc).join(' OR ') + '\\)');
+  const ELIG = TF.norm(WT.SQL.ELIG), PRIOR = TF.norm(WT.SQL.PRIOR);
+  assert.match(ELIG, new RegExp(esc("(l.verified = TRUE AND l.pass_hash <> '!' AND (l.phone_verified_at IS NOT NULL OR l.invite IS NULL) AND NOT ")
+    + ownRe('l.email').source + '\\) AS eligible, '), 'ELIG: эрх авсан нэг ч мөргүй');
+  // PRIOR утас: ижил утастай, баталгаажсан, утас нь эзэмшигдсэн (SMS эсвэл урилгын бус), эрх АВСАН өөр данс
+  assert.match(PRIOR, /FROM ws_login o WHERE o\.phone = \$2 AND o\.email <> \$1 AND o\.verified = TRUE /);
+  assert.match(PRIOR, new RegExp(esc('o.verified = TRUE AND (o.phone_verified_at IS NOT NULL OR o.invite IS NULL) AND ')
+    + ownRe('o.email').source + '\\) AS phone, '), 'PRIOR утас: эрх авсан данс');
+  // PRIOR төхөөрөмж: энэ cm_device-ийг (ws_devices) ашигласан, эрх АВСАН өөр данс
+  assert.match(PRIOR, new RegExp(esc('FROM ws_devices d WHERE d.device_id = $3 AND d.email <> $1 AND ')
+    + ownRe('d.email').source + '\\) AS dev$'), 'PRIOR төхөөрөмж: эрх авсан данс');
+  for (const c of ['o.email', 'd.email']) own(c).forEach((x) => assert.ok(PRIOR.indexOf(x) >= 0, x));
+  own('l.email').forEach((x) => assert.ok(ELIG.indexOf(x) >= 0, x));
+  assert.strictEqual((ELIG.match(/EXISTS \(SELECT 1 FROM ws_/g) || []).length, 4);
+  assert.strictEqual((PRIOR.match(/EXISTS \(SELECT 1 FROM ws_(access|grade_access|purchases|admin_grants) /g) || []).length, 8);
+  assert.strictEqual((ELIG + PRIOR).match(/ws_admin_grants m WHERE LOWER\(m\.email\) = [ldo]\.email AND m\.game_key IS NULL\)/g).length, 3, 'тоглоомын олголт тооцохгүй');
   // параметрийн тоо (pg: илүү параметр → bind алдаа): ELIG $1, PRIOR $1..$3
   assert.deepStrictEqual(WT.SQL.ELIG.match(/\$\d/g).filter((v, i, a) => a.indexOf(v) === i), ['$1']);
   assert.deepStrictEqual(WT.SQL.PRIOR.match(/\$\d/g).filter((v, i, a) => a.indexOf(v) === i).sort(), ['$1', '$2', '$3']);
@@ -477,6 +501,130 @@ test('WS_TRIAL_IP_DAY (анхдагч унтраалттай): N>0 бол нэг
   assert.strictEqual((await WT.start('i1@x.mn', ipReq('devip0000000001'))).active, true);
   const b = await WT.start('i2@x.mn', ipReq('devip0000000002'));
   assert.deepStrictEqual([b.active, b.denied], [false, 'ip']);
+});
+
+test('админ цуцалсан худалдан авагч (ws_access мөр устсан — ws_purchases / ws_admin_grants бүртгэл үлдсэн) → туршилтгүй; тоглоомын олголт тооцохгүй', async () => {
+  const devOf = (e) => 'dev' + e.split('@')[0].replace(/[^a-z0-9]/g, '') + '00000000';
+  // QPay-ээр төлсөн, админ ws_revoke-оор ws_access-ийг устгасан (ws_purchases-д мөр үлдсэн); имэйл өөр томоор бичигдсэн ч
+  acct('rev@x.mn', { phone: '99170001' });
+  F.db.wsPurch.push({ email: 'Rev@X.mn' });
+  // админ гараар олгоод (ws_admin_grants, game_key NULL — бүх анги ч, анги ч) дараа нь цуцалсан
+  acct('admrev@x.mn', { phone: '99170002' });
+  F.db.admGrants.push({ email: 'admrev@x.mn', game_key: null });
+  acct('admgr@x.mn', { phone: '99170003' });
+  F.db.admGrants.push({ email: 'admgr@x.mn', game_key: null, grade: '9-р анги' });
+  for (const e of ['rev@x.mn', 'admrev@x.mn', 'admgr@x.mn']) {
+    for (const slug of [G6, EESH, '']) {
+      const d = await status(e, { dev: devOf(e), body: { slug: slug } });
+      assert.deepStrictEqual([d.active, d.scope, d.trial, d.ws_token, d.account], [false, null, undefined, null, e], e + ' ' + slug);
+    }
+    assert.strictEqual(await WT.start(e, req(devOf(e))), null, e);
+  }
+  assert.strictEqual(F.db.trial.trials.size, 0, 'ws_trials-д юу ч бичигдэхгүй');
+  assert.strictEqual(F.db.trial.marks.size, 0);
+  assert.deepStrictEqual(F.db.trial.queries.filter((v, i, a) => a.indexOf(v) === i), ['ELIG'], 'ELIG-ээс цааш явахгүй');
+  // Зөвхөн ТОГЛООМ олгосон (ws_admin_grants.game_key) данс — ажлын хуудас худалдаж аваагүй → туршилт авна
+  acct('gameonly@x.mn', { phone: '99170004' });
+  F.db.admGrants.push({ email: 'gameonly@x.mn', game_key: 'sudoku' });
+  const g = await status('gameonly@x.mn', { dev: devOf('gameonly@x.mn') });
+  assert.deepStrictEqual([g.active, g.scope, g.trial.denied], [true, 'trial', null]);
+
+  // PRIOR: цуцлагдсан худалдан авагчийн утас / төхөөрөмжөөр шинэ имэйл → denied
+  const devRow = (e, d) => F.db.devices.set(e + '|' + d, { email: e, device_id: d, label: 'PC', ua: '', ip: '10.0.0.1', fp: 'f', fp_changed_at: new Date(), first_seen: new Date(), last_seen: new Date() });
+  devRow('rev@x.mn', 'devrevbuyer00001');
+  devRow('admrev@x.mn', 'devadmrev000001');
+  acct('np1@x.mn', { phone: '99170001' });
+  assert.strictEqual((await status('np1@x.mn', { dev: 'devnp100000001' })).trial.denied, 'phone', 'ws_purchases-тэй дансны утас');
+  acct('np2@x.mn', { phone: '99170012' });
+  assert.strictEqual((await status('np2@x.mn', { dev: 'devrevbuyer00001' })).trial.denied, 'dev', 'ws_purchases-тэй дансны төхөөрөмж');
+  acct('np3@x.mn', { phone: '99170002' });
+  assert.strictEqual((await status('np3@x.mn', { dev: 'devnp300000001' })).trial.denied, 'phone', 'админы олголттой дансны утас');
+  acct('np4@x.mn', { phone: '99170014' });
+  assert.strictEqual((await status('np4@x.mn', { dev: 'devadmrev000001' })).trial.denied, 'dev', 'админы олголттой дансны төхөөрөмж');
+  // зөвхөн тоглоом олгосон (туршилтаа хараахан эхлүүлээгүй) дансны утас / төхөөрөмж — PRIOR хаахгүй
+  acct('gameonly2@x.mn', { phone: '99170005' });
+  F.db.admGrants.push({ email: 'gameonly2@x.mn', game_key: 'daam' });
+  devRow('gameonly2@x.mn', 'devgameonly0002');
+  acct('np5@x.mn', { phone: '99170005' });
+  const n5 = await status('np5@x.mn', { dev: 'devgameonly0002' });
+  assert.deepStrictEqual([n5.scope, n5.trial.denied], ['trial', null], 'тоглоомын олголт = ажлын хуудас худалдан авалт биш');
+});
+
+test('ensure: bought()-ын хүснэгтүүд (ws_purchases, ws_admin_grants) байхгүй DB-д үүснэ — api/qpay.js-ийн бүтэцтэй ИЖИЛ; game_key багана', async () => {
+  acct('dd@x.mn');
+  await status('dd@x.mn');
+  const ddl = F.db.ddl.join('\n');
+  assert.match(ddl, /CREATE TABLE IF NOT EXISTS ws_purchases \(/);
+  assert.match(ddl, /CREATE TABLE IF NOT EXISTS ws_admin_grants \(/);
+  // fake-ийн information_schema хоосон (багана алга) → ADD COLUMN IF NOT EXISTS
+  assert.match(ddl, /ALTER TABLE ws_admin_grants ADD COLUMN IF NOT EXISTS game_key TEXT/);
+  // Өгөгдөл бичихгүй
+  const src = fs.readFileSync(path.join(F.API, '_wstrial.js'), 'utf8');
+  assert.doesNotMatch(src, /INSERT INTO ws_(purchases|admin_grants)|UPDATE ws_(purchases|admin_grants)|DELETE FROM ws_(purchases|admin_grants)/);
+  // Баганын бүтэц api/qpay.js (CREATE + ADD COLUMN IF NOT EXISTS)-тэй ижил — аль нь түрүүлж үүсгэсэн ч ижил хүснэгт
+  const qsrc = fs.readFileSync(path.join(F.API, 'qpay.js'), 'utf8');
+  function cols(code, t) {
+    const out = {};
+    const m = new RegExp('CREATE TABLE IF NOT EXISTS ' + t + ' \\(([^`]*?)\\)`').exec(code);
+    assert.ok(m, t + ' CREATE');
+    m[1].split(/,\s*\r?\n/).map((s) => s.trim()).filter(Boolean).forEach((s) => { const p = s.split(/\s+/); out[p[0]] = p.slice(1).join(' '); });
+    const re = new RegExp('ALTER TABLE ' + t + ' ADD COLUMN IF NOT EXISTS (\\w+) ([A-Z]+)', 'g');
+    let a; while ((a = re.exec(code))) if (!out[a[1]]) out[a[1]] = a[2];
+    return out;
+  }
+  for (const t of ['ws_purchases', 'ws_admin_grants']) {
+    const mine = cols(src, t), theirs = cols(qsrc, t);
+    assert.deepStrictEqual(Object.keys(mine).sort(), Object.keys(theirs).sort(), t + ' баганууд');
+    Object.keys(theirs).forEach((c) => assert.strictEqual(mine[c], theirs[c], t + '.' + c));
+  }
+  // Багана аль хэдийн байвал ALTER (ACCESS EXCLUSIVE) хийхгүй
+  const SRC_GK = "SELECT column_name FROM information_schema.columns WHERE table_name = 'ws_admin_grants' AND column_name = 'game_key'";
+  assert.ok(src.indexOf(SRC_GK) >= 0);
+  assert.match(src, /if \(!gk\.rows\.length\) await pool\.query\('ALTER TABLE ws_admin_grants ADD COLUMN IF NOT EXISTS game_key TEXT'\)/);
+});
+
+test('толгойгүй wsstatus (хуучин кэштэй каталог) → токены dev = төхөөрөмж: dev тэмдэг бичигдэнэ, тэмдэг/PRIOR dev → denied', async () => {
+  // A: x-device-id толгойгүй, токенд dev (нэвтрэх үеийн cm_device) — туршилт эхэлж dev:<токены dev> тэмдэг эзэлнэ
+  acct('ta@x.mn', { phone: '99180001' });
+  const a = await status('ta@x.mn', { dev: null, token: tok('ta@x.mn', 'DevTokA00000001') });
+  assert.deepStrictEqual([a.active, a.scope, a.trial.denied], [true, 'trial', null]);
+  assert.strictEqual(F.db.trial.trials.get('ta@x.mn').device_id, 'devtoka00000001', 'токены dev (clean — жижиг үсэг)');
+  assert.strictEqual(F.db.trial.marks.get('dev:devtoka00000001').email, 'ta@x.mn');
+  // B: ижил төхөөрөмж (токены dev ижил), өөр утас, толгойгүй → тэмдгээр denied dev
+  acct('tb@x.mn', { phone: '99180002' });
+  const b = await status('tb@x.mn', { dev: null, token: tok('tb@x.mn', 'devtoka00000001') });
+  assert.deepStrictEqual([b.active, b.trial.denied, b.trial.seconds], [false, 'dev', 0]);
+  // …толгойтой (каталог шинэчлэгдсэн) ч ижил тэмдэг
+  acct('tb2@x.mn', { phone: '99180012' });
+  assert.strictEqual((await status('tb2@x.mn', { dev: 'devtoka00000001' })).trial.denied, 'dev');
+  // C: PRIOR dev — эрх авсан дансны төхөөрөмж, толгойгүй, токенд тэр dev
+  acct('paidc@x.mn', { phone: '99180003' });
+  F.db.wsAccess.set('paidc@x.mn', new Date(Date.now() - F.DAY));
+  F.db.devices.set('paidc@x.mn|devpaidc0000001', { email: 'paidc@x.mn', device_id: 'devpaidc0000001', label: 'PC', ua: '', ip: '10.0.0.1', fp: 'f', fp_changed_at: new Date(), first_seen: new Date(), last_seen: new Date() });
+  acct('tc@x.mn', { phone: '99180004' });
+  const c = await status('tc@x.mn', { dev: null, token: tok('tc@x.mn', 'devpaidc0000001') });
+  assert.deepStrictEqual([c.active, c.trial.denied, c.trial.seconds], [false, 'dev', 0]);
+  assert.strictEqual(F.db.trial.trials.get('tc@x.mn').device_id, 'devpaidc0000001');
+  // D: толгой ≠ токены dev → DEVICE_MISMATCH (туршилт хүртэл хүрэхгүй, юу ч бичихгүй)
+  acct('td@x.mn', { phone: '99180005' });
+  F.db.trial.queries.length = 0;
+  const d = await status('td@x.mn', { dev: 'devheader000001', token: tok('td@x.mn', 'devtokend000001') });
+  assert.deepStrictEqual([d.active, d.deviceBlocked, d.trial], [false, true, undefined]);
+  assert.strictEqual(F.db.trial.queries.length, 0);
+  assert.strictEqual(F.db.trial.trials.has('td@x.mn'), false);
+  // E: толгой ч, токены dev ч байхгүй (dev-гүй хуучин токен) — утасны тэмдгээр л; токены түлхүүр (tk…) тэмдэг болохгүй
+  acct('te@x.mn', { phone: '99180006' });
+  const e = await status('te@x.mn', { dev: null, token: tok('te@x.mn') });
+  assert.deepStrictEqual([e.active, e.scope], [true, 'trial']);
+  assert.strictEqual(F.db.trial.trials.get('te@x.mn').device_id, null);
+  assert.ok(Array.from(F.db.trial.marks.keys()).every((k) => !/^dev:tk/.test(k)), 'tk… түлхүүр тэмдэг болохгүй');
+  // F: WT.status-ийн o.dev — толгой давамгайлна; буруу (богино/тэмдэгт) dev хүлээн авахгүй
+  acct('tf@x.mn', { phone: '99180007' });
+  await WT.status('tf@x.mn', req('devheadf0000001'), { dev: 'devtokf00000001' });
+  assert.strictEqual(F.db.trial.trials.get('tf@x.mn').device_id, 'devheadf0000001');
+  acct('tg@x.mn', { phone: '99180008' });
+  await WT.status('tg@x.mn', req(null), { dev: 'x!' });
+  assert.strictEqual(F.db.trial.trials.get('tg@x.mn').device_id, null);
 });
 
 test('тодорхойгүй SQL алга', () => { assert.deepStrictEqual(F.db.unknown, []); });

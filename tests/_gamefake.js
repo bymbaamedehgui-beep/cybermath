@@ -56,14 +56,20 @@ const db = {
   nextId: 1,
   wsLogin: new Map(),   // ws_login email → {email, phone, verified, pass_hash, phone_verified_at, invite, created_at} — зөвхөн туршилтын ELIG/PRIOR уншина
   wsGrade: [],          // ws_grade_access [{email, grade, expires_at}] — api/_wsgrade.js activeGrades
+  wsPurch: [],          // ws_purchases [{email}] — зөвхөн туршилтын ELIG/PRIOR «эрх авсан» (bought) уншина
+  admGrants: [],        // ws_admin_grants [{email, game_key}] — мөн адил; game_key-тэй мөр (тоглоомын олголт) тооцохгүй
 };
 // ws_trials / ws_trial_marks / ws_trial_cfg (tests/_trialfake.js): db.trial.trials, db.trial.marks, db.trial.cfgFrom,
 // db.trial.shift (DB NOW шилжилт), db.trial.fail. PRIOR: db.wsLogin (ижил утас) + db.devices (ws_devices).
-// «Эрх авсан» (ELIG/PRIOR) = db.wsAccess эсвэл db.wsGrade-д мөртэй (хугацаа дууссан ч)
+// «Эрх авсан» (ELIG/PRIOR) = db.wsAccess, db.wsGrade, db.wsPurch эсвэл db.admGrants (game_key NULL)-д мөртэй (хугацаа дууссан ч)
 db.trial = require('./_trialfake').create(function (e) { return db.wsLogin.get(e); }, {
   logins: function () { return Array.from(db.wsLogin, function (kv) { return Object.assign({}, kv[1], { email: kv[0] }); }); },
   devices: function () { return Array.from(db.devices.values()); },
-  bought: function (e) { return db.wsAccess.has(e) || db.wsGrade.some(function (r) { return lc(r.email) === e; }); },
+  bought: function (e) {
+    return db.wsAccess.has(e) || db.wsGrade.some(function (r) { return lc(r.email) === e; })
+      || db.wsPurch.some(function (r) { return lc(r.email) === e; })
+      || db.admGrants.some(function (r) { return lc(r.email) === e && r.game_key == null; });
+  },
 });
 // hangOn-д таарсан асуултад хүрэхэд resolve болно (тест dropConnections()-ыг яг тэр мөчид дуудна)
 let hangHit = null;
@@ -538,7 +544,7 @@ function reset() {
   ['GAME_PRICE', 'GAME_PAYWALL', 'GAME_PAYWALL_REALMS', 'GAME_INVITE_USES', 'GAME_INVITE_DAILY', 'WS_TOKEN_IAT_MIN'].forEach(k => { delete process.env[k]; });
   process.env.GAME_PAYWALL = 'on';
   process.env.GAME_PAYWALL_REALMS = 'ws,cm';
-  db.wsLogin.clear(); db.wsGrade.length = 0; db.trial.reset();
+  db.wsLogin.clear(); db.wsGrade.length = 0; db.wsPurch.length = 0; db.admGrants.length = 0; db.trial.reset();
   process.env.WS_TRIAL_SECONDS = '0'; delete process.env.WS_TRIAL_FROM; delete process.env.WS_TRIAL_IP_DAY; delete process.env.VERCEL_ENV; delete process.env.AWS_LAMBDA_FUNCTION_NAME;
 }
 function addUser(email, o) {

@@ -8,17 +8,23 @@ function norm(s) { return String(s).replace(/\s+/g, ' ').trim(); }
 const DB_CLOCK = Date.now.bind(Date);
 const SQL = {
   ELIG: "SELECT l.phone, (l.verified = TRUE AND l.pass_hash <> '!' AND (l.phone_verified_at IS NOT NULL OR l.invite IS NULL) "
-    + 'AND NOT EXISTS (SELECT 1 FROM ws_access a WHERE LOWER(a.email) = l.email) '
-    + 'AND NOT EXISTS (SELECT 1 FROM ws_grade_access g WHERE LOWER(g.email) = l.email)) AS eligible, '
+    + 'AND NOT (EXISTS (SELECT 1 FROM ws_access a WHERE LOWER(a.email) = l.email) '
+    + 'OR EXISTS (SELECT 1 FROM ws_grade_access g WHERE LOWER(g.email) = l.email) '
+    + 'OR EXISTS (SELECT 1 FROM ws_purchases p WHERE LOWER(p.email) = l.email) '
+    + 'OR EXISTS (SELECT 1 FROM ws_admin_grants m WHERE LOWER(m.email) = l.email AND m.game_key IS NULL))) AS eligible, '
     + 't.started_at, t.trial_until, t.seconds, t.denied, (t.trial_until > NOW()) AS active, NOW() AS now '
     + 'FROM ws_login l LEFT JOIN ws_trials t ON t.email = l.email WHERE l.email = $1',
   PRIOR: 'SELECT EXISTS (SELECT 1 FROM ws_login o WHERE o.phone = $2 AND o.email <> $1 AND o.verified = TRUE '
     + 'AND (o.phone_verified_at IS NOT NULL OR o.invite IS NULL) '
     + 'AND (EXISTS (SELECT 1 FROM ws_access a WHERE LOWER(a.email) = o.email) '
-    + 'OR EXISTS (SELECT 1 FROM ws_grade_access g WHERE LOWER(g.email) = o.email))) AS phone, '
+    + 'OR EXISTS (SELECT 1 FROM ws_grade_access g WHERE LOWER(g.email) = o.email) '
+    + 'OR EXISTS (SELECT 1 FROM ws_purchases p WHERE LOWER(p.email) = o.email) '
+    + 'OR EXISTS (SELECT 1 FROM ws_admin_grants m WHERE LOWER(m.email) = o.email AND m.game_key IS NULL))) AS phone, '
     + 'EXISTS (SELECT 1 FROM ws_devices d WHERE d.device_id = $3 AND d.email <> $1 '
     + 'AND (EXISTS (SELECT 1 FROM ws_access a WHERE LOWER(a.email) = d.email) '
-    + 'OR EXISTS (SELECT 1 FROM ws_grade_access g WHERE LOWER(g.email) = d.email))) AS dev',
+    + 'OR EXISTS (SELECT 1 FROM ws_grade_access g WHERE LOWER(g.email) = d.email) '
+    + 'OR EXISTS (SELECT 1 FROM ws_purchases p WHERE LOWER(p.email) = d.email) '
+    + 'OR EXISTS (SELECT 1 FROM ws_admin_grants m WHERE LOWER(m.email) = d.email AND m.game_key IS NULL))) AS dev',
   CFG_INS: "INSERT INTO ws_trial_cfg (k, at) VALUES ('from', NOW()) ON CONFLICT (k) DO NOTHING",
   CFG_GET: "SELECT at FROM ws_trial_cfg WHERE k = 'from'",
   MARK_OWNERS: 'SELECT mark, email FROM ws_trial_marks WHERE mark = ANY($1::text[])',
@@ -33,7 +39,8 @@ Object.keys(SQL).forEach(function (k) { N[k] = norm(SQL[k]); });
 
 // login(email) → ws_login мөр {phone, verified, pass_hash, phone_verified_at, invite, created_at} | null/undefined
 // src.logins() → ws_login мөрүүд [{email, …}] (PRIOR: ижил утастай данс), src.devices() → ws_devices [{email, device_id}]
-// src.bought(email) → ws_access ЭСВЭЛ ws_grade_access-д (хугацаа дууссан ч) мөртэй эсэх (LOWER(email) харьцуулалт)
+// src.bought(email) → «эрх авсан» эсэх (api/_wstrial.js bought()): ws_access, ws_grade_access, ws_purchases эсвэл
+//   ws_admin_grants (game_key IS NULL)-д (хугацаа дууссан ч, цуцлагдсан ч) мөртэй (LOWER(email) харьцуулалт)
 function create(login, src) {
   src = src || {};
   const logins = src.logins || function () { return []; };

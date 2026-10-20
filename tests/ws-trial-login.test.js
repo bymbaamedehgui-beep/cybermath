@@ -82,12 +82,17 @@ test('хуучин (деплойгоос өмнөх) эрхгүй данс → �
   assert.deepStrictEqual([l.statusCode, l.body.trial.active, l.body.trial.denied], [200, true, null]);
 });
 
-test('эрх авсан данс (ws_access / ws_grade_access — хугацаа дууссан ч) → хариу урьдын адил (trial түлхүүргүй), юу ч бичихгүй', async () => {
+test('эрх авсан данс (ws_access / ws_grade_access / ws_purchases / ws_admin_grants — хугацаа дууссан, цуцлагдсан ч) → хариу урьдын адил (trial түлхүүргүй), юу ч бичихгүй', async () => {
   F.entitle('ws_access', 'acc@x.mn');            // мөр байгаа = авсан (хугацаа, олголтын төрөл хамаагүй)
   F.entitle('ws_grade_access', 'gr@x.mn');
+  // админ цуцалсан (ws_access мөр устсан): QPay төлбөрийн бүртгэл / админы (ажлын хуудасны) олголтын бүртгэл л үлдсэн
+  F.entitle('ws_purchases', 'pur@x.mn');
+  F.entitle('ws_admin_grants', 'adm@x.mn');
   acct('acc@x.mn', { phone: '99113311', created_at: new Date(Date.now() - 40 * 864e5) });
   acct('gr@x.mn', { phone: '99113312' });
-  for (const e of ['acc@x.mn', 'gr@x.mn']) {
+  acct('pur@x.mn', { phone: '99113313' });
+  acct('adm@x.mn', { phone: '99113314' });
+  for (const e of ['acc@x.mn', 'gr@x.mn', 'pur@x.mn', 'adm@x.mn']) {
     const r = await login(e, DEV);
     assert.strictEqual(r.statusCode, 200);
     assert.deepStrictEqual(Object.keys(r.body).sort(), ['email', 'ok', 'token'], e);
