@@ -22,4 +22,5 @@ exports.DDL = `CREATE TABLE IF NOT EXISTS ws_ppt (
   preview_slides INT NOT NULL DEFAULT 2,
   source TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-)`;
+);
+ALTER TABLE ws_ppt ADD COLUMN IF NOT EXISTS sg_id INT`;   // sg_id — Дасгалын төвийн дэд бүлэг (ws_subgroups.id): бүлгийн мөрөнд «Слайд» товч

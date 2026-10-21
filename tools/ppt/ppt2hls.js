@@ -2,7 +2,7 @@
 //
 //   node tools/ppt/ppt2hls.js <файл.pptx> --grade "9-р анги" [--title "..."] [--topic "..."] [--preview 2]
 //   node tools/ppt/ppt2hls.js --dir <export хавтас> ...      (export.ps1 аль хэдийн ажилласан бол)
-//   --dry : зөвхөн шинжилгээ + HLS (Blob/DB-д юу ч бичихгүй) · --analyze : зөвхөн зогсох цэг · --hidden : нуусан төлөвтэй оруулна
+//   --dry : зөвхөн шинжилгээ + HLS (Blob/DB-д юу ч бичихгүй) · --analyze : зөвхөн зогсох цэг · --hidden : нуусан төлөвтэй оруулна · --sg <ws_subgroups.id> : бүлгийн мөрөнд харуулна
 //
 // Алхам: export.ps1 (PowerPoint → MP4, товшилт бүрийн өмнө Gap сек, слайдын төгсгөлд EndHold сек хөдөлгөөнгүй)
 //   → freezedetect-ээр завсруудыг олж «зогсох цэг» (hold) болгоно (уртаар нь ангилж, слайдын товшилтын тоотой тулгана)
@@ -170,10 +170,10 @@ if (!process.env.DATABASE_URL) die('DATABASE_URL алга');
   await c.connect();
   await c.query(require(path.join(ROOT, 'api', '_wsppt_sql.js')).DDL);
   const r = await c.query(
-    `INSERT INTO ws_ppt (title, grade, topic, sort, slides, steps, duration, holds, starts, m3u8, key_hex, poster, blobs, preview_slides, source, hidden)
-     VALUES ($1,$2,$3,(SELECT COALESCE(MAX(sort),0)+1 FROM ws_ppt WHERE grade=$2),$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
+    `INSERT INTO ws_ppt (title, grade, topic, sort, slides, steps, duration, holds, starts, m3u8, key_hex, poster, blobs, preview_slides, source, hidden, sg_id)
+     VALUES ($1,$2,$3,(SELECT COALESCE(MAX(sort),0)+1 FROM ws_ppt WHERE grade=$2),$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
     [TITLE, GRADE, TOPIC, SLIDES.length, HOLDS.length, DUR, JSON.stringify(HOLDS), JSON.stringify(STARTS), m3u8,
-      KEY.toString('hex'), urls['poster.jpg'], JSON.stringify(blobs), PREVIEW, EXP.source || null, flag('hidden')]);
+      KEY.toString('hex'), urls['poster.jpg'], JSON.stringify(blobs), PREVIEW, EXP.source || null, flag('hidden'), parseInt(opt('sg', ''), 10) || null]);
   await c.end();
   log('OK — ws_ppt id=' + r.rows[0].id + '  «' + TITLE + '» (' + GRADE + ')  https://cyber-math.com/ppt.html?id=' + r.rows[0].id);
 })().catch(e => die(e.stack || e.message));

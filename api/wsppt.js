@@ -8,7 +8,7 @@
 //        src = /api/wsppt?action=m3u8&t=<10 мин JWT> (hls.js ба Safari-ийн native HLS хоёулаа URL-аар ачаална)
 //   GET  ?action=m3u8&t=<jwt>                        → плейлист (preview бол тасалсан); түлхүүрийн URI = ?action=key&k=<JWT>
 //   GET  ?action=key&k=<jwt>                         → 16 байт түлхүүр (no-store) — түлхүүр DB-д л хадгалагдана
-//   POST ?action=admin_update {id, title?, grade?, topic?, sort?, hidden?, preview_slides?}   (Bearer admin)
+//   POST ?action=admin_update {id, title?, grade?, topic?, sg_id?, sort?, hidden?, preview_slides?}   (Bearer admin)
 //   POST ?action=admin_delete {id}                   (Bearer admin) — Blob файлуудыг ч устгана
 //
 // Эрх нь ажлын хуудасныхтай ИЖИЛ: ws_access (бүх анги) | ws_grade_access (тухайн анги) | үнэгүй туршилт идэвхтэй |
@@ -94,10 +94,10 @@ module.exports = async function handler(req, res) {
 
     if (req.method === 'GET' && action === 'list') {
       const all = req.query.all === '1' && guard.requireAdmin(req);
-      const r = await pool.query(`SELECT id, title, grade, topic, sort, hidden, slides, steps, duration, poster, preview_slides, created_at
+      const r = await pool.query(`SELECT id, title, grade, topic, sg_id, sort, hidden, slides, steps, duration, poster, preview_slides, created_at
         FROM ws_ppt ${all ? '' : 'WHERE hidden = FALSE'} ORDER BY grade, sort, id`);
       return res.json({ ok: true, decks: r.rows.map(d => Object.assign({
-        id: d.id, title: d.title, grade: d.grade, topic: d.topic, slides: d.slides, steps: d.steps,
+        id: d.id, title: d.title, grade: d.grade, topic: d.topic, sg: d.sg_id, slides: d.slides, steps: d.steps,
         duration: Math.round(d.duration), poster: d.poster, preview: d.preview_slides,
       }, all ? { hidden: d.hidden, sort: d.sort, created_at: d.created_at } : {})) });
     }
@@ -175,6 +175,7 @@ module.exports = async function handler(req, res) {
       if (typeof b.grade === 'string' && b.grade.trim()) add('grade', b.grade.trim().slice(0, 40));
       if (b.topic !== undefined) add('topic', b.topic ? String(b.topic).trim().slice(0, 200) : null);
       if (b.sort !== undefined && Number.isFinite(+b.sort)) add('sort', Math.round(+b.sort));
+      if (b.sg_id !== undefined) add('sg_id', intId(b.sg_id));
       if (b.hidden !== undefined) add('hidden', !!b.hidden);
       if (b.preview_slides !== undefined && Number.isFinite(+b.preview_slides)) add('preview_slides', Math.max(0, Math.min(50, Math.round(+b.preview_slides))));
       if (!sets.length) return res.status(400).json({ ok: false, error: 'өөрчлөх зүйл алга' });

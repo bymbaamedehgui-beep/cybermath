@@ -312,6 +312,15 @@
   .pname{font-weight:900;font-size:.9rem;line-height:1.3;color:var(--ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .pmeta{display:flex;gap:6px;flex-wrap:wrap}
   .chip.slidesc{color:#2563eb;border-color:#d6e0ff}
+  /* Бүлгийн мөрөн дэх слайд (PPT) товч */
+  .sg-ppt{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;min-width:0}
+  .sg-ppt:empty{display:none}
+  .sgp{display:inline-flex;align-items:center;gap:5px;max-width:260px;text-decoration:none;font-size:11.5px;font-weight:800;color:#fff;background:linear-gradient(135deg,#2563eb,var(--purple));border-radius:999px;padding:3px 10px 3px 4px;box-shadow:0 6px 14px -8px rgba(37,99,235,.9);white-space:nowrap;cursor:pointer}
+  .sgp:hover{filter:brightness(1.08)}
+  .sgp i{flex:none;display:grid;place-items:center;width:18px;height:18px;border-radius:50%;background:rgba(255,255,255,.22)}
+  .sgp span{overflow:hidden;text-overflow:ellipsis}
+  .sgp b{font-weight:700;opacity:.8}
+  @media (max-width:560px){.sgp{max-width:150px}.sgp b{display:none}}
   .chip.slidesc:hover{border-color:#2563eb}
   .pill.gpill{cursor:pointer}
   @media (max-width:560px){
@@ -665,10 +674,18 @@ function sgBlockHtml(sg,allItems,band){
   var cnt=mi.length+(hasCh?(' · '+children.length+' бүлэг'):'');
   return '<div class="subgrp'+(collapsed?' collapsed':'')+(hasCh?' has-children':'')+'" data-sgid="'+sg.id+'" data-grade="'+esc(sg.grade)+'">'
     +'<div class="subgrp-head" data-sgid="'+sg.id+'">'+caret
-      +'<span class="subgrp-title" data-sgid="'+sg.id+'">'+esc(sg.name)+'</span><span class="subgrp-count">'+cnt+'</span>'
+      +'<span class="subgrp-title" data-sgid="'+sg.id+'">'+esc(sg.name)+'</span><span class="sg-ppt" data-sgid="'+sg.id+'">'+pptChips(sg.id)+'</span><span class="subgrp-count">'+cnt+'</span>'
       +'<button class="subgrp-del" data-sgid="'+sg.id+'" title="Дэд бүлэг устгах"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>'
     +'<div class="subgrp-body">'+childHtml
       +'<div class="cards subcards" data-grp="sg:'+sg.id+'">'+mi.map(function(w){return cardHtml(w,sgIcon(sg,band),sgTone(sg,band),'sg:'+sg.id);}).join('')+'</div></div></div>';
+}
+/* Дэд бүлэгт холбосон слайд (api/wsppt.js list → sg) — PPTW ачаалсны дараа бөглөнө */
+var PPT_BY_SG={};
+var ICO_PPTPLAY='<svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg>';
+function pptChips(id){
+  return (PPT_BY_SG[id]||[]).map(function(d){
+    return '<a class="sgp" href="/ppt.html?id='+d.id+'" title="'+esc(d.title)+' — слайд ('+d.slides+')"><i>'+ICO_PPTPLAY+'</i><span>Слайд</span><b>'+d.slides+'</b></a>';
+  }).join('');
 }
 function createSubgroup(grade){
   if(!isAdmin())return;
@@ -745,6 +762,7 @@ function renderCatalog(){
     cat._bound=1;
     initPreview('catalog');
     cat.addEventListener('click',function(e){
+      if(e.target.closest('.sgp')){e.stopPropagation();return;}   /* слайд товч — бүлгийг нээх/хаахгүй, холбоосоор шилжинэ */
       var a=e.target.closest('.sg-add'); if(a){e.preventDefault();e.stopPropagation();createSubgroup(a.getAttribute('data-grade'));return;}
       var dbtn=e.target.closest('.subgrp-del'); if(dbtn){e.preventDefault();e.stopPropagation();deleteSubgroup(+dbtn.getAttribute('data-sgid'));return;}
       var ttl=e.target.closest('.subgrp-title'); if(ttl&&editMode){e.preventDefault();e.stopPropagation();renameSubgroup(+ttl.getAttribute('data-sgid'));return;}
@@ -2648,6 +2666,8 @@ var PPTW=(function(){
   more.onclick=function(){sec.classList.toggle('collapsed');filter();};
   fetch('/api/wsppt?action=list').then(function(r){return r.json();}).then(function(j){
     decks=(j&&j.decks)||[];
+    PPT_BY_SG={}; decks.forEach(function(d){ if(d.sg)(PPT_BY_SG[d.sg]=PPT_BY_SG[d.sg]||[]).push(d); });
+    [].forEach.call(document.querySelectorAll('.sg-ppt[data-sgid]'),function(el){ el.innerHTML=pptChips(+el.getAttribute('data-sgid')); });
     var c=document.getElementById('chipSlides'); if(c)c.style.display=decks.length?'':'none';
     filter();
     if(location.hash==='#slides'&&decks.length)setTimeout(function(){sec.scrollIntoView({behavior:'smooth',block:'start'});},300);
