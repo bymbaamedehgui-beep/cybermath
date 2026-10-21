@@ -75,20 +75,25 @@ const PR = probe(SRC), DUR = PR.dur;
 const MARK_PX = Math.ceil(PR.h * Number(EXP.markH || 0.012));
 const CROP = MARK_PX + 3 + ((PR.h - MARK_PX - 3) % 2);          // тайрах мөр (тэгш өндөр үлдэнэ)
 // Кадр бүрийн зурвасын дундаж өнгө (зурвасын дотор талын 3 мөр, хажуугийн 5%-ийг орхино)
-const rr = spawnSync(FF, ['-hide_banner', '-loglevel', 'error', '-i', SRC, '-an',
-  '-vf', 'crop=iw*0.9:' + Math.max(1, MARK_PX - 3) + ':iw*0.05:ih-' + (MARK_PX - 1) + ',scale=1:1:flags=area,format=rgb24',
+// PowerPoint-ийн видео тогтмол бус кадрын хурдтай (кадр дутуу/давхар) — цагийг кадрын дугаараас БИШ, showinfo-ийн pts_time-аас авна
+const rr = spawnSync(FF, ['-hide_banner', '-loglevel', 'info', '-i', SRC, '-an',
+  '-vf', 'crop=iw*0.9:' + Math.max(1, MARK_PX - 3) + ':iw*0.05:ih-' + (MARK_PX - 1) + ',scale=1:1:flags=area,format=rgb24,showinfo',
   '-vsync', 'passthrough', '-f', 'rawvideo', '-'], { maxBuffer: 1 << 30 });
 if (rr.status !== 0) die('зурвас уншиж чадсангүй');
-const RAW = rr.stdout, NF = Math.floor(RAW.length / 3), FPS = PR.fps;
+const RAW = rr.stdout, NF = Math.floor(RAW.length / 3);
+const PTS = []; { const re = /\] n: *(\d+) pts: *-?\d+ pts_time:(-?[\d.]+)/g; let m; const st = String(rr.stderr || ''); while ((m = re.exec(st))) PTS[+m[1]] = parseFloat(m[2]); }
+if (PTS.length !== NF || PTS.some(x => !Number.isFinite(x))) die('кадрын цаг уншиж чадсангүй (' + PTS.length + '/' + NF + ')');
 const near = (i, R, G, B) => Math.abs(RAW[i * 3] - R) + Math.abs(RAW[i * 3 + 1] - G) + Math.abs(RAW[i * 3 + 2] - B) < 90;
 const cls = new Array(NF);
-for (let i = 0; i < NF; i++) cls[i] = near(i, 255, 0, 255) ? 'G' : near(i, 0, 255, 255) ? 'E' : '-';
+// G/g = товшилт (ягаан/цэнхэр ээлжилнэ), E/e = слайдын төгсгөл (cyan/шар ээлжилнэ)
+for (let i = 0; i < NF; i++) cls[i] = near(i, 255, 0, 255) ? 'G' : near(i, 0, 0, 255) ? 'g' : near(i, 0, 255, 255) ? 'E' : near(i, 255, 255, 0) ? 'e' : '-';
 // Урсгал (run) — 1 кадрын шуугианыг тооцохгүй
 const RUNS = [];
-for (let i = 0; i < NF;) { let j = i; while (j < NF && cls[j] === cls[i]) j++; if (cls[i] !== '-' && j - i >= 2) RUNS.push({ t: cls[i], a: i, b: j }); i = j; }
+for (let i = 0; i < NF;) { let j = i; while (j < NF && cls[j] === cls[i]) j++; if (((cls[i] === 'E' || cls[i] === 'e') && j - i >= 3) || ((cls[i] === 'G' || cls[i] === 'g') && j - i >= 2)) RUNS.push({ c: cls[i], t: cls[i].toUpperCase(), a: i, b: j }); i = j; }
 // Хөрш ижил төрлийн урсгалыг (шилжилтийн дунд тасарсан) нэгтгэнэ
-for (let i = RUNS.length - 1; i > 0; i--) if (RUNS[i].t === RUNS[i - 1].t && RUNS[i].a - RUNS[i - 1].b <= 2) { RUNS[i - 1].b = RUNS[i].b; RUNS.splice(i, 1); }
-const T = i => +(i / FPS).toFixed(3);
+// Ижил өнгийн дараалсан хоёр урсгал = нэг тэмдэг тасарсан (өнгө ээлжилдэг тул жинхэнэ дараагийн тэмдэг өөр өнгөтэй)
+for (let i = RUNS.length - 1; i > 0; i--) if (RUNS[i].c === RUNS[i - 1].c && RUNS[i].a - RUNS[i - 1].b <= 50) { RUNS[i - 1].b = RUNS[i].b; RUNS.splice(i, 1); }
+const T = i => +(i >= NF ? DUR : PTS[i]).toFixed(3);
 const HOLDS = [], STARTS = [0];
 let si = 0, gInSlide = 0, warn = [];
 RUNS.forEach(function (r) {
@@ -107,6 +112,18 @@ log('Хугацаа ' + DUR.toFixed(1) + 'с · кадр ' + NF + ' · слай�
 if (warn.length && !flag('force')) die('тэмдэг слайдтай таарсангүй (--force-оор үргэлжлүүлж болно)');
 fs.writeFileSync(path.join(DIR, 'holds.json'), JSON.stringify({ holds: HOLDS, starts: STARTS, duration: DUR }, null, 1));
 if (flag('analyze')) process.exit(0);
+if (opt('update', null)) {
+  (async function () {
+    const { Client } = require(require.resolve('pg', { paths: [ROOT, path.join(ROOT, '..', 'cybermath-backend')] }));
+    const c = new Client({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+    await c.connect();
+    const r = await c.query('UPDATE ws_ppt SET holds=$2, starts=$3, steps=$4, slides=$5 WHERE id=$1 RETURNING id, title',
+      [+opt('update'), JSON.stringify(HOLDS), JSON.stringify(STARTS), HOLDS.length, SLIDES.length]);
+    await c.end();
+    log(r.rows.length ? 'ШИНЭЧЛЭВ id=' + r.rows[0].id + ' «' + r.rows[0].title + '»' : 'id олдсонгүй');
+  })().catch(e => die(e.message));
+  return;
+}
 
 /* ── 3. HLS (AES-128) ── */
 const HLS = path.join(DIR, 'hls');

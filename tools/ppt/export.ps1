@@ -18,14 +18,17 @@ param(
 $ErrorActionPreference = 'Stop'
 $MARK_H = 0.012                       # зурвасын өндөр (слайдын өндрийн хувь)
 $RGB_G = 255 + 0 * 256 + 255 * 65536  # ягаан  (R + G*256 + B*65536)
-$RGB_E = 0 + 255 * 256 + 255 * 65536  # цэнхэр-ногоон (cyan)
+$RGB_E = 0 + 255 * 256 + 255 * 65536  # цэнхэр-ногоон (cyan) — сондгой слайдын төгсгөл
+$RGB_G2 = 0 + 0 * 256 + 255 * 65536   # цэнхэр — тэгш дугаартай товшилт
+$RGB_E2 = 255 + 255 * 256 + 0 * 65536 # шар — тэгш слайдын төгсгөл
+# Өнгийг ээлжлүүлдэг нь: тэмдэг дундуураа хэдэн кадр тасарвал (ижил өнгө, хооронд өөр тэмдэггүй) нэгтгэж болно
 New-Item -ItemType Directory -Force $Out | Out-Null
 $work = Join-Path $Out 'work.pptx'
 Copy-Item -LiteralPath $Pptx -Destination $work -Force
 
 function Add-Mark($sl, $W, $H, $rgb, $name) {
-  $h = [Math]::Max(2.0, $H * $MARK_H)
-  $s = $sl.Shapes.AddShape(1, 0, $H - $h, $W, $h)     # msoShapeRectangle
+  $mh = [Math]::Max(2.0, $H * $MARK_H)
+  $s = $sl.Shapes.AddShape(1, 0, $H - $mh, $W, $mh)   # NB: PowerShell-д $h ба $H нэг хувьсагч     # msoShapeRectangle
   $s.Name = $name
   $s.Line.Visible = 0
   $s.Fill.Solid()
@@ -46,6 +49,7 @@ try {
   $W = [double]$pres.PageSetup.SlideWidth; $H = [double]$pres.PageSetup.SlideHeight
   $n = $pres.Slides.Count
   $meta = @()
+  $vi = 0                               # харагдах слайдын дугаар (нуусан слайдыг алгасна) — төгсгөлийн өнгө ээлжлэхэд
   for ($i = 1; $i -le $n; $i++) {
     $sl = $pres.Slides.Item($i)
     $hidden = [bool]($sl.SlideShowTransition.Hidden -eq -1)
@@ -56,9 +60,10 @@ try {
     for ($j = 1; $j -le $seq.Count; $j++) { $e = $seq.Item($j); if ($e.Timing.TriggerType -eq 1) { $clickEffects += $e } }
     $k = 0
     if (-not $hidden) {
+      $vi++
       foreach ($e in $clickEffects) {
         $k++
-        $mk = Add-Mark $sl $W $H $RGB_G ("cmMarkG$k")
+        $mk = Add-Mark $sl $W $H $(if ($k % 2) { $RGB_G } else { $RGB_G2 }) ("cmMarkG$k")
         $d = [double]$e.Timing.TriggerDelayTime
         $idx = $e.Index
         $a = $seq.AddEffect($mk, 1, 0, 3, $idx)            # Appear, өмнөхийн дараа
@@ -69,9 +74,12 @@ try {
         $e.Timing.TriggerType = 3                          # эх эффект: өмнөхийн (Disappear) дараа, эх саатлаараа
         $e.Timing.TriggerDelayTime = $d
       }
-      $me = Add-Mark $sl $W $H $RGB_E 'cmMarkE'
+      $me = Add-Mark $sl $W $H $(if ($vi % 2) { $RGB_E } else { $RGB_E2 }) 'cmMarkE'
       $z = $seq.AddEffect($me, 1, 0, 3, -1)                # слайдын төгсгөл
       $z.Timing.TriggerDelayTime = 0
+      $z2 = $seq.AddEffect($me, 1, 0, 3, -1)               # EndHold секундын дараа алга болно → слайд дор хаяж EndHold харагдана
+      $z2.Exit = -1
+      $z2.Timing.TriggerDelayTime = $EndHold
     }
     $meta += [pscustomobject]@{ n = $i; clicks = $clickEffects.Count; effects = $total; hidden = $hidden }
   }
