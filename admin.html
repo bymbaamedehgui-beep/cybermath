@@ -673,7 +673,7 @@ function admFoldInit(){
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',admFoldInit); else admFoldInit();
 
 /* ── Дасгалын төв удирдлага — хойшоо дэд цэс ── */
-var ADM_WS_TABS  = ['overview','regs','promo','pkg','grade','purchases','games','feedback'];
+var ADM_WS_TABS  = ['overview','regs','promo','pkg','grade','purchases','games','slides','feedback'];
 var ADM_WS_FOLDS = ['feedback','promo','users','gradeusers','purchases','games','gamepurch'];
 function admWsTab(name){
   if(ADM_WS_TABS.indexOf(name)<0) name='overview';
@@ -687,6 +687,7 @@ function admWsTab(name){
   try{ localStorage.setItem('admWsTab', name); }catch(e){}
   if(name==='regs' && !window._regLoaded){ window._regLoaded=1; try{ regLoad(); }catch(e){} }
   /* Тоглоом: нэвтэрсэн (токентой) үед л анх нээхэд ачаална; loadWsSales ч мөн ачаална */
+  if(name==='slides' && !window._pptAdmLoaded){ window._pptAdmLoaded=1; try{ pptAdmLoad(); }catch(e){} }
   if(name==='games' && !_gmData && !_gmSeq){ try{ if(localStorage.getItem('cm_admin_token')) gmLoad(); }catch(e){} }
   try{ admBadgeSeen(name); }catch(e){}
   try{ document.querySelectorAll('#page-wssales .fold').forEach(function(c){ admFoldSync(c); }); }catch(e){}
@@ -712,6 +713,49 @@ function admWsTabInit(){
   }catch(e){}
 }
 window.admWsTab=admWsTab; window.admWsTabInit=admWsTabInit;
+/* ── Слайд хичээл: жагсаалт / засах / устгах (api/wsppt.js) ── */
+function pptAdmHdr(){ var h={'Content-Type':'application/json'}; try{ var t=localStorage.getItem('cm_admin_token'); if(t)h.Authorization='Bearer '+t; }catch(e){} return h; }
+function pptEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+function pptAdmLoad(){
+  var box=document.getElementById('ppt-adm'); if(!box)return;
+  fetch('/api/wsppt?action=list&all=1',{headers:pptAdmHdr()}).then(function(r){return r.json();}).then(function(j){
+    var L=(j&&j.decks)||[];
+    if(!L.length){ box.innerHTML='<div class="table-card" style="padding:14px 16px;color:#888;font-size:.85rem">Слайд алга.</div>'; return; }
+    var inp='padding:6px 8px;border:1px solid #ddd;border-radius:7px;font:inherit;font-size:.82rem';
+    box.innerHTML='<div class="table-card" style="padding:0;overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.82rem;min-width:760px">'
+      +'<thead><tr style="text-align:left;background:#faf8ff"><th style="padding:8px">#</th><th>Нэр</th><th>Анги</th><th>Сэдэв</th><th title="Эрхгүй хүн үнэгүй үзэх слайд">Үнэгүй</th><th>Дараалал</th><th>Нуух</th><th>Слайд</th><th></th></tr></thead><tbody>'
+      +L.map(function(d){
+        return '<tr data-id="'+d.id+'" style="border-top:1px solid #eee'+(d.hidden?';opacity:.55':'')+'">'
+          +'<td style="padding:6px 8px">'+d.id+'</td>'
+          +'<td><input data-f="title" value="'+pptEsc(d.title)+'" style="'+inp+';width:220px"></td>'
+          +'<td><input data-f="grade" value="'+pptEsc(d.grade)+'" style="'+inp+';width:90px"></td>'
+          +'<td><input data-f="topic" value="'+pptEsc(d.topic||'')+'" style="'+inp+';width:140px"></td>'
+          +'<td><input data-f="preview_slides" type="number" min="0" max="50" value="'+d.preview+'" style="'+inp+';width:56px"></td>'
+          +'<td><input data-f="sort" type="number" value="'+d.sort+'" style="'+inp+';width:56px"></td>'
+          +'<td><input data-f="hidden" type="checkbox"'+(d.hidden?' checked':'')+'></td>'
+          +'<td>'+d.slides+' / '+d.steps+' алхам</td>'
+          +'<td style="white-space:nowrap;padding-right:8px"><button data-a="save" style="border:0;border-radius:7px;padding:6px 10px;background:#7B52EE;color:#fff;font-weight:700;cursor:pointer">Хадгалах</button> '
+          +'<a href="/ppt.html?id='+d.id+'" target="_blank" style="font-weight:700;color:#5a32d6;margin:0 6px">Үзэх</a>'
+          +'<button data-a="del" style="border:1px solid #f3c1c1;border-radius:7px;padding:5px 9px;background:#fff;color:#c0392b;font-weight:700;cursor:pointer">Устгах</button></td></tr>';
+      }).join('')+'</tbody></table></div>';
+  }).catch(function(){ box.innerHTML='<div style="color:#c0392b">Ачаалж чадсангүй</div>'; });
+}
+document.addEventListener('click',function(e){
+  var b=e.target.closest&&e.target.closest('#ppt-adm button[data-a]'); if(!b)return;
+  var tr=b.closest('tr'), id=+tr.getAttribute('data-id');
+  if(b.getAttribute('data-a')==='del'){
+    if(!confirm('Энэ слайдыг бүр мөсөн устгах уу? (видео файлууд ч устна)'))return;
+    fetch('/api/wsppt?action=admin_delete',{method:'POST',headers:pptAdmHdr(),body:JSON.stringify({id:id})}).then(function(r){return r.json();})
+      .then(function(j){ if(j&&j.ok)pptAdmLoad(); else alert((j&&j.error)||'Алдаа'); });
+    return;
+  }
+  var body={id:id};
+  [].forEach.call(tr.querySelectorAll('[data-f]'),function(x){ var f=x.getAttribute('data-f'); body[f]=x.type==='checkbox'?x.checked:x.value; });
+  b.disabled=true;
+  fetch('/api/wsppt?action=admin_update',{method:'POST',headers:pptAdmHdr(),body:JSON.stringify(body)}).then(function(r){return r.json();})
+    .then(function(j){ b.disabled=false; if(j&&j.ok){ b.textContent='✓'; setTimeout(function(){pptAdmLoad();},700); } else alert((j&&j.error)||'Алдаа'); })
+    .catch(function(){ b.disabled=false; alert('Сүлжээний алдаа'); });
+});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',admWsTabInit); else admWsTabInit();
 
 /* ── Тоглоом: эрхийн жагсаалт / олголт / цуцлалт (api/qpay.js game_list, game_grant, game_revoke) ──
@@ -3366,6 +3410,7 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
           <button type="button" class="ws-tab" data-wstab="grade" role="tab" onclick="admWsTab('grade')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10.5 12 6 3 10.5l9 4.5 9-4.5Z"/><path d="M7 12.5V17c0 .9 2.2 2 5 2s5-1.1 5-2v-4.5"/></svg>Анги ангиар</button>
           <button type="button" class="ws-tab" data-wstab="purchases" role="tab" onclick="admWsTab('purchases')"><span id="tab-badge-purchases" style="display:none;margin-left:auto;background:#16a34a;color:#fff;border-radius:100px;padding:2px 8px;font-size:0.64rem;font-weight:900;min-width:16px;text-align:center;display:none;margin-left:0;"></span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/></svg>Худалдан авалт</button>
           <button type="button" class="ws-tab" data-wstab="games" role="tab" onclick="admWsTab('games')"><span id="tab-badge-games" style="display:none;margin-left:auto;background:#16a34a;color:#fff;border-radius:100px;padding:2px 8px;font-size:0.64rem;font-weight:900;min-width:16px;text-align:center;display:none;margin-left:0;"></span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 11h4M8 9v4"/><path d="M15 12h.01M18 10h.01"/><path d="M17.3 5H6.7a4 4 0 0 0-4 3.6C2.6 9.4 2 14.5 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.4-1.4A2 2 0 0 1 9.8 16h4.4a2 2 0 0 1 1.4.6L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.5-.6-6.6-.7-7.3A4 4 0 0 0 17.3 5z"/></svg>Тоглоом</button>
+          <button type="button" class="ws-tab" data-wstab="slides" role="tab" onclick="admWsTab('slides')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M12 17v4M8 21h8"/><path d="m10 8.5 4 2.5-4 2.5z"/></svg>Слайд</button>
           <button type="button" class="ws-tab" data-wstab="feedback" role="tab" onclick="admWsTab('feedback')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Санал хүсэлт</button>
         </div>
 
@@ -3549,6 +3594,15 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
           <div id="gm-purch" class="fold-body"></div>
         </div>
         <div id="gm-pend"></div>
+        </div>
+
+        <div class="ws-tabpane" id="wstab-slides" role="tabpanel">
+        <!-- Слайд хичээл (api/wsppt.js) — оруулахдаа: node tools/ppt/ppt2hls.js <файл.pptx> --grade "9-р анги" --title "..." -->
+        <div class="table-card" style="padding:14px 16px;margin-bottom:12px;">
+          <div class="table-title" style="margin-bottom:6px;">Слайд хичээлүүд</div>
+          <div style="font-size:.8rem;color:#6b5a99;line-height:1.5">PowerPoint файлыг анимейшнтэй видео болгож (шифрлэсэн) оруулна. Оруулах нь PowerPoint суусан компьютер дээр: <code>node tools/ppt/ppt2hls.js файл.pptx --grade "9-р анги" --title "Нэр"</code>. Эндээс нэр, анги, үнэгүй үзэх слайдын тоо, дараалал, нуух, устгахыг удирдана.</div>
+        </div>
+        <div id="ppt-adm"><div style="color:#888;font-size:.85rem">Уншиж байна…</div></div>
         </div>
 
         <div class="ws-tabpane" id="wstab-feedback" role="tabpanel">

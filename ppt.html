@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="mn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Слайд хичээл — Дасгалын төв</title>
+<link rel="icon" href="/icon-192.png">
+<style>
+  :root{--bg:#0f0b1f;--panel:#1a1433;--line:#2e2652;--ink:#f4f1ff;--soft:#a99fd0;--purple:#7b52ee;--purple2:#a855f7;--pink:#d946ef;--ok:#22c55e}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:"Inter","Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;-webkit-tap-highlight-color:transparent}
+  body{display:flex;flex-direction:column;min-height:100%;overflow:hidden;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+  button{font-family:inherit}
+  .top{flex:none;display:flex;align-items:center;gap:10px;padding:10px 14px;padding-top:max(10px,env(safe-area-inset-top));border-bottom:1px solid var(--line);background:rgba(15,11,31,.9)}
+  .back{flex:none;display:inline-flex;align-items:center;gap:6px;color:var(--soft);text-decoration:none;font-weight:700;font-size:.85rem;padding:6px 8px;border-radius:10px}
+  .back:hover{background:var(--panel);color:var(--ink)}
+  .ttl{flex:1;min-width:0}
+  .ttl h1{margin:0;font-size:1rem;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ttl .sub{font-size:.75rem;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ibtn{flex:none;width:38px;height:38px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:11px;display:grid;place-items:center;cursor:pointer}
+  .ibtn:hover{border-color:#4a3e80}
+  .ibtn svg{width:18px;height:18px}
+  .ibtn.on{background:linear-gradient(135deg,var(--purple),var(--purple2));border-color:transparent}
+
+  .stage{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#000;overflow:hidden;cursor:pointer}
+  .frame{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+  video{display:block;max-width:100%;max-height:100%;width:100%;height:100%;object-fit:contain;background:#000;pointer-events:none}
+  .shield{position:absolute;inset:0}                         /* видеон дээр шууд дарах/чирэхийг хаана */
+  .wm{position:absolute;pointer-events:none;font-size:clamp(10px,1.4vw,14px);font-weight:700;color:rgba(255,255,255,.16);text-shadow:0 0 2px rgba(0,0,0,.25);white-space:nowrap;transition:left 1.2s ease,top 1.2s ease;transform:rotate(-12deg)}
+  .spin{position:absolute;width:42px;height:42px;border-radius:50%;border:4px solid rgba(255,255,255,.18);border-top-color:#fff;animation:sp 0.9s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .hint{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);background:rgba(15,11,31,.82);border:1px solid var(--line);color:var(--soft);font-size:.78rem;padding:6px 12px;border-radius:999px;pointer-events:none;transition:opacity .4s}
+  .hint.off{opacity:0}
+
+  .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(10,7,22,.86);backdrop-filter:blur(3px);cursor:default}
+  .overlay[hidden]{display:none}
+  .card{max-width:420px;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:22px 20px;text-align:center}
+  .card .ic{width:52px;height:52px;margin:0 auto 10px;border-radius:15px;display:grid;place-items:center;background:linear-gradient(135deg,var(--purple),var(--pink))}
+  .card h2{margin:0 0 6px;font-size:1.1rem}
+  .card p{margin:0 0 16px;color:var(--soft);font-size:.88rem;line-height:1.5}
+  .card .acts{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+  .pbtn{border:0;cursor:pointer;font-weight:800;font-size:.88rem;border-radius:999px;padding:.6rem 1.2rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2));text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+  .pbtn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink)}
+
+  .bar{flex:none;display:flex;align-items:center;gap:10px;padding:10px 14px;padding-bottom:max(10px,env(safe-area-inset-bottom));border-top:1px solid var(--line);background:rgba(15,11,31,.95)}
+  .nav{flex:none;display:flex;align-items:center;gap:8px}
+  .nbtn{width:44px;height:44px;border-radius:13px;border:1px solid var(--line);background:var(--panel);color:var(--ink);display:grid;place-items:center;cursor:pointer}
+  .nbtn.main{width:auto;padding:0 18px;gap:6px;display:inline-flex;align-items:center;font-weight:800;font-size:.9rem;border:0;background:linear-gradient(135deg,var(--purple),var(--purple2))}
+  .nbtn:disabled{opacity:.4;cursor:default}
+  .nbtn svg{width:20px;height:20px}
+  .prog{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
+  .track{position:relative;height:8px;border-radius:999px;background:#2a2250;cursor:pointer;overflow:hidden}
+  .fill{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,var(--purple),var(--pink));border-radius:999px;width:0}
+  .lockzone{position:absolute;top:0;bottom:0;right:0;background:repeating-linear-gradient(45deg,#2a2250 0 6px,#221b44 6px 12px)}
+  .meta{display:flex;justify-content:space-between;font-size:.74rem;color:var(--soft);font-variant-numeric:tabular-nums}
+  .auto{flex:none;display:inline-flex;align-items:center;gap:6px;font-size:.78rem;font-weight:700;color:var(--soft);cursor:pointer;padding:6px 8px;border-radius:10px;border:1px solid transparent}
+  .auto.on{color:#fff;border-color:var(--line);background:var(--panel)}
+  .auto i{width:28px;height:16px;border-radius:999px;background:#2a2250;position:relative;display:inline-block}
+  .auto i::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#7a6fa8;transition:left .2s,background .2s}
+  .auto.on i{background:var(--purple)}
+  .auto.on i::after{left:14px;background:#fff}
+
+  .grid{position:absolute;inset:0;background:rgba(10,7,22,.94);overflow:auto;padding:18px;cursor:default}
+  .grid[hidden]{display:none}
+  .grid h3{margin:0 0 12px;font-size:.95rem;color:var(--soft);font-weight:700}
+  .grid .cells{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px}
+  .grid button{height:48px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font-weight:800;font-size:.95rem;cursor:pointer}
+  .grid button.cur{background:linear-gradient(135deg,var(--purple),var(--purple2));border-color:transparent}
+  .grid button.lk{opacity:.4}
+
+  body.fs .top,body.fs .bar{position:absolute;left:0;right:0;z-index:3;transition:opacity .3s}
+  body.fs .top{top:0}
+  body.fs .bar{bottom:0}
+  body.fs.idle .top,body.fs.idle .bar{opacity:0;pointer-events:none}
+  body.fs.idle .stage{cursor:none}
+
+  @media (max-width:560px){
+    .auto span{display:none}
+    .nbtn.main span{display:none}
+    .nbtn.main{padding:0 14px}
+    .bar{gap:8px;padding-left:10px;padding-right:10px}
+  }
+  @media print{body{display:none!important}}
+</style>
+</head>
+<body>
+<div class="top">
+  <a class="back" href="/worksheets.html#slides" id="back">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>Буцах
+  </a>
+  <div class="ttl"><h1 id="title">Слайд</h1><div class="sub" id="sub"></div></div>
+  <button class="ibtn" id="gridBtn" title="Слайд сонгох" aria-label="Слайд сонгох">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+  </button>
+  <button class="ibtn" id="fsBtn" title="Бүтэн дэлгэц (F)" aria-label="Бүтэн дэлгэц">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+  </button>
+</div>
+
+<div class="stage" id="stage">
+  <div class="frame">
+    <video id="v" playsinline muted preload="auto" disablepictureinpicture disableremoteplayback controlslist="nodownload noremoteplayback noplaybackrate nofullscreen"></video>
+    <div class="shield" id="shield"></div>
+    <div class="wm" id="wm" hidden></div>
+    <div class="spin" id="spin"></div>
+  </div>
+  <div class="hint off" id="hint">Дараагийнх: товшоо / → / Space · Өмнөх: ←</div>
+  <div class="grid" id="grid" hidden><h3>Слайд сонгох</h3><div class="cells" id="cells"></div></div>
+  <div class="overlay" id="ov" hidden><div class="card" id="ovCard"></div></div>
+</div>
+
+<div class="bar">
+  <div class="nav">
+    <button class="nbtn" id="prev" title="Өмнөх (←)" aria-label="Өмнөх"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <button class="nbtn main" id="next" title="Дараагийнх (→, Space)" aria-label="Дараагийнх"><span>Дараагийнх</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+  </div>
+  <div class="prog">
+    <div class="track" id="track"><div class="fill" id="fill"></div><div class="lockzone" id="lockzone" hidden></div></div>
+    <div class="meta"><span id="slideLbl">Слайд —</span><span id="stepLbl"></span></div>
+  </div>
+  <button class="auto" id="auto" title="Автоматаар үргэлжлүүлэх"><i></i><span>Автомат</span></button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
+<script>
+(function(){
+  'use strict';
+  var $=function(id){return document.getElementById(id);};
+  var V=$('v'), D=null, HOLDS=[], STARTS=[];
+  var cur=-1;          // одоо зогссон hold-ын индекс (-1: эхлээгүй)
+  var target=-1;       // тоглуулж хүрэх hold
+  var playing=false, autoOn=false, autoTimer=null, raf=0, hls=null;
+  var ID=parseInt((location.search.match(/[?&]id=(\d+)/)||[])[1],10);
+
+  function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+  function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+  function devId(){
+    try{var v=localStorage.getItem('cm_device');
+      if(!v||v.length<8){v='';var a=new Uint8Array(16);crypto.getRandomValues(a);for(var i=0;i<16;i++)v+=('0'+a[i].toString(16)).slice(-2);localStorage.setItem('cm_device',v);}
+      return v;}catch(e){return '';}
+  }
+  function devFp(){
+    try{var nv=navigator||{},sc=screen||{},ua=String(nv.userAgent||'');var tz='';try{tz=Intl.DateTimeFormat().resolvedOptions().timeZone||'';}catch(e){}
+      var os=/Windows/.test(ua)?'win':/Android/.test(ua)?'and':/iPhone|iPad|iPod/.test(ua)?'ios':/Mac/.test(ua)?'mac':/Linux/.test(ua)?'lin':'oth';
+      var br=/Edg\//.test(ua)?'edge':/OPR\//.test(ua)?'opera':/Firefox\//.test(ua)?'ff':/Chrome\//.test(ua)?'chr':/Safari\//.test(ua)?'saf':'oth';
+      var raw=[os,br,(sc.width||0)+'x'+(sc.height||0),sc.colorDepth||0,tz,String(nv.language||''),nv.hardwareConcurrency||0].join('|');
+      var h=2166136261;for(var i=0;i<raw.length;i++){h^=raw.charCodeAt(i);h=(h*16777619)>>>0;}
+      return ('0000000'+h.toString(16)).slice(-8);}catch(e){return '';}
+  }
+  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+
+  var ICO_LOCK='<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+  var ICO_DONE='<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+  var ICO_WARN='<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>';
+
+  function overlay(html){ $('ovCard').innerHTML=html; $('ov').hidden=!html; }
+  function spin(on){ $('spin').style.display=on?'':'none'; }
+
+  /* ── Ачаалах ── */
+  function load(){
+    if(!ID){ overlay('<div class="ic">'+ICO_WARN+'</div><h2>Слайд олдсонгүй</h2><p>Холбоос буруу байна.</p><div class="acts"><a class="pbtn" href="/worksheets.html#slides">Дасгалын төв</a></div>'); spin(false); return; }
+    var h={'Content-Type':'application/json'}; var d=devId(); if(d)h['x-device-id']=d; var f=devFp(); if(f)h['x-device-fp']=f;
+    fetch('/api/wsppt?action=open',{method:'POST',headers:h,body:JSON.stringify({id:ID,wstoken:lsGet('cm_ws_token')||''})})
+      .then(function(r){return r.json();})
+      .then(function(j){
+        if(!j||!j.ok){
+          spin(false);
+          if(j&&j.deviceBlocked) return overlay('<div class="ic">'+ICO_WARN+'</div><h2>Төхөөрөмжийн хязгаар</h2><p>Энэ дансаар өөр төхөөрөмж дээр нэвтэрсэн байна. Дасгалын төвд нэвтэрч төхөөрөмжөө шалгана уу.</p><div class="acts"><a class="pbtn" href="/worksheets.html">Дасгалын төв</a></div>');
+          return overlay('<div class="ic">'+ICO_WARN+'</div><h2>'+esc((j&&j.error)||'Ачаалж чадсангүй')+'</h2><div class="acts"><a class="pbtn" href="/worksheets.html#slides">Буцах</a></div>');
+        }
+        D=j; HOLDS=j.holds||[]; STARTS=j.starts||[];
+        document.title=j.title+' — Слайд хичээл';
+        $('title').textContent=j.title;
+        $('sub').textContent=j.grade+(j.topic?' · '+j.topic:'')+' · '+j.slides+' слайд';
+        if(j.mark){ $('wm').textContent=j.mark+' · cyber-math.com'; $('wm').hidden=false; moveWm(); setInterval(moveWm,25000); }
+        if(!j.full){ var pct=j.preview&&j.preview<j.slides?(1-j.preview/j.slides)*100:0; $('lockzone').style.width=pct+'%'; $('lockzone').hidden=!pct; }
+        buildGrid();
+        if(!j.src||!HOLDS.length){ spin(false); return lockScreen(); }
+        attach(j.src);
+      })
+      .catch(function(){ spin(false); overlay('<div class="ic">'+ICO_WARN+'</div><h2>Сүлжээний алдаа</h2><p>Интернэт холболтоо шалгаад дахин оролдоно уу.</p><div class="acts"><button class="pbtn" onclick="location.reload()">Дахин ачаалах</button></div>'); });
+  }
+
+  var retries=0;
+  function fail(){
+    playing=false; stopLoop(); spin(false); if(hls)hls.stopLoad();
+    overlay('<div class="ic">'+ICO_WARN+'</div><h2>Тоглуулж чадсангүй</h2><p>Интернэт холболтоо шалгаад дахин ачаална уу.</p><div class="acts"><button class="pbtn" onclick="location.reload()">Дахин ачаалах</button></div>');
+  }
+  function attach(src){
+    var started=false;
+    function ready(){ if(started)return; started=true; spin(false); goHold(0,true); flashHint(); }
+    V.addEventListener('playing',function(){ retries=0; });
+    if(window.Hls&&Hls.isSupported()){
+      hls=new Hls({maxBufferLength:40,backBufferLength:90,enableWorker:true});
+      hls.on(Hls.Events.MANIFEST_PARSED,ready);
+      hls.on(Hls.Events.ERROR,function(_,e){
+        if(!e||!e.fatal)return;
+        // Дахин оролдлогыг хязгаарлана (хязгааргүй давталт сүлжээ/серверийг дарахгүй)
+        if(e.type===Hls.ErrorTypes.NETWORK_ERROR&&retries<2){
+          retries++;
+          if(/action=(key|m3u8)/.test((e.url||'')+(e.context&&e.context.url||''))) return reopen();   // токен хугацаа дууссан байж болно
+          return hls.startLoad();
+        }
+        if(e.type===Hls.ErrorTypes.MEDIA_ERROR&&retries<2){ retries++; return hls.recoverMediaError(); }
+        fail();
+      });
+      hls.loadSource(src); hls.attachMedia(V);
+    } else if(V.canPlayType('application/vnd.apple.mpegurl')){
+      V.src=src; V.addEventListener('loadedmetadata',ready,{once:true});
+    } else {
+      spin(false); overlay('<div class="ic">'+ICO_WARN+'</div><h2>Хөтөч дэмжихгүй байна</h2><p>Chrome, Edge, Safari-ийн шинэ хувилбараар нээнэ үү.</p>');
+    }
+  }
+  var reopening=false;
+  function reopen(){
+    if(reopening)return; reopening=true;
+    var t=V.currentTime, h={'Content-Type':'application/json'}; var d=devId(); if(d)h['x-device-id']=d;
+    fetch('/api/wsppt?action=open',{method:'POST',headers:h,body:JSON.stringify({id:ID,wstoken:lsGet('cm_ws_token')||''})})
+      .then(function(r){return r.json();}).then(function(j){
+        reopening=false; if(!j||!j.ok||!j.src)return fail();
+        hls.loadSource(j.src); V.currentTime=t;
+      }).catch(function(){reopening=false;fail();});
+  }
+
+  /* ── Тоглуулалт: hold хооронд ── */
+  function stopLoop(){ if(raf){cancelAnimationFrame(raf);raf=0;} }
+  function watch(){
+    stopLoop();
+    var tgt=HOLDS[target]; if(!tgt)return;
+    (function tick(){
+      if(!playing)return;
+      if(V.currentTime>=tgt[0]-0.02){ arrive(target); return; }
+      raf=requestAnimationFrame(tick);
+    })();
+  }
+  function arrive(i){
+    playing=false; stopLoop(); V.pause();
+    if(Math.abs(V.currentTime-HOLDS[i][0])>0.25) V.currentTime=HOLDS[i][0];
+    cur=i; target=i; ui();
+    if(autoOn) scheduleAuto();
+  }
+  function seek(t){
+    return new Promise(function(res){
+      if(Math.abs(V.currentTime-t)<0.01)return res();
+      var done=false; function ok(){ if(done)return; done=true; V.removeEventListener('seeked',ok); res(); }
+      V.addEventListener('seeked',ok); V.currentTime=t; setTimeout(ok,4000);
+    });
+  }
+  function playTo(i,from){
+    clearAuto();
+    target=i; playing=true; ui();
+    seek(from).then(function(){
+      if(target!==i)return;
+      var p=V.play(); if(p&&p.catch)p.catch(function(){ playing=false; ui(); });
+      watch();
+    });
+  }
+  // Слайдын эхнээс (шилжилт + товшилтгүй анимейшн) i-р hold хүртэл тоглуулна
+  function goHold(i,fromStart){
+    if(i<0||i>=HOLDS.length)return;
+    var s=HOLDS[i][2], from=fromStart?(STARTS[s-1]||0):(i>0?HOLDS[i-1][1]:0);
+    playTo(i,from);
+  }
+  function next(){
+    hideGrid();
+    if(playing){ arrive(target); return; }                // анимейшн дундуур — PowerPoint шиг шууд дуусгана
+    if(cur<0)return;
+    if(cur>=HOLDS.length-1){ return D&&D.full?endScreen():lockScreen(); }
+    playTo(cur+1,HOLDS[cur][1]);
+  }
+  function prev(){
+    hideGrid(); clearAuto();
+    if(playing){ playing=false; stopLoop(); V.pause(); }
+    var i=Math.max(0,(cur<0?0:cur)-1);
+    seek(HOLDS[i][0]).then(function(){ cur=i; target=i; ui(); });
+  }
+  function gotoSlide(s){
+    hideGrid(); overlay('');
+    for(var i=0;i<HOLDS.length;i++) if(HOLDS[i][2]===s){ return goHold(i,true); }
+    lockScreen();
+  }
+
+  /* ── Автомат ── */
+  function clearAuto(){ if(autoTimer){clearTimeout(autoTimer);autoTimer=null;} }
+  function scheduleAuto(){ clearAuto(); autoTimer=setTimeout(function(){ if(autoOn&&!playing) next(); },HOLDS[cur]&&HOLDS[cur+1]&&HOLDS[cur+1][2]!==HOLDS[cur][2]?4000:2500); }
+
+  /* ── Харагдах байдал ── */
+  function ui(){
+    var i=Math.max(0,playing?target:cur), h=HOLDS[i];
+    var s=h?h[2]:1;
+    $('slideLbl').textContent='Слайд '+s+' / '+(D?D.slides:'—');
+    var inSlide=0,tot=0; for(var k=0;k<HOLDS.length;k++){ if(HOLDS[k][2]===s){tot++; if(k<=i)inSlide++;} }
+    $('stepLbl').textContent=tot>1?('Алхам '+inSlide+' / '+tot):'';
+    var pos=D?((s-1)+inSlide/Math.max(1,tot))/D.slides:0;
+    $('fill').style.width=(pos*100).toFixed(2)+'%';
+    $('prev').disabled=cur<=0&&!playing;
+    [].forEach.call($('cells').children,function(b,k){ b.classList.toggle('cur',k+1===s); });
+  }
+  function buildGrid(){
+    var h='', lim=D.full?D.slides:D.preview;
+    for(var s=1;s<=D.slides;s++) h+='<button data-s="'+s+'"'+(s>lim?' class="lk"':'')+'>'+s+'</button>';
+    $('cells').innerHTML=h;
+  }
+  function hideGrid(){ $('grid').hidden=true; $('gridBtn').classList.remove('on'); }
+  function endScreen(){
+    clearAuto();
+    overlay('<div class="ic">'+ICO_DONE+'</div><h2>Хичээл дууслаа</h2><p>'+esc(D.title)+' — '+D.slides+' слайд.</p><div class="acts"><button class="pbtn" id="again">Эхнээс нь</button><a class="pbtn ghost" href="/worksheets.html#slides">Бусад слайд</a></div>');
+    $('again').onclick=function(){ overlay(''); gotoSlide(1); };
+  }
+  function lockScreen(){
+    clearAuto();
+    var login=D&&D.reason==='login';
+    var g=D?esc(D.grade):'';
+    overlay('<div class="ic">'+ICO_LOCK+'</div><h2>'+(login?'Нэвтэрч үргэлжлүүлнэ үү':'Үргэлжлүүлж үзэх эрх хэрэгтэй')+'</h2>'
+      +'<p>'+(D&&D.preview?'Эхний '+D.preview+' слайдыг үнэгүй үзлээ. ':'')+(login?'Дасгалын төвд нэвтэрсний дараа бүтэн хичээлийг үзнэ.':g+'-ийн ажлын хуудасны эрхтэй бол бүх слайдыг бүтнээр нь үзнэ.')+'</p>'
+      +'<div class="acts"><a class="pbtn" href="/worksheets.html'+(login?'?login=1&next='+encodeURIComponent('/ppt.html?id='+ID):'?buy=1')+'">'+(login?'Нэвтрэх':'Эрх авах')+'</a>'
+      +(D&&D.preview?'<button class="pbtn ghost" id="again">Дахин үзэх</button>':'')+'</div>');
+    var a=$('again'); if(a)a.onclick=function(){ overlay(''); gotoSlide(1); };
+  }
+  function moveWm(){ var w=$('wm'); w.style.left=(8+Math.random()*60)+'%'; w.style.top=(10+Math.random()*75)+'%'; }
+  var hintT=0; function flashHint(){ var h=$('hint'); h.classList.remove('off'); clearTimeout(hintT); hintT=setTimeout(function(){h.classList.add('off');},3500); }
+
+  /* ── Удирдлага ── */
+  $('next').onclick=next; $('prev').onclick=prev;
+  $('shield').addEventListener('click',function(){ if($('ov').hidden) next(); });
+  $('auto').onclick=function(){ autoOn=!autoOn; this.classList.toggle('on',autoOn); if(autoOn&&!playing&&cur>=0)scheduleAuto(); else clearAuto(); };
+  $('gridBtn').onclick=function(e){ e.stopPropagation(); var g=$('grid'); g.hidden=!g.hidden; this.classList.toggle('on',!g.hidden); };
+  $('cells').addEventListener('click',function(e){ var b=e.target.closest('button'); if(b) gotoSlide(+b.getAttribute('data-s')); });
+  $('grid').addEventListener('click',function(e){ e.stopPropagation(); if(e.target===this) hideGrid(); });
+  $('ov').addEventListener('click',function(e){ e.stopPropagation(); });
+  $('track').addEventListener('click',function(e){
+    if(!D)return; var r=this.getBoundingClientRect(); var s=Math.min(D.slides,Math.max(1,Math.floor((e.clientX-r.left)/r.width*D.slides)+1));
+    gotoSlide(s);
+  });
+  document.addEventListener('keydown',function(e){
+    if(e.ctrlKey||e.metaKey||e.altKey)return;
+    var k=e.key;
+    if(k==='ArrowRight'||k===' '||k==='PageDown'||k==='Enter'||k==='ArrowDown'){ e.preventDefault(); if($('ov').hidden)next(); }
+    else if(k==='ArrowLeft'||k==='PageUp'||k==='Backspace'||k==='ArrowUp'){ e.preventDefault(); if($('ov').hidden)prev(); }
+    else if(k==='Home'){ e.preventDefault(); gotoSlide(1); }
+    else if(k==='f'||k==='F'){ toggleFs(); }
+    else if(k==='Escape'){ hideGrid(); }
+  });
+  // Татаж авах / хадгалах замуудыг хаана (дэлгэцийн зураг авахыг хөтөч хориглож чадахгүй)
+  ['contextmenu','dragstart','selectstart'].forEach(function(ev){ document.addEventListener(ev,function(e){ e.preventDefault(); }); });
+  document.addEventListener('keydown',function(e){ if((e.ctrlKey||e.metaKey)&&/^[spu]$/i.test(e.key)) e.preventDefault(); });
+
+  function toggleFs(){
+    var el=document.documentElement;
+    if(!document.fullscreenElement&&!document.webkitFullscreenElement){ (el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el); }
+    else (document.exitFullscreen||document.webkitExitFullscreen).call(document);
+  }
+  $('fsBtn').onclick=toggleFs;
+  function onFs(){ var on=!!(document.fullscreenElement||document.webkitFullscreenElement); document.body.classList.toggle('fs',on); $('fsBtn').classList.toggle('on',on); poke(); }
+  document.addEventListener('fullscreenchange',onFs); document.addEventListener('webkitfullscreenchange',onFs);
+  var idleT=0; function poke(){ document.body.classList.remove('idle'); clearTimeout(idleT); if(document.body.classList.contains('fs')) idleT=setTimeout(function(){document.body.classList.add('idle');},2500); }
+  document.addEventListener('mousemove',poke); document.addEventListener('touchstart',poke,{passive:true});
+
+  V.addEventListener('waiting',function(){ if(playing)spin(true); });
+  V.addEventListener('playing',function(){ spin(false); });
+  V.addEventListener('seeked',function(){ spin(false); });
+
+  load();
+})();
+</script>
+</body>
+</html>

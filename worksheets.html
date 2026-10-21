@@ -298,6 +298,21 @@
   .gmore[hidden]{display:none}
   .chip.gamesc{color:#a21caf;border-color:#f5d0fe}
   .chip.gamesc:hover{border-color:#d946ef}
+  /* ---- Слайд хичээл (#slidesSec) ---- */
+  .ppt-wrap{background:linear-gradient(135deg,#eef4ff,#f5f0ff);border-color:#d6e0ff}
+  .ppt-wrap .game-head .tag{background:linear-gradient(135deg,#2563eb,var(--purple))}
+  .pcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:11px}
+  .ppt-wrap.collapsed .pcard.gx{display:none}
+  .pcard{display:flex;flex-direction:column;min-width:0;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;text-decoration:none;color:inherit;box-shadow:0 8px 22px -16px rgba(37,99,235,.55);transition:transform .15s,box-shadow .15s,border-color .15s}
+  .pcard:hover{transform:translateY(-2px);box-shadow:0 16px 30px -16px rgba(37,99,235,.7);border-color:#c7d5ff}
+  .pthumb{position:relative;display:block;aspect-ratio:16/9;background:#1a1433;overflow:hidden}
+  .pthumb img{display:block;width:100%;height:100%;object-fit:cover}
+  .pplay{position:absolute;right:10px;bottom:10px;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,#2563eb,var(--purple));box-shadow:0 6px 16px -6px rgba(0,0,0,.6)}
+  .pbody{display:flex;flex-direction:column;gap:7px;padding:10px 12px 12px;min-width:0}
+  .pname{font-weight:900;font-size:.9rem;line-height:1.3;color:var(--ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .pmeta{display:flex;gap:6px;flex-wrap:wrap}
+  .chip.slidesc{color:#2563eb;border-color:#d6e0ff}
+  .chip.slidesc:hover{border-color:#2563eb}
   .pill.gpill{cursor:pointer}
   @media (max-width:560px){
     .gcards{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;margin:0 -16px;padding:2px 16px 10px;scroll-padding:0 16px;scrollbar-width:none}
@@ -409,6 +424,13 @@
     <div class="gnote" id="gamesNote" hidden></div>
     <div class="gcards" id="gcards"></div>
     <button type="button" class="gmore" id="gamesMore" hidden></button>
+  </section>
+
+  <section id="slidesSec" class="game-wrap ppt-wrap collapsed" hidden aria-labelledby="slidesTitle">
+    <div class="game-head"><span class="tag">Слайд</span><h2 id="slidesTitle">Слайд хичээлүүд</h2><span class="gcount" id="slidesCount"></span></div>
+    <div class="game-sub">PowerPoint-гүйгээр анимейшнтэй нь шууд үзнэ — товших, сум дарахад алхам алхмаар үргэлжилнэ. Ажлын хуудасны эрхтэй бол тухайн ангийн слайдыг бүтнээр нь, эрхгүй бол эхний хэдэн слайдыг үнэгүй үзнэ.</div>
+    <div class="pcards" id="pcards"></div>
+    <button type="button" class="gmore" id="slidesMore" hidden></button>
   </section>
 
   <div class="controls">
@@ -531,10 +553,12 @@ function bandOf(label){var m=label.match(/^(\d+)/)||label.match(/(\d+)/);if(!m)r
 var ICO_STAR='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.09 5.26L20 9l-4 3.5L17.2 19 12 15.8 6.8 19 8 12.5 4 9l5.91-.74Z"/></svg>';
 var ICO_CAP='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c0 1 2.7 2 6 2s6-1 6-2v-5"/></svg>';
 var ICO_PAD='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="11" rx="5"/><path d="M7 11v3M5.5 12.5h3"/><circle cx="16" cy="11.5" r=".9" fill="currentColor"/><circle cx="18" cy="13.8" r=".9" fill="currentColor"/></svg>';
+var ICO_SLIDE='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M12 17v4M8 21h8"/><path d="m10 8.5 4 2.5-4 2.5z"/></svg>';
 var CHIPS=[
   {k:'all',t:'Бүх'},
   {k:'new',t:ICO_STAR+'Шинэ',isnew:true},
   {k:'games',t:ICO_PAD+'Тоглоом',games:true},   /* шүүлтүүр биш — #gamesSec руу гүйлгэнэ */
+  {k:'slides',t:ICO_SLIDE+'Слайд',slides:true}, /* шүүлтүүр биш — #slidesSec руу гүйлгэнэ (слайд байхгүй бол нуугдана) */
 ];
 /* Каталогт байгаа анги бүрд тусдаа chip (5-р анги ч тусдаа) */
 /* «Бага анги» нэгтгэсэн chip хасагдав */
@@ -804,13 +828,14 @@ function updateNewCount(){
 
 function renderChips(){
   document.getElementById('chips').innerHTML=CHIPS.map(function(c){
-    var cls='chip'+(c.k==='all'?' on':'')+(c.camb?' camb':'')+(c.isnew?' newc':'')+(c.subj?' subj':'')+(c.games?' gamesc':'');
-    var extra=c.isnew?' id="chipNew" style="display:none"':'';
+    var cls='chip'+(c.k==='all'?' on':'')+(c.camb?' camb':'')+(c.isnew?' newc':'')+(c.subj?' subj':'')+(c.games?' gamesc':'')+(c.slides?' slidesc':'');
+    var extra=c.isnew?' id="chipNew" style="display:none"':c.slides?' id="chipSlides" style="display:none"':'';
     return '<button class="'+cls+'" data-k="'+c.k+'"'+extra+'>'+c.t+'</button>';
   }).join('');
   document.getElementById('chips').addEventListener('click',function(e){
     var b=e.target.closest('.chip');if(!b)return;
-    if(b.getAttribute('data-k')==='games'){if(window.GW)GW.scrollTo();return;}   /* тоглоомын хэсэг — шүүлтүүрийг өөрчлөхгүй */
+    if(b.getAttribute('data-k')==='games'){if(window.GW)GW.scrollTo();return;}
+    if(b.getAttribute('data-k')==='slides'){if(window.PPTW)PPTW.scrollTo();return;}   /* тоглоомын хэсэг — шүүлтүүрийг өөрчлөхгүй */
     activeBand=b.getAttribute('data-k');
     [].forEach.call(this.querySelectorAll('.chip'),function(x){x.classList.toggle('on',x===b);});
     SGCOLLAPSED={};saveCollapsed();   // анги руу ороход бүх бүлэг хураалттай
@@ -847,6 +872,7 @@ function applyFilters(){
   });
   if(wrap)wrap.style.display=cambVisible?'':'none';
   document.getElementById('noRes').style.display=anyVisible?'none':'block';
+  if(window.PPTW)PPTW.filter();
 }
 
 /* ----- hover preview ----- */
@@ -2497,7 +2523,7 @@ var LOGIN_REQ=(function(){
   var view=/[?&]signup=1(?:[&#]|$)/.test(location.search)?'register':null;   /* ?signup=1 — бүртгүүлэх цонх шууд (FB чатбот г.м.) */
   var m=location.search.match(/[?&]next=([^&#]*)/),n='';
   try{n=m?decodeURIComponent(m[1]):'';}catch(e){n='';}
-  if(!/^\/[A-Za-z0-9._~\-\/]*$/.test(n)||/^\/\//.test(n))n='';   // зөвхөн ижил сайтын зам
+  if(!/^\/[A-Za-z0-9._~\-\/]*(\?id=\d+)?$/.test(n)||/^\/\//.test(n))n='';   // зөвхөн ижил сайтын зам (слайд: /ppt.html?id=N)
   if(!PROMO_CODE){try{history.replaceState(null,'',location.pathname);}catch(e){}}
   return {next:n,view:view};
 })();
@@ -2587,6 +2613,47 @@ document.getElementById('q').addEventListener('input',applyFilters);
 loadSaved();
 loadEvents();
 startPromoBuy();
+/* Слайд тоглуулагчийн түгжээнээс «Эрх авах» (?buy=1) — нэвтэрсэн бол шууд худалдан авах цонх */
+(function(){
+  if(!/[?&]buy=1(?:[&#]|$)/.test(location.search))return;
+  try{history.replaceState(null,'',location.pathname+location.hash);}catch(e){}
+  verifyUser(function(){
+    if(CM_USER&&CM_USER.email)openBuy({});
+    else{window.__afterLogin=function(){openBuy({});};openLogin(false);}
+  });
+})();
+/* ── Слайд хичээлүүд (api/wsppt.js, тоглуулагч ppt.html) ── */
+var PPTW=(function(){
+  var decks=[],sec=document.getElementById('slidesSec'),box=document.getElementById('pcards'),more=document.getElementById('slidesMore');
+  var ICO_PLAY='<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg>';
+  var SHOW=8;
+  function card(d,i){
+    return '<a class="pcard'+(i>=SHOW?' gx':'')+'" href="/ppt.html?id='+d.id+'">'
+      +'<span class="pthumb">'+(d.poster?'<img loading="lazy" src="'+esc(d.poster)+'" alt="">':'')+'<span class="pplay">'+ICO_PLAY+'</span></span>'
+      +'<span class="pbody"><span class="pname">'+esc(d.title)+'</span>'
+      +'<span class="pmeta"><span class="gbadge multi">'+esc(d.grade)+'</span><span class="gbadge multi">'+d.slides+' слайд</span>'
+      +(d.topic?'<span class="gbadge multi">'+esc(d.topic)+'</span>':'')+'</span></span></a>';
+  }
+  function filter(){
+    if(!decks.length){sec.hidden=true;return;}
+    var g=(activeBand&&/\d/.test(activeBand))?activeBand:null;
+    var q=norm(document.getElementById('q').value.trim());
+    var L=decks.filter(function(d){return (!g||d.grade===g)&&(!q||norm(d.title+' '+(d.topic||'')+' '+d.grade).indexOf(q)>=0);});
+    sec.hidden=!L.length;
+    box.innerHTML=L.map(card).join('');
+    document.getElementById('slidesCount').textContent=L.length+' хичээл';
+    more.hidden=L.length<=SHOW;
+    more.textContent=sec.classList.contains('collapsed')?'Бүгдийг харах ('+L.length+')':'Хураах';
+  }
+  more.onclick=function(){sec.classList.toggle('collapsed');filter();};
+  fetch('/api/wsppt?action=list').then(function(r){return r.json();}).then(function(j){
+    decks=(j&&j.decks)||[];
+    var c=document.getElementById('chipSlides'); if(c)c.style.display=decks.length?'':'none';
+    filter();
+    if(location.hash==='#slides'&&decks.length)setTimeout(function(){sec.scrollIntoView({behavior:'smooth',block:'start'});},300);
+  }).catch(function(){});
+  return {filter:filter,scrollTo:function(){if(!sec.hidden)sec.scrollIntoView({behavior:'smooth',block:'start'});}};
+})();
 fetch('/api/worksheets?titles=1').then(function(r){return r.json();})
   .then(function(d){
     if(d&&d.titles)OVERRIDES=d.titles;
