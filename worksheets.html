@@ -321,6 +321,19 @@
   .sgp span{overflow:hidden;text-overflow:ellipsis}
   .sgp b{font-weight:700;opacity:.8}
   @media (max-width:560px){.sgp{max-width:150px}.sgp b{display:none}}
+  .sgc{display:inline-flex;align-items:center;gap:4px;border:1px solid #d6c8ff;background:#fff;color:#5a32d6;font-family:inherit;font-size:11.5px;font-weight:800;border-radius:999px;padding:3px 9px 3px 7px;cursor:pointer;white-space:nowrap;line-height:1.2}
+  .sgc:hover{border-color:var(--purple);background:#f7f3ff}
+  .sgc.in{background:#f3eeff;border-color:#c4b5fd}
+  .sgc.own{border-color:#b6f0cd;background:#eafff1;color:#15803d;cursor:default}
+  .sgc svg{flex:none}
+  @media (max-width:560px){.sgc .sgc-t{display:none}}
+  .pacts{display:flex;align-items:center;gap:8px;justify-content:space-between;margin-top:2px}
+  .pprice{font-weight:900;font-size:.86rem;color:var(--ink)}.pprice small{font-weight:700;color:var(--soft);font-size:.7rem}
+  .padd{display:inline-flex;align-items:center;gap:5px;border:0;cursor:pointer;font-family:inherit;font-weight:800;font-size:.76rem;border-radius:999px;padding:.38rem .8rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2));white-space:nowrap}
+  .padd.in{background:#f3eeff;color:#5a32d6}
+  .padd.own{background:#eafff1;color:#15803d;cursor:default}
+  .ppt-hl{display:flex;gap:9px;align-items:flex-start;border-left:3px solid #d946ef;padding:4px 0 4px 11px;margin:0 0 12px;font-size:.86rem;line-height:1.45;color:#3b2a7a}
+  .ppt-hl svg{flex:none;color:var(--purple);margin-top:1px}.ppt-hl b{color:#5a32d6}
   .chip.slidesc:hover{border-color:#2563eb}
   .pill.gpill{cursor:pointer}
   @media (max-width:560px){
@@ -437,7 +450,8 @@
 
   <section id="slidesSec" class="game-wrap ppt-wrap collapsed" hidden aria-labelledby="slidesTitle">
     <div class="game-head"><span class="tag">Слайд</span><h2 id="slidesTitle">Слайд хичээлүүд</h2><span class="gcount" id="slidesCount"></span></div>
-    <div class="game-sub">PowerPoint-гүйгээр анимейшнтэй нь шууд үзнэ — товших, сум дарахад алхам алхмаар үргэлжилнэ. Ажлын хуудасны эрхтэй бол тухайн ангийн слайдыг бүтнээр нь, эрхгүй бол эхний хэдэн слайдыг үнэгүй үзнэ.</div>
+    <div class="ppt-hl"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="m9 9.5 2 2 4-4"/></svg><div>Слайд бүрт <b>сурах бичгийн бүх бодлогын бодолт, бодох арга</b> алхам алхмаар, анимейшнтэйгээр орсон.</div></div>
+    <div class="game-sub">PowerPoint-гүйгээр шууд үзнэ — товших, сум дарахад алхам алхмаар үргэлжилнэ. Нэг хичээл <b id="pptPriceTxt">1,900₮</b> — <b>1 сар</b>. Сагсанд хэд хэдийг хийгээд нэг дор төлнө. Эхний 2 слайд үнэгүй.</div>
     <div class="pcards" id="pcards"></div>
     <button type="button" class="gmore" id="slidesMore" hidden></button>
   </section>
@@ -682,11 +696,38 @@ function sgBlockHtml(sg,allItems,band){
 /* Дэд бүлэгт холбосон слайд (api/wsppt.js list → sg) — PPTW ачаалсны дараа бөглөнө */
 var PPT_BY_SG={};
 var ICO_PPTPLAY='<svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg>';
+var ICO_PPTCART='<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2.5 3.5h2.6l2.4 11.2a1.6 1.6 0 0 0 1.6 1.3h8.6a1.6 1.6 0 0 0 1.6-1.2L21.5 8H6.1"/></svg>';
+var ICO_PPTOK='<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+function pptPriceStr(){var p=(window.PPTCART&&PPTCART.price())||1900;return String(p).replace(/\B(?=(\d{3})+(?!\d))/g,',')+'₮';}
+/* «Слайд» товч + худалдан авах төлөв: эрхтэй → «Эрхтэй», сагсанд → «Сагсанд», эс бөгөөс «+ 1,900₮» (сагсанд нэмнэ) */
+function pptBuyBtn(d,cls){
+  var own=window.PPTCART&&PPTCART.owned()[d.id];
+  if(own)return '<span class="'+cls+' own" title="'+esc(String(own).slice(0,10))+' хүртэл нээлттэй">'+ICO_PPTOK+'<span class="sgc-t">Эрхтэй</span></span>';
+  if(window.PPTCART&&PPTCART.has(d.id))return '<button type="button" class="'+cls+' in" data-pptcart="'+d.id+'" title="Сагс харах">'+ICO_PPTCART+'<span class="sgc-t">Сагсанд</span></button>';
+  return '<button type="button" class="'+cls+'" data-pptadd="'+d.id+'" title="Сагсанд нэмэх — 1 сар">'+ICO_PPTCART+'<span class="sgc-t">'+pptPriceStr()+'</span></button>';
+}
 function pptChips(id){
   return (PPT_BY_SG[id]||[]).map(function(d){
-    return '<a class="sgp" href="/ppt.html?id='+d.id+'" title="'+esc(d.title)+' — слайд ('+d.slides+')"><i>'+ICO_PPTPLAY+'</i><span>Слайд</span><b>'+d.slides+'</b></a>';
+    return '<a class="sgp" href="/ppt.html?id='+d.id+'" title="'+esc(d.title)+' — '+d.slides+' слайд · сурах бичгийн бүх бодлогын бодолт"><i>'+ICO_PPTPLAY+'</i><span>Слайд</span><b>'+d.slides+'</b></a>'+pptBuyBtn(d,'sgc');
   }).join('');
 }
+function pptDeckById(id){id=+id;var r=null;Object.keys(PPT_BY_SG).forEach(function(k){(PPT_BY_SG[k]||[]).forEach(function(d){if(d.id===id)r=d;});});return r||(window.PPTW&&PPTW.deck(id));}
+/* Сагсны товчнууд (бүлгийн мөр, слайдын карт) — capture үе шатанд барина: бүлэг нээгдэх/холбоос руу шилжихгүй */
+document.addEventListener('click',function(e){
+  var a=e.target.closest&&e.target.closest('[data-pptadd],[data-pptcart],.sgc.own,.padd.own');
+  if(!a)return;
+  e.preventDefault();e.stopPropagation();
+  if(!window.PPTCART)return;
+  if(a.hasAttribute('data-pptcart')){PPTCART.open();return;}
+  if(a.hasAttribute('data-pptadd')){var d=pptDeckById(a.getAttribute('data-pptadd'));if(d)PPTCART.add(d);}
+},true);
+function pptRefreshButtons(){
+  [].forEach.call(document.querySelectorAll('.sg-ppt[data-sgid]'),function(el){ el.innerHTML=pptChips(+el.getAttribute('data-sgid')); });
+  if(window.PPTW)PPTW.filter();
+  var t=document.getElementById('pptPriceTxt'); if(t)t.textContent=pptPriceStr();
+}
+window.addEventListener('pptcart:change',pptRefreshButtons);
+window.addEventListener('pptcart:paid',function(){ if(window.PPTCART)PPTCART.refreshOwned(); });
 function createSubgroup(grade){
   if(!isAdmin())return;
   var name=(prompt('Шинэ дэд бүлгийн нэр (ж: Тэгшитгэл):')||'').trim();
@@ -763,6 +804,7 @@ function renderCatalog(){
     initPreview('catalog');
     cat.addEventListener('click',function(e){
       if(e.target.closest('.sgp')){e.stopPropagation();return;}   /* слайд товч — бүлгийг нээх/хаахгүй, холбоосоор шилжинэ */
+      if(e.target.closest('.sgc')){e.preventDefault();e.stopPropagation();return;}   /* сагсны товч — document capture барина */
       var a=e.target.closest('.sg-add'); if(a){e.preventDefault();e.stopPropagation();createSubgroup(a.getAttribute('data-grade'));return;}
       var dbtn=e.target.closest('.subgrp-del'); if(dbtn){e.preventDefault();e.stopPropagation();deleteSubgroup(+dbtn.getAttribute('data-sgid'));return;}
       var ttl=e.target.closest('.subgrp-title'); if(ttl&&editMode){e.preventDefault();e.stopPropagation();renameSubgroup(+ttl.getAttribute('data-sgid'));return;}
@@ -2650,7 +2692,8 @@ var PPTW=(function(){
       +'<span class="pthumb">'+(d.poster?'<img loading="lazy" src="'+esc(d.poster)+'" alt="">':'')+'<span class="pplay">'+ICO_PLAY+'</span></span>'
       +'<span class="pbody"><span class="pname">'+esc(d.title)+'</span>'
       +'<span class="pmeta"><span class="gbadge multi">'+esc(d.grade)+'</span><span class="gbadge multi">'+d.slides+' слайд</span>'
-      +(d.topic?'<span class="gbadge multi">'+esc(d.topic)+'</span>':'')+'</span></span></a>';
+      +(d.topic?'<span class="gbadge multi">'+esc(d.topic)+'</span>':'')+'</span>'
+      +'<span class="pacts"><span class="pprice">'+pptPriceStr()+' <small>/ 1 сар</small></span>'+pptBuyBtn(d,'padd')+'</span></span></a>';
   }
   function filter(){
     if(!decks.length){sec.hidden=true;return;}
@@ -2666,13 +2709,14 @@ var PPTW=(function(){
   more.onclick=function(){sec.classList.toggle('collapsed');filter();};
   fetch('/api/wsppt?action=list').then(function(r){return r.json();}).then(function(j){
     decks=(j&&j.decks)||[];
+    if(j&&j.price&&window.PPTCART)PPTCART.setPrice(j.price);
     PPT_BY_SG={}; decks.forEach(function(d){ if(d.sg)(PPT_BY_SG[d.sg]=PPT_BY_SG[d.sg]||[]).push(d); });
     [].forEach.call(document.querySelectorAll('.sg-ppt[data-sgid]'),function(el){ el.innerHTML=pptChips(+el.getAttribute('data-sgid')); });
     var c=document.getElementById('chipSlides'); if(c)c.style.display=decks.length?'':'none';
     filter();
     if(location.hash==='#slides'&&decks.length)setTimeout(function(){sec.scrollIntoView({behavior:'smooth',block:'start'});},300);
   }).catch(function(){});
-  return {filter:filter,scrollTo:function(){if(!sec.hidden)sec.scrollIntoView({behavior:'smooth',block:'start'});}};
+  return {filter:filter,deck:function(id){for(var i=0;i<decks.length;i++)if(decks[i].id===id)return decks[i];return null;},scrollTo:function(){if(!sec.hidden)sec.scrollIntoView({behavior:'smooth',block:'start'});}};
 })();
 fetch('/api/worksheets?titles=1').then(function(r){return r.json();})
   .then(function(d){
@@ -2686,6 +2730,7 @@ fetch('/api/worksheets?titles=1').then(function(r){return r.json();})
   .catch(function(){})
   .then(function(){computeNew();renderCatalog();updateNewCount();initReorder();});
 </script>
+<script src="/ppt-cart.js"></script>
 <script src="/games-host.js"></script>
 <script src="/games-intros.js"></script>
 <script>

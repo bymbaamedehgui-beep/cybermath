@@ -373,7 +373,7 @@ function tlRender(r) {
       + ' <span style="color:var(--muted);font-weight:600;">(' + (b.n || 0) + ')</span></span></div>';
   }
   document.getElementById('tl-cards').innerHTML = W.map(function (w) {
-    var d = (r.win && r.win[w[0]]) || { ws: {}, prem: {}, games: {}, total: 0 };
+    var d = (r.win && r.win[w[0]]) || { ws: {}, prem: {}, games: {}, ppt: {}, total: 0 };
     return '<div class="table-card" style="padding:14px 16px;">'
       + '<div style="font-size:0.72rem;color:var(--muted);font-weight:800;letter-spacing:.4px;">' + w[1] + '</div>'
       + '<div style="font-size:1.48rem;font-weight:900;margin:5px 0 2px;color:var(--text);">' + tlTug(d.total) + '</div>'
@@ -381,18 +381,19 @@ function tlRender(r) {
       + tlLine('#7B52EE', 'Ажлын хуудас', d.ws)
       + tlLine('#22c55e', 'Premium · сургалт', d.prem)
       + tlLine('#0ea5e9', 'Тоглоом' + gPrice, d.games)
+      + tlLine('#f59e0b', 'Слайд' + (r.ppt_price ? ' (' + wsNum(r.ppt_price) + '₮)' : ''), d.ppt)
       + '</div>';
   }).join('');
 
   // Өдрийн багана график
   var rows = r.daily || [];
   var mx = 1;
-  rows.forEach(function (x) { mx = Math.max(mx, (x.ws | 0) + (x.prem | 0) + (x.games | 0)); });
+  rows.forEach(function (x) { mx = Math.max(mx, (x.ws | 0) + (x.prem | 0) + (x.games | 0) + (x.ppt | 0)); });
   var W2 = Math.max(320, rows.length * 22), H = 150, pad = 20;
   var bw = rows.length ? (W2 - pad) / rows.length : 10;
   var bars = rows.map(function (x, i) {
     var X = pad + i * bw + 2, w = Math.max(3, bw - 5), y = H - 18, out = '';
-    [['ws', '#7B52EE'], ['prem', '#22c55e'], ['games', '#0ea5e9']].forEach(function (c) {
+    [['ws', '#7B52EE'], ['prem', '#22c55e'], ['games', '#0ea5e9'], ['ppt', '#f59e0b']].forEach(function (c) {
       var v = x[c[0]] | 0; if (!v) return;
       var h = Math.max(1, Math.round((H - 34) * v / mx));
       y -= h;
@@ -687,7 +688,7 @@ function admWsTab(name){
   try{ localStorage.setItem('admWsTab', name); }catch(e){}
   if(name==='regs' && !window._regLoaded){ window._regLoaded=1; try{ regLoad(); }catch(e){} }
   /* Тоглоом: нэвтэрсэн (токентой) үед л анх нээхэд ачаална; loadWsSales ч мөн ачаална */
-  if(name==='slides' && !window._pptAdmLoaded){ window._pptAdmLoaded=1; try{ pptAdmLoad(); }catch(e){} }
+  if(name==='slides' && !window._pptAdmLoaded){ window._pptAdmLoaded=1; try{ pptAdmLoad(); pptPurchLoad(); }catch(e){} }
   if(name==='games' && !_gmData && !_gmSeq){ try{ if(localStorage.getItem('cm_admin_token')) gmLoad(); }catch(e){} }
   try{ admBadgeSeen(name); }catch(e){}
   try{ document.querySelectorAll('#page-wssales .fold').forEach(function(c){ admFoldSync(c); }); }catch(e){}
@@ -716,6 +717,30 @@ window.admWsTab=admWsTab; window.admWsTabInit=admWsTabInit;
 /* ── Слайд хичээл: жагсаалт / засах / устгах (api/wsppt.js) ── */
 function pptAdmHdr(){ var h={'Content-Type':'application/json'}; try{ var t=localStorage.getItem('cm_admin_token'); if(t)h.Authorization='Bearer '+t; }catch(e){} return h; }
 function pptEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+function pptPurchLoad(){
+  var box=document.getElementById('ppt-purch'); if(!box)return;
+  fetch('/api/wsppt?action=admin_purchases',{headers:pptAdmHdr()}).then(function(r){return r.json();}).then(function(j){
+    if(!j||!j.ok){ box.textContent=(j&&j.error)||'Ачаалж чадсангүй'; return; }
+    var t=j.totals||{}, a=j.active||{};
+    var h='<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px;color:#333;font-weight:700">'
+      +'<span>Нийт: '+wsNum(t.s||0)+'₮ ('+(t.n||0)+')</span><span>30 хоног: '+wsNum(t.s30||0)+'₮ ('+(t.n30||0)+')</span>'
+      +'<span>Идэвхтэй эрх: '+(a.rows||0)+' ('+(a.users||0)+' хүн)</span><span>Үнэ: '+wsNum(j.price||0)+'₮ / 1 сар</span></div>';
+    var L=j.purchases||[];
+    if(!L.length) h+='<div style="color:#888">Худалдан авалт алга.</div>';
+    else h+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.8rem;min-width:520px"><thead><tr style="text-align:left;background:#faf8ff"><th style="padding:6px">Огноо</th><th>Имэйл</th><th>Слайд (id)</th><th>Дүн</th></tr></thead><tbody>'
+      +L.map(function(p){ return '<tr style="border-top:1px solid #eee"><td style="padding:6px;white-space:nowrap">'+pptEsc(String(p.created_at).slice(0,16).replace('T',' '))+'</td><td>'+pptEsc(p.email)+'</td><td>'+pptEsc(p.ppt_ids)+' ('+p.n+')</td><td style="white-space:nowrap">'+wsNum(p.amount)+'₮</td></tr>'; }).join('')
+      +'</tbody></table></div>';
+    box.innerHTML=h;
+  }).catch(function(){ box.textContent='Ачаалж чадсангүй'; });
+}
+function pptGrant(){
+  var m=document.getElementById('ppt-g-msg');
+  var body={email:document.getElementById('ppt-g-email').value.trim(),ids:document.getElementById('ppt-g-ids').value.split(/[\s,]+/).filter(Boolean),days:+document.getElementById('ppt-g-days').value||30};
+  fetch('/api/wsppt?action=admin_grant',{method:'POST',headers:pptAdmHdr(),body:JSON.stringify(body)}).then(function(r){return r.json();}).then(function(j){
+    if(j&&j.ok){ m.style.color='#15803d'; m.textContent='Олгов: '+Object.keys(j.expires||{}).map(function(k){return '#'+k+' → '+String(j.expires[k]).slice(0,10);}).join(', '); }
+    else { m.style.color='#c0392b'; m.textContent=(j&&j.error)||'Алдаа'; }
+  }).catch(function(){ m.style.color='#c0392b'; m.textContent='Сүлжээний алдаа'; });
+}
 function pptAdmLoad(){
   var box=document.getElementById('ppt-adm'); if(!box)return;
   fetch('/api/wsppt?action=list&all=1',{headers:pptAdmHdr()}).then(function(r){return r.json();}).then(function(j){
@@ -3604,6 +3629,20 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
           <div style="font-size:.8rem;color:#6b5a99;line-height:1.5">PowerPoint файлыг анимейшнтэй видео болгож (шифрлэсэн) оруулна. Оруулах нь PowerPoint суусан компьютер дээр: <code>node tools/ppt/ppt2hls.js файл.pptx --grade "9-р анги" --title "Нэр"</code>. Эндээс нэр, анги, үнэгүй үзэх слайдын тоо, дараалал, нуух, устгахыг удирдана.</div>
         </div>
         <div id="ppt-adm"><div style="color:#888;font-size:.85rem">Уншиж байна…</div></div>
+        <div class="table-card" style="padding:14px 16px;margin-top:14px;">
+          <div class="table-title" style="margin-bottom:6px;">Слайд худалдан авалт</div>
+          <div id="ppt-purch" style="font-size:.84rem;color:#888">Уншиж байна…</div>
+        </div>
+        <div class="table-card" style="padding:14px 16px;margin-top:14px;">
+          <div class="table-title" style="margin-bottom:6px;">Слайдын эрх гараар олгох (мөнгөгүй — орлогод орохгүй)</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <input id="ppt-g-email" type="email" placeholder="имэйл" style="flex:1;min-width:180px;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font:inherit;font-size:.85rem">
+            <input id="ppt-g-ids" type="text" placeholder="слайд id (ж: 2,3,6)" style="width:150px;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font:inherit;font-size:.85rem">
+            <input id="ppt-g-days" type="number" value="30" min="1" max="366" style="width:80px;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font:inherit;font-size:.85rem" title="хоног">
+            <button onclick="pptGrant()" style="border:0;border-radius:8px;padding:9px 14px;background:#7B52EE;color:#fff;font-weight:800;cursor:pointer">Олгох</button>
+          </div>
+          <div id="ppt-g-msg" style="font-size:.82rem;margin-top:6px"></div>
+        </div>
         </div>
 
         <div class="ws-tabpane" id="wstab-feedback" role="tabpanel">

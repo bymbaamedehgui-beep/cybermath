@@ -2,6 +2,7 @@
 //
 //   node tools/ppt/ppt2hls.js <файл.pptx> --grade "9-р анги" [--title "..."] [--topic "..."] [--preview 2]
 //   node tools/ppt/ppt2hls.js --dir <export хавтас> ...      (export.ps1 аль хэдийн ажилласан бол)
+//   --replace <id> : одоо байгаа хичээлийн видеог солино (id/нэр/бүлэг/худалдан авалт хэвээр) · --no-brand : нэр/өнгө өөрчлөхгүй
 //   --dry : зөвхөн шинжилгээ + HLS (Blob/DB-д юу ч бичихгүй) · --analyze : зөвхөн зогсох цэг · --hidden : нуусан төлөвтэй оруулна · --sg <ws_subgroups.id> : бүлгийн мөрөнд харуулна
 //
 // Алхам: export.ps1 (PowerPoint → MP4, товшилт бүрийн өмнө Gap сек, слайдын төгсгөлд EndHold сек хөдөлгөөнгүй)
@@ -45,14 +46,24 @@ let DIR = opt('dir', null);
 function log(s) { process.stdout.write(s + '\n'); }
 function die(s) { console.error('АЛДАА: ' + s); process.exit(1); }
 
-/* ── 1. PowerPoint экспорт ── */
+/* ── 1. CyberMath хувилбар (brand.py) + PowerPoint экспорт ──
+   Анхдагчаар хувийн нэрийг арилгаж, CyberMath өнгө аяс оруулсан хуулбарыг экспортлоно (--no-brand: эхээр нь). */
+const BRAND = !flag('no-brand');
 if (!DIR) {
   if (!pptx || !fs.existsSync(pptx)) die('pptx файл олдсонгүй');
-  DIR = path.join(os.tmpdir(), 'cm-ppt-' + crypto.createHash('md5').update(pptx).digest('hex').slice(0, 10));
+  DIR = path.join(os.tmpdir(), 'cm-ppt-' + crypto.createHash('md5').update(pptx + (BRAND ? '|brand1' : '')).digest('hex').slice(0, 10));
   if (!fs.existsSync(path.join(DIR, 'export.json'))) {
+    let src = pptx;
+    if (BRAND) {
+      fs.mkdirSync(DIR, { recursive: true });
+      src = path.join(DIR, 'branded.pptx');
+      log('CyberMath хувилбар (нэр арилгах, өнгө аяс) …');
+      const b = spawnSync('python', ['-I', path.join(__dirname, 'brand.py'), pptx, src], { stdio: 'inherit' });
+      if (b.status !== 0) die('brand.py амжилтгүй');
+    }
     log('PowerPoint → MP4 …');
     const r = spawnSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, 'export.ps1'),
-      '-Pptx', pptx, '-Out', DIR], { stdio: 'inherit' });
+      '-Pptx', src, '-Out', DIR], { stdio: 'inherit' });
     if (r.status !== 0) die('export.ps1 амжилтгүй');
   } else log('Өмнөх экспортыг ашиглав: ' + DIR);
 }
@@ -151,7 +162,7 @@ if (DRY) { log('--dry: ' + HLS); process.exit(0); }
 
 /* ── 4. Blob + DB ── */
 const GRADE = opt('grade', null);
-if (!GRADE) die('--grade заавал ("9-р анги" г.м.)');
+if (!GRADE && !opt('replace', null)) die('--grade заавал ("9-р анги" г.м.)');
 const TITLE = opt('title', (EXP.source || 'Слайд').replace(/\.pptx?$/i, ''));
 const TOPIC = opt('topic', null);
 const PREVIEW = Math.max(0, parseInt(opt('preview', '2'), 10) || 0);
@@ -186,6 +197,23 @@ if (!process.env.DATABASE_URL) die('DATABASE_URL алга');
   const c = new Client({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
   await c.connect();
   await c.query(require(path.join(ROOT, 'api', '_wsppt_sql.js')).DDL);
+  const REPL = parseInt(opt('replace', ''), 10) || null;
+  if (REPL) {
+    // Одоо байгаа хичээлийн видеог солино — id, нэр, анги, бүлэг, үнэгүй слайд, худалдан авалт хэвээр; хуучин Blob-ыг устгана
+    const old = (await c.query('SELECT blobs FROM ws_ppt WHERE id=$1', [REPL])).rows[0];
+    if (!old) { await c.end(); die('--replace: id=' + REPL + ' олдсонгүй'); }
+    await c.query(`UPDATE ws_ppt SET slides=$2, steps=$3, duration=$4, holds=$5, starts=$6, m3u8=$7, key_hex=$8, poster=$9, blobs=$10, source=$11
+      WHERE id=$1`, [REPL, SLIDES.length, HOLDS.length, DUR, JSON.stringify(HOLDS), JSON.stringify(STARTS), m3u8, KEY.toString('hex'),
+      urls['poster.jpg'], JSON.stringify(blobs), EXP.source || null]);
+    await c.end();
+    const oldUrls = (Array.isArray(old.blobs) ? old.blobs : JSON.parse(old.blobs || '[]')).filter(u => blobs.indexOf(u) < 0);
+    try {
+      const { del } = require(require.resolve('@vercel/blob', { paths: [ROOT] }));
+      for (let i = 0; i < oldUrls.length; i += 100) await del(oldUrls.slice(i, i + 100), { token: process.env.BLOB_READ_WRITE_TOKEN });
+    } catch (e) { log('  анхаар: хуучин Blob устгаж чадсангүй: ' + e.message); }
+    log('OK — СОЛИВ ws_ppt id=' + REPL + ' (хуучин ' + oldUrls.length + ' файл устгав)  https://cyber-math.com/ppt.html?id=' + REPL);
+    return;
+  }
   const r = await c.query(
     `INSERT INTO ws_ppt (title, grade, topic, sort, slides, steps, duration, holds, starts, m3u8, key_hex, poster, blobs, preview_slides, source, hidden, sg_id)
      VALUES ($1,$2,$3,(SELECT COALESCE(MAX(sort),0)+1 FROM ws_ppt WHERE grade=$2),$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,

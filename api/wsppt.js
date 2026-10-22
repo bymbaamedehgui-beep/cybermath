@@ -11,8 +11,14 @@
 //   POST ?action=admin_update {id, title?, grade?, topic?, sg_id?, sort?, hidden?, preview_slides?}   (Bearer admin)
 //   POST ?action=admin_delete {id}                   (Bearer admin) — Blob файлуудыг ч устгана
 //
-// Эрх нь ажлын хуудасныхтай ИЖИЛ: ws_access (бүх анги) | ws_grade_access (тухайн анги) | үнэгүй туршилт идэвхтэй |
-// WS_PAYWALL=off. Төхөөрөмжийн хязгаар (api/_wsdev.js checkReq) мөн адил. DB алдаа → 503.
+//   POST ?action=mine  {wstoken}                     → { ok, price, owned:{id: expires_at} }  (сагс/товчны төлөв)
+//   GET  ?action=admin_purchases (Bearer admin)      → сүүлийн худалдан авалтууд (ws_ppt_purchases)
+//   POST ?action=admin_grant {email, ids, days}      (Bearer admin) — мөнгөгүй олголт (орлогод орохгүй)
+//
+// Эрх: слайд бүр ТУСДАА худалдан авна — 1 хичээл × 1 сар (PPT_PRICE, анхдагч 1900₮), сагсаар нэг нэхэмжлэхээр
+// (api/qpay.js plan='ppt' → api/_wsppt_pay.js). PPT_WS_INCLUDED=1 бол ажлын хуудасны эрх (бүх анги / тухайн анги /
+// туршилт) ч бүтнээр үзүүлнэ. Эрхгүй бол эхний preview_slides слайд. WS_PAYWALL=off → бүгд нээлттэй.
+// Төхөөрөмжийн хязгаар (api/_wsdev.js checkReq) ажлын хуудастай ижил. DB алдаа → 503.
 'use strict';
 const pool = require('./_db');
 const jwt = require('jsonwebtoken');
@@ -21,6 +27,7 @@ const WG = require('./_wsgrade');
 const WT = require('./_wstrial');
 const WDEV = require('./_wsdev');
 const { DDL } = require('./_wsppt_sql');
+const PP = require('./_wsppt_pay');
 
 let ready = null;
 function ensure() {
@@ -46,8 +53,10 @@ function maskEmail(e) {
   return (u.length <= 3 ? u[0] + '**' : u.slice(0, 3) + '***' + u.slice(-1)) + s.slice(at);
 }
 
-/* Эрх: { full, email, reason } — reason: 'off' | 'admin' | 'all' | 'grade' | 'trial' | 'login' | 'buy' | 'device' */
-async function access(req, b, grade) {
+/* Эрх: { full, email, reason, until? } — reason: 'off' | 'admin' | 'ppt' | 'all' | 'grade' | 'trial' | 'login' | 'buy' | 'device'
+   Слайд нь ТУСДАА бүтээгдэхүүн: тухайн хичээлийг худалдан авсан (ws_ppt_access, 1 сар) бол бүтнээр.
+   PPT_WS_INCLUDED=1 үед ажлын хуудасны эрх (бүх анги / тухайн анги / туршилт) ч бүтэн үзүүлнэ. */
+async function access(req, b, grade, id) {
   if (process.env.WS_PAYWALL === 'off') return { full: true, reason: 'off' };
   if (guard.requireAdmin(req)) return { full: true, reason: 'admin' };
   const tok = b.wstoken ? String(b.wstoken) : '';
@@ -56,6 +65,9 @@ async function access(req, b, grade) {
   const tokDev = (guard.wsPayload(tok) || {}).dev || null;
   const dchk = await WDEV.checkReq(req, email, tok, tokDev);
   if (!dchk.ok && dchk.error !== 'NO_DEVICE') return { full: false, email, reason: 'device' };
+  const until = await PP.expiryFor(email, id);
+  if (until) return { full: true, email, reason: 'ppt', until };
+  if (!PP.wsIncluded()) return { full: false, email, reason: 'buy' };
   const a = await pool.query('SELECT 1 FROM ws_access WHERE email=$1 AND expires_at > NOW()', [email]);
   if (a.rows.length) return { full: true, email, reason: 'all' };
   const owned = (await WG.activeGrades(email)).map(x => x.grade);
@@ -96,7 +108,7 @@ module.exports = async function handler(req, res) {
       const all = req.query.all === '1' && guard.requireAdmin(req);
       const r = await pool.query(`SELECT id, title, grade, topic, sg_id, sort, hidden, slides, steps, duration, poster, preview_slides, created_at
         FROM ws_ppt ${all ? '' : 'WHERE hidden = FALSE'} ORDER BY grade, sort, id`);
-      return res.json({ ok: true, decks: r.rows.map(d => Object.assign({
+      return res.json({ ok: true, price: PP.pptPrice(), days: PP.PPT_DAYS, decks: r.rows.map(d => Object.assign({
         id: d.id, title: d.title, grade: d.grade, topic: d.topic, sg: d.sg_id, slides: d.slides, steps: d.steps,
         duration: Math.round(d.duration), poster: d.poster, preview: d.preview_slides,
       }, all ? { hidden: d.hidden, sort: d.sort, created_at: d.created_at } : {})) });
@@ -126,8 +138,34 @@ module.exports = async function handler(req, res) {
       return res.status(200).send(Buffer.from(r.rows[0].key_hex, 'hex'));
     }
 
+    if (req.method === 'GET' && action === 'admin_purchases') {
+      if (!guard.requireAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
+      await PP.ensure();
+      const r = await pool.query('SELECT invoice_id, email, ppt_ids, n, amount, days, created_at FROM ws_ppt_purchases ORDER BY created_at DESC LIMIT 200');
+      const t = await pool.query("SELECT COUNT(*)::int n, COALESCE(SUM(amount),0)::int s, COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '30 days')::int n30, COALESCE(SUM(amount) FILTER (WHERE created_at > NOW() - INTERVAL '30 days'),0)::int s30 FROM ws_ppt_purchases");
+      const act = await pool.query('SELECT COUNT(DISTINCT email)::int users, COUNT(*)::int rows FROM ws_ppt_access WHERE expires_at > NOW()');
+      return res.json({ ok: true, price: PP.pptPrice(), totals: t.rows[0], active: act.rows[0], purchases: r.rows });
+    }
+
     if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method' });
     const b = req.body || {};
+
+    if (action === 'mine') {
+      const email = guard.wsEmail(b.wstoken ? String(b.wstoken) : '');
+      if (!email) return res.json({ ok: true, price: PP.pptPrice(), owned: {}, login: false });
+      return res.json({ ok: true, price: PP.pptPrice(), owned: await PP.owned(email), login: true, all: PP.wsIncluded() || undefined });
+    }
+
+    if (action === 'admin_grant') {
+      if (!guard.requireAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
+      const email = String(b.email || '').trim().toLowerCase();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ ok: false, error: 'Зөв имэйл оруулна уу' });
+      const ids = PP.normIds(b.ids);
+      if (!ids.length) return res.status(400).json({ ok: false, error: 'Слайд сонгоно уу' });
+      const days = Math.max(1, Math.min(366, parseInt(b.days, 10) || PP.PPT_DAYS));
+      await PP.ensure();
+      return res.json({ ok: true, expires: await PP.grant(email, ids, days) });
+    }
 
     if (action === 'open') {
       const id = intId(b.id);
@@ -135,7 +173,7 @@ module.exports = async function handler(req, res) {
       const r = await pool.query('SELECT * FROM ws_ppt WHERE id=$1', [id]);
       const d = r.rows[0];
       if (!d || (d.hidden && !guard.requireAdmin(req))) return res.status(404).json({ ok: false, error: 'Слайд олдсонгүй' });
-      const acc = await access(req, b, d.grade);
+      const acc = await access(req, b, d.grade, id);
       if (acc.reason === 'device') return res.json({ ok: false, deviceBlocked: true, error: 'Төхөөрөмжийн хязгаар' });
       const holds = asArr(d.holds), starts = asArr(d.starts);
       const prev = Math.max(0, Math.min(d.slides, d.preview_slides | 0));
@@ -146,7 +184,7 @@ module.exports = async function handler(req, res) {
       const t = jwt.sign({ typ: 'pptm', pk: id, full: !!full, pv: prev }, guard.jwtSecret(), { expiresIn: 600, algorithm: 'HS256' });
       return res.json({
         ok: true, id, title: d.title, grade: d.grade, topic: d.topic, slides: d.slides, full, preview: prev,
-        reason: acc.reason, trialUntil: acc.trialUntil || null, holds: H, starts: full ? starts : starts.slice(0, prev),
+        reason: acc.reason, trialUntil: acc.trialUntil || null, until: acc.until || null, price: PP.pptPrice(), poster: d.poster || null, holds: H, starts: full ? starts : starts.slice(0, prev),
         duration: d.duration, src: '/api/wsppt?action=m3u8&t=' + encodeURIComponent(t),
         mark: acc.email ? maskEmail(acc.email) : null,
       });
