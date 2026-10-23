@@ -24,7 +24,8 @@
     install: S('<rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M12 7v7M9 11l3 3 3-3M10 18h4"/>'),
     share: S('<path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 11v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8"/>'),
     plusbox: S('<rect x="3" y="3" width="18" height="18" rx="4"/><path d="M12 8v8M8 12h8"/>'),
-    dots: S('<path d="M12 5h.01M12 12h.01M12 19h.01" stroke-width="3.2"/>')
+    dots: S('<path d="M12 5h.01M12 12h.01M12 19h.01" stroke-width="3.2"/>'),
+    down: S('<path d="M12 4v15M6 13l6 6 6-6"/>')
   };
   var NAV = [['path', 'Зам', IC.path], ['games', 'Тоглоом', IC.games], ['mathlet', 'Mathlet', IC.mathlet], ['leaderboard', 'Тэргүүлэгч', IC.trophy], ['more', 'Цааш', IC.grid]];
   var app = null, land = null, nav = null, sheet = null, built = false;
@@ -65,12 +66,15 @@
     }
     sheet.querySelector('.pn').setAttribute('aria-label', title);
     sheet.querySelector('h4').textContent = title;
+    sheetOnClose = null;
     var bx = sheet.querySelector('.bx'); bx.innerHTML = html; if (bind) bind(bx);
     sheet.classList.add('on');
     requestAnimationFrame(function () { requestAnimationFrame(function () { sheet.classList.add('show'); }); });
   }
+  var sheetOnClose = null;   // хаагдах үед (товч, арын хэсэг, Esc) нэг удаа дуудагдана
   function closeSheet() {
     if (!sheet || !sheet.classList.contains('on')) return;
+    if (sheetOnClose) { var f = sheetOnClose; sheetOnClose = null; try { f(); } catch (e) {} }
     sheet.classList.remove('show');
     setTimeout(function () { if (!sheet.classList.contains('show')) sheet.classList.remove('on'); }, 330);
   }
@@ -103,20 +107,73 @@
   window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); deferred = e; });
   window.addEventListener('appinstalled', function () { deferred = null; closeSheet(); });
   function standalone() { return (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true; }
-  function install() {
-    if (deferred) {
+  function platform() {
+    var ua = navigator.userAgent;
+    return {
+      ios: /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1),
+      inapp: /FBAN|FBAV|FB_IAB|FBIOS|Instagram|Messenger|Line\/|KAKAOTALK|TikTok|musical_ly/i.test(ua),   // Facebook/Messenger г.м. доторх хөтөч
+      iosOther: /CriOS|FxiOS|EdgiOS/i.test(ua)                                                        // iPhone дээрх Chrome/Firefox/Edge
+    };
+  }
+  function a2hsSteps(pl) {
+    if (pl.inapp) return '<ol><li>Баруун дээд буланд <b>⋯</b> цэсийг дарна.</li><li><b>' + (pl.ios ? 'Safari' : 'Chrome') +
+      '-аар нээх</b> (Open in browser)-ийг сонгоно.</li><li>Нээгдсэн хөтөч дээр <b>Нүүр дэлгэцэнд нэмэх</b>-ийг хийнэ.</li></ol>';
+    if (pl.ios && pl.iosOther) return '<ol><li>Хаягийн мөрөн дэх <b>Хуваалцах</b> ' + IC.share + ' товчийг дарна.</li><li><b>Нүүр дэлгэцэнд нэмэх</b> (Add to Home Screen) ' +
+      IC.plusbox + '-г сонгоно.</li><li><b>Нэмэх</b> (Add) дарна.</li></ol>';
+    if (pl.ios) return '<ol><li>Safari-гийн доод мөрөн дэх <b>Хуваалцах</b> ' + IC.share + ' товчийг дарна.</li><li>Цэсээ доош гүйлгээд <b>Нүүр дэлгэцэнд нэмэх</b> (Add to Home Screen) ' +
+      IC.plusbox + '-г сонгоно.</li><li>Баруун дээд буланд <b>Нэмэх</b> (Add) дарна.</li></ol>';
+    return '<ol><li>Хөтчийн баруун дээд буланд <b>⋮</b> цэсийг дарна.</li><li><b>Нүүр дэлгэцэнд нэмэх</b> (Add to Home screen) эсвэл <b>Апп суулгах</b>-ийг сонгоно.</li><li><b>Нэмэх</b> / <b>Суулгах</b> дарна.</li></ol>';
+  }
+  // auto=true: өөрөө гарч ирсэн санал — «Дахин харуулахгүй» чектэй
+  function installSheet(auto) {
+    var pl = platform(), can = !!deferred && !pl.ios && !pl.inapp;   // Android Chrome: шууд суулгах цонх
+    openSheet('Нүүр дэлгэцэндээ нэмээрэй',
+      '<p class="tx">CyberMath-ыг утасныхаа нүүр дэлгэцэнд нэмбэл апп шиг нэг товшилтоор нээгдэж, хөтчийн мөргүй бүтэн дэлгэцээр ажиллана.</p>' +
+      (can ? '' : a2hsSteps(pl)) +
+      '<button type="button" class="ok">' + (can ? 'Нүүр дэлгэцэнд нэмэх' : 'Ойлголоо') + '</button>' +
+      (auto ? '<label class="nomore"><input type="checkbox"> Дахин харуулахгүй</label>' : '') +
+      (pl.ios && !pl.iosOther && !pl.inapp ? '<div class="arw" aria-hidden="true">' + IC.down + '</div>' : ''),
+      function (bx) {
+        var cb = bx.querySelector('.nomore input');
+        sheetOnClose = function () { if (cb && cb.checked) lsSet(A2HS_OFF, '1'); };
+        bx.querySelector('.ok').addEventListener('click', function () {
+          closeSheet();
+          if (can && deferred) { var d = deferred; deferred = null; d.prompt(); if (d.userChoice && d.userChoice.catch) d.userChoice.catch(function () {}); }
+        });
+      });
+  }
+  function install() {   // гараар («Цааш», угтах дэлгэц): Android-д шууд суулгах цонх, бусад нь заавар
+    if (deferred && !platform().inapp) {
       closeSheet();
       var d = deferred; deferred = null;
       d.prompt(); if (d.userChoice && d.userChoice.catch) d.userChoice.catch(function () {});
       return;
     }
-    var ios = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    var steps = ios
-      ? '<ol><li>Safari-гийн доод мөрөн дэх <b>Хуваалцах</b> ' + IC.share + ' товчийг дарна.</li><li><b>Нүүр дэлгэцэнд нэмэх</b> (Add to Home Screen) ' + IC.plusbox + ' -г сонгоно.</li><li>Баруун дээд буланд <b>Нэмэх</b> (Add) дарна.</li></ol>'
-      : '<ol><li>Хөтчийн баруун дээд буланд <b>⋮</b> цэсийг дарна.</li><li><b>Апп суулгах</b> эсвэл <b>Нүүр дэлгэцэнд нэмэх</b>-ийг сонгоно.</li><li><b>Суулгах</b> дарна.</li></ol>';
-    openSheet('Утсандаа апп болгож суулгах',
-      '<p class="tx">Суулгасны дараа CyberMath нүүр дэлгэцэнд апп шиг дүрстэй гарч, хөтчийн мөргүй бүтэн дэлгэцээр нээгдэнэ.</p>' + steps +
-      '<button type="button" class="ok">Ойлголоо</button>', function (bx) { bx.querySelector('.ok').addEventListener('click', closeSheet); });
+    installSheet(false);
+  }
+  /* Утсаар орсон хүнд нэг сесс-д нэг удаа «Нүүр дэлгэцэндээ нэмээрэй» санал (бусад цонх нээлттэй бол хүлээнэ) */
+  var A2HS_OFF = 'cm_a2hs_off', A2HS_SEEN = 'cm_a2hs_seen';
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function ssGet(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }
+  function ssSet(k, v) { try { sessionStorage.setItem(k, v); } catch (e) {} }
+  function busy() {
+    if (document.querySelector('.modal-overlay.open')) return true;
+    var am = document.getElementById('auth-modal'); if (am && am.style.display === 'flex') return true;
+    var sp = document.getElementById('cm-splash'); if (sp && visible(sp) && +getComputedStyle(sp).opacity > 0.05) return true;
+    return !!(sheet && sheet.classList.contains('on'));
+  }
+  function autoPrompt() {
+    if (standalone() || lsGet(A2HS_OFF) === '1' || ssGet(A2HS_SEEN) === '1') return;
+    if (!(navigator.maxTouchPoints > 0 || 'ontouchstart' in window)) return;
+    var tries = 0;
+    (function tryShow() {
+      if (lsGet(A2HS_OFF) === '1' || ssGet(A2HS_SEEN) === '1' || !MQ.matches) return;
+      var on = document.body.classList.contains('cm-app-on') || document.body.classList.contains('cm-land-on');
+      if (!on || busy()) { if (++tries < 40) setTimeout(tryShow, 3000); return; }
+      ssSet(A2HS_SEEN, '1');
+      installSheet(true);
+    })();
   }
 
   /* ── Апп (доод навигаци) ── */
@@ -169,6 +226,7 @@
     if (land) mo.observe(land, { attributes: true, attributeFilter: ['style', 'class'] });
     if (MQ.addEventListener) MQ.addEventListener('change', update); else if (MQ.addListener) MQ.addListener(update);
     update();
+    setTimeout(autoPrompt, 3500);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
