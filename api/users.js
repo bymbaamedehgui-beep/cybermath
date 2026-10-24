@@ -42,6 +42,7 @@ async function ownsClassroom(access, email, classroomId) {
 }
 
 const MAX_ADD_ONCE = 500; // addXp/addGems болон абсолют xp/gems бичилтийн нэг удаагийн өсөлтийн дээд хэмжээ
+const MAX_ADD_XP_ONCE = 1000; // addXp: «Мянгат»-ын шагнал 1000 XP нэг удаа бүтэн орно
 const MAX_HEARTS = 5;
 // streak-ийн нэг бичилтэд өсөх дээд хэмжээ: клиент (initStreak) өдөрт +1 эсвэл 0/1 болгож тэглэдэг,
 // нэвтрэхэд серверийн streak_data-г сэргээдэг тул хэвийн урсгалд нэг бичилт +1-ээс хэтрэхгүй
@@ -290,7 +291,7 @@ module.exports = async (req, res) => {
 
       if (action === 'addXp') {
         const { amount } = req.body || {};
-        const a = Math.min(MAX_ADD_ONCE, parseInt(amount) || 0);
+        const a = Math.min(MAX_ADD_XP_ONCE, parseInt(amount) || 0);
         if (a <= 0) return res.json({ ok: false });
         const r = await pool.query('UPDATE users SET xp = COALESCE(xp,0) + $1 WHERE email=$2 RETURNING xp', [a, email]);
         if (!r.rows.length) return res.json({ ok: false });
