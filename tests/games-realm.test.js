@@ -113,7 +113,7 @@ test('GAME_PAYWALL_REALMS: анхдагч [ws]; ws/cm таслалаар; бур
 });
 
 // ───────────────────────── эхний ээлж: cyber-math.com нээлттэй ─────────────────────────
-test('анхдагч: cm — бүх 16 тоглоомын эрх нээлттэй (нэвтрээгүй ч, via off); ws — эрх шаардана; буруу realm → хаалттай', async () => {
+test('анхдагч: cm — бүх 17 тоглоомын эрх нээлттэй (нэвтрээгүй ч, via off); ws — эрх шаардана; буруу realm → хаалттай', async () => {
   give('ws', 'kid@x.mn', 'sudoku');
   for (const k of GM.GAME_KEYS) {
     const e = await GM.entitlement('cm', 'anyone@x.mn', k);
@@ -130,7 +130,7 @@ test('анхдагч: cm — бүх 16 тоглоомын эрх нээлттэ�
 test('анхдагч: catalog — realm-гүй (gate) false, cm false, ws true; status cm enabled:false, ws enabled:true', async () => {
   const [a, c, w] = [await cat(), await cat('cm'), await cat('ws')];
   assert.deepStrictEqual([a.statusCode, a.body.enabled, a.body.realm], [200, false, undefined]);
-  assert.deepStrictEqual([c.body.enabled, c.body.realm, c.body.price, c.body.games.length], [false, 'cm', 1900, 16]);
+  assert.deepStrictEqual([c.body.enabled, c.body.realm, c.body.price, c.body.games.length], [false, 'cm', 1900, 17]);
   assert.deepStrictEqual([w.body.enabled, w.body.realm, w.body.price, w.body.days], [true, 'ws', 1900, 30]);
   F.addUser('cmkid@x.mn');
   const sc = await G('status', { realm: 'cm' }, { headers: bearer(cmTok('cmkid@x.mn')) });

@@ -413,14 +413,14 @@ test('толгой: ажлын хуудасны эрхтэй данс (ws_access
 });
 
 // ───────────────────────── 2. «Тоглоом» хэсэг (GW) ─────────────────────────
-test('GW: нэвтрээгүй → 16 карт «Нэвтэрч худалдан авах»; дарахад нэвтрэх цонх; нэвтэрсний дараа худалдан авах модал', async () => {
+test('GW: нэвтрээгүй → 17 карт «Нэвтэрч худалдан авах»; дарахад нэвтрэх цонх; нэвтэрсний дараа худалдан авах модал', async () => {
   const P = page({ gw: true });
   await ticks();
   assert.strictEqual(P.$('gamesSec').hidden, false);
-  assert.strictEqual(P.doc.querySelectorAll('#gcards .gcard').length, 16);
-  assert.strictEqual(P.doc.querySelectorAll('#gcards [data-ga="login"]').length, 16);
+  assert.strictEqual(P.doc.querySelectorAll('#gcards .gcard').length, 17);
+  assert.strictEqual(P.doc.querySelectorAll('#gcards [data-ga="login"]').length, 17);
   assert.match(P.$('gamesSub').textContent, /1 900₮ · 30 хоног/);
-  assert.strictEqual(P.$('gamesCount').textContent, '16 тоглоом');
+  assert.strictEqual(P.$('gamesCount').textContent, '17 тоглоом');
   assert.strictEqual(P.last('status'), undefined, 'токенгүй үед status дуудахгүй');
 
   P.btn('sudoku', 'login').click();
@@ -440,7 +440,7 @@ test('GW: нэвтрээгүй → 16 карт «Нэвтэрч худалдан
 test('GW: худалдан авах → QPay QR → poll (paid:false → амжилт ГАРАХГҮЙ) → төлсөн → «Идэвхтэй» → Тоглох overlay', async () => {
   const P = page({ ls: { cm_ws_token: wsTok('kid@x.mn') }, gw: true });
   await ticks();
-  assert.strictEqual(P.doc.querySelectorAll('#gcards [data-ga="buy"]').length, 16);
+  assert.strictEqual(P.doc.querySelectorAll('#gcards [data-ga="buy"]').length, 17);
   P.btn('sudoku', 'buy').click();
   const ov = P.$('gpBuy');
   assert.ok(ov, 'модал');
@@ -775,7 +775,7 @@ test('GW: GAME_PAYWALL=off → бүх карт «Үнэгүй», нэвтрэл�
   process.env.GAME_PAYWALL = 'off';
   const P = page({ gw: true });
   await ticks();
-  assert.strictEqual(P.doc.querySelectorAll('#gcards .gbadge.free').length, 16);
+  assert.strictEqual(P.doc.querySelectorAll('#gcards .gbadge.free').length, 17);
   assert.match(P.$('gamesSub').textContent, /үнэгүй/);
   P.W.GW.buy('sudoku');   // нэвтрээгүй → нэвтрэх (худалдан авахад токен шаардлагатай)
   assert.deepStrictEqual(J(P.W.logins), ['manual']);

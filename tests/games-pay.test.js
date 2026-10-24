@@ -41,16 +41,16 @@ function rawPay(row) {
 
 beforeEach(() => F.reset());
 
-test('каталог: 16 тоглоом, төрөл/олон тоглогч; allowlist прототипийн түлхүүрийг хүлээн авахгүй', () => {
+test('каталог: 17 тоглоом, төрөл/олон тоглогч; allowlist прототипийн түлхүүрийг хүлээн авахгүй', () => {
   assert.deepStrictEqual(GM.GAME_KEYS.slice().sort(), ['blockblast', 'chessmath', 'daam', 'doroev', 'flagbattle', 'gomoku', 'ludo',
-    'mathmortal', 'myangat', 'nicebattle', 'numseq', 'play2048', 'sbh', 'songon', 'sudoku', 'xpdrop']);
+    'mathmortal', 'mongol', 'myangat', 'nicebattle', 'numseq', 'play2048', 'sbh', 'songon', 'sudoku', 'xpdrop']);
   const kinds = {};
   GM.GAME_KEYS.forEach((k) => { const g = GM.GAMES[k]; assert.ok(g.title, k); kinds[g.kind] = (kinds[g.kind] || 0) + 1; });
-  assert.deepStrictEqual(kinds, { file: 6, inline: 6, external: 4 });
+  assert.deepStrictEqual(kinds, { file: 6, inline: 6, external: 5 });
   assert.deepStrictEqual(GM.GAME_KEYS.filter((k) => GM.GAMES[k].multi).sort(),
     ['chessmath', 'daam', 'doroev', 'gomoku', 'ludo', 'mathmortal', 'sbh']);
   ['__proto__', 'constructor', 'toString', 'hasOwnProperty', '', null, undefined, 1, 'SUDOKU'].forEach((k) => assert.strictEqual(GM.isGame(k), false, String(k)));
-  assert.strictEqual(GM.publicCatalog().length, 16);
+  assert.strictEqual(GM.publicCatalog().length, 17);
   assert.strictEqual(GM.gamePrice(), 1900);
   assert.strictEqual(GM.GAME_DAYS, 30);
 });
@@ -327,7 +327,7 @@ test('realm тусгаарлалт: ижил имэйл — ws-д авсан э�
   assert.strictEqual(await GM.entitled('ws', 'same@x.mn', 'hack'), false);
 });
 
-test('GAME_PAYWALL=off → бүх 16 тоглоом нээлттэй (нэвтрээгүй ч), allowlist-гүй түлхүүр хаалттай; өмнө үүсгэсэн нэхэмжлэхийн төлбөр олгогдсоор', async () => {
+test('GAME_PAYWALL=off → бүх 17 тоглоом нээлттэй (нэвтрээгүй ч), allowlist-гүй түлхүүр хаалттай; өмнө үүсгэсэн нэхэмжлэхийн төлбөр олгогдсоор', async () => {
   for (const v of ['off', 'OFF', ' Off ', 'false', '0', 'no']) {
     process.env.GAME_PAYWALL = v;
     assert.strictEqual(GM.paywallOn(), false, v);

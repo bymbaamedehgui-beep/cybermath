@@ -53,12 +53,14 @@
   var INV_RE = /^[A-Za-z0-9_.-]{20,2048}$/;
   var CAT_TTL = 60 * 1000;
 
-  // ───────────── 16 тоглоом (тайлбар, icon, өнгө) — нэр/төрөл/үнэ серверийн каталогоос ─────────────
+  // ───────────── 17 тоглоом (тайлбар, icon, өнгө) — нэр/төрөл/үнэ серверийн каталогоос ─────────────
   var SV = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
   function m(t, k, multi, d, c, i) { return { t: t, k: k, m: !!multi, d: d, c: c, i: i }; }
   var META = {
     mathmortal: m('MATH MORTAL', 'file', true, '3D тулаан — бодлого бодож дайснаа ял', ['#7c3aed', '#c026d3'],
       '<path d="M14.5 17.5 3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="M16 16l4 4"/><path d="M19 21l2-2"/><path d="M14.5 6.5 18 3h3v3l-3.5 3.5"/><path d="M5 14l4 4"/><path d="M7 17l-3 3"/><path d="M3 19l2 2"/>'),
+    mongol: m('Монгол Орноор', 'external', false, '3D аялал — газар бүрт бодлого бодож урагшил', ['#0369a1', '#16a34a'],
+      '<path d="m2 20 7-12 4 6 3-4 6 10z"/><circle cx="17" cy="6" r="2"/>'),
     blockblast: m('Block Blast Math', 'external', false, 'Блок байрлуулж, бодлогоор оноогоо өсгө', ['#6d28d9', '#8b5cf6'],
       '<rect x="14" y="3" width="7" height="7" rx="1"/><path d="M10 21V8a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1H3"/>'),
     flagbattle: m('Flag Battle — Тэмцээн', 'external', false, 'Анги, сэдвээ сонгоод тэмцээнд оролц', ['#dc2626', '#f97316'],
@@ -90,7 +92,7 @@
     myangat: m('Мянгат', 'file', false, 'Асуулт бүрт зөв хариулж мянгат бол', ['#1e3a8a', '#e9b54a'],
       '<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.7V17c0 .6-.5 1-1 1.2C7.9 18.8 7 20.2 7 22"/><path d="M14 14.7V17c0 .6.5 1 1 1.2 1.1.6 2 2 2 3.8"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/>'),
   };
-  var KEYS = ['mathmortal', 'blockblast', 'flagbattle', 'songon', 'nicebattle', 'chessmath', 'daam', 'gomoku', 'ludo',
+  var KEYS = ['mathmortal', 'mongol', 'blockblast', 'flagbattle', 'songon', 'nicebattle', 'chessmath', 'daam', 'gomoku', 'ludo',
     'numseq', 'doroev', 'sbh', 'play2048', 'sudoku', 'xpdrop', 'myangat'];
   // index.html доторх тоглоом → талбар (embed горим зөвхөн эдгээрийг нээнэ)
   var INLINE = { chessmath: 'chessmath-area', daam: 'daam-area', gomoku: 'gomoku-area', ludo: 'ludo-area', doroev: 'doroev-area', sbh: 'sbh-area' };

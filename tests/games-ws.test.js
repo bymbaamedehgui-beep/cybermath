@@ -78,8 +78,8 @@ function browser(o) {
 beforeEach(() => F.reset());
 
 // ───────────────────────── games-host.js: цэвэр туслахууд ─────────────────────────
-test('games-host: 16 тоглоомын мета серверийн каталогтой таарна (түлхүүр, төрөл, олон тоглогч, inline талбар)', () => {
-  assert.strictEqual(H0.KEYS.length, 16);
+test('games-host: 17 тоглоомын мета серверийн каталогтой таарна (түлхүүр, төрөл, олон тоглогч, inline талбар)', () => {
+  assert.strictEqual(H0.KEYS.length, 17);
   assert.deepStrictEqual(H0.KEYS.slice().sort(), Object.keys(GM.GAMES).slice().sort());
   H0.KEYS.forEach((k) => {
     assert.ok(H0.isKey(k), k);

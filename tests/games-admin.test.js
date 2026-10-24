@@ -371,14 +371,14 @@ test('game_list: мөр бүрт идэвхтэй/дууссан + худалд�
   assert.deepStrictEqual([row('ws', 'gift@x.mn', 'play2048').paid_count, row('ws', 'gift@x.mn', 'play2048').paid_sum], [0, 0], 'админы олголт төлбөргүй');
   assert.strictEqual(row('cm', 'buyer@x.mn', 'sudoku').paid_count, 0, 'cm мөрөнд ws-ийн худалдан авалт тоологдохгүй');
   assert.strictEqual(row('ws', 'axb@x.mn', 'numseq').active, false);
-  // хураангуй: 16 тоглоом бүгд, орлогын нийт дүн БАЙХГҮЙ
-  assert.strictEqual(d.by_game.length, 16);
+  // хураангуй: 17 тоглоом бүгд, орлогын нийт дүн БАЙХГҮЙ
+  assert.strictEqual(d.by_game.length, 17);
   const sud = d.by_game.find((x) => x.key === 'sudoku');
   assert.deepStrictEqual([sud.title, sud.active, sud.active_ws, sud.active_cm, sud.sales, sud.sales_ws, sud.sales_cm], ['Судоку', 2, 1, 1, 2, 2, 0]);
   assert.ok(d.by_game.every((x) => !('sum' in x) && !('s' in x)), 'хураангуйд мөнгөн дүн байхгүй');
   assert.deepStrictEqual(d.purchases.map((x) => x.game_key), ['sudoku', 'sudoku']);
   assert.deepStrictEqual(d.pending.map((x) => x.invoice_id), ['P1']);
-  assert.deepStrictEqual([d.catalog.length, d.price, d.days, d.paywall], [16, 1900, 30, true]);
+  assert.deepStrictEqual([d.catalog.length, d.price, d.days, d.paywall], [17, 1900, 30, true]);
 
   r = await A('game_list', { q: 'GIFT' });
   assert.deepStrictEqual(r.body.rows.map((x) => x.email), ['gift@x.mn']);

@@ -42,7 +42,7 @@ async function shifted(ms, fn) {
 beforeEach(() => F.reset());
 
 // ───────────────────────── catalog ─────────────────────────
-test('catalog: нийтийн, 16 тоглоом, үнэ/хоног серверээс; GAME_PRICE/GAME_PAYWALL; POST → 405', async () => {
+test('catalog: нийтийн, 17 тоглоом, үнэ/хоног серверээс; GAME_PRICE/GAME_PAYWALL; POST → 405', async () => {
   const r = await F.call(games, { method: 'GET', query: { action: 'catalog' } });
   assert.strictEqual(r.statusCode, 200);
   assert.strictEqual(r.body.ok, true);
@@ -50,7 +50,7 @@ test('catalog: нийтийн, 16 тоглоом, үнэ/хоног сервер
   assert.strictEqual(r.body.price, 1900);
   assert.strictEqual(r.body.days, 30);
   assert.strictEqual(r.body.invite_hours, 3);
-  assert.strictEqual(r.body.games.length, 16);
+  assert.strictEqual(r.body.games.length, 17);
   r.body.games.forEach((g) => {
     assert.deepStrictEqual(Object.keys(g).sort(), ['key', 'kind', 'multi', 'title'], g.key);
     assert.ok(GM.isGame(g.key));

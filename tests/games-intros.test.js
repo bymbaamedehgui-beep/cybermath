@@ -1,6 +1,6 @@
 // gg-intro: Дасгалын төвийн тоглоомын «Танилцуулга» (games-intros.js + worksheets.html) ба
 //           «Сонго · Бод · Хож» (sbh)-ийн Дасгалын төвийн embed горимд зочноор өрөө үүсгэх/нэгдэх (index.html).
-//  1) games-intros.js — 16 тоглоом бүгд бүрэн агуулгатай, эможигүй, 11-р анги «тун удахгүй», {price}/{days}/{hours} бөглөнө, XSS-гүй.
+//  1) games-intros.js — 17 тоглоом бүгд бүрэн агуулгатай, эможигүй, 11-р анги «тун удахгүй», {price}/{days}/{hours} бөглөнө, XSS-гүй.
 //  2) worksheets.html (window.GW) — карт бүрт «Танилцуулга»; модал: 8 хэсэг, дугаарласан алхам, үнэ/хоног каталогоос,
 //     доод товч картын үйлдлийг дуудна (Нэвтэрч худалдан авах / Худалдан авах / Тоглох), X / Хаах / Esc / гадна → хаагдана.
 //  3) index.html sbh — embed (CM_EMBED.ok, key 'sbh') + нэвтрэлтгүй → 'guest_' + cm_guest_id; энгийн горимд өөрчлөлтгүй;
@@ -57,11 +57,11 @@ const SECS = ['about', 'how', 'math', 'modes', 'controls', 'tips', 'grade', 'acc
 const HEADS = ['Юу вэ', 'Хэрхэн тоглох', 'Сургах чадвар', 'Горимууд', 'Удирдлага', 'Зөвлөмж', 'Анги/сэдэв', 'Эрх'];
 
 // ───────────────────────── 1. агуулга ─────────────────────────
-test('games-intros.js: 16 тоглоом бүгд (CMGamesHost.KEYS) бүрэн агуулгатай, эможигүй, 11-р анги «тун удахгүй»', () => {
+test('games-intros.js: 17 тоглоом бүгд (CMGamesHost.KEYS) бүрэн агуулгатай, эможигүй, 11-р анги «тун удахгүй»', () => {
   const W = loadIntros();
   const G = W.GAME_INTROS, H = W.CMGamesHost;
   assert.ok(G && typeof G.html === 'function', 'window.GAME_INTROS');
-  assert.strictEqual(H.KEYS.length, 16);
+  assert.strictEqual(H.KEYS.length, 17);
   assert.deepStrictEqual(J(Object.keys(G.games).sort()), J(H.KEYS.slice().sort()), 'тоглоом бүрт танилцуулга (илүү/дутуу 0)');
   H.KEYS.forEach((k) => {
     const g = G.get(k);
@@ -215,11 +215,11 @@ test('worksheets.html: games-intros.js ачаалагдана (games-host.js-и�
   assert.match(WSH, /\.gi-acc\{[^}]*background:transparent;border-left:3px solid #d946ef/, 'санамж — тунгалаг + ягаан ирмэг (шар биш)');
 });
 
-test('GW: нэвтрээгүй → 16 картад «Танилцуулга»; модал 8 хэсэг + үнэ каталогоос; «Нэвтэрч худалдан авах» → нэвтрэх; X / Хаах / Esc / гадна → хаагдана', async () => {
+test('GW: нэвтрээгүй → 17 картад «Танилцуулга»; модал 8 хэсэг + үнэ каталогоос; «Нэвтэрч худалдан авах» → нэвтрэх; X / Хаах / Esc / гадна → хаагдана', async () => {
   const P = page({});
   await ticks();
-  assert.strictEqual(P.doc.querySelectorAll('#gcards .gcard').length, 16);
-  assert.strictEqual(P.doc.querySelectorAll('#gcards [data-ga="intro"]').length, 16, 'карт бүрт «Танилцуулга»');
+  assert.strictEqual(P.doc.querySelectorAll('#gcards .gcard').length, 17);
+  assert.strictEqual(P.doc.querySelectorAll('#gcards [data-ga="intro"]').length, 17, 'карт бүрт «Танилцуулга»');
   const ib = P.btn('mathmortal', 'intro');
   assert.match(ib.textContent, /^Танилцуулга$/);
   assert.ok(ib.innerHTML.indexOf('<svg') === 0, 'SVG icon');
@@ -279,7 +279,7 @@ test('GW: нэвтэрсэн — эрхгүй → «Худалдан авах» 
   give('kid@x.mn', 'play2048', 20);
   const P = page({ ls: { cm_ws_token: wsTok('kid@x.mn') } });
   await ticks();
-  assert.strictEqual(P.doc.querySelectorAll('#gcards [data-ga="intro"]').length, 16);
+  assert.strictEqual(P.doc.querySelectorAll('#gcards [data-ga="intro"]').length, 17);
   P.btn('sudoku', 'intro').click();
   let go = P.q('gpIntro', '[data-gi-go]');
   assert.match(go.textContent, /^Худалдан авах$/);
@@ -304,9 +304,9 @@ test('GW: нэвтэрсэн — эрхгүй → «Худалдан авах» 
 test('GW: games-intros.js ачаалагдаагүй бол «Танилцуулга» товч гарахгүй, бусад нь хэвээр', async () => {
   const P = page({ intros: false });
   await ticks();
-  assert.strictEqual(P.doc.querySelectorAll('#gcards .gcard').length, 16);
+  assert.strictEqual(P.doc.querySelectorAll('#gcards .gcard').length, 17);
   assert.strictEqual(P.doc.querySelectorAll('#gcards [data-ga="intro"]').length, 0);
-  assert.strictEqual(P.doc.querySelectorAll('#gcards [data-ga="login"]').length, 16);
+  assert.strictEqual(P.doc.querySelectorAll('#gcards [data-ga="login"]').length, 17);
   assert.strictEqual(P.W.GW.intro('sudoku'), null);
 });
 

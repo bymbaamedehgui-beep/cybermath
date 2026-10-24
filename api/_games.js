@@ -69,6 +69,8 @@ function g(title, kind, multi, extra) {
 }
 const GAMES = Object.freeze({
   mathmortal: g('MATH MORTAL', 'file', true, { path: '/math-mortal/' }),
+  // Монгол Орноор — 3D аялал (тусдаа Vercel төсөл mongol-oronoor): ?grade=&topic=-оор /api/questions-оос бодлого авна
+  mongol:     g('Монгол Орноор', 'external', false, { url: 'https://mongol-oronoor.vercel.app' }),
   blockblast: g('Block Blast Math', 'external', false, { url: 'https://blockblast-math.vercel.app' }),
   // Flag Battle — багшийн тэмцээн (bracket): анги, сэдвээ сонгоод оролцоно (түлхүүр flagbattle — идэвхтэй эрх бий, СОЛИХГҮЙ)
   flagbattle: g('Flag Battle — Тэмцээн', 'external', false, { url: 'https://6-7-songon.vercel.app' }),
