@@ -7,7 +7,7 @@
   if (window.WSB || typeof renderCatalog !== 'function' || !document.querySelector('.wrap')) return;
 
   var ROOT, ASIDE, MAIN, qTimer = null, CACHE = {}, SEARCH = null;
-  var ST = { g: -1, ch: null, t: null, q: '', nw: false };     // анги (index), нээлттэй бүлэг, сонгосон хэсэг (sg id | 'rest'), хайлт
+  var ST = { g: -1, ch: null, t: null, q: '', nw: false, nwAll: false };     // анги (index), нээлттэй бүлэг, сонгосон хэсэг (sg id | 'rest'), хайлт, шинэ хуудас (бүх анги эсэх)
   var OPEN_KEY = 'wsb_open', LAST_KEY = 'wsb_last', GRADE_KEY = 'wsb_grade';
   var MQ = window.matchMedia ? window.matchMedia('(max-width:899px)') : { matches: false };
 
@@ -128,8 +128,10 @@
       var ld = gdata(last.g), ln = ld && (last.t === 'rest' ? { title: 'Бусад хуудас', num: '' } : ld.map[last.t]);
       if (ln) h += '<button type="button" class="wsb-cont" data-go="' + last.g + ':' + last.t + '"><i>' + ICO.play + '</i><span><b>' + esc((ln.num ? ln.num + ' ' : '') + ln.title) + '</b><small>' + esc(ld.label) + ' · үргэлжлүүлэх</small></span></button>';
     }
-    var nn = newCount();
-    if (nn) h += '<button type="button" class="wsb-ch new' + (ST.nw ? ' on' : '') + '" data-new="1"><span class="wsb-rn">' + ICO.star + '</span><span class="nm">Шинэ хуудсууд<small>' + nn + ' хуудас нэмэгдсэн</small></span></button>';
+    if (newCount()) {   // сонгосон ангид шинэ байвал тэр ангийнх, үгүй бол бүх ангийн тоо
+      var nG = d ? newHits(ST.g).length : 0, nn = nG || newHits(-1).length;
+      if (nn) h += '<button type="button" class="wsb-ch new' + (ST.nw ? ' on' : '') + '" data-new="1"><span class="wsb-rn">' + ICO.star + '</span><span class="nm">Шинэ хуудсууд<small>' + (nG ? esc(d.label) + ' · ' + nG + ' хуудас' : nn + ' хуудас нэмэгдсэн') + '</small></span></button>';
+    }
     h += '<div class="wsb-lbl">Агуулгын хүснэгт</div>';
     if (!d) return h + '<div class="wsb-empty wsb-dk">Дээрээс ангиа сонгоно уу</div><div class="wsb-gbtns wsb-mb">' + gs.map(function (g, i) { var dd = gdata(i); return '<button type="button" class="wsb-gb" data-gpick="' + i + '">' + esc(g[0]) + '<small>' + (dd ? dd.items.length : g[1].length) + ' хуудас</small></button>'; }).join('') + '</div>' + linksHtml();
     d.chapters.forEach(function (n) { h += chRow(n, false); });
@@ -222,10 +224,26 @@
 
   /* Хайлт — бүх ангиас (гарчиг + сэдвийн нэр) */
   function newCount() { var n = 0; if (window.NEWSET) for (var k in NEWSET) if (NEWSET.hasOwnProperty(k)) n++; return n; }
-  function newHtml() {
+  // Шинэ хуудсууд: gi ангийнх (gi < 0 → бүх анги). Нэг хуудас хэд хэдэн сэдэвт байрласан бол нэг л удаа.
+  function newHits(gi) {
     if (!SEARCH) SEARCH = buildSearch();
-    var hits = SEARCH.filter(function (e) { return window.NEWSET && NEWSET[e.w[0]]; });
-    return resultsHtml(back() + '<div class="wsb-head"><span class="wsb-num">' + ICO.star + '</span><h2>Шинэ хуудсууд — ' + hits.length + '</h2></div><div class="wsb-meta"><span>Сүүлд орсноос хойш нэмэгдсэн. Нээсэн хуудас жагсаалтаас гарна.</span></div>', hits);
+    var seen = {};
+    return SEARCH.filter(function (e) {
+      var s = e.w[0];
+      if (!(window.NEWSET && NEWSET[s]) || (gi >= 0 && e.gi !== gi) || seen[s]) return false;
+      seen[s] = 1; return true;
+    });
+  }
+  // Анхдагч нь сонгосон ангийнх; «Бүх анги» товчоор бусдыг харна. Тэр ангид шинэ алга бол шууд бүх анги.
+  function newHtml() {
+    var d = ST.g >= 0 ? gdata(ST.g) : null;
+    var mine = d ? newHits(ST.g) : [], all = newHits(-1);
+    var useAll = !mine.length || ST.nwAll, hits = useAll ? all : mine;
+    var sw = mine.length && mine.length < all.length
+      ? '<button type="button" class="wsb-nwsw" data-nwall="' + (useAll ? 0 : 1) + '">' + (useAll ? 'Зөвхөн ' + esc(d.label) + ' (' + mine.length + ')' : 'Бүх анги (' + all.length + ')') + '</button>' : '';
+    var note = d && !mine.length ? esc(d.label) + ': шинэ хуудас алга, бүх ангийнхыг харуулав. ' : '';
+    return resultsHtml(back() + '<div class="wsb-head"><span class="wsb-num">' + ICO.star + '</span><h2>Шинэ хуудсууд' + (useAll ? '' : ' · ' + esc(d.label)) + ' — ' + hits.length + '</h2>' + sw + '</div>'
+      + '<div class="wsb-meta"><span>' + note + 'Сүүлд орсноос хойш нэмэгдсэн. Нээсэн хуудас жагсаалтаас гарна.</span></div>', hits, { per: 60, total: 400, hint: 'эсвэл ангиа сонгоно уу' });
   }
   function norm(s) { return String(s || '').toLowerCase().replace(/[«»"'.,:;!?()[\]{}—–-]+/g, ' ').replace(/\s+/g, ' ').trim(); }
   function buildSearch() {
@@ -248,15 +266,18 @@
     var hits = SEARCH.filter(function (e) { for (var i = 0; i < toks.length; i++) if (e.hay.indexOf(toks[i]) < 0) return false; return true; });
     return resultsHtml(back() + '<div class="wsb-head"><h2>«' + esc(ST.q) + '» — ' + hits.length + ' хуудас</h2></div>', hits);
   }
-  function resultsHtml(h, hits) {
+  // lim = { per: сэдэв бүрд, total: нийт } — хайлтад 12 / 120 (гарчиг дээр дарж бүгдийг үзнэ)
+  function resultsHtml(h, hits, lim) {
     if (!hits.length) return h + '<div class="wsb-empty">Олдсонгүй. Өөр үгээр хайгаад үзээрэй.</div>';
+    var per = (lim && lim.per) || 12, total = (lim && lim.total) || 120;
     var byKey = {}, keys = [], shown = 0;
     hits.forEach(function (e) { var k = e.gi + ':' + e.id; if (!byKey[k]) { byKey[k] = []; keys.push(k); } byKey[k].push(e); });
     keys.forEach(function (k) {
-      if (shown >= 120) return;
+      if (shown >= total) return;
       var arr = byKey[k], e0 = arr[0], lab = groups()[e0.gi][0];
-      h += '<div class="wsb-rhead"><a data-go="' + k + '">' + esc(e0.path) + '</a></div>' + grid(arr.slice(0, 12).map(function (e) { shown++; return card(e.w, lab); }));
+      h += '<div class="wsb-rhead"><a data-go="' + k + '">' + esc(e0.path) + '</a></div>' + grid(arr.slice(0, per).map(function (e) { shown++; return card(e.w, lab); }));
     });
+    if (shown < hits.length) h += '<div class="wsb-empty">' + hits.length + ' хуудаснаас ' + shown + '-г харууллаа. Бүгдийг харахын тулд гарчиг дээр дарж сэдэв рүү орно уу' + (lim && lim.hint ? ', ' + lim.hint : '') + '.</div>';
     return h;
   }
 
@@ -313,7 +334,8 @@
     }
     var el;
     if ((el = t.closest('[data-jump]'))) { e.preventDefault(); var sec = document.getElementById(el.getAttribute('data-jump')); if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
-    if ((el = t.closest('[data-new]'))) { go({ nw: !ST.nw, q: '' }, { noHash: true }); return; }
+    if ((el = t.closest('[data-new]'))) { go({ nw: !ST.nw, nwAll: false, q: '' }, { noHash: true }); return; }
+    if ((el = t.closest('[data-nwall]'))) { ST.nwAll = el.getAttribute('data-nwall') === '1'; render(true); return; }
     if ((el = t.closest('[data-gpick]'))) { go({ g: +el.getAttribute('data-gpick'), ch: null, t: null, q: '' }); return; }
     if ((el = t.closest('[data-go]'))) {
       var p = el.getAttribute('data-go').split(':'), g = +p[0], id = p[1] === 'rest' ? 'rest' : +p[1], dd = gdata(g);
