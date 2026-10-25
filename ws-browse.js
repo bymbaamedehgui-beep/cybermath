@@ -345,7 +345,7 @@
     if (!pw) { alert('Popup блоклогдсон байна. Хөтчийн popup зөвшөөрлийг идэвхжүүлээд дахин дарна уу.'); return; }
     var g = ST.g, go = function () { window.WSBOOK.build(g, pw); };
     if (window.WSBOOK) { go(); return; }
-    var s = document.createElement('script'); s.src = '/ws-book.js?v=2';
+    var s = document.createElement('script'); s.src = '/ws-book.js?v=3';
     s.onload = go; s.onerror = function () { try { pw.document.body.textContent = 'ws-book.js ачаалагдсангүй'; } catch (e) {} };
     document.head.appendChild(s);
   }

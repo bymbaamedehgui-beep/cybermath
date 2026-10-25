@@ -97,10 +97,19 @@
         + '<div id="st">Ажлын хуудсуудыг ачаалж байна…</div><div style="margin-top:8px;font-size:13px;color:#8a84a3">Энэ цонхыг болон Дасгалын төвийн хуудсыг бүү хаагаарай.</div></body></html>');
       pw.document.close();
     } catch (e) {}
+    // ЗӨВХӨН АДМИН: серверээр (book_get, админы JWT) баталгаажсаны дараа л ажлын хуудсуудыг ачаална
+    fetch('/api/worksheets', { method: 'POST', headers: adminHdr(), body: JSON.stringify({ action: 'book_get' }) })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { status: r.status, j: j }; }); })
+      .then(function (x) {
+        if (!(x.j && x.j.ok)) {
+          try { pw.document.getElementById('st').textContent = x.status === 401 ? 'Зөвхөн админ ашиглана. /admin хуудсаар нэвтэрнэ үү.' : 'Сервертэй холбогдож чадсангүй. Дахин оролдоно уу.'; } catch (e) {}
+          return;
+        }
+        load(x.j.book || {});
+      }, function () { try { pw.document.getElementById('st').textContent = 'Сервертэй холбогдож чадсангүй. Дахин оролдоно уу.'; } catch (e) {} });
+    function load(settings) {
     // Ажлын хуудасны нийтлэг «Бодолтын зай %» (localStorage) номд нөлөөлөхгүй — ачаалах хооронд 1 болгоно
     var prev = null; try { prev = localStorage.getItem(WKS_KEY); localStorage.setItem(WKS_KEY, '1'); } catch (e) {}
-    var settingsP = fetch('/api/worksheets', { method: 'POST', headers: adminHdr(), body: JSON.stringify({ action: 'book_get' }) })
-      .then(function (r) { return r.json(); }).then(function (j) { return (j && j.ok && j.book) || {}; }).catch(function () { return {}; });
     var done = 0, next = 0;
     function worker() {
       if (pw.closed) return Promise.resolve();
@@ -113,7 +122,7 @@
         });
     }
     var ws = []; for (var i = 0; i < CONC; i++) ws.push(worker());
-    Promise.all([Promise.all(ws), settingsP]).then(function (r) {
+    Promise.all(ws).then(function () {
       try { if (prev == null) localStorage.removeItem(WKS_KEY); else localStorage.setItem(WKS_KEY, prev); } catch (e) {}
       if (pw.closed) return;
       var blocks = [], idx = new Map();
@@ -121,7 +130,7 @@
         if (!it.snap) return;
         it.cls = it.snap.styles.map(function (t) { if (!idx.has(t)) { idx.set(t, blocks.length); blocks.push(t); } return 'cb-' + idx.get(t); }).join(' ');
       });
-      var D = { label: o.label, year: new Date().getFullYear(), list: list, blocks: blocks, settings: r[1],
+      var D = { label: o.label, year: new Date().getFullYear(), list: list, blocks: blocks, settings: settings,
         chapters: o.chapters.map(function (c) { return { roman: c.roman, title: c.title, topics: c.topics.map(function (t) { return { num: t.num, title: t.title }; }) }; }) };
       pw.document.open();
       pw.document.write('<!doctype html><html lang="mn"><head><meta charset="utf-8"><base href="' + location.origin + '/">'
@@ -132,6 +141,7 @@
       pw.document.close();
       pw.__bookInit(D);
     });
+    }
   }
 
   /* ── 4) Ном/засварлагч (попап цонхонд ажиллана — энэ функцийн гаднах хувьсагч ашиглахгүй) ── */
