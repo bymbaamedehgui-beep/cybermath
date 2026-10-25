@@ -20,20 +20,25 @@
     return arr;
   }
   function wsOwner(){try{var k=localStorage.getItem('cm_ws_owner');if(!k){k='o'+Date.now().toString(36)+Math.random().toString(36).slice(2,10);localStorage.setItem('cm_ws_owner',k);}return k;}catch(e){return '';}}
-  window.wsSaveCurrent=function(btn){
-    var items=(window.WS_ITEMS&&window.WS_ITEMS.length)?window.WS_ITEMS:scrapeItems();
-    if(!items.length){alert('Хадгалах бодлого алга. Эхлээд "Шинэ бодлого" дарна уу.');return;}
+  function curItems(){ return (window.WS_ITEMS&&window.WS_ITEMS.length)?window.WS_ITEMS:scrapeItems(); }
+  // Одоогийн хувилбарыг (бодлого + хариу) «Хадгалсан хуудаснууд»-д хадгална → Promise(хариу)
+  function saveSet(items,note){
     var h1=document.querySelector('#sheet .head h1, .head h1');
     var title=(h1&&(h1.textContent||'').trim())||window.WS_TITLE||document.title||'Дасгал';
     // Олон хувилбартай хуудас (ж: ЭЕШ) хувилбарын дугаараа гарчигт залгана — хадгалсан хуудсыг хувилбартай нь холбоно
     if(typeof window.WS_TITLE_SUFFIX==='string'&&window.WS_TITLE_SUFFIX)title+=window.WS_TITLE_SUFFIX;
+    return fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'save',title:title,items:items,note:note,owner:wsOwner()})})
+      .then(function(r){return r.json();});
+  }
+  window.wsSaveCurrent=function(btn){
+    var items=curItems();
+    if(!items.length){alert('Хадгалах бодлого алга. Эхлээд "Шинэ бодлого" дарна уу.');return;}
     // Тэмдэглэл бичих (хүсвэл) — Cancel дарвал хадгалахгүй
     var note=window.prompt('Тэмдэглэл бичнэ үү (жнь: 9А анги, гэрийн даалгавар):', '');
     if(note===null)return;
     if(btn){btn.disabled=true;var ot=btn.innerHTML;btn.textContent='Хадгалж байна…';}
-    fetch('/api/worksheets',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({action:'save',title:title,items:items,note:note,owner:wsOwner()})})
-      .then(function(r){return r.json();})
+    saveSet(items,note)
       .then(function(d){
         if(d&&d.ok){alert('✓ Тэмдэглэлээ!  Код: #'+d.code+'\n\n"Дасгалын төв → Хадгалсан хуудаснууд" хэсгээс хариутай нь дахин харж болно.');}
         else alert('Алдаа: '+((d&&d.error)||'хадгалж чадсангүй'));
@@ -493,7 +498,7 @@
   }
   function inIframe(){ try{return window.top!==window.self;}catch(e){return true;} }
   // Анги бүрийн хамгийн эхний ажлын хуудас — ҮНЭГҮЙ туршилт
-  var WS_FREE=["hurd-tseejleh-arguud-1.html","urjver-hurd.html","urjver-4x3-12.html","huvaalt-5x2-12.html","numshul-nemeh-hasah-12.html","daraalal-zui-togtol-12.html","zereg-uildel-12.html","troichlen-zadlal-12.html","grafik-ax2.html","kvadrat-tentsbish-grafik.html","camb-4a-factors.html"];
+  var WS_FREE=["hurd-tseejleh-arguud-1.html","urjver-hurd.html","urjver-4x3-12.html","huvaalt-5x2-12.html","numshul-nemeh-hasah-12.html","daraalal-zui-togtol-12.html","zereg-uildel-12.html","troichlen-zadlal-12.html","grafik-ax2.html","kvadrat-tentsbish-grafik.html","camb-4a-factors.html","egshig-zohicol-1-3mn.html"];
   function curSlug(){ return (location.pathname.split('/').pop()||'').toLowerCase(); }
   function isFreeSheet(){ return WS_FREE.indexOf(curSlug())>=0; }
   function addFreeBadge(){
@@ -507,6 +512,7 @@
     if(IS_QR)return;                                 // QR/сурагчийн горим — багшийн хуваалцсан ганц материал, төлбөргүй
     if(inIframe())return;                            // iframe доторх урьдчилан харах/танилцуулга — цоожгүй
     if(isFreeSheet()){                               // анги бүрийн эхний хуудас — үнэгүй
+      try{document.documentElement.classList.add('cm-free');}catch(e){}   // туршилтын хэвлэх хоригоос чөлөөтэй
       addFreeBadge();
       // Нэвтэрсэн бол туршилтын тоолуур харагдана; 0:00 үед хаагддаг (soft) худалдан авах цонх гарна, агуулга үнэгүй хэвээр
       if(ls('cm_ws_token')&&!ls('cm_admin_token')){ TR.soft=true; checkAccess(); }
@@ -656,6 +662,73 @@
 
   // ─── CyberMath усан тэмдэг (тамга) + сурталчилгааны линк — хэвлэсэн хуудсанд ч гарна ───
   var WS_PROMO='cyber-math.com/dasgal';
+
+  /* ─── Дээд товчнууд (.bar): цэгцтэй нэг мөр — «Шинэ бодлого» · сонголтууд (шилжүүлэгч) · хэрэгсэл · «Хэвлэх / PDF» баруун талд.
+     Элементүүдийг ЗӨӨХГҮЙ (DOM-ын дараалал хэвээр — түгжээ «.bar .btn:not(.refresh)»-ээр хэвлэх товчийг олдог), зөвхөн CSS order.
+     Зөвхөн дэлгэцэнд (@media screen) — хэвлэхэд .bar урьдын адил нуугдана. ─── */
+  function tidyBar(){
+    var bar=document.querySelector('.bar'); if(!bar)return;
+    bar.classList.add('cmbar');
+    // Хоёр мөрийн заагч (span — «.bar .btn» хайлтад орохгүй): дээд мөр гол үйлдэл, доод мөр хэрэгсэл
+    if(!bar.querySelector('.cmbar-br')){ var br=document.createElement('span'); br.className='cmbar-br'; br.setAttribute('aria-hidden','true'); bar.appendChild(br); }
+    // Доош гүйлгээд дээр наалдсан үед «cmbar-stuck» — утсанд зөвхөн гол товч + шилжүүлэгч үлдэж, дэлгэц эзлэхгүй
+    if(!bar._cmStuck){ bar._cmStuck=1; var raf=0;
+      var chk=function(){ raf=0; var t=parseFloat(getComputedStyle(bar).top)||0; bar.classList.toggle('cmbar-stuck', window.scrollY>4&&bar.getBoundingClientRect().top<=t+1); };
+      window.addEventListener('scroll',function(){ if(!raf)raf=requestAnimationFrame(chk); },{passive:true}); }
+    if(document.getElementById('cm-bar-css'))return;
+    var B='.bar.cmbar', st=document.createElement('style'); st.id='cm-bar-css';
+    st.textContent='@media screen{'
+      +B+'{position:sticky;top:8px;z-index:40;max-width:820px;margin:0 auto 14px;padding:8px 8px 6px;gap:6px;justify-content:flex-start;align-items:center;'
+        +'background:rgba(255,255,255,.93);-webkit-backdrop-filter:saturate(160%) blur(10px);backdrop-filter:saturate(160%) blur(10px);'
+        +'border:1px solid #ECE7FA;border-radius:18px;box-shadow:0 12px 30px -20px rgba(60,30,150,.45)}'
+      +'html.cm-trial '+B+'{top:46px}'
+      +B+'>*{order:3}'
+      +B+'>.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:40px;padding:0 14px;border-radius:12px;border:0;'
+        +'font-size:.87rem;font-weight:800;line-height:1;white-space:nowrap;box-shadow:none;transition:transform .08s,filter .15s}'
+      +B+'>.btn:hover{filter:brightness(1.05)}'+B+'>.btn:active{transform:translateY(1px)}'+B+'>.btn svg{flex:none}'
+      /* Дээд мөр: Шинэ бодлого · сонголтууд ··· Хэвлэх / PDF */
+      +B+'>.btn.refresh{order:1;background:#16A34A;color:#fff;box-shadow:0 3px 0 #0F7A37}'
+      +B+' .cm-kbd{background:rgba(255,255,255,.2)!important;border:0!important;color:#fff!important;border-radius:6px!important;padding:2px 6px!important;font-size:.66rem!important;font-weight:800!important}'
+      +B+'>label{order:2;display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 11px;border-radius:12px;background:#F6F4FD;'
+        +'color:#3F3A5C;font-size:.85rem;font-weight:800;cursor:pointer;-webkit-user-select:none;user-select:none;white-space:nowrap}'
+      +B+'>label:has(input:checked){background:#F1EDFF;color:#4B2BBF}'
+      +B+'>label input[type=checkbox]{-webkit-appearance:none;appearance:none;margin:0;flex:none;width:32px;height:19px;border-radius:99px;'
+        +'background:#D6D0EA;position:relative;cursor:pointer;transition:background .15s}'
+      +B+'>label input[type=checkbox]::after{content:"";position:absolute;top:2.5px;left:2.5px;width:14px;height:14px;border-radius:50%;'
+        +'background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .15s}'
+      +B+'>label input[type=checkbox]:checked{background:#7B52EE}'
+      +B+'>label input[type=checkbox]:checked::after{transform:translateX(13px)}'
+      +B+'>label input[type=checkbox]:focus-visible{outline:2px solid #A78BFA;outline-offset:2px}'
+      +B+'>button[onclick*="print"]{order:4;margin-left:auto;padding:0 18px;color:#fff;background:linear-gradient(135deg,#7B52EE,#A855F7);box-shadow:0 3px 0 #5532C9}'
+      /* Мөр таслах */
+      +B+'>.cmbar-br{order:5;flex-basis:100%;height:0;margin:2px 0 0;border-top:1px dashed #ECE7FA}'
+      /* Доод мөр: Тэмдэглэх · Ангиар хэвлэх · Үнэгүй ··· Бодолтын зай 100% · N бодлого · Анхны хэмжээ */
+      +B+'>.ws-save,'+B+'>.ws-batch{order:6;height:34px;padding:0 12px;font-size:.82rem;background:#F3F0FF!important;color:#5B3BD9!important}'
+      +B+'>.ws-free,'+B+'>.qr-badge{order:7;height:30px;padding:0 11px!important;font-size:.78rem!important;box-shadow:none!important;align-items:center}'
+      +B+'>.ws-editreset,'+B+'>.ws-titlereset{order:8}'
+      +B+'>.cm-wkbadge{order:9;margin-left:auto;gap:7px!important;font-size:.8rem!important;color:#7A7596!important}'
+      +B+' .cm-wkreset{border-radius:8px!important;padding:3px 10px!important}'
+      +'@media (max-width:640px){'
+        +B+'{top:6px;padding:7px 7px 5px}'
+        +'html.cm-trial '+B+'{top:44px}'
+        +B+'.cmbar-stuck>.cmbar-br,'+B+'.cmbar-stuck>.ws-save,'+B+'.cmbar-stuck>.ws-batch,'+B+'.cmbar-stuck>.ws-free,'+B+'.cmbar-stuck>.qr-badge,'
+          +B+'.cmbar-stuck>.ws-editreset,'+B+'.cmbar-stuck>.ws-titlereset,'+B+'.cmbar-stuck>.cm-wkbadge{display:none!important}'
+        +B+'.cmbar-stuck>label{height:34px}'
+        +B+'>.btn.refresh{flex:1 1 40%}'
+        +B+'>button[onclick*="print"]{order:1;flex:1 1 40%;margin-left:0}'
+        +B+'>label{flex:1 1 40%;justify-content:space-between}'
+        +B+'>.cm-wkbadge{margin-left:0;flex-basis:100%}'
+        +B+' .cm-kbd{display:none!important}'
+      +'}'
+    +'}'
+    +'@media print{.cmbar-br{display:none}}'
+    /* Үнэгүй 5 минутын туршилт (html.cm-trial): хэвлэх, хадгалах боломжгүй — үнэгүй хуудас (html.cm-free) хамаарахгүй.
+       Ctrl+P дарсан ч хуудасны агуулга хэвлэгдэхгүй, зөвхөн тайлбар гарна. */
+    +'html.cm-trial:not(.cm-free) .bar button[onclick*="print"],html.cm-trial:not(.cm-free) .bar .ws-save,html.cm-trial:not(.cm-free) .bar .ws-batch{display:none!important}'
+    +'@media print{html.cm-trial:not(.cm-free) body>*{display:none!important}'
+      +'html.cm-trial:not(.cm-free) body::after{content:"Үнэгүй туршилтын үед хэвлэх боломжгүй. Эрх авсны дараа хэвлэнэ үү — cyber-math.com/worksheets";display:block;padding:40px;font:700 16px/1.5 Arial,sans-serif;color:#333}}';
+    (document.head||document.documentElement).appendChild(st);
+  }
   function injectBrandCSS(){
     if(document.getElementById('cm-brand-css'))return;
     var st=document.createElement('style'); st.id='cm-brand-css';
@@ -704,6 +777,8 @@
       // ─── Гар утасны тохируулга: хуудас хойшоо гарахгүй болгох (зөвхөн дэлгэц, хэвлэлд нөлөөлөхгүй) ───
       '@media screen and (max-width:820px){'+
         'html,body{overflow-x:hidden!important}'+
+        /* clip нь гүйлгэх хайрцаг үүсгэдэггүй — дээд товчнууд (sticky) наалдана; хуучин хөтөчид hidden хэвээр */
+        '@supports (overflow:clip){html,body{overflow-x:clip!important}}'+
         'body{padding:8px!important}'+
         '#sheet{width:100%!important;max-width:100%!important;padding:9mm 6mm!important}'+
         '#sheet .grid{gap:10px 12px!important}'+
@@ -1466,7 +1541,75 @@
       try{if(typeof window.build==='function')window.build();}catch(e){}
     }
   }
-  function init(){ injectBrandCSS(); brandSheet(); watchSheet(); enhanceMeta(); loadInstr(); if(!IS_QR){addBtn();addBatchBtn();addWorkToggle();} addRefreshShortcut(); applyQR(); enforcePaywall(); injectSocial(); applyWantWork(); addWorkResize(); }
+  /* ─── «Хэвлэх / PDF» дарах бүрд «Хариуг хадгалах уу?» — хэвлэх бүрт бодлого шинэчлэгддэг тул энэ хувилбарын
+     хариуг «Хадгалсан хуудаснууд»-д үлдээх боломж. Хадгалах эсэхээс үл хамааран хэвлэлт үргэлжилнэ. QR (сурагчийн) горимд асуухгүй. ─── */
+  function findPrintBtn(){
+    var b=document.querySelector('.bar button[onclick*="print"]'); if(b)return b;
+    var all=document.querySelectorAll('.bar .btn:not(.refresh)');
+    for(var i=0;i<all.length;i++){ if(/Хэвлэх/.test(all[i].textContent||'')&&!all[i].classList.contains('ws-batch'))return all[i]; }
+    return null;
+  }
+  function hookPrintAsk(){
+    if(IS_QR)return;
+    var pb=findPrintBtn(); if(!pb||pb._cmAsk)return; pb._cmAsk=1;
+    var orig=pb.onclick;
+    pb.onclick=function(e){ if(e&&e.preventDefault)e.preventDefault(); printAsk(function(){ if(typeof orig==='function')orig.call(pb,e); else window.print(); }); };
+  }
+  function printAsk(doPrint){
+    var old=document.getElementById('cmPrAsk'); if(old)old.parentNode.removeChild(old);
+    if(!document.getElementById('cm-prask-css')){
+      var st=document.createElement('style'); st.id='cm-prask-css';
+      st.textContent='#cmPrAsk{position:fixed;inset:0;z-index:2147482000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(20,15,40,.5);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}'
+        +'#cmPrAsk .bx{position:relative;width:100%;max-width:400px;background:#fff;border-radius:22px;padding:22px 20px 18px;box-shadow:0 30px 70px -20px rgba(20,8,70,.6);font-family:inherit;color:#211C54;text-align:center}'
+        +'#cmPrAsk .ic{width:62px;height:62px;margin:0 auto 10px;border-radius:18px;display:grid;place-items:center;background:linear-gradient(135deg,#7B52EE,#A855F7);box-shadow:0 10px 22px -8px rgba(123,82,238,.7)}'
+        +'#cmPrAsk h3{margin:0 0 6px;font-size:1.2rem;font-weight:900}'
+        +'#cmPrAsk p{margin:0 0 12px;font-size:.88rem;line-height:1.45;color:#6D6890;font-weight:700}'
+        +'#cmPrAsk input{width:100%;box-sizing:border-box;height:44px;border:1.6px solid #E6DFFB;border-radius:12px;padding:0 12px;font:inherit;font-size:.9rem;outline:none;margin-bottom:12px}'
+        +'#cmPrAsk input:focus{border-color:#7B52EE}'
+        +'#cmPrAsk .b{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:48px;border:0;border-radius:14px;font:inherit;font-weight:900;font-size:.95rem;cursor:pointer;margin-top:8px}'
+        +'#cmPrAsk .b.p{color:#fff;background:linear-gradient(135deg,#7B52EE,#A855F7);box-shadow:0 4px 0 #5532C9}'
+        +'#cmPrAsk .b.s{color:#5B3BD9;background:#F3F0FF}'
+        +'#cmPrAsk .b:disabled{opacity:.6;cursor:default}'
+        +'#cmPrAsk .x{position:absolute;top:10px;right:10px;width:34px;height:34px;border:0;border-radius:11px;background:#F6F4FD;color:#6D6890;font-size:18px;cursor:pointer}'
+        +'#cmPrAsk .er{color:#B42318;font-size:.82rem;font-weight:800;margin-top:6px;min-height:1em}'
+        +'.cm-prtoast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:2147482001;background:#211C54;color:#fff;font-weight:800;font-size:.9rem;line-height:1.3;padding:11px 16px;border-radius:14px;box-shadow:0 14px 30px -12px rgba(20,8,70,.6)}'
+        +'@media print{#cmPrAsk,.cm-prtoast{display:none!important}}';
+      (document.head||document.documentElement).appendChild(st);
+    }
+    var o=document.createElement('div'); o.id='cmPrAsk'; o.setAttribute('role','dialog'); o.setAttribute('aria-modal','true'); o.setAttribute('aria-labelledby','cmPrAskT');
+    o.innerHTML='<div class="bx"><button type="button" class="x" aria-label="Болих">×</button>'
+      +'<div class="ic"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></div>'
+      +'<h3 id="cmPrAskT">Хариуг хадгалах уу?</h3>'
+      +'<p>Хэвлэх бүрт бодлого шинээр үүсдэг. Хадгалбал <b>энэ хувилбарын хариу</b> «Хадгалсан хуудаснууд»-д үлдэж, дараа нь шалгахад хэрэг болно.</p>'
+      +'<input type="text" maxlength="120" placeholder="Тэмдэглэл (заавал биш): 9А анги, гэрийн даалгавар">'
+      +'<button type="button" class="b p" data-a="save"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><path d="M6 9V2h12v7"/><rect x="2" y="9" width="20" height="9" rx="2"/><path d="M6 14h12v8H6z"/></svg>Хадгалаад хэвлэх</button>'
+      +'<button type="button" class="b s" data-a="print">Хадгалахгүй хэвлэх</button><div class="er"></div></div>';
+    document.body.appendChild(o);
+    var close=function(){ if(o.parentNode)o.parentNode.removeChild(o); document.removeEventListener('keydown',onKey,true); };
+    var onKey=function(e){ if(e.key==='Escape'){ e.preventDefault(); close(); } };
+    document.addEventListener('keydown',onKey,true);
+    var inp=o.querySelector('input'), er=o.querySelector('.er');
+    setTimeout(function(){ try{ o.querySelector('[data-a="save"]').focus(); }catch(e){} },30);
+    o.addEventListener('click',function(e){
+      if(e.target===o||e.target.closest('.x')){ close(); return; }
+      var b=e.target.closest('[data-a]'); if(!b)return;
+      if(b.getAttribute('data-a')==='print'){ close(); doPrint(); return; }
+      var items=curItems();
+      if(!items.length){ close(); doPrint(); return; }
+      [].forEach.call(o.querySelectorAll('.b'),function(x){x.disabled=true;}); b.lastChild.textContent='Хадгалж байна…'; er.textContent='';
+      saveSet(items,(inp.value||'').trim()).then(function(d){
+        if(d&&d.ok){
+          close(); doPrint();
+          var t=document.createElement('div'); t.className='cm-prtoast'; t.textContent='Хариу хадгалагдлаа · Код #'+d.code+' · «Хадгалсан хуудаснууд»';
+          document.body.appendChild(t); setTimeout(function(){ if(t.parentNode)t.parentNode.removeChild(t); },5000);
+        } else throw new Error((d&&d.error)||'хадгалж чадсангүй');
+      }).catch(function(err){
+        [].forEach.call(o.querySelectorAll('.b'),function(x){x.disabled=false;}); b.lastChild.textContent='Хадгалаад хэвлэх';
+        er.textContent='Хадгалж чадсангүй: '+(err&&err.message||'сүлжээ')+'. «Хадгалахгүй хэвлэх»-ээр үргэлжлүүлж болно.';
+      });
+    });
+  }
+  function init(){ tidyBar(); injectBrandCSS(); brandSheet(); watchSheet(); enhanceMeta(); loadInstr(); if(!IS_QR){addBtn();addBatchBtn();addWorkToggle();hookPrintAsk();} addRefreshShortcut(); applyQR(); enforcePaywall(); injectSocial(); applyWantWork(); addWorkResize(); }
   if(document.readyState!=='loading')init();
   else document.addEventListener('DOMContentLoaded',init);
 })();

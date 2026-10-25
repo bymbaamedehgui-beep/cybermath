@@ -210,6 +210,16 @@
   #wpreview .pvbody{position:relative;width:100%;height:calc(100% - 32px);overflow:hidden;background:#f4f1fb}
   #wpreview iframe{position:absolute;top:0;left:0;border:0;width:840px;height:1140px;transform:scale(.4524);transform-origin:top left;background:#fff}
   #wpreview .pvload{position:absolute;inset:0;display:grid;place-items:center;color:var(--soft);font-size:.82rem}
+  /* Эрхгүй хуудас: портрет горим шиг — ард нь хуудас бага зэрэг бүдэг (харагдсан хэвээр), голд нь том тод цоож */
+  #wpreview .pvlock{position:absolute;inset:0;display:none;align-items:center;justify-content:center;pointer-events:none;
+    -webkit-backdrop-filter:blur(1.6px) saturate(.92);backdrop-filter:blur(1.6px) saturate(.92);
+    background:radial-gradient(circle at 50% 50%,rgba(255,255,255,.55),rgba(255,255,255,.12) 46%,rgba(244,241,251,.18))}
+  #wpreview.locked .pvlock{display:flex}
+  #wpreview .pvlock span{width:132px;height:132px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.97);box-shadow:0 18px 40px -12px rgba(60,30,150,.55),0 0 0 9px rgba(123,82,238,.14)}
+  #wpreview .pvlock svg{width:64px;height:64px}
+  #wpreview .pvlock{flex-direction:column;gap:12px}
+  #wpreview .pvfree{display:none;font-style:normal;font-size:.76rem;font-weight:900;color:#5B3BD9;background:rgba(255,255,255,.96);border-radius:999px;padding:6px 12px;box-shadow:0 8px 18px -10px rgba(60,30,150,.55)}
+  #wpreview.locked.guest .pvfree{display:inline-block}
   @media (max-width:720px){#wpreview{display:none!important}.hero{padding:18px}.hero h1{font-size:1.42rem}.hero .bird{width:74px;height:74px}}
 
   /* context menu */
@@ -424,6 +434,7 @@
   .eesh-tool .et-go{flex:none;font-weight:900;font-size:.84rem;background:rgba(255,255,255,.18);border-radius:999px;padding:.35rem .8rem}
   body.searching .eesh-tool{display:none}
 </style>
+<link rel="stylesheet" href="/ws-browse.css">
 </head>
 <body>
 <div id="annBar" style="display:none"><div class="ann-inner"><span id="annText"></span></div><button id="annToggle" type="button" aria-label="Түр зогсоох / үргэлжлүүлэх"><svg class="ic-pause" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg><svg class="ic-play" viewBox="0 0 24 24" fill="currentColor"><path d="M7 5l12 7-12 7z"/></svg></button></div>
@@ -607,7 +618,7 @@ var activeBand='all';
 var OVERRIDES={}, HIDDEN={}, NEWSET={}, ORDER={}, PLACE={add:{},remove:{}};
 /* slug → анхны нэр (LIST+CAMB доторх эхний тохиолдол) */
 // Анги бүрийн эхний ажлын хуудас — ҮНЭГҮЙ туршилт
-var WS_FREE={"urjver-hurd.html":1,"urjver-4x3-12.html":1,"huvaalt-5x2-12.html":1,"numshul-nemeh-hasah-12.html":1,"daraalal-zui-togtol-12.html":1,"zereg-uildel-12.html":1,"troichlen-zadlal-12.html":1,"grafik-ax2.html":1,"kvadrat-tentsbish-grafik.html":1,"egshig-zohicol-1-3mn.html":1};
+var WS_FREE={"hurd-tseejleh-arguud-1.html":1,"urjver-hurd.html":1,"urjver-4x3-12.html":1,"huvaalt-5x2-12.html":1,"numshul-nemeh-hasah-12.html":1,"daraalal-zui-togtol-12.html":1,"zereg-uildel-12.html":1,"troichlen-zadlal-12.html":1,"grafik-ax2.html":1,"kvadrat-tentsbish-grafik.html":1,"camb-4a-factors.html":1,"egshig-zohicol-1-3mn.html":1};
 var SLUGMAP={}, GROUPS=[];
 var SUBGROUPS=[], SGBY={}, SGALLBY={}, SGCHILD={}, SGMAP={}, SGGRADE={}, _dragOrigin=null, _dragSection=null;
 var SGCOLLAPSED=(function(){try{return JSON.parse(localStorage.getItem('ws_sg_collapsed')||'{}')||{};}catch(e){return {};}})();
@@ -960,7 +971,8 @@ var pv,pvIf,pvHead,pvLoad,pvHref='',pvTimer,pvCanHover=(!window.matchMedia||wind
 function ensurePv(){
   if(pv)return;
   pv=document.createElement('div');pv.id='wpreview';
-  pv.innerHTML='<div class="pvhead"></div><div class="pvbody"><iframe scrolling="no" loading="lazy"></iframe><div class="pvload">Урьдчилан үзэж байна…</div></div>';
+  pv.innerHTML='<div class="pvhead"></div><div class="pvbody"><iframe scrolling="no" loading="lazy"></iframe><div class="pvload">Урьдчилан үзэж байна…</div>'
+    +'<div class="pvlock" aria-hidden="true"><span><svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="#7B52EE" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10.5" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15.6" r="1.3" fill="#7B52EE" stroke="none"/></svg></span><em class="pvfree">Бүртгүүлээд эхний 5 минут үнэгүй</em></div></div>';
   document.body.appendChild(pv);
   pvIf=pv.querySelector('iframe');pvHead=pv.querySelector('.pvhead');pvLoad=pv.querySelector('.pvload');
   pvIf.addEventListener('load',function(){pvLoad.style.display='none';});
@@ -970,6 +982,8 @@ function showPv(card){
   var href=card.getAttribute('data-href');
   pvHead.textContent=card.getAttribute('data-title')||'';
   if(href!==pvHref){pvHref=href;pvLoad.style.display='grid';pvIf.src=href;}
+  pv.classList.toggle('locked',wsCardLocked(card));
+  pv.classList.toggle('guest',!(window.CM_USER||window.WS_ACCT));   /* бүртгэлгүй зочинд: 5 минутын үнэгүй туршилт */
   pv.style.display='block';positionPv(card);
 }
 function positionPv(card){
@@ -1596,6 +1610,16 @@ function cmDevFp(){
 }
 function wsStatusHdr(){ var h={'Content-Type':'application/json'}; var d=cmDevId(); if(d)h['x-device-id']=d; var f=cmDevFp(); if(f)h['x-device-fp']=f; return h; }
 var PAYWALL_OFF=false, WS_NEED_LOGIN=false;
+/* Сүүлийн wsstatus: {active, scope:'all'|'grade'|'trial', grades:[{grade}]} — урьдчилсан харагдацын цоожинд (дэлгэцийн тэмдэг л; эрхийг сервер шийднэ) */
+var WS_ENT=null;
+function wsCardLocked(card){
+  var slug=(card&&card.getAttribute('data-slug'))||'';
+  if(!slug||WS_FREE[slug]||PAYWALL_OFF||isAdmin())return false;
+  var e=WS_ENT; if(e&&e.active&&(e.scope==='all'||e.scope==='trial'))return false;
+  var g=card.getAttribute('data-grade'); if(!g){var gp=card.closest('[data-grade]');g=gp?gp.getAttribute('data-grade'):'';}
+  if(e&&e.grades&&g)for(var i=0;i<e.grades.length;i++){if(e.grades[i]&&e.grades[i].grade===g)return false;}
+  return true;
+}
 function verifyUser(cb){
   var tok=lsGet('cm_ws_token'),email=lsGet('cm_last_user');
   if(!tok&&!email){CM_USER=null;WS_ACCT=null;wsTrialStop();renderAcct();if(cb)cb();return;}
@@ -1603,6 +1627,7 @@ function verifyUser(cb){
   fetch('/api/qpay?action=wsstatus',{method:'POST',headers:wsStatusHdr(),body:JSON.stringify({wstoken:tok,email:email})})
     .then(function(r){return r.json();}).then(function(d){
       WS_NEED_LOGIN=!!(d&&d.needLogin);   // токен байхгүй/хүчингүй — нууц үгээр нэвтрэх шаардлагатай
+      WS_ENT={active:!!(d&&d.active),scope:(d&&d.scope)||null,grades:(d&&d.grades)||[]};
       // Энэ хуудсан дээр туршилт аль хэдийн 0:00 болсон — хожуу ирсэн «trial» хариуг эрх гэж үзэхгүй
       var trEnded=!!(d&&d.active&&d.scope==='trial'&&WS_TRIAL.done);
       // Эрхгүй ч токен хүчинтэй данс → зөвхөн толгойн «Нэвтэрсэн» (CM_USER-ийг өөрчлөхгүй)
@@ -3367,5 +3392,6 @@ fetch('/api/worksheets?titles=1').then(function(r){return r.json();})
   });
 })();
 </script>
+<script src="/ws-browse.js"></script>
 </body>
 </html>
