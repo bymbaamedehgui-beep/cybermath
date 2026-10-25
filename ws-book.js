@@ -211,12 +211,13 @@
     function render() {
       var app = document.getElementById('app'), h = '';
       var nOk = D.list.filter(function (it) { return it.snap; }).length;
-      h += '<div class="tb"><b>Дасгал ажлын дэвтэр · ' + esc(D.label) + '</b><span id="sum"></span><span id="prog" class="prog"></span>'
-        + '<span class="tb-g">Бүх хуудасны зай <button type="button" data-all="-1">−</button><button type="button" data-all="1">+</button></span>'
-        + '<label class="tb-f"><input type="checkbox" id="onlyTodo"> Зөвхөн шалгаагүй</label>'
+      // Хэрэгслийн мөр — санамсаргүй хуваагдахгүйн тулд 2 тодорхой мөр: (1) нэр, тоо, явц (2) удирдлага
+      h += '<div class="tb"><div class="tb-r"><b>Дасгал ажлын дэвтэр · ' + esc(D.label) + '</b><span id="sum"></span><span id="prog" class="prog"></span></div>'
+        + '<div class="tb-r"><label class="tb-f"><input type="checkbox" id="onlyTodo"> Зөвхөн шалгаагүй</label>'
         + '<label class="tb-f"><input type="checkbox" id="onlyLong"> Зөвхөн 2+ хуудастай</label>'
+        + '<span class="tb-g">Бүх хуудасны зай <button type="button" data-all="-1">−</button><button type="button" data-all="1">+</button></span>'
         + '<select id="jump"><option value="">Хуудас руу очих…</option>' + D.list.map(function (it) { return '<option value="' + it.n + '">№' + it.n + ' ' + esc(it.title) + '</option>'; }).join('') + '</select>'
-        + '<button type="button" id="prt">Хэвлэх / PDF</button></div>'
+        + '<button type="button" id="prt">Хэвлэх / PDF</button></div></div>'
         + '<div class="tip">Хуудас бүрийг хянана: <b>Бодолтын зайтай</b> эсэх, зайн хэмжээ (<b>−</b> / <b>+</b> — хуудас бүхэлд нь эсвэл даалгавар тус бүрээр), '
         + '<b>Номд оруулах</b> эсэхийг тохируулаад <b>Шалгасан</b> гэж тэмдэглэнэ. <span class="tip-r">Улаан тасархай шугам</span> — хэвлэхэд хуудас солигдох газар. '
         + 'Өөрчлөлт бүр автоматаар хадгалагдана.</div>';
@@ -272,8 +273,16 @@
         var sec = document.getElementById('ws-' + it.n), x = { it: it, sec: sec, paper: sec.querySelector('.wsx-paper') };
         prep(x); sec._it = x; ITEMS.push(x);
       });
+      // Хуудасны удирдлагын мөр хэрэгслийн мөрийн бодит өндрийн доор наалдана (--tbh)
+      var tbEl = document.querySelector('.tb');
+      var setTbh = function () { document.documentElement.style.setProperty('--tbh', tbEl.offsetHeight + 'px'); };
+      setTbh(); window.addEventListener('resize', setTbh);
       document.getElementById('prt').onclick = function () { window.print(); };
-      document.getElementById('jump').onchange = function () { var e = document.getElementById('ws-' + this.value); if (e) e.scrollIntoView({ behavior: 'smooth', block: 'start' }); this.value = ''; };
+      document.getElementById('jump').onchange = function () {
+        var e = document.getElementById('ws-' + this.value);
+        if (e) window.scrollTo({ top: e.getBoundingClientRect().top + window.scrollY - tbEl.offsetHeight - 10, behavior: 'smooth' });
+        this.value = '';
+      };
       document.getElementById('onlyLong').onchange = function () { onlyLong = this.checked; ITEMS.forEach(vis); };
       document.getElementById('onlyTodo').onchange = function () { onlyTodo = this.checked; ITEMS.forEach(vis); };
       app.addEventListener('click', onClick);
@@ -404,7 +413,9 @@
     '@page cover{margin:0;@bottom-center{content:none}}',
     "html,body{margin:0}body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1530;background:#e9e7f1;-webkit-print-color-adjust:exact;print-color-adjust:exact}",
     /* хэрэгслийн мөр */
-    '.tb{position:sticky;top:0;z-index:50;display:flex;align-items:center;flex-wrap:wrap;gap:10px 14px;padding:10px 18px;background:#14214a;color:#fff;font-size:14px}',
+    '.tb{position:sticky;top:0;z-index:50;display:flex;flex-direction:column;gap:8px;padding:9px 18px;background:#14214a;color:#fff;font-size:14px}',
+    '.tb-r{display:flex;align-items:center;flex-wrap:wrap;gap:8px 14px}',
+    '.tb-r:last-child #prt{margin-left:auto}',
     '.tb #sum{color:#c4cdea;font-size:13px}.tb #sum b{color:#FFC93C;font-size:15px}',
     '.tb .s1,.tb .s2{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:99px;font-size:12px;font-weight:800}.tb .s1{background:rgba(34,197,94,.2);color:#86efac}.tb .s2{background:rgba(245,158,11,.22);color:#fcd34d}',
     '.tb .prog{margin-right:auto;padding:3px 10px;border-radius:99px;background:rgba(34,197,94,.18);color:#bbf7d0;font-weight:800;font-size:12.5px}.tb .prog b{color:#fff}',
@@ -451,7 +462,7 @@
     '.toc-ch em,.toc-tp em{font-style:normal;font-weight:900;white-space:nowrap}',
     /* ажлын хуудас */
     '.wsx{break-before:page;width:210mm;margin:16px auto}',
-    '.wsx-bar{position:sticky;top:52px;z-index:20;display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px;padding:8px 12px;margin-bottom:8px;border-radius:12px;background:#fff;box-shadow:0 8px 20px -14px rgba(20,33,74,.5);font-size:13px}',
+    '.wsx-bar{position:sticky;top:calc(var(--tbh,96px) + 6px);z-index:20;display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px;padding:8px 12px;margin-bottom:8px;border-radius:12px;background:#fff;box-shadow:0 8px 20px -14px rgba(20,33,74,.5);font-size:13px}',
     '.wsx-bar .no{font-weight:900;color:#fff;background:#14214a;border-radius:8px;padding:3px 8px}',
     '.wsx-bar .nm{display:flex;flex-direction:column;min-width:0;flex:1 1 220px}.wsx-bar .nm small{color:#8a84a3;font-weight:700}',
     '.wsx-bar .pgs{font-weight:900;border-radius:99px;padding:3px 10px}.pgs.p1{background:#dcfce7;color:#15803d}.pgs.p2{background:#fef3c7;color:#b45309}.pgs.p3{background:#fee2e2;color:#b91c1c}',
