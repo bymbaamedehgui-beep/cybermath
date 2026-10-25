@@ -282,6 +282,22 @@ async function ensureWsLogin() {
   await pool.query(`ALTER TABLE ws_login ADD COLUMN IF NOT EXISTS invite TEXT`).catch(()=>{});
 }
 
+// Дасгалын дэвтрийн тохиргооны хүснэгт — зөвхөн book_get/book_set үед (бусад хүсэлтийн эхлэлийн DDL-д нэмэхгүй)
+let _bookReady = null;
+function bookTable() {
+  if (!_bookReady) {
+    _bookReady = pool.query(`CREATE TABLE IF NOT EXISTS ws_book (
+        slug TEXT PRIMARY KEY,
+        data JSONB NOT NULL DEFAULT '{}'::jsonb,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )`).catch(function (e) {
+      if (e && (e.code === '23505' || e.code === '42P07')) return;
+      _bookReady = null; throw e;
+    });
+  }
+  return _bookReady;
+}
+
 // Зөвхөн админы JWT (admin:true) эсэхийг шалгах
 function isAdmin(req) {
   const auth = req.headers.authorization || req.headers.Authorization || '';
@@ -1209,6 +1225,28 @@ module.exports = async (req, res) => {
            ON CONFLICT (slug) DO UPDATE SET edits=EXCLUDED.edits, updated_at=NOW()`,
           [slug, JSON.stringify(clean)]);
         return res.json({ ok: true, edits: clean });
+      }
+      // Дасгалын дэвтэр (ws-book.js): ажлын хуудас бүрийн бодолтын зайн тохиргоо — ЗӨВХӨН АДМИН.
+      // data = { s: бүх зайн масштаб 0–2, g: [хэсэг (даалгавар) тус бүрийн масштаб 0–2], off: номд оруулахгүй }
+      if (b.action === 'book_get' || b.action === 'book_set') {
+        if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
+        await bookTable();
+        if (b.action === 'book_get') {
+          const r = await pool.query('SELECT slug, data FROM ws_book');
+          const book = {};
+          r.rows.forEach(x => { book[x.slug] = x.data || {}; });
+          return res.json({ ok: true, book: book });
+        }
+        const slug = String(b.slug || '').slice(0, 140);
+        if (!/^[A-Za-z0-9._-]+\.html$/.test(slug)) return res.status(400).json({ ok: false, error: 'slug буруу' });
+        const d = b.data && typeof b.data === 'object' ? b.data : {};
+        const sc = (v) => { const n = Number(v); return Number.isFinite(n) ? Math.min(2, Math.max(0, Math.round(n * 100) / 100)) : 1; };
+        const clean = { s: sc(d.s == null ? 1 : d.s), g: Array.isArray(d.g) ? d.g.slice(0, 40).map(v => (v == null ? null : sc(v))) : [], off: !!d.off };
+        await pool.query(
+          `INSERT INTO ws_book (slug, data, updated_at) VALUES ($1,$2::jsonb,NOW())
+           ON CONFLICT (slug) DO UPDATE SET data=EXCLUDED.data, updated_at=NOW()`,
+          [slug, JSON.stringify(clean)]);
+        return res.json({ ok: true, data: clean });
       }
       // Мэдээллийн зурвас (announce) авах — нээлттэй
       if (b.action === 'getAnnounce') {

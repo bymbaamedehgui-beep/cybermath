@@ -187,7 +187,7 @@
       + gs.map(function (g, i) { var d = gdata(i); return '<button type="button" class="wsb-gb" data-gpick="' + i + '">' + esc(g[0]) + '<small>' + (d ? d.items.length : g[1].length) + ' хуудас</small></button>'; }).join('') + '</div></div>';
   }
   function gradeHtml(d) {
-    var book = d.chapters.length && typeof isAdmin === 'function' && isAdmin() && /[?&]book=1/.test(location.search)
+    var book = d.chapters.length && typeof isAdmin === 'function' && isAdmin()
       ? '<button type="button" class="wsb-nwsw" data-book="1">' + ICO.book + ' Дасгалын дэвтэр</button>' : '';
     var h = '<div class="wsb-head"><span class="wsb-num">' + esc((d.label.match(/^\d+/) || [''])[0] || '·') + '</span><h2>' + esc(d.label) + '</h2>' + book + '</div>'
       + '<div class="wsb-meta"><span>' + d.items.length + ' хуудас</span>' + progHtml(d.items) + '</div>'
@@ -345,7 +345,7 @@
     if (!pw) { alert('Popup блоклогдсон байна. Хөтчийн popup зөвшөөрлийг идэвхжүүлээд дахин дарна уу.'); return; }
     var g = ST.g, go = function () { window.WSBOOK.build(g, pw); };
     if (window.WSBOOK) { go(); return; }
-    var s = document.createElement('script'); s.src = '/ws-book.js?v=1';
+    var s = document.createElement('script'); s.src = '/ws-book.js?v=2';
     s.onload = go; s.onerror = function () { try { pw.document.body.textContent = 'ws-book.js ачаалагдсангүй'; } catch (e) {} };
     document.head.appendChild(s);
   }
