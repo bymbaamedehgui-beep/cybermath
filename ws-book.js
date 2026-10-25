@@ -1,10 +1,10 @@
-/* Дасгалын дэвтэр — анги бүрийн ном. Дасгалын төвийн ажлын хуудсууд БҮТНЭЭРЭЭ, агуулгын дарааллаар (бүлэг → сэдэв,
+/* Дасгал ажлын дэвтэр — анги бүрийн ном. Дасгалын төвийн ажлын хуудсууд БҮТНЭЭРЭЭ, агуулгын дарааллаар (бүлэг → сэдэв,
    жишиг/шалгалт орно) ар араасаа, хуудас бүр шинэ хуудаснаас; эхэнд нүүр + агуулга (№-ээр).
-   Админ хуудас бүрийн бодолтын зайг бүхэлд нь болон хэсэг (даалгавар) тус бүрээр − / + -ээр тааруулж, хэвлэхэд хэдэн
-   хуудас эзлэхийг шууд харна (улаан тасархай = хуудас солигдох газар). Бодлогын тоо өөрчлөгдөхгүй — зөвхөн зай.
-   Тохиргоо серверт (api/worksheets.js book_get/book_set) өөрчлөлт бүрд автоматаар хадгалагдана.
-   Ажлын хуудсыг ?work=1 (бодолтын зайтай) горимоор далд iframe-д ачаалж #sheet-ийг өөрийн CSS-тэй нь хуулна
-   (ижил CSS блок нэг удаа, .cb-N дотор nesting). Нээх: Дасгалын төв → анги (админ) → «Дасгалын дэвтэр». */
+   Админ хуудас бүрийг хянана: бодолтын зайтай эсэх (унтраавал хуудасны өөрийн зайгүй загвараар дахин ачаална), зайн
+   хэмжээ (бүхэлд нь болон даалгавар тус бүрээр − / +), номд оруулах эсэх, «Шалгасан» тэмдэг; хэвлэхэд хэдэн хуудас
+   эзлэхийг шууд харна (улаан тасархай = хуудасны хил). Тохиргоо серверт (api/worksheets.js book_get/book_set)
+   өөрчлөлт бүрд автоматаар хадгалагдана. Ажлын хуудсыг далд iframe-д зурж #sheet-ийг өөрийн CSS-тэй нь хуулна
+   (ижил CSS блок нэг удаа, .cb-N дотор nesting). Нээх: Дасгалын төв → анги (админ) → «Дасгал ажлын дэвтэр». */
 (function () {
   'use strict';
   var CONC = 3, WKS_KEY = 'cm_ws_wk_scale';
@@ -35,8 +35,9 @@
     return { label: d.label, chapters: chapters };
   }
 
-  /* ── 2) Ажлын хуудсыг бодолтын зайтай (?work=1) далд iframe-д зурж, #sheet-ийг стильтэй нь хуулна ── */
-  function loadSheet(slug) {
+  /* ── 2) Ажлын хуудсыг далд iframe-д зурж #sheet-ийг стильтэй нь хуулна. work: бодолтын зайтай (?work=1) эсэх ── */
+  function loadSheet(slug, work) {
+    work = work !== false;
     return new Promise(function (ok, no) {
       var f = document.createElement('iframe'), done = false, t0 = Date.now();
       f.setAttribute('aria-hidden', 'true'); f.tabIndex = -1;
@@ -48,13 +49,20 @@
         (function wait() {
           var sh = d && (d.getElementById('sheet') || d.querySelector('.sheet'));
           if ((sh && sh.children.length) || Date.now() - t0 > 9000) {
-            try { var sw = d.getElementById('sw'); if (sw && !sw.checked) { sw.checked = true; if (typeof w.layout === 'function') w.layout(); } } catch (e) {}
+            try {
+              var sw = d.getElementById('sw');                      // шинэ хөдөлгүүр: «Бодолтын зай» шилжүүлэгч
+              if (sw && sw.checked !== work) { sw.checked = work; if (typeof w.layout === 'function') w.layout(); }
+              if (!work && w.WS_HAS_WORK && w.WS_WORK) {             // хуучин хөдөлгүүр (ws-store.js-ийн шилжүүлэгч)
+                w.WS_WORK = false; var cb = d.querySelector('.cm-work-cb'); if (cb) cb.checked = false;
+                if (typeof w.build === 'function') w.build();
+              }
+            } catch (e) {}
             // ws-store.js-ийн зааврын засвар (?instr=) серверээс ирэхийг хүлээнэ
             setTimeout(function () { try { fin(null, snapshot(d)); } catch (e) { fin(e); } }, 900);
           } else setTimeout(wait, 120);
         })();
       };
-      f.src = '/' + slug + '?work=1';
+      f.src = '/' + slug + (work ? '?work=1' : '');
       document.body.appendChild(f);
     });
   }
@@ -75,6 +83,16 @@
     });
     return { html: cl.outerHTML, styles: styles, root: root };
   }
+  // Ажлын хуудасны нийтлэг «Бодолтын зай %» (localStorage) номд нөлөөлөхгүй — ачаалах хооронд 1 болгож, дараа нь сэргээнэ
+  function scaleOff() {
+    var prev = null; try { prev = localStorage.getItem(WKS_KEY); localStorage.setItem(WKS_KEY, '1'); } catch (e) {}
+    return function () { try { if (prev == null) localStorage.removeItem(WKS_KEY); else localStorage.setItem(WKS_KEY, prev); } catch (e) {} };
+  }
+  // Засварлагчаас нэг хуудсыг дахин ачаална (бодолтын зайтай ↔ зайгүй)
+  function snapOne(slug, work) {
+    var restore = scaleOff();
+    return loadSheet(slug, work).then(function (s) { restore(); return s; }, function (e) { restore(); throw e; });
+  }
 
   /* ── 3) Бүтээх: татах явц попапд, дараа нь ном ── */
   function build(gi, pw) {
@@ -91,9 +109,9 @@
     });
     try {
       pw.document.open();
-      pw.document.write('<!doctype html><html lang="mn"><head><meta charset="utf-8"><title>Дасгалын дэвтэр — ' + esc(o.label) + '</title></head>'
+      pw.document.write('<!doctype html><html lang="mn"><head><meta charset="utf-8"><title>Дасгал ажлын дэвтэр — ' + esc(o.label) + '</title></head>'
         + '<body style="margin:0;font:700 15px \'Segoe UI\',Arial,sans-serif;color:#4b4566;background:#f4f2f8;text-align:center;padding:110px 20px">'
-        + '<div style="font-size:22px;font-weight:900;color:#14214a;margin-bottom:10px">Дасгалын дэвтэр · ' + esc(o.label) + '</div>'
+        + '<div style="font-size:22px;font-weight:900;color:#14214a;margin-bottom:10px">Дасгал ажлын дэвтэр · ' + esc(o.label) + '</div>'
         + '<div id="st">Ажлын хуудсуудыг ачаалж байна…</div><div style="margin-top:8px;font-size:13px;color:#8a84a3">Энэ цонхыг болон Дасгалын төвийн хуудсыг бүү хаагаарай.</div></body></html>');
       pw.document.close();
     } catch (e) {}
@@ -108,41 +126,40 @@
         load(x.j.book || {});
       }, function () { try { pw.document.getElementById('st').textContent = 'Сервертэй холбогдож чадсангүй. Дахин оролдоно уу.'; } catch (e) {} });
     function load(settings) {
-    // Ажлын хуудасны нийтлэг «Бодолтын зай %» (localStorage) номд нөлөөлөхгүй — ачаалах хооронд 1 болгоно
-    var prev = null; try { prev = localStorage.getItem(WKS_KEY); localStorage.setItem(WKS_KEY, '1'); } catch (e) {}
-    var done = 0, next = 0;
-    function worker() {
-      if (pw.closed) return Promise.resolve();
-      var it = list[next++]; if (!it) return Promise.resolve();
-      return loadSheet(it.slug).then(function (s) { it.snap = s; }, function (e) { it.err = String((e && e.message) || e); })
-        .then(function () {
-          done++;
-          try { pw.document.getElementById('st').textContent = 'Ажлын хуудсуудыг ачаалж байна… ' + done + ' / ' + list.length; } catch (e) {}
-          return worker();
+      var restore = scaleOff(), done = 0, next = 0;
+      function worker() {
+        if (pw.closed) return Promise.resolve();
+        var it = list[next++]; if (!it) return Promise.resolve();
+        var work = !(settings[it.slug] && settings[it.slug].nw);   // «бодолтын зайгүй» гэж тэмдэглэсэн бол зайгүй загвараар
+        return loadSheet(it.slug, work).then(function (s) { it.snap = s; }, function (e) { it.err = String((e && e.message) || e); })
+          .then(function () {
+            done++;
+            try { pw.document.getElementById('st').textContent = 'Ажлын хуудсуудыг ачаалж байна… ' + done + ' / ' + list.length; } catch (e) {}
+            return worker();
+          });
+      }
+      var ws = []; for (var i = 0; i < CONC; i++) ws.push(worker());
+      Promise.all(ws).then(function () {
+        restore();
+        if (pw.closed) return;
+        var blocks = [], idx = new Map();
+        list.forEach(function (it) {
+          if (!it.snap) return;
+          it.cls = it.snap.styles.map(function (t) { if (!idx.has(t)) { idx.set(t, blocks.length); blocks.push(t); } return 'cb-' + idx.get(t); }).join(' ');
         });
-    }
-    var ws = []; for (var i = 0; i < CONC; i++) ws.push(worker());
-    Promise.all(ws).then(function () {
-      try { if (prev == null) localStorage.removeItem(WKS_KEY); else localStorage.setItem(WKS_KEY, prev); } catch (e) {}
-      if (pw.closed) return;
-      var blocks = [], idx = new Map();
-      list.forEach(function (it) {
-        if (!it.snap) return;
-        it.cls = it.snap.styles.map(function (t) { if (!idx.has(t)) { idx.set(t, blocks.length); blocks.push(t); } return 'cb-' + idx.get(t); }).join(' ');
+        var D = { label: o.label, year: new Date().getFullYear(), list: list, blocks: blocks, settings: settings,
+          chapters: o.chapters.map(function (c) { return { roman: c.roman, title: c.title, topics: c.topics.map(function (t) { return { num: t.num, title: t.title }; }) }; }) };
+        pw.document.open();
+        // Скрипт stylesheet-ээс ӨМНӨ: хүлээгдэж буй CSS-ийн дараах inline скрипт хойшилдог тул __bookInit доор шууд дуудагдахгүй болно
+        pw.document.write('<!doctype html><html lang="mn"><head><meta charset="utf-8"><base href="' + location.origin + '/">'
+          + '<title>Дасгал ажлын дэвтэр — ' + esc(o.label) + '</title>'
+          + '<script>(' + bookMain.toString() + ')();<\/script>'
+          + '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">'
+          + '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&display=swap">'
+          + '<style>' + BOOK_CSS + '</style></head><body><div id="app"></div></body></html>');
+        pw.document.close();
+        pw.__bookInit(D);
       });
-      var D = { label: o.label, year: new Date().getFullYear(), list: list, blocks: blocks, settings: settings,
-        chapters: o.chapters.map(function (c) { return { roman: c.roman, title: c.title, topics: c.topics.map(function (t) { return { num: t.num, title: t.title }; }) }; }) };
-      pw.document.open();
-      // Скрипт stylesheet-ээс ӨМНӨ: хүлээгдэж буй CSS-ийн дараах inline скрипт хойшилдог тул __bookInit доор шууд дуудагдахгүй болно
-      pw.document.write('<!doctype html><html lang="mn"><head><meta charset="utf-8"><base href="' + location.origin + '/">'
-        + '<title>Дасгалын дэвтэр — ' + esc(o.label) + '</title>'
-        + '<script>(' + bookMain.toString() + ')();<\/script>'
-        + '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">'
-        + '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&display=swap">'
-        + '<style>' + BOOK_CSS + '</style></head><body><div id="app"></div></body></html>');
-      pw.document.close();
-      pw.__bookInit(D);
-    });
     }
   }
 
@@ -151,18 +168,29 @@
     var MM = 96 / 25.4, PAGE_H = 275 * MM;      // A4 297 − дээд/доод 11 мм (@page)
     var ICO_OK = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
     var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
-    var D = null, SET = {}, ITEMS = [], timers = {}, onlyLong = false;
+    var D = null, SET = {}, ITEMS = [], timers = {}, onlyLong = false, onlyTodo = false, BLK = new Map();
     var pct = function (v) { return Math.round(v * 100) + '%'; };
     var clamp = function (v) { return Math.max(0, Math.min(2, Math.round(v * 10) / 10)); };
     function hdr() { var t = ''; try { t = localStorage.getItem('cm_admin_token') || ''; } catch (e) {} return { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t }; }
-    function cfg(slug) { return SET[slug] || (SET[slug] = { s: 1, g: [], off: false }); }
+    function cfg(slug) { return SET[slug] || (SET[slug] = { s: 1, g: [], off: false, nw: false, ok: false }); }
+    // CSS блок → .cb-N (дахин ачаалсан хуудсанд шинэ блок гарвал энд нэмнэ)
+    function clsFor(styles) {
+      var add = '';
+      var cls = styles.map(function (t) {
+        if (!BLK.has(t)) { var i = BLK.size; BLK.set(t, i); add += '.cb-' + i + '{' + t + '}\n'; }
+        return 'cb-' + BLK.get(t);
+      }).join(' ');
+      if (add) { var st = document.createElement('style'); st.textContent = add; document.head.appendChild(st); }
+      return cls;
+    }
 
     window.__bookInit = function (data) {
       D = data;
       Object.keys(D.settings || {}).forEach(function (k) {
         var s = D.settings[k] || {};
-        SET[k] = { s: s.s == null ? 1 : +s.s, g: Array.isArray(s.g) ? s.g.map(function (v) { return v == null ? null : +v; }) : [], off: !!s.off };
+        SET[k] = { s: s.s == null ? 1 : +s.s, g: Array.isArray(s.g) ? s.g.map(function (v) { return v == null ? null : +v; }) : [], off: !!s.off, nw: !!s.nw, ok: !!s.ok };
       });
+      D.blocks.forEach(function (t, i) { BLK.set(t, i); });
       var st = document.createElement('style');
       st.textContent = D.blocks.map(function (t, i) { return '.cb-' + i + '{' + t + '}'; }).join('\n');
       document.head.appendChild(st);
@@ -172,7 +200,7 @@
       if (katex && !katex.sheet) ready.push(new Promise(function (r) { katex.onload = katex.onerror = r; }));
       // Эхний тооцоо багцаар: бүгдийг уншаад → бүгдийг бичээд → бүгдийг уншаад → бүгдийг бичнэ (119 хуудсанд layout-ыг дахин дахин бодуулахгүй)
       Promise.race([Promise.all(ready), new Promise(function (r) { setTimeout(r, 5000); })]).then(function () {
-        ITEMS.forEach(function (x) { x.boxes.forEach(function (b) { b.setAttribute('data-h0', b.getBoundingClientRect().height || parseFloat(getComputedStyle(b).height) || 40); }); });
+        ITEMS.forEach(measure);
         ITEMS.forEach(function (x) { setHeights(x); });
         var res = ITEMS.map(calc);
         ITEMS.forEach(function (x, i) { paint(x, res[i]); });
@@ -183,25 +211,32 @@
     function render() {
       var app = document.getElementById('app'), h = '';
       var nOk = D.list.filter(function (it) { return it.snap; }).length;
-      h += '<div class="tb"><b>Дасгалын дэвтэр · ' + esc(D.label) + '</b><span id="sum"></span>'
+      h += '<div class="tb"><b>Дасгал ажлын дэвтэр · ' + esc(D.label) + '</b><span id="sum"></span><span id="prog" class="prog"></span>'
         + '<span class="tb-g">Бүх хуудасны зай <button type="button" data-all="-1">−</button><button type="button" data-all="1">+</button></span>'
+        + '<label class="tb-f"><input type="checkbox" id="onlyTodo"> Зөвхөн шалгаагүй</label>'
         + '<label class="tb-f"><input type="checkbox" id="onlyLong"> Зөвхөн 2+ хуудастай</label>'
         + '<select id="jump"><option value="">Хуудас руу очих…</option>' + D.list.map(function (it) { return '<option value="' + it.n + '">№' + it.n + ' ' + esc(it.title) + '</option>'; }).join('') + '</select>'
         + '<button type="button" id="prt">Хэвлэх / PDF</button></div>'
-        + '<div class="tip">Бодолтын зайг <b>−</b> / <b>+</b> товчоор тааруулна (хуудас бүхэлд нь эсвэл даалгавар тус бүрээр). '
-        + '<span class="tip-r">Улаан тасархай шугам</span> — хэвлэхэд хуудас солигдох газар. Өөрчлөлт бүр автоматаар хадгалагдана.</div>';
-      // Нүүр
+        + '<div class="tip">Хуудас бүрийг хянана: <b>Бодолтын зайтай</b> эсэх, зайн хэмжээ (<b>−</b> / <b>+</b> — хуудас бүхэлд нь эсвэл даалгавар тус бүрээр), '
+        + '<b>Номд оруулах</b> эсэхийг тохируулаад <b>Шалгасан</b> гэж тэмдэглэнэ. <span class="tip-r">Улаан тасархай шугам</span> — хэвлэхэд хуудас солигдох газар. '
+        + 'Өөрчлөлт бүр автоматаар хадгалагдана.</div>';
+      // Нүүр — цайвар хуудас + CyberMath өнгө: тод хайрцаггүй; хар хөх томьёо, хар хөх сүүдэртэй шар ангийн дугаар,
+      // хар хөх тоон шулуун дээр зогсох шувуу. Ягаан — зөвхөн жижиг дэлгэрэнгүйд.
       var nTopics = 0; D.chapters.forEach(function (c) { nTopics += c.topics.length; });
-      // Цайвар хуудас + CyberMath-ын өнгө: Дасгалын төвийн толгой шиг хар хөх карт (тор, бүдэг томьёо, шар туяа),
-      // шувууны шар өнгийн том ангийн дугаар, картын ирмэг дээр суусан шувуу. Ягаан — зөвхөн жижиг дэлгэрэнгүйд.
       var gm = String(D.label).match(/^(\d+)\s*-?\s*р?\s*анги$/i);
+      var nl = '<svg class="cv-line" viewBox="0 0 170 14" aria-hidden="true" fill="none" stroke="#14214A" stroke-linecap="round"><path d="M3 5H165" stroke-width=".6"/><path d="M162 3l3 2-3 2" stroke-width=".6"/>';
+      for (var k = -4; k <= 4; k++) {
+        var xk = 85 + k * 17;
+        nl += '<path d="M' + xk + ' 3V7" stroke-width=".5"/><text x="' + xk + '" y="12.4" fill="#14214A" stroke="none" font-size="3.4" font-weight="700" text-anchor="middle" font-family="Montserrat,Segoe UI,Arial">' + (k < 0 ? '−' + (-k) : k) + '</text>';
+      }
+      nl += '</svg>';
       h += '<section class="cover"><div class="cv-in">'
         + '<div class="cv-brand"><img src="/assets/cybermath-mascot.svg" alt=""><b>CYBERMATH</b><span>Дасгалын төв</span></div>'
-        + '<div class="cv-kick">МАТЕМАТИК</div><h1>Дасгалын<br>дэвтэр</h1><i class="cv-bar"></i>'
-        + '<div class="cv-card"><div class="cv-f1">a² + b² = c²</div><div class="cv-f2">∫ π √x</div><div class="cv-f3">y = ax² + bx + c</div>'
+        + '<div class="cv-kick">МАТЕМАТИК</div><h1>Дасгал ажлын<br>дэвтэр</h1><i class="cv-bar"></i>'
+        + '<div class="cv-art"><div class="cv-fx f1">a² + b² = c²</div><div class="cv-fx f2">∫ π √x</div><div class="cv-fx f3">y = ax² + bx + c</div><div class="cv-fx f4">sin²α + cos²α = 1</div>'
         + (gm ? '<div class="cv-num' + (gm[1].length > 1 ? ' two' : '') + '">' + gm[1] + '</div>' : '')
         + '<div class="cv-cl"><b' + (gm ? '' : ' class="big"') + '>' + esc(D.label) + '</b><span>' + D.chapters.length + ' бүлэг · ' + nTopics + ' сэдэв · ' + nOk + ' ажлын хуудас</span></div>'
-        + '<img class="cv-chick" src="/assets/chicks/chick-1.svg" alt=""></div>'
+        + nl + '<img class="cv-chick" src="/assets/chicks/chick-1.svg" alt=""></div>'
         + '<div class="cv-label"><div><i>Нэр</i><u></u></div><div><i>Анги</i><u></u></div><div><i>Сургууль</i><u></u></div></div>'
         + '<div class="cv-foot"><span>cyber-math.com/dasgal</span><span>' + D.year + '</span></div></div></section>';
       // Агуулга (№-ээр — хуудасны дугаар биш, тиймээс зай өөрчлөгдсөн ч зөв хэвээр)
@@ -221,45 +256,66 @@
         var where = esc((c && c.roman ? c.roman + ' · ' : '') + (t ? (t.num ? t.num + ' ' : '') + t.title : ''));
         if (!it.snap) { h += '<section class="wsx-err" id="ws-' + it.n + '">№' + it.n + ' ' + esc(it.title) + ' — ачаалж чадсангүй (' + esc(it.err || '') + ')</section>'; return; }
         var s = cfg(it.slug);
-        h += '<section class="wsx' + (s.off ? ' off' : '') + '" id="ws-' + it.n + '" data-n="' + it.n + '">'
+        h += '<section class="wsx' + (s.off ? ' off' : '') + (s.ok ? ' done' : '') + '" id="ws-' + it.n + '" data-n="' + it.n + '">'
           + '<div class="wsx-bar"><span class="no">№' + it.n + '</span><span class="nm"><b>' + esc(it.title) + '</b><small>' + where + '</small></span>'
           + '<span class="pgs"></span>'
-          + '<span class="ctl">Бодолтын зай <button type="button" data-a="s" data-d="-1">−</button><b class="sv">' + pct(s.s) + '</b><button type="button" data-a="s" data-d="1">+</button></span>'
-          + '<label class="inc"><input type="checkbox" data-a="inc"' + (s.off ? '' : ' checked') + '> Номд оруулах</label>'
+          + '<label class="tg"><input type="checkbox" data-a="wk"' + (s.nw ? '' : ' checked') + '> Бодолтын зайтай</label>'
+          + '<span class="ctl">Зай <button type="button" data-a="s" data-d="-1">−</button><b class="sv">' + pct(s.s) + '</b><button type="button" data-a="s" data-d="1">+</button></span>'
+          + '<label class="tg"><input type="checkbox" data-a="inc"' + (s.off ? '' : ' checked') + '> Номд оруулах</label>'
+          + '<label class="tg okc"><input type="checkbox" data-a="ok"' + (s.ok ? ' checked' : '') + '> Шалгасан</label>'
           + '<span class="sst"></span></div>'
           + '<div class="wsx-paper ' + it.cls + '" style="' + esc(it.snap.root) + '">' + it.snap.html + '</div></section>';
       });
       app.innerHTML = h;
-      // Хуудас бүрийн бэлтгэл: хөлд №, даалгаврын гарчгийн хажууд − / +, бодолтын зайнууд
       D.list.forEach(function (it) {
         if (!it.snap) return;
-        var sec = document.getElementById('ws-' + it.n), paper = sec.querySelector('.wsx-paper'), sheet = paper.firstElementChild;
-        var it2 = { it: it, sec: sec, paper: paper, sheet: sheet, heads: [], boxes: [] };
-        var ft = sheet.querySelector('.cm-foot'); if (ft) ft.insertAdjacentHTML('afterbegin', '<b class="wsx-no">№' + it.n + '</b> · ');
-        it2.heads = [].slice.call(sheet.querySelectorAll('.task, .sec'));
-        it2.boxes = [].slice.call(sheet.querySelectorAll('.wk, .work, .pw, .wgrid'));
-        it2.boxes.forEach(function (b) {
-          var k = -1; it2.heads.forEach(function (hd, i) { if (hd.compareDocumentPosition(b) & 4) k = i; });
-          b.setAttribute('data-g', k);
-        });
-        it2.heads.forEach(function (hd, i) {
-          var has = it2.boxes.some(function (b) { return +b.getAttribute('data-g') === i; });
-          if (!has) return;
-          if (getComputedStyle(hd).position === 'static') hd.style.position = 'relative';
-          hd.insertAdjacentHTML('beforeend', '<span class="wsx-sc" data-g="' + i + '"><button type="button" data-a="g" data-d="-1">−</button><b>100%</b><button type="button" data-a="g" data-d="1">+</button></span>');
-        });
-        if (!it2.boxes.length) sec.querySelector('.ctl').classList.add('none');
-        sec._it = it2; ITEMS.push(it2);
+        var sec = document.getElementById('ws-' + it.n), x = { it: it, sec: sec, paper: sec.querySelector('.wsx-paper') };
+        prep(x); sec._it = x; ITEMS.push(x);
       });
       document.getElementById('prt').onclick = function () { window.print(); };
       document.getElementById('jump').onchange = function () { var e = document.getElementById('ws-' + this.value); if (e) e.scrollIntoView({ behavior: 'smooth', block: 'start' }); this.value = ''; };
-      document.getElementById('onlyLong').onchange = function () { onlyLong = this.checked; ITEMS.forEach(function (x) { vis(x); }); };
+      document.getElementById('onlyLong').onchange = function () { onlyLong = this.checked; ITEMS.forEach(vis); };
+      document.getElementById('onlyTodo').onchange = function () { onlyTodo = this.checked; ITEMS.forEach(vis); };
       app.addEventListener('click', onClick);
       app.addEventListener('change', function (e) {
-        var t = e.target; if (!t.matches('[data-a="inc"]')) return;
-        var x = t.closest('.wsx')._it, s = cfg(x.it.slug);
-        s.off = !t.checked; x.sec.classList.toggle('off', s.off); totals(); save(x);
+        var t = e.target, a = t.getAttribute('data-a'); if (!a) return;
+        var sec = t.closest('.wsx'); if (!sec) return;
+        var x = sec._it, s = cfg(x.it.slug);
+        if (a === 'inc') { s.off = !t.checked; sec.classList.toggle('off', s.off); totals(); save(x); }
+        else if (a === 'ok') { s.ok = t.checked; sec.classList.toggle('done', s.ok); totals(); vis(x); save(x); }
+        else if (a === 'wk') { s.nw = !t.checked; reload(x); }
       });
+    }
+    // Хуудасны бэлтгэл (анх ба дахин ачаалсны дараа): хөлд №, даалгаврын гарчгийн хажууд − / +, бодолтын зайнууд
+    function prep(x) {
+      x.sheet = x.paper.firstElementChild;
+      var ft = x.sheet.querySelector('.cm-foot'); if (ft && !ft.querySelector('.wsx-no')) ft.insertAdjacentHTML('afterbegin', '<b class="wsx-no">№' + x.it.n + '</b> · ');
+      x.heads = [].slice.call(x.sheet.querySelectorAll('.task, .sec'));
+      x.boxes = [].slice.call(x.sheet.querySelectorAll('.wk, .work, .pw, .wgrid'));
+      x.boxes.forEach(function (b) {
+        var k = -1; x.heads.forEach(function (hd, i) { if (hd.compareDocumentPosition(b) & 4) k = i; });
+        b.setAttribute('data-g', k);
+      });
+      x.heads.forEach(function (hd, i) {
+        if (!x.boxes.some(function (b) { return +b.getAttribute('data-g') === i; })) return;
+        if (getComputedStyle(hd).position === 'static') hd.style.position = 'relative';
+        hd.insertAdjacentHTML('beforeend', '<span class="wsx-sc" data-g="' + i + '"><button type="button" data-a="g" data-d="-1">−</button><b>100%</b><button type="button" data-a="g" data-d="1">+</button></span>');
+      });
+      x.sec.querySelector('.ctl').classList.toggle('none', !x.boxes.length);
+    }
+    function measure(x) { x.boxes.forEach(function (b) { b.setAttribute('data-h0', b.getBoundingClientRect().height || parseFloat(getComputedStyle(b).height) || 40); }); }
+    // Бодолтын зайтай ↔ зайгүй: ажлын хуудсыг тухайн горимоор нь дахин ачаална (Дасгалын төвийн цонх нээлттэй байх ёстой)
+    function reload(x) {
+      var s = cfg(x.it.slug), op = window.opener;
+      if (!op || op.closed || !op.WSBOOK || !op.WSBOOK.snap) { setSt(x, 'Дасгалын төвийн хуудас хаагдсан тул дахин ачаалж чадсангүй', 'err'); return; }
+      setSt(x, 'Ачаалж байна…', 'busy'); x.sec.classList.add('busy');
+      op.WSBOOK.snap(x.it.slug, !s.nw).then(function (snap) {
+        x.paper.className = 'wsx-paper ' + clsFor(snap.styles);
+        x.paper.setAttribute('style', snap.root);
+        x.paper.innerHTML = snap.html;
+        prep(x); measure(x); apply(x); totals(); save(x);
+      }, function (e) { setSt(x, 'Ачаалж чадсангүй: ' + esc(String((e && e.message) || e)), 'err'); })
+        .then(function () { x.sec.classList.remove('busy'); });
     }
 
     function onClick(e) {
@@ -295,7 +351,7 @@
     function apply(x) { setHeights(x); paint(x, calc(x)); }
     // Хэвлэхэд хэдэн хуудас: хуваагдахгүй элемент (бодлого, гарчиг…) хуудасны хил давбал бүхэлдээ дараагийн хуудас руу
     function calc(x) {
-      if (x.sec.classList.contains('hid')) { x.sec.classList.remove('hid'); x.unhid = true; }   // нуугдсан бол хэмжээ 0 — түр харуулна
+      if (x.sec.classList.contains('hid')) x.sec.classList.remove('hid');   // нуугдсан бол хэмжээ 0 — түр харуулна (vis() буцааж нууна)
       var top0 = x.sheet.getBoundingClientRect().top, start = 0, pages = 1, br = [];
       var els = x.sheet.querySelectorAll('.q, .prob, .task, .sec, .head, .meta, .rule, .cm-foot, tr, .fig, .formulas, .boxes, .guide, .intro, .steps, .case');
       for (var i = 0; i < els.length; i++) {
@@ -312,14 +368,14 @@
     }
     function paint(x, r) {
       var pages = r.pages, br = r.br;
-      x.pages = pages; x.unhid = false;
+      x.pages = pages;
       [].forEach.call(x.paper.querySelectorAll('.gd'), function (g) { g.remove(); });
       br.forEach(function (y, i) { x.paper.insertAdjacentHTML('beforeend', '<div class="gd" style="top:calc(11mm + ' + Math.round(y) + 'px)"><span>' + (i + 2) + '-р хуудас</span></div>'); });
       var pg = x.sec.querySelector('.pgs');
       pg.textContent = pages + ' хуудас'; pg.className = 'pgs p' + Math.min(pages, 3);
       vis(x);
     }
-    function vis(x) { x.sec.classList.toggle('hid', onlyLong && x.pages < 2); }
+    function vis(x) { x.sec.classList.toggle('hid', (onlyLong && x.pages < 2) || (onlyTodo && cfg(x.it.slug).ok)); }
     function totals() {
       var inc = ITEMS.filter(function (x) { return !cfg(x.it.slug).off; });
       var pages = 0, one = 0, more = 0;
@@ -327,6 +383,8 @@
       var toc = document.querySelector('.toc'), tocP = Math.max(1, Math.ceil((toc ? toc.getBoundingClientRect().height - 22 * MM : 0) / PAGE_H));
       document.getElementById('sum').innerHTML = 'Нийт ≈ <b>' + (pages + 1 + tocP) + '</b> хуудас · ' + inc.length + ' ажлын хуудас'
         + ' <span class="s1">1 хуудастай ' + one + '</span> <span class="s2">2+ хуудастай ' + more + '</span>';
+      var ok = ITEMS.filter(function (x) { return cfg(x.it.slug).ok; }).length;
+      document.getElementById('prog').innerHTML = 'Шалгасан <b>' + ok + '</b> / ' + ITEMS.length;
     }
     function setSt(x, html, cls) { var e = x.sec.querySelector('.sst'); e.innerHTML = html; e.className = 'sst ' + (cls || ''); }
     function save(x) {
@@ -347,16 +405,16 @@
     "html,body{margin:0}body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1530;background:#e9e7f1;-webkit-print-color-adjust:exact;print-color-adjust:exact}",
     /* хэрэгслийн мөр */
     '.tb{position:sticky;top:0;z-index:50;display:flex;align-items:center;flex-wrap:wrap;gap:10px 14px;padding:10px 18px;background:#14214a;color:#fff;font-size:14px}',
-    '.tb #sum{color:#c4cdea;font-size:13px;margin-right:auto}.tb #sum b{color:#FFC93C;font-size:15px}',
+    '.tb #sum{color:#c4cdea;font-size:13px}.tb #sum b{color:#FFC93C;font-size:15px}',
     '.tb .s1,.tb .s2{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:99px;font-size:12px;font-weight:800}.tb .s1{background:rgba(34,197,94,.2);color:#86efac}.tb .s2{background:rgba(245,158,11,.22);color:#fcd34d}',
+    '.tb .prog{margin-right:auto;padding:3px 10px;border-radius:99px;background:rgba(34,197,94,.18);color:#bbf7d0;font-weight:800;font-size:12.5px}.tb .prog b{color:#fff}',
     '.tb button,.tb select{border:0;border-radius:10px;padding:8px 13px;font-family:inherit;font-weight:800;font-size:13px;cursor:pointer}',
     '.tb #prt{background:#FFC93C;color:#3a2600}.tb select{background:#22305e;color:#fff;max-width:260px}',
     '.tb-g{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:13px}.tb-g button{background:#22305e;color:#fff;padding:5px 11px}',
     '.tb-f{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:13px;cursor:pointer}',
-    '.tip{max-width:210mm;margin:14px auto 0;padding:10px 14px;border-left:3px solid #7B52EE;border-radius:8px;background:#fff;font-size:13px;color:#4b4566}.tip-r{color:#dc2626;font-weight:800}',
-    /* нүүр */
+    '.tip{max-width:210mm;margin:14px auto 0;padding:10px 14px;border-left:3px solid #7B52EE;border-radius:8px;background:#fff;font-size:13px;line-height:1.5;color:#4b4566}.tip-r{color:#dc2626;font-weight:800}',
+    /* нүүр — цайвар хуудас + CyberMath өнгө (хар хөх томьёо, шар дугаар), ягаан бага */
     '.cover{page:cover;position:relative;width:210mm;height:297mm;margin:16px auto;overflow:hidden;background:#FBFAF6;box-shadow:0 10px 30px -14px rgba(20,33,74,.35);font-family:Montserrat,"Segoe UI",Arial,sans-serif;color:#14214A}',
-    /* нүүр — цайвар хуудас + CyberMath өнгө (хар хөх, шар), ягаан бага */
     '.cover *{box-sizing:border-box}',
     '.cover:before{content:"";position:absolute;right:-40mm;top:-46mm;width:130mm;height:130mm;border-radius:50%;background:radial-gradient(circle,rgba(255,201,60,.30),rgba(255,201,60,0) 68%)}',
     '.cover:after{content:"";position:absolute;left:0;right:0;bottom:0;height:62mm;background:linear-gradient(rgba(20,33,74,.05) .25mm,transparent .25mm) 0 0/6mm 6mm,linear-gradient(90deg,rgba(20,33,74,.05) .25mm,transparent .25mm) 0 0/6mm 6mm;-webkit-mask-image:linear-gradient(transparent,#000 60%);mask-image:linear-gradient(transparent,#000 60%)}',
@@ -366,17 +424,18 @@
     '.cv-kick{margin-top:15mm;font-size:11pt;font-weight:700;letter-spacing:.32em;color:#7B61FF}',
     '.cover h1{margin:4mm 0 0;font-size:48pt;line-height:1.02;font-weight:800;letter-spacing:-.6pt;color:#14214A}',
     '.cv-bar{display:block;width:26mm;height:2.4mm;margin-top:8mm;border-radius:1.2mm;background:linear-gradient(90deg,#FFC93C,#FFB020)}',
-    /* хар хөх карт — Дасгалын төвийн толгойтой ижил */
-    '.cv-card{position:relative;margin-top:12mm;height:104mm;border-radius:8mm;overflow:visible;color:#fff;background:linear-gradient(rgba(255,255,255,.06) .25mm,transparent .25mm) 0 0/7mm 7mm,linear-gradient(90deg,rgba(255,255,255,.06) .25mm,transparent .25mm) 0 0/7mm 7mm,linear-gradient(135deg,#0d1836 0%,#14214a 55%,#1b2d63 100%);box-shadow:0 10mm 18mm -12mm rgba(13,24,54,.7)}',
-    '.cv-card:before{content:"";position:absolute;right:-10mm;top:-22mm;width:90mm;height:90mm;border-radius:50%;background:radial-gradient(circle,rgba(255,193,19,.26),rgba(255,193,19,0) 66%)}',
-    ".cv-f1,.cv-f2,.cv-f3{position:absolute;font-family:'Cambria Math',Cambria,'Times New Roman',serif;font-style:italic;font-weight:700;color:rgba(255,255,255,.10);white-space:nowrap}",
-    '.cv-f1{left:12mm;top:44mm;font-size:22pt}.cv-f2{left:62mm;top:12mm;font-size:18pt;color:rgba(255,255,255,.08)}.cv-f3{right:12mm;bottom:8mm;font-size:13pt;color:rgba(255,255,255,.12)}',
-    '.cv-num{position:absolute;right:14mm;top:50%;transform:translateY(-52%);font-size:230pt;line-height:.8;font-weight:900;letter-spacing:-6pt;background:linear-gradient(170deg,#FFE7A0 0%,#FFC93C 45%,#FFA319 100%);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 2mm 3mm rgba(0,0,0,.25))}',
-    '.cv-num.two{font-size:165pt;letter-spacing:-5pt;right:10mm}',
-    '.cv-cl{position:absolute;left:12mm;top:12mm;max-width:80mm}',
-    '.cv-cl b{display:block;font-size:22pt;font-weight:800;color:#fff}.cv-cl b.big{font-size:26pt;line-height:1.1}',
-    '.cv-cl span{display:block;margin-top:2mm;font-size:10.5pt;font-weight:600;color:#C4CDEA}',
-    '.cv-chick{position:absolute;left:14mm;bottom:-7mm;width:42mm;filter:drop-shadow(0 4mm 5mm rgba(0,0,0,.28))}',
+    '.cv-art{position:relative;margin-top:12mm;height:104mm}',
+    '.cv-art:before{content:"";position:absolute;right:-8mm;top:-12mm;width:84mm;height:84mm;border-radius:50%;background:radial-gradient(circle,rgba(255,201,60,.24),rgba(255,201,60,0) 66%)}',
+    ".cv-fx{position:absolute;font-family:'Cambria Math',Cambria,'Times New Roman',serif;font-style:italic;font-weight:700;color:#14214A;white-space:nowrap}",
+    '.cv-fx.f1{left:56mm;top:40mm;font-size:22pt;opacity:.85}.cv-fx.f2{left:64mm;top:26mm;font-size:16pt;opacity:.5}',
+    '.cv-fx.f3{right:2mm;bottom:18mm;font-size:14pt;opacity:.75}.cv-fx.f4{left:52mm;top:60mm;font-size:13pt;opacity:.6}',
+    '.cv-num{position:absolute;right:8mm;top:2mm;font-size:210pt;line-height:.8;font-weight:900;letter-spacing:-6pt;background:linear-gradient(170deg,#FFE7A0 0%,#FFC93C 45%,#FFA319 100%);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(1.8mm 1.8mm 0 #14214A)}',
+    '.cv-num.two{font-size:150pt;letter-spacing:-5pt;right:4mm;top:10mm}',
+    '.cv-cl{position:absolute;left:0;top:0;max-width:80mm}',
+    '.cv-cl b{display:block;font-size:22pt;font-weight:800;color:#14214A}.cv-cl b.big{font-size:26pt;line-height:1.1}',
+    '.cv-cl span{display:block;margin-top:2mm;font-size:10.5pt;font-weight:600;color:#6B7090}',
+    '.cv-line{position:absolute;left:0;bottom:0;width:100%;height:14mm}',
+    '.cv-chick{position:absolute;left:8mm;bottom:8.5mm;width:40mm;filter:drop-shadow(0 3mm 4mm rgba(20,33,74,.18))}',
     '.cv-label{margin-top:auto;display:grid;gap:7mm}',
     '.cv-label div{display:flex;align-items:flex-end;gap:4mm}',
     '.cv-label i{min-width:24mm;font-style:normal;font-size:9pt;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#8A8FA8}',
@@ -399,9 +458,11 @@
     '.wsx-bar .ctl{display:inline-flex;align-items:center;gap:5px;font-weight:700}.wsx-bar .ctl.none{display:none}',
     '.wsx-bar button{border:1.5px solid #E7E2F7;background:#fff;color:#5B3BD9;border-radius:8px;width:28px;height:26px;font:inherit;font-weight:900;cursor:pointer;line-height:1}',
     '.wsx-bar button:hover{border-color:#5B3BD9}.wsx-bar .sv{min-width:42px;text-align:center}',
-    '.wsx-bar .inc{display:inline-flex;align-items:center;gap:5px;font-weight:700;cursor:pointer}',
+    '.wsx-bar .tg{display:inline-flex;align-items:center;gap:5px;font-weight:700;cursor:pointer;white-space:nowrap}',
+    '.wsx-bar .okc{padding:3px 9px;border-radius:99px;background:#F1F5F9}',
+    '.wsx.done .wsx-bar{box-shadow:inset 4px 0 0 #22c55e,0 8px 20px -14px rgba(20,33,74,.5)}.wsx.done .okc{background:#dcfce7;color:#15803d}',
     '.wsx-bar .sst{font-size:12px;font-weight:800;min-width:96px}.sst.ok{color:#15803d}.sst.busy{color:#8a84a3}.sst.err{color:#b91c1c}',
-    '.wsx.off .wsx-paper{opacity:.35}.wsx.hid{display:none}',
+    '.wsx.off .wsx-paper{opacity:.35}.wsx.hid{display:none}.wsx.busy .wsx-paper{opacity:.45;pointer-events:none}',
     '.wsx-paper{position:relative;width:188mm;padding:11mm;box-sizing:content-box;background:#fff;box-shadow:0 10px 30px -14px rgba(20,33,74,.45)}',
     '.wsx-paper>.sheet{width:auto!important;max-width:none!important;min-height:0!important;margin:0!important;padding:0!important;box-shadow:none!important;border:0!important}',
     '.wsx-paper .gd{position:absolute;left:0;right:0;height:0;border-top:2px dashed #ef4444;z-index:30;pointer-events:none}',
@@ -412,8 +473,8 @@
     '.wsx-err{width:210mm;margin:16px auto;padding:12px 16px;border-radius:12px;background:#fee2e2;color:#b91c1c;font-weight:800;font-size:13px}',
     '.wsx-no{color:#5a32d6}',
     '@media print{body{background:#fff}.tb,.tip,.wsx-bar,.wsx-sc,.gd,.wsx-err{display:none!important}.wsx.off{display:none!important}.wsx.hid{display:block!important}',
-    '.cover,.toc,.wsx{margin:0!important;box-shadow:none!important}.toc{padding:0;width:auto}.wsx{width:auto}.wsx-paper{width:auto;padding:0;box-shadow:none}}',
+    '.cover,.toc,.wsx{margin:0!important;box-shadow:none!important}.toc{padding:0;width:auto}.wsx{width:auto}.wsx-paper{width:auto;padding:0;box-shadow:none;opacity:1!important}}',
   ].join('');
 
-  window.WSBOOK = { build: build, _main: bookMain, _css: BOOK_CSS };   // _main/_css — нүүр/агуулгыг шууд урьдчилан харах тест
+  window.WSBOOK = { build: build, snap: snapOne, _main: bookMain, _css: BOOK_CSS };   // snap — засварлагч хуудсыг дахин ачаална; _main/_css — урьдчилан харах тест
 })();

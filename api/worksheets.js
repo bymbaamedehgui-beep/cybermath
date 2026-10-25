@@ -1227,7 +1227,8 @@ module.exports = async (req, res) => {
         return res.json({ ok: true, edits: clean });
       }
       // Дасгалын дэвтэр (ws-book.js): ажлын хуудас бүрийн бодолтын зайн тохиргоо — ЗӨВХӨН АДМИН.
-      // data = { s: бүх зайн масштаб 0–2, g: [хэсэг (даалгавар) тус бүрийн масштаб 0–2], off: номд оруулахгүй }
+      // data = { s: бүх зайн масштаб 0–2, g: [хэсэг (даалгавар) тус бүрийн масштаб 0–2], off: номд оруулахгүй,
+      //         nw: бодолтын зайгүй (хуудасны өөрийн зайгүй загвараар), ok: админ шалгасан }
       if (b.action === 'book_get' || b.action === 'book_set') {
         if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
         await bookTable();
@@ -1241,7 +1242,7 @@ module.exports = async (req, res) => {
         if (!/^[A-Za-z0-9._-]+\.html$/.test(slug)) return res.status(400).json({ ok: false, error: 'slug буруу' });
         const d = b.data && typeof b.data === 'object' ? b.data : {};
         const sc = (v) => { const n = Number(v); return Number.isFinite(n) ? Math.min(2, Math.max(0, Math.round(n * 100) / 100)) : 1; };
-        const clean = { s: sc(d.s == null ? 1 : d.s), g: Array.isArray(d.g) ? d.g.slice(0, 40).map(v => (v == null ? null : sc(v))) : [], off: !!d.off };
+        const clean = { s: sc(d.s == null ? 1 : d.s), g: Array.isArray(d.g) ? d.g.slice(0, 40).map(v => (v == null ? null : sc(v))) : [], off: !!d.off, nw: !!d.nw, ok: !!d.ok };
         await pool.query(
           `INSERT INTO ws_book (slug, data, updated_at) VALUES ($1,$2::jsonb,NOW())
            ON CONFLICT (slug) DO UPDATE SET data=EXCLUDED.data, updated_at=NOW()`,

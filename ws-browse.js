@@ -188,7 +188,7 @@
   }
   function gradeHtml(d) {
     var book = d.chapters.length && typeof isAdmin === 'function' && isAdmin()
-      ? '<button type="button" class="wsb-nwsw" data-book="1">' + ICO.book + ' Дасгалын дэвтэр</button>' : '';
+      ? '<button type="button" class="wsb-nwsw" data-book="1">' + ICO.book + ' Дасгал ажлын дэвтэр</button>' : '';
     var h = '<div class="wsb-head"><span class="wsb-num">' + esc((d.label.match(/^\d+/) || [''])[0] || '·') + '</span><h2>' + esc(d.label) + '</h2>' + book + '</div>'
       + '<div class="wsb-meta"><span>' + d.items.length + ' хуудас</span>' + progHtml(d.items) + '</div>'
       + (d.label === 'ЭЕШ' && window.EESH_TOOL ? '<div class="wsb-eesh">' + EESH_TOOL + '</div>' : '');
@@ -339,13 +339,13 @@
     for (var i = 0; i < gs.length; i++) if (gs[i][0] === lab) { ST.g = i; return; }
   }
 
-  // Дасгалын дэвтэр (админ): попапыг товшилтоос шууд нээнэ (blocker), ws-book.js-ийг хэрэгтэй үед л ачаална
+  // Дасгал ажлын дэвтэр (админ): попапыг товшилтоос шууд нээнэ (blocker), ws-book.js-ийг хэрэгтэй үед л ачаална
   function openBook() {
     var pw = window.open('', '_blank');
     if (!pw) { alert('Popup блоклогдсон байна. Хөтчийн popup зөвшөөрлийг идэвхжүүлээд дахин дарна уу.'); return; }
     var g = ST.g, go = function () { window.WSBOOK.build(g, pw); };
     if (window.WSBOOK) { go(); return; }
-    var s = document.createElement('script'); s.src = '/ws-book.js?v=5';
+    var s = document.createElement('script'); s.src = '/ws-book.js?v=6';
     s.onload = go; s.onerror = function () { try { pw.document.body.textContent = 'ws-book.js ачаалагдсангүй'; } catch (e) {} };
     document.head.appendChild(s);
   }
@@ -477,7 +477,7 @@
     var _te = toggleEdit;
     window.toggleEdit = toggleEdit = function () { var r = _te.apply(this, arguments); if (ROOT && !window.editMode) { CACHE = {}; SEARCH = null; render(); } return r; };
   }
-  // gdata/groups/titleOf/deepItems — ws-book.js (Дасгалын дэвтэр) каталогийн бүтцийг эндээс уншина
+  // gdata/groups/titleOf/deepItems — ws-book.js (Дасгал ажлын дэвтэр) каталогийн бүтцийг эндээс уншина
   window.WSB = { render: function () { CACHE = {}; SEARCH = null; render(); }, state: ST, gdata: gdata, groups: groups, titleOf: titleOf, deepItems: deepItems };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
