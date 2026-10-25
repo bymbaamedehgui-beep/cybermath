@@ -133,11 +133,13 @@
       var D = { label: o.label, year: new Date().getFullYear(), list: list, blocks: blocks, settings: settings,
         chapters: o.chapters.map(function (c) { return { roman: c.roman, title: c.title, topics: c.topics.map(function (t) { return { num: t.num, title: t.title }; }) }; }) };
       pw.document.open();
+      // Скрипт stylesheet-ээс ӨМНӨ: хүлээгдэж буй CSS-ийн дараах inline скрипт хойшилдог тул __bookInit доор шууд дуудагдахгүй болно
       pw.document.write('<!doctype html><html lang="mn"><head><meta charset="utf-8"><base href="' + location.origin + '/">'
         + '<title>Дасгалын дэвтэр — ' + esc(o.label) + '</title>'
+        + '<script>(' + bookMain.toString() + ')();<\/script>'
         + '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">'
-        + '<style>' + BOOK_CSS + '</style></head><body><div id="app"></div>'
-        + '<script>(' + bookMain.toString() + ')();<\/script></body></html>');
+        + '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&display=swap">'
+        + '<style>' + BOOK_CSS + '</style></head><body><div id="app"></div></body></html>');
       pw.document.close();
       pw.__bookInit(D);
     });
@@ -190,13 +192,18 @@
         + '<span class="tip-r">Улаан тасархай шугам</span> — хэвлэхэд хуудас солигдох газар. Өөрчлөлт бүр автоматаар хадгалагдана.</div>';
       // Нүүр
       var nTopics = 0; D.chapters.forEach(function (c) { nTopics += c.topics.length; });
-      h += '<section class="cover"><div class="cv-in"><div class="cv-top">CYBERMATH · ДАСГАЛЫН ТӨВ</div>'
-        + '<img class="cv-bird" src="/assets/chicks/chick-1.svg" alt=""><h1>Дасгалын<br>дэвтэр</h1>'
-        + '<div class="cv-grade">' + esc(D.label) + '</div>'
-        + '<div class="cv-meta">' + D.chapters.length + ' бүлэг · ' + nTopics + ' сэдэв · ' + nOk + ' ажлын хуудас</div>'
-        + '<div class="cv-name"><span>Нэр</span><span>Анги</span></div>'
-        + '<div class="cv-f1">a² + b² = c²</div><div class="cv-f2">∫ π √x</div>'
-        + '<div class="cv-foot">cyber-math.com/dasgal · ' + D.year + '</div></div></section>';
+      // Цайвар хуудас + CyberMath-ын өнгө: Дасгалын төвийн толгой шиг хар хөх карт (тор, бүдэг томьёо, шар туяа),
+      // шувууны шар өнгийн том ангийн дугаар, картын ирмэг дээр суусан шувуу. Ягаан — зөвхөн жижиг дэлгэрэнгүйд.
+      var gm = String(D.label).match(/^(\d+)\s*-?\s*р?\s*анги$/i);
+      h += '<section class="cover"><div class="cv-in">'
+        + '<div class="cv-brand"><img src="/assets/cybermath-mascot.svg" alt=""><b>CYBERMATH</b><span>Дасгалын төв</span></div>'
+        + '<div class="cv-kick">МАТЕМАТИК</div><h1>Дасгалын<br>дэвтэр</h1><i class="cv-bar"></i>'
+        + '<div class="cv-card"><div class="cv-f1">a² + b² = c²</div><div class="cv-f2">∫ π √x</div><div class="cv-f3">y = ax² + bx + c</div>'
+        + (gm ? '<div class="cv-num' + (gm[1].length > 1 ? ' two' : '') + '">' + gm[1] + '</div>' : '')
+        + '<div class="cv-cl"><b' + (gm ? '' : ' class="big"') + '>' + esc(D.label) + '</b><span>' + D.chapters.length + ' бүлэг · ' + nTopics + ' сэдэв · ' + nOk + ' ажлын хуудас</span></div>'
+        + '<img class="cv-chick" src="/assets/chicks/chick-1.svg" alt=""></div>'
+        + '<div class="cv-label"><div><i>Нэр</i><u></u></div><div><i>Анги</i><u></u></div><div><i>Сургууль</i><u></u></div></div>'
+        + '<div class="cv-foot"><span>cyber-math.com/dasgal</span><span>' + D.year + '</span></div></div></section>';
       // Агуулга (№-ээр — хуудасны дугаар биш, тиймээс зай өөрчлөгдсөн ч зөв хэвээр)
       h += '<section class="toc"><h2>Агуулга</h2>';
       D.chapters.forEach(function (c, ci) {
@@ -348,19 +355,33 @@
     '.tb-f{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:13px;cursor:pointer}',
     '.tip{max-width:210mm;margin:14px auto 0;padding:10px 14px;border-left:3px solid #7B52EE;border-radius:8px;background:#fff;font-size:13px;color:#4b4566}.tip-r{color:#dc2626;font-weight:800}',
     /* нүүр */
-    '.cover{page:cover;position:relative;width:210mm;height:297mm;margin:16px auto;overflow:hidden;color:#fff;background:linear-gradient(rgba(255,255,255,.06) 1px,transparent 1px) 0 0/8mm 8mm,linear-gradient(90deg,rgba(255,255,255,.06) 1px,transparent 1px) 0 0/8mm 8mm,linear-gradient(150deg,#0d1836 0%,#14214a 55%,#1b2d63 100%)}',
-    '.cv-in{position:absolute;inset:0;padding:26mm 22mm;display:flex;flex-direction:column}',
-    '.cv-in:after{content:"";position:absolute;right:-30mm;top:-30mm;width:120mm;height:120mm;border-radius:50%;background:radial-gradient(circle,rgba(255,193,19,.28),rgba(255,193,19,0) 68%)}',
-    '.cv-top{font-size:10pt;font-weight:900;letter-spacing:.24em;color:#FFC93C}',
-    '.cv-bird{width:46mm;margin:24mm 0 8mm;filter:drop-shadow(0 6mm 8mm rgba(0,0,0,.35))}',
-    '.cover h1{margin:0;font-size:52pt;line-height:1.02;font-weight:900}',
-    '.cv-grade{align-self:flex-start;margin-top:9mm;padding:3mm 8mm;border-radius:99px;background:#FFC93C;color:#3a2600;font-size:20pt;font-weight:900}',
-    '.cv-meta{margin-top:7mm;font-size:13pt;font-weight:700;color:#c4cdea}',
-    '.cv-name{margin-top:auto;display:flex;gap:10mm;font-size:12pt;font-weight:700;color:#dfe5f7}',
-    '.cv-name span{flex:1;border-bottom:1.5px solid rgba(255,255,255,.45);padding-bottom:2mm}.cv-name span:last-child{flex:.45}',
-    '.cv-foot{margin-top:9mm;font-size:10pt;font-weight:800;color:#8fa0d6;letter-spacing:.05em}',
-    ".cv-f1,.cv-f2{position:absolute;font:italic 700 34pt/1 'Cambria Math',Cambria,'Times New Roman',serif;color:rgba(255,255,255,.1);white-space:nowrap}",
-    '.cv-f1{right:20mm;top:118mm}.cv-f2{right:34mm;top:48mm;font-size:24pt;color:rgba(255,255,255,.08)}',
+    '.cover{page:cover;position:relative;width:210mm;height:297mm;margin:16px auto;overflow:hidden;background:#FBFAF6;box-shadow:0 10px 30px -14px rgba(20,33,74,.35);font-family:Montserrat,"Segoe UI",Arial,sans-serif;color:#14214A}',
+    /* нүүр — цайвар хуудас + CyberMath өнгө (хар хөх, шар), ягаан бага */
+    '.cover *{box-sizing:border-box}',
+    '.cover:before{content:"";position:absolute;right:-40mm;top:-46mm;width:130mm;height:130mm;border-radius:50%;background:radial-gradient(circle,rgba(255,201,60,.30),rgba(255,201,60,0) 68%)}',
+    '.cover:after{content:"";position:absolute;left:0;right:0;bottom:0;height:62mm;background:linear-gradient(rgba(20,33,74,.05) .25mm,transparent .25mm) 0 0/6mm 6mm,linear-gradient(90deg,rgba(20,33,74,.05) .25mm,transparent .25mm) 0 0/6mm 6mm;-webkit-mask-image:linear-gradient(transparent,#000 60%);mask-image:linear-gradient(transparent,#000 60%)}',
+    '.cv-in{position:absolute;inset:0;z-index:2;padding:20mm 20mm 15mm;display:flex;flex-direction:column}',
+    '.cv-brand{display:flex;align-items:center;gap:2.5mm;font-size:10pt;letter-spacing:.16em}',
+    '.cv-brand img{width:8mm;height:8mm}.cv-brand b{font-weight:800;color:#14214A}.cv-brand span{padding-left:2.5mm;border-left:.4mm solid #C9CCDB;letter-spacing:.04em;font-weight:600;color:#7A7F9A}',
+    '.cv-kick{margin-top:15mm;font-size:11pt;font-weight:700;letter-spacing:.32em;color:#7B61FF}',
+    '.cover h1{margin:4mm 0 0;font-size:48pt;line-height:1.02;font-weight:800;letter-spacing:-.6pt;color:#14214A}',
+    '.cv-bar{display:block;width:26mm;height:2.4mm;margin-top:8mm;border-radius:1.2mm;background:linear-gradient(90deg,#FFC93C,#FFB020)}',
+    /* хар хөх карт — Дасгалын төвийн толгойтой ижил */
+    '.cv-card{position:relative;margin-top:12mm;height:104mm;border-radius:8mm;overflow:visible;color:#fff;background:linear-gradient(rgba(255,255,255,.06) .25mm,transparent .25mm) 0 0/7mm 7mm,linear-gradient(90deg,rgba(255,255,255,.06) .25mm,transparent .25mm) 0 0/7mm 7mm,linear-gradient(135deg,#0d1836 0%,#14214a 55%,#1b2d63 100%);box-shadow:0 10mm 18mm -12mm rgba(13,24,54,.7)}',
+    '.cv-card:before{content:"";position:absolute;right:-10mm;top:-22mm;width:90mm;height:90mm;border-radius:50%;background:radial-gradient(circle,rgba(255,193,19,.26),rgba(255,193,19,0) 66%)}',
+    ".cv-f1,.cv-f2,.cv-f3{position:absolute;font-family:'Cambria Math',Cambria,'Times New Roman',serif;font-style:italic;font-weight:700;color:rgba(255,255,255,.10);white-space:nowrap}",
+    '.cv-f1{left:12mm;top:44mm;font-size:22pt}.cv-f2{left:62mm;top:12mm;font-size:18pt;color:rgba(255,255,255,.08)}.cv-f3{right:12mm;bottom:8mm;font-size:13pt;color:rgba(255,255,255,.12)}',
+    '.cv-num{position:absolute;right:14mm;top:50%;transform:translateY(-52%);font-size:230pt;line-height:.8;font-weight:900;letter-spacing:-6pt;background:linear-gradient(170deg,#FFE7A0 0%,#FFC93C 45%,#FFA319 100%);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 2mm 3mm rgba(0,0,0,.25))}',
+    '.cv-num.two{font-size:165pt;letter-spacing:-5pt;right:10mm}',
+    '.cv-cl{position:absolute;left:12mm;top:12mm;max-width:80mm}',
+    '.cv-cl b{display:block;font-size:22pt;font-weight:800;color:#fff}.cv-cl b.big{font-size:26pt;line-height:1.1}',
+    '.cv-cl span{display:block;margin-top:2mm;font-size:10.5pt;font-weight:600;color:#C4CDEA}',
+    '.cv-chick{position:absolute;left:14mm;bottom:-7mm;width:42mm;filter:drop-shadow(0 4mm 5mm rgba(0,0,0,.28))}',
+    '.cv-label{margin-top:auto;display:grid;gap:7mm}',
+    '.cv-label div{display:flex;align-items:flex-end;gap:4mm}',
+    '.cv-label i{min-width:24mm;font-style:normal;font-size:9pt;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#8A8FA8}',
+    '.cv-label u{flex:1;height:6mm;border-bottom:.45mm solid #C9CCDB;text-decoration:none}',
+    '.cv-foot{display:flex;justify-content:space-between;margin-top:9mm;padding-right:4mm;font-size:9pt;font-weight:600;letter-spacing:.06em;color:#8A8FA8}',
     /* агуулга */
     '.toc{break-before:page;width:188mm;margin:16px auto;background:#fff;padding:11mm;box-sizing:content-box}',
     '.toc h2{margin:0 0 6mm;font-size:24pt;font-weight:900;color:#14214a}',
@@ -394,5 +415,5 @@
     '.cover,.toc,.wsx{margin:0!important;box-shadow:none!important}.toc{padding:0;width:auto}.wsx{width:auto}.wsx-paper{width:auto;padding:0;box-shadow:none}}',
   ].join('');
 
-  window.WSBOOK = { build: build };
+  window.WSBOOK = { build: build, _main: bookMain, _css: BOOK_CSS };   // _main/_css — нүүр/агуулгыг шууд урьдчилан харах тест
 })();
