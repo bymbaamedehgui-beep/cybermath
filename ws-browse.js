@@ -77,12 +77,28 @@
     var s = seenCount(list); if (!s) return '';
     return '<span class="wsb-prog"><span class="wsb-bar"><i style="width:' + Math.round(s * 100 / list.length) + '%"></i></span>' + s + '/' + list.length + ' үзсэн</span>';
   }
+  /* Картын жижиг зураг: assets/thumbs/index.json = { slug: hash } (scripts/ws-thumbs.js үүсгэнэ). Зураггүй бол бүдүүвч. */
+  var THUMBS = null;
+  function thumbImg(slug) {
+    var h = THUMBS && THUMBS[slug];
+    return h ? '<img src="/assets/thumbs/' + esc(slug.replace(/\.html$/, '').replace(/[\\/]/g, '__')) + '.webp?v=' + esc(h) + '" alt="" loading="lazy" decoding="async">' : '';
+  }
+  function loadThumbs() {
+    fetch('/assets/thumbs/index.json').then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+      if (!j || typeof j !== 'object') return;
+      THUMBS = j;
+      if (ROOT) [].forEach.call(ROOT.querySelectorAll('.card.wbc .wbc-a4:not(.has-img)'), function (a) {   // ачаалагдахаас өмнө зурсан картууд
+        var im = thumbImg(a.parentNode.getAttribute('data-slug') || '');
+        if (im) { a.classList.add('has-img'); a.insertAdjacentHTML('beforeend', im); }
+      });
+    }).catch(function () {});
+  }
   function card(w, grade, label, sub) {
-    var slug = w[0], t = titleOf(w);
+    var slug = w[0], t = titleOf(w), im = thumbImg(slug);
     var tag = (window.NEWSET && NEWSET[slug]) ? '<span class="newtag">Шинэ</span>' : ((window.WS_FREE && WS_FREE[slug]) ? '<span class="freetag">Үнэгүй</span>' : '');
     return '<a class="card wbc' + (OPENED[slug] ? ' seen' : '') + '" draggable="false" href="/' + esc(slug) + '" target="_blank" data-href="/' + esc(slug) + '" data-slug="' + esc(slug)
       + '" data-orig="' + esc(w[1]) + '" data-title="' + esc(t) + '" data-grade="' + esc(grade) + '">' + tag
-      + '<span class="wbc-a4" aria-hidden="true"><i></i><i></i><i></i><u></u><i></i><i></i></span>'
+      + '<span class="wbc-a4' + (im ? ' has-img' : '') + '" aria-hidden="true"><i></i><i></i><i></i><u></u><i></i><i></i>' + im + '</span>'
       + '<span class="t">' + esc(label || t) + '</span>' + (sub ? '<span class="wbc-sub">' + esc(sub) + '</span>' : '') + '</a>';
   }
   function grid(cards) { return '<div class="wsb-grid">' + cards.join('') + '</div>'; }
@@ -171,7 +187,9 @@
       + gs.map(function (g, i) { var d = gdata(i); return '<button type="button" class="wsb-gb" data-gpick="' + i + '">' + esc(g[0]) + '<small>' + (d ? d.items.length : g[1].length) + ' хуудас</small></button>'; }).join('') + '</div></div>';
   }
   function gradeHtml(d) {
-    var h = '<div class="wsb-head"><span class="wsb-num">' + esc((d.label.match(/^\d+/) || [''])[0] || '·') + '</span><h2>' + esc(d.label) + '</h2></div>'
+    var book = d.chapters.length && typeof isAdmin === 'function' && isAdmin() && /[?&]book=1/.test(location.search)
+      ? '<button type="button" class="wsb-nwsw" data-book="1">' + ICO.book + ' Дасгалын дэвтэр</button>' : '';
+    var h = '<div class="wsb-head"><span class="wsb-num">' + esc((d.label.match(/^\d+/) || [''])[0] || '·') + '</span><h2>' + esc(d.label) + '</h2>' + book + '</div>'
       + '<div class="wsb-meta"><span>' + d.items.length + ' хуудас</span>' + progHtml(d.items) + '</div>'
       + (d.label === 'ЭЕШ' && window.EESH_TOOL ? '<div class="wsb-eesh">' + EESH_TOOL + '</div>' : '');
     if (d.chapters.length) h += '<div class="wsb-sec">Бүлгүүд</div><div class="wsb-cards">' + d.chapters.map(ccHtml).join('') + '</div>';
@@ -321,6 +339,17 @@
     for (var i = 0; i < gs.length; i++) if (gs[i][0] === lab) { ST.g = i; return; }
   }
 
+  // Дасгалын дэвтэр (админ): попапыг товшилтоос шууд нээнэ (blocker), ws-book.js-ийг хэрэгтэй үед л ачаална
+  function openBook() {
+    var pw = window.open('', '_blank');
+    if (!pw) { alert('Popup блоклогдсон байна. Хөтчийн popup зөвшөөрлийг идэвхжүүлээд дахин дарна уу.'); return; }
+    var g = ST.g, go = function () { window.WSBOOK.build(g, pw); };
+    if (window.WSBOOK) { go(); return; }
+    var s = document.createElement('script'); s.src = '/ws-book.js?v=1';
+    s.onload = go; s.onerror = function () { try { pw.document.body.textContent = 'ws-book.js ачаалагдсангүй'; } catch (e) {} };
+    document.head.appendChild(s);
+  }
+
   /* ───────── үйлдэл ───────── */
   function onClick(e) {
     var t = e.target;
@@ -336,6 +365,7 @@
     if ((el = t.closest('[data-jump]'))) { e.preventDefault(); var sec = document.getElementById(el.getAttribute('data-jump')); if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
     if ((el = t.closest('[data-new]'))) { go({ nw: !ST.nw, nwAll: false, q: '' }, { noHash: true }); return; }
     if ((el = t.closest('[data-nwall]'))) { ST.nwAll = el.getAttribute('data-nwall') === '1'; render(true); return; }
+    if ((el = t.closest('[data-book]'))) { openBook(); return; }
     if ((el = t.closest('[data-gpick]'))) { go({ g: +el.getAttribute('data-gpick'), ch: null, t: null, q: '' }); return; }
     if ((el = t.closest('[data-go]'))) {
       var p = el.getAttribute('data-go').split(':'), g = +p[0], id = p[1] === 'rest' ? 'rest' : +p[1], dd = gdata(g);
@@ -404,6 +434,7 @@
   }
 
   function init() {
+    loadThumbs();
     topNav();
     ROOT = document.createElement('section'); ROOT.id = 'wsb'; ROOT.setAttribute('aria-label', 'Ажлын хуудасны агуулга');
     ROOT.innerHTML = '<aside class="wsb-aside"></aside><div class="wsb-main" aria-live="polite"></div>';
@@ -446,6 +477,7 @@
     var _te = toggleEdit;
     window.toggleEdit = toggleEdit = function () { var r = _te.apply(this, arguments); if (ROOT && !window.editMode) { CACHE = {}; SEARCH = null; render(); } return r; };
   }
-  window.WSB = { render: function () { CACHE = {}; SEARCH = null; render(); }, state: ST };
+  // gdata/groups/titleOf/deepItems — ws-book.js (Дасгалын дэвтэр) каталогийн бүтцийг эндээс уншина
+  window.WSB = { render: function () { CACHE = {}; SEARCH = null; render(); }, state: ST, gdata: gdata, groups: groups, titleOf: titleOf, deepItems: deepItems };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
