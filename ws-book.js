@@ -1,5 +1,5 @@
 /* Дасгал ажлын дэвтэр — анги бүрийн ном. Дасгалын төвийн ажлын хуудсууд БҮТНЭЭРЭЭ, агуулгын дарааллаар (бүлэг → сэдэв,
-   жишиг/шалгалт орно) ар араасаа, хуудас бүр шинэ хуудаснаас; эхэнд нүүр + агуулга (№-ээр).
+   жишиг/шалгалт орно) ар араасаа, хуудас бүр шинэ хуудаснаас; эхэнд нүүр + агуулга (хэвлэсэн хуудасны дугаараар).
    Админ хуудас бүрийг хянана: бодолтын зайтай эсэх (унтраавал хуудасны өөрийн зайгүй загвараар дахин ачаална), зайн
    хэмжээ (бүхэлд нь болон даалгавар тус бүрээр − / +), номд оруулах эсэх, «Шалгасан» тэмдэг; хэвлэхэд хэдэн хуудас
    эзлэхийг шууд харна (улаан тасархай = хуудасны хил). Тохиргоо серверт (api/worksheets.js book_get/book_set)
@@ -240,15 +240,13 @@
         + nl + '<img class="cv-chick" src="/assets/chicks/chick-1.svg" alt=""></div>'
         + '<div class="cv-label"><div><i>Нэр</i><u></u></div><div><i>Анги</i><u></u></div><div><i>Сургууль</i><u></u></div></div>'
         + '<div class="cv-foot"><span>cyber-math.com/dasgal</span><span>' + D.year + '</span></div></div></section>';
-      // Агуулга (№-ээр — хуудасны дугаар биш, тиймээс зай өөрчлөгдсөн ч зөв хэвээр)
-      h += '<section class="toc"><h2>Агуулга</h2>';
+      // Агуулга — хэвлэсэн хуудасны дугаараар (хуудас бүрийн доод талын дугаартай таарна); дугаарыг totals() тооцоолно
+      // Хэвлэх цонхны захын зай/масштаб өөрчлөгдвөл хуудаслалт агуулгатай таарахгүй — тэр үед л агуулгын хуудсанд гарна (container query)
+      h += '<section class="toc"><div class="toc-warn">Хэвлэх тохиргоог засна уу: <b>Margins (Захын зай) — Default</b>, <b>Scale (Масштаб) — Default (100%)</b>. '
+        + 'Өөр тохиргоогоор хэвлэвэл хуудасны дугаар агуулгатай таарахгүй.</div><h2>Агуулга</h2>';
       D.chapters.forEach(function (c, ci) {
-        var rng = function (ti) {
-          var ns = D.list.filter(function (it) { return it.ci === ci && (ti == null || it.ti === ti) && it.snap; }).map(function (it) { return it.n; });
-          return ns.length ? '№' + ns[0] + (ns.length > 1 ? '–' + ns[ns.length - 1] : '') : '';
-        };
-        h += '<div class="toc-ch"><span>' + esc(c.roman || '') + '</span><b>' + esc(c.title) + '</b><i></i><em>' + rng(null) + '</em></div>';
-        c.topics.forEach(function (t, ti) { h += '<div class="toc-tp"><span>' + esc(t.num) + '</span>' + esc(t.title) + '<i></i><em>' + rng(ti) + '</em></div>'; });
+        h += '<div class="toc-ch" data-ci="' + ci + '"><span>' + esc(c.roman || '') + '</span><b>' + esc(c.title) + '</b><i></i><em></em></div>';
+        c.topics.forEach(function (t, ti) { h += '<div class="toc-tp" data-ci="' + ci + '" data-ti="' + ti + '"><span>' + esc(t.num) + '</span>' + esc(t.title) + '<i></i><em></em></div>'; });
       });
       h += '</section>';
       // Ажлын хуудсууд
@@ -259,7 +257,7 @@
         var s = cfg(it.slug);
         h += '<section class="wsx' + (s.off ? ' off' : '') + (s.ok ? ' done' : '') + '" id="ws-' + it.n + '" data-n="' + it.n + '">'
           + '<div class="wsx-bar"><span class="no">№' + it.n + '</span><span class="nm"><b>' + esc(it.title) + '</b><small>' + where + '</small></span>'
-          + '<span class="pgs"></span>'
+          + '<span class="pgs"></span><span class="pno"></span>'
           + '<label class="tg"><input type="checkbox" data-a="wk"' + (s.nw ? '' : ' checked') + '> Бодолтын зайтай</label>'
           + '<span class="ctl">Зай <button type="button" data-a="s" data-d="-1">−</button><b class="sv">' + pct(s.s) + '</b><button type="button" data-a="s" data-d="1">+</button></span>'
           + '<label class="tg"><input type="checkbox" data-a="inc"' + (s.off ? '' : ' checked') + '> Номд оруулах</label>'
@@ -297,8 +295,8 @@
     }
     // Хуудасны бэлтгэл (анх ба дахин ачаалсны дараа): хөлд №, даалгаврын гарчгийн хажууд − / +, бодолтын зайнууд
     function prep(x) {
-      x.sheet = x.paper.firstElementChild;
-      var ft = x.sheet.querySelector('.cm-foot'); if (ft && !ft.querySelector('.wsx-no')) ft.insertAdjacentHTML('afterbegin', '<b class="wsx-no">№' + x.it.n + '</b> · ');
+      x.sheet = x.paper.firstElementChild; x.units = null;
+      var ft = x.sheet.querySelector('.cm-foot'); if (ft && !ft.querySelector('.wsx-no')) ft.insertAdjacentHTML('afterbegin', '<span class="wsx-no"><b>№' + x.it.n + '</b> · </span>');
       x.heads = [].slice.call(x.sheet.querySelectorAll('.task, .sec'));
       x.boxes = [].slice.call(x.sheet.querySelectorAll('.wk, .work, .pw, .wgrid'));
       x.boxes.forEach(function (b) {
@@ -358,21 +356,45 @@
       [].forEach.call(x.sec.querySelectorAll('.wsx-sc'), function (c) { var k = +c.getAttribute('data-g'); c.querySelector('b').textContent = pct(s.g[k] == null ? 1 : s.g[k]); });
     }
     function apply(x) { setHeights(x); paint(x, calc(x)); }
-    // Хэвлэхэд хэдэн хуудас: хуваагдахгүй элемент (бодлого, гарчиг…) хуудасны хил давбал бүхэлдээ дараагийн хуудас руу
+    // Хуваагдахгүй хэсгүүд (хуудас бүрд нэг удаа): ажлын хуудасны CSS-д break-inside:avoid (бодлого .q, тест .t-item, задгай .free…)
+    // + гарчиг, хүснэгтийн мөр, зураг. ba — break-after:avoid (даалгаврын гарчиг дараагийн бодлоготойгоо хамт шилжинэ)
+    var KEEP = '.q, .prob, .task, .sec, .head, .meta, .rule, .cm-foot, tr, .fig, .formulas, .boxes, .guide, .intro, .steps, .case, img, svg, canvas, .katex-display';
+    function units(x) {
+      var out = [];
+      (function walk(el) {
+        for (var c = el.firstElementChild; c; c = c.nextElementSibling) {
+          if (c.classList.contains('wsx-sc') || c.classList.contains('gd')) continue;
+          var cs = getComputedStyle(c);
+          if (cs.display === 'none' || cs.position === 'absolute' || cs.position === 'fixed') continue;
+          var av = /avoid/.test(cs.breakInside);
+          if (av || c.matches(KEEP)) out.push({ el: c, av: av, ba: /avoid/.test(cs.breakAfter) });
+          if (!c.matches('svg, img, canvas, .katex, .katex-display, tr')) walk(c);
+        }
+      })(x.sheet);
+      return out;
+    }
+    // Хэвлэхэд хэдэн хуудас (Chrome-ийн хуудаслалтыг дуурайна): хуваагдахгүй хэсэг хуудасны хил давбал бүхэлдээ дараагийн
+    // хуудас руу; хуудаснаас урт break-inside:avoid хэсэг шинэ хуудаснаас эхэлж хуваагдана; бусад агуулга хаана ч хуваагдана
     function calc(x) {
       if (x.sec.classList.contains('hid')) x.sec.classList.remove('hid');   // нуугдсан бол хэмжээ 0 — түр харуулна (vis() буцааж нууна)
-      var top0 = x.sheet.getBoundingClientRect().top, start = 0, pages = 1, br = [];
-      var els = x.sheet.querySelectorAll('.q, .prob, .task, .sec, .head, .meta, .rule, .cm-foot, tr, .fig, .formulas, .boxes, .guide, .intro, .steps, .case');
-      for (var i = 0; i < els.length; i++) {
-        var r = els[i].getBoundingClientRect(); if (!r.height) continue;
+      var top0 = x.sheet.getBoundingClientRect().top, start = 0, pages = 1, br = [], prev = null;
+      var U = x.units || (x.units = units(x));
+      var nb = function (y) { start = y; pages++; br.push(y); };
+      for (var i = 0; i < U.length; i++) {
+        var u = U[i], r = u.el.getBoundingClientRect(); if (!r.height) continue;
         var t = r.top - top0, b = r.bottom - top0;
-        while (b > start + PAGE_H + 0.5) {
-          if (t > start + 1 && b - t <= PAGE_H) start = t; else start += PAGE_H;
-          pages++; br.push(start);
+        while (t >= start + PAGE_H) nb(start + PAGE_H);                  // өмнөх хуваагдах агуулга хуудас дүүргэсэн
+        if (b > start + PAGE_H + 0.5) {
+          if (t > start + 1 && (b - t <= PAGE_H || u.av)) {
+            var adj = prev && prev.ba && !prev.el.contains(u.el) && prev.t > start + 1 && t - prev.b < 12 * MM;
+            nb(adj ? prev.t : t);
+          }
+          while (b > start + PAGE_H + 0.5) nb(start + PAGE_H);           // хуудаснаас урт — хуваагдана
         }
+        prev = { el: u.el, t: t, b: b, ba: u.ba };
       }
       var total = x.sheet.getBoundingClientRect().height;
-      while (total > start + PAGE_H + 0.5) { start += PAGE_H; pages++; br.push(start); }
+      while (total > start + PAGE_H + 0.5) nb(start + PAGE_H);
       return { pages: pages, br: br };
     }
     function paint(x, r) {
@@ -385,15 +407,45 @@
       vis(x);
     }
     function vis(x) { x.sec.classList.toggle('hid', (onlyLong && x.pages < 2) || (onlyTodo && cfg(x.it.slug).ok)); }
-    function totals() {
+    // Хуудасны дугаар (хэвлэхэд доод талд гарна): 1 — нүүр (дугааргүй), 2… — агуулга, дараа нь номд орсон ажлын хуудсууд.
+    // Агуулгад зөвхөн номд орсон хуудастай бүлэг/сэдэв, тэр сэдвийн эхний хуудасны дугаартай.
+    function totals(depth) {
       var inc = ITEMS.filter(function (x) { return !cfg(x.it.slug).off; });
-      var pages = 0, one = 0, more = 0;
-      inc.forEach(function (x) { pages += x.pages || 1; if ((x.pages || 1) > 1) more++; else one++; });
-      var toc = document.querySelector('.toc'), tocP = Math.max(1, Math.ceil((toc ? toc.getBoundingClientRect().height - 22 * MM : 0) / PAGE_H));
-      document.getElementById('sum').innerHTML = 'Нийт ≈ <b>' + (pages + 1 + tocP) + '</b> хуудас · ' + inc.length + ' ажлын хуудас'
+      var one = 0, more = 0, has = {}, first = {};
+      inc.forEach(function (x) { if ((x.pages || 1) > 1) more++; else one++; has[x.it.ci] = has[x.it.ci + '.' + x.it.ti] = 1; });
+      var rows = [].slice.call(document.querySelectorAll('.toc-ch, .toc-tp'));
+      var key = function (r) { var ti = r.getAttribute('data-ti'); return r.getAttribute('data-ci') + (ti == null ? '' : '.' + ti); };
+      rows.forEach(function (r) { r.classList.toggle('toc-x', !has[key(r)]); });
+      var tocP = tocPages(), p = 2 + tocP;
+      inc.forEach(function (x) {
+        x.p0 = p; p += x.pages || 1;
+        [x.it.ci, x.it.ci + '.' + x.it.ti].forEach(function (k) { if (!(k in first)) first[k] = x.p0; });
+      });
+      rows.forEach(function (r) { r.querySelector('em').textContent = first[key(r)] || ''; });
+      if (tocPages() !== tocP && !depth) return totals(1);   // дугаар бичсэнээр агуулгын урт өөрчлөгдвөл дахин тооцно
+      ITEMS.forEach(function (x) {
+        var n = x.pages || 1;
+        x.sec.querySelector('.pno').textContent = cfg(x.it.slug).off ? 'номд ороогүй' : 'х. ' + x.p0 + (n > 1 ? '–' + (x.p0 + n - 1) : '');
+      });
+      document.getElementById('sum').innerHTML = 'Нийт <b>' + (p - 1) + '</b> хуудас · ' + inc.length + ' ажлын хуудас'
         + ' <span class="s1">1 хуудастай ' + one + '</span> <span class="s2">2+ хуудастай ' + more + '</span>';
       var ok = ITEMS.filter(function (x) { return cfg(x.it.slug).ok; }).length;
       document.getElementById('prog').innerHTML = 'Шалгасан <b>' + ok + '</b> / ' + ITEMS.length;
+    }
+    // Агуулга хэдэн хуудас: мөр хуваагдахгүй, бүлгийн гарчиг дараагийн мөрөөсөө салахгүй. Шинэ хуудас эхлэх мөрөнд
+    // .toc-pb (хэвлэхэд break-before:page, дээд зайгүй) — хэвлэхэд яг энэ тооцоогоор хуудаслана.
+    function tocPages() {
+      var rows = [].slice.call(document.querySelectorAll('.toc h2, .toc-ch, .toc-tp'));
+      rows.forEach(function (r) { r.classList.remove('toc-pb'); });
+      rows = rows.filter(function (r) { return r.getBoundingClientRect().height > 0; });
+      if (!rows.length) return 1;
+      var top0 = rows[0].getBoundingClientRect().top, start = 0, pages = 1;
+      for (var i = 1; i < rows.length; i++) {
+        if (rows[i].getBoundingClientRect().bottom - top0 <= start + PAGE_H + 0.5) continue;
+        var s = rows[i - 1].classList.contains('toc-ch') && i > 1 ? rows[i - 1] : rows[i];
+        s.classList.add('toc-pb'); start = s.getBoundingClientRect().top - top0; pages++;
+      }
+      return pages;
     }
     function setSt(x, html, cls) { var e = x.sec.querySelector('.sst'); e.innerHTML = html; e.className = 'sst ' + (cls || ''); }
     function save(x) {
@@ -453,19 +505,24 @@
     '.cv-label u{flex:1;height:6mm;border-bottom:.45mm solid #C9CCDB;text-decoration:none}',
     '.cv-foot{display:flex;justify-content:space-between;margin-top:9mm;padding-right:4mm;font-size:9pt;font-weight:600;letter-spacing:.06em;color:#8A8FA8}',
     /* агуулга */
-    '.toc{break-before:page;width:188mm;margin:16px auto;background:#fff;padding:11mm;box-sizing:content-box}',
+    '.toc{break-before:page;width:188mm;margin:16px auto;background:#fff;padding:11mm;box-sizing:content-box;position:relative;container-type:inline-size}',
+    // хэвлэхэд .toc-ийн өргөн = хуудасны талбай; 188 мм (A4 − 2×11 мм) биш бол захын зай эсвэл масштаб өөрчлөгдсөн
+    // (media query цаасны бүтэн өргөнөөр шалгагддаг тул тохиромжгүй)
+    '.toc-warn{display:none}',
+    '@container (min-width:192mm) or (max-width:184mm){.toc-warn{display:block;position:absolute;z-index:9;top:0;right:0;width:108mm;padding:3mm 4mm;border:.7mm solid #dc2626;border-radius:3mm;background:#fff;color:#b91c1c;font:600 10pt/1.45 "Segoe UI",Arial,sans-serif}}',
     '.toc h2{margin:0 0 6mm;font-size:24pt;font-weight:900;color:#14214a}',
     '.toc-ch,.toc-tp{display:flex;align-items:baseline;gap:3mm}',
     '.toc-ch{margin:4mm 0 1.2mm;font-size:12pt;color:#14214a}.toc-ch span{min-width:9mm;font-weight:900;color:#7B52EE}',
     '.toc-tp{margin:0 0 1mm 9mm;font-size:10.5pt;color:#3d3757}.toc-tp span{min-width:9mm;font-weight:800;color:#8a84a3}',
     '.toc-ch i,.toc-tp i{flex:1;border-bottom:1.5px dotted #cfcae0;transform:translateY(-1mm)}',
-    '.toc-ch em,.toc-tp em{font-style:normal;font-weight:900;white-space:nowrap}',
+    '.toc-ch em,.toc-tp em{font-style:normal;font-weight:900;white-space:nowrap}.toc-x{display:none!important}',
     /* ажлын хуудас */
     '.wsx{break-before:page;width:210mm;margin:16px auto}',
     '.wsx-bar{position:sticky;top:calc(var(--tbh,96px) + 6px);z-index:20;display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px;padding:8px 12px;margin-bottom:8px;border-radius:12px;background:#fff;box-shadow:0 8px 20px -14px rgba(20,33,74,.5);font-size:13px}',
     '.wsx-bar .no{font-weight:900;color:#fff;background:#14214a;border-radius:8px;padding:3px 8px}',
     '.wsx-bar .nm{display:flex;flex-direction:column;min-width:0;flex:1 1 220px}.wsx-bar .nm small{color:#8a84a3;font-weight:700}',
     '.wsx-bar .pgs{font-weight:900;border-radius:99px;padding:3px 10px}.pgs.p1{background:#dcfce7;color:#15803d}.pgs.p2{background:#fef3c7;color:#b45309}.pgs.p3{background:#fee2e2;color:#b91c1c}',
+    '.wsx-bar .pno{font-weight:800;color:#14214a;white-space:nowrap}.wsx.off .pno{color:#b91c1c}',
     '.wsx-bar .ctl{display:inline-flex;align-items:center;gap:5px;font-weight:700}.wsx-bar .ctl.none{display:none}',
     '.wsx-bar button{border:1.5px solid #E7E2F7;background:#fff;color:#5B3BD9;border-radius:8px;width:28px;height:26px;font:inherit;font-weight:900;cursor:pointer;line-height:1}',
     '.wsx-bar button:hover{border-color:#5B3BD9}.wsx-bar .sv{min-width:42px;text-align:center}',
@@ -482,8 +539,10 @@
     '.wsx-paper .wsx-sc button{width:20px;height:20px;margin:0;padding:0;border:0;border-radius:6px;background:#F1EDFF;color:#5B3BD9;font:900 13px/1 "Segoe UI",Arial,sans-serif;cursor:pointer}',
     '.wsx-paper .wsx-sc b{min-width:34px;text-align:center}',
     '.wsx-err{width:210mm;margin:16px auto;padding:12px 16px;border-radius:12px;background:#fee2e2;color:#b91c1c;font-weight:800;font-size:13px}',
-    '.wsx-no{color:#5a32d6}',
-    '@media print{body{background:#fff}.tb,.tip,.wsx-bar,.wsx-sc,.gd,.wsx-err{display:none!important}.wsx.off{display:none!important}.wsx.hid{display:block!important}',
+    '.wsx-no b{color:#5a32d6}',
+    // хэвлэхэд: хуудасны дугаар доод талд (@page) — № давхар дугаар болохгүйн тулд нуугдана; агуулгын хуудаслалт tocPages()-ийн дагуу
+    '@media print{body{background:#fff}.tb,.tip,.wsx-bar,.wsx-sc,.gd,.wsx-err,.wsx-no{display:none!important}.wsx.off{display:none!important}.wsx.hid{display:block!important}',
+    '.toc-pb{break-before:page;margin-top:0!important}',
     '.cover,.toc,.wsx{margin:0!important;box-shadow:none!important}.toc{padding:0;width:auto}.wsx{width:auto}.wsx-paper{width:auto;padding:0;box-shadow:none;opacity:1!important}}',
   ].join('');
 
