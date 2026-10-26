@@ -169,8 +169,8 @@
   }
   function linksHtml() {
     var h = '', sl = document.getElementById('slidesSec'), gm = document.getElementById('gamesSec');
-    if (sl && !sl.hidden) h += '<a href="#" data-jump="slidesSec">' + ICO.slide + 'Слайд хичээлүүд</a>';
-    if (gm && !gm.hidden) h += '<a href="#" data-jump="gamesSec">' + ICO.game + 'Тоглоомууд</a>';
+    if (sl && !sl.hidden) h += '<a href="#slides" data-view="slidesSec">' + ICO.slide + 'Слайд хичээлүүд</a>';
+    if (gm && !gm.hidden) h += '<a href="#games" data-view="gamesSec">' + ICO.game + 'Тоглоомууд</a>';
     return h ? '<div class="wsb-links">' + h + '</div>' : '';
   }
 
@@ -314,6 +314,7 @@
   function hashOf() { return ST.g < 0 ? '' : '#ws=g' + ST.g + (ST.t != null ? 't' + ST.t : (ST.ch != null ? 'c' + ST.ch : '')); }
   function go(patch, opts) {
     opts = opts || {};
+    if (curView() !== 'wsb') view('wsb', { hash: false, scroll: false });   // каталогийн үйлдэл — «Ажлын хуудас» таб руу
     if (!('nw' in patch)) ST.nw = false;
     for (var k in patch) ST[k] = patch[k];
     if (ST.g >= 0) lsW(GRADE_KEY, groups()[ST.g] ? groups()[ST.g][0] : '');
@@ -362,7 +363,7 @@
       return;
     }
     var el;
-    if ((el = t.closest('[data-jump]'))) { e.preventDefault(); var sec = document.getElementById(el.getAttribute('data-jump')); if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+    if ((el = t.closest('[data-view]'))) { e.preventDefault(); view(el.getAttribute('data-view')); return; }
     if ((el = t.closest('[data-new]'))) { go({ nw: !ST.nw, nwAll: false, q: '' }, { noHash: true }); return; }
     if ((el = t.closest('[data-nwall]'))) { ST.nwAll = el.getAttribute('data-nwall') === '1'; render(true); return; }
     if ((el = t.closest('[data-book]'))) { openBook(); return; }
@@ -398,39 +399,51 @@
     }
   }
 
-  /* Дээд цэс: Ажлын хуудас · Слайд хичээл · Тоглоом · Үнэ ба эрх (хэсэг рүү гүйлгэнэ, үнэ — худалдан авах цонх) */
+  /* Дээд цэс = таб: Ажлын хуудас · Слайд хичээл · Тоглоом — нэг удаад зөвхөн сонгосон хэсэг (body[data-wsv], ws-browse.css);
+     /worksheets#slides, #games хаягаар шууд тэр таб нээгдэнэ, «Буцах» өмнөх таб руу. «Үнэ ба эрх» — худалдан авах цонх */
+  var VIEW_HASH = { gamesSec: '#games', slidesSec: '#slides' };
+  function curView() { return document.body.getAttribute('data-wsv') || 'wsb'; }
+  function viewFromHash() { for (var k in VIEW_HASH) if (VIEW_HASH[k] === location.hash) return k; return 'wsb'; }
+  // o: { hash: false — хаяг өөрчлөхгүй, scroll: false — гүйлгэхгүй, force: хоосон (ачаалагдаж буй) хэсгийг ч нээнэ }
+  function view(k, o) {
+    o = o || {};
+    if (!VIEW_HASH[k]) k = 'wsb';
+    var sec = k === 'wsb' ? ROOT : document.getElementById(k);
+    if (!sec || (sec.hidden && !o.force)) { if (typeof toast === 'function') toast('Энэ хэсэг одоохондоо хоосон байна'); return false; }
+    var was = curView();
+    document.body.setAttribute('data-wsv', k);
+    var nav = document.getElementById('wsbNav'), on = null;
+    if (nav) [].forEach.call(nav.querySelectorAll('a[data-nav]'), function (a) { var m = a.getAttribute('data-nav') === k; a.classList.toggle('on', m); if (m) on = a; });
+    if (on && nav.scrollWidth > nav.clientWidth) {        // утсанд цэс хөндлөн гүйдэг — идэвхтэй таб харагдана
+      var nr = nav.getBoundingClientRect(), ar = on.getBoundingClientRect();
+      if (ar.left < nr.left) nav.scrollLeft -= nr.left - ar.left + 8; else if (ar.right > nr.right) nav.scrollLeft += ar.right - nr.right + 8;
+    }
+    if (o.hash !== false) {
+      var h = k === 'wsb' ? hashOf() : VIEW_HASH[k];
+      if (h !== location.hash) { try { history.pushState({ wsv: k }, '', location.pathname + location.search + h); } catch (e) {} }
+    }
+    if (o.scroll !== false) {                             // хэсгийн эхлэл дэлгэцэнд харагдахгүй бол л гүйлгэнэ (цэс дээд талдаа үлдэнэ)
+      var top = sec.getBoundingClientRect().top;
+      if (top < 0 || top > window.innerHeight - 120) sec.scrollIntoView({ block: 'start', behavior: was === k ? 'smooth' : 'auto' });
+    }
+    return true;
+  }
   function topNav() {
     var bar = document.querySelector('.topbar'); if (!bar || document.getElementById('wsbNav')) return;
     var nav = document.createElement('nav'); nav.id = 'wsbNav'; nav.setAttribute('aria-label', 'Дасгалын төвийн цэс');
     nav.innerHTML = '<a href="#" data-nav="wsb" class="on">' + ICO.book + 'Ажлын хуудас</a>'
-      + '<a href="#" data-nav="slidesSec">' + ICO.slide + 'Слайд хичээл</a>'
-      + '<a href="#" data-nav="gamesSec">' + ICO.game + 'Тоглоом</a>'
+      + '<a href="#slides" data-nav="slidesSec">' + ICO.slide + 'Слайд хичээл</a>'
+      + '<a href="#games" data-nav="gamesSec">' + ICO.game + 'Тоглоом</a>'
       + '<a href="#" data-nav="buy">' + ICO.tag + 'Үнэ ба эрх</a>';
     var back = bar.querySelector('.back');
     bar.insertBefore(nav, back ? back.nextSibling : bar.firstChild);
-    var setOn = function (k) { [].forEach.call(nav.querySelectorAll('a'), function (a) { a.classList.toggle('on', a.getAttribute('data-nav') === k); }); };
     nav.addEventListener('click', function (e) {
       var a = e.target.closest('a[data-nav]'); if (!a) return;
       e.preventDefault();
       var k = a.getAttribute('data-nav');
       if (k === 'buy') { if (typeof openBuy === 'function') openBuy(); return; }
-      var sec = document.getElementById(k);
-      if (!sec || sec.hidden) { if (typeof toast === 'function') toast('Энэ хэсэг одоохондоо хоосон байна'); return; }
-      setOn(k); sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      view(k);
     });
-    // Гүйлгэх үед идэвхтэй цэс
-    var raf = 0;
-    window.addEventListener('scroll', function () {
-      if (raf) return;
-      raf = requestAnimationFrame(function () {
-        raf = 0; var cur = 'wsb', best = -1e9, mid = window.innerHeight * 0.35;
-        ['wsb', 'gamesSec', 'slidesSec'].forEach(function (id) {   // дэлгэцийн дээд 35%-ийг давсан хэсгүүдээс хамгийн доод нь
-          var s = document.getElementById(id); if (!s || s.hidden) return;
-          var t = s.getBoundingClientRect().top; if (t < mid && t > best) { best = t; cur = id; }
-        });
-        setOn(cur);
-      });
-    }, { passive: true });
   }
 
   function init() {
@@ -442,6 +455,7 @@
     var wrap = document.querySelector('.wrap'), before = document.getElementById('gamesSec') || document.querySelector('.controls');
     wrap.insertBefore(ROOT, before && before.parentNode === wrap ? before : null);
     document.body.classList.add('wsb-on');
+    view(viewFromHash(), { hash: false, scroll: false, force: true });
     document.body.classList.toggle('wsb-admin', typeof isAdmin === 'function' && !!isAdmin());
     ROOT.addEventListener('click', onClick);
     ROOT.addEventListener('dblclick', function (e) { if (e.target.closest('.card')) e.preventDefault(); });
@@ -459,7 +473,12 @@
       qTimer = setTimeout(function () { ST.q = v.trim(); render(true); }, 160);
     });
     if (typeof initPreview === 'function') initPreview('wsb');
-    window.addEventListener('popstate', function () { if (parseHash() || !/^#ws=/.test(location.hash)) { if (!/^#ws=/.test(location.hash)) { ST.t = null; ST.ch = null; } render(); } });
+    window.addEventListener('popstate', function () {
+      var v = viewFromHash();
+      view(v, { hash: false, scroll: false, force: true });
+      if (v !== 'wsb') return;                                         // тоглоом/слайд таб — каталогийн төлөв хэвээр
+      if (parseHash() || !/^#ws=/.test(location.hash)) { if (!/^#ws=/.test(location.hash)) { ST.t = null; ST.ch = null; } render(); }
+    });
     if (MQ.addEventListener) MQ.addEventListener('change', function () { render(); });
     initialState();
     render();
@@ -477,7 +496,8 @@
     var _te = toggleEdit;
     window.toggleEdit = toggleEdit = function () { var r = _te.apply(this, arguments); if (ROOT && !window.editMode) { CACHE = {}; SEARCH = null; render(); } return r; };
   }
-  // gdata/groups/titleOf/deepItems — ws-book.js (Дасгал ажлын дэвтэр) каталогийн бүтцийг эндээс уншина
-  window.WSB = { render: function () { CACHE = {}; SEARCH = null; render(); }, state: ST, gdata: gdata, groups: groups, titleOf: titleOf, deepItems: deepItems };
+  // gdata/groups/titleOf/deepItems — ws-book.js (Дасгал ажлын дэвтэр) каталогийн бүтцийг эндээс уншина;
+  // view — дээд цэсний таб солих (worksheets.html-ийн GW.scrollTo / PPTW.scrollTo дууддаг)
+  window.WSB = { render: function () { CACHE = {}; SEARCH = null; render(); }, state: ST, gdata: gdata, groups: groups, titleOf: titleOf, deepItems: deepItems, view: view };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
