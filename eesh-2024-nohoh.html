@@ -322,7 +322,7 @@ function e24b_p1(orig) {
   var r, g, h, p, q, key, KEY0 = 'e24b1_1_1_4';
   for (var tries = 0; tries < 800; tries++) {
     if (orig) { r = 1; g = 1; h = 4; }
-    else { r = pick([1, 1, 2, 2, 3]); g = pick([1, 2, 3]); h = g + rnd(2, 6); }
+    else { r = pick([1, 1, 2, 2, 3]); g = pick([1, 2, 3]); h = g + rnd(1, 6); }   // h−g = 1 ч болно (a–h-д багтах хувилбар олшрно)
     p = g + h + 2 * r; q = g * h - r * r;
     key = 'e24b1_' + r + '_' + g + '_' + h;
     if (orig) break;
@@ -467,7 +467,11 @@ function e24b_p3(orig) {
 
 // ═════════════ 2.4. f(x) = ½|x² ∓ cx| ба шүргэгч шулууны хүрээлсэн талбай (7 оноо) ═════════════
 // (c − x0, x0, R) — Пифагорын гурвал; шүргэгч x0 цэгт; A, B: x = (c−x0) ± R; талбай = (4R³ − c³)/6
-var E24B_P4L = [[7, 3, 5], [7, 4, 5], [14, 6, 10], [14, 8, 10], [17, 5, 13], [17, 12, 13]];
+// ЭЕШ-ийн хариултын хуудас (a–h, ≤ 8 нүд)-д зөвхөн (3, 4, 5) гурвал (c = 7) багтана — (6, 8, 10)-аас дээш бол 12–13 нүд.
+// Хувилбар: x0 = 3 | 4, толин | үгүй (эх: 3, үгүй). Сөрөг тоог нүдэнд биш «−»-ийг өмнө нь хэвлэнэ (эх: «−[d]» шиг);
+// x0 тэгш бол шүргэгч y = (mp/2)x + [x0²/2] (нэг нүд), сондгой бол эх шиг y = (mp·x + [x0²])/2.
+var E24B_P4L = [[7, 3, 5], [7, 4, 5]];
+function e24b_slx(f) { return f.d === 1 ? e24b_lin(f.n, 'x') : fTex(f) + 'x'; }   // (n/d)·x → TeX
 function e24b_fig4(c, x0, R, mir) {
   var sg = mir ? -1 : 1, p = c - x0, xa = p - R, xb = p + R;            // mir үед x → −x
   function f(x) { return 0.5 * Math.abs(x * x - sg * c * x); }
@@ -497,20 +501,22 @@ function e24b_p4(orig) {
   var T, mir;
   for (var tr = 0; tr < 50; tr++) {
     if (orig) { T = E24B_P4L[0]; mir = false; break; }
-    T = pick(E24B_P4L); mir = Math.random() < 0.4;
+    T = pick(E24B_P4L); mir = Math.random() < 0.5;
     if (!(T[0] === 7 && T[1] === 3 && !mir)) break;
   }
   var c = T[0], x0 = T[1], R = T[2], p = c - x0, sg = mir ? -1 : 1, mp = sg * (c - 2 * x0);   // шүргэгч y = (mp·x + x0²)/2
   var aV = mir ? -c : 0, bV = mir ? 0 : c;
-  var dV = mir ? p + R : R - p, eV = mir ? R - p : p + R, area = 4 * R * R * R - c * c * c, x0s = sg * x0, y0 = x0 * x0 * (c - x0) / 2 * 1;
-  y0 = Math.abs(x0s * x0s - sg * c * x0s) / 2;
-  var C = e24b_cells(), bA = C.put(aV), bB = C.put(bV);
-  var half = mp % 2 === 0, bC = C.put(half ? x0 * x0 / 2 : x0 * x0), bD = C.put(dV), bE = C.put(eV), bF = C.put(area);
+  var dV = mir ? p + R : R - p, eV = mir ? R - p : p + R, area = 4 * R * R * R - c * c * c, x0s = sg * x0;
+  var y0 = Math.abs(x0s * x0s - sg * c * x0s) / 2;
+  var C = e24b_cells(), bA = C.put(Math.abs(aV)), bB = C.put(bV);
+  var half = x0 % 2 === 0, bC = C.put(half ? x0 * x0 / 2 : x0 * x0), bD = C.put(dV), bE = C.put(eV), bF = C.put(area);
+  var neg = aV < 0 ? '$-{}$' : '';                                     // x ≤ −[a] (толин үед)
   var inner = 'x(x' + (mir ? '+' : '-') + c + ')';
   var pw = '<span class="pwz"><span class="pwl">$|x^2' + (mir ? '+' : '-') + c + 'x|={}$</span><span class="pwb">{</span><span class="pwr">'
-    + '<span class="pwrow"><span>$' + inner + ',$</span><span>$x\\le{}$' + e24b_box(bA) + ' эсвэл $x\\ge{}$' + e24b_box(bB) + '</span></span>'
-    + '<span class="pwrow"><span>$-' + inner + ',$</span><span>' + e24b_box(bA) + '${}\\lt x\\lt{}$' + e24b_box(bB) + '</span></span></span></span>';
-  var lineT = half ? e24b_nw('$y=' + e24b_lin(mp / 2, 'x') + '+{}$' + e24b_box(bC))
+    + '<span class="pwrow"><span>$' + inner + ',$</span><span>$x\\le{}$' + neg + e24b_box(bA) + ' эсвэл $x\\ge{}$' + e24b_box(bB) + '</span></span>'
+    + '<span class="pwrow"><span>$-' + inner + ',$</span><span>' + neg + e24b_box(bA) + '${}\\lt x\\lt{}$' + e24b_box(bB) + '</span></span></span></span>';
+  var slope = Fr(mp, 2);
+  var lineT = half ? e24b_nw('$y=' + e24b_slx(slope) + '+{}$' + e24b_box(bC))
     : e24b_nw('$y={}$' + e24b_bf('$' + e24b_lin(mp, 'x') + '+{}$' + e24b_box(bC), '$2$'));
   var fT = '\\dfrac{1}{2}|x^2' + (mir ? '+' : '-') + c + 'x|';
   var html = '<div class="row"><div class="col">'
@@ -520,11 +526,11 @@ function e24b_p4(orig) {
     + e24b_sp(3, 'Иймд олох талбай ' + e24b_bf(e24b_box(bF), '$6$') + ' болно.', 2)
     + '</div><div class="fig">' + e24b_fig4(c, x0, R, mir) + '</div></div>';
   var xa = mir ? -(p + R) : p - R, xb = mir ? R - p : p + R;
-  var lineS = half ? 'y=' + e24b_lin(mp / 2, 'x') + '+' + (x0 * x0 / 2) : 'y=\\dfrac{' + e24b_lin(mp, 'x') + '+' + (x0 * x0) + '}{2}';
+  var lineS = half ? 'y=' + e24b_slx(slope) + '+' + (x0 * x0 / 2) : 'y=\\dfrac{' + e24b_lin(mp, 'x') + '+' + (x0 * x0) + '}{2}';
   var sol = [
     e24b_sn(1, '$x^2' + (mir ? '+' : '-') + c + 'x\\ge 0\\Leftrightarrow x\\le ' + aV + '$ эсвэл $x\\ge ' + bV + '$; бусад үед модуль нь эсрэг тэмдэгтэй.'),
     e24b_sn(2, '$' + aV + '\\lt x\\lt ' + bV + '$ үед $f(x)=-\\dfrac{' + inner + '}{2}$, $f\'(' + x0s + ')=' + fTex(Fr(mp, 2)) + '$. Шүргэгч: $y=' + y0 + (mp >= 0 ? '+' : '') + fTex(Fr(mp, 2)) + '(x' + (x0s > 0 ? '-' + x0s : '+' + (-x0s)) + ')$, өөрөөр $' + lineS + '$. '
-      + '$\\dfrac{' + inner + '}{2}=' + (half ? e24b_lin(mp / 2, 'x') + '+' + (x0 * x0 / 2) : '\\dfrac{' + e24b_lin(mp, 'x') + '+' + (x0 * x0) + '}{2}') + '\\Rightarrow x=' + xa + ',\\ x=' + xb + '$.'),
+      + '$\\dfrac{' + inner + '}{2}=' + (half ? e24b_slx(slope) + '+' + (x0 * x0 / 2) : '\\dfrac{' + e24b_lin(mp, 'x') + '+' + (x0 * x0) + '}{2}') + '\\Rightarrow x=' + xa + ',\\ x=' + xb + '$.'),
     e24b_sn(3, 'Талбай $=\\displaystyle\\int_{' + xa + '}^{' + xb + '}\\left(l-\\dfrac{' + inner + '}{2}\\right)dx-\\int_{' + aV + '}^{' + bV + '}\\left(-' + inner + '\\right)dx=\\dfrac{1}{2}\\cdot\\dfrac{' + (2 * R) + '^3}{6}-\\dfrac{' + c + '^3}{6}=\\dfrac{' + area + '}{6}$ ($\\displaystyle\\int_{x_1}^{x_2}a(x-x_1)(x-x_2)dx=-\\dfrac{a}{6}(x_2-x_1)^3$ томьёогоор).')
   ];
   return { html: html, ans: C.ans, sol: sol, key: 'e24b4_' + [c, x0, mir ? 1 : 0].join('_'), pts: 7, save: '\\text{2.4. }f(x)=' + fT + '\\text{ ба шүргэгчээр хүрээлэгдэх талбай}', par: { c: c, x0: x0, R: R, mir: mir } };
@@ -549,13 +555,22 @@ function e24n_hash(a, b) {
   h = Math.imul(h ^ h >>> 13, 0xC2B2AE35) >>> 0;
   return (h ^ h >>> 16) >>> 0;
 }
+// ЭЕШ-ийн хариултын хуудас: даалгавар бүр a–h мөр (≤ 8 нүд) — үүнд багтвал eyeshcheck-д уншуулж дүгнэнэ
+function e24n_fit(ans) {
+  var n = 0;
+  for (var k in ans) if (Object.prototype.hasOwnProperty.call(ans, k)) { if (!/^[a-h]+$/.test(k)) return false; n += k.length; }
+  return n > 0 && n <= 8;
+}
 function e24n_generate(seed, scope) {
   scope = scope || (typeof window !== 'undefined' ? window : this);
   var R0 = Math.random, orig = seed === 'orig', items = [];
   try {
     for (var k = 1; k <= 4; k++) {
       Math.random = e24n_mulberry32(e24n_hash(orig ? 0 : seed, k));
-      items.push(scope['e24b_p' + k](orig));
+      // Шинэ хувилбар a–h-д багтахгүй бол ижил урсгалаас дахин үүсгэнэ (эхний оролдлого багтвал хувилбар өөрчлөгдөхгүй)
+      var it = scope['e24b_p' + k](orig), t = 0;
+      while (!orig && !e24n_fit(it.ans) && ++t < 400) it = scope['e24b_p' + k](orig);
+      items.push(it);
     }
   } finally { Math.random = R0; }
   return { seed: seed, items: items };
@@ -575,7 +590,7 @@ var E24N_SUB0 = 'Математик · Хувилбар А · 2-р хэсэг ·
 var E24N_SUBV = 'Математик · Хувилбар А-ийн загвараар · 2-р хэсэг · 4 даалгавар, 28 оноо';
 // Хувилбар = үр + генераторын код. build_nohoh.js нь helpers + gen_p2 + цэвэр хэсгийн хэшийг энд тавина.
 // Шошго «№1234·a7», URL «?v=1234&g=a7». Генератор өөрчлөгдвөл g өөрчлөгдөж, хуучин холбоос сануулга харуулна.
-var E24N_BUILD = 'sg';
+var E24N_BUILD = '4d';
 var E24N_KEYS = {};                          // шошго → 4 даалгаврын нүдний хариу («Ангиар хэвлэх»-ийн түлхүүрт)
 function e24n_esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 function e24n_urlSeed() {

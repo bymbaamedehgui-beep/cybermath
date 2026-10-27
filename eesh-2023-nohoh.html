@@ -693,13 +693,22 @@ function e23n_hash(a, b) {
   h = Math.imul(h ^ h >>> 13, 0xC2B2AE35) >>> 0;
   return (h ^ h >>> 16) >>> 0;
 }
+// ЭЕШ-ийн хариултын хуудас: даалгавар бүр a–h мөр (≤ 8 нүд) — үүнд багтвал eyeshcheck-д уншуулж дүгнэнэ
+function e23n_fit(ans) {
+  var n = 0;
+  for (var k in ans) if (Object.prototype.hasOwnProperty.call(ans, k)) { if (!/^[a-h]+$/.test(k)) return false; n += k.length; }
+  return n > 0 && n <= 8;
+}
 function e23n_generate(seed, scope) {
   scope = scope || (typeof window !== 'undefined' ? window : this);
   var R0 = Math.random, orig = seed === 'orig', items = [];
   try {
     for (var k = 1; k <= 4; k++) {
       Math.random = e23n_mulberry32(e23n_hash(orig ? 0 : seed, k));
-      items.push(scope['e23b_p' + k](orig));
+      // Шинэ хувилбар a–h-д багтахгүй бол ижил урсгалаас дахин үүсгэнэ (эхний оролдлого багтвал хувилбар өөрчлөгдөхгүй)
+      var it = scope['e23b_p' + k](orig), t = 0;
+      while (!orig && !e23n_fit(it.ans) && ++t < 400) it = scope['e23b_p' + k](orig);
+      items.push(it);
     }
   } finally { Math.random = R0; }
   return { seed: seed, items: items };
@@ -719,7 +728,7 @@ var E23N_SUB0 = 'Математик · Хувилбар А · 2-р хэсэг ·
 var E23N_SUBV = 'Математик · Хувилбар А-ийн загвараар · 2-р хэсэг · 4 даалгавар, 28 оноо';
 // Хувилбар = үр + генераторын код. build_nohoh.js нь helpers + gen_p2 + цэвэр хэсгийн хэшийг энд тавина.
 // Шошго «№1234·a7», URL «?v=1234&g=a7». Генератор өөрчлөгдвөл g өөрчлөгдөж, хуучин холбоос сануулга харуулна.
-var E23N_BUILD = '0w';
+var E23N_BUILD = 'hd';
 var E23N_KEYS = {};                          // шошго → 4 даалгаврын нүдний хариу («Ангиар хэвлэх»-ийн түлхүүрт)
 function e23n_esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 function e23n_urlSeed() {

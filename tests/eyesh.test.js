@@ -69,12 +69,25 @@ test('eyesh-link.js ORIG: 2024 ба 2023 эх 2-р хэсэг (нүд + дэд �
   });
 });
 
-test('eyesh-link.js: олон оронтой хувилбар a–h-д багтахгүй гэж танина (2024 2-р хэсгийн шинэ хувилбар)', () => {
+test('2-р хэсгийн шинэ хувилбар бүр ЭЕШ-ийн хариултын хуудасны a–h мөрөнд багтана (2023, 2024) → eyeshcheck-д дүгнэгдэнэ', () => {
+  [['eesh-2024-nohoh.html', 'e24n_generate', '__E24N', 2024], ['eesh-2023-nohoh.html', 'e23n_generate', '__E23N', 2023]].forEach(([file, gen, glob, year]) => {
+    const { ctx } = linkCtx(file);
+    for (let seed = 1000; seed <= 9999; seed += 37) {
+      ctx[glob] = ctx[gen](seed, ctx);
+      const cur = plain(ctx.EYESH.exportCur());
+      assert.strictEqual(ctx.EYESH.fits(cur), true, file + ' ' + seed);
+      const n = EY.normExam({ year: year, p1: { v: seed, g: 'xx', key: 'A'.repeat(36) }, p2: cur });
+      assert.strictEqual(n.ok, true, file + ' ' + seed + ' ' + n.error);
+      Object.values(n.exam.sec2Config).forEach((c) => near('abcdefgh'.split('').reduce((a, r) => a + (c[r].ans !== '' ? c[r].score : 0), 0), 7, file + ' ' + seed));
+    }
+  });
+});
+
+test('eyesh-link.js: олон оронтой (хуучин) хувилбар a–h-д багтахгүй гэж танина', () => {
   const { ctx } = linkCtx('eesh-2024-nohoh.html');
-  ctx.__E24N = ctx.e24n_generate(1234, ctx);
-  const cur = plain(ctx.EYESH.exportCur());
-  assert.strictEqual(ctx.EYESH.fits(cur), false);
-  const n = EY.normExam({ year: 2024, p1: { v: 'orig', g: '', key: 'A'.repeat(36) }, p2: cur });
+  const items = [1, 2, 3, 4].map(() => ({ ans: { abc: '157', de: '10', fg: '12', hi: '13' }, parts: [] }));   // 9 нүд
+  assert.strictEqual(ctx.EYESH.fits({ v: 1234, g: 'sg', items: items }), false);
+  const n = EY.normExam({ year: 2024, p1: { v: 'orig', g: '', key: 'A'.repeat(36) }, p2: { v: 1234, g: 'sg', items: items } });
   assert.strictEqual(n.ok, false);
   assert.match(n.error, /a–h/);
 });
