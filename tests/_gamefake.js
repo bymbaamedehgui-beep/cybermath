@@ -58,6 +58,10 @@ const db = {
   wsGrade: [],          // ws_grade_access [{email, grade, expires_at}] — api/_wsgrade.js activeGrades
   wsPurch: [],          // ws_purchases [{email}] — зөвхөн туршилтын ELIG/PRIOR «эрх авсан» (bought) уншина
   admGrants: [],        // ws_admin_grants [{email, game_key}] — мөн адил; game_key-тэй мөр (тоглоомын олголт) тооцохгүй
+  eyAccess: new Map(),  // ws_eyesh_access lower(email) → expires_at (Date) — ЭЕШ шалгагч (api/_eyesh.js)
+  eyPurch: [],          // ws_eyesh_purchases [{invoice_id, email, amount, days}]
+  eyHand: new Map(),    // ws_eyesh_handoff code_hash → {email, exam, expires_at(ms)}
+  failEyLedger: false,  // ws_eyesh_purchases INSERT алдаа (SAVEPOINT шалгах)
 };
 // ws_trials / ws_trial_marks / ws_trial_cfg (tests/_trialfake.js): db.trial.trials, db.trial.marks, db.trial.cfgFrom,
 // db.trial.shift (DB NOW шилжилт), db.trial.fail. PRIOR: db.wsLogin (ижил утас) + db.devices (ws_devices).
@@ -89,7 +93,7 @@ const HEAL_SQL = "INSERT INTO game_purchases (invoice_id, realm, email, game_key
   "WHERE p.plan = 'game' AND p.granted = TRUE AND p.realm IN ('ws', 'cm') AND p.game_key = ANY($1::text[]) " +
   "AND NOT EXISTS (SELECT 1 FROM game_purchases g WHERE g.invoice_id = p.invoice_id) " +
   "ON CONFLICT (invoice_id) DO NOTHING RETURNING invoice_id";
-const STRICT = /\b(pay_pending|ws_pending|game_access|game_purchases|users|rate_limits|ws_events|ws_event_regs|ws_devices|ws_device_ips|ws_device_blocks|ws_device_swaps|game_ticket_used|game_invites|ws_trials|ws_trial_marks|ws_trial_cfg)\b/;
+const STRICT = /\b(pay_pending|ws_pending|game_access|game_purchases|users|rate_limits|ws_events|ws_event_regs|ws_devices|ws_device_ips|ws_device_blocks|ws_device_swaps|game_ticket_used|game_invites|ws_trials|ws_trial_marks|ws_trial_cfg|ws_eyesh_access|ws_eyesh_purchases|ws_eyesh_handoff)\b/;
 function dkey(e, d) { return e + '|' + d; }
 
 // tx — транзакцын контекст (client.query) эсвэл null (autocommit). tx дотор өөрчлөлт бүр tx.undo-д бүртгэгдэнэ.
@@ -180,6 +184,46 @@ async function query(sql, p, tx) {
     const r = db.pay.get(inv);
     if (r) { const was = r.granted; r.granted = false; takeRowLock(inv, tx); undo(function () { r.granted = was; }); }
     return { rows: [] };
+  }
+  if (q === "INSERT INTO pay_pending (invoice_id, email, plan, months, amount, event_id) VALUES ($1,$2,'eyesh',1,$3,NULL) ON CONFLICT (invoice_id) DO NOTHING") {
+    if (!db.pay.has(p[0])) db.pay.set(p[0], { invoice_id: p[0], email: p[1], plan: 'eyesh', months: 1, amount: p[2], event_id: null, granted: false, promo_code: null, game_key: null, realm: null, game_grade: null, created_at: now() });
+    return { rows: [] };
+  }
+
+  // ── ЭЕШ шалгагч (api/_eyesh.js) ──
+  if (q === 'SELECT expires_at FROM ws_eyesh_access WHERE email=$1 AND expires_at > NOW()') {
+    const ex = db.eyAccess.get(lc(p[0]));
+    return { rows: ex && ex.getTime() > now() ? [{ expires_at: new Date(ex) }] : [] };
+  }
+  if (q === 'INSERT INTO ws_eyesh_access (email, expires_at) VALUES ($1, NOW() + make_interval(days => $2::int)) ON CONFLICT (email) DO UPDATE SET expires_at = GREATEST(ws_eyesh_access.expires_at, NOW()) + make_interval(days => $2::int), updated_at = NOW() RETURNING expires_at') {
+    const e = lc(p[0]), prev = db.eyAccess.get(e);
+    const exp = new Date(Math.max(prev ? prev.getTime() : 0, now()) + Number(p[1]) * DAY);
+    db.eyAccess.set(e, exp);
+    undo(function () { if (prev) db.eyAccess.set(e, prev); else db.eyAccess.delete(e); });
+    return { rows: [{ expires_at: exp }] };
+  }
+  if (q === 'INSERT INTO ws_eyesh_purchases (invoice_id, email, amount, days) VALUES ($1,$2,$3,$4) ON CONFLICT (invoice_id) DO NOTHING') {
+    if (db.failEyLedger) throw dbErr('ledger down', '42P01');
+    if (db.eyPurch.some(function (r) { return r.invoice_id === p[0]; })) return { rows: [] };
+    const row = { invoice_id: p[0], email: p[1], amount: p[2], days: p[3] };
+    db.eyPurch.push(row); undo(function () { const i = db.eyPurch.indexOf(row); if (i >= 0) db.eyPurch.splice(i, 1); });
+    return { rows: [] };
+  }
+  if (q === 'INSERT INTO ws_eyesh_handoff (code_hash, email, exam, expires_at) VALUES ($1,$2,$3, NOW() + make_interval(secs => $4::int))') {
+    if (db.eyHand.has(p[0])) throw dbErr('duplicate key', '23505');
+    db.eyHand.set(p[0], { email: p[1], exam: p[2] == null ? null : JSON.parse(p[2]), expires_at: now() + Number(p[3]) * 1000 });
+    return { rows: [] };
+  }
+  if (q === "DELETE FROM ws_eyesh_handoff WHERE expires_at < NOW() - INTERVAL '1 day'") {
+    db.eyHand.forEach(function (r, k) { if (r.expires_at < now() - DAY) db.eyHand.delete(k); }); return { rows: [] };
+  }
+  if (q === 'DELETE FROM ws_eyesh_handoff WHERE code_hash=$1 RETURNING email, exam, (expires_at > NOW()) AS live') {
+    const r = db.eyHand.get(p[0]); if (!r) return { rows: [] };
+    db.eyHand.delete(p[0]);
+    return { rows: [{ email: r.email, exam: r.exam, live: r.expires_at > now() }] };
+  }
+  if (q === 'SELECT name FROM ws_login WHERE lower(email)=$1 LIMIT 1') {
+    const w = db.wsLogin.get(lc(p[0])); return { rows: w ? [{ name: w.name == null ? null : w.name }] : [] };
   }
 
   // ── users ──
@@ -545,6 +589,7 @@ function reset() {
   process.env.GAME_PAYWALL = 'on';
   process.env.GAME_PAYWALL_REALMS = 'ws,cm';
   db.wsLogin.clear(); db.wsGrade.length = 0; db.wsPurch.length = 0; db.admGrants.length = 0; db.trial.reset();
+  db.eyAccess.clear(); db.eyPurch.length = 0; db.eyHand.clear(); db.failEyLedger = false;
   process.env.WS_TRIAL_SECONDS = '0'; delete process.env.WS_TRIAL_FROM; delete process.env.WS_TRIAL_IP_DAY; delete process.env.VERCEL_ENV; delete process.env.AWS_LAMBDA_FUNCTION_NAME;
 }
 function addUser(email, o) {
