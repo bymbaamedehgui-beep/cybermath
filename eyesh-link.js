@@ -228,7 +228,9 @@
   function drawCompose() {
     var src = sources(), s1 = src.s1, s2 = src.s2;
     if (!pick(s1, S.sel1)) S.sel1 = s1.length ? s1[0].id : null;
-    if (!pick(s2, S.sel2)) { var d2 = null; s2.forEach(function (x) { if (!d2 && !x.bad) d2 = x.id; }); S.sel2 = d2; }
+    // 2-р хэсгийн анхдагч: энэ хуудас / сүүлд нээсэн хувилбар (багтвал). Тэр нь a–h-д багтахгүй эсвэл огт нээгээгүй бол
+    // «Оруулахгүй» — эхийг автоматаар сонговол багшийн хэвлэсэнтэй өөр түлхүүрээр дүгнэх эрсдэлтэй (эхийг өөрөө сонгоно)
+    if (!pick(s2, S.sel2)) { var own = s2.filter(function (x) { return x.id === 'cur' || x.id === 'mem'; })[0]; S.sel2 = own && !own.bad ? own.id : 'none'; }
     var bad2 = s2.filter(function (x) { return x.bad; })[0];
     var h = '<div class="eyc-sub">Энэ хувилбарын зөв хариулттай шалгалтыг eyeshcheck.com-д шууд үүсгэнэ. Сурагчдын хариултын хуудсыг утсаараа уншуулж дүгнэнэ.</div>'
       + '<div class="eyc-sec"><div class="eyc-st">1-р хэсэг · Сонгох даалгавар (36)</div>'
