@@ -58,6 +58,7 @@ function admThemeApply(light) {
   document.body.classList.toggle('light', !!light);
   try { localStorage.setItem('cm_admin_theme', light ? 'light' : 'dark'); } catch (e) {}
   admThemeIcon();
+  if (window.eyeshTheme) window.eyeshTheme();   // «ЭЕШ шалгагч» iframe-д горимоо мэдэгдэнэ
 }
 function toggleTheme() { admThemeApply(!document.body.classList.contains('light')); }
 /* Анхдагч нь ЛАЙТ — хэрэглэгч дарк сонгосон тохиолдолд л дарк болно. */
@@ -173,7 +174,43 @@ function showPage(name, btn) {
   if (name === 'smsphone') loadSmsStatus();
   if (name === 'stats') loadAllStats();
   if (name === 'tailan') tlLock();   // бүр болгонд кодоо шинээр асууна
+  if (name === 'eyesh') eyeshOpen();
 }
+
+/* ── ЭЕШ шалгагч (eyeshcheck.com)-ийн удирдлага ──
+   eyeshcheck.com/cm-admin-г iframe-ээр нээнэ. Iframe «бэлэн» гэхэд /api/eyesh?action=admin_handoff-аас нэг удаагийн код
+   (2 минут) авч postMessage-ээр ЗӨВХӨН eyeshcheck.com руу өгнө → eyeshcheck кодыг cyber-math.com/api/eyesh?action=redeem-ээр
+   шалгаад өөрийн admin дансаар (2 цаг, iframe-ийн санах ойд) нэвтэрнэ. Нууц үг, токен URL-д орохгүй. */
+var EYESH_ORIGIN = 'https://eyeshcheck.com';
+function eyeshFrame() { return document.getElementById('eyesh-frame'); }
+function eyeshDark() { return !document.body.classList.contains('light'); }
+function eyeshOpen() {
+  var f = eyeshFrame();
+  if (f && !f.getAttribute('src')) f.setAttribute('src', EYESH_ORIGIN + '/cm-admin');
+}
+function eyeshTheme() {
+  var f = eyeshFrame();
+  if (f && f.getAttribute('src') && f.contentWindow) f.contentWindow.postMessage({ type: 'eyesh-admin-theme', dark: eyeshDark() }, EYESH_ORIGIN);
+}
+function eyeshSendCode() {
+  var f = eyeshFrame(), st = document.getElementById('eyesh-status');
+  adminFetch('/api/eyesh?action=admin_handoff', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d || !d.ok) throw new Error((d && d.error) || 'Код авч чадсангүй');
+      if (st) st.textContent = '';
+      f.contentWindow.postMessage({ type: 'eyesh-admin-code', code: d.code, dark: eyeshDark() }, EYESH_ORIGIN);
+    })
+    .catch(function (e) { if (st && e.message !== 'Auth expired') st.textContent = 'ЭЕШ шалгагчид нэвтэрч чадсангүй: ' + e.message; });
+}
+window.addEventListener('message', function (e) {
+  var f = eyeshFrame();
+  if (e.origin !== EYESH_ORIGIN || !f || e.source !== f.contentWindow) return;
+  var d = e.data || {};
+  if (d.type === 'eyesh-admin-ready') eyeshSendCode();
+  else if (d.type === 'eyesh-admin-height') f.style.height = Math.max(560, Math.min(30000, Math.round(Number(d.h) || 0))) + 'px';
+});
+window.eyeshTheme = eyeshTheme;
 
 
 
@@ -2756,6 +2793,10 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
         Дасгалын төв
       </button>
       </div>
+      <button class="nav-item" onclick="showPage('eyesh',this)">
+        <svg viewBox="0 0 24 24" fill="none" width="16" height="16"><path d="M9 3h6v3H9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 4.5H6V21h12V4.5h-3" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m9 13 2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        ЭЕШ шалгагч
+      </button>
       <button type="button" class="nav-group" data-navgrp="sys" onclick="admNavGroup(this)">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 7 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 3 15a2 2 0 1 1 0-4 1.6 1.6 0 0 0 1.1-2.7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 9 4.6a2 2 0 1 1 4 0 1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.6 1.6 0 0 0 21 11a2 2 0 1 1 0 4z"/></svg>
         <span>Систем</span>
@@ -3860,6 +3901,15 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
         <div id="stats-container" style="display:flex;flex-direction:column;gap:18px;">
           <div style="text-align:center;padding:40px;color:var(--muted);">Тоо ачаалж байна...</div>
         </div>
+      </div>
+
+      <!-- ЭЕШ шалгагч (eyeshcheck.com): багш нарын эрх, промо код, сурагчийн хэсэг — eyeshcheck.com/cm-admin (iframe) -->
+      <div class="page" id="page-eyesh" style="display:none;">
+        <div class="page-title">ЭЕШ шалгагч</div>
+        <div class="page-sub">eyeshcheck.com — багш нарын эрх, промо код, сурагчийн хэсгийн тохиргоо. <a href="https://eyeshcheck.com" target="_blank" rel="noopener" style="color:var(--purple-light);font-weight:800;">eyeshcheck.com ↗</a></div>
+        <div id="eyesh-status" style="color:var(--red);font-size:0.85rem;font-weight:800;margin-bottom:8px;"></div>
+        <iframe id="eyesh-frame" title="ЭЕШ шалгагчийн удирдлага" allow="clipboard-write" referrerpolicy="no-referrer"
+          style="display:block;width:100%;height:720px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);"></iframe>
       </div>
 
     </div><!-- /main -->

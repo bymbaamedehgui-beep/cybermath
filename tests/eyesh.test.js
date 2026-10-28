@@ -294,3 +294,56 @@ test('handoff → redeem: код нэг удаа, хугацаатай; эрхг
   near(daysLeft(r.body.paidUntil), 10);
   assert.strictEqual(r.body.exam.useSec2, false);
 });
+
+test('admin_handoff → redeem: зөвхөн админ токеноор; код нэг удаа, { kind:"admin" } л буцаана; багшийн код kind:"teacher"', async () => {
+  let r = await E('admin_handoff', {});
+  assert.strictEqual(r.statusCode, 401);
+  r = await E('admin_handoff', { wstoken: wsTok('t@x.mn') });                                   // ws токен админ биш
+  assert.strictEqual(r.statusCode, 401);
+  r = await E('admin_handoff', {}, { headers: { authorization: 'Bearer ' + jwt.sign({ admin: false }, SEC) } });
+  assert.strictEqual(r.statusCode, 401);
+  r = await E('admin_handoff', {}, { headers: { authorization: 'Bearer ' + jwt.sign({ admin: true }, 'өөр-нууц') } });
+  assert.strictEqual(r.statusCode, 401);
+  r = await E('admin_handoff', {}, { headers: ADMIN });
+  assert.strictEqual(r.statusCode, 200, JSON.stringify(r.body));
+  assert.strictEqual(r.body.url, 'https://eyeshcheck.com/cm-admin');
+  assert.match(r.body.code, /^[A-Za-z0-9_-]{43}$/);
+  assert.strictEqual(r.body.ttl, 120);
+  const code = r.body.code;
+  assert.ok(!F.db.eyHand.has(code), 'кодыг өөрийг нь хадгалахгүй (хэш)');
+  r = await E('redeem', { code: code });
+  assert.strictEqual(r.statusCode, 200, JSON.stringify(r.body));
+  assert.deepStrictEqual(r.body, { ok: true, kind: 'admin' });                                  // имэйл, эрх, шалгалтгүй
+  r = await E('redeem', { code: code });
+  assert.strictEqual(r.statusCode, 404);                                                        // давтан
+  // хугацаа дууссан админ код
+  r = await E('admin_handoff', {}, { headers: ADMIN });
+  F.db.eyHand.get(EY.codeHash(r.body.code)).expires_at = Date.now() - 1000;
+  assert.strictEqual((await E('redeem', { code: r.body.code })).statusCode, 404);
+  // багшийн код өмнөх шигээ, kind:'teacher'
+  F.db.wsLogin.set('t@x.mn', { email: 't@x.mn', name: 'Бат Болд', verified: true });
+  const { ctx } = linkCtx('eesh-2024-nohoh.html');
+  const O = plain(ctx.EYESH.ORIG[2024]);
+  r = await E('handoff', { wstoken: wsTok('t@x.mn'), exam: { year: 2024, p1: O[1] } });
+  r = await E('redeem', { code: r.body.code });
+  assert.strictEqual(r.body.kind, 'teacher');
+  assert.strictEqual(r.body.email, 't@x.mn');
+  // админы тэмдгийг ws токеноор ашиглаж болохгүй
+  r = await E('handoff', { wstoken: wsTok(EY.ADMIN_HANDOFF), exam: { year: 2024, p1: O[1] } });
+  assert.strictEqual(r.statusCode, 401);
+});
+
+test('admin.html: «ЭЕШ шалгагч» цэс — iframe, код зөвхөн eyeshcheck.com руу, мессежийг эх сурвалжаар шалгана', () => {
+  const h = fs.readFileSync(path.join(F.WT, 'admin.html'), 'utf8');
+  assert.ok(h.includes("showPage('eyesh',this)"), 'цэс');
+  assert.ok(h.includes('<div class="page" id="page-eyesh"'), 'хуудас');
+  assert.ok(h.includes('<iframe id="eyesh-frame"'), 'iframe');
+  assert.ok(h.includes("if (name === 'eyesh') eyeshOpen();"), 'showPage ачаална');
+  assert.ok(h.includes("var EYESH_ORIGIN = 'https://eyeshcheck.com';"));
+  assert.ok(h.includes("adminFetch('/api/eyesh?action=admin_handoff'"));
+  const js = h.slice(h.indexOf('var EYESH_ORIGIN'), h.indexOf('window.eyeshTheme = eyeshTheme;'));
+  assert.ok(js.includes('e.origin !== EYESH_ORIGIN') && js.includes('e.source !== f.contentWindow'), 'мессежийн эх сурвалж');
+  assert.ok(js.includes("code: d.code, dark: eyeshDark() }, EYESH_ORIGIN)"), 'кодыг зөвхөн eyeshcheck.com руу');
+  assert.ok(!/postMessage\([^;]*['"]\*['"]\)/.test(js), 'targetOrigin "*" биш');
+  assert.ok(!/innerHTML/.test(js), 'текстийг textContent-оор');
+});
