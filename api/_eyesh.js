@@ -11,6 +11,10 @@ const pool = require('./_db');
 const EYESH_DAYS = 30;
 const HANDOFF_SEC = 120;
 const SSO_URL = 'https://eyeshcheck.com/api/cm/sso';
+// Админы «ЭЕШ шалгагч» цэс (admin.html) → eyeshcheck.com/cm-admin (iframe) руу нэвтрэх НЭГ УДААГИЙН код. Имэйл байж
+// болохгүй энэ тэмдгээр (ws_eyesh_handoff.email) багшийн кодоос ялгагдана; redeem нь зөвхөн { kind:'admin' } буцаана.
+const ADMIN_HANDOFF = '@admin';
+const ADMIN_URL = 'https://eyeshcheck.com/cm-admin';
 function eyeshPrice() {
   const n = parseInt(process.env.EYESH_PRICE, 10);
   return Number.isFinite(n) && n >= 100 && n <= 1000000 ? n : 9900;
@@ -191,5 +195,5 @@ async function redeem(code) {
   return { email: row.email, exam: row.exam || null };
 }
 
-module.exports = { EYESH_DAYS, HANDOFF_SEC, SSO_URL, TOPICS, eyeshPrice, ensure, expiry, grant, record, normExam, normS2Item,
-                   createHandoff, redeem, codeHash };
+module.exports = { EYESH_DAYS, HANDOFF_SEC, SSO_URL, ADMIN_HANDOFF, ADMIN_URL, TOPICS, eyeshPrice, ensure, expiry, grant, record,
+                   normExam, normS2Item, createHandoff, redeem, codeHash };

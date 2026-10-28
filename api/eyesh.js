@@ -2,7 +2,10 @@
 //   POST ?action=status  {wstoken}       → { ok, email, price, days, expiry|null, active }
 //   POST ?action=handoff {wstoken, exam} → { ok, url, code, ttl } — eyeshcheck руу нэвтрэх НЭГ УДААГИЙН код (2 минут).
 //        Клиент кодыг URL-д биш, eyeshcheck.com/api/cm/sso руу form POST-оор илгээнэ (тэнд шалгалт шууд үүснэ).
-//   POST ?action=redeem  {code}          → { ok, email, name, paidUntil|null, exam } — eyeshcheck-ийн сервер, код нэг удаа.
+//   POST ?action=redeem  {code}          → { ok, kind:'teacher', email, name, paidUntil|null, exam } — eyeshcheck-ийн сервер,
+//        код нэг удаа. Админы код бол зөвхөн { ok, kind:'admin' }.
+//   POST ?action=admin_handoff (админ токен) → { ok, url, code, ttl } — админ хэсгийн «ЭЕШ шалгагч» цэс (admin.html)
+//        eyeshcheck.com/cm-admin-г iframe-ээр нээж, кодыг postMessage-ээр өгнө → eyeshcheck өөрийн admin дансаар нэвтэрнэ.
 // Эрх: api/qpay.js create {plan:'eyesh', wstoken} → settleEyesh (ws_eyesh_access +30 хоног).
 // Эрхгүй ч handoff өгнө — eyeshcheck-д өөрөө идэвхтэй эрхтэй багш нэмэлт төлбөргүй ашиглана (eyeshcheck өөрөө шалгана).
 // Имэйлийг ЗӨВХӨН ws токеноос авна. Дасгалын төвийн бүртгэл имэйлийн эзэмшлийг батлахгүй (SMS) тул eyeshcheck нь өмнө нь
@@ -10,7 +13,7 @@
 'use strict';
 const pool = require('./_db');
 const EY = require('./_eyesh');
-const { rateLimit, clientIp, wsEmail } = require('./_guard');
+const { rateLimit, clientIp, wsEmail, requireAdmin } = require('./_guard');
 
 const TOO_MANY = 'Хэт олон оролдлого. Түр хүлээгээд дахин оролдоно уу.';
 
@@ -25,16 +28,25 @@ module.exports = async (req, res) => {
       if (!(await rateLimit('eyesh_rd_ip:' + clientIp(req), 300, 600))) return res.status(429).json({ ok: false, error: TOO_MANY });
       const r = await EY.redeem(b.code);
       if (!r) return res.status(404).json({ ok: false, error: 'Код хүчингүй, ашиглагдсан эсвэл хугацаа нь дууссан' });
+      if (r.email === EY.ADMIN_HANDOFF) return res.json({ ok: true, kind: 'admin' });
       let name = '';
       try {
         const u = await pool.query('SELECT name FROM ws_login WHERE lower(email)=$1 LIMIT 1', [r.email]);
         name = u.rows.length ? String(u.rows[0].name || '').trim().slice(0, 200) : '';
       } catch (e) { /* нэр заавал биш */ }
-      return res.json({ ok: true, email: r.email, name: name, paidUntil: await EY.expiry(r.email), exam: r.exam });
+      return res.json({ ok: true, kind: 'teacher', email: r.email, name: name, paidUntil: await EY.expiry(r.email), exam: r.exam });
+    }
+    if (action === 'admin_handoff') {
+      // 401 нь admin.html-ийн adminFetch-ийг гаргана — зөвхөн админ токен хүчингүй үед л
+      if (!requireAdmin(req)) return res.status(401).json({ ok: false, error: 'Админ эрх шаардлагатай' });
+      if (!(await rateLimit('eyesh_adm_ip:' + clientIp(req), 60, 600))) return res.status(429).json({ ok: false, error: TOO_MANY });
+      const code = await EY.createHandoff(EY.ADMIN_HANDOFF, null);
+      return res.json({ ok: true, url: EY.ADMIN_URL, code: code, ttl: EY.HANDOFF_SEC });
     }
     const email = wsEmail(b.wstoken);
     if (!email) return res.status(401).json({ ok: false, needLogin: true, error: 'Эхлээд Дасгалын төвийн бүртгэлээрээ нэвтэрнэ үү.' });
     const em = String(email).toLowerCase();
+    if (em === EY.ADMIN_HANDOFF) return res.status(401).json({ ok: false, needLogin: true, error: 'Эхлээд Дасгалын төвийн бүртгэлээрээ нэвтэрнэ үү.' });
     if (action === 'status') {
       if (!(await rateLimit('eyesh_st:' + em.slice(0, 254), 120, 600))) return res.status(429).json({ ok: false, error: TOO_MANY });
       const exp = await EY.expiry(em);
