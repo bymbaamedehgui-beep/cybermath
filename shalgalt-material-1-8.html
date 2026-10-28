@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>I бүлэг — Шалгалтын материал (8-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/cmx.js?v=1"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* 8-р анги · I бүлэг. Тоон олонлог, зэрэг язгуур (1.1 Рационал тоо · 1.2 Тоог тоймлох · 1.3 Рационал тооны үйлдэл ·
+   1.4 Натурал илтгэгчтэй зэрэг · 1.5 Зэрэгт дэвшүүлэх ба язгуур гаргах · 1.6 10-ын бүхэл илтгэгчтэй зэрэг) */
+// ── рационал тоо (яг утгаар) ──
+function Q(n, d) { if (d < 0) { n = -n; d = -d; } var g = gcd(n, d); return { n: n / g, d: d / g }; }
+function qa(a, b) { return Q(a.n * b.d + b.n * a.d, a.d * b.d); }
+function qs(a, b) { return Q(a.n * b.d - b.n * a.d, a.d * b.d); }
+function qm(a, b) { return Q(a.n * b.n, a.d * b.d); }
+function qd(a, b) { return Q(a.n * b.d, a.d * b.n); }
+function qv(a) { return a.n / a.d; }
+// холимог бутархай TeX: 1\dfrac{2}{3}, -\dfrac{3}{4}, 5
+function qt(a) { if (a.d === 1) return String(a.n); var N = Math.abs(a.n), w = Math.floor(N / a.d), r = N % a.d; return (a.n < 0 ? '-' : '') + (w ? w : '') + '\\dfrac{' + r + '}{' + a.d + '}'; }
+function V(a) { return [qt(a), qv(a)]; }
+// аравтын бутархай (үет бол 0.1(6) хэлбэрээр)
+function decQ(a) {
+  var n = Math.abs(a.n), d = a.d, ip = Math.floor(n / d), r = n % d, dg = [], seen = {}, st = -1;
+  while (r && dg.length < 30) { if (seen[r] != null) { st = seen[r]; break; } seen[r] = dg.length; r *= 10; dg.push(Math.floor(r / d)); r %= d; }
+  var s = String(ip); if (dg.length) s += '.' + (st < 0 ? dg.join('') : dg.slice(0, st).join('') + '(' + dg.slice(st).join('') + ')');
+  return (a.n < 0 ? '-' : '') + s;
+}
+// i/10^sc — яг sc оронтой (сүүлийн тэгийг үлдээнэ): fx(740, 2) → 7.40
+function fx(i, sc) { var neg = i < 0, s = String(Math.abs(i)); while (s.length <= sc) s = '0' + s; return (neg ? '-' : '') + (sc ? s.slice(0, s.length - sc) + '.' + s.slice(s.length - sc) : s); }
+// x ≥ 0 бүхлийг u нэгжээр тоймлоход хэдэн нэгж болох (5 бол дээш)
+function rh(x, u) { return Math.floor((x + u / 2) / u); }
+// M·10^E (M — бүхэл) → стандарт хэлбэр { m: '5.2', e: -4 }
+function sf(M, E) { var s = String(Math.abs(M)); while (s.length > 1 && s.charAt(s.length - 1) === '0') { s = s.slice(0, -1); E++; } return { m: (M < 0 ? '-' : '') + s.charAt(0) + (s.length > 1 ? '.' + s.slice(1) : ''), e: E + s.length - 1 }; }
+function S(m, k) { return [m + '\\cdot 10^{' + k + '}', parseFloat(m) * Math.pow(10, k)]; }
+// аравтын бичлэгийг n оронгоор шилжүүлэх: shift('5.2', -4) → 0.00052
+function shift(s, n) {
+  var neg = s.charAt(0) === '-'; if (neg) s = s.slice(1);
+  var dot = s.indexOf('.'), ip = dot < 0 ? s : s.slice(0, dot), fp = dot < 0 ? '' : s.slice(dot + 1), dg = ip + fp, pos = ip.length + n, r;
+  if (pos <= 0) r = '0.' + new Array(1 - pos).join('0') + dg;
+  else if (pos >= dg.length) r = dg + new Array(pos - dg.length + 1).join('0');
+  else r = dg.slice(0, pos) + '.' + dg.slice(pos);
+  if (r.indexOf('.') >= 0) r = r.replace(/0+$/, '').replace(/\.$/, '');
+  return (neg ? '-' : '') + r.replace(/^0+(?=\d)/, '');
+}
+function pl(s) { return s.indexOf('.') < 0 && Math.abs(+s) >= 10000 ? th(+s) : s; }
+// Сонголт: [TeX, утга] хосууд. Зөв хариутай ижил утгатай (өөр бичлэгтэй ч) эсвэл хоорондоо давхардсан төөрөгдүүлэгчийг хасна.
+function same(a, b) { return typeof a === 'number' && typeof b === 'number' ? Math.abs(a - b) <= 1e-9 * Math.max(Math.abs(a), Math.abs(b), 1e-12) : String(a) === String(b); }
+function MC(cor, ds) {
+  var vals = [cor[1]], out = [];
+  ds.forEach(function (d) {
+    if (!d || d[0] == null || d[1] == null || (typeof d[1] === 'number' && !isFinite(d[1]))) return;
+    for (var i = 0; i < vals.length; i++) if (same(vals[i], d[1])) return;
+    vals.push(d[1]); out.push(C(d[0]));
+  });
+  return makeMC(C(cor[0]), shuffle(out));
+}
+
+/* ── I. Тест (10) ── */
+var TESTS = [
+  // 1. [1.1 Рационал тоо] Рационал биш тоог ялгах (хялбар)
+  function () {
+    var irr = pick(['\\sqrt{2}', '\\sqrt{3}', '\\sqrt{5}', '\\sqrt{7}', '\\sqrt{10}', '\\sqrt{0.4}', '\\sqrt[3]{4}', '\\sqrt{12}']);
+    var rat = ['\\sqrt{0.09}', '\\sqrt{1.44}', '\\sqrt[3]{-8}', '-\\dfrac{7}{9}', '0.(3)', '2.75', '-5', '\\sqrt{\\dfrac{4}{25}}', '1.2(6)', '\\sqrt{49}', '-3\\dfrac{1}{2}', '\\sqrt[3]{0.001}'];
+    return { stem: 'Аль нь рационал тоо биш вэ?', mc: MC([irr, irr], rat.map(function (t) { return [t, t]; })) };
+  },
+  // 2. [1.2 Тоог тоймлох] Заасан нарийвчлалтай тоймлох (хялбар)
+  function () {
+    var e = pick([-3, -2, -2, -1, 1, 2, 3]);
+    if (e < 0) {
+      var sc = -e + 2, x = rnd(Math.pow(10, sc), 60 * Math.pow(10, sc)); if (x % 10 === 0) return null;
+      var r = rh(x, 100), f = Math.floor(x / 100);
+      var D = function (k, d) { return [fx(k, d), k / Math.pow(10, d)]; };
+      return { stem: '$' + fx(x, sc) + '$ тоог $' + fx(1, -e) + '$ хүртэлх нарийвчлалтай тоймлоход аль нь гарах вэ?',
+        mc: MC(D(r, -e), [D(r === f ? f + 1 : f, -e), D(rh(x, 10), -e + 1), D(rh(x, 1000), -e - 1), D(Math.floor(x / 10), -e + 1)]) };
+    }
+    var u = Math.pow(10, e), y = rnd(10000, 999999); if (y % 10 === 0) return null;
+    var R = function (k) { var w = Math.pow(10, k); return rh(y, w) * w; }, cr = R(e), fl = Math.floor(y / u) * u;
+    var I = function (v) { return [th(v), v]; };
+    return { stem: '$' + th(y) + '$ тоог ' + ['', 'аравтын', 'зуутын', 'мянгатын'][e] + ' орон хүртэл тоймлоход аль нь гарах вэ?',
+      mc: MC(I(cr), [I(cr === fl ? fl + u : fl), I(R(e - 1)), I(R(e + 1)), I(Math.floor(y / u))]) };
+  },
+  // 3. [1.4 Натурал илтгэгчтэй зэрэг] Зэргийн чанараар нэг зэрэг хэлбэрт бичих (хялбар)
+  function () {
+    var b = pick(['a', 'x', 'y', 'm', 'b', 'c']), m = rnd(2, 8), n = rnd(2, 6), k = rnd(2, 6), s, e, cand; if (m === n || n === k) return null;
+    if (rnd(0, 1)) { s = b + '^{' + m + '}\\cdot ' + b + '^{' + n + '}\\div ' + b + '^{' + k + '}'; e = m + n - k; cand = [m * n - k, m + n + k, m * n * k, (m + n) * k, m - n + k]; }
+    else { s = '\\left(' + b + '^{' + m + '}\\right)^{' + n + '}\\cdot ' + b + '^{' + k + '}'; e = m * n + k; cand = [m + n + k, (m + n) * k, m * n * k, m * (n + k), m + n * k]; }
+    if (e < 2) return null;
+    var P = function (x) { return [b + '^{' + x + '}', x]; };
+    return { stem: '$' + s + '$ илэрхийллийг нэг зэрэг хэлбэрт бичвэл аль нь вэ?', mc: MC(P(e), cand.filter(function (x) { return x >= 2; }).map(P)) };
+  },
+  // 4. [1.3 Рационал тооны үйлдэл] Энгийн бутархайн нэмэх эсвэл хуваах (дунд)
+  function () {
+    if (rnd(0, 1)) {
+      var b = pick([3, 4, 5, 6, 8, 9, 10, 12]), d = pick([3, 4, 5, 6, 8, 9, 10, 12]); if (b === d) return null;
+      var a = rnd(1, b - 1), c = rnd(1, d - 1); if (gcd(a, b) !== 1 || gcd(c, d) !== 1) return null;
+      var A = Q(-a, b), B = Q(c, d), r = qa(A, B); if (r.n === 0) return null;
+      return { stem: '$' + qt(A) + '+' + qt(B) + '$ илэрхийллийн утга аль нь вэ?', topic: 'Алгебр',
+        mc: MC(V(r), [V(qs(A, B)), V(Q(c - a, b + d)), V(Q(-r.n, r.d)), V(Q(-(a + c), b + d)), V(Q(c * b - a * d, b + d))]) };
+    }
+    var b2 = pick([2, 3, 4, 5, 6]), w = rnd(1, 2), a2 = rnd(1, b2 - 1); if (gcd(a2, b2) !== 1) return null;
+    var d2 = pick([2, 3, 4, 5, 6, 8, 9, 10]), c2 = rnd(1, d2 - 1); if (gcd(c2, d2) !== 1) return null;
+    var A2 = Q(-(w * b2 + a2), b2), B2 = Q(c2, d2), r2 = qd(A2, B2), pr = qm(A2, B2); if (r2.d > 12 || Math.abs(r2.n) > 80) return null;
+    return { stem: '$' + qt(A2) + '\\div ' + qt(B2) + '$ илэрхийллийн утга аль нь вэ?', topic: 'Алгебр',
+      mc: MC(V(r2), [V(pr), V(Q(-r2.n, r2.d)), V(qd(B2, A2)), V(Q(-pr.n, pr.d))]) };
+  },
+  // 5. [1.1 Рационал тоо] Үет аравтын бутархайг энгийн бутархайд шилжүүлэх (дунд)
+  function () {
+    var pure = rnd(0, 1), rep = pure ? pick(['12', '15', '18', '24', '27', '36', '45', '54', '63', '72', '81', '06', '09', '21', '42']) : pick(['3', '6', '7', '1', '4', '8', '2', '5']);
+    var nr = pure ? '' : String(rnd(1, 9)), ip = pick([0, 0, 0, 1, 2]), s = ip + '.' + nr + '(' + rep + ')';
+    var p = nr.length, q = rep.length, N = parseInt(nr + rep, 10), A = nr ? parseInt(nr, 10) : 0, T = Math.pow(10, p + q);
+    var cor = qa(Q(ip, 1), Q(N - A, (Math.pow(10, q) - 1) * Math.pow(10, p)));
+    if (decQ(cor) !== s) return null;                       // үеийн бичлэг хамгийн богино байх
+    var W = function (n, d) { return V(qa(Q(ip, 1), Q(n, d))); };
+    return { stem: '$' + s + '$ үет бутархайг энгийн бутархайгаар бичвэл аль нь вэ?',
+      mc: MC(V(cor), [W(N, T), W(N, T - 1), W(N - A, T), W(N, 9 * T / 10), W(N, 10 * T - 1), W(N - A, T - 1)]) };
+  },
+  // 6. [1.5 Зэрэгт дэвшүүлэх] -a^m ба (-b)^n-ийг ялгах (дунд)
+  function () {
+    var a = rnd(2, 5), m = rnd(2, a > 3 ? 3 : 4), b = rnd(2, 5), n = rnd(2, b > 3 ? 3 : 4); if (a === b) return null;
+    var A = Math.pow(a, m), B = Math.pow(b, n), sB = n % 2 ? -B : B, v = -A + sB;
+    var I = function (x) { return [String(x), x]; };
+    return { stem: '$-' + a + '^{' + m + '}+(-' + b + ')^{' + n + '}$ илэрхийллийн утга аль нь вэ?',
+      mc: MC(I(v), [I(A + sB), I(-A - sB), I(A - sB), I(-A - B), I(-A + B), I(-a * m + (n % 2 ? -1 : 1) * b * n)]) };
+  },
+  // 7. [1.6 10-ын бүхэл илтгэгчтэй зэрэг] Тоог стандарт хэлбэрт бичих (дунд)
+  function () {
+    var M = rnd(11, 99); if (M % 10 === 0) return null;
+    var e = pick([-7, -6, -5, -4, -3, 4, 5, 6, 7, 8]), o = sf(M, e - 1), plain = shift(o.m, o.e);
+    return { stem: '$' + pl(plain) + '$ тоог стандарт хэлбэрээр бичвэл аль нь вэ?',
+      mc: MC(S(o.m, o.e), [S(o.m, -o.e), S(o.m, o.e + 1), S(o.m, o.e - 1), S(String(M), o.e)]) };
+  },
+  // 8. [1.5 Язгуур гаргах] Квадрат ба куб язгуур агуулсан илэрхийлэл (хүнд)
+  function () {
+    if (rnd(0, 1)) {
+      var p = rnd(11, 19), q = rnd(1, 9); if (p === 10) return null;
+      var D = function (k, d) { return [dFmt(k, d), k / Math.pow(10, d)]; };      // √(p²/100) − ∛(−q³/1000) = (p+q)/10
+      return { stem: '$\\sqrt{' + dFmt(p * p, 2) + '}-\\sqrt[3]{-' + dFmt(q * q * q, 3) + '}$ илэрхийллийн утга аль нь вэ?',
+        mc: MC(D(p + q, 1), [D(p - q, 1), D(p + 10 * q, 2), D(10 * p + q, 2), D(-(p + q), 1), D(p + q, 2)]) };
+    }
+    var a = rnd(3, 9), b = rnd(2, 7); if (a <= b || gcd(a, b) !== 1) return null;
+    var c = rnd(1, 4), d = rnd(2, 5); if (c >= d || gcd(c, d) !== 1) return null;
+    var R1 = Q(a, b), R2 = Q(-c, d), r = qa(R1, R2), sq = Q(a * a, b * b), cb = Q(c * c * c, d * d * d);
+    return { stem: '$\\sqrt{' + qt(sq) + '}+\\sqrt[3]{-' + qt(cb) + '}$ илэрхийллийн утга аль нь вэ?',
+      mc: MC(V(r), [V(qs(R1, R2)), V(Q(-r.n, r.d)), V(qa(Q(a, b * b), R2)), V(qa(R1, Q(c, d * d * d))), V(qa(sq, R2))]) };
+  },
+  // 9. [1.4 Натурал илтгэгчтэй зэрэг] Ижил суурьт шилжүүлж хялбарчлах (хүнд)
+  function () {
+    var p = pick([2, 2, 3, 5]), L = { 2: [[4, 2], [8, 3], [16, 4], [32, 5]], 3: [[9, 2], [27, 3], [81, 4]], 5: [[25, 2], [125, 3]] }[p];
+    var X = pick(L), Y = pick(L), m = rnd(2, 5), n = rnd(2, 4); if (X[0] === Y[0]) return null;
+    var top = X[1] * m + Y[1] * n, e = rnd(2, 4), k = top - e; if (k < 3) return null;
+    var P = function (x) { return [x === 1 ? String(p) : p + '^{' + x + '}', x]; };
+    return { stem: '$\\dfrac{' + X[0] + '^{' + m + '}\\cdot ' + Y[0] + '^{' + n + '}}{' + p + '^{' + k + '}}$ илэрхийллийг хялбарчилбал аль нь вэ?',
+      mc: MC(P(e), [P(e + 1), P(e - 1), P(m + n), P(top + k), P(2 * e), P(X[1] + m + Y[1] + n - k)].filter(function (z) { return z[1] >= 1; })) };
+  },
+  // 10. [1.6 Стандарт хэлбэр] Стандарт хэлбэрийн тоонуудын үржвэр (хүнд)
+  function () {
+    var A = rnd(12, 95); if (A % 10 === 0) return null;
+    var Bm = pick(['2', '4', '5', '6', '8', '1.5', '2.5', '3.5']), Bi = parseInt(Bm.replace('.', ''), 10), sb = Bm.indexOf('.') < 0 ? 0 : 1;
+    var m = nz(-9, 9), n = nz(-9, 9); if (Math.abs(m) < 2 || Math.abs(n) < 2 || m + n === 0) return null;
+    var prod = A * Bi; if (prod < Math.pow(10, 2 + sb)) return null;            // a·b ≥ 10 — нормчлох шаардлагатай
+    var o = sf(prod, m + n - 1 - sb), sum = sf(A * Math.pow(10, sb) + Bi * 10, -1 - sb);
+    return { stem: '$\\left(' + dFmt(A, 1) + '\\cdot 10^{' + m + '}\\right)\\cdot\\left(' + Bm + '\\cdot 10^{' + n + '}\\right)$ үржвэрийг стандарт хэлбэрээр бичвэл аль нь вэ?',
+      mc: MC(S(o.m, o.e), [S(o.m, o.e - 1), S(o.m, o.e + 1), S(o.m, m * n), S(o.m, m - n), S(sum.m, sum.e + m + n)]) };
+  }
+];
+
+/* ── II. Задгай (5) ── */
+var FREE = [
+  // 11. [1.3 Рационал тооны үйлдэл] Хаалттай холимог илэрхийлэл (2 оноо)
+  function () {
+    var b = pick([2, 3, 4, 6]), d = pick([3, 4, 5, 6, 8]), f = pick([3, 4, 5, 6]); if (b === d) return null;
+    var A = Q(rnd(1, 2 * b - 1), b), B = Q(rnd(d + 1, 3 * d - 1), d), E = Q(-rnd(f + 1, 3 * f - 1), f);
+    if (A.d === 1 || B.d === 1 || E.d === 1) return null;
+    var Dd = qs(A, B), mul = rnd(0, 1); if (Dd.n === 0) return null;
+    var r = mul ? qm(Dd, E) : qd(Dd, E); if (r.d > 12 || Math.abs(r.n) > 99) return null;
+    return { stem: '$\\left(' + qt(A) + '-' + qt(B) + '\\right)' + (mul ? '\\cdot' : '\\div') + '\\left(' + qt(E) + '\\right)$ илэрхийллийн утгыг ол.', a: qt(r) };
+  },
+  // 12. [1.4 Натурал илтгэгчтэй зэрэг] Зэргийн чанараар хялбарчлаад утгыг олох (2 оноо)
+  function () {
+    var b = pick(['a', 'x', 'm']), m = rnd(3, 9), n = rnd(2, 4), k = rnd(2, 4), e = rnd(2, 4), r = m + n * k - e, x = pick([-2, -3, 2, 3]);
+    if (r < 2 || (Math.abs(x) === 3 && e === 4)) return null;
+    return { stem: '$\\dfrac{' + b + '^{' + m + '}\\cdot\\left(' + b + '^{' + n + '}\\right)^{' + k + '}}{' + b + '^{' + r + '}}$ илэрхийллийг хялбарчлаад, $' + b + '=' + x + '$ үед утгыг ол.',
+      a: b + '^{' + e + '}=' + par(x) + '^{' + e + '}=' + Math.pow(x, e) };
+  },
+  // 13. [1.5 Зэрэгт дэвшүүлэх ба язгуур гаргах] Зэрэг, язгуур агуулсан нийлмэл илэрхийлэл (3 оноо)
+  function () {
+    if (rnd(0, 1)) {
+      var p = rnd(2, 19), q = rnd(2, 5), s = pick([1, -1]); if (p % 10 === 0) return null;   // √(p/10)²·(−10)² − ∛(s·q³) = 10p − s·q
+      return { stem: '$\\sqrt{' + dFmt(p * p, 2) + '}\\cdot(-10)^{2}-\\sqrt[3]{' + (s * q * q * q) + '}$ илэрхийллийн утгыг ол.', a: String(10 * p - s * q) };
+    }
+    var a = rnd(1, 5), b = rnd(2, 5); if (a === b || gcd(a, b) !== 1) return null;
+    var c = b * b * rnd(1, 3), s2 = rnd(3, 7), t = rnd(2, 5); if (gcd(s2, t) !== 1 || s2 <= t) return null;
+    var r = qs(Q(a * a * c, b * b), Q(s2, t));
+    return { stem: '$\\left(-\\dfrac{' + a + '}{' + b + '}\\right)^{2}\\cdot ' + c + '-\\sqrt{' + qt(Q(s2 * s2, t * t)) + '}$ илэрхийллийн утгыг ол.', a: qt(r) };
+  },
+  // 14. [1.6 Стандарт хэлбэр] Стандарт хэлбэртэй хэмжигдэхүүний өгүүлбэртэй бодлого (3 оноо)
+  function () {
+    if (rnd(0, 1)) {
+      var Vm = pick(['1.2', '1.5', '2.4', '2.8', '3.6', '4.5', '7.2']), Tm = pick(['2', '2.5', '3', '4', '5', '1.5']), ev = 4, et = rnd(2, 3);
+      var o = sf(parseInt(Vm.replace('.', ''), 10) * parseInt(Tm.replace('.', ''), 10), ev + et - 1 - (Tm.indexOf('.') >= 0 ? 1 : 0));
+      return { stem: 'Хиймэл дагуул цагт $' + Vm + '\\cdot 10^{' + ev + '}$ км хурдтай нисдэг. $' + Tm + '\\cdot 10^{' + et + '}$ цагт хэдэн км зам туулах вэ? Хариуг км ба м-ээр стандарт хэлбэрт бич.',
+        a: '$' + o.m + '\\cdot 10^{' + o.e + '}$ км $=' + o.m + '\\cdot 10^{' + (o.e + 3) + '}$ м' };
+    }
+    var Mm = pick(['2', '2.5', '4', '5', '8', '1.25']), ex = pick([-2, -3]), K = pick([2, 3, 4, 5, 10]);
+    var Mi = parseInt(Mm.replace('.', ''), 10), sm = Mm.indexOf('.') < 0 ? 0 : Mm.length - Mm.indexOf('.') - 1;
+    var cnt = K * Math.pow(10, 3 + sm - ex) / Mi; if (cnt !== Math.round(cnt)) return null;
+    var o2 = sf(cnt, 0);
+    return { stem: 'Нэг ширхэг будааны масс ойролцоогоор $' + Mm + '\\cdot 10^{' + ex + '}$ г. $' + K + '$ кг будаанд ойролцоогоор хэдэн ширхэг будаа байх вэ? Хариуг стандарт хэлбэрээр бич.',
+      a: '$' + o2.m + '\\cdot 10^{' + o2.e + '}$ ширхэг' };
+  },
+  // 15. [1.2 Тоог тоймлох] Хоёр нарийвчлалаар тоймлосон хэмжигдэхүүний завсар (3 оноо)
+  function () {
+    // [нэр (заахын тийн ялгал), нэр, нэгж, хувьсагч, том нарийвчлал, тоймлосон утгын муж]
+    var Cx = pick([['Голын уртыг', 'Голын урт', 'км', 'l', 100, 5, 40], ['Уулын өндрийг', 'Уулын өндөр', 'м', 'h', 100, 15, 80], ['Хоёр хотын хоорондох зайг', 'Энэ зай', 'км', 's', 100, 3, 25], ['Хоёр хотын хоорондох зайг', 'Энэ зай', 'км', 's', 1000, 2, 9]]);
+    var big = Cx[4], sm = big / 10, Rb = rnd(Cx[5], Cx[6]) * big, Rs = rnd(0, 9) < 8 ? Rb + pick([-1, 1]) * big / 2 : Rb + rnd(-4, 4) * sm;
+    var lo = Math.max(Rb - big / 2, Rs - sm / 2), hi = Math.min(Rb + big / 2, Rs + sm / 2); if (lo >= hi) return null;
+    return { stem: Cx[0] + ' $' + big + '$ ' + Cx[2] + '-ээр тоймлоход $' + th(Rb) + '$ ' + Cx[2] + ', $' + sm + '$ ' + Cx[2] + '-ээр тоймлоход $' + th(Rs) + '$ ' + Cx[2] + ' гарчээ. ' + Cx[1] + ' $' + Cx[3] + '$ ямар завсарт байх вэ?',
+      a: '$' + th(lo) + '\\le ' + Cx[3] + '\\lt ' + th(hi) + '$ (' + Cx[2] + ')' };
+  }
+];
+
+CMX.exam({
+  title: 'I бүлэг — Шалгалтын материал',
+  sub: 'Рационал тоо · тоймлох · үйлдэл · зэрэг, язгуур · стандарт хэлбэр',
+  grade: '8-р анги',
+  topic: 'Тооны онол',
+  tests: TESTS,
+  free: FREE
+});
+</script>
+<script src="/eyesh-link.js?v=3"></script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

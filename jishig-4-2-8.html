@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>IV бүлэг — Жишиг даалгавар 2 (8-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/cmx.js?v=1"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* 8-р анги · IV бүлэг. Илэрхийлэл, тэгшитгэл, тэнцэтгэл биш — Жишиг даалгавар 2
+   (4.5 Рационал тэгшитгэл · 4.6 Хоёр хувьсагчтай шугаман тэгшитгэлийн систем · 4.7 Нэг хувьсагчтай шугаман тэнцэтгэл биш) */
+function mono(c, v) { if (!v) return String(c); return c === 1 ? v : c === -1 ? '-' + v : c + v; }
+function poly(ts) { var s = ''; ts.forEach(function (t) { if (!t[0]) return; s += (t[0] < 0 ? '-' : s ? '+' : '') + mono(Math.abs(t[0]), t[1]); }); return s || '0'; }
+function lin(a, b, v) { return poly([[a, v || 'x'], [b, '']]); }
+function eq2(a, b, c) { return poly([[a, 'x'], [b, 'y']]) + '=' + c; }
+function sys(e1, e2) { return '\\begin{cases}' + e1 + '\\\\ ' + e2 + '\\end{cases}'; }
+var FLIP = { '\\lt': '\\gt', '\\gt': '\\lt', '\\le': '\\ge', '\\ge': '\\le' };
+// төрлүүдийг ээлжлэн сонгох уут — нэг хуудсанд нэг төрөл олон давтагдахгүй; сонгосон төрлөө хэд хэд оролдоно
+function bag(list) { var b = []; return function () { if (!b.length) b = shuffle(list); return b.pop(); }; }
+function tryN(f) { for (var i = 0; i < 80; i++) { var r = f(); if (r) return r; } return null; }
+var B1 = bag([1, 1, 2, 2, 2, 3, 3, 4]), B2 = bag([1, 1, 2, 2, 3, 3, 4]), B3 = bag([1, 1, 2, 2, 3, 3, 4]), B4 = bag([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+// тэгшитгэлийн тэргүүлэх коэффициентийг эерэг болгоно (ax + by = c)
+function eqn(a, b, c) { return a < 0 ? eq2(-a, -b, -c) : eq2(a, b, c); }
+// x (rel) B шийдийн тоон завсар
+// тоон завсар ]a; b[ — хаалтыг \mathopen/\mathclose-оор (хасах тэмдэг зөв зайтай)
+var OB = { '[': '\\mathopen{[}', ']': '\\mathopen{]}' }, CB = { '[': '\\mathclose{[}', ']': '\\mathclose{]}' };
+function iv(l, a, b, r) { return OB[l] + a + ';\\ ' + b + CB[r]; }
+function ray(rel, B) { return rel === '\\lt' ? iv(']', '-\\infty', B, '[') : rel === '\\le' ? iv(']', '-\\infty', B, ']') : rel === '\\gt' ? iv(']', B, '+\\infty', '[') : iv('[', B, '+\\infty', '['); }
+
+// 1. Рационал тэгшитгэл (4.5): k/(x+c)=m, хөндлөн үржүүлэх, (x+a)/(x+b)=p/q, нийтлэг хуваарь (хуваарийг тэг болгох утга шийд биш)
+function g1() { var t = B1(); return tryN(function () { return g1m(t); }); }
+function g1m(t) {
+  var x0 = nz(-9, 9);
+  if (t === 1) {                       // k/(x + c) = m
+    var m = rnd(2, 6), c = nz(-9, 9); if (x0 + c <= 0) return null;
+    return { stem: '$\\dfrac{' + (m * (x0 + c)) + '}{' + lin(1, c) + '}=' + m + '$', a: 'x=' + x0 };
+  }
+  if (t === 2) {                       // a/(x + p) = b/(x + q): x0 + p = as, x0 + q = bs → a(x0 + q) = b(x0 + p)
+    var a = rnd(2, 9), b = rnd(2, 9), s = nz(-2, 2); if (a === b || gcd(a, b) !== 1) return null;
+    var p = a * s - x0, qq = b * s - x0; if (!p || !qq || Math.abs(p) > 12 || Math.abs(qq) > 12) return null;
+    return { stem: '$\\dfrac{' + a + '}{' + lin(1, p) + '}=\\dfrac{' + b + '}{' + lin(1, qq) + '}$', a: 'x=' + x0 };
+  }
+  if (t === 3) {                       // (x + a)/(x + b) = p/q → q(x + a) = p(x + b)
+    var P = rnd(1, 7), Q = rnd(2, 7); if (P === Q || gcd(P, Q) !== 1) return null;
+    var b3 = Q * nz(-3, 3) - x0; if (!b3 || Math.abs(b3) > 12) return null;
+    var a3 = P * (x0 + b3) / Q - x0; if (!a3 || a3 === b3 || Math.abs(a3) > 15) return null;
+    return { stem: '$\\dfrac{' + lin(1, a3) + '}{' + lin(1, b3) + '}=\\dfrac{' + P + '}{' + Q + '}$', a: 'x=' + x0 };
+  }
+  // a/x = b/(x − k) → a(x − k) = bx → x = ak/(a − b)
+  var a4 = rnd(2, 9), b4 = rnd(1, 9), k4 = nz(-9, 9); if (a4 === b4 || gcd(a4, b4) !== 1) return null;
+  var X4 = a4 * k4 / (a4 - b4); if (X4 !== Math.round(X4) || !X4 || X4 === k4 || Math.abs(X4) > 20) return null;
+  return { stem: '$\\dfrac{' + a4 + '}{x}=\\dfrac{' + b4 + '}{' + lin(1, -k4) + '}$', a: 'x=' + X4 };
+}
+
+// 2. Хоёр хувьсагчтай шугаман тэгшитгэлийн систем (4.6): нэмэх арга, орлуулах арга, бутархай коэффициенттэй
+function g2() { var t = B2(); return tryN(function () { return g2m(t); }); }
+function g2m(t) {
+  var x0 = nz(-6, 6), y0 = nz(-6, 6);
+  if (t === 1) {                       // y-ийн коэффициентүүд эсрэг тэмдэгтэй → шууд нэмнэ
+    var a1 = nz(-5, 5), a2 = nz(-5, 5), b = rnd(1, 5); if (a1 + a2 === 0) return null;
+    return { stem: '$' + sys(eqn(a1, b, a1 * x0 + b * y0), eqn(a2, -b, a2 * x0 - b * y0)) + '$', a: 'x=' + x0 + ',\\ y=' + y0 };
+  }
+  if (t === 2) {                       // ерөнхий: нэгийг нь үржүүлж нэмэх
+    var p1 = nz(-5, 5), q1 = nz(-5, 5), p2 = nz(-5, 5), q2 = nz(-5, 5);
+    if (p1 * q2 - p2 * q1 === 0 || Math.abs(p1) === Math.abs(p2) && Math.abs(q1) === Math.abs(q2)) return null;
+    return { stem: '$' + sys(eqn(p1, q1, p1 * x0 + q1 * y0), eqn(p2, q2, p2 * x0 + q2 * y0)) + '$', a: 'x=' + x0 + ',\\ y=' + y0 };
+  }
+  if (t === 3) {                       // орлуулах арга: y = kx + m
+    var k = nz(-4, 4), m = y0 - k * x0, c = nz(-5, 5), d = nz(-5, 5); if (c + d * k === 0 || Math.abs(m) > 15) return null;
+    return { stem: '$' + sys('y=' + lin(k, m), eqn(c, d, c * x0 + d * y0)) + '$', a: 'x=' + x0 + ',\\ y=' + y0 };
+  }
+  // бутархай коэффициенттэй: x/p + y/q = s, ax − by = r
+  var p = rnd(2, 4), q = rnd(2, 5); if (p === q) return null;
+  var X = p * nz(-3, 3), Y = q * nz(-3, 3), s = X / p + Y / q, a4 = rnd(1, 3), b4 = nz(-3, 3);
+  if (a4 * p + b4 * q === 0) return null;      // det = (1/p)(−b4) − (1/q)a4 ≠ 0  ⇔  a4·p + b4·q ≠ 0
+  return { stem: '$' + sys('\\dfrac{x}{' + p + '}+\\dfrac{y}{' + q + '}=' + s, eq2(a4, -b4, a4 * X - b4 * Y)) + '$', a: 'x=' + X + ',\\ y=' + Y };
+}
+
+// 3. Нэг хувьсагчтай шугаман тэнцэтгэл биш (4.7): ax+b ⋚ c, хаалттай, давхар тэнцэтгэл биш, бутархай коэффициенттэй
+function g3() { var t = B3(); return tryN(function () { return g3m(t); }); }
+function g3m(t) {
+  var rel = pick(['\\lt', '\\le', '\\gt', '\\ge']), B = nz(-8, 8);
+  if (t === 1) {                       // ax + b ⋚ c  (a < 0 бол тэмдэг эргэнэ)
+    var a = nz(-7, 7), b = nz(-12, 12); if (Math.abs(a) === 1) return null;
+    return { stem: '$' + lin(a, b) + rel + ' ' + (a * B + b) + '$', a: 'x\\in ' + ray(a < 0 ? FLIP[rel] : rel, B) };
+  }
+  if (t === 2) {                       // k(x + p) ⋚ mx + q
+    var k = nz(-5, 5), p = nz(-6, 6), m = nz(-6, 6); if (k === m || Math.abs(k) === 1) return null;
+    var q = (k - m) * B + k * p; if (!q || Math.abs(q) > 30) return null;
+    return { stem: '$' + k + '(' + lin(1, p) + ')' + rel + ' ' + lin(m, q) + '$', a: 'x\\in ' + ray(k - m < 0 ? FLIP[rel] : rel, B) };
+  }
+  if (t === 3) {                       // давхар: L r1 ax + b r2 H
+    var a3 = nz(-5, 5), b3 = nz(-9, 9), lo = B, hi = B + rnd(2, 7), r1 = pick(['\\lt', '\\le']), r2 = pick(['\\lt', '\\le']);
+    if (Math.abs(a3) === 1) return null;
+    var L = a3 > 0 ? a3 * lo + b3 : a3 * hi + b3, H = a3 > 0 ? a3 * hi + b3 : a3 * lo + b3;
+    // a > 0: lo r1 x r2 hi;  a < 0: L = a·hi + b, H = a·lo + b → эргэж hi-ийн тал r1, lo-ийн тал r2
+    var lb = a3 > 0 ? r1 : r2, rb = a3 > 0 ? r2 : r1;
+    return { stem: '$' + L + r1 + ' ' + lin(a3, b3) + r2 + ' ' + H + '$', a: 'x\\in ' + iv(lb === '\\lt' ? ']' : '[', lo, hi, rb === '\\lt' ? '[' : ']') };
+  }
+  // бутархай коэффициенттэй: x/p − x/q ⋚ c  (q > p бол x(q − p)/(pq) ⋚ c)
+  var pp = rnd(2, 5), qq = rnd(2, 6); if (pp === qq) return null;
+  var c = B * (qq - pp) / (pp * qq); if (c !== Math.round(c) || !c) return null;
+  return { stem: '$\\dfrac{x}{' + pp + '}-\\dfrac{x}{' + qq + '}' + rel + ' ' + c + '$', a: 'x\\in ' + ray(qq - pp < 0 ? FLIP[rel] : rel, B) };
+}
+
+// 4. Өгүүлбэртэй бодлого: систем зохиох (мөнгө, үнэ, тасалбар, цифр), рационал тэгшитгэл (ажил, урсгал), тэнцэтгэл биш (мөнгө, дундаж оноо, даац)
+function g4() { var t = B4(); return tryN(function () { return g4m(t); }); }
+function g4m(t) {
+  if (t === 1) {
+    var D = 500 * rnd(1, 8), y = 500 * rnd(4, 20), N = 2 * y + D;
+    return { stem: 'Ах, дүү хоёр нийт $' + th(N) + '$ төгрөгтэй. Ах нь дүүгээсээ $' + th(D) + '$ төгрөгөөр илүү мөнгөтэй бол хүн бүр хэдэн төгрөгтэй вэ?', a: 'ах $' + th(y + D) + '$, дүү $' + th(y) + '$ төгрөг' };
+  }
+  if (t === 2) {
+    var p1 = 100 * rnd(5, 15), p2 = 100 * rnd(2, 9), a1 = rnd(1, 5), b1 = rnd(1, 5), a2 = rnd(1, 5), b2 = rnd(1, 5);
+    if (p1 === p2 || a1 * b2 === a2 * b1 || (a1 === a2 && b1 === b2)) return null;
+    return { stem: '$' + a1 + '$ дэвтэр, $' + b1 + '$ үзгийг нийт $' + th(a1 * p1 + b1 * p2) + '$ төгрөгөөр, $' + a2 + '$ дэвтэр, $' + b2 + '$ үзгийг $' + th(a2 * p1 + b2 * p2) + '$ төгрөгөөр авчээ. Нэг дэвтэр, нэг үзэг тус бүр ямар үнэтэй вэ?', a: 'дэвтэр $' + p1 + '$, үзэг $' + p2 + '$ төгрөг' };
+  }
+  if (t === 3) {
+    var A = 1000 * rnd(5, 10), Bk = 1000 * rnd(2, 4), x = rnd(3, 12), yk = rnd(3, 12);
+    return { stem: 'Концертын тасалбар том хүнд $' + th(A) + '$ төгрөг, хүүхдэд $' + th(Bk) + '$ төгрөг. $' + (x + yk) + '$ хүн нийт $' + th(A * x + Bk * yk) + '$ төгрөг төлжээ. Хэдэн том хүн, хэдэн хүүхэд байсан бэ?', a: 'том хүн $' + x + '$, хүүхэд $' + yk + '$' };
+  }
+  if (t === 4) {
+    var d1 = rnd(1, 8), d2 = rnd(d1 + 1, 9);
+    return { stem: 'Хоёр оронтой тооны цифрүүдийн нийлбэр $' + (d1 + d2) + '$. Цифрүүдийн байрыг солиход гарах тоо нь анхны тоо дээр $' + (9 * (d2 - d1)) + '$ нэмсэнтэй тэнцүү бол анхны тоог ол.', a: String(10 * d1 + d2) };
+  }
+  if (t === 5) {
+    var W = pick([[3, 6], [4, 12], [5, 20], [6, 12], [6, 30], [8, 24], [10, 15], [12, 24], [9, 18], [20, 30], [12, 36], [10, 40]]), sw = rnd(0, 1);
+    var ta = W[sw], tb = W[1 - sw];
+    return { stem: 'Нэг цорго усан санг $' + ta + '$ цагт, нөгөө цорго $' + tb + '$ цагт дүүргэдэг. Хоёр цоргыг зэрэг нээвэл усан санг хэдэн цагт дүүргэх вэ?', a: '$\\dfrac{1}{' + ta + '}+\\dfrac{1}{' + tb + '}=\\dfrac{1}{t}$, $t=' + (ta * tb / (ta + tb)) + '$ цаг' };
+  }
+  if (t === 6) {
+    var c = rnd(1, 4), v = rnd(c + 6, 20), tt = rnd(2, 5);
+    return { stem: 'Моторт завины тогтмол усан дахь хурд $' + v + '$ км/ц. Завь урсгал дагуу $' + ((v + c) * tt) + '$ км, урсгал сөрж $' + ((v - c) * tt) + '$ км замыг ижил хугацаанд туулжээ. Голын урсгалын хурдыг ол.', a: '$\\dfrac{' + ((v + c) * tt) + '}{' + v + '+c}=\\dfrac{' + ((v - c) * tt) + '}{' + v + '-c}$, $c=' + c + '$ км/ц' };
+  }
+  if (t === 7) {
+    var N7 = 1000 * rnd(5, 15), a7 = 500 * rnd(2, 8), b7 = 100 * rnd(3, 9), rest = N7 - a7;
+    if (rest <= 2 * b7 || rest % b7 === 0) return null;
+    return { stem: 'Сараа $' + th(N7) + '$ төгрөгтэй. Тэр $' + th(a7) + '$ төгрөгөөр ном аваад, үлдсэн мөнгөөрөө нэг бүр нь $' + b7 + '$ төгрөгийн үзэг авахыг хүсчээ. Хамгийн ихдээ хэдэн үзэг авч чадах вэ?', a: '$' + b7 + 'n+' + th(a7) + '\\le ' + th(N7) + '$, хамгийн ихдээ $' + Math.floor(rest / b7) + '$ үзэг' };
+  }
+  if (t === 8) {
+    var s = [rnd(60, 98), rnd(60, 98), rnd(60, 98)], m = rnd(75, 90), need = 4 * m - s[0] - s[1] - s[2];
+    if (need < 50 || need > 100) return null;
+    return { stem: 'Сурагч гурван шалгалтад $' + s[0] + '$, $' + s[1] + '$, $' + s[2] + '$ оноо авчээ. Дөрвөн шалгалтын дундаж оноо $' + m + '$ онооноос багагүй байхын тулд дөрөв дэх шалгалтад хамгийн багадаа хэдэн оноо авах ёстой вэ?', a: '$\\dfrac{' + (s[0] + s[1] + s[2]) + '+x}{4}\\ge ' + m + '$, хамгийн багадаа $' + need + '$ оноо' };
+  }
+  var L = 50 * rnd(8, 16), p9 = rnd(55, 90), m9 = rnd(12, 30), r9 = L - p9;
+  if (r9 % m9 === 0) return null;
+  return { stem: '$' + p9 + '$ кг жинтэй хүн нэг бүр нь $' + m9 + '$ кг жинтэй хайрцгуудыг лифтээр зөөнө. Лифтийн даац $' + L + '$ кг бол хүнтэйгээ хамт нэг удаад хамгийн ихдээ хэдэн хайрцаг ачиж болох вэ?', a: '$' + m9 + 'n+' + p9 + '\\le ' + L + '$, хамгийн ихдээ $' + Math.floor(r9 / m9) + '$ хайрцаг' };
+}
+
+CMX.jishig({
+  title: 'IV бүлэг — Жишиг даалгавар 2',
+  sub: 'Рационал тэгшитгэл · хоёр хувьсагчтай шугаман тэгшитгэлийн систем · шугаман тэнцэтгэл биш',
+  grade: '8-р анги',
+  rule: 'Хуваарийг тэг болгох утга шийд болохгүй &nbsp;·&nbsp; Системийг нэмэх эсвэл орлуулах аргаар бодно &nbsp;·&nbsp; Тэнцэтгэл бишийг сөрөг тоонд үржүүлэх (хуваах) үед тэмдэг эсрэгээр солигдоно',
+  tasks: [
+    { label: 'Тэгшитгэлийг бод.', gen: g1, n: 12, nw: 4, cols: 4, wk: 16 },
+    { label: 'Тэгшитгэлийн системийг бод.', gen: g2, n: 12, nw: 4, cols: 4, wk: 18 },
+    { label: 'Тэнцэтгэл бишийг бодож, шийдийг тоон завсраар бич.', gen: g3, n: 12, nw: 4, cols: 2, wk: 14 },
+    { label: 'Бодлогыг бод.', gen: g4, n: 8, nw: 2, cols: 2, wk: 26 }
+  ]
+});
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

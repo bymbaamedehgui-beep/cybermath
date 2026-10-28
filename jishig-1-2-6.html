@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>I бүлэг — Жишиг даалгавар 2 (6-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/cmx.js?v=1"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* 6-р анги · I бүлэг. Бүхэл тоон олонлог, зэрэг, язгуур — Жишиг даалгавар 2
+   (1.6 ХБЕХ · 1.7 Анхны тоо · 1.8 Квадрат зэрэг, квадрат язгуур · 1.9 Хэллэг · 1.10 Олонлог · 1.11 Сонгон судлах — сүүлийн даалгаварт хөнгөн) */
+// Дугаарын багана тогтмол өргөнтэй: хөдөлгүүр хуудсанд багтаахдаа дугааргүй хэмжээд, дараа нь «10.», «11.» … тавьдаг тул
+// 12pt-д дугаар өргөсч урт бодлого нэг мөр нэмэгдэн хуудаснаас хэтрэхээс сэргийлнэ.
+function isPrime(n) { if (n < 2) return false; for (var i = 2; i * i <= n; i++) if (n % i === 0) return false; return true; }
+// анхны тоон үржигдэхүүнд задаргаа (TeX): 360 → 2^{3}\cdot 3^{2}\cdot 5
+function pfTex(n) { var s = [], p, e; for (p = 2; n > 1; p++) { e = 0; while (n % p === 0) { n /= p; e++; } if (e) s.push(e === 1 ? '' + p : p + '^{' + e + '}'); } return s.join('\\cdot '); }
+function maxPF(n) { var m = 1, p; for (p = 2; n > 1; p++) while (n % p === 0) { n /= p; m = p; } return m; }
+function setTex(a) { return a.length ? '\\{' + a.join(',\\ ') + '\\}' : '\\varnothing'; }
+function byNum(x, y) { return x - y; }
+function divs(n) { var r = [], d; for (d = 1; d <= n; d++) if (n % d === 0) r.push(d); return r; }
+function union(a, b) { var r = a.slice(); b.forEach(function (x) { if (r.indexOf(x) < 0) r.push(x); }); return r.sort(byNum); }
+function inter(a, b) { return a.filter(function (x) { return b.indexOf(x) >= 0; }).sort(byNum); }
+
+// 1. Анхны тоо (1.7): анхны эсэхийг тогтоох; нийлмэл бол анхны тоон үржигдэхүүнд задлах (4 тутмын 1 нь анхны тоо)
+var K1 = 0;
+function g1() {
+  var n, prime = K1 % 4 === 2;
+  if (prime) { n = rnd(31, 150); if (!isPrime(n)) return null; }
+  else { n = rnd(30, 400); if (isPrime(n) || maxPF(n) > 23 || n % 100 === 0) return null; }
+  K1++;
+  return { stem: '$' + n + '$', a: prime ? '$' + n + '$ — анхны тоо' : n + '=' + pfTex(n) };
+}
+
+// 2. Ерөнхий хуваагдагч, ХБЕХ (1.6): хоёр ба гурван тооны ХБЕХ
+function g2() {
+  if (rnd(0, 3) === 0) {
+    var a = rnd(2, 12), b = rnd(3, 15), c = rnd(4, 18);
+    if (a >= b || b >= c) return null;
+    var L = lcm(lcm(a, b), c); if (L > 360 || L === c || L === a * b * c) return null;
+    return { stem: '$\\text{ХБЕХ}(' + a + ';\\ ' + b + ';\\ ' + c + ')$', a: '' + L };
+  }
+  var g = rnd(1, 12), m = rnd(2, 9), n = rnd(2, 9);
+  if (m >= n || gcd(m, n) !== 1) return null;
+  if (g * n > 150 || g * m * n > 600) return null;
+  return { stem: '$\\text{ХБЕХ}(' + (g * m) + ';\\ ' + (g * n) + ')$', a: '' + (g * m * n) };
+}
+
+// 3. Квадрат зэрэг, квадрат язгуур (1.8) — 5 төрлийг ээлжлэн
+var PY = [[3, 4, 5], [6, 8, 10], [5, 12, 13], [9, 12, 15], [8, 15, 17], [12, 16, 20], [7, 24, 25], [15, 20, 25]];
+var K3 = 0;
+function g3() {
+  var t = K3 % 5, r = null, a, b;
+  if (t === 0) {            // бүхэл тооны квадрат зэрэг
+    a = nz(-19, 19); if (Math.abs(a) < 4) return null;
+    r = { stem: '$' + par(a) + '^2$', a: '' + (a * a) };
+  } else if (t === 1) {     // бүтэн квадрат тооны квадрат язгуур
+    a = rnd(4, 25);
+    r = { stem: '$\\sqrt{' + (a * a) + '}$', a: '' + a };
+  } else if (t === 2) {     // квадрат зэргүүдийн нийлбэр, ялгавар
+    a = nz(-12, 12); b = nz(-12, 12);
+    if (Math.abs(a) < 2 || Math.abs(b) < 2 || Math.abs(a) === Math.abs(b)) return null;
+    var op = pick(['+', '-']);
+    r = { stem: '$' + par(a) + '^2' + op + par(b) + '^2$', a: '' + (op === '+' ? a * a + b * b : a * a - b * b) };
+  } else if (t === 3) {     // язгууртай илэрхийлэл (77-р дасгал)
+    var k = rnd(2, 4), x = rnd(2, 9), y = rnd(2, 12);
+    if (x === y) return null;
+    r = { stem: '$' + k + '\\cdot\\sqrt{' + (x * x) + '}-\\sqrt{' + (y * y) + '}$', a: '' + (k * x - y) };
+  } else {                  // язгуур доорх нийлбэр, ялгавар (77-р дасгал)
+    var T = pick(PY);
+    r = rnd(0, 1) ? { stem: '$\\sqrt{' + T[0] + '^2+' + T[1] + '^2}$', a: '' + T[2] } : { stem: '$\\sqrt{' + T[2] + '^2-' + T[1] + '^2}$', a: '' + T[0] };
+  }
+  if (r) K3++;
+  return r;
+}
+
+// 4. Олонлог (1.10): жагсаасан / хуваагчдын / хуваагдагчдын олонлогийн нэгдэл, огтлолцол (хоосон олонлог ч гарна)
+function g4() {
+  var t = rnd(0, 3), A, B, stem;
+  if (t === 3) {
+    var mn = pick([[2, 3], [2, 5], [3, 4], [3, 5], [4, 5], [2, 7], [3, 7]]), g = rnd(2, 8), m = mn[0], n = mn[1];
+    if (g * n > 42) return null;
+    A = divs(g * m); B = divs(g * n);
+    stem = '$A$ нь $' + (g * m) + '$ тооны бүх хуваагчийн олонлог, $B$ нь $' + (g * n) + '$ тооны бүх хуваагчийн олонлог';
+  } else if (t === 2) {
+    var M = pick([[3, 4, 24], [3, 5, 20], [4, 6, 24], [4, 5, 20], [3, 6, 18], [2, 7, 14], [4, 10, 20]]), i;
+    A = []; B = [];
+    for (i = M[0]; i <= M[2]; i += M[0]) A.push(i);
+    for (i = M[1]; i <= M[2]; i += M[1]) B.push(i);
+    stem = '$' + M[2] + '$ хүртэлх натурал тоонуудаас $' + M[0] + '$ тоонд хуваагддаг нь $A$, $' + M[1] + '$ тоонд хуваагддаг нь $B$ олонлог';
+  } else {
+    var pool = [], c = pick([0, 1, 1, 2, 2]), a1 = rnd(2, 3), b1 = rnd(2, 3);
+    for (i = 1; i <= 20; i++) pool.push(i);
+    pool = shuffle(pool);
+    A = pool.slice(0, c + a1).sort(byNum); B = pool.slice(0, c).concat(pool.slice(c + a1, c + a1 + b1)).sort(byNum);
+    stem = '${A=' + setTex(A) + '}$, ${B=' + setTex(B) + '}$';          // {…} — олонлогийн дотор мөр таслахгүй
+  }
+  return { stem: stem, a: '$A\\cup B=' + setTex(union(A, B)) + '$, $A\\cap B=' + setTex(inter(A, B)) + '$' };
+}
+
+// 5. Өгүүлбэртэй бодлого — 4 төрлийг ээлжлэн: ХБЕХ (1.6) · хэллэг, зүй тогтол (1.9) · олонлог / квадратын талбай (1.10, 1.8) · сонгон хөнгөн (1.11)
+// ХБЕХ-ийн хэрэглээ: давтамж, шугамаар хэмжих, тойрог зам (1.6)
+function wLcm() {
+  var t = rnd(0, 2), a = t === 0 ? rnd(2, 9) : rnd(6, 20), b = t === 0 ? rnd(3, 12) : rnd(8, 25);
+  if (a >= b || b % a === 0) return null;
+  var L = lcm(a, b); if (L > (t === 1 ? 150 : 120)) return null;
+  var ans = '$\\text{ХБЕХ}(' + a + ';\\ ' + b + ')=' + L + '$';
+  if (t === 0) return { stem: 'Дэлгүүрт тараг $' + a + '$ хоног, сүү $' + b + '$ хоног тутамд ирдэг. Өнөөдөр хамт ирсэн бол дахин хэдэн хоногийн дараа хамт ирэх вэ?', a: ans + ' хоногийн дараа' };
+  if (t === 1) return { stem: 'Ширээний уртыг $' + a + '$ см ба $' + b + '$ см урттай шугамаар хэмжихэд аль алинаар нь бүхэл тоо гарчээ. Ширээ хамгийн багадаа хэдэн см урт вэ?', a: ans + ' см' };
+  return { stem: 'Хоёр галт тэрэг тойрог замыг $' + a + '$ ба $' + b + '$ минутад тойрдог. Гараанаас зэрэг гарсан бол хэдэн минутын дараа дахин зэрэг ирэх вэ?', a: ans + ' минутын дараа' };
+}
+// Хэллэг (1.9): «дор хаяж», «хамгийн олондоо», «яг» / ялгавар нь тогтмолоор өсөх дараалал
+function wPhrase() {
+  if (rnd(0, 1)) {
+    var N = rnd(10, 16), r = rnd(3, N - 5), g = rnd(2, N - r - 2), b = N - r - g, k = b + rnd(-2, 2);
+    if (b < 2 || k < 1) return null;
+    var ph = pick([['дор хаяж', b >= k], ['хамгийн олондоо', b <= k], ['яг', b === k]]);
+    return { stem: 'Хайрцагт $' + N + '$ харандаа байгаагийн $' + r + '$ нь улаан, $' + g + '$ нь ногоон, бусад нь хөх. «Хөх харандаа ' + ph[0] + ' $' + k + '$ байна» гэдэг үнэн үү?',
+      a: (ph[1] ? 'Үнэн' : 'Худал') + ': хөх харандаа $' + N + '-' + r + '-' + g + '=' + b + '$' };
+  }
+  var s = rnd(-10, 8), d = rnd(1, 5), e = rnd(1, 3), t = [s], i;
+  for (i = 0; i < 4; i++) t.push(t[i] + d + i * e);
+  var n1 = t[4] + d + 4 * e, n2 = n1 + d + 5 * e;
+  return { stem: 'Дарааллын зүй тогтлыг олж, дараагийн хоёр гишүүнийг ол: $' + t.join(',\\ ') + ',\\ \\ldots$',
+    a: '$' + n1 + ',\\ ' + n2 + '$ (хөрш гишүүдийн ялгавар бүр $' + e + '$ нэгжээр өснө)' };
+}
+// Олонлогийн элементийн тоо — дугуйлан (1.10) / квадратын талбайгаас тал, периметр (1.8)
+function wSet() {
+  if (rnd(0, 2)) {
+    var cl = pick([['шатрын', 'дууны'], ['сагсан бөмбөгийн', 'бүжгийн'], ['робот техникийн', 'зургийн'], ['англи хэлний', 'математикийн']]);
+    var k = rnd(2, 8), m = k + rnd(3, 10), n = k + rnd(3, 10), U = m + n - k, tot = U + rnd(1, 9);
+    return { stem: 'Ангийн $' + tot + '$ сурагчийн $' + m + '$ нь ' + cl[0] + ', $' + n + '$ нь ' + cl[1] + ' дугуйланд, $' + k + '$ нь хоёуланд нь явдаг. Аль ч дугуйланд явдаггүй хэдэн сурагч байна?',
+      a: '$' + tot + '-(' + m + '+' + n + '-' + k + ')=' + (tot - U) + '$ сурагч' };
+  }
+  var a = rnd(6, 25);
+  return { stem: 'Квадрат хэлбэртэй цэцэрлэгийн талбай $' + (a * a) + '$ м². Цэцэрлэгийн талын урт ба периметрийг ол.',
+    a: 'тал $\\sqrt{' + (a * a) + '}=' + a + '$ м, периметр $4\\cdot ' + a + '=' + (4 * a) + '$ м' };
+}
+// Сонгон судлах — хөнгөн (1.11): ХИЕХ·ХБЕХ = a·b / хос үржвэрээр гурван тоо / анхны тоонуудын үржвэр
+function wHard() {
+  var t = rnd(0, 2);
+  if (t === 0) {
+    var g = rnd(2, 9), m = rnd(2, 7), n = rnd(2, 7);
+    if (m === n || gcd(m, n) !== 1) return null;
+    var L = g * m * n;
+    return { stem: 'Хоёр натурал тооны ХИЕХ нь $' + g + '$, ХБЕХ нь $' + L + '$. Нэг тоо нь $' + (g * m) + '$ бол нөгөө тоог ол.',
+      a: '$' + g + '\\cdot ' + L + '\\div ' + (g * m) + '=' + (g * n) + '$' };
+  }
+  if (t === 1) {
+    var x = rnd(2, 6), y = rnd(2, 6), z = rnd(2, 6);
+    if ((x === y && y === z) || x * y * z > 30) return null;      // хөнгөн: abc ≤ 30 тул (abc)² ≤ 900
+    var P = x * y * x * z * y * z, m3 = x * y * z;
+    return { stem: 'Натурал тоонуудын хувьд ${a\\cdot b=' + (x * y) + '}$, ${b\\cdot c=' + (y * z) + '}$, ${a\\cdot c=' + (x * z) + '}$ бол $a$, $b$, $c$ тоонуудыг ол.',
+      a: '$(a\\cdot b\\cdot c)^2=' + P + '$, $a\\cdot b\\cdot c=' + m3 + '$; $a=' + x + '$, $b=' + y + '$, $c=' + z + '$' };
+  }
+  var PR = [3, 5, 7, 11, 13, 17, 19, 23], p = pick(PR), q = pick(PR);
+  if (p >= q || p * q < 50) return null;
+  return { stem: 'Хоёр анхны тооны үржвэр $' + (p * q) + '$. Эдгээр тоог олж, нийлбэрийг нь ол.',
+    a: '$' + (p * q) + '=' + p + '\\cdot ' + q + '$; $' + p + '+' + q + '=' + (p + q) + '$' };
+}
+var K5 = 0;
+function g5() {
+  var r = [wLcm, wPhrase, wSet, wHard][K5 % 4]();
+  if (r) K5++;
+  return r;
+}
+
+CMX.jishig({
+  title: 'I бүлэг — Жишиг даалгавар 2',
+  sub: 'ХБЕХ · анхны тоо · квадрат зэрэг, квадрат язгуур · хэллэг · олонлог',
+  grade: '6-р анги',
+  rule: 'ХБЕХ — бүх анхны үржигдэхүүнийг хамгийн их зэргээр нь авч үржүүлнэ &nbsp;·&nbsp; $\\text{ХИЕХ}(a;b)\\cdot\\text{ХБЕХ}(a;b)=a\\cdot b$ &nbsp;·&nbsp; $a^2=a\\cdot a$, $\\;\\sqrt{a^2}=a\\ (a\\ge 0)$ &nbsp;·&nbsp; $|A\\cup B|=|A|+|B|-|A\\cap B|$',
+  tasks: [
+    { label: 'Тоо анхны эсэхийг тогтоож, нийлмэл бол анхны тоон үржигдэхүүнд задал.', gen: g1, n: 12, nw: 4, cols: 4, wk: 12 },
+    { label: 'Хамгийн бага ерөнхий хуваагдагчийг ол.', gen: g2, n: 12, nw: 4, cols: 4, wk: 12 },
+    { label: 'Илэрхийллийн утгыг ол.', gen: g3, n: 12, nw: 4, cols: 4, wk: 10 },
+    { label: 'Олонлогуудын нэгдэл ба огтлолцлыг ол.', gen: g4, n: 8, nw: 2, cols: 2, wk: 12 },
+    { label: 'Бодлогыг бод.', gen: g5, n: 8, nw: 4, cols: 2, wk: 16 }
+  ]
+});
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

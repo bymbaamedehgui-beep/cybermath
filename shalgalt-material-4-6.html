@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>IV бүлэг — Шалгалтын материал (6-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/cmx.js?v=1"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* 6-р анги · IV бүлэг. Магадлал (4.1 Үржвэр ба нийлбэрийн зарчим · 4.2 Үзэгдлийн магадлал · 4.3 Сонгон судлах — хүнд даалгавар) */
+var NW = { 1: 'нэг', 2: 'хоёр', 3: 'гурван', 4: 'дөрвөн', 5: 'таван', 6: 'зургаан', 7: 'долоон', 8: 'найман' };
+function isPr(n) { if (n < 2) return false; for (var i = 2; i * i <= n; i++) if (n % i === 0) return false; return true; }
+function cnt(lo, hi, f) { var c = 0; for (var x = lo; x <= hi; x++) if (f(x)) c++; return c; }
+function prod(ar) { var p = 1; for (var i = 0; i < ar.length; i++) p *= ar[i]; return p; }
+function fall(d, k) { var ar = []; for (var i = 0; i < k; i++) ar.push(d - i); return ar; }   // d, d-1, d-2 …
+function pAns(c, n) { var raw = '\\dfrac{' + c + '}{' + n + '}', r = fr(c, n); return 'P=' + raw + (r === raw ? '' : '=' + r); }
+// Төөрөгдүүлэгч: [tex, утга] — зөв хариутай ба хоорондоо ижил УТГАтайг хасна
+function D(cv, list) {
+  var used = [cv], out = [];
+  list.forEach(function (p) {
+    if (!p || p[0] == null || !isFinite(p[1])) return;
+    for (var i = 0; i < used.length; i++) if (Math.abs(used[i] - p[1]) < 1e-9) return;
+    used.push(p[1]); out.push(C(p[0]));
+  });
+  return out;
+}
+// Натурал тоон төөрөгдүүлэгч (бүхэл, эерэг, ≤ 2000)
+function DN(v, list) { return D(v, list.filter(function (x) { return x === Math.round(x) && x > 0 && x <= 2000; }).map(function (x) { return [String(x), x]; })); }
+// Магадлалын төөрөгдүүлэгч: [тоологч, хуваарь] → 0 < утга < 1
+function DP(c, n, pairs) { return D(c / n, pairs.filter(function (p) { return p[1] > 0 && p[0] > 0 && p[0] < p[1]; }).map(function (p) { return [fr(p[0], p[1]), p[0] / p[1]]; })); }
+var NAMES = [['Болд', 'Болдод'], ['Сараа', 'Сараад'], ['Тэмүүлэн', 'Тэмүүлэнд'], ['Ану', 'Ануд'], ['Номин', 'Номинд'], ['Дулмаа', 'Дулмаад']];
+var PAIRS = [['цамц', 'өмд', 'Нэг цамц, нэг өмдийг'], ['малгай', 'ороолт', 'Нэг малгай, нэг ороолтыг'], ['дэвтэр', 'үзэг', 'Нэг дэвтэр, нэг үзгийг'],
+  ['ном', 'сэтгүүл', 'Нэг ном, нэг сэтгүүлийг'], ['цүнх', 'гутал', 'Нэг цүнх, нэг гутлыг']];
+var DSETS = [[1, 2, 3, 4], [1, 3, 5, 7, 9], [2, 4, 6, 8], [5, 6, 7, 8, 9], [1, 2, 4, 8], [3, 4, 5, 6], [1, 2, 3, 4, 5], [2, 3, 5, 7], [1, 4, 6, 8, 9], [6, 7, 8, 9]];
+var ZSETS = [[0, 1, 2, 3], [0, 2, 4, 6, 8], [0, 5, 6, 7], [0, 1, 5, 9], [0, 3, 6, 9], [0, 4, 8, 9], [0, 2, 5, 7, 8], [0, 1, 3, 5, 7]];
+var COL3 = [['улаан', 'хөх', 'шар'], ['цагаан', 'хар', 'ногоон'], ['улаан', 'ногоон', 'цэнхэр'], ['шар', 'хөх', 'ягаан']];
+var WORDS = ['МОНГОЛ', 'ХАРАНДАА', 'ДЭВТЭР', 'ЦАГИРАГ', 'НАРАН', 'ЗУРАГ', 'ТООЛУУР', 'ГУРВАЛЖИН', 'МАГАДЛАЛ', 'ОЛОНЛОГ', 'ҮРЖВЭР', 'ДАДЛАГА', 'ХУРДАН', 'ШАТАР', 'ЦЭЦЭГ', 'ДӨРВӨЛЖИН'];
+var VOW = 'АЭИОӨУҮ';
+// Шоо нэг удаа орхих үзэгдэл (нөхцөл ба шалгах функц)
+function dieCond() {
+  var t = rnd(0, 7), k, a, b;
+  if (t === 0) return { t: 'тэгш тоо буух', f: function (x) { return x % 2 === 0; } };
+  if (t === 1) return { t: 'сондгой тоо буух', f: function (x) { return x % 2 === 1; } };
+  if (t === 2) return { t: 'анхны тоо буух', f: isPr };
+  if (t === 3) { k = rnd(2, 6); return { t: '$' + k + '$ тооноос бага тоо буух', f: function (x) { return x < k; } }; }
+  if (t === 4) { k = rnd(1, 5); return { t: '$' + k + '$ тооноос их тоо буух', f: function (x) { return x > k; } }; }
+  if (t === 5) { k = rnd(2, 4); return { t: '$' + k + '$ тоонд хуваагдах тоо буух', f: function (x) { return x % k === 0; } }; }
+  if (t === 6) { a = rnd(1, 5); b = rnd(a + 1, 6); return { t: '$' + a + '$ эсвэл $' + b + '$ буух', f: function (x) { return x === a || x === b; } }; }
+  return { t: 'анхны биш тоо буух', f: function (x) { return !isPr(x); } };
+}
+
+/* ── I. Тест (10): 1–3 хялбар, 4–7 дунд, 8–10 хүнд ── */
+var TESTS = [
+  // 1. Үржвэрийн зарчим — хоёр төрлийн зүйлийг хослуулах (4.1)
+  function () {
+    var P = pick(PAIRS), nm = pick(NAMES), m = rnd(2, 7), n = rnd(2, 6); if (m === n) return null;
+    var ds = [m + n, 2 * m * n, m * n + m, m * n - 1]; if (Math.pow(m, n) <= 999) ds.push(Math.pow(m, n)); if (Math.pow(n, m) <= 999) ds.push(Math.pow(n, m));
+    return { stem: nm[1] + ' $' + m + '$ ' + P[0] + ', $' + n + '$ ' + P[1] + ' байна. ' + P[2] + ' хэдэн янзаар сонгож болох вэ?', mc: makeMC(C(m * n), DN(m * n, ds)) };
+  },
+  // 2. Шоо нэг удаа орхих — үзэгдлийн магадлал (4.2)
+  function () {
+    var E = dieCond(), c = cnt(1, 6, E.f); if (c === 0 || c === 6) return null;
+    return { stem: 'Шоог нэг удаа орхиход ' + E.t + ' магадлал хэд вэ?', mc: makeMC(C(fr(c, 6)), DP(c, 6, [[6 - c, 6], [1, 6], [c, 6 - c], [c + 1, 6], [c - 1, 6], [1, c]])) };
+  },
+  // 3. Магадлал байж болох утга: 0 ≤ P ≤ 1 (4.2)
+  function () {
+    var BAD = [['1.2', 1.2], ['\\dfrac{5}{4}', 1.25], ['-0.3', -0.3], ['120\\%', 1.2], ['\\dfrac{7}{6}', 7 / 6], ['-\\dfrac{1}{2}', -0.5], ['1.05', 1.05], ['2', 2]];
+    var GOOD = [['0', 0], ['1', 1], ['0.7', 0.7], ['\\dfrac{2}{3}', 2 / 3], ['45\\%', 0.45], ['\\dfrac{5}{8}', 0.625], ['0.05', 0.05], ['\\dfrac{1}{9}', 1 / 9], ['99\\%', 0.99], ['0.5', 0.5]];
+    if (rnd(0, 1)) { var b = pick(BAD); return { stem: 'Аль нь үзэгдлийн магадлал байж болохгүй вэ?', mc: makeMC(C(b[0]), D(b[1], shuffle(GOOD))) }; }
+    var g = pick(GOOD); return { stem: 'Аль нь үзэгдлийн магадлал байж болох вэ?', mc: makeMC(C(g[0]), D(g[1], shuffle(BAD))) };
+  },
+  // 4. Цифрүүдээр тоо зохиох — цифр давтагдах / давтагдахгүй (4.1)
+  function () {
+    var ds = pick(DSETS), d = ds.length, k = rnd(2, 3), rep = rnd(0, 1); if (d < k + 1) return null;
+    var nr = prod(fall(d, k)), rp = Math.pow(d, k), v = rep ? rp : nr, sum = 0; fall(d, k).forEach(function (x) { sum += x; });
+    var ds2 = rep ? [nr, d * k, Math.pow(d, k - 1), rp - d, Math.pow(k, d)] : [rp, d * k, sum, Math.pow(d - 1, k), d * (d - 1) * (k === 3 ? 1 : d - 2)];
+    return { stem: '$' + ds.join(',\\ ') + '$ цифрүүдээр цифр нь ' + (rep ? 'давтагдаж болох ' : 'давтагдахгүй ') + NW[k] + ' оронтой хэдэн тоо зохиож болох вэ?', mc: makeMC(C(v), DN(v, ds2)) };
+  },
+  // 5. Хос бүр нэг удаа: гар барих, тоглолт; гүдгэр олон өнцөгтийн диагональ (4.1)
+  function () {
+    var t = rnd(0, 2), n = rnd(5, 14), v, stem, ds;
+    if (t === 0) { v = n * (n - 1) / 2; stem = 'Уулзалтад ирсэн $' + n + '$ хүн бүр бусадтайгаа яг нэг удаа гар барьжээ. Нийт хэдэн удаа гар барьсан бэ?'; ds = [n * (n - 1), n * n, n * (n + 1) / 2, (n - 1) * (n - 2) / 2, 2 * n]; }
+    else if (t === 1) { v = n * (n - 1) / 2; stem = 'Тэмцээнд $' + n + '$ баг оролцож, баг бүр бусадтайгаа нэг удаа тоглов. Нийт хэдэн тоглолт болсон бэ?'; ds = [n * (n - 1), n * n, n * (n + 1) / 2, n - 1, 2 * n]; }
+    else { v = n * (n - 3) / 2; stem = 'Гүдгэр $' + n + '$ өнцөгт хэдэн диагональтай вэ?'; ds = [n * (n - 3), n * (n - 1) / 2, n - 3, (n - 2) * (n - 3) / 2, n * (n - 2) / 2]; }
+    return { stem: stem, mc: makeMC(C(v), DN(v, ds)) };
+  },
+  // 6. Хайрцаг дахь бөмбөг — нэг өнгө, «… биш», «… эсвэл …» (4.2)
+  function () {
+    var col = pick(COL3), a = rnd(2, 9), b = rnd(2, 9), c = rnd(2, 9), n = a + b + c, t = rnd(0, 2), k, txt;
+    if (t === 0) { k = b; txt = col[1]; } else if (t === 1) { k = n - a; txt = col[0] + ' биш'; } else { k = a + c; txt = col[0] + ' эсвэл ' + col[2]; }
+    return { stem: 'Хайрцагт $' + a + '$ ' + col[0] + ', $' + b + '$ ' + col[1] + ', $' + c + '$ ' + col[2] + ' бөмбөг бий. Таамгаар авсан бөмбөг ' + txt + ' байх магадлал хэд вэ?',
+      mc: makeMC(C(fr(k, n)), DP(k, n, [[n - k, n], [k, n - k], [a, n], [c, n], [1, k], [k, n + k]])) };
+  },
+  // 7. Натурал тоо сонгох — анхны, хуваагдах, бүтэн квадрат (4.2)
+  function () {
+    var N = pick([10, 12, 15, 20, 24, 25, 30, 36, 40, 50]), t = rnd(0, 3), k, txt, f;
+    if (t === 0) { txt = 'анхны тоо'; f = isPr; }
+    else if (t === 1) { k = pick([3, 4, 5, 6, 7]); txt = '$' + k + '$ тоонд хуваагдах тоо'; f = function (x) { return x % k === 0; }; }
+    else if (t === 2) { txt = 'бүтэн квадрат тоо'; f = function (x) { var r = Math.round(Math.sqrt(x)); return r * r === x; }; }
+    else { txt = 'хоёр оронтой тоо'; f = function (x) { return x >= 10; }; }
+    var c = cnt(1, N, f); if (c === 0 || c === N) return null;
+    return { stem: '$1,\\ 2,\\ 3,\\ \\ldots,\\ ' + N + '$ тоонуудаас нэгийг санамсаргүйгээр сонгоход ' + txt + ' гарах магадлал хэд вэ?',
+      mc: makeMC(C(fr(c, N)), DP(c, N, [[N - c, N], [c, N - c], [c + 1, N], [c - 1, N], [1, c], [c, 2 * N]])) };
+  },
+  // 8. Хоёр шоо — нийлбэр, ижил тоо (4.3 сонгон, хөнгөн хэлбэр)
+  function () {
+    var t = rnd(0, 2), s = rnd(3, 11), c = 0, x, y;
+    for (x = 1; x <= 6; x++) for (y = 1; y <= 6; y++) if (t === 0 ? x + y === s : t === 1 ? x + y > s : x === y) c++;
+    if (c === 0) return null;
+    var txt = t === 0 ? 'буусан тоонуудын нийлбэр $' + s + '$ байх' : t === 1 ? 'буусан тоонуудын нийлбэр $' + s + '$ тооноос их байх' : 'хоёулаа ижил тоо буух';
+    return { stem: 'Хоёр шоог зэрэг орхиход ' + txt + ' магадлал хэд вэ?', mc: makeMC(C(fr(c, 36)), DP(c, 36, [[c, 12], [1, 11], [c, 6], [c + 1, 36], [c - 1, 36], [36 - c, 36]])) };
+  },
+  // 9. Урвуу бодлого: магадлалаас бөмбөгний тоог олох (4.2)
+  function () {
+    var N = pick([20, 24, 30, 36, 40, 45, 48, 50, 60]), q = pick([3, 4, 5, 6, 8, 10]), p = rnd(1, q - 1);
+    if (N % q || gcd(p, q) !== 1) return null;
+    var r = N * p / q, col = pick(['улаан', 'хөх', 'ногоон', 'шар']);
+    return { stem: 'Уутанд $' + N + '$ бөмбөг бий. Таамгаар авсан бөмбөг ' + col + ' байх магадлал $\\dfrac{' + p + '}{' + q + '}$ бол ' + col + ' бөмбөг хэд вэ?',
+      mc: makeMC(C(r), DN(r, [N - r, N / q, N * q / p, p * q, r + p, N - p])) };
+  },
+  // 10. Гурав, дөрвөн зоос орхих — бүх боломжийг тоолох (4.2)
+  function () {
+    var n = rnd(3, 4), t = rnd(0, 3), tot = Math.pow(2, n), c = 0, m, k, b;
+    for (m = 0; m < tot; m++) { k = 0; for (b = 0; b < n; b++) if ((m >> b) & 1) k++; if (t === 0 ? k === n : t === 1 ? k >= 1 : t === 2 ? k === 1 : k === 2) c++; }
+    var txt = ['бүгд сүлдээрээ буух', 'ядаж нэг нь сүлдээрээ буух', 'яг нэг нь сүлдээрээ буух', 'яг хоёр нь сүлдээрээ буух'][t];
+    return { stem: (n === 3 ? 'Гурван' : 'Дөрвөн') + ' зоосыг зэрэг орхиход ' + txt + ' магадлал хэд вэ?',
+      mc: makeMC(C(fr(c, tot)), DP(c, tot, [[1, n + 1], [tot - c, tot], [c + 1, tot], [c - 1, tot], [c, 2 * n], [1, tot]])) };
+  }
+];
+
+/* ── II. Задгай (5): 11–12 суурь (2 оноо), 13–15 олон алхамтай (3 оноо) ── */
+var FREE = [
+  // 11. Тэг орсон цифрүүдээр гурван оронтой тоо зохиох (4.1)
+  function () {
+    var ds = pick(ZSETS), d = ds.length, rep = rnd(0, 1), ar = rep ? [d - 1, d, d] : [d - 1, d - 1, d - 2];
+    return { stem: '$' + ds.join(',\\ ') + '$ цифрүүдээр цифр нь ' + (rep ? 'давтагдаж болох' : 'давтагдахгүй') + ' гурван оронтой хэдэн тоо зохиож болох вэ?',
+      a: '$' + ar.join('\\cdot ') + '=' + prod(ar) + '$ тоо (эхний орон $0$ байж болохгүй)' };
+  },
+  // 12. Үгийн үсэг бичсэн картаас сонгох магадлал (4.2)
+  function () {
+    var w = pick(WORDS), t = rnd(0, 2), L = w.charAt(rnd(0, w.length - 1)), c = 0, i, ch;
+    for (i = 0; i < w.length; i++) { ch = w.charAt(i); if (t === 0 ? ch === L : t === 1 ? VOW.indexOf(ch) >= 0 : VOW.indexOf(ch) < 0) c++; }
+    var txt = t === 0 ? '«' + L + '» үсэг' : t === 1 ? 'эгшиг үсэг' : 'гийгүүлэгч үсэг';
+    return { stem: '«' + w + '» үгийн үсэг бүрийг тус тусад нь карт дээр бичжээ. Таамгаар нэг карт авахад ' + txt + ' гарах магадлалыг ол.', a: '$' + pAns(c, w.length) + '$' };
+  },
+  // 13. Нийлбэр ба үржвэрийн зарчим хослуулах (4.1)
+  function () {
+    var t = rnd(0, 2);
+    if (t === 0) {
+      var b = rnd(8, 16), g = rnd(8, 16); if (b === g) return null;
+      return { stem: 'Ангид $' + b + '$ хөвгүүн, $' + g + '$ охин бий. а) Нэг сурагчийг хэдэн янзаар сонгох вэ? б) Нэг хөвгүүн, нэг охиныг хэдэн янзаар сонгох вэ?',
+        a: 'а) $' + b + '+' + g + '=' + (b + g) + '$; б) $' + b + '\\cdot ' + g + '=' + (b * g) + '$' };
+    }
+    if (t === 1) {
+      var m = rnd(2, 5), n = rnd(2, 5), p = rnd(2, 5), q = rnd(2, 5);
+      return { stem: '$A\\to C$ чиглэлд $' + m + '$, $C\\to B$ чиглэлд $' + n + '$, $A\\to D$ чиглэлд $' + p + '$, $D\\to B$ чиглэлд $' + q + '$ зам бий. $A$ хотоос $B$ хот хүрэх хэдэн зам бий?',
+        a: '$' + m + '\\cdot ' + n + '+' + p + '\\cdot ' + q + '=' + (m * n) + '+' + (p * q) + '=' + (m * n + p * q) + '$ зам' };
+    }
+    var a = rnd(2, 6), b2 = rnd(2, 6), c = rnd(2, 6); if (a === b2 && b2 === c) return null;
+    return { stem: 'Дэлгүүрт $' + a + '$ төрлийн аяга, $' + b2 + '$ төрлийн таваг, $' + c + '$ төрлийн халбага зарна. Өөр төрлийн хоёр зүйлийг хэдэн янзаар сонгож авах вэ?',
+      a: '$' + a + '\\cdot ' + b2 + '+' + a + '\\cdot ' + c + '+' + b2 + '\\cdot ' + c + '=' + (a * b2 + a * c + b2 * c) + '$ янзаар' };
+  },
+  // 14. Хоёр шоо орхих — бүх 36 боломжоос тоолох (4.3 сонгон, хөнгөн)
+  function () {
+    var s = rnd(3, 11), u = rnd(0, 3), t = rnd(5, 9), c1 = 0, c2 = 0, x, y;
+    for (x = 1; x <= 6; x++) for (y = 1; y <= 6; y++) {
+      if (x + y === s) c1++;
+      if (u === 0 ? x === y : u === 1 ? (x + y) % 2 === 0 : u === 2 ? (x * y) % 2 === 0 : x + y > t) c2++;
+    }
+    var txt = ['хоёулаа ижил тоо буух', 'нийлбэр нь тэгш байх', 'үржвэр нь тэгш байх', 'нийлбэр нь $' + t + '$ тооноос их байх'][u];
+    return { stem: 'Хоёр шоог зэрэг орхив. а) Буусан тоонуудын нийлбэр $' + s + '$ байх; б) ' + txt + ' магадлалыг ол.',
+      a: 'а) $' + pAns(c1, 36) + '$; б) $' + pAns(c2, 36) + '$' };
+  },
+  // 15. Урвуу ба олон алхамт магадлал: бөмбөг нэмэх, ахлагч-орлогч сонгох (4.3 сонгон, хөнгөн)
+  function () {
+    if (rnd(0, 1)) {
+      var a = rnd(2, 8), b = rnd(3, 10), x = rnd(1, 8), num = a + x, den = a + b + x, g = gcd(num, den);
+      if (den / g > 9 || den / g === 1) return null;
+      return { stem: 'Хайрцагт $' + a + '$ улаан, $' + b + '$ хөх бөмбөг байв. Хэдэн улаан бөмбөг нэмбэл таамгаар авсан бөмбөг улаан байх магадлал $' + fr(num, den) + '$ болох вэ?',
+        a: '$\\dfrac{' + a + '+x}{' + (a + b) + '+x}=' + fr(num, den) + '$, $x=' + x + '$ бөмбөг' };
+    }
+    var n = rnd(8, 15), k = rnd(3, n - 3);
+    return { stem: 'Ангийн $' + n + '$ сурагчийн $' + k + '$ нь охин. Ахлагч, орлогч хоёрыг санамсаргүйгээр сонгоход хоёулаа охин байх магадлалыг ол.',
+      a: 'Нийт $' + n + '\\cdot ' + (n - 1) + '=' + (n * (n - 1)) + '$, таатай $' + k + '\\cdot ' + (k - 1) + '=' + (k * (k - 1)) + '$; $' + pAns(k * (k - 1), n * (n - 1)) + '$' };
+  }
+];
+
+CMX.exam({
+  title: 'IV бүлэг — Шалгалтын материал',
+  sub: 'Үржвэр ба нийлбэрийн зарчим · цифрүүдээр тоо зохиох · үзэгдлийн магадлал',
+  grade: '6-р анги',
+  topic: 'Статистик',
+  tests: TESTS,
+  free: FREE
+});
+</script>
+<script src="/eyesh-link.js?v=3"></script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>IV бүлэг — Шалгалтын материал (8-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/cmx.js?v=1"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* 8-р анги · IV бүлэг. Илэрхийлэл, тэгшитгэл, тэнцэтгэл биш (4.1 Нэг ба олон гишүүнт · 4.2 Квадратуудын ялгавар, нийлбэр ба ялгаврын квадрат ·
+   4.3 Үржигдэхүүн болгон задлах · 4.4 Алгебрын бутархай · 4.5 Рационал тэгшитгэл · 4.6 Хоёр хувьсагчтай шугаман тэгшитгэлийн систем · 4.7 Шугаман тэнцэтгэл биш) */
+function pw(v, e) { return e === 0 ? '' : e === 1 ? v : v + '^{' + e + '}'; }
+function mono(c, v) { if (!v) return String(c); return c === 1 ? v : c === -1 ? '-' + v : c + v; }
+function poly(ts) { var s = ''; ts.forEach(function (t) { if (!t[0]) return; s += (t[0] < 0 ? '-' : s ? '+' : '') + mono(Math.abs(t[0]), t[1]); }); return s || '0'; }
+function lin(a, b, v) { return poly([[a, v || 'x'], [b, '']]); }
+function br(t) { return t.charAt(0) === '-' ? '(' + t + ')' : t; }
+function eqn(a, b, c) { if (a < 0) { a = -a; b = -b; c = -c; } return poly([[a, 'x'], [b, 'y']]) + '=' + c; }
+function sys(e1, e2) { return '\\begin{cases}' + e1 + '\\\\ ' + e2 + '\\end{cases}'; }
+var FLIP = { '\\lt': '\\gt', '\\gt': '\\lt', '\\le': '\\ge', '\\ge': '\\le' }, STR = { '\\lt': '\\le', '\\le': '\\lt', '\\gt': '\\ge', '\\ge': '\\gt' };
+// тоон завсар ]a; b[ — хаалтыг \mathopen/\mathclose-оор (хасах тэмдэг зөв зайтай)
+var OB = { '[': '\\mathopen{[}', ']': '\\mathopen{]}' }, CB = { '[': '\\mathclose{[}', ']': '\\mathclose{]}' };
+function iv(l, a, b, r) { return OB[l] + a + ';\\ ' + b + CB[r]; }
+function ray(rel, B) { return rel === '\\lt' ? iv(']', '-\\infty', B, '[') : rel === '\\le' ? iv(']', '-\\infty', B, ']') : rel === '\\gt' ? iv(']', B, '+\\infty', '[') : iv('[', B, '+\\infty', '['); }
+function sfrac(n, d) { return (n < 0 ? '-' : '') + '\\dfrac{' + Math.abs(n) + '}{' + d + '}'; }   // тэмдэг урдаа
+function tryN(f) { for (var i = 0; i < 60; i++) { var r = f(); if (r) return r; } return null; }
+var VV = [['a', 'b'], ['x', 'y'], ['m', 'n']];
+
+/* ── I. Тест (10) ── */
+var TESTS = [
+  // 1. нэг гишүүнтийн зэрэг ба үржвэрийг стандарт хэлбэрт бичих (4.1)
+  function () {
+    var V = pick(VV), u = V[0], w = V[1], c = pick([-3, -2, 2, 3]), e = rnd(2, 4), f = rnd(1, 3), d = nz(-5, 5), g = rnd(1, 3), h = rnd(1, 3);
+    if (Math.abs(d) === 1) return null;
+    var M = function (k, x, y) { return mono(k, pw(u, x) + pw(w, y)); }, K = c * c * d, X = 2 * e + g, Y = 2 * f + h;
+    return { stem: '$(' + M(c, e, f) + ')^{2}\\cdot ' + br(M(d, g, h)) + '$ илэрхийллийн стандарт хэлбэр аль нь вэ?',
+      mc: makeMC(C(M(K, X, Y)), [C(M(-K, X, Y)), C(M(c * d, X, Y)), C(M(K, e + 2 + g, f + 2 + h)), C(M(2 * c * d, X, Y)), C(M(K, 2 * e * g, Y))]) };
+  },
+  // 2. олон гишүүнтүүдийн ялгавар — хасах тэмдгийг бүх гишүүнд хэрэглэх (4.1)
+  function () {
+    var u = pick(['x', 'a', 'm', 'y']), A = [rnd(2, 7), nz(-9, 9), nz(-9, 9)], B = [rnd(1, 6), nz(-9, 9), nz(-9, 9)];
+    if (A[0] === B[0]) return null;
+    var P = function (z) { return poly([[z[0], pw(u, 2)], [z[1], u], [z[2], '']]); };
+    return { stem: '$(' + P(A) + ')-(' + P(B) + ')$ ялгаврыг стандарт хэлбэрт бичвэл аль нь вэ?',
+      mc: makeMC(C(P([A[0] - B[0], A[1] - B[1], A[2] - B[2]])), [C(P([A[0] - B[0], A[1] + B[1], A[2] + B[2]])), C(P([A[0] + B[0], A[1] + B[1], A[2] + B[2]])), C(P([A[0] - B[0], A[1] - B[1], A[2] + B[2]])), C(P([A[0] - B[0], A[1] + B[1], A[2] - B[2]]))]) };
+  },
+  // 3. хоёр гишүүнтийн квадрат (4.2)
+  function () {
+    var u = pick(['x', 'a', 'm', 'y', 'b']), p = rnd(2, 5), q = nz(-9, 9);
+    var R = function (a2, a1, a0) { return poly([[a2, pw(u, 2)], [a1, u], [a0, '']]); };
+    return { stem: '$(' + lin(p, q, u) + ')^{2}$ илэрхийллийн хаалтыг нээвэл аль нь вэ?',
+      mc: makeMC(C(R(p * p, 2 * p * q, q * q)), [C(R(p * p, 0, q * q)), C(R(p * p, p * q, q * q)), C(R(p * p, -2 * p * q, q * q)), C(R(p, 2 * p * q, q * q)), C(R(p * p, 2 * p * q, -q * q))]) };
+  },
+  // 4. бүтэн квадрат болгох тогтмол гишүүн (4.2)
+  function () {
+    var u = pick(['x', 'a', 'y']), p = rnd(2, 5), q = rnd(1, 7), s = pick([1, -1]); if (gcd(p, q) !== 1) return null;
+    return { stem: '$' + poly([[p * p, pw(u, 2)], [2 * p * q * s, u]]) + '+k$ илэрхийлэл бүтэн квадрат байхын тулд $k$ хэд байх вэ?',
+      mc: makeMC(C(q * q), [C(p * p * q * q), C(2 * p * q), C(4 * q * q), C(2 * q), C(q), C(p * p)]) };
+  },
+  // 5. x² + bx + c гурван гишүүнтийг задлах (4.3)
+  function () {
+    var u = pick(['x', 'a', 'y', 'm']), r = nz(-9, 9), s = nz(-9, 9); if (r === s || r === -s) return null;
+    var F = function (a, b) { return '(' + lin(1, Math.min(a, b), u) + ')(' + lin(1, Math.max(a, b), u) + ')'; };
+    var alt = [], P = r * s;
+    for (var d = 1; d <= Math.abs(P); d++) if (P % d === 0) [[d, P / d], [-d, -P / d]].forEach(function (pr) { if (pr[0] + pr[1] !== r + s) alt.push(F(pr[0], pr[1])); });
+    return { stem: '$' + poly([[1, pw(u, 2)], [r + s, u], [P, '']]) + '$ олон гишүүнтийг үржигдэхүүн болгон задалбал аль нь вэ?',
+      mc: makeMC(C(F(r, s)), [C(F(-r, -s)), C(F(r, -s)), C(F(-r, s))].concat(shuffle(alt).slice(0, 2).map(C))) };
+  },
+  // 6. алгебрын бутархайг хураах (4.3–4.4)
+  function () {
+    var u = pick(['x', 'a', 'y', 'm']), q = rnd(2, 9), s = pick([1, -1]);
+    var N = poly([[1, pw(u, 2)], [-q * q, '']]), D = poly([[1, pw(u, 2)], [s * q, u]]);
+    return { stem: '$\\dfrac{' + N + '}{' + D + '}$ бутархайг хураавал аль нь вэ?',
+      mc: makeMC(C('\\dfrac{' + lin(1, -s * q, u) + '}{' + u + '}'), [C((s > 0 ? '-' : '') + '\\dfrac{' + q + '}{' + u + '}'), C('\\dfrac{' + lin(1, s * q, u) + '}{' + u + '}'), C('\\dfrac{' + lin(1, -s * q, u) + '}{' + lin(1, s * q, u) + '}'), C('\\dfrac{' + lin(1, -s * q, u) + '}{' + q + '}'), C(-q)]) };
+  },
+  // 7. алгебрын бутархайг нэмэх, хасах (4.4)
+  function () {
+    var u = pick(['x', 'a', 'y']);
+    if (rnd(0, 1)) {                   // эсрэг хуваарь: a/(u − k) + b/(k − u) = (a − b)/(u − k)
+      var k = rnd(1, 9), a = rnd(2, 12), b = rnd(1, 12); if (a === b) return null;
+      var D = lin(1, -k, u), Dn = poly([[k, ''], [-1, u]]);
+      return { stem: '$\\dfrac{' + a + '}{' + D + '}+\\dfrac{' + b + '}{' + Dn + '}$ нийлбэрийг хялбарчилбал аль нь вэ?',
+        mc: makeMC(C(sfrac(a - b, D)), [C(sfrac(a + b, D)), C(sfrac(a - b, Dn)), C(sfrac(a + b, Dn))]) };
+    }
+    var k2 = rnd(1, 9), DD = u + '(' + lin(1, k2, u) + ')';   // 1/u − 1/(u + k) = k/(u(u + k))
+    return { stem: '$\\dfrac{1}{' + u + '}-\\dfrac{1}{' + lin(1, k2, u) + '}$ ялгаврыг хялбарчилбал аль нь вэ?',
+      mc: makeMC(C('\\dfrac{' + k2 + '}{' + DD + '}'), [C('-\\dfrac{' + k2 + '}{' + DD + '}'), C('-\\dfrac{1}{' + k2 + '}'), C('\\dfrac{' + lin(2, k2, u) + '}{' + DD + '}'), C(0)]) };
+  },
+  // 8. рационал тэгшитгэл — хөндлөн үржүүлэх; хуваарийг тэг болгох утга шийд биш (4.5)
+  function () {
+    return tryN(function () {
+      var a = rnd(2, 9), b = rnd(2, 9), s = nz(-2, 2), x0 = nz(-9, 9); if (a === b || gcd(a, b) !== 1) return null;
+      var p = a * s - x0, q = b * s - x0; if (!p || !q || Math.abs(p) > 12 || Math.abs(q) > 12) return null;
+      var w = (b * q - a * p) / (a - b), ds = [];          // буруу хөндлөн үржүүлэлт: a(x + p) = b(x + q)
+      if (w === Math.round(w)) ds.push(w);
+      ds = ds.concat([-p, -x0, -q, x0 + 1, x0 - 1, x0 + 2]).filter(function (v) { return v !== x0; });
+      return { stem: '$\\dfrac{' + a + '}{' + lin(1, p) + '}=\\dfrac{' + b + '}{' + lin(1, q) + '}$ тэгшитгэлийн шийд аль нь вэ?', mc: makeMC(C(x0), ds.map(C)) };
+    });
+  },
+  // 9. хоёр хувьсагчтай шугаман тэгшитгэлийн систем (4.6)
+  function () {
+    var x0 = nz(-5, 5), y0 = nz(-5, 5), a1 = nz(-4, 4), b1 = nz(-4, 4), a2 = nz(-4, 4), b2 = nz(-4, 4);
+    if (a1 * b2 - a2 * b1 === 0 || x0 === y0 || Math.abs(a1) === Math.abs(a2) && Math.abs(b1) === Math.abs(b2)) return null;
+    var P = function (x, y) { return '(' + x + ';\\ ' + y + ')'; };
+    return { stem: '$' + sys(eqn(a1, b1, a1 * x0 + b1 * y0), eqn(a2, b2, a2 * x0 + b2 * y0)) + '$ системийн шийд аль нь вэ?',
+      mc: makeMC(C(P(x0, y0)), [C(P(x0 + b1, y0 - a1)), C(P(y0, x0)), C(P(-x0, y0)), C(P(x0, -y0)), C(P(-x0, -y0))]) };
+  },
+  // 10. шугаман тэнцэтгэл биш: x-ийн коэффициент сөрөг болж тэмдэг эргэнэ (4.7)
+  function () {
+    var A = -rnd(2, 6), c = rnd(1, 5), a = c + A, b = nz(-12, 12), B = nz(-8, 8), rel = pick(['\\lt', '\\le', '\\gt', '\\ge']);
+    if (!a) return null;
+    var d = A * B + b, out = FLIP[rel];
+    return { stem: '$' + lin(a, b) + rel + ' ' + lin(c, d) + '$ тэнцэтгэл бишийн шийд аль нь вэ?',
+      mc: makeMC(C('x\\in ' + ray(out, B)), [C('x\\in ' + ray(rel, B)), C('x\\in ' + ray(out, -B)), C('x\\in ' + ray(STR[out], B)), C('x\\in ' + ray(rel, -B))]) };
+  }
+];
+
+/* ── II. Задгай (5) ── */
+var FREE = [
+  // 11. товчилсон үржихийн томьёогоор хялбарчлаад утгыг олох (4.1–4.2) — 2 оноо
+  function () {
+    var a = nz(-6, 6), b = rnd(1, 6), x = nz(-4, 4);
+    return { stem: 'Илэрхийллийг хялбарчлаад, $x=' + x + '$ үед утгыг ол: $(' + lin(1, a) + ')^{2}-(' + lin(1, -b) + ')(' + lin(1, b) + ')$.',
+      a: '$' + poly([[2 * a, 'x'], [a * a + b * b, '']]) + '$; утга нь $' + (2 * a * x + a * a + b * b) + '$' };
+  },
+  // 12. үржигдэхүүн болгон бүрэн задлах: ерөнхий үржигдэхүүн + томьёо, бүлэглэх (4.3) — 2 оноо
+  function () {
+    var t = rnd(1, 3), q = rnd(2, 6), k = rnd(2, 5);
+    if (t === 1) return { stem: 'Үржигдэхүүн болгон бүрэн задал: $' + poly([[k, 'x^{3}'], [-k * q * q, 'x']]) + '$.', a: k + 'x(x-' + q + ')(x+' + q + ')' };
+    if (t === 2) { var s = pick([1, -1]); return { stem: 'Үржигдэхүүн болгон бүрэн задал: $' + poly([[k, 'x^{2}'], [2 * k * q * s, 'x'], [k * q * q, '']]) + '$.', a: k + '(' + lin(1, s * q) + ')^{2}' }; }
+    var p = nz(-7, 7); if (p === q || p === -q) return null;
+    return { stem: 'Үржигдэхүүн болгон бүрэн задал: $' + poly([[1, 'x^{3}'], [p, 'x^{2}'], [-q * q, 'x'], [-p * q * q, '']]) + '$.', a: '(' + lin(1, p) + ')(x-' + q + ')(x+' + q + ')' };
+  },
+  // 13. нийтлэг хуваарьтай рационал тэгшитгэл; тодорхойлогдох муж (4.4–4.5) — 3 оноо
+  function () {
+    return tryN(function () {
+      var x0 = nz(-9, 9);
+      if (rnd(0, 1)) {                 // x/(x − A) − C/(x² − A²) = 1  →  Ax = C − A²
+        var A = rnd(1, 6), C4 = A * x0 + A * A; if (x0 === A || x0 === -A || C4 <= 0) return null;
+        return { stem: 'Тэгшитгэлийг бод: $\\dfrac{x}{' + lin(1, -A) + '}-\\dfrac{' + C4 + '}{' + poly([[1, 'x^{2}'], [-A * A, '']]) + '}=1$.', a: '$x=' + x0 + '$ ($x\\ne \\pm ' + A + '$)' };
+      }
+      var a = rnd(1, 6), b = rnd(1, 6), p = rnd(1, 6), c = (a + b) * x0 + (a - b) * p;     // a/(x − p) + b/(x + p) = c/(x² − p²)
+      if (!c || x0 === p || x0 === -p || Math.abs(c) > 60) return null;
+      return { stem: 'Тэгшитгэлийг бод: $\\dfrac{' + a + '}{' + lin(1, -p) + '}+\\dfrac{' + b + '}{' + lin(1, p) + '}=' + sfrac(c, poly([[1, 'x^{2}'], [-p * p, '']])) + '$.', a: '$x=' + x0 + '$ ($x\\ne \\pm ' + p + '$)' };
+    });
+  },
+  // 14. систем зохиож бодох өгүүлбэртэй бодлого (4.6) — 3 оноо
+  function () {
+    var t = rnd(1, 3);
+    if (t === 1) {
+      var A = 1000 * rnd(5, 10), Bk = 1000 * rnd(2, 4), x = rnd(3, 12), y = rnd(3, 12);
+      return { stem: 'Концертын тасалбар том хүнд $' + th(A) + '$ төгрөг, хүүхдэд $' + th(Bk) + '$ төгрөг. $' + (x + y) + '$ хүн нийт $' + th(A * x + Bk * y) + '$ төгрөг төлжээ. Хэдэн том хүн, хэдэн хүүхэд байсан бэ?', a: 'том хүн $' + x + '$, хүүхэд $' + y + '$' };
+    }
+    if (t === 2) {
+      var ch = rnd(6, 25), rb = rnd(4, 20);
+      return { stem: 'Фермд тахиа, туулай нийт $' + (ch + rb) + '$ толгой, $' + (2 * ch + 4 * rb) + '$ хөлтэй байв. Тахиа, туулай тус бүр хэдэн байсан бэ?', a: 'тахиа $' + ch + '$, туулай $' + rb + '$' };
+    }
+    return tryN(function () {
+      var p1 = 100 * rnd(5, 15), p2 = 100 * rnd(2, 9), a1 = rnd(1, 5), b1 = rnd(1, 5), a2 = rnd(1, 5), b2 = rnd(1, 5);
+      if (p1 === p2 || a1 * b2 === a2 * b1) return null;
+      return { stem: '$' + a1 + '$ дэвтэр, $' + b1 + '$ үзгийг нийт $' + th(a1 * p1 + b1 * p2) + '$ төгрөгөөр, $' + a2 + '$ дэвтэр, $' + b2 + '$ үзгийг $' + th(a2 * p1 + b2 * p2) + '$ төгрөгөөр авчээ. Нэг дэвтэр, нэг үзэг тус бүр ямар үнэтэй вэ?', a: 'дэвтэр $' + p1 + '$, үзэг $' + p2 + '$ төгрөг' };
+    });
+  },
+  // 15. тэнцэтгэл биш зохиож бодох өгүүлбэртэй бодлого (4.7) — 3 оноо
+  function () {
+    return tryN(function () {
+      var t = rnd(1, 3);
+      if (t === 1) {
+        var L = 50 * rnd(8, 16), p = rnd(55, 90), m = rnd(12, 30), r = L - p; if (r % m === 0) return null;
+        return { stem: '$' + p + '$ кг жинтэй хүн нэг бүр нь $' + m + '$ кг жинтэй хайрцгуудыг лифтээр зөөнө. Лифтийн даац $' + L + '$ кг бол хүнтэйгээ хамт нэг удаад хамгийн ихдээ хэдэн хайрцаг ачиж болох вэ?', a: '$' + m + 'n+' + p + '\\le ' + L + '$; хамгийн ихдээ $' + Math.floor(r / m) + '$ хайрцаг' };
+      }
+      if (t === 2) {
+        var s = [rnd(60, 98), rnd(60, 98), rnd(60, 98)], mm = rnd(75, 90), need = 4 * mm - s[0] - s[1] - s[2]; if (need < 50 || need > 100) return null;
+        return { stem: 'Сурагч гурван шалгалтад $' + s[0] + '$, $' + s[1] + '$, $' + s[2] + '$ оноо авчээ. Дөрвөн шалгалтын дундаж оноо $' + mm + '$ онооноос багагүй байхын тулд дөрөв дэх шалгалтад хамгийн багадаа хэдэн оноо авах ёстой вэ?', a: '$\\dfrac{' + (s[0] + s[1] + s[2]) + '+x}{4}\\ge ' + mm + '$; хамгийн багадаа $' + need + '$ оноо' };
+      }
+      var d = rnd(2, 9), P = 2 * rnd(15, 40), bnd = (P - 2 * d) / 4;      // 2(x + x + d) ≤ P
+      if (bnd !== Math.floor(bnd)) return null;
+      return { stem: 'Тэгш өнцөгтийн урт нь өргөнөөсөө $' + d + '$ см-ээр урт, периметр нь $' + P + '$ см-ээс хэтрэхгүй. Өргөн нь хамгийн ихдээ хэдэн см байж болох вэ?', a: '$2(x+x+' + d + ')\\le ' + P + '$; $x\\le ' + bnd + '$, хамгийн ихдээ $' + bnd + '$ см' };
+    });
+  }
+];
+
+CMX.exam({
+  title: 'IV бүлэг — Шалгалтын материал',
+  sub: 'Олон гишүүнт · товчилсон үржих · задлах · алгебрын бутархай · рационал тэгшитгэл · систем · тэнцэтгэл биш',
+  grade: '8-р анги',
+  topic: 'Алгебр',
+  tests: TESTS,
+  free: FREE
+});
+</script>
+<script src="/eyesh-link.js?v=3"></script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

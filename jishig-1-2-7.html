@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>I бүлэг — Жишиг даалгавар 2 (7-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/cmx.js?v=1"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* 7-р анги · I бүлэг. Бүхэл тоон олонлог, зэрэг, язгуур — Жишиг даалгавар 2
+   (1.4 Куб зэрэг ба куб язгуур · 1.5 Анхны тоон үржигдэхүүнд задлах · 1.6 ХИЕХ ба ХБЕХ) */
+var BAGS = {};
+function rot(key, fns) {
+  var b = BAGS[key];
+  if (!b || !b.length) b = BAGS[key] = shuffle(fns.map(function (_, i) { return i; }));
+  var f = fns[b.pop()];
+  for (var i = 0; i < 80; i++) { var r = f(); if (r) return r; }
+  return null;
+}
+function cop(a, b) { return a !== b && gcd(a, b) === 1; }
+// анхны тоон задаргаа [[p, e], …] ба түүний TeX
+function pfe(n) { var out = [], p = 2; while (p * p <= n) { var e = 0; while (n % p === 0) { n /= p; e++; } if (e) out.push([p, e]); p++; } if (n > 1) out.push([n, 1]); return out; }
+function pfT(f) { return f.map(function (x) { return x[1] === 1 ? '' + x[0] : x[0] + '^{' + x[1] + '}'; }).join('\\cdot '); }
+
+// 1. Куб зэрэг ба куб язгуурын утга (1.4)
+function g1() {
+  return rot('g1', [
+    function () { var a = rnd(2, 9); return { stem: '$(' + (-a) + ')^{3}$', a: String(-a * a * a) }; },
+    function () { var b = rnd(2, 10), s = pick([-1, 1]); return { stem: '$\\sqrt[3]{' + (s * b * b * b) + '}$', a: String(s * b) }; },
+    function () { var a = rnd(2, 9), c = rnd(2, 8); if (c === a) return null; return { stem: '$\\sqrt[3]{' + (a * a * a) + '}+\\sqrt[3]{' + (-c * c * c) + '}$', a: String(a - c) }; },
+    function () { var k = rnd(2, 5), x = nz(-5, 5); if (Math.abs(x) < 2) return null; return { stem: '$' + k + '\\cdot ' + par(x) + '^{3}$', a: String(k * x * x * x) }; },
+    function () { var a = rnd(2, 9), d = rnd(2, 6); return { stem: '$\\sqrt[3]{' + (-a * a * a) + '}\\cdot\\sqrt[3]{' + (d * d * d) + '}$', a: String(-a * d) }; },
+    function () { var x = nz(-5, 5), y = nz(-9, 9); if (Math.abs(x) < 2 || Math.abs(y) < 2) return null; return { stem: '$' + par(x) + '^{3}-' + par(y) + '^{2}$', a: String(x * x * x - y * y) }; }
+  ]);
+}
+// 2. Анхны тоон үржигдэхүүнд задалж ХИЕХ, ХБЕХ олох — хоёр, гурван тоо (1.5–1.6)
+function g2() {
+  return rot('g2', [
+    function () { var a = rnd(12, 240), b = rnd(12, 240); if (a >= b) return null;
+      var fa = pfe(a), fb = pfe(b), g = gcd(a, b);
+      if (g < 3 || fa.length + fb.length < 4 || fa[fa.length - 1][0] > 13 || fb[fb.length - 1][0] > 13) return null;
+      return { stem: '$' + a + '$ ба $' + b + '$', a: a + '=' + pfT(fa) + ',\\ ' + b + '=' + pfT(fb) + ';\\ \\text{ХИЕХ}=' + g + ',\\ \\text{ХБЕХ}=' + lcm(a, b) }; },
+    function () { var a = rnd(12, 240), b = rnd(12, 240); if (a >= b) return null;
+      var fa = pfe(a), fb = pfe(b), g = gcd(a, b);
+      if (g < 3 || fa.length + fb.length < 4 || fa[fa.length - 1][0] > 13 || fb[fb.length - 1][0] > 13) return null;
+      return { stem: '$' + a + '$ ба $' + b + '$', a: a + '=' + pfT(fa) + ',\\ ' + b + '=' + pfT(fb) + ';\\ \\text{ХИЕХ}=' + g + ',\\ \\text{ХБЕХ}=' + lcm(a, b) }; },
+    function () { var x = rnd(6, 90), y = rnd(6, 90), z = rnd(6, 90); if (x >= y || y >= z) return null;
+      var G = gcd(gcd(x, y), z), L = lcm(lcm(x, y), z); if (G < 2 || L > 2000) return null;
+      return { stem: '$' + x + '$, $' + y + '$ ба $' + z + '$', a: '\\text{ХИЕХ}=' + G + ',\\ \\text{ХБЕХ}=' + L }; }
+  ]);
+}
+// 4. Хэрэглээний бодлого: куб, ХИЕХ, ХБЕХ, хуваагчийн тоо, ХИЕХ·ХБЕХ = a·b, кубт хүргэх (1.4–1.6)
+function g4() {
+  return rot('g4', [
+    function () { var e = rnd(3, 12), V = e * e * e;                                                        // эзлэхүүнээс ирмэг
+      return { stem: 'Кубын эзлэхүүн $' + V + '$ см$^3$ бол ирмэгийн урт ба нэг талсын талбайг ол.', a: '$a=\\sqrt[3]{' + V + '}=' + e + '$ см; $S=' + (e * e) + '$ см$^2$' }; },
+    function () { var G = rnd(3, 12), m = rnd(2, 7), n = rnd(2, 7); if (!cop(m, n) || G * Math.max(m, n) > 72) return null;   // ХИЕХ — баглаа
+      return { stem: '$' + (G * m) + '$ улаан, $' + (G * n) + '$ цагаан сарнайгаар ижил бүрэлдэхүүнтэй хамгийн олон баглаа хийв. Хэдэн баглаа болох вэ? Баглаа бүрт хэдэн улаан, хэдэн цагаан сарнай орох вэ?',
+        a: '$' + G + '$ баглаа; баглаанд $' + m + '$ улаан, $' + n + '$ цагаан' }; },
+    function () { var p = pick([12, 15, 18, 20, 24, 30, 36, 40, 45, 48, 60]), q = pick([16, 18, 20, 24, 25, 30, 36, 40, 45, 50, 75, 90]);   // ХБЕХ — дохио
+      if (p >= q || q % p === 0 || gcd(p, q) < 3) return null;
+      return { stem: 'Хоёр гэрэлт дохио $' + p + '$ ба $' + q + '$ секунд тутамд анивчдаг. Зэрэг анивчсанаас хойш хамгийн багадаа хэдэн секундын дараа дахин зэрэг анивчих вэ?',
+        a: '$\\text{ХБЕХ}(' + p + ',' + q + ')=' + lcm(p, q) + '$ секунд' }; },
+    function () { var N = rnd(60, 999), f = pfe(N); if (f.length < 2 || f[f.length - 1][0] > 11) return null;      // хуваагчийн тоо
+      var k = f.reduce(function (s, x) { return s * (x[1] + 1); }, 1); if (k < 8) return null;
+      return { stem: '$' + N + '$ тоо хэдэн натурал хуваагчтай вэ?',
+        a: '$' + N + '=' + pfT(f) + '$; $' + f.map(function (x) { return '(' + x[1] + '+1)'; }).join('') + '=' + k + '$' }; },
+    function () { var g = rnd(2, 15), u = rnd(2, 9), w = rnd(2, 9); if (!cop(u, w) || g * u * w > 600) return null;  // ХИЕХ·ХБЕХ = a·b
+      return { stem: 'Хоёр тооны ХИЕХ нь $' + g + '$, ХБЕХ нь $' + (g * u * w) + '$, нэг тоо нь $' + (g * u) + '$. Нөгөө тоог ол.',
+        a: '$\\dfrac{' + g + '\\cdot ' + (g * u * w) + '}{' + (g * u) + '}=' + (g * w) + '$' }; },
+    function () { var p1 = pick([2, 3, 5]), p2 = pick([3, 5, 7]); if (p1 >= p2) return null;                          // кубт хүргэх үржигдэхүүн
+      var e1 = rnd(1, 2), e2 = rnd(1, 2), n0 = Math.pow(p1, e1) * Math.pow(p2, e2), mul = Math.pow(p1, 3 - e1) * Math.pow(p2, 3 - e2);
+      return { stem: '$' + n0 + '$ тоог хамгийн багадаа ямар натурал тоогоор үржүүлбэл натурал тооны куб гарах вэ?',
+        a: '$' + mul + '$; $' + n0 + '\\cdot ' + mul + '=' + (n0 * mul) + '=' + (p1 * p2) + '^{3}$' }; }
+  ]);
+}
+
+CMX.jishig({
+  title: 'I бүлэг — Жишиг даалгавар 2',
+  sub: 'Куб зэрэг, куб язгуур · анхны тоон үржигдэхүүнд задлах · ХИЕХ ба ХБЕХ',
+  grade: '7-р анги',
+  rule: '$a^{3}=a\\cdot a\\cdot a$, $\\;\\sqrt[3]{-a}=-\\sqrt[3]{a}$ &nbsp;·&nbsp; ХИЕХ — нийтлэг анхны үржигдэхүүнийг бага илтгэгчээр, ХБЕХ — бүх анхны үржигдэхүүнийг их илтгэгчээр нь авч үржүүлнэ &nbsp;·&nbsp; $\\text{ХИЕХ}(a,b)\\cdot\\text{ХБЕХ}(a,b)=a\\cdot b$',
+  tasks: [
+    { label: 'Илэрхийллийн утгыг ол.', gen: g1, n: 12, nw: 4, cols: 4, wk: 10 },
+    { label: 'Анхны тоон үржигдэхүүнд задалж, ХИЕХ ба ХБЕХ-ийг ол.', gen: g2, n: 12, nw: 3, cols: 3, wk: 18 },
+    { label: 'Бодлогыг бод.', gen: g4, n: 8, nw: 2, cols: 2, wk: 22 }
+  ]
+});
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

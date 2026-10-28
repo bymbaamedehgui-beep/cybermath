@@ -1955,6 +1955,37 @@ module.exports = async (req, res) => {
         }
         await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ('place_g7_v2','1') ON CONFLICT (skey) DO UPDATE SET sval='1'`);
       }
+      // ── Нэг удаагийн (багц бүр өөрийн түлхүүртэй): 6–8-р ангийн бүлэгт «<ROMAN> бүлэг — Жишиг ба шалгалт» дэд бүлэг (тухайн бүлгийн
+      //    парент дотор) + 3 хуудас (жишиг 1, 2, шалгалтын материал — cmx.js, хариултын хуудастай). Нэр нь 9–11-р ангийнхтай ижил тул
+      //    ангиар (grade+name) хайна. Шинэ бүлгүүдийг дараагийн түлхүүртэй багцаар нэмнэ ([анги, бүлгийн дугаар]).
+      const G678 = [
+        ['place_g678exam_v1', [[6, 1], [6, 2], [6, 3], [6, 4], [7, 1], [7, 4], [7, 5], [8, 1], [8, 4]]],
+      ];
+      for (const [skey, chapters] of G678) {
+        const cfx = await pool.query(`SELECT sval FROM ws_settings WHERE skey=$1`, [skey]);
+        if (cfx.rows.length) continue;
+        const ROM = ['I', 'II', 'III', 'IV', 'V', 'VI'];
+        for (const [g, r] of chapters) {
+          const grade = g + '-р анги';
+          {
+            const par = await pool.query(`SELECT id FROM ws_subgroups WHERE grade=$1 AND name LIKE $2 AND parent_id IS NULL ORDER BY id LIMIT 1`, [grade, ROM[r - 1] + ' БҮЛЭГ%']);
+            if (!par.rows.length) continue;   // бүлгийг устгасан/нэр сольсон бол хүндэтгэнэ
+            const name = ROM[r - 1] + ' бүлэг — Жишиг ба шалгалт';
+            const ex = await pool.query(`SELECT id FROM ws_subgroups WHERE grade=$1 AND name=$2`, [grade, name]);
+            let sid;
+            if (ex.rows.length) sid = Number(ex.rows[0].id);
+            else {
+              const mx = await pool.query(`SELECT COALESCE(MAX(pos),0)+1 AS p FROM ws_subgroups WHERE grade=$1`, [grade]);
+              const ins = await pool.query(`INSERT INTO ws_subgroups (grade, name, pos, parent_id) VALUES ($1,$2,$3,$4) RETURNING id`, [grade, name, mx.rows[0].p, Number(par.rows[0].id)]);
+              sid = Number(ins.rows[0].id);
+            }
+            for (const slug of ['jishig-' + r + '-1-' + g + '.html', 'jishig-' + r + '-2-' + g + '.html', 'shalgalt-material-' + r + '-' + g + '.html']) {
+              await pool.query(`INSERT INTO ws_place (grp, slug, kind) VALUES ($1,$2,'add') ON CONFLICT DO NOTHING`, ['sg:' + sid, slug]);
+            }
+          }
+        }
+        await pool.query(`INSERT INTO ws_settings (skey, sval) VALUES ($1,'1') ON CONFLICT (skey) DO UPDATE SET sval='1'`, [skey]);
+      }
       // Slug тус бүрээр (name|||slug) хосоор мөрддөг: байгаа дэд бүлэгт шинэ slug орно, гэхдээ
       // бүхэл дэд бүлгийг устгасан/нэр сольсныг хүндэтгэж дахин үүсгэхгүй.
       for (const add of ADDITIONS) {

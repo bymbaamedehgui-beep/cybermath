@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>V бүлэг — Жишиг даалгавар 2 (7-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/cmx.js?v=1"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* 7-р анги · V бүлэг. Алгебрын илэрхийлэл, тэгшитгэл — Жишиг даалгавар 2
+   (5.4 Нэг гишүүнтээр үржүүлэх, ерөнхий үржигдэхүүн гаргах · 5.5 Шугаман тэгшитгэл бодох · 5.6 Тэгшитгэл зохиож бодлого бодох) */
+function vp(v, e) { return e === 0 ? '' : e === 1 ? v : v + '^{' + e + '}'; }
+function co(c, w) { if (w === '') return '' + c; if (c === 1) return w; if (c === -1) return '-' + w; return c + w; }
+function coS(c, w) { if (w === '') return (c > 0 ? '+' : '') + c; if (c === 1) return '+' + w; if (c === -1) return '-' + w; return (c > 0 ? '+' : '') + c + w; }
+function poly(ts) { var s = ''; ts.forEach(function (t) { if (t.c === 0) return; s += s === '' ? co(t.c, t.w) : coS(t.c, t.w); }); return s === '' ? '0' : s; }
+function lin(a, b, v) { return poly([{ c: a, w: v }, { c: b, w: '' }]); }
+function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+var PAIRS = [['x', 'y'], ['a', 'b'], ['m', 'n'], ['p', 'q']];
+
+// 1. Нэг гишүүнтээр олон гишүүнтийг гишүүнчлэн үржүүлэх (5.4): нэг ба хоёр хувьсагч
+function g1() {
+  if (rnd(0, 1)) {
+    var v = pick(['x', 'a', 'y', 'n']), k = nz(-6, 6), e = rnd(1, 3), es = shuffle([0, 1, 2, 3]).slice(0, rnd(2, 3)).sort(function (p, q) { return q - p; });
+    if (k === 1) return null;
+    var ts = es.map(function (x) { return { c: nz(-7, 7), e: x }; });
+    return { stem: '$' + co(k, vp(v, e)) + '(' + poly(ts.map(function (t) { return { c: t.c, w: vp(v, t.e) }; })) + ')$',
+      a: poly(ts.map(function (t) { return { c: k * t.c, w: vp(v, t.e + e) }; })) };
+  }
+  var P = pick(PAIRS), K = nz(-5, 5), ea = rnd(1, 2), eb = rnd(0, 2);
+  if (K === 1) return null;
+  var ch = shuffle([[2, 0], [1, 1], [0, 2], [1, 0], [0, 1]]).slice(0, 2).sort(function (p, q) { return (q[0] + q[1]) - (p[0] + p[1]) || q[0] - p[0]; });
+  var ts2 = ch.map(function (x) { return { c: nz(-6, 6), x: x[0], y: x[1] }; });
+  return { stem: '$' + co(K, vp(P[0], ea) + vp(P[1], eb)) + '(' + poly(ts2.map(function (t) { return { c: t.c, w: vp(P[0], t.x) + vp(P[1], t.y) }; })) + ')$',
+    a: poly(ts2.map(function (t) { return { c: K * t.c, w: vp(P[0], t.x + ea) + vp(P[1], t.y + eb) }; })) };
+}
+// 2. Ерөнхий үржигдэхүүнийг хаалтнаас гаргах (5.4): хоёр/гурван гишүүнт, нэг ба хоёр хувьсагч
+function g2() {
+  var t = rnd(1, 3), g = rnd(2, 9);
+  if (t === 1) {
+    var v = pick(['x', 'a', 'y', 'm']), i1 = rnd(1, 7), i2 = nz(-9, 9), e2 = rnd(0, 3), d = rnd(1, 2);
+    if (gcd(i1, i2) !== 1 || (i1 === 1 && Math.abs(i2) === 1 && e2 === 0)) return null;
+    return { stem: '$' + poly([{ c: g * i1, w: vp(v, e2 + d) }, { c: g * i2, w: vp(v, e2) }]) + '$',
+      a: co(g, vp(v, e2)) + '(' + poly([{ c: i1, w: vp(v, d) }, { c: i2, w: '' }]) + ')' };
+  }
+  if (t === 2) {
+    var P = pick(PAIRS), j1 = rnd(1, 6), j2 = nz(-6, 6), p1 = rnd(2, 4), q1 = rnd(1, 2), p2 = rnd(1, p1 - 1), q2 = q1 + rnd(1, 2);
+    if (gcd(j1, j2) !== 1) return null;
+    return { stem: '$' + poly([{ c: g * j1, w: vp(P[0], p1) + vp(P[1], q1) }, { c: g * j2, w: vp(P[0], p2) + vp(P[1], q2) }]) + '$',
+      a: co(g, vp(P[0], p2) + vp(P[1], q1)) + '(' + poly([{ c: j1, w: vp(P[0], p1 - p2) }, { c: j2, w: vp(P[1], q2 - q1) }]) + ')' };
+  }
+  var w = pick(['x', 'a', 'n']), k2 = rnd(1, 5), k1 = nz(-7, 7), k0 = nz(-9, 9), e = rnd(1, 2);
+  if (gcd(gcd(k2, k1), k0) !== 1) return null;
+  return { stem: '$' + poly([{ c: g * k2, w: vp(w, e + 2) }, { c: g * k1, w: vp(w, e + 1) }, { c: g * k0, w: vp(w, e) }]) + '$',
+    a: co(g, vp(w, e)) + '(' + poly([{ c: k2, w: vp(w, 2) }, { c: k1, w: w }, { c: k0, w: '' }]) + ')' };
+}
+// 3. Шугаман тэгшитгэл (5.5): ax+b=cx+d, хаалттай, хоёр талдаа хаалттай, бутархай коэффициенттэй
+function g3() {
+  var t = rnd(1, 4), x0 = nz(-9, 12);
+  if (t === 1) {
+    var a = rnd(2, 12), c = rnd(1, 11), b = nz(-15, 15); if (a === c) return null;
+    var d = (a - c) * x0 + b; if (Math.abs(d) > 60) return null;
+    return { stem: '$' + lin(a, b, 'x') + '=' + lin(c, d, 'x') + '$', a: 'x=' + x0 };
+  }
+  if (t === 2) {
+    var A = rnd(2, 9), m = nz(-9, 9), c2 = rnd(-6, 8); if (A === c2) return null;
+    var d2 = A * (x0 + m) - c2 * x0; if (Math.abs(d2) > 80) return null;
+    return { stem: '$' + A + '(' + lin(1, m, 'x') + ')=' + (c2 === 0 ? '' + d2 : lin(c2, d2, 'x')) + '$', a: 'x=' + x0 };
+  }
+  if (t === 3) {
+    var a3 = rnd(2, 7), dd = rnd(2, 7), b3 = rnd(1, 4), e3 = rnd(1, 4), c3 = nz(-9, 9);
+    if (a3 * b3 === dd * e3) return null;
+    var num = a3 * (b3 * x0 + c3) - dd * e3 * x0; if (num % dd !== 0) return null;
+    var f3 = num / dd; if (f3 === 0 || Math.abs(f3) > 15) return null;
+    return { stem: '$' + a3 + '(' + lin(b3, c3, 'x') + ')=' + dd + '(' + lin(e3, f3, 'x') + ')$', a: 'x=' + x0 };
+  }
+  var D = pick([[2, 3], [3, 4], [4, 6], [2, 5], [3, 6], [4, 3], [6, 4], [2, 4], [5, 3]]), p = D[0], q = D[1], s = pick([1, -1]), mm = nz(-7, 7), n = nz(-7, 7);
+  if (q + s * p === 0) return null;
+  var top = q * (x0 + mm) + s * p * (x0 + n); if (top % (p * q) !== 0) return null;
+  var R = top / (p * q); if (Math.abs(R) > 15) return null;
+  return { stem: '$\\dfrac{' + lin(1, mm, 'x') + '}{' + p + '}' + (s > 0 ? '+' : '-') + '\\dfrac{' + lin(1, n, 'x') + '}{' + q + '}=' + R + '$', a: 'x=' + x0 };
+}
+// 4. Бодлогыг тэгшитгэл зохиож бодох (5.6): толгой-хөл, санасан тоо, үнэ, дараалсан тоо, шилжүүлэлт, нас, дэвтрийн мөнгө
+function g4() {
+  var t = rnd(1, 7);
+  if (t === 1) {
+    var P = pick([['тахиа', 'хонь'], ['нугас', 'ямаа'], ['галуу', 'туулай']]), c = rnd(4, 20), r = rnd(3, 15), H = c + r, L = 2 * c + 4 * r;
+    if (c === r) return null;
+    return { stem: 'Хашаанд ' + P[0] + ', ' + P[1] + ' нийт $' + H + '$ толгой, $' + L + '$ хөлтэй. ' + cap(P[0]) + ', ' + P[1] + ' тус бүр хэд вэ?',
+      a: P[0] + ' $' + c + '$, ' + P[1] + ' $' + r + '$' };
+  }
+  if (t === 2) {
+    var x = rnd(2, 15), a = rnd(3, 9), c2 = rnd(2, a - 1), b = rnd(1, 20), d = (a - c2) * x + b;
+    if (d > 60) return null;
+    return { stem: 'Нэг тоог $' + a + '$ дахин ихэсгээд $' + b + '$ нэмбэл, уг тоог $' + c2 + '$ дахин ихэсгээд $' + d + '$ нэмсэнтэй тэнцүү. Тоог ол.',
+      a: '$' + lin(a, b, 'x') + '=' + lin(c2, d, 'x') + '$; $x=' + x + '$' };
+  }
+  if (t === 3) {
+    var P2 = pick([['Ширээ', 'сандлаас', 'сандал', 'ширээ'], ['Хөргөгч', 'зурагтаас', 'зурагт', 'хөргөгч'], ['Компьютер', 'утаснаас', 'утас', 'компьютер']]), k = rnd(2, 5), sp = 1000 * rnd(3, 25), D = (k - 1) * sp;
+    return { stem: P2[0] + ' ' + P2[1] + ' $' + k + '$ дахин үнэтэй бөгөөд $' + th(D) + '$ төгрөгөөр илүү. Тус бүрийн үнийг ол.',
+      a: P2[2] + ' $' + th(sp) + '$, ' + P2[3] + ' $' + th(k * sp) + '$ төгрөг' };
+  }
+  if (t === 4) {
+    var n0 = rnd(5, 60), kind = rnd(0, 1);
+    if (kind) return { stem: 'Дараалсан гурван натурал тооны нийлбэр $' + (3 * n0 + 3) + '$. Эдгээр тоог ол.', a: '$' + n0 + ', ' + (n0 + 1) + ', ' + (n0 + 2) + '$' };
+    var e0 = 2 * rnd(3, 30);
+    return { stem: 'Дараалсан гурван тэгш тооны нийлбэр $' + (3 * e0 + 6) + '$. Эдгээр тоог ол.', a: '$' + e0 + ', ' + (e0 + 2) + ', ' + (e0 + 4) + '$' };
+  }
+  if (t === 5) {
+    var A2 = rnd(10, 40), m = rnd(3, 12), B = A2 + 2 * m;
+    return { stem: 'Хоёр хайрцагт нийт $' + (A2 + B) + '$ кг чихэр бий. Нэгээс нь нөгөөд $' + m + '$ кг чихэр шилжүүлэхэд тэнцүү болов. Хайрцгуудад анх хэдэн кг чихэр байсан бэ?',
+      a: '$' + B + '$ кг ба $' + A2 + '$ кг' };
+  }
+  if (t === 6) {
+    var k6 = rnd(3, 5), mm = rnd(2, k6 - 1), yr = rnd(4, 20), num = (mm - 1) * yr, den = k6 - mm;
+    if (num % den !== 0) return null;
+    var S = num / den, F = k6 * S; if (S < 2 || S > 20 || F > 60) return null;
+    return { stem: 'Аавын нас хүүгийнхээс $' + k6 + '$ дахин их. $' + yr + '$ жилийн дараа аавын нас хүүгийнхээс $' + mm + '$ дахин их болно. Тус бүр хэдэн настай вэ?',
+      a: 'хүү $' + S + '$, аав $' + F + '$ настай' };
+  }
+  var n1 = rnd(3, 7), n2 = rnd(1, n1 - 1), pr = 100 * rnd(3, 25), r1 = 100 * rnd(1, 9), r2 = r1 + (n1 - n2) * pr;
+  if (r2 > 9000) return null;
+  return { stem: 'Хоёр сурагч ижил хэмжээний мөнгөтэй байв. Нэг нь $' + n1 + '$ дэвтэр аваад $' + r1 + '$ төгрөгтэй, нөгөө нь $' + n2 + '$ дэвтэр аваад $' + r2 + '$ төгрөгтэй үлдэв. Дэвтрийн үнийг ол.',
+    a: '$' + n1 + 'x+' + r1 + '=' + n2 + 'x+' + r2 + '$; дэвтэр $' + pr + '$ төгрөг' };
+}
+
+CMX.jishig({
+  title: 'V бүлэг — Жишиг даалгавар 2',
+  sub: 'Гишүүнчлэн үржүүлэх · ерөнхий үржигдэхүүн · шугаман тэгшитгэл · тэгшитгэл зохиох',
+  grade: '7-р анги',
+  rule: '$a(b+c-d)=ab+ac-ad$ &nbsp;·&nbsp; $ab+ac=a(b+c)$: коэффициентийн ХИЕХ ба хувьсагчийн хамгийн бага зэргийг гаргана &nbsp;·&nbsp; Тэгшитгэл: хаалт задлах → $x$-тэй гишүүдийг нэг талд, тоог нөгөө талд → $x$-ийг олох',
+  tasks: [
+    { label: 'Гишүүнчлэн үржүүл.', gen: g1, n: 6, nw: 4, cols: 2, wk: 14 },
+    { label: 'Ерөнхий үржигдэхүүнийг хаалтнаас гарга.', gen: g2, n: 6, nw: 4, cols: 2, wk: 14 },
+    { label: 'Тэгшитгэлийг бод.', gen: g3, n: 8, nw: 4, cols: 2, wk: 18 },
+    { label: 'Тэгшитгэл зохиож бод.', gen: g4, n: 4, nw: 2, cols: 2, wk: 26 }
+  ]
+});
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

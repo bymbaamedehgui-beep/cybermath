@@ -1174,14 +1174,15 @@
     var old=document.getElementById('cm-batch'); if(old)old.remove();
     setPrint12(workMode());   // бодолтын зайтай бол 12pt (хэмжихээс ӨМНӨ)
     var box=document.createElement('div');box.id='cm-batch';box.style.display='none';
-    if(same&&hasBuild){ try{window.build();}catch(e){} brandSheet(); enhanceMeta(); }
+    // WS_BATCH_KEEP (шалгалтын материал, cmx.js): хэвлэсэн хувилбарын код ЭЕШ шалгагчийн түлхүүртэй таарах ёстой тул хувилбарыг солихгүй
+    var keep=!!window.WS_BATCH_KEEP;
+    if(same&&hasBuild&&!keep){ try{window.build();}catch(e){} brandSheet(); enhanceMeta(); }
     for(var i=0;i<names.length;i++){
-      if(!same&&hasBuild){ try{window.build();}catch(e){} brandSheet(); enhanceMeta(); }
-      var nf=sheet.querySelector('.meta .cm-fill[data-ph="нэр…"]');
-      if(nf)nf.textContent=names[i];
+      if(!same&&hasBuild&&!keep){ try{window.build();}catch(e){} brandSheet(); enhanceMeta(); }
+      [].forEach.call(sheet.querySelectorAll('.meta .cm-fill[data-ph="нэр…"]'),function(nf){ nf.textContent=names[i]; });
       var z=sheetZoom(sheet);   // нэг хуудсанд (бодолтын зайтай бол 2 хуудас хүртэл) багтаах
       var clone=document.createElement('div');
-      clone.className='sheet cm-batch-sheet';
+      clone.className='sheet cm-batch-sheet'+(window.WS_PAGED?' '+window.WS_PAGED:'');
       if(z<1)clone.style.zoom=z;
       clone.innerHTML=sheet.innerHTML;
       box.appendChild(clone);
@@ -1192,7 +1193,7 @@
     injectBatchPrintCSS();
     modal.remove();
     function cleanup(){ var bx=document.getElementById('cm-batch'); if(bx)bx.remove(); window.removeEventListener('afterprint',cleanup); setPrint12(false); restoreWork();
-      if(hasBuild){ try{window.build();}catch(e){} brandSheet(); enhanceMeta(); } }
+      if(hasBuild&&!keep){ try{window.build();}catch(e){} brandSheet(); enhanceMeta(); } }
     window.addEventListener('afterprint',cleanup);
     setTimeout(function(){ window.print(); }, 80);
   }
@@ -1264,7 +1265,8 @@
     }catch(e){ return 1; }
   }
   // Бодолтын зайтай бол 12pt, текст жижигрүүлэхгүй (хайрцгийг fitWork тохируулна); үгүй бол өмнөх шигээ нэг хуудсанд
-  function sheetZoom(sh){ if(workMode()){ fitWork(sh); return 1; } return fitZoomFor(sh); }
+  // WS_PAGED: хуудас өөрөө тогтмол A4 хуудсуудтай (шалгалтын материал, cmx.js) — шахахгүй
+  function sheetZoom(sh){ if(window.WS_PAGED)return 1; if(workMode()){ fitWork(sh); return 1; } return fitZoomFor(sh); }
   function applyPrintFit(){ var sh=document.getElementById('sheet'); if(!sh||document.getElementById('cm-batch'))return; setPrint12(workMode()); sh.style.zoom=sheetZoom(sh); }
   function clearPrintFit(){ var sh=document.getElementById('sheet'); if(sh) sh.style.zoom=''; if(!document.getElementById('cm-batch')){ restoreWork(); setPrint12(false); } }
   window.addEventListener('beforeprint',applyPrintFit);

@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>III бүлэг — Шалгалтын материал (6-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/cmx.js?v=1"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* 6-р анги · III бүлэг. Харьцаа, пропорц (3.1 Тоог өгсөн харьцаагаар хуваах · 3.2 Пропорцын үндсэн чанар · 3.3 Шууд пропорционал хамаарал) */
+function cop(a, b) { return a !== b && gcd(a, b) === 1; }
+function rat(a, b) { return a + ':' + b; }
+function eqv(a, b, c, d) { return a * d === b * c; }            // a:b = c:d эсэх
+// a:b-тэй тэнцүү БИШ харьцаанууд (төөрөгдүүлэгч)
+function badRatios(a, b, list) { return list.filter(function (p) { return p[0] > 0 && p[1] > 0 && !eqv(p[0], p[1], a, b); }).map(function (p) { return C(rat(p[0], p[1])); }); }
+
+/* ── I. Тест (10) ── */
+var TESTS = [
+  // 1. харьцааг хялбарчлах
+  function () {
+    var a = rnd(1, 9), b = rnd(2, 9), k = rnd(3, 12); if (!cop(a, b)) return null;
+    var A = a * k, B = b * k; if (A > 120 || B > 120) return null;
+    return { stem: '$' + A + ':' + B + '$ харьцааны хялбар хэлбэр аль нь вэ?',
+      mc: makeMC(C(rat(a, b)), badRatios(a, b, [[b, a], [a + 1, b], [a, b + 1], [a + b, b], [a, a + b]])) };
+  },
+  // 2. нэгжтэй хэмжигдэхүүний харьцаа
+  function () {
+    var U = pick([['м', 'см', 100, 10, 'см-ийн'], ['кг', 'г', 1000, 50, 'г-ын'], ['цаг', 'минут', 60, 5, 'минутын']]);
+    var big = rnd(1, 4), A = big * U[2], B = U[3] * rnd(1, Math.floor(U[2] / U[3]) - 1), g = gcd(A, B), a = A / g, b = B / g;
+    if (a > 40 || b > 40 || a === b) return null;
+    var g2 = gcd(big, B), bad1 = [big / g2, B / g2];
+    return { stem: '$' + big + '$ ' + U[0] + ' ба $' + B + '$ ' + U[4] + ' харьцааг хялбар хэлбэрт бичвэл аль нь вэ?',
+      mc: makeMC(C(rat(a, b)), badRatios(a, b, [bad1, [b, a], [bad1[1], bad1[0]], [a * 10, b], [a, b * 10]])) };
+  },
+  // 3. тоог 2 хэсэгт хуваах — их хэсэг
+  function () {
+    var a = rnd(1, 7), b = rnd(2, 9), k = rnd(3, 14); if (!cop(a, b)) return null;
+    var lo = Math.min(a, b), hi = Math.max(a, b), N = (a + b) * k;
+    return { stem: '$' + N + '$ тоог $' + a + ':' + b + '$ харьцаагаар хуваахад их хэсэг нь хэд вэ?',
+      mc: makeMC(C(hi * k), [C(lo * k), C(k), C(N - k), C(Math.round(N * hi / (hi + lo + 1))), C(hi * k + lo)]) };
+  },
+  // 4. тоог 3 хэсэгт хуваах — бага хэсэг
+  function () {
+    var a = rnd(1, 4), b = a + rnd(1, 3), c = b + rnd(1, 3), k = rnd(3, 12);
+    if (gcd(gcd(a, b), c) !== 1) return null;
+    var N = (a + b + c) * k;
+    return { stem: '$' + N + '$ тоог $' + a + ':' + b + ':' + c + '$ харьцаагаар гурван хэсэгт хуваахад хамгийн бага хэсэг нь хэд вэ?',
+      mc: makeMC(C(a * k), [C(b * k), C(c * k), C(k), C((a + 1) * k), C(N - a * k), C(a + b + c)]) };
+  },
+  // 5. пропорцын мэдэгдэхгүй гишүүн
+  function () {
+    var p = rnd(1, 9), q = rnd(2, 9), s = rnd(2, 6), t = rnd(2, 7); if (!cop(p, q) || s === t) return null;
+    var x = p * s, a = q * s, b = p * t, c = q * t;          // x:a = b:c
+    var bad = [a * c / b, b * c / a, a + b - c, x + 1].filter(function (v) { return v > 0 && v === Math.round(v) && v !== x; });
+    return { stem: '$x:' + a + '=' + b + ':' + c + '$ пропорцоос $x$-ийг ол.', mc: makeMC(C(x), bad.map(C).concat([C(x * 2), C(x + 2)])) };
+  },
+  // 6. аль нь пропорц вэ
+  function () {
+    var a = rnd(2, 7), b = rnd(a + 1, 9), k = rnd(2, 5); if (!cop(a, b)) return null;
+    var good = a + ':' + b + '=' + (a * k) + ':' + (b * k);
+    var d = rnd(1, 4), bads = [a + ':' + b + '=' + (b * k) + ':' + (a * k), a + ':' + b + '=' + (a + d) + ':' + (b + d), a + ':' + b + '=' + (a * k) + ':' + (b * k + 1), a + ':' + b + '=' + (a * k + a) + ':' + (b * k)];
+    return { stem: 'Аль нь зөв пропорц вэ?', mc: makeMC(C(good), bads.map(C)) };
+  },
+  // 7. шууд пропорционал хамаарал
+  function () {
+    var k = rnd(2, 9), x1 = rnd(2, 6), x2 = rnd(3, 9); if (x1 === x2) return null;
+    var y1 = k * x1, y2 = k * x2;
+    return { stem: '$y$ нь $x$-тэй шууд пропорционал. $x=' + x1 + '$ үед $y=' + y1 + '$ бол $x=' + x2 + '$ үед $y$ хэд вэ?',
+      mc: makeMC(C(y2), [C(y1 + x2 - x1), C(y1 * x2), C(k), C(y2 + k)]) };
+  },
+  // 8. үнийн бодлого
+  function () {
+    var it = pick([['кг алим', 'кг алим', 1500, 3500], ['дэвтэр', 'дэвтэр', 400, 1200], ['литр сүү', 'литр сүү', 2500, 4000], ['ширхэг бал', 'бал', 300, 900]]);
+    var u = Math.round(rnd(it[2], it[3]) / 100) * 100, n1 = rnd(2, 6), n2 = rnd(3, 9); if (n1 === n2) return null;
+    var p1 = u * n1, p2 = u * n2;
+    return { stem: '$' + n1 + '$ ' + it[0] + ' $' + th(p1) + '$ төгрөг бол $' + n2 + '$ ' + it[1] + ' хэдэн төгрөг вэ?',
+      mc: makeMC(C(th(p2)), [C(th(p1 * n2)), C(th(p1 + u)), C(th(p2 + u)), C(th(p2 - u))]) };
+  },
+  // 9. пропорционалын коэффициент
+  function () {
+    var k = rnd(2, 12), x = rnd(2, 9), y = k * x;
+    return { stem: '$y=kx$ шууд пропорционал хамааралд $x=' + x + '$ үед $y=' + y + '$ бол $k$ хэд вэ?',
+      mc: makeMC(C(k), [C(y - x), C(y + x), C(y * x), C(k + 1)]) };
+  },
+  // 10. өгүүлбэртэй бодлого
+  function () {
+    var a = rnd(2, 7), b = rnd(2, 8), k = rnd(3, 6); if (!cop(a, b)) return null;
+    var N = (a + b) * k;
+    return { stem: 'Ангийн охид, хөвгүүдийн тооны харьцаа $' + a + ':' + b + '$, нийт $' + N + '$ сурагч бол хөвгүүд хэд вэ?',
+      mc: makeMC(C(b * k), [C(a * k), C(k), C(N - k), C(b * k + 2)]) };
+  }
+];
+
+/* ── II. Задгай (5) ── */
+var FREE = [
+  // 11. нэгжтэй харьцаа (2 оноо)
+  function () {
+    var t = rnd(2, 9), B = 100 * rnd(1, 9);
+    var kg = rnd(1, 3) * 10 + t, Ag = kg * 100, g = gcd(Ag, B); if (B === Ag || Ag / g > 30 || B / g > 30) return null;
+    return { stem: '$' + dFmt(kg, 1) + '$ кг ба $' + B + '$ г-ын харьцааг олж, хялбар хэлбэрт бич.', a: '$' + (Ag / g) + ':' + (B / g) + '$' };
+  },
+  // 12. пропорц (2 оноо)
+  function () {
+    var p = rnd(1, 9), q = rnd(2, 9), s = rnd(2, 5), t = rnd(3, 8); if (!cop(p, q) || s === t) return null;
+    return { stem: '$\\dfrac{x}{' + (q * s) + '}=\\dfrac{' + (p * t) + '}{' + (q * t) + '}$ пропорцоос $x$-ийг ол.', a: 'x=' + (p * s) };
+  },
+  // 13. гурван хэсэгт хуваах өгүүлбэртэй (3 оноо)
+  function () {
+    var a = rnd(1, 4), b = rnd(2, 5), c = rnd(3, 6); if (a === b || b === c || a === c || gcd(gcd(a, b), c) !== 1) return null;
+    var k = 1000 * rnd(2, 9), N = (a + b + c) * k;
+    return { stem: 'Гурван ажилчин $' + th(N) + '$ төгрөгийг $' + a + ':' + b + ':' + c + '$ харьцаагаар хуваан авчээ. Хүн бүр хэдэн төгрөг авсан бэ?',
+      a: '$' + th(a * k) + '$; $' + th(b * k) + '$; $' + th(c * k) + '$ төгрөг' };
+  },
+  // 14. шууд пропорционал (3 оноо)
+  function () {
+    var v = 5 * rnd(9, 18), t1 = rnd(2, 4), t2 = rnd(5, 7), d1 = v * t1, d3 = v * rnd(3, 8);
+    if (d3 === v * t2) return null;
+    return { stem: 'Машин $' + t1 + '$ цагт $' + d1 + '$ км явжээ. Ижил хурдаар а) $' + t2 + '$ цагт хэдэн км явах вэ? б) $' + d3 + '$ км-ийг хэдэн цагт явах вэ?',
+      a: 'а) $' + (v * t2) + '$ км; б) $' + (d3 / v) + '$ цаг' };
+  },
+  // 15. ялгавар ба харьцаа (3 оноо)
+  function () {
+    var a = rnd(2, 7), b = rnd(a + 1, 11), k = rnd(3, 12); if (!cop(a, b)) return null;
+    return { stem: 'Хоёр тооны харьцаа $' + a + ':' + b + '$, ялгавар нь $' + ((b - a) * k) + '$. Эдгээр тоог ол.', a: '$' + (a * k) + '$ ба $' + (b * k) + '$' };
+  }
+];
+
+CMX.exam({
+  title: 'III бүлэг — Шалгалтын материал',
+  sub: 'Харьцаа · харьцаагаар хуваах · пропорц · шууд пропорционал хамаарал',
+  grade: '6-р анги',
+  topic: 'Алгебр',
+  tests: TESTS,
+  free: FREE
+});
+</script>
+<script src="/eyesh-link.js?v=3"></script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

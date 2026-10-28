@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>I бүлэг — Жишиг даалгавар 2 (8-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/cmx.js?v=1"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* 8-р анги · I бүлэг. Тоон олонлог, зэрэг язгуур — Жишиг даалгавар 2 (1.4 Натурал илтгэгчтэй зэрэг · 1.5 Зэрэгт дэвшүүлэх ба язгуур гаргах · 1.6 10-ын бүхэл илтгэгчтэй зэрэг) */
+// ── рационал тоо (яг утгаар) ──
+function Q(n, d) { if (d < 0) { n = -n; d = -d; } var g = gcd(n, d); return { n: n / g, d: d / g }; }
+// холимог бутархай TeX: 1\dfrac{2}{3}, -\dfrac{3}{4}, 5
+function qt(a) { if (a.d === 1) return String(a.n); var N = Math.abs(a.n), w = Math.floor(N / a.d), r = N % a.d; return (a.n < 0 ? '-' : '') + (w ? w : '') + '\\dfrac{' + r + '}{' + a.d + '}'; }
+// M·10^E (M — бүхэл) → стандарт хэлбэр { m: '5.2', e: -4 }
+function sf(M, E) { var s = String(Math.abs(M)); while (s.length > 1 && s.charAt(s.length - 1) === '0') { s = s.slice(0, -1); E++; } return { m: (M < 0 ? '-' : '') + s.charAt(0) + (s.length > 1 ? '.' + s.slice(1) : ''), e: E + s.length - 1 }; }
+function sfT(o) { return o.m + '\\cdot 10^{' + o.e + '}'; }
+// аравтын бичлэгийг n оронгоор шилжүүлэх: shift('5.2', -4) → 0.00052
+function shift(s, n) {
+  var neg = s.charAt(0) === '-'; if (neg) s = s.slice(1);
+  var dot = s.indexOf('.'), ip = dot < 0 ? s : s.slice(0, dot), fp = dot < 0 ? '' : s.slice(dot + 1), dg = ip + fp, pos = ip.length + n, r;
+  if (pos <= 0) r = '0.' + new Array(1 - pos).join('0') + dg;
+  else if (pos >= dg.length) r = dg + new Array(pos - dg.length + 1).join('0');
+  else r = dg.slice(0, pos) + '.' + dg.slice(pos);
+  if (r.indexOf('.') >= 0) r = r.replace(/0+$/, '').replace(/\.$/, '');
+  return (neg ? '-' : '') + r.replace(/^0+(?=\d)/, '');
+}
+function pl(s) { return s.indexOf('.') < 0 && Math.abs(+s) >= 10000 ? th(+s) : s; }
+function dec(s) { var i = s.indexOf('.'); return i < 0 ? 0 : s.length - i - 1; }
+
+// 1. [1.4 Натурал илтгэгчтэй зэрэг] Зэргийн чанараар (үржих, хуваах, зэрэгт дэвшүүлэх, суурь нэгтгэх) нэг зэрэг хэлбэрт бичих
+function g1() {
+  var t = rnd(1, 7), b = pick(['a', 'x', 'y', 'b', 'm', 'c', 'n']), m = rnd(2, 9), n = rnd(2, 9), k = rnd(2, 5), s, e, B = b;
+  if (t === 1) { s = b + '^{' + m + '}\\cdot ' + b + '^{' + n + '}'; e = m + n; }
+  else if (t === 2) { m = rnd(9, 20); n = rnd(2, m - 2); s = b + '^{' + m + '}\\div ' + b + '^{' + n + '}'; e = m - n; }
+  else if (t === 3) { s = '\\left(' + b + '^{' + m + '}\\right)^{' + k + '}'; e = m * k; }
+  else if (t === 4) { s = b + '^{' + m + '}\\cdot ' + b + '\\cdot ' + b + '^{' + n + '}'; e = m + n + 1; }
+  else if (t === 5) { var r = rnd(2, m + n - 2); s = '\\dfrac{' + b + '^{' + m + '}\\cdot ' + b + '^{' + n + '}}{' + b + '^{' + r + '}}'; e = m + n - r; }
+  else if (t === 6) { var r2 = rnd(2, m * k - 2); s = '\\dfrac{\\left(' + b + '^{' + m + '}\\right)^{' + k + '}}{' + b + '^{' + r2 + '}}'; e = m * k - r2; }
+  else {
+    var P = pick([[2, 4, 2], [2, 8, 3], [2, 16, 4], [3, 9, 2], [3, 27, 3], [5, 25, 2], [7, 49, 2]]); B = String(P[0]);   // [суурь, тоо, илтгэгч]
+    if (rnd(0, 1)) { s = P[1] + '^{' + k + '}\\cdot ' + P[0] + '^{' + n + '}'; e = P[2] * k + n; } else { s = P[1] + '^{' + k + '}\\div ' + P[0] + '^{' + n + '}'; e = P[2] * k - n; }
+  }
+  if (e < 2) return null;
+  return { stem: '$' + s + '$', a: s + '=' + B + '^{' + e + '}' };
+}
+// 2. [1.5 Зэрэгт дэвшүүлэх ба язгуур гаргах] Сөрөг, бутархай суурьтай зэрэг; квадрат ба куб язгуурын утгыг олох
+function g2() {
+  var t = rnd(1, 8);
+  if (t === 1) { var a = rnd(2, 5), n = rnd(2, a > 3 ? 4 : 5); return { stem: '$(-' + a + ')^{' + n + '}$', a: '(-' + a + ')^{' + n + '}=' + Math.pow(-a, n) }; }
+  if (t === 2) { var a2 = rnd(2, 5), n2 = rnd(2, a2 > 3 ? 3 : 4); return { stem: '$-' + a2 + '^{' + n2 + '}$', a: '-' + a2 + '^{' + n2 + '}=' + (-Math.pow(a2, n2)) }; }
+  if (t === 3) {
+    var b = pick([2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 15]), n3 = b > 9 ? 2 : rnd(2, 3), sg = rnd(0, 2) ? 1 : -1;
+    var base = sg < 0 ? '(-' + dFmt(b, 1) + ')' : dFmt(b, 1);
+    return { stem: '$' + base + '^{' + n3 + '}$', a: base + '^{' + n3 + '}=' + dFmt(Math.pow(sg * b, n3), n3) };
+  }
+  if (t === 4) {
+    var p = rnd(1, 5), q = rnd(2, 5); if (gcd(p, q) !== 1) return null;
+    var A = Q(rnd(0, 1) ? p : -p, q), e4 = p > 3 || q > 3 ? 2 : rnd(2, 3), bs = '\\left(' + qt(A) + '\\right)^{' + e4 + '}';
+    return { stem: '$' + bs + '$', a: bs + '=' + qt(Q(Math.pow(A.n, e4), Math.pow(A.d, e4))) };
+  }
+  if (t === 5) {
+    var k = rnd(2, 25), sc = k < 10 ? rnd(1, 2) : 1; if (k % 10 === 0) return null;
+    return { stem: '$\\sqrt{' + dFmt(k * k, 2 * sc) + '}$', a: '\\sqrt{' + dFmt(k * k, 2 * sc) + '}=' + dFmt(k, sc) };
+  }
+  if (t === 6) {
+    var a6 = rnd(2, 12), b6 = rnd(2, 9); if (a6 === b6 || gcd(a6, b6) !== 1) return null;
+    var rad = qt(Q(a6 * a6, b6 * b6));
+    return { stem: '$\\sqrt{' + rad + '}$', a: '\\sqrt{' + rad + '}=' + qt(Q(a6, b6)) };
+  }
+  if (t === 7) {
+    var c = rnd(1, 9), d = pick([1, 10, 2, 3, 4, 5]), sg7 = rnd(0, 1) ? -1 : 1, rr, val;
+    if (d === 1) { c = rnd(2, 6); rr = String(sg7 * c * c * c); val = String(sg7 * c); }
+    else if (d === 10) { rr = dFmt(sg7 * c * c * c, 3); val = dFmt(sg7 * c, 1); }
+    else { if (c > 5 || gcd(c, d) !== 1) return null; rr = qt(Q(sg7 * c * c * c, d * d * d)); val = qt(Q(sg7 * c, d)); }
+    return { stem: '$\\sqrt[3]{' + rr + '}$', a: '\\sqrt[3]{' + rr + '}=' + val };
+  }
+  var a8 = rnd(2, 4), m8 = rnd(2, 4), b8 = rnd(2, 5), n8 = rnd(2, 3); if (a8 === b8) return null;
+  var P8 = Math.pow(-b8, n8);
+  return { stem: '$-' + a8 + '^{' + m8 + '}+(-' + b8 + ')^{' + n8 + '}$', a: '-' + Math.pow(a8, m8) + (P8 < 0 ? '' : '+') + P8 + '=' + (P8 - Math.pow(a8, m8)) };
+}
+// 3. [1.6 10-ын бүхэл илтгэгчтэй зэрэг] Энгийн бичлэгтэй ба стандарт бус хэлбэрийн тоог стандарт хэлбэрт бичих
+function g3() {
+  var tail = pick(['', '', '2', '5', '25', '04', '75', '3', '8', '45', '06', '1']), m = rnd(1, 9) + (tail ? '.' + tail : ''), e = nz(-7, 9); if (Math.abs(e) < 2) return null;
+  if (rnd(0, 2)) {
+    var plain = shift(m, e); if (plain.replace(/[^0-9]/g, '').length > 11) return null;
+    return { stem: '$' + pl(plain) + '$', a: pl(plain) + '=' + m + '\\cdot 10^{' + e + '}' };
+  }
+  var s = pick([-3, -2, -1, 1, 2, 3]), k = shift(m, s), j = e - s; if (j === 0 || k.length > 6) return null;
+  return { stem: '$' + k + '\\cdot 10^{' + j + '}$', a: k + '\\cdot 10^{' + j + '}=' + m + '\\cdot 10^{' + e + '}' };
+}
+// 4. [1.4–1.6] Өгүүлбэртэй бодлого: квадратын тал, шооны ирмэг, зэрэгт ирмэгтэй биеийн эзэлхүүн, стандарт хэлбэртэй хэмжигдэхүүн
+function g4() {
+  var t = rnd(1, 5);
+  if (t === 1) {
+    var k = rnd(11, 39); if (k % 10 === 0) return null;
+    return { stem: 'Квадрат хэлбэртэй өрөөний шалны талбай $' + dFmt(k * k, 2) + '$ м$^2$ бол шалны талын уртыг ол.', a: '$\\sqrt{' + dFmt(k * k, 2) + '}=' + dFmt(k, 1) + '$ м' };
+  }
+  if (t === 2) {
+    var c = pick([6, 8, 11, 12, 13, 14, 15, 16, 25]), v = c * c * c;
+    return { stem: 'Шоо хэлбэртэй савны эзэлхүүн $' + dFmt(v, 3) + '$ м$^3$ бол савны ирмэгийн уртыг ол.', a: '$\\sqrt[3]{' + dFmt(v, 3) + '}=' + dFmt(c, 1) + '$ м' };
+  }
+  if (t === 3) {
+    var b = pick([2, 3]), ex = shuffle(b === 2 ? [2, 3, 4, 5] : [2, 3, 4]), p = ex[0], q = ex[1], r = ex[2], e = p + q + r;   // ирмэгүүд ялгаатай
+    return { stem: 'Тэгш өнцөгт параллелепипедийн ирмэгүүд $' + b + '^{' + p + '}$ см, $' + b + '^{' + q + '}$ см, $' + b + '^{' + r + '}$ см. Эзэлхүүнийг зэрэг хэлбэрээр ба тоогоор бич.',
+      a: '$V=' + b + '^{' + p + '}\\cdot ' + b + '^{' + q + '}\\cdot ' + b + '^{' + r + '}=' + b + '^{' + e + '}=' + th(Math.pow(b, e)) + '$ см$^3$' };
+  }
+  if (t === 4) {
+    var Vm = pick(['1.2', '1.5', '2.4', '2.8', '3.6', '4.5', '7.2']), Tm = pick(['2', '2.5', '3', '4', '5', '1.5']), ev = 4, et = rnd(2, 3);
+    var o = sf(parseInt(Vm.replace('.', ''), 10) * parseInt(Tm.replace('.', ''), 10), ev + et - dec(Vm) - dec(Tm));
+    return { stem: 'Хиймэл дагуул цагт $' + Vm + '\\cdot 10^{' + ev + '}$ км хурдтай нисдэг. $' + Tm + '\\cdot 10^{' + et + '}$ цагт хэдэн км зам туулах вэ? Хариуг стандарт хэлбэрээр бич.',
+      a: '$' + Vm + '\\cdot 10^{' + ev + '}\\cdot ' + Tm + '\\cdot 10^{' + et + '}=' + sfT(o) + '$ км' };
+  }
+  var Mm = pick(['2', '2.5', '4', '5', '8', '1.25']), ex = pick([-2, -3]), K = pick([2, 3, 4, 5, 10]);
+  var cnt = K * Math.pow(10, 3 + dec(Mm) - ex) / parseInt(Mm.replace('.', ''), 10); if (cnt !== Math.round(cnt)) return null;
+  return { stem: 'Нэг ширхэг будааны масс ойролцоогоор $' + Mm + '\\cdot 10^{' + ex + '}$ г. $' + K + '$ кг будаанд ойролцоогоор хэдэн ширхэг будаа байх вэ? Хариуг стандарт хэлбэрээр бич.',
+    a: '$' + K + '\\cdot 10^{3}\\div\\left(' + Mm + '\\cdot 10^{' + ex + '}\\right)=' + sfT(sf(cnt, 0)) + '$ ширхэг' };
+}
+
+CMX.jishig({
+  title: 'I бүлэг — Жишиг даалгавар 2',
+  sub: 'Натурал илтгэгчтэй зэрэг · зэрэгт дэвшүүлэх, язгуур гаргах · стандарт хэлбэр',
+  grade: '8-р анги',
+  rule: '$a^{m}\\cdot a^{n}=a^{m+n}$ &nbsp;·&nbsp; $a^{m}\\div a^{n}=a^{m-n}$ &nbsp;·&nbsp; $\\left(a^{m}\\right)^{n}=a^{mn}$ &nbsp;·&nbsp; $\\sqrt{a^{2}}=a\\ (a\\ge 0)$, $\\ \\sqrt[3]{a^{3}}=a$ &nbsp;·&nbsp; Стандарт хэлбэр: $a\\cdot 10^{n}$, $\\ 1\\le a\\lt 10$',
+  tasks: [
+    { label: 'Нэг зэрэг хэлбэрт бич.', gen: g1, n: 8, nw: 4, cols: 4, wk: 12 },
+    { label: 'Утгыг ол.', gen: g2, n: 8, nw: 4, cols: 4, wk: 12 },
+    { label: 'Стандарт хэлбэрээр бич.', gen: g3, n: 8, nw: 4, cols: 4, wk: 12 },
+    { label: 'Бодлогыг бод.', gen: g4, n: 4, nw: 4, cols: 2, wk: 22 }
+  ]
+});
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

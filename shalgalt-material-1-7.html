@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>I бүлэг — Шалгалтын материал (7-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/cmx.js?v=1"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* 7-р анги · I бүлэг. Бүхэл тоон олонлог, зэрэг, язгуур (1.1 Тооны модул · 1.2 Бүхэл тооны нэмэх, хасах · 1.3 Үржүүлэх, хуваах ·
+   1.4 Куб зэрэг ба куб язгуур · 1.5 Анхны тоон үржигдэхүүнд задлах · 1.6 ХИЕХ ба ХБЕХ) */
+function cop(a, b) { return a !== b && gcd(a, b) === 1; }
+// анхны тоон задаргаа: [[p, e], …]
+function pfe(n) { var out = [], p = 2; while (p * p <= n) { var e = 0; while (n % p === 0) { n /= p; e++; } if (e) out.push([p, e]); p++; } if (n > 1) out.push([n, 1]); return out; }
+// задаргааны TeX: 2^{3}\cdot 3^{2}\cdot 5
+function pfT(f) { return f.map(function (x) { return x[1] === 1 ? '' + x[0] : x[0] + '^{' + x[1] + '}'; }).join('\\cdot '); }
+function pfVal(f) { return f.reduce(function (s, x) { return s * Math.pow(x[0], x[1]); }, 1); }
+function ndiv(n) { return pfe(n).reduce(function (s, x) { return s * (x[1] + 1); }, 1); }
+// тоон төөрөгдүүлэгчид: зөв хариутай тэнцүү, давхардсан, бүхэл бус утгыг хасна
+function dis(cor, arr) { var u = {}, out = []; u[cor] = 1; arr.forEach(function (v) { if (v == null || !isFinite(v) || v % 1 || u[v]) return; u[v] = 1; out.push(C(v)); }); return out; }
+// модулын TeX: \lvert -5\rvert (дотрох хасах тэмдэг нэг орлогот байна)
+function ab(x) { return '\\lvert ' + x + '\\rvert '; }
+
+/* ── I. Тест (10): хялбар 1–3, дунд 4–7, хүнд 8–10 ── */
+var TESTS = [
+  // 1. Модулын илэрхийллийн утга (1.1 Тооны модул)
+  function () {
+    var a = nz(-60, 60), b = nz(-60, 60), c = nz(-60, 60);
+    if (Math.abs(a) < 6 || Math.abs(b) < 6 || Math.abs(c) < 6 || (a < 0) + (b < 0) + (c < 0) < 2) return null;
+    var A = Math.abs(a), B = Math.abs(b), K = Math.abs(c), v = A - B + K;
+    if (v === 0) return null;
+    return { stem: '$' + ab(a) + '-' + ab(b) + '+' + ab(c) + '$ илэрхийллийн утгыг ол.',
+      mc: makeMC(C(v), dis(v, [a - b + c, -v, A + B + K, A - B - K, -A - B + K])) };
+  },
+  // 2. Бүхэл тоо нэмэх, хасах: a − (−b) + (−c) − d (1.2)
+  function () {
+    var a = nz(-90, 90), b = rnd(11, 90), c = rnd(11, 90), d = nz(-90, 90);
+    if (Math.abs(a) < 11 || Math.abs(d) < 11 || b === c) return null;
+    var v = a + b - c - d;
+    return { stem: '$' + a + '-(' + (-b) + ')+(' + (-c) + ')-' + par(d) + '$ илэрхийллийн утгыг ол.',
+      mc: makeMC(C(v), dis(v, [a - b - c - d, a + b + c - d, a + b - c + d, -v, a - b + c + d])) };
+  },
+  // 3. Үржүүлэх, хуваах тэмдгийн дүрэм: A ÷ B · D (1.3)
+  function () {
+    var B = rnd(2, 9), m = rnd(2, 12), D = rnd(2, 9), sA = pick([-1, 1]), sB = pick([-1, 1]), sD = pick([-1, 1]);
+    if (sA > 0 && sB > 0 && sD > 0) return null;
+    var A = B * m, s = sA * sB * sD, v = s * m * D;
+    return { stem: '$' + par(sA * A) + '\\div ' + par(sB * B) + '\\cdot ' + par(sD * D) + '$ илэрхийллийн утгыг ол.',
+      mc: makeMC(C(v), [C(-v), C(fr(s * A, B * D)), C(s * (m + D)), C(-s * (m + D)), C(v + s * D)]) };   // A÷(B·D) — дарааллын алдаа
+  },
+  // 4. Куб зэрэг ба куб язгуур (1.4)
+  function () {
+    var a = rnd(2, 9), b = rnd(2, 6), s1 = pick([-1, 1]), s2 = pick([-1, 1]);
+    if (rnd(0, 1)) {          // ∛(s1·a³) − ∛(s2·b³)
+      if (s1 > 0 && s2 > 0) return null;
+      var v = s1 * a - s2 * b; if (v === 0) return null;
+      return { stem: '$\\sqrt[3]{' + (s1 * a * a * a) + '}-\\sqrt[3]{' + (s2 * b * b * b) + '}$ илэрхийллийн утгыг ол.',
+        mc: makeMC(C(v), dis(v, [s1 * a + s2 * b, -v, -(s1 * a + s2 * b), s1 * a * a - s2 * b * b, a + b])) };
+    }
+    var x = s1 * b, w = s2 * a, v2 = x * x * x + w;      // x³ + ∛(w³)
+    if (x > 0 && w > 0) return null;
+    return { stem: '$' + par(x) + '^{3}+\\sqrt[3]{' + (w * w * w) + '}$ илэрхийллийн утгыг ол.',
+      mc: makeMC(C(v2), dis(v2, [3 * x + w, -x * x * x + w, x * x * x - w, x * x + w, -v2])) };
+  },
+  // 5. Анхны тоон үржигдэхүүнд задлах (1.5) — төөрөгдүүлэгч: нэг илтгэгчийг ±1 өөрчилсөн (өөр утгатай) задаргаа
+  function () {
+    var P = [2, 3, 5, 7], E = [rnd(1, 4), rnd(0, 3), rnd(0, 2), rnd(0, 1)], f = [], i;
+    for (i = 0; i < 4; i++) if (E[i]) f.push([P[i], E[i]]);
+    if (f.length < 2 || E[0] + E[1] + E[2] + E[3] < 4) return null;
+    var n = pfVal(f); if (n < 100 || n > 2000) return null;
+    var ds = [];
+    f.forEach(function (x, k) { [1, -1].forEach(function (dl) { var g = f.map(function (y) { return [y[0], y[1]]; }); g[k][1] += dl; g = g.filter(function (y) { return y[1] > 0; }); if (g.length) ds.push(C(pfT(g))); }); });
+    return { stem: '$' + n + '$ тоог анхны тоон үржигдэхүүнд задлахад аль нь гарах вэ?', mc: makeMC(C(pfT(f)), shuffle(ds)) };
+  },
+  // 6. Хоёр тооны ХИЕХ (1.6)
+  function () {
+    var g = pick([6, 8, 9, 12, 14, 15, 16, 18, 21, 24, 28]), m = rnd(2, 9), n = rnd(2, 9);
+    if (!cop(m, n)) return null;
+    var a = g * Math.min(m, n), b = g * Math.max(m, n); if (b > 300) return null;
+    var l = a * b / g, p = pfe(g)[0][0];
+    return { stem: '$' + a + '$ ба $' + b + '$ тооны ХИЕХ-ийг ол.', mc: makeMC(C(g), dis(g, [g / p, l, 2 * g, a, g * p])) };
+  },
+  // 7. ХБЕХ — давтамжийн бодлого (1.6)
+  function () {
+    var p = [rnd(4, 15), rnd(4, 15), rnd(4, 15)].sort(function (x, y) { return x - y; });
+    if (p[0] === p[1] || p[1] === p[2]) return null;
+    var L = lcm(lcm(p[0], p[1]), p[2]), prod = p[0] * p[1] * p[2];
+    if (L > 240 || L === prod || L === p[2]) return null;
+    return { stem: 'Гурван автобус $' + p[0] + '$, $' + p[1] + '$, $' + p[2] + '$ минут тутам хөдөлдөг. Хамт хөдөлснөөс хойш хэдэн минутын дараа дахин хамт хөдлөх вэ?',
+      mc: makeMC(C(L), dis(L, [prod, lcm(p[0], p[1]), lcm(p[1], p[2]), p[0] + p[1] + p[2], 2 * L])) };
+  },
+  // 8. Натурал хуваагчийн тоо — задаргаагаар (1.5)
+  function () {
+    var n = rnd(60, 999), f = pfe(n);
+    if (f.length < 2 || f.length > 3 || f[f.length - 1][0] > 11) return null;
+    var k = ndiv(n); if (k < 8) return null;
+    var eP = f.reduce(function (s, x) { return s * x[1]; }, 1), eS = f.reduce(function (s, x) { return s + x[1]; }, 0);
+    return { stem: '$' + n + '$ тоо хэдэн натурал хуваагчтай вэ?', mc: makeMC(C(k), dis(k, [eP, eS + 1, k - 2, k % 2 ? k + 1 : k / 2, eS, 2 * k])) };
+  },
+  // 9. ХИЕХ·ХБЕХ = a·b — нөгөө тоог олох (1.6)
+  function () {
+    var g = rnd(2, 15), m = rnd(2, 9), n = rnd(2, 9);
+    if (!cop(m, n)) return null;
+    var a = g * m, b = g * n, l = g * m * n; if (l > 600) return null;
+    return { stem: 'Хоёр тооны ХИЕХ нь $' + g + '$, ХБЕХ нь $' + l + '$. Нэг тоо нь $' + a + '$ бол нөгөө тоо аль нь вэ?',
+      mc: makeMC(C(b), dis(b, [n, m * n, l - a, a * g, b + g])) };
+  },
+  // 10. Зэргийн сүүлийн цифр — 4 алхмаар давтагдана (1.4–1.5)
+  function () {
+    var b = pick([2, 3, 7, 8, 12, 13, 17, 18, 22, 23]), e = rnd(21, 199), cyc = [], x = 1, i;
+    for (i = 0; i < 4; i++) { x = (x * b) % 10; cyc.push(x); }
+    var last = cyc[(e - 1) % 4];
+    return { stem: '$' + b + '^{' + e + '}$ тооны сүүлийн цифр аль нь вэ?', mc: makeMC(C(last), dis(last, cyc.concat([e % 10, b % 10]))) };
+  }
+];
+
+/* ── II. Задгай (5): 11–12 суурь (2 оноо), 13–15 олон алхамтай (3 оноо) ── */
+var FREE = [
+  // 11. Зэрэг, куб язгуур, тэмдгийн дүрэмтэй илэрхийлэл (1.2–1.4)
+  function () {
+    var x = nz(-5, 5), y = rnd(2, 9), z = nz(-9, 9), w = nz(-6, 6);
+    if (Math.abs(x) < 2 || Math.abs(z) < 2 || Math.abs(w) < 2 || (x > 0 && z > 0 && w > 0)) return null;
+    var v = x * x * x - y * z + w;
+    return { stem: 'Илэрхийллийн утгыг ол: $' + par(x) + '^{3}-' + y + '\\cdot ' + par(z) + '+\\sqrt[3]{' + (w * w * w) + '}$',
+      a: par(x) + '^{3}-' + y + '\\cdot ' + par(z) + '+' + par(w) + '=' + v };
+  },
+  // 12. Задаргаагаар ХИЕХ, ХБЕХ олох (1.5–1.6)
+  function () {
+    var a = rnd(24, 240), b = rnd(24, 240); if (a >= b) return null;
+    var fa = pfe(a), fb = pfe(b);
+    if (fa.length < 2 || fb.length < 2 || fa[fa.length - 1][0] > 13 || fb[fb.length - 1][0] > 13) return null;
+    var g = gcd(a, b); if (g < 4 || g === a) return null;
+    return { stem: '$' + a + '$ ба $' + b + '$ тоонуудыг анхны тоон үржигдэхүүнд задалж, ХИЕХ ба ХБЕХ-ийг ол.',
+      a: '$' + a + '=' + pfT(fa) + '$, $' + b + '=' + pfT(fb) + '$; ХИЕХ $=' + g + '$, ХБЕХ $=' + lcm(a, b) + '$' };
+  },
+  // 13. Температурын өөрчлөлт — олон алхамт (1.2–1.3)
+  function () {
+    var t0 = rnd(-28, -8), n1 = rnd(3, 6), r1 = rnd(2, 5), n2 = rnd(2, 5), r2 = rnd(2, 4), t = t0 + n1 * r1 - n2 * r2;
+    if (t === 0) return null;
+    return { stem: 'Өглөө агаарын температур $' + t0 + '$°C байв. Эхний $' + n1 + '$ цагт цаг тутам $' + r1 + '$ хэмээр дулаарч, дараагийн $' + n2 + '$ цагт цаг тутам $' + r2 + '$ хэмээр хүйтэрчээ. Эцэст нь хэдэн хэм болсон бэ?',
+      a: '$' + t0 + '+' + n1 + '\\cdot ' + r1 + '-' + n2 + '\\cdot ' + r2 + '=' + t + '$°C' };
+  },
+  // 14. Куб зэрэг ба куб язгуурын хэрэглээ (1.4–1.5)
+  function () {
+    if (rnd(0, 1)) {         // хамгийн бага үржигдэхүүнээр куб болгох
+      var p1 = pick([2, 3, 5]), p2 = pick([3, 5, 7]); if (p1 >= p2) return null;
+      var e1 = rnd(1, 2), e2 = rnd(1, 2), n = Math.pow(p1, e1) * Math.pow(p2, e2), k = Math.pow(p1, 3 - e1) * Math.pow(p2, 3 - e2);
+      return { stem: '$' + n + '$ тоог хамгийн багадаа ямар натурал тоогоор үржүүлбэл натурал тооны куб гарах вэ? Гарсан тооны куб язгуурыг ол.',
+        a: '$' + n + '=' + pfT(pfe(n)) + '$; $' + k + '$ тоогоор үржүүлнэ: $\\sqrt[3]{' + (n * k) + '}=' + (p1 * p2) + '$' };
+    }
+    var a = rnd(3, 12), V = a * a * a;     // эзлэхүүнээс ирмэг ба талсын талбай
+    return { stem: 'Кубын эзлэхүүн $' + V + '$ см$^3$ бол ирмэгийн урт ба нэг талсын талбайг ол.',
+      a: '$a=\\sqrt[3]{' + V + '}=' + a + '$ см; $S=' + a + '^{2}=' + (a * a) + '$ см$^2$' };
+  },
+  // 15. ХИЕХ-ийн хэрэглээ — ижил бүрэлдэхүүнтэй баг (1.6)
+  function () {
+    var G = rnd(3, 12), m = rnd(2, 7), n = rnd(2, 7);
+    if (!cop(m, n)) return null;
+    var g = G * m, b = G * n; if (g > 60 || b > 60) return null;
+    return { stem: '$' + g + '$ охин, $' + b + '$ хөвгүүнийг ижил бүрэлдэхүүнтэй хамгийн олон багт хуваав. Хэдэн баг болох вэ? Нэг багт хэдэн охин, хэдэн хөвгүүн байх вэ?',
+      a: 'ХИЕХ $(' + g + ',' + b + ')=' + G + '$ баг; багт $' + m + '$ охин, $' + n + '$ хөвгүүн' };
+  }
+];
+
+CMX.exam({
+  title: 'I бүлэг — Шалгалтын материал',
+  sub: 'Модул · бүхэл тооны үйлдэл · куб зэрэг, куб язгуур · анхны тоон задаргаа · ХИЕХ, ХБЕХ',
+  grade: '7-р анги',
+  topic: 'Тооны онол',
+  tests: TESTS,
+  free: FREE
+});
+</script>
+<script src="/eyesh-link.js?v=3"></script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>I бүлэг — Жишиг даалгавар 1 (8-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/cmx.js?v=1"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* 8-р анги · I бүлэг. Тоон олонлог, зэрэг язгуур — Жишиг даалгавар 1 (1.1 Рационал тоо · 1.2 Тоог тоймлох · 1.3 Рационал тооны үйлдэл) */
+// ── рационал тоо (яг утгаар) ──
+function Q(n, d) { if (d < 0) { n = -n; d = -d; } var g = gcd(n, d); return { n: n / g, d: d / g }; }
+function qa(a, b) { return Q(a.n * b.d + b.n * a.d, a.d * b.d); }
+function qs(a, b) { return Q(a.n * b.d - b.n * a.d, a.d * b.d); }
+function qm(a, b) { return Q(a.n * b.n, a.d * b.d); }
+function qd(a, b) { return Q(a.n * b.d, a.d * b.n); }
+// холимог бутархай TeX: 1\dfrac{2}{3}, -\dfrac{3}{4}, 5; сөрөг бол хаалтанд
+function qt(a) { if (a.d === 1) return String(a.n); var N = Math.abs(a.n), w = Math.floor(N / a.d), r = N % a.d; return (a.n < 0 ? '-' : '') + (w ? w : '') + '\\dfrac{' + r + '}{' + a.d + '}'; }
+function qp(a) { return a.n < 0 ? '\\left(' + qt(a) + '\\right)' : qt(a); }
+// аравтын бутархай (үет бол 0.1(6) хэлбэрээр)
+function decQ(a) {
+  var n = Math.abs(a.n), d = a.d, ip = Math.floor(n / d), r = n % d, dg = [], seen = {}, st = -1;
+  while (r && dg.length < 30) { if (seen[r] != null) { st = seen[r]; break; } seen[r] = dg.length; r *= 10; dg.push(Math.floor(r / d)); r %= d; }
+  var s = String(ip); if (dg.length) s += '.' + (st < 0 ? dg.join('') : dg.slice(0, st).join('') + '(' + dg.slice(st).join('') + ')');
+  return (a.n < 0 ? '-' : '') + s;
+}
+// i/10^sc — яг sc оронтой (сүүлийн тэгийг үлдээнэ): fx(740, 2) → 7.40
+function fx(i, sc) { var neg = i < 0, s = String(Math.abs(i)); while (s.length <= sc) s = '0' + s; return (neg ? '-' : '') + (sc ? s.slice(0, s.length - sc) + '.' + s.slice(s.length - sc) : s); }
+// x ≥ 0 бүхлийг u нэгжээр тоймлоход хэдэн нэгж болох (5 бол дээш)
+function rh(x, u) { return Math.floor((x + u / 2) / u); }
+
+// 1. [1.1 Рационал тоо] Төгсгөлөг ба үет аравтын бутархайг хураасан энгийн бутархай (ногдвор) хэлбэрт бичих
+function g1() {
+  if (rnd(0, 2)) {
+    var d = pick([2, 4, 5, 8, 20, 25, 40, 50]), n = rnd(1, 4 * d - 1); if (gcd(n, d) !== 1) return null;
+    var a = Q(rnd(0, 3) ? n : -n, d), s = decQ(a); if (s.length > 7) return null;
+    return { stem: '$' + s + '$', a: s + '=' + fr(a.n, a.d) };
+  }
+  var rep = pick(['3', '6', '1', '7', '4', '8', '27', '18', '45', '36', '09', '81', '54', '72']), nr = pick(['', '', '1', '2', '8', '3']), ip = rnd(0, 2);
+  var N = parseInt(nr + rep, 10) - (nr ? parseInt(nr, 10) : 0), D = (Math.pow(10, rep.length) - 1) * Math.pow(10, nr.length);
+  var b = qa(Q(ip, 1), Q(N, D)), s2 = ip + '.' + nr + '(' + rep + ')';
+  if (decQ(b) !== s2) return null;                                    // үеийн бичлэг хамгийн богино байх
+  return { stem: '$' + s2 + '$', a: s2 + '=' + fr(b.n, b.d) };
+}
+// 2. [1.2 Тоог тоймлох] Заасан нарийвчлалтай (0.001 … 1000) тоймлох
+function g2() {
+  var e = pick([-3, -2, -2, -1, -1, 0, 1, 2, 3]);
+  if (e <= 0) {
+    var sc = -e + rnd(1, 2), x = rnd(Math.pow(10, sc - (e === 0 ? 0 : 1)), 99 * Math.pow(10, sc)); if (x % 10 === 0) return null;
+    var u = Math.pow(10, sc + e), r = rh(x, u); if (x % u === 0) return null;
+    return { stem: '$' + fx(x, sc) + '\\ \\ (' + fx(1, -e) + ')$', a: fx(x, sc) + '\\approx ' + fx(r, -e) };
+  }
+  var w = Math.pow(10, e), y = rnd(1000, 999999); if (y % 10 === 0 || y % w === 0) return null;
+  return { stem: '$' + th(y) + '\\ \\ (' + w + ')$', a: th(y) + '\\approx ' + th(rh(y, w) * w) };
+}
+// 3. [1.3 Рационал тооны үйлдэл] Энгийн ба аравтын бутархайн нэмэх, хасах, үржих, хуваах
+function g3() {
+  var rq = function (big) { var d = pick([2, 3, 4, 5, 6, 8, 9, 10, 12]), n = rnd(1, (big ? 3 : 1) * d - 1); if (n % d === 0 || gcd(n, d) !== 1) return null; return Q(rnd(0, 1) ? n : -n, d); };
+  var t = rnd(1, 5), A, B, r, s;
+  if (t <= 4) {
+    A = rq(rnd(0, 1)); B = rq(rnd(0, 2) === 0); if (!A || !B) return null;
+    if (t === 1) { r = qa(A, B); s = qt(A) + '+' + qp(B); }
+    else if (t === 2) { r = qs(A, B); s = qt(A) + '-' + qp(B); }
+    else if (t === 3) { r = qm(A, B); s = qt(A) + '\\cdot ' + qp(B); }
+    else { r = qd(A, B); s = qt(A) + '\\div ' + qp(B); }
+  } else {
+    var X = pick([[5, 10], [25, 100], [75, 100], [2, 10], [4, 10], [6, 10], [8, 10], [15, 10], [125, 100], [25, 10], [12, 10], [35, 10]]), sg = rnd(0, 1) ? 1 : -1, op = rnd(0, 2);
+    A = Q(sg * X[0], X[1]); B = rq(false); if (!B) return null;
+    r = op === 0 ? qm(A, B) : op === 1 ? qd(A, B) : qa(A, B);
+    s = (sg < 0 ? '-' : '') + dFmt(X[0], X[1] === 10 ? 1 : 2) + (op === 0 ? '\\cdot ' : op === 1 ? '\\div ' : '+') + qp(B);
+  }
+  if (r.n === 0 || r.d > 60 || Math.abs(r.n) > 300) return null;
+  return { stem: '$' + s + '$', a: s + '=' + qt(r) };
+}
+// 4. [1.1–1.3] Өгүүлбэртэй бодлого: температурын зөрүү, амжилт жиших, тоймлон ойролцоо тооцоолох, тоймлолын завсар, бутархай хэсэг
+function g4() {
+  var t = rnd(1, 5);
+  if (t === 1) {
+    var d = rnd(12, 98), m = rnd(35, 289); if (d % 10 === 0 || m % 10 === 0) return null;
+    return { stem: 'Өдөр агаарын температур $+' + dFmt(d, 1) + '^{\\circ}$, шөнө $-' + dFmt(m, 1) + '^{\\circ}$ байв. Өдөр, шөнийн температурын зөрүүг ол.',
+      a: '$' + dFmt(d, 1) + '-(-' + dFmt(m, 1) + ')=' + dFmt(d + m, 1) + '^{\\circ}$' };
+  }
+  if (t === 2) {
+    var n1 = pick([20, 25, 40, 50]), n2 = pick([30, 45, 60, 75]), m1 = rnd(Math.ceil(n1 * 0.6), n1 - 1), m2 = rnd(Math.ceil(n2 * 0.6), n2 - 1);
+    if (m1 * n2 === m2 * n1) return null;
+    var big = m1 * n2 > m2 * n1;
+    return { stem: 'Сурагч математикийн шалгалтын $' + n1 + '$ даалгавраас $' + m1 + '$ даалгаврыг, физикийн шалгалтын $' + n2 + '$ даалгавраас $' + m2 + '$ даалгаврыг зөв гүйцэтгэжээ. Аль шалгалтад илүү амжилттай байсан бэ?',
+      a: '$\\dfrac{' + m1 + '}{' + n1 + '}' + (big ? '\\gt ' : '\\lt ') + '\\dfrac{' + m2 + '}{' + n2 + '}$ тул ' + (big ? 'математик' : 'физик') };
+  }
+  if (t === 3) {
+    var L = rnd(251, 989), W = rnd(151, 489); if (L % 10 === 0 || W % 10 === 0 || L <= W) return null;
+    var RL = rh(L, 100), RW = rh(W, 100);
+    return { stem: 'Тэгш өнцөгт өрөөний урт $' + dFmt(L, 2) + '$ м, өргөн $' + dFmt(W, 2) + '$ м. Хэмжээсүүдийг бүхэл хүртэл тоймлоод өрөөний талбайг ойролцоогоор ол.',
+      a: '$S\\approx ' + RL + '\\cdot ' + RW + '=' + (RL * RW) + '$ м$^2$' };
+  }
+  if (t === 4) {
+    var e = pick([-2, -1, -1, 0, 1, 2]);
+    if (e <= 0) {
+      var Ru = rnd(11, 99); if (Ru % 10 === 0) return null;
+      return { stem: 'Тоог $' + fx(1, -e) + '$ хүртэлх нарийвчлалтай тоймлоход $' + fx(Ru, -e) + '$ гарчээ. Уг тоо $x$ ямар завсарт байх вэ?',
+        a: '$' + fx(10 * Ru - 5, 1 - e) + '\\le x\\lt ' + fx(10 * Ru + 5, 1 - e) + '$' };
+    }
+    var w = Math.pow(10, e), R = rnd(12, 99) * w; if ((R / w) % 10 === 0) return null;
+    return { stem: 'Тоог $' + w + '$ хүртэлх нарийвчлалтай тоймлоход $' + R + '$ гарчээ. Уг тоо $x$ ямар завсарт байх вэ?',
+      a: '$' + (R - w / 2) + '\\le x\\lt ' + (R + w / 2) + '$' };
+  }
+  var b = pick([3, 4, 5, 6, 7, 8]), k = rnd(12, 40), a = rnd(1, b - 1); if (gcd(a, b) !== 1) return null;
+  return { stem: 'Багтаамж нь $' + dFmt(b * k, 1) + '$ литр савны $\\dfrac{' + a + '}{' + b + '}$ хэсэгт ус байв. Савыг дүүргэхийн тулд хэдэн литр ус нэмэх вэ?',
+    a: '$' + dFmt(b * k, 1) + '\\cdot\\left(1-\\dfrac{' + a + '}{' + b + '}\\right)=' + dFmt((b - a) * k, 1) + '$ литр' };
+}
+
+CMX.jishig({
+  title: 'I бүлэг — Жишиг даалгавар 1',
+  sub: 'Рационал тоо · тоог тоймлох · рационал тооны үйлдэл',
+  grade: '8-р анги',
+  rule: '$0.(3)=\\dfrac{3}{9}=\\dfrac{1}{3}$, $\\ 0.1(6)=\\dfrac{16-1}{90}=\\dfrac{1}{6}$ &nbsp;·&nbsp; Тоймлохдоо хаях эхний цифр $5,\ 6,\ 7,\ 8,\ 9$ бол үлдэх сүүлийн цифрийг нэгээр нэмнэ &nbsp;·&nbsp; $\\dfrac{a}{b}\\div\\dfrac{c}{d}=\\dfrac{a}{b}\\cdot\\dfrac{d}{c}$',
+  tasks: [
+    { label: 'Аравтын бутархайг хураасан энгийн бутархай хэлбэрт бич.', gen: g1, n: 8, nw: 4, cols: 4, wk: 12 },
+    { label: 'Хаалтад заасан нарийвчлалтай тоймло.', gen: g2, n: 8, nw: 4, cols: 4, wk: 10 },
+    { label: 'Үйлдлийг гүйцэтгэ.', gen: g3, n: 6, nw: 4, cols: 2, wk: 16 },
+    { label: 'Бодлогыг бод.', gen: g4, n: 4, nw: 4, cols: 2, wk: 22 }
+  ]
+});
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

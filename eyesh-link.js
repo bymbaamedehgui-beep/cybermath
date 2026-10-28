@@ -1,4 +1,5 @@
-/* ЭЕШ шалгагч (eyeshcheck.com) — ЭЕШ хуудсуудын (eesh-YYYY-songoh / eesh-YYYY-nohoh) «ЭЕШ шалгагч» товч.
+/* ЭЕШ шалгагч (eyeshcheck.com) — ЭЕШ хуудсуудын (eesh-YYYY-songoh / eesh-YYYY-nohoh) ба бүлгийн шалгалтын материалын
+   (cmx.js — window.CM_EXAM: 10 тест, хувилбарын кодтой) «ЭЕШ шалгагч» товч.
    Дарахад: Дасгалын төвийн бүртгэлээр нэвтэрсэн эсэх → эрх (POST /api/eyesh?action=status) → эрхгүй бол QPay
    (POST /api/qpay?action=create {plan:'eyesh'}, 1 сар) → нэг удаагийн код (POST /api/eyesh?action=handoff) →
    eyeshcheck.com/api/cm/sso руу form POST (шинэ таб): тэнд энэ хувилбарын зөв хариулттай шалгалт шууд үүснэ.
@@ -7,8 +8,10 @@
 (function () {
   'use strict';
   var m = /\/eesh-(\d{4})-(songoh|nohoh)(?:\.html)?$/.exec(location.pathname);
-  if (!m || window.EYESH) return;
-  var YEAR = +m[1], PART = m[2] === 'songoh' ? 1 : 2, YY = YEAR % 100;
+  // WS: бүлгийн шалгалт (cmx.js) — хувилбарын кодоор тогтмол тест; 2-р хэсэг (задгай) нь хариултын хуудасны ар талд, гараар дүгнэнэ
+  var WS = !m && typeof window.CM_EXAM === 'function';
+  if ((!m && !WS) || window.EYESH) return;
+  var YEAR = m ? +m[1] : 0, PART = m ? (m[2] === 'songoh' ? 1 : 2) : 1, YY = YEAR % 100;
   var PAGES = { 1: '/eesh-' + YEAR + '-songoh.html', 2: '/eesh-' + YEAR + '-nohoh.html' };
   var RESUME = 'cm_eyesh_resume', SSO_RE = /^https:\/\/eyeshcheck\.com\//;
   var POLL_MS = 3000, POLL_MAX = 200;
@@ -93,6 +96,7 @@
     });
   }
   function remember() {
+    if (WS) return;
     var o = exportCur(); if (!o) return;
     o.t = Date.now();
     lsSet('cm_eesh_' + YEAR + '_p' + PART, JSON.stringify(o));
@@ -167,7 +171,7 @@
   function addButton() {
     var bar = document.querySelector('.bar'); if (!bar || bar.querySelector('.eyc-btn')) return;
     var b = document.createElement('button'); b.type = 'button'; b.className = 'eyc-btn';
-    b.title = 'Энэ хувилбарын зөв хариулттай шалгалтыг eyeshcheck.com-д шууд үүсгэнэ';
+    b.title = WS ? 'Энэ хувилбарын (кодын) тестийн зөв хариулттай шалгалтыг eyeshcheck.com-д шууд үүсгэнэ' : 'Энэ хувилбарын зөв хариулттай шалгалтыг eyeshcheck.com-д шууд үүсгэнэ';
     b.innerHTML = ICO.logo + 'ЭЕШ шалгагч';
     b.addEventListener('click', open);
     bar.appendChild(b);
@@ -225,7 +229,29 @@
   }
   function pick(list, id) { for (var i = 0; i < list.length; i++) if (list[i].id === id && !list[i].bad) return list[i]; return null; }
   function autoTitle(a, b) { return 'ЭЕШ ' + YEAR + ' · Сонгох ' + vshort(a.o) + (b && b.o ? ' · Нөхөх ' + vshort(b.o) : ''); }
+  function wsCur() { try { return window.CM_EXAM(); } catch (e) { return null; } }
+  function drawComposeWs() {
+    var e = wsCur();
+    if (!S.titleEdited || S.wsSeed !== (e && e.seed)) { S.title = e ? e.title : ''; S.titleEdited = false; }
+    S.wsSeed = e && e.seed;
+    var h = '<div class="eyc-sub">Энэ хувилбарын тестийн зөв хариулттай шалгалтыг eyeshcheck.com-д шууд үүсгэнэ. Сурагчдын хариултын хуудсыг утсаараа уншуулж дүгнэнэ.</div>'
+      + '<div class="eyc-sec"><div class="eyc-st">1-р хэсэг · Сонгох даалгавар' + (e ? ' (' + e.n + ')' : '') + '</div>'
+      + (e ? '<div class="eyc-opt" style="cursor:default"><span>Хувилбарын код <b style="font-family:ui-monospace,Consolas,monospace;letter-spacing:.06em">' + esc(e.seed) + '</b><small>энэ хуудас</small></span></div>'
+           + '<div class="eyc-note">Хэвлэсэн хувилбарынхаа кодтой таарч байгааг шалгана уу. Өөр хувилбарынх бол хуудасны «Код» талбарт кодыг оруулаад (Enter) энэ товчийг дахин дарна.</div>'
+         : '<div class="eyc-note">Энэ хувилбарын зарим бодлого үүсээгүй байна. «Шинэ хувилбар» дарж дахин оролдоно уу.</div>')
+      + '</div>'
+      + '<div class="eyc-sec"><div class="eyc-st">2-р хэсэг · Задгай даалгавар</div><div class="eyc-note" style="margin-top:2px">Хариултын хуудасны ар талд бодно — багш гараар дүгнэж, хуудсан дээрх хүснэгтэд оноог бичнэ.</div></div>'
+      + '<label class="eyc-lbl" for="eyc-ti">Шалгалтын нэр</label><input class="eyc-ti" id="eyc-ti" maxlength="120">'
+      + '<div data-act></div>';
+    body().innerHTML = h;
+    S.sel1 = e ? 'cur' : null;
+    var ti = body().querySelector('#eyc-ti');
+    ti.value = S.title;
+    ti.oninput = function () { S.title = ti.value; S.titleEdited = !!ti.value.trim(); };
+    drawAction();
+  }
   function drawCompose() {
+    if (WS) return drawComposeWs();
     var src = sources(), s1 = src.s1, s2 = src.s2;
     if (!pick(s1, S.sel1)) S.sel1 = s1.length ? s1[0].id : null;
     // 2-р хэсгийн анхдагч: энэ хуудас / сүүлд нээсэн хувилбар (багтвал). Тэр нь a–h-д багтахгүй эсвэл огт нээгээгүй бол
@@ -285,6 +311,10 @@
     a.querySelector('[data-free]').onclick = go;
   }
   function buildExam() {
+    if (WS) {
+      var e = wsCur(); if (!e) return null;
+      return { kind: 'ws', slug: e.slug, seed: e.seed, key: e.key, scores: e.scores, topics: e.topics, title: (S.title || '').trim() || e.title };
+    }
     var src = sources(), a = pick(src.s1, S.sel1), b = pick(src.s2, S.sel2);
     if (!a) return null;
     var ex = { year: YEAR, title: (S.title || '').trim(), p1: { v: a.o.v, g: a.o.g || '', key: a.o.key }, p2: null };
@@ -393,7 +423,7 @@
   function hookBuild() {
     var ob = window.build;
     if (typeof ob !== 'function' || ob.__eyc) return;
-    var nb = function () { var r = ob.apply(this, arguments); try { remember(); } catch (e) {} return r; };
+    var nb = function () { var r = ob.apply(this, arguments); try { remember(); if (WS && ov && !S.inv) drawCompose(); } catch (e) {} return r; };
     nb.__eyc = 1;
     window.build = nb;
   }
@@ -412,6 +442,6 @@
   function boot() {
     css(); addButton(); hookBuild(); remember(); resume();
   }
-  window.EYESH = { open: open, remember: remember, exportCur: exportCur, fits: fits, partsOf: partsOf, ORIG: ORIG };
+  window.EYESH = { open: open, remember: remember, exportCur: exportCur, fits: fits, partsOf: partsOf, ORIG: ORIG, buildExam: buildExam, ws: WS };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

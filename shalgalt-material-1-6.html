@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>I бүлэг — Шалгалтын материал (6-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/cmx.js?v=1"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* 6-р анги · I бүлэг. Бүхэл тоон олонлог, зэрэг, язгуур (1.1 Бүхэл тоонуудыг жиших · 1.2 Нэмэх, хасах · 1.3 Үржүүлэх, хуваах ·
+   1.4 4, 6, 8-д хуваагдах шинж · 1.5 ХИЕХ · 1.6 ХБЕХ · 1.7 Анхны тоо · 1.8 Квадрат зэрэг, квадрат язгуур · 1.9 Хэллэг · 1.10 Олонлог ·
+   1.11 Сонгон судлах — зөвхөн 14, 15-д хөнгөн хэлбэрээр) */
+function isPrime(n) { if (n < 2) return false; for (var i = 2; i * i <= n; i++) if (n % i === 0) return false; return true; }
+// анхны тоон үржигдэхүүнд задаргаа (TeX): 360 → 2^{3}\cdot 3^{2}\cdot 5
+function pfTex(n) { var s = [], p, e; for (p = 2; n > 1; p++) { e = 0; while (n % p === 0) { n /= p; e++; } if (e) s.push(e === 1 ? '' + p : p + '^{' + e + '}'); } return s.join('\\cdot '); }
+function setTex(a) { return a.length ? '\\{' + a.join(',\\ ') + '\\}' : '\\varnothing'; }
+function byNum(x, y) { return x - y; }
+function rel(x, o, y) { return x + (o === '<' ? '\\lt ' : '\\gt ') + y; }
+// [lo, hi] завсраас нөхцөл хангах санамсаргүй тоо (олдохгүй бол null)
+function pickN(lo, hi, ok) { for (var t = 0; t < 300; t++) { var n = rnd(lo, hi); if (ok(n)) return n; } return null; }
+// 1..20 тооноос хоёр олонлог: нийтлэг (com), зөвхөн A (oa), зөвхөн B (ob), аль алинд нь ороогүй (out)
+function twoSets() {
+  var pool = [], i; for (i = 1; i <= 20; i++) pool.push(i);
+  pool = shuffle(pool);
+  var c = rnd(1, 2), a = rnd(2, 3), b = rnd(2, 3);
+  var com = pool.slice(0, c), oa = pool.slice(c, c + a), ob = pool.slice(c + a, c + a + b), out = pool.slice(c + a + b);
+  return { A: com.concat(oa).sort(byNum), B: com.concat(ob).sort(byNum), com: com, oa: oa, ob: ob, out: out };
+}
+
+/* ── I. Тест (10): 1–3 хялбар, 4–7 дунд, 8–10 хүнд ── */
+var TESTS = [
+  // 1. Бүхэл тоонуудыг жиших (1.1): аль тэнцэтгэл биш үнэн / худал вэ (модулиар нь жишсэн алдаа)
+  function () {
+    var x = rnd(2, 12), y = rnd(x + 1, 25), z = rnd(1, 15), w = rnd(1, 9);
+    var cand = [[-y, '<', -x], [-x, '<', -y], [-x, '>', -y], [-y, '>', -x], [0, '<', -z], [-z, '<', 0], [-z, '>', w], [-z, '<', w], [0, '>', -w], [w, '<', -z]];
+    var tr = [], fa = [];
+    cand.forEach(function (c) { var ok = c[1] === '<' ? c[0] < c[2] : c[0] > c[2]; (ok ? tr : fa).push(rel(c[0], c[1], c[2])); });
+    tr = shuffle(tr); fa = shuffle(fa);
+    if (rnd(0, 1)) return { stem: 'Аль тэнцэтгэл биш үнэн бэ?', mc: makeMC(C(tr[0]), fa.map(C)) };
+    return { stem: 'Аль тэнцэтгэл биш худал бэ?', mc: makeMC(C(fa[0]), tr.map(C)) };
+  },
+  // 2. Бүхэл тооны нэмэх, хасах (1.2): гурван гишүүнтэй илэрхийлэл (тэмдэг андуурах алдаа)
+  function () {
+    var a = nz(-20, 20), b = nz(-15, 15), c = nz(-15, 15);
+    if (a > 0 && b > 0) return null;
+    if (c > 0 && rnd(0, 2) > 0) return null;          // ихэнхдээ $-(-c)$ хэлбэр
+    var v = a + b - c; if (v === 0) return null;
+    return { stem: '$' + par(a) + '+' + par(b) + '-' + par(c) + '$ илэрхийллийн утга хэд вэ?',
+      mc: makeMC(C(v), [C(a + b + c), C(a - b - c), C(-v), C(a - b + c), C(-a + b - c)]) };
+  },
+  // 3. Бүхэл тооны үржүүлэх, хуваах (1.3): үйлдлийн дараалал ба тэмдэг (дарааллыг алдах, тэмдэг алдах)
+  function () {
+    var q = rnd(2, 9), k = rnd(2, 9), r = rnd(2, 5), P = q * k * r;
+    if (P > 160) return null;
+    var A = -P, B = pick([-1, 1]) * q, R = pick([-1, 1]) * r;
+    var v = A / B * R, m = A / (B * R);
+    return { stem: '$' + par(A) + '\\div ' + par(B) + '\\cdot ' + par(R) + '$ илэрхийллийн утга хэд вэ?',
+      mc: makeMC(C(v), [C(-v), C(m), C(-m), C(A / B)]) };
+  },
+  // 4. 4, 6, 8-д хуваагдах шинж (1.4): аль тоо d тоонд хуваагдах вэ (өөр тооны шинжээр шалгасан алдаа)
+  function () {
+    var d = pick([4, 6, 8]), g = pickN(1000, 9999, function (n) { return n % d === 0; }), bad;
+    if (d === 8) bad = [pickN(1000, 9999, function (n) { return n % 8 === 4; }), pickN(1000, 9999, function (n) { return n % 10 === 8 && n % 8 !== 0; }),
+      pickN(1000, 9999, function (n) { return n % 8 === 4; }), pickN(1000, 9999, function (n) { return n % 2 === 0 && n % 8 !== 0; })];
+    else if (d === 4) bad = [pickN(1000, 9999, function (n) { return n % 10 === 4 && n % 4 !== 0; }), pickN(1000, 9999, function (n) { return n % 4 === 2; }),
+      pickN(1000, 9999, function (n) { return n % 10 === 8 && n % 4 !== 0; }), pickN(1000, 9999, function (n) { return n % 4 === 2; })];
+    else bad = [pickN(1000, 9999, function (n) { return n % 3 === 0 && n % 2 === 1; }), pickN(1000, 9999, function (n) { return n % 10 === 6 && n % 3 !== 0; }),
+      pickN(1000, 9999, function (n) { return n % 2 === 0 && n % 3 !== 0; }), pickN(1000, 9999, function (n) { return n % 3 === 0 && n % 2 === 1; })];
+    return { stem: '$' + d + '$ тоонд үлдэгдэлгүй хуваагдах тоо аль нь вэ?', mc: makeMC(C(g), bad.map(C)) };
+  },
+  // 5. ХИЕХ (1.5): хоёр тооны хамгийн их ерөнхий хуваагч (их биш ерөнхий хуваагч, ХБЕХ-тэй андуурах)
+  function () {
+    var g = pick([4, 6, 8, 9, 10, 12, 14, 15, 16, 18]), m = rnd(2, 9), n = rnd(2, 9);
+    if (m >= n || gcd(m, n) !== 1) return null;
+    var a = g * m, b = g * n; if (b > 160) return null;
+    var sp = 2; while (g % sp) sp++;
+    return { stem: '$' + a + '$ ба $' + b + '$ тооны хамгийн их ерөнхий хуваагч хэд вэ?',
+      mc: makeMC(C(g), [C(g / sp), C(g * m * n), C(b - a), C(2 * g), C(a)]) };
+  },
+  // 6. ХБЕХ (1.6): давтамжтай давхцах бодлого (үржвэр, ХИЕХ, нийлбэртэй андуурах)
+  function () {
+    var a = rnd(3, 12), b = rnd(4, 15);
+    if (a >= b || b % a === 0 || gcd(a, b) === 1) return null;
+    var L = lcm(a, b); if (L > 90) return null;
+    var it = pick([['Тараг', 'сүү'], ['Талх', 'жимс'], ['Мах', 'ногоо']]);
+    return { stem: it[0] + ' $' + a + '$ хоног, ' + it[1] + ' $' + b + '$ хоног тутамд дэлгүүрт ирдэг. Өнөөдөр хамт ирсэн бол дахин хэдэн хоногийн дараа хамт ирэх вэ?',
+      mc: makeMC(C(L), [C(a * b), C(gcd(a, b)), C(a + b), C(2 * L), C(b)]) };
+  },
+  // 7. Анхны тоо (1.7): анхны тоог таних (3-т, 7-д, 11-д хуваагддаг «анхны мэт» тоо) / анхны тоон үржигдэхүүнд задаргаа (зэрэг алдах)
+  function () {
+    if (rnd(0, 1)) {
+      var lo = pick([21, 101]), hi = lo === 21 ? 99 : 199;
+      var p = pickN(lo, hi, isPrime), cs = [];
+      for (var t = 0; t < 3; t++) cs.push(pickN(lo, hi, function (n) { return n % 2 && n % 5 && !isPrime(n) && cs.indexOf(n) < 0; }));
+      return { stem: 'Аль нь анхны тоо вэ?', mc: makeMC(C(p), cs.map(C)) };
+    }
+    var P = [2, 3, 5, 7], e = [rnd(1, 4), rnd(0, 2), rnd(0, 1), rnd(0, 1)], i;
+    function val(x) { var v = 1; for (var j = 0; j < 4; j++) v *= Math.pow(P[j], x[j]); return v; }
+    function tex(x) { var s = []; for (var j = 0; j < 4; j++) if (x[j]) s.push(x[j] === 1 ? '' + P[j] : P[j] + '^{' + x[j] + '}'); return s.join('\\cdot '); }
+    var N = val(e), kinds = 0, tot = 0;
+    for (i = 0; i < 4; i++) { if (e[i]) kinds++; tot += e[i]; }
+    if (N < 60 || N > 800 || kinds < 2 || tot < 4) return null;
+    var ds = [];
+    for (i = 0; i < 4; i++) {
+      if (!e[i]) continue;
+      var up = e.slice(); up[i]++; ds.push(tex(up));
+      if (e[i] >= 2) { var dn = e.slice(); dn[i]--; ds.push(tex(dn)); }
+    }
+    if (e[0] !== e[1] && e[1]) { var sw = e.slice(); sw[0] = e[1]; sw[1] = e[0]; ds.push(tex(sw)); }
+    return { stem: '$' + N + '$ тооны анхны тоон үржигдэхүүнд задаргаа аль нь вэ?', mc: makeMC(C(tex(e)), shuffle(ds).map(C)) };
+  },
+  // 8. Квадрат зэрэг, квадрат язгуур (1.8): (−a)², √(p²) ба тэмдэг — 4 сонголт нь тэмдгийн 4 хувилбар
+  function () {
+    var a = rnd(2, 9), p = rnd(3, 12), k = rnd(2, 6), A2 = a * a, PK = p * k;
+    if (A2 === PK) return null;
+    if (rnd(0, 1)) return { stem: '$(-' + a + ')^2-\\sqrt{' + (p * p) + '}\\cdot(-' + k + ')$ илэрхийллийн утга хэд вэ?',
+      mc: makeMC(C(A2 + PK), [C(-A2 + PK), C(A2 - PK), C(-A2 - PK), C(A2 + p * p * k)]) };
+    return { stem: '$\\sqrt{' + (p * p) + '}\\cdot(-' + k + ')-(-' + a + ')^2$ илэрхийллийн утга хэд вэ?',
+      mc: makeMC(C(-PK - A2), [C(-PK + A2), C(PK - A2), C(PK + A2), C(-p * p * k - A2)]) };
+  },
+  // 9. Олонлог (1.10): нэгдлийн элементийн тоо (нийтлэгийг давхар тоолох алдаа) / ∈, ∉ тэмдэглэгээ
+  function () {
+    var S = twoSets(), nA = S.A.length, nB = S.B.length, I = S.com.length, U = nA + nB - I;
+    var head = '${A=' + setTex(S.A) + '}$, ${B=' + setTex(S.B) + '}$ бол ';     // {…} — олонлогийн дотор мөр таслахгүй
+    if (rnd(0, 1)) return { stem: head + '$A\\cup B$ олонлог хэдэн элементтэй вэ?',
+      mc: makeMC(C(U), [C(nA + nB), C(I), C(nA + nB + I), C(U + 1), C(U - 1)]) };
+    var x = pick(S.com), y = pick(S.oa), z = pick(S.ob), w = pick(S.out);
+    var tr = [x + '\\in A\\cap B', y + '\\in A\\cup B', z + '\\notin A\\cap B', w + '\\notin A\\cup B'];
+    var fa = [y + '\\in A\\cap B', z + '\\in A\\cap B', w + '\\in A\\cup B', x + '\\notin A\\cup B', z + '\\notin A\\cup B', x + '\\notin A\\cap B'];
+    return { stem: head + 'аль нь үнэн бэ?', mc: makeMC(C(pick(tr)), shuffle(fa).map(C)) };
+  },
+  // 10. Хэллэг (1.9): ялгавар нь тогтмолоор өсөх дарааллын дараагийн гишүүн / «дор хаяж», «хамгийн олондоо», «яг» хэллэг
+  function () {
+    if (rnd(0, 1)) {
+      var s = rnd(-12, 8), d = rnd(1, 5), e = rnd(1, 3), t = [s], i;
+      for (i = 0; i < 4; i++) t.push(t[i] + d + i * e);
+      var nx = t[4] + d + 4 * e;
+      return { stem: '$' + t.join(',\\ ') + ',\\ \\ldots$ дарааллын дараагийн гишүүн аль нь вэ?', topic: 'Функц',
+        mc: makeMC(C(nx), [C(t[4] + d + 3 * e), C(t[4] + d + 5 * e), C(t[4] + d), C(nx + 1)]) };
+    }
+    var N = rnd(10, 16), r = rnd(3, N - 5), g = rnd(2, N - r - 2), b = N - r - g;
+    if (b < 2) return null;
+    var col = [['улаан', r], ['ногоон', g], ['хөх', b]], tr = [], trB = [], fa = [];
+    col.forEach(function (c) {
+      for (var k = Math.max(1, c[1] - 2); k <= c[1] + 2; k++) {
+        [['дор хаяж', c[1] >= k], ['хамгийн олондоо', c[1] <= k], ['яг', c[1] === k]].forEach(function (ph) {
+          var s2 = '\\text{' + c[0] + ' нь ' + ph[0] + ' }' + k;
+          if (!ph[1]) fa.push(s2); else if (c[0] === 'хөх') trB.push(s2); else tr.push(s2);
+        });
+      }
+    });
+    var ok = rnd(0, 1) ? pick(trB) : pick(tr);
+    return { stem: 'Хайрцагт $' + N + '$ харандаа байгаагийн $' + r + '$ нь улаан, $' + g + '$ нь ногоон, бусад нь хөх. Аль өгүүлбэр үнэн бэ?',
+      mc: makeMC(C(ok), shuffle(fa).map(C)) };
+  }
+];
+
+/* ── II. Задгай (5): 11–12 суурь (2 оноо), 13–15 олон алхамтай (3 оноо) ── */
+var FREE = [
+  // 11. Бүхэл тооны үйлдлийн дараалал (1.2–1.3)
+  function () {
+    var k = nz(-9, 9), B = nz(-9, 9), C1 = nz(-9, 9), D = nz(-9, 9), E = nz(-20, 20);
+    if (Math.abs(k) < 2 || Math.abs(B) < 2 || Math.abs(C1) < 2 || Math.abs(D) < 2) return null;
+    if (k * B > 0 || (C1 > 0 && D > 0)) return null;
+    return { stem: 'Илэрхийллийн утгыг ол: $' + par(k * B) + '\\div ' + par(B) + '-' + par(C1) + '\\cdot ' + par(D) + '+' + par(E) + '$',
+      a: '' + (k - C1 * D + E) };
+  },
+  // 12. Анхны тоон үржигдэхүүнд задалж ХИЕХ, ХБЕХ олох (1.5–1.7)
+  function () {
+    var g = pick([4, 6, 8, 9, 10, 12, 14, 15, 18]), m = rnd(2, 9), n = rnd(2, 11);
+    if (m >= n || gcd(m, n) !== 1) return null;
+    var a = g * m, b = g * n; if (b > 200) return null;
+    return { stem: '$' + a + '$ ба $' + b + '$ тоог анхны тоон үржигдэхүүнд задалж, ХИЕХ ба ХБЕХ-ийг ол.',
+      a: '$' + a + '=' + pfTex(a) + '$, $' + b + '=' + pfTex(b) + '$; $\\text{ХИЕХ}=' + g + '$, $\\text{ХБЕХ}=' + (g * m * n) + '$' };
+  },
+  // 13. Квадратын талбай → тал → периметр (1.8)
+  function () {
+    var r = rnd(7, 25), k = rnd(2, 4), ob = pick(['цэцэрлэгийн', 'ногооны газрын', 'малын хашааны']);
+    return { stem: 'Квадрат хэлбэртэй ' + ob + ' талбай $' + (r * r) + '$ м². а) Талын уртыг ол. б) Тойруулан $' + k + '$ эгнээ утсаар хашихад хэдэн метр утас орох вэ?',
+      a: 'а) $\\sqrt{' + (r * r) + '}=' + r + '$ м; б) $4\\cdot ' + r + '\\cdot ' + k + '=' + (4 * r * k) + '$ м' };
+  },
+  // 14. Олонлог ба ХБЕХ (1.10, 1.11 хөнгөн): хуваагддаг тоонуудын олонлогийн огтлолцол, нэгдлийн элементийн тоо
+  function () {
+    var pr = pick([[2, 3], [3, 4], [4, 6], [2, 5], [3, 5], [4, 5], [6, 8], [6, 9], [4, 10]]), p = pr[0], q = pr[1];
+    var N = pick([30, 36, 40, 48, 50, 60]), L = lcm(p, q);
+    var A = Math.floor(N / p), B = Math.floor(N / q), I = Math.floor(N / L), U = A + B - I;
+    if (I < 2) return null;
+    return { stem: '$1,\\ 2,\\ 3,\\ \\ldots,\\ ' + N + '$ тоонуудаас $' + p + '$ тоонд хуваагддаг тоонуудын олонлог $A$, $' + q + '$ тоонд хуваагддаг тоонуудын олонлог $B$ бол $A\\cap B$ ба $A\\cup B$ тус бүр хэдэн элементтэй вэ?',
+      a: '$A\\cap B$ — $' + I + '$ элемент ($' + L + '$ тоонд хуваагддаг), $A\\cup B$ — $' + A + '+' + B + '-' + I + '=' + U + '$ элемент' };
+  },
+  // 15. ХБЕХ-ийн хэрэглээ (1.6, 1.11 хөнгөн): завсарт орших ерөнхий хуваагдагч
+  function () {
+    var p = pick([4, 6, 8, 9, 10, 12]), q = pick([6, 8, 9, 10, 12, 15]);
+    if (p >= q || q % p === 0) return null;
+    var L = lcm(p, q); if (L < 18 || L > 60) return null;
+    var n = L * rnd(2, 5);
+    var lo = 10 * Math.floor((n - rnd(1, L - 1)) / 10), hi = 10 * Math.ceil((n + rnd(1, L - 1)) / 10);
+    if (lo <= n - L || hi >= n + L || lo < 10) return null;
+    return { stem: 'Аялагчдыг $' + p + '$ эсвэл $' + q + '$ хүний завиар зөөхөд сул суудал үлдэхгүй. Аялагчдын тоо $' + lo + '$ ба $' + hi + '$ тоонуудын хооронд бол хэд байсан бэ? $' + q + '$ хүний хэдэн завь хэрэгтэй вэ?',
+      a: '$\\text{ХБЕХ}(' + p + ';\\ ' + q + ')=' + L + '$ тул $' + n + '$ аялагч; $' + n + '\\div ' + q + '=' + (n / q) + '$ завь' };
+  }
+];
+
+CMX.exam({
+  title: 'I бүлэг — Шалгалтын материал',
+  sub: 'Бүхэл тоо · хуваагдах шинж · ХИЕХ, ХБЕХ · анхны тоо · квадрат зэрэг, язгуур · хэллэг · олонлог',
+  grade: '6-р анги',
+  topic: 'Тооны онол',
+  tests: TESTS,
+  free: FREE
+});
+</script>
+<script src="/eyesh-link.js?v=3"></script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

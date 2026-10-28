@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>IV бүлэг — Жишиг даалгавар 1 (8-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/cmx.js?v=1"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* 8-р анги · IV бүлэг. Илэрхийлэл, тэгшитгэл, тэнцэтгэл биш — Жишиг даалгавар 1
+   (4.1 Нэг ба олон гишүүнт · 4.2 Квадратуудын ялгавар, нийлбэр ба ялгаврын квадрат · 4.3 Олон гишүүнтийг үржигдэхүүн болгон задлах · 4.4 Алгебрын бутархай) */
+function pw(v, e) { return e === 0 ? '' : e === 1 ? v : v + '^{' + e + '}'; }
+// коэффициент · хувьсагчийн хэсэг: 1x → x, −1x → −x; хувьсагчгүй бол тоо
+function mono(c, v) { if (!v) return String(c); return c === 1 ? v : c === -1 ? '-' + v : c + v; }
+// олон гишүүнт [[c, v], …] → 3x^{2}-5x+2 (тэг гишүүнийг алгасна)
+function poly(ts) { var s = ''; ts.forEach(function (t) { if (!t[0]) return; s += (t[0] < 0 ? '-' : s ? '+' : '') + mono(Math.abs(t[0]), t[1]); }); return s || '0'; }
+function lin(a, b, v) { return poly([[a, v], [b, '']]); }
+function br(t) { return t.charAt(0) === '-' ? '(' + t + ')' : t; }          // сөрөг нэг гишүүнтийг хаалтанд
+// a·nv / (b·dv) — хураасан бутархай, тэмдэг урдаа
+function mfrac(a, nv, b, dv) { var neg = (a < 0) !== (b < 0); a = Math.abs(a); b = Math.abs(b); var g = gcd(a, b); a /= g; b /= g; var N = mono(a, nv), D = mono(b, dv); return (neg ? '-' : '') + (D === '1' ? N : '\\dfrac{' + N + '}{' + D + '}'); }
+var VV = [['a', 'b'], ['x', 'y'], ['m', 'n'], ['p', 'q']];
+// төрлүүдийг ээлжлэн сонгох уут — нэг хуудсанд нэг төрөл олон давтагдахгүй; сонгосон төрлөө хэд хэд оролдоно
+function bag(list) { var b = []; return function () { if (!b.length) b = shuffle(list); return b.pop(); }; }
+function tryN(f) { for (var i = 0; i < 80; i++) { var r = f(); if (r) return r; } return null; }
+var B1 = bag([1, 1, 2, 2, 3, 3, 4, 4, 5, 6, 6, 7]), B2 = bag([1, 1, 2, 3, 3, 4, 5, 5]), B3 = bag([1, 1, 2, 2, 3, 3, 4, 4, 4, 5, 6, 7, 7]), B4 = bag([1, 1, 2, 3, 4, 4, 5, 6]), B5 = bag([1, 2, 2, 3, 4, 5, 6]);
+function g1() { var t = B1(); return tryN(function () { return g1m(t); }); }
+function g2() { var t = B2(); return tryN(function () { return g2m(t); }); }
+function g3() { var t = B3(); return tryN(function () { return g3m(t); }); }
+function g4() { var t = B4(); return tryN(function () { return g4m(t); }); }
+function g5() { var t = B5(); return tryN(function () { return g5m(t); }); }
+
+// 1. Нэг ба олон гишүүнтийн үйлдэл (4.1): нэг гишүүнтийн үржвэр ба зэрэг, нэг гишүүнтийг олон гишүүнтээр,
+//    хоёр гишүүнтийг хоёр/гурван гишүүнтээр үржүүлэх, хасах, хялбарчлах
+function g1m(t) {
+  var V = pick(VV), u = V[0], w = V[1];
+  if (t === 1) {                       // нэг гишүүнтүүдийн үржвэр
+    var c1 = nz(-6, 6), c2 = nz(-6, 6), e1 = rnd(1, 4), f1 = rnd(1, 3), e2 = rnd(1, 3), f2 = rnd(1, 4);
+    if (Math.abs(c1) === 1 || Math.abs(c2) === 1) return null;
+    return { stem: '$' + br(mono(c1, pw(u, e1) + pw(w, f1))) + '\\cdot ' + br(mono(c2, pw(u, e2) + pw(w, f2))) + '$', a: mono(c1 * c2, pw(u, e1 + e2) + pw(w, f1 + f2)) };
+  }
+  if (t === 2) {                       // нэг гишүүнтийн зэрэг (ба үржвэр)
+    var c = pick([-3, -2, 2, 3]), e = rnd(1, 3), f = rnd(1, 3);
+    if (rnd(0, 1)) return { stem: '$(' + mono(c, pw(u, e) + pw(w, f)) + ')^{3}$', a: mono(c * c * c, pw(u, 3 * e) + pw(w, 3 * f)) };
+    var d = nz(-4, 4), g = rnd(1, 3), h = rnd(0, 2); if (Math.abs(d) === 1) return null;
+    return { stem: '$(' + mono(c, pw(u, e) + pw(w, f)) + ')^{2}\\cdot ' + br(mono(d, pw(u, g) + pw(w, h))) + '$', a: mono(c * c * d, pw(u, 2 * e + g) + pw(w, 2 * f + h)) };
+  }
+  if (t === 3) {                       // нэг гишүүнтийг гурван гишүүнтээр
+    var m = nz(-5, 5), me = rnd(1, 2), a = nz(-4, 4), b = nz(-9, 9), k = nz(-9, 9);
+    if (m === 1) return null;
+    return { stem: '$' + mono(m, pw(u, me)) + '(' + poly([[a, pw(u, 2)], [b, u], [k, '']]) + ')$', a: poly([[m * a, pw(u, me + 2)], [m * b, pw(u, me + 1)], [m * k, pw(u, me)]]) };
+  }
+  if (t === 4) {                       // хоёр гишүүнтүүдийн үржвэр
+    var a4 = rnd(1, 4), b4 = nz(-9, 9), c4 = rnd(1, 3), d4 = nz(-9, 9);
+    if (a4 === c4 && b4 === d4) return null;
+    return { stem: '$(' + lin(a4, b4, u) + ')(' + lin(c4, d4, u) + ')$', a: poly([[a4 * c4, pw(u, 2)], [a4 * d4 + b4 * c4, u], [b4 * d4, '']]) };
+  }
+  if (t === 5) {                       // хоёр гишүүнтийг гурван гишүүнтээр: (u+p)(u²+qu+r)
+    var p = nz(-5, 5), q = nz(-5, 5), r = nz(-6, 6);
+    return { stem: '$(' + lin(1, p, u) + ')(' + poly([[1, pw(u, 2)], [q, u], [r, '']]) + ')$', a: poly([[1, pw(u, 3)], [p + q, pw(u, 2)], [p * q + r, u], [p * r, '']]) };
+  }
+  if (t === 6) {                       // олон гишүүнтүүдийн ялгавар
+    var A = [rnd(2, 7), nz(-9, 9), nz(-9, 9)], B = [rnd(1, 5), nz(-9, 9), nz(-9, 9)];
+    var P = function (z) { return poly([[z[0], pw(u, 2)], [z[1], u], [z[2], '']]); };
+    return { stem: '$(' + P(A) + ')-(' + P(B) + ')$', a: P([A[0] - B[0], A[1] - B[1], A[2] - B[2]]) };
+  }
+  // хялбарчлах: k·u(u+p) − (u+q)(u+r) = (k−1)u² + (kp−q−r)u − qr
+  var k7 = rnd(2, 4), p7 = nz(-6, 6), q7 = nz(-6, 6), r7 = nz(-6, 6);
+  return { stem: '$' + mono(k7, u) + '(' + lin(1, p7, u) + ')-(' + lin(1, q7, u) + ')(' + lin(1, r7, u) + ')$', a: poly([[k7 - 1, pw(u, 2)], [k7 * p7 - q7 - r7, u], [-q7 * r7, '']]) };
+}
+
+// 2. Товчилсон үржихийн томьёо (4.2): (a±b)², (a+b)(a−b), тоон бодолт
+function g2m(t) {
+  var V = pick([['a', 'b'], ['x', 'y'], ['p', 'q'], ['c', 'd']]), u = V[0], w = V[1];
+  if (t === 1) { var p = rnd(1, 5), q = nz(-9, 9); return { stem: '$(' + lin(p, q, u) + ')^{2}$', a: poly([[p * p, pw(u, 2)], [2 * p * q, u], [q * q, '']]) }; }
+  if (t === 2) {
+    var p2 = rnd(1, 4), q2 = nz(-5, 5); if (p2 === 1 && Math.abs(q2) === 1) return null;
+    return { stem: '$(' + poly([[p2, u], [q2, w]]) + ')^{2}$', a: poly([[p2 * p2, pw(u, 2)], [2 * p2 * q2, u + w], [q2 * q2, pw(w, 2)]]) };
+  }
+  if (t === 3) {
+    var p3 = rnd(1, 6), q3 = rnd(1, 9), A = mono(p3, u); if (p3 > 1 && q3 > 1 && rnd(0, 1)) return null;
+    return { stem: (p3 + q3) % 2 ? '$(' + A + '-' + q3 + ')(' + A + '+' + q3 + ')$' : '$(' + A + '+' + q3 + ')(' + A + '-' + q3 + ')$', a: poly([[p3 * p3, pw(u, 2)], [-q3 * q3, '']]) };
+  }
+  if (t === 4) {                       // (pu − qw)(pu + qw), нэг коэффициент нь 1
+    var p4 = rnd(1, 5), q4 = rnd(1, 5); if (p4 === q4 || (p4 > 1 && q4 > 1)) return null;
+    var A4 = mono(p4, u), Q4 = mono(q4, w);
+    return { stem: '$(' + A4 + '-' + Q4 + ')(' + A4 + '+' + Q4 + ')$', a: poly([[p4 * p4, pw(u, 2)], [-q4 * q4, pw(w, 2)]]) };
+  }
+  // тоон бодолт: (N ± d)² ба (N − d)(N + d)
+  var N = pick([20, 30, 40, 50, 60, 70, 80, 90, 100]), d = rnd(1, 4);
+  if (rnd(0, 1)) { var s = pick([1, -1]); return { stem: '$' + (N + s * d) + '^{2}$', a: String((N + s * d) * (N + s * d)) }; }
+  return { stem: '$' + (N - d) + '\\cdot ' + (N + d) + '$', a: String(N * N - d * d) };
+}
+
+// 3. Үржигдэхүүн болгон задлах (4.3): ерөнхий үржигдэхүүн, квадратуудын ялгавар, бүтэн квадрат, x²+bx+c, бүлэглэх, хосолсон
+function g3m(t) {
+  var V = pick(VV), u = V[0], w = V[1];
+  if (t === 1) {                       // ерөнхий үржигдэхүүнийг хаалтны өмнө гаргах
+    var k = rnd(2, 6), e = rnd(1, 3), a = rnd(1, 7), b = nz(-9, 9); if (gcd(a, b) !== 1) return null;
+    return { stem: '$' + poly([[k * a, pw(u, e + 1)], [k * b, pw(u, e)]]) + '$', a: mono(k, pw(u, e)) + '(' + lin(a, b, u) + ')' };
+  }
+  if (t === 2) {                       // квадратуудын ялгавар
+    var p = rnd(1, 7), q = rnd(1, 9); if (gcd(p, q) !== 1) return null;
+    var two = rnd(0, 1), Q = two ? mono(q, w) : String(q);
+    return { stem: '$' + poly([[p * p, pw(u, 2)], [-q * q, two ? pw(w, 2) : '']]) + '$', a: '(' + mono(p, u) + '-' + Q + ')(' + mono(p, u) + '+' + Q + ')' };
+  }
+  if (t === 3) {                       // бүтэн квадрат
+    var p3 = rnd(1, 5), q3 = rnd(1, 9), s = pick([1, -1]); if (gcd(p3, q3) !== 1) return null;
+    return { stem: '$' + poly([[p3 * p3, pw(u, 2)], [2 * p3 * q3 * s, u], [q3 * q3, '']]) + '$', a: '(' + lin(p3, s * q3, u) + ')^{2}' };
+  }
+  if (t === 4) {                       // x² + bx + c = (x + r)(x + s), r + s = b, rs = c
+    var r = nz(-9, 9), s4 = nz(-9, 9); if (r === s4 || r === -s4) return null;
+    return { stem: '$' + poly([[1, pw(u, 2)], [r + s4, u], [r * s4, '']]) + '$', a: '(' + lin(1, Math.min(r, s4), u) + ')(' + lin(1, Math.max(r, s4), u) + ')' };
+  }
+  if (t === 5) {                       // бүлэглэх: uw + qu + pw + pq = (u + p)(w + q)
+    var p5 = nz(-7, 7), q5 = nz(-7, 7);
+    return { stem: '$' + poly([[1, u + w], [q5, u], [p5, w], [p5 * q5, '']]) + '$', a: '(' + lin(1, p5, u) + ')(' + lin(1, q5, w) + ')' };
+  }
+  if (t === 6) {                       // бүлэглэх: u³ + pu² + qu + pq = (u + p)(u² + q)
+    var p6 = nz(-6, 6), q6 = rnd(1, 9);
+    return { stem: '$' + poly([[1, pw(u, 3)], [p6, pw(u, 2)], [q6, u], [p6 * q6, '']]) + '$', a: '(' + lin(1, p6, u) + ')(' + poly([[1, pw(u, 2)], [q6, '']]) + ')' };
+  }
+  // хосолсон: ku³ − kq²u = ku(u − q)(u + q)  эсвэл  ku² ± 2kqu + kq² = k(u ± q)²
+  var k7 = rnd(2, 5), q7 = rnd(1, 6);
+  if (rnd(0, 1)) return { stem: '$' + poly([[k7, pw(u, 3)], [-k7 * q7 * q7, u]]) + '$', a: mono(k7, u) + '(' + lin(1, -q7, u) + ')(' + lin(1, q7, u) + ')' };
+  var s7 = pick([1, -1]);
+  return { stem: '$' + poly([[k7, pw(u, 2)], [2 * k7 * q7 * s7, u], [k7 * q7 * q7, '']]) + '$', a: k7 + '(' + lin(1, s7 * q7, u) + ')^{2}' };
+}
+
+// 4. Алгебрын бутархайг хураах (4.4): нэг гишүүнт, ерөнхий үржигдэхүүн, товчилсон үржихийн томьёо, гурван гишүүнт
+function g4m(t) {
+  var V = pick(VV), u = V[0], w = V[1];
+  if (t === 1) {                       // нэг гишүүнтүүдийн бутархай
+    var g = rnd(2, 6), a = rnd(1, 5), b = rnd(1, 5), e1 = rnd(1, 5), f1 = rnd(1, 4), e2 = rnd(1, 5), f2 = rnd(1, 4);
+    if (gcd(a, b) !== 1 || (a === 1 && b === 1) || e1 === e2) return null;
+    var nv = pw(u, Math.max(0, e1 - e2)) + pw(w, Math.max(0, f1 - f2)), dv = pw(u, Math.max(0, e2 - e1)) + pw(w, Math.max(0, f2 - f1)), sg = pick([1, 1, -1]);
+    return { stem: '$\\dfrac{' + mono(sg * g * a, pw(u, e1) + pw(w, f1)) + '}{' + mono(g * b, pw(u, e2) + pw(w, f2)) + '}$', a: mfrac(sg * a, nv, b, dv) };
+  }
+  if (t === 2) {                       // k(au + b) / (m·u(au + b)) = k/(mu)
+    var k = rnd(2, 9), m = rnd(2, 9), a2 = rnd(1, 4), b2 = nz(-9, 9); if (k === m || gcd(a2, b2) !== 1) return null;
+    return { stem: '$\\dfrac{' + poly([[k * a2, u], [k * b2, '']]) + '}{' + poly([[m * a2, pw(u, 2)], [m * b2, u]]) + '}$', a: mfrac(k, '', m, u) };
+  }
+  if (t === 3) {                       // (u² − q²) / (ku − kq) = (u + q)/k  ба урвуу нь
+    var q = rnd(1, 9), k3 = rnd(2, 7);
+    if (rnd(0, 1)) return { stem: '$\\dfrac{' + poly([[k3, u], [k3 * q, '']]) + '}{' + poly([[1, pw(u, 2)], [-q * q, '']]) + '}$', a: '\\dfrac{' + k3 + '}{' + lin(1, -q, u) + '}' };
+    return { stem: '$\\dfrac{' + poly([[1, pw(u, 2)], [-q * q, '']]) + '}{' + poly([[k3, u], [-k3 * q, '']]) + '}$', a: '\\dfrac{' + lin(1, q, u) + '}{' + k3 + '}' };
+  }
+  if (t === 4) {                       // (u + p)(u + q) / ((u − q)(u + q)) = (u + p)/(u − q)
+    var p4 = nz(-8, 8), q4 = rnd(1, 8); if (p4 === q4 || p4 === -q4) return null;
+    return { stem: '$\\dfrac{' + poly([[1, pw(u, 2)], [p4 + q4, u], [p4 * q4, '']]) + '}{' + poly([[1, pw(u, 2)], [-q4 * q4, '']]) + '}$', a: '\\dfrac{' + lin(1, p4, u) + '}{' + lin(1, -q4, u) + '}' };
+  }
+  if (t === 5) {                       // (u ± q)² / (ku ± kq) = (u ± q)/k
+    var q5 = rnd(1, 9), k5 = rnd(2, 7), s = pick([1, -1]);
+    return { stem: '$\\dfrac{' + poly([[1, pw(u, 2)], [2 * s * q5, u], [q5 * q5, '']]) + '}{' + poly([[k5, u], [k5 * s * q5, '']]) + '}$', a: '\\dfrac{' + lin(1, s * q5, u) + '}{' + k5 + '}' };
+  }
+  // эсрэг тэмдэгтэй: (q − u) / (u² − q²) = −1/(u + q)
+  var q6 = rnd(1, 9);
+  return { stem: '$\\dfrac{' + poly([[q6, ''], [-1, u]]) + '}{' + poly([[1, pw(u, 2)], [-q6 * q6, '']]) + '}$', a: '-\\dfrac{1}{' + lin(1, q6, u) + '}' };
+}
+
+// 5. Алгебрын бутархайн үйлдэл (4.4): ижил ба ялгаатай хуваарьтай нэмэх, хасах; эсрэг хуваарь; үржих, хуваах
+function g5m(t) {
+  var u = pick(['x', 'a', 'm', 'y']);
+  if (t === 1) {                       // ижил хуваарь: хүртвэрүүдийн нийлбэр k(u + c) болно
+    var k = rnd(2, 6), c = nz(-8, 8), a = rnd(1, k - 1), d = k - a, b = nz(-9, 9), e = k * c - b;
+    if (!e) return null;
+    return { stem: '$\\dfrac{' + lin(a, b, u) + '}{' + lin(1, c, u) + '}+\\dfrac{' + lin(d, e, u) + '}{' + lin(1, c, u) + '}$', a: String(k) };
+  }
+  if (t === 2) {                       // хуваарь нь нэг гишүүнт: a/(pu) ± c/(qu)
+    var p = rnd(2, 6), q = rnd(2, 6), a2 = rnd(1, 9), c2 = rnd(1, 9), s = pick([1, -1]); if (p === q) return null;
+    var L = lcm(p, q), N = a2 * (L / p) + s * c2 * (L / q); if (!N) return null;
+    return { stem: '$\\dfrac{' + a2 + '}{' + mono(p, u) + '}' + (s > 0 ? '+' : '-') + '\\dfrac{' + c2 + '}{' + mono(q, u) + '}$', a: mfrac(N, '', L, u) };
+  }
+  if (t === 3) {                       // 1/(u − a) ± 1/(u + a) = 2u/(u² − a²) эсвэл 2a/(u² − a²)
+    var a3 = rnd(1, 9), s3 = pick([1, -1]);
+    return { stem: '$\\dfrac{1}{' + lin(1, -a3, u) + '}' + (s3 > 0 ? '+' : '-') + '\\dfrac{1}{' + lin(1, a3, u) + '}$', a: '\\dfrac{' + (s3 > 0 ? mono(2, u) : String(2 * a3)) + '}{' + poly([[1, pw(u, 2)], [-a3 * a3, '']]) + '}' };
+  }
+  if (t === 4) {                       // эсрэг хуваарь: a/(u − k) + b/(k − u) = (a − b)/(u − k)
+    var k4 = rnd(1, 9), a4 = rnd(1, 12), b4 = rnd(1, 12); if (a4 === b4) return null;
+    return { stem: '$\\dfrac{' + a4 + '}{' + lin(1, -k4, u) + '}+\\dfrac{' + b4 + '}{' + poly([[k4, ''], [-1, u]]) + '}$', a: (a4 < b4 ? '-' : '') + '\\dfrac{' + Math.abs(a4 - b4) + '}{' + lin(1, -k4, u) + '}' };
+  }
+  if (t === 5) {                       // үржих: (u² − q²)/(ku) · (mu²)/(u + q) = (m/k)·u(u − q)
+    var q5 = rnd(1, 9), k5 = rnd(2, 5), m5 = k5 * rnd(1, 3);
+    return { stem: '$\\dfrac{' + poly([[1, pw(u, 2)], [-q5 * q5, '']]) + '}{' + mono(k5, u) + '}\\cdot\\dfrac{' + mono(m5, pw(u, 2)) + '}{' + lin(1, q5, u) + '}$', a: mono(m5 / k5, u) + '(' + lin(1, -q5, u) + ')' };
+  }
+  // хуваах: (u² − q²)/u² : (u + q)/(ku) = k(u − q)/u
+  var q6 = rnd(1, 9), k6 = rnd(2, 6);
+  return { stem: '$\\dfrac{' + poly([[1, pw(u, 2)], [-q6 * q6, '']]) + '}{' + pw(u, 2) + '}:\\dfrac{' + lin(1, q6, u) + '}{' + mono(k6, u) + '}$', a: '\\dfrac{' + k6 + '(' + lin(1, -q6, u) + ')}{' + u + '}' };
+}
+
+CMX.jishig({
+  title: 'IV бүлэг — Жишиг даалгавар 1',
+  sub: 'Нэг ба олон гишүүнт · товчилсон үржихийн томьёо · үржигдэхүүнд задлах · алгебрын бутархай',
+  grade: '8-р анги',
+  rule: '$(a\\pm b)^{2}=a^{2}\\pm 2ab+b^{2}$ &nbsp;·&nbsp; $(a+b)(a-b)=a^{2}-b^{2}$ &nbsp;·&nbsp; $x^{2}+bx+c=(x+p)(x+q)$, энд $p+q=b,\\ pq=c$',
+  tasks: [
+    { label: 'Үйлдлийг гүйцэтгэж, стандарт хэлбэрт бич.', gen: g1, n: 12, nw: 2, cols: 2, wk: 16 },
+    { label: 'Товчилсон үржихийн томьёо ашиглан үржвэрийг ол.', gen: g2, n: 12, nw: 4, cols: 4, wk: 14 },
+    { label: 'Үржигдэхүүн болгон задал.', gen: g3, n: 12, nw: 4, cols: 2, wk: 14 },
+    { label: 'Бутархайг хураа.', gen: g4, n: 12, nw: 4, cols: 4, wk: 16 },
+    { label: 'Үйлдлийг гүйцэтгэж, хураа.', gen: g5, n: 8, nw: 2, cols: 2, wk: 18 }
+  ]
+});
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

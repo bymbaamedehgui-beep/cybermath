@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>V бүлэг — Жишиг даалгавар 1 (7-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/cmx.js?v=1"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* 7-р анги · V бүлэг. Алгебрын илэрхийлэл, тэгшитгэл — Жишиг даалгавар 1
+   (5.1 Алгебрын илэрхийлэл хялбарлах · 5.2 Натурал илтгэгчтэй зэргийн чанарууд · 5.3 Нэг гишүүнтүүдийг үржүүлэх, хуваах) */
+function vp(v, e) { return e === 0 ? '' : e === 1 ? v : v + '^{' + e + '}'; }
+function co(c, w) { if (w === '') return '' + c; if (c === 1) return w; if (c === -1) return '-' + w; return c + w; }
+function coS(c, w) { if (w === '') return (c > 0 ? '+' : '') + c; if (c === 1) return '+' + w; if (c === -1) return '-' + w; return (c > 0 ? '+' : '') + c + w; }
+function poly(ts) { var s = ''; ts.forEach(function (t) { if (t.c === 0) return; s += s === '' ? co(t.c, t.w) : coS(t.c, t.w); }); return s === '' ? '0' : s; }
+function lin(a, b, v) { return poly([{ c: a, w: v }, { c: b, w: '' }]); }
+function wrapNeg(s) { return s.charAt(0) === '-' ? '(' + s + ')' : s; }
+var PAIRS = [['x', 'y'], ['a', 'b'], ['m', 'n'], ['p', 'q']];
+
+// 1. Төсөөтэй гишүүдийг эмхэтгэх (5.1): нэг хувьсагч ба тоо, хоёр хувьсагч, квадраттай
+function g1() {
+  var t = rnd(1, 3), it, A, B;
+  if (t === 1) {
+    var v = pick(['a', 'x', 'y', 'm', 'k']), a1 = nz(-9, 9), a2 = nz(-9, 9), b1 = nz(-9, 9), b2 = nz(-9, 9); A = a1 + a2; B = b1 + b2;
+    if (A === 0) return null;
+    it = shuffle([{ c: a1, w: v }, { c: a2, w: v }, { c: b1, w: '' }, { c: b2, w: '' }]);
+    return { stem: '$' + poly(it) + '$', a: lin(A, B, v) };
+  }
+  var P = pick(PAIRS), w1 = t === 2 ? P[0] : vp(P[0], 2), w2 = t === 2 ? P[1] : P[0];
+  var c1 = nz(-9, 9), c2 = nz(-9, 9), d1 = nz(-9, 9), d2 = nz(-9, 9); A = c1 + c2; B = d1 + d2;
+  if (A === 0 && B === 0) return null;
+  it = shuffle([{ c: c1, w: w1 }, { c: c2, w: w1 }, { c: d1, w: w2 }, { c: d2, w: w2 }]);
+  return { stem: '$' + poly(it) + '$', a: poly([{ c: A, w: w1 }, { c: B, w: w2 }]) };
+}
+// 2. Хаалт задалж хялбарчлах (5.1): A(bx+c)±D(ex+f), хаалтын өмнө хасах тэмдэг, хоёр хувьсагч
+function g2() {
+  var t = rnd(1, 3), A = rnd(2, 7), D = rnd(2, 7), s = pick([1, -1]);
+  if (t <= 2) {
+    var v = pick(['x', 'a', 'y', 'c']), b = rnd(1, 5), e = rnd(1, 5), c = nz(-9, 9), f = nz(-9, 9);
+    if (t === 2) D = 1;                    // −(ex+f) эсвэл +(ex+f)
+    var X = A * b + s * D * e, S = A * c + s * D * f; if (X === 0) return null;
+    return { stem: '$' + A + '(' + lin(b, c, v) + ')' + (s > 0 ? '+' : '-') + (D === 1 ? '' : D) + '(' + lin(e, f, v) + ')$', a: lin(X, S, v) };
+  }
+  var P = pick(PAIRS), p1 = rnd(1, 5), q1 = nz(-6, 6), p2 = rnd(1, 5), q2 = nz(-6, 6);
+  var X2 = A * p1 + s * D * p2, Y2 = A * q1 + s * D * q2; if (X2 === 0 && Y2 === 0) return null;
+  return { stem: '$' + A + '(' + poly([{ c: p1, w: P[0] }, { c: q1, w: P[1] }]) + ')' + (s > 0 ? '+' : '-') + D + '(' + poly([{ c: p2, w: P[0] }, { c: q2, w: P[1] }]) + ')$',
+    a: poly([{ c: X2, w: P[0] }, { c: Y2, w: P[1] }]) };
+}
+// 3. Зэргийн чанарууд (5.2): a^m·a^n, a^m:a^n, (a^m)^n, (ab)^n, хоосон нүдтэй илтгэгч
+function g3() {
+  var v = pick(['a', 'b', 'x', 'y', 'm', 'c']), t = rnd(1, 6), m = rnd(2, 7), n = rnd(2, 5);
+  if (t === 1) return { stem: '$' + vp(v, m) + '\\cdot ' + vp(v, n) + '$', a: vp(v, m + n) };
+  if (t === 2) { var big = m + n; return { stem: '$\\dfrac{' + vp(v, big) + '}{' + vp(v, n) + '}$', a: vp(v, m) }; }
+  if (t === 3) { var m3 = rnd(2, 5), n3 = rnd(2, 4); return { stem: '$(' + vp(v, m3) + ')^{' + n3 + '}$', a: vp(v, m3 * n3) }; }
+  var P = pick(PAIRS);
+  if (t === 4) { var p = rnd(1, 4), q = rnd(1, 3), r = rnd(2, 4); if (p === 1 && q === 1) return null;
+    return { stem: '$(' + vp(P[0], p) + vp(P[1], q) + ')^{' + r + '}$', a: vp(P[0], p * r) + vp(P[1], q * r) }; }
+  if (t === 5) { var e1 = rnd(2, 4), e2 = rnd(2, 3), e3 = rnd(1, 4), e4 = rnd(2, 6), res = e1 * e2 + e3 - e4; if (res < 2) return null;
+    return { stem: '$\\dfrac{(' + vp(v, e1) + ')^{' + e2 + '}\\cdot ' + vp(v, e3) + '}{' + vp(v, e4) + '}$', a: vp(v, res) }; }
+  var SQ = '\\square', k = rnd(2, 6), tot = k + rnd(2, 6);
+  return { stem: '$' + vp(v, k) + '\\cdot ' + v + '^{' + SQ + '}=' + vp(v, tot) + '$', a: SQ + '=' + (tot - k) };
+}
+// 4. Нэг гишүүнтүүдийг үржүүлэх, хуваах, зэрэг дэвшүүлэх (5.3)
+function g4() {
+  var P = pick(PAIRS), t = rnd(1, 3);
+  function mono(k, p, q) { return co(k, vp(P[0], p) + vp(P[1], q)); }
+  if (t === 1) {
+    var k1 = nz(-6, 6), k2 = nz(-6, 6), p1 = rnd(0, 4), q1 = rnd(1, 3), p2 = rnd(1, 3), q2 = rnd(0, 3);
+    if (Math.abs(k1) === 1 || Math.abs(k2) === 1) return null;
+    return { stem: '$' + wrapNeg(mono(k1, p1, q1)) + '\\cdot ' + wrapNeg(mono(k2, p2, q2)) + '$', a: mono(k1 * k2, p1 + p2, q1 + q2) };
+  }
+  if (t === 2) {
+    var g = rnd(2, 8), r = nz(-7, 7), a1 = rnd(2, 7), b1 = rnd(1, 5), a2 = rnd(1, a1), b2 = rnd(0, b1);
+    if (Math.abs(r) === 1 || (a1 - a2) + (b1 - b2) === 0) return null;
+    return { stem: '$\\dfrac{' + mono(g * r, a1, b1) + '}{' + mono(g, a2, b2) + '}$', a: mono(r, a1 - a2, b1 - b2) };
+  }
+  var k = pick([-3, -2, 2, 3, 4, 5]), pp = rnd(1, 3), qq = rnd(1, 3), n = rnd(2, 3), c = rnd(2, 5);
+  if (Math.abs(Math.pow(k, n) * c) > 200) return null;
+  return { stem: '$(' + mono(k, pp, qq) + ')^{' + n + '}\\cdot ' + c + P[0] + '$', a: mono(Math.pow(k, n) * c, pp * n + 1, qq * n) };
+}
+// 5. Бодлого: хялбарчлаад утгыг олох (5.1), периметрийн илэрхийлэл (5.1), талбай/эзлэхүүн нэг гишүүнтээр (5.3)
+function g5() {
+  var t = rnd(1, 4);
+  if (t === 1) {
+    var v = pick(['a', 'x', 'm']), A = rnd(2, 6), D = rnd(2, 6), b = rnd(1, 5), e = rnd(1, 4), c = nz(-9, 9), f = nz(-9, 9), s = pick([1, -1]), v0 = nz(-5, 5);
+    var X = A * b + s * D * e, S = A * c + s * D * f; if (X === 0) return null;
+    return { stem: '$' + A + '(' + lin(b, c, v) + ')' + (s > 0 ? '+' : '-') + D + '(' + lin(e, f, v) + ')$ илэрхийллийг хялбарчлаад $' + v + '=' + v0 + '$ үеийн утгыг ол.',
+      a: '$' + lin(X, S, v) + '$; утга нь $' + (X * v0 + S) + '$' };
+  }
+  if (t === 2) {
+    var a1 = rnd(2, 6), b1 = nz(-5, 9), a2 = rnd(1, 5), b2 = nz(-5, 9), a3 = rnd(1, 6), b3 = nz(-5, 9);
+    return { stem: 'Гурвалжны талууд $(' + lin(a1, b1, 'x') + ')$ см, $(' + lin(a2, b2, 'x') + ')$ см, $(' + lin(a3, b3, 'x') + ')$ см. Периметрийг олох илэрхийлэл бичээд хялбарчил.',
+      a: '$P=' + lin(a1 + a2 + a3, b1 + b2 + b3, 'x') + '$ см' };
+  }
+  var P = pick([['x', 'y'], ['a', 'b'], ['m', 'n']]);
+  function mono(k, p, q) { return co(k, vp(P[0], p) + vp(P[1], q)); }
+  if (t === 3) {
+    var k1 = rnd(2, 7), p1 = rnd(1, 3), q1 = rnd(0, 2), k2 = rnd(2, 6), p2 = rnd(0, 2), q2 = rnd(1, 3);
+    var w1 = vp(P[0], p1) + vp(P[1], q1), w2 = vp(P[0], p2) + vp(P[1], q2);
+    var per = w1 === w2 ? poly([{ c: 2 * (k1 + k2), w: w1 }]) : poly([{ c: 2 * k1, w: w1 }, { c: 2 * k2, w: w2 }]);
+    return { stem: 'Тэгш өнцөгтийн урт $' + mono(k1, p1, q1) + '$, өргөн $' + mono(k2, p2, q2) + '$. Талбай ба периметрийг ол.',
+      a: '$S=' + mono(k1 * k2, p1 + p2, q1 + q2) + '$; $P=' + per + '$' };
+  }
+  var ka = rnd(2, 4), kb = rnd(2, 3), kh = rnd(2, 5), ea = rnd(1, 2), eb = rnd(1, 2), eh = rnd(1, 3);
+  return { stem: 'Тэгш өнцөгт параллелепипедийн эзлэхүүн $' + co(ka * kb * kh, vp(P[0], ea + eb + eh)) + '$, суурийн талууд $' + co(ka, vp(P[0], ea)) + '$ ба $' + co(kb, vp(P[0], eb)) + '$. Өндрийг ол.',
+    a: 'h=\\dfrac{' + co(ka * kb * kh, vp(P[0], ea + eb + eh)) + '}{' + co(ka * kb, vp(P[0], ea + eb)) + '}=' + co(kh, vp(P[0], eh)) };
+}
+
+CMX.jishig({
+  title: 'V бүлэг — Жишиг даалгавар 1',
+  sub: 'Илэрхийлэл хялбарлах · зэргийн чанарууд · нэг гишүүнт',
+  grade: '7-р анги',
+  rule: '$a(b+c)=ab+ac$, $\\ -(b-c)=-b+c$ &nbsp;·&nbsp; $a^m\\cdot a^n=a^{m+n}$, $\\ a^m\\div a^n=a^{m-n}$, $\\ (a^m)^n=a^{mn}$, $\\ (ab)^n=a^n b^n$ &nbsp;·&nbsp; $2a^3\\cdot 3a^4=6a^7$',
+  tasks: [
+    { label: 'Төсөөтэй гишүүдийг эмхэтгэ.', gen: g1, n: 8, nw: 4, cols: 2, wk: 12 },
+    { label: 'Хаалт задалж хялбарчил.', gen: g2, n: 6, nw: 4, cols: 2, wk: 14 },
+    { label: 'Зэргийн чанарыг ашиглан хялбарчил.', gen: g3, n: 8, nw: 4, cols: 4, wk: 12 },
+    { label: 'Нэг гишүүнтүүдийн үйлдлийг гүйцэтгэ.', gen: g4, n: 6, nw: 4, cols: 2, wk: 14 },
+    { label: 'Бодлогыг бод.', gen: g5, n: 4, nw: 2, cols: 2, wk: 22 }
+  ]
+});
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

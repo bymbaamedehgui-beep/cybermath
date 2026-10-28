@@ -134,12 +134,39 @@ function normS2Item(it) {
   if (!ok) { Object.keys(score).forEach(function (k) { delete score[k]; }); splitPts(letters, S2_PTS, score); }
   return { cells: cells, score: score };
 }
+// ── Бүлгийн шалгалтын материал (cmx.js, 6–8-р анги): 10 тест, хувилбарын код ──
+// ref = wsRef(slug, код, түлхүүр) — cmx.js-ийн wsRef-тэй ЯГ ижил: хариултын хуудсан дээр хэвлэсэн шалгалтын код (tag) нь
+// eyeshcheck-ийн ws:-шалгалтын tag (examTag(ref))-тэй таарна.
+const EYC_TOPICS = ['Алгебр', 'Геометр', 'Тригонометр', 'Статистик', 'Тооны онол', 'Анализ', 'Функц', 'Бусад'];
+function fnv(s, h) { h = h >>> 0; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+function hex8(n) { return ('0000000' + (n >>> 0).toString(16)).slice(-8); }
+function wsRef(slug, seed, key) { const s = slug + '|' + seed + '|' + key; return 'ws:' + (hex8(fnv(s, 2166136261)) + hex8(fnv(s, 0x9747b28c)) + hex8(fnv(s + '#', 2166136261))).slice(0, 20); }
+function cleanTitle(t) { return String(t == null ? '' : t).replace(/[\u0000-\u001f\u007f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120); }
+//   raw = { kind:'ws', slug:'shalgalt-material-3-6.html', seed:'K7Q2M', key:'ABDC…', scores:[1,…], topics:['Алгебр',…], title? }
+function normWsExam(raw) {
+  const fail = function (e) { return { ok: false, error: e }; };
+  const slug = String(raw.slug || ''), seed = String(raw.seed || ''), key = String(raw.key || '');
+  if (!/^[a-z0-9][a-z0-9-]{0,80}\.html$/.test(slug)) return fail('Хуудас буруу байна');
+  if (!/^[2-9A-HJ-NP-Z]{5}$/.test(seed)) return fail('Хувилбарын код буруу байна');
+  if (!/^[A-E]{1,60}$/.test(key)) return fail('Тестийн зарим бодлого үүсээгүй байна. «Шинэ хувилбар» дарж дахин оролдоно уу.');
+  const n = key.length, sc = raw.scores, tp = raw.topics;
+  if (!Array.isArray(sc) || sc.length !== n || !sc.every(function (v) { return typeof v === 'number' && isFinite(v) && v > 0 && v <= 10; })) return fail('Тестийн оноо буруу байна');
+  if (!Array.isArray(tp) || tp.length !== n || !tp.every(function (t) { return EYC_TOPICS.indexOf(t) >= 0; })) return fail('Тестийн сэдэв буруу байна');
+  const title = cleanTitle(raw.title) || ('Шалгалт · ' + seed);
+  return { ok: true, exam: {
+    ref: wsRef(slug, seed, key), title: title, subject: 'Математик', sec1Count: n, sec1Key: key.split(''), sec1Scores: sc.slice(), topics: tp.slice(),
+    useSec2: false, sec2Config: {}, sec2Score: 1,
+    meta: { kind: 'ws', slug: slug, seed: seed },
+  } };
+}
 // Клиентийн хувилбар → eyeshcheck-ийн шалгалт:
-//   raw = { year, title?, p1: { v, g, key: 'EDCA…'(36) }, p2: null | { v, g, items: [{ ans, parts }] ×4 } }
+//   raw = { year, title?, p1: { v, g, key: 'EDCA…'(36) }, p2: null | { v, g, items: [{ ans, parts }] ×4 } }  — ЭЕШ
+//   raw = { kind:'ws', … }                                                                            — бүлгийн шалгалт
 // → { ok:true, exam } эсвэл { ok:false, error }. exam.ref — ижил хариутай шалгалтыг eyeshcheck-д давхар үүсгэхгүй.
 function normExam(raw) {
   const fail = function (e) { return { ok: false, error: e }; };
   if (!raw || typeof raw !== 'object') return fail('Шалгалтын мэдээлэл дутуу байна');
+  if (raw.kind === 'ws') return normWsExam(raw);
   const year = parseInt(raw.year, 10);
   if (!TOPICS[year]) return fail('Энэ ЭЕШ-ийн хувилбарыг ЭЕШ шалгагчид оруулах боломжгүй');
   const p1 = raw.p1 || {}, v1 = normVariant(p1.v), g1 = normBuild(p1.g), key = String(p1.key || '');
@@ -196,4 +223,4 @@ async function redeem(code) {
 }
 
 module.exports = { EYESH_DAYS, HANDOFF_SEC, SSO_URL, ADMIN_HANDOFF, ADMIN_URL, TOPICS, eyeshPrice, ensure, expiry, grant, record,
-                   normExam, normS2Item, createHandoff, redeem, codeHash };
+                   normExam, normS2Item, createHandoff, redeem, codeHash, wsRef, EYC_TOPICS };

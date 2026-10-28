@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>I бүлэг — Жишиг даалгавар 1 (6-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/cmx.js?v=1"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* 6-р анги · I бүлэг. Бүхэл тоон олонлог, зэрэг, язгуур — Жишиг даалгавар 1
+   (1.1 Бүхэл тоонуудыг жиших · 1.2 Нэмэх, хасах · 1.3 Үржүүлэх, хуваах · 1.4 4, 6, 8-д хуваагдах шинж · 1.5 ХИЕХ) */
+// Дугаарын багана тогтмол өргөнтэй: хөдөлгүүр хуудсанд багтаахдаа дугааргүй хэмжээд, дараа нь «10.», «11.» … тавьдаг тул
+// 12pt-д дугаар өргөсч урт бодлого нэг мөр нэмэгдэн хуудаснаас хэтрэхээс сэргийлнэ.
+function byNum(x, y) { return x - y; }
+
+// 1. Бүхэл тоонуудыг жиших (1.1): сөрөг, эерэг тоонуудыг өсөх эрэмбээр жагсаах
+function g1() {
+  var k = rnd(5, 6), v = [], seen = {}, neg = 0, x;
+  while (v.length < k) { x = rnd(-45, 35); if (seen[x]) continue; seen[x] = 1; v.push(x); if (x < 0) neg++; }
+  if (neg < 2 || neg > k - 2) return null;
+  return { stem: '$' + v.join(';\\ ') + '$', a: v.slice().sort(byNum).join('\\lt ') };
+}
+
+// 2. Бүхэл тооны нэмэх, хасах (1.2), үржүүлэх, хуваах (1.3) — 4 төрлийг ээлжлэн (амжилттай үед л дараагийнх руу)
+var K2 = 0;
+function g2() {
+  var t = K2 % 4, r = null, a, b, c;
+  if (t === 0) {            // нэмэх, хасах: гурван гишүүн
+    a = nz(-25, 25); b = nz(-20, 20); c = nz(-20, 20);
+    if (a > 0 && b > 0 && c > 0) return null;
+    var o1 = pick(['+', '-']), o2 = pick(['+', '-']);
+    r = { stem: '$' + par(a) + o1 + par(b) + o2 + par(c) + '$', a: '' + (a + (o1 === '+' ? b : -b) + (o2 === '+' ? c : -c)) };
+  } else if (t === 1) {     // үржүүлэх: тэмдгийн дүрэм
+    a = nz(-15, 15); b = nz(-12, 12);
+    if (Math.abs(a) < 2 || Math.abs(b) < 2 || (a > 0 && b > 0)) return null;
+    r = { stem: '$' + par(a) + '\\cdot ' + par(b) + '$', a: '' + (a * b) };
+  } else if (t === 2) {     // хуваах: тэмдгийн дүрэм
+    a = nz(-15, 15); b = nz(-12, 12);
+    if (Math.abs(a) < 2 || Math.abs(b) < 2 || (a > 0 && b > 0)) return null;
+    r = { stem: '$' + par(a * b) + '\\div ' + par(b) + '$', a: '' + a };
+  } else {                  // үйлдлийн дараалал: эхлээд үржүүлэх, хуваах
+    a = nz(-9, 9); b = nz(-9, 9); c = nz(-20, 20);
+    if (Math.abs(a) < 2 || Math.abs(b) < 2) return null;
+    r = rnd(0, 1) ? { stem: '$' + par(c) + '-' + par(a) + '\\cdot ' + par(b) + '$', a: '' + (c - a * b) }
+                  : { stem: '$' + par(a * b) + '\\div ' + par(a) + '+' + par(c) + '$', a: '' + (b + c) };
+  }
+  K2++;
+  return r;
+}
+
+// 3. 4, 6, 8-д хуваагдах шинж (1.4): * -ийн оронд тавьж болох бүх цифр (сурах бичгийн 44, 45-р дасгал)
+function g3() {
+  var d = pick([4, 6, 8]), len = rnd(3, 4), ds = [], good = [], i;
+  for (i = 0; i < len; i++) ds.push(rnd(i === 0 ? 1 : 0, 9));
+  var pos = d === 6 ? rnd(0, len - 1) : rnd(Math.max(0, len - (d === 4 ? 2 : 3)), len - 1);
+  for (i = 0; i <= 9; i++) { if (pos === 0 && i === 0) continue; var cp = ds.slice(); cp[pos] = i; if (+cp.join('') % d === 0) good.push(i); }
+  if (!good.length || good.length > 5) return null;
+  var tm = ds.map(function (x, j) { return j === pos ? '{\\ast}' : '' + x; }).join('');      // {\ast} — үйлдэл биш, цифрийн орон
+  return { stem: '$\\overline{' + tm + '}$ нь $' + d + '$ тоонд хуваагдана', a: '\\ast=' + good.join(';\\ ') };
+}
+
+// 4. Ерөнхий хуваагч, ХИЕХ (1.5): хоёр ба гурван тооны ХИЕХ
+function g4() {
+  if (rnd(0, 3) === 0) {
+    var g = rnd(2, 12), m = rnd(2, 9), n = rnd(2, 9), k = rnd(2, 9);
+    if (m >= n || n >= k || gcd(gcd(m, n), k) !== 1 || g * k > 150) return null;
+    return { stem: '$\\text{ХИЕХ}(' + (g * m) + ';\\ ' + (g * n) + ';\\ ' + (g * k) + ')$', a: '' + g };
+  }
+  var h = rnd(2, 24), p = rnd(2, 11), q = rnd(2, 11);
+  if (p >= q || gcd(p, q) !== 1 || h * q > 240) return null;
+  return { stem: '$\\text{ХИЕХ}(' + (h * p) + ';\\ ' + (h * q) + ')$', a: '' + h };
+}
+
+// 5. Өгүүлбэртэй бодлого — 4 төрлийг ээлжлэн: температур (1.2) · ХИЕХ бэлэг (1.5) · оноо, тогтмол өөрчлөлт (1.3) · квадратад хуваах (1.5)
+var GIFT = [['алим', 'жүрж', 'жүржийг'], ['дэвтэр', 'харандаа', 'харандааг'], ['шоколад', 'чихэр', 'чихрийг'], ['бөмбөг', 'тоглоом', 'тоглоомыг']];
+// температур өөрчлөгдөх (1.2)
+function wTemp() {
+  if (rnd(0, 1)) {
+    var t0 = nz(-20, 5), u = rnd(4, 15), dn = rnd(3, 15), v = t0 + u - dn;
+    return { stem: 'Өглөө агаарын температур $' + t0 + '$ хэм байв. Өдөр $' + u + '$ хэмээр дулаарч, орой $' + dn + '$ хэмээр хүйтэрчээ. Орой хэдэн хэм болсон бэ?',
+      a: '$' + par(t0) + '+' + u + '-' + dn + '=' + v + '$ хэм' };
+  }
+  var lo = -rnd(18, 45), hi = rnd(12, 38);
+  return { stem: 'Агаарын температур нэгдүгээр сард $' + lo + '$ хэм, долдугаар сард $' + hi + '$ хэм хүрчээ. Температурын зөрөөг ол.',
+    a: '$' + hi + '-(' + lo + ')=' + (hi - lo) + '$ хэм' };
+}
+// ХИЕХ: тэнцүү бэлэг (1.5)
+function wGift() {
+  var o = pick(GIFT), g = rnd(4, 15), m = rnd(2, 7), n = rnd(2, 7);
+  if (m === n || gcd(m, n) !== 1) return null;
+  return { stem: '$' + (g * m) + '$ ' + o[0] + ', $' + (g * n) + '$ ' + o[2] + ' үлдэгдэлгүй, тэнцүү хувааж хамгийн олон бэлэг бэлтгэв. Хэдэн бэлэг болох вэ? Бэлэг бүрт хэдэн ' + o[0] + ', ' + o[1] + ' орох вэ?',
+    a: '$\\text{ХИЕХ}(' + (g * m) + ';\\ ' + (g * n) + ')=' + g + '$ бэлэг; тус бүрд $' + m + '$ ' + o[0] + ', $' + n + '$ ' + o[1] };
+}
+// оноо тооцох, тогтмол буурах температур (1.3)
+function wMul() {
+  if (rnd(0, 1)) {
+    var w = rnd(3, 10), l = rnd(2, 9), pw = rnd(2, 6), pl = rnd(2, 6);
+    if (pw === pl) return null;
+    return { stem: 'Зөв хариулт бүрд $' + pw + '$ оноо нэмж, буруу хариулт бүрд $' + pl + '$ оноо хасдаг. $' + w + '$ зөв, $' + l + '$ буруу хариулсан сурагч хэдэн оноо авах вэ?',
+      a: '$' + w + '\\cdot ' + pw + '+' + l + '\\cdot(-' + pl + ')=' + (w * pw - l * pl) + '$ оноо' };
+  }
+  var t0 = nz(-10, 12), d = rnd(2, 6), n2 = rnd(3, 7);
+  return { stem: 'Агаарын температур $' + t0 + '$ хэм байв. Цаашид $' + n2 + '$ өдөр дараалан өдөр бүр $' + d + '$ хэмээр буурвал хэдэн хэм болох вэ?',
+    a: '$' + par(t0) + '+' + n2 + '\\cdot(-' + d + ')=' + (t0 - n2 * d) + '$ хэм' };
+}
+// ХИЕХ: тэгш өнцөгтийг хамгийн том ижил квадратуудад хуваах (1.5)
+function wRect() {
+  var g = rnd(3, 15), m = rnd(3, 7), n = rnd(2, 6);
+  if (m <= n || gcd(m, n) !== 1) return null;
+  return { stem: 'Талууд нь $' + (g * m) + '$ см, $' + (g * n) + '$ см тэгш өнцөгтийг хамгийн том ижил квадратуудад үлдэгдэлгүй хуваав. Квадратын тал хэдэн см вэ? Хэдэн квадрат гарах вэ?',
+    a: 'тал $\\text{ХИЕХ}(' + (g * m) + ';\\ ' + (g * n) + ')=' + g + '$ см; $' + m + '\\cdot ' + n + '=' + (m * n) + '$ квадрат' };
+}
+var K5 = 0;
+function g5() {
+  var r = [wTemp, wGift, wMul, wRect][K5 % 4]();
+  if (r) K5++;
+  return r;
+}
+
+CMX.jishig({
+  title: 'I бүлэг — Жишиг даалгавар 1',
+  sub: 'Бүхэл тоо жиших · нэмэх, хасах · үржүүлэх, хуваах · 4, 6, 8-д хуваагдах шинж · ХИЕХ',
+  grade: '6-р анги',
+  rule: '$a-b=a+(-b)$, $\\;a-(-b)=a+b$ &nbsp;·&nbsp; ижил тэмдэгтэй хоёр тооны үржвэр, ноогдвор эерэг, өөр тэмдэгтэй бол сөрөг &nbsp;·&nbsp; $4$ тоонд хуваагдах шинж — сүүлийн хоёр цифр, $8$ — сүүлийн гурван цифр, $6$ — $2$ ба $3$ &nbsp;·&nbsp; ХИЕХ — нийтлэг анхны үржигдэхүүнүүдийг хамгийн бага зэргээр нь авч үржүүлнэ',
+  tasks: [
+    { label: 'Тоонуудыг өсөх эрэмбээр жагсаа.', gen: g1, n: 8, nw: 2, cols: 2, wk: 10 },
+    { label: 'Үйлдлийг гүйцэтгэ.', gen: g2, n: 15, nw: 3, cols: 3, wk: 12 },
+    { label: '$\\ast$-ийн оронд тохирох бүх цифрийг ол.', gen: g3, n: 8, nw: 2, cols: 2, wk: 12 },
+    { label: 'Хамгийн их ерөнхий хуваагчийг ол.', gen: g4, n: 12, nw: 4, cols: 4, wk: 14 },
+    { label: 'Бодлогыг бод.', gen: g5, n: 8, nw: 4, cols: 2, wk: 18 }
+  ]
+});
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>
