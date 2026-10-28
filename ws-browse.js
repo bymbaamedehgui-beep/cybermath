@@ -22,6 +22,8 @@
     tag: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>',
     play: '<svg width="14" height="14" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg>',
     slide: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8"/></svg>',
+    intr: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 20 4M14 4h6v6"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>',
+    vid: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><rect x="2.5" y="5" width="14" height="14" rx="3"/><path d="m16.5 10 5-3v10l-5-3z"/></svg>',
     game: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="2" y="7" width="20" height="12" rx="4"/><path d="M7 13h4M9 11v4"/></svg>'
   };
 
@@ -171,6 +173,8 @@
     var h = '', sl = document.getElementById('slidesSec'), gm = document.getElementById('gamesSec');
     if (sl && !sl.hidden) h += '<a href="#slides" data-view="slidesSec">' + ICO.slide + 'Слайд хичээлүүд</a>';
     if (gm && !gm.hidden) h += '<a href="#games" data-view="gamesSec">' + ICO.game + 'Тоглоомууд</a>';
+    if (document.getElementById('intSec')) h += '<a href="#interactive" data-view="intSec">' + ICO.intr + 'Интерактив жишээ</a>';
+    if (document.getElementById('vidSec')) h += '<a href="#videos" data-view="vidSec">' + ICO.vid + 'Жишээ видео</a>';
     return h ? '<div class="wsb-links">' + h + '</div>' : '';
   }
 
@@ -346,7 +350,7 @@
     if (!pw) { alert('Popup блоклогдсон байна. Хөтчийн popup зөвшөөрлийг идэвхжүүлээд дахин дарна уу.'); return; }
     var g = ST.g, go = function () { window.WSBOOK.build(g, pw); };
     if (window.WSBOOK) { go(); return; }
-    var s = document.createElement('script'); s.src = '/ws-book.js?v=8';
+    var s = document.createElement('script'); s.src = '/ws-book.js?v=9';
     s.onload = go; s.onerror = function () { try { pw.document.body.textContent = 'ws-book.js ачаалагдсангүй'; } catch (e) {} };
     document.head.appendChild(s);
   }
@@ -399,9 +403,10 @@
     }
   }
 
-  /* Дээд цэс = таб: Ажлын хуудас · Слайд хичээл · Тоглоом — нэг удаад зөвхөн сонгосон хэсэг (body[data-wsv], ws-browse.css);
-     /worksheets#slides, #games хаягаар шууд тэр таб нээгдэнэ, «Буцах» өмнөх таб руу. «Үнэ ба эрх» — худалдан авах цонх */
-  var VIEW_HASH = { gamesSec: '#games', slidesSec: '#slides' };
+  /* Дээд цэс = таб: Ажлын хуудас · Слайд хичээл · Тоглоом · Интерактив · Видео — нэг удаад зөвхөн сонгосон хэсэг (body[data-wsv],
+     ws-browse.css); /worksheets#slides, #games, #interactive, #videos хаягаар шууд тэр таб нээгдэнэ, «Буцах» өмнөх таб руу.
+     Интерактив/Видео — ws-media.js. «Үнэ ба эрх» — худалдан авах цонх */
+  var VIEW_HASH = { gamesSec: '#games', slidesSec: '#slides', intSec: '#interactive', vidSec: '#videos' };
   function curView() { return document.body.getAttribute('data-wsv') || 'wsb'; }
   function viewFromHash() { for (var k in VIEW_HASH) if (VIEW_HASH[k] === location.hash) return k; return 'wsb'; }
   // o: { hash: false — хаяг өөрчлөхгүй, scroll: false — гүйлгэхгүй, force: хоосон (ачаалагдаж буй) хэсгийг ч нээнэ }
@@ -434,6 +439,8 @@
     nav.innerHTML = '<a href="#" data-nav="wsb" class="on">' + ICO.book + 'Ажлын хуудас</a>'
       + '<a href="#slides" data-nav="slidesSec">' + ICO.slide + 'Слайд хичээл</a>'
       + '<a href="#games" data-nav="gamesSec">' + ICO.game + 'Тоглоом</a>'
+      + (document.getElementById('intSec') ? '<a href="#interactive" data-nav="intSec">' + ICO.intr + 'Интерактив</a>' : '')
+      + (document.getElementById('vidSec') ? '<a href="#videos" data-nav="vidSec">' + ICO.vid + 'Видео</a>' : '')
       + '<a href="#" data-nav="buy">' + ICO.tag + 'Үнэ ба эрх</a>';
     var back = bar.querySelector('.back');
     bar.insertBefore(nav, back ? back.nextSibling : bar.firstChild);

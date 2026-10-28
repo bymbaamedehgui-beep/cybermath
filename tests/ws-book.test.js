@@ -37,17 +37,18 @@ test('админ биш (нэвтрээгүй / энгийн хэрэглэгч)
   assert.strictEqual(book.size, 0);
 });
 
-test('book_set: утгыг 0–2 хооронд, 0.01 нарийвчлалтай; хэсэг бүрийн масштаб, null хэвээр; off / nw (зайгүй) / ok (шалгасан)', async () => {
-  const r = await W({ action: 'book_set', slug: 'zadlal-1-9.html', data: { s: 0.7, g: [0.5, null, 3, -1, 'x', 0.555], off: 'тийм', nw: 1, ok: true, extra: 'x' } }, ADMIN);
+test('book_set: утгыг 0–2 хооронд, 0.01 нарийвчлалтай; хэсэг бүрийн масштаб, null хэвээр; off / nw (зайгүй) / ok (шалгасан) / p (хуудасны тоо)', async () => {
+  const r = await W({ action: 'book_set', slug: 'zadlal-1-9.html', data: { s: 0.7, g: [0.5, null, 3, -1, 'x', 0.555], off: 'тийм', nw: 1, ok: true, p: '2', extra: 'x' } }, ADMIN);
   assert.strictEqual(r.statusCode, 200);
-  assert.deepStrictEqual(r.body, { ok: true, data: { s: 0.7, g: [0.5, null, 2, 0, 1, 0.56], off: true, nw: true, ok: true } });
-  assert.deepStrictEqual(JSON.parse(book.get('zadlal-1-9.html')), { s: 0.7, g: [0.5, null, 2, 0, 1, 0.56], off: true, nw: true, ok: true });
+  assert.deepStrictEqual(r.body, { ok: true, data: { s: 0.7, g: [0.5, null, 2, 0, 1, 0.56], off: true, nw: true, ok: true, p: 2 } });
+  assert.deepStrictEqual(JSON.parse(book.get('zadlal-1-9.html')), { s: 0.7, g: [0.5, null, 2, 0, 1, 0.56], off: true, nw: true, ok: true, p: 2 });
 
   const r2 = await W({ action: 'book_set', slug: 'zadlal-1-9.html', data: {} }, ADMIN);
-  assert.deepStrictEqual(r2.body.data, { s: 1, g: [], off: false, nw: false, ok: false }, 'хоосон data → анхны утга');
-  const r3 = await W({ action: 'book_set', slug: 'x.html', data: { s: 9, g: new Array(60).fill(1) } }, ADMIN);
+  assert.deepStrictEqual(r2.body.data, { s: 1, g: [], off: false, nw: false, ok: false, p: 0 }, 'хоосон data → анхны утга');
+  const r3 = await W({ action: 'book_set', slug: 'x.html', data: { s: 9, g: new Array(60).fill(1), p: 7 } }, ADMIN);
   assert.strictEqual(r3.body.data.s, 2);
   assert.strictEqual(r3.body.data.g.length, 40, 'хэсэг 40-өөс илүүгүй');
+  assert.strictEqual(r3.body.data.p, 0, 'хуудасны тоо зөвхөн 0 (авто) / 1 / 2 / 3');
 });
 
 test('book_set: slug буруу бол 400 (зам, хэт урт, .html биш)', async () => {
@@ -63,6 +64,6 @@ test('book_get: хадгалсан бүх тохиргоо slug-аар', async (
   await W({ action: 'book_set', slug: 'b-9.html', data: { s: 1.2, g: [0.4], off: true } }, ADMIN);
   const r = await W({ action: 'book_get' }, ADMIN);
   assert.strictEqual(r.statusCode, 200);
-  assert.deepStrictEqual(r.body, { ok: true, book: { 'a-9.html': { s: 0.6, g: [], off: false, nw: false, ok: false }, 'b-9.html': { s: 1.2, g: [0.4], off: true, nw: false, ok: false } } });
+  assert.deepStrictEqual(r.body, { ok: true, book: { 'a-9.html': { s: 0.6, g: [], off: false, nw: false, ok: false, p: 0 }, 'b-9.html': { s: 1.2, g: [0.4], off: true, nw: false, ok: false, p: 0 } } });
   assert.ok(seenSql.some(q => /^CREATE TABLE IF NOT EXISTS ws_book /.test(q)), 'хүснэгтийг шаардлагатай үед үүсгэнэ');
 });

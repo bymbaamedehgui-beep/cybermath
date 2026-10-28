@@ -1,0 +1,461 @@
+<!doctype html><html lang="mn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Геометр хувиргалт</title><meta name="description" content="Координатын хавтгай дээр параллель зөөлт, эргүүлэлт, тэнхлэгийн ба төвийн тэгш хэм, гомотетийг дүрс чирж, координатын дүрмээр нь судлах интерактив үзүүлэн.">
+<style>
+:root{--ink:#14214A;--pur:#7B52EE;--pur-d:#5a32d6;--lav:#f6f3ff;--line:#e7e0f7;--yel:#FFC93C;--pink:#d946ef;--grn:#16a34a;--soft:#6b6890;--pink-d:#b62fcf}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{margin:0;background:#fbfaff;color:var(--ink);font:15px/1.45 "Segoe UI",Arial,sans-serif;padding:14px 16px 18px}
+.wrap{max-width:1080px;margin:0 auto}
+h1{font-size:1.15rem;line-height:1.3;margin:0;font-weight:700}
+.sub{margin:3px 0 0;color:var(--soft);font-size:.88rem}
+.stage{display:grid;grid-template-columns:minmax(0,1fr) minmax(250px,300px);grid-template-rows:auto 1fr;grid-template-areas:"board panel" "sn panel";gap:14px;margin-top:12px;align-items:start}
+.board{grid-area:board}.panel{grid-area:panel}.sn{grid-area:sn;margin:0 4px}
+@media (max-width:760px){.stage{grid-template-columns:minmax(0,1fr);grid-template-rows:auto;grid-template-areas:"board" "panel" "sn"}}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 10px 28px -20px rgba(60,30,140,.5)}
+.board{padding:8px 8px 10px;min-width:0}
+.board svg{display:block;width:100%;height:auto;max-height:62vh;touch-action:none;-webkit-user-select:none;user-select:none}
+svg text{font-family:"Segoe UI",Arial,sans-serif}
+.halo{paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}
+.hit{fill:transparent;cursor:grab}
+.polyF{cursor:move}
+body.dragging,body.dragging *{cursor:grabbing!important}
+.morph{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;padding:8px 6px 0}
+.morph .tl{flex:1 1 150px;min-width:140px}
+.leg{display:flex;gap:12px;font-size:.8rem;color:var(--soft)}
+.leg span{display:inline-flex;align-items:center;gap:5px}
+.leg i{width:14px;height:10px;border-radius:3px;display:inline-block}
+.panel{padding:14px;display:flex;flex-direction:column;gap:11px;min-width:0}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{-webkit-appearance:none;appearance:none;border:1px solid var(--line);background:#fff;color:var(--pur);border-radius:999px;padding:6px 12px;font:inherit;font-size:.83rem;font-weight:700;cursor:pointer}
+.seg button.on{background:linear-gradient(135deg,#7B52EE,#9b6bff);color:#fff;border-color:transparent;box-shadow:0 8px 18px -12px rgba(91,50,214,.9)}
+.seg button:focus-visible{outline:2px solid var(--pur-d);outline-offset:2px}
+.lbl{display:flex;justify-content:space-between;gap:8px;font-size:.8rem;color:var(--soft);font-weight:600}
+.lbl b{color:var(--ink)}
+input[type=range]{width:100%;margin:4px 0 0;accent-color:var(--pur);cursor:pointer}
+.pp{display:flex;flex-direction:column;gap:8px}
+.pp[hidden]{display:none}
+.big{font-size:1.05rem;font-weight:800;color:var(--pur-d)}
+.vsym{width:.625em;height:1em;vertical-align:-.125em;overflow:visible;fill:currentColor}
+.small{font-size:.84rem}
+.muted{color:var(--soft)}
+.coord{background:var(--lav);border-radius:12px;padding:10px 12px;font-size:.9rem}
+.coord .ln{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:baseline}
+.pa{color:var(--pur-d);font-weight:700}
+.pb{color:var(--pink-d);font-weight:700}
+.rule{font-weight:700;color:var(--ink);margin-top:6px;overflow-wrap:anywhere}
+.rule div{margin-top:2px}
+details{margin-top:6px;font-size:.84rem}
+summary{cursor:pointer;color:var(--pur);font-weight:600}
+table.vt{border-collapse:collapse;width:100%;margin-top:4px}
+table.vt td{padding:2px 4px;border-top:1px solid var(--line)}
+.warn{color:#b42318;font-size:.82rem}
+.warn[hidden]{display:none}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.btn{-webkit-appearance:none;appearance:none;border:0;border-radius:999px;padding:8px 16px;font:inherit;font-size:.88rem;font-weight:700;color:#fff;background:linear-gradient(135deg,#7B52EE,#9b6bff);cursor:pointer;display:inline-flex;align-items:center;gap:7px;box-shadow:0 8px 18px -12px rgba(91,50,214,.9)}
+.btn:hover{filter:brightness(1.06)}
+.btn:active{transform:translateY(1px)}
+.btn.sec{background:#fff;color:var(--pur);border:1px solid var(--line);box-shadow:none}
+.btn.sm{padding:6px 12px;font-size:.82rem}
+.btn.sec.on{background:var(--lav);border-color:var(--pur);color:var(--pur-d)}
+.btn:focus-visible{outline:2px solid var(--pur-d);outline-offset:2px}
+.btn .ic{width:14px;height:14px;flex:none}
+.note{border-left:3px solid var(--pink);padding:2px 0 2px 11px;font-size:.84rem;line-height:1.5}
+.note b{display:block;margin-bottom:2px}
+.note p{margin:0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style></head><body><div class="wrap">
+<header><h1>Геометр хувиргалт</h1><p class="sub">Хувиргалтаа сонгоод F дүрс, түүний орой, төв эсвэл векторын үзүүрийг чирж F′ дүрс хэрхэн өөрчлөгдөхийг ажигла.</p></header>
+<main class="stage">
+<section class="card board" id="board">
+<svg id="bd" viewBox="-218 -218 436 436" role="img" aria-label="Координатын хавтгай дээрх F дүрс ба түүний хувиргалтын дүр F′"></svg>
+<div class="morph">
+<button class="btn" id="play" type="button"><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg>Хөдөлгөөнт</button>
+<div class="tl"><div class="lbl"><span>F-ээс F′ рүү шилжих явц</span><b id="oT">t = 1</b></div><input type="range" id="sT" min="0" max="1" step="0.01" value="1" aria-label="Шилжилтийн параметр t"></div>
+<div class="leg"><span><i style="background:rgba(123,82,238,.35);border:1.5px solid #7B52EE"></i>F</span><span><i style="background:rgba(217,70,239,.3);border:1.5px solid #d946ef"></i>F′</span></div>
+</div>
+</section>
+<aside class="card panel">
+<div class="seg" id="seg" role="group" aria-label="Хувиргалт сонгох">
+<button type="button" data-t="tr" class="on">Параллель зөөлт</button>
+<button type="button" data-t="rot">Эргүүлэлт</button>
+<button type="button" data-t="ax">Тэнхлэгийн тэгш хэм</button>
+<button type="button" data-t="cen">Төвийн тэгш хэм</button>
+<button type="button" data-t="hom">Гомотети</button>
+</div>
+<div class="pp" id="ppTr">
+<div class="big" id="oVec">a(5; −3)</div>
+<div><div class="lbl"><span>p (x тэнхлэгийн дагуу)</span><b id="oP">5</b></div><input type="range" id="sP" min="-10" max="10" step="1" value="5" aria-label="Векторын p координат"></div>
+<div><div class="lbl"><span>q (y тэнхлэгийн дагуу)</span><b id="oQ">−3</b></div><input type="range" id="sQ" min="-10" max="10" step="1" value="-3" aria-label="Векторын q координат"></div>
+<div class="small muted">Сумны үзүүрийг самбар дээр чирж болно.</div>
+</div>
+<div class="pp" id="ppRot" hidden>
+<div class="big"><span class="cO">O(0; 0)</span> төвтэй</div>
+<div><div class="lbl"><span>Эргүүлэх өнцөг φ</span><b id="oAng">90°</b></div><input type="range" id="sAng" min="-180" max="180" step="15" value="90" aria-label="Эргүүлэх өнцөг"></div>
+<div class="small muted">φ &gt; 0 — цагийн зүүний эсрэг, φ &lt; 0 — цагийн зүүний дагуу. O төвийг чирж болно.</div>
+</div>
+<div class="pp" id="ppAx" hidden>
+<div class="small muted">Тэгш хэмийн тэнхлэг:</div>
+<div class="btns" id="axBtns">
+<button type="button" class="btn sec sm" data-ax="ox">Ox</button>
+<button type="button" class="btn sec sm on" data-ax="oy">Oy</button>
+<button type="button" class="btn sec sm" data-ax="yx">y = x</button>
+<button type="button" class="btn sec sm" data-ax="ymx">y = −x</button>
+</div>
+</div>
+<div class="pp" id="ppCen" hidden>
+<div class="big"><span class="cO">O(0; 0)</span> төвтэй</div>
+<div class="small muted">Тэгш хэмийн төв O-г самбар дээр чирж болно.</div>
+</div>
+<div class="pp" id="ppHom" hidden>
+<div class="big"><span class="cO">O(0; 0)</span> төвтэй</div>
+<div><div class="lbl"><span>Коэффициент k</span><b id="oK">k = 2</b></div><input type="range" id="sK" min="-3" max="3" step="0.5" value="2" aria-label="Гомотетийн коэффициент k"></div>
+<div class="small muted">k = 0 байж болохгүй. O төвийг чирж болно.</div>
+</div>
+<div class="coord">
+<div class="ln"><span class="pa" id="oA">A(1; 1)</span><span>→</span><span class="pb" id="oA2">A′(6; −2)</span></div>
+<div class="rule" id="oRule"></div>
+<details><summary>Бүх оройн координат</summary><table class="vt" id="tbl"></table></details>
+</div>
+<div class="small" id="oChk"></div>
+<div class="warn" id="oWarn" hidden>F′ дүрсийн зарим орой координатын талбайгаас гарсан байна.</div>
+<div class="btns"><button class="btn sec" id="reset" type="button">Дахин эхлүүлэх</button></div>
+</aside>
+<div class="note sn"><b>Юу ажиглах вэ?</b><p id="oNote"></p></div>
+</main></div>
+<script>
+(function(){
+'use strict';
+/*HELPERS*/
+var MINUS='−';
+function fmt(v){var r=Math.round(v*100)/100;if(Math.abs(r)<1e-9)r=0;return(r<0?MINUS:'')+String(Math.abs(r)).replace('.',',');}
+function isRounded(v){return Math.abs(v-Math.round(v*100)/100)>1e-9;}
+function cosd(a){if(a%90===0)return[1,0,-1,0][((a/90)%4+4)%4];return Math.cos(a*Math.PI/180);}
+function sind(a){if(a%90===0)return[0,1,0,-1][((a/90)%4+4)%4];return Math.sin(a*Math.PI/180);}
+function rotP(p,c,a){var cs=cosd(a),sn=sind(a),dx=p[0]-c[0],dy=p[1]-c[1];return[c[0]+dx*cs-dy*sn,c[1]+dx*sn+dy*cs];}
+function reflP(p,ax){var x=p[0],y=p[1];if(ax==='ox')return[x,-y];if(ax==='oy')return[-x,y];if(ax==='yx')return[y,x];return[-y,-x];}
+function imgPt(p,s){
+  if(s.type==='tr')return[p[0]+s.vec[0],p[1]+s.vec[1]];
+  if(s.type==='rot')return rotP(p,s.ctr,s.ang);
+  if(s.type==='ax')return reflP(p,s.axis);
+  if(s.type==='cen')return[2*s.ctr[0]-p[0],2*s.ctr[1]-p[1]];
+  return[s.ctr[0]+s.k*(p[0]-s.ctr[0]),s.ctr[1]+s.k*(p[1]-s.ctr[1])];
+}
+function morphPt(p,s,t){
+  if(t>=1)return imgPt(p,s);
+  if(s.type==='tr')return[p[0]+t*s.vec[0],p[1]+t*s.vec[1]];
+  if(s.type==='rot')return rotP(p,s.ctr,s.ang*t);
+  if(s.type==='cen')return rotP(p,s.ctr,180*t);
+  if(s.type==='hom'){var kk=1+(s.k-1)*t;return[s.ctr[0]+kk*(p[0]-s.ctr[0]),s.ctr[1]+kk*(p[1]-s.ctr[1])];}
+  var q=reflP(p,s.axis),m=[(p[0]+q[0])/2,(p[1]+q[1])/2],c=Math.cos(Math.PI*t);
+  return[m[0]+(p[0]-m[0])*c,m[1]+(p[1]-m[1])*c];
+}
+function lin(terms,c){
+  var s='';
+  terms.forEach(function(t){
+    var k=t[0];if(Math.abs(k)<1e-9)return;
+    var mag=Math.abs(k),body=(Math.abs(mag-1)<1e-9?'':fmt(mag))+t[1];
+    if(!s)s=(k<0?MINUS:'')+body;else s+=(k<0?' − ':' + ')+body;
+  });
+  if(!s)return fmt(c);
+  if(Math.abs(c)>1e-9)s+=(c<0?' − ':' + ')+fmt(Math.abs(c));
+  return s;
+}
+function ruleLines(s){
+  var a=s.ctr[0],b=s.ctr[1];
+  if(s.type==='tr')return['(x; y) → ('+lin([[1,'x']],s.vec[0])+'; '+lin([[1,'y']],s.vec[1])+')'];
+  if(s.type==='ax')return[{ox:'(x; y) → (x; −y)',oy:'(x; y) → (−x; y)',yx:'(x; y) → (y; x)',ymx:'(x; y) → (−y; −x)'}[s.axis]];
+  if(s.type==='cen')return['(x; y) → ('+lin([[-1,'x']],2*a)+'; '+lin([[-1,'y']],2*b)+')'];
+  if(s.type==='hom'){var k=s.k;return['(x; y) → ('+lin([[k,'x']],(1-k)*a)+'; '+lin([[k,'y']],(1-k)*b)+')'];}
+  var f=s.ang;
+  if(f%90===0){
+    var cs=cosd(f),sn=sind(f);
+    return['(x; y) → ('+lin([[cs,'x'],[-sn,'y']],a-a*cs+b*sn)+'; '+lin([[sn,'x'],[cs,'y']],b-a*sn-b*cs)+')'];
+  }
+  var g=f<0?'('+MINUS+Math.abs(f)+'°)':' '+f+'°';
+  var X=a===0?'x':'(x '+(a>0?'− '+fmt(a):'+ '+fmt(-a))+')';
+  var Y=b===0?'y':'(y '+(b>0?'− '+fmt(b):'+ '+fmt(-b))+')';
+  var pa=a===0?'':fmt(a)+' + ',pb=b===0?'':fmt(b)+' + ';
+  return['x′ = '+pa+X+'·cos'+g+' − '+Y+'·sin'+g,'y′ = '+pb+X+'·sin'+g+' + '+Y+'·cos'+g];
+}
+function shoelace(P){var s=0;for(var i=0;i<P.length;i++){var a=P[i],b=P[(i+1)%P.length];s+=a[0]*b[1]-b[0]*a[1];}return s/2;}
+function norm(v){var l=Math.hypot(v[0],v[1]);return l<1e-12?[0,0]:[v[0]/l,v[1]/l];}
+function labelPos(P,i,off){
+  var n=P.length,v=P[i],u=P[(i-1+n)%n],w=P[(i+1)%n];
+  var e1=norm([u[0]-v[0],u[1]-v[1]]),e2=norm([w[0]-v[0],w[1]-v[1]]);
+  var b=[e1[0]+e2[0],e1[1]+e2[1]],bl=Math.hypot(b[0],b[1]),area=shoelace(P);
+  var cross=(v[0]-u[0])*(w[1]-v[1])-(v[1]-u[1])*(w[0]-v[0]),dir;
+  if(bl<1e-6){var d=norm([w[0]-u[0],w[1]-u[1]]);dir=area>=0?[d[1],-d[0]]:[-d[1],d[0]];}
+  else{b=[b[0]/bl,b[1]/bl];dir=cross*area>0?[-b[0],-b[1]]:b;}
+  return[v[0]+dir[0]*off,v[1]+dir[1]*off];
+}
+/*END*/
+
+var NS='http://www.w3.org/2000/svg',S=20;
+var svg=document.getElementById('bd');
+function $(id){return document.getElementById(id);}
+function el(tag,attrs,parent,text){var e=document.createElementNS(NS,tag);if(attrs)for(var k in attrs)if(attrs[k]!=null)e.setAttribute(k,attrs[k]);if(text!=null)e.textContent=text;if(parent)parent.appendChild(e);return e;}
+function clear(g){while(g.firstChild)g.removeChild(g.firstChild);}
+function X(x){return Math.round(x*S*10)/10;}
+function Y(y){return Math.round(-y*S*10)/10;}
+var C={ink:'#14214A',pur:'#7B52EE',purd:'#5a32d6',pink:'#d946ef',pinkd:'#b62fcf',soft:'#6b6890',line:'#e7e0f7'};
+var reduceMotion=!!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+var NAMES=['A','B','C','D','E'];
+var F0=[[1,1],[1,5],[4,4],[2,3],[2,1]];
+var st={F:F0.map(function(p){return p.slice();}),type:'tr',vec:[5,-3],ctr:[0,0],ang:90,axis:'oy',k:2,t:1};
+
+/* тогтмол давхарга: тор, тэнхлэг */
+(function buildStatic(){
+  var defs=el('defs',null,svg);
+  var mk=function(id,color,size){var m=el('marker',{id:id,viewBox:'0 0 10 10',refX:'8.5',refY:'5',markerWidth:size,markerHeight:size,orient:'auto',markerUnits:'userSpaceOnUse'},defs);el('path',{d:'M0 0L10 5L0 10z',fill:color},m);};
+  mk('mInk',C.ink,9);mk('mVec',C.pinkd,13);
+  var cp=el('clipPath',{id:'clipG'},defs);
+  el('rect',{x:X(-10.9),y:Y(10.9),width:21.8*S,height:21.8*S},cp);
+  var g=el('g',null,svg);
+  el('rect',{x:X(-10),y:Y(10),width:20*S,height:20*S,fill:'#fff'},g);
+  for(var i=-10;i<=10;i++){
+    if(i===0)continue;
+    var col=i%5===0?'#ddd3f4':'#eeeaf8';
+    el('line',{x1:X(i),y1:Y(-10),x2:X(i),y2:Y(10),stroke:col,'stroke-width':1},g);
+    el('line',{x1:X(-10),y1:Y(i),x2:X(10),y2:Y(i),stroke:col,'stroke-width':1},g);
+  }
+  el('line',{x1:X(-10.6),y1:0,x2:X(10.7),y2:0,stroke:C.ink,'stroke-width':1.4,'marker-end':'url(#mInk)'},g);
+  el('line',{x1:0,y1:Y(-10.6),x2:0,y2:Y(10.7),stroke:C.ink,'stroke-width':1.4,'marker-end':'url(#mInk)'},g);
+  for(var j=-10;j<=10;j+=2){
+    if(j===0)continue;
+    el('text',{x:X(j),y:14,'font-size':11,fill:C.soft,'text-anchor':'middle','class':'halo'},g,(j<0?MINUS:'')+Math.abs(j));
+    el('text',{x:-5,y:Y(j)+4,'font-size':11,fill:C.soft,'text-anchor':'end','class':'halo'},g,(j<0?MINUS:'')+Math.abs(j));
+  }
+  el('text',{x:-5,y:14,'font-size':11,fill:C.soft,'text-anchor':'end'},g,'0');
+  el('text',{x:X(10.7),y:-7,'font-size':14,fill:C.ink,'text-anchor':'end','font-style':'italic'},g,'x');
+  el('text',{x:8,y:Y(10.7)+10,'font-size':14,fill:C.ink,'font-style':'italic'},g,'y');
+})();
+var gDyn=el('g',{'clip-path':'url(#clipG)','pointer-events':'none'},svg);
+var gTop=el('g',null,svg);
+
+function pts(P){return P.map(function(p){return X(p[0])+','+Y(p[1]);}).join(' ');}
+function poly(P,attrs,parent){var a={points:pts(P)};for(var k in attrs)a[k]=attrs[k];return el('polygon',a,parent);}
+function line(p,q,attrs,parent){var a={x1:X(p[0]),y1:Y(p[1]),x2:X(q[0]),y2:Y(q[1])};for(var k in attrs)a[k]=attrs[k];return el('line',a,parent);}
+function lblPts(P){return P.map(function(p,i){var q=labelPos(P,i,0.68);return[Math.max(-10.45,Math.min(10.45,q[0])),Math.max(-10.55,Math.min(10.3,q[1]))];});}
+function freeSpot(cands,obst){var best=cands[0],bd=-1;cands.forEach(function(q){var md=1e9;obst.forEach(function(o){md=Math.min(md,Math.hypot(q[0]-o[0],q[1]-o[1]));});if(md>bd+0.05){bd=md;best=q;}});return best;}
+function labels(P,suffix,color,parent){
+  var Q=lblPts(P);
+  P.forEach(function(p,i){
+    var q=Q[i];
+    el('text',{x:X(q[0]),y:Y(q[1])+5,'font-size':14,'font-weight':700,fill:color,'text-anchor':'middle','class':'halo','pointer-events':'none'},parent,NAMES[i]+suffix);
+  });
+}
+function handle(p,role,stroke,fill,r){
+  el('circle',{cx:X(p[0]),cy:Y(p[1]),r:r||6,fill:fill||'#fff',stroke:stroke,'stroke-width':2.6,'pointer-events':'none'},gTop);
+  el('circle',{cx:X(p[0]),cy:Y(p[1]),r:17,'class':'hit','data-h':role},gTop);
+}
+var DOT={stroke:C.soft,'stroke-width':1.6,'stroke-dasharray':'1.5 4.5','stroke-linecap':'round',fill:'none'};
+
+function render(){
+  clear(gDyn);clear(gTop);
+  var F=st.F,I=F.map(function(p){return imgPt(p,st);}),t=st.t,c=st.ctr,i;
+  var obst=F.concat(I,lblPts(F),lblPts(I));
+  /* туслах: вектор, тэнхлэг */
+  if(st.type==='ax'){
+    var L={ox:[[-10.5,0],[10.5,0],'Ox',[9.1,0.6]],oy:[[0,-10.5],[0,10.5],'Oy',[1.1,9.2]],yx:[[-10.5,-10.5],[10.5,10.5],'y = x',[8.2,9.5]],ymx:[[-10.5,10.5],[10.5,-10.5],'y = −x',[-8,9.5]]}[st.axis];
+    line(L[0],L[1],{stroke:C.pink,'stroke-width':3,'stroke-dasharray':'9 6','stroke-opacity':.75},gDyn);
+    el('text',{x:X(L[3][0]),y:Y(L[3][1]),'font-size':14,'font-weight':700,fill:C.pinkd,'text-anchor':'middle','class':'halo'},gDyn,L[2]);
+  }
+  /* харгалзах цэгүүдийг холбосон шугам */
+  for(i=0;i<F.length;i++){
+    var p=F[i],q=I[i];
+    if(st.type==='rot'){
+      var r=Math.hypot(p[0]-c[0],p[1]-c[1]);
+      if(r>1e-9&&st.ang!==0)el('path',Object.assign({d:'M'+X(p[0])+' '+Y(p[1])+'A'+(r*S)+' '+(r*S)+' 0 0 '+(st.ang>0?0:1)+' '+X(q[0])+' '+Y(q[1])},DOT),gDyn);
+    }else if(st.type==='hom'){
+      var d=[p[0]-c[0],p[1]-c[1]];
+      if(Math.hypot(d[0],d[1])>1e-9){
+        var s0=Math.min(0,1,st.k),s1=Math.max(0,1,st.k);
+        line([c[0]+s0*d[0],c[1]+s0*d[1]],[c[0]+s1*d[0],c[1]+s1*d[1]],DOT,gDyn);
+      }
+    }else line(p,q,DOT,gDyn);
+  }
+  /* эргүүлэлтийн өнцөг: хамгийн чөлөөтэй оройгоор OX, OX′ ба φ */
+  if(st.type==='rot'&&st.ang!==0){
+    var pick=null,ob2=obst.concat([c]);
+    for(i=0;i<F.length;i++){
+      var rA=dist(F[i],c);
+      if(rA<1.2)continue;
+      var ra=Math.min(1.6,rA*0.45),a0=Math.atan2(F[i][1]-c[1],F[i][0]-c[0]),a1=a0+st.ang*Math.PI/180;
+      var am=(a0+a1)/2,da=(a1-a0)*0.22;
+      var cands=[[ra+0.7,am],[ra+0.7,am-da],[ra+0.7,am+da],[ra+1.2,am],[Math.max(0.5,ra-0.55),am]].map(function(o){return[c[0]+o[0]*Math.cos(o[1]),c[1]+o[0]*Math.sin(o[1])];});
+      var fp=freeSpot(cands,ob2),md=1e9;
+      ob2.forEach(function(o){md=Math.min(md,Math.hypot(fp[0]-o[0],fp[1]-o[1]));});
+      var sc=Math.min(md,1.4)+ra*0.15;
+      if(!pick||sc>pick.sc+1e-6)pick={i:i,ra:ra,a0:a0,a1:a1,fp:fp,sc:sc};
+    }
+    if(pick){
+      var sty={stroke:C.ink,'stroke-width':1.3,'stroke-dasharray':'5 4','stroke-opacity':.7};
+      line(c,F[pick.i],sty,gDyn);line(c,I[pick.i],sty,gDyn);
+      var P0=[c[0]+pick.ra*Math.cos(pick.a0),c[1]+pick.ra*Math.sin(pick.a0)],P1=[c[0]+pick.ra*Math.cos(pick.a1),c[1]+pick.ra*Math.sin(pick.a1)];
+      el('path',{d:'M'+X(P0[0])+' '+Y(P0[1])+'A'+(pick.ra*S)+' '+(pick.ra*S)+' 0 0 '+(st.ang>0?0:1)+' '+X(P1[0])+' '+Y(P1[1]),fill:'none',stroke:C.pinkd,'stroke-width':2},gDyn);
+      el('text',{x:X(pick.fp[0]),y:Y(pick.fp[1])+5,'font-size':14,'font-weight':700,fill:C.pinkd,'text-anchor':'middle','class':'halo'},gDyn,'φ');
+    }
+  }
+  /* F′ ба хөдөлж буй дүрс */
+  poly(I,{fill:C.pink,'fill-opacity':t>=1?.18:.05,stroke:C.pink,'stroke-width':2.2,'stroke-linejoin':'round','stroke-dasharray':t>=1?null:'6 5'},gDyn);
+  if(t>0&&t<1)poly(F.map(function(p){return morphPt(p,st,t);}),{fill:C.pink,'fill-opacity':.3,stroke:C.pinkd,'stroke-width':2.2,'stroke-linejoin':'round'},gDyn);
+  labels(I,'′',C.pinkd,gDyn);
+  /* вектор */
+  if(st.type==='tr'&&(st.vec[0]||st.vec[1])){
+    var v=st.vec,len=Math.hypot(v[0],v[1]);
+    line([0,0],v,{stroke:C.pinkd,'stroke-width':3,'marker-end':'url(#mVec)'},gDyn);
+    var nx=-v[1]/len,ny=v[0]/len;
+    var lx=X(v[0]/2+nx*0.75),lyy=Y(v[1]/2+ny*0.75)+5;
+    el('text',{x:lx,y:lyy,'font-size':16,'font-weight':700,fill:C.pinkd,'text-anchor':'middle','class':'halo'},gDyn,'a');
+    el('path',{d:'M'+(lx-5)+' '+(lyy-13)+'H'+(lx+5)+'M'+(lx+2)+' '+(lyy-16)+'L'+(lx+5.5)+' '+(lyy-13)+'L'+(lx+2)+' '+(lyy-10),fill:'none',stroke:C.pinkd,'stroke-width':1.6,'stroke-linecap':'round','stroke-linejoin':'round'},gDyn);
+  }
+  /* F (чирэх боломжтой) */
+  poly(F,{fill:C.pur,'fill-opacity':.2,stroke:C.pur,'stroke-width':2.4,'stroke-linejoin':'round','class':'polyF','data-h':'poly'},gTop);
+  labels(F,'',C.purd,gTop);
+  F.forEach(function(p,j){handle(p,'v'+j,C.purd);});
+  if(st.type==='rot'||st.type==='cen'||st.type==='hom'){
+    handle(c,'ctr','#fff',C.pink,6.5);
+    var op=freeSpot([[c[0]-0.6,c[1]+0.5],[c[0]+0.6,c[1]+0.5],[c[0]-0.6,c[1]-0.62],[c[0]+0.6,c[1]-0.62]],obst);
+    el('text',{x:X(op[0]),y:Y(op[1])+5,'font-size':14,'font-weight':700,fill:C.pinkd,'text-anchor':'middle','class':'halo','pointer-events':'none'},gTop,'O');
+  }
+  if(st.type==='tr')handle(st.vec,'tip',C.pinkd);
+  panel(F,I);
+}
+
+function ptStr(name,p){var r=isRounded(p[0])||isRounded(p[1]);return name+(r?' ≈ (':'(')+fmt(p[0])+'; '+fmt(p[1])+')';}
+function dist(p,q){return Math.hypot(p[0]-q[0],p[1]-q[1]);}
+function lenStr(v){return(isRounded(v)?'≈ ':'= ')+fmt(v);}
+var VEC='<svg class="vsym" viewBox="0 0 10 16" role="img" aria-label="a вектор"><text x="5" y="14" text-anchor="middle" font-size="15.5">a</text><path d="M1.5 3.6H8.6M6.4 1.6 8.8 3.6 6.4 5.6" fill="none" stroke="currentColor" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+var NOTES={
+  tr:'Бүх цэг ижил '+VEC+' вектороор шилжинэ: AA′ = BB′ = … = |'+VEC+'| ба эдгээр хэрчмүүд зэрэгцээ. Дүрсийн хэлбэр, хэмжээ, чиглэл хадгалагдана.',
+  rot:'Цэг бүр O төвийг тойрон φ өнцгөөр эргэнэ: OA = OA′, ∠AOA′ = φ. Дүрсийн хэлбэр, хэмжээ хадгалагдана.',
+  ax:'AA′ хэрчим тэгш хэмийн тэнхлэгт перпендикуляр бөгөөд тэнхлэг түүнийг таллан хуваана. Хэмжээ хадгалагдах ч оройг тойрох чиглэл эсрэгээр солигдоно.',
+  cen:'O төв нь AA′, BB′, … хэрчим бүрийн дундаж цэг. Төвийн тэгш хэм нь O-г тойруулан 180°-аар эргүүлсэнтэй ижил.',
+  hom:'OA′ = |k|·OA, A′B′ = |k|·AB, талбай k² дахин өөрчлөгдөнө. k > 0 бол F′ нь O-оос F-тэй нэг талд, k < 0 бол эсрэг талд гарна; |k| < 1 бол дүрс жижгэрнэ.'
+};
+function panel(F,I){
+  var c=st.ctr,cs='O('+fmt(c[0])+'; '+fmt(c[1])+')';
+  Array.prototype.forEach.call(document.querySelectorAll('.cO'),function(e){e.textContent=cs;});
+  $('oVec').innerHTML=VEC+'('+fmt(st.vec[0])+'; '+fmt(st.vec[1])+')';
+  $('oP').textContent=fmt(st.vec[0]);$('oQ').textContent=fmt(st.vec[1]);
+  $('oAng').textContent='φ = '+fmt(st.ang)+'°';
+  $('oK').textContent='k = '+fmt(st.k);
+  $('oA').textContent=ptStr('A',F[0]);
+  $('oA2').textContent=ptStr('A′',I[0]);
+  $('oRule').innerHTML=ruleLines(st).map(function(s){return '<div>'+s+'</div>';}).join('');
+  var rows='';
+  for(var i=0;i<F.length;i++)rows+='<tr><td class="pa">'+ptStr(NAMES[i],F[i])+'</td><td>→</td><td class="pb">'+ptStr(NAMES[i]+'′',I[i])+'</td></tr>';
+  $('tbl').innerHTML=rows;
+  var ab=dist(F[0],F[1]),ab2=dist(I[0],I[1]),S1=Math.abs(shoelace(F)),S2=Math.abs(shoelace(I)),chk;
+  if(st.type==='hom'){
+    chk='AB '+lenStr(ab)+', A′B′ '+lenStr(ab2)+(ab>1e-9?' ⇒ A′B′ : AB = |k| = '+fmt(Math.abs(st.k)):'')+'<br>S '+lenStr(S1)+', S′ '+lenStr(S2)+(S1>1e-9?' ⇒ S′ : S = k² = '+fmt(st.k*st.k):'');
+  }else{
+    chk='AB = A′B′ '+lenStr(ab)+'; талбай S = S′ '+lenStr(S1);
+    if(st.type==='ax'){
+      var o1=shoelace(F),o2=shoelace(I);
+      if(Math.abs(o1)>1e-9)chk+='<br>A → B → C → D → E: F дээр '+(o1>0?'цагийн зүүний эсрэг':'цагийн зүүний дагуу')+', F′ дээр '+(o2>0?'цагийн зүүний эсрэг':'цагийн зүүний дагуу')+'.';
+    }
+  }
+  $('oChk').innerHTML=chk;
+  var out=I.some(function(p){return Math.abs(p[0])>10.000001||Math.abs(p[1])>10.000001;});
+  $('oWarn').hidden=!out;
+  $('oNote').innerHTML=NOTES[st.type];
+  $('oT').textContent='t = '+fmt(st.t);
+  $('sT').value=st.t;
+}
+
+/* шилжилтийн хөдөлгөөн */
+var raf=0;
+function ease(u){return u<0.5?4*u*u*u:1-Math.pow(-2*u+2,3)/2;}
+function stopAnim(){cancelAnimationFrame(raf);raf=0;}
+function setT(t){st.t=Math.max(0,Math.min(1,Math.round(t*100)/100));render();}
+function playMorph(){
+  stopAnim();
+  if(reduceMotion){setT(1);return;}
+  var t0=performance.now(),dur=1600;
+  setT(0);
+  function step(now){
+    var u=Math.min(1,(now-t0)/dur);
+    st.t=u>=1?1:ease(u);render();
+    if(u<1)raf=requestAnimationFrame(step);else raf=0;
+  }
+  raf=requestAnimationFrame(step);
+}
+$('play').addEventListener('click',playMorph);
+$('sT').addEventListener('input',function(){stopAnim();setT(+$('sT').value);});
+
+/* хувиргалт сонгох */
+var PP={tr:'ppTr',rot:'ppRot',ax:'ppAx',cen:'ppCen',hom:'ppHom'};
+function setType(tp,animate){
+  st.type=tp;
+  Array.prototype.forEach.call($('seg').querySelectorAll('button'),function(b){var on=b.getAttribute('data-t')===tp;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on?'true':'false');});
+  for(var k in PP)$(PP[k]).hidden=k!==tp;
+  if(animate)playMorph();else{stopAnim();setT(1);}
+}
+Array.prototype.forEach.call($('seg').querySelectorAll('button'),function(b){
+  b.addEventListener('click',function(){setType(b.getAttribute('data-t'),true);});
+});
+Array.prototype.forEach.call($('axBtns').querySelectorAll('button'),function(b){
+  b.addEventListener('click',function(){
+    st.axis=b.getAttribute('data-ax');
+    Array.prototype.forEach.call($('axBtns').querySelectorAll('button'),function(x){x.classList.toggle('on',x===b);});
+    playMorph();
+  });
+});
+$('sP').addEventListener('input',function(){st.vec=[+$('sP').value,st.vec[1]];render();});
+$('sQ').addEventListener('input',function(){st.vec=[st.vec[0],+$('sQ').value];render();});
+$('sAng').addEventListener('input',function(){st.ang=+$('sAng').value;render();});
+$('sK').addEventListener('input',function(){
+  var v=+$('sK').value;
+  if(v===0){v=st.k>0?-0.5:0.5;$('sK').value=v;}
+  st.k=v;render();
+});
+
+/* чирэх */
+var drag=null;
+function toMath(e){var p=svg.createSVGPoint();p.x=e.clientX;p.y=e.clientY;var m=svg.getScreenCTM();if(!m)return[0,0];var q=p.matrixTransform(m.inverse());return[q.x/S,-q.y/S];}
+function cl(v){return Math.max(-10,Math.min(10,v));}
+function snapP(p){return[cl(Math.round(p[0])),cl(Math.round(p[1]))];}
+svg.addEventListener('pointerdown',function(e){
+  if(e.button)return;
+  var role=e.target&&e.target.getAttribute?e.target.getAttribute('data-h'):null;
+  if(!role)return;
+  e.preventDefault();
+  stopAnim();
+  drag={role:role,start:toMath(e),orig:st.F.map(function(p){return p.slice();}),key:''};
+  try{svg.setPointerCapture(e.pointerId);}catch(_){}
+  document.body.classList.add('dragging');
+});
+svg.addEventListener('pointermove',function(e){
+  if(!drag)return;
+  e.preventDefault();
+  var p=toMath(e),r=drag.role,sp=snapP(p);
+  if(r==='poly'){
+    var xs=drag.orig.map(function(q){return q[0];}),ys=drag.orig.map(function(q){return q[1];});
+    var dx=Math.round(p[0]-drag.start[0]),dy=Math.round(p[1]-drag.start[1]);
+    dx=Math.max(-10-Math.min.apply(null,xs),Math.min(10-Math.max.apply(null,xs),dx));
+    dy=Math.max(-10-Math.min.apply(null,ys),Math.min(10-Math.max.apply(null,ys),dy));
+    st.F=drag.orig.map(function(q){return[q[0]+dx,q[1]+dy];});
+  }else if(/^v[0-4]$/.test(r)){st.F[+r.charAt(1)]=sp;}
+  else if(r==='ctr'){st.ctr=sp;}
+  else if(r==='tip'){st.vec=sp;$('sP').value=sp[0];$('sQ').value=sp[1];}
+  var key=JSON.stringify([st.F,st.ctr,st.vec]);
+  if(key!==drag.key){drag.key=key;render();}
+});
+function endDrag(){if(!drag)return;drag=null;document.body.classList.remove('dragging');render();}
+svg.addEventListener('pointerup',endDrag);
+svg.addEventListener('pointercancel',endDrag);
+svg.addEventListener('lostpointercapture',endDrag);
+
+$('reset').addEventListener('click',function(){
+  stopAnim();
+  st.F=F0.map(function(p){return p.slice();});
+  st.vec=[5,-3];st.ctr=[0,0];st.ang=90;st.axis='oy';st.k=2;
+  $('sP').value=5;$('sQ').value=-3;$('sAng').value=90;$('sK').value=2;
+  Array.prototype.forEach.call($('axBtns').querySelectorAll('button'),function(x){x.classList.toggle('on',x.getAttribute('data-ax')==='oy');});
+  setType(st.type,false);
+});
+
+setType('tr',false);
+})();
+</script>
+</body></html>

@@ -8,6 +8,7 @@ const { rateLimit, clientIp } = require('./_guard');
 const sms = require('./_sms');
 const tg = require('./_telegram');
 const WDEV = require('./_wsdev');
+const MEDIA = require('./_media');
 // 5 минутын үнэгүй туршилт (серверийн цаг) — худалдаж аваагүй данс бүрт нэг удаа, дараагийн амжилттай нэвтрэлтэд эхэлнэ
 const WT = require('./_wstrial');
 const JWT_SECRET = process.env.JWT_SECRET || 'cybermath-default-secret-change-in-prod';
@@ -326,6 +327,10 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
+
+  // Дасгалын төвийн «Видео» / «Интерактив» цэс (api/_media.js) — доорх олон хүснэгтийн DDL-ийг алгасна
+  try { if (await MEDIA.handle(req, res)) return; }
+  catch (e) { console.error('[media]', e.message); return res.status(500).json({ ok: false, error: 'Серверийн алдаа' }); }
 
   try {
     await pool.query(`
@@ -1242,7 +1247,9 @@ module.exports = async (req, res) => {
         if (!/^[A-Za-z0-9._-]+\.html$/.test(slug)) return res.status(400).json({ ok: false, error: 'slug буруу' });
         const d = b.data && typeof b.data === 'object' ? b.data : {};
         const sc = (v) => { const n = Number(v); return Number.isFinite(n) ? Math.min(2, Math.max(0, Math.round(n * 100) / 100)) : 1; };
-        const clean = { s: sc(d.s == null ? 1 : d.s), g: Array.isArray(d.g) ? d.g.slice(0, 40).map(v => (v == null ? null : sc(v))) : [], off: !!d.off, nw: !!d.nw, ok: !!d.ok };
+        // p — хэвлэхэд хэдэн хуудас: 0 автомат (ws-book.js fitAll: 1 эсвэл 2 дүүрэн хуудас), 1/2/3 — админ сонгосон
+        const clean = { s: sc(d.s == null ? 1 : d.s), g: Array.isArray(d.g) ? d.g.slice(0, 40).map(v => (v == null ? null : sc(v))) : [], off: !!d.off, nw: !!d.nw, ok: !!d.ok,
+          p: [1, 2, 3].indexOf(Number(d.p)) >= 0 ? Number(d.p) : 0 };
         await pool.query(
           `INSERT INTO ws_book (slug, data, updated_at) VALUES ($1,$2::jsonb,NOW())
            ON CONFLICT (slug) DO UPDATE SET data=EXCLUDED.data, updated_at=NOW()`,

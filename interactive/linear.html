@@ -1,0 +1,429 @@
+<!doctype html><html lang="mn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Шугаман функц y = kx + b</title><meta name="description" content="Хоёр цэгийг чирж эсвэл k, b гулсуураар шулууныг өөрчлөн өнцгийн коэффициент, налалтын өнцөг, тэнхлэгүүдтэй огтлолцох цэг, параллель ба перпендикуляр шулууныг судлах интерактив туршилт.">
+<style>
+:root{--ink:#14214A;--pur:#7B52EE;--pur-d:#5a32d6;--lav:#f6f3ff;--line:#e7e0f7;--yel:#FFC93C;--pink:#d946ef;--grn:#16a34a;--soft:#6b6890}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:#fbfaff;color:var(--ink);font:15px/1.45 "Segoe UI",Arial,sans-serif}
+.wrap{max-width:1080px;margin:0 auto;padding:14px 16px 22px}
+h1{font-size:1.15rem;margin:0;font-weight:700}
+.sub{margin:3px 0 12px;color:var(--soft);font-size:.9rem}
+.stage{display:flex;gap:14px;align-items:flex-start}
+.board{flex:1 1 56%;min-width:0;padding:10px}
+.panel{flex:1 1 44%;min-width:0;display:flex;flex-direction:column;gap:10px}
+.card{background:#fff;border:1px solid var(--line);border-radius:15px;box-shadow:0 10px 28px -20px rgba(60,30,140,.5)}
+.pad{padding:12px 14px}
+svg.plot{display:block;width:100%;max-width:62vh;height:auto;margin:0 auto;touch-action:none;-webkit-user-select:none;user-select:none;border-radius:10px}
+.eq{font:600 1.3rem "Cambria Math","Times New Roman",serif;color:var(--pur-d);text-align:center;padding:2px 0 8px;min-height:2.2em;display:flex;align-items:center;justify-content:center;gap:4px;flex-wrap:wrap}
+.fr{display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;font-size:.74em;line-height:1.08;margin:0 2px}
+.fr>span:first-child{border-bottom:1.4px solid currentColor;padding:0 3px}
+.fr>span:last-child{padding:0 3px}
+.ctl{display:grid;grid-template-columns:22px 1fr 64px;align-items:center;gap:10px;margin:2px 0}
+.ctl label{font:italic 700 1.05rem "Cambria Math","Times New Roman",serif}
+.val{font-variant-numeric:tabular-nums;background:var(--lav);border:1px solid var(--line);border-radius:999px;padding:1px 6px;font-weight:700;text-align:center;font-size:.86rem}
+input[type=range]{width:100%;accent-color:var(--pur);height:28px;margin:0;cursor:pointer}
+.info{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;margin:0;font-size:.88rem;align-items:center}
+.info dt{color:var(--soft)}
+.info dd{margin:0;font-weight:600;font-variant-numeric:tabular-nums}
+.msg{margin-top:9px;padding:6px 10px;border-left:3px solid var(--pink);font-size:.86rem;border-radius:0 8px 8px 0;background:transparent}
+.msg[hidden]{display:none}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{appearance:none;border:0;border-radius:999px;padding:9px 18px;font:700 .9rem "Segoe UI",Arial,sans-serif;color:#fff;background:linear-gradient(135deg,#7B52EE,#9b6bff);cursor:pointer;box-shadow:0 8px 18px -12px rgba(91,50,214,.9)}
+.btn:hover{filter:brightness(1.06)}
+.tg{appearance:none;border:1px solid var(--line);background:#fff;color:var(--pur-d);border-radius:999px;padding:7px 13px 7px 10px;font:700 .84rem "Segoe UI",Arial,sans-serif;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+.tg .sw{width:12px;height:12px;border-radius:50%;border:2px solid currentColor;flex:none}
+.tg[aria-pressed=true]{background:var(--lav);border-color:var(--pur)}
+.tg[aria-pressed=true] .sw{background:currentColor}
+.tg.par{color:#b02fc4}.tg.perp{color:#15803d}
+.btn:focus-visible,.tg:focus-visible,input:focus-visible{outline:3px solid rgba(123,82,238,.35);outline-offset:2px}
+.extra{font-size:.86rem;margin-top:8px;display:grid;gap:6px}
+.extra>div{padding-left:10px;border-left:3px solid var(--pink)}
+.extra>div.p2{border-left-color:var(--grn)}
+.extra .f{font:600 1.02rem "Cambria Math","Times New Roman",serif}
+.note{border-left:3px solid var(--pink);padding:2px 0 2px 12px;background:transparent}
+.note h2{font-size:.92rem;margin:0 0 4px}
+.note ul{margin:0;padding-left:17px;font-size:.84rem}
+.note li{margin:2px 0}
+.note li::marker{color:var(--pur)}
+.handle{cursor:grab;outline:none}
+.handle.drag{cursor:grabbing}
+.handle .hit{fill:#000;fill-opacity:0;pointer-events:all}
+.handle .dot{fill:#FFC93C;stroke:#14214A;stroke-width:2}
+.handle .ring{fill:none;stroke:#7B52EE;stroke-width:2.5;stroke-opacity:0;transition:stroke-opacity .15s}
+.handle:hover .ring,.handle.drag .ring,.handle:focus-visible .ring{stroke-opacity:.5}
+.handle.pk .dot{fill:#d946ef;stroke:#fff}
+.lab{font:600 12.5px "Segoe UI",Arial,sans-serif;fill:#14214A;paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round;pointer-events:none}
+.lab.pk{fill:#b02fc4}.lab.gr{fill:#15803d}.lab.yl{fill:#8a5a00}
+.tick{font:11px "Segoe UI",Arial,sans-serif;fill:#6b6890;pointer-events:none}
+.axl{font:italic 700 14px "Cambria Math","Times New Roman",serif;fill:#14214A;pointer-events:none}
+.fade{transition:opacity .3s}
+@media (min-width:761px){.board{position:sticky;top:10px}}
+@media (max-width:760px){.stage{flex-direction:column}.board,.panel{flex:none;width:100%}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style></head><body>
+<div class="wrap">
+<header>
+<h1>Шугаман функц y = kx + b</h1>
+<p class="sub">P, Q цэгийг чирж шулууныг тодорхойл, эсвэл k, b гулсуурыг хөдөлгө.</p>
+</header>
+<div class="stage">
+<div class="card board">
+<svg id="plot" class="plot" viewBox="0 0 500 500" role="img" aria-label="Шугаман функцийн график">
+<defs>
+<clipPath id="clip"><rect width="500" height="500"/></clipPath>
+<marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="#14214A"/></marker>
+</defs>
+<rect width="500" height="500" fill="#fff"/>
+<g id="grid"></g>
+<g clip-path="url(#clip)">
+<g id="gPar" class="fade" opacity="0"><line id="parLine" stroke="#d946ef" stroke-width="2.6" stroke-linecap="round"/></g>
+<g id="gPerp" class="fade" opacity="0"><line id="perpLine" stroke="#16a34a" stroke-width="2.6" stroke-linecap="round"/><path id="perpMark" fill="none" stroke="#16a34a" stroke-width="1.6"/></g>
+<g id="tri"><polygon id="triPoly" fill="#FFC93C" fill-opacity=".22"/><line id="legX" stroke="#e0a800" stroke-width="2.4"/><line id="legY" stroke="#e0a800" stroke-width="2.4"/><path id="triMark" fill="none" stroke="#c08a00" stroke-width="1.4"/></g>
+<g id="ang"><line id="angRay" stroke="#7B52EE" stroke-width="1.4" stroke-dasharray="4 4"/><path id="angArc" fill="#7B52EE" fill-opacity=".13" stroke="#7B52EE" stroke-width="1.6"/></g>
+<line id="mainLine" stroke="#7B52EE" stroke-width="3.2" stroke-linecap="round"/>
+</g>
+<g id="marks"></g>
+<g id="hB2" class="handle pk" tabindex="0" role="button" aria-label="Параллель шулууны b₂ — дээш доош чирнэ" style="display:none"><circle class="ring" r="12"/><circle class="hit" r="16"/><circle class="dot" r="6"/></g>
+<g id="hP" class="handle" tabindex="0" role="button" aria-label="P цэг — чирж эсвэл сум товчоор зөөнө"><circle class="ring" r="13"/><circle class="hit" r="16"/><circle class="dot" r="7"/></g>
+<g id="hQ" class="handle" tabindex="0" role="button" aria-label="Q цэг — чирж эсвэл сум товчоор зөөнө"><circle class="ring" r="13"/><circle class="hit" r="16"/><circle class="dot" r="7"/></g>
+<g id="labs"></g>
+</svg>
+</div>
+<div class="panel">
+<div class="card pad">
+<div id="eq" class="eq" aria-live="polite"></div>
+<div class="ctl"><label for="sk">k</label><input id="sk" type="range" min="-5" max="5" step="0.1" value="0.7"><output id="vk" class="val" for="sk"></output></div>
+<div class="ctl"><label for="sb">b</label><input id="sb" type="range" min="-8" max="8" step="0.5" value="1"><output id="vb" class="val" for="sb"></output></div>
+</div>
+<div class="card pad">
+<dl class="info">
+<dt>Цэгүүд</dt><dd id="iPQ"></dd>
+<dt>Өнцгийн коэффициент</dt><dd id="iK"></dd>
+<dt>Oy-тэй огтлолцох</dt><dd id="iY"></dd>
+<dt>Ox-тэй огтлолцох</dt><dd id="iX"></dd>
+<dt>Налалтын өнцөг</dt><dd id="iA"></dd>
+<dt>Функц</dt><dd id="iM"></dd>
+</dl>
+<div id="vMsg" class="msg" hidden></div>
+</div>
+<div class="card pad">
+<div class="row">
+<button id="tPar" class="tg par" type="button" aria-pressed="false"><span class="sw"></span>Параллель шулуун</button>
+<button id="tPerp" class="tg perp" type="button" aria-pressed="false"><span class="sw"></span>Перпендикуляр шулуун</button>
+</div>
+<div class="extra"><div id="xPar" hidden></div><div id="xPerp" class="p2" hidden></div></div>
+</div>
+<div class="row"><button id="reset" class="btn" type="button">Дахин эхлүүлэх</button></div>
+<div class="note">
+<h2>Юу ажиглах вэ?</h2>
+<ul>
+<li>k &gt; 0 бол функц өснө, k &lt; 0 бол буурна, k = 0 бол шулуун Ox тэнхлэгтэй параллель.</li>
+<li>k = Δy / Δx: x нэг нэгжээр өсөхөд y нь k нэгжээр өөрчлөгдөнө.</li>
+<li>b бол шулуун Oy тэнхлэгийг огтлох цэгийн ординат: (0; b).</li>
+<li>tg α = k, энд α нь шулууны Ox тэнхлэгийн эерэг чиглэлтэй үүсгэх өнцөг.</li>
+<li>Параллель шулуунууд: k₁ = k₂, b₁ ≠ b₂. Перпендикуляр шулуунууд: k₁·k₂ = −1.</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<script>
+(function(){
+'use strict';
+const NS='http://www.w3.org/2000/svg';
+const $=id=>document.getElementById(id);
+const svg=$('plot'),gGrid=$('grid'),gMarks=$('marks'),gLabs=$('labs');
+const mainLine=$('mainLine'),parLine=$('parLine'),perpLine=$('perpLine'),perpMark=$('perpMark');
+const gPar=$('gPar'),gPerp=$('gPerp'),tri=$('tri'),triPoly=$('triPoly'),legX=$('legX'),legY=$('legY'),triMark=$('triMark');
+const ang=$('ang'),angRay=$('angRay'),angArc=$('angArc');
+const hP=$('hP'),hQ=$('hQ'),hB2=$('hB2'),sk=$('sk'),sb=$('sb');
+const HALF=250,S=25,W=10,LIM=9.5;
+const DEF_P={x:-3,y:-1},DEF_Q={x:3,y:3};
+let P={x:DEF_P.x,y:DEF_P.y},Q={x:DEF_Q.x,y:DEF_Q.y};
+let showPar=false,showPerp=false,parOff=3,drag=null,anim=0;
+const reduce=!!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+function el(tag,attrs,parent){const e=document.createElementNS(NS,tag);if(attrs)for(const k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e;}
+function txt(parent,x,y,str,anchor,cls){const t=el('text',{x:(+x).toFixed(1),y:(+y).toFixed(1),'text-anchor':anchor||'middle','class':cls||'lab'},parent);t.textContent=str;return t;}
+function set(e,attrs){for(const k in attrs)e.setAttribute(k,typeof attrs[k]==='number'?attrs[k].toFixed(2):attrs[k]);}
+function r10(x){return Math.round(x*1e10)/1e10;}
+function clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
+function fmt(x,d){if(d===undefined)d=2;if(!isFinite(x))return '—';const p=Math.pow(10,d);let r=Math.round(x*p)/p;if(Math.abs(r)<1e-12)r=0;let t=r.toFixed(d);if(t.indexOf('.')>=0)t=t.replace(/0+$/,'').replace(/\.$/,'');return t.replace('-','−').replace('.',',');}
+function exact(x,d){if(d===undefined)d=2;const p=Math.pow(10,d);return Math.abs(x*p-Math.round(x*p))<1e-6;}
+function toFrac(x){
+  if(!isFinite(x))return null;
+  const sg=x<0?-1:1;x=Math.abs(x);
+  let h0=0,h1=1,k0=1,k1=0,v=x;
+  for(let i=0;i<24;i++){
+    const a=Math.floor(v),h2=a*h1+h0,k2=a*k1+k0;
+    if(k2>1000)break;
+    h0=h1;h1=h2;k0=k1;k1=k2;
+    if(Math.abs(x-h1/k1)<1e-9)return {n:sg*h1,d:k1};
+    v=1/(v-a);if(!isFinite(v))break;
+  }
+  return null;
+}
+function nice(x){const f=toFrac(x);return !!(f&&f.d!==1&&!exact(x));}
+function numH(x){const f=toFrac(x);if(f&&f.d!==1&&!exact(x))return (f.n<0?'−':'')+'<span class="fr"><span>'+Math.abs(f.n)+'</span><span>'+f.d+'</span></span>';return (exact(x)?'':'≈ ')+fmt(x);}
+function numT(x){const f=toFrac(x);if(f&&f.d!==1&&!exact(x))return (f.n<0?'−':'')+Math.abs(f.n)+'/'+f.d;return (exact(x)?'':'≈ ')+fmt(x);}
+function parH(x){return x<0?'('+numH(x)+')':numH(x);}
+function eqH(k,b){
+  let s='y = ';
+  if(Math.abs(k)<1e-12)return s+numH(b);
+  if(Math.abs(k-1)<1e-12)s+='x';else if(Math.abs(k+1)<1e-12)s+='−x';else s+=numH(k)+'x';
+  if(Math.abs(b)>1e-12)s+=(b>0?' + ':' − ')+numH(Math.abs(b));
+  return s;
+}
+const X=x=>HALF+x*S, Y=y=>HALF-y*S;
+const cl=v=>clamp(v,-2e4,2e4);
+
+(function buildGrid(){
+  for(let v=-W;v<=W;v++){
+    const col=v%2===0?'#e6defb':'#f3effd';
+    el('line',{x1:X(v),y1:0,x2:X(v),y2:500,stroke:col},gGrid);
+    el('line',{x1:0,y1:Y(v),x2:500,y2:Y(v),stroke:col},gGrid);
+  }
+  el('line',{x1:0,y1:HALF,x2:497,y2:HALF,stroke:'#14214A','stroke-width':1.5,'marker-end':'url(#arr)'},gGrid);
+  el('line',{x1:HALF,y1:500,x2:HALF,y2:3,stroke:'#14214A','stroke-width':1.5,'marker-end':'url(#arr)'},gGrid);
+  for(let v=-W+1;v<W;v++){
+    if(v===0)continue;
+    el('line',{x1:X(v),y1:HALF-3,x2:X(v),y2:HALF+3,stroke:'#14214A'},gGrid);
+    el('line',{x1:HALF-3,y1:Y(v),x2:HALF+3,y2:Y(v),stroke:'#14214A'},gGrid);
+    if(v%2===0){txt(gGrid,X(v),HALF+15,fmt(v),'middle','tick');txt(gGrid,HALF-6,Y(v)+4,fmt(v),'end','tick');}
+  }
+  txt(gGrid,HALF-6,HALF+15,'O','end','tick');
+  txt(gGrid,490,HALF-9,'x','middle','axl');
+  txt(gGrid,HALF+11,15,'y','middle','axl');
+})();
+
+function lineInfo(){
+  const dx=Q.x-P.x,dy=Q.y-P.y;
+  if(Math.abs(dx)<1e-9)return {vertical:true,dx:0,dy:dy};
+  const kk=dy/dx;
+  return {vertical:false,k:r10(kk),b:r10(P.y-kk*P.x),dx:r10(dx),dy:r10(dy)};
+}
+function drawLine(e,k,b){set(e,{x1:X(-W-1),y1:cl(Y(k*(-W-1)+b)),x2:X(W+1),y2:cl(Y(k*(W+1)+b))});}
+function drawVLine(e,x){set(e,{x1:X(x),y1:-5,x2:X(x),y2:505});}
+
+function render(){
+  const L=lineInfo();
+  gMarks.textContent='';gLabs.textContent='';
+  const px=X(P.x),py=Y(P.y),qx=X(Q.x),qy=Y(Q.y);
+  // үндсэн шулуун
+  if(L.vertical){drawVLine(mainLine,P.x);mainLine.setAttribute('stroke-dasharray','9 6');}
+  else{drawLine(mainLine,L.k,L.b);mainLine.removeAttribute('stroke-dasharray');}
+  // налуугийн гурвалжин
+  if(!L.vertical){
+    tri.style.display='';
+    const cx=qx,cy=py;
+    set(triPoly,{points:px.toFixed(2)+','+py.toFixed(2)+' '+cx.toFixed(2)+','+cy.toFixed(2)+' '+qx.toFixed(2)+','+qy.toFixed(2)});
+    set(legX,{x1:px,y1:py,x2:cx,y2:cy});set(legY,{x1:cx,y1:cy,x2:qx,y2:qy});
+    if(Math.abs(L.dy)>1e-9&&Math.abs(cx-px)>14&&Math.abs(qy-cy)>14){
+      const ux=Math.sign(px-cx)*9,uy=Math.sign(qy-cy)*9;
+      triMark.setAttribute('d','M'+(cx+ux).toFixed(2)+' '+cy.toFixed(2)+'L'+(cx+ux).toFixed(2)+' '+(cy+uy).toFixed(2)+'L'+cx.toFixed(2)+' '+(cy+uy).toFixed(2));
+    }else triMark.setAttribute('d','');
+    const dyUp=L.dy>0;
+    txt(gLabs,(px+cx)/2,dyUp||Math.abs(L.dy)<1e-9?cy+17:cy-8,'Δx = '+fmt(L.dx),'middle','lab yl');
+    if(Math.abs(L.dy)>1e-9)txt(gLabs,cx+(L.dx>0?8:-8),(cy+qy)/2+4,'Δy = '+fmt(L.dy),L.dx>0?'start':'end','lab yl');
+  }else tri.style.display='none';
+  // налалтын өнцөг
+  if(!L.vertical&&Math.abs(L.k)>1e-12){
+    ang.style.display='';
+    const x0=-L.b/L.k;let ax,ay;
+    if(Math.abs(x0)<=LIM){ax=X(x0);ay=HALF;angRay.style.display='none';}
+    else{ax=px;ay=py;angRay.style.display='';set(angRay,{x1:ax,y1:ay,x2:ax+62,y2:ay});}
+    let al=Math.atan(L.k);if(al<0)al+=Math.PI;
+    const r=28,ex=ax+r*Math.cos(al),ey=ay-r*Math.sin(al);
+    angArc.setAttribute('d','M'+ax.toFixed(2)+' '+ay.toFixed(2)+'L'+(ax+r).toFixed(2)+' '+ay.toFixed(2)+'A'+r+' '+r+' 0 0 0 '+ex.toFixed(2)+' '+ey.toFixed(2)+'Z');
+    txt(gLabs,ax+(r+11)*Math.cos(al/2),ay-(r+11)*Math.sin(al/2)+4,'α','middle','lab');
+  }else ang.style.display='none';
+  // огтлолцох цэгүүд
+  if(!L.vertical){
+    if(Math.abs(L.b)<=W-0.2){
+      el('circle',{cx:X(0),cy:Y(L.b),r:4.8,fill:'#d946ef',stroke:'#fff','stroke-width':1.5},gMarks);
+      const right=L.k<0;
+      txt(gLabs,X(0)+(right?9:-9),clamp(Y(L.b)-8,14,494),'(0; '+fmt(L.b)+')',right?'start':'end','lab pk');
+    }
+    if(Math.abs(L.k)>1e-12){
+      const x0=-L.b/L.k;
+      if(Math.abs(x0)<=W-0.2&&Math.abs(x0)>1e-9){
+        el('circle',{cx:X(x0),cy:HALF,r:4.8,fill:'#d946ef',stroke:'#fff','stroke-width':1.5},gMarks);
+        const toR=x0<-6?true:x0>6?false:L.k>0;
+        txt(gLabs,X(x0)+(toR?9:-9),HALF+17,'('+fmt(x0)+'; 0)',toR?'start':'end','lab pk');
+      }
+    }
+  }
+  // параллель шулуун
+  let b2=null;
+  if(showPar&&!L.vertical){
+    b2=r10(L.b+parOff);
+    if(Math.abs(b2)>LIM){parOff=-parOff;b2=r10(L.b+parOff);}
+    b2=clamp(b2,-LIM,LIM);
+    drawLine(parLine,L.k,b2);gPar.setAttribute('opacity','1');
+    hB2.style.display='';hB2.setAttribute('transform','translate('+X(0).toFixed(2)+' '+Y(b2).toFixed(2)+')');
+    txt(gLabs,X(0)+(L.k<0?-14:14),clamp(Y(b2)-10,14,494),'b₂ = '+fmt(b2),L.k<0?'end':'start','lab pk');
+  }else{gPar.setAttribute('opacity','0');hB2.style.display='none';}
+  // перпендикуляр шулуун
+  let k2=null,bp=null;
+  if(showPerp&&!L.vertical){
+    gPerp.setAttribute('opacity','1');
+    if(Math.abs(L.k)<1e-12)drawVLine(perpLine,P.x);
+    else{k2=r10(-1/L.k);bp=r10(P.y-(-1/L.k)*P.x);drawLine(perpLine,k2,bp);}
+    const len=Math.hypot(qx-px,qy-py)||1,ux=(qx-px)/len*10,uy=(qy-py)/len*10,vx=-uy,vy=ux;
+    perpMark.setAttribute('d','M'+(px+ux).toFixed(2)+' '+(py+uy).toFixed(2)+'L'+(px+ux+vx).toFixed(2)+' '+(py+uy+vy).toFixed(2)+'L'+(px+vx).toFixed(2)+' '+(py+vy).toFixed(2));
+  }else gPerp.setAttribute('opacity','0');
+  // бариулууд ба шошго
+  hP.setAttribute('transform','translate('+px.toFixed(2)+' '+py.toFixed(2)+')');
+  hQ.setAttribute('transform','translate('+qx.toFixed(2)+' '+qy.toFixed(2)+')');
+  let nx=-1,ny=0;
+  if(!L.vertical){
+    // шошгыг гурвалжны оройн (C) эсрэг талд байрлуулна
+    const len=Math.hypot(qx-px,qy-py)||1;nx=-(qy-py)/len;ny=(qx-px)/len;
+    if((qx-px)*nx>0){nx=-nx;ny=-ny;}
+    if(Math.abs(L.dy)<1e-9&&ny>0){nx=-nx;ny=-ny;}
+  }
+  const lbl=(x,y,name,pt)=>{
+    let lx=x+nx*22,ly=y+ny*22+4;
+    lx=clamp(lx,36,464);ly=clamp(ly,14,494);
+    txt(gLabs,lx,ly,name+'('+fmt(pt.x)+'; '+fmt(pt.y)+')','middle','lab');
+  };
+  lbl(px,py,'P',P);lbl(qx,qy,'Q',Q);
+  panel(L,b2,k2,bp);
+}
+
+function panel(L,b2,k2,bp){
+  $('iPQ').textContent='P('+fmt(P.x)+'; '+fmt(P.y)+'),  Q('+fmt(Q.x)+'; '+fmt(Q.y)+')';
+  const msg=$('vMsg');
+  if(L.vertical){
+    $('eq').innerHTML='x = '+fmt(P.x);
+    $('vk').textContent='—';$('vb').textContent='—';
+    $('iK').textContent='Δx = 0 тул k тодорхойлогдохгүй';
+    $('iY').textContent=Math.abs(P.x)<1e-9?'шулуун Oy тэнхлэгтэй давхцана':'огтлолцохгүй';
+    $('iX').textContent='('+fmt(P.x)+'; 0)';
+    $('iA').textContent='α = 90°, tg 90° тодорхойлогдохгүй';
+    $('iM').textContent='функцийн график биш';
+    msg.hidden=false;
+    msg.innerHTML='P ба Q цэгийн абсцисс тэнцүү (x = '+fmt(P.x)+') тул шулуун Oy тэнхлэгтэй параллель байна. Ийм шулууныг y = kx + b хэлбэрээр бичих боломжгүй: Δx = 0 учир k = Δy / Δx тодорхойлогдохгүй. Нэг x-д олон y харгалзах тул энэ нь функцийн график биш.';
+    $('xPar').hidden=true;$('xPerp').hidden=true;
+    if(showPar||showPerp){$('xPar').hidden=false;$('xPar').textContent='Босоо шулууны хувьд k тодорхойлогдохгүй тул энд параллель, перпендикуляр шулууныг k-аар харуулахгүй.';}
+    return;
+  }
+  msg.hidden=true;
+  const k=L.k,b=L.b;
+  $('eq').innerHTML=eqH(k,b);
+  $('vk').textContent=numT(k);$('vb').textContent=numT(b);
+  $('iK').innerHTML='k = Δy / Δx = '+fmt(L.dy)+' / '+(L.dx<0?'('+fmt(L.dx)+')':fmt(L.dx))+' = '+numH(k);
+  $('iY').innerHTML='(0; '+numH(b)+')';
+  if(Math.abs(k)<1e-12)$('iX').textContent=Math.abs(b)<1e-12?'шулуун Ox тэнхлэгтэй давхцана':'огтлолцохгүй (Ox-тэй параллель)';
+  else $('iX').innerHTML='x = −b / k = '+numH(-b/k)+'  →  ('+numH(-b/k)+'; 0)';
+  let al=Math.atan(k)*180/Math.PI;if(al<0)al+=180;
+  $('iA').innerHTML='tg α = k = '+numH(k)+',  α '+(exact(al)?'= ':'≈ ')+fmt(al)+'°';
+  $('iM').textContent=k>1e-12?'өсөх (k > 0)':k<-1e-12?'буурах (k < 0)':'тогтмол (k = 0)';
+  const xp=$('xPar'),xq=$('xPerp');
+  if(b2!==null){
+    xp.hidden=false;
+    xp.innerHTML='<b>Параллель:</b> <span class="f">'+eqH(k,b2)+'</span><br>k₂ = k₁ = '+numH(k)+',  b₂ = '+numH(b2)+' ≠ b₁ = '+numH(b)+'. Шулуунууд огтлолцохгүй.';
+  }else xp.hidden=true;
+  if(showPerp){
+    xq.hidden=false;
+    if(k2===null)xq.innerHTML='<b>Перпендикуляр:</b> <span class="f">x = '+fmt(P.x)+'</span><br>k₁ = 0 тул P цэгийг дайрсан перпендикуляр шулуун босоо; түүний k тодорхойлогдохгүй.';
+    else xq.innerHTML='<b>Перпендикуляр:</b> <span class="f">'+eqH(k2,bp)+'</span><br>P цэгийг дайрна. k₁·k₂ = '+parH(k)+'·'+parH(k2)+' = '+fmt(r10(k*(-1/k)))+'.';
+  }else xq.hidden=true;
+}
+
+function syncSliders(){
+  const L=lineInfo();
+  if(L.vertical)return;
+  sk.value=clamp(L.k,-5,5);sb.value=clamp(L.b,-8,8);
+}
+
+// Гулсуураар өөрчлөхөд P, Q-г шулуун дээр байрлуулна
+function applyKB(k,b){
+  b=clamp(b,-8,8);
+  let lo=-LIM,hi=LIM;
+  if(Math.abs(k)>1e-12){const x1=(-LIM-b)/k,x2=(LIM-b)/k;lo=Math.max(lo,Math.min(x1,x2));hi=Math.min(hi,Math.max(x1,x2));}
+  lo=Math.ceil(lo*2-1e-9)/2;hi=Math.floor(hi*2+1e-9)/2;
+  let dx=Q.x-P.x;if(Math.abs(dx)<0.5)dx=2;
+  let xp=clamp(Math.round(P.x*2)/2,lo,hi);
+  const c1=clamp(xp+dx,lo,hi),c2=clamp(xp-dx,lo,hi);
+  let xq=(Math.abs(c1-xp)>=Math.min(Math.abs(dx),2)-1e-9||Math.abs(c1-xp)>=Math.abs(c2-xp))?c1:c2;
+  if(Math.abs(xq-xp)<0.5)xq=xp+0.5<=hi?xp+0.5:xp-0.5;
+  P={x:xp,y:r10(k*xp+b)};Q={x:xq,y:r10(k*xq+b)};
+}
+sk.addEventListener('input',()=>{
+  cancelAnim();const L=lineInfo();
+  const b=L.vertical?parseFloat(sb.value):L.b;
+  applyKB(parseFloat(sk.value),b);render();
+});
+sb.addEventListener('input',()=>{
+  cancelAnim();const L=lineInfo();
+  const k=L.vertical?parseFloat(sk.value):L.k;
+  applyKB(k,parseFloat(sb.value));render();
+});
+
+// Чирэх
+function toSvg(e){const M=svg.getScreenCTM();if(!M)return {x:HALF,y:HALF};const p=new DOMPoint(e.clientX,e.clientY).matrixTransform(M.inverse());return {x:p.x,y:p.y};}
+function snap(v){return clamp(Math.round(v*2)/2,-LIM,LIM);}
+function movePoint(which,x,y){
+  const np={x:snap(x),y:snap(y)},other=which==='P'?Q:P;
+  if(np.x===other.x&&np.y===other.y)return;
+  if(which==='P')P=np;else Q=np;
+  syncSliders();render();
+}
+function moveB2(y){
+  const L=lineInfo();if(L.vertical)return;
+  const b2=snap(y);
+  if(Math.abs(b2-L.b)<0.25)return;
+  parOff=r10(b2-L.b);render();
+}
+[hP,hQ,hB2].forEach(h=>{
+  h.addEventListener('pointerdown',e=>{
+    if(e.button!==undefined&&e.button!==0)return;
+    e.preventDefault();cancelAnim();drag=h;h.classList.add('drag');
+    try{h.setPointerCapture(e.pointerId);}catch(_){}
+  });
+  h.addEventListener('pointermove',e=>{
+    if(drag!==h)return;
+    const p=toSvg(e),mx=(p.x-HALF)/S,my=(HALF-p.y)/S;
+    if(h===hB2)moveB2(my);else movePoint(h===hP?'P':'Q',mx,my);
+  });
+  const end=()=>{if(drag!==h)return;drag=null;h.classList.remove('drag');};
+  h.addEventListener('pointerup',end);h.addEventListener('pointercancel',end);h.addEventListener('lostpointercapture',end);
+  h.addEventListener('keydown',e=>{
+    const d={ArrowLeft:[-0.5,0],ArrowRight:[0.5,0],ArrowUp:[0,0.5],ArrowDown:[0,-0.5]}[e.key];
+    if(!d)return;e.preventDefault();cancelAnim();
+    if(h===hB2){const L=lineInfo();if(!L.vertical)moveB2(L.b+parOff+d[1]);}
+    else{const pt=h===hP?P:Q;movePoint(h===hP?'P':'Q',pt.x+d[0],pt.y+d[1]);}
+  });
+});
+
+function toggle(btn,which){
+  if(which==='par')showPar=!showPar;else showPerp=!showPerp;
+  btn.setAttribute('aria-pressed',String(which==='par'?showPar:showPerp));
+  render();
+}
+$('tPar').addEventListener('click',function(){toggle(this,'par');});
+$('tPerp').addEventListener('click',function(){toggle(this,'perp');});
+
+function cancelAnim(){if(anim){cancelAnimationFrame(anim);anim=0;}}
+function ease(k){return k<.5?4*k*k*k:1-Math.pow(-2*k+2,3)/2;}
+$('reset').addEventListener('click',()=>{
+  cancelAnim();parOff=3;
+  const fP={x:P.x,y:P.y},fQ={x:Q.x,y:Q.y};
+  const done=()=>{P={x:DEF_P.x,y:DEF_P.y};Q={x:DEF_Q.x,y:DEF_Q.y};syncSliders();render();};
+  if(reduce){done();return;}
+  const t0=performance.now(),dur=600;
+  const step=now=>{
+    const k=Math.min(1,(now-t0)/dur),e=ease(k);
+    if(k>=1){anim=0;done();return;}
+    P={x:fP.x+(DEF_P.x-fP.x)*e,y:fP.y+(DEF_P.y-fP.y)*e};
+    Q={x:fQ.x+(DEF_Q.x-fQ.x)*e,y:fQ.y+(DEF_Q.y-fQ.y)*e};
+    if(Math.abs(Q.x-P.x)<0.05)Q.x=P.x+0.05;
+    syncSliders();render();anim=requestAnimationFrame(step);
+  };
+  anim=requestAnimationFrame(step);
+});
+
+syncSliders();render();
+})();
+</script>
+</body></html>

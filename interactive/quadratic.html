@@ -1,0 +1,326 @@
+<!doctype html><html lang="mn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Квадрат функцийн график</title><meta name="description" content="a, b, c коэффициентийг өөрчилж, оройн цэгийг чирэн параболын оройн цэг, тэгш хэмийн тэнхлэг, дискриминант ба шийдүүдийг судлах интерактив туршилт.">
+<style>
+:root{--ink:#14214A;--pur:#7B52EE;--pur-d:#5a32d6;--lav:#f6f3ff;--line:#e7e0f7;--yel:#FFC93C;--pink:#d946ef;--grn:#16a34a;--soft:#6b6890}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:#fbfaff;color:var(--ink);font:15px/1.45 "Segoe UI",Arial,sans-serif}
+.wrap{max-width:1080px;margin:0 auto;padding:14px 16px 22px}
+h1{font-size:1.15rem;margin:0;font-weight:700}
+.sub{margin:3px 0 12px;color:var(--soft);font-size:.9rem}
+.stage{display:flex;gap:14px;align-items:flex-start}
+.board{flex:1 1 56%;min-width:0;padding:10px}
+.panel{flex:1 1 44%;min-width:0;display:flex;flex-direction:column;gap:10px}
+.card{background:#fff;border:1px solid var(--line);border-radius:15px;box-shadow:0 10px 28px -20px rgba(60,30,140,.5)}
+.pad{padding:12px 14px}
+svg.plot{display:block;width:100%;max-width:62vh;height:auto;margin:0 auto;touch-action:none;-webkit-user-select:none;user-select:none;border-radius:10px}
+.ctl{display:grid;grid-template-columns:22px 1fr 64px;align-items:center;gap:10px;margin:2px 0}
+.ctl label{font:italic 700 1.05rem "Cambria Math","Times New Roman",serif}
+.val{font-variant-numeric:tabular-nums;background:var(--lav);border:1px solid var(--line);border-radius:999px;padding:1px 6px;font-weight:700;text-align:center;font-size:.86rem}
+input[type=range]{width:100%;accent-color:var(--pur);height:28px;margin:0;cursor:pointer}
+.forms{margin-top:8px;border-top:1px solid var(--line);padding-top:8px;display:grid;gap:4px}
+.fl{display:flex;flex-wrap:wrap;gap:2px 10px;align-items:baseline}
+.k{color:var(--soft);font-size:.82rem;min-width:140px}
+.f{font:1.08rem "Cambria Math","Times New Roman",serif;font-weight:600;color:var(--pur-d)}
+.info{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;margin:0;font-size:.88rem}
+.info dt{color:var(--soft)}
+.info dd{margin:0;font-weight:600;font-variant-numeric:tabular-nums}
+.mu{color:var(--soft);font-weight:400;font-size:.82rem}
+.msg{margin-top:9px;padding:6px 10px;border-left:3px solid var(--grn);font-size:.86rem;border-radius:0 8px 8px 0;background:transparent}
+.msg.zero{border-color:var(--pur)}
+.msg.neg{border-color:var(--pink)}
+.msg b{font-weight:700}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{appearance:none;border:0;border-radius:999px;padding:9px 18px;font:700 .9rem "Segoe UI",Arial,sans-serif;color:#fff;background:linear-gradient(135deg,#7B52EE,#9b6bff);cursor:pointer;box-shadow:0 8px 18px -12px rgba(91,50,214,.9)}
+.btn:hover{filter:brightness(1.06)}
+.btn2{appearance:none;border:1px solid var(--line);background:#fff;color:var(--pur-d);border-radius:999px;padding:7px 13px;font:700 .84rem "Segoe UI",Arial,sans-serif;cursor:pointer}
+.btn2:hover{border-color:var(--pur)}
+.btn:focus-visible,.btn2:focus-visible,input:focus-visible{outline:3px solid rgba(123,82,238,.35);outline-offset:2px}
+.note{border-left:3px solid var(--pink);padding:2px 0 2px 12px;background:transparent}
+.note h2{font-size:.92rem;margin:0 0 4px}
+.note ul{margin:0;padding-left:17px;font-size:.84rem;color:var(--ink)}
+.note li{margin:2px 0}
+.note li::marker{color:var(--pur)}
+.handle{cursor:grab;outline:none}
+.handle.drag{cursor:grabbing}
+.handle .hit{fill:#000;fill-opacity:0;pointer-events:all}
+.handle .dot{fill:#FFC93C;stroke:#14214A;stroke-width:2}
+.handle .ring{fill:none;stroke:#7B52EE;stroke-width:2.5;stroke-opacity:0;transition:stroke-opacity .15s}
+.handle:hover .ring,.handle.drag .ring,.handle:focus-visible .ring{stroke-opacity:.5}
+.lab{font:600 12.5px "Segoe UI",Arial,sans-serif;fill:#14214A;paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round;pointer-events:none}
+.lab.pk{fill:#b02fc4}
+.tick{font:11px "Segoe UI",Arial,sans-serif;fill:#6b6890;pointer-events:none}
+.axl{font:italic 700 14px "Cambria Math","Times New Roman",serif;fill:#14214A;pointer-events:none}
+@media (min-width:761px){.board{position:sticky;top:10px}}
+@media (max-width:760px){.stage{flex-direction:column}.board,.panel{flex:none;width:100%}.k{min-width:0;width:100%}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style></head><body>
+<div class="wrap">
+<header>
+<h1>Квадрат функцийн график</h1>
+<p class="sub">a, b, c гулсуурыг хөдөлгө, эсвэл шар өнгийн оройн цэг V-г чирж параболыг өөрчил.</p>
+</header>
+<div class="stage">
+<div class="card board">
+<svg id="plot" class="plot" viewBox="0 0 500 500" role="img" aria-label="Квадрат функцийн график">
+<defs>
+<clipPath id="clip"><rect width="500" height="500"/></clipPath>
+<marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="#14214A"/></marker>
+</defs>
+<rect width="500" height="500" fill="#fff"/>
+<g id="grid"></g>
+<g clip-path="url(#clip)">
+<line id="sym" stroke="#d946ef" stroke-width="1.7" stroke-dasharray="7 6"/>
+<path id="curve" fill="none" stroke="#7B52EE" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+</g>
+<g id="marks"></g>
+<g id="vtx" class="handle" tabindex="0" role="button" aria-label="Оройн цэг V. Чирж эсвэл сум товчоор зөөнө.">
+<circle class="ring" r="13"/><circle class="hit" r="16"/><circle class="dot" r="7"/>
+</g>
+<text id="vLab" class="lab"></text>
+<text id="viewTag" x="10" y="490" class="lab"></text>
+</svg>
+</div>
+<div class="panel">
+<div class="card pad">
+<div class="ctl"><label for="sa">a</label><input id="sa" type="range" min="-3" max="3" step="0.1" value="1"><output id="va" class="val" for="sa"></output></div>
+<div class="ctl"><label for="sb">b</label><input id="sb" type="range" min="-10" max="10" step="0.5" value="-2"><output id="vb" class="val" for="sb"></output></div>
+<div class="ctl"><label for="sc">c</label><input id="sc" type="range" min="-10" max="10" step="0.5" value="-3"><output id="vc" class="val" for="sc"></output></div>
+<div class="forms">
+<div class="fl"><span class="k">Ерөнхий хэлбэр</span><span id="fStd" class="f"></span></div>
+<div class="fl"><span class="k">Оройн цэгийн хэлбэр</span><span id="fVtx" class="f"></span></div>
+</div>
+</div>
+<div class="row"><button id="reset" class="btn" type="button">Дахин эхлүүлэх</button><button class="btn2" type="button" data-ex="0">D &gt; 0 жишээ</button><button class="btn2" type="button" data-ex="1">D = 0 жишээ</button><button class="btn2" type="button" data-ex="2">D &lt; 0 жишээ</button></div>
+<div class="card pad">
+<dl class="info">
+<dt>Оройн цэг</dt><dd id="iV"></dd>
+<dt>Тэгш хэмийн тэнхлэг</dt><dd id="iAx"></dd>
+<dt>Салаа</dt><dd id="iBr"></dd>
+<dt>Oy-тэй огтлолцох</dt><dd id="iY"></dd>
+<dt>Дискриминант</dt><dd id="iD"></dd>
+<dt>Шийд</dt><dd id="iR"></dd>
+</dl>
+<div id="dMsg" class="msg"></div>
+</div>
+<div class="note">
+<h2>Юу ажиглах вэ?</h2>
+<ul>
+<li>a &gt; 0 үед параболын салаа дээш, a &lt; 0 үед доош чиглэнэ; |a| ихсэх тусам парабол нарийсна.</li>
+<li>c-г өөрчлөхөд парабол дээш, доош шилжиж, Oy тэнхлэгийг (0; c) цэгт огтолно.</li>
+<li>Оройн цэг: m = −b / (2a), n = f(m). Тэгш хэмийн тэнхлэг нь x = m шулуун.</li>
+<li>Оройг чирэхэд a хэвээр үлдэж, b = −2am, c = am² + n болж өөрчлөгдөнө.</li>
+<li>D = b² − 4ac-ийн тэмдэг параболын Ox тэнхлэгтэй огтлолцох цэгийн тоог заана.</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<script>
+(function(){
+'use strict';
+const NS='http://www.w3.org/2000/svg';
+const $=id=>document.getElementById(id);
+const svg=$('plot'),gGrid=$('grid'),curve=$('curve'),sym=$('sym'),gMarks=$('marks'),vtx=$('vtx'),vLab=$('vLab'),viewTag=$('viewTag');
+const sa=$('sa'),sb=$('sb'),sc=$('sc');
+const SIZE=500,HALF=250;
+const VIEWS=[{W:10,L:2,T:1,S:0.5},{W:20,L:5,T:1,S:0.5},{W:50,L:10,T:5,S:1},{W:100,L:20,T:10,S:2},{W:200,L:50,T:10,S:5},{W:300,L:50,T:10,S:5}];
+const DEF={a:1,b:-2,c:-3};
+const EX=[{a:1,b:-2,c:-3},{a:1,b:-4,c:4},{a:0.5,b:-2,c:4}];
+let a=DEF.a,b=DEF.b,c=DEF.c;
+let view=null,s=25,dragging=false,anim=0;
+const reduce=!!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+function el(tag,attrs,parent){const e=document.createElementNS(NS,tag);if(attrs)for(const k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e;}
+function txt(parent,x,y,str,anchor,cls){const t=el('text',{x:(+x).toFixed(1),y:(+y).toFixed(1),'text-anchor':anchor||'middle','class':cls||'lab'},parent);t.textContent=str;return t;}
+function r10(x){return Math.round(x*1e10)/1e10;}
+function clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
+function fmt(x,d){if(d===undefined)d=2;if(!isFinite(x))return '—';const p=Math.pow(10,d);let r=Math.round(x*p)/p;if(Math.abs(r)<1e-12)r=0;let t=r.toFixed(d);if(t.indexOf('.')>=0)t=t.replace(/0+$/,'').replace(/\.$/,'');return t.replace('-','−').replace('.',',');}
+function exact(x,d){if(d===undefined)d=2;const p=Math.pow(10,d);return Math.abs(x*p-Math.round(x*p))<1e-6;}
+function eq(x,d){return exact(x,d)?' = ':' ≈ ';}
+function par(v,d){return v<0?'('+fmt(v,d)+')':fmt(v,d);}
+const X=x=>HALF+x*s, Y=y=>HALF-y*s;
+
+function buildGrid(){
+  gGrid.textContent='';
+  const W=view.W,L=view.L,T=view.T,nT=Math.round(W/T);
+  for(let k=-nT;k<=nT;k++){
+    const v=k*T,major=(v%L===0);
+    if(!major&&T*s<9)continue;
+    const col=major?'#e6defb':'#f3effd';
+    el('line',{x1:X(v),y1:0,x2:X(v),y2:SIZE,stroke:col},gGrid);
+    el('line',{x1:0,y1:Y(v),x2:SIZE,y2:Y(v),stroke:col},gGrid);
+  }
+  el('line',{x1:0,y1:HALF,x2:SIZE-3,y2:HALF,stroke:'#14214A','stroke-width':1.5,'marker-end':'url(#arr)'},gGrid);
+  el('line',{x1:HALF,y1:SIZE,x2:HALF,y2:3,stroke:'#14214A','stroke-width':1.5,'marker-end':'url(#arr)'},gGrid);
+  for(let k=-nT;k<=nT;k++){
+    if(k===0)continue;
+    const v=k*T,major=(v%L===0);
+    if(T*s>=5){
+      el('line',{x1:X(v),y1:HALF-3,x2:X(v),y2:HALF+3,stroke:'#14214A'},gGrid);
+      el('line',{x1:HALF-3,y1:Y(v),x2:HALF+3,y2:Y(v),stroke:'#14214A'},gGrid);
+    }
+    if(major&&Math.abs(v)<W-0.35*L){
+      txt(gGrid,X(v),HALF+15,fmt(v),'middle','tick');
+      txt(gGrid,HALF-6,Y(v)+4,fmt(v),'end','tick');
+    }
+  }
+  txt(gGrid,HALF-6,HALF+15,'O','end','tick');
+  txt(gGrid,SIZE-10,HALF-9,'x','middle','axl');
+  txt(gGrid,HALF+11,15,'y','middle','axl');
+  viewTag.textContent=W===10?'':'Харагдац: x, y ∈ [−'+W+'; '+W+']';
+}
+
+function fitView(m,n,roots){
+  let need=Math.max(Math.abs(m),Math.abs(n));
+  roots.forEach(r=>{need=Math.max(need,Math.abs(r));});
+  let v=VIEWS[VIEWS.length-1];
+  for(const cand of VIEWS){if(need<=cand.W*0.92){v=cand;break;}}
+  if(v!==view){view=v;s=HALF/view.W;buildGrid();}
+}
+
+function drawCurve(){
+  const W=view.W,N=400,dx=2*W/N;let d='';
+  for(let i=0;i<=N;i++){
+    const x=-W+i*dx;const y=a*x*x+b*x+c;
+    const py=clamp(Y(y),-2e4,2e4);
+    d+=(i?'L':'M')+X(x).toFixed(2)+' '+py.toFixed(2);
+  }
+  curve.setAttribute('d',d);
+}
+
+function term(v,sfx,first){
+  if(Math.abs(v)<1e-12)return '';
+  const neg=v<0,av=Math.abs(v);
+  const num=(sfx&&Math.abs(av-1)<1e-12)?'':fmt(av,3);
+  return (first?(neg?'−':''):(neg?' − ':' + '))+num+sfx;
+}
+function vertexForm(m,n){
+  const ex=exact(m)&&exact(n);
+  const A=Math.abs(a-1)<1e-12?'':Math.abs(a+1)<1e-12?'−':fmt(a,1);
+  const core=Math.round(m*100)===0?'x²':'(x '+(m>0?'− ':'+ ')+fmt(Math.abs(m))+')²';
+  const tail=Math.round(n*100)===0?'':(n>0?' + ':' − ')+fmt(Math.abs(n));
+  return 'y'+(ex?' = ':' ≈ ')+A+core+tail;
+}
+
+function render(){
+  const D=r10(b*b-4*a*c);
+  const m=r10(-b/(2*a));
+  const n=r10(c-b*b/(4*a));
+  let roots=[];
+  if(D>1e-9){const q=Math.sqrt(D);let x1=(-b-q)/(2*a),x2=(-b+q)/(2*a);if(x1>x2){const t=x1;x1=x2;x2=t;}roots=[x1,x2];}
+  else if(Math.abs(D)<=1e-9){roots=[m];}
+  if(!dragging||!view)fitView(m,n,roots);
+  drawCurve();
+  const W=view.W;
+  sym.setAttribute('x1',X(m));sym.setAttribute('x2',X(m));sym.setAttribute('y1',0);sym.setAttribute('y2',SIZE);
+  gMarks.textContent='';
+  const sx=X(m),right=sx<SIZE-80;
+  txt(gMarks,right?sx+6:sx-6,34,'x = '+fmt(m),right?'start':'end','lab pk');
+  // Oy тэнхлэгтэй огтлолцох цэг
+  if(Math.abs(c)<=W){
+    el('circle',{cx:X(0),cy:Y(c),r:4.5,fill:'#d946ef',stroke:'#fff','stroke-width':1.5},gMarks);
+    const near=Math.abs(X(m)-X(0))<60&&Math.abs(Y(n)-Y(c))<30;
+    // x = 0 цэг дээрх налуу нь b: шулууны чөлөөтэй (баруун) талд шошголно
+    if(!near)txt(gMarks,X(0)+8,clamp(Y(c)+(b<0?-8:16),14,494),'(0; '+fmt(c,3)+')','start','lab');
+  }
+  // шийдүүд
+  const ly=a>0?HALF+17:HALF-9;
+  if(roots.length===2){
+    roots.forEach((r,i)=>{
+      if(Math.abs(r)>W)return;
+      el('circle',{cx:X(r),cy:HALF,r:5.5,fill:'#FFC93C',stroke:'#14214A','stroke-width':1.8},gMarks);
+      txt(gMarks,X(r)+(i?7:-7),ly,i?'x₂':'x₁',i?'start':'end','lab');
+    });
+  }else if(roots.length===1&&Math.abs(roots[0])<=W){
+    // D = 0: шийд нь оройн цэгтэй давхцах тул оройн шошгонд нэмж бичнэ
+    el('circle',{cx:X(roots[0]),cy:HALF,r:5.5,fill:'#FFC93C',stroke:'#14214A','stroke-width':1.8},gMarks);
+  }
+  // оройн цэг
+  const vx=X(m),vy=Y(n);
+  vtx.setAttribute('transform','translate('+vx.toFixed(2)+' '+vy.toFixed(2)+')');
+  let ty=a>0?vy+24:vy-15;
+  if(ty>SIZE-6)ty=vy-15;if(ty<14)ty=vy+24;
+  vLab.setAttribute('x',clamp(vx,44,SIZE-44).toFixed(1));vLab.setAttribute('y',ty.toFixed(1));vLab.setAttribute('text-anchor','middle');
+  vLab.textContent='V('+fmt(m)+'; '+fmt(n)+')'+(roots.length===1?',  x₁ = x₂':'');
+  panel(D,m,n,roots);
+}
+
+function panel(D,m,n,roots){
+  $('va').textContent=fmt(a,1);$('vb').textContent=fmt(b,3);$('vc').textContent=fmt(c,3);
+  $('fStd').textContent='y = '+term(a,'x²',true)+term(b,'x',false)+term(c,'',false);
+  $('fVtx').textContent=vertexForm(m,n);
+  $('iV').innerHTML='V('+fmt(m)+'; '+fmt(n)+')<br><span class="mu">m = −b / (2a)'+eq(m)+fmt(m)+',  n = f(m)'+eq(n)+fmt(n)+'</span>';
+  $('iAx').textContent='x'+eq(m)+fmt(m);
+  $('iBr').textContent=a>0?'дээш (a > 0), хамгийн бага утга y'+eq(n)+fmt(n):'доош (a < 0), хамгийн их утга y'+eq(n)+fmt(n);
+  $('iY').textContent='(0; '+fmt(c,3)+')';
+  const bsq=b<0?'('+fmt(b,3)+')²':fmt(b,3)+'²';
+  $('iD').textContent='D = b² − 4ac = '+bsq+' − 4·'+par(a,1)+'·'+par(c,3)+eq(D)+fmt(D);
+  const msg=$('dMsg');
+  if(roots.length===2){
+    $('iR').textContent='x₁'+eq(roots[0])+fmt(roots[0])+';  x₂'+eq(roots[1])+fmt(roots[1]);
+    msg.className='msg';msg.innerHTML='<b>D &gt; 0</b>: ax² + bx + c = 0 тэгшитгэл <b>2 шийдтэй</b>. Парабол Ox тэнхлэгийг 2 цэгт огтолно.';
+  }else if(roots.length===1){
+    $('iR').textContent='x₁ = x₂'+eq(roots[0])+fmt(roots[0]);
+    msg.className='msg zero';msg.innerHTML='<b>D = 0</b>: тэгшитгэл <b>1 шийдтэй</b>. Парабол Ox тэнхлэгийг оройн цэгээрээ шүргэнэ.';
+  }else{
+    $('iR').textContent='бодит шийдгүй';
+    msg.className='msg neg';msg.innerHTML='<b>D &lt; 0</b>: тэгшитгэл <b>бодит шийдгүй</b>. Парабол Ox тэнхлэгтэй огтлолцохгүй.';
+  }
+}
+
+function syncSliders(){sa.value=a;sb.value=clamp(b,-10,10);sc.value=clamp(c,-10,10);}
+function cancelAnim(){if(anim){cancelAnimationFrame(anim);anim=0;}}
+function ease(k){return k<.5?4*k*k*k:1-Math.pow(-2*k+2,3)/2;}
+function tweenTo(t){
+  cancelAnim();
+  const f={a:a,b:b,c:c};
+  if(reduce||f.a*t.a<0){a=t.a;b=t.b;c=t.c;syncSliders();render();return;}
+  const t0=performance.now(),dur=550;
+  const step=now=>{
+    const k=Math.min(1,(now-t0)/dur),e=ease(k);
+    a=f.a+(t.a-f.a)*e;b=f.b+(t.b-f.b)*e;c=f.c+(t.c-f.c)*e;
+    if(k>=1){a=t.a;b=t.b;c=t.c;}
+    syncSliders();render();
+    anim=k<1?requestAnimationFrame(step):0;
+  };
+  anim=requestAnimationFrame(step);
+}
+
+sa.addEventListener('input',()=>{cancelAnim();let v=parseFloat(sa.value);if(Math.abs(v)<1e-9){v=a>0?-0.1:0.1;sa.value=v;}a=r10(v);render();});
+sb.addEventListener('input',()=>{cancelAnim();b=parseFloat(sb.value);render();});
+sc.addEventListener('input',()=>{cancelAnim();c=parseFloat(sc.value);render();});
+
+function toSvg(e){const M=svg.getScreenCTM();if(!M)return {x:HALF,y:HALF};const p=new DOMPoint(e.clientX,e.clientY).matrixTransform(M.inverse());return {x:p.x,y:p.y};}
+function setVertex(m,n){
+  const lim=0.9*view.W,st=view.S;
+  m=Math.round(clamp(m,-lim,lim)/st)*st;n=Math.round(clamp(n,-lim,lim)/st)*st;
+  b=r10(-2*a*m);c=r10(a*m*m+n);
+  syncSliders();render();
+}
+vtx.addEventListener('pointerdown',e=>{
+  if(e.button!==undefined&&e.button!==0)return;
+  e.preventDefault();cancelAnim();dragging=true;vtx.classList.add('drag');
+  try{vtx.setPointerCapture(e.pointerId);}catch(_){}
+});
+vtx.addEventListener('pointermove',e=>{
+  if(!dragging)return;
+  const p=toSvg(e);setVertex((p.x-HALF)/s,(HALF-p.y)/s);
+});
+function endDrag(){if(!dragging)return;dragging=false;vtx.classList.remove('drag');render();}
+vtx.addEventListener('pointerup',endDrag);
+vtx.addEventListener('pointercancel',endDrag);
+vtx.addEventListener('lostpointercapture',endDrag);
+vtx.addEventListener('keydown',e=>{
+  const st=view.S,m=-b/(2*a),n=c-b*b/(4*a);
+  let dm=0,dn=0;
+  if(e.key==='ArrowLeft')dm=-st;else if(e.key==='ArrowRight')dm=st;else if(e.key==='ArrowUp')dn=st;else if(e.key==='ArrowDown')dn=-st;else return;
+  e.preventDefault();cancelAnim();setVertex(m+dm,n+dn);
+});
+
+$('reset').addEventListener('click',()=>tweenTo(DEF));
+document.querySelectorAll('[data-ex]').forEach(btn=>btn.addEventListener('click',()=>tweenTo(EX[+btn.getAttribute('data-ex')])));
+
+syncSliders();render();
+})();
+</script>
+</body></html>

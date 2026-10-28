@@ -1,0 +1,429 @@
+<!doctype html><html lang="mn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Магадлал ба туршилт</title><meta name="description" content="Зоос, шоо, хоёр шооны нийлбэрээр олон туршилт хийж харьцангуй давтамж магадлалд хэрхэн ойртдогийг (их тооны хууль) судлах интерактив үзүүлэн.">
+<style>
+:root{--ink:#14214A;--pur:#7B52EE;--pur-d:#5a32d6;--lav:#f6f3ff;--line:#e7e0f7;--yel:#FFC93C;--pink:#d946ef;--grn:#16a34a;--soft:#6b6890}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{margin:0;background:#fbfaff;color:var(--ink);font:15px/1.45 "Segoe UI",Arial,sans-serif;padding:14px 16px 18px}
+.wrap{max-width:1080px;margin:0 auto}
+h1{font-size:1.15rem;line-height:1.3;margin:0;font-weight:700}
+.sub{margin:3px 0 0;color:var(--soft);font-size:.88rem}
+.stage{display:grid;grid-template-columns:minmax(0,1fr) minmax(250px,300px);grid-template-rows:auto 1fr;grid-template-areas:"board ctrl" "board info";gap:14px;margin-top:12px;align-items:start}
+@media (max-width:760px){.stage{grid-template-columns:minmax(0,1fr);grid-template-rows:auto;grid-template-areas:"ctrl" "board" "info"}}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 10px 28px -20px rgba(60,30,140,.5)}
+.board{grid-area:board;padding:8px 8px 10px;min-width:0}
+.ctrl{grid-area:ctrl}
+.info{grid-area:info}
+.board svg{display:block;width:100%;height:auto;max-height:62vh;touch-action:none;-webkit-user-select:none;user-select:none}
+svg text{font-family:"Segoe UI",Arial,sans-serif}
+.halo{paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;padding:4px 6px 0;font-size:.8rem;color:var(--soft)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px}
+.legend i.dash{width:18px;height:0;border-top:2px dashed var(--ink);border-radius:0}
+.tblwrap{overflow-x:auto;margin-top:8px;-webkit-overflow-scrolling:touch}
+table.cnt{border-collapse:collapse;font-size:.8rem;min-width:100%;white-space:nowrap}
+table.cnt th,table.cnt td{padding:4px 6px;text-align:center;border-bottom:1px solid var(--line)}
+table.cnt th:first-child{text-align:left;color:var(--soft);font-weight:600;position:sticky;left:0;background:#fff}
+table.cnt tr:first-child td{font-weight:700}
+table.cnt td.ev{background:#fbeefe;color:#9d1fb8}
+.panel{padding:14px;display:flex;flex-direction:column;gap:11px;min-width:0}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{-webkit-appearance:none;appearance:none;border:1px solid var(--line);background:#fff;color:var(--pur);border-radius:999px;padding:6px 12px;font:inherit;font-size:.84rem;font-weight:700;cursor:pointer}
+.seg button.on{background:linear-gradient(135deg,#7B52EE,#9b6bff);color:#fff;border-color:transparent;box-shadow:0 8px 18px -12px rgba(91,50,214,.9)}
+.seg button:focus-visible{outline:2px solid var(--pur-d);outline-offset:2px}
+.last{display:flex;align-items:center;gap:12px;background:var(--lav);border-radius:12px;padding:8px 10px}
+.last svg{width:120px;height:63px;flex:none}
+.lastTx{font-size:1.05rem;font-weight:800;color:var(--pur-d)}
+.small{font-size:.84rem}
+.muted{color:var(--soft)}
+.btns{display:flex;flex-wrap:wrap;gap:7px}
+.btn{-webkit-appearance:none;appearance:none;border:0;border-radius:999px;padding:8px 14px;font:inherit;font-size:.86rem;font-weight:700;color:#fff;background:linear-gradient(135deg,#7B52EE,#9b6bff);cursor:pointer;display:inline-flex;align-items:center;gap:7px;box-shadow:0 8px 18px -12px rgba(91,50,214,.9)}
+.btn:hover{filter:brightness(1.06)}
+.btn:active{transform:translateY(1px)}
+.btn.sec{background:#fff;color:var(--pur);border:1px solid var(--line);box-shadow:none}
+.btn.sec.on{background:var(--lav);border-color:var(--pur);color:var(--pur-d)}
+.btn:focus-visible{outline:2px solid var(--pur-d);outline-offset:2px}
+.btn .ic{width:14px;height:14px;flex:none}
+label.lbl{display:flex;flex-direction:column;gap:4px;font-size:.8rem;color:var(--soft);font-weight:600}
+select{font:inherit;font-size:.9rem;color:var(--ink);padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;width:100%}
+select:focus-visible{outline:2px solid var(--pur);outline-offset:1px}
+.stat{background:var(--lav);border-radius:12px;padding:9px 12px;font-size:.88rem;display:grid;grid-template-columns:auto 1fr;gap:3px 10px}
+.stat span:nth-child(odd){color:var(--soft)}
+.stat b{color:var(--pur-d)}
+.space{font-size:.82rem}
+.space .row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:6px}
+.space .row svg{display:block}
+table.grid{border-collapse:separate;border-spacing:2px;font-size:.72rem;margin-bottom:6px}
+table.grid th{color:var(--soft);font-weight:600;width:22px;height:20px;padding:0}
+table.grid td{width:24px;height:20px;padding:0;text-align:center;border-radius:4px;background:#f1edfb;color:var(--ink)}
+table.grid td.on{background:var(--pink);color:#fff;font-weight:700}
+.law{margin:12px 6px 2px}
+.note{border-left:3px solid var(--pink);padding:2px 0 2px 11px;font-size:.84rem;line-height:1.5}
+.note b{display:block;margin-bottom:2px}
+.note p{margin:0}
+.note p b{display:inline;margin:0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style></head><body><div class="wrap">
+<header><h1>Магадлал ба туршилт</h1><p class="sub">Туршилтаа сонгоод олон удаа давт. Харьцангуй давтамж онолын магадлалд хэрхэн ойртохыг ажигла.</p></header>
+<main class="stage">
+<section class="card board" id="board">
+<svg id="bd" viewBox="0 0 600 440" role="img" aria-label="Харьцангуй давтамжийн багана график ба шугаман график"></svg>
+<div class="legend"><span><i style="background:var(--pur)"></i>харьцангуй давтамж</span><span><i style="background:var(--pink)"></i>A үзэгдэлд хамаарах үр дүн</span><span><i class="dash"></i>онолын магадлал</span></div>
+<div class="tblwrap"><table class="cnt" id="tbl"></table></div>
+<div class="note law"><b>Юу ажиглах вэ?</b><p><b>Их тооны хууль:</b> туршилтын тоо N өсөх тусам A үзэгдлийн харьцангуй давтамж m/N (m — A үзэгдэл илэрсэн тоо) түүний магадлал P(A)-д ойртоно. Цөөн туршилтад давтамж их хэлбэлздэг ч олон туршилтын дараа онолын утгын орчимд тогтворждог. Шугаман графикаас үүнийг ажигла.</p></div>
+</section>
+<aside class="card panel ctrl">
+<div class="seg" id="seg" role="group" aria-label="Туршилт сонгох">
+<button type="button" data-e="coin" class="on">Зоос</button>
+<button type="button" data-e="die">Шоо</button>
+<button type="button" data-e="two">Хоёр шооны нийлбэр</button>
+</div>
+<div class="last"><svg id="lastSvg" viewBox="0 0 160 84" aria-hidden="true"></svg><div><div class="small muted">Сүүлийн үр дүн</div><div class="lastTx" id="oLast">—</div><div class="small muted">Нийт туршилт: <b id="oN">0</b></div></div></div>
+<div class="btns" id="runBtns">
+<button class="btn" type="button" data-n="1">1 удаа</button>
+<button class="btn" type="button" data-n="10">10 удаа</button>
+<button class="btn" type="button" data-n="100">100 удаа</button>
+<button class="btn" type="button" data-n="1000">1000 удаа</button>
+</div>
+<div class="btns">
+<button class="btn sec" type="button" id="auto" aria-pressed="false"><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path id="autoIc" d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg><span id="autoTx">Автомат</span></button>
+<button class="btn sec" type="button" id="clear">Тэглэх</button>
+</div>
+</aside>
+<aside class="card panel info">
+<label class="lbl">Ажиглах үзэгдэл A<select id="ev"></select></label>
+<div class="stat" id="oStat"></div>
+<div class="space" id="oSpace"></div>
+<div class="btns"><button class="btn sec" type="button" id="reset">Дахин эхлүүлэх</button></div>
+</aside>
+</main></div>
+<script>
+(function(){
+'use strict';
+/*HELPERS*/
+var MINUS='−';
+function gcd(a,b){while(b){var t=a%b;a=b;b=t;}return a;}
+function frac(m,n){var g=gcd(m,n);return(m/g)+'/'+(n/g);}
+function dec(v,d){return v.toFixed(d==null?3:d).replace('.',',');}
+function trimDec(v){return String(Math.round(v*1000)/1000).replace('.',',');}
+function niceMax(N){var st=[10,20,50],b=1;for(;;){for(var i=0;i<3;i++){if(st[i]*b>=N)return st[i]*b;}b*=10;}}
+function pickTop(v,list){for(var i=0;i<list.length;i++)if(list[i]>=v-1e-12)return list[i];return list[list.length-1];}
+function thou(n){var s=String(n);return n<10000?s:s.replace(/\B(?=(\d{3})+(?!\d))/g,' ');}
+function pipPos(v){var l=0.27,c=0.5,r=0.73;return{1:[[c,c]],2:[[r,l],[l,r]],3:[[r,l],[c,c],[l,r]],4:[[l,l],[r,l],[l,r],[r,r]],5:[[l,l],[r,l],[c,c],[l,r],[r,r]],6:[[l,l],[r,l],[l,c],[r,c],[l,r],[r,r]]}[v];}
+var EXPS={
+  coin:{K:2,labels:['Сүлд','Тоо'],w:[1,1],den:2,events:[{n:'Сүлд буух',set:[0]},{n:'Тоо буух',set:[1]}]},
+  die:{K:6,labels:['1','2','3','4','5','6'],w:[1,1,1,1,1,1],den:6,events:[{n:'6 буух',set:[5]},{n:'Тэгш тоо буух',set:[1,3,5]},{n:'5 эсвэл 6 буух',set:[4,5]}]},
+  two:{K:11,labels:['2','3','4','5','6','7','8','9','10','11','12'],w:[1,2,3,4,5,6,5,4,3,2,1],den:36,events:[{n:'Нийлбэр 7 гарах',set:[5]},{n:'Нийлбэр 8 гарах',set:[6]},{n:'Нийлбэр 2 гарах',set:[0]},{n:'Нийлбэр 10-аас их гарах',set:[9,10]},{n:'Нийлбэр тэгш тоо гарах',set:[0,2,4,6,8,10]}]}
+};
+function evFav(e,ev){var m=0;ev.set.forEach(function(k){m+=e.w[k];});return m;}
+/*END*/
+
+var NS='http://www.w3.org/2000/svg';
+var svg=document.getElementById('bd'),board=document.getElementById('board'),lastSvg=document.getElementById('lastSvg');
+function $(id){return document.getElementById(id);}
+function el(tag,attrs,parent,text){var e=document.createElementNS(NS,tag);if(attrs)for(var k in attrs)if(attrs[k]!=null)e.setAttribute(k,attrs[k]);if(text!=null)e.textContent=text;(parent||svg).appendChild(e);return e;}
+function clear(g){while(g.firstChild)g.removeChild(g.firstChild);}
+function r1(v){return Math.round(v*10)/10;}
+var C={ink:'#14214A',pur:'#7B52EE',purd:'#5a32d6',pink:'#d946ef',pinkd:'#b62fcf',soft:'#6b6890',line:'#e7e0f7',grid:'#efeaf8'};
+var reduceMotion=!!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+var CAP=2000000;
+
+/* өгөгдөл */
+function newStore(K){var c=[];for(var i=0;i<K;i++)c.push(0);return{N:0,counts:c,out:new Uint8Array(4096),last:-1,pair:null};}
+var S={coin:newStore(2),die:newStore(6),two:newStore(11)};
+var cur='coin',evIdx={coin:0,die:0,two:0},evSet=[],cum=new Uint32Array(4096);
+function curEv(){return EXPS[cur].events[evIdx[cur]];}
+function rebuildEv(){
+  var e=EXPS[cur],ev=curEv(),st=S[cur],i,c=0;
+  evSet=[];for(i=0;i<e.K;i++)evSet.push(false);
+  ev.set.forEach(function(k){evSet[k]=true;});
+  ensureCum(st.N);
+  for(i=0;i<st.N;i++){if(evSet[st.out[i]])c++;cum[i]=c;}
+}
+function ensureCum(n){if(n>cum.length){var len=cum.length;while(len<n)len*=2;var nb=new Uint32Array(len);nb.set(cum);cum=nb;}}
+var lastPair=null;
+function trial(key){
+  if(key==='coin')return Math.random()<0.5?0:1;
+  if(key==='die')return Math.floor(Math.random()*6);
+  var a=1+Math.floor(Math.random()*6),b=1+Math.floor(Math.random()*6);
+  lastPair=[a,b];return a+b-2;
+}
+function addTrial(key,o){
+  var st=S[key];
+  if(st.N>=st.out.length){var nb=new Uint8Array(st.out.length*2);nb.set(st.out);st.out=nb;}
+  st.out[st.N]=o;st.counts[o]++;
+  if(key===cur){ensureCum(st.N+1);cum[st.N]=(st.N?cum[st.N-1]:0)+(evSet[o]?1:0);}
+  st.N++;
+}
+function runTrials(n){
+  var st=S[cur],o=-1;
+  for(var i=0;i<n&&st.N<CAP;i++){o=trial(cur);addTrial(cur,o);}
+  if(o>=0){st.last=o;st.pair=cur==='two'?lastPair:null;}
+}
+
+/* байрлал */
+var LAY={
+  wide:{W:600,H:440,bx:52,bw:534,by:34,bh:164,bl:216,lt:250,ly:266,lh:136,lxl:420,lax:436,fs:12.5},
+  narrow:{W:360,H:500,bx:42,bw:308,by:34,bh:164,bl:216,lt:250,ly:266,lh:172,lxl:456,lax:476,fs:12}
+};
+var L=null,mode='';
+var gB,gL;
+function build(){
+  clear(svg);
+  svg.setAttribute('viewBox','0 0 '+L.W+' '+L.H);
+  var defs=el('defs');
+  var cp=el('clipPath',{id:'clipL'},defs);
+  el('rect',{x:L.bx,y:L.ly-1,width:L.bw+2,height:L.lh+2},cp);
+  gB=el('g');gL=el('g');
+}
+
+/* багана график */
+function drawBars(){
+  clear(gB);
+  var e=EXPS[cur],st=S[cur],K=e.K,N=st.N,k,maxF=0,pMax=0;
+  for(k=0;k<K;k++){if(N)maxF=Math.max(maxF,st.counts[k]/N);pMax=Math.max(pMax,e.w[k]/e.den);}
+  var yMax=pickTop(Math.max(maxF,pMax*1.3),[0.2,0.3,0.4,0.5,0.6,0.8,1]),step=yMax>0.6?0.2:0.1;
+  var bx=L.bx,bw=L.bw,by=L.by,bh=L.bh,Y=function(v){return by+bh-v/yMax*bh;};
+  el('text',{x:4,y:18,'font-size':L.fs+0.5,'font-weight':700,fill:C.ink},gB,'Харьцангуй давтамж ба магадлал');
+  for(var v=0;v<=yMax+1e-9;v+=step){
+    var yy=r1(Y(v));
+    el('line',{x1:bx,y1:yy,x2:bx+bw,y2:yy,stroke:v===0?C.ink:C.grid,'stroke-width':v===0?1.3:1},gB);
+    el('text',{x:bx-6,y:yy+4,'font-size':L.fs-1.5,fill:C.soft,'text-anchor':'end'},gB,trimDec(v));
+  }
+  var slot=bw/K,barW=slot*0.62;
+  for(k=0;k<K;k++){
+    var f=N?st.counts[k]/N:0,h=f/yMax*bh,x=bx+slot*k+(slot-barW)/2,cx=r1(bx+slot*(k+0.5));
+    if(h>0)el('rect',{x:r1(x),y:r1(by+bh-h),width:r1(barW),height:r1(h),rx:Math.min(4,r1(barW*0.12)),fill:evSet[k]?C.pink:C.pur},gB);
+    var p=e.w[k]/e.den,py=r1(Y(p));
+    el('line',{x1:r1(bx+slot*k+slot*0.1),y1:py,x2:r1(bx+slot*(k+0.9)),y2:py,stroke:C.ink,'stroke-width':2,'stroke-dasharray':'5 3'},gB);
+    if(slot>=34)el('text',{x:cx,y:py-5,'font-size':L.fs-2,'font-weight':700,fill:C.ink,'text-anchor':'middle','class':'halo'},gB,e.den===36?e.w[k]+'/36':frac(e.w[k],e.den));
+    el('text',{x:cx,y:L.bl,'font-size':L.fs,'font-weight':700,fill:evSet[k]?C.pinkd:C.ink,'text-anchor':'middle'},gB,e.labels[k]);
+  }
+}
+
+/* шугаман график */
+function drawLine(){
+  clear(gL);
+  var e=EXPS[cur],ev=curEv(),st=S[cur],N=st.N,p=evFav(e,ev)/e.den;
+  var yTop=pickTop(Math.min(1,2*p+0.04),[0.1,0.2,0.3,0.4,0.5,0.6,0.8,1]),xMax=niceMax(N);
+  var bx=L.bx,bw=L.bw,ly=L.ly,lh=L.lh;
+  function X(i){return bx+i/xMax*bw;}
+  function Y(v){return ly+lh-v/yTop*lh;}
+  el('text',{x:4,y:L.lt,'font-size':L.fs+0.5,'font-weight':700,fill:C.ink},gL,'A үзэгдлийн харьцангуй давтамж m/N');
+  [0.5,1].forEach(function(q){var yy=r1(Y(yTop*q));el('line',{x1:bx,y1:yy,x2:bx+bw,y2:yy,stroke:C.grid,'stroke-width':1},gL);});
+  el('line',{x1:bx,y1:ly+lh,x2:bx+bw,y2:ly+lh,stroke:C.ink,'stroke-width':1.3},gL);
+  el('line',{x1:bx,y1:ly,x2:bx,y2:ly+lh,stroke:C.ink,'stroke-width':1.3},gL);
+  [0,0.5,1].forEach(function(q){el('text',{x:bx-6,y:r1(Y(yTop*q))+4,'font-size':L.fs-1.5,fill:C.soft,'text-anchor':'end'},gL,trimDec(yTop*q));});
+  [0,0.5,1].forEach(function(q){el('text',{x:r1(X(xMax*q)),y:L.lxl,'font-size':L.fs-1.5,fill:C.soft,'text-anchor':q===0?'start':q===1?'end':'middle'},gL,thou(xMax*q));});
+  el('text',{x:bx+bw,y:L.lax,'font-size':L.fs-1,fill:C.soft,'text-anchor':'end'},gL,'Туршилтын тоо N');
+  var py=r1(Y(p)),pf=frac(evFav(e,ev),e.den);
+  el('line',{x1:bx,y1:py,x2:bx+bw,y2:py,stroke:C.ink,'stroke-width':2,'stroke-dasharray':'6 4'},gL);
+  el('text',{x:bx+bw-4,y:py-6,'font-size':L.fs-0.5,'font-weight':700,fill:C.ink,'text-anchor':'end','class':'halo'},gL,'P(A) = '+pf);
+  if(N>0){
+    var M=Math.min(N,600),pts=[];
+    for(var k=1;k<=M;k++){var i=Math.ceil(k*N/M);pts.push(r1(X(i))+','+r1(Y(cum[i-1]/i)));}
+    var g=el('g',{'clip-path':'url(#clipL)'},gL);
+    if(M>1)el('polyline',{points:pts.join(' '),fill:'none',stroke:C.pink,'stroke-width':2.2,'stroke-linejoin':'round','stroke-linecap':'round'},g);
+    var fN=cum[N-1]/N;
+    el('circle',{cx:r1(X(N)),cy:r1(Y(Math.min(fN,yTop))),r:4.5,fill:C.pinkd,stroke:'#fff','stroke-width':1.5},gL);
+  }
+}
+
+/* хүснэгт */
+function drawTable(){
+  var e=EXPS[cur],st=S[cur],N=st.N,k,h=['<tr><th>Үр дүн</th>','<tr><th>Давтамж</th>','<tr><th>Харьцангуй давтамж</th>','<tr><th>Магадлал</th>'];
+  for(k=0;k<e.K;k++){
+    var c=evSet[k]?' class="ev"':'';
+    h[0]+='<td'+c+'>'+e.labels[k]+'</td>';
+    h[1]+='<td'+c+'>'+thou(st.counts[k])+'</td>';
+    h[2]+='<td'+c+'>'+(N?dec(st.counts[k]/N):'—')+'</td>';
+    h[3]+='<td'+c+'>'+(e.den===36?e.w[k]+'/36':frac(e.w[k],e.den))+'</td>';
+  }
+  $('tbl').innerHTML=h.map(function(r){return r+'</tr>';}).join('');
+}
+
+/* статистик ба үр дүнгийн огторгуй */
+function drawStat(){
+  var e=EXPS[cur],ev=curEv(),st=S[cur],N=st.N,fav=evFav(e,ev),p=fav/e.den;
+  var pf=fav+'/'+e.den,red=frac(fav,e.den),m=N?cum[N-1]:0;
+  var ps=(red!==pf?pf+' = '+red:pf)+(Math.abs(p*1000-Math.round(p*1000))<1e-9?' = ':' ≈ ')+dec(p).replace(/0+$/,'').replace(/,$/,'');
+  var html='<span>P(A)</span><b>'+ps+'</b>'+
+    '<span>N</span><span>'+thou(N)+'</span>'+
+    '<span>m</span><span>'+thou(m)+'</span>'+
+    '<span>m/N</span><b>'+(N?dec(m/N):'—')+'</b>'+
+    '<span>Зөрүү</span><span>'+(N?'|m/N '+MINUS+' P(A)| = '+dec(Math.abs(m/N-p),4):'—')+'</span>';
+  $('oStat').innerHTML=html;
+  $('oN').textContent=thou(N);
+  var sp='';
+  if(cur==='coin'){
+    sp='<div class="row">'+[0,1].map(function(k){return coinMini(k,evSet[k])+'<span>'+e.labels[k]+'</span>';}).join('<span style="width:8px"></span>')+'</div>';
+  }else if(cur==='die'){
+    sp='<div class="row">';for(var v=1;v<=6;v++)sp+=dieMini(v,evSet[v-1]);sp+='</div>';
+  }else{
+    sp='<table class="grid" aria-label="Хоёр шооны 36 үр дүн"><tr><th></th>';
+    for(var b=1;b<=6;b++)sp+='<th>'+b+'</th>';
+    sp+='</tr>';
+    for(var a=1;a<=6;a++){sp+='<tr><th>'+a+'</th>';for(b=1;b<=6;b++)sp+='<td'+(evSet[a+b-2]?' class="on"':'')+'>'+(a+b)+'</td>';sp+='</tr>';}
+    sp+='</table><div class="muted">Мөр — 1-р шоо, багана — 2-р шоо, нүдэнд нийлбэр.</div>';
+  }
+  sp+='<div>Таатай үр дүн: <b>'+fav+'</b>, бүх боломжит үр дүн: <b>'+e.den+'</b> ⇒ P(A) = '+(red!==pf?pf+' = '+red:pf)+'</div>';
+  $('oSpace').innerHTML=sp;
+}
+function starPts(cx,cy,R,r){var s=[];for(var i=0;i<10;i++){var a=-Math.PI/2+i*Math.PI/5,q=i%2?r:R;s.push(r1(cx+q*Math.cos(a))+','+r1(cy+q*Math.sin(a)));}return s.join(' ');}
+function coinMini(face,hl){return '<svg viewBox="0 0 30 30" width="34" height="34" aria-hidden="true"><circle cx="15" cy="15" r="13" fill="#FFC93C" stroke="'+(hl?'#d946ef':'#b07a00')+'" stroke-width="'+(hl?2.8:1.4)+'"/>'+(face===0?'<polygon points="'+starPts(15,15,7.5,3.2)+'" fill="#8a5d00"/>':'<text x="15" y="18.5" font-size="9" font-weight="700" text-anchor="middle" fill="#8a5d00">100</text>')+'</svg>';}
+function dieMini(v,hl){var s='<svg viewBox="0 0 30 30" width="30" height="30" aria-hidden="true"><rect x="1.5" y="1.5" width="27" height="27" rx="6" fill="'+(hl?'#fbe9ff':'#fff')+'" stroke="'+(hl?'#d946ef':'#14214A')+'" stroke-width="'+(hl?2.6:1.5)+'"/>';pipPos(v).forEach(function(p){s+='<circle cx="'+r1(1.5+27*p[0])+'" cy="'+r1(1.5+27*p[1])+'" r="2.6" fill="#14214A"/>';});return s+'</svg>';}
+
+/* сүүлийн үр дүнгийн зураг */
+var LS={};
+(function buildLast(){
+  var defs=el('defs',null,lastSvg);
+  var gr=el('radialGradient',{id:'gold',cx:'38%',cy:'32%',r:'75%'},defs);
+  el('stop',{offset:'0','stop-color':'#ffe9a8'},gr);el('stop',{offset:'0.55','stop-color':'#FFC93C'},gr);el('stop',{offset:'1','stop-color':'#d99a06'},gr);
+  LS.coin=el('g',{transform:'translate(80 42)'},lastSvg);
+  LS.coinIn=el('g',null,LS.coin);
+  el('circle',{r:36,fill:'url(#gold)',stroke:'#b07a00','stroke-width':2},LS.coinIn);
+  el('circle',{r:29,fill:'none',stroke:'#b07a00','stroke-width':1.2,'stroke-dasharray':'2 2.6'},LS.coinIn);
+  LS.star=el('polygon',{points:starPts(0,0,17,7),fill:'#9a6a00'},LS.coinIn);
+  LS.num=el('text',{x:0,y:8,'font-size':22,'font-weight':800,'text-anchor':'middle',fill:'#8a5d00'},LS.coinIn,'100');
+  LS.dice=[];
+  [[52,14,56],[22,17,50],[88,17,50]].forEach(function(d){
+    var g=el('g',null,lastSvg);
+    el('rect',{x:d[0],y:d[1],width:d[2],height:d[2],rx:d[2]*0.2,fill:'#fff',stroke:'#14214A','stroke-width':2.2},g);
+    var pips=[];for(var i=0;i<6;i++)pips.push(el('circle',{r:d[2]*0.085,fill:'#14214A'},g));
+    LS.dice.push({g:g,x:d[0],y:d[1],s:d[2],pips:pips});
+  });
+})();
+function setDie(D,v,rot){
+  var p=pipPos(v);
+  D.pips.forEach(function(c,i){if(i<p.length){c.setAttribute('cx',r1(D.x+D.s*p[i][0]));c.setAttribute('cy',r1(D.y+D.s*p[i][1]));c.removeAttribute('display');}else c.setAttribute('display','none');});
+  if(rot)D.g.setAttribute('transform','rotate('+r1(rot)+' '+(D.x+D.s/2)+' '+(D.y+D.s/2)+')');else D.g.removeAttribute('transform');
+}
+function showFace(o,pair,sx,rot){
+  var none=o<0;
+  lastSvg.style.opacity=none?'.35':'1';
+  LS.coin.setAttribute('display',cur==='coin'?'inline':'none');
+  LS.dice[0].g.setAttribute('display',cur==='die'?'inline':'none');
+  LS.dice[1].g.setAttribute('display',cur==='two'?'inline':'none');
+  LS.dice[2].g.setAttribute('display',cur==='two'?'inline':'none');
+  if(cur==='coin'){
+    var face=none?0:o;
+    LS.star.setAttribute('display',face===0?'inline':'none');
+    LS.num.setAttribute('display',face===1?'inline':'none');
+    LS.coinIn.setAttribute('transform','scale('+(sx==null?1:Math.max(0.04,Math.abs(sx)).toFixed(3))+' 1)');
+  }else if(cur==='die'){setDie(LS.dice[0],none?1:o+1,rot||0);}
+  else{var pr=pair||[1,1];setDie(LS.dice[1],pr[0],rot||0);setDie(LS.dice[2],pr[1],rot?-rot:0);}
+}
+function lastText(){
+  var st=S[cur];
+  if(st.last<0)return 'Туршилт хийгээгүй';
+  if(cur==='coin')return EXPS.coin.labels[st.last];
+  if(cur==='die')return String(st.last+1);
+  return st.pair?st.pair[0]+' + '+st.pair[1]+' = '+(st.last+2):String(st.last+2);
+}
+
+function renderAll(){
+  drawBars();drawLine();drawTable();drawStat();
+  if(!roll){showFace(S[cur].last,S[cur].pair);$('oLast').textContent=lastText();}
+}
+
+/* нэг туршилтын хөдөлгөөн */
+var roll=null,rafRoll=0;
+function finishRoll(){
+  if(!roll)return;
+  cancelAnimationFrame(rafRoll);
+  var r=roll;roll=null;
+  commit(r);
+}
+function commit(r){
+  var st=S[r.key];
+  if(st.N<CAP){addTrial(r.key,r.o);st.last=r.o;st.pair=r.pair;}
+  if(r.key===cur)renderAll();
+}
+function one(){
+  finishRoll();
+  if(S[cur].N>=CAP)return;
+  var o=trial(cur),r={key:cur,o:o,pair:cur==='two'?lastPair:null,t0:performance.now()};
+  if(reduceMotion){commit(r);return;}
+  roll=r;$('oLast').textContent='…';
+  rafRoll=requestAnimationFrame(rollStep);
+}
+function rollStep(now){
+  if(!roll)return;
+  var k=(now-roll.t0)/480;
+  if(k>=1){var r=roll;roll=null;commit(r);return;}
+  if(cur==='coin'){
+    var sx=Math.cos(k*5*Math.PI),flips=Math.floor(k*5+0.5);
+    showFace(flips%2===1?roll.o:1-roll.o,null,sx);
+  }else{
+    var rot=Math.sin(k*4*Math.PI)*14*(1-k);
+    var seg=Math.floor(k*8);
+    if(seg!==roll.seg){roll.seg=seg;roll.f=[1+Math.floor(Math.random()*6),1+Math.floor(Math.random()*6)];}
+    if(cur==='die')showFace(roll.f[0]-1,null,null,rot);
+    else showFace(0,roll.f,null,rot);
+  }
+  rafRoll=requestAnimationFrame(rollStep);
+}
+
+/* автомат */
+var auto=false,autoRaf=0,autoT0=0,autoDone=0;
+function autoUI(){
+  $('auto').classList.toggle('on',auto);
+  $('auto').setAttribute('aria-pressed',auto?'true':'false');
+  $('autoTx').textContent=auto?'Зогсоох':'Автомат';
+  $('autoIc').setAttribute('d',auto?'M4 2.5h3v11H4zM9 2.5h3v11H9z':'M4 2.5v11l9-5.5z');
+}
+function startAuto(){finishRoll();auto=true;autoT0=performance.now();autoDone=0;autoUI();autoRaf=requestAnimationFrame(autoStep);}
+function stopAuto(){if(!auto)return;auto=false;cancelAnimationFrame(autoRaf);autoUI();}
+function autoStep(now){
+  if(!auto)return;
+  var target=Math.floor((now-autoT0)*20/1000),due=target-autoDone;
+  if(due>40){autoDone=target-1;due=1;}
+  if(due>0){runTrials(due);autoDone+=due;renderAll();}
+  if(S[cur].N>=CAP){stopAuto();return;}
+  autoRaf=requestAnimationFrame(autoStep);
+}
+
+/* удирдлага */
+function fillEvents(){
+  var sel=$('ev'),evs=EXPS[cur].events;
+  sel.innerHTML=evs.map(function(ev,i){return '<option value="'+i+'">'+ev.n+'</option>';}).join('');
+  sel.value=String(evIdx[cur]);
+}
+function setExp(key){
+  finishRoll();stopAuto();
+  cur=key;
+  Array.prototype.forEach.call($('seg').querySelectorAll('button'),function(b){var on=b.getAttribute('data-e')===key;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on?'true':'false');});
+  fillEvents();rebuildEv();renderAll();
+}
+Array.prototype.forEach.call($('seg').querySelectorAll('button'),function(b){b.addEventListener('click',function(){setExp(b.getAttribute('data-e'));});});
+Array.prototype.forEach.call($('runBtns').querySelectorAll('button'),function(b){
+  b.addEventListener('click',function(){
+    var n=+b.getAttribute('data-n');
+    if(n===1){one();return;}
+    finishRoll();runTrials(n);renderAll();
+  });
+});
+$('auto').addEventListener('click',function(){if(auto)stopAuto();else startAuto();});
+$('clear').addEventListener('click',function(){finishRoll();stopAuto();S[cur]=newStore(EXPS[cur].K);rebuildEv();renderAll();});
+$('ev').addEventListener('change',function(){evIdx[cur]=+$('ev').value;rebuildEv();renderAll();});
+$('reset').addEventListener('click',function(){
+  if(roll){cancelAnimationFrame(rafRoll);roll=null;}
+  stopAuto();
+  S={coin:newStore(2),die:newStore(6),two:newStore(11)};
+  evIdx={coin:0,die:0,two:0};
+  setExp('coin');
+});
+document.addEventListener('visibilitychange',function(){if(document.hidden)stopAuto();});
+
+function checkLayout(){
+  var w=board.clientWidth;
+  var m=mode==='wide'?(w<500?'narrow':'wide'):(w>530?'wide':'narrow');
+  if(m!==mode){mode=m;L=LAY[m];build();renderAll();}
+}
+fillEvents();rebuildEv();
+checkLayout();
+if(window.ResizeObserver)new ResizeObserver(function(){requestAnimationFrame(checkLayout);}).observe(board);
+else window.addEventListener('resize',checkLayout);
+})();
+</script>
+</body></html>

@@ -1609,7 +1609,65 @@
       });
     });
   }
-  function init(){ tidyBar(); injectBrandCSS(); brandSheet(); watchSheet(); enhanceMeta(); loadInstr(); if(!IS_QR){addBtn();addBatchBtn();addWorkToggle();hookPrintAsk();} addRefreshShortcut(); applyQR(); enforcePaywall(); injectSocial(); applyWantWork(); addWorkResize(); }
+  /* ─── «Жишээ видео»: Дасгалын төвийн «Видео» табд (ws-media.js) энэ хуудсанд видео нэмсэн бол дээд мөрөнд товч + тоглуулагч.
+     Өгөгдөл api/_media.js (?media_slug=, CDN кэштэй). Дэвтрийн далд iframe / урьдчилан харахад ачаалахгүй. ─── */
+  var ICO_VID='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><rect x="2.5" y="5" width="14" height="14" rx="3"/><path d="m16.5 10 5-3v10l-5-3z"/></svg>';
+  function vidEmbed(url){
+    var u; try{u=new URL(url);}catch(e){return null;}
+    var h=u.hostname.replace(/^(www|m)\./,''), id=null;
+    if(h==='youtu.be')id=u.pathname.slice(1).split('/')[0];
+    else if(/(^|\.)youtube(-nocookie)?\.com$/.test(h))id=u.searchParams.get('v')||(u.pathname.match(/\/(embed|shorts|live)\/([^/?#]+)/)||[])[2];
+    if(id&&/^[\w-]{6,20}$/.test(id))return 'https://www.youtube-nocookie.com/embed/'+id+'?rel=0&modestbranding=1&autoplay=1';
+    if(/(^|\.)vimeo\.com$/.test(h)){var vm=u.pathname.match(/(\d{5,})/);if(vm)return 'https://player.vimeo.com/video/'+vm[1]+'?autoplay=1';}
+    if(h==='drive.google.com'){var dm=(u.pathname.match(/\/file\/d\/([\w-]+)/)||[])[1]||u.searchParams.get('id');if(dm)return 'https://drive.google.com/file/d/'+dm+'/preview';}
+    return null;                                                   // mp4 / Blob — <video>
+  }
+  function vidPlay(vs,i){
+    var old=document.querySelector('.ws-vov'); if(old)old.remove();
+    var v=vs[i], src=vidEmbed(v.url), esc=function(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
+    var o=document.createElement('div'); o.className='ws-vov';
+    o.innerHTML='<div class="ws-vbox" role="dialog" aria-modal="true"><div class="ws-vhd"><b>'+esc(v.title||'Жишээ видео')+'</b><button type="button" class="ws-vx" aria-label="Хаах">×</button></div>'
+      +'<div class="ws-vpl">'+(src?'<iframe src="'+esc(src)+'" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>'
+        :'<video src="'+esc(v.url)+'" controls autoplay playsinline controlsList="nodownload" preload="metadata"></video>')+'</div>'
+      +(vs.length>1?'<div class="ws-vls">'+vs.map(function(x,k){return '<button type="button" data-k="'+k+'"'+(k===i?' class="on"':'')+'>'+esc(x.title||('Видео '+(k+1)))+'</button>';}).join('')+'</div>':'')+'</div>';
+    document.body.appendChild(o);
+    var key=function(e){if(e.key==='Escape')shut();};
+    var shut=function(){o.remove();document.removeEventListener('keydown',key);};
+    document.addEventListener('keydown',key);
+    o.addEventListener('click',function(e){ if(e.target===o||e.target.closest('.ws-vx'))return shut(); var b=e.target.closest('[data-k]'); if(b){shut();vidPlay(vs,+b.getAttribute('data-k'));} });
+  }
+  function vidBtn(){
+    try{ if(window.top!==window)return; }catch(e){ return; }
+    var bar=document.querySelector('.bar'); if(!bar||bar.querySelector('.ws-vid'))return;
+    var slug=(location.pathname.split('/').pop()||'').toLowerCase(); if(!slug)return;
+    try{slug=decodeURIComponent(slug);}catch(e){}
+    if(!/\.html$/.test(slug))slug+='.html';
+    fetch('/api/worksheets?media_slug='+encodeURIComponent(slug)).then(function(r){return r.json();}).then(function(j){
+      var vs=(j&&j.ok&&j.videos)||[]; if(!vs.length||bar.querySelector('.ws-vid'))return;
+      if(!document.getElementById('ws-vid-css')){
+        var st=document.createElement('style'); st.id='ws-vid-css';
+        st.textContent='@media screen{.bar .ws-vid{order:6;display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border:0;border-radius:12px;cursor:pointer;'
+          +'font:inherit;font-size:.82rem;font-weight:800;color:#fff;background:linear-gradient(135deg,#e11d74,#7B52EE);white-space:nowrap}'
+          +'.bar .ws-vid b{background:rgba(255,255,255,.25);border-radius:6px;padding:1px 6px;font-size:.72rem}'
+          +'@media (max-width:640px){.bar.cmbar.cmbar-stuck>.ws-vid{display:none!important}}}'
+          +'@media print{.ws-vid,.ws-vov{display:none!important}}'
+          +'.ws-vov{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(17,24,58,.66)}'
+          +'.ws-vbox{width:min(960px,100%);max-height:94vh;overflow:auto;background:#fff;border-radius:18px;box-shadow:0 30px 80px -30px rgba(0,0,0,.6)}'
+          +'.ws-vhd{display:flex;align-items:center;gap:10px;padding:10px 10px 10px 16px}.ws-vhd b{flex:1;min-width:0;font:900 1rem "Segoe UI",Arial,sans-serif;color:#211C54;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
+          +'.ws-vx{width:36px;height:36px;border:0;border-radius:10px;background:#F3F0FF;color:#211C54;font:700 22px/1 Arial;cursor:pointer}'
+          +'.ws-vpl{position:relative;aspect-ratio:16/9;max-height:76vh;background:#000}.ws-vpl iframe,.ws-vpl video{position:absolute;inset:0;width:100%;height:100%;border:0}'
+          +'.ws-vls{display:flex;gap:6px;flex-wrap:wrap;padding:10px 14px 14px}.ws-vls button{border:1.5px solid #ECE7FA;background:#fff;border-radius:999px;padding:.35rem .8rem;font:800 .8rem "Segoe UI",Arial,sans-serif;color:#4b4566;cursor:pointer}'
+          +'.ws-vls button.on{background:#211C54;border-color:#211C54;color:#fff}'
+          +'@media (max-width:640px){.ws-vov{padding:0}.ws-vbox{width:100%;max-height:100%;border-radius:0}}';
+        document.head.appendChild(st);
+      }
+      var b=document.createElement('button'); b.type='button'; b.className='ws-vid';
+      b.innerHTML=ICO_VID+'Жишээ видео'+(vs.length>1?' <b>'+vs.length+'</b>':'');
+      b.onclick=function(){ vidPlay(vs,0); };
+      bar.appendChild(b);
+    }).catch(function(){});
+  }
+  function init(){ tidyBar(); injectBrandCSS(); brandSheet(); watchSheet(); enhanceMeta(); loadInstr(); if(!IS_QR){addBtn();addBatchBtn();addWorkToggle();hookPrintAsk();vidBtn();} addRefreshShortcut(); applyQR(); enforcePaywall(); injectSocial(); applyWantWork(); addWorkResize(); }
   if(document.readyState!=='loading')init();
   else document.addEventListener('DOMContentLoaded',init);
 })();
