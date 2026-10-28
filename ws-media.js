@@ -272,7 +272,7 @@
       if (inner) out += '<section class="wsm-ch"><h3>' + (c.roman ? '<span>' + esc(c.roman) + '</span>' : '') + esc(c.exam ? 'Жишиг ба шалгалт' : c.title) + '</h3>' + inner + '</section>';
     });
     if (d.rest.length) { var r = sec('Бусад хуудас', d.rest, 'h4'); if (r) out += '<section class="wsm-ch"><h3>Бусад</h3>' + r + '</section>'; }
-    if (!out) out = '<div class="wsm-empty">' + ICO.film + '<b>' + (q ? 'Хайлтад тохирох видео алга' : esc(d.label) + '-д видео хараахан нэмэгдээгүй байна') + '</b>'
+    if (!out) out = '<div class="wsm-empty">' + ICO.film + '<b>' + (q ? 'Хайлтад тохирох видео алга' : '«' + esc(d.label) + '» — видео хараахан нэмэгдээгүй байна') + '</b>'
       + (adm && !q ? '<span>«Видеогүй хуудсуудыг харуулах»-ыг асааж ажлын хуудас бүрт видео нэмнэ үү.</span>' : (q ? '' : '<span>Удахгүй нэмэгдэнэ — өөр ангийг сонгож үзээрэй.</span>')) + '</div>';
     body.innerHTML = h + out;
   }
@@ -455,8 +455,39 @@
   ].join('\n');
   var st = document.createElement('style'); st.id = 'wsm-css'; st.textContent = CSS; document.head.appendChild(st);
 
+  /* Баярын загвар (ws-store.js-ийн CMT-тэй ижил үе): баярын өдрүүдэд нүүрэнд товч — дарахад бүх ажлын хуудас тэр загвараар нээгдэнэ */
+  var HOL = [['halloween', 'Halloween', '10-15', '11-01', '#F97316,#7B52EE'], ['newyear', 'Шинэ жил', '12-10', '01-05', '#DC2626,#15803D'],
+    ['teacher', 'Багшийн баяр', '01-26', '02-10', '#E11D48,#7B52EE'], ['tsagaansar', 'Цагаан сар', '01-20', '02-28', '#1D4ED8,#60A5FA'],
+    ['valentine', 'Гэгээн Валентин', '02-07', '02-15', '#E11D48,#EC4899'], ['march8', 'Эмэгтэйчүүдийн баяр', '03-01', '03-09', '#DB2777,#22C55E'],
+    ['children', 'Хүүхдийн баяр', '05-25', '06-02', '#0284C7,#F97316'], ['naadam', 'Наадам', '07-01', '07-16', '#1D4ED8,#DC2626'],
+    ['school', 'Мэдлэгийн баяр', '08-25', '09-05', '#7B52EE,#14214A']];
+  function holidayChip() {
+    var d = new Date(), md = ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2), h = null;
+    HOL.forEach(function (x) { if (!h && (x[2] <= x[3] ? (md >= x[2] && md <= x[3]) : (md >= x[2] || md <= x[3]))) h = x; });
+    var host = document.querySelector('.hero .htext'); if (!h || !host || document.querySelector('.wsm-hol')) return;
+    var cur = ''; try { cur = localStorage.getItem('cm_ws_theme') || ''; } catch (e) {}
+    var a = document.createElement('button'); a.type = 'button'; a.className = 'wsm-hol';
+    a.style.background = 'linear-gradient(135deg,' + h[4] + ')';
+    var label = function () { a.innerHTML = '<img src="/assets/themes/' + h[0] + '/l.svg" alt="">' + (cur === h[0] ? h[1] + ' загвар идэвхтэй — ажлын хуудсаа хэвлээрэй' : h[1] + ' загвараар ажлын хуудас хэвлэх'); };
+    label();
+    a.onclick = function () {
+      cur = cur === h[0] ? '' : h[0];
+      try { localStorage.setItem('cm_ws_theme', cur); } catch (e) {}
+      label(); say(cur ? h[1] + ' загвар идэвхжлээ — ажлын хуудас бүр баярын загвартай нээгдэнэ' : 'Энгийн загвар руу буцлаа');
+    };
+    var after = host.querySelector('.eesh-hero') || host.querySelector('.azt-hero');
+    if (after && after.nextSibling) host.insertBefore(a, after.nextSibling); else host.appendChild(a);
+    if (!document.getElementById('wsm-hol-css')) {
+      var s = document.createElement('style'); s.id = 'wsm-hol-css';
+      s.textContent = '.wsm-hol{display:inline-flex;align-items:center;gap:8px;margin:8px 8px 0 0;padding:.45rem .95rem .45rem .5rem;border:0;border-radius:999px;color:#fff;font:inherit;font-weight:900;font-size:.84rem;cursor:pointer;box-shadow:0 10px 24px -12px rgba(0,0,0,.6)}'
+        + '.wsm-hol img{width:30px;height:26px;object-fit:contain;background:#fff;border-radius:999px;padding:1px 3px}.wsm-hol:hover{filter:brightness(1.07)}';
+      document.head.appendChild(s);
+    }
+  }
+
   function render() { renderInt(); renderVid(); }
   IS.hidden = false; VS.hidden = false;
+  try { holidayChip(); } catch (e) {}
   render();
   load(admin()).then(render).catch(function () { render(); });
   // Каталогийн өгөгдөл (дэд бүлэг, нэр) хожуу ачаалагдвал видео табыг дахин зурна

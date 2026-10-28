@@ -1667,7 +1667,115 @@
       bar.appendChild(b);
     }).catch(function(){});
   }
-  function init(){ tidyBar(); injectBrandCSS(); brandSheet(); watchSheet(); enhanceMeta(); loadInstr(); if(!IS_QR){addBtn();addBatchBtn();addWorkToggle();hookPrintAsk();vidBtn();} addRefreshShortcut(); applyQR(); enforcePaywall(); injectSocial(); applyWantWork(); addWorkResize(); }
+  /* ─── Баярын загвар (Halloween, Шинэ жил, Цагаан сар …): гарчгийн хоёр талд ба хөлд жижиг зураг, бүдэг хээтэй дэвсгэр, баярын
+     өнгө — хэвлэхэд ч гарна. Зөвхөн absolute/pseudo элемент тул хуудасны өндөр, хуудаслалт өөрчлөгдөхгүй.
+     Зураг assets/themes/<k>/{l,r,bg}.svg. Сонголт localStorage cm_ws_theme (?theme=<k> ч болно); баярын өдрүүдэд товч тодорно.
+     Дэвтрийн далд iframe-д (ws-book.js) хэрэглэхгүй. ─── */
+  var CMT_KEY='cm_ws_theme';
+  // w — баярын үе (ММ-ӨӨ, оны заагаар дамжиж болно); a — гарчиг/дугаар, x — даалгаврын гарчиг, l — бодолтын нүдний хүрээ
+  var CMT=[
+    {k:'halloween',n:'Halloween',d:'10/31',w:['10-15','11-01'],a:'#EA580C',x:'#5B21B6',l:'#FDBA74'},
+    {k:'newyear',n:'Шинэ жил',d:'12/31',w:['12-10','01-05'],a:'#DC2626',x:'#15803D',l:'#86EFAC'},
+    {k:'teacher',n:'Багшийн баяр',d:'2-р сар',w:['01-26','02-10'],a:'#E11D48',x:'#14532D',l:'#FDA4AF'},
+    {k:'tsagaansar',n:'Цагаан сар',d:'Шинийн нэгэн',w:['01-20','02-28'],a:'#1D4ED8',x:'#1E3A8A',l:'#93C5FD'},
+    {k:'valentine',n:'Гэгээн Валентин',d:'2/14',w:['02-07','02-15'],a:'#E11D48',x:'#BE185D',l:'#F9A8D4'},
+    {k:'march8',n:'Эмэгтэйчүүдийн баяр',d:'3/8',w:['03-01','03-09'],a:'#DB2777',x:'#15803D',l:'#F9A8D4'},
+    {k:'children',n:'Хүүхдийн баяр',d:'6/1',w:['05-25','06-02'],a:'#0284C7',x:'#EA580C',l:'#7DD3FC'},
+    {k:'naadam',n:'Наадам',d:'7/11',w:['07-01','07-16'],a:'#1D4ED8',x:'#DC2626',l:'#93C5FD'},
+    {k:'school',n:'Мэдлэгийн баяр',d:'9/1',w:['08-25','09-05'],a:'#7B52EE',x:'#14214A',l:'#C4B5FD'}
+  ];
+  var ICO_THEME='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.8-.9 1.8-1.8 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4c0-4.4-4-8-9-8z"/><circle cx="7.5" cy="11" r="1.2" fill="currentColor"/><circle cx="10.5" cy="7.5" r="1.2" fill="currentColor"/><circle cx="15" cy="7.5" r="1.2" fill="currentColor"/></svg>';
+  function cmtNow(){                                               // одоогийн баярын загвар (байхгүй бол null)
+    var d=new Date(), md=('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
+    for(var i=0;i<CMT.length;i++){ var w=CMT[i].w; if(w[0]<=w[1]?(md>=w[0]&&md<=w[1]):(md>=w[0]||md<=w[1]))return CMT[i]; }
+    return null;
+  }
+  function cmtGet(){ var m=/[?&]theme=([a-z0-9]+)/.exec(location.search); if(m)return m[1]; try{return localStorage.getItem(CMT_KEY)||'';}catch(e){return '';} }
+  function cmtCSS(){
+    var H='html[data-cmt] #sheet', css=H+'{isolation:isolate}'
+      +H+'::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;opacity:.075;background-repeat:repeat;background-size:56mm 56mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+      +H+' .head{position:relative;z-index:1}'
+      +H+' .head::before,'+H+' .head::after{content:"";position:absolute;top:-1mm;bottom:1mm;width:15mm;z-index:-1;pointer-events:none;background:center/contain no-repeat;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+      +H+' .head::before{left:0}'+H+' .head::after{right:0}'
+      +H+' .cm-foot::before,'+H+' .cm-foot::after{content:"";position:absolute;top:2px;bottom:-3px;width:11mm;z-index:-1;pointer-events:none;background:center/contain no-repeat;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+      +H+' .cm-foot::before{left:0}'+H+' .cm-foot::after{right:0}';
+    CMT.forEach(function(t){
+      var S='html[data-cmt="'+t.k+'"] #sheet', U='/assets/themes/'+t.k+'/';
+      css+=S+'::before{background-image:url('+U+'bg.svg)}'
+        +S+' .head::before{background-image:url('+U+'l.svg)}'+S+' .head::after{background-image:url('+U+'r.svg)}'
+        +S+' .cm-foot::before{background-image:url('+U+'r.svg)}'+S+' .cm-foot::after{background-image:url('+U+'l.svg)}'
+        +S+' .head{border-bottom-color:'+t.a+'!important}'+S+' .head h1{color:'+t.a+'!important}'
+        +S+' .ql,'+S+' .qn{color:'+t.a+'!important}'
+        +S+' .task,'+S+' h2.sec{color:'+t.x+'!important;border-left-color:'+t.a+'!important}'
+        +S+' .wk,'+S+' .work{border-color:'+t.l+'!important}'
+        +S+' .cm-foot b{color:'+t.a+'}';
+    });
+    return css;
+  }
+  function cmtApply(k){
+    var t=null; CMT.forEach(function(x){ if(x.k===k)t=x; });
+    if(t){
+      if(!document.getElementById('cm-theme-css')){ var st=document.createElement('style'); st.id='cm-theme-css'; st.textContent=cmtCSS(); document.head.appendChild(st); }
+      document.documentElement.setAttribute('data-cmt',t.k);
+    } else document.documentElement.removeAttribute('data-cmt');
+    var b=document.querySelector('.bar .ws-theme'); if(b)cmtLabel(b);
+  }
+  function cmtLabel(b){
+    var k=document.documentElement.getAttribute('data-cmt')||'', cur=null, now=cmtNow();
+    CMT.forEach(function(x){ if(x.k===k)cur=x; });
+    var hint=!cur&&now;                                              // баярын үе, загвар сонгоогүй — санал болгоно
+    b.classList.toggle('hint',!!hint);
+    b.innerHTML=ICO_THEME+'<span>'+(cur?'Загвар: '+cur.n:hint?now.n+' загвар':'Загвар')+'</span>'+(hint?'<i></i>':'');
+  }
+  function cmtPicker(btn){
+    var old=document.querySelector('.ws-tpop'); if(old){ old.remove(); return; }
+    var cur=document.documentElement.getAttribute('data-cmt')||'', now=cmtNow(), esc=function(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
+    var pop=document.createElement('div'); pop.className='ws-tpop'; pop.setAttribute('role','dialog'); pop.setAttribute('aria-label','Ажлын хуудасны загвар');
+    pop.innerHTML='<div class="ws-tph"><b>Баярын загвар</b><span>Хэвлэхэд ч гарна · хуудасны багтаамж өөрчлөгдөхгүй</span></div><div class="ws-tpg">'
+      +'<button type="button" data-k=""'+(cur?'':' class="on"')+'><span class="ws-tpi plain"></span><b>Энгийн</b><small>Загваргүй</small></button>'
+      +CMT.map(function(t){ return '<button type="button" data-k="'+t.k+'"'+(cur===t.k?' class="on"':'')+' style="--ta:'+t.a+'"><span class="ws-tpi"><img src="/assets/themes/'+t.k+'/l.svg" alt=""><img src="/assets/themes/'+t.k+'/r.svg" alt=""></span>'
+        +'<b>'+esc(t.n)+'</b><small>'+esc(t.d)+(now&&now.k===t.k?' · <em>Одоо</em>':'')+'</small></button>'; }).join('')+'</div>';
+    document.body.appendChild(pop);
+    var r=btn.getBoundingClientRect(), W=Math.min(460,window.innerWidth-16);
+    pop.style.width=W+'px'; pop.style.left=Math.max(8,Math.min(window.innerWidth-W-8,r.left))+'px'; pop.style.top=(r.bottom+window.scrollY+6)+'px';
+    var off=function(e){ if(!pop.contains(e.target)&&!btn.contains(e.target)){ pop.remove(); document.removeEventListener('mousedown',off,true); } };
+    setTimeout(function(){ document.addEventListener('mousedown',off,true); },0);
+    pop.addEventListener('click',function(e){
+      var b=e.target.closest('[data-k]'); if(!b)return;
+      var k=b.getAttribute('data-k'); try{ if(k)localStorage.setItem(CMT_KEY,k); else localStorage.setItem(CMT_KEY,''); }catch(er){}
+      cmtApply(k); pop.remove(); document.removeEventListener('mousedown',off,true);
+    });
+  }
+  function themeInit(){
+    try{ if(window.top!==window)return; }catch(e){ return; }
+    var k=cmtGet(); if(k)cmtApply(k);
+    if(IS_QR)return;
+    var bar=document.querySelector('.bar'); if(!bar||bar.querySelector('.ws-theme'))return;
+    if(!document.getElementById('ws-theme-ui')){
+      var st=document.createElement('style'); st.id='ws-theme-ui';
+      st.textContent='@media screen{.bar .ws-theme{order:6;position:relative;display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border:0;border-radius:12px;cursor:pointer;'
+        +'font:inherit;font-size:.82rem;font-weight:800;color:#5B3BD9;background:#F3F0FF;white-space:nowrap}'
+        +'.bar .ws-theme.hint{color:#fff;background:linear-gradient(135deg,#F97316,#7B52EE)}'
+        +'.bar .ws-theme i{position:absolute;top:-3px;right:-3px;width:10px;height:10px;border-radius:50%;background:#FACC15;box-shadow:0 0 0 2px #fff;animation:wsTp 1.6s ease-in-out infinite}'
+        +'@keyframes wsTp{50%{transform:scale(1.35)}}'
+        +'@media (max-width:640px){.bar.cmbar.cmbar-stuck>.ws-theme{display:none!important}}}'
+        +'@media print{.ws-theme,.ws-tpop{display:none!important}}'
+        +'.ws-tpop{position:absolute;z-index:2147483000;padding:12px;border-radius:16px;background:#fff;border:1px solid #ECE7FA;box-shadow:0 24px 60px -24px rgba(30,20,80,.55);font-family:"Segoe UI",Arial,sans-serif;box-sizing:border-box}'
+        +'.ws-tph{display:flex;flex-direction:column;gap:2px;margin:0 2px 10px}.ws-tph b{font-size:.95rem;color:#211C54}.ws-tph span{font-size:.74rem;color:#8A85A8}'
+        +'.ws-tpg{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:8px}'
+        +'.ws-tpg button{display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:8px;border:1.5px solid #ECE7FA;border-radius:12px;background:#fff;cursor:pointer;text-align:left;font-family:inherit}'
+        +'.ws-tpg button:hover{border-color:var(--ta,#7B52EE)}.ws-tpg button.on{border-color:var(--ta,#7B52EE);box-shadow:0 0 0 2px var(--ta,#7B52EE) inset}'
+        +'.ws-tpi{display:flex;justify-content:space-between;align-items:center;width:100%;height:34px;border-radius:8px;background:#FAF8FF;padding:0 4px;box-sizing:border-box}'
+        +'.ws-tpi img{height:28px;width:34px;object-fit:contain}.ws-tpi.plain{background:repeating-linear-gradient(45deg,#F6F4FD 0 6px,#fff 6px 12px)}'
+        +'.ws-tpg b{font-size:.8rem;color:#211C54;line-height:1.2}.ws-tpg small{font-size:.7rem;color:#8A85A8}.ws-tpg em{font-style:normal;font-weight:900;color:var(--ta,#7B52EE)}';
+      document.head.appendChild(st);
+    }
+    var b=document.createElement('button'); b.type='button'; b.className='ws-theme';
+    cmtLabel(b);
+    b.onclick=function(){ cmtPicker(b); };
+    bar.appendChild(b);
+  }
+  function init(){ tidyBar(); injectBrandCSS(); brandSheet(); watchSheet(); enhanceMeta(); loadInstr(); if(!IS_QR){addBtn();addBatchBtn();addWorkToggle();hookPrintAsk();vidBtn();} themeInit(); addRefreshShortcut(); applyQR(); enforcePaywall(); injectSocial(); applyWantWork(); addWorkResize(); }
   if(document.readyState!=='loading')init();
   else document.addEventListener('DOMContentLoaded',init);
 })();
