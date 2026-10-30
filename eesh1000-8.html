@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ЭЕШ 1000 бодлого-8</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/e1k.js?v=1"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* ЭЕШ 1000 бодлого-8 — ЭЕШ-ийн 1000 бодлого, 2-р хэсэг (76–100-р бодлого).
+   Бодлого бүр өөрийн генератортой: «Шинэ бодлого» дарахад тоо нь өөрчлөгдөнө. Хөдөлгүүр: /e1k.js */
+
+// 76. (a − √b·i)(a + √b·i) ± (c + di)·i = a² + b ∓ d ± c·i  (эх: (1−√2i)(1+√2i)+(1+3i)i = i).
+//     30%-д эх шиг бодит хэсэг 0 (d = ±(a² + b)); хүчин зүйлсийн дараалал, i-ийн байрлал (урд/ард), тэмдэг санамсаргүй.
+function p76_c(re, im) {
+  var s = re !== 0 ? String(re) : '';
+  if (im !== 0) { var ab = Math.abs(im), body = (ab === 1 ? '' : ab) + 'i'; s += im < 0 ? '-' + body : (s ? '+' : '') + body; }
+  return s || '0';
+}
+function p76() {
+  var a = rnd(1, 4), b = pick([2, 3, 5, 6, 7]), s = rnd(0, 3) ? 1 : -1, c = nz(-4, 5), d;
+  if (rnd(1, 10) <= 3) { d = s * (a * a + b); if (Math.abs(d) > 12) return null; }
+  else d = nz(-6, 6);
+  var re = a * a + b - s * d, im = s * c;
+  var f1 = '\\left(' + a + '-\\sqrt{' + b + '}i\\right)', f2 = '\\left(' + a + '+\\sqrt{' + b + '}i\\right)';
+  var t2 = rnd(1, 5) === 1 ? 'i(' + p76_c(c, d) + ')' : '(' + p76_c(c, d) + ')i';
+  return {
+    q: '$' + (rnd(0, 3) ? f1 + f2 : f2 + f1) + (s > 0 ? '+' : '-') + t2 + '$ илэрхийллийг хялбарчил.',
+    a: '$' + p76_c(re, im) + '$',
+    wk: 20,
+    t: { a: a, b: b, c: c, d: d, s: s }
+  };
+}
+
+// 77. Комплекс тоонуудын шугаман эвлүүлэг: p(a+bi) ± q(c+di) = (pa ± qc) + (pb ± qd)i  (эх: 2(1+i) − (1−i) = 1+3i).
+function p77_c(re, im) {
+  var s = re !== 0 ? String(re) : '';
+  if (im !== 0) { var ab = Math.abs(im), body = (ab === 1 ? '' : ab) + 'i'; s += im < 0 ? '-' + body : (s ? '+' : '') + body; }
+  return s || '0';
+}
+function p77() {
+  var a = nz(-4, 4), b = nz(-4, 4), c = nz(-4, 4), d = nz(-4, 4), p = rnd(1, 3), q = rnd(1, 3), s = rnd(0, 2) ? -1 : 1;
+  if (p === q) return null;
+  var re = p * a + s * q * c, im = p * b + s * q * d;
+  if ((re === 0 && im === 0) || Math.abs(re) > 12 || Math.abs(im) > 12) return null;
+  var t1 = (p === 1 ? '' : p) + '(' + p77_c(a, b) + ')', t2 = (q === 1 ? '' : q) + '(' + p77_c(c, d) + ')';
+  return {
+    q: '$' + t1 + (s < 0 ? '-' : '+') + t2 + '$ илэрхийллийг хялбарчлах.',
+    a: '$' + p77_c(re, im) + '$',
+    wk: 16,
+    t: { p: p, q: s * q, z: [a, b], w: [c, d] }
+  };
+}
+
+// 78. Комплекс тооны аргумент (гол утга −π < arg z ≤ π):  ±k ± ki → ±π/4, ±3π/4;  ±k√3 ± ki → ±π/6, ±5π/6;
+//     ±k ± k√3 i → ±π/3, ±2π/3;  тэнхлэг дээрх k, −k, ki, −ki → 0, π, π/2, −π/2.  (эх: z = 1+i → π/4)
+// k·(√3) хэсгийн TeX: p78_p(-2, true) → '-2\sqrt{3}', p78_p(1, false) → '1'
+function p78_p(k, r3) { var a = Math.abs(k); return (k < 0 ? '-' : '') + (r3 ? (a === 1 ? '' : a) + '\\sqrt{3}' : String(a)); }
+function p78() {
+  var T = rnd(1, 100), k = rnd(1, 3), sx = rnd(0, 1) ? 1 : -1, sy = rnd(0, 1) ? 1 : -1, z, n, d;   // arg = nπ/d
+  if (T <= 15) {
+    var j = rnd(0, 3), m = rnd(1, 6);
+    z = [String(m), '-' + m, (m === 1 ? '' : m) + 'i', '-' + (m === 1 ? '' : m) + 'i'][j];
+    n = [0, 1, 1, -1][j]; d = [1, 1, 2, 2][j];
+  } else {
+    var fam = T <= 50 ? 4 : T <= 75 ? 6 : 3, re, im;
+    if (fam === 4) { k = rnd(1, 4); re = p78_p(sx * k, false); im = p78_p(k, false); }
+    else if (fam === 6) { re = p78_p(sx * k, true); im = p78_p(k, false); }
+    else { re = p78_p(sx * k, false); im = p78_p(k, true); }
+    if (im === '1') im = '';
+    z = re + (sy < 0 ? '-' : '+') + im + 'i';
+    // I мөчийн өнцөг π/d; x < 0 бол π − π/d; y < 0 бол тэмдэг сөрөг
+    n = sx > 0 ? 1 : fam - 1; d = fam;
+    if (sy < 0) n = -n;
+  }
+  var g = gcd(Math.abs(n), d); if (n !== 0) { n /= g; d /= g; }
+  var ang = n === 0 ? '0' : d === 1 ? (n < 0 ? '-' : '') + '\\pi' : (n < 0 ? '-' : '') + '\\dfrac{' + (Math.abs(n) === 1 ? '' : Math.abs(n)) + '\\pi}{' + d + '}';
+  return {
+    q: '$z=' + z + '$ бол $\\arg z=?$',
+    a: '$\\arg z=' + ang + '$',
+    wk: 18,
+    t: { z: z, n: n, d: d }
+  };
+}
+
+// 79. i-ийн зэрэг: i^m нь m mod 4-өөр 1, i, −1, −i; (−i)^m = (−1)^m·i^m.  p·b₁^m ± q·b₂^n (b ∈ {i, −i}, m, n — хоёр оронтой)
+//     (эх: i^21 − 3(−i)^45 = i + 3i = 4i).  Хариу 0 биш.
+function p79_c(re, im) {
+  var s = re !== 0 ? String(re) : '';
+  if (im !== 0) { var ab = Math.abs(im), body = (ab === 1 ? '' : ab) + 'i'; s += im < 0 ? '-' + body : (s ? '+' : '') + body; }
+  return s || '0';
+}
+// (±i)^m → [re, im]
+function p79_pw(neg, m) { var v = [[1, 0], [0, 1], [-1, 0], [0, -1]][m % 4], sg = neg && m % 2 ? -1 : 1; return [sg * v[0], sg * v[1]]; }
+function p79() {
+  var m = rnd(11, 99), n = rnd(11, 99), n1 = rnd(1, 3) === 1, n2 = rnd(1, 3) > 1, p = pick([1, 1, 1, 2, 3]), q = rnd(1, 5), s = rnd(0, 2) ? -1 : 1;
+  if (m === n || (n1 === n2 && p === q)) return null;
+  var A = p79_pw(n1, m), B = p79_pw(n2, n), re = p * A[0] + s * q * B[0], im = p * A[1] + s * q * B[1];
+  if (re === 0 && im === 0) return null;
+  var T = function (neg, e) { return (neg ? '(-i)' : 'i') + '^{' + e + '}'; };
+  return {
+    q: '$' + (p === 1 ? '' : p) + T(n1, m) + (s < 0 ? '-' : '+') + (q === 1 ? '' : q) + T(n2, n) + '$ илэрхийллийг хялбарчил.',
+    a: '$' + p79_c(re, im) + '$',
+    wk: 20,
+    t: { m: m, n: n, n1: n1, n2: n2, p: p, q: s * q }
+  };
+}
+
+// 80. Комплекс шугаман тэгшитгэл: α ± k(z + β) = γ  ⇒  z = (γ − α)/(±k) − β  (эх: i − 3(z − i + 1) = 5 ⇒ z = −8/3 + 4/3·i).
+//     α, β, γ — бүхэл бодит/хуурмаг хэсэгтэй; k = 2..5; ихэнхдээ бутархай хариу (эх шиг).
+function p80_c(re, im) {
+  var s = re !== 0 ? String(re) : '';
+  if (im !== 0) { var ab = Math.abs(im), body = (ab === 1 ? '' : ab) + 'i'; s += im < 0 ? '-' + body : (s ? '+' : '') + body; }
+  return s || '0';
+}
+// бутархай хэсэгтэй комплекс тоо: rn/rd + (jn/jd)i
+function p80_cf(rn, rd, jn, jd) {
+  var re = rn === 0 ? '' : fr(rn, rd), im = '';
+  if (jn !== 0) {
+    if (jd < 0) { jn = -jn; jd = -jd; }
+    var g = gcd(jn, jd), n = Math.abs(jn) / g, d = jd / g;
+    im = (jn < 0 ? '-' : re ? '+' : '') + (d === 1 ? (n === 1 ? '' : n) : '\\dfrac{' + n + '}{' + d + '}') + 'i';
+  }
+  return re + im || '0';
+}
+function p80() {
+  var T = rnd(1, 10), al = T <= 4 ? [0, nz(-3, 3)] : T <= 7 ? [nz(-5, 5), 0] : [nz(-4, 4), nz(-3, 3)];
+  var be = [nz(-4, 4), nz(-3, 3)], ga = rnd(0, 1) ? [nz(-6, 8), 0] : [nz(-5, 6), nz(-4, 4)], k = rnd(2, 5), s = rnd(1, 10) <= 7 ? -1 : 1;
+  var rn = ga[0] - al[0] - s * k * be[0], jn = ga[1] - al[1] - s * k * be[1], d = s * k;     // z = (rn + jn·i)/d
+  if (rn === 0 && jn === 0) return null;
+  var whole = rn % k === 0 && jn % k === 0;
+  if (whole && rnd(1, 10) <= 7) return null;                                             // ихэнхдээ бутархай
+  var iFirst = rnd(0, 1) === 1, bi = (be[1] < 0 ? '-' : '+') + (Math.abs(be[1]) === 1 ? '' : Math.abs(be[1])) + 'i', br = sgn(be[0]);
+  var lhs = p80_c(al[0], al[1]) + (s < 0 ? '-' : '+') + k + '(z' + (iFirst ? bi + br : br + bi) + ')';
+  return {
+    q: '$' + lhs + '=' + p80_c(ga[0], ga[1]) + '$ тэгшитгэлийг бод.',
+    a: '$z=' + p80_cf(rn, d, jn, d) + '$',
+    wk: 22,
+    t: { al: al, be: be, ga: ga, k: s * k }
+  };
+}
+
+// 81. Сөрөг дискриминанттай квадрат тэгшитгэл x² + px + q = 0 ⇒ x = −p/2 ± (√(4q − p²)/2)·i  (эх: x² + 2x + 10 = 0 ⇒ −1 ± 3i).
+//     65%: бүхэл язгуур a ± bi;  20%: p тэгш, хуурмаг хэсэг k√r;  15%: p сондгой (−p/2 ± (k√r/2)i).
+function p81() {
+  var T = rnd(1, 100), p, q;
+  if (T <= 65) { var a = rnd(-5, 5), b = rnd(1, 6); p = -2 * a; q = a * a + b * b; }
+  else if (T <= 85) { var h = rnd(-4, 4), m = rnd(2, 12); if (surd(m).r === 1) return null; p = -2 * h; q = h * h + m; }
+  else { p = pick([-5, -3, -1, 1, 3, 5]); q = rnd(Math.floor(p * p / 4) + 1, Math.floor(p * p / 4) + 8); }
+  var D = 4 * q - p * p;                       // −дискриминант > 0
+  if (D <= 0 || q > 40) return null;
+  var sd = surd(D), k = sd.k, r = sd.r, den = 2, g = gcd(k, 2);
+  k /= g; den /= g;
+  var imc = r === 1 ? String(k) : (k === 1 ? '' : k) + '\\sqrt{' + r + '}';
+  if (den === 1 && imc === '1') imc = '';
+  var im = den === 1 ? imc + 'i' : '\\dfrac{' + (r === 1 ? k : imc) + '}{' + den + '}i';
+  var re = p === 0 ? '' : fr(-p, 2);
+  return {
+    q: '$' + poly([1, p, q]) + '=0$ тэгшитгэлийг бод.',
+    a: '$x=' + re + '\\pm ' + im + '$',
+    wk: 20,
+    t: { p: p, q: q }
+  };
+}
+
+// 82. Гурван олонлогийн Венн диаграм: өгөгдсөн олонлогийг будаж дүрслэх (эх: A′∩(B∪C), зураггүй).
+//     Асуултад хоосон A, B, C диаграм (сурагч будна), хариунд илэрхийлэл + будсан диаграм.
+//     15 загвар × үсгийн сэлгэлт (солигдох хосыг цагаан толгойн дарааллаар) ≈ 53 хувилбар; гүйцээлтийг эх шиг ′-ээр.
+//     8 хэсгийн (a, b, c ∈ {0, 1}) будгийг mask-аар: U → A → B → C → A∩B → A∩C → B∩C → A∩B∩C дарааллаар будна.
+var p82_T = [   // [TeX(X, Y, Z), гишүүнчлэл(x, y, z), эрэмбэлэх хос]
+  [function (X, Y, Z) { return X + "'\\cap(" + Y + '\\cup ' + Z + ')'; }, function (x, y, z) { return !x && (y || z); }, [1, 2]],
+  [function (X, Y, Z) { return '(' + X + '\\cap ' + Y + ')\\cup ' + Z + "'"; }, function (x, y, z) { return (x && y) || !z; }, [0, 1]],
+  [function (X, Y, Z) { return X + '\\setminus(' + Y + '\\cup ' + Z + ')'; }, function (x, y, z) { return x && !(y || z); }, [1, 2]],
+  [function (X, Y, Z) { return '(' + X + '\\cup ' + Y + ')\\cap ' + Z + "'"; }, function (x, y, z) { return (x || y) && !z; }, [0, 1]],
+  [function (X, Y, Z) { return X + '\\cap ' + Y + '\\cap ' + Z + "'"; }, function (x, y, z) { return x && y && !z; }, [0, 1]],
+  [function (X, Y, Z) { return X + '\\cap(' + Y + '\\cup ' + Z + ')'; }, function (x, y, z) { return x && (y || z); }, [1, 2]],
+  [function (X, Y, Z) { return X + '\\cup(' + Y + '\\cap ' + Z + ')'; }, function (x, y, z) { return x || (y && z); }, [1, 2]],
+  [function (X, Y, Z) { return '(' + X + '\\cup ' + Y + ')\\setminus ' + Z; }, function (x, y, z) { return (x || y) && !z; }, [0, 1]],
+  [function (X, Y, Z) { return '(' + X + '\\cap ' + Y + ")'\\cap " + Z; }, function (x, y, z) { return !(x && y) && z; }, [0, 1]],
+  [function (X, Y, Z) { return X + "'\\cap " + Y + "'\\cap " + Z; }, function (x, y, z) { return !x && !y && z; }, [0, 1]],
+  [function (X, Y, Z) { return X + "'\\cup(" + Y + '\\cap ' + Z + ')'; }, function (x, y, z) { return !x || (y && z); }, [1, 2]],
+  [function (X, Y, Z) { return '(' + X + '\\cup ' + Y + ")'\\cup " + Z; }, function (x, y, z) { return !(x || y) || z; }, [0, 1]],
+  [function (X, Y, Z) { return X + '\\cap(' + Y + '\\cup ' + Z + ")'"; }, function (x, y, z) { return x && !(y || z); }, [1, 2]],
+  [function (X, Y) { return X + '\\setminus ' + Y; }, function (x, y) { return x && !y; }, null],
+  [function (X, Y) { return X + '\\cap ' + Y + "'"; }, function (x, y) { return x && !y; }, null],
+  [function () { return "(A\\cup B\\cup C)'"; }, function (x, y, z) { return !(x || y || z); }, null],
+  [function () { return 'A\\cap B\\cap C'; }, function (x, y, z) { return x && y && z; }, null]
+];
+var p82_R = ['000', '100', '010', '001', '110', '101', '011', '111'];
+// Венн диаграм: S = { '101': true, … } будах хэсгүүд (null бол хоосон)
+function p82_fig(w, S) {
+  var f = Fig({ w: w }), W = 10, H = 8.6, r = 2.3, CA = [3.7, 5.2], CB = [6.3, 5.2], CC = [5, 3];
+  if (S) {
+    var mk = f.uid(), ca = f.uid(), cb = f.uid();
+    f.raw(function (T) {
+      var x0 = T.X(0), y0 = T.Y(H), ww = W * T.sx, hh = H * T.sy, R = (r * T.sx).toFixed(2);
+      var col = function (k) { return S[k] ? '#fff' : '#000'; };
+      var el = function (C, fill, extra) { return '<ellipse cx="' + T.X(C[0]).toFixed(2) + '" cy="' + T.Y(C[1]).toFixed(2) + '" rx="' + R + '" ry="' + R + '" fill="' + fill + '"' + (extra || '') + '/>'; };
+      var g = function (id, inner) { return '<g clip-path="url(#' + id + ')">' + inner + '</g>'; };
+      var rc = function (fill, extra) { return '<rect x="' + x0.toFixed(2) + '" y="' + y0.toFixed(2) + '" width="' + ww.toFixed(2) + '" height="' + hh.toFixed(2) + '" fill="' + fill + '"' + (extra || '') + '/>'; };
+      return '<defs><clipPath id="' + ca + '">' + el(CA, '#000') + '</clipPath><clipPath id="' + cb + '">' + el(CB, '#000') + '</clipPath>'
+        + '<mask id="' + mk + '" maskUnits="userSpaceOnUse" x="' + (x0 - 2).toFixed(2) + '" y="' + (y0 - 2).toFixed(2) + '" width="' + (ww + 4).toFixed(2) + '" height="' + (hh + 4).toFixed(2) + '">'
+        + rc(col('000')) + el(CA, col('100')) + el(CB, col('010')) + el(CC, col('001'))
+        + g(ca, el(CB, col('110'))) + g(ca, el(CC, col('101'))) + g(cb, el(CC, col('011')))
+        + g(ca, el(CC, col('111'), ' clip-path="url(#' + cb + ')"')) + '</mask></defs>'
+        + rc('#9ec5e8', ' mask="url(#' + mk + ')"');
+    });
+  }
+  f.rect(0, 0, W, H, { w: 1.2 }).circle(CA, r, { w: 1.3 }).circle(CB, r, { w: 1.3 }).circle(CC, r, { w: 1.3 });
+  var sz = w < 170 ? 12 : 13;
+  f.text([0.8, 5.9], 'A', { size: sz, plain: true }).text([9.2, 5.9], 'B', { size: sz, plain: true }).text([7.65, 1.2], 'C', { size: sz, plain: true })
+    .text([0.25, H - 0.2], 'U', { pos: 'se', size: sz - 1, plain: true });
+  return f.svg();
+}
+function p82() {
+  var t = p82_T[rnd(0, p82_T.length - 1)], L = shuffle(['A', 'B', 'C']);
+  if (t[2]) { var i = t[2][0], j = t[2][1]; if (L[i] > L[j]) { var tmp = L[i]; L[i] = L[j]; L[j] = tmp; } }
+  var tex = t[0](L[0], L[1], L[2]), S = {}, n = 0;
+  p82_R.forEach(function (k) {
+    var v = { A: k[0] === '1', B: k[1] === '1', C: k[2] === '1' };
+    S[k] = !!t[1](v[L[0]], v[L[1]], v[L[2]]);
+    if (S[k]) n++;
+  });
+  if (n === 0 || n === 8) return null;
+  return {
+    q: '$' + tex + '$ олонлогийг дүрсэл.',
+    a: '$' + tex + '$<br>' + p82_fig(150, S),
+    fig: p82_fig(190, null), side: true, wk: 15,
+    t: { tex: tex, S: S }
+  };
+}
+
+// 83. Дөрвөн өнцөгтүүд: par% параллелограмм, rect% тэгш өнцөгт, rh% ромбо, s ширхэг квадрат = sq%.
+//     Нийт N = s/(sq/100); тэгш өнцөгт ∩ ромбо = квадрат ⇒ тэгш өнцөгт ч, ромбо ч биш параллелограмм
+//     = N(par − rect − rh + sq)/100  (эх: 80, 40, 30, 3 ширхэг = 5% ⇒ N = 60, хариу 9).
+//     N ∈ {20, 40, …, 120}, хувиуд 5-ийн үржвэр ⇒ бүх тоо бүхэл; квадрат < тэгш өнцөгт, ромбо; хариу ≥ 1.
+function p83() {
+  var N = 20 * rnd(1, 6), sq = 5 * rnd(1, 3), rect = 5 * rnd(sq / 5 + 1, 10), rh = 5 * rnd(sq / 5 + 1, 10), par = 5 * rnd(10, 18);
+  var s = N * sq / 100, ans = N * (par - rect - rh + sq) / 100;
+  if (s < 2 || s > 12 || rect + rh - sq >= par || ans < 1 || par >= 100) return null;
+  if (rect === rh && rnd(0, 2)) return null;
+  return {
+    q: 'Сурагчид дөрвөн өнцөгтүүд зуржээ. Тэдгээрийн ' + par + '% нь параллелограмм, ' + rect + '% нь тэгш өнцөгт, ' + rh + '% нь ромбо байв. '
+      + s + ' ширхэг квадрат байгаа нь ' + sq + '% нь болж байв. Тэгш өнцөгт болон ромбо болж чадахгүй хэдэн параллелограмм зурсан бэ?',
+    a: '$' + ans + '$',
+    wk: 26,
+    t: { N: N, par: par, rect: rect, rh: rh, sq: sq }
+  };
+}
+
+// 84. Факториалтай илэрхийлэл: ((n+a)! ± k·(n+b)!)/(n+c)!,  c ≤ b < a,  a − c ≤ 2.
+//     (n+a)!/(n+c)! = ∏_{j=c+1..a}(n+j),  (n+b)!/(n+c)! = ∏_{j=c+1..b}(n+j)  ⇒ олон гишүүнт (зэрэг ≤ 2).
+//     Хариу: бүхэл язгууртай бол үржвэрээр (n², n(n+2), (n−1)(n+3), (n+1)²), үгүй бол задалсан (n²+n−1)  (эх: ((n+1)! − n!)/(n−1)! = n²).
+function p84_f(k) { return k === 0 ? 'n!' : '(n' + (k > 0 ? '+' : '-') + Math.abs(k) + ')!'; }
+// олон гишүүнтүүдийн үржвэр [их зэргээс]
+function p84_mul(P, Q) { var R = []; for (var i = 0; i < P.length + Q.length - 1; i++) R.push(0); P.forEach(function (p, i) { Q.forEach(function (q, j) { R[i + j] += p * q; }); }); return R; }
+function p84_prod(c, a) { var P = [1]; for (var j = c + 1; j <= a; j++) P = p84_mul(P, [1, j]); return P; }
+function p84_lin(r) { return r === 0 ? 'n' : '(n' + (r > 0 ? '-' : '+') + Math.abs(r) + ')'; }      // (n − r)
+function p84_tex(P) {
+  if (P.length === 2) return poly(P, 'n');
+  var B = P[1], C = P[2], D = B * B - 4 * C, sd = Math.round(Math.sqrt(Math.max(D, 0)));
+  if (D < 0 || sd * sd !== D) return poly(P, 'n');
+  var r1 = (-B - sd) / 2, r2 = (-B + sd) / 2;                                   // n² + Bn + C = (n − r1)(n − r2)
+  if (r1 === r2) return r1 === 0 ? 'n^2' : p84_lin(r1) + '^2';
+  if (r2 === 0) return 'n' + p84_lin(r1);
+  if (r1 === 0) return 'n' + p84_lin(r2);
+  return p84_lin(r2) + p84_lin(r1);
+}
+function p84() {
+  var T = pick([[1, 0, -1], [1, 0, -1], [1, 0, -1], [2, 1, 0], [2, 1, 0], [0, -1, -2], [0, -1, -2], [1, -1, -1], [1, -1, -1], [2, 0, 0], [0, -2, -2], [1, 0, 0], [2, 1, 1], [0, -1, -1]]);
+  var a = T[0], b = T[1], c = T[2], s = rnd(0, 2) ? -1 : 1, k = pick([1, 1, 1, 2, 3]);
+  var A = p84_prod(c, a), Bp = p84_prod(c, b), R = A.slice();
+  for (var i = 0; i < Bp.length; i++) R[R.length - Bp.length + i] += s * k * Bp[i];     // A ± k·B
+  while (R.length > 1 && R[0] === 0) R.shift();
+  if (R.length < 2) return null;
+  var num = p84_f(a) + (s < 0 ? '-' : '+') + (k > 1 ? k + '\\cdot ' : '') + p84_f(b);
+  return {
+    q: '$\\dfrac{' + num + '}{' + p84_f(c) + '}$ илэрхийллийг хялбарчилсан нь аль вэ?',
+    a: '$' + p84_tex(R) + '$',
+    wk: 22,
+    t: { a: a, b: b, c: c, s: s, k: k }
+  };
+}
+
+// 85. n сурагч дараалан зогсох: X нь Y-ээс урд → n!/2 (тэгш хэм);  X, Y зэрэгцэж → 2·(n−1)!;
+//     зэрэгцээгүй → n! − 2·(n−1)! = (n−2)·(n−1)!   (эх: 20 сурагч, Болд Тулгаас урд → 20!/2).  n ≤ 8 бол тоон утгыг нэмж бичнэ.
+var p85_N = [   // [нэр, -аас, -тай]
+  ['Болд', 'Болдоос', 'Болдтой'], ['Тулга', 'Тулгаас', 'Тулгатай'], ['Бат', 'Батаас', 'Баттай'], ['Дорж', 'Доржоос', 'Доржтой'],
+  ['Сүх', 'Сүхээс', 'Сүхтэй'], ['Энх', 'Энхээс', 'Энхтэй'], ['Мөнх', 'Мөнхөөс', 'Мөнхтэй'], ['Төмөр', 'Төмөрөөс', 'Төмөртэй'],
+  ['Ганаа', 'Ганаагаас', 'Ганаатай'], ['Сараа', 'Сараагаас', 'Сараатай'], ['Анар', 'Анараас', 'Анартай'], ['Цэцэг', 'Цэцэгээс', 'Цэцэгтэй'],
+  ['Нараа', 'Нараагаас', 'Нараатай'], ['Оюу', 'Оюугаас', 'Оюутай'], ['Золбоо', 'Золбоогоос', 'Золбоотой'], ['Дулмаа', 'Дулмаагаас', 'Дулмаатай']
+];
+function p85_f(m) { var r = 1; for (var i = 2; i <= m; i++) r *= i; return r; }
+function p85() {
+  var n = rnd(6, 25), P = shuffle(p85_N), X = P[0], Y = P[1], T = rnd(1, 100), q, a;
+  if (T <= 50) { q = X[0] + ' ' + Y[1] + ' урд зогссон байх'; a = '\\dfrac{' + n + '!}{2}' + (n <= 8 ? '=' + p85_f(n) / 2 : ''); }
+  else if (T <= 75) { q = X[0] + ' ' + Y[2] + ' зэрэгцэж зогссон байх'; a = '2\\cdot ' + (n - 1) + '!' + (n <= 8 ? '=' + 2 * p85_f(n - 1) : ''); }
+  else { q = X[0] + ' ' + Y[2] + ' зэрэгцэж зогсоогүй байх'; a = n + '!-2\\cdot ' + (n - 1) + '!=' + (n - 2) + '\\cdot ' + (n - 1) + '!' + (n <= 8 ? '=' + (n - 2) * p85_f(n - 1) : ''); }
+  return {
+    q: n + ' сурагч дараалан зогсох болов. ' + q + ' боломжийн тоо аль вэ?',
+    a: '$' + a + '$',
+    wk: 20,
+    t: { n: n, x: X[0], y: Y[0], T: T }
+  };
+}
+
+// 86. Дэд олонлогийн тоо.  Эх: 2n+1 элементтэй олонлогийн n-ээс олон элементтэй дэд олонлог → 2^{2n} = 4^n (тэгш хэм: k ↔ m−k).
+//     Хувилбарууд: эх (тэмдэгтээр); m = 2t+1 (5…11): t-ээс олон / (t+1)-ээс цөөн → 2^{m−1};  яг k → C_m^k;
+//     k-аас цөөнгүй / k-аас олон → C_m^j-ийн нийлбэр (≤ 4 гишүүн).
+function p86_C(n, k) { var r = 1; for (var i = 1; i <= k; i++) r = r * (n - k + i) / i; return Math.round(r); }
+function p86_sum(m, lo) {   // Σ_{j=lo..m} C_m^j
+  var terms = [], v = 0;
+  for (var j = lo; j <= m; j++) { terms.push('C_{' + m + '}^{' + j + '}'); v += p86_C(m, j); }
+  return terms.join('+') + '=' + v;
+}
+function p86() {
+  var T = rnd(1, 100), m, q, a;
+  if (T <= 15) {
+    return { q: '$2n+1$ элементтэй олонлогийн $n$-ээс олон элементтэй дэд олонлог хэд байх вэ?', a: '$2^{2n}=4^n$', wk: 20, t: { m: 0 } };
+  }
+  if (T <= 45) {
+    var t = rnd(2, 5); m = 2 * t + 1;
+    q = rnd(0, 3) ? sfx(t, 'аас') + ' олон' : sfx(t + 1, 'аас') + ' цөөн';
+    a = '2^{' + (m - 1) + '}=' + Math.pow(2, m - 1);
+  } else if (T <= 70) {
+    m = rnd(5, 12); var k = rnd(2, m - 2);
+    q = 'яг ' + k; a = 'C_{' + m + '}^{' + k + '}=' + p86_C(m, k);
+  } else if (T <= 85) {
+    m = rnd(5, 10); var k2 = rnd(m - 3, m - 1);
+    q = sfx(k2, 'аас') + ' цөөнгүй'; a = p86_sum(m, k2);
+  } else {
+    m = rnd(5, 10); var k3 = rnd(m - 4, m - 2);
+    if (m % 2 === 1 && k3 === (m - 1) / 2) return null;
+    q = sfx(k3, 'аас') + ' олон'; a = p86_sum(m, k3 + 1);
+  }
+  return {
+    q: m + ' элементтэй олонлогийн ' + q + ' элементтэй дэд олонлог хэд байх вэ?',
+    a: '$' + a + '$',
+    wk: 20,
+    t: { m: m }
+  };
+}
+
+// 87. Нийцгүй (үл нийцэх) үзэгдэл: K хүүхэд (3 эсвэл 4) сонгоход үр дүнг хүүгийн тоо b ∈ {0..K}-оор илэрхийлнэ (охин = K − b).
+//     Суурь үзэгдэл ба I–IV үзэгдэл нь b-ийн олонлог; нийцгүй ⇔ огтлолцол хоосон. Нийцгүй нь 1–3 ширхэг.
+//     (эх: K = 3, «Ядаж хоёр нь охин байх»; I. Яг нэг нь хүү, II. Ядаж нэг нь хүү, III. Ядаж хоёр нь хүү, IV. Гурвуул хүү → III ба IV)
+var p87_W = { 1: 'нэг', 2: 'хоёр', 3: 'гурав', 4: 'дөрөв' }, p87_RM = ['I', 'II', 'III', 'IV'];
+// үзэгдлүүдийн сан: [бичиг, b → bool]
+function p87_pool(K) {
+  var P = [], j;
+  [['хүү', false], ['охин', true]].forEach(function (sx) {
+    var cnt = function (b) { return sx[1] ? K - b : b; };
+    for (j = 1; j < K; j++) (function (j) {
+      P.push(['Яг ' + p87_W[j] + ' нь ' + sx[0] + ' байх', function (b) { return cnt(b) === j; }]);
+      P.push(['Ядаж ' + p87_W[j] + ' нь ' + sx[0] + ' байх', function (b) { return cnt(b) >= j; }]);
+      P.push(['Хамгийн ихдээ ' + p87_W[j] + ' нь ' + sx[0] + ' байх', function (b) { return cnt(b) <= j; }]);
+    })(j);
+    P.push([(K === 3 ? 'Гурвуул ' : 'Дөрвүүл ') + sx[0] + ' байх', function (b) { return cnt(b) === K; }]);
+  });
+  return P;
+}
+function p87_set(K, f) { var s = ''; for (var b = 0; b <= K; b++) s += f(b) ? '1' : '0'; return s; }
+function p87() {
+  var K = rnd(1, 3) === 1 ? 4 : 3, P = p87_pool(K);
+  var base = pick(P.filter(function (e) { return /^(Ядаж|Яг|Хамгийн ихдээ)/.test(e[0]); })), bs = p87_set(K, base[1]);
+  var seen = {}, list = [];
+  seen[bs] = 1;
+  shuffle(P).forEach(function (e) {
+    var s = p87_set(K, e[1]);
+    if (list.length >= 4 || seen[s] || s.indexOf('0') < 0) return;   // давхардал, суурьтай ижил, бүх орчин — алгасна
+    seen[s] = 1; list.push(e);
+  });
+  if (list.length < 4) return null;
+  var bad = [];
+  list.forEach(function (e, i) { var ok = false; for (var b = 0; b <= K; b++) if (base[1](b) && e[1](b)) ok = true; if (!ok) bad.push(p87_RM[i]); });
+  if (bad.length < 1 || bad.length > 3) return null;
+  var ans = bad.length === 1 ? bad[0] : bad.slice(0, -1).join(', ') + ' ба ' + bad[bad.length - 1];
+  return {
+    q: 'Ангиас ' + (K === 3 ? 'гурван' : 'дөрвөн') + ' хүүхэд сонгов. Дараах үзэгдлүүдээс аль нь “' + base[0] + '” үзэгдэлтэй нийцгүй байна вэ?'
+      + '<div style="margin:2px 0 0 2.4em;line-height:1.5">' + list.map(function (e, i) { return '<div>' + p87_RM[i] + '. ' + e[0] + '</div>'; }).join('') + '</div>',
+    a: '<span>' + ans + '</span>',
+    wk: 18,
+    t: { K: K, base: base[0], list: list.map(function (e) { return e[0]; }) }
+  };
+}
+
+// 88. Чанар шалгагч машины 2×2 хүснэгт: гэмтэлтэй/гэмтэлгүй бараа × «гэмтэлтэй гэж оношлогдсон»/«өнгөрүүлсэн».
+//     Асуулт: P(оношлогдсон) (эх: (18+6)/200 = 3/25), P(гэмтэлтэй), P(зөв оношилсон),
+//     P(гэмтэлтэй | оношлогдсон), P(гэмтэлтэй | өнгөрүүлсэн).  Хариу: эх шиг хураагаагүй = хураасан.
+function p88() {
+  var TP = rnd(8, 36), FN = rnd(1, 8), FP = rnd(2, 15), N = 10 * rnd(10, 30), TN = N - TP - FN - FP, T = rnd(1, 100), q, n, d;
+  if (TN < 60) return null;
+  if (T <= 40) { q = 'Эдгээрээс санамсаргүй сонгосон бараа гэмтэлтэй гэж оношлогдсон байх магадлалыг ол.'; n = TP + FP; d = N; }
+  else if (T <= 55) { q = 'Эдгээрээс санамсаргүй сонгосон бараа гэмтэлтэй байх магадлалыг ол.'; n = TP + FN; d = N; }
+  else if (T <= 70) { q = 'Эдгээрээс санамсаргүй сонгосон барааг машин зөв оношилсон байх магадлалыг ол.'; n = TP + TN; d = N; }
+  else if (T <= 85) { q = 'Гэмтэлтэй гэж оношлогдсон бараанаас санамсаргүй сонгосон бараа үнэхээр гэмтэлтэй байх магадлалыг ол.'; n = TP; d = TP + FP; }
+  else { q = 'Өнгөрүүлсэн бараанаас санамсаргүй сонгосон бараа гэмтэлтэй байх магадлалыг ол.'; n = FN; d = FN + TN; }
+  var red = fr(n, d), raw = '\\dfrac{' + n + '}{' + d + '}';
+  return {
+    q: 'Чанар шалгагч машины ажлын үр дүнг хүснэгтээр өгчээ. ' + q,
+    a: '$P=' + (red === raw ? raw : raw + '=' + red) + '$',
+    fig: tbl([['', 'Гэмтэлтэй гэж оношлогдсон', 'Өнгөрүүлсэн'], ['Гэмтэлтэй бараа', TP, FN], ['Гэмтэлгүй бараа', FP, TN]]),
+    wk: 22,
+    t: { TP: TP, FN: FN, FP: FP, TN: TN }
+  };
+}
+
+// 89. Гипергеометр магадлал: N компаниас D нь дампуурсан, k өөр компаний хувьцаа авсан.
+//     Ядаж 1: 1 − C_{N−D}^k / C_N^k (эх: N = 20, D = 4, k = 3 → 29/57);  яг 1: D·C_{N−D}^{k−1} / C_N^k;
+//     ядаж 2: 1 − (C_{N−D}^k + D·C_{N−D}^{k−1}) / C_N^k;  аль нь ч биш: C_{N−D}^k / C_N^k.
+function p89_C(n, k) { var r = 1; for (var i = 1; i <= k; i++) r = r * (n - k + i) / i; return Math.round(r); }
+function p89_c(n, k) { return k === 1 ? String(n) : 'C_{' + n + '}^{' + k + '}'; }   // C_n^1 = n
+function p89() {
+  var N = rnd(10, 30), D = rnd(2, 6), k = rnd(2, 4), T = rnd(1, 100), G = N - D, tot = p89_C(N, k), q, f, num;
+  if (D * 2 > N) return null;
+  var z0 = p89_C(G, k), z1 = D * p89_C(G, k - 1);
+  if (T <= 50) { q = 'Ядаж 1 компаний хувьцаа нь дампуурсан компанийх байх'; f = '1-\\dfrac{' + p89_c(G, k) + '}{' + p89_c(N, k) + '}'; num = tot - z0; }
+  else if (T <= 75) { q = 'Яг 1 компаний хувьцаа нь дампуурсан компанийх байх'; f = '\\dfrac{' + D + '\\cdot ' + p89_c(G, k - 1) + '}{' + p89_c(N, k) + '}'; num = z1; }
+  else if (T <= 88 || k < 3) { q = 'Авсан хувьцаануудын аль нь ч дампуурсан компанийх биш байх'; f = '\\dfrac{' + p89_c(G, k) + '}{' + p89_c(N, k) + '}'; num = z0; }
+  else { q = 'Ядаж 2 компаний хувьцаа нь дампуурсан компанийх байх'; f = '1-\\dfrac{' + p89_c(G, k) + '+' + D + '\\cdot ' + p89_c(G, k - 1) + '}{' + p89_c(N, k) + '}'; num = tot - z0 - z1; }
+  if (num <= 0 || num >= tot) return null;
+  return {
+    q: 'Хөрөнгийн зах дээр хувьцаагаа гаргасан ' + N + ' компаний ' + D + ' нь дампуурав. Иргэн ' + k + ' өөр компаний хувьцаа авсан байжээ. ' + q + ' магадлалыг ол.',
+    a: '$P=' + f + '=' + fr(num, tot) + '$',
+    wk: 24,
+    t: { N: N, D: D, k: k }
+  };
+}
+
+// 90. Хүмүүсийн p% нь өвчтэй; шинжилгээ өвчгүй хүний s%-ийг, өвчтэй хүний e%-ийг зөв оношилдог.
+//   Бүтэн магадлалын томьёо: P(онош зөв) = p·e + (1−p)·s (эх: 0.08·0.95 + 0.92·0.98 = 0.9776).
+//   Хувилбар: P(онош буруу) = p(1−e) + (1−p)(1−s); P(өвчтэй гэж оношлогдох) = p·e + (1−p)(1−s);
+//   Байес: P(өвчтэй | өвчтэй гэж оношлогдсон) = p·e / (p·e + (1−p)(1−s)) → хураасан бутархай ≈ 2 оронтой.
+function p90_d(n) { return dec(n / 100); }   // 8 → 0.08
+function p90() {
+  var p = rnd(2, 20), s = rnd(85, 99), e = rnd(85, 99), kind = pick(['ok', 'ok', 'ok', 'ok', 'bad', 'pos', 'bayes', 'bayes']);
+  var P = p90_d(p), Q = p90_d(100 - p), E = p90_d(e), E1 = p90_d(100 - e), S = p90_d(s), S1 = p90_d(100 - s);
+  var ask, a, num, den;
+  if (kind === 'ok') {
+    num = p * e + (100 - p) * s;
+    ask = 'Шинжилгээнд орсон хүмүүсээс санамсаргүй сонгосон хүний онош зөв байх магадлал аль вэ?';
+    a = '$P=' + P + '\\cdot ' + E + '+' + Q + '\\cdot ' + S + '=' + dec(num / 10000) + '$';
+  } else if (kind === 'bad') {
+    num = p * (100 - e) + (100 - p) * (100 - s);
+    ask = 'Шинжилгээнд орсон хүмүүсээс санамсаргүй сонгосон хүний онош буруу байх магадлал аль вэ?';
+    a = '$P=' + P + '\\cdot ' + E1 + '+' + Q + '\\cdot ' + S1 + '=' + dec(num / 10000) + '$';
+  } else if (kind === 'pos') {
+    num = p * e + (100 - p) * (100 - s);
+    ask = 'Шинжилгээнд орсон хүмүүсээс санамсаргүй сонгосон хүн чихрийн шижинтэй гэж оношлогдох магадлал аль вэ?';
+    a = '$P=' + P + '\\cdot ' + E + '+' + Q + '\\cdot ' + S1 + '=' + dec(num / 10000) + '$';
+  } else {
+    num = p * e; den = p * e + (100 - p) * (100 - s);
+    var g = gcd(num, den), n1 = num / g, d1 = den / g, v = n1 / d1, exact = Math.abs(v * 100 - Math.round(v * 100)) < 1e-12;
+    if (d1 === 1) return null;
+    ask = 'Шинжилгээгээр чихрийн шижинтэй гэж оношлогдсон хүн үнэхээр өвчтэй байх магадлал аль вэ?';
+    a = '$P=\\dfrac{' + P + '\\cdot ' + E + '}{' + P + '\\cdot ' + E + '+' + Q + '\\cdot ' + S1 + '}=' + fr(n1, d1) + (exact ? '=' + dec(v, 2) : '\\approx ' + v.toFixed(2)) + '$';
+  }
+  var q = 'Хүмүүсийн $' + p + '\\%$ нь чихрийн шижинтэй гэсэн тооцоо гарчээ. Лабораторийн шинжилгээгээр чихрийн шижингүй хүмүүсийн $'
+    + s + '\\%$, өвчтэй хүмүүсийн $' + e + '\\%$-ийг зөв оношилдог. ' + ask;
+  return { q: q, a: a, wk: 26, t: { p: p, s: s, e: e, kind: kind } };
+}
+
+// 91. Тоогүй 9×9 тор дээр 7 дэлгүүр (А–Ж): x — савалгааны жин, y — үнэ (нүдээр). 1 кг-ийн үнэ = y/x; хоёр дэлгүүрийн
+//   1 кг-ийн үнийн харьцаа тэнхлэгийн масштабаас хамаарахгүй тул нүд тоолж шийднэ (эх: А 3, Б 3, В 15/8, Г 1, Д 5/7, Е 1, Ж 3/4).
+//   Дүгнэлт: «X ба Y дэлгүүрийн 1 кг-ийн үнэ ижил», «X дэлгүүрийн 1 кг-ийн үнэ Y дэлгүүрийнхээс k дахин хямд/өндөр»
+//   (k ∈ 1.5, 2, 2.5, 3, 3.5, 4, 5, 6). 4 нь үнэн, 1 нь худал: ойролцоо харьцаа (эх шиг 1.4 ↔ 1.5), «ижил» мэт ойролцоо
+//   (харьцаа ≤ 4/3), эсвэл чиглэл эсрэг. 5 дүгнэлтэд 7 дэлгүүр бүгд орно. Эхийн «үнэ»-ийг «1 кг-ийн үнэ» гэж тодотгов.
+//   Цэг бүхэл (заримдаа нэг нь y-ээр хагас нүдэнд, эхийн В шиг) торын цэг дээр; шошгыг давхцалгүй байрлуулна.
+var p91_N = ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж'];
+var p91_W = { 'А': 0.78, 'Б': 0.64, 'В': 0.62, 'Г': 0.56, 'Д': 0.78, 'Е': 0.57, 'Ж': 1.0 };   // үсгийн өргөн / font-size (Segoe UI getBBox + нөөц)
+var p91_K = [[3, 2], [2, 1], [5, 2], [3, 1], [7, 2], [4, 1], [5, 1], [6, 1]];
+var p91_U = 20, p91_SZ = 13, p91_OFF = 5, p91_R = 2.8;
+function p91_fr(n, d) { var g = gcd(n, d); return [n / g, d / g]; }
+function p91_num(R) { var v = R[0] / R[1]; return Math.abs(v * 100 - Math.round(v * 100)) < 1e-9 ? dec(v) : frs(R[0], R[1]); }   // хариуны мөрөнд жижиг бутархай (frac)
+function p91_inK(R) { return p91_K.some(function (k) { return k[0] === R[0] && k[1] === R[1]; }); }
+// Шошгын хайрцаг (торын px, дэлгэцийн y доош) — Fig.text-ийн байрлалын дүрмээр (numeric pos)
+function p91_box(px, py, deg, ch) {
+  var a = deg * Math.PI / 180, cx = Math.cos(a), cy = Math.sin(a), w = p91_W[ch] * p91_SZ, rr = p91_OFF + 0.35 * p91_SZ;
+  var x = px + rr * cx, y = py - rr * cy, anc = cx > 0.35 ? 1 : cx < -0.35 ? -1 : 0;
+  if (anc) x -= cx * p91_SZ * 0.3;
+  var x0 = anc === 1 ? x : anc === -1 ? x - w : x - w / 2;
+  return [x0, y - 0.36 * p91_SZ, x0 + w, y + 0.36 * p91_SZ];
+}
+function p91_rd(b, px, py) { var dx = Math.max(b[0] - px, 0, px - b[2]), dy = Math.max(b[1] - py, 0, py - b[3]); return Math.hypot(dx, dy); }
+function p91_ov(b, c, m) { return b[0] < c[2] + m && c[0] < b[2] + m && b[1] < c[3] + m && c[1] < b[3] + m; }
+// Шошгын чиглэл (градус): давхцал, тэнхлэг, «өөр цэгт ойр» торгуультай шунахай + 2 сайжруулалт
+function p91_place(P) {
+  var D = [0, 45, -45, 90, -90, 180, 135, -135], S = P.map(function (p) { return [p.x * p91_U, (9 - p.y) * p91_U]; }), L = 9 * p91_U, ch = [];
+  function cost(i, deg, cur) {
+    var b = p91_box(S[i][0], S[i][1], deg, P[i].n), c = D.indexOf(deg) * 0.4, cxm = (b[0] + b[2]) / 2, cym = (b[1] + b[3]) / 2;
+    var d0 = Math.hypot(cxm - S[i][0], cym - S[i][1]);
+    if (b[0] < 1 || b[3] > L - 1) c += 200;                     // тэнхлэгийг давна
+    if (b[1] < 0 || b[2] > L) c += 6;                           // хүрээний гадна (дээд/баруун)
+    for (var j = 0; j < P.length; j++) {
+      if (j === i) continue;
+      if (p91_rd(b, S[j][0], S[j][1]) < p91_R + 3) c += 100;
+      if (Math.hypot(cxm - S[j][0], cym - S[j][1]) < d0 + 7) c += 60;
+      if (cur[j] != null && p91_ov(b, p91_box(S[j][0], S[j][1], cur[j], P[j].n), 2.5)) c += 100;
+    }
+    return c;
+  }
+  var crowd = P.map(function (p, i) { return { i: i, c: P.filter(function (q) { return Math.hypot(q.x - p.x, q.y - p.y) < 2.3; }).length }; });
+  crowd.sort(function (u, v) { return v.c - u.c; });
+  crowd.forEach(function (o) { var best = null, bc = 1e9; D.forEach(function (d) { var c = cost(o.i, d, ch); if (c < bc) { bc = c; best = d; } }); ch[o.i] = best; });
+  for (var it = 0; it < 2; it++) P.forEach(function (p, i) {
+    var cur = ch.slice(); cur[i] = null;
+    var best = ch[i], bc = cost(i, ch[i], cur);
+    D.forEach(function (d) { var c = cost(i, d, cur); if (c < bc - 1e-9) { bc = c; best = d; } });
+    ch[i] = best;
+  });
+  var tot = 0;
+  P.forEach(function (p, i) { var cur = ch.slice(); tot += cost(i, ch[i], cur) - D.indexOf(ch[i]) * 0.4; });
+  return tot >= 50 ? null : ch;
+}
+function p91_fig(P, dirs) {
+  var f = Fig({ view: [0, 9, 0, 9], unit: p91_U, padL: 34, padR: 20, padT: 20, padB: 30 });
+  f.grid(1, { c: '#a9a9a9', w: 0.8 }).axes({ o: false });
+  P.forEach(function (p, i) { f.dot([p.x, p.y], { r: p91_R }).text([p.x, p.y], p.n, { plain: true, pos: dirs[i], off: p91_OFF, size: p91_SZ, halo: true }); });
+  f.text([4.5, 0], 'Жин (кг)', { plain: true, pos: 's', off: 7, size: 12.5 });
+  f.text([0, 4.5], 'Үнэ (мян.төг)', { plain: true, pos: 'w', off: 13, size: 12.5, anchor: 'middle', rot: -90 });
+  return f.svg();
+}
+// Дүгнэлт: { X, Y (индекс), rel: 'eq'|'hi'|'lo', k: [n, d] } — hi: p_X = k·p_Y, lo: p_X = p_Y/k
+function p91_txt(s, P) {
+  if (s.rel === 'eq') return P[s.X].n + ' ба ' + P[s.Y].n + ' дэлгүүрийн 1 кг-ийн үнэ ижил.';
+  return P[s.X].n + ' дэлгүүрийн 1 кг-ийн үнэ ' + P[s.Y].n + ' дэлгүүрийнхээс $' + p91_num(s.k) + '$ дахин ' + (s.rel === 'hi' ? 'өндөр.' : 'хямд.');
+}
+function p91() {
+  var pts = [], half = rnd(1, 100) <= 30 ? rnd(0, 6) : -1, i, j, tr = 0;
+  while (pts.length < 7) {
+    if (++tr > 300) return null;
+    var x = rnd(1, 8), y = pts.length === half ? rnd(1, 7) + 0.5 : rnd(1, 8);
+    if (pts.some(function (p) { return Math.hypot(p.x - x, p.y - y) < 1.4; })) continue;
+    pts.push({ x: x, y: y });
+  }
+  pts.sort(function (u, v) { return u.x - v.x || v.y - u.y; });
+  pts.forEach(function (p, k) { p.n = p91_N[k]; p.pr = p91_fr(Math.round(2 * p.y), 2 * p.x); });
+  // Боломжит дүгнэлтүүд
+  var T = [], FL = { near: [], eq: [], flip: [] };
+  for (i = 0; i < 7; i++) for (j = 0; j < 7; j++) {
+    if (i === j) continue;
+    var R = p91_fr(pts[i].pr[0] * pts[j].pr[1], pts[i].pr[1] * pts[j].pr[0]), r = R[0] / R[1];
+    if (R[0] === R[1]) { if (i < j) T.push({ X: i, Y: j, rel: 'eq' }); continue; }
+    if (r < 1) continue;                                        // i нь j-ээс үнэтэй (R = p_i/p_j > 1)
+    if (p91_inK(R)) {
+      T.push({ X: i, Y: j, rel: 'hi', k: R }, { X: j, Y: i, rel: 'lo', k: R });
+      FL.flip.push({ X: j, Y: i, rel: 'hi', k: R }, { X: i, Y: j, rel: 'lo', k: R });
+    }
+    if (R[1] > 8) continue;                                     // худал дүгнэлтийн жинхэнэ харьцаа энгийн бутархай
+    if (r <= 4 / 3 + 1e-9) FL.eq.push(rnd(0, 1) ? { X: i, Y: j, rel: 'eq' } : { X: j, Y: i, rel: 'eq' });
+    p91_K.forEach(function (k) {
+      var qq = r / (k[0] / k[1]);
+      if (Math.abs(qq - 1) > 1e-9 && qq >= 0.8 && qq <= 1.2) FL.near.push({ X: i, Y: j, rel: 'hi', k: k }, { X: j, Y: i, rel: 'lo', k: k });
+    });
+  }
+  var ty = pick(['near', 'near', 'near', 'near', 'eq', 'eq', 'flip']), fl;
+  if (!FL[ty].length) return null;
+  fl = pick(FL[ty]);
+  var sel = null;
+  for (var it = 0; it < 30 && !sel; it++) {
+    var S = [fl], used = {}, cov = {}, C = shuffle(T);             // cov — дэлгүүр хэдэн дүгнэлтэд орсон (≤ 2, эх шиг)
+    used[Math.min(fl.X, fl.Y) + ',' + Math.max(fl.X, fl.Y)] = 1; cov[fl.X] = 1; cov[fl.Y] = 1;
+    var nw = function (c) { return (cov[c.X] ? 0 : 1) + (cov[c.Y] ? 0 : 1); };
+    while (S.length < 5) {
+      var need = 7 - Object.keys(cov).length, left = 5 - S.length, okc = C.filter(function (c) {
+        return !used[Math.min(c.X, c.Y) + ',' + Math.max(c.X, c.Y)] && (cov[c.X] || 0) < 2 && (cov[c.Y] || 0) < 2 && need <= 2 * (left - 1) + nw(c);
+      });
+      if (!okc.length) break;
+      var mx = Math.max.apply(null, okc.map(nw)), c = pick(okc.filter(function (c2) { return nw(c2) === mx || rnd(1, 3) === 1; }));
+      S.push(c); used[Math.min(c.X, c.Y) + ',' + Math.max(c.X, c.Y)] = 1; cov[c.X] = (cov[c.X] || 0) + 1; cov[c.Y] = (cov[c.Y] || 0) + 1;
+    }
+    if (S.length < 5 || Object.keys(cov).length < 7) continue;
+    var rest = S.slice(1), rels = S.map(function (c) { return c.rel; });
+    if (!rest.some(function (c) { return c.rel === 'eq'; }) || rest.filter(function (c) { return c.rel !== 'eq'; }).length < 2) continue;
+    if (rels.indexOf('hi') < 0 || rels.indexOf('lo') < 0 || rels.filter(function (r2) { return r2 === 'eq'; }).length > 2) continue;
+    sel = S;
+  }
+  if (!sel) return null;
+  var dirs = p91_place(pts);
+  if (!dirs) return null;
+  var ord = shuffle(sel), L = 'ABCDE', fi = ord.indexOf(fl);
+  // Худал дүгнэлтийн жинхэнэ харьцаа (X, Y дарааллаар)
+  var px = pts[fl.X].pr, py = pts[fl.Y].pr, RR = p91_fr(px[0] * py[1], px[1] * py[0]), hiR = RR[0] > RR[1];
+  var why = pts[fl.X].n + ' дэлгүүрийн 1 кг-ийн үнэ ' + pts[fl.Y].n + ' дэлгүүрийнхээс $' + p91_num(hiR ? RR : [RR[1], RR[0]]) + '$ дахин ' + (hiR ? 'өндөр' : 'хямд');
+  var q = 'Долоон өөр дэлгүүрт зарагдаж байгаа нэгэн ижил барааны савалгаа болон үнийн мэдээлэл өгчээ. Аль дүгнэлт буруу вэ?'
+    + '<div style="margin-top:3px">' + ord.map(function (s, k) { return '<div style="display:flex;gap:5px"><span style="flex:none;min-width:17px">' + L[k] + '.</span><span>' + p91_txt(s, pts) + '</span></div>'; }).join('') + '</div>';
+  return {
+    q: q, a: L[fi] + ' — ' + why, fig: p91_fig(pts, dirs), side: true, wk: 22,
+    t: { pts: pts.map(function (p) { return [p.n, p.x, p.y]; }), dirs: dirs }
+  };
+}
+
+// 92. Цэгэн диаграмм (x — зай 5–95 км, y — үнэ мян.төг, 0–10), цэгүүд y = mx + b шулууны орчим (шуугиан ±0.7, 0.1 нарийвчлал).
+//   Хандлагын шулуун = хамгийн бага квадратын шулуун; x₀ ∈ {110, 120, 130, 150} км дахь таамаг P. Эхэд сонголт алга —
+//   5 сонголт (алхам 2): зөв нь P-г 0.5 хүртэл тоймлосон утга (|P − c| ≤ 0.25), бусад нь P-ээс ≥ 1.75 зайтай.
+//   Нүдээр татсан шулуунд ч хариу өөрчлөгдөхгүй байхаар: урвуу регресс, Тейл–Сен, гуравны медиан, хагасын дундаж шулууны таамаг бүгд
+//   c-ээс ≤ 0.75 зайтай байхыг шаардана. Зураг эх шиг: тор 10 км × 1 мян.төг, x 0–130, y 0–10, гарчигтай.
+var p92_SX = (320 - 46 - 22) / 130, p92_SY = (274 - 38 - 42) / 10;   // px / км, px / мян.төг (1 нүд ≈ квадрат)
+function p92_ls(P) {   // [налалт, огтлол] — хамгийн бага квадрат
+  var n = P.length, sx = 0, sy = 0, sxx = 0, sxy = 0;
+  P.forEach(function (p) { sx += p[0]; sy += p[1]; sxx += p[0] * p[0]; sxy += p[0] * p[1]; });
+  var m = (n * sxy - sx * sy) / (n * sxx - sx * sx);
+  return [m, (sy - m * sx) / n];
+}
+function p92_med(a) { a = a.slice().sort(function (u, v) { return u - v; }); var k = a.length >> 1; return a.length % 2 ? a[k] : (a[k - 1] + a[k]) / 2; }
+function p92_alt(P, x0) {   // бусад хандлагын шулуунуудын x₀ дахь утга
+  var n = P.length, mx = 0, my = 0, sxx = 0, syy = 0, sxy = 0, i, j, sl = [];
+  P.forEach(function (p) { mx += p[0] / n; my += p[1] / n; });
+  P.forEach(function (p) { sxx += (p[0] - mx) * (p[0] - mx); syy += (p[1] - my) * (p[1] - my); sxy += (p[0] - mx) * (p[1] - my); });
+  var rev = my + syy / sxy * (x0 - mx);                                   // x-ийг y-ээр (урвуу регресс)
+  for (i = 0; i < n; i++) for (j = i + 1; j < n; j++) if (P[j][0] !== P[i][0]) sl.push((P[j][1] - P[i][1]) / (P[j][0] - P[i][0]));
+  var ts = p92_med(sl), ti = p92_med(P.map(function (p) { return p[1] - ts * p[0]; }));
+  var S = P.slice().sort(function (u, v) { return u[0] - v[0]; }), t = Math.floor(n / 3), L = S.slice(0, t), R = S.slice(n - t);
+  var xl = p92_med(L.map(function (p) { return p[0]; })), yl = p92_med(L.map(function (p) { return p[1]; }));
+  var xr = p92_med(R.map(function (p) { return p[0]; })), yr = p92_med(R.map(function (p) { return p[1]; }));
+  var rs = (yr - yl) / (xr - xl), ri = p92_med(P.map(function (p) { return p[1] - rs * p[0]; }));
+  var h = n >> 1, mean = function (A, k) { return A.reduce(function (s, p) { return s + p[k]; }, 0) / A.length; };
+  var A1 = S.slice(0, h), A2 = S.slice(n - h), hs = (mean(A2, 1) - mean(A1, 1)) / (mean(A2, 0) - mean(A1, 0));   // хагасын дундаж цэгүүдээр
+  return [rev, ts * x0 + ti, rs * x0 + ri, mean(A1, 1) + hs * (x0 - mean(A1, 0))];
+}
+function p92() {
+  var kg = pick([5, 10, 10, 10, 15, 20]), x0 = pick([110, 120, 120, 130, 150]), n = rnd(9, 12), i;
+  var b0 = rnd(3, 18) / 10, y95 = rnd(78, 95) / 10, m = (y95 - b0) / 95, xs = [], tr = 0;
+  while (xs.length < n) {
+    if (++tr > 200) return null;
+    var x = rnd(5, 95);
+    if (xs.some(function (v) { return Math.abs(v - x) < 3 && v !== x; }) || xs.filter(function (v) { return v === x; }).length > 1) continue;
+    xs.push(x);
+  }
+  xs.sort(function (u, v) { return u - v; });
+  if (xs[0] > 15 || xs[n - 1] < 80) return null;
+  var P = xs.map(function (x) { return [x, Math.round((m * x + b0 + rnd(-7, 7) / 10) * 10) / 10]; });
+  for (i = 0; i < n; i++) {
+    if (P[i][1] < 0.4 || P[i][1] > 9.7) return null;
+    for (var j = 0; j < i; j++) if (Math.hypot((P[j][0] - P[i][0]) * p92_SX, (P[j][1] - P[i][1]) * p92_SY) < 9.5) return null;   // цэгүүд давхцахгүй (px)
+  }
+  var ls = p92_ls(P), pr = ls[0] * x0 + ls[1], c = Math.round(2 * pr) / 2;
+  if (p92_alt(P, x0).some(function (v) { return Math.abs(v - c) > 0.75; })) return null;
+  var pos = rnd(0, 4), opts = [];
+  for (i = 0; i < 5; i++) opts.push(c + 2 * (i - pos));
+  if (opts[0] < 1) return null;
+  // Зураг
+  var f = Fig({ free: true, w: 320, h: 274, view: [0, 130, 0, 10], padL: 46, padR: 22, padT: 38, padB: 42 }), yt = [];
+  for (i = 0; i <= 10; i++) yt.push(i);
+  f.grid({ x: 10, y: 1 }, { c: '#b3b3b3', w: 0.7 }).axes({ o: false }).ticks([20, 40, 60, 80, 100], yt, { size: 11 });
+  P.forEach(function (p) { f.dot(p, { r: 3 }); });
+  f.text([65, 10], kg + 'кг илгээмж явуулсан зардал', { plain: true, pos: 'n', off: 17, size: 12.5 });
+  f.text([50, 0], 'Зай (км)', { plain: true, pos: 's', off: 19, size: 12 });
+  f.text([0, 5], 'Үнэ (мян.төг)', { plain: true, pos: 'w', off: 26, size: 12, anchor: 'middle', rot: -90 });
+  var L = 'ABCDE';
+  var q = 'Хүргэлтийн компаний үйлчлүүлэгч илгээмж явуулсан зай болон төлсөн мөнгөө ямар хамааралтай байгааг цэгэн диаграммаар харуулав. '
+    + 'Хандлагын шулуун ашиглан ' + kg + 'кг илгээмжийг ' + x0 + 'км зайд хүргүүлэхэд төлөх мөнгөний хэмжээг олвол аль нь хамгийн ойролцоо байна вэ?'
+    + '<div style="display:flex;flex-wrap:wrap;gap:2px 30px;margin-top:4px">' + opts.map(function (v, k) { return '<span>' + L[k] + '. $' + dec(v) + '$</span>'; }).join('') + '</div>';
+  return {
+    q: q, a: L[pos] + '. $' + dec(c) + '$ (хандлагын шулуун $y\\approx ' + dec(ls[0], 3) + 'x' + (Math.abs(ls[1]) < 0.005 ? '' : sgn(+ls[1].toFixed(2))) + '$, $y(' + x0 + ')\\approx ' + pr.toFixed(2) + '$)',
+    fig: f.svg(), wk: 24, t: { P: P, x0: x0 }
+  };
+}
+
+// 93. (2-р хэсэг) Зөв дөрвөн өнцөгт призм ABCDA₁B₁C₁D₁: суурийн тал s, өндөр h; M нь AB (эсвэл AD) талын дундаж цэг.
+//   A₁M² = s²/4 + h², MC₁² = 5s²/4 + h² → (A₁M/MC₁)² = 1/a ⇔ h² = s²(5−a)/(4(a−1)): a=3 → h = s/2 (эх: s=10, h=5),
+//   a=2 → h = (s/2)√3, a=4 → h = (s/6)√3. Харьцаа AM-ээр өсдөг тул утга нь дундаж цэгийг цорын ганц тодорхойлно.
+//   (A₁MC₁) хавтгай ABCD-г A₁C₁ ∥ AC-тэй параллель MN шулуунаар огтолно → N нь BC (CD)-ийн дундаж цэг.
+//   Огтлол — адил хажуут трапец: суурь s√2, s√2/2; өндрийн квадрат s²/8 + h² →
+//   S = (3s²/4)·√3/2 (a=3), (3s²/4)·√7/2 (a=2), (s²/4)·√15/2 (a=4). Нүдэнд коэффициент; √r/2 нь өгөгдсөн бичиг.
+function p93() {
+  var a = pick([3, 3, 3, 3, 2, 2, 2, 4]), s, ht, coef, r;
+  if (a === 3) { s = 2 * rnd(2, 12); ht = String(s / 2); coef = 3 * s * s / 4; r = 3; }
+  else if (a === 2) { s = 2 * rnd(2, 12); ht = rt(s / 2, 3); coef = 3 * s * s / 4; r = 7; }
+  else { s = 6 * rnd(1, 4); ht = rt(s / 6, 3); coef = s * s / 4; r = 15; }
+  var ad = rnd(1, 100) <= 35, sd = ad ? 'AD' : 'AB', P = ad ? 'D' : 'B', sN = ad ? 'CD' : 'BC', b = Bx();
+  var q = 'Өндөр нь $' + ht + '$ см байх $ABCDA_1B_1C_1D_1$ зөв дөрвөн өнцөгт призмийн $ABCD$ суурийн тал $' + s + '$ см. $M$ нь $' + sd + '$ тал дээр оршино.'
+    + steps([
+      '${\\left(\\dfrac{A_1M}{MC_1}\\right)^2=\\dfrac{1}{' + b('a', a) + '}}$ бол ${|AM|=|M' + P + '|}$ байна.',
+      'Энэ тохиолдолд $(A_1MC_1)$ хавтгай нь $' + sN + '$ талыг $N$ цэгээр огтлох ба ${S_{A_1MNC_1}=' + b('S', coef) + '\\times\\dfrac{\\sqrt{' + r + '}}{2}}$ байна.'
+    ]);
+  return { q: q, a: b.key(), wide: true, wk: 55, t: { s: s, a: a, ad: ad } };
+}
+
+// 94. (2-р хэсэг) y = x² − 2hx + K, орой T(h; k) → K = h² + k. (AB): y = mx − c (m сондгой: ±1, ±3) параболыг огтлохгүй.
+//   Шулуунд хамгийн ойр цэг = m налалттай шүргэгчийн шүргэлтийн цэг: M(h + m/2; k + m²/4) = M(d/2; e/4), d, e сондгой.
+//   δ = M-ийн шүргэгч ба (AB)-ийн босоо зай. A, B-ийн абсцисс x_M + a, x_M + b бол AM-ийн налалт m − δ/a, Виетээр
+//   x_F − x_M = −δ/a (F нь M-ээс цааш), MA/MF = a²/δ ⇒ S_AMB / S_FME = MA·MB/(MF·ME) = (ab/δ)² (босоо өнцгүүд тэнцүү).
+//   2a, 2b сондгой, 4δ ≡ 3 (mod 4) тул (ab/δ)² ∈ {1, 9}. Эх: h=3, k=2, m=1, a=−1/2, b=3/2, δ=3/4 → K=11, c=2, M(7/2; 9/4), харьцаа 1.
+var p94_AB = (function () {   // [2a, 2b, 4δ, f]: 2a ∈ {−1,−3,…,−9}, 2b ∈ {1,…,9}, |2a·2b| = j·4δ, j ∈ {1, 3}
+  var L = [];
+  for (var a = 1; a <= 9; a += 2) for (var b = 1; b <= 9; b += 2) [1, 3].forEach(function (j) {
+    var P = a * b;
+    if (P % j === 0 && (P / j) % 4 === 3 && P / j <= 27) L.push([-a, b, P / j, j * j]);   // 4δ ≤ 27: A, B нь M-ээс хэт холгүй
+  });
+  return L;
+})();
+function p94() {
+  var h = rnd(1, 6), k = rnd(1, 6), m = pick([1, 1, 1, -1, -1, 3, -3]), o = pick(p94_AB);
+  if (rnd(1, 100) <= 25) o = [o[1], o[0], o[2], o[3]];         // A нь M-ийн баруун талд
+  var a2 = o[0], b2 = o[1], D = o[2], f = o[3];
+  if (f === 9 && rnd(1, 100) <= 40) return null;                // харьцаа 1 (эх шиг) давамгай
+  var d = 2 * h + m, e = 4 * k + m * m, K = h * h + k, c = (D + m * m) / 4 - k + m * h;
+  if (d <= 0 || !c || Math.abs(c) > 30) return null;
+  var xA = h + (m + a2) / 2, xB = h + (m + b2) / 2, yA = m * xA - c, yB = m * xB - c;
+  if (Math.abs(xA) > 10 || Math.abs(xB) > 10 || Math.abs(yA) > 20 || Math.abs(yB) > 20) return null;
+  var b = Bx();
+  var q = '${y=x^2' + tm(-2 * h, 'x') + '+K}$ парабол $T' + pt(h, k) + '$ дээр оройтой тул ${K=' + b('K', K) + '}$ байна. '
+    + '$A' + pt(xA, yA) + ',\\ B' + pt(xB, yB) + '$ цэгүүдийг дайрсан ${y=' + tm(m, 'x', true) + (c > 0 ? '-' : '+') + b('c', Math.abs(c)) + '}$ тэгшитгэлтэй шулуун өгөгдөв. '
+    + 'Парабол дээр орших $(AB)$ шулуунд хамгийн ойр цэг нь ${M\\left(\\dfrac{' + b('d', d) + '}{2};\\,\\dfrac{' + b('e', e) + '}{4}\\right)}$ болно. '
+    + '$AM;\\,BM$ хэрчмүүдийн үргэлжлэлүүд нь параболыг харгалзан $F;\\,E$ цэгүүдээр огтлох бол ${\\dfrac{S_{\\Delta AMB}}{S_{\\Delta FME}}=' + b('f', f) + '}$ байна.';
+  return { q: q, a: b.key(), wide: true, wk: 60, t: { h: h, k: k, m: m, a2: a2, b2: b2, D: D } };
+}
+
+// 95. (2-р хэсэг) Конуст бөмбөрцөг багтсан; байгуулагч шүргэлтийн цэгээр оройгоос t, суурь талаас s урттай хэрчимд хуваагдана.
+//   Суурийн тойргийн цэгээс бөмбөрцөгт татсан шүргэгчүүд тэнцүү → суурийн радиус r = s, байгуулагч l = t + s,
+//   H = √(l² − r²) = √(t(t + 2s)), R = r·H/(l + r) (тэнхлэг огтлолын багтсан тойрог), P = V_бөм/V_кон = 4R³/(r²H).
+//   Бүх нүд бүхэл байх (t, s) хайлтаар олдсон хэлбэрүүд (масштабаараа): (2:3) → P = 3/8 (эх: 8, 12 → H=16, R=6),
+//   (1:4) → 16/81, (8:5) → 40/81, (2:15) → 15/128. P нь масштабаас хамаарахгүй тул хэлбэр бүрийг хэд хэдэн масштабтай авна.
+var p95_F = [
+  [[4, 6], [8, 12], [12, 18], [16, 24], [20, 30], [24, 36], [28, 42]],
+  [[3, 12], [6, 24], [9, 36], [12, 48]],
+  [[24, 15], [48, 30]],
+  [[8, 60]]
+];
+function p95() {
+  var fam = p95_F[pick([0, 0, 0, 0, 0, 1, 1, 1, 2, 3])], ts = pick(fam), t = ts[0], s = ts[1];
+  var H2 = t * (t + 2 * s), H = Math.round(Math.sqrt(H2));
+  if (H * H !== H2 || (s * H) % (t + 2 * s)) return null;
+  var R = s * H / (t + 2 * s), pn = 4 * R * R * R, pd = s * s * H, g = gcd(pn, pd);
+  pn /= g; pd /= g;
+  if (pn >= pd || H > 99) return null;
+  var b = Bx();
+  // {…} — KaTeX «=»-ийн ард мөр таслахгүй
+  var q = 'Конуст бөмбөрцөг багтжээ. Байгуулагч нь бөмбөрцгийг шүргэсэн цэгээрээ оройгоос $' + t + '$ нэгж, $' + s + '$ нэгж урттай хэрчмүүдэд хуваагдсан байв.'
+    + steps([
+      'Конусын өндөр нь ${H=' + b('H', H) + '}$ байна.',
+      'Бөмбөрцгийн радиус нь ${R=' + b('R', R) + '}$ болно.',
+      'Конусын дотроос санамсаргүйгээр нэг цэг авахад тэр нь бөмбөрцөг дотроос авагдсан байх магадлал нь ${P(A)=\\dfrac{' + b('N', pn) + '}{' + b('D', pd) + '}}$ байна.'
+    ]);
+  return { q: q, a: b.key(), wide: true, wk: 55, t: { t: t, s: s } };
+}
+
+// 96. (2-р хэсэг) A цэг (фокус) ба m шулуун (директрис) хоорондоо p зайтай → ижил зайтай цэгүүд — парабол.
+//   Оройг эх, тэнхлэгийг Oy болгоход A(0; p/2), m: y = −p/2 → y = x²/(2p).
+//   Тэгш хэмийн тэнхлэгээс хоёр тийш a зайд m₁, m₂ (x = ±a): S = ∫(x²/(2p) + p/2)dx [−a; a] = a³/(3p) + p·a.
+//   (p, a): a³ ⋮ 3p, S ≤ 999 — бүх боломжийг жагсаав (эх: p = 6, a = 18 → 12, 432). 2p ≤ 9 бол нүд нэг оронтой.
+var p96_V = [[2, 6], [2, 12], [3, 6], [3, 9], [3, 12], [3, 15], [3, 18], [4, 6], [4, 12], [4, 18], [5, 15], [6, 6], [6, 12], [6, 18], [6, 24],
+  [7, 21], [8, 6], [8, 12], [8, 18], [8, 24], [9, 6], [9, 9], [9, 12], [9, 15], [9, 18], [9, 21], [9, 24], [12, 6], [12, 12], [12, 18], [12, 24]];
+function p96() {
+  var o = pick(p96_V), p = o[0], a = o[1];
+  if ((a * a * a) % (3 * p)) return null;
+  var S = a * a * a / (3 * p) + p * a;
+  if (S > 999) return null;
+  var b = Bx();
+  // {…} — KaTeX «=»-ийн ард мөр таслахгүй
+  var cur = '${y=\\dfrac{x^2}{' + b('P', 2 * p) + '}}$';
+  var q = 'Хавтгай дээр хоорондоо $' + p + '$ нэгж зайтай $A$ цэг ба $m$ шулуун байв.' + steps([
+    'Энэ цэг ба шулуунаас ижил зайд байрлах цэгүүдийн олонлог нь ' + cur + ' функцийн график болох муруйг дүрсэлнэ.',
+    'Энэ муруйн тэгш хэмийн тэнхлэгээс хоёр тийш $' + a + '$ нэгж зайд түүнтэй параллель байрлах $m_1$ ба $m_2$ шулуун болон ' + cur
+      + ' муруй, $m$ шулууны хооронд хашигдсан дүрсийн талбай нь ${S=' + b('S', S) + '}$ байна.'
+  ]);
+  return { q: q, a: b.key(), wide: true, wk: 50, t: { p: p, a: a } };
+}
+
+// 97. (2-р хэсэг) y = p/√x ба y = q/√x − r√x муруйнууд: огтлолцол x₀ = (q − p)/r, y₀ = p/√x₀;
+//   шүргэгчийн налалт k₁ = −p/(2x₀√x₀), k₂ = −(2q − p)/(2x₀√x₀); α₁ − α₂ = arctg|k₂| − arctg|k₁| (= π/f);
+//   M дахь шүргэгчийн огтлох хэрчим: f-д y₀ + |k₁|x₀, g-д y₀ + |k₂|x₀.
+//   [ЗАС] эхийн k₁ = −1/[d] нь −1/√[d] (k₁ = −1/√3). Эхийн (4)-ийн «−1/√c x»-ийг ${y=k_1x+…}$ гэж бичив ((2)-ын хариуг илчлэхгүй).
+//   p, q, r ≤ 400 бүх бүхэл хайлтаар α₁ − α₂ нь π/f (f бүхэл) байх цөөн хувилбар л бий: x₀ = 3m² (налалт √3-тай, 30°/60°)
+//   эсвэл x₀ = m² (рационал налалт, 45°). Тиймээс хэлбэр (налалт, M, хэрчим) хувилбараас хамаарч өөрчлөгдөнө;
+//   олон янз байдлын тулд (4)-т f эсвэл g муруйн шүргэгчийг асууна.
+var p97_V = [[6, 12, 2], [48, 96, 4], [12, 33, 7], [8, 28, 5], [18, 63, 5], [36, 153, 13], [24, 180, 13], [72, 156, 7]];
+// x = k·m², k ∈ {1, 3}
+function p97_km(x) { for (var k = 1; k <= 3; k += 2) { var m = Math.round(Math.sqrt(x / k)); if (k * m * m === x) return [k, m]; } return null; }
+// |налалт| = N/D (k = 1) эсвэл N/(D√3) (k = 3) — TeX (нүдтэй), эхийн хэлбэрээр: 1/√3, √3, 2/√3, 3√3, 1/(2√3), √3/2, 1/2, 3 …
+function p97_sl(N, D, k, b, key) {
+  var g = gcd(N, D); N /= g; D /= g;
+  if (k === 1) {
+    if (D === 1) return b(key + 'n', N);
+    return '\\dfrac{' + (N === 1 ? '1' : b(key + 'n', N)) + '}{' + b(key + 'd', D) + '}';
+  }
+  if (N % 3 === 0) {                                     // N/(D√3) = (N/3)√3/D
+    var n3 = N / 3, s = (n3 === 1 ? '' : b(key + 'n', n3)) + '\\sqrt{' + b(key + 'r', 3) + '}';
+    return D === 1 ? s : '\\dfrac{' + s + '}{' + b(key + 'd', D) + '}';
+  }
+  var num = N === 1 ? '1' : b(key + 'n', N);
+  return '\\dfrac{' + num + '}{' + (D === 1 ? '' : b(key + 'd', D)) + '\\sqrt{' + b(key + 'r', 3) + '}}';
+}
+// c·√k (c бүхэл ≥ 1)
+function p97_sq(c, k, b, key) { return k === 1 ? b(key, c) : (c === 1 ? '' : b(key, c)) + '\\sqrt{' + b(key + 'r', 3) + '}'; }
+function p97() {
+  var o = pick(p97_V), p = o[0], q = o[1], r = o[2];
+  if ((q - p) % r) return null;
+  var x0 = (q - p) / r, km = p97_km(x0);
+  if (!km) return null;
+  var k = km[0], m = km[1], m3 = m * m * m;
+  // y₀ = p/(m√k): k = 3 → (p/(3m))√3
+  var yc = k === 1 ? p / m : p / (3 * m);
+  if (yc !== Math.round(yc)) return null;
+  // |k₁| = p/(2km³√k), |k₂| = (2q−p)/(2km³√k) → k = 1: N/(2m³); k = 3: N/(6m³)·(1/√3)
+  var den = 2 * k * m3, N1 = p, N2 = 2 * q - p;
+  var u = N1 / den / Math.sqrt(k), v = N2 / den / Math.sqrt(k);
+  var deg = (Math.atan(v) - Math.atan(u)) * 180 / Math.PI, f = Math.round(180 / deg);
+  if (Math.abs(180 / f - deg) > 1e-9) return null;
+  // M дахь шүргэгчийн огтлох хэрчим y₀ + |k|·x₀ = (yc + Nk·m²/den)·√k  (k = 3: |k|·x₀ = Nk/(den√3)·3m² = (Nk·m²/den)·√3)
+  var useG = rnd(1, 3) === 1, Nk = useG ? N2 : N1;
+  var ic = yc + Nk * m * m / den;
+  if (Math.abs(ic - Math.round(ic)) > 1e-9 || ic < 1) return null;
+  ic = Math.round(ic);
+  var b = Bx();
+  var Mx = b('X', x0), My = p97_sq(yc, k, b, 'Y');
+  var s1 = 'Огтлолцлын цэг ${M\\big(' + Mx + ',\\ ' + My + '\\big)}$ байна.';
+  var s2 = '$M$ цэгт татсан шүргэгчүүдийн өнцгийн коэффициент харгалзан ${k_1=-' + p97_sl(N1, den, k, b, 'K') + '}$; ${k_2=-' + p97_sl(N2, den, k, b, 'L') + '}$ байна.';
+  var s3 = 'Шүргэгч шулуунуудын $Ox$ тэнхлэгийн эерэг чиглэлтэй үүсэх өнцгүүдийн ялгавар нь ${\\alpha_1-\\alpha_2=\\dfrac{\\pi}{' + b('F', f) + '}}$ байна.';
+  var fx = '\\dfrac{' + p + '}{\\sqrt{x}}', gx = '\\dfrac{' + q + '}{\\sqrt{x}}-' + tm(r, '\\sqrt{x}', true);
+  var s4 = '${' + (useG ? 'g(x)=' + gx : 'f(x)=' + fx) + '}$ функцийн графикийн $M$ цэгт татсан шүргэгчийн тэгшитгэл нь ${y=k_' + (useG ? 2 : 1) + 'x+' + p97_sq(ic, k, b, 'G') + '}$ байна.';
+  var qs = '${y=' + fx + '}$; ${y=' + gx + '}$ муруйнуудын' + steps([s1, s2, s3, s4]);
+  return { q: qs, a: b.key(), wide: true, wk: 60, t: { p: p, q: q, r: r, g: useG } };
+}
+
+// 98. (2-р хэсэг) Гурвалжин пирамид: суурь — θ хурц өнцөгтэй тэгш өнцөгт гурвалжин, хажуу ирмэгүүд тэнцүү l, суурьтай φ өнцөгтэй.
+//   Ирмэгүүд тэнцүү → оройн проекц = багтаасан тойргийн төв = гипотенузын дундаж; H = l·sinφ, R₀ = l·cosφ (гипотенузын хагас),
+//   S = R₀²·sin2θ, V = S·H/3, багтаах бөмбөрцөг R = l²/(2H).
+//   Квадратуудыг бүхэл тоогоор: sin²φ = sn/4, sin²2θ = t/4 → H² = l²sn/4, S² = l⁴(4−sn)²t/64, V² = l⁶(4−sn)²t·sn/2304, R² = l²/sn —
+//   бүгд бүхэл байх (φ, θ, l)-ийг жагсаав; утга бүр k√m (m = 1 бол нүд нь энгийн тоо). Эх: (45°, 30°, 6) → 3√2, 9√3, 9√6, 3√2.
+var p98_V = [[45, 30, 6], [45, 30, 12], [45, 30, 18], [45, 30, 6], [45, 60, 6], [45, 60, 12], [45, 60, 18], [45, 45, 6], [45, 45, 12], [45, 45, 18],
+  [30, 30, 4], [30, 30, 8], [30, 30, 12], [30, 60, 4], [30, 60, 8], [60, 30, 12], [60, 60, 12], [60, 45, 6], [60, 45, 12]];
+var p98_SN = { 30: 1, 45: 2, 60: 3 };
+function p98() {
+  var o = pick(p98_V), ph = o[0], th = o[1], l = o[2], sn = p98_SN[ph], t = th === 45 ? 4 : 3;
+  var l2 = l * l, l4 = l2 * l2, l6 = l4 * l2;
+  var Q = [[l2 * sn, 4], [l4 * (4 - sn) * (4 - sn) * t, 64], [l6 * (4 - sn) * (4 - sn) * t * sn, 2304], [l2, sn]];
+  var vals = [];
+  for (var i = 0; i < 4; i++) { if (Q[i][0] % Q[i][1]) return null; vals.push(surd(Q[i][0] / Q[i][1])); }
+  var b = Bx();
+  var fm = function (s, key) { return s.r === 1 ? b(key, s.k) : (s.k === 1 ? '' : b(key, s.k)) + '\\sqrt{' + b(key + 'r', s.r) + '}'; };
+  var q = 'Гурвалжин пирамидын суурь нь $' + th + '^\\circ$ хурц өнцөгтэй тэгш өнцөгт гурвалжин бөгөөд уг пирамидын хажуу ирмэгүүд нь тэнцүү $' + l
+    + '$ нэгж урттай ба суурийн хавтгайтай $' + ph + '^\\circ$ өнцөг үүсгэнэ. Уг пирамидын:' + steps([
+      'Пирамидын өндөр нь $' + fm(vals[0], 'H') + '$ байна.',
+      'Суурийн гурвалжны талбай нь $' + fm(vals[1], 'S') + '$ байна.',
+      'Пирамидын эзлэхүүн нь $' + fm(vals[2], 'V') + '$ байна.',
+      'Пирамидыг багтаах бөмбөрцгийн радиус нь $' + fm(vals[3], 'R') + '$ байна.'
+    ]);
+  return { q: q, a: b.key(), wide: true, wk: 55, t: { ph: ph, th: th, l: l } };
+}
+
+// 99. (2-р хэсэг) ABCDS зөв дөрвөн өнцөгт пирамид, суурийн тал s; B, D-ээс SC ирмэгт буулгасан перпендикулярууд нэг M цэгт уулзана.
+//   BD ⟂ (SAC) → OB ⟂ OM, (BMD) ⟂ SC → OM ⟂ SC. ∠OBM = 30° → OM = OB·tg30° = s/√6;
+//   OM — SOC тэгш өнцөгт гурвалжны өндөр: 1/OM² = 1/SO² + 1/OC² → SO = s/2, SK = s/√2 = (s/2)√2, S_хаж = 2s·SK = s²√2.
+//   OM бүхэл язгуурын хэлбэртэй байхын тулд s ⋮ 6 (s = 6 → √6 эх шиг; s = 6k → k√6, нүд [a]√[b] болно).
+//   Өнцөг tg < 1 байх ёстой (OM < OC) тул нөхцөл нь 30° л (бусад «гоё» өнцөг таарахгүй) — олон янз байдлыг s болон
+//   ижил нөхцөлийн өөр хэлбэрүүдээр (∠ODM = 30°, ∠OMB = 60°, ∠BMD = 120° — BMD нь SC ирмэг дээрх хоёр талт өнцөг) нэмэв.
+//   Зураг: эх шиг ерөнхий (тоогүй) пирамид — S, A, B, C, D, O, M, K; харагдахгүй шугамууд тасархай.
+var p99_S = [6, 6, 6, 12, 12, 18, 18, 24, 30];
+var p99_A = [['OBM', 30], ['OBM', 30], ['OBM', 30], ['ODM', 30], ['OMB', 60], ['BMD', 120]];
+function p99_fig() {
+  var O = [0, 0], A = [-1.85, -0.1], C = [1.85, 0.1], B = [0.42, -0.85], D = [-0.42, 0.85], S = [0, 2.05];
+  var M = [S[0] + 0.48 * (C[0] - S[0]), S[1] + 0.48 * (C[1] - S[1])], K = [(B[0] + C[0]) / 2, (B[1] + C[1]) / 2];
+  var hid = { dash: '4 3', w: 1.05 }, vis = { w: 1.4 };
+  var f = Fig({ w: 228, pad: 16 });
+  f.seg(A, D, hid).seg(D, C, hid).seg(S, D, hid).seg(S, O, hid).seg(O, C, hid).seg(O, B, hid)
+    .seg(O, M, hid).seg(D, M, hid).seg(B, M, hid).seg(S, K, hid)
+    .seg(S, A, vis).seg(S, B, vis).seg(S, C, vis).seg(A, B, vis).seg(B, C, vis)
+    .dot(O, { r: 1.7 }).dot(M, { r: 1.7 }).dot(K, { r: 1.7 })
+    .text(S, 'S', { pos: 'n' }).text(A, 'A', { pos: 'w' }).text(B, 'B', { pos: 's' }).text(C, 'C', { pos: 'e' })
+    .text(D, 'D', { pos: 'nw', size: 12.5 }).text(O, 'O', { pos: 'sw', size: 12.5 }).text(M, 'M', { pos: 'ne', size: 12.5 }).text(K, 'K', { pos: 'se', size: 12.5 });
+  return f.svg();
+}
+function p99() {
+  var s = pick(p99_S), an = pick(p99_A), k = s / 6;
+  if (s % 6) return null;
+  var b = Bx();
+  // {…} — KaTeX «=»-ийн ард мөр таслахгүй
+  var om = k === 1 ? '\\sqrt{' + b('A', 6) + '}' : b('A', k) + '\\sqrt{' + b('Ar', 6) + '}';
+  var q = '$ABCDS$ зөв дөрвөн өнцөгт пирамидын суурийн тал нь $' + s + '$ нэгжтэй тэнцүү. $S$ оройгоос суурийн хавтгайд буулгасан өндрийн суурийг $O$ гэе. '
+    + '$D$ ба $B$ цэгүүдээс $SC$ ирмэгт харгалзан $DM$ ба $BM$ перпендикулярууд буулгасан ба ${\\angle ' + an[0] + '=' + an[1] + '^\\circ}$ байв.' + steps([
+      '${|OM|=' + om + '}$ байна.',
+      '$S$ оройгоос $BC$ талд буулгасан өндрийн суурь $K$ бол ${|SK|=' + b('K', s / 2) + '\\sqrt{' + b('Kr', 2) + '}}$ байна.',
+      'Пирамидын хажуу гадаргуун талбай ${S=' + b('L', s * s) + '\\sqrt{' + b('Lr', 2) + '}}$ байна.'
+    ]);
+  return { q: q, a: b.key(), fig: p99_fig(), side: true, wide: true, wk: 55, t: { s: s, an: an } };
+}
+
+// 100. (2-р хэсэг) f(x) = x² + Bx + C (бүх x-д эерэг, орой x = −B/2 ≥ 1), x₀ дахь шүргэгч y = mx − b (m = 2x₀ + B ∈ {2, 3}, b > 0).
+//   Шүргэгч Ox-ийг 0 < x_t = b/m < x₀ цэгт огтолно → дүрс: x ∈ [0; x₀], доороосоо Ox (x ≤ x_t) ба шүргэгчээр, дээрээсээ f-ээр:
+//   S = ∫₀^{x₀} f dx − y₀²/(2m) = N/3 (N ⋮̸ 3 — бутархай хураагдсан, эх шиг хуваарь 3). Тойрог: төв нормал дээр (e; 0),
+//   e = x₀ + m·y₀, r² = y₀²(1 + m²). Эх: x² − 8x + 17, x₀ = 5 → 2, 8, 77, 9, 20.
+function p100() {
+  var m = pick([2, 2, 3]), x0 = rnd(2, 8), y0 = rnd(1, 8), B = m - 2 * x0, C = y0 - m * x0 + x0 * x0;
+  var bb = m * x0 - y0, h = -B / 2;
+  if (B * B >= 4 * C || h < 1 || bb < 2) return null;
+  var num = 2 * m * x0 * x0 * x0 + 3 * m * B * x0 * x0 + 6 * m * C * x0 - 3 * y0 * y0;   // 6m·S
+  if (num % (2 * m)) return null;
+  var N = num / (2 * m), e = x0 + m * y0, r2 = y0 * y0 * (1 + m * m);
+  if (N % 3 === 0 || N < 4 || N > 450 || e > 40 || r2 > 500) return null;
+  var b = Bx();
+  // {…} — KaTeX «=»-ийн ард мөр таслахгүй
+  var q = '${f(x)=' + poly([1, B, C]) + '}$ функц өгөгдөв.' + steps([
+    '$f(x)$ функцийн ${x_0=' + x0 + '}$ абсцисстай $M$ цэгт татсан шүргэгч шулууны тэгшитгэл ${y=' + b('A', m) + 'x-' + b('B', bb) + '}$ байна.',
+    '$f(x)$ функцийн график, шүргэгч шулуун болон координатын тэнхлэгүүдээр хашигдах дүрсийн талбай нь $\\dfrac{' + b('S', N) + '}{3}$ байна.',
+    '$f(x)$ функцийн графикийг $M$ цэгт шүргэх, төв нь $Ox$ тэнхлэг дээр орших тойргийн тэгшитгэл ${(x-' + b('E', e) + ')^2+y^2=' + b('R', r2) + '}$ байна.'
+  ]);
+  return { q: q, a: b.key(), wide: true, wk: 55, t: { B: B, C: C, x0: x0 } };
+}
+
+E1K.page({
+  title: 'ЭЕШ 1000 бодлого-8',
+  sub: '2-р хэсэг · 76–100-р бодлого',
+  first: 76,
+  probs: [p76, p77, p78, p79, p80, p81, p82, p83, p84, p85, p86, p87, p88, p89, p90, p91, p92, p93, p94, p95, p96, p97, p98, p99, p100]
+});
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

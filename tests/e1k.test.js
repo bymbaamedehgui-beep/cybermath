@@ -1,8 +1,8 @@
 // «ЭЕШ 1000 бодлого» (e1k.js + eesh1000-N.html):
 //   - туслахууд: бутархай, гишүүн/олон гишүүнт, язгуур, дагавар, нүд (Bx), зураг (Fig) — NaN-гүй
-//   - хуудас бүр 25 генератор (дугаар 25(K−1)+1-ээс), олон seed-ээр: алдаагүй, q/a хоосон биш, NaN/undefined алга,
+//   - хуудас бүр 25 генератор (хэсэг бүрт эх дугаар 1–100: K-р хуудас 25((K−1) mod 4)+1-ээс), олон seed-ээр: алдаагүй, q/a хоосон биш, NaN/undefined алга,
 //     $ тэгш тоотой, TeX дотор < > байхгүй (HTML таг болж эвдэрдэг), зураг <svg>/<table>
-//   - каталогийн ЭЕШ бүлэгт 4 хуудас, vercel.json-д e1k.js
+//   - каталогийн ЭЕШ бүлэгт 8 хуудас (1, 2-р хэсэг), vercel.json-д e1k.js
 // Ажиллуулах: node --test tests/e1k.test.js
 'use strict';
 const { test } = require('node:test');
@@ -13,7 +13,8 @@ const vm = require('vm');
 
 const WT = path.resolve(__dirname, '..');
 const H = require(path.join(WT, 'e1k.js'));
-const PAGES = [1, 2, 3, 4].map((k) => ({ k, file: path.join(WT, 'eesh1000-' + k + '.html'), first: 25 * (k - 1) + 1 }));
+// хэсэг бүр (Математик №P) 4 хуудас: K = 4(P−1)+j, хуудас бүрт эх дугаар 25(j−1)+1…25j
+const PAGES = [1, 2, 3, 4, 5, 6, 7, 8].map((k) => ({ k, file: path.join(WT, 'eesh1000-' + k + '.html'), first: 25 * ((k - 1) % 4) + 1 }));
 
 function mathSegs(s) {
   const out = []; let i = 0;
@@ -110,15 +111,15 @@ for (const P of PAGES) {
   });
 }
 
-test('e1k: каталогийн ЭЕШ бүлэгт 4 хуудас, vercel.json-д e1k.js', () => {
+test('e1k: каталогийн ЭЕШ бүлэгт 8 хуудас (2 хэсэг), vercel.json-д e1k.js', () => {
   const ctx = vm.createContext({ window: {} });
   vm.runInContext(fs.readFileSync(path.join(WT, 'catalog.js'), 'utf8'), ctx);
   const g = ctx.window.WS_LIST.find((x) => x[0] === 'ЭЕШ');
   assert.ok(g, 'ЭЕШ бүлэг');
-  [1, 2, 3, 4].forEach((k) => {
+  [1, 2, 3, 4, 5, 6, 7, 8].forEach((k) => {
     const e = g[1].find((x) => x[0] === 'eesh1000-' + k + '.html');
     assert.ok(e, 'eesh1000-' + k + '.html каталогт');
-    assert.match(e[1], new RegExp('^ЭЕШ 1000 бодлого-' + k + '\\b'));
+    assert.match(e[1], new RegExp('^ЭЕШ 1000 бодлого-' + k + ' — ' + Math.ceil(k / 4) + '-р хэсэг, '));
   });
   const vj = JSON.parse(fs.readFileSync(path.join(WT, 'vercel.json'), 'utf8'));
   assert.ok(vj.builds.some((b) => b.src === 'e1k.js'), 'vercel.json builds: e1k.js');
