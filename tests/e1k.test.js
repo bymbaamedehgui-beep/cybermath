@@ -85,7 +85,7 @@ for (const P of PAGES) {
     assert.ok(cfg, 'E1K.page дуудагдаагүй');
     assert.strictEqual(cfg.first, P.first);
     assert.strictEqual(cfg.probs.length, 25);
-    assert.strictEqual(cfg.title, 'ЭЕШ 1000 бодлого-' + P.k);
+    assert.strictEqual(cfg.title, 'ЭЕШ 1000 ' + Math.ceil(P.k / 4) + '-' + ((P.k - 1) % 4 + 1));   // «ЭЕШ 1000 хэсэг-хуудас»
     cfg.probs.forEach((fn, i) => {
       const n = P.first + i;
       assert.strictEqual(typeof fn, 'function', 'p' + n);
@@ -119,7 +119,7 @@ test('e1k: каталогийн ЭЕШ бүлэгт 8 хуудас (2 хэсэг
   [1, 2, 3, 4, 5, 6, 7, 8].forEach((k) => {
     const e = g[1].find((x) => x[0] === 'eesh1000-' + k + '.html');
     assert.ok(e, 'eesh1000-' + k + '.html каталогт');
-    assert.match(e[1], new RegExp('^ЭЕШ 1000 бодлого-' + k + ' — ' + Math.ceil(k / 4) + '-р хэсэг, '));
+    assert.strictEqual(e[1], 'ЭЕШ 1000 ' + Math.ceil(k / 4) + '-' + ((k - 1) % 4 + 1));
   });
   const vj = JSON.parse(fs.readFileSync(path.join(WT, 'vercel.json'), 'utf8'));
   assert.ok(vj.builds.some((b) => b.src === 'e1k.js'), 'vercel.json builds: e1k.js');
