@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VI бүлэг — Жишиг даалгавар 2 (7-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/cmx.js?v=1"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* 7-р анги · VI бүлэг. Дараалал, функц — Жишиг даалгавар 2
+   (6.3 Шугаман функц, шулууны тэгшитгэл · 6.4 Шугаман функцийн график, шууд пропорционал) */
+function lin(a, b, v) { v = v || 'x'; var s = a === 0 ? '' : a === 1 ? v : a === -1 ? '-' + v : a + v; if (b > 0) s += (s ? '+' : '') + b; else if (b < 0) s += '-' + (-b); return s || '0'; }   // ax+b
+function P(x, y) { return '(' + x + ';\\ ' + y + ')'; }                                       // цэгийн координат
+function kx(n, d, b) { var g = gcd(n, d); n /= g; d /= g; if (d < 0) { n = -n; d = -d; } var s = d === 1 ? lin(n, 0) : fr(n, d) + 'x'; if (b > 0) s += '+' + b; else if (b < 0) s += '-' + (-b); return s; }   // (n/d)x+b
+// Утгын хүснэгт (TeX): null — нөхөх нүд
+function tbl(xs, ys) {
+  var cell = function (v) { return v == null ? '\\phantom{000}' : '' + v; };
+  return '\\begin{array}{|c|' + xs.map(function () { return 'c|'; }).join('') + '}\\hline x&' + xs.map(cell).join('&') + '\\\\\\hline y&' + ys.map(cell).join('&') + '\\\\\\hline\\end{array}';
+}
+// Графикийн шулуун y = (n/d)x + b: торын 2 цэг — A(0; b) ба B, цонх x∈[−5; 5], y∈[−4; 4]
+function pickLine() {
+  var n = pick([1, -1, 2, -2, 3, -3, 1, -1, 2, -2]), d = Math.abs(n) === 1 && rnd(0, 2) === 0 ? 2 : 1, b = rnd(-3, 3), c = [], x, y;
+  for (x = -4; x <= 4; x++) { if (!x || (x * n) % d) continue; y = b + x * n / d; if (y >= -4 && y <= 4 && Math.abs(y - b) >= 2) c.push([x, y]); }
+  return c.length ? { n: n, d: d, b: b, pts: [[0, b], pick(c)] } : null;
+}
+// Шулууны график — ЗӨВХӨН ӨГӨГДӨЛ: тор, тэнхлэг, шулуун, мэдэгдэх 2 цэг координаттайгаа (126×104 px, зураас #1a1030, бичиг 11px)
+function graph(n, d, b, pts) {
+  var U = 11, PD = 8, X0 = -5, X1 = 5, Y0 = -4, Y1 = 4, W = (X1 - X0) * U + 2 * PD, H = (Y1 - Y0) * U + 2 * PD, a = n / d, g = '', i;
+  function sx(x) { return +(PD + (x - X0) * U).toFixed(1); }
+  function sy(y) { return +(PD + (Y1 - y) * U).toFixed(1); }
+  function num(v) { return v < 0 ? '−' + (-v) : '' + v; }
+  function T(x, y, s, o) { return '<text x="' + +x.toFixed(1) + '" y="' + +y.toFixed(1) + '" font-size="11"' + (o || '') + ' fill="#1a1030">' + s + '</text>'; }
+  for (i = X0; i <= X1; i++) g += '<line x1="' + sx(i) + '" y1="' + sy(Y0) + '" x2="' + sx(i) + '" y2="' + sy(Y1) + '" stroke="#e6e0f5" stroke-width="0.6"/>';
+  for (i = Y0; i <= Y1; i++) g += '<line x1="' + sx(X0) + '" y1="' + sy(i) + '" x2="' + sx(X1) + '" y2="' + sy(i) + '" stroke="#e6e0f5" stroke-width="0.6"/>';
+  g += '<line x1="' + sx(X0) + '" y1="' + sy(0) + '" x2="' + (sx(X1) + 5) + '" y2="' + sy(0) + '" stroke="#1a1030" stroke-width="1"/>'
+    + '<path d="M' + (sx(X1) + 6) + ' ' + sy(0) + 'l-5 -2.5v5z" fill="#1a1030"/>'
+    + '<line x1="' + sx(0) + '" y1="' + sy(Y0) + '" x2="' + sx(0) + '" y2="' + (sy(Y1) - 5) + '" stroke="#1a1030" stroke-width="1"/>'
+    + '<path d="M' + sx(0) + ' ' + (sy(Y1) - 6) + 'l-2.5 5h5z" fill="#1a1030"/>';
+  var ta = (Y0 - b) / a, tb = (Y1 - b) / a, xa = Math.max(X0, Math.min(ta, tb)), xb = Math.min(X1, Math.max(ta, tb));
+  var L0 = [sx(xa), sy(a * xa + b)], L1 = [sx(xb), sy(a * xb + b)];
+  g += '<line x1="' + L0[0] + '" y1="' + L0[1] + '" x2="' + L1[0] + '" y2="' + L1[1] + '" stroke="#1a1030" stroke-width="1.6"/>';
+  // Бичгийн байрлал: хүрээнээс гарахгүй, шулуун/тэнхлэг/цэг/бусад бичигтэй давхцахгүй хамгийн ойрын хувилбар
+  var boxes = pts.map(function (p) { return [sx(p[0]) - 3.5, sy(p[1]) - 3.5, sx(p[0]) + 3.5, sy(p[1]) + 3.5]; }), AX = sy(0), AY = sx(0);
+  function onLine(q) { for (var t = 0; t <= 1.0001; t += 0.02) { var X = L0[0] + (L1[0] - L0[0]) * t, Y = L0[1] + (L1[1] - L0[1]) * t; if (X > q[0] - 1.5 && X < q[2] + 1.5 && Y > q[1] - 1.5 && Y < q[3] + 1.5) return true; } return false; }
+  function tw(s) { var w = 0; for (var i = 0; i < s.length; i++) { var ch = s.charAt(i); w += '();'.indexOf(ch) >= 0 ? 3.6 : ch === ' ' ? 3 : ch === '−' ? 6.6 : 6.2; } return w; }
+  function place(s, cands, o, bg) {
+    var w = tw(s), best = null, bp = 1e9;
+    cands.forEach(function (c, i) {
+      var x1 = c[2] === 'end' ? c[0] - w : c[0], q = [x1 - 1, c[1] - 9, x1 + w + 1, c[1] + 2.5];
+      var pen = i + (q[0] < 0 || q[2] > W || q[1] < 0 || q[3] > H ? 1000 : 0) + (onLine(q) ? 100 : 0)
+        + (boxes.some(function (r) { return q[0] < r[2] && q[2] > r[0] && q[1] < r[3] && q[3] > r[1]; }) ? 200 : 0)
+        + ((q[1] < AX + 1 && q[3] > AX - 1) || (q[0] < AY + 1 && q[2] > AY - 1) ? 30 : 0);
+      if (pen < bp) { bp = pen; best = { c: c, q: q }; }
+    });
+    boxes.push(best.q);
+    var q = best.q;
+    return (bg ? '<rect x="' + +q[0].toFixed(1) + '" y="' + +(q[1] + 0.5).toFixed(1) + '" width="' + +(q[2] - q[0]).toFixed(1) + '" height="11" fill="#fff"/>' : '')
+      + T(best.c[0], best.c[1], s, ' text-anchor="' + best.c[2] + '"' + (o || ''));
+  }
+  var labs = '';
+  pts.forEach(function (p) {
+    var px = sx(p[0]), py = sy(p[1]);
+    var U = { UL: [px - 4, py - 5, 'end'], UR: [px + 4, py - 5, 'start'], LL: [px - 4, py + 13, 'end'], LR: [px + 4, py + 13, 'start'], L: [px - 6, py + 4, 'end'], R: [px + 6, py + 4, 'start'],
+      UL2: [px - 4, py - 15, 'end'], UR2: [px + 4, py - 15, 'start'], LL2: [px - 4, py + 23, 'end'], LR2: [px + 4, py + 23, 'start'] };
+    var order = a > 0 ? ['UL', 'LR', 'UR', 'LL', 'L', 'R', 'UL2', 'LR2', 'UR2', 'LL2'] : ['UR', 'LL', 'UL', 'LR', 'R', 'L', 'UR2', 'LL2', 'UL2', 'LR2'];   // шулуунаас хол тал түрүүлж
+    g += '<circle cx="' + px + '" cy="' + py + '" r="2.6" fill="#1a1030"/>';
+    labs += place('(' + num(p[0]) + '; ' + num(p[1]) + ')', order.map(function (k) { return U[k]; }), '', true);
+  });
+  g += labs + place('x', [[sx(X1) - 1, sy(0) + 11, 'start'], [sx(X1) - 1, sy(0) - 4, 'start']], ' font-style="italic"')
+    + place('y', [[sx(0) + 4, sy(Y1) + 3, 'start'], [sx(0) - 4, sy(Y1) + 3, 'end'], [sx(0) + 4, sy(Y1) + 14, 'start'], [sx(0) - 4, sy(Y1) + 14, 'end']], ' font-style="italic"');
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif">' + g + '</svg>';
+}
+
+// Төрлийг ээлжлэн сонгох (нэг даалгаварт ижил төрөл дараалан давтагдахгүй)
+var BAGS = {};
+function bag(key, n) { var b = BAGS[key]; if (!b || !b.length) { b = []; for (var i = 1; i <= n; i++) b.push(i); b = BAGS[key] = shuffle(b); } return b.pop(); }
+// Нэг хуудсанд нэгээс илүүгүй график: build бүр 1-р даалгавраас (g1) эхэлдэг тул тэнд тэглэнэ
+var GRAPHS = 0;
+
+// 1. Функцийн утгын хүснэгт (6.3–6.4): y = ax + b ба шууд пропорционал y = kx; x-ээр y-г, y-ээр x-ийг олно
+function g1() {
+  GRAPHS = 0;
+  var a = nz(-5, 5), b = rnd(0, 2) ? nz(-9, 9) : 0;
+  if (Math.abs(a) === 1 && !b) return null;
+  var xs = shuffle([-4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6]).slice(0, 5), up = function (p, q) { return p - q; };
+  var X = xs.slice(0, 3).sort(up), Z = xs.slice(3).sort(up);
+  return { stem: '$y=' + lin(a, b) + '$', fig: '<span style="font-size:13px">$' + tbl([X[0], X[1], X[2], null, null], [null, null, null, a * Z[0] + b, a * Z[1] + b]) + '$</span>',
+    a: 'y=' + (a * X[0] + b) + ',\\ ' + (a * X[1] + b) + ',\\ ' + (a * X[2] + b) + ';\\ \\ x=' + Z[0] + ',\\ ' + Z[1] };
+}
+// 2. Цэг шулуун дээр оршдог эсэхийг шалгах (6.3): y_0 = ax_0 + b эсэх
+function g2() {
+  var a = nz(-5, 5), b = nz(-9, 9), x0 = nz(-5, 6), on = rnd(0, 1), v = a * x0 + b, y0 = v + (on ? 0 : pick([-3, -2, -1, 1, 2, 3]));
+  return { stem: '$y=' + lin(a, b) + ';\\ \\ ' + pick(['A', 'B', 'C', 'D', 'M', 'N', 'K']) + P(x0, y0) + '$',
+    a: (v === y0 ? 'Тийм' : 'Үгүй') + ': $' + a + '\\cdot ' + par(x0) + sgn(b) + '=' + v + (v === y0 ? '' : '\\ne ' + y0) + '$' };
+}
+// 3. Шулуун абсцисс ба ординат тэнхлэгийг огтлох цэгүүд (6.3): (−b/a; 0) ба (0; b), заримдаа бутархай
+function g3() {
+  var a = pick([-6, -5, -4, -3, -2, -1, 1, 2, 3, 4, 5, 6]), b;
+  if (rnd(0, 3)) b = -a * nz(-6, 6); else { b = nz(-9, 9); if (b % a === 0) return null; }
+  return { stem: '$y=' + lin(a, b) + '$', a: P(fr(-b, a), 0) + ',\\ \\ ' + P(0, b) };
+}
+// 4. Шулууны тэгшитгэл (6.3–6.4): хоёр цэгээр, графикаар (мэдэгдэх 2 цэгтэй), шууд пропорционал — нэг цэгээр, хүснэгтээр
+function g4() {
+  var t = bag('g4', 4); if (t === 2 && GRAPHS) t = 1;
+  if (t === 1) {
+    var a = pick([-4, -3, -2, -1, 1, 2, 3, 4]), b = nz(-9, 9), x1 = rnd(-4, 3), x2 = x1 + rnd(1, 3), y1 = a * x1 + b, y2 = a * x2 + b;
+    return { stem: '$A' + P(x1, y1) + '$ ба $B' + P(x2, y2) + '$ цэгийг дайрсан шулуун.',
+      a: 'a=\\dfrac{' + y2 + '-' + par(y1) + '}{' + x2 + '-' + par(x1) + '}=' + a + ',\\ \\ y=' + lin(a, b) };
+  }
+  if (t === 2) {
+    var L = pickLine(); if (!L) return null;
+    var x3 = nz(-9, 9); if (x3 === L.pts[1][0]) return null;
+    GRAPHS++;
+    return { stem: 'Зурагт өгсөн шулууны тэгшитгэлийг бичээд $x=' + x3 + '$ үеийн $y$-ийн утгыг ол.', fig: graph(L.n, L.d, L.b, L.pts),
+      a: 'y=' + kx(L.n, L.d, L.b) + ';\\ \\ y=' + fr(L.n * x3 + L.d * L.b, L.d) };
+  }
+  if (t === 3) {
+    var kn = pick([-5, -4, -3, -2, -1, 1, 2, 3, 4, 5]), kd = pick([1, 1, 2, 3]); if (gcd(kn, kd) !== 1 || (kd === 1 && Math.abs(kn) === 1)) return null;
+    var x0 = kd * nz(-4, 4), y0 = kn * x0 / kd;
+    return { stem: 'Шууд пропорционал хамаарлын график $M' + P(x0, y0) + '$ цэгийг дайрна.', a: 'k=\\dfrac{' + y0 + '}{' + x0 + '}=' + fr(kn, kd) + ',\\ \\ y=' + kx(kn, kd, 0) };
+  }
+  var a4 = pick([-5, -4, -3, -2, 2, 3, 4, 5]), b4 = nz(-8, 8), u = rnd(-3, 2), w = u + rnd(1, 3);
+  return { stem: 'Шугаман функцийн хүснэгт: $' + tbl([u, w], [a4 * u + b4, a4 * w + b4]) + '$',
+    a: 'a=\\dfrac{' + (a4 * w + b4) + '-' + par(a4 * u + b4) + '}{' + w + '-' + par(u) + '}=' + a4 + ',\\ \\ y=' + lin(a4, b4) };
+}
+// 5. Хэрэглээний бодлого (6.3–6.4): хөдөлгөөн, үнэ (шууд пропорционал), усан сав, дэвтрийн үнэ, оролт-гаралтын машин, угтах хөдөлгөөн
+function g5() {
+  var t = bag('g5', 6);
+  if (t === 1) {
+    var v = 5 * rnd(10, 18), t1 = rnd(2, 4), t2 = rnd(5, 8), tS = rnd(3, 9); if (tS === t1 || tS === t2) return null;
+    return { stem: 'Машин $' + t1 + '$ цагт $' + (v * t1) + '$ км явжээ. Ижил хурдтай явбал $' + t2 + '$ цагт хэдэн км явах вэ? $' + (v * tS) + '$ км-ийг хэдэн цагт туулах вэ?',
+      a: '$s=' + v + 't$; $\\ ' + (v * t2) + '$ км; $\\ ' + tS + '$ цаг' };
+  }
+  if (t === 2) {
+    var G = pick([['алим', 'алимны'], ['будаа', 'будааны'], ['гурил', 'гурилын'], ['мах', 'махны']]), p = 100 * rnd(15, 95), m = rnd(2, 9), q = rnd(3, 12); if (m === q) return null;
+    return { stem: 'Нэг кг ' + G[1] + ' үнэ $' + th(p) + '$ төгрөг. $x$ кг ' + G[1] + ' үнэ $y$-ийн томьёог бич. $' + m + '$ кг ' + G[0] + ' хэдэн төгрөг вэ? $' + th(p * q) + '$ төгрөгөөр хэдэн кг ' + G[0] + ' авах вэ?',
+      a: '$y=' + p + 'x$; $\\ ' + th(p * m) + '$ төгрөг; $\\ ' + q + '$ кг' };
+  }
+  if (t === 3) {
+    var c = 10 * rnd(2, 8), r = rnd(2, 9), x = rnd(5, 20), V = c + r * x;
+    if (rnd(0, 1)) return { stem: 'Саванд $' + c + '$ л ус байв. Цоргоноос минут тутамд $' + r + '$ л ус нэмэгдэнэ. $x$ минутын дараах усны хэмжээ $y$-ийн томьёог бичээд хэдэн минутын дараа $' + V + '$ л болохыг ол.',
+      a: '$y=' + r + 'x+' + c + '$; $\\ ' + x + '$ минут' };
+    var V0 = r * x;
+    return { stem: 'Дүүрэн саванд $' + V0 + '$ л ус байв. Минут тутамд $' + r + '$ л ус гоожино. $x$ минутын дараа үлдэх усны хэмжээ $y$-ийн томьёог бичээд сав хэдэн минутад хоосрохыг ол.',
+      a: '$y=' + V0 + '-' + r + 'x$; $\\ ' + x + '$ минут' };
+  }
+  if (t === 4) {
+    var p1 = 100 * rnd(4, 12), p2 = 100 * rnd(5, 20), n = rnd(4, 15), M = p1 * n + p2;
+    return { stem: 'Нэг дэвтэр $' + p1 + '$ төгрөг. Сурагч $' + p2 + '$ төгрөгийн нэг үзэг ба $x$ дэвтэр авав. Төлөх мөнгө $y$-ийн томьёог бич. $' + th(M) + '$ төгрөг төлсөн бол хэдэн дэвтэр авсан бэ?',
+      a: '$y=' + p1 + 'x+' + p2 + '$; $\\ ' + n + '$ дэвтэр' };
+  }
+  if (t === 5) {
+    var ka = rnd(2, 6), kb = nz(-9, 12), x0 = rnd(2, 9), xr = rnd(3, 15); if (x0 === xr) return null;
+    return { stem: 'Тоон машин оролтын $x$ тоог $' + ka + '$ дахин ихэсгээд ' + (kb > 0 ? '$' + kb + '$ нэмж' : '$' + (-kb) + '$ хасаж') + ' гаралт $y$-г гаргана. $y$-ийг $x$-ээр илэрхийл. $x=' + x0 + '$ үед $y=?$ Гаралт $' + (ka * xr + kb) + '$ бол оролт хэд вэ?',
+      a: '$y=' + lin(ka, kb) + '$; $\\ y=' + (ka * x0 + kb) + '$; $\\ x=' + xr + '$' };
+  }
+  var v1 = 5 * rnd(8, 16), v2 = 5 * rnd(6, 14), tt = rnd(2, 5), S = (v1 + v2) * tt;
+  return { stem: '$A$ хотоос цагт $' + v1 + '$ км, $B$ хотоос цагт $' + v2 + '$ км хурдтай хоёр машин нэгэн зэрэг угтан хөдлөв. $AB=' + S + '$ км. Хэдэн цагийн дараа, $A$ хотоос ямар зайд уулзах вэ?',
+    a: '$' + tt + '$ цаг; $\\ ' + (v1 * tt) + '$ км' };
+}
+
+CMX.jishig({
+  title: 'VI бүлэг — Жишиг даалгавар 2',
+  sub: 'Шугаман функц · шулууны тэгшитгэл · график · шууд пропорционал',
+  grade: '7-р анги',
+  rule: 'Шугаман функц $y=ax+b$ &nbsp;·&nbsp; $M(x_0;\\ y_0)$ цэг шулуун дээр $\\Leftrightarrow\\ y_0=ax_0+b$ &nbsp;·&nbsp; $a=\\dfrac{y_2-y_1}{x_2-x_1}$ &nbsp;·&nbsp; Шууд пропорционал: $y=kx$, $\\ k=\\dfrac{y}{x}$',
+  tasks: [
+    { label: 'Функцийн утгын хүснэгтийг нөх.', gen: g1, n: 6, nw: 2, cols: 2, wk: 12 },
+    { label: 'Цэг шулуун дээр оршдог эсэхийг шалга.', gen: g2, n: 6, nw: 2, cols: 2, wk: 10 },
+    { label: 'Шулуун абсцисс ба ординат тэнхлэгийг огтлох цэгүүдийг ол.', gen: g3, n: 8, nw: 4, cols: 4, wk: 12 },
+    { label: 'Шулууны тэгшитгэлийг ол.', gen: g4, n: 4, nw: 2, cols: 2, wk: 14 },
+    { label: 'Бодлогыг бод.', gen: g5, n: 4, nw: 2, cols: 2, wk: 22 }
+  ]
+});
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>II бүлэг — Жишиг даалгавар 2 (7-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/cmx.js?v=1"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* 7-р анги · II бүлэг. Аравтын ба энгийн бутархай, процент — Жишиг даалгавар 2
+   (2.6 Энгийн бутархайн нэмэх, хасах · 2.7 Үржүүлэх, хуваах · 2.8 Бутархай ба процент харилцан шилжүүлэх ·
+    2.9 Хөдөлгөөн ба ажлын бодлого · 2.10 Процентын бодлого · 2.11 Өсөлт, бууралтын процент) */
+// Төрлүүдийг ээлжлэн сонгоно (нэг даалгаварт ижил төрөл дараалан давтагдахгүй); сонгосон төрөл үүстэл давтана
+var BAGS = {};
+function rot(key, fns) {
+  var b = BAGS[key];
+  if (!b || !b.length) b = BAGS[key] = shuffle(fns.map(function (_, i) { return i; }));
+  var f = fns[b.pop()];
+  for (var i = 0; i < 80; i++) { var r = f(); if (r) return r; }
+  return null;
+}
+function p10(k) { var r = 1; while (k-- > 0) r *= 10; return r; }
+// бутархай {n, d} — хураасан, d > 0
+function F(n, d) { if (d < 0) { n = -n; d = -d; } var g = gcd(n, d); return { n: n / g, d: d / g }; }
+function fAdd(a, b) { return F(a.n * b.d + b.n * a.d, a.d * b.d); }
+function fSub(a, b) { return F(a.n * b.d - b.n * a.d, a.d * b.d); }
+function fMul(a, b) { return F(a.n * b.n, a.d * b.d); }
+function fDiv(a, b) { return F(a.n * b.d, a.d * b.n); }
+// холимог тоо (2\dfrac{1}{3}) ба буруу бутархай (\dfrac{7}{3}) хэлбэрийн TeX
+function mx(a) { if (a.d === 1) return '' + a.n; var N = Math.abs(a.n), w = Math.floor(N / a.d); return (a.n < 0 ? '-' : '') + (w ? w : '') + '\\dfrac{' + (N % a.d) + '}{' + a.d + '}'; }
+function im(a) { return a.d === 1 ? '' + a.n : (a.n < 0 ? '-' : '') + '\\dfrac{' + Math.abs(a.n) + '}{' + a.d + '}'; }
+function df(a, b) { return '\\dfrac{' + a + '}{' + b + '}'; }
+// хураагдахгүй зөв бутархай (хуваарь mB..B) ба холимог тоо (бүхэл хэсэг 1..W)
+function rf(B, mB) { var b = rnd(mB || 2, B), a = rnd(1, b - 1); return gcd(a, b) === 1 ? F(a, b) : null; }
+function rm(W, B) { var f = rf(B); if (!f) return null; return F(rnd(1, W) * f.d + f.n, f.d); }
+
+// 1. Энгийн бутархай, холимог тооны нэмэх, хасах (2.6), үржүүлэх, хуваах (2.7)
+function g1() {
+  return rot('g1', [
+    function () {                                                          // ХБЕХ-ээр нэмэх, хасах
+      var b = rnd(3, 16), d = rnd(3, 16), a = rnd(1, b - 1), c = rnd(1, d - 1);
+      if (b === d || b % d === 0 || d % b === 0 || gcd(a, b) !== 1 || gcd(c, d) !== 1) return null;
+      var L = lcm(b, d), x = a * L / b, y = c * L / d, add = rnd(0, 1) === 1; if (L > 60 || (!add && x <= y)) return null;
+      return { stem: '$' + df(a, b) + (add ? '+' : '-') + df(c, d) + '$', a: df(x, L) + (add ? '+' : '-') + df(y, L) + '=' + mx(F(add ? x + y : x - y, L)) };
+    },
+    function () {                                                          // холимог тоо хасах — бүхэл хэсгээс зээлнэ
+      var A = rm(9, 12), B = rm(5, 12); if (!A || !B) return null;
+      var wa = Math.floor(A.n / A.d), wb = Math.floor(B.n / B.d);
+      if (wa <= wb || (A.n - wa * A.d) * B.d >= (B.n - wb * B.d) * A.d || lcm(A.d, B.d) > 48) return null;
+      return { stem: '$' + mx(A) + '-' + mx(B) + '$', a: im(A) + '-' + im(B) + '=' + mx(fSub(A, B)) };
+    },
+    function () {                                                          // бүхэл тооноос холимог тоо хасах
+      var W = rnd(3, 12), B = rm(W - 1, 12); if (!B) return null;
+      return { stem: '$' + W + '-' + mx(B) + '$', a: (W - 1) + df(B.d, B.d) + '-' + mx(B) + '=' + mx(fSub(F(W, 1), B)) };
+    },
+    function () {                                                          // үржүүлэх — хөндлөн хураана
+      var A = rf(16, 3), B = rf(16, 3); if (!A || !B || (gcd(A.n, B.d) === 1 && gcd(B.n, A.d) === 1)) return null;
+      var R = fMul(A, B); if (R.d > 40) return null;
+      return { stem: '$' + mx(A) + '\\cdot ' + mx(B) + '$', a: df(A.n + '\\cdot ' + B.n, A.d + '\\cdot ' + B.d) + '=' + mx(R) };
+    },
+    function () {                                                          // урвуу тоогоор үржүүлж хуваах
+      var A = rf(16, 3), B = rf(16, 3); if (!A || !B || A.n * B.d === A.d * B.n || (gcd(A.n, B.n) === 1 && gcd(A.d, B.d) === 1)) return null;
+      var R = fDiv(A, B); if (R.d > 30) return null;
+      return { stem: '$' + mx(A) + '\\div ' + mx(B) + '$', a: mx(A) + '\\cdot ' + im(F(B.d, B.n)) + '=' + mx(R) };
+    },
+    function () {                                                          // холимог тоог буруу бутархайд шилжүүлж үржүүлэх, хуваах
+      var A = rm(4, 9), B = rm(3, 9); if (!A || !B) return null;
+      var mul = rnd(0, 1) === 1, R = mul ? fMul(A, B) : fDiv(A, B); if (R.d > 24 || R.n > 30 * R.d || (R.d > 12 && rnd(0, 2))) return null;
+      return { stem: '$' + mx(A) + (mul ? '\\cdot ' : '\\div ') + mx(B) + '$', a: im(A) + '\\cdot ' + (mul ? im(B) : im(F(B.d, B.n))) + '=' + mx(R) };
+    }
+  ]);
+}
+
+// 2. Олон үйлдэлтэй илэрхийлэл: хаалт, үйлдлийн дараалал, аравтын ба энгийн бутархай холилдсон (2.6–2.7)
+function g2() {
+  return rot('g2', [
+    function () {                                                          // (A ± B)·C, (A ± B)÷C
+      var A = rm(6, 12), B = rm(4, 12), M = rm(3, 9); if (!A || !B || !M) return null;
+      var minus = rnd(0, 1) === 1, I = minus ? fSub(A, B) : fAdd(A, B); if (I.n <= 0 || I.d > 36) return null;
+      var mul = rnd(0, 1) === 1, R = mul ? fMul(I, M) : fDiv(I, M); if (R.d > 40 || R.n > 40 * R.d) return null;
+      return { stem: '$\\left(' + mx(A) + (minus ? '-' : '+') + mx(B) + '\\right)' + (mul ? '\\cdot ' : '\\div ') + mx(M) + '$', a: mx(I) + (mul ? '\\cdot ' : '\\div ') + mx(M) + '=' + mx(R) };
+    },
+    function () {                                                          // гурван бутархайн нийлбэр, ялгавар (ерөнхий хуваарь)
+      var x = rf(12), y = rf(12), z = rf(14); if (!x || !y || !z || x.d === y.d || y.d === z.d || x.d === z.d) return null;
+      var L = lcm(lcm(x.d, y.d), z.d); if (L > 84) return null;
+      var o1 = rnd(0, 1) === 1, o2 = rnd(0, 1) === 1, R = o1 ? fAdd(x, y) : fSub(x, y); R = o2 ? fAdd(R, z) : fSub(R, z); if (R.n <= 0) return null;
+      var t = function (f) { return df(f.n * L / f.d, L); };
+      return { stem: '$' + mx(x) + (o1 ? '+' : '-') + mx(y) + (o2 ? '+' : '-') + mx(z) + '$', a: t(x) + (o1 ? '+' : '-') + t(y) + (o2 ? '+' : '-') + t(z) + '=' + mx(R) };
+    },
+    function () {                                                          // A ÷ B · C — зүүнээс баруун тийш
+      var A = rm(3, 13), B = rf(13, 3), Cc = rm(3, 9); if (!A || !B || !Cc) return null;
+      var R = fMul(fDiv(A, B), Cc); if (R.d > 30 || R.n > 60 * R.d) return null;
+      return { stem: '$' + mx(A) + '\\div ' + mx(B) + '\\cdot ' + mx(Cc) + '$', a: im(A) + '\\cdot ' + im(F(B.d, B.n)) + '\\cdot ' + im(Cc) + '=' + mx(R) };
+    },
+    function () {                                                          // A ± B ÷ C — хуваахыг түрүүлж
+      var A = rm(4, 9), B = rm(4, 9), Cc = rm(2, 9); if (!A || !B || !Cc) return null;
+      var Q = fDiv(B, Cc), minus = rnd(0, 1) === 1, R = minus ? fSub(A, Q) : fAdd(A, Q); if (R.n <= 0 || Q.d > 20 || R.d > 40) return null;
+      return { stem: '$' + mx(A) + (minus ? '-' : '+') + mx(B) + '\\div ' + mx(Cc) + '$', a: mx(A) + (minus ? '-' : '+') + mx(Q) + '=' + mx(R) };
+    },
+    function () {                                                          // 0.75·1⅓ − 2/5 — аравтын бутархайг энгийн бутархайд шилжүүлнэ
+      var D = pick([[25, 2], [5, 1], [75, 2], [2, 1], [4, 1], [6, 1], [8, 1], [15, 1], [125, 2], [25, 1]]), Dv = F(D[0], p10(D[1]));
+      var M = rm(2, 9), E = rf(9); if (!M || !E) return null;
+      var P = fMul(Dv, M), minus = rnd(0, 1) === 1, R = minus ? fSub(P, E) : fAdd(P, E); if (R.n <= 0 || P.d > 20 || R.d > 40) return null;
+      return { stem: '$' + dFmt(D[0], D[1]) + '\\cdot ' + mx(M) + (minus ? '-' : '+') + mx(E) + '$', a: im(Dv) + '\\cdot ' + im(M) + (minus ? '-' : '+') + mx(E) + '=' + mx(P) + (minus ? '-' : '+') + mx(E) + '=' + mx(R) };
+    }
+  ]);
+}
+
+// 3. Энгийн бутархай ↔ аравтын бутархай ↔ процент (2.8)
+var DEN = [2, 4, 5, 8, 10, 20, 25, 40, 50, 100, 125, 200];
+function conv(from) {
+  var b = pick(DEN), a = rnd(1, Math.round(1.6 * b)); if (gcd(a, b) !== 1 || a === b) return null;
+  var v = a * 1000 / b, T = [mx(F(a, b)), dFmt(v, 3), dFmt(v, 1) + '\\%'];      // v — 0.001-ийн нэгж
+  return { stem: '$' + T[from] + '$', a: T[from] + '=' + T.filter(function (_, i) { return i !== from; }).join('=') };
+}
+function g3() { return rot('g3', [function () { return conv(0); }, function () { return conv(1); }, function () { return conv(2); }]); }
+
+// 4. Процентын бодлого: тооны процент, хэдэн хувь, хувиар нь тоог олох (2.10); өсгөх, бууруулах, өөрчлөлтийн хувь, анхны утга (2.11)
+function g4() {
+  return rot('g4', [
+    function () {                                                          // тооны p%
+      var p = pick([4, 5, 8, 12, 15, 24, 35, 45, 60, 75, 120, 150]), N = rnd(4, 90) * 10;
+      return { stem: '$' + N + '$ тооны $' + p + '\\%$-ийг ол.', a: N + '\\cdot\\dfrac{' + p + '}{100}=' + dFmt(N * p / 10, 1) };
+    },
+    function () {                                                          // нэг тоо нөгөөгийнхөө хэдэн хувь вэ
+      var b = pick([20, 25, 40, 50, 60, 75, 80, 120, 125, 150, 160, 200, 250, 400]), P = rnd(1, 36) * 5, a = b * P / 100;
+      if (a % 1 || a === b || a < 2) return null;
+      return { stem: '$' + a + '$ тоо $' + b + '$ тооны хэдэн хувь вэ?', a: '\\dfrac{' + a + '}{' + b + '}\\cdot 100\\%=' + P + '\\%' };
+    },
+    function () {                                                          // хувиар нь тоог олох
+      var p = pick([4, 5, 8, 12, 15, 20, 25, 30, 40, 45, 60, 75, 80, 125, 150]), N = rnd(2, 60) * 10, v = N * p / 100; if (v % 1 || v < 2) return null;
+      return { stem: 'Аль тооны $' + p + '\\%$ нь $' + v + '$ байх вэ?', a: v + '\\div\\dfrac{' + p + '}{100}=' + N };
+    },
+    function () {                                                          // p%-иар нэмэгдүүлэх, багасгах
+      var p = pick([5, 10, 12, 15, 20, 25, 30, 40, 60]), N = rnd(2, 80) * 20, up = rnd(0, 1) === 1, k = up ? 100 + p : 100 - p, R = N * k / 100; if (R % 1) return null;
+      return { stem: '$' + N + '$ тоог $' + p + '\\%$-иар ' + (up ? 'нэмэгдүүл.' : 'багасга.'), a: N + '\\cdot\\dfrac{' + k + '}{100}=' + R };
+    },
+    function () {                                                          // хэдэн хувиар өөрчлөгдсөн бэ
+      var A = rnd(2, 40) * 500, P = pick([5, 10, 15, 20, 25, 30, 40, 50, 60, 75]), up = rnd(0, 1) === 1, B = A * (up ? 100 + P : 100 - P) / 100; if (B % 1) return null;
+      return { stem: 'Барааны үнэ $' + th(A) + '$ төгрөгөөс $' + th(B) + '$ төгрөг болжээ. Үнэ хэдэн хувиар ' + (up ? 'өссөн' : 'буурсан') + ' бэ?',
+        a: '\\dfrac{' + th(Math.abs(B - A)) + '}{' + th(A) + '}\\cdot 100\\%=' + P + '\\%' };
+    },
+    function () {                                                          // өөрчлөгдсөн утгаас анхны утгыг олох
+      var p = pick([5, 10, 15, 20, 25, 30, 40]), up = rnd(0, 1) === 1, N = up ? rnd(8, 40) * 50000 : rnd(20, 150) * 1000, k = up ? 100 + p : 100 - p, R = N * k / 100; if (R % 1) return null;
+      return { stem: up ? 'Цалин $' + p + '\\%$ нэмэгдээд $' + th(R) + '$ төгрөг болжээ. Нэмэгдэхээс өмнөх цалинг ол.' : 'Гутлын үнийг $' + p + '\\%$ хямдруулахад $' + th(R) + '$ төгрөг болжээ. Анхны үнийг ол.',
+        a: '$' + th(R) + '\\div\\dfrac{' + k + '}{100}=' + th(N) + '$ төгрөг' };
+    }
+  ]);
+}
+
+// 5. Өгүүлбэртэй бодлого: угталцах, гүйцэх, урсгалтай голын хөдөлгөөн, дундаж хурд, хамтын ажил (2.9);
+//    хэсгүүдээр нийтийг олох (2.7); дараалсан өсөлт, бууралтын процент (2.11)
+function g5() {
+  return rot('g5', [
+    function () {                                                          // угталцах хөдөлгөөн
+      var v1 = rnd(8, 18) * 5, v2 = rnd(8, 18) * 5, T = rnd(2, 9); if (v1 === v2) return null;      // уулзах хугацаа T/2 цаг
+      var S = (v1 + v2) * T / 2; if (S % 1) return null;
+      return { stem: 'Хоорондоо $' + S + '$ км зайтай $A$, $B$ хотоос хоёр машин нэгэн зэрэг бие бие рүүгээ $' + v1 + '$ км/ц ба $' + v2 + '$ км/ц хурдтай хөдөлжээ. Хэдэн цагийн дараа уулзах вэ? Уулзах газар $A$ хотоос хэдэн км-т байх вэ?',
+        a: '$t=\\dfrac{' + S + '}{' + v1 + '+' + v2 + '}=' + dFmt(T * 5, 1) + '$ цаг; $' + v1 + '\\cdot ' + dFmt(T * 5, 1) + '=' + dFmt(v1 * T * 5, 1) + '$ км' };
+    },
+    function () {                                                          // гүйцэх хөдөлгөөн
+      var v1 = rnd(3, 6) * 5, v2 = v1 + rnd(3, 10) * 5, t0 = rnd(1, 4), lead = v1 * t0; if ((lead * 2) % (v2 - v1)) return null;   // хугацаа бүхэл эсвэл .5
+      return { stem: 'Дугуйчин $' + v1 + '$ км/ц хурдтай хөдөлснөөс $' + t0 + '$ цагийн дараа ижил газраас мотоциклч $' + v2 + '$ км/ц хурдтай араас нь хөдөлжээ. Мотоциклч хэдэн цагийн дараа дугуйчныг гүйцэх вэ?',
+        a: '$' + v1 + '\\cdot ' + t0 + '=' + lead + '$ км; $t=\\dfrac{' + lead + '}{' + v2 + '-' + v1 + '}=' + dFmt(lead * 10 / (v2 - v1), 1) + '$ цаг' };
+    },
+    function () {                                                          // урсгалтай гол: хугацааг олох
+      var v = rnd(10, 25), u = rnd(1, 4), S = lcm(v + u, v - u) * rnd(1, 2); if (S > 240 || v - u < 6) return null;
+      return { stem: 'Завины өөрийн хурд $' + v + '$ км/ц, голын урсгалын хурд $' + u + '$ км/ц. Завь $' + S + '$ км замыг урсгал дагуу хэдэн цагт, урсгал сөрж хэдэн цагт туулах вэ?',
+        a: '$\\dfrac{' + S + '}{' + v + '+' + u + '}=' + S / (v + u) + '$ цаг; $\\dfrac{' + S + '}{' + v + '-' + u + '}=' + S / (v - u) + '$ цаг' };
+    },
+    function () {                                                          // урсгалтай гол: хурдуудыг олох
+      var t1 = rnd(2, 5), t2 = t1 + rnd(1, 3), k = rnd(1, 6) * 2, S = t1 * t2 * k; if (S > 300 || S < 40) return null;
+      var dn = t2 * k, up = t1 * k;
+      return { stem: 'Усан онгоц $' + S + '$ км замыг урсгал дагуу $' + t1 + '$ цагт, урсгал сөрж $' + t2 + '$ цагт туулжээ. Усан онгоцны өөрийн хурд ба голын урсгалын хурдыг ол.',
+        a: 'дагуу $' + dn + '$, сөрж $' + up + '$ км/ц; өөрийн хурд $\\dfrac{' + dn + '+' + up + '}{2}=' + (dn + up) / 2 + '$ км/ц, урсгал $\\dfrac{' + dn + '-' + up + '}{2}=' + (dn - up) / 2 + '$ км/ц' };
+    },
+    function () {                                                          // дундаж хурд
+      var v1 = rnd(8, 18) * 5, v2 = rnd(8, 18) * 5, t1 = rnd(1, 4), t2 = rnd(1, 4); if (v1 === v2 || t1 === t2) return null;
+      var S = v1 * t1 + v2 * t2, T = t1 + t2; if ((S * 10) % T) return null;
+      return { stem: 'Машин эхлээд $' + v1 + '$ км/ц хурдтай $' + t1 + '$ цаг, дараа нь $' + v2 + '$ км/ц хурдтай $' + t2 + '$ цаг явжээ. Бүх замын дундаж хурдыг ол.',
+        a: '$v=\\dfrac{' + v1 + '\\cdot ' + t1 + '+' + v2 + '\\cdot ' + t2 + '}{' + t1 + '+' + t2 + '}=\\dfrac{' + S + '}{' + T + '}=' + dFmt(S * 10 / T, 1) + '$ км/ц' };
+    },
+    function () {                                                          // хамтын ажил
+      var a = rnd(2, 12), b = rnd(a + 1, 20), T = F(a * b, a + b); if (T.d > 12) return null;
+      return { stem: 'Нэг ажилчин ажлыг $' + a + '$ цагт, нөгөө нь $' + b + '$ цагт хийж дуусгадаг. Хоёулаа хамтран хэдэн цагт дуусгах вэ?',
+        a: '$\\dfrac{1}{' + a + '}+\\dfrac{1}{' + b + '}=' + im(F(a + b, a * b)) + '$; $t=' + mx(T) + '$ цаг' };
+    },
+    function () {                                                          // дүүргэх ба юүлэх хоолой
+      var a = rnd(2, 10), b = rnd(a + 1, 24), T = F(a * b, b - a); if (T.d > 10) return null;
+      return { stem: 'Усан санг I хоолой $' + a + '$ цагт дүүргэж, II хоолой дүүрэн санг $' + b + '$ цагт юүлдэг. Хоёр хоолойг зэрэг нээвэл хоосон сан хэдэн цагт дүүрэх вэ?',
+        a: '$\\dfrac{1}{' + a + '}-\\dfrac{1}{' + b + '}=' + im(F(b - a, a * b)) + '$; $t=' + mx(T) + '$ цаг' };
+    },
+    function () {                                                          // хэсгүүдээр нийт замыг олох
+      var q = pick([3, 4, 5, 8]), p = rnd(1, q - 1), dec = pick([10, 15, 20, 25, 30, 35, 40, 45]); if (gcd(p, q) !== 1) return null;
+      var rest = fSub(fSub(F(1, 1), F(p, q)), F(dec, 100)); if (rest.n <= 0) return null;
+      var N = rest.d * rnd(1, 30); if (N < 60 || N > 900) return null;
+      var R = N * rest.n / rest.d;
+      return { stem: 'Аялагч замын $' + df(p, q) + '$ хэсгийг эхний өдөр, $' + dFmt(dec, 2) + '$ хэсгийг хоёр дахь өдөр явж, үлдсэн $' + R + '$ км-ийг гурав дахь өдөр туулжээ. Нийт зам хэдэн км вэ?',
+        a: '$1-' + df(p, q) + '-' + dFmt(dec, 2) + '=' + im(rest) + '$; $' + R + '\\div ' + im(rest) + '=' + N + '$ км' };
+    },
+    function () {                                                          // дараалсан өөрчлөлтийн процент
+      var p = pick([10, 20, 25, 30, 50]), q = pick([10, 20, 40, 50]), dn = rnd(0, 1) === 1, k2 = dn ? 100 - q : 100 + q, ch = (100 + p) * k2 - 10000;   // 0.01%-ийн нэгж
+      if (ch === 0) return null;
+      return { stem: 'Үйлдвэрийн бүтээгдэхүүн эхний жил $' + p + '\\%$ өсөж, дараагийн жил ' + (dn ? '$' + q + '\\%$ буурчээ.' : 'дахин $' + q + '\\%$ өсчээ.') + ' Хоёр жилийн дотор бүтээгдэхүүн хэдэн хувиар өөрчлөгдсөн бэ?',
+        a: '$' + dFmt(100 + p, 2) + '\\cdot ' + dFmt(k2, 2) + '=' + dFmt((100 + p) * k2, 4) + '$; $' + dFmt(Math.abs(ch), 2) + '\\%$-иар ' + (ch > 0 ? 'өссөн' : 'буурсан') };
+    }
+  ]);
+}
+
+CMX.jishig({
+  title: 'II бүлэг — Жишиг даалгавар 2',
+  sub: 'Энгийн бутархайн үйлдэл · бутархай ба процент · хөдөлгөөн ба ажлын бодлого · процентын бодлого',
+  grade: '7-р анги',
+  rule: '$\\dfrac{a}{b}\\cdot\\dfrac{c}{d}=\\dfrac{a\\cdot c}{b\\cdot d}$, $\\ \\dfrac{a}{b}\\div\\dfrac{c}{d}=\\dfrac{a}{b}\\cdot\\dfrac{d}{c}$ &nbsp;·&nbsp; $p\\%=\\dfrac{p}{100}$ &nbsp;·&nbsp; $S=v\\cdot t$ &nbsp;·&nbsp; $p\\%$ өсөхөд $\\cdot\\dfrac{100+p}{100}$, буурахад $\\cdot\\dfrac{100-p}{100}$',
+  tasks: [
+    { label: 'Үйлдлийг гүйцэтгэ.', gen: g1, n: 12, nw: 4, cols: 4, wk: 12 },
+    { label: 'Илэрхийллийн утгыг ол.', gen: g2, n: 6, nw: 2, cols: 2, wk: 18 },
+    { label: 'Энгийн бутархай, аравтын бутархай, процент хэлбэрээр бич.', gen: g3, n: 8, nw: 4, cols: 4, wk: 10 },
+    { label: 'Процентын бодлогыг бод.', gen: g4, n: 6, nw: 2, cols: 2, wk: 14 },
+    { label: 'Бодлогыг бод.', gen: g5, n: 6, nw: 2, cols: 2, wk: 24 }
+  ]
+});
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

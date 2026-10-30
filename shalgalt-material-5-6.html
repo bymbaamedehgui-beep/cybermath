@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>V бүлэг — Шалгалтын материал (6-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/cmx.js?v=1"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* 6-р анги · V бүлэг. Алгебрын илэрхийлэл, тэгшитгэл (5.1 Илэрхийлэл зохиох, утгыг олох · 5.2 Хялбарчлах · 5.3 Гишүүнчлэн үржүүлэх, ерөнхий үржигдэхүүн · 5.4 Шугаман тэгшитгэл · 5.5 Сонгон судлах) */
+// Гишүүн: c·v (1x→x, -1x→-x); v='' бол сул гишүүн
+function tm(c, v) { if (v === '') return '' + c; if (c === 1) return v; if (c === -1) return '-' + v; return c + v; }
+// Төөрөгдүүлэгчид: коэффициент 0 бол «0x» гэж бичихгүй — null (D алгасна)
+function tmz(c, v) { return c === 0 ? null : tm(c, v); }
+// [{c,v}] → '2x-3y+5' (тэг коэффициенттэйг алгасна)
+function pl(ts) {
+  var s = '';
+  ts.forEach(function (t) { var c = t.c, v = t.v || ''; if (!c) return; var body = v === '' ? '' + Math.abs(c) : (Math.abs(c) === 1 ? '' : Math.abs(c)) + v; s += (s === '' ? (c < 0 ? '-' : '') : (c < 0 ? '-' : '+')) + body; });
+  return s === '' ? '0' : s;
+}
+function collect(ts) { var order = [], map = {}; ts.forEach(function (t) { var v = t.v || ''; if (!(v in map)) { map[v] = 0; order.push(v); } map[v] += t.c; }); return order.map(function (v) { return { c: map[v], v: v }; }); }
+function sortT(ts) { return ts.filter(function (t) { return t.v; }).concat(ts.filter(function (t) { return !t.v; })); }
+function simp(ts) { return pl(sortT(collect(ts))); }                       // хялбарчилсан хэлбэр (төсөөтэй гишүүд нэгтгэсэн)
+function br(k, inner) { return (k === 1 ? '' : k === -1 ? '-' : k) + '(' + inner + ')'; }   // k(…)
+function pbr(k, inner) { return k < 0 ? '-' + br(-k, inner) : '+' + br(k, inner); }        // +k(…) / -k(…)
+// Төөрөгдүүлэгч: [tex, түлхүүр] — түлхүүр нь тоо (утга) эсвэл задалсан хэлбэр; зөв хариутай ба хоорондоо ИЖИЛ утгатайг хасна
+function D(cv, list) {
+  var used = [cv], out = [];
+  function same(a, b) { return typeof a === 'number' && typeof b === 'number' ? Math.abs(a - b) < 1e-9 : String(a) === String(b); }
+  list.forEach(function (p) {
+    if (!p || p[0] == null || p[1] == null || (typeof p[1] === 'number' && !isFinite(p[1]))) return;
+    for (var i = 0; i < used.length; i++) if (same(used[i], p[1])) return;
+    used.push(p[1]); out.push(C(p[0]));
+  });
+  return out;
+}
+// Бүхэл тоон төөрөгдүүлэгч (сөрөг байж болно)
+function DI(v, list) { return D(v, list.filter(function (x) { return x === Math.round(x) && Math.abs(x) <= 9999; }).map(function (x) { return [String(x), x]; })); }
+// Натурал тоон төөрөгдүүлэгч
+function DN(v, list) { return DI(v, list.filter(function (x) { return x > 0; })); }
+
+/* ── I. Тест (10): 1–3 хялбар, 4–7 дунд, 8–10 хүнд ── */
+var TESTS = [
+  // 1. Үгээр өгсөн илэрхийллийг алгебрын илэрхийлэл болгох (5.1)
+  function () {
+    var V = pick(['x', 'a', 'n', 'm', 'y']), k = rnd(2, 9), m = rnd(2, 12), t = rnd(0, 3), stem, cor, ck, ds;
+    if (k === m) return null;
+    if (t === 0) {
+      stem = '$' + V + '$ тоог $' + k + '$ дахин нэмэгдүүлж, $' + m + '$ тоог нэмэхэд аль илэрхийлэл гарах вэ?'; cor = k + V + '+' + m; ck = cor;
+      ds = [[br(k, V + '+' + m), k + V + '+' + (k * m)], [V + '+' + k + '+' + m, V + '+' + (k + m)], [k + V + '-' + m, k + V + '-' + m], [m + V + '+' + k, m + V + '+' + k]];
+    } else if (t === 1) {
+      stem = '$' + V + '$ тоон дээр $' + m + '$ тоог нэмээд, $' + k + '$ дахин нэмэгдүүлэхэд аль илэрхийлэл гарах вэ?'; cor = br(k, V + '+' + m); ck = k + V + '+' + (k * m);
+      ds = [[k + V + '+' + m, k + V + '+' + m], [V + '+' + m + '+' + k, V + '+' + (k + m)], [br(k, V + '-' + m), k + V + '-' + (k * m)], [br(m, V + '+' + k), m + V + '+' + (k * m)]];
+    } else if (t === 2) {
+      stem = '$' + V + '$ тоог $' + k + '$ тоонд хуваагаад, $' + m + '$ тоог хасахад аль илэрхийлэл гарах вэ?'; cor = '\\dfrac{' + V + '}{' + k + '}-' + m; ck = 'a';
+      ds = [['\\dfrac{' + V + '-' + m + '}{' + k + '}', 'b'], [k + V + '-' + m, 'c'], ['\\dfrac{' + k + '}{' + V + '}-' + m, 'd'], [m + '-\\dfrac{' + V + '}{' + k + '}', 'e']];
+    } else {
+      stem = '$' + V + '$ тооноос $' + m + '$ тоог хасаад, $' + k + '$ дахин нэмэгдүүлэхэд аль илэрхийлэл гарах вэ?'; cor = br(k, V + '-' + m); ck = k + V + '-' + (k * m);
+      ds = [[k + V + '-' + m, k + V + '-' + m], [br(k, m + '-' + V), (-k) + V + '+' + (k * m)], ['\\dfrac{' + V + '-' + m + '}{' + k + '}', 'f'], [V + '-' + m + '+' + k, V + '+' + (k - m)]];
+    }
+    return { stem: stem, mc: makeMC(C(cor), D(ck, ds)) };
+  },
+  // 2. Илэрхийллийн тоон утга (5.1)
+  function () {
+    var V = pick(['a', 'x', 'b', 'm', 'y']), k = nz(-9, 9), b = nz(-15, 15), v = nz(-6, 6);
+    if (Math.abs(k) === 1 || v === 1) return null;
+    var val = k * v + b;
+    return { stem: '$' + V + '=' + v + '$ үед $' + pl([{ c: k, v: V }, { c: b, v: '' }]) + '$ илэрхийллийн утга хэд вэ?',
+      mc: makeMC(C(val), DI(val, [k * -v + b, k * v - b, k + v + b, (k + b) * v, -(k * v) - b])) };
+  },
+  // 3. Нэг хувьсагчтай төсөөтэй гишүүдийг эмхэтгэх (5.2)
+  function () {
+    var V = pick(['a', 'x', 'y', 'm', 'n']), c0 = rnd(2, 12), c1 = nz(-9, 9), c2 = nz(-9, 9), S = c0 + c1 + c2;
+    if (S === 0 || Math.abs(c1) === 1 || Math.abs(c2) === 1) return null;
+    var e = pl([{ c: c0, v: V }, { c: c1, v: V }, { c: c2, v: V }]);
+    var AB = Math.abs(c0) + Math.abs(c1) + Math.abs(c2);
+    return { stem: '$' + e + '$ илэрхийллийг хялбарчлахад аль нь гарах вэ?',
+      mc: makeMC(C(tm(S, V)), D(S, [[tmz(S - 2 * c1, V), S - 2 * c1], [tmz(S - 2 * c2, V), S - 2 * c2], [tm(AB, V), AB], [tm(S, V + '^{3}'), 'p3'], [tm(-S, V), -S]])) };
+  },
+  // 4. Хоёр хувьсагчтай төсөөтэй гишүүдийг эмхэтгэх (5.2)
+  function () {
+    var P = pick([['x', 'y'], ['a', 'b'], ['m', 'n'], ['p', 'q']]), a1 = rnd(2, 9), b1 = nz(-9, 9), a2 = nz(-9, 9), b2 = nz(-9, 9), A = a1 + a2, B = b1 + b2;
+    if (!A || !B || Math.abs(b1) === 1 || Math.abs(a2) === 1 || Math.abs(b2) === 1) return null;
+    var e = pl([{ c: a1, v: P[0] }, { c: b1, v: P[1] }, { c: a2, v: P[0] }, { c: b2, v: P[1] }]);
+    function f(x, y) { return pl([{ c: x, v: P[0] }, { c: y, v: P[1] }]); }
+    return { stem: '$' + e + '$ илэрхийллийг хялбарчлахад аль нь гарах вэ?',
+      mc: makeMC(C(f(A, B)), D(f(A, B), [[f(A, b1 - b2), f(A, b1 - b2)], [f(a1 - a2, B), f(a1 - a2, B)], [f(a1 - a2, b1 - b2), f(a1 - a2, b1 - b2)], [f(A, -B), f(A, -B)], [tmz(A + B, P[0] + P[1]), 'xy']])) };
+  },
+  // 5. Гишүүнчлэн үржүүлэх — хаалт задлах (5.3)
+  function () {
+    var V = pick(['x', 'a', 'y', 'm', 'b']), k = nz(-9, 9), a = rnd(1, 6), b = nz(-9, 9);
+    if (Math.abs(k) === 1) return null;
+    function f(x, y) { return pl([{ c: x, v: V }, { c: y, v: '' }]); }
+    var cor = f(k * a, k * b);
+    return { stem: '$' + br(k, pl([{ c: a, v: V }, { c: b, v: '' }])) + '$ хаалтыг задлахад аль нь гарах вэ?',
+      mc: makeMC(C(cor), D(cor, [[f(k * a, b), f(k * a, b)], [f(k * a, -k * b), f(k * a, -k * b)], [f(-k * a, k * b), f(-k * a, k * b)], [f(a, k * b), f(a, k * b)], [f(k * a, k + b), f(k * a, k + b)]])) };
+  },
+  // 6. Хаалтаас ерөнхий үржигдэхүүн гаргах (5.3)
+  function () {
+    var P = pick([['a', 'b'], ['x', 'y'], ['m', 'n'], ['x', '']]), g = rnd(2, 9), a = rnd(1, 7), b = nz(-9, 9);
+    if (gcd(a, b) !== 1 || Math.abs(b) === 1 && P[1] !== '') return null;
+    function inner(x, y) { return pl([{ c: x, v: P[0] }, { c: y, v: P[1] }]); }
+    function fm(o, x, y) { return [o + '(' + inner(x, y) + ')', inner(o * x, o * y)]; }   // [бичлэг, задалсан хэлбэр]
+    var c = fm(g, a, b), d = g > 3 ? (g % 2 === 0 ? 2 : g % 3 === 0 ? 3 : g - 1) : g + 1;
+    return { stem: '$' + inner(g * a, g * b) + '$ илэрхийллийн ерөнхий үржигдэхүүнийг хаалтаас гаргавал аль нь гарах вэ?',
+      mc: makeMC(C(c[0]), D(c[1], [fm(g, a, -b), fm(g, b, a), fm(g, a, g * b), fm(g, g * a, b), fm(d, a, b)])) };
+  },
+  // 7. Хоёр алхамт шугаман тэгшитгэл (5.4)
+  function () {
+    var V = pick(['x', 'y', 'a', 'm']), k = rnd(2, 9), x0 = nz(-12, 12), b = nz(-20, 20), c = k * x0 + b;
+    if (Math.abs(b) < 2) return null;
+    return { stem: '$' + pl([{ c: k, v: V }, { c: b, v: '' }]) + '=' + c + '$ тэгшитгэлийн шийд аль нь вэ?',
+      mc: makeMC(C(V + '=' + x0), DI(x0, [(c + b) / k, c - b, (c - b) * k, c / k - b, -x0]).map(function (o) { return C(V + '=' + o.t); })) };
+  },
+  // 8. Хаалттай, хоёр талдаа хувьсагчтай тэгшитгэл (5.4)
+  function () {
+    var k = rnd(2, 7), m = rnd(1, k - 1), a = nz(-9, 9), x0 = nz(-10, 12), b = (k - m) * x0 + k * a;
+    if (b === 0) return null;
+    return { stem: '$' + br(k, pl([{ c: 1, v: 'x' }, { c: a, v: '' }])) + '=' + pl([{ c: m, v: 'x' }, { c: b, v: '' }]) + '$ тэгшитгэлийн шийд аль нь вэ?',
+      mc: makeMC(C('x=' + x0), DI(x0, [(b - a) / (k - m), (b + k * a) / (k - m), (b - k * a) / (k + m), -x0, x0 + k]).map(function (o) { return C('x=' + o.t); })) };
+  },
+  // 9. Тэгшитгэл зохиож бодох: нийлбэр ба ялгавар, нас (5.4)
+  function () {
+    var t = rnd(0, 1);
+    if (t === 0) {
+      var y = rnd(12, 80), d = rnd(4, 40), S = 2 * y + d, big = y + d;
+      return { stem: 'Хоёр тооны нийлбэр $' + S + '$, ялгавар нь $' + d + '$ бол их тоо нь хэд вэ?', mc: makeMC(C(big), DN(big, [y, S - d, S / 2 + d, S / 2, big + d])) };
+    }
+    var g = rnd(8, 15), D0 = rnd(22, 35), S2 = 2 * g + D0;
+    return { stem: 'Ээж охиноосоо $' + D0 + '$ насаар ах. Тэдний насны нийлбэр $' + S2 + '$ бол охин хэдэн настай вэ?', mc: makeMC(C(g), DN(g, [g + D0, S2 - D0, S2 / 2, (S2 + D0) / 2, g + 2])) };
+  },
+  // 10. Дараалсан натурал тоонууд — тэгшитгэл зохиож бодох (5.4)
+  function () {
+    var n = rnd(3, 4), a = rnd(5, 60), S = n * a + n * (n - 1) / 2, big = a + n - 1, ask = rnd(0, 1);
+    var v = ask ? big : a;
+    return { stem: 'Дараалсан ' + (n === 3 ? 'гурван' : 'дөрвөн') + ' натурал тооны нийлбэр $' + S + '$ бол тэдгээрийн хамгийн ' + (ask ? 'их' : 'бага') + ' нь хэд вэ?',
+      mc: makeMC(C(v), DN(v, [ask ? a : big, Math.round(S / n), Math.floor(S / n) + (ask ? n : -n), v + 1, v - 1])) };
+  }
+];
+
+/* ── II. Задгай (5): 11–12 суурь (2 оноо), 13–15 олон алхамтай (3 оноо) ── */
+var FREE = [
+  // 11. Хаалт задалж хялбарчлаад утгыг олох (5.2 · 5.3)
+  function () {
+    var k1 = nz(-6, 6), k2 = nz(-6, 6), a = nz(-9, 9), b = nz(-9, 9), x = nz(-6, 6), A = k1 + k2, C0 = k1 * a + k2 * b;
+    if (Math.abs(k1) === 1 || Math.abs(k2) === 1 || A === 0 || C0 === 0) return null;
+    var e = br(k1, pl([{ c: 1, v: 'x' }, { c: a, v: '' }])) + pbr(k2, pl([{ c: 1, v: 'x' }, { c: b, v: '' }]));
+    var r = pl([{ c: A, v: 'x' }, { c: C0, v: '' }]);
+    return { stem: '$' + e + '$ илэрхийллийг хялбарчилж, $x=' + x + '$ үед утгыг ол.', a: '$' + r + '$; $' + A + '\\cdot ' + par(x) + sgn(C0) + '=' + (A * x + C0) + '$' };
+  },
+  // 12. Хаалттай шугаман тэгшитгэл (5.4)
+  function () {
+    var a = rnd(3, 9), k = rnd(2, a - 1), b = nz(-9, 9), x0 = rnd(1, 12), c = (a - k) * x0 - k * b;
+    return { stem: '$' + a + 'x' + pbr(-k, pl([{ c: 1, v: 'x' }, { c: b, v: '' }])) + '=' + c + '$ тэгшитгэлийг бод.',
+      a: '$' + pl([{ c: a - k, v: 'x' }, { c: -k * b, v: '' }]) + '=' + c + '$, $x=' + x0 + '$' };
+  },
+  // 13. Тэгшитгэл зохиож бодох: тэгш өнцөгтийн периметр, мөнгө дутсан, өөд өөдөөсөө хөдөлсөн машин (5.4)
+  function () {
+    var t = rnd(0, 2);
+    if (t === 0) {
+      var w = rnd(3, 25), d = rnd(2, 12), P = 2 * (2 * w + d);
+      return { stem: 'Тэгш өнцөгтийн урт нь өргөнөөсөө $' + d + '$ см-ээр урт, периметр нь $' + P + '$ см. Урт, өргөнийг ол.',
+        a: '$2(x+x+' + d + ')=' + P + '$, $x=' + w + '$; өргөн $' + w + '$ см, урт $' + (w + d) + '$ см' };
+    }
+    if (t === 1) {
+      var n = rnd(3, 7), x = rnd(10, 60) * 100, dd = rnd(2, 20) * 100, S = n * x - dd;
+      return { stem: 'Туяа $' + th(S) + '$ төгрөгтэй байв. Тэр $' + n + '$ ижил ном авах гэтэл $' + dd + '$ төгрөг дутжээ. Нэг ном хэдэн төгрөгийн үнэтэй вэ?',
+        a: '$' + n + 'x=' + th(S) + '+' + dd + '$, $x=' + x + '$ төгрөг' };
+    }
+    var v1 = 5 * rnd(8, 16), v2 = 5 * rnd(8, 16), h = rnd(2, 6), L = (v1 + v2) * h;
+    if (v1 === v2) return null;
+    return { stem: 'Хоорондоо $' + L + '$ км зайтай хоёр хотоос $' + v1 + '$ км/ц ба $' + v2 + '$ км/ц хурдтай хоёр машин өөд өөдөөсөө зэрэг гарав. Хэдэн цагийн дараа уулзах вэ?',
+      a: '$(' + v1 + '+' + v2 + ')t=' + L + '$, $' + (v1 + v2) + 't=' + L + '$; $t=' + h + '$ цаг' };
+  },
+  // 14. Олон алхамт үгэн бодлого (5.5 сонгон, хөнгөн хэлбэр)
+  function () {
+    if (rnd(0, 1)) {
+      var k = rnd(2, 4), d = rnd(3, 15), x = rnd(5, 25), N = x + k * x + (k * x - d);
+      if (k * x - d < 1) return null;
+      return { stem: 'Сагсанд нийт $' + N + '$ жимс бий. Жүрж нь алимнаас $' + k + '$ дахин олон, лийр нь жүржээс $' + d + '$ ширхгээр цөөн. Жимс тус бүр хэдэн ширхэг вэ?',
+        a: '$x+' + k + 'x+(' + k + 'x-' + d + ')=' + N + '$, $x=' + x + '$; алим $' + x + '$, жүрж $' + (k * x) + '$, лийр $' + (k * x - d) + '$' };
+    }
+    var t = rnd(2, 5), s = rnd(3, 8), dd = rnd(2, 8), y = rnd(8, 20), T = t * y + s * (y - dd);
+    if (y - dd < 2) return null;
+    return { stem: '$' + t + '$ багш, $' + s + '$ сурагч ачаа үүрчээ. Багш бүрийн ачаа ижил, сурагч бүрийнх багшийнхаас $' + dd + '$ кг-аар хөнгөн. Нийт ачаа $' + T + '$ кг бол багш бүр хэдэн кг үүрсэн бэ?',
+      a: '$' + t + 'x+' + s + '(x-' + dd + ')=' + T + '$, $x=' + y + '$ кг (сурагч бүр $' + (y - dd) + '$ кг)' };
+  },
+  // 15. Хувьсагчийн утгыг нөхцөлөөр олох (5.5 сонгон, хөнгөн хэлбэр)
+  function () {
+    if (rnd(0, 1)) {
+      var T = pick([[99, 'хамгийн их хоёр оронтой тоо'], [100, 'хамгийн бага гурван оронтой тоо'], [10, 'хамгийн бага хоёр оронтой тоо'], [0, 'тэг']]), k = nz(-9, 9), b = nz(-30, 30);
+      if (Math.abs(k) === 1 || (T[0] - b) % k !== 0) return null;
+      var x0 = (T[0] - b) / k, e = pl([{ c: k, v: 'x' }, { c: b, v: '' }]);
+      return { stem: '$x$-ийн ямар утгад $' + e + '$ илэрхийллийн утга ' + T[1] + ' болох вэ?', a: '$' + e + '=' + T[0] + '$, $x=' + x0 + '$' };
+    }
+    var a = rnd(3, 9), c = rnd(1, a - 1), x1 = nz(-8, 10), b = nz(-20, 20), d = (a - c) * x1 + b;
+    if (d === 0) return null;
+    var e1 = pl([{ c: a, v: 'x' }, { c: b, v: '' }]), e2 = pl([{ c: c, v: 'x' }, { c: d, v: '' }]);
+    return { stem: '$x$-ийн ямар утгад $' + e1 + '$ ба $' + e2 + '$ илэрхийллүүдийн утга тэнцүү байх вэ? Тэр утгыг ол.',
+      a: '$' + e1 + '=' + e2 + '$, $x=' + x1 + '$; утга нь $' + (a * x1 + b) + '$' };
+  }
+];
+
+CMX.exam({
+  title: 'V бүлэг — Шалгалтын материал',
+  sub: 'Алгебрын илэрхийлэл · хялбарчлах · хаалт задлах · шугаман тэгшитгэл',
+  grade: '6-р анги',
+  topic: 'Алгебр',
+  tests: TESTS,
+  free: FREE
+});
+</script>
+<script src="/eyesh-link.js?v=3"></script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

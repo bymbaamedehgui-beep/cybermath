@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VI бүлэг — Жишиг даалгавар 1 (7-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/cmx.js?v=1"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* 7-р анги · VI бүлэг. Дараалал, функц — Жишиг даалгавар 1
+   (6.1 Тоон дараалал ба ерөнхий гишүүн · 6.2 Арифметик прогресс) */
+function seq(a) { return a.join(',\\ '); }                                                    // 3,\ 7,\ 11
+function lin(a, b, v) { var s = a === 0 ? '' : a === 1 ? v : a === -1 ? '-' + v : a + v; if (b > 0) s += (s ? '+' : '') + b; else if (b < 0) s += '-' + (-b); return s || '0'; }   // an+b
+function qn(m, B, C0) { var s = (m === 1 ? '' : m === -1 ? '-' : m) + 'n^{2}'; if (B) s += (B > 0 ? '+' : '-') + (Math.abs(B) === 1 ? '' : Math.abs(B)) + 'n'; if (C0) s += (C0 > 0 ? '+' : '-') + Math.abs(C0); return s; }   // mn²+Bn+C
+function df(n, d) { return '\\dfrac{' + n + '}{' + d + '}'; }                                // хураахгүй бутархай — дарааллын хэв маяг харагдана
+var DS = [-9, -8, -7, -6, -5, -4, -3, -2, 2, 3, 4, 5, 6, 7, 8, 9];                            // зөрүү (0, ±1-гүй)
+// Төрлийг ээлжлэн сонгох (нэг даалгаварт ижил төрөл дараалан давтагдахгүй)
+var BAGS = {};
+function bag(key, n) { var b = BAGS[key]; if (!b || !b.length) { b = []; for (var i = 1; i <= n; i++) b.push(i); b = BAGS[key] = shuffle(b); } return b.pop(); }
+
+// 1. Зүй тогтлыг олж дараагийн 3 гишүүнийг бичих (6.1): арифметик, геометр, квадрат, өсөх зөрүү, өмнөх хоёрын нийлбэр, тэмдэг ээлжлэх, бутархай
+function g1() {
+  var t = bag('g1', 9), N = 4, f, i, v = [];
+  if (t <= 2) { var a = rnd(-12, 25), d = pick(DS); f = function (i) { return a + i * d; }; }
+  else if (t === 3) { var g0 = rnd(1, 5), q = pick([2, 2, 3, -2]); if (q !== 2 && g0 > 3) return null; f = function (i) { return g0 * Math.pow(q, i); }; }
+  else if (t === 4) { var c = pick([0, 0, 1, -1, 2, 3]), o = rnd(1, 3); f = function (i) { return (i + o) * (i + o) + c; }; }
+  else if (t === 5) { var b = rnd(1, 9), d0 = rnd(1, 4), st = rnd(1, 2); N = 5; f = function (i) { return b + i * d0 + st * i * (i - 1) / 2; }; }
+  else if (t === 6) { var F = [rnd(1, 4), rnd(2, 6)]; for (i = 2; i < 8; i++) F.push(F[i - 1] + F[i - 2]); N = 5; f = function (i) { return F[i]; }; }
+  else if (t === 7) { var cc = rnd(1, 4), oo = rnd(0, 3), sg = pick([1, -1]); f = function (i) { return sg * (i % 2 ? -1 : 1) * (cc * (i + 1) + oo); }; }
+  else if (t === 8) { var tt = pick([1, 2, 3, 5]), n0 = rnd(1, 2); f = function (i) { return df(n0 + i, n0 + i + tt); }; }
+  else { var m = rnd(2, 5); f = function (i) { return df(1, m * (i + 1)); }; }
+  for (i = 0; i < N + 3; i++) v.push(f(i));
+  return { stem: '$' + seq(v.slice(0, N)) + ',\\ \\dots$', a: seq(v.slice(N)) };
+}
+// 2. Ерөнхий гишүүний томьёогоор эхний 4 гишүүн ба заасан гишүүнийг олох (6.1): шугаман, квадрат, (−1)ⁿ үржигдэхүүнтэй, бутархай
+function g2() {
+  var t = bag('g2', 6), f, F, k;
+  if (t <= 3) { var p = pick(DS), q = nz(-12, 12); f = lin(p, q, 'n'); F = function (n) { return '' + (p * n + q); }; k = pick([10, 12, 15, 20, 25, 30, 40, 50, 100]); }
+  else if (t === 4) { var B = rnd(-4, 3), C0 = rnd(-5, 5); if (!B && !C0) return null; f = qn(1, B, C0); F = function (n) { return '' + (n * n + B * n + C0); }; k = pick([8, 10, 12, 15, 20]); }
+  else if (t === 5) {
+    var p4 = rnd(1, 4), q4 = rnd(-1, 4), e = rnd(0, 1); if (p4 === 1 && q4 === -1) return null;
+    f = '(-1)^{n' + (e ? '+1' : '') + '}\\cdot ' + (q4 ? '(' + lin(p4, q4, 'n') + ')' : lin(p4, 0, 'n'));
+    F = function (n) { return '' + (((n + e) % 2 ? -1 : 1) * (p4 * n + q4)); }; k = pick([10, 11, 15, 20, 25, 50]);
+  }
+  else { var tt = rnd(1, 5); f = '\\dfrac{n}{n+' + tt + '}'; F = function (n) { return fr(n, n + tt); }; k = pick([10, 15, 20, 25, 30]); }
+  return { stem: '$a_n=' + f + '$; $\\ a_{' + k + '}=?$', a: seq([1, 2, 3, 4].map(F)) + ';\\ \\ a_{' + k + '}=' + F(k) };
+}
+// 3. Дарааллын ерөнхий гишүүний томьёог олох (6.1–6.2): тогтмол зөрүүтэй a_n = dn + (a_1 − d), квадрат, бутархай, тэмдэг ээлжлэх
+function g3() {
+  var t = bag('g3', 8), s = [], i, ans;
+  if (t <= 4) { var a = rnd(-10, 15), d = pick(DS); for (i = 0; i < 4; i++) s.push(a + i * d); ans = lin(d, a - d, 'n'); }
+  else if (t === 5) { var m = pick([1, 1, 2, 3]), c = pick([0, 1, -1, 2, 3, -2]); for (i = 1; i <= 4; i++) s.push(m * i * i + c); ans = qn(m, 0, c); }
+  else if (t === 6) { var tt = rnd(1, 4); for (i = 1; i <= 4; i++) s.push(df(i, i + tt)); ans = '\\dfrac{n}{n+' + tt + '}'; }
+  else if (t === 7) { var mm = rnd(2, 5); for (i = 1; i <= 4; i++) s.push(df(1, mm * i)); ans = '\\dfrac{1}{' + mm + 'n}'; }
+  else { var cc = rnd(1, 3), e = rnd(0, 1); for (i = 1; i <= 4; i++) s.push(((i + e) % 2 ? -1 : 1) * cc * i); ans = '(-1)^{n' + (e ? '+1' : '') + '}\\cdot ' + lin(cc, 0, 'n'); }
+  return { stem: '$' + seq(s) + ',\\ \\dots$', a: 'a_n=' + ans };
+}
+// 4. Арифметик прогрессын заасан утга (6.2): a_k, зөрүү d, хоёр гишүүнээр a_1 ба d, гишүүний тоо, дугаар n, эхний сөрөг гишүүн
+function g4() {
+  var t = bag('g4', 6), a1 = rnd(-12, 20), d = pick(DS), k, ak;
+  if (t === 1) {
+    k = rnd(10, 40); ak = a1 + (k - 1) * d;
+    return { stem: '$a_1=' + a1 + ',\\ d=' + d + '$. $\\ a_{' + k + '}=?$', a: 'a_{' + k + '}=' + a1 + '+' + (k - 1) + '\\cdot ' + par(d) + '=' + ak };
+  }
+  if (t === 2) {
+    k = rnd(6, 16); ak = a1 + (k - 1) * d;
+    return { stem: '$a_1=' + a1 + ',\\ a_{' + k + '}=' + ak + '$. $\\ d=?$', a: 'd=\\dfrac{' + ak + '-' + par(a1) + '}{' + (k - 1) + '}=' + d };
+  }
+  if (t === 3) {
+    var m = rnd(2, 6); k = m + rnd(3, 8); var am = a1 + (m - 1) * d; ak = a1 + (k - 1) * d;
+    return { stem: '$a_{' + m + '}=' + am + ',\\ a_{' + k + '}=' + ak + '$. $\\ a_1=?,\\ d=?$', a: 'd=\\dfrac{' + ak + '-' + par(am) + '}{' + (k - m) + '}=' + d + ',\\ \\ a_1=' + a1 };
+  }
+  if (t === 4) {
+    var n = rnd(12, 35); if (d < 0) a1 = rnd(40, 90); var L = a1 + (n - 1) * d;
+    return { stem: '$' + seq([a1, a1 + d, a1 + 2 * d]) + ',\\ \\dots,\\ ' + L + '$. Гишүүний тоо $n=?$', a: 'n=\\dfrac{' + L + '-' + par(a1) + '}{' + d + '}+1=' + n };
+  }
+  if (t === 5) {
+    d = Math.abs(d); a1 = rnd(-5, 15); var n5 = rnd(12, 45), V = a1 + (n5 - 1) * d;
+    return { stem: '$' + seq([a1, a1 + d, a1 + 2 * d]) + ',\\ \\dots$; $\\ a_n=' + V + '$. $\\ n=?$', a: lin(d, a1 - d, 'n') + '=' + V + ',\\ \\ n=' + n5 };
+  }
+  // буурах прогрессын эхний (хамгийн их) сөрөг гишүүн: A − (n−1)D < 0
+  var A = rnd(15, 70), D = rnd(2, 8), j = Math.floor(A / D) + 2, val = A - (j - 1) * D;
+  return { stem: '$' + seq([A, A - D, A - 2 * D]) + ',\\ \\dots$ прогрессын эхний сөрөг гишүүнийг ол.', a: 'a_{' + j + '}=' + val };
+}
+// 5. Хэрэглээний бодлого (6.1–6.2): театрын суудал, чүдэнзэн дүрс, хуримтлал, дүнз өрөх, хоёр агуулах (тэгшитгэл зохиох)
+function g5() {
+  var t = bag('g5', 5);
+  if (t === 1) {
+    var s1 = rnd(8, 20), d = rnd(1, 3), r = rnd(15, 30), last = s1 + (r - 1) * d;
+    return { stem: 'Театрын эхний эгнээнд $' + s1 + '$ суудал байх ба дараагийн эгнээ бүр өмнөхөөсөө $' + d + '$ суудлаар илүү. Театр $' + r + '$ эгнээтэй бол сүүлийн эгнээнд хэдэн суудал байх вэ?',
+      a: '$a_{' + r + '}=' + s1 + '+' + (r - 1) + '\\cdot ' + d + '=' + last + '$ суудал' };
+  }
+  if (t === 2) {
+    var S = pick([['квадрат', 'квадратад', 3], ['гурвалжин', 'гурвалжинд', 2], ['зургаан өнцөгт', 'зургаан өнцөгтөд', 5]]), p = S[2], k = rnd(12, 40);
+    var f = function (n) { return p * n + 1; };
+    return { stem: 'Чүдэнзээр нэг эгнээ ' + S[0] + ' залгаж байгуулав: $1$ ' + S[0] + ' — $' + f(1) + '$, $2$ ' + S[0] + ' — $' + f(2) + '$, $3$ ' + S[0] + ' — $' + f(3) + '$ чүдэнз. $n$ ' + S[0] + ' ба $' + k + '$ ' + S[1] + ' хэдэн чүдэнз орох вэ?',
+      a: '$a_n=' + lin(p, 1, 'n') + '$; $\\ a_{' + k + '}=' + f(k) + '$ чүдэнз' };
+  }
+  if (t === 3) {
+    var a = 500 * rnd(2, 8), dd = 500 * rnd(1, 3), n = rnd(8, 20), V = a + (n - 1) * dd;
+    return { stem: 'Сурагч эхний долоо хоногт $' + th(a) + '$ төгрөг хадгалж, дараагийн долоо хоног бүр өмнөхөөсөө $' + dd + '$ төгрөгөөр илүү хадгалав. Хэддүгээр долоо хоногт $' + th(V) + '$ төгрөг хадгалах вэ?',
+      a: '$' + th(a) + '+(n-1)\\cdot ' + th(dd) + '=' + th(V) + '$, $\\ n=' + n + '$' };
+  }
+  if (t === 4) {
+    var top = rnd(2, 6), d4 = rnd(1, 2), L = rnd(8, 16), bot = top + (L - 1) * d4;
+    return { stem: 'Дүнзийг давхарлан өрөв: хамгийн дээд давхарт $' + top + '$ дүнз, доош давхар бүрт өмнөхөөсөө $' + d4 + '$ дүнзээр олон. $' + L + '$ давхар бол хамгийн доод давхарт хэдэн дүнз байх вэ?',
+      a: '$a_{' + L + '}=' + top + '+' + (L - 1) + '\\cdot ' + d4 + '=' + bot + '$ дүнз' };
+  }
+  var ra = rnd(5, 12), rb = rnd(2, ra - 2), x = rnd(4, 15), B = 10 * rnd(8, 25), A = B + (ra - rb) * x;
+  if (B - rb * x <= 0) return null;
+  return { stem: 'Хоёр агуулахад $' + A + '$ т ба $' + B + '$ т гурил байв. Өдөр бүр эхнийхээс $' + ra + '$ т, хоёрдугаараас $' + rb + '$ т гурил ачдаг. Хэдэн өдрийн дараа хоёр агуулахад ижил хэмжээний гурил үлдэх вэ?',
+    a: '$' + A + '-' + ra + 'x=' + B + '-' + rb + 'x$, $\\ x=' + x + '$ өдөр' };
+}
+
+CMX.jishig({
+  title: 'VI бүлэг — Жишиг даалгавар 1',
+  sub: 'Тоон дараалал · ерөнхий гишүүн · арифметик прогресс',
+  grade: '7-р анги',
+  rule: '$a_n$ — дарааллын ерөнхий гишүүн &nbsp;·&nbsp; Арифметик прогресс: $d=a_{n+1}-a_n$, $\\ a_n=a_1+(n-1)d$ &nbsp;·&nbsp; $d=\\dfrac{a_k-a_m}{k-m}$',
+  tasks: [
+    { label: 'Зүй тогтлыг олж, дарааллын дараагийн гурван гишүүнийг бич.', gen: g1, n: 8, nw: 2, cols: 2, wk: 10 },
+    { label: 'Томьёогоор өгсөн дарааллын эхний дөрвөн гишүүн ба заасан гишүүнийг ол.', gen: g2, n: 8, nw: 2, cols: 2, wk: 14 },
+    { label: 'Дарааллын ерөнхий гишүүний томьёог ол.', gen: g3, n: 8, nw: 2, cols: 2, wk: 10 },
+    { label: 'Арифметик прогрессын заасан утгыг ол.', gen: g4, n: 8, nw: 4, cols: 2, wk: 14 },
+    { label: 'Бодлогыг бод.', gen: g5, n: 4, nw: 2, cols: 2, wk: 22 }
+  ]
+});
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>V бүлэг — Жишиг даалгавар 2 (8-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/cmx.js?v=1"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* 8-р анги · V бүлэг. Дараалал, функц — Жишиг даалгавар 2
+   (5.4 Шулууны налалт, ШТС-ийн график · 5.5 Урвуу пропорционал хамаарлын график · 5.6 y=ax² функц, түүний график) */
+function mono(c, v) { if (!v) return String(c); return c === 1 ? v : c === -1 ? '-' + v : c + v; }
+// олон гишүүнт [[c, v], …] → 3x^{2}-5x+2 (тэг гишүүнийг алгасна)
+function poly(ts) { var s = ''; ts.forEach(function (t) { if (!t[0]) return; s += (t[0] < 0 ? '-' : s ? '+' : '') + mono(Math.abs(t[0]), t[1]); }); return s || '0'; }
+function lin(a, b, v) { return poly([[a, v || 'x'], [b, '']]); }
+// рационал коэффициенттэй гишүүд [[хүртвэр, хуваарь, хувьсагч], …] → -\dfrac{2}{3}x+4 (хураасан)
+function rpoly(ts) {
+  var s = '';
+  ts.forEach(function (t) {
+    var n = t[0], d = t[1]; if (!n) return;
+    var g = gcd(n, d), neg = (n < 0) !== (d < 0); n = Math.abs(n) / g; d = Math.abs(d) / g;
+    s += (neg ? '-' : s ? '+' : '') + (d === 1 ? (n === 1 && t[2] ? '' : String(n)) : '\\dfrac{' + n + '}{' + d + '}') + (t[2] || '');
+  });
+  return s || '0';
+}
+// цэг (x; y) — бутархай координаттай бол том хаалт
+function P(x, y) { var big = /dfrac/.test(String(x) + String(y)); return (big ? '\\left(' : '(') + x + ';\\ ' + y + (big ? '\\right)' : ')'); }
+function sys(e1, e2) { return '\\begin{cases}' + e1 + '\\\\ ' + e2 + '\\end{cases}'; }
+// ax + by = c, x-ийн коэффициент эерэг
+function eqn(a, b, c) { if (a < 0) { a = -a; b = -b; c = -c; } return poly([[a, 'x'], [b, 'y']]) + '=' + c; }
+// y = k/x (k сөрөг бол хасах тэмдэг бутархайн өмнө)
+function hyp(k) { return (k < 0 ? '-' : '') + '\\dfrac{' + Math.abs(k) + '}{x}'; }
+function tx(x, y, s, it) { return '<text x="' + x + '" y="' + y + '" font-size="11"' + (it ? ' font-style="italic"' : '') + ' fill="#1a1030">' + s + '</text>'; }
+// Координатын хавтгай (−3…3) — ЗӨВХӨН өгөгдөл: тор, тэнхлэг, «1» хуваарь, өгсөн шулуун ба түүн дээрх мэдэгдэх бүхэл цэгүүд
+// (хариу — тэгшитгэл — зурагт бичигдэхгүй). o: { k, b } — y = kx + b; pts: [[x, y], …]
+function plane(o) {
+  var R = 3, u = 10, ox = 40, oy = 42, s = '', i, lo = -R, hi = R;
+  function X(x) { return +(ox + x * u).toFixed(1); }
+  function Y(y) { return +(oy - y * u).toFixed(1); }
+  for (i = -R; i <= R; i++) s += '<path d="M' + X(i) + ' ' + Y(-R) + 'V' + Y(R) + 'M' + X(-R) + ' ' + Y(i) + 'H' + X(R) + '" stroke="#ddd6ee" stroke-width="0.7"/>';
+  s += '<path d="M' + (X(-R) - 2) + ' ' + Y(0) + 'H' + (X(R) + 6) + 'M' + X(0) + ' ' + (Y(-R) + 2) + 'V' + (Y(R) - 6) + 'M' + X(1) + ' ' + (Y(0) - 2) + 'v4M' + (X(0) - 2) + ' ' + Y(1) + 'h4" stroke="#1a1030" stroke-width="1"/>'
+    + '<path d="M' + (X(R) + 8) + ' ' + Y(0) + 'l-5 -2.6v5.2zM' + X(0) + ' ' + (Y(R) - 8) + 'l-2.6 5h5.2z" fill="#1a1030"/>'
+    + tx(X(R) + 1, Y(0) + 11, 'x', 1) + tx(X(0) + 4, Y(R) - 2, 'y', 1) + tx(X(0) - 9, Y(0) + 10, 'O') + tx(X(1) - 3, Y(0) + 11, '1') + tx(X(0) - 8, Y(1) + 4, '1');
+  if (o.k) { var xa = (-R - o.b) / o.k, xb = (R - o.b) / o.k; lo = Math.max(lo, Math.min(xa, xb)); hi = Math.min(hi, Math.max(xa, xb)); }
+  s += '<path d="M' + X(lo) + ' ' + Y(o.k * lo + o.b) + 'L' + X(hi) + ' ' + Y(o.k * hi + o.b) + '" stroke="#1a1030" stroke-width="1.6"/>';
+  (o.pts || []).forEach(function (p) { s += '<circle cx="' + X(p[0]) + '" cy="' + Y(p[1]) + '" r="2.4" fill="#1a1030"/>'; });
+  return '<svg viewBox="0 0 84 80" width="84" height="80" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif">' + s + '</svg>';
+}
+// математик + нөхцөл (ж: $x$-ийг) — мөрийн төгсгөлд тасрахгүй
+function nb(s) { return '<span style="white-space:nowrap">' + s + '</span>'; }
+// төрөл сонгогч: сүүлийн w сонголтод ороогүй төрлөөс санамсаргүй — нэг хуудсанд нэг төрөл давтагдахгүй (жинг давхардсан утгаар);
+// сонгосон төрлөө хэд хэд оролдоно
+function bag(list, w) { var h = []; return function () { var c = list.filter(function (x) { return h.indexOf(x) < 0; }), t = pick(c.length ? c : list); h.push(t); if (h.length > w) h.shift(); return t; }; }
+function tryN(f) { for (var i = 0; i < 80; i++) { var r = f(); if (r) return r; } return null; }
+var B1 = bag([1, 1, 1, 1, 2, 2, 2, 3], 1), B2 = bag([1, 1, 2, 2, 3, 4, 5], 3), B3 = bag([1, 2, 3], 1), B4 = bag([1, 2, 3, 4, 5, 6, 7], 5), B5 = bag([1, 2, 3, 4, 5, 6, 7, 8], 5);
+function h1() { var t = B1(); return tryN(function () { return h1m(t); }); }
+function h2() { var t = B2(); return tryN(function () { return h2m(t); }); }
+function h3() { var t = B3(); return tryN(function () { return h3m(t); }); }
+function h4() { var t = B4(); return tryN(function () { return h4m(t); }); }
+function h5() { var t = B5(); return tryN(function () { return h5m(t); }); }
+
+// 1. Шулууны налалт (5.4): хоёр цэгээр k = (y₂ − y₁)/(x₂ − x₁) — бүхэл, бутархай, тэг (Ox-тэй параллель), тодорхойлогдохгүй (Oy-тэй параллель)
+function h1m(t) {
+  var x1 = nz(-6, 6), y1 = nz(-8, 8), x2 = nz(-6, 6), y2 = nz(-8, 8);
+  if (t === 3) t = rnd(3, 4);          // хэвтээ эсвэл босоо — хуудсанд цөөн
+  if (t === 3) y2 = y1; else if (t === 4) x2 = x1;
+  if ((t !== 4 && x2 === x1) || (t !== 3 && y2 === y1)) return null;
+  if (t === 1 && (y2 - y1) % (x2 - x1)) return null;
+  if (t === 2 && !((y2 - y1) % (x2 - x1))) return null;
+  var st = '$A' + P(x1, y1) + ',\\ B' + P(x2, y2) + '$';
+  if (t === 4) return { stem: st, a: '$x_1=x_2$ тул налалт тодорхойлогдохгүй' };
+  var raw = '\\dfrac{' + (y2 - y1) + '}{' + (x2 - x1) + '}', kk = fr(y2 - y1, x2 - x1);
+  return { stem: st, a: 'k=' + raw + (kk === raw ? '' : '=' + kk) };
+}
+
+// 2. Шулууны тэгшитгэл (5.4): хоёр цэгээр, цэг ба налалтаар, ерөнхий тэгшитгэлээс, графикаас (зураг — зөвхөн өгөгдөл), параллель шулуун
+function h2m(t) {
+  if (t === 1) {
+    var k = nz(-5, 5), b = nz(-9, 9), x1 = nz(-5, 5), x2 = nz(-5, 5); if (x1 === x2) return null;
+    var y1 = k * x1 + b, y2 = k * x2 + b; if (Math.abs(y1) > 20 || Math.abs(y2) > 20) return null;
+    return { stem: '$A' + P(x1, y1) + ',\\ B' + P(x2, y2) + '$ цэгүүдийг дайрна.', a: 'y=' + lin(k, b) };
+  }
+  if (t === 2) {
+    var K = pick([[1, 1], [2, 1], [3, 1], [4, 1], [1, 2], [1, 3], [2, 3], [3, 2]]), kn = pick([1, -1]) * K[0], kd = K[1], x0 = kd * nz(-3, 3), y0 = nz(-8, 8), b0 = y0 - kn * x0 / kd;
+    return { stem: '$M' + P(x0, y0) + '$ цэгийг дайрах, налалт нь $' + fr(kn, kd) + '$.', a: 'y=' + rpoly([[kn, kd, 'x'], [b0, 1]]) };
+  }
+  if (t === 3) {
+    var A = nz(-6, 6), B = nz(-6, 6), Cc = nz(-12, 12); if (A < 0) { A = -A; B = -B; Cc = -Cc; } if (Math.abs(B) < 2 || gcd(gcd(A, B), Cc) > 1) return null;
+    return { stem: '$' + poly([[A, 'x'], [B, 'y'], [Cc, '']]) + '=0$', a: 'y=' + rpoly([[-A, B, 'x'], [-Cc, B]]) };
+  }
+  if (t === 4) {
+    // (0; b) ба (±q; b ± p) — хоёул [−3; 3] мужид, бүхэл цэгүүд
+    var G = pick([[1, 1], [2, 1], [3, 1], [1, 2], [1, 3], [2, 3], [3, 2]]), p = pick([1, -1]) * G[0], q = G[1], bg = rnd(-2, 2), sx = pick([1, -1]);
+    if (Math.abs(bg + sx * p) > 3) sx = -sx;
+    var x2g = sx * q, y2g = bg + sx * p; if (Math.abs(y2g) > 3) return null;
+    return { stem: 'Зурагт үзүүлсэн шулуун.', fig: plane({ k: p / q, b: bg, pts: [[0, bg], [x2g, y2g]] }), a: 'y=' + rpoly([[p, q, 'x'], [bg, 1]]) };
+  }
+  var k5 = nz(-4, 4), b5 = nz(-8, 8), x5 = nz(-5, 5), y5 = nz(-9, 9), c5 = y5 - k5 * x5; if (c5 === b5 || Math.abs(c5) > 20) return null;
+  return { stem: '$y=' + lin(k5, b5) + '$ шулуунтай параллель, $M' + P(x5, y5) + '$ цэгийг дайрна.', a: 'y=' + lin(k5, c5) };
+}
+
+// 3. ШТС-ийн график (5.4): шулуунуудын налалт k ба Oy-тэй огтлолцох цэг b-г харьцуулж системийн шийдийн тоог тогтоох
+//    (тэгшитгэл бүрийг y = kx + b эсвэл m-ээр үржүүлсэн ерөнхий хэлбэр (mk)x − my = −mb-ээр бичнэ)
+function h3m(t) {
+  var k1 = nz(-4, 4), b1 = nz(-8, 8), k2 = k1, b2 = b1, m1 = pick([1, 1, 2, -2, 3]), m2 = pick([1, 2, 3, -1, -2]);
+  if (t === 1) { k2 = nz(-4, 4); b2 = nz(-8, 8); if (k2 === k1) return null; }
+  else if (t === 2) { b2 = nz(-8, 8); if (b2 === b1) return null; }
+  function show(k, b, m) { return m === 1 && rnd(0, 1) ? 'y=' + lin(k, b) : eqn(m * k, -m, -m * b); }
+  var e1 = show(k1, b1, m1), e2 = show(k2, b2, m2); if (e1 === e2) return null;
+  var A = ['$k_1\\ne k_2$: огтлолцоно, ганц шийдтэй', '$k_1=k_2,\\ b_1\\ne b_2$: параллель, шийдгүй', '$k_1=k_2,\\ b_1=b_2$: давхцана, төгсгөлгүй олон шийдтэй'];
+  return { stem: '$' + sys(e1, e2) + '$', a: A[t - 1] };
+}
+
+// 4. Урвуу пропорционал хамаарал (5.5) ба y=ax² функц (5.6): функцийн утга, цэгээр k = xy ба a = y/x², утгаар аргумент
+function h4m(t) {
+  if (t === 1) {
+    var k = pick([6, 8, 12, 18, 20, 24, 30, 36]) * pick([1, -1]), x = nz(-12, 12); if (Math.abs(x) < 2 || k % x) return null;
+    return { stem: '$y=' + hyp(k) + ',\\ x=' + x + ';\\quad y=?$', a: 'y=' + (k / x) };
+  }
+  if (t === 2) {
+    var xa = nz(-6, 6), ya = nz(-9, 9); if (Math.abs(xa) < 2 || Math.abs(ya) < 2) return null;
+    return { stem: '$y=\\dfrac{k}{x}$ график $A' + P(xa, ya) + '$ цэгийг дайрна. $k=?$', a: 'k=' + (xa * ya) + ',\\ y=' + hyp(xa * ya) };
+  }
+  if (t === 3) {
+    var x1 = nz(-6, 6), y1 = nz(-9, 9), x2 = nz(-12, 12); if (Math.abs(x1) < 2 || Math.abs(y1) < 2 || Math.abs(x2) < 2 || x1 === x2 || (x1 * y1) % x2) return null;
+    return { stem: 'Урвуу пропорционал: $x=' + x1 + '$ үед $y=' + y1 + '$; $x=' + x2 + '$ үед $y=?$', a: 'k=' + (x1 * y1) + ',\\ y=' + (x1 * y1 / x2) };
+  }
+  if (t === 7) {
+    var k7 = pick([6, 8, 12, 18, 24, 36]) * pick([1, -1]), y7 = nz(-12, 12); if (Math.abs(y7) < 2 || k7 % y7) return null;
+    return { stem: '$y=' + hyp(k7) + ',\\ y=' + y7 + ';\\quad x=?$', a: 'x=' + (k7 / y7) };
+  }
+  var A = pick([[1, 1], [2, 1], [3, 1], [1, 2], [1, 3], [1, 4], [3, 2]]), an = pick([1, -1]) * A[0], ad = A[1];
+  var X = [1, 2, 3, 4, 5, 6].filter(function (v) { return (v * v) % ad === 0; }), x0 = pick(X) * pick([1, -1]), y0 = an * x0 * x0 / ad;
+  if (Math.abs(y0) > 100) return null;
+  var aq = rpoly([[an, ad, 'x^{2}']]);
+  if (t === 4) return { stem: '$y=' + aq + ',\\ x=' + x0 + ';\\quad y=?$', a: 'y=' + y0 };
+  if (t === 5) { if (Math.abs(x0) === 1) return null; return { stem: '$y=ax^{2}$ график $A' + P(x0, y0) + '$ цэгийг дайрна. $a=?$', a: 'a=' + fr(an, ad) + ',\\ y=' + aq }; }
+  return { stem: '$y=' + aq + ',\\ y=' + y0 + ';\\quad x=?$', a: 'x=\\pm ' + Math.abs(x0) };
+}
+
+// 5. Бодлого (5.4–5.6): хоёр тариф — шулуунуудын огтлолцол (ШТС-ийн график), систем зохиох, ажилчид ба хугацаа, хурд ба хугацаа
+//    (урвуу пропорционал), чөлөөт уналт S = 5t², талбай S = mx² (y=ax²), гипербол/парабол ба шулууны огтлолцлын цэгүүд
+function h5m(t) {
+  if (t === 1) {
+    var b1 = pick([1000, 1500, 2000]), k1 = pick([800, 900, 1000, 1200]), k2 = k1 - pick([200, 300, 400, 500]), x0 = rnd(3, 12), b2 = b1 + (k1 - k2) * x0;
+    return { stem: 'А такси: суурь $' + b1 + '$ төгрөг, км тутамд $' + k1 + '$ төгрөг. Б такси: суурь $' + b2 + '$ төгрөг, км тутамд $' + k2 + '$ төгрөг. Төлбөрийн функцуудыг бичиж, хэдэн км-т төлбөр тэнцэхийг ол.',
+      a: '$y=' + k1 + 'x+' + b1 + '$, $y=' + k2 + 'x+' + b2 + '$; $x=' + x0 + '$ км' };
+  }
+  if (t === 2) {
+    if (rnd(0, 1)) {
+      var S = rnd(30, 120), D = rnd(4, 40); if ((S + D) % 2 || D >= S) return null;
+      return { stem: 'Хоёр тооны нийлбэр $' + S + '$, ялгавар нь $' + D + '$. Хоёр хувьсагчтай шугаман тэгшитгэлийн систем зохиож, тоонуудыг ол.',
+        a: '$x+y=' + S + ',\\ x-y=' + D + '$; $' + ((S + D) / 2) + '$ ба $' + ((S - D) / 2) + '$' };
+    }
+    var pa = pick([3, 4, 5, 6, 7, 8]) * 500, pb = pick([2, 3, 4, 5]) * 500, m1 = rnd(1, 4), n1 = rnd(1, 4), m2 = rnd(1, 4), n2 = rnd(1, 4);
+    if (m1 * n2 === m2 * n1 || pa === pb) return null;
+    return { stem: '$' + m1 + '$ кг алим, $' + n1 + '$ кг жүрж нийт $' + th(m1 * pa + n1 * pb) + '$ төгрөг; $' + m2 + '$ кг алим, $' + n2 + '$ кг жүрж нийт $' + th(m2 * pa + n2 * pb) + '$ төгрөг. $1$ кг алим, $1$ кг жүрж тус бүр хэдэн төгрөг вэ?',
+      a: 'алим $' + pa + '$, жүрж $' + pb + '$ төгрөг' };
+  }
+  if (t === 3) {
+    var w1 = pick([6, 8, 10, 12, 15, 18, 20]), d1 = pick([4, 6, 8, 9, 10, 12, 15]), W = w1 * d1, ws = [], i;
+    for (i = 2; i <= 40; i++) if (W % i === 0 && i !== w1 && W / i !== d1) ws.push(i);
+    if (!ws.length) return null; var w2 = pick(ws);
+    return { stem: 'Нэг ажлыг $' + w1 + '$ ажилчин $' + d1 + '$ өдөрт хийдэг. Ижил бүтээмжтэй $' + w2 + '$ ажилчин уг ажлыг хэдэн өдөрт хийх вэ?',
+      a: '$' + w1 + '\\cdot ' + d1 + '=' + w2 + '\\cdot t$; $t=' + (W / w2) + '$ өдөр' };
+  }
+  if (t === 4) {
+    var v1 = pick([40, 50, 60, 70, 80, 90]), t1 = rnd(2, 6), Sd = v1 * t1, vs = [];
+    [30, 40, 45, 48, 50, 60, 70, 75, 80, 90, 100, 120].forEach(function (v) { if (Sd % v === 0 && v !== v1) vs.push(v); });
+    if (!vs.length) return null; var v2 = pick(vs);
+    return { stem: 'Хоёр хотын хоорондох замыг машин цагт $' + v1 + '$ км хурдтай явж $' + t1 + '$ цагт туулдаг. Цагт $' + v2 + '$ км хурдтай явбал хэдэн цагт туулах вэ?',
+      a: '$vt=' + Sd + '$ тогтмол; $t=' + fr(Sd, v2) + '$ цаг' };
+  }
+  if (t === 5) {
+    var ta = rnd(2, 6), tb = rnd(2, 8); if (ta === tb) return null;
+    return { stem: 'Чөлөөт уналтын үед бие $t$ секундэд $S=5t^2$ м зам туулна. $' + ta + '$ секундэд хэдэн метр унах вэ? $' + (5 * tb * tb) + '$ м өндрөөс унасан чулуу хэдэн секундэд газарт хүрэх вэ?',
+      a: '$S=' + (5 * ta * ta) + '$ м; $t=' + tb + '$ с' };
+  }
+  if (t === 6) {
+    var m = rnd(2, 5), xq = rnd(2, 9);
+    return { stem: 'Тэгш өнцөгтийн урт нь өргөнөөсөө $' + m + '$ дахин урт. Өргөнийг $x$ см гэвэл талбай ' + nb('$S$-ийг') + ' ' + nb('$x$-ээр') + ' илэрхийлж, $S=' + (m * xq * xq) + '$ см$^2$ бол ' + nb('$x$-ийг') + ' ол.',
+      a: '$S=' + m + 'x^{2}$; $x=' + xq + '$ см' };
+  }
+  if (t === 7) {
+    var mm = pick([1, 2, 3, 4, -1, -2, -3]), r = pick([1, 2, 3]), kk = mm * r * r;
+    return { stem: '$y=' + hyp(kk) + '$ ба $y=' + mono(mm, 'x') + '$ функцуудын графикийн огтлолцлын цэгүүдийг ол.',
+      a: '$' + P(r, mm * r) + '$, $' + P(-r, -mm * r) + '$' };
+  }
+  var A = pick([[1, 1], [2, 1], [3, 1], [1, 2], [1, 4]]), an = pick([1, -1]) * A[0], ad = A[1], r8 = ad === 1 ? rnd(1, 5) : pick([2, 4, 6]), c = an * r8 * r8 / ad;
+  return { stem: '$y=' + rpoly([[an, ad, 'x^{2}']]) + '$ ба $y=' + c + '$ функцуудын графикийн огтлолцлын цэгүүдийг ол.',
+    a: '$' + P(-r8, c) + '$, $' + P(r8, c) + '$' };
+}
+
+CMX.jishig({
+  title: 'V бүлэг — Жишиг даалгавар 2',
+  sub: 'Шулууны налалт · ШТС-ийн график · урвуу пропорционал хамаарлын график · y = ax² функц, түүний график',
+  grade: '8-р анги',
+  rule: '$k=\\dfrac{y_2-y_1}{x_2-x_1}$ &nbsp;·&nbsp; $k_1\\ne k_2$ — огтлолцоно, $k_1=k_2$ — параллель эсвэл давхцана &nbsp;·&nbsp; $y=\\dfrac{k}{x}$: $k=xy$ &nbsp;·&nbsp; $y=ax^2$: $a=\\dfrac{y}{x^2}$',
+  tasks: [
+    { label: 'Хоёр цэгийг дайрсан шулууны налалтыг ол.', gen: h1, n: 9, nw: 3, cols: 3, wk: 12 },
+    { label: 'Шулууны тэгшитгэлийг $y=kx+b$ хэлбэрээр бич.', gen: h2, n: 8, nw: 2, cols: 2, wk: 16 },
+    { label: 'Шулуунуудын байрлалыг тогтоож, систем хэдэн шийдтэйг ол.', gen: h3, n: 8, nw: 4, cols: 4, wk: 14 },
+    { label: 'Урвуу пропорционал хамаарал ба $y=ax^2$ функцийн асуусан утгыг ол.', gen: h4, n: 10, nw: 4, cols: 2, wk: 14 },
+    { label: 'Бодлогыг бод.', gen: h5, n: 6, nw: 2, cols: 2, wk: 24 }
+  ]
+});
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

@@ -1960,6 +1960,7 @@ module.exports = async (req, res) => {
       //    ангиар (grade+name) хайна. Шинэ бүлгүүдийг дараагийн түлхүүртэй багцаар нэмнэ ([анги, бүлгийн дугаар]).
       const G678 = [
         ['place_g678exam_v1', [[6, 1], [6, 2], [6, 3], [6, 4], [7, 1], [7, 4], [7, 5], [8, 1], [8, 4]]],
+        ['place_g678exam_v2', [[6, 5], [6, 6], [7, 2], [7, 3], [7, 6], [8, 2], [8, 3], [8, 5], [8, 6]]],
       ];
       for (const [skey, chapters] of G678) {
         const cfx = await pool.query(`SELECT sval FROM ws_settings WHERE skey=$1`, [skey]);

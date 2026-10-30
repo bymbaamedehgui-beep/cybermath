@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>III бүлэг — Жишиг даалгавар 2 (7-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/cmx.js?v=1"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* 7-р анги · III бүлэг. Харьцаа, пропорц — Жишиг даалгавар 2
+   (3.4 Харьцаагаар хуваах · 3.5 Шууд пропорционал хамаарал) */
+// Төрлүүдийг ээлжлэн сонгоно (нэг даалгаварт ижил төрөл дараалан давтагдахгүй); сонгосон төрөл үүстэл давтана
+var BAGS = {};
+function rot(key, fns) {
+  var b = BAGS[key];
+  if (!b || !b.length) b = BAGS[key] = shuffle(fns.map(function (_, i) { return i; }));
+  var f = fns[b.pop()];
+  for (var i = 0; i < 80; i++) { var r = f(); if (r) return r; }
+  return null;
+}
+function cop(a, b) { return a !== b && gcd(a, b) === 1; }
+function df(a, b) { return '\\dfrac{' + a + '}{' + b + '}'; }
+function sum(a) { return a.reduce(function (s, x) { return s + x; }, 0); }
+var UNITS = [['м', 'м-ийг'], ['кг', 'кг-ыг'], ['л', 'л-ийг'], ['т', 'т-ыг']];
+
+// 1. Хэмжигдэхүүнийг харьцаагаар хуваах: хоёр, гурван хэсэг; аравтын ба энгийн бутархайтай харьцаа; нэгж шилжүүлэх (3.4)
+function g1() {
+  return rot('g1', [
+    function () {                                                          // 270 м-ийг 2:3 харьцаагаар
+      var a = rnd(1, 12), b = rnd(1, 12); if (!cop(a, b)) return null;
+      var u = pick(UNITS.concat([['төгрөг', 'төгрөгийг']])), K = rnd(3, 60) * (u[0] === 'төгрөг' ? 500 : 1), N = (a + b) * K;
+      return { stem: '$' + th(N) + '$ ' + u[1] + ' $' + a + ':' + b + '$ харьцаагаар',
+        a: '1 хэсэг $=' + th(N) + '\\div ' + (a + b) + '=' + th(K) + '$; $' + th(a * K) + '$ ба $' + th(b * K) + '$ ' + u[0] };
+    },
+    function () {                                                          // 147 000 төгрөгийг 3:2:2 харьцаагаар
+      var r = [rnd(1, 9), rnd(1, 9), rnd(1, 9)]; if (gcd(gcd(r[0], r[1]), r[2]) !== 1 || (r[0] === r[1] && r[1] === r[2])) return null;
+      var u = pick(UNITS.concat([['төгрөг', 'төгрөгийг']])), K = rnd(2, 40) * (u[0] === 'төгрөг' ? 1000 : 1), S = sum(r), N = S * K;
+      return { stem: '$' + th(N) + '$ ' + u[1] + ' $' + r.join(':') + '$ харьцаагаар',
+        a: '1 хэсэг $=' + th(N) + '\\div ' + S + '=' + th(K) + '$; $' + r.map(function (x) { return th(x * K); }).join('$, $') + '$ ' + u[0] };
+    },
+    function () {                                                          // аравтын бутархайтай харьцаа: 5.8:3:6.6
+      var r = [rnd(1, 99), rnd(1, 99), rnd(1, 99)]; if (r.every(function (x) { return x % 10 === 0; }) || (r[0] === r[1] && r[1] === r[2])) return null;
+      var g = gcd(gcd(r[0], r[1]), r[2]), R = r.map(function (x) { return x / g; }), S = sum(R); if (S > 90) return null;
+      var K = rnd(2, 30), N = S * K, u = pick(UNITS), rs = r.map(function (x) { return dFmt(x, 1); }).join(':');
+      return { stem: '$' + th(N) + '$ ' + u[1] + ' $' + rs + '$ харьцаагаар',
+        a: '$' + rs + '=' + R.join(':') + '$; 1 хэсэг $=' + th(N) + '\\div ' + S + '=' + K + '$; $' + R.map(function (x) { return th(x * K); }).join('$, $') + '$ ' + u[0] };
+    },
+    function () {                                                          // нэгж шилжүүлж хуваах: 9.6 кг → граммаар
+      var C = pick([['кг', 'кг-ыг', 'г', 'граммаар', 1000], ['км', 'км-ийг', 'м', 'метрээр', 1000], ['м', 'м-ийг', 'см', 'сантиметрээр', 100], ['л', 'л-ийг', 'мл', 'миллилитрээр', 1000]]);
+      var r = rnd(0, 1) ? [rnd(1, 9), rnd(1, 9), rnd(1, 9)] : [rnd(1, 9), rnd(1, 9)]; if (r.reduce(function (s, x) { return gcd(s, x); }, 0) !== 1 || r[0] === r[1]) return null;
+      var S = sum(r), K = rnd(1, 60) * (C[4] === 100 ? 5 : 50), N = S * K; if (N % (C[4] / 10) || N >= 20 * C[4] || N <= C[4] / 2) return null;   // том нэгжээр 1 оронтой
+      var big = dFmt(N * 10 / C[4], 1);
+      return { stem: '$' + big + '$ ' + C[1] + ' $' + r.join(':') + '$ харьцаагаар (' + C[3] + ')',
+        a: '$' + big + '$ ' + C[0] + ' $=' + N + '$ ' + C[2] + '; 1 хэсэг $=' + N + '\\div ' + S + '=' + K + '$; $' + r.map(function (x) { return x * K; }).join('$, $') + '$ ' + C[2] };
+    },
+    function () {                                                          // энгийн бутархай харьцаа: 1/2 : 1/3
+      var p = rnd(1, 4), q = rnd(2, 9), s = rnd(1, 4), t = rnd(2, 9); if (gcd(p, q) !== 1 || gcd(s, t) !== 1 || q === t || p * t === q * s) return null;
+      var X = p * t, Y = q * s, g = gcd(X, Y); X /= g; Y /= g; if (X + Y > 30) return null;
+      var u = pick(UNITS), K = rnd(2, 30), N = (X + Y) * K;
+      return { stem: '$' + N + '$ ' + u[1] + ' $' + df(p, q) + ':' + df(s, t) + '$ харьцаагаар',
+        a: '$' + df(p, q) + ':' + df(s, t) + '=' + X + ':' + Y + '$; 1 хэсэг $=' + N + '\\div ' + (X + Y) + '=' + K + '$; $' + X * K + '$ ба $' + Y * K + '$ ' + u[0] };
+    }
+  ]);
+}
+
+// 2. Харьцаа ба нийлбэр, эсвэл ялгавар өгөгдсөн хоёр тоо (3.4)
+function g2() {
+  return rot('g2', [
+    function () {                                                          // нийлбэр
+      var a = rnd(1, 12), b = rnd(1, 12), k = rnd(2, 30); if (!cop(a, b)) return null;
+      return { stem: '$' + a + ':' + b + '$; нийлбэр $' + (a + b) * k + '$', a: '1 хэсэг $=' + (a + b) * k + '\\div ' + (a + b) + '=' + k + '$; $' + a * k + '$ ба $' + b * k + '$' };
+    },
+    function () {                                                          // ялгавар
+      var a = rnd(1, 11), b = rnd(a + 1, 13), k = rnd(2, 30); if (gcd(a, b) !== 1) return null;
+      return { stem: '$' + a + ':' + b + '$; ялгавар $' + (b - a) * k + '$', a: '1 хэсэг $=' + (b - a) * k + '\\div ' + (b - a) + '=' + k + '$; $' + a * k + '$ ба $' + b * k + '$' };
+    },
+    function () {                                                          // аравтын бутархайтай нийлбэр, ялгавар (1 хэсэг = k/10)
+      var a = rnd(1, 11), b = rnd(a + 1, 13), k = rnd(11, 199); if (gcd(a, b) !== 1 || k % 10 === 0) return null;
+      var su = rnd(0, 1) === 1, m = su ? a + b : b - a, V = m * k;
+      return { stem: '$' + a + ':' + b + '$; ' + (su ? 'нийлбэр' : 'ялгавар') + ' $' + dFmt(V, 1) + '$',
+        a: '1 хэсэг $=' + dFmt(V, 1) + '\\div ' + m + '=' + dFmt(k, 1) + '$; $' + dFmt(a * k, 1) + '$ ба $' + dFmt(b * k, 1) + '$' };
+    }
+  ]);
+}
+
+// 3. Шууд пропорционал хамаарал y = kx: k-г олох, утга олох, хүснэгт нөхөх (3.5)
+function g3() {
+  return rot('g3', [
+    function () {                                                          // x₁, y₁ → x₂ үед y (k нь аравтын бутархай байж болно)
+      var k = rnd(11, 99), x1 = rnd(2, 12), x2 = rnd(2, 20); if (x1 === x2) return null;   // k/10
+      var K = dFmt(k, 1), y1 = dFmt(k * x1, 1);
+      return { stem: '$x=' + x1 + '$ үед $y=' + y1 + '$. $x=' + x2 + '$ үед $y$-ийг ол.', a: 'k=' + df(y1, x1) + '=' + K + ',\\ y=' + K + '\\cdot ' + x2 + '=' + dFmt(k * x2, 1) };
+    },
+    function () {                                                          // x₁ (аравтын), y₁ → y₂ үед x
+      var k = rnd(2, 12), X1 = rnd(11, 99), x2 = rnd(2, 25); if (X1 % 10 === 0) return null;
+      var y1 = dFmt(k * X1, 1), y2 = k * x2;
+      return { stem: '$x=' + dFmt(X1, 1) + '$ үед $y=' + y1 + '$. $y=' + y2 + '$ үед $x$-ийг ол.', a: 'k=' + df(y1, dFmt(X1, 1)) + '=' + k + ',\\ x=' + y2 + '\\div ' + k + '=' + x2 };
+    },
+    function () {                                                          // хүснэгт нөхөх
+      var k = rnd(11, 99), xs = shuffle([1, 2, 3, 4, 5, 6, 8, 10, 12]).slice(0, 4).sort(function (p, q) { return p - q; });   // k/10
+      var y = xs.map(function (x) { return dFmt(k * x, 1); });
+      return { stem: '$\\begin{array}{c|c|c|c|c}x&' + xs[0] + '&' + xs[1] + '&?&' + xs[3] + '\\\\\\hline y&' + y[0] + '&?&' + y[2] + '&?\\end{array}$',
+        a: 'k=' + dFmt(k, 1) + ';\\ y=' + y[1] + ',\\ x=' + xs[2] + ',\\ y=' + y[3] };
+    },
+    function () {                                                          // y = kx: k-г олоод утга олох
+      var k = rnd(11, 99), X = rnd(2, 9), x2 = rnd(2, 15); if (k % 10 === 0 || X === x2) return null;   // k/10, x = X/10
+      var Y = dFmt(k * X, 2);
+      return { stem: '$y=kx$ хамааралд $x=' + dFmt(X, 1) + '$ үед $y=' + Y + '$. $k$-г олж, $x=' + x2 + '$ үед $y$-ийг ол.',
+        a: 'k=' + Y + '\\div ' + dFmt(X, 1) + '=' + dFmt(k, 1) + ',\\ y=' + dFmt(k * x2, 1) };
+    }
+  ]);
+}
+
+// 4. Харьцаагаар хуваах өгүүлбэртэй бодлого: өнцгүүд, зуурмаг, параллелепипед, тэгш өнцөгт, мөнгө хуваах (3.4)
+function g4() {
+  return rot('g4', [
+    function () {                                                          // гурвалжин, дөрвөн өнцөгтийн өнцгүүд
+      var four = rnd(0, 1) === 1, T = four ? 360 : 180, r = [], i;
+      for (i = 0; i < (four ? 4 : 3); i++) r.push(rnd(1, 9));
+      var S = sum(r); if (r.reduce(function (s, x) { return gcd(s, x); }, 0) !== 1 || T % S) return null;
+      var u = T / S, ang = r.map(function (x) { return x * u; }); if (ang.some(function (a) { return a >= 180; })) return null;
+      return { stem: (four ? 'Дөрвөн өнцөгтийн' : 'Гурвалжны') + ' өнцгүүд $' + r.join(':') + '$ харьцаатай. Өнцөг тус бүрийг ол.',
+        a: '1 хэсэг $=' + T + '^\\circ\\div ' + S + '=' + u + '^\\circ$; $' + ang.map(function (a) { return a + '^\\circ'; }).join(',\\ ') + '$' };
+    },
+    function () {                                                          // зуурмаг: аравтын харьцаа, хоёр өөр хэмжээ
+      var r = [rnd(2, 6) * 10, rnd(1, 5) * 10, rnd(5, 25)]; if (r[2] % 10 === 0 || r[0] === r[1]) return null;   // 4:2:1.6
+      var g = gcd(gcd(r[0], r[1]), r[2]), R = r.map(function (x) { return x / g; }), S = sum(R), m1 = rnd(2, 9), m2 = rnd(2, 9); if (S > 40 || m1 >= m2) return null;
+      return { stem: 'Зуурмаг бэлтгэхэд цемент, элс, ус $' + r.map(function (x) { return dFmt(x, 1); }).join(':') + '$ харьцаатай ордог. а) $' + S * m1 + '$ кг б) $' + S * m2 + '$ кг зуурмаг бэлтгэхэд хэдэн кг цемент орох вэ?',
+        a: '$' + R.join(':') + '$, нийт $' + S + '$ хэсэг; а) $' + R[0] * m1 + '$ кг б) $' + R[0] * m2 + '$ кг' };
+    },
+    function () {                                                          // параллелепипедийн хэмжээс (1 хэсэг = k/10)
+      var r = [rnd(1, 9), rnd(1, 9), rnd(1, 9)]; if ((r[0] === r[1] && r[1] === r[2]) || gcd(gcd(r[0], r[1]), r[2]) !== 1) return null;
+      var k = rnd(11, 99), w = rnd(0, 2), unit = pick(['см', 'мм', 'м']), NOM = ['урт', 'өргөн', 'өндөр'], CAP = ['Урт', 'Өргөн', 'Өндөр'], ACC = ['уртыг', 'өргөнийг', 'өндрийг'];
+      var v = r.map(function (x) { return dFmt(x * k, 1); }), o = [0, 1, 2].filter(function (i) { return i !== w; });
+      return { stem: 'Тэгш өнцөгт параллелепипедийн урт, өргөн, өндөр $' + r.join(':') + '$ харьцаатай. ' + CAP[w] + ' нь $' + v[w] + '$ ' + unit + ' бол ' + NOM[o[0]] + ' ба ' + ACC[o[1]] + ' ол.',
+        a: '1 хэсэг $=' + v[w] + '\\div ' + r[w] + '=' + dFmt(k, 1) + '$ ' + unit + '; ' + NOM[o[0]] + ' $' + v[o[0]] + '$ ' + unit + ', ' + NOM[o[1]] + ' $' + v[o[1]] + '$ ' + unit };
+    },
+    function () {                                                          // тэгш өнцөгт: периметр ба талуудын харьцаа
+      var a = rnd(2, 9), b = rnd(1, a - 1), k = rnd(2, 12); if (gcd(a, b) !== 1) return null;
+      var P = 2 * (a + b) * k;
+      return { stem: '$' + P + '$ см периметртэй тэгш өнцөгтийн урт, өргөн $' + a + ':' + b + '$ харьцаатай. Тэгш өнцөгтийн талбайг ол.',
+        a: 'хагас периметр $' + P / 2 + '$ см, 1 хэсэг $=' + P / 2 + '\\div ' + (a + b) + '=' + k + '$; урт $' + a * k + '$ см, өргөн $' + b * k + '$ см; $S=' + a * k * b * k + '$ см$^2$' };
+    },
+    function () {                                                          // мөнгө хуваах — ялгавар нь өгөгдсөн
+      var a = rnd(3, 9), b = rnd(1, a - 1), k = rnd(2, 15) * 500; if (gcd(a, b) !== 1) return null;
+      var P = pick([['Ах, дүү хоёр', 'ах нь дүүгээсээ', 'ах', 'дүү'], ['Хоёр найз', 'нэг нь нөгөөгөөсөө', 'нэг нь', 'нөгөө нь']]);
+      return { stem: P[0] + ' мөнгөө $' + a + ':' + b + '$ харьцаагаар хуваахад ' + P[1] + ' $' + th((a - b) * k) + '$ төгрөгөөр илүү авчээ. Хүн бүр хэдэн төгрөг авсан бэ?',
+        a: '1 хэсэг $=' + th((a - b) * k) + '\\div ' + (a - b) + '=' + th(k) + '$; ' + P[2] + ' $' + th(a * k) + '$, ' + P[3] + ' $' + th(b * k) + '$ төгрөг' };
+    }
+  ]);
+}
+
+// 5. Шууд пропорционал хамаарлын өгүүлбэртэй бодлого: үнэ (м ба см), ажлын хурд (минут → цаг), жор, лаа, харьцаагаар тоо олох, хугацаа (3.5)
+function g5() {
+  return rot('g5', [
+    function () {                                                          // метрийн үнэ
+      var p = rnd(20, 180) * 100, m = rnd(2, 6), a = rnd(7, 25), c = rnd(1, 9) * 10, T = pick(['Даавууны', 'Хивсэнцрийн', 'Туузны']);
+      return { stem: T + ' $' + m + '$ м нь $' + th(p * m) + '$ төгрөг. а) $' + a + '$ м б) $' + c + '$ см нь хэдэн төгрөг вэ?',
+        a: '1 м нь $' + th(p * m) + '\\div ' + m + '=' + th(p) + '$ төгрөг; а) $' + th(p * a) + '$ төгрөг б) $' + c + '$ см $=' + dFmt(c, 2) + '$ м, $' + th(p * c / 100) + '$ төгрөг' };
+    },
+    function () {                                                          // ажлын хурд: минутаас цаг руу
+      var r = rnd(4, 20), t = pick([15, 20, 30, 40, 45, 50]), h = rnd(2, 8), T = pick([['Автомат машин', 'боов хийдэг', 'боов хийх'], ['Хэвлэх машин', 'хуудас хэвлэдэг', 'хуудас хэвлэх'], ['Экскаватор', 'тонн хөрс ухдаг', 'тонн хөрс ухах']]);
+      return { stem: T[0] + ' $' + t + '$ минутад $' + r * t + '$ ' + T[1] + '. Ижил хурдаар $' + h + '$ цагт хэдэн ' + T[2] + ' вэ?',
+        a: '1 минутад $' + r * t + '\\div ' + t + '=' + r + '$; $' + h + '$ цаг $=' + h * 60 + '$ минут; $' + r + '\\cdot ' + h * 60 + '=' + th(r * h * 60) + '$' };
+    },
+    function () {                                                          // жор — гурван бүрэлдэхүүн
+      var n1 = pick([2, 3, 4, 5, 6]), n2 = rnd(2, 12), q = [rnd(5, 30) * 10, rnd(5, 40) * 10, rnd(2, 15) * 10];
+      if (n2 === n1 || q.some(function (x) { return x % n1; })) return null;
+      return { stem: '$' + n1 + '$ хүний хоолонд будаа $' + q[0] + '$ г, мах $' + q[1] + '$ г, сонгино $' + q[2] + '$ г ордог. $' + n2 + '$ хүний хоолонд тус бүр хэдэн грамм орох вэ?',
+        a: 'нэг хүнд $' + q.map(function (x) { return x / n1; }).join('$, $') + '$ г; будаа $' + q[0] / n1 * n2 + '$ г, мах $' + q[1] / n1 * n2 + '$ г, сонгино $' + q[2] / n1 * n2 + '$ г' };
+    },
+    function () {                                                          // лаа шатах
+      var L = rnd(15, 40), d = rnd(2, 8), t = rnd(3, 12); if (L % d || L - d < 6) return null;
+      return { stem: '$' + L + '$ см урттай лааг асаахад $' + t + '$ минутын дараа $' + (L - d) + '$ см болжээ. Ижил хурдаар шатвал лаа бүхэлдээ хэдэн минутад шатаж дуусах вэ?',
+        a: '$' + t + '$ минутад $' + d + '$ см шатна; $' + d + ':' + t + '=' + L + ':x$, $x=' + L * t / d + '$ минут' };
+    },
+    function () {                                                          // багш, сурагчийн харьцаа
+      var r = rnd(12, 25), b1 = rnd(20, 60), b2 = rnd(15, 50); if (b1 === b2) return null;
+      return { stem: 'Сургуулийн багш, сурагчийн тооны харьцаа $1:' + r + '$. а) $' + b1 * r + '$ сурагчтай сургуульд хэдэн багш байх вэ? б) $' + b2 + '$ багштай сургуульд хэдэн сурагч байх вэ?',
+        a: 'а) $' + b1 * r + '\\div ' + r + '=' + b1 + '$ багш; б) $' + b2 + '\\cdot ' + r + '=' + b2 * r + '$ сурагч' };
+    },
+    function () {                                                          // хугацааг олох
+      var A = pick([20, 30, 40, 45, 60]), B = rnd(12, 60), N = B * rnd(2, 9), x = A * N / B; if (x % 1) return null;
+      return { stem: 'Хэвлэх машин $' + A + '$ минутад $' + B + '$ хуудас хэвлэдэг. $' + N + '$ хуудсыг хэдэн минутад хэвлэх вэ?',
+        a: '$' + A + ':' + B + '=x:' + N + '$, $x=\\dfrac{' + A + '\\cdot ' + N + '}{' + B + '}=' + x + '$ минут' };
+    }
+  ]);
+}
+
+CMX.jishig({
+  title: 'III бүлэг — Жишиг даалгавар 2',
+  sub: 'Харьцаагаар хуваах · нийлбэр, ялгавар ба харьцаа · шууд пропорционал хамаарал',
+  grade: '7-р анги',
+  rule: '$N$ тоог $a:b$ харьцаагаар хуваахад 1 хэсэг $=\\dfrac{N}{a+b}$ &nbsp;·&nbsp; ялгавар $D$ өгөгдвөл 1 хэсэг $=\\dfrac{D}{b-a}$ &nbsp;·&nbsp; Шууд пропорционал: $y=kx$, $k=\\dfrac{y}{x}$',
+  tasks: [
+    { label: 'Хэмжигдэхүүнийг өгсөн харьцаагаар хуваа.', gen: g1, n: 10, nw: 2, cols: 2, wk: 14 },
+    { label: 'Хоёр тооны харьцаа ба нийлбэр, эсвэл ялгавар өгөгдөв. Тоонуудыг ол.', gen: g2, n: 9, nw: 3, cols: 3, wk: 12 },
+    { label: '$y$ нь $x$-тэй шууд пропорционал. Утгыг ол.', gen: g3, n: 8, nw: 2, cols: 2, wk: 14 },
+    { label: 'Харьцаа зохиож бод.', gen: g4, n: 4, nw: 2, cols: 2, wk: 20 },
+    { label: 'Пропорц зохиож бод.', gen: g5, n: 4, nw: 2, cols: 2, wk: 20 }
+  ]
+});
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

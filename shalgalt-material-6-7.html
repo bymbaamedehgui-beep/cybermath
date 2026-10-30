@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VI бүлэг — Шалгалтын материал (7-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/cmx.js?v=1"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* 7-р анги · VI бүлэг. Дараалал, функц (6.1 Тоон дараалал ба ерөнхий гишүүн · 6.2 Арифметик прогресс ·
+   6.3 Шугаман функц, шулууны тэгшитгэл · 6.4 Шугаман функцийн график, шууд пропорционал) */
+function seq(a) { return a.join(',\\ '); }                                                    // 3,\ 7,\ 11
+function lin(a, b, v) { v = v || 'x'; var s = a === 0 ? '' : a === 1 ? v : a === -1 ? '-' + v : a + v; if (b > 0) s += (s ? '+' : '') + b; else if (b < 0) s += '-' + (-b); return s || '0'; }   // ax+b
+function qn(m, B, C0) { var s = (m === 1 ? '' : m === -1 ? '-' : m) + 'n^{2}'; if (B) s += (B > 0 ? '+' : '-') + (Math.abs(B) === 1 ? '' : Math.abs(B)) + 'n'; if (C0) s += (C0 > 0 ? '+' : '-') + Math.abs(C0); return s; }   // mn²+Bn+C
+function P(x, y) { return '(' + x + ';\\ ' + y + ')'; }                                       // цэгийн координат
+function kx(n, d, b) { var g = gcd(n, d); n /= g; d /= g; if (d < 0) { n = -n; d = -d; } var s = d === 1 ? lin(n, 0) : fr(n, d) + 'x'; if (b > 0) s += '+' + b; else if (b < 0) s += '-' + (-b); return s; }   // (n/d)x+b
+// Утгын хүснэгт (TeX): null — нөхөх нүд
+function tbl(xs, ys) {
+  var cell = function (v) { return v == null ? '\\phantom{000}' : '' + v; };
+  return '\\begin{array}{|c|' + xs.map(function () { return 'c|'; }).join('') + '}\\hline x&' + xs.map(cell).join('&') + '\\\\\\hline y&' + ys.map(cell).join('&') + '\\\\\\hline\\end{array}';
+}
+// Графикийн шулуун y = (n/d)x + b: торын 2 цэг — A(0; b) ба B, цонх x∈[−5; 5], y∈[−4; 4]
+function pickLine() {
+  var n = pick([1, -1, 2, -2, 3, -3, 1, -1, 2, -2]), d = Math.abs(n) === 1 && rnd(0, 2) === 0 ? 2 : 1, b = rnd(-3, 3), c = [], x, y;
+  for (x = -4; x <= 4; x++) { if (!x || (x * n) % d) continue; y = b + x * n / d; if (y >= -4 && y <= 4 && Math.abs(y - b) >= 2) c.push([x, y]); }
+  return c.length ? { n: n, d: d, b: b, pts: [[0, b], pick(c)] } : null;
+}
+// Шулууны график — ЗӨВХӨН ӨГӨГДӨЛ: тор, тэнхлэг, шулуун, мэдэгдэх 2 цэг координаттайгаа (126×104 px, зураас #1a1030, бичиг 11px)
+function graph(n, d, b, pts) {
+  var U = 11, PD = 8, X0 = -5, X1 = 5, Y0 = -4, Y1 = 4, W = (X1 - X0) * U + 2 * PD, H = (Y1 - Y0) * U + 2 * PD, a = n / d, g = '', i;
+  function sx(x) { return +(PD + (x - X0) * U).toFixed(1); }
+  function sy(y) { return +(PD + (Y1 - y) * U).toFixed(1); }
+  function num(v) { return v < 0 ? '−' + (-v) : '' + v; }
+  function T(x, y, s, o) { return '<text x="' + +x.toFixed(1) + '" y="' + +y.toFixed(1) + '" font-size="11"' + (o || '') + ' fill="#1a1030">' + s + '</text>'; }
+  for (i = X0; i <= X1; i++) g += '<line x1="' + sx(i) + '" y1="' + sy(Y0) + '" x2="' + sx(i) + '" y2="' + sy(Y1) + '" stroke="#e6e0f5" stroke-width="0.6"/>';
+  for (i = Y0; i <= Y1; i++) g += '<line x1="' + sx(X0) + '" y1="' + sy(i) + '" x2="' + sx(X1) + '" y2="' + sy(i) + '" stroke="#e6e0f5" stroke-width="0.6"/>';
+  g += '<line x1="' + sx(X0) + '" y1="' + sy(0) + '" x2="' + (sx(X1) + 5) + '" y2="' + sy(0) + '" stroke="#1a1030" stroke-width="1"/>'
+    + '<path d="M' + (sx(X1) + 6) + ' ' + sy(0) + 'l-5 -2.5v5z" fill="#1a1030"/>'
+    + '<line x1="' + sx(0) + '" y1="' + sy(Y0) + '" x2="' + sx(0) + '" y2="' + (sy(Y1) - 5) + '" stroke="#1a1030" stroke-width="1"/>'
+    + '<path d="M' + sx(0) + ' ' + (sy(Y1) - 6) + 'l-2.5 5h5z" fill="#1a1030"/>';
+  var ta = (Y0 - b) / a, tb = (Y1 - b) / a, xa = Math.max(X0, Math.min(ta, tb)), xb = Math.min(X1, Math.max(ta, tb));
+  var L0 = [sx(xa), sy(a * xa + b)], L1 = [sx(xb), sy(a * xb + b)];
+  g += '<line x1="' + L0[0] + '" y1="' + L0[1] + '" x2="' + L1[0] + '" y2="' + L1[1] + '" stroke="#1a1030" stroke-width="1.6"/>';
+  // Бичгийн байрлал: хүрээнээс гарахгүй, шулуун/тэнхлэг/цэг/бусад бичигтэй давхцахгүй хамгийн ойрын хувилбар
+  var boxes = pts.map(function (p) { return [sx(p[0]) - 3.5, sy(p[1]) - 3.5, sx(p[0]) + 3.5, sy(p[1]) + 3.5]; }), AX = sy(0), AY = sx(0);
+  function onLine(q) { for (var t = 0; t <= 1.0001; t += 0.02) { var X = L0[0] + (L1[0] - L0[0]) * t, Y = L0[1] + (L1[1] - L0[1]) * t; if (X > q[0] - 1.5 && X < q[2] + 1.5 && Y > q[1] - 1.5 && Y < q[3] + 1.5) return true; } return false; }
+  function tw(s) { var w = 0; for (var i = 0; i < s.length; i++) { var ch = s.charAt(i); w += '();'.indexOf(ch) >= 0 ? 3.6 : ch === ' ' ? 3 : ch === '−' ? 6.6 : 6.2; } return w; }
+  function place(s, cands, o, bg) {
+    var w = tw(s), best = null, bp = 1e9;
+    cands.forEach(function (c, i) {
+      var x1 = c[2] === 'end' ? c[0] - w : c[0], q = [x1 - 1, c[1] - 9, x1 + w + 1, c[1] + 2.5];
+      var pen = i + (q[0] < 0 || q[2] > W || q[1] < 0 || q[3] > H ? 1000 : 0) + (onLine(q) ? 100 : 0)
+        + (boxes.some(function (r) { return q[0] < r[2] && q[2] > r[0] && q[1] < r[3] && q[3] > r[1]; }) ? 200 : 0)
+        + ((q[1] < AX + 1 && q[3] > AX - 1) || (q[0] < AY + 1 && q[2] > AY - 1) ? 30 : 0);
+      if (pen < bp) { bp = pen; best = { c: c, q: q }; }
+    });
+    boxes.push(best.q);
+    var q = best.q;
+    return (bg ? '<rect x="' + +q[0].toFixed(1) + '" y="' + +(q[1] + 0.5).toFixed(1) + '" width="' + +(q[2] - q[0]).toFixed(1) + '" height="11" fill="#fff"/>' : '')
+      + T(best.c[0], best.c[1], s, ' text-anchor="' + best.c[2] + '"' + (o || ''));
+  }
+  var labs = '';
+  pts.forEach(function (p) {
+    var px = sx(p[0]), py = sy(p[1]);
+    var U = { UL: [px - 4, py - 5, 'end'], UR: [px + 4, py - 5, 'start'], LL: [px - 4, py + 13, 'end'], LR: [px + 4, py + 13, 'start'], L: [px - 6, py + 4, 'end'], R: [px + 6, py + 4, 'start'],
+      UL2: [px - 4, py - 15, 'end'], UR2: [px + 4, py - 15, 'start'], LL2: [px - 4, py + 23, 'end'], LR2: [px + 4, py + 23, 'start'] };
+    var order = a > 0 ? ['UL', 'LR', 'UR', 'LL', 'L', 'R', 'UL2', 'LR2', 'UR2', 'LL2'] : ['UR', 'LL', 'UL', 'LR', 'R', 'L', 'UR2', 'LL2', 'UL2', 'LR2'];   // шулуунаас хол тал түрүүлж
+    g += '<circle cx="' + px + '" cy="' + py + '" r="2.6" fill="#1a1030"/>';
+    labs += place('(' + num(p[0]) + '; ' + num(p[1]) + ')', order.map(function (k) { return U[k]; }), '', true);
+  });
+  g += labs + place('x', [[sx(X1) - 1, sy(0) + 11, 'start'], [sx(X1) - 1, sy(0) - 4, 'start']], ' font-style="italic"')
+    + place('y', [[sx(0) + 4, sy(Y1) + 3, 'start'], [sx(0) - 4, sy(Y1) + 3, 'end'], [sx(0) + 4, sy(Y1) + 14, 'start'], [sx(0) - 4, sy(Y1) + 14, 'end']], ' font-style="italic"');
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif">' + g + '</svg>';
+}
+// Тоон сонголт: [TeX, утга]; зөвтэй утгаараа тэнцүү төөрөгдүүлэгчийг хасна
+function VMC(ok, cands) {
+  var seenT = {}, vals = [ok[1]], out = []; seenT[ok[0]] = 1;
+  cands.forEach(function (c) {
+    if (!c || c[0] == null || !isFinite(c[1])) return;
+    if (seenT[c[0]] || vals.some(function (v) { return Math.abs(v - c[1]) < 1e-9; })) return;
+    seenT[c[0]] = 1; vals.push(c[1]); out.push(C(c[0]));
+  });
+  return makeMC(C(ok[0]), out);
+}
+function NV(v) { return [th(v), v]; }                                           // бүхэл тоо
+function NI(n, d) { return d !== 0 && n % d === 0 ? NV(n / d) : null; }         // хуваагдвал л
+// Шулууны сонголт [n, d, b] → y = (n/d)x + b; налалт ба сул гишүүнээрээ давхцахыг (өөр хэлбэртэйг ч) хасна
+function LMC(ok, cands) {
+  var key = function (c) { return (c[0] / c[1]).toFixed(6) + '|' + c[2]; }, seen = {}, out = [];
+  seen[key(ok)] = 1;
+  cands.forEach(function (c) {
+    if (!c || !c[0] || !c[1] || c[2] !== Math.round(c[2])) return;
+    var k = key(c); if (seen[k]) return; seen[k] = 1; out.push(C('y=' + kx(c[0], c[1], c[2])));
+  });
+  return makeMC(C('y=' + kx(ok[0], ok[1], ok[2])), out);
+}
+var DS = [-9, -8, -7, -6, -5, -4, -3, -2, 2, 3, 4, 5, 6, 7, 8, 9];                            // зөрүү (0, ±1-гүй)
+
+/* ── I. Тест (10) ── */
+var TESTS = [
+  // 1. [хялбар] Дарааллын дараагийн гишүүн (6.1): арифметик, геометр, квадрат, өсөх зөрүү; төөрөгдүүлэгч — зөрүүг буруу авах, үржих ба нэмэхийг андуурах
+  function () {
+    var t = rnd(1, 4), s = [], i, nx, c;
+    if (t === 1) { var a = rnd(-10, 25), d = pick(DS); for (i = 0; i < 4; i++) s.push(a + i * d); nx = a + 4 * d; c = [nx + d, nx + 1, nx - 1, s[2] + s[3], nx + 2]; }
+    else if (t === 2) { var g0 = rnd(1, 5), q = pick([2, 2, 3]); if (q === 3 && g0 > 3) return null; for (i = 0; i < 4; i++) s.push(g0 * Math.pow(q, i)); nx = s[3] * q; c = [2 * s[3] - s[2], s[3] + q, nx * q, s[3] + s[2], s[3] * (q + 1)]; }
+    else if (t === 3) { var o = rnd(1, 4); for (i = 0; i < 4; i++) s.push((o + i) * (o + i)); nx = (o + 4) * (o + 4); c = [2 * s[3] - s[2], 2 * s[3], s[3] + s[2], nx + 1, nx - 1]; }
+    else { var b = rnd(1, 9), d0 = rnd(1, 4), v = b; for (i = 0; i < 5; i++) { s.push(v); v += d0 + i; } nx = v; c = [2 * s[4] - s[3], s[4] + s[3], nx + 1, nx - 1, nx + 2]; }
+    return { stem: '$' + seq(s) + ',\\ \\dots$ дарааллын дараагийн гишүүн аль нь вэ?', mc: VMC(NV(nx), c.map(NV)) };
+  },
+  // 2. [хялбар] Ерөнхий гишүүний томьёогоор гишүүн олох (6.1); төөрөгдүүлэгч — сул гишүүнийг мартах/тэмдэг андуурах, n-ийн оронд n±1, квадратыг 2-оор үржүүлэх
+  function () {
+    var t = rnd(1, 3), k, f, ok, c;
+    if (t <= 2) { var p = pick(DS), q = nz(-15, 15); k = rnd(8, 30); f = lin(p, q, 'n'); ok = p * k + q; c = [p * k - q, p * k, p * (k - 1) + q, p * (k + 1) + q, p + k + q]; }
+    else { var B = rnd(-5, 3), C0 = rnd(-6, 6); if (!B && !C0) return null; k = rnd(5, 12); f = qn(1, B, C0); ok = k * k + B * k + C0; c = [2 * k + B * k + C0, k * k - B * k + C0, k * k + B * k - C0, ok + k, ok - k]; }
+    return { stem: '$a_n=' + f + '$ томьёогоор өгсөн дарааллын $a_{' + k + '}$ гишүүн хэд вэ?', mc: VMC(NV(ok), c.map(NV)) };
+  },
+  // 3. [хялбар] Шугаман функцийн утга, эсвэл аль нь шугаман функц вэ (6.3); төөрөгдүүлэгч — сөрөг тоог орлуулахад тэмдэг алдах; x², k/x, x=c хэлбэр
+  function () {
+    if (rnd(0, 2)) {
+      var a = pick([-6, -5, -4, -3, -2, 2, 3, 4, 5, 6]), b = nz(-12, 12), x0 = nz(-6, 6), ok = a * x0 + b;
+      return { stem: '$y=' + lin(a, b) + '$ функцийн $x=' + x0 + '$ үеийн утга хэд вэ?', mc: VMC(NV(ok), [NV(-a * x0 + b), NV(a * x0 - b), NV(-ok), NV(a + x0 + b), NV(a * (x0 + b))]) };
+    }
+    var k = pick([2, 3, 4, 5, -2, -3, -4]), m = nz(-7, 7), cc = nz(-6, 6), K = Math.abs(k);
+    var good = rnd(0, 1) ? 'y=' + lin(k, m) : 'y=\\dfrac{x}{' + K + '}' + (m > 0 ? '+' : '-') + Math.abs(m);
+    var bads = shuffle(['y=x^{2}' + (cc > 0 ? '+' : '-') + Math.abs(cc), 'y=\\dfrac{' + K + '}{x}', 'x=' + cc, 'y=' + K + 'x^{2}', 'y=x(x' + (m > 0 ? '+' : '-') + Math.abs(m) + ')']);
+    return { stem: 'Аль нь шугаман функц вэ?', mc: makeMC(C(good), bads.map(C)) };
+  },
+  // 4. [дунд] Арифметик прогрессын гишүүн a_k = a_1 + (k−1)d (6.2); төөрөгдүүлэгч — (k−1)-ийн оронд k, зөрүүний тэмдэг, a_1 ба d-г солих
+  function () {
+    var a1 = rnd(-12, 20), d = pick(DS), k = rnd(10, 35), ok = a1 + (k - 1) * d;
+    return { stem: 'Арифметик прогрессын $a_1=' + a1 + '$, $d=' + d + '$ бол $a_{' + k + '}$ хэд вэ?',
+      mc: VMC(NV(ok), [NV(a1 + k * d), NV(a1 - (k - 1) * d), NV(d + (k - 1) * a1), NV(k * d), NV(a1 + (k - 2) * d)]) };
+  },
+  // 5. [дунд] Дарааллын ерөнхий гишүүний томьёо a_n = dn + (a_1 − d) (6.1–6.2); төөрөгдүүлэгч — a_1-ийг сул гишүүн гэж авах, a_1 ба d-г солих, тэмдэг
+  function () {
+    var a1 = rnd(-9, 15), d = pick([-6, -5, -4, -3, -2, 2, 3, 4, 5, 6, 7, 8]), s = [a1, a1 + d, a1 + 2 * d, a1 + 3 * d];
+    if (a1 === d || a1 === 0) return null;
+    function F(p, q) { return { t: 'a_n=' + lin(p, q, 'n'), k: p + '|' + q }; }
+    var ok = F(d, a1 - d), seen = {}, out = []; seen[ok.k] = 1;
+    [F(d, a1), F(a1, d), F(d, d - a1), F(-d, a1 + d), F(d, a1 + d), F(a1 - d, d)].forEach(function (c) { if (!seen[c.k] && c.k.charAt(0) !== '0') { seen[c.k] = 1; out.push(C(c.t)); } });
+    return { stem: '$' + seq(s) + ',\\ \\dots$ дарааллын ерөнхий гишүүний томьёо аль нь вэ?', mc: makeMC(C(ok.t), out) };
+  },
+  // 6. [дунд] Арифметик прогресс: өгсөн тоо хэддүгээр гишүүн, эсвэл хоёр гишүүнээр a_1 (6.2); төөрөгдүүлэгч — «+1»-ийг мартах, (m−1)-ийн оронд m, d-г хариу гэж авах
+  function () {
+    if (rnd(0, 1)) {
+      var a1 = rnd(1, 12), d = rnd(3, 9), n = rnd(12, 40), V = a1 + (n - 1) * d;
+      return { stem: '$' + seq([a1, a1 + d, a1 + 2 * d]) + ',\\ \\dots$ арифметик прогрессын $a_n=' + V + '$ бол $n$ хэд вэ?', mc: VMC(NV(n), [NV(n - 1), NV(n + 1), NI(V, d), NV(n - 2), NV(n + 2)]) };
+    }
+    var m = rnd(2, 5), k = m + rnd(3, 7), d2 = pick(DS), b1 = rnd(-10, 15), am = b1 + (m - 1) * d2, ak = b1 + (k - 1) * d2;
+    if (b1 === 0 || b1 === d2) return null;
+    return { stem: 'Арифметик прогрессын $a_{' + m + '}=' + am + '$, $a_{' + k + '}=' + ak + '$ бол $a_1$ хэд вэ?',
+      mc: VMC(NV(b1), [NV(d2), NV(am - m * d2), NV(am + (m - 1) * d2), NV(b1 + d2), NV(b1 - d2)]) };
+  },
+  // 7. [дунд] Цэг шулуун дээр орших (6.3): мэдэгдэхгүй координат, эсвэл аль цэг оршихыг сонгох; шулуун дээр орших төөрөгдүүлэгчийг хасна
+  function () {
+    var a = pick([-4, -3, -2, 2, 3, 4, 5]), b = nz(-9, 9), t = rnd(1, 3);
+    if (t === 1) {
+      var x0 = nz(-5, 5), ok = a * x0 + b;
+      return { stem: '$A(' + x0 + ';\\ m)$ цэг $y=' + lin(a, b) + '$ шулуун дээр оршдог бол $m$ хэд вэ?', mc: VMC(NV(ok), [NV(-a * x0 + b), NV(a * x0 - b), NI(x0 - b, a), NV(-ok), NV(a + x0 + b)]) };
+    }
+    if (t === 2) {
+      var X = nz(-5, 5), Y = a * X + b;
+      return { stem: '$B(m;\\ ' + Y + ')$ цэг $y=' + lin(a, b) + '$ шулуун дээр оршдог бол $m$ хэд вэ?', mc: VMC(NV(X), [NV(-X), NV(a * Y + b), NI(Y + b, a), NV(X + 1), NV(X - 1)]) };
+    }
+    var xs = nz(-4, 4), ys = a * xs + b, onL = function (p) { return p[1] === a * p[0] + b; };
+    var cand = [[xs, -ys], [ys, xs], [-xs, ys], [xs, ys + 1], [xs + 1, ys], [xs, a * xs - b], [xs - 1, ys], [xs, ys - 2]].filter(function (p) { return !onL(p); });
+    return { stem: 'Аль цэг $y=' + lin(a, b) + '$ шулуун дээр оршдог вэ?', mc: makeMC(C(P(xs, ys)), cand.map(function (p) { return C(P(p[0], p[1])); })) };
+  },
+  // 8. [хүнд] Шулуун тэнхлэгийг огтлох цэг (6.3): абсцисс — (−b/a; 0), ординат — (0; b); төөрөгдүүлэгч — тэнхлэгийг андуурах, тэмдэг алдах
+  function () {
+    var a = pick([-5, -4, -3, -2, 2, 3, 4, 5]), x0 = nz(-6, 6), b = -a * x0;      // абсцисс тэнхлэгийг бүхэл цэгт огтолно
+    if (Math.abs(b) > 30) return null;
+    if (rnd(0, 2)) return { stem: '$y=' + lin(a, b) + '$ шулуун абсцисс тэнхлэгийг аль цэгт огтлох вэ?', mc: makeMC(C(P(x0, 0)), [C(P(0, b)), C(P(-x0, 0)), C(P(b, 0)), C(P(0, x0)), C(P(0, -b))]) };
+    return { stem: '$y=' + lin(a, b) + '$ шулуун ординат тэнхлэгийг аль цэгт огтлох вэ?', mc: makeMC(C(P(0, b)), [C(P(b, 0)), C(P(0, -b)), C(P(x0, 0)), C(P(0, a)), C(P(0, x0))]) };
+  },
+  // 9. [хүнд] Хоёр цэгийг дайрсан шулууны тэгшитгэл (6.3), эсвэл графикаар өгсөн шулуун (6.4, зураг — зөвхөн өгөгдөл: 2 цэг координаттайгаа);
+  //    төөрөгдүүлэгч — b-д y₁-ийг авах, налалтын тэмдэг/урвуу, b-ийн тэмдэг, нэг цэгийг л дайрсан өөр налалттай шулуун
+  function () {
+    if (rnd(0, 2) === 0) {
+      var L = pickLine(); if (!L) return null;
+      var n = L.n, d = L.d, b = L.b;
+      return { stem: 'Зурагт дүрсэлсэн шулууны тэгшитгэл аль нь вэ?', fig: graph(n, d, b, L.pts),
+        mc: LMC([n, d, b], [[-n, d, b], [d, n, b], [n, d, -b], [n, d, b + 1], [-d, n, b], [n, d, b - 1], [n + d, d, b]]) };
+    }
+    var a = pick([-4, -3, -2, -1, 1, 2, 3, 4]), b2 = nz(-8, 8), x1 = nz(-3, 3), x2 = x1 + rnd(1, 3), y1 = a * x1 + b2, y2 = a * x2 + b2;
+    if (x2 === 0) return null;
+    return { stem: '$A' + P(x1, y1) + '$ ба $B' + P(x2, y2) + '$ цэгийг дайрсан шулууны тэгшитгэл аль нь вэ?',
+      mc: LMC([a, 1, b2], [[a, 1, y1], [-a, 1, y1 + a * x1], [a, 1, -b2], [a, 1, y2], [1, a, y1 - x1 / a], [a + 1, 1, y1 - (a + 1) * x1]]) };
+  },
+  // 10. [хүнд] Шууд пропорционал хамаарал ба шугаман функцийн хэрэглээ (6.4); төөрөгдүүлэгч — нэмэх хамаарал гэж бодох, тэмдэг алдах, анхны утгыг тооцохгүй
+  function () {
+    var t = rnd(1, 3);
+    if (t === 1) {
+      var kn = pick([-5, -4, -3, -2, 2, 3, 4, 5, -5, 5, 7, -7]), kd = pick([1, 2, 3]); if (gcd(kn, kd) !== 1) return null;
+      var x1 = kd * nz(-4, 4), x2 = kd * nz(-5, 5); if (x1 === x2) return null;
+      var y1 = kn * x1 / kd, ok = kn * x2 / kd;
+      return { stem: '$y$ нь $x$-тэй шууд пропорционал. $x=' + x1 + '$ үед $y=' + y1 + '$ бол $x=' + x2 + '$ үед $y$ хэд вэ?',
+        mc: VMC(NV(ok), [NV(-ok), NV(y1 + x2 - x1), NI(x1 * y1, x2), NV(y1 * x2), NV(ok + kn), NV(ok - kn)]) };
+    }
+    if (t === 2) {
+      var c = 10 * rnd(2, 8), r = rnd(2, 9), x = rnd(5, 20), V = c + r * x;
+      return { stem: 'Саванд $' + c + '$ л ус байв. Цоргоноос минут тутамд $' + r + '$ л ус нэмэгддэг бол хэдэн минутын дараа $' + V + '$ л болох вэ?',
+        mc: VMC(NV(x), [NI(V, r), NI(V + c, r), NV(x + 1), NV(x - 1), NV(x + 2)]) };
+    }
+    var p = 100 * rnd(4, 12), q = 100 * rnd(5, 20), n = rnd(4, 15), M = p * n + q;
+    return { stem: 'Үзэг $' + q + '$ төгрөг, дэвтэр $' + p + '$ төгрөг. Нэг үзэг ба хэдэн дэвтэр авахад $' + th(M) + '$ төгрөг болох вэ?',
+      mc: VMC(NV(n), [NI(M, p), NI(M + q, p), NV(n + 1), NV(n - 1), NV(n + 2)]) };
+  }
+];
+
+/* ── II. Задгай (5) ── */
+var FREE = [
+  // 11. [2 оноо] Дарааллын ерөнхий гишүүний томьёо ба заасан гишүүн, эсвэл өгсөн тооны дугаар (6.1–6.2)
+  function () {
+    var a1 = rnd(-8, 15), d = pick(DS), s = [a1, a1 + d, a1 + 2 * d, a1 + 3 * d], c = a1 - d;
+    if (rnd(0, 1)) {
+      var k = rnd(15, 60);
+      return { stem: '$' + seq(s) + ',\\ \\dots$ дарааллын ерөнхий гишүүний томьёог олж, $a_{' + k + '}$ гишүүнийг ол.', a: '$a_n=' + lin(d, c, 'n') + '$; $\\ a_{' + k + '}=' + (d * k + c) + '$' };
+    }
+    var n = rnd(15, 60), V = d * n + c;
+    return { stem: '$' + seq(s) + ',\\ \\dots$ дарааллын ерөнхий гишүүний томьёог олж, $' + V + '$ тоо хэддүгээр гишүүн болохыг ол.', a: '$a_n=' + lin(d, c, 'n') + '$; $\\ n=' + n + '$' };
+  },
+  // 12. [2 оноо] Функцийн утгын хүснэгт (6.3–6.4): шугаман функц, эсвэл шууд пропорционалын k-г нэг хосоор олж хүснэгт нөхөх
+  function () {
+    var xs = shuffle([-3, -2, -1, 0, 1, 2, 3, 4, 5]).slice(0, 4), up = function (p, q) { return p - q; }, X = xs.slice(0, 2).sort(up), Z = xs.slice(2).sort(up);
+    if (rnd(0, 1)) {
+      var a = pick([-5, -4, -3, -2, 2, 3, 4, 5]), b = nz(-9, 9);
+      return { stem: '$y=' + lin(a, b) + '$ функцийн утгын хүснэгтийг нөх.', fig: '$' + tbl([X[0], X[1], null, null], [null, null, a * Z[0] + b, a * Z[1] + b]) + '$',
+        a: '$y=' + (a * X[0] + b) + ',\\ ' + (a * X[1] + b) + '$; $\\ x=' + Z[0] + ',\\ ' + Z[1] + '$' };
+    }
+    var k = pick([-6, -5, -4, -3, -2, 2, 3, 4, 5, 6]), x0 = pick([-4, -3, -2, 2, 3, 4, 6, 7]);
+    if (xs.indexOf(x0) >= 0) return null;
+    return { stem: '$y$ нь $x$-тэй шууд пропорционал, $x=' + x0 + '$ үед $y=' + (k * x0) + '$. Томьёог бичиж, хүснэгтийг нөх.', fig: '$' + tbl([X[0], X[1], null, null], [null, null, k * Z[0], k * Z[1]]) + '$',
+      a: '$y=' + lin(k, 0) + '$; $\\ y=' + (k * X[0]) + ',\\ ' + (k * X[1]) + '$; $\\ x=' + Z[0] + ',\\ ' + Z[1] + '$' };
+  },
+  // 13. [3 оноо] Арифметик прогресс (6.2): хоёр гишүүнээр a_1, d, ерөнхий гишүүн, өгсөн тоо гишүүн мөн эсэх; эсвэл хэрэглээний бодлого (театр, хуримтлал)
+  function () {
+    var t = rnd(1, 3);
+    if (t === 1) {
+      var m = rnd(2, 5), k = m + rnd(3, 8), d = pick(DS), a1 = rnd(-10, 15), am = a1 + (m - 1) * d, ak = a1 + (k - 1) * d, c = a1 - d;
+      var yes = rnd(0, 1), n = rnd(k + 5, 60), V = d * n + c + (yes ? 0 : pick([1, -1]) * rnd(1, Math.abs(d) - 1));
+      return { stem: 'Арифметик прогрессын $a_{' + m + '}=' + am + '$, $a_{' + k + '}=' + ak + '$. а) $a_1$ ба $d$-г ол. б) Ерөнхий гишүүний томьёог бич. в) $' + V + '$ тоо энэ прогрессын гишүүн мөн үү?',
+        a: 'а) $a_1=' + a1 + ',\\ d=' + d + '$; б) $a_n=' + lin(d, c, 'n') + '$; в) ' + (yes ? 'мөн, $a_{' + n + '}=' + V + '$' : 'биш: $n=' + fr(V - c, d) + '$ бүхэл биш') };
+    }
+    if (t === 2) {
+      var s1 = rnd(8, 20), dd = rnd(1, 3), r = rnd(15, 30), j = rnd(10, 40), Vs = s1 + (j - 1) * dd;
+      if (j === r) return null;
+      return { stem: 'Театрын эхний эгнээнд $' + s1 + '$ суудал, дараагийн эгнээ бүр өмнөхөөсөө $' + dd + '$ суудлаар илүү. а) $a_n$ томьёог бич. б) $a_{' + r + '}=?$ в) Хэддүгээр эгнээнд $' + Vs + '$ суудал байх вэ?',
+        a: 'а) $a_n=' + lin(dd, s1 - dd, 'n') + '$; б) $' + (s1 + (r - 1) * dd) + '$ суудал; в) $n=' + j + '$' };
+    }
+    var a0 = 500 * rnd(2, 8), da = 500 * rnd(1, 3), w = rnd(8, 20), Vw = a0 + (w - 1) * da;
+    return { stem: 'Сурагч эхний долоо хоногт $' + a0 + '$ төгрөг хадгалж, дараа нь долоо хоног бүр $' + da + '$ төгрөгөөр нэмэгдүүлэв. а) $a_n$ томьёог бич. б) Хэддүгээр долоо хоногт $' + th(Vw) + '$ төгрөг хадгалах вэ?',
+      a: 'а) $a_n=' + lin(da, a0 - da, 'n') + '$; б) $n=' + w + '$' };
+  },
+  // 14. [3 оноо] Хоёр цэгийг дайрсан шулууны тэгшитгэл; тэнхлэгүүдтэй огтлолцох цэгүүд, эсвэл гурав дахь цэг шулуун дээр орших эсэх (6.3)
+  function () {
+    var a = pick([-4, -3, -2, -1, 1, 2, 3, 4]), b = nz(-9, 9), x1 = nz(-4, 3), x2 = x1 + rnd(1, 3), y1 = a * x1 + b, y2 = a * x2 + b;
+    if (x2 === 0) return null;
+    var head = 'Шулуун $A' + P(x1, y1) + '$ ба $B' + P(x2, y2) + '$ цэгийг дайрна. а) Шулууны тэгшитгэлийг ол. ';
+    if (rnd(0, 1)) return { stem: head + 'б) Шулуун абсцисс ба ординат тэнхлэгийг огтлох цэгүүдийг ол.', a: 'а) $y=' + lin(a, b) + '$; б) $' + P(fr(-b, a), 0) + '$, $' + P(0, b) + '$' };
+    var x3 = nz(-6, 7), on = rnd(0, 1), v3 = a * x3 + b, y3 = v3 + (on ? 0 : pick([-2, -1, 1, 2]));
+    if (x3 === x1 || x3 === x2) return null;
+    return { stem: head + 'б) $C' + P(x3, y3) + '$ цэг энэ шулуун дээр оршдог уу?',
+      a: 'а) $y=' + lin(a, b) + '$; б) ' + (on ? 'оршино' : 'оршихгүй') + ': $' + a + '\\cdot ' + par(x3) + sgn(b) + '=' + v3 + (on ? '' : '\\ne ' + y3) + '$' };
+  },
+  // 15. [3 оноо] Шугаман функцийн хэрэглээний бодлого (6.4): хөдөлгөөн (шууд пропорционал), усан сав, дэвтрийн үнэ, угтах хөдөлгөөн
+  function () {
+    var t = rnd(1, 4);
+    if (t === 1) {
+      var v = 5 * rnd(10, 18), t1 = rnd(2, 4), t2 = rnd(5, 8), tS = rnd(3, 9); if (tS === t1 || tS === t2) return null;
+      return { stem: 'Машин $' + t1 + '$ цагт $' + (v * t1) + '$ км явжээ. а) Зам $s$ ба хугацаа $t$-ийн хамаарлын томьёог бич. б) $' + t2 + '$ цагт хэдэн км явах вэ? в) $' + (v * tS) + '$ км-ийг хэдэн цагт явах вэ?',
+        a: 'а) $s=' + v + 't$; б) $' + (v * t2) + '$ км; в) $' + tS + '$ цаг' };
+    }
+    if (t === 2) {
+      var c = 10 * rnd(2, 8), r = rnd(2, 9), x = rnd(5, 20), V = c + r * x;
+      return { stem: 'Саванд $' + c + '$ л ус байв. Цоргоноос минут тутамд $' + r + '$ л ус нэмэгдэнэ. а) $x$ минутын дараах усны хэмжээ $y$-ийн томьёог бич. б) Хэдэн минутын дараа $' + V + '$ л болох вэ?',
+        a: 'а) $y=' + r + 'x+' + c + '$; б) $' + x + '$ минут' };
+    }
+    if (t === 3) {
+      var p = 100 * rnd(4, 12), q = 100 * rnd(5, 20), n = rnd(4, 15), M = p * n + q;
+      return { stem: 'Нэг дэвтэр $' + p + '$ төгрөг. Сурагч $' + q + '$ төгрөгийн үзэг ба $x$ дэвтэр авав. а) Төлөх мөнгө $y$-ийн томьёог бич. б) $' + th(M) + '$ төгрөг төлсөн бол хэдэн дэвтэр авсан бэ?',
+        a: 'а) $y=' + p + 'x+' + q + '$; б) $' + n + '$ дэвтэр' };
+    }
+    var v1 = 5 * rnd(8, 16), v2 = 5 * rnd(6, 14), tt = rnd(2, 5), S = (v1 + v2) * tt;
+    return { stem: '$A$, $B$ хотоос цагт $' + v1 + '$ км ба $' + v2 + '$ км хурдтай хоёр машин нэгэн зэрэг угтан хөдлөв. $AB=' + S + '$ км. а) Хэдэн цагийн дараа уулзах вэ? б) $A$ хотоос ямар зайд уулзах вэ?',
+      a: 'а) $' + tt + '$ цаг; б) $' + (v1 * tt) + '$ км' };
+  }
+];
+
+CMX.exam({
+  title: 'VI бүлэг — Шалгалтын материал',
+  sub: 'Тоон дараалал · арифметик прогресс · шугаман функц · график · шууд пропорционал',
+  grade: '7-р анги',
+  topic: 'Функц',
+  tests: TESTS,
+  free: FREE
+});
+</script>
+<script src="/eyesh-link.js?v=3"></script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

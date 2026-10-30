@@ -608,13 +608,22 @@
       sh.style.width = JP === 'a5' ? '148mm' : '210mm'; sh.style.maxWidth = 'none'; sh.style.minHeight = '0';
       var ft = [].slice.call(sh.querySelectorAll('.cm-foot,.cm-wm')); ft.forEach(function (x) { x.style.display = 'none'; });
       try {
+        // Хамгийн олон МӨРтэй даалгаврын сүүлийн мөрийг бүтнээр нь хасна (нэг нэгээр хасвал 4 баганатай хэсгийн өндөр
+        // буурахгүйгээр бодлого үрэгдэнэ); даалгавар бүрт MINQ-аас доош бодлого үлдээхгүй
         var MINQ = JP === 'a5' ? 1 : 2;
+        var colsOf = function (g) { return +((g.style.gridTemplateColumns.match(/repeat\((\d+)/) || [0, 2])[1]) || 2; };
         for (var guard = 0; guard < 200 && bodyH(sh) > PAGE; guard++) {
-          var grids = sh.querySelectorAll('.grid'), best = null, bn = 0;
-          for (var s = grids.length - 1; s >= 0; s--) { var c = grids[s].querySelectorAll('.q').length; if (c > bn && c > MINQ) { bn = c; best = grids[s]; } }
+          var grids = sh.querySelectorAll('.grid'), best = null, br = 0;
+          for (var s = grids.length - 1; s >= 0; s--) {
+            var c = grids[s].querySelectorAll('.q').length, rws = Math.ceil(c / colsOf(grids[s]));
+            if (c > MINQ && rws > br) { br = rws; best = grids[s]; }
+          }
           if (!best) break;
-          var qs = best.querySelectorAll('.q'), last = qs[qs.length - 1], a = sh.querySelector('#answers .a[data-k="' + last.getAttribute('data-k') + '"]');
-          if (a) a.remove(); last.remove();
+          var qs = [].slice.call(best.querySelectorAll('.q')), cb = colsOf(best), inLast = qs.length - (Math.ceil(qs.length / cb) - 1) * cb;
+          qs.slice(qs.length - Math.min(inLast, qs.length - MINQ)).forEach(function (q) {
+            var a = sh.querySelector('#answers .a[data-k="' + q.getAttribute('data-k') + '"]');
+            if (a) a.remove(); q.remove();
+          });
         }
         // бодлого хасаад ч багтахгүй бол бодолтын хайрцгийг багасгана (≥8 мм)
         var over = bodyH(sh) - PAGE;

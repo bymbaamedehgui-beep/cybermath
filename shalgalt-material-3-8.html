@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>III бүлэг — Шалгалтын материал (8-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/cmx.js?v=1"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* 8-р анги · III бүлэг. Магадлал (3.1 Олонлог, түүн дээрх үйлдэл · 3.2 Нийцтэй ба нийцгүй үзэгдлүүд · 3.3 Үзэгдлийн магадлал) */
+// ── олонлог: тоо ба латин үсэг шууд, бусад (СТ …) \text{}-д ──
+function el(x) { return typeof x === 'number' || /^[a-z]$/.test(x) ? String(x) : '\\text{' + x + '}'; }
+function setTex(a) { return a.length ? '\\{' + a.map(el).join(',\\ ') + '\\}' : '\\varnothing'; }
+function byNum(x, y) { return x - y; }
+function inter(a, b) { return a.filter(function (x) { return b.indexOf(x) >= 0; }); }
+function minus(a, b) { return a.filter(function (x) { return b.indexOf(x) < 0; }); }
+function union(a, b, om) { var r = a.concat(minus(b, a)); return om ? om.filter(function (x) { return r.indexOf(x) >= 0; }) : r.sort(byNum); }
+function rset(lo, hi, k) { var s = []; while (s.length < k) { var v = rnd(lo, hi); if (s.indexOf(v) < 0) s.push(v); } return s.sort(byNum); }
+function divs(n) { var r = []; for (var d = 1; d <= n; d++) if (n % d === 0) r.push(d); return r; }
+function range(a, b) { var r = []; for (var i = a; i <= b; i++) r.push(i); return r; }
+function S(nm, a) { return '$' + nm + '=' + setTex(a) + '$'; }
+// «нэр» — нэр томьёогоор эхэлбэл нээх хашилтыг томьёотой нь нэг мөрөнд үлдээнэ («» мөрийн төгсгөлд ганцаараа үлдэхгүй)
+function qt(s) { if (s.charAt(0) !== '$') return '«' + s + '»'; var k = s.indexOf('$', 1) + 1; return '<span style="white-space:nowrap">«' + s.slice(0, k) + '</span>' + s.slice(k) + '»'; }
+function pf(m, n) { var r = fr(m, n), full = '\\dfrac{' + m + '}{' + n + '}'; return r === full ? full : full + '=' + r; }
+function D(x) { return dFmt(x, 2); }                       // хувиар өгсөн бүхэл → 0.35
+// Магадлалын сонголт: зөв m/n; төөрөгдүүлэгч [[a,b],…] — 0 < утга < 1, хураасны дараа зөвтэй ба хоорондоо ялгаатай
+function PMC(m, n, cands) {
+  var ok = fr(m, n), seen = {}, out = []; seen[ok] = 1;
+  cands.forEach(function (p) {
+    if (!p || !(p[0] > 0) || !(p[1] > 0) || p[0] >= p[1] || p[0] !== Math.round(p[0]) || p[1] !== Math.round(p[1])) return;
+    var t = fr(p[0], p[1]); if (seen[t]) return; seen[t] = 1; out.push(C(t));
+  });
+  return makeMC(C(ok), out);
+}
+// Натурал тоон сонголт: эерэг бүхэл, зөвөөс ба хоорондоо ялгаатай
+function IMC(ok, cands) {
+  var seen = {}, out = []; seen[ok] = 1;
+  cands.forEach(function (v) { if (v > 0 && v === Math.round(v) && !seen[v]) { seen[v] = 1; out.push(C(v)); } });
+  return makeMC(C(ok), out);
+}
+// Аравтын бутархай магадлал (0 < p < 1, ≤ 4 орон): зөв v; ялгаатай төөрөгдүүлэгч
+function DMC(v, cands) {
+  var key = function (x) { return Math.round(x * 10000); }, seen = {}, out = []; seen[key(v)] = 1;
+  cands.forEach(function (x) { var k = key(x); if (k > 0 && k < 10000 && Math.abs(x * 10000 - k) < 1e-6 && !seen[k]) { seen[k] = 1; out.push(C(dFmt(k, 4))); } });
+  return makeMC(C(dFmt(key(v), 4)), out);
+}
+var COL = ['улаан', 'цагаан', 'хөх', 'шар', 'ногоон'];
+var RK = ['туз', 'ноён', 'хатан', 'боол'], SU = ['тамга', 'бундан', 'гил', 'дөрвөлжин'];
+// Шоо орхих үзэгдлүүд: [нэр («… буух»-ийн өмнөх хэсэг), эгэл үзэгдлүүд]
+var DIEV = [['тэгш тоо', [2, 4, 6]], ['сондгой тоо', [1, 3, 5]], ['анхны тоо', [2, 3, 5]], ['$3$ тоонд хуваагдах тоо', [3, 6]],
+  ['$4$ тооноос их тоо', [5, 6]], ['$3$ тооноос их тоо', [4, 5, 6]], ['$3$ тооноос бага тоо', [1, 2]], ['$4$ тооноос бага тоо', [1, 2, 3]],
+  ['$2$ тооноос их тоо', [3, 4, 5, 6]], ['$6$', [6]], ['$5$ тооноос бага тоо', [1, 2, 3, 4]], ['$1$ эсвэл $6$', [1, 6]]];
+
+/* ── I. Тест (10): 1–3 хялбар, 4–7 дунд, 8–10 хүнд ── */
+var TESTS = [
+  // 1. [3.1 Олонлог] Хоёр олонлогийн огтлолцол, нэгдэл эсвэл ялгавар; төөрөгдүүлэгч — бусад үйлдлийн үр дүн (хялбар)
+  function () {
+    var A = rset(1, 12, rnd(4, 5)), B = rset(1, 12, rnd(3, 4)), I = inter(A, B); if (!I.length || I.length === A.length || I.length === B.length) return null;
+    var ops = [['{A\\cap B}', I], ['{A\\cup B}', union(A, B)], ['{A\\setminus B}', minus(A, B)], ['{B\\setminus A}', minus(B, A)]], k = rnd(0, 2);
+    return { stem: '${A=' + setTex(A) + '}$, ${B=' + setTex(B) + '}$ бол $' + ops[k][0] + '$ аль нь вэ?', topic: 'Тооны онол',
+      mc: makeMC(C(setTex(ops[k][1])), shuffle(ops.filter(function (_, i) { return i !== k; }).map(function (o) { return C(setTex(o[1])); }))) };
+  },
+  // 2. [3.1 Олонлог] n элементтэй олонлогийн дэд олонлогийн тоо 2ⁿ; төөрөгдүүлэгч: 2n, 2ⁿ−1 (хоосон олонлогийг тоолохгүй), n² (хялбар)
+  function () {
+    var n = rnd(2, 6), E = pick([['a', 'b', 'c', 'd', 'e', 'f'], ['x', 'y', 'z', 't', 'u', 'v'], ['m', 'n', 'p', 'q', 'r', 's'], [1, 2, 3, 4, 5, 6], [2, 4, 6, 8, 10, 12]]).slice(0, n), v = Math.pow(2, n);
+    return { stem: '$' + setTex(E) + '$ олонлог хэдэн дэд олонлогтой вэ?', topic: 'Тооны онол', mc: IMC(v, [2 * n, v - 1, v - 2, n * n, 2 * v, n + 1, n]) };
+  },
+  // 3. [3.3 Магадлал] Сонгодог магадлал: шоо эсвэл уутанд байгаа бөмбөг (хялбар)
+  function () {
+    if (rnd(0, 1)) {
+      var e = pick(DIEV), m = e[1].length;
+      return { stem: 'Шоо орхиход ' + e[0] + ' буух магадлал аль нь вэ?', mc: PMC(m, 6, [[1, 6], [m, 5], [6 - m, 6], [m + 1, 6], [m - 1, 6], [1, m]]) };
+    }
+    var cs = shuffle(COL).slice(0, 3), a = rnd(2, 9), b = rnd(2, 9), c = rnd(2, 9), N = a + b + c; if (a === b || b === c || a === c) return null;
+    return { stem: 'Уутанд $' + a + '$ ' + cs[0] + ', $' + b + '$ ' + cs[1] + ', $' + c + '$ ' + cs[2] + ' бөмбөг бий. Таамгаар авсан бөмбөг ' + cs[0] + ' байх магадлал аль нь вэ?',
+      mc: PMC(a, N, [[1, 3], [a, b + c], [b + c, N], [1, a], [a, N - 1], [a + 1, N]]) };
+  },
+  // 4. [3.1 Олонлог] Чадлын томьёо |A∪B|=|A|+|B|−|A∩B|; төөрөгдүүлэгч: огтлолцлыг хасаагүй, давхар хассан, бага олонлогоор авсан (дунд)
+  function () {
+    var i = rnd(2, 12), a = i + rnd(3, 15), b = i + rnd(3, 15), u = a + b - i, t = rnd(1, 3);
+    if (t === 1) return { stem: '$|A|=' + a + '$, $|B|=' + b + '$, $|{A\\cap B}|=' + i + '$ бол $|{A\\cup B}|$ хэд вэ?', topic: 'Тооны онол', mc: IMC(u, [a + b, a + b + i, a + b - 2 * i, a + i, b + i]) };
+    if (t === 2) return { stem: '$|A|=' + a + '$, $|B|=' + b + '$, $|{A\\cup B}|=' + u + '$ бол $|{A\\cap B}|$ хэд вэ?', topic: 'Тооны онол', mc: IMC(i, [u - a, u - b, Math.min(a, b), Math.abs(a - b), a + b]) };
+    return { stem: '$|A|=' + a + '$, $|B|=' + b + '$, $|{A\\cap B}|=' + i + '$ бол $|{A\\setminus B}|$ хэд вэ?', topic: 'Тооны онол', mc: IMC(a - i, [a, b - i, u, a + i, a - b]) };
+  },
+  // 5. [3.2 Нийцтэй, нийцгүй үзэгдэл] Шоо орхих туршилтын хоёр үзэгдлийн огтлолцол (хоосон бол нийцгүй) эсвэл нэгдэл (дунд)
+  function () {
+    var e1 = pick(DIEV), e2 = pick(DIEV); if (e1[0] === e2[0] || setTex(e1[1]) === setTex(e2[1])) return null;
+    var A = e1[1], B = e2[1], I = inter(A, B), U = union(A, B), cp = rnd(0, 2) > 0;
+    var cands = [cp ? U : I, minus(A, B), minus(B, A), A, B, minus(U, I), []];
+    return { stem: 'Шоо орхиход $A$ — ' + qt(e1[0] + ' буух') + ', $B$ — ' + qt(e2[0] + ' буух') + ' бол $' + (cp ? '{A\\cap B}' : '{A\\cup B}') + '$ аль нь вэ?',
+      mc: makeMC(C(setTex(cp ? I : U)), shuffle(cands.map(function (s) { return C(setTex(s)); }))) };
+  },
+  // 6. [3.2 Эгэл үзэгдэл] Нэгдсэн туршилтын үзэгдэлд харьяалагдах эгэл үзэгдлийн тоо; төөрөгдүүлэгч: эрэмбэгүй хосоор тоолох (дунд)
+  function () {
+    if (rnd(0, 1)) {
+      var s = rnd(3, 11), k = 6 - Math.abs(7 - s), u = Math.floor((k + 1) / 2);
+      return { stem: 'Хоёр шоо зэрэг орхиход «нүднүүдийн нийлбэр $' + s + '$ байх» үзэгдэлд хэдэн эгэл үзэгдэл харьяалагдах вэ?', mc: IMC(k, [u, k + 1, k - 1, 2 * k, 36, 12]) };
+    }
+    var ev = pick([['яг хоёр сүлд буух', 3, [1, 2, 4, 6, 8]], ['ядаж нэг сүлд буух', 7, [3, 4, 6, 8, 1]], ['бүх зоос ижил талаараа буух', 2, [1, 3, 4, 8]],
+      ['ядаж хоёр сүлд буух', 4, [2, 3, 5, 8]], ['яг нэг сүлд буух', 3, [1, 2, 4, 8]]]);
+    return { stem: 'Гурван зоос зэрэг орхиход «' + ev[0] + '» үзэгдэлд хэдэн эгэл үзэгдэл харьяалагдах вэ?', mc: IMC(ev[1], ev[2]) };
+  },
+  // 7. [3.3 Магадлал] Нийцгүй үзэгдлүүдийн нэгдэл P(A∪B)=P(A)+P(B): хөзөр эсвэл бөмбөг (дунд)
+  function () {
+    if (rnd(0, 1)) {
+      var r1 = pick(RK), r2 = pick(RK); if (r1 === r2) return null;
+      return { stem: '$52$ хөзрөөс нэгийг таамгаар сугалахад ' + r1 + ' эсвэл ' + r2 + ' таарах магадлал аль нь вэ?', mc: PMC(8, 52, [[4, 52], [2, 52], [1, 169], [16, 52], [8, 32]]) };
+    }
+    var cs = shuffle(COL).slice(0, 3), a = rnd(2, 9), b = rnd(2, 9), c = rnd(2, 9), N = a + b + c; if (a === b || b === c || a === c) return null;
+    return { stem: 'Уутанд $' + a + '$ ' + cs[0] + ', $' + b + '$ ' + cs[1] + ', $' + c + '$ ' + cs[2] + ' бөмбөг бий. Таамгаар авсан бөмбөг ' + cs[0] + ' эсвэл ' + cs[2] + ' байх магадлал аль нь вэ?',
+      mc: PMC(a + c, N, [[a, N], [c, N], [b, N], [a + c, b], [a * c, N * N], [a + c, 2 * N]]) };
+  },
+  // 8. [3.3 Магадлал] Нийцгүй үзэгдлүүд: нэгдлийн эсрэг үзэгдэл P(¬(A∪B))=1−P(A)−P(B), эсвэл P(A∪B), P(A)-аас P(B) (хүнд)
+  function () {
+    var a = rnd(2, 9) * 5, b = rnd(2, 9) * 5; if (a + b > 90 || a === b) return null;
+    if (rnd(0, 1)) return { stem: '$A$, $B$ нийцгүй үзэгдлүүд, $P(A)=' + D(a) + '$, $P(B)=' + D(b) + '$ бол $P(\\overline{A\\cup B})$ хэд вэ?',
+      mc: DMC((100 - a - b) / 100, [(a + b) / 100, a * b / 10000, 1 - a * b / 10000, Math.abs(a - b) / 100, (100 - a) / 100, (100 - b) / 100]) };
+    var u = a + b;
+    return { stem: '$A$, $B$ нийцгүй үзэгдлүүд, $P({A\\cup B})=' + D(u) + '$, $P(A)=' + D(a) + '$ бол $P(B)$ хэд вэ?',
+      mc: DMC(b / 100, [(u + a) / 100, (100 - a) / 100, (100 - u) / 100, u * a / 10000, u / 200]) };
+  },
+  // 9. [3.1, 3.3] Эйлер-Веннийн диаграм ба магадлал: ядаж нэгийг / алийг нь ч хийдэггүй (хүнд)
+  function () {
+    var C2 = pick([['шатар', 'даам'], ['гитар', 'хуур'], ['теннис', 'шатар'], ['даам', 'теннис']]), N = pick([20, 24, 25, 30, 32, 36, 40]), c = rnd(2, 6), a = c + rnd(3, 9), b = c + rnd(3, 9), un = a + b - c;
+    if (un >= N - 2) return null;
+    var head = '$' + N + '$ сурагчийн $' + a + '$ нь ' + C2[0] + ', $' + b + '$ нь ' + C2[1] + ', $' + c + '$ нь хоёуланг нь тоглодог. Таамгаар сонгосон сурагч ';
+    if (rnd(0, 1)) return { stem: head + 'ядаж нэгийг нь тоглодог байх магадлал хэд вэ?', mc: PMC(un, N, [[a + b, N], [c, N], [N - un, N], [a + b - 2 * c, N], [a, N]]) };
+    return { stem: head + 'алийг нь ч тоглодоггүй байх магадлал хэд вэ?', mc: PMC(N - un, N, [[N - a - b, N], [un, N], [c, N], [N - un + c, N], [N - a, N]]) };
+  },
+  // 10. [3.3 Магадлал] Нийцтэй үзэгдлийн нэгдэл (огтлолцлыг хасна): хөзрийн нэр эсвэл өнгө; хоёр оронтой тооны цифр (хүнд)
+  function () {
+    if (rnd(0, 1)) {
+      var r = pick(RK), s = pick(SU);
+      return { stem: '$52$ хөзрөөс нэгийг таамгаар сугалахад ' + r + ' эсвэл ' + s + ' таарах магадлал аль нь вэ?', mc: PMC(16, 52, [[17, 52], [13, 52], [4, 52], [1, 52], [15, 52]]) };
+    }
+    var d1 = rnd(1, 9), d2 = rnd(0, 9); if (d1 === d2) return null;
+    var cnt = 0, c1 = 0, c2 = 0, both = 0;
+    for (var x = 10; x <= 99; x++) { var w = String(x), h1 = w.indexOf(String(d1)) >= 0, h2 = w.indexOf(String(d2)) >= 0; if (h1 || h2) cnt++; if (h1) c1++; if (h2) c2++; if (h1 && h2) both++; }
+    return { stem: 'Таамгаар сонгосон хоёр оронтой тооны бичиглэлд $' + d1 + '$ эсвэл $' + d2 + '$ цифр орсон байх магадлал аль нь вэ?',
+      mc: PMC(cnt, 90, [[c1 + c2, 90], [90 - cnt, 90], [c1, 90], [cnt, 100], [both, 90], [cnt, 99]]) };
+  }
+];
+
+/* ── II. Задгай (5) ── */
+var FREE = [
+  // 11. [3.1 Олонлог] Нэгдэл, огтлолцол, ялгаврыг бичиж, чадлыг олох — жагсаасан эсвэл хуваагчдын олонлог (2 оноо)
+  function () {
+    if (rnd(0, 2)) {
+      var A = rset(1, 15, rnd(4, 6)), B = rset(1, 15, rnd(4, 6)), I = inter(A, B); if (!I.length || I.length === A.length || I.length === B.length) return null;
+      var U = union(A, B), Dd = minus(A, B);
+      return { stem: '${A=' + setTex(A) + '}$, ${B=' + setTex(B) + '}$ бол ${A\\cup B}$, ${A\\cap B}$, ${A\\setminus B}$ олонлогуудыг бичиж, чадал бүрийг ол.',
+        a: S('{A\\cup B}', U) + ', $|{A\\cup B}|=' + U.length + '$; ' + S('{A\\cap B}', I) + ', $|{A\\cap B}|=' + I.length + '$; ' + S('{A\\setminus B}', Dd) + ', $|{A\\setminus B}|=' + Dd.length + '$' };
+    }
+    var P = pick([[12, 18], [12, 20], [18, 24], [16, 24], [20, 30], [15, 20], [18, 30], [12, 30], [14, 21], [9, 12], [8, 20], [20, 24]]), A2 = divs(P[0]), B2 = divs(P[1]), I2 = inter(A2, B2), U2 = union(A2, B2);
+    return { stem: '$A$ нь $' + P[0] + '$ тооны бүх хуваагчийн, $B$ нь $' + P[1] + '$ тооны бүх хуваагчийн олонлог бол ${A\\cap B}$, ${A\\cup B}$ олонлогуудыг бичиж, чадлыг нь ол.',
+      a: S('{A\\cap B}', I2) + ', $|{A\\cap B}|=' + I2.length + '$; ' + S('{A\\cup B}', U2) + ', $|{A\\cup B}|=' + U2.length + '$' };
+  },
+  // 12. [3.2 Нийцтэй, нийцгүй үзэгдэл] Тоо сонгох эсвэл хоёр зоос орхих туршилтын A∪B, A∩B ба нийцтэй эсэх (2 оноо)
+  function () {
+    var om, e1, e2, name;
+    if (rnd(0, 2)) {
+      var N = pick([10, 12, 15]), k = rnd(4, N - 4);
+      var NE = [['тэгш тоо', function (x) { return x % 2 === 0; }], ['сондгой тоо', function (x) { return x % 2 === 1; }], ['$3$ тоонд хуваагдах тоо', function (x) { return x % 3 === 0; }],
+        ['$4$ тоонд хуваагдах тоо', function (x) { return x % 4 === 0; }], ['$5$ тоонд хуваагдах тоо', function (x) { return x % 5 === 0; }],
+        ['анхны тоо', function (x) { if (x < 2) return false; for (var d = 2; d * d <= x; d++) if (x % d === 0) return false; return true; }],
+        ['$' + k + '$ тооноос их тоо', function (x) { return x > k; }]];
+      om = range(1, N); name = '$1, 2, \\dots, ' + N + '$ тоонуудаас нэгийг сонгоход';
+      e1 = pick(NE); e2 = pick(NE); e1 = [e1[0], om.filter(e1[1])]; e2 = [e2[0], om.filter(e2[1])];
+    } else {
+      om = ['СС', 'СТ', 'ТС', 'ТТ']; name = 'Хоёр зоос зэрэг орхиход (С — сүлд, Т — тоо)';
+      var CE = [['хоёулаа сүлд буух', ['СС']], ['яг нэг сүлд буух', ['СТ', 'ТС']], ['ядаж нэг сүлд буух', ['СС', 'СТ', 'ТС']], ['сүлд огт буухгүй байх', ['ТТ']],
+        ['хоёулаа ижил талаараа буух', ['СС', 'ТТ']], ['ядаж нэг тоо буух', ['СТ', 'ТС', 'ТТ']], ['эхний зоос сүлд буух', ['СС', 'СТ']]];
+      e1 = pick(CE); e2 = pick(CE);
+    }
+    if (e1[0] === e2[0] || setTex(e1[1]) === setTex(e2[1])) return null;
+    var I = inter(e1[1], e2[1]);
+    return { stem: name + ' $A$ — ' + qt(e1[0]) + ', $B$ — ' + qt(e2[0]) + '. ${A\\cup B}$, ${A\\cap B}$ үзэгдлүүдийг бичиж, $A$, $B$ нийцтэй эсэхийг тогтоо.',
+      a: S('{A\\cup B}', union(e1[1], e2[1], om)) + '; ' + S('{A\\cap B}', I) + ' — ' + (I.length ? 'нийцтэй' : 'нийцгүй') };
+  },
+  // 13. [3.1 Олонлог] Судалгааны бодлого — Эйлер-Веннийн диаграм (3 оноо)
+  function () {
+    var C = pick([['англи хэл', 'орос хэл', 'сурдаг', 'сурдаггүй'], ['шатар', 'даам', 'тоглодог', 'тоглодоггүй'], ['хөл бөмбөг', 'волейбол', 'тоглодог', 'тоглодоггүй']]);
+    var both = rnd(3, 12), oa = rnd(4, 14), ob = rnd(4, 14), nei = rnd(2, 9), a = both + oa, b = both + ob, un = a + b - both, T = un + nei;
+    return { stem: 'Нийт $' + T + '$ сурагчийн $' + a + '$ нь ' + C[0] + ', $' + b + '$ нь ' + C[1] + ' ' + C[2] + ', $' + nei + '$ нь алийг нь ч ' + C[3] + '. а) Хоёуланг нь ' + C[2] + '; б) зөвхөн ' + C[0] + ' ' + C[2] + ' сурагч хэд вэ?',
+      a: '$|{A\\cup B}|=' + T + '-' + nei + '=' + un + '$; а) $' + a + '+' + b + '-' + un + '=' + both + '$; б) $' + a + '-' + both + '=' + oa + '$' };
+  },
+  // 14. [3.3 Магадлал] Магадлалын хуваарь: бүх эгэл үзэгдлийн магадлалын нийлбэр 1, эсрэг үзэгдэл, нийцгүй үзэгдлийн нэгдэл (3 оноо)
+  function () {
+    if (rnd(0, 1)) {
+      var m = rnd(1, 4) * 5, tm = rnd(1, 4) * 5, h = rnd(5, 9) * 5, y = 100 - m - tm - h; if (y < 15 || m === tm) return null;
+      return { stem: 'Шагай орхиход морь буух магадлал $' + D(m) + '$, тэмээ буух магадлал $' + D(tm) + '$, хонь буух магадлал $' + D(h) + '$ бол а) ямаа; б) бод мал; в) бог мал буух магадлалыг ол.',
+        a: 'а) $1-(' + D(m) + '+' + D(tm) + '+' + D(h) + ')=' + D(y) + '$; б) $' + D(m) + '+' + D(tm) + '=' + D(m + tm) + '$; в) $1-' + D(m + tm) + '=' + D(100 - m - tm) + '$' };
+    }
+    var p1 = rnd(4, 10) * 5, p2 = rnd(4, 10) * 5, p3 = 100 - p1 - p2; if (p3 < 10 || p1 === p2) return null;
+    var cs = shuffle(COL).slice(0, 3);
+    return { stem: 'Хайрцагт ' + cs[0] + ', ' + cs[1] + ', ' + cs[2] + ' харандаа бий. Нэгийг авахад ' + cs[0] + ' гарах магадлал $' + D(p1) + '$, ' + cs[1] + ' гарах нь $' + D(p2) + '$ бол а) ' + cs[2] + '; б) ' + cs[0] + ' биш; в) ' + cs[0] + ' эсвэл ' + cs[2] + ' гарах магадлалыг ол.',
+      a: 'а) $1-(' + D(p1) + '+' + D(p2) + ')=' + D(p3) + '$; б) $1-' + D(p1) + '=' + D(100 - p1) + '$; в) $' + D(p1) + '+' + D(p3) + '=' + D(p1 + p3) + '$' };
+  },
+  // 15. [3.1, 3.3] Нэгдлийн магадлал: хуваагдах тоонууд (|A∪B| томьёо), эсвэл хоёр шоо — нийцтэй/нийцгүй үзэгдлийн нэгдэл (3 оноо)
+  function () {
+    if (rnd(0, 1)) {
+      var pr = pick([[2, 3], [2, 5], [3, 4], [3, 5], [4, 6], [2, 7], [3, 7], [4, 5], [5, 6], [4, 10], [6, 8], [6, 9]]), a = pr[0], b = pr[1], L = lcm(a, b), N = pick([30, 40, 50, 60, 100]);
+      if (L > N) return null;
+      var A = Math.floor(N / a), B = Math.floor(N / b), AB = Math.floor(N / L), k = A + B - AB;
+      return { stem: '$1, 2, \\dots, ' + N + '$ тоонуудаас нэгийг таамгаар сонгов. Тэр тоо а) $' + a + '$ тоонд; б) $' + b + '$ тоонд; в) $' + a + '$ эсвэл $' + b + '$ тоонд хуваагдах магадлалыг ол.',
+        a: 'а) $' + pf(A, N) + '$; б) $' + pf(B, N) + '$; в) $' + A + '+' + B + '-' + AB + '=' + k + '$ тоо, $P=' + pf(k, N) + '$' };
+    }
+    var s = rnd(3, 11), k2 = 6 - Math.abs(7 - s), cm = s % 2 === 0 ? 1 : 0;      // нийлбэр тэгш бол (s/2; s/2) хоёуланд нь орно
+    return { stem: 'Хоёр шоо зэрэг орхив. $A$ — «хоёр шоо ижил нүдээр буух», $B$ — «нүднүүдийн нийлбэр $' + s + '$ байх». $P(A)$, $P(B)$ ба $A$, $B$-ийн ядаж нэг нь илрэх магадлалыг ол.',
+      a: '$P(A)=' + pf(6, 36) + '$, $P(B)=' + pf(k2, 36) + '$; ' + (cm ? 'нийцтэй (${A\\cap B}$-д $1$ эгэл үзэгдэл): $\\dfrac{6+' + k2 + '-1}{36}=' + fr(5 + k2, 36) + '$' : 'нийцгүй: $\\dfrac{6+' + k2 + '}{36}=' + fr(6 + k2, 36) + '$') };
+  }
+];
+
+CMX.exam({
+  title: 'III бүлэг — Шалгалтын материал',
+  sub: 'Олонлог ба үйлдэл · нийцтэй, нийцгүй үзэгдэл · үзэгдлийн магадлал',
+  grade: '8-р анги',
+  topic: 'Статистик',
+  tests: TESTS,
+  free: FREE
+});
+</script>
+<script src="/eyesh-link.js?v=3"></script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

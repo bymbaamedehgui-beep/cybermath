@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>III бүлэг — Жишиг даалгавар 1 (7-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/cmx.js?v=1"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* 7-р анги · III бүлэг. Харьцаа, пропорц — Жишиг даалгавар 1
+   (3.1 Харьцаа ба түүний хялбар хэлбэр · 3.2 Пропорц ба үндсэн чанар · 3.3 Харьцааг процентоор илэрхийлэх) */
+// Төрлүүдийг ээлжлэн сонгоно (нэг даалгаварт ижил төрөл дараалан давтагдахгүй); сонгосон төрөл үүстэл давтана
+var BAGS = {};
+function rot(key, fns) {
+  var b = BAGS[key];
+  if (!b || !b.length) b = BAGS[key] = shuffle(fns.map(function (_, i) { return i; }));
+  var f = fns[b.pop()];
+  for (var i = 0; i < 80; i++) { var r = f(); if (r) return r; }
+  return null;
+}
+function cop(a, b) { return a !== b && gcd(a, b) === 1; }
+function rr(a, b) { var g = gcd(a, b); return (a / g) + ':' + (b / g); }                 // хураасан харьцаа
+function rr3(a, b, c) { var g = gcd(gcd(a, b), c); return (a / g) + ':' + (b / g) + ':' + (c / g); }
+function df(a, b) { return '\\dfrac{' + a + '}{' + b + '}'; }
+// бутархай {n, d} ба холимог тооны TeX
+function F(n, d) { if (d < 0) { n = -n; d = -d; } var g = gcd(n, d); return { n: n / g, d: d / g }; }
+function mx(a) { if (a.d === 1) return '' + a.n; var N = Math.abs(a.n), w = Math.floor(N / a.d); return (a.n < 0 ? '-' : '') + (w ? w : '') + '\\dfrac{' + (N % a.d) + '}{' + a.d + '}'; }
+
+// 1. Харьцааг бүхэл тоон хялбар хэлбэрт бичих: их тоо (ХИЕХ), аравтын ба энгийн бутархай, гурван гишүүнт, нэгжтэй (3.1)
+function g1() {
+  return rot('g1', [
+    function () {                                                          // 84:126
+      var a = rnd(1, 12), b = rnd(1, 12), k = rnd(6, 24); if (!cop(a, b) || a * k > 300 || b * k > 300) return null;
+      return { stem: '$' + a * k + ':' + b * k + '$', a: '\\text{ХИЕХ}=' + k + ';\\ ' + a + ':' + b };
+    },
+    function () {                                                          // 1.2:0.18
+      var a = rnd(1, 12), b = rnd(1, 12), k = rnd(2, 40), s = rnd(1, 2); if (!cop(a, b)) return null;
+      var sA = dFmt(a * k, s), sB = dFmt(b * k, s); if (sA.indexOf('.') < 0 && sB.indexOf('.') < 0) return null;
+      return { stem: '$' + sA + ':' + sB + '$', a: sA + ':' + sB + '=' + a * k + ':' + b * k + '=' + a + ':' + b };
+    },
+    function () {                                                          // 2/3 : 4/5, 1½ : 2¼
+      var A = F(rnd(1, 20), rnd(2, 9)), B = F(rnd(1, 20), rnd(2, 9)); if (A.d === 1 || B.d === 1 || A.d === B.d) return null;
+      var L = A.d * B.d / gcd(A.d, B.d), X = A.n * L / A.d, Y = B.n * L / B.d; if (X === Y || X / gcd(X, Y) > 40 || Y / gcd(X, Y) > 40) return null;
+      return { stem: '$' + mx(A) + ':' + mx(B) + '$', a: '\\left(' + mx(A) + '\\cdot ' + L + '\\right):\\left(' + mx(B) + '\\cdot ' + L + '\\right)=' + X + ':' + Y + '=' + rr(X, Y) };
+    },
+    function () {                                                          // 0.75 : 1/2
+      var D = pick([[25, 2], [75, 2], [5, 1], [2, 1], [4, 1], [6, 1], [8, 1], [125, 3], [15, 1], [25, 1]]), Dv = F(D[0], Math.pow(10, D[1])), B = F(rnd(1, 9), rnd(2, 9));
+      if (B.d === 1) return null;
+      var X = Dv.n * B.d, Y = B.n * Dv.d; if (X === Y) return null;           // Dv : B = (Dv.n·B.d) : (B.n·Dv.d)
+      return { stem: '$' + dFmt(D[0], D[1]) + ':' + mx(B) + '$', a: df(Dv.n, Dv.d) + ':' + mx(B) + '=' + rr(X, Y) };
+    },
+    function () {                                                          // гурван гишүүнт: 1.5:2:2.5, 12:18:30
+      var a = rnd(1, 9), b = rnd(1, 9), c = rnd(1, 9); if (a === b || b === c || a === c || gcd(gcd(a, b), c) !== 1) return null;
+      if (rnd(0, 1)) { var k = rnd(2, 12); return { stem: '$' + a * k + ':' + b * k + ':' + c * k + '$', a: a + ':' + b + ':' + c }; }
+      var m = pick([5, 2, 25, 4, 15]), A = dFmt(a * m, 1), B = dFmt(b * m, 1), Cc = dFmt(c * m, 1); if ((A + B + Cc).indexOf('.') < 0) return null;
+      return { stem: '$' + A + ':' + B + ':' + Cc + '$', a: A + ':' + B + ':' + Cc + '=' + a * m + ':' + b * m + ':' + c * m + '=' + a + ':' + b + ':' + c };
+    },
+    function () {                                                          // нэгжтэй: 1.2 кг : 450 г, 2 цаг : 45 минут
+      var U = pick([['кг', 'г', 1000, 50], ['м', 'см', 100, 5], ['км', 'м', 1000, 50], ['л', 'мл', 1000, 50], ['цаг', 'минут', 60, 5]]);
+      var Fc = U[2], V = (Fc === 60 ? 6 : Fc / 10) * rnd(5, 40), W = U[3] * rnd(1, Math.floor((Fc - 1) / U[3]));
+      var g = gcd(V, W); if (V === W || V / g > 30 || W / g > 30) return null;
+      return { stem: '$' + dFmt(V * 10 / Fc, 1) + '$ ' + U[0] + ' $:$ $' + W + '$ ' + U[1], a: '$' + V + ':' + W + '=' + rr(V, W) + '$' };
+    }
+  ]);
+}
+
+// 2. Хоёр харьцаа пропорц үүсгэх эсэхийг үндсэн чанараар шалгах (3.2)
+function g2() {
+  var a = rnd(2, 12), b = rnd(2, 15); if (!cop(a, b)) return null;
+  var m = rnd(1, 4), k = rnd(2, 8), ok = rnd(0, 1) === 1, A = a * m, B = b * m, c = a * k, d = ok ? b * k : b * k + pick([-1, 1]) * rnd(1, 2);
+  if (d <= 0 || m === k) return null;
+  var P = A * d, Q = B * c, dec = rnd(0, 2) === 0;                               // dec: эхний харьцаа аравтын бутархайтай (0.6:1.5 ба 4:10)
+  var sA = dec ? dFmt(A, 1) : '' + A, sB = dec ? dFmt(B, 1) : '' + B, sc = '' + c, sd = '' + d, PS = dec ? dFmt(P, 1) : '' + P, QS = dec ? dFmt(Q, 1) : '' + Q;
+  return { stem: '$' + sA + ':' + sB + '$ ба $' + sc + ':' + sd + '$',
+    a: '$' + sA + '\\cdot ' + sd + '=' + PS + '$, $' + sB + '\\cdot ' + sc + '=' + QS + '$; ' + (P === Q ? 'пропорц үүсгэнэ' : 'пропорц үүсгэхгүй') };
+}
+
+// 3. Пропорцоос x олох: бүхэл, аравтын, энгийн бутархай; x-ийн байрлал янз бүр (3.2)
+function g3() {
+  return rot('g3', [
+    function () {                                                          // бүхэл: 96:x = 6:5
+      var p = rnd(1, 12), q = rnd(2, 12), s = rnd(2, 15), t = rnd(2, 12); if (!cop(p, q) || s === t) return null;
+      var v = [p * s, q * s, p * t, q * t], at = rnd(0, 3), c = v.map(function (n, i) { return i === at ? 'x' : '' + n; });
+      return { stem: '$' + c[0] + ':' + c[1] + '=' + c[2] + ':' + c[3] + '$', a: 'x=' + v[at] };
+    },
+    function () {                                                          // аравтын бутархай: x/2.4 = 5/6
+      var c = rnd(1, 9), d = rnd(2, 9), k = rnd(2, 40), s = rnd(1, 2); if (!cop(c, d)) return null;
+      var X = dFmt(c * k, s), B = dFmt(d * k, s); if (B.indexOf('.') < 0 && X.indexOf('.') < 0) return null;
+      var st = rnd(0, 1) ? df('x', B) + '=' + df(c, d) : B + ':x=' + d + ':' + c;
+      return { stem: '$' + st + '$', a: 'x=' + X };
+    },
+    function () {                                                          // энгийн бутархай: 1½ : x = 3 : 4
+      var A = F(rnd(1, 20), rnd(2, 6)), c = rnd(1, 9), d = rnd(1, 9); if (A.d === 1 || !cop(c, d)) return null;
+      var X = F(A.n * d, A.d * c); if (X.d > 9) return null;                   // A : x = c : d → x = A·d / c
+      return { stem: '$' + mx(A) + ':x=' + c + ':' + d + '$', a: 'x=' + mx(A) + '\\cdot ' + d + (c > 1 ? '\\div ' + c : '') + '=' + mx(X) };
+    }
+  ]);
+}
+
+// 4. Харьцааг хувиар (процентоор) илэрхийлэх: бүхэл, аравтын, энгийн бутархай, нэгжтэй (3.3)
+function g4() {
+  return rot('g4', [
+    function () {                                                          // 9:4 → 225%
+      var b = pick([2, 4, 5, 8, 10, 16, 20, 25, 40, 50]), a = rnd(1, 3 * b); if (gcd(a, b) !== 1 || (a * 1000) % b) return null;
+      return { stem: '$' + a + ':' + b + '$', a: df(a, b) + '\\cdot 100\\%=' + dFmt(a * 1000 / b, 1) + '\\%' };
+    },
+    function () {                                                          // 1.2:0.8 → 150%
+      var b = pick([2, 4, 5, 8, 10, 20, 25]), a = rnd(1, 2 * b), k = rnd(2, 9); if (gcd(a, b) !== 1) return null;
+      var A = dFmt(a * k, 1), B = dFmt(b * k, 1); if ((A + B).indexOf('.') < 0) return null;
+      return { stem: '$' + A + ':' + B + '$', a: A + ':' + B + '=' + a + ':' + b + ';\\ ' + df(a, b) + '\\cdot 100\\%=' + dFmt(a * 1000 / b, 1) + '\\%' };
+    },
+    function () {                                                          // 3/5 : 3/4 → 80%
+      var A = F(rnd(1, 9), rnd(2, 9)), B = F(rnd(1, 9), rnd(2, 9)); if (A.d === 1 || B.d === 1 || (A.n === B.n && A.d === B.d)) return null;
+      var R = F(A.n * B.d, A.d * B.n), P = R.n * 1000 / R.d; if (P % 1) return null;
+      return { stem: '$' + mx(A) + ':' + mx(B) + '$', a: mx(A) + '\\div ' + mx(B) + '=' + mx(R) + ';\\ ' + dFmt(P, 1) + '\\%' };
+    },
+    function () {                                                          // 45 см : 1.5 м → 30%
+      var U = pick([['см', 'м', 100], ['г', 'кг', 1000], ['минут', 'цаг', 60]]), Fc = U[2], W = (Fc === 60 ? 6 : Fc / 10) * rnd(5, 30), V = rnd(1, 40) * (Fc === 60 ? 3 : Fc / 20);
+      var P = V * 1000 / W; if (P % 1 || V === W) return null;                 // V (жижиг нэгж) : W (том нэгжийг жижигт)
+      return { stem: '$' + V + '$ ' + U[0] + ' $:$ $' + dFmt(W * 10 / Fc, 1) + '$ ' + U[1], a: '$' + V + ':' + W + '$; $' + df(V, W) + '\\cdot 100\\%=' + dFmt(P, 1) + '\\%$' };
+    }
+  ]);
+}
+
+// 5. Өгүүлбэртэй бодлого: харьцаа зохиох (3.1), пропорц зохиох (3.2), харьцаа ба хувь (3.3)
+function g5() {
+  return rot('g5', [
+    function () {                                                          // савны бөмбөгүүдийн харьцаа
+      var x = rnd(2, 30), y = rnd(2, 30), z = rnd(2, 30); if (x === y || y === z || x === z || gcd(x, y) === 1 && gcd(y, z) === 1) return null;
+      var N = x + y + z;
+      return { stem: 'Саванд $' + x + '$ цэнхэр, $' + y + '$ ногоон, $' + z + '$ улаан бөмбөг байв. а) цэнхэр : ногоон, б) ногоон : улаан, в) цэнхэр : нийт бөмбөгийн харьцааг хялбар хэлбэрт бич.',
+        a: 'а) $' + rr(x, y) + '$ б) $' + rr(y, z) + '$ в) $' + x + ':' + N + '=' + rr(x, N) + '$' };
+    },
+    function () {                                                          // хайлш, хольцын пропорц
+      var T = pick([['Хайлшид зэс ба цайр', 'зэс', 'цайр', 'г', 'Зэс', 'Цайр', 'Хайлш'], ['Ундаанд жимсний шүүс ба ус', 'шүүс', 'ус', 'мл', 'Шүүс', 'Ус', 'Ундаа'],
+                    ['Зуурмагт цемент ба элс', 'цемент', 'элс', 'кг', 'Цемент', 'Элс', 'Зуурмаг']]);
+      var a = rnd(2, 13), b = rnd(2, 13), k = rnd(3, 40); if (!cop(a, b)) return null;
+      var know = rnd(0, 1);    // 1 — хоёр дахь бүрэлдэхүүн нь мэдэгдэнэ
+      return { stem: T[0] + ' $' + a + ':' + b + '$ харьцаатай орно. ' + (know ? T[5] : T[4]) + ' $' + (know ? b * k : a * k) + '$ ' + T[3] + ' орсон бол а) ' + (know ? T[1] : T[2]) + ' хэдэн ' + T[3] + ' орсон бэ? б) ' + T[6] + ' нийт хэдэн ' + T[3] + ' болсон бэ?',
+        a: 'а) $' + (know ? a + ':' + b + '=x:' + b * k + ',\\ x=' + a * k : a + ':' + b + '=' + a * k + ':x,\\ x=' + b * k) + '$ ' + T[3] + '; б) $' + (a + b) * k + '$ ' + T[3] };
+    },
+    function () {                                                          // харьцаанаас хувь
+      var n = pick([4, 5, 8, 10, 20, 25]), a = rnd(1, n - 1), b = n - a; if (!cop(a, b) || (a * 1000) % b) return null;
+      var T = pick([['Жимсний шүүсэнд алим ба лууваны шүүс $' + a + ':' + b + '$ харьцаатай орсон.', 'Алимны шүүс нийт шүүсний', 'Алимны шүүс лууваны шүүсний'],
+                    ['Ангийн охид, хөвгүүдийн тооны харьцаа $' + a + ':' + b + '$.', 'Охид нийт сурагчдын', 'Охидын тоо хөвгүүдийн тооны']]);
+      return { stem: T[0] + ' а) ' + T[1] + ' хэдэн хувь вэ? б) ' + T[2] + ' хэдэн хувь вэ?',
+        a: 'а) $' + df(a, n) + '\\cdot 100\\%=' + dFmt(a * 1000 / n, 1) + '\\%$; б) $' + df(a, b) + '\\cdot 100\\%=' + dFmt(a * 1000 / b, 1) + '\\%$' };
+    },
+    function () {                                                          // «p%-иар их» → харьцаа ба утга
+      var p = pick([10, 20, 25, 40, 50, 60, 75, 80]), g = gcd(100, 100 + p), x = 100 / g, y = (100 + p) / g, v = x * rnd(3, 20);
+      return { stem: 'Хоёр машины нэг нь нөгөөгөөсөө $' + p + '\\%$-иар их хурдтай. а) Хурдны харьцааг (бага : их) ол. б) Бага хурдтай нь $' + v + '$ км/ц явдаг бол нөгөө нь хэдэн км/ц явах вэ?',
+        a: 'а) $100:' + (100 + p) + '=' + x + ':' + y + '$; б) $' + x + ':' + y + '=' + v + ':x,\\ x=' + v * y / x + '$ км/ц' };
+    },
+    function () {                                                          // насны харьцаа
+      var a = rnd(3, 9), b = rnd(1, a - 1), k = rnd(2, 6), n = rnd(2, 12); if (gcd(a, b) !== 1 || a > 3 * b) return null;
+      var dd = b * k, A = a * k; if (dd < 4 || A - dd > 15) return null;
+      return { stem: 'Ах, дүү хоёрын одоогийн насны харьцаа $' + a + ':' + b + '$. Дүү нь $' + dd + '$ настай бол а) ах нь хэдэн настай вэ? б) $' + n + '$ жилийн дараа тэдний насны харьцаа ямар болох вэ?',
+        a: 'а) $' + dd + '\\div ' + b + '\\cdot ' + a + '=' + A + '$ настай; б) $' + (A + n) + ':' + (dd + n) + '=' + rr(A + n, dd + n) + '$' };
+    },
+    function () {                                                          // гурван дүнгийн харьцаа ба хувь
+      var x = rnd(2, 9), y = rnd(2, 9), z = rnd(2, 9), k = rnd(2, 6) * 5; if (x === y || y === z || x === z || gcd(gcd(x, y), z) !== 1) return null;
+      var N = (x + y + z) * k; if ((x * 1000) % (x + y + z)) return null;
+      return { stem: 'Сургуулийн $' + N + '$ сурагчийн $' + x * k + '$ нь 7-р ангид, $' + y * k + '$ нь 8-р ангид, үлдсэн нь 9-р ангид суралцдаг. а) Гурван ангийн сурагчдын тооны харьцааг ол. б) 7-р ангийнхан нийтийн хэдэн хувь вэ?',
+        a: 'а) $' + x * k + ':' + y * k + ':' + z * k + '=' + x + ':' + y + ':' + z + '$; б) $' + dFmt(x * 1000 / (x + y + z), 1) + '\\%$' };
+    }
+  ]);
+}
+
+CMX.jishig({
+  title: 'III бүлэг — Жишиг даалгавар 1',
+  sub: 'Харьцаа ба түүний хялбар хэлбэр · пропорц ба үндсэн чанар · харьцааг процентоор илэрхийлэх',
+  grade: '7-р анги',
+  rule: '$a:b=\\dfrac{a}{b}$, $\\ a:b=(a\\cdot k):(b\\cdot k)$ &nbsp;·&nbsp; $a:b=c:d \\;\\Leftrightarrow\\; a\\cdot d=b\\cdot c$ &nbsp;·&nbsp; $a:b$ харьцааг хувиар: $\\dfrac{a}{b}\\cdot 100\\%$',
+  tasks: [
+    { label: 'Харьцааг бүхэл тоон хялбар хэлбэрт бич.', gen: g1, n: 12, nw: 3, cols: 3, wk: 10 },
+    { label: 'Харьцаанууд пропорц үүсгэх эсэхийг үндсэн чанараар шалга.', gen: g2, n: 9, nw: 3, cols: 3, wk: 12 },
+    { label: 'Пропорцоос $x$-ийг ол.', gen: g3, n: 12, nw: 4, cols: 4, wk: 12 },
+    { label: 'Харьцааг хувиар илэрхийл.', gen: g4, n: 8, nw: 4, cols: 4, wk: 10 },
+    { label: 'Бодлогыг бод.', gen: g5, n: 6, nw: 2, cols: 2, wk: 22 }
+  ]
+});
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

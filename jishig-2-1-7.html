@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>II бүлэг — Жишиг даалгавар 1 (7-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/cmx.js?v=1"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* 7-р анги · II бүлэг. Аравтын ба энгийн бутархай, процент — Жишиг даалгавар 1
+   (2.1 10-ын натурал илтгэгчтэй зэрэг · 2.2 Аравтын бутархайг жиших, эрэмбэлэх · 2.3 Тоог тоймлох ·
+    2.4 Хялбар аргаар тооцоолох · 2.5 Энгийн бутархайг хураах, жиших) */
+// Төрлүүдийг ээлжлэн сонгоно (нэг даалгаварт ижил төрөл дараалан давтагдахгүй); сонгосон төрөл үүстэл давтана
+var BAGS = {};
+function rot(key, fns) {
+  var b = BAGS[key];
+  if (!b || !b.length) b = BAGS[key] = shuffle(fns.map(function (_, i) { return i; }));
+  var f = fns[b.pop()];
+  for (var i = 0; i < 80; i++) { var r = f(); if (r) return r; }
+  return null;
+}
+function p10(k) { var r = 1; while (k-- > 0) r *= 10; return r; }
+// m·10^(−e): e > 0 — аравтын бутархай, e ≤ 0 — бүхэл тоо (≥ 10000 бол 12\,500)
+function sci(m, e) { return e > 0 ? dFmt(m, e) : th(m * p10(-e)); }
+// i/10^k-г яг k оронтой бичнэ (тоймлосны дараах тэгийг хадгална): dFix(1300, 2) → 13.00
+function dFix(i, k) { var s = '' + i; while (s.length <= k) s = '0' + s; return k ? s.slice(0, s.length - k) + '.' + s.slice(s.length - k) : s; }
+// аравтын бутархайн мөр → 0.0001-ийн нэгжтэй бүхэл тоо (жишихэд)
+function v4(t) { var p = String(t).split('.'); return (+p[0]) * 10000 + +(((p[1] || '') + '0000').slice(0, 4)); }
+function rel(x, y) { return x > y ? '\\gt ' : x < y ? '\\lt ' : '='; }
+function df(a, b) { return '\\dfrac{' + a + '}{' + b + '}'; }
+// n/d-ийг 10^(−p)-ийн нэгжээр тоймлоно (дараагийн цифр 5 буюу их бол дээшлүүлнэ)
+function rq(n, d, p) { return Math.floor((2 * n * p10(p) + d) / (2 * d)); }
+
+// 1. 10-ын зэрэгт үржүүлэх, хуваах; 0.1, 0.01, 0.001-ээр үржүүлэх, хуваах; 10-ын зэргийн үйлдэл (2.1)
+function g1() {
+  return rot('g1', [
+    function () {                                                          // a·10^k, a÷10^k
+      var s = rnd(1, 3), m = rnd(11, 9999), k = rnd(1, 4), mul = rnd(0, 1) === 1; if (m % 10 === 0) return null;
+      var e = mul ? s - k : s + k; if (e < -3 || e > 5) return null;
+      var st = dFmt(m, s) + (mul ? '\\cdot ' : '\\div ') + '10^{' + k + '}';
+      return { stem: '$' + st + '$', a: st + '=' + sci(m, e) };
+    },
+    function () {                                                          // a·0.01, a÷0.1 …
+      var s = rnd(0, 2), m = rnd(11, 9999), k = rnd(1, 3), mul = rnd(0, 1) === 1; if (m % 10 === 0) return null;
+      var e = mul ? s + k : s - k; if (e < -3 || e > 5) return null;
+      var st = sci(m, s) + (mul ? '\\cdot ' : '\\div ') + dFmt(1, k);
+      return { stem: '$' + st + '$', a: st + '=' + sci(m, e) };
+    },
+    function () {                                                          // 10^a·10^b÷10^c
+      var a = rnd(2, 9), b = rnd(2, 9), c = rnd(2, 9), r = a + b - c; if (r < 1 || c === a || c === b) return null;
+      return { stem: '$10^{' + a + '}\\cdot 10^{' + b + '}\\div 10^{' + c + '}$', a: '10^{' + a + '+' + b + '-' + c + '}=10^{' + r + '}' };
+    },
+    function () {                                                          // 1000·10^5÷100 — тоог 10-ын зэрэгт шилжүүлж бодно
+      var e = [rnd(2, 5), rnd(2, 5), rnd(1, 4)], r = e[0] + e[1] - e[2], q = [rnd(0, 1), rnd(0, 1), rnd(0, 1)], k = q[0] + q[1] + q[2];
+      if (r < 2 || e[0] === e[2] || k === 0 || k === 3) return null;
+      var t = function (i) { return q[i] ? th(p10(e[i])) : '10^{' + e[i] + '}'; };
+      return { stem: '$' + t(0) + '\\cdot ' + t(1) + '\\div ' + t(2) + '$', a: '10^{' + e[0] + '}\\cdot 10^{' + e[1] + '}\\div 10^{' + e[2] + '}=10^{' + r + '}' };
+    },
+    function () {                                                          // хоёр үйлдэл: 3.6·10²÷0.1
+      var s = rnd(1, 3), m = rnd(11, 999); if (m % 10 === 0) return null;
+      var O = [['\\cdot 10^{2}', 2], ['\\cdot 10^{3}', 3], ['\\div 10^{2}', -2], ['\\div 10^{3}', -3], ['\\cdot 0.1', -1], ['\\div 0.1', 1], ['\\cdot 0.01', -2], ['\\div 0.01', 2]];
+      var o1 = pick(O), o2 = pick(O), sh = o1[1] + o2[1]; if (o1 === o2 || sh === 0) return null;
+      var e = s - sh; if (e < -3 || e > 5) return null;
+      var st = dFmt(m, s) + o1[0] + o2[0];
+      return { stem: '$' + st + '$', a: st + '=' + sci(m, e) };
+    }
+  ]);
+}
+
+// 2. Жиших: аравтын бутархай (орны тоо ялгаатай), нэгж шилжүүлэх, 10-ын зэрэгтэй илэрхийлэл (2.1–2.2);
+//    энгийн бутархайг ХБЕХ-ээр, хурааж, аравтын бутархайтай жиших (2.5)
+function g2() {
+  return rot('g2', [
+    function () {                                                          // 4.57 ба 4.507, 4.57 ба 4.570, 3.075 ба 3.7 …
+      var w = rnd(0, 40), a = rnd(1, 9), b = rnd(1, 9), c = rnd(1, 9), t = rnd(0, 4), x, y;
+      if (t === 0) { x = w + '.' + a + b; y = w + '.' + a + '0' + b; }
+      else if (t === 1) { x = w + '.' + a + b; y = x + '0'; }
+      else if (t === 2) { if (b === 9) return null; x = w + '.' + a + b + c; y = w + '.' + a + (b + 1); }
+      else if (t === 3) { x = (w + 1) + '.0' + b; y = w + '.9' + c; }
+      else { x = w + '.0' + b + c; y = w + '.' + b; }
+      if (rnd(0, 1)) { var z = x; x = y; y = z; }
+      return { stem: '$' + x + '\\;\\square\\;' + y + '$', a: x + rel(v4(x), v4(y)) + y };
+    },
+    function () {                                                          // нэгж шилжүүлэх: 1.724 л ба 1737 мл
+      var U = pick([['кг', 'г', 3], ['км', 'м', 3], ['л', 'мл', 3], ['м', 'см', 2], ['т', 'кг', 3]]), k = U[2], K = p10(k);
+      var v = rnd(K + 1, 9 * K - 1); if (v % K === 0) return null;
+      var bs = dFmt(v, k), fp = bs.split('.')[1] || '0', trap = Math.floor(v / K) * K + parseInt(fp, 10);   // 2.3 кг → «2 кг 3 г» гэж андуурах
+      var w = pick([v, trap, v + rnd(1, 9) * pick([1, 10]), v - rnd(1, 9) * pick([1, 10])]); if (w <= 0) return null;
+      return { stem: '$' + bs + '$ ' + U[0] + ' $\\square$ $' + w + '$ ' + U[1], a: '$' + bs + '$ ' + U[0] + ' $=' + v + '$ ' + U[1] + ', иймд $' + rel(v, w) + '$' };
+    },
+    function () {                                                          // 1.2 цаг ба 80 минут
+      var h = rnd(11, 49); if (h % 10 === 0) return null;
+      var mn = h * 6, trap = Math.floor(h / 10) * 60 + (h % 10) * 10, w = pick([mn, trap, mn + pick([-6, -3, 3, 6])]);
+      return { stem: '$' + dFmt(h, 1) + '$ цаг $\\square$ $' + w + '$ минут', a: '$' + dFmt(h, 1) + '$ цаг $=' + mn + '$ минут, иймд $' + rel(mn, w) + '$' };
+    },
+    function () {                                                          // 10-ын зэрэгтэй илэрхийлэл: 5.56÷0.1 ба 0.556·10²
+      var m = rnd(101, 999); if (m % 10 === 0) return null;
+      var O = [['\\cdot 10', 1], ['\\cdot 10^{2}', 2], ['\\cdot 10^{3}', 3], ['\\div 10', -1], ['\\div 10^{2}', -2], ['\\cdot 0.1', -1], ['\\cdot 0.01', -2], ['\\div 0.1', 1], ['\\div 0.01', 2]];
+      var s1 = rnd(1, 3), o1 = pick(O), eL = o1[1] - s1, o2 = pick(O), eR = eL + pick([0, 0, 1, -1]), s2 = o2[1] - eR;   // утга = m·10^e
+      if (s2 < 0 || s2 > 4 || o1 === o2) return null;
+      var L = dFmt(m, s1) + o1[0], R = sci(m, s2) + o2[0];
+      return { stem: '$' + L + '\\;\\square\\;' + R + '$', a: L + '=' + sci(m, -eL) + rel(eL, eR) + sci(m, -eR) + '=' + R };
+    },
+    function () {                                                          // хуваарь өөр энгийн бутархай (ХБЕХ)
+      var b = rnd(3, 16), d = rnd(3, 16), a = rnd(1, b - 1), c = rnd(1, d - 1);
+      if (b === d || gcd(a, b) !== 1 || gcd(c, d) !== 1) return null;
+      var L = lcm(b, d), x = a * L / b, y = c * L / d; if (L > 120 || x === y || Math.abs(x - y) > 3) return null;
+      return { stem: '$' + df(a, b) + '\\;\\square\\;' + df(c, d) + '$', a: df(a, b) + rel(x, y) + df(c, d) + '\\ \\left(' + df(x, L) + rel(x, y) + df(y, L) + '\\right)' };
+    },
+    function () {                                                          // хураагаад жиших: 36/48 ба 3/4
+      var p = rnd(1, 11), q = rnd(p + 1, 15), g = rnd(3, 12); if (gcd(p, q) !== 1 || q * g > 150) return null;
+      var A = p * g, B = q * g, t = rnd(0, 2), c = p, d = q;
+      if (t === 1) { c = p + 1; if (c >= q) return null; }
+      if (t === 2) d = q + 1;
+      if (gcd(c, d) !== 1) return null;
+      return { stem: '$' + df(A, B) + '\\;\\square\\;' + df(c, d) + '$', a: '$' + df(A, B) + '=' + df(p, q) + '$, иймд $' + df(A, B) + rel(A * d, B * c) + df(c, d) + '$' };
+    },
+    function () {                                                          // энгийн ба аравтын бутархай
+      var b = pick([4, 5, 8, 20, 25, 40]), a = rnd(1, b - 1); if (gcd(a, b) !== 1) return null;
+      var v = a * 1000 / b, D = v + pick([0, 0, -1, 1]) * pick([1, 5, 10, 50]); if (D <= 0 || D >= 1000) return null;
+      var x = df(a, b), y = dFmt(D, 3);
+      return { stem: '$' + x + '\\;\\square\\;' + y + '$', a: '$' + x + '=' + dFmt(v, 3) + '$, иймд $' + x + rel(v, D) + y + '$' };
+    }
+  ]);
+}
+
+// 3. Тоймлох: аравтын бутархайг 0.1, 0.01, 0.001 нарийвчлалтай; бүхэл тоог аравтаар, зуутаар, мянгатаар;
+//    үржвэр, ноогдвор, энгийн бутархайн утгыг тоймлох (2.3)
+function g3() {
+  return rot('g3', [
+    function () {
+      var p = rnd(1, 3), s = Math.min(4, p + rnd(1, 2)), u = p10(s - p), v;
+      if (rnd(0, 2) === 0) { var R0 = rnd(p10(p) + 1, 99 * p10(p)); R0 = R0 - R0 % 10 + 9; v = R0 * u + rnd(u / 2, u - 1); }   // …9-ийг дээшлүүлэхэд орон шилжинэ
+      else v = rnd(p10(s) + 1, 300 * p10(s));
+      if (v % 10 === 0) return null;
+      var R = Math.floor((2 * v + u) / (2 * u));
+      return { stem: '$' + dFmt(v, s) + '$ $(' + dFmt(1, p) + ')$', a: dFmt(v, s) + '\\approx ' + dFix(R, p) };
+    },
+    function () {
+      var k = rnd(1, 3), P = p10(k), n = rnd(1000, 999999); if (n % P === 0) return null;
+      return { stem: '$' + th(n) + '$ (' + ['', 'аравтаар', 'зуутаар', 'мянгатаар'][k] + ')', a: th(n) + '\\approx ' + th(Math.floor((2 * n + P) / (2 * P)) * P) };
+    },
+    function () {                                                          // үржвэрийг тоймлох: 4.33·8.1 (0.01)
+      var A = rnd(101, 999), B = rnd(11, 99), sa = rnd(1, 2); if (A % 10 === 0 || B % 10 === 0) return null;
+      var P = A * B, s = sa + 1, p = rnd(1, s - 1), u = p10(s - p); if (P % u === 0) return null;
+      var R = Math.floor((2 * P + u) / (2 * u)), st = dFmt(A, sa) + '\\cdot ' + dFmt(B, 1);
+      return { stem: '$' + st + '$ $(' + dFmt(1, p) + ')$', a: st + '=' + dFmt(P, s) + '\\approx ' + dFix(R, p) };
+    },
+    function () {                                                          // ноогдвор (төгсгөлгүй): 6545÷9 (0.01)
+      var d = pick([3, 6, 7, 9, 11, 12]), n = rnd(10, 999), dd = d / gcd(n, d); if (n % d === 0) return null;
+      while (dd % 2 === 0) dd /= 2; while (dd % 5 === 0) dd /= 5; if (dd === 1) return null;
+      var p = rnd(1, 2), T = Math.floor(n * p10(p + 2) / d);
+      return { stem: '$' + n + '\\div ' + d + '$ $(' + dFmt(1, p) + ')$', a: n + '\\div ' + d + '=' + dFix(T, p + 2) + '\\ldots\\approx ' + dFix(rq(n, d, p), p) };
+    },
+    function () {                                                          // энгийн бутархайг тоймлох: 5/7 (0.001)
+      var b = pick([3, 6, 7, 9, 11, 12, 13]), a = rnd(1, 2 * b); if (gcd(a, b) !== 1) return null;
+      var p = rnd(1, 3), T = Math.floor(a * p10(p + 1) / b);
+      return { stem: '$' + df(a, b) + '$ $(' + dFmt(1, p) + ')$', a: df(a, b) + '=' + dFix(T, p + 1) + '\\ldots\\approx ' + dFix(rq(a, b, p), p) };
+    }
+  ]);
+}
+
+// 4. Хялбар аргаар тооцоолох: байр солих, бүлэглэх, хуваарилах чанар; 0.25·4, 1.25·8 хос (2.4)
+function g4() {
+  return rot('g4', [
+    function () {                                                          // 2.37 + 4.8 + 0.63 + 5.2
+      var x = rnd(101, 899), y = rnd(11, 89); if (x % 10 === 0 || y % 10 === 0) return null;
+      var X = Math.ceil(x / 100) + rnd(0, 2), Y = Math.ceil(y / 10) + rnd(0, 3), z = X * 100 - x, w = Y * 10 - y;
+      return { stem: '$' + dFmt(x, 2) + '+' + dFmt(y, 1) + '+' + dFmt(z, 2) + '+' + dFmt(w, 1) + '$',
+        a: '(' + dFmt(x, 2) + '+' + dFmt(z, 2) + ')+(' + dFmt(y, 1) + '+' + dFmt(w, 1) + ')=' + X + '+' + Y + '=' + (X + Y) };
+    },
+    function () {                                                          // 0.25·3.7·4, (−1.25)·0.96·8
+      var P = pick([[25, 2, 4], [5, 1, 2], [125, 2, 8], [25, 1, 4], [2, 1, 5], [125, 3, 8], [4, 2, 25], [5, 1, 20], [25, 2, 40]]);
+      var c = P[0] * P[2], xs = rnd(1, 2), x = rnd(11, 999); if (x % 10 === 0) return null;     // P0·P2 = c/10^P1 (1 эсвэл 10)
+      var s1 = rnd(0, 2) === 0 ? -1 : 1, s2 = s1 < 0 && rnd(0, 1) ? -1 : 1, neg = s1 * s2 < 0;
+      var A = s1 < 0 ? '(-' + dFmt(P[0], P[1]) + ')' : dFmt(P[0], P[1]), B = s2 < 0 ? '(-' + P[2] + ')' : '' + P[2], X = dFmt(x, xs);
+      return { stem: '$' + A + '\\cdot ' + X + '\\cdot ' + B + '$',
+        a: '(' + A + '\\cdot ' + B + ')\\cdot ' + X + '=' + (neg ? '-' : '') + dFmt(c, P[1]) + '\\cdot ' + X + '=' + (neg ? '-' : '') + dFmt(x * c, xs + P[1]) };
+    },
+    function () {                                                          // a·b ± a·c = a·(b ± c)
+      var a = rnd(11, 99), S = pick([1, 10]), bs = S === 1 ? 2 : 1, minus = rnd(0, 1) === 1, b = rnd(11, 89), c;
+      if (a % 10 === 0 || b % 10 === 0) return null;
+      if (minus) { c = b; b = c + 100; } else c = 100 - b;                 // b ± c = S (10^(−bs)-ийн нэгжээр 100)
+      var A = dFmt(a, 1), Bt = dFmt(b, bs), Ct = dFmt(c, bs), o = minus ? '-' : '+', V = dFmt(a * S, 1);
+      if (rnd(0, 1)) return { stem: '$' + A + '\\cdot ' + Bt + o + A + '\\cdot ' + Ct + '$', a: A + '\\cdot (' + Bt + o + Ct + ')=' + A + '\\cdot ' + S + '=' + V };
+      return { stem: '$' + Bt + '\\cdot ' + A + o + Ct + '\\cdot ' + A + '$', a: '(' + Bt + o + Ct + ')\\cdot ' + A + '=' + S + '\\cdot ' + A + '=' + V };
+    },
+    function () {                                                          // 38 − 11.906 − 8.094 = 38 − (11.906 + 8.094)
+      var x = rnd(1001, 19999); if (x % 10 === 0) return null;
+      var M = Math.ceil(x / 1000) + rnd(0, 3), y = M * 1000 - x, A = M + rnd(3, 30);
+      return { stem: '$' + A + '-' + dFmt(x, 3) + '-' + dFmt(y, 3) + '$', a: A + '-(' + dFmt(x, 3) + '+' + dFmt(y, 3) + ')=' + A + '-' + M + '=' + (A - M) };
+    },
+    function () {                                                          // 1/3 + 2/5 + 5 2/3 + 5 3/5
+      var b = rnd(2, 9), d = rnd(2, 9), a = rnd(1, b - 1), c = rnd(1, d - 1); if (b === d || gcd(a, b) !== 1 || gcd(c, d) !== 1) return null;
+      var W1 = rnd(1, 6), W2 = rnd(1, 6), t1 = df(a, b), t2 = df(c, d), t3 = W1 + df(b - a, b), t4 = W2 + df(d - c, d);
+      return { stem: '$' + t1 + '+' + t2 + '+' + t3 + '+' + t4 + '$', a: '\\left(' + t1 + '+' + t3 + '\\right)+\\left(' + t2 + '+' + t4 + '\\right)=' + (W1 + 1) + '+' + (W2 + 1) + '=' + (W1 + W2 + 2) };
+    }
+  ]);
+}
+
+// 5. Өгүүлбэртэй бодлого: хэмжээг эрэмбэлэх (2.2), тоймлосон утгын завсар, эзлэхүүнийг тоймлох (2.3),
+//    бутархайг жиших, хураах, завсар дахь бутархай (2.5)
+function g5() {
+  return rot('g5', [
+    function () {                                                          // ялгаатай нэгжтэй уртуудыг эрэмбэлэх
+      var base = rnd(2, 9) * 1000, vals = [], tries = 0;
+      while (vals.length < 4 && tries++ < 60) { var x = base + rnd(-12, 12) * 5; if (vals.indexOf(x) < 0) vals.push(x); }
+      if (vals.length < 4) return null;
+      var units = shuffle(['м', 'см', 'мм', pick(['м', 'см'])]);
+      var items = vals.map(function (x, i) { var u = units[i]; return { x: x, t: '$' + (u === 'м' ? dFmt(x, 3) : u === 'см' ? dFmt(x, 1) : '' + x) + '$ ' + u }; });
+      var up = rnd(0, 1) === 1, sorted = items.slice().sort(function (p, q) { return up ? p.x - q.x : q.x - p.x; });
+      return { stem: 'Уртуудыг ' + (up ? 'өсөх' : 'буурах') + ' эрэмбээр байрлуул: ' + items.map(function (o) { return o.t; }).join(', ') + '.',
+        a: sorted.map(function (o) { return o.t; }).join(' $' + (up ? '\\lt' : '\\gt') + '$ ') };
+    },
+    function () {                                                          // тоймлосон утгаас жинхэнэ утгын завсар
+      var Q = pick([['Олсны уртыг', 'м'], ['Ачааны жинг', 'кг'], ['Хоёр тосгоны хоорондох зайг', 'км'], ['Савны багтаамжийг', 'л']]);
+      var p = rnd(0, 2), R = rnd(12, p === 2 ? 999 : 99); if (p && R % 10 === 0) return null;
+      return { stem: Q[0] + ' $' + dFmt(1, p) + '$ ' + Q[1] + ' нарийвчлалтай хэмжиж тоймлоход $' + dFmt(R, p) + '$ ' + Q[1] + ' гарчээ. Жинхэнэ утга нь хамгийн багадаа хэд байж болох вэ? Хамгийн ихдээ хэдээс бага байх вэ?',
+        a: '$' + dFmt(R * 10 - 5, p + 1) + '\\le x\\lt ' + dFmt(R * 10 + 5, p + 1) + '$ ' + Q[1] };
+    },
+    function () {                                                          // хэн нь их уншсан бэ — ХБЕХ-ээр жиших
+      var b = rnd(3, 12), d = rnd(3, 12), a = rnd(1, b - 1), c = rnd(1, d - 1);
+      if (b === d || gcd(a, b) !== 1 || gcd(c, d) !== 1) return null;
+      var L = lcm(b, d), x = a * L / b, y = c * L / d; if (L > 72 || x === y) return null;
+      var P = pick([['Бат', 'Сараа'], ['Тэмүүлэн', 'Номин'], ['Анар', 'Билгүүн'], ['Дулмаа', 'Төгөлдөр']]);
+      return { stem: P[0] + ' номын $' + df(a, b) + '$ хэсгийг, ' + P[1] + ' ижил номын $' + df(c, d) + '$ хэсгийг уншжээ. Хэн нь их уншсан бэ? Хэдэн хэсгээр их вэ?',
+        a: '$' + df(x, L) + rel(x, y) + df(y, L) + '$ тул ' + (x > y ? P[0] : P[1]) + '; $' + fr(Math.abs(x - y), L) + '$ хэсгээр их' };
+    },
+    function () {                                                          // хоёр бутархайн хооронд орших бутархай
+      var q1 = rnd(2, 9), q2 = rnd(2, 9), p1 = rnd(1, q1 - 1), p2 = rnd(1, q2 - 1);
+      if (gcd(p1, q1) !== 1 || gcd(p2, q2) !== 1 || p1 * q2 >= p2 * q1) return null;
+      var n = lcm(q1, q2) * rnd(1, 2); if (n > 48 || n === q1 || n === q2) return null;
+      var lo = p1 * n / q1, hi = p2 * n / q2, s = []; for (var a = lo + 1; a < hi; a++) s.push(a);
+      if (s.length < 1 || s.length > 5) return null;
+      return { stem: '$' + df(p1, q1) + '\\lt ' + df('a', n) + '\\lt ' + df(p2, q2) + '$ байх бүх натурал $a$ тоог ол.',
+        a: '$' + df(lo, n) + '\\lt ' + df('a', n) + '\\lt ' + df(hi, n) + '$ тул $a=' + s.join(',\\ ') + '$' };
+    },
+    function () {                                                          // хэдэн хэсэг вэ — хураах
+      var q = rnd(3, 12), p = rnd(1, q - 1), g = rnd(2, 12); if (gcd(p, q) !== 1) return null;
+      var N = q * g, k = p * g; if (N > 120 || N < 20) return null;
+      var T = pick([['Ангийн $' + N + '$ сурагчийн $' + k + '$ нь охид.', 'Охид ангийн нийт сурагчдын'],
+                    ['Цэцэрлэгт хүрээлэнгийн $' + N + '$ модны $' + k + '$ нь нарс.', 'Нарс нийт модны'],
+                    ['Сурагч шалгалтын $' + N + '$ бодлогоос $' + k + '$ бодлогыг зөв бодсон.', 'Зөв бодсон бодлого нийт бодлогын'],
+                    ['Дэлгүүрт ирсэн $' + N + '$ хайрцаг жимсний $' + k + '$ хайрцаг нь алим.', 'Алимтай хайрцаг нийт хайрцгийн']]);
+      return { stem: T[0] + ' ' + T[1] + ' хэдэн хэсэг вэ? Хураасан бутархайгаар бич.', a: '$' + df(k, N) + '=' + df(p, q) + '$' };
+    },
+    function () {                                                          // хэмжээсийг бүхлээр тоймлон эзлэхүүнийг ойролцоогоор олох
+      var s = rnd(1, 2), K = p10(s), d = [], r = [];
+      for (var i = 0; i < 3; i++) { var v = rnd(K + 1, 10 * K - 1); if (v % 10 === 0) return null; d.push(dFmt(v, s)); r.push(Math.floor((2 * v + K) / (2 * K))); }
+      return { stem: 'Тэгш өнцөгт параллелепипедийн хэмжээс $' + d[0] + '$ см, $' + d[1] + '$ см, $' + d[2] + '$ см. Хэмжээсүүдийг бүхлээр тоймлон эзлэхүүнийг ойролцоогоор ол.',
+        a: '$V\\approx ' + r[0] + '\\cdot ' + r[1] + '\\cdot ' + r[2] + '=' + (r[0] * r[1] * r[2]) + '$ см$^3$' };
+    }
+  ]);
+}
+
+CMX.jishig({
+  title: 'II бүлэг — Жишиг даалгавар 1',
+  sub: '10-ын зэрэг · аравтын бутархайг жиших · тоймлох · хялбар аргаар тооцоолох · энгийн бутархайг хураах, жиших',
+  grade: '7-р анги',
+  rule: '$10^a\\cdot 10^b=10^{a+b}$, $\\ 10^a\\div 10^b=10^{a-b}$ &nbsp;·&nbsp; $a\\cdot 0.1=a\\div 10$, $\\ a\\div 0.01=a\\cdot 100$ &nbsp;·&nbsp; Тоймлохдоо дараагийн цифр $5$ буюу түүнээс их бол дээшлүүлнэ &nbsp;·&nbsp; $\\dfrac{a\\cdot k}{b\\cdot k}=\\dfrac{a}{b}$',
+  tasks: [
+    { label: 'Үйлдлийг гүйцэтгэ.', gen: g1, n: 12, nw: 4, cols: 4, wk: 10 },
+    { label: 'Тохирох тэмдгийг ($\\lt$, $\\gt$, $=$) тавь.', gen: g2, n: 9, nw: 3, cols: 3, wk: 10 },
+    { label: 'Хаалтад заасан нарийвчлалтай тоймло.', gen: g3, n: 9, nw: 3, cols: 3, wk: 10 },
+    { label: 'Хялбар аргаар бод.', gen: g4, n: 9, nw: 3, cols: 3, wk: 14 },
+    { label: 'Бодлогыг бод.', gen: g5, n: 6, nw: 2, cols: 2, wk: 22 }
+  ]
+});
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

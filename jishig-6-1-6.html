@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VI бүлэг — Жишиг даалгавар 1 (6-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/cmx.js?v=1"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* 6-р анги · VI бүлэг. Дараалал, функц — Жишиг даалгавар 1 (6.1 Дүрсэн дараалал · 6.2 Тоон дараалал · 6.3 Функц) */
+// [{c,v}] → '2n-3' (тэг коэффициенттэйг алгасна)
+function pl(ts) {
+  var s = '';
+  ts.forEach(function (t) { var c = t.c, v = t.v || ''; if (!c) return; var body = v === '' ? '' + Math.abs(c) : (Math.abs(c) === 1 ? '' : Math.abs(c)) + v; s += (s === '' ? (c < 0 ? '-' : '') : (c < 0 ? '-' : '+')) + body; });
+  return s === '' ? '0' : s;
+}
+function lnn(a, b) { return pl([{ c: a, v: 'n' }, { c: b, v: '' }]); }               // an+b
+function seqT(arr) { return arr.map(function (v) { return th(v); }).join(';\\ ') + ';\\ \\ldots'; }   // 3;\ 7;\ 11;\ \ldots
+// Төрлийн уут: нэг хуудсанд даалгаврын бодлогууд өөр өөр төрлөөс (бүх төрөл гарсны дараа л давтагдана).
+// Хөдөлгүүр даалгавруудыг дарааллаар нь үүсгэдэг тул 1-р даалгавар дахин эхлэхэд (шинэ хуудас) уутнуудыг шинэчилнэ.
+var BAGS = [], LAST = 0;
+function bag(n) {
+  var o = { b: [] }; BAGS.push(o);
+  return function () { if (!o.b.length) { for (var i = 0; i < n; i++) o.b.push(i); o.b = shuffle(o.b); } return o.b.pop(); };
+}
+function turn(id) { if (id === 1 && LAST !== 1) BAGS.forEach(function (o) { o.b = []; }); LAST = id; }
+var B1 = bag(6), B2 = bag(4), B3 = bag(6), B4 = bag(5), B5 = bag(5);
+var NAMES = ['Болд', 'Сараа', 'Тэмүүлэн', 'Номин', 'Бат', 'Ану'];
+
+/* ── Зураг (өргөн ≤ 160px, өндөр ≤ 110px; хариу илчлэхгүй — зөвхөн эхний дүрсүүд) ── */
+var INK = '#1a1030', SHADE = '#cfc6ee';
+function lab(x, y, t) { return '<text x="' + x + '" y="' + y + '" font-size="11" text-anchor="middle" fill="' + INK + '">' + t + '</text>'; }
+function svg(w, h, g) { w = Math.ceil(w); h = Math.ceil(h); return '<svg viewBox="0 0 ' + w + ' ' + h + '" width="' + w + '" height="' + h + '" xmlns="http://www.w3.org/2000/svg">' + g + '</svg>'; }
+// k дугаар дүрс: дээд мөрөнд k цагаан, доод мөрөнд (a·k+b) өнгөт квадрат — эхний 3 дүрс
+function figStrip(a, b) {
+  var S = 7, G = 10, x = 3, g = '', k, j;
+  for (k = 1; k <= 3; k++) {
+    var c = a * k + b, w = Math.max(k, c) * S;
+    for (j = 0; j < k; j++) g += '<rect x="' + (x + j * S) + '" y="2" width="' + S + '" height="' + S + '" fill="#fff" stroke="' + INK + '" stroke-width="0.8"/>';
+    for (j = 0; j < c; j++) g += '<rect x="' + (x + j * S) + '" y="' + (2 + S) + '" width="' + S + '" height="' + S + '" fill="' + SHADE + '" stroke="' + INK + '" stroke-width="0.8"/>';
+    g += lab(x + w / 2, 2 + 2 * S + 12, k);
+    x += w + G;
+  }
+  return svg(x - G + 3, 2 * S + 16, g);
+}
+function stick(x1, y1, x2, y2) { return '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + INK + '" stroke-width="1.8" stroke-linecap="round"/>'; }
+// Чүдэнзэн дараалал, эхний 3 дүрс: kind 0 — эгнээ квадрат (3n+1 чүдэнз), kind 1 — эгнээ гурвалжин (2n+1 чүдэнз)
+function figMatch(kind) {
+  var g = '', x = 4, k, i, S = kind ? 12 : 10, top = 3, H = kind ? 10.4 : 10;
+  for (k = 1; k <= 3; k++) {
+    var w;
+    if (!kind) {
+      for (i = 0; i < k; i++) g += stick(x + i * S, top, x + (i + 1) * S, top) + stick(x + i * S, top + S, x + (i + 1) * S, top + S);
+      for (i = 0; i <= k; i++) g += stick(x + i * S, top, x + i * S, top + S);
+      w = k * S;
+    } else {
+      var yb = top + H, seen = {};
+      var add = function (p, q) { var k1 = p.join(',') + '|' + q.join(','), k2 = q.join(',') + '|' + p.join(','); if (seen[k1] || seen[k2]) return; seen[k1] = 1; g += stick(p[0], p[1], q[0], q[1]); };
+      for (i = 0; i < k; i++) {
+        var j = Math.floor(i / 2), B0 = [x + j * S, yb], B1p = [x + (j + 1) * S, yb], T0 = [x + S / 2 + j * S, top], T1 = [x + S / 2 + (j + 1) * S, top];
+        if (i % 2 === 0) { add(B0, B1p); add(B0, T0); add(B1p, T0); } else { add(T0, T1); add(T0, B1p); add(T1, B1p); }
+      }
+      w = (k + 1) * S / 2;
+    }
+    g += lab(x + w / 2, top + H + 13, k);
+    x += w + 12;
+  }
+  return svg(x - 12 + 4, top + H + 16, g);
+}
+// Гурвалжин тоо, эхний 4 дүрс: k дугаар дүрс — 1+2+…+k цэг
+function figDots() {
+  var D = 9, x = 4, g = '', k, r, i;
+  for (k = 1; k <= 4; k++) {
+    for (r = 0; r < k; r++) for (i = 0; i <= r; i++) g += '<circle cx="' + (x + (k - 1 - r) * D / 2 + i * D + D / 2) + '" cy="' + (3 + r * D + D / 2) + '" r="2.8" fill="' + INK + '"/>';
+    g += lab(x + k * D / 2, 4 * D + 15, k);
+    x += k * D + 12;
+  }
+  return svg(x - 12 + 4, 4 * D + 19, g);
+}
+// Давтагдах дүрсүүд (8 дүрс, дугаартай)
+var SHP = { t: 'гурвалжин', s: 'квадрат', c: 'тойрог', d: 'ромб' };
+function shape(c, x, y, S) {
+  var cx = x + S / 2, cy = y + S / 2;
+  if (c === 't') return '<polygon points="' + cx + ',' + y + ' ' + x + ',' + (y + S) + ' ' + (x + S) + ',' + (y + S) + '" fill="#fff" stroke="' + INK + '" stroke-width="1.2"/>';
+  if (c === 's') return '<rect x="' + (x + 1) + '" y="' + (y + 1) + '" width="' + (S - 2) + '" height="' + (S - 2) + '" fill="' + SHADE + '" stroke="' + INK + '" stroke-width="1.2"/>';
+  if (c === 'c') return '<circle cx="' + cx + '" cy="' + cy + '" r="' + (S / 2 - 0.5) + '" fill="#fff" stroke="' + INK + '" stroke-width="1.2"/>';
+  return '<polygon points="' + cx + ',' + y + ' ' + (x + S) + ',' + cy + ' ' + cx + ',' + (y + S) + ' ' + x + ',' + cy + '" fill="' + INK + '" stroke="' + INK + '" stroke-width="1.2"/>';
+}
+function figShapes(pat) {
+  var S = 14, G = 4, g = '', i;
+  for (i = 0; i < 8; i++) { g += shape(pat[i % pat.length], 3 + i * (S + G), 2, S) + lab(3 + i * (S + G) + S / 2, S + 15, i + 1); }
+  return svg(3 + 8 * (S + G) - G + 3, S + 19, g);
+}
+
+// 1. Тоон дарааллын зүй тогтол ба дараагийн 3 гишүүн (6.2): нэмэх/хасах, дахин ихэсгэх/багасгах, аравтын бутархай,
+//    ялгавар нь өсөх, өмнөх хоёрын нийлбэр, квадрат тоо
+function g1() {
+  turn(1);
+  var t = B1(), arr = [], nx = [], i, rule;
+  if (t <= 1) {
+    var a1 = rnd(-20, 40), d = rnd(2, 15) * (t === 0 ? 1 : -1);
+    for (i = 0; i < 7; i++) (i < 4 ? arr : nx).push(a1 + i * d);
+    rule = d > 0 ? 'өмнөх гишүүн дээр $' + d + '$ нэмнэ' : 'өмнөх гишүүнээс $' + (-d) + '$ хасна';
+  } else if (t === 2) {
+    var r = pick([2, 3, 4, 5]), b0 = r >= 4 ? rnd(1, 2) : rnd(1, 6);
+    for (i = 0; i < 7; i++) (i < 4 ? arr : nx).push(b0 * Math.pow(r, i));
+    rule = 'гишүүн бүр өмнөхөөсөө $' + r + '$ дахин их';
+  } else if (t === 3) {
+    var q = pick([2, 3]), m = rnd(1, 5), A = m * Math.pow(q, 6);
+    for (i = 0; i < 7; i++) (i < 4 ? arr : nx).push(A / Math.pow(q, i));
+    rule = 'гишүүн бүр өмнөхөөсөө $' + q + '$ дахин бага';
+  } else if (t === 4) {
+    var h = 5 * rnd(4, 40), dh = pick([5, 10, 15, 20, 25, 30, 50, -5, -10, -20, -25]);
+    if (h + 6 * dh <= 0) return null;
+    for (i = 0; i < 7; i++) (i < 4 ? arr : nx).push(dFmt(h + i * dh, 2));
+    rule = dh > 0 ? 'өмнөх гишүүн дээр $' + dFmt(dh, 2) + '$ нэмнэ' : 'өмнөх гишүүнээс $' + dFmt(-dh, 2) + '$ хасна';
+  } else {
+    var u = rnd(0, 2), all = [];
+    if (u === 0) { var s0 = rnd(1, 9), d0 = rnd(1, 5), e = rnd(1, 3); all = [s0]; for (i = 1; i < 8; i++) all.push(all[i - 1] + d0 + (i - 1) * e); rule = 'ялгаварууд $' + d0 + ';\\ ' + (d0 + e) + ';\\ ' + (d0 + 2 * e) + ';\\ \\ldots$ болж өснө'; }
+    else if (u === 1) { var f1 = rnd(1, 5), f2 = rnd(2, 8); all = [f1, f2]; for (i = 2; i < 8; i++) all.push(all[i - 1] + all[i - 2]); rule = 'гишүүн бүр өмнөх хоёр гишүүний нийлбэр'; }
+    else { var c0 = rnd(0, 6); for (i = 1; i <= 8; i++) all.push(i * i + c0); rule = '$n$ дугаар гишүүн нь $n^{2}' + (c0 ? '+' + c0 : '') + '$'; }
+    arr = all.slice(0, 5); nx = all.slice(5, 8);
+  }
+  return { stem: '$' + seqT(arr) + '$', a: '$' + nx.map(function (v) { return th(v); }).join(';\\ ') + '$ (' + rule + ')' };
+}
+
+// 2. Дарааллын заасан гишүүн (6.2): арифметик aₖ, n дугаар гишүүний томьёо ба a₁₀₀, үржих зүй тогтолтой aₖ, томьёогоор өгсөн дараалал
+function g2() {
+  turn(2);
+  var t = B2(), a1, d, k, arr = [], i;
+  if (t === 0) {
+    a1 = rnd(-20, 40); d = nz(-12, 12); if (Math.abs(d) < 2) return null; k = pick([8, 10, 12, 15, 20, 25, 30]);
+    for (i = 0; i < 4; i++) arr.push(a1 + i * d);
+    return { stem: '$' + seqT(arr) + '$, $\\ a_{' + k + '}=?$', a: 'a_{' + k + '}=' + a1 + (d > 0 ? '+' : '-') + Math.abs(d) + '\\cdot ' + (k - 1) + '=' + (a1 + (k - 1) * d) };
+  }
+  if (t === 1) {
+    a1 = rnd(-12, 30); d = nz(-11, 11); if (Math.abs(d) < 2) return null;
+    var c = a1 - d; for (i = 0; i < 5; i++) arr.push(a1 + i * d);
+    return { stem: '$' + seqT(arr) + '$, $\\ a_n=?$, $\\ a_{100}=?$', a: 'a_n=' + lnn(d, c) + ',\\ a_{100}=' + (100 * d + c) };
+  }
+  if (t === 2) {
+    var r = pick([2, 3]), b0 = r === 3 ? rnd(1, 4) : rnd(1, 7); k = r === 3 ? pick([6, 7, 8]) : pick([7, 8, 9, 10, 11]);
+    for (i = 0; i < 4; i++) arr.push(b0 * Math.pow(r, i));
+    return { stem: '$' + seqT(arr) + '$, $\\ a_{' + k + '}=?$', a: 'a_{' + k + '}=' + (b0 === 1 ? '' : b0 + '\\cdot ') + r + '^{' + (k - 1) + '}=' + th(b0 * Math.pow(r, k - 1)) };
+  }
+  d = nz(-9, 9); var c3 = nz(-15, 15); if (Math.abs(d) < 2) return null; k = pick([10, 20, 25, 40, 50]);
+  return { stem: '$a_n=' + lnn(d, c3) + '$ бол $a_1$, $a_2$, $a_3$ ба $a_{' + k + '}$', a: 'a_1=' + (d + c3) + ',\\ a_2=' + (2 * d + c3) + ',\\ a_3=' + (3 * d + c3) + ',\\ a_{' + k + '}=' + (k * d + c3) };
+}
+
+// 3. Дүрсэн дараалал (6.1): өнгөт квадрат, чүдэнз — заасан дүрсийн элементийн тоо ба урвуу асуулт; гурвалжин тоо; давтагдах дүрс
+var STRIP = [[1, 1], [1, 2], [1, 3], [2, 0], [2, 1], [2, 2], [3, 0]];
+var PATS = [['t', 's'], ['t', 't', 'c'], ['s', 'c', 't'], ['c', 's'], ['t', 'c', 'c', 's'], ['s', 't', 'c', 'd'], ['d', 'c', 'c'], ['c', 't', 's', 's'], ['d', 's'], ['t', 'd', 'c']];
+function g3() {
+  turn(3);
+  var t = B3(), k;
+  if (t <= 1) {
+    var P = pick(STRIP), a = P[0], b = P[1], f = figStrip(a, b);
+    if (t === 0) { k = rnd(6, 25); return { stem: '$' + k + '$ дугаар дүрст хэдэн өнгөт квадрат байх вэ?', fig: f, a: '$' + lnn(a, b) + '$; $' + (a * k + b) + '$ квадрат' }; }
+    k = rnd(11, 40);
+    return { stem: 'Хэдэн дугаар дүрст $' + (a * k + b) + '$ өнгөт квадрат байх вэ?', fig: f, a: '$' + lnn(a, b) + '=' + (a * k + b) + '$; $n=' + k + '$' };
+  }
+  if (t <= 3) {
+    var kind = rnd(0, 1), fm = figMatch(kind), A = kind ? 2 : 3;
+    if (t === 2) { k = rnd(5, 30); return { stem: '$' + k + '$ дугаар дүрс хэдэн чүдэнзээс тогтох вэ?', fig: fm, a: '$' + lnn(A, 1) + '$; $' + (A * k + 1) + '$ чүдэнз' }; }
+    k = rnd(8, 40);
+    return { stem: '$' + (A * k + 1) + '$ чүдэнзээр хэдэн дугаар дүрс өрөх вэ?', fig: fm, a: '$' + lnn(A, 1) + '=' + (A * k + 1) + '$; $n=' + k + '$' };
+  }
+  if (t === 4) { k = rnd(6, 20); return { stem: '$' + k + '$ дугаар гурвалжин тоо хэд вэ?', fig: figDots(), a: '$1+2+\\ldots+' + k + '=' + (k * (k + 1) / 2) + '$' }; }
+  var p = pick(PATS), N = rnd(25, 200), L = p.length, idx = (N - 1) % L;
+  return { stem: '$' + N + '$ дугаар дүрс ямар дүрс байх вэ?', fig: figShapes(p),
+    a: 'дүрсүүд $' + L + '$ тутамд давтагдана; $' + N + '$ тоог $' + L + '$ тоонд хуваахад үлдэгдэл $' + (N % L) + '$ тул ' + SHP[p[idx]] };
+}
+
+// 4. Функцэн машин (6.3): гаралт (2 ба 3 үйлдэл), урвуу үйлдлээр оролт, мэдэгдэхгүй үйлдэл, аравтын бутархайтай
+function opT(o) { return o[0] === 'x' ? '\\times ' + par(o[1]) : o[0] === 'd' ? '\\div ' + o[1] : (o[1] < 0 ? '-' + (-o[1]) : '+' + o[1]); }
+function box(o) { return '\\boxed{' + opT(o) + '}'; }
+function app(o, x) { return o[0] === 'x' ? x * o[1] : o[0] === 'd' ? x / o[1] : x + o[1]; }
+function mkOp(x) {
+  var t = pick(['x', 'x', 'p', 'p', 'd']);
+  if (t === 'x') return ['x', pick([2, 3, 4, 5, 6, 7, 8, 9, -2, -3])];
+  if (t === 'p') return ['p', nz(-25, 25)];
+  var ds = []; for (var k = 2; k <= 9; k++) if (x % k === 0) ds.push(k);
+  return ds.length ? ['d', pick(ds)] : ['p', nz(-25, 25)];
+}
+function chain(inp, ops, out) { return inp + ' \\Rightarrow ' + ops.join(' \\Rightarrow ') + ' \\Rightarrow ' + out; }
+function step(o, x) { var r = app(o, x); return (o[0] === 'x' ? par(x) + '\\cdot ' + par(o[1]) : o[0] === 'd' ? par(x) + '\\div ' + o[1] : par(x) + (o[1] > 0 ? '+' + o[1] : '-' + (-o[1]))) + '=' + r; }
+function inv(o, v) { var r = o[0] === 'x' ? v / o[1] : o[0] === 'd' ? v * o[1] : v - o[1]; return (o[0] === 'x' ? par(v) + '\\div ' + par(o[1]) : o[0] === 'd' ? par(v) + '\\cdot ' + o[1] : par(v) + (o[1] > 0 ? '-' + o[1] : '+' + (-o[1]))) + '=' + r; }
+// a тооноос b тоо гаргах энгийн үйлдлүүд (хариу олон байж болно: +12 буюу ×3)
+function opsBetween(a, b) {
+  var out = [];
+  if (b !== a) out.push(b > a ? '+' + (b - a) : '-' + (a - b));
+  if (a !== 0 && b % a === 0 && b / a !== 1 && b / a !== 0) out.push('\\times ' + par(b / a));
+  if (b !== 0 && a % b === 0 && Math.abs(a / b) > 1) out.push('\\div ' + par(a / b));
+  return out;
+}
+function g4() {
+  turn(4);
+  var t = B4(), x = nz(-12, 30), o1 = mkOp(x), m1 = app(o1, x), o2 = mkOp(m1), y = app(o2, m1);
+  if (Math.abs(y) > 999 || Math.abs(m1) > 999) return null;
+  if (t === 0) return { stem: '$' + chain(x, [box(o1), box(o2)], '?') + '$', a: step(o1, x) + ',\\ ' + step(o2, m1) };
+  if (t === 1) {
+    var o3 = mkOp(y), z = app(o3, y); if (Math.abs(z) > 2000) return null;
+    return { stem: '$' + chain(x, [box(o1), box(o2), box(o3)], '?') + '$', a: step(o1, x) + ',\\ ' + step(o2, m1) + ',\\ ' + step(o3, y) };
+  }
+  if (t === 2) return { stem: '$' + chain('?', [box(o1), box(o2)], y) + '$', a: '$' + inv(o2, y) + ',\\ ' + inv(o1, m1) + '$; оролт $' + x + '$' };
+  if (t === 3) {
+    var hide = rnd(0, 1), bx = [box(o1), box(o2)], ops = hide ? opsBetween(m1, y) : opsBetween(x, m1);
+    if (!ops.length) return null;
+    bx[hide] = '\\boxed{\\ ?\\ }';
+    return { stem: '$' + chain(x, bx, y) + '$', a: 'дундах утга $' + m1 + '$; үйлдэл: $' + ops.join('$ буюу $') + '$' };
+  }
+  var a = rnd(2, 15), d10 = rnd(11, 60), mm = nz(-30, 30); if (d10 % 10 === 0) return null;
+  var p10 = a * d10, r10 = p10 + mm * 10;
+  return { stem: '$' + chain(a, ['\\boxed{\\times ' + dFmt(d10, 1) + '}', '\\boxed{' + (mm > 0 ? '+' + mm : '-' + (-mm)) + '}'], '?') + '$',
+    a: a + '\\cdot ' + dFmt(d10, 1) + '=' + dFmt(p10, 1) + ',\\ ' + dFmt(p10, 1) + (mm > 0 ? '+' + mm : '-' + (-mm)) + '=' + dFmt(r10, 1) };
+}
+
+// 5. Бодлого (6.2 · 6.3): хадгаламж, суудал, ус (арифметик дараалал), тоо дарааллын гишүүн мөн эсэх, хүснэгтээс функцийн дүрэм
+function g5() {
+  turn(5);
+  var t = B5(), a1, d, k, v, i;
+  if (t === 0) {
+    a1 = 500 * rnd(2, 9); d = 100 * rnd(1, 6); k = pick([7, 10, 12, 15, 20]); v = a1 + (k - 1) * d;
+    return { stem: pick(NAMES) + ' эхний өдөр $' + a1 + '$ төгрөг хадгалж, дараагийн өдөр бүр өмнөхөөсөө $' + d + '$ төгрөгөөр илүү хадгалдаг. Тэр $' + k + '$ дахь өдөр хэдэн төгрөг хадгалах вэ?',
+      a: '$a_{' + k + '}=' + a1 + '+' + d + '\\cdot ' + (k - 1) + '=' + th(v) + '$ төгрөг' };
+  }
+  if (t === 1) {
+    a1 = rnd(8, 16); d = rnd(2, 5); k = pick([9, 11, 14, 18, 20]); v = a1 + (k - 1) * d;
+    return { stem: 'Театрын эхний эгнээнд $' + a1 + '$ суудал бий. Дараагийн эгнээ бүрд өмнөхөөсөө $' + d + '$ суудлаар олон. $' + k + '$ дугаар эгнээнд хэдэн суудал байх вэ?',
+      a: '$a_{' + k + '}=' + a1 + '+' + d + '\\cdot ' + (k - 1) + '=' + v + '$ суудал' };
+  }
+  if (t === 2) {
+    a1 = 10 * rnd(30, 90); d = 5 * rnd(2, 8); k = pick([8, 10, 12, 15]); v = a1 - (k - 1) * d; if (v <= 0) return null;
+    return { stem: 'Эхний цагийн төгсгөлд саванд $' + a1 + '$ литр ус байв. Цаг бүр $' + d + '$ литрээр багасвал $' + k + '$ дахь цагийн төгсгөлд хэдэн литр ус үлдэх вэ?',
+      a: '$a_{' + k + '}=' + a1 + '-' + d + '\\cdot ' + (k - 1) + '=' + v + '$ литр' };
+  }
+  if (t === 3) {
+    a1 = rnd(1, 20); d = rnd(3, 11); var pos = rnd(15, 60), M = a1 + (pos - 1) * d, hit = rnd(0, 2) > 0;
+    if (!hit) M += rnd(1, d - 1);
+    return { stem: '$' + M + '$ тоо $' + seqT([a1, a1 + d, a1 + 2 * d, a1 + 3 * d]) + '$ дарааллын гишүүн мөн үү? Мөн бол хэддүгээр гишүүн бэ?',
+      a: hit ? 'мөн: $' + M + '-' + a1 + '=' + (M - a1) + '$ нь $' + d + '$ тоонд хуваагдана; $' + pos + '$ дугаар гишүүн'
+        : 'биш: $' + M + '-' + a1 + '=' + (M - a1) + '$ нь $' + d + '$ тоонд хуваагдахгүй' };
+  }
+  var A = pick([2, 3, 4, 5, -2, -3]), B = nz(-12, 12), st = rnd(0, 3), xs = [], ys = [], xg = rnd(8, 15);
+  for (i = 0; i < 4; i++) { xs.push(st + i); ys.push(A * (st + i) + B); }
+  var hy = rnd(1, 3), rowY = ys.map(function (y, j) { return j === hy ? '?' : y; }).concat([A * xg + B]);
+  return { stem: 'Функцэн машин $x$ оролтыг $y$ гаралт болгодог. Дүрмийг олж, «?» нүднүүдийг нөх: $\\begin{array}{c|c|c|c|c|c}x&' + xs.join('&') + '&?\\\\\\hline y&' + rowY.join('&') + '\\end{array}$',
+    a: '$y=' + pl([{ c: A, v: 'x' }, { c: B, v: '' }]) + '$; $y=' + ys[hy] + '$, $x=' + xg + '$' };
+}
+
+CMX.jishig({
+  title: 'VI бүлэг — Жишиг даалгавар 1',
+  sub: 'Дүрсэн дараалал · тоон дараалал · дарааллын гишүүн · функцэн машин',
+  grade: '6-р анги',
+  rule: 'Ялгавар нь тогтмол $d$ дараалал: $a_n=a_1+d\\cdot (n-1)$ &nbsp;·&nbsp; Функцэн машин: оролт $\\Rightarrow$ үйлдэл $\\Rightarrow$ гаралт; оролтыг урвуу үйлдлээр олно',
+  tasks: [
+    { label: 'Дарааллын зүй тогтлыг олж, дараагийн гурван гишүүнийг бич.', gen: g1, n: 8, nw: 4, cols: 2, wk: 10 },
+    { label: 'Дарааллын заасан гишүүнийг ол.', gen: g2, n: 8, nw: 2, cols: 2, wk: 12 },
+    { label: 'Зурагт дүрсэн дарааллын эхний дүрсүүд өгөгдөв. Асуултад хариул.', gen: g3, n: 4, nw: 2, cols: 2, wk: 12 },
+    { label: 'Функцэн машины асуултын тэмдгийн оронд орох тоо буюу үйлдлийг ол.', gen: g4, n: 8, nw: 2, cols: 2, wk: 12 },
+    { label: 'Бодлогыг бод.', gen: g5, n: 4, nw: 2, cols: 2, wk: 20 }
+  ]
+});
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

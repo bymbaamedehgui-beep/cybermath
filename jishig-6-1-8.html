@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VI бүлэг — Жишиг даалгавар 1 (8-р анги)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/cmx.js?v=1"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* 8-р анги · VI бүлэг. Өнцөг, дүрс, байгуулалт — Жишиг даалгавар 1
+   (6.1 Олон өнцөгтийн дотоод ба гадаад өнцөг · 6.2 Гурвалжны дундаж шугам, өндөр, медиан, биссектрис) */
+
+/* ── Зураг: SVG (≤160×110 px), зураас #1a1030, бичиг 11px. Дүрсийг абстракт координатад (y дээш) байгуулж fit()-ээр хүрээнд
+      багтаана — өнцөг, уртын харьцаа тоон утгатайгаа таарна. Мэдэгдэх утгыг л бичнэ; мэдэгдэхгүйг ?, x эсвэл дугаараар тэмдэглэнэ. ── */
+var INK = '#1a1030';
+function r1(v) { return Math.round(v * 10) / 10; }
+function rad(d) { return d * Math.PI / 180; }
+function add(a, b) { return [a[0] + b[0], a[1] + b[1]]; }
+function sub(a, b) { return [a[0] - b[0], a[1] - b[1]]; }
+function mul(a, k) { return [a[0] * k, a[1] * k]; }
+function vlen(a) { return Math.sqrt(a[0] * a[0] + a[1] * a[1]); }
+function unit(a) { var l = vlen(a) || 1; return [a[0] / l, a[1] / l]; }
+function mid(a, b) { return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; }
+function cen(P) { var x = 0, y = 0; P.forEach(function (p) { x += p[0]; y += p[1]; }); return [x / P.length, y / P.length]; }
+function angAt(P, A, B) { var u = sub(A, P), v = sub(B, P); return Math.acos(Math.max(-1, Math.min(1, (u[0] * v[0] + u[1] * v[1]) / (vlen(u) * vlen(v))))) * 180 / Math.PI; }
+// B = (0, 0), C = (1, 0), B ба C оройн өнцөг b, c (градус) → A орой
+function triBC(b, c) { var t = Math.sin(rad(c)) / Math.sin(rad(b + c)); return [t * Math.cos(rad(b)), t * Math.sin(rad(b))]; }
+// абстракт цэгүүдийг W×H (px) хүрээнд багтаах хувиргалт (y тэнхлэгийг эргүүлнэ); f.s — масштаб
+function fit(pts, W, H) {
+  var x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+  pts.forEach(function (p) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); });
+  var s = Math.min(W / Math.max(x1 - x0, 1e-6), H / Math.max(y1 - y0, 1e-6)), f = function (p) { return [s * (p[0] - x0), s * (y1 - p[1])]; };
+  f.s = s; return f;
+}
+function tw(t) { t = String(t); return t.replace(/°/g, '').length * 6.2 + (t.indexOf('°') >= 0 ? 4 : 0); }   // бичгийн өргөн (px)
+// Зургийн самбар (SVG координат, y доош): элементүүдийг цуглуулж, хүрээгээр нь тайрна; шошгыг саадаас зайтай байрлуулна
+function Sc() {
+  var s = '', b = [1e9, 1e9, -1e9, -1e9], G = [], o = {};
+  function ext(x, y) { if (x < b[0]) b[0] = x; if (y < b[1]) b[1] = y; if (x > b[2]) b[2] = x; if (y > b[3]) b[3] = y; }
+  function pt(p) { return r1(p[0]) + ' ' + r1(p[1]); }
+  function bd(c, hw, hh, q) { var dx = Math.max(Math.abs(q[0] - c[0]) - hw, 0), dy = Math.max(Math.abs(q[1] - c[1]) - hh, 0); return Math.sqrt(dx * dx + dy * dy); }
+  function clr(c, hw, hh) {        // (hw, hh) хагас хэмжээтэй бичгийн хүрээнээс саад хүртэлх зай
+    var m = 99;
+    G.forEach(function (g) {
+      if (g[0] === 's') { for (var i = 0; i <= 12; i++) m = Math.min(m, bd(c, hw, hh, add(g[1], mul(sub(g[2], g[1]), i / 12)))); }
+      else if (g[0] === 'c') m = Math.min(m, Math.max(0, Math.abs(vlen(sub(c, g[1])) - g[2]) - Math.max(hw, hh) * 0.8));
+      else m = Math.min(m, Math.max(Math.abs(c[0] - g[1]) - hw - g[3], Math.abs(c[1] - g[2]) - hh - g[4], 0));
+    });
+    return m;
+  }
+  o.line = function (A, B, dash) {
+    G.push(['s', A, B]); ext(A[0], A[1]); ext(B[0], B[1]);
+    s += '<path d="M' + pt(A) + 'L' + pt(B) + '" fill="none" stroke="' + INK + '" stroke-width="' + (dash ? 1 : 1.3) + '"' + (dash ? ' stroke-dasharray="3 2.5"' : '') + '/>'; return o;
+  };
+  o.poly = function (P) {
+    P.forEach(function (p, i) { ext(p[0], p[1]); G.push(['s', p, P[(i + 1) % P.length]]); });
+    s += '<path d="M' + P.map(pt).join('L') + 'Z" fill="#f4f1fd" stroke="' + INK + '" stroke-width="1.3" stroke-linejoin="round"/>'; return o;
+  };
+  o.dot = function (P) { ext(P[0], P[1]); s += '<circle cx="' + r1(P[0]) + '" cy="' + r1(P[1]) + '" r="1.8" fill="' + INK + '"/>'; return o; };
+  o.text = function (P, t, it) {
+    var hw = tw(t) / 2; G.push(['b', P[0], P[1], hw, 5.5]); ext(P[0] - hw, P[1] - 6); ext(P[0] + hw, P[1] + 5);
+    s += '<text x="' + r1(P[0]) + '" y="' + r1(P[1] + 4) + '" font-size="11" text-anchor="middle" fill="' + INK + '"' + (it ? ' font-style="italic"' : '') + '>' + t + '</text>'; return o;
+  };
+  // нэр: P цэгийн эргэн тойрны 16 байрлалаас саадаас хамгийн холыг сонгоно (pref — илүүд үзэх чиглэл)
+  o.lab = function (P, t, it, pref) {
+    var hw = tw(t) / 2, best = P, bs = -1e9;
+    for (var i = 0; i < 16; i++) {
+      var an = i * Math.PI / 8, u = [Math.cos(an), Math.sin(an)];
+      var k = Math.min((hw + 3) / Math.max(Math.abs(u[0]), 1e-6), (8.5) / Math.max(Math.abs(u[1]), 1e-6)), c = add(P, mul(u, k));
+      var sc = Math.min(clr(c, hw, 5.5), 7) + (pref ? 2.5 * (u[0] * pref[0] + u[1] * pref[1]) : 0) - k * 0.04;
+      if (sc > bs) { bs = sc; best = c; }
+    }
+    return o.text(best, t, it);
+  };
+  // PA, PB цацрагийн хоорондох (180°-аас бага) өнцгийн нум; шошгыг биссектрисийн дагуу нум ба PA, PB хэрчмээс зайтай байх хамгийн ойр цэгт
+  o.arc = function (P, A, B, r, lab, it) {
+    var a1 = Math.atan2(A[1] - P[1], A[0] - P[0]), a2 = Math.atan2(B[1] - P[1], B[0] - P[0]), d = a2 - a1;
+    while (d <= -Math.PI) d += 2 * Math.PI;
+    while (d > Math.PI) d -= 2 * Math.PI;
+    var S0 = [P[0] + r * Math.cos(a1), P[1] + r * Math.sin(a1)], E0 = [P[0] + r * Math.cos(a2), P[1] + r * Math.sin(a2)], M0 = [P[0] + r * Math.cos(a1 + d / 2), P[1] + r * Math.sin(a1 + d / 2)];
+    G.push(['s', S0, M0], ['s', M0, E0]); ext(S0[0], S0[1]); ext(E0[0], E0[1]); ext(M0[0], M0[1]);
+    s += '<path d="M' + pt(S0) + 'A' + r + ' ' + r + ' 0 0 ' + (d > 0 ? 1 : 0) + ' ' + pt(E0) + '" fill="none" stroke="' + INK + '" stroke-width="1"/>';
+    if (lab != null && lab !== '') {
+      var u = [Math.cos(a1 + d / 2), Math.sin(a1 + d / 2)], hw = tw(lab) / 2, q, c, ok, i;
+      for (q = r + 3; q < 44; q += 1) {
+        c = add(P, mul(u, q)); if (bd(c, hw, 5.5, P) < r + 1.5) continue;
+        ok = true;
+        for (i = 0; i <= 16 && ok; i++) if (bd(c, hw, 5.5, add(P, mul(sub(A, P), i / 16))) < 1.2 || bd(c, hw, 5.5, add(P, mul(sub(B, P), i / 16))) < 1.2) ok = false;
+        if (ok) break;
+      }
+      o.text(add(P, mul(u, q)), lab, it);
+    }
+    return o;
+  };
+  o.ra = function (P, A, B, k) {   // тэгш өнцгийн тэмдэг
+    var u = mul(unit(sub(A, P)), k || 6), v = mul(unit(sub(B, P)), k || 6), p1 = add(P, u), p2 = add(add(P, u), v), p3 = add(P, v);
+    G.push(['s', p1, p2], ['s', p2, p3]);
+    s += '<path d="M' + pt(p1) + 'L' + pt(p2) + 'L' + pt(p3) + '" fill="none" stroke="' + INK + '" stroke-width="1"/>'; return o;
+  };
+  o.svg = function () {
+    var x = b[0] - 2, y = b[1] - 2, w = b[2] - b[0] + 4, h = b[3] - b[1] + 4, k = Math.min(1, 160 / w, 110 / h);
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="' + r1(x) + ' ' + r1(y) + ' ' + r1(w) + ' ' + r1(h) + '" width="' + Math.floor(w * k) + '" height="' + Math.floor(h * k) + '" font-family="Segoe UI, Arial, sans-serif">' + s + '</svg>';
+  };
+  return o;
+}
+// гүдгэр n өнцөгт: оройнуудыг тойргийн дагуу санамсаргүй хэлбийлгэнэ; өнцөг бүр [lo, hi] байвал { P, A (бодит өнцгүүд) }
+function rpoly(n, jit, lo, hi) {
+  var b = rnd(0, 359), P = [], A = [], i;
+  for (i = 0; i < n; i++) { var t = rad(b + i * 360 / n + rnd(-jit, jit)), r = 1 + rnd(-15, 15) / 100; P.push([r * Math.cos(t), r * Math.sin(t)]); }
+  for (i = 0; i < n; i++) {
+    var p = P[(i + n - 1) % n], c = P[i], q = P[(i + 1) % n];
+    if ((c[0] - p[0]) * (q[1] - c[1]) - (c[1] - p[1]) * (q[0] - c[0]) <= 0) return null;
+    var g = angAt(c, p, q); if (g < lo || g > hi) return null;
+    A.push(g);
+  }
+  return { P: P, A: A };
+}
+// олон өнцөгт, орой бүрт дотоод өнцгийн шошго
+function figPoly(P, labs) {
+  var m = fit(P, 136, 92), Q = P.map(m), S = Sc(), n = Q.length;
+  S.poly(Q);
+  for (var i = 0; i < n; i++) S.arc(Q[i], Q[(i + n - 1) % n], Q[(i + 1) % n], 9, labs[i], labs[i] === 'x');
+  return S.svg();
+}
+// a ∥ b (хэвтээ), огтлогч th° өнцгөөр; mk: [{ L: 'a'|'b', p: 'ur'|'ul'|'ll'|'lr', t: шошго, it }] — ur, ll: th°; ul, lr: 180° − th
+function figPar(th, mk) {
+  var S = Sc(), ya = 0, yb = 38, dx = (yb - ya) / Math.tan(rad(th)), xb = 58 - dx / 2, xa = xb + dx;
+  var u = [Math.cos(rad(th)), -Math.sin(rad(th))], Pa = [xa, ya], Pb = [xb, yb];
+  S.line([0, ya], [122, ya]).line([0, yb], [122, yb]).line(add(Pb, mul(u, -17)), add(Pa, mul(u, 17)));
+  S.text([3, ya - 7], 'a', 1).text([3, yb - 7], 'b', 1);
+  mk.forEach(function (k) {
+    var P = k.L === 'a' ? Pa : Pb, R = [P[0] + 30, P[1]], L = [P[0] - 30, P[1]], U = add(P, mul(u, 30)), D = add(P, mul(u, -30));
+    var q = { ur: [R, U], ul: [U, L], ll: [L, D], lr: [D, R] }[k.p];
+    S.arc(P, q[0], q[1], 8, k.t, k.it);
+  });
+  return S.svg();
+}
+// a ∥ b, M — хоёр шулууны хооронд зүүн талд: ∠1 = al (A орой), ∠2 = be (B орой), ∠AMB = x
+function figZig(al, be) {
+  var M = [0, 0], A = [1 / Math.tan(rad(al)), 1], B = [1 / Math.tan(rad(be)), -1], xr = Math.max(A[0], B[0]) + 0.8;
+  var m = fit([[-0.6, 1], [xr, -1]], 120, 62), S = Sc(), a0 = m([-0.6, 1]), a1 = m([xr, 1]), b0 = m([-0.6, -1]), b1 = m([xr, -1]), PM = m(M), PA = m(A), PB = m(B);
+  S.line(a0, a1).line(b0, b1).line(PA, PM).line(PM, PB);
+  S.text(add(a1, [-3, -8]), 'a', 1).text(add(b1, [-3, -8]), 'b', 1);
+  S.arc(PA, PM, a0, 10, '1').arc(PB, b0, PM, 10, '2').arc(PM, PA, PB, 10, 'x', 1);
+  return S.svg();
+}
+// гурвалжин ABC (A, B — суурь), M, N — AC, BC-ийн дунд цэг; lb — AB-ийн доор, lm — MN-ийн доор
+function figMid(cx, cy, lb, lm) {
+  var A = [0, 0], B = [1, 0], Cc = [cx, cy], m = fit([A, B, Cc], 112, 64), a = m(A), b = m(B), c = m(Cc), pm = m(mid(A, Cc)), pn = m(mid(B, Cc)), G0 = cen([a, b, c]), S = Sc();
+  S.poly([a, b, c]).line(pm, pn).dot(pm).dot(pn);
+  if (lb) S.text([(a[0] + b[0]) / 2, a[1] + 9], lb);
+  if (lm) S.text([(pm[0] + pn[0]) / 2, pm[1] + 9], lm);
+  [[a, 'A'], [b, 'B'], [c, 'C'], [pm, 'M'], [pn, 'N']].forEach(function (q) { S.lab(q[0], q[1], 1, unit(sub(q[0], G0))); });
+  return S.svg();
+}
+// гурвалжин ABC, AD ба BE медиан, O — хүндийн төв
+function figCen(cx, cy) {
+  var A = [0, 0], B = [1, 0], Cc = [cx, cy], m = fit([A, B, Cc], 112, 66), a = m(A), b = m(B), c = m(Cc), d = m(mid(B, Cc)), e = m(mid(A, Cc)), o = m([(1 + cx) / 3, cy / 3]), G0 = cen([a, b, c]), S = Sc();
+  S.poly([a, b, c]).line(a, d).line(b, e).dot(d).dot(e).dot(o);
+  [[a, 'A'], [b, 'B'], [c, 'C'], [d, 'D'], [e, 'E']].forEach(function (q) { S.lab(q[0], q[1], 1, unit(sub(q[0], G0))); });
+  S.lab(o, 'O', 1, [0, 1]);
+  return S.svg();
+}
+// гурвалжин ABC (A дээр), B ба C өнцгийн биссектрисүүд O цэгт (багтсан тойргийн төв: O = (a·A + b·B + c·C)/(a + b + c)); ∠A шошготой, ∠BOC — ?
+function figBis(av, bv) {
+  var B = [0, 0], Cc = [1, 0], A = triBC(bv, 180 - av - bv), la = 1, lb = vlen(sub(A, Cc)), lc = vlen(A);
+  var O = [(la * A[0] + lc * Cc[0]) / (la + lb + lc), (la * A[1]) / (la + lb + lc)];
+  var m = fit([A, B, Cc], 120, 78), pa = m(A), pb = m(B), pc = m(Cc), po = m(O), G0 = cen([pa, pb, pc]), S = Sc();
+  S.poly([pa, pb, pc]).line(pb, po).line(pc, po).dot(po);
+  S.arc(pa, pb, pc, 10, av + '°').arc(po, pb, pc, 7, '?', 1);
+  [[pa, 'A'], [pb, 'B'], [pc, 'C']].forEach(function (q) { S.lab(q[0], q[1], 1, unit(sub(q[0], G0))); });
+  S.lab(po, 'O', 1, [0, -1]);
+  return S.svg();
+}
+// гурвалжин ABC (AC — суурь), BH — өндөр; ∠A шошготой, ∠ABH — ?
+function figAlt(av, cv) {
+  var A = [0, 0], Cc = [1, 0], t = Math.sin(rad(cv)) / Math.sin(rad(av + cv)), B = [t * Math.cos(rad(av)), t * Math.sin(rad(av))], H = [B[0], 0];
+  var m = fit([A, B, Cc], 112, 70), pa = m(A), pb = m(B), pc = m(Cc), ph = m(H), G0 = cen([pa, pb, pc]), S = Sc();
+  S.poly([pa, pb, pc]).line(pb, ph, 1).ra(ph, pc, pb, 6).dot(ph);
+  S.arc(pa, pc, pb, 10, av + '°').arc(pb, pa, ph, 12, '?', 1);
+  [[pa, 'A'], [pb, 'B'], [pc, 'C'], [ph, 'H']].forEach(function (q) { S.lab(q[0], q[1], 1, unit(sub(q[0], G0))); });
+  return S.svg();
+}
+// гурвалжин ABC (A дээр), AD — биссектрис (BD : DC = AB : AC); A оройн тэнцүү хоёр хагас нумтай, ∠B шошготой, ∠ADB — ?
+function figAD(av, bv) {
+  var B = [0, 0], Cc = [1, 0], A = triBC(bv, 180 - av - bv), ab = vlen(A), ac = vlen(sub(A, Cc)), D = [ab / (ab + ac), 0];
+  var m = fit([A, B, Cc], 116, 76), pa = m(A), pb = m(B), pc = m(Cc), pd = m(D), G0 = cen([pa, pb, pc]), S = Sc();
+  S.poly([pa, pb, pc]).line(pa, pd).dot(pd);
+  S.arc(pa, pb, pd, 11).arc(pa, pd, pc, 11).arc(pa, pb, pd, 14).arc(pa, pd, pc, 14).arc(pb, pc, pa, 10, bv + '°').arc(pd, pa, pb, 8, '?', 1);
+  [[pa, 'A'], [pb, 'B'], [pc, 'C'], [pd, 'D']].forEach(function (q) { S.lab(q[0], q[1], 1, unit(sub(q[0], G0))); });
+  return S.svg();
+}
+
+/* ── туслах ── */
+function dg(v) { return v + '^\\circ'; }
+function nm(v) { return Math.abs(v - Math.round(v)) < 1e-9 ? String(Math.round(v)) : dFmt(Math.round(v * 10), 1); }
+// төрлүүдийг ээлжлэн сонгох уут — нэг хуудсанд нэг төрөл олон давтагдахгүй (дахин дүүргэхэд өмнөхтэйгөө залгаж давтагдахгүй)
+function bag(list) {
+  var b = [], last = null;
+  return function () {
+    if (!b.length) { b = shuffle(list); if (b.length > 1 && b[b.length - 1] === last) { var t = b[0]; b[0] = b[b.length - 1]; b[b.length - 1] = t; } }
+    last = b.pop(); return last;
+  };
+}
+function tryN(f) { for (var i = 0; i < 80; i++) { var r = f(); if (r) return r; } return null; }
+var NREG = [5, 6, 8, 9, 10, 12, 15, 18, 20, 24, 30, 36];
+var PNM = { 4: 'Дөрвөн', 5: 'Таван', 6: 'Зургаан' };
+// бүхэл радиустай багтсан тойрогтой гурвалжнууд [a, b, c, r] (S = p·r бүхэл)
+var HER = [[3, 4, 5, 1], [6, 8, 10, 2], [5, 12, 13, 2], [9, 12, 15, 3], [8, 15, 17, 3], [7, 24, 25, 3], [12, 16, 20, 4], [13, 14, 15, 4], [15, 20, 25, 5], [10, 24, 26, 4],
+  [20, 21, 29, 6], [9, 10, 17, 2], [7, 15, 20, 2], [11, 13, 20, 3], [10, 10, 12, 3], [15, 15, 24, 4], [20, 20, 24, 6], [11, 25, 30, 4], [6, 25, 29, 2], [17, 25, 28, 6]];
+var B1 = bag([1, 2, 3, 4, 5, 6, 7, 8, 9]), B2 = bag([1, 2, 3, 4, 5]), B3 = bag([1, 2, 3, 4, 5, 6, 7]), B4 = bag([1, 2, 3, 0]);
+
+// 1. Олон өнцөгтийн дотоод өнцгүүдийн нийлбэр, зөв олон өнцөгтийн дотоод/гадаад өнцөг, талын тоо, диагоналийн тоо, нэг оройн хамар өнцөг (6.1)
+function g1() { var t = B1(); return tryN(function () { return g1m(t); }); }
+function g1m(t) {
+  var n, I;
+  if (t === 1) { n = rnd(5, 20); return { stem: 'Гүдгэр $' + n + '$ өнцөгтийн дотоод өнцгүүдийн нийлбэр', a: '(' + n + '-2)\\cdot 180^\\circ=' + dg((n - 2) * 180) }; }
+  if (t === 2) { n = pick(NREG); I = 180 - 360 / n; return { stem: 'Зөв $' + n + '$ өнцөгтийн нэг дотоод өнцөг', a: '\\dfrac{(' + n + '-2)\\cdot 180^\\circ}{' + n + '}=' + dg(I) }; }
+  if (t === 3) { n = pick(NREG); return { stem: 'Зөв $' + n + '$ өнцөгтийн нэг гадаад өнцөг', a: '\\dfrac{360^\\circ}{' + n + '}=' + dg(360 / n) }; }
+  if (t === 4) { n = pick(NREG); return { stem: 'Нэг гадаад өнцөг нь $' + dg(360 / n) + '$ байх зөв олон өнцөгтийн талын тоо', a: 'n=\\dfrac{360^\\circ}{' + dg(360 / n) + '}=' + n }; }
+  if (t === 5) { n = pick(NREG); I = 180 - 360 / n; return { stem: 'Нэг дотоод өнцөг нь $' + dg(I) + '$ байх зөв олон өнцөгтийн талын тоо', a: '180^\\circ-' + dg(I) + '=' + dg(360 / n) + ';\\ n=\\dfrac{360^\\circ}{' + dg(360 / n) + '}=' + n }; }
+  if (t === 6) { n = rnd(4, 20); return { stem: 'Гүдгэр $' + n + '$ өнцөгтийн диагоналийн тоо', a: '\\dfrac{' + n + '\\cdot ' + (n - 3) + '}{2}=' + n * (n - 3) / 2 }; }
+  if (t === 7) { n = rnd(5, 20); return { stem: '$' + n * (n - 3) / 2 + '$ диагональтай гүдгэр олон өнцөгтийн талын тоо', a: '\\dfrac{n(n-3)}{2}=' + n * (n - 3) / 2 + ';\\ n=' + n }; }
+  if (t === 8) { n = rnd(5, 20); return { stem: 'Дотоод өнцгүүдийн нийлбэр нь $' + dg((n - 2) * 180) + '$ байх гүдгэр олон өнцөгтийн талын тоо', a: '(n-2)\\cdot 180^\\circ=' + dg((n - 2) * 180) + ';\\ n=' + n }; }
+  var x = rnd(40, 170);
+  return { stem: 'Олон өнцөгтийн нэг оройн дотоод өнцөг $' + dg(x) + '$ бол тэр оройн гадаад өнцөг', a: '$180^\\circ-' + dg(x) + '=' + dg(180 - x) + '$ (хамар өнцгүүд)' };
+}
+
+// 2. Мэдэгдэхгүй өнцөг (зурагтай): олон өнцөгтийн дотоод өнцөг, гадаад өнцгүүдийн нийлбэр, параллель шулуун ба огтлогч, туслах параллель шулуун (6.1)
+function g2() { var t = B2(); return tryN(function () { return g2m(t); }); }
+function g2m(t) {
+  if (t <= 2) {          // олон өнцөгт: зурган дээрх өнцгүүд нь бодит өнцгөө бүхэлчилсэн утга (x нь ±2°-ийн дотор таарна)
+    var n = t === 1 ? 4 : 5, R = rpoly(n, n === 4 ? 22 : 13, 50, 165); if (!R) return null;
+    var k = rnd(0, n - 1), tot = (n - 2) * 180, g = R.A.map(Math.round), s = 0, vals = [], labs = [], i;
+    for (i = 0; i < n; i++) if (i !== k) { s += g[i]; vals.push(dg(g[i])); }
+    var x = tot - s; if (Math.abs(x - R.A[k]) > 2.5 || x < 50 || x > 168) return null;
+    for (i = 0; i < n; i++) labs.push(i === k ? 'x' : g[i] + '°');
+    return { stem: PNM[n] + ' өнцөгтийн өнцгүүд $' + vals.join(',\\ ') + '$ ба $x$', fig: figPoly(R.P, labs), a: '(' + n + '-2)\\cdot 180^\\circ=' + dg(tot) + ';\\ x=' + dg(tot) + '-' + dg(s) + '=' + dg(x) };
+  }
+  if (t === 3) {         // параллель шулуун: харгалзах, солбисон, нэг талын өнцөг
+    var th = rnd(32, 80); if (th === 45) return null;
+    var P4 = ['ur', 'ul', 'll', 'lr'], gp = pick(P4), up = pick(P4), gl = pick(['a', 'b']);
+    var val = function (p) { return p === 'ur' || p === 'll' ? th : 180 - th; }, gv = val(gp), uv = val(up);
+    return { stem: '$a\\parallel b$, $\\angle 1=' + dg(gv) + '$', fig: figPar(th, [{ L: gl, p: gp, t: '1' }, { L: gl === 'a' ? 'b' : 'a', p: up, t: 'x', it: 1 }]),
+      a: gv === uv ? 'x=\\angle 1=' + dg(uv) : 'x=180^\\circ-' + dg(gv) + '=' + dg(uv) };
+  }
+  if (t === 4) {         // оройгоор туслах параллель шулуун татна: x = ∠1 + ∠2
+    var al = rnd(25, 70), be = rnd(25, 70); if (al === be || al + be > 140) return null;
+    return { stem: '$a\\parallel b$, $\\angle 1=' + dg(al) + '$, $\\angle 2=' + dg(be) + '$', fig: figZig(al, be), a: 'x=\\angle 1+\\angle 2=' + dg(al) + '+' + dg(be) + '=' + dg(al + be) };
+  }
+  // гадаад өнцгүүдийн нийлбэр 360°
+  var n5 = pick([4, 5, 6]), e = [], s5 = 0;
+  for (var j = 0; j < n5 - 1; j++) { e.push(rnd(30, 100)); s5 += e[j]; }
+  var x5 = 360 - s5; if (x5 < 25 || x5 > 120) return null;
+  return { stem: PNM[n5] + ' өнцөгтийн гадаад өнцгүүд $' + e.map(dg).join(',\\ ') + '$ ба $x$', a: 'x=360^\\circ-(' + e.join('+') + ')^\\circ=' + dg(x5) };
+}
+
+// 3. Дундаж шугам, дундаж шугамуудаас тогтох гурвалжны периметр, гипотенуз руу татсан медиан, хүндийн төв (2 : 1) (6.2)
+function g3() { var t = B3(); return tryN(function () { return g3m(t); }); }
+function g3m(t) {
+  var cx = rnd(25, 70) / 100, cy = rnd(60, 90) / 100;
+  if (t === 1) { var b = rnd(6, 30); return { stem: '$M$, $N$ — $AC$, $BC$ талуудын дунд цэг, $AB=' + b + '$ см, $MN=?$', fig: figMid(cx, cy, b + ' см', ''), a: '$MN=\\dfrac{AB}{2}=' + nm(b / 2) + '$ см' }; }
+  if (t === 2) { var h = rnd(3, 16); return { stem: '$M$, $N$ — $AC$, $BC$ талуудын дунд цэг, $MN=' + h + '$ см, $AB=?$', fig: figMid(cx, cy, '', h + ' см'), a: '$AB=2\\cdot MN=' + 2 * h + '$ см' }; }
+  if (t === 3) {
+    var p = rnd(5, 24), q = rnd(5, 24), r = rnd(5, 24); if (p + q <= r || p + r <= q || q + r <= p || (p === q && q === r)) return null;
+    return { stem: 'Гурвалжны талууд $' + p + '$, $' + q + '$, $' + r + '$ см. Дундаж шугамуудаас тогтох гурвалжны периметр', a: '$\\dfrac{' + p + '+' + q + '+' + r + '}{2}=' + nm((p + q + r) / 2) + '$ см' };
+  }
+  if (t === 4) { var c = 2 * rnd(4, 25); return { stem: 'Тэгш өнцөгт гурвалжны гипотенуз $' + c + '$ см. Тэгш өнцгийн оройгоос татсан медиан', a: '$\\dfrac{' + c + '}{2}=' + c / 2 + '$ см' }; }
+  var k = rnd(2, 12), k2 = rnd(2, 12);
+  if (t === 5) return { stem: '$O$ — $ABC$ гурвалжны хүндийн төв, $AD$ медиан $' + 3 * k + '$ см. $AO=?$, $OD=?$', fig: figCen(cx, cy), a: '$AO=\\dfrac{2}{3}\\cdot ' + 3 * k + '=' + 2 * k + '$ см, $OD=' + k + '$ см' };
+  if (t === 6) return { stem: '$O$ — $ABC$ гурвалжны хүндийн төв, $AD$ медиан, $OD=' + k + '$ см. $AD=?$', a: '$AO=2\\cdot OD=' + 2 * k + '$ см, $AD=' + 3 * k + '$ см' };
+  if (k === k2) return null;
+  return { stem: '$O$ — хүндийн төв, $AD=' + 3 * k + '$ см, $BE=' + 3 * k2 + '$ см медианууд. $AO+BO=?$', fig: figCen(cx, cy), a: '$AO+BO=' + 2 * k + '+' + 2 * k2 + '=' + 2 * (k + k2) + '$ см' };
+}
+
+// 4. Биссектрис, өндөр, багтсан тойрог: ∠BOC = 90° + A/2, өндөр ба өнцөг, биссектрисийн үүсгэх өнцөг, S = p·r, дотоод ба гадаад биссектрис (6.2)
+function g4() { var t = B4() || pick([4, 5, 6]); return tryN(function () { return g4m(t); }); }    // 0 → багтсан тойрог эсвэл дотоод/гадаад биссектрис
+function g4m(t) {
+  if (t === 1) {
+    var A = 2 * rnd(20, 45), bv = rnd(Math.round((180 - A) * 0.38), Math.round((180 - A) * 0.62));
+    return { stem: '$ABC$ гурвалжны $B$, $C$ өнцгийн биссектрисүүд $O$ цэгт огтлолцоно, $\\angle A=' + dg(A) + '$ бол $\\angle BOC=?$', fig: figBis(A, bv),
+      a: '\\angle B+\\angle C=' + dg(180 - A) + ';\\ \\angle BOC=180^\\circ-' + dg((180 - A) / 2) + '=' + dg(90 + A / 2) };
+  }
+  if (t === 2) {
+    var av = rnd(35, 80), cv = rnd(35, 80); if (av + cv > 150) return null;
+    return { stem: '$BH$ — $ABC$ гурвалжны өндөр, $\\angle A=' + dg(av) + '$ бол $\\angle ABH=?$', fig: figAlt(av, cv), a: '\\angle AHB=90^\\circ;\\ \\angle ABH=90^\\circ-' + dg(av) + '=' + dg(90 - av) };
+  }
+  if (t === 3) {
+    var a3 = 2 * rnd(20, 50), b3 = rnd(30, 95); if (a3 + b3 > 150) return null;
+    return { stem: '$AD$ — $ABC$ гурвалжны биссектрис, $\\angle A=' + dg(a3) + '$, $\\angle B=' + dg(b3) + '$ бол $\\angle ADB=?$', fig: figAD(a3, b3),
+      a: '\\angle BAD=' + dg(a3 / 2) + ';\\ \\angle ADB=180^\\circ-' + dg(a3 / 2) + '-' + dg(b3) + '=' + dg(180 - a3 / 2 - b3) };
+  }
+  if (t <= 5) {
+    var H = pick(HER), p = (H[0] + H[1] + H[2]) / 2, S = p * H[3];
+    if (t === 4) return { stem: 'Гурвалжны талууд $' + H[0] + '$, $' + H[1] + '$, $' + H[2] + '$ см, багтсан тойргийн радиус $' + H[3] + '$ см. Талбайг ол.', a: '$p=' + p + '$; $S=p\\cdot r=' + p + '\\cdot ' + H[3] + '=' + S + '$ см$^2$' };
+    return { stem: 'Гурвалжны талууд $' + H[0] + '$, $' + H[1] + '$, $' + H[2] + '$ см, талбай $' + S + '$ см$^2$. Багтсан тойргийн радиусыг ол.', a: '$p=' + p + '$; $r=\\dfrac{S}{p}=\\dfrac{' + S + '}{' + p + '}=' + H[3] + '$ см' };
+  }
+  var B = rnd(30, 150); if (B === 90) return null;
+  return { stem: 'Гурвалжны $\\angle B=' + dg(B) + '$ бол $B$ оройн дотоод ба гадаад өнцгийн биссектрисүүдийн хоорондох өнцгийг ол.', a: '\\dfrac{' + dg(B) + '}{2}+\\dfrac{' + dg(180 - B) + '}{2}=90^\\circ' };
+}
+
+CMX.jishig({
+  title: 'VI бүлэг — Жишиг даалгавар 1',
+  sub: 'Олон өнцөгтийн дотоод ба гадаад өнцөг · параллель шулуун · гурвалжны дундаж шугам, медиан, өндөр, биссектрис',
+  grade: '8-р анги',
+  rule: 'Гүдгэр $n$ өнцөгт: дотоод өнцгүүдийн нийлбэр $(n-2)\\cdot 180^\\circ$, гадаад өнцгүүдийн нийлбэр $360^\\circ$ &nbsp;·&nbsp; Дундаж шугам суурийн хагас &nbsp;·&nbsp; Хүндийн төв медианыг оройгоос $2:1$ харьцаагаар хуваана',
+  tasks: [
+    { label: 'Олон өнцөгтийн өнцөг, талын тоо, диагоналийн тоог ол.', gen: g1, n: 8, nw: 4, cols: 2, wk: 12 },
+    { label: 'Мэдэгдэхгүй байгаа өнцгийг ол.', gen: g2, n: 4, nw: 2, cols: 2, wk: 14 },
+    { label: 'Гурвалжны хэрчмийн уртыг ол.', gen: g3, n: 4, nw: 2, cols: 2, wk: 14 },
+    { label: 'Биссектрис, өндөр, багтсан тойргийн бодлогыг бод.', gen: g4, n: 2, nw: 2, cols: 2, wk: 18 }
+  ]
+});
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>
