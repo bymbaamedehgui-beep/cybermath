@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ЭЕШ 1000 бодлого-2</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/e1k.js?v=1"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* ЭЕШ 1000 бодлого-2 — ЭЕШ-ийн 1000 бодлого, 1-р хэсэг (26–50-р бодлого).
+   Бодлого бүр өөрийн генератортой: «Шинэ бодлого» дарахад тоо нь өөрчлөгдөнө. Хөдөлгүүр: /e1k.js */
+
+// 26. R радиустай тойрогт багтсан гурвалжны суурийн өнцгүүд α, β → хажуу талууд 2R·sin β, 2R·sin α
+//     (синусын теорем; эх: R=5, 45° ба 60° → 5√2 ба 5√3). Хариуг өсөх дарааллаар.
+var p26_S = { 30: 1, 45: 2, 60: 3 };   // 2·sin α = √s
+function p26() {
+  var R = rnd(2, 10), pr = shuffle([30, 45, 60]).slice(0, 2), al = pr[0], be = pr[1];
+  var s = [al, be].sort(function (x, y) { return x - y; }).map(function (t) { return rt(R, p26_S[t]); });
+  return {
+    q: R + ' радиустай тойрогт багтсан гурвалжны суурийн өнцгүүд $' + al + DEG + '$ ба $' + be + DEG + '$ байв. Энэ гурвалжны хажуу талуудын урт хэд вэ?',
+    a: '$' + s[0] + '$ ба $' + s[1] + '$', wk: 28, t: { R: R, al: al, be: be }
+  };
+}
+
+// 27. Дөрвөн тэнцэтгэл бишийн шийдийн огтлолцол (эх: x≥1, −2<x≤3, 2≤x<4, x<2.5 → 2≤x<2.5).
+//     0: x ≥ c (доод), 1–2: давхар, 3: x < c (дээд). Хязгаарлагч доод хил L ба дээд хил U нь хоёр өөр
+//     тэнцэтгэл бишээс; бусад хил нь L-ээс (U-ээс) дор хаяж 0.5-аар сул тул хариуны хатуу/сул нь тодорхой.
+function p27_s(o) {
+  if (o.l != null && o.u != null) return dec(o.l) + (o.ls ? '\\lt ' : '\\le ') + 'x' + (o.us ? '\\lt ' : '\\le ') + dec(o.u);
+  if (o.l != null) return 'x' + (o.ls ? '\\gt ' : '\\ge ') + dec(o.l);
+  return 'x' + (o.us ? '\\lt ' : '\\le ') + dec(o.u);
+}
+function p27() {
+  var L = rnd(-6, 6) / 2, U = L + rnd(1, 6) / 2, lo = rnd(0, 2), hi = rnd(1, 3), I = [{}, {}, {}, {}], i;
+  if (lo === hi) return null;
+  for (i = 0; i <= 2; i++) { I[i].l = i === lo ? L : L - rnd(1, 8) / 2; I[i].ls = rnd(0, 1) === 1; }
+  for (i = 1; i <= 3; i++) { I[i].u = i === hi ? U : U + rnd(1, 8) / 2; I[i].us = rnd(0, 1) === 1; }
+  if (I[0].l < -7 || I[1].l < -7 || I[2].l < -7 || I[1].u > 8 || I[2].u > 8 || I[3].u > 8) return null;
+  var order = rnd(0, 1) ? [0, 1, 2, 3] : shuffle([0, 1, 2, 3]), S = order.map(function (j) { return p27_s(I[j]); });
+  if (S[0] === S[1] || S[0] === S[2] || S[0] === S[3] || S[1] === S[2] || S[1] === S[3] || S[2] === S[3]) return null;
+  var ans = dec(L) + (I[lo].ls ? '\\lt ' : '\\le ') + 'x' + (I[hi].us ? '\\lt ' : '\\le ') + dec(U);
+  return {
+    q: 'Дөрвөн тэнцэтгэл бишийн шийд ' + S.map(function (s) { return '$' + s + '$'; }).join(', ') + ' гарчээ. Эдгээрийн огтлолцлыг ол.',
+    a: '$' + ans + '$', wk: 22, t: { I: order.map(function (j) { return I[j]; }) }
+  };
+}
+
+// 28. (p·a + q·b)·(r·a + s·b) скаляр үржвэр (эх: a=(3,2), b=(−1,2); (a+b)·(2a−b) = 22).
+function p28() {
+  var a = [rnd(-5, 5), rnd(-5, 5)], b = [rnd(-5, 5), rnd(-5, 5)];
+  if (a[0] * b[1] - a[1] * b[0] === 0) return null;
+  var C = [1, 1, 2, 3, -1, -2], p = pick([1, 1, 2, 3]), q = pick(C), r = pick([1, 2, 2, 3]), s = pick(C);
+  if (p * s - q * r === 0) return null;
+  var u = [p * a[0] + q * b[0], p * a[1] + q * b[1]], w = [r * a[0] + s * b[0], r * a[1] + s * b[1]], v = u[0] * w[0] + u[1] * w[1];
+  if (v === 0 || Math.abs(v) > 150) return null;
+  var cb = function (x, y) { return tm(x, '\\vec a', true) + tm(y, '\\vec b'); }, P = cb(p, q), Q = cb(r, s);
+  return {
+    q: '$\\vec a=(' + a[0] + ',' + a[1] + '),\\ \\vec b=(' + b[0] + ',' + b[1] + ')$ векторууд өгчээ. $' + P + '$ ба $' + Q + '$ векторуудын скаляр үржвэрийг ол.',
+    a: '$(' + P + ')\\cdot(' + Q + ')=' + v + '$', wk: 22, t: { a: a, b: b, p: p, q: q, r: r, s: s }
+  };
+}
+
+// 29. Шоо хаях туршилтын давтамжийн хүснэгт, нэг давтамж x; арифметик дундаж M өгөгдсөн → x
+//     (эх: 5, x, 2, 8, 6, 1; M = 3.4 → x = 3). M — 1 (заримдаа 2) аравтын оронтой, M ≠ j (x цор ганц).
+function p29() {
+  var F = [1, 2, 3, 4, 5, 6].map(function () { return rnd(1, 9); }), j = rnd(1, 6), x = rnd(1, 9), S = 0, N = 0;
+  F[j - 1] = x;
+  F.forEach(function (f, i) { S += f * (i + 1); N += f; });
+  if (N < 15 || S === j * N) return null;
+  if ((10 * S) % N !== 0 && !((100 * S) % N === 0 && rnd(0, 3) === 0)) return null;
+  var M = S / N, row = ['Давтамж'].concat(F.map(function (f, i) { return i === j - 1 ? '$x$' : f; }));
+  return {
+    q: 'Шоо хаях туршилтын үр дүнг хүснэгтэд үзүүлжээ. Хэрэв нийт буусан тоонуудын арифметик дундаж ' + dec(M) + ' бол $x$-ийг ол.',
+    a: '$x=' + x + '$', fig: tbl([['Тоо', 1, 2, 3, 4, 5, 6], row]), wk: 26, t: { F: F, j: j }
+  };
+}
+
+// 30. Хуримтлагдсан давтамжийн муруй (огив), n = 4k − 1: Q1 = k-р утга, Q3 = 3k-р утга → IQR = x(3k) − x(k)
+//     (эх: n = 27 → Q1 = 33, Q3 = 69, IQR = 36). Зангилаа бүр торын цэг дээр (x — 3-ын үржвэр, y — бүхэл),
+//     муруй — монотон сплайн; эхээс бусад зангилаа бүрт тэнхлэг хүртэл тасархай зураас (квартилиудыг ялгахгүй).
+function p30() {
+  var n = pick([23, 27, 27, 31, 35, 39]), k = (n + 1) / 4, pool = [], y, t;
+  var ia = rnd(4, 8), ya = rnd(1, 3), i1 = ia + rnd(2, 5), nm = rnd(1, 2);
+  for (y = k + 2; y <= 3 * k - 2; y++) pool.push(y);
+  var ym = shuffle(pool).slice(0, nm).sort(function (a, b) { return a - b; });
+  if (nm === 2 && ym[1] - ym[0] < 2) return null;
+  var K = [[0, 0], [3 * ia, ya], [3 * i1, k]], ii = i1;
+  ym.forEach(function (yy) { ii += rnd(1, 5); K.push([3 * ii, yy]); });
+  var i3 = ii + rnd(1, 5), ib = i3 + rnd(2, 6), imax = rnd(28, 30);
+  if (ib >= imax) return null;
+  K.push([3 * i3, 3 * k], [3 * ib, n - rnd(1, 2)], [3 * imax, n]);
+  for (t = 1; t < K.length; t++) { var s = (K[t][1] - K[t - 1][1]) / ((K[t][0] - K[t - 1][0]) / 3); if (s < 0.15 || s > 4) return null; }
+  var S = spline(K), X1 = 3 * i1, X3 = 3 * i3, VX = 96, VY = n + 3, cy = Math.min(9.5, Math.max(6.8, 260 / VY));
+  var f = Fig({ free: true, w: 320, h: 52 + VY * cy, view: [0, VX, 0, VY], padL: 46, padR: 16, padT: 12, padB: 40 });
+  f.grid({ x: 3, y: 1 }, { c: '#c4c4c4', w: 0.6 });
+  K.slice(1).forEach(function (p) { f.seg([0, p[1]], p, { dash: '6 4', w: 1.3 }).seg(p, [p[0], 0], { dash: '6 4', w: 1.3 }); });
+  f.curve(S, 0, K[K.length - 1][0], { w: 2.2 }, 500);
+  f.axes({ x: false, y: false, o: false });
+  var yt = [];
+  for (y = 5; y <= n - 2; y += 5) yt.push(y);
+  yt.push(n);
+  f.ticks([15, 30, 45, 60, 75, 90], yt, { size: 11 });
+  f.text([VX / 2, 0], 'Хугацаа', { plain: true, pos: 's', off: 21, size: 12 });
+  f.text([0, VY / 2], 'Хуримтлагдсан давтамж', { plain: true, pos: 'w', off: 27, size: 11.5, anchor: 'middle', rot: -90 });
+  return {
+    q: 'Зурагт өгөгдсөн хуримтлагдсан давтамжийн график ашиглан квартил хоорондын далайцыг ол.',
+    a: '$IQR=Q_3-Q_1=' + X3 + '-' + X1 + '=' + (X3 - X1) + '$', fig: f.svg(), wk: 30, t: { n: n, K: K }
+  };
+}
+
+// 31. P(x) = kx³ + ax² + b нь (x − r)²-д хуваагдана ⇔ P(r) = P'(r) = 0 → a = −3kr/2, b = kr³/2
+//     (эх: P = 2x³ + ax² + b, (x+2)² → a = 6, b = −8, ab = −48). kr тэгш байх ёстой (a, b бүхэл).
+function p31() {
+  var k = rnd(1, 4), r = pick([-3, -2, -1, 1, 2, 3]);
+  if ((k * r) % 2 !== 0) return null;
+  var a = -3 * k * r / 2, b = k * r * r * r / 2, ask = pick(['ab', 'ab', 'a+b']), v = ask === 'ab' ? a * b : a + b;
+  if (Math.abs(a * b) > 400) return null;
+  return {
+    q: '$P(x)=' + tm(k, 'x^3', true) + '+ax^2+b$ олон гишүүнт $(' + poly([1, -r]) + ')^2$-д хуваагддаг бол $' + ask + '$ хэдтэй тэнцүү вэ?',
+    a: '$' + ask + '=' + v + '$', wk: 30, t: { k: k, r: r, ask: ask }
+  };
+}
+
+// 32. Парабол ба шулуунаар хашигдсан дүрсийн талбай. Шулуун параболыг x1 < x2 бүхэл цэгүүдэд огтолно:
+//     y = c − x² → y = −(x1+x2)x + c + x1x2;  y = x² + c → y = (x1+x2)x + c − x1x2;  S = (x2 − x1)³/6
+//     (эх: y = 4 − x², y = 4 − x → 1/6).
+function p32() {
+  var down = rnd(0, 2) > 0, x1 = rnd(-3, 2), L = rnd(1, 4), x2 = x1 + L;
+  if (x2 > 4) return null;
+  var c = down ? rnd(1, 9) : rnd(-6, 6), m = down ? -(x1 + x2) : x1 + x2, n = down ? c + x1 * x2 : c - x1 * x2;
+  var P = down ? c + '-x^2' : poly([1, 0, c]), Ln = (m < 0 && n > 0) ? n + tm(m, 'x') : poly([m, n]);
+  return {
+    q: '$y=' + P + ',\\ y=' + Ln + '$ муруйнуудаар хашигдсан дүрсийн талбайг ол.',
+    a: '$S=' + fr(L * L * L, 6) + '$', wk: 32, t: { A: down ? -1 : 1, C: c, m: m, n: n }
+  };
+}
+
+// 33. √2 нэгжээр: A = N − (u,v), B = N + (u,v); AB-д перпендикуляр, N-ийг дайрсан шулуун дээр
+//     C = N + t·(p,q), (p,q) = (−v,u)/gcd(u,v) → NC = |t|·√(2(p²+q²)) хялбарчилсан
+//     (эх: A(0, 2√2), B(6√2, 8√2), C(m, 9√2) → NC = 8). C-ийн ординат өгөгдөнө (q ≠ 0 тул m цор ганц).
+function p33_c(P) { return '(' + rt(P[0], 2) + ',\\,' + rt(P[1], 2) + ')'; }
+function p33() {
+  var N = [rnd(-2, 5), rnd(-2, 6)], u = nz(-4, 4), v = rnd(0, 1) ? (rnd(0, 1) ? u : -u) : nz(-4, 4);
+  var g = gcd(u, v), p = -v / g, q = u / g, t = nz(-4, 4);
+  var A = [N[0] - u, N[1] - v], B = [N[0] + u, N[1] + v], C = [N[0] + t * p, N[1] + t * q];
+  if ([A[0], A[1], B[0], B[1], C[0], C[1]].some(function (z) { return Math.abs(z) > 9; })) return null;
+  var s = surd(2 * (p * p + q * q)), NC = rt(Math.abs(t) * s.k, s.r);
+  if (Math.abs(t) * s.k > 12) return null;
+  return {
+    q: '$A' + p33_c(A) + ',\\ B' + p33_c(B) + '$ цэгүүд дээр төгсгөлтэй хэрчмийн дундаж цэг $N$-ийг дайрсан $AB$ хэрчимд перпендикуляр шулуун дээр $C(m,\\,'
+      + rt(C[1], 2) + ')$ цэг оршдог бол $NC$ хэрчмийн уртыг ол.',
+    a: '$NC=' + NC + '$', wk: 32, t: { A: A, B: B, Cy: C[1] }
+  };
+}
+
+// 34. sin x·cos x = p, x ∈ ]0; π/4[ эсвэл ]π/4; π/2[ → (sin x ∓ cos x)² = 1 ∓ 2p, тэмдгийг мужаар
+//     (sin x − cos x нь ]0; π/4[ дээр сөрөг; sin x + cos x үргэлж эерэг). Эх: p = 1/4, ]0; π/4[ → −√2/2.
+var p34_P = [[1, 4], [3, 8], [4, 9], [12, 25], [1, 3], [2, 9], [1, 8], [7, 18], [3, 10], [5, 18], [1, 6], [6, 25]];
+function p34_sq(n, d) {   // √(n/d) хялбарчилсан TeX (n, d > 0)
+  var s = surd(n * d), g = gcd(s.k, d), k = s.k / g, dd = d / g, num = s.r === 1 ? String(k) : rt(k, s.r);
+  return dd === 1 ? num : '\\dfrac{' + num + '}{' + dd + '}';
+}
+function p34() {
+  var P = pick(p34_P), low = rnd(0, 1) === 1, minus = rnd(0, 3) > 0;
+  var I = low ? '\\left]0,\\ \\dfrac{\\pi}{4}\\right[' : '\\left]\\dfrac{\\pi}{4},\\ \\dfrac{\\pi}{2}\\right[';
+  var E = minus ? '\\sin x-\\cos x' : '\\sin x+\\cos x', val = p34_sq(minus ? P[1] - 2 * P[0] : P[1] + 2 * P[0], P[1]);
+  return {
+    q: '$x\\in' + I + '$ ба $\\sin x\\cdot\\cos x=' + fr(P[0], P[1]) + '$ бол $' + E + '=?$',
+    a: '$' + E + '=' + (minus && low ? '-' : '') + val + '$', wk: 26, t: { p: P[0] / P[1], low: low, minus: minus }
+  };
+}
+
+// 35. Бичлэгт нь d цифр яг k удаа орсон (тэгш / сондгой / 5-д хуваагддаг) гурван оронтой тоо хэд вэ?
+//     Нэгжийн цифр u (нөхцөлөөр) бүрд: (зуут 1–9, аравт 0–9) хосод d яг (k − [u = d]) удаа орох тоог нэмнэ.
+function p35() {
+  var d = rnd(0, 9), k = rnd(1, 4) === 4 ? 2 : 1, pr = rnd(0, 5);
+  pr = pr < 3 ? 0 : pr < 5 ? 1 : 2;   // тэгш (эх) илүү олон
+  var W = ['тэгш', 'сондгой', sfx(5, 'д') + ' хуваагддаг'], U = [[0, 2, 4, 6, 8], [1, 3, 5, 7, 9], [0, 5]][pr];
+  var hd = d >= 1 ? 1 : 0, hn = 9 - hd;           // зуутын оронд d байх / байхгүй сонголт
+  var ways = [hn * 9, hd * 9 + hn * 1, hd * 1];  // (зуут, аравт)-д d яг 0, 1, 2 удаа
+  var N = 0;
+  U.forEach(function (u) { var need = k - (u === d ? 1 : 0); if (need >= 0 && need <= 2) N += ways[need]; });
+  if (N < 4) return null;
+  return {
+    q: 'Бичлэгт нь ' + sfx(d, 'ын') + ' цифр яг ' + k + ' удаа орсон ' + W[pr] + ' гурван оронтой тоо хичнээн байх вэ?',
+    a: '$' + N + '$',
+    wk: 26,
+    t: { d: d, k: k, pr: pr, N: N }
+  };
+}
+
+// 36. P төгрөгийг m сар тутам r% (нийлмэл) хүүтэй жил хадгалуулах нь жилийн n·r% (n = 12/m) хүүтэйгээс хэдээр илүү:
+//     P·((1 + r/100)^n − 1 − n·r/100) = P·((100+r)^n − 100^n − n·r·100^(n−1)) / 100^n. Бүхэл бус бол төгрөгөөр тоймлоно (≈).
+var p36_P = [[5e5, '500 мянган'], [1e6, '1 сая'], [1e6, '1 сая'], [2e6, '2 сая'], [3e6, '3 сая'], [5e6, '5 сая']];
+function p36_th(n) {   // 2727 → 2\,727 (мянгатыг зайгаар)
+  var s = String(n), out = '';
+  while (s.length > 3) { out = '\\,' + s.slice(-3) + out; s = s.slice(0, -3); }
+  return s + out;
+}
+function p36() {
+  var P = pick(p36_P), m = pick([3, 4, 4, 6]), n = 12 / m, r = rnd(1, 5);
+  var D = Math.pow(100, n), num = P[0] * (Math.pow(100 + r, n) - D - n * r * Math.pow(100, n - 1));
+  var v = Math.floor(num / D), rem = num - v * D;
+  if (rem < 0) { v--; rem += D; } else if (rem >= D) { v++; rem -= D; }
+  var approx = rem !== 0;
+  if (approx) {
+    if (Math.abs(rem / D - 0.5) < 0.05) return null;   // тоймлоход хоёрдмол
+    if (rem / D > 0.5) v++;
+  }
+  if (v < 100) return null;
+  return {
+    q: P[1] + ' төгрөгийг ' + m + ' сар тутам $' + r + '\\%$ хүүтэйгээр жил хадгалуулах нь жилийн $' + n * r
+      + '\\%$ хүүтэйгээр жил хадгалуулахаас хэдэн төгрөгөөр илүү ашигтай вэ?',
+    a: '$' + (approx ? '\\approx ' : '') + p36_th(v) + '$ төгрөг',
+    wk: 30,
+    t: { P: P[0], m: m, r: r }
+  };
+}
+
+// 37. c·x² ± k·a·x (≤ | < | ≥ | >) 0 тэнцэтгэл биш (a — параметр). Язгуурууд 0 ба ρ = κ·a, κ = ∓k/c.
+//     a > 0, a = 0, a < 0 гурван тохиолдол: завсар / гаднах хэсэг; a = 0 үед c·x² (≤ → x = 0, < → шийдгүй, ≥ → ℝ, > → x ≠ 0).
+function p37_m(n, d) {   // (n/d)·a → a, -a, 2a, \dfrac{3a}{2}, -\dfrac{a}{2}
+  var g = gcd(n, d); n /= g; d /= g;
+  var s = n < 0 ? '-' : '', A = Math.abs(n);
+  if (d === 1) return s + (A === 1 ? '' : A) + 'a';
+  return s + '\\dfrac{' + (A === 1 ? '' : A) + 'a}{' + d + '}';
+}
+function p37() {
+  var ck = pick([[1, 1], [1, 1], [1, 1], [1, 2], [1, 2], [1, 3], [1, 3], [2, 1], [2, 3], [3, 1], [3, 2]]), c = ck[0], k = ck[1];
+  var s = pick([-1, -1, 1]), rel = pick(['\\le', '\\le', '\\lt', '\\ge', '\\gt']);
+  var lhs = (c === 1 ? '' : c) + 'x^2' + (s < 0 ? '-' : '+') + (k === 1 ? '' : k) + 'ax';
+  var kn = -s * k, R = p37_m(kn, c);          // ρ = (kn/c)·a
+  var strict = rel === '\\lt' || rel === '\\gt', inside = rel === '\\le' || rel === '\\lt';
+  function part(lo, hi) {
+    if (inside) { var o = strict ? '\\lt' : '\\le'; return '$' + lo + o + ' x' + o + ' ' + hi + '$'; }
+    return '$x' + (strict ? '\\lt' : '\\le') + ' ' + lo + '$ эсвэл $x' + (strict ? '\\gt' : '\\ge') + ' ' + hi + '$';
+  }
+  // a > 0: ρ-ийн тэмдэг = kn-ийн тэмдэг; a < 0: эсрэг
+  var pos = kn > 0 ? part('0', R) : part(R, '0'), neg = kn > 0 ? part(R, '0') : part('0', R);
+  var zero = { '\\le': '$x=0$', '\\lt': 'шийдгүй', '\\ge': '$x\\in\\mathbb{R}$', '\\gt': '$x\\ne 0$' }[rel];
+  return {
+    q: '$' + lhs + rel + ' 0$ тэнцэтгэл бишийг бод.',
+    a: '$a\\gt 0$ үед ' + pos + '; $a=0$ үед ' + zero + '; $a\\lt 0$ үед ' + neg,
+    wide: true, wk: 32,
+    t: { c: c, k: k, s: s, rel: rel }
+  };
+}
+
+// 38. Куб функцийн бүх минимумын цэг. y' = k(x − p)(x − q), p < q:
+//     y = (k/3)x³ − (k(p+q)/2)x² + kpq·x + c; k > 0 бол минимум x = q, k < 0 бол x = p.  (6y-ээр бүхэл тооцоолно)
+function p38() {
+  var k = pick([2, 2, -2, 3, -3, 6, -6]), p = rnd(-3, 4), q = rnd(-3, 5), c = nz(-6, 9);
+  if (p >= q || p + q === 0 || p * q === 0) return null;
+  if (Math.abs(k) === 3 && (p + q) % 2) return null;          // x²-ийн коэффициент бүхэл байх
+  var c3 = [2 * k, 6], c2 = [-3 * k * (p + q), 6], c1 = k * p * q;
+  if (Math.abs(c1) > 40 || Math.abs(c2[0] / 6) > 24) return null;
+  var xm = k > 0 ? q : p, Y6 = 2 * k * xm * xm * xm - 3 * k * (p + q) * xm * xm + 6 * k * p * q * xm + 6 * c;
+  if (Math.abs(Y6) > 6 * 70) return null;
+  if (Y6 % 6 && rnd(1, 20) > 7) return null;                 // бүхэл y_min илүү олон (эх: 10)
+  return {
+    q: '$y=' + poly([c3, c2, c1, c]) + '$ функцийн бүх минимумын цэгийг ол.',
+    a: '$x_{min}=' + xm + '$, $y_{min}=' + fr(Y6, 6) + '$',
+    wk: 32,
+    t: { k: k, p: p, q: q, c: c }
+  };
+}
+
+// 39. A(x, A₂, A₃), B(B₁, y, B₃), k·AB⃗ = a⃗ → x = B₁ − a₁/k, y = A₂ + a₂/k, x + y = B₁ + A₂ + (a₂ − a₁)/k.
+//     Гуравдахь координат нийцтэй: a₃ = k(B₃ − A₃).
+function p39() {
+  var k = pick([2, 2, 2, -2, 3, -3]);
+  var B1 = rnd(-3, 6), A2 = rnd(-3, 6), A3 = rnd(-4, 9), dz = nz(-8, 9), a1 = nz(-9, 9), a2 = nz(-9, 9);
+  var B3 = A3 + dz, a3 = k * dz;
+  if (Math.abs(a3) > 20 || B3 === 0 || Math.abs(B3) > 15) return null;
+  if (a1 % k === 0 && a2 % k === 0) return null;          // x, y хоёул бүхэл байхгүй (эх: 3.5)
+  var sN = (B1 + A2) * k + a2 - a1;                       // x + y = sN / k
+  var sum = Math.abs(k) === 2 ? dec(sN / k) : fr(sN, k);
+  if (Math.abs(sN / k) > 15) return null;
+  return {
+    q: '$A(x,\\,' + A2 + ',\\,' + A3 + '),\\ B(' + B1 + ',\\,y,\\,' + B3 + ')$ цэгүүд ба $\\vec a=(' + a1 + ',\\,' + a2 + ',\\,' + a3
+      + ')$ вектор өгөв. $' + k + '\\cdot\\overrightarrow{AB}=\\vec a$ бол $x+y$ нийлбэрийг ол.',
+    a: '$x+y=' + sum + '$',
+    wk: 24,
+    t: { k: k, A: [null, A2, A3], B: [B1, null, B3], a: [a1, a2, a3] }
+  };
+}
+
+// 40. Координатын эх дээр төвтэй θ өнцгийн эргүүлэлтийн матриц R(θ)-ийн урвуу: R⁻¹ = R(−θ) = Rᵀ.
+//     Утгууд яг: 1/√2 (45°, 135°), √3/2 ба 1/2 (30°, 60°, 120°, 150°), 0 ба 1 (90°). Цагийн зүүний эсрэг/дагуу.
+function p40_cs(deg) {   // [cos, sin] TeX (яг утга), deg — 15-ын үржвэр
+  var B = { 0: ['1', '0'], 30: ['\\frac{\\sqrt{3}}{2}', '\\frac{1}{2}'], 45: ['\\frac{1}{\\sqrt{2}}', '\\frac{1}{\\sqrt{2}}'],
+    60: ['\\frac{1}{2}', '\\frac{\\sqrt{3}}{2}'], 90: ['0', '1'] };
+  var a = ((deg % 360) + 360) % 360, q = Math.floor(a / 90), b = a - 90 * q, cs = B[b];
+  var neg = function (t) { return t === '0' ? '0' : t[0] === '-' ? t.slice(1) : '-' + t; };
+  if (q === 0) return [cs[0], cs[1]];
+  if (q === 1) return [neg(cs[1]), cs[0]];
+  if (q === 2) return [neg(cs[0]), neg(cs[1])];
+  return [cs[1], neg(cs[0])];
+}
+function p40_R(deg) {   // [[cos, −sin], [sin, cos]]
+  var cs = p40_cs(deg), ns = cs[1] === '0' ? '0' : cs[1][0] === '-' ? cs[1].slice(1) : '-' + cs[1];
+  return [[cs[0], ns], [cs[1], cs[0]]];
+}
+function p40_mx(rows) {   // бутархайтай матрицад мөр хооронд зай (√-тэй хуваарь давхцахгүй)
+  if (!/frac/.test(rows.join())) return mat(rows);
+  return '\\begin{pmatrix}' + rows.map(function (r) { return r.join('&'); }).join('\\\\[6pt]') + '\\end{pmatrix}';
+}
+function p40() {
+  var th = pick([30, 45, 45, 60, 90, 120, 135, 150]), cw = rnd(1, 3) === 1;   // cw: цагийн зүүний дагуу
+  var ang = cw ? -th : th;
+  return {
+    q: 'Координатын эх дээр төвтэй цагийн зүүний ' + (cw ? 'дагуу' : 'эсрэг') + ' $' + th + '^\\circ$-' + suf(th, 'ын')
+      + ' эргүүлэлтийн матриц $R=' + p40_mx(p40_R(ang)) + '$-ын урвуу матрицыг ол.',
+    a: '$R^{-1}=' + p40_mx(p40_R(-ang)) + '$',
+    wk: 22,
+    t: { th: th, cw: cw }
+  };
+}
+
+// 41. A(x, y) цэгийг координатын эх дээр төвтэй θ өнцгөөр эргүүлэхэд дүр: (x cos θ − y sin θ, x sin θ + y cos θ).
+//     θ = ±45°, ±135°: x ≡ y (mod 2) → дүр нь (m√2, n√2); θ = ±90°, 180°: бүхэл.
+function p41_img(x, y, ang) {   // [[u, v], 2 | 1]  — 2 бол координат u√2, v√2
+  var a = ang * Math.PI / 180, c = Math.round(Math.cos(a) * 1e9) / 1e9, s = Math.round(Math.sin(a) * 1e9) / 1e9;
+  if (ang % 90 === 0) return [[c * x - s * y, s * x + c * y], 1];
+  var C = Math.round(c * Math.SQRT2), S = Math.round(s * Math.SQRT2);   // ±1
+  return [[(C * x - S * y) / 2, (S * x + C * y) / 2], 2];
+}
+function p41_c(v, r) { return r === 2 ? rt(v, 2) : String(v); }
+function p41() {
+  var th = pick([45, 45, 45, 45, 135, 135, 90, 180]), cw = th !== 180 && rnd(1, 4) === 1;
+  var x = nz(-9, 15), y = nz(-9, 12);
+  if (Math.abs(x) === Math.abs(y)) return null;
+  if (th % 90 && (x - y) % 2) return null;
+  var im = p41_img(x, y, cw ? -th : th), u = im[0][0], v = im[0][1];
+  if (!u || !v) return null;
+  return {
+    q: 'Координатын эх дээр төвтэй цагийн зүүний ' + (cw ? 'дагуу' : 'эсрэг') + ' $' + th + '^\\circ$-' + suf(th, 'ын')
+      + ' эргүүлэлтээр $A(' + x + ',\\,' + y + ')$ цэгийн дүрийн координат аль вэ?',
+    a: '$(' + p41_c(u, im[1]) + ',\\,' + p41_c(v, im[1]) + ')$',
+    wk: 24,
+    t: { x: x, y: y, th: th, cw: cw }
+  };
+}
+
+// 42. θ эргүүлэлтийн дүр нь A(a₁, a₂) байх B(x, y): R(θ)·(x, y)ᵀ = (a₁, a₂)ᵀ → B = R(−θ)·A.
+//     θ = 45°, 135°: a₁ ≡ a₂ (mod 2) → B = (m√2, n√2); θ = 90°: бүхэл.
+function p42_cs(deg) {   // [cos, sin] TeX (яг утга), deg — 45-ын үржвэр
+  var B = { 0: ['1', '0'], 45: ['\\frac{1}{\\sqrt{2}}', '\\frac{1}{\\sqrt{2}}'], 90: ['0', '1'] };
+  var a = ((deg % 360) + 360) % 360, q = Math.floor(a / 90), b = a - 90 * q, cs = B[b];
+  var neg = function (t) { return t === '0' ? '0' : t[0] === '-' ? t.slice(1) : '-' + t; };
+  return q === 0 ? [cs[0], cs[1]] : q === 1 ? [neg(cs[1]), cs[0]] : q === 2 ? [neg(cs[0]), neg(cs[1])] : [cs[1], neg(cs[0])];
+}
+function p42_R(deg) {
+  var cs = p42_cs(deg), ns = cs[1] === '0' ? '0' : cs[1][0] === '-' ? cs[1].slice(1) : '-' + cs[1];
+  return [[cs[0], ns], [cs[1], cs[0]]];
+}
+function p42_mx(rows) {   // бутархайтай матрицад мөр хооронд зай (√-тэй хуваарь давхцахгүй)
+  if (!/frac/.test(rows.join())) return mat(rows);
+  return '\\begin{pmatrix}' + rows.map(function (r) { return r.join('&'); }).join('\\\\[6pt]') + '\\end{pmatrix}';
+}
+function p42() {
+  var th = pick([45, 45, 45, 135, 90]);
+  var a1 = nz(-9, 15), a2 = nz(-9, 12);
+  if (Math.abs(a1) === Math.abs(a2)) return null;
+  if (th !== 90 && (a1 - a2) % 2) return null;
+  var x, y, r2 = th !== 90;
+  // B = R(−θ)·A
+  if (th === 90) { x = a2; y = -a1; }
+  else if (th === 45) { x = (a1 + a2) / 2; y = (a2 - a1) / 2; }          // ·√2
+  else { x = (a2 - a1) / 2; y = (-a1 - a2) / 2; }                          // 135°, ·√2
+  if (!x || !y) return null;
+  var c = function (v) { return r2 ? rt(v, 2) : String(v); };
+  return {
+    q: 'Координатын эх дээр төвтэй цагийн зүүний эсрэг $' + th + '^\\circ$-' + suf(th, 'ын') + ' эргүүлэлтээрх дүр нь $A(' + a1 + ',\\,' + a2
+      + ')$ байдаг $B(x,\\,y)$ цэгийн координатыг $' + p42_mx(p42_R(th)) + '\\begin{pmatrix}x\\\\y\\end{pmatrix}=' + mat([[a1], [a2]])
+      + '$ матрицан тэгшитгэл ашиглан ол.',
+    a: '$B(' + c(x) + ',\\,' + c(y) + ')$',
+    wk: 28,
+    t: { th: th, a1: a1, a2: a2 }
+  };
+}
+
+// 43. P цэгийг P' цэгт хувиргадаг, координатын эх дээр төвтэй эргүүлэлтийн матриц (|P| = |P'| тул ганц).
+//     θ ∈ {±90°, 180°, ±45°, ±135°}. Координат бүхэл эсвэл k√2: ±45°/±135° нь «бүхэл ↔ √2-ийн үржвэр» солино.
+function p43_cs(deg) {   // [cos, sin] TeX, deg — 45-ын үржвэр
+  var B = { 0: ['1', '0'], 45: ['\\frac{1}{\\sqrt{2}}', '\\frac{1}{\\sqrt{2}}'], 90: ['0', '1'] };
+  var a = ((deg % 360) + 360) % 360, q = Math.floor(a / 90), b = a - 90 * q, cs = B[b];
+  var neg = function (t) { return t === '0' ? '0' : t[0] === '-' ? t.slice(1) : '-' + t; };
+  return q === 0 ? [cs[0], cs[1]] : q === 1 ? [neg(cs[1]), cs[0]] : q === 2 ? [neg(cs[0]), neg(cs[1])] : [cs[1], neg(cs[0])];
+}
+function p43_rot(P, deg) {   // P = {x, y, r}: координат x·√r, y·√r (r = 1 | 2) → эргүүлсэн цэг (null: бүхэл биш)
+  var a = deg * Math.PI / 180, c = Math.round(Math.cos(a) * 1e9) / 1e9, s = Math.round(Math.sin(a) * 1e9) / 1e9;
+  if (deg % 90 === 0) return { x: c * P.x - s * P.y, y: s * P.x + c * P.y, r: P.r };
+  var C = Math.round(c * Math.SQRT2), S = Math.round(s * Math.SQRT2), u = C * P.x - S * P.y, v = S * P.x + C * P.y;   // (u, v)/√2 · √r
+  if (P.r === 2) return { x: u, y: v, r: 1 };
+  if (u % 2 || v % 2) return null;
+  return { x: u / 2, y: v / 2, r: 2 };
+}
+function p43_c(v, r) { return r === 2 ? rt(v, 2) : String(v); }
+function p43_mx(rows) {   // бутархайтай матрицад мөр хооронд зай (√-тэй хуваарь давхцахгүй)
+  if (!/frac/.test(rows.join())) return mat(rows);
+  return '\\begin{pmatrix}' + rows.map(function (r) { return r.join('&'); }).join('\\\\[6pt]') + '\\end{pmatrix}';
+}
+function p43() {
+  var deg = pick([-90, -90, 90, 180, 45, -45, 135, -135]);
+  var P = { x: nz(-9, 9), y: nz(-9, 9), r: rnd(1, 3) === 1 ? 1 : 2 };
+  if (Math.abs(P.x) === Math.abs(P.y)) return null;
+  var Q = p43_rot(P, deg);
+  if (!Q || !Q.x || !Q.y || Math.abs(Q.x) > 18 || Math.abs(Q.y) > 18) return null;
+  var cs = p43_cs(deg), ns = cs[1] === '0' ? '0' : cs[1][0] === '-' ? cs[1].slice(1) : '-' + cs[1];
+  var d = Math.abs(deg), dir = deg === 180 ? '$180^\\circ$' : 'цагийн зүүний ' + (deg < 0 ? 'дагуу' : 'эсрэг') + ' $' + d + '^\\circ$';
+  return {
+    q: '$(' + p43_c(P.x, P.r) + ',\\,' + p43_c(P.y, P.r) + ')$ цэгийг $(' + p43_c(Q.x, Q.r) + ',\\,' + p43_c(Q.y, Q.r)
+      + ')$ цэгт хувиргадаг, координатын эх дээр төвтэй эргүүлэлтийн матрицыг ол.',
+    a: '$' + p43_mx([[cs[0], ns], [cs[1], cs[0]]]) + '$ (' + dir + ')',
+    wk: 26,
+    t: { P: P, Q: Q, deg: deg }
+  };
+}
+
+// 44. (a, b√c) цэгээс координатын эх хүртэлх зай: √(a² + b²c) — хялбарчилсан язгуураар.
+function p44() {
+  var a = nz(-6, 6), b = nz(-4, 4), c = pick([2, 2, 3, 3, 5, 6, 7]);
+  var d2 = a * a + b * b * c, S = surd(d2);
+  if (d2 > 120) return null;
+  var p1 = String(a), p2 = rt(b, c), sw = rnd(1, 4) === 1;
+  return {
+    q: '$(' + (sw ? p2 + ',\\,' + p1 : p1 + ',\\,' + p2) + ')$ цэгээс координатын эх хүртэлх зайг ол.',
+    a: '$' + S.tex + '$',
+    wk: 18,
+    t: { a: a, b: b, c: c }
+  };
+}
+
+// 45. A (m×n), B (p×q) матрицуудын хувьд A+B, AB, BA, A², B² үйлдлүүдээс аль нь гүйцэтгэгдэх вэ?
+//     A+B: хэмжээ ижил; AB: n = p; BA: q = m; A²: m = n; B²: p = q.  (эхэд жагсаалт алга — бид нэмэв)
+var p45_S = [[2, 2], [2, 2], [2, 1], [1, 2], [2, 3], [3, 2], [3, 1], [1, 3]];
+function p45_M(r, c) { var M = [], i, j; for (i = 0; i < r; i++) { M.push([]); for (j = 0; j < c; j++) M[i].push(nz(-6, 7)); } return M; }
+function p45() {
+  var sa = pick(p45_S), sb = pick(p45_S), A = p45_M(sa[0], sa[1]), B = p45_M(sb[0], sb[1]);
+  var ok = [
+    ['A+B', sa[0] === sb[0] && sa[1] === sb[1]], ['AB', sa[1] === sb[0]], ['BA', sb[1] === sa[0]],
+    ['A^2', sa[0] === sa[1]], ['B^2', sb[0] === sb[1]]
+  ].filter(function (o) { return o[1]; }).map(function (o) { return '$' + o[0] + '$'; });
+  if (!ok.length || ok.length === 5) return null;
+  if (sa[0] * sa[1] + sb[0] * sb[1] > 12) return null;   // хэт том биш
+  var ans = ok.length === 1 ? ok[0] : ok.slice(0, -1).join(', ') + ' ба ' + ok[ok.length - 1];
+  return {
+    q: '$A=' + mat(A) + '\\quad B=' + mat(B) + '$ матрицуудын хувьд дараах үйлдлүүдээс алийг нь гүйцэтгэж болох вэ?'
+      + '<br>$A+B,\\quad AB,\\quad BA,\\quad A^2,\\quad B^2$',
+    a: ans,
+    wk: 24,
+    t: { A: A, B: B }
+  };
+}
+
+// 46. f'(a)-ийн утга. Хэлбэрүүд (a = s² язгууртайд):
+//     k/√x → −k/(2s³);  k√x → k/(2s);  k·x√x → 3ks/2;  k/x² → −2k/a³ (a бүхэл).
+function p46() {
+  var f = pick([0, 0, 1, 2, 3]), k = rnd(1, 6), s, a, n, d, tex;
+  if (f === 0) { s = rnd(1, 3); a = s * s; n = -k; d = 2 * s * s * s; tex = '\\dfrac{' + k + '}{\\sqrt{x}}'; }
+  else if (f === 1) { s = rnd(1, 5); a = s * s; n = k; d = 2 * s; tex = (k === 1 ? '' : k) + '\\sqrt{x}'; }
+  else if (f === 2) { s = rnd(1, 4); a = s * s; n = 3 * k * s; d = 2; tex = (k === 1 ? '' : k) + 'x\\sqrt{x}'; }
+  else { a = pick([1, 2, 3, -1, -2]); n = -2 * k; d = a * a * a; tex = '\\dfrac{' + k + '}{x^2}'; }
+  if (Math.abs(d) / gcd(n, d) > 64) return null;
+  if (a === 1 && f !== 3 && k === 1) return null;
+  return {
+    q: '$f(x)=' + tex + '$ функцийн хувьд $f\'(' + a + ')$-' + suf(a, 'ын') + ' утгыг ол.',
+    a: '$f\'(' + a + ')=' + fr(n, d) + '$',
+    wk: 22,
+    t: { f: f, k: k, a: a }
+  };
+}
+
+// 47. Бүхэл, аравтын бутархай, энгийн бутархай, π-тэй тоо — 4 тоо √n-ийн ойролцоо (≥ 0.01 зайтай);
+//     √n-ээс бага (эсвэл их) тоонуудыг ялгана. Дор хаяж нэг нь тохирно, нэг нь тохирохгүй.
+var p47_PI = [[1, 1], [1, 2], [1, 3], [1, 4], [1, 6], [2, 3], [3, 4], [5, 6], [3, 2], [4, 3], [5, 4], [7, 6], [5, 3], [7, 4], [11, 6], [2, 1]];
+function p47() {
+  var n = pick([2, 2, 3, 5, 6, 7, 10]), R = Math.sqrt(n), far = function (v) { return Math.abs(v - R) >= 0.01; };
+  var pools = [[], [], [], []], i, p, q;
+  [Math.floor(R), Math.ceil(R)].forEach(function (v) { pools[0].push({ v: v, t: String(v) }); });
+  for (i = Math.round(R * 10) - 5; i <= Math.round(R * 10) + 5; i++) if (i % 10 && far(i / 10)) pools[1].push({ v: i / 10, t: dec(i / 10) });
+  for (q = 2; q <= 9; q++) for (p = Math.ceil((R - 0.5) * q); p <= (R + 0.5) * q; p++) {
+    if (gcd(p, q) === 1 && p % q && far(p / q)) pools[2].push({ v: p / q, t: '\\dfrac{' + p + '}{' + q + '}' });
+  }
+  p47_PI.forEach(function (km) {
+    var v = km[0] * Math.PI / km[1];
+    if (Math.abs(v - R) <= 0.8 && far(v)) pools[3].push({ v: v, t: km[1] === 1 ? (km[0] === 1 ? '' : km[0]) + '\\pi' : '\\dfrac{' + (km[0] === 1 ? '' : km[0]) + '\\pi}{' + km[1] + '}' });
+  });
+  if (pools.some(function (P) { return !P.length; })) return null;
+  var xs = shuffle(pools.map(function (P) { return pick(P); }));
+  for (i = 0; i < 4; i++) for (p = i + 1; p < 4; p++) if (Math.abs(xs[i].v - xs[p].v) < 0.02) return null;
+  var less = rnd(1, 3) !== 1, sel = xs.filter(function (x) { return less ? x.v < R : x.v > R; });
+  if (!sel.length || sel.length === 4) return null;
+  return {
+    q: '$' + xs.map(function (x) { return x.t; }).join(',\\ ') + '$ тоонуудаас $\\sqrt{' + n + '}$-' + suf(n, 'аас') + ' '
+      + (less ? 'бага' : 'их') + ' байх бүх тоог ялган бич.',
+    a: '$' + sel.map(function (x) { return x.t; }).join(',\\ ') + '$',
+    wk: 18,
+    t: { n: n, less: less }
+  };
+}
+
+// 48. √((a−u)²) ± √(a² − 2va + v²) = |a − u| ± |a − v|, {u, v} = {p, q}, p < q; мужаас (p<a<q, a>q, a<p) хамаарч модулийг задлана.
+function p48() {
+  var p = nz(-4, 5), q = nz(-3, 8);
+  if (q - p < 2) return null;
+  var sw = rnd(1, 4) === 1, u = sw ? q : p, v = sw ? p : q;
+  var reg = pick([0, 0, 0, 1, 2]), plus = rnd(1, 10) <= 7;   // 0: p<a<q, 1: a>q, 2: a<p
+  var cond = reg === 0 ? p + '\\lt a\\lt ' + q : reg === 1 ? 'a\\gt ' + q : 'a\\lt ' + p;
+  // мужид: |a − w| = σ_w·(a − w)
+  var sg = function (w) { return reg === 0 ? (w === p ? 1 : -1) : reg === 1 ? 1 : -1; };
+  var su = sg(u), sv = (plus ? 1 : -1) * sg(v);
+  var ca = su + sv, c0 = -su * u - sv * v;                   // ca·a + c0
+  var first = '\\sqrt{' + (u ? '(a' + sgn(-u) + ')^2' : 'a^2') + '}';
+  var second = '\\sqrt{' + poly([1, -2 * v, v * v], 'a') + '}';
+  return {
+    q: '$' + cond + '$ үед $' + first + (plus ? '+' : '-') + second + '$ илэрхийллийг хялбарчил.',
+    a: '$' + poly([ca, c0], 'a') + '$',
+    wk: 24,
+    t: { u: u, v: v, reg: reg, plus: plus }
+  };
+}
+
+// 49. 2×2 матрицын урвуу: M = (a b; c d), det = ad − bc ∈ {±1, ±2} → M⁻¹ = (1/det)·(d −b; −c a).
+function p49_mx(rows) {   // бутархайтай матрицад мөр хооронд зай (бутархайнууд наалдахгүй)
+  if (!/frac/.test(rows.join())) return mat(rows);
+  return '\\begin{pmatrix}' + rows.map(function (r) { return r.join('&'); }).join('\\\\[6pt]') + '\\end{pmatrix}';
+}
+function p49() {
+  var a = nz(-6, 6), b = nz(-6, 6), c = nz(-6, 6), d = nz(-6, 6), D = a * d - b * c;
+  if ([1, -1, 2, -2, 2, -2].indexOf(D) < 0) return null;
+  if (Math.abs(D) === 1 && rnd(1, 2) === 1) return null;   // det = ±2 (бутархайтай) илүү олон
+  var inv = [[frs(d, D), frs(-b, D)], [frs(-c, D), frs(a, D)]];
+  return {
+    q: '$M=' + mat([[a, b], [c, d]]) + '$ бол $M^{-1}$ матрицыг олоорой.',
+    a: '$M^{-1}=' + p49_mx(inv) + '$',
+    wk: 24,
+    t: { M: [[a, b], [c, d]] }
+  };
+}
+
+// 50. x − y = d, b^(x+p) = (b^k)^y → x + p = k·y → y = (d + p)/(k − 1), x = y + d; x + y = 2y + d.
+var p50_B = [[2, 2, 4], [2, 3, 8], [3, 2, 9], [3, 3, 27], [5, 2, 25], [2, 2, 4]];   // [суурь, k, суурь^k]
+function p50() {
+  var B = pick(p50_B), b = B[0], k = B[1], d = nz(-5, 5), p = nz(-4, 4);
+  if ((d + p) % (k - 1)) return null;
+  var y = (d + p) / (k - 1), x = y + d;
+  if (Math.abs(x) > 9 || Math.abs(y) > 9) return null;
+  return {
+    q: '$\\begin{cases}x-y=' + d + '\\\\' + b + '^{x' + sgn(p) + '}=' + B[2] + '^{y}\\end{cases}$ систем тэгшитгэлээс $x+y$-ийг олоорой.',
+    a: '$x+y=' + (x + y) + '$',
+    wk: 26,
+    t: { b: b, k: k, d: d, p: p }
+  };
+}
+
+E1K.page({
+  title: 'ЭЕШ 1000 бодлого-2',
+  sub: '1-р хэсэг · 26–50-р бодлого',
+  first: 26,
+  probs:[p26, p27, p28, p29, p30, p31, p32, p33, p34, p35, p36, p37, p38, p39, p40, p41, p42, p43, p44, p45, p46, p47, p48, p49, p50]
+});
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>
