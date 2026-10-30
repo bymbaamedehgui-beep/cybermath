@@ -310,16 +310,19 @@ function parFig(items,three){
   g+=tx(x+d[0],y+d[1],it.t,{fs:9.5,c:RD,an:'middle'});});
  return sv(W,H,g,240);}
 
-// ── Зигзаг (a || b, дунд нь орой) ──
-function zigFig(t1,t2,tx1){
+// ── Зигзаг (a || b, дунд нь M орой). A, B дээрх хурц өнцгүүд t1, t2 нь M-ийн талд, масштабаараа; M дээр x=t1+t2 ──
+function zigFig(t1,t2){
+ var ya=34,yb=140,ym=(ya+yb)/2,R=Math.PI/180;
+ var d1=(ym-ya)/Math.tan(t1*R),d2=(yb-ym)/Math.tan(t2*R),mx=Math.round(136-Math.max(d1,d2)/2);
+ var M=[mx,ym],A=[mx+d1,ya],B=[mx+d2,yb];
+ function rr(t){return Math.round(Math.max(15,8.5/Math.sin(t*R/2)-11)*10)/10;} // жижиг өнцгийн нум, шошгыг холдуулна
  var g='';
- g+=ln([16,34],[236,34],{c:PC,w:1.5})+tx(24,26,'a',{it:1,fs:11});
- g+=ln([16,140],[236,140],{c:PC,w:1.5})+tx(24,132,'b',{it:1,fs:11});
- var A=[168,34],M=[86,87],B=[178,140];
+ g+=ln([16,ya],[236,ya],{c:PC,w:1.5})+tx(24,ya-8,'a',{it:1,fs:11});
+ g+=ln([16,yb],[236,yb],{c:PC,w:1.5})+tx(24,yb-8,'b',{it:1,fs:11});
  g+=ln(A,M,{c:'#dc2626',w:1.5})+ln(M,B,{c:'#dc2626',w:1.5});
- g+=angArc(A,[236,34],M,15,t1,RD);
- g+=angArc(B,M,[236,140],15,t2,RD);
- g+=angArc(M,A,B,15,tx1,'#0f766e',13);
+ g+=angArc(A,[16,ya],M,rr(t1),t1+'°',RD);
+ g+=angArc(B,M,[16,yb],rr(t2),t2+'°',RD);
+ g+=angArc(M,A,B,15,'x','#0f766e',13);
  return sv(252,168,g,232);}
 
 // ── Хоёр төсөөтэй гурвалжин ──
@@ -442,7 +445,7 @@ function g_parallelAlgebra(){var th=rnd(30,74);
 function g_parallelZigzag(){var t1=rnd(25,80),t2=rnd(25,80);var x=t1+t2;if(x>165)return null;
  return {q:'$x=?$',
   a:'Оройгоор $a$-тай параллель шулуун татвал солбисон өнцгүүдээр $x='+t1+'^\\circ+'+t2+'^\\circ='+x+'^\\circ$',
-  key:'pz'+t1+'_'+t2,nv:x,fig:zigFig(t1+'°',t2+'°','x')};}
+  key:'pz'+t1+'_'+t2,nv:x,fig:zigFig(t1,t2)};}
 
 // ════════════════ 6.2 · Гурвалжны дундаж шугам, өндөр, медиан, биссектрис ════════════════
 var TRILINE=[
@@ -503,11 +506,17 @@ function g_triBisectorAngle(){var A=2*rnd(11,54);var res=90+A/2;
   a:'$\\angle B+\\angle C=180^\\circ-'+A+'^\\circ='+(180-A)+'^\\circ$. Биссектрисүүд тэн хуваах тул $\\dfrac{'+(180-A)+'^\\circ}{2}='+((180-A)/2)+'^\\circ$. Иймд $180^\\circ-'+((180-A)/2)+'^\\circ='+res+'^\\circ$.',
   key:'tba'+A,nv:res};}
 
-function g_incircleArea(){var a=rnd(5,20),b=rnd(5,20),c=rnd(5,20);
- if(a+b<=c||a+c<=b||b+c<=a)return null;var P=a+b+c;if(P%2)return null;var r=rnd(2,6);
- return {q:'талууд $'+a+'$; $'+b+'$; $'+c+'$ см, $r='+r+'$ см',
-  a:'$p=\\dfrac{'+a+'+'+b+'+'+c+'}{2}='+(P/2)+'$ см; $\\ S=p\\cdot r='+(P/2)+'\\cdot '+r+'='+(P/2*r)+'$ см$^2$',
-  key:'ica'+a+'_'+b+'_'+c+'_'+r,nv:P/2*r};}
+// ── Багтсан тойрог: бүхэл талтай, S ба r нь бүхэл гурвалжнууд; r-ийг талуудаас гаргана (Герон, S=p·r) ──
+var INCTRI=[[3,4,5],[6,8,10],[5,12,13],[9,12,15],[8,15,17],[7,24,25],[12,16,20],[10,10,12],[13,14,15],[15,20,25],[10,24,26],
+ [20,21,29],[7,15,20],[9,10,17],[11,13,20],[15,15,24],[20,20,24],[17,25,28],[6,25,29],[11,25,30],[18,24,30]];
+function incTri(){var t=pick(INCTRI),a=t[0],b=t[1],c=t[2],p=(a+b+c)/2;
+ var S=isqrt(p*(p-a)*(p-b)*(p-c));if(!S||S%p)return null;
+ return {a:a,b:b,c:c,p:p,S:S,r:S/p};}
+
+function g_incircleArea(){var T=incTri();if(!T)return null;
+ return {q:'талууд $'+T.a+'$; $'+T.b+'$; $'+T.c+'$ см, $r='+T.r+'$ см',
+  a:'$p=\\dfrac{'+T.a+'+'+T.b+'+'+T.c+'}{2}='+T.p+'$ см; $\\ S=p\\cdot r='+T.p+'\\cdot '+T.r+'='+T.S+'$ см$^2$',
+  key:'ic'+T.a+'_'+T.b+'_'+T.c,nv:T.S};}
 
 // ════════════════ 6.3 · Пифагорын теорем ════════════════
 var TRIP=[[3,4,5],[6,8,10],[5,12,13],[8,15,17],[9,12,15],[7,24,25],[20,21,29],[10,24,26],[9,40,41],[12,16,20],[15,20,25],[12,35,37],[16,30,34],[18,24,30],[28,45,53],[11,60,61],[13,84,85],[33,56,65]];
@@ -934,12 +943,10 @@ function g_paraBisector(){var A=2*rnd(20,70),B=180-A;
   a:'Зэргэлдээ орой: $\\angle B=180^\\circ-'+A+'^\\circ='+B+'^\\circ$. Биссектрисүүд тэн хуваахад $\\dfrac{'+A+'^\\circ}{2}='+(A/2)+'^\\circ$ ба $\\dfrac{'+B+'^\\circ}{2}='+(B/2)+'^\\circ$. Үүссэн гурвалжинд $180^\\circ-'+(A/2)+'^\\circ-'+(B/2)+'^\\circ=90^\\circ$ — биссектрисүүд перпендикуляр.',
   key:'pbs'+A,nv:90};}
 
-function g_incircleRadius(){var a=rnd(5,20),b=rnd(5,20),c=rnd(5,20);
- if(a+b<=c||a+c<=b||b+c<=a)return null;var P=a+b+c;if(P%2)return null;
- var r=rnd(2,7),S=P/2*r;
- return {q:'талууд $'+a+'$; $'+b+'$; $'+c+'$ см, $\\ S='+S+'$ см$^2$',
-  a:'$p=\\dfrac{'+a+'+'+b+'+'+c+'}{2}='+(P/2)+'$ см; $\\ S=p\\cdot r$ тул $r=\\dfrac{'+S+'}{'+(P/2)+'}='+r+'$ см',
-  key:'icr'+a+'_'+b+'_'+c+'_'+r,nv:r};}
+function g_incircleRadius(){var T=incTri();if(!T)return null;
+ return {q:'талууд $'+T.a+'$; $'+T.b+'$; $'+T.c+'$ см, $\\ S='+T.S+'$ см$^2$',
+  a:'$p=\\dfrac{'+T.a+'+'+T.b+'+'+T.c+'}{2}='+T.p+'$ см; $\\ S=p\\cdot r$ тул $r=\\dfrac{'+T.S+'}{'+T.p+'}='+T.r+'$ см',
+  key:'ic'+T.a+'_'+T.b+'_'+T.c,nv:T.r};}
 
 function g_medianTwoSum(){var k1=rnd(2,12),k2=rnd(2,12);if(k1===k2)return null;
  var m1=3*k1,m2=3*k2;
