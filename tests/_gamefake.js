@@ -60,7 +60,7 @@ const db = {
   admGrants: [],        // ws_admin_grants [{email, game_key}] — мөн адил; game_key-тэй мөр (тоглоомын олголт) тооцохгүй
   eyAccess: new Map(),  // ws_eyesh_access lower(email) → expires_at (Date) — ЭЕШ шалгагч (api/_eyesh.js)
   eyPurch: [],          // ws_eyesh_purchases [{invoice_id, email, amount, days}]
-  eyHand: new Map(),    // ws_eyesh_handoff code_hash → {email, exam, expires_at(ms)}
+  eyHand: new Map(),    // ws_eyesh_handoff code_hash → {email, exam, material, expires_at(ms)}
   failEyLedger: false,  // ws_eyesh_purchases INSERT алдаа (SAVEPOINT шалгах)
 };
 // ws_trials / ws_trial_marks / ws_trial_cfg (tests/_trialfake.js): db.trial.trials, db.trial.marks, db.trial.cfgFrom,
@@ -209,18 +209,18 @@ async function query(sql, p, tx) {
     db.eyPurch.push(row); undo(function () { const i = db.eyPurch.indexOf(row); if (i >= 0) db.eyPurch.splice(i, 1); });
     return { rows: [] };
   }
-  if (q === 'INSERT INTO ws_eyesh_handoff (code_hash, email, exam, expires_at) VALUES ($1,$2,$3, NOW() + make_interval(secs => $4::int))') {
+  if (q === 'INSERT INTO ws_eyesh_handoff (code_hash, email, exam, material, expires_at) VALUES ($1,$2,$3,$4, NOW() + make_interval(secs => $5::int))') {
     if (db.eyHand.has(p[0])) throw dbErr('duplicate key', '23505');
-    db.eyHand.set(p[0], { email: p[1], exam: p[2] == null ? null : JSON.parse(p[2]), expires_at: now() + Number(p[3]) * 1000 });
+    db.eyHand.set(p[0], { email: p[1], exam: p[2] == null ? null : JSON.parse(p[2]), material: p[3] == null ? null : String(p[3]), expires_at: now() + Number(p[4]) * 1000 });
     return { rows: [] };
   }
   if (q === "DELETE FROM ws_eyesh_handoff WHERE expires_at < NOW() - INTERVAL '1 day'") {
     db.eyHand.forEach(function (r, k) { if (r.expires_at < now() - DAY) db.eyHand.delete(k); }); return { rows: [] };
   }
-  if (q === 'DELETE FROM ws_eyesh_handoff WHERE code_hash=$1 RETURNING email, exam, (expires_at > NOW()) AS live') {
+  if (q === 'DELETE FROM ws_eyesh_handoff WHERE code_hash=$1 RETURNING email, exam, material, (expires_at > NOW()) AS live') {
     const r = db.eyHand.get(p[0]); if (!r) return { rows: [] };
     db.eyHand.delete(p[0]);
-    return { rows: [{ email: r.email, exam: r.exam, live: r.expires_at > now() }] };
+    return { rows: [{ email: r.email, exam: r.exam, material: r.material == null ? null : r.material, live: r.expires_at > now() }] };
   }
   if (q === 'SELECT name FROM ws_login WHERE lower(email)=$1 LIMIT 1') {
     const w = db.wsLogin.get(lc(p[0])); return { rows: w ? [{ name: w.name == null ? null : w.name }] : [] };

@@ -1,9 +1,10 @@
 // ЭЕШ шалгагч (eyeshcheck.com)-ийн холболт. Дуудагчид: eyesh-link.js (ЭЕШ хуудсуудын «ЭЕШ шалгагч» товч), eyeshcheck-ийн сервер.
 //   POST ?action=status  {wstoken}       → { ok, email, price, days, expiry|null, active }
-//   POST ?action=handoff {wstoken, exam} → { ok, url, code, ttl } — eyeshcheck руу нэвтрэх НЭГ УДААГИЙН код (2 минут).
+//   POST ?action=handoff {wstoken, exam, material?} → { ok, url, code, ttl } — eyeshcheck руу нэвтрэх НЭГ УДААГИЙН код (2 минут).
 //        Клиент кодыг URL-д биш, eyeshcheck.com/api/cm/sso руу form POST-оор илгээнэ (тэнд шалгалт шууд үүснэ).
-//   POST ?action=redeem  {code}          → { ok, kind:'teacher', email, name, paidUntil|null, exam } — eyeshcheck-ийн сервер,
-//        код нэг удаа. Админы код бол зөвхөн { ok, kind:'admin' }.
+//        material — шалгалтын материал (хувилбаруудын хуудас, gzip+base64) → eyeshcheck «ЭЕШ материал»-д хадгалагдана.
+//   POST ?action=redeem  {code}          → { ok, kind:'teacher', email, name, paidUntil|null, exam, material|null } —
+//        eyeshcheck-ийн сервер, код нэг удаа. Админы код бол зөвхөн { ok, kind:'admin' }.
 //   POST ?action=admin_handoff (админ токен) → { ok, url, code, ttl } — админ хэсгийн «ЭЕШ шалгагч» цэс (admin.html)
 //        eyeshcheck.com/cm-admin-г iframe-ээр нээж, кодыг postMessage-ээр өгнө → eyeshcheck өөрийн admin дансаар нэвтэрнэ.
 // Эрх: api/qpay.js create {plan:'eyesh', wstoken} → settleEyesh (ws_eyesh_access +30 хоног).
@@ -34,7 +35,7 @@ module.exports = async (req, res) => {
         const u = await pool.query('SELECT name FROM ws_login WHERE lower(email)=$1 LIMIT 1', [r.email]);
         name = u.rows.length ? String(u.rows[0].name || '').trim().slice(0, 200) : '';
       } catch (e) { /* нэр заавал биш */ }
-      return res.json({ ok: true, kind: 'teacher', email: r.email, name: name, paidUntil: await EY.expiry(r.email), exam: r.exam });
+      return res.json({ ok: true, kind: 'teacher', email: r.email, name: name, paidUntil: await EY.expiry(r.email), exam: r.exam, material: r.material || null });
     }
     if (action === 'admin_handoff') {
       // 401 нь admin.html-ийн adminFetch-ийг гаргана — зөвхөн админ токен хүчингүй үед л
@@ -57,7 +58,8 @@ module.exports = async (req, res) => {
         return res.status(429).json({ ok: false, error: TOO_MANY });
       const n = EY.normExam(b.exam);
       if (!n.ok) return res.status(400).json({ ok: false, error: n.error });
-      const code = await EY.createHandoff(em, n.exam);
+      if (b.material != null && !EY.normMaterial(b.material)) return res.status(400).json({ ok: false, error: 'Шалгалтын материал хэт том эсвэл буруу байна' });
+      const code = await EY.createHandoff(em, n.exam, b.material || null);
       return res.json({ ok: true, url: EY.SSO_URL, code: code, ttl: EY.HANDOFF_SEC });
     }
     return res.status(400).json({ ok: false, error: 'Үйлдэл буруу' });

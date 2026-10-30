@@ -1192,7 +1192,7 @@
     if(typeof window.WS_BATCH_DONE==='function'){ try{window.WS_BATCH_DONE(box);}catch(e){} }
     injectBatchPrintCSS();
     modal.remove();
-    function cleanup(){ var bx=document.getElementById('cm-batch'); if(bx)bx.remove(); window.removeEventListener('afterprint',cleanup); setPrint12(false); restoreWork();
+    function cleanup(){ var bx=document.getElementById('cm-batch'); if(bx)bx.remove(); var bc=document.getElementById('cm-batch-css'); if(bc)bc.remove(); window.removeEventListener('afterprint',cleanup); setPrint12(false); restoreWork();
       if(hasBuild&&!keep){ try{window.build();}catch(e){} brandSheet(); enhanceMeta(); } }
     window.addEventListener('afterprint',cleanup);
     setTimeout(function(){ window.print(); }, 80);

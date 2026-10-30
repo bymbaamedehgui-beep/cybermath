@@ -57,8 +57,21 @@
   function mulberry(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
   // fn-ийг кодоор тогтмол санамсаргүй тоогоор ажиллуулна (Math.random-ийг ч түр орлуулна)
   function seeded(seed, fn) { var r0 = RNG, m0 = Math.random; RNG = mulberry(fnv('cmx:' + seed, 2166136261)); Math.random = RNG; try { return fn(); } finally { RNG = r0; Math.random = m0; } }
+  // Олон хувилбарын багц (ЭЕШ шалгагчид НЭГ шалгалт, хувилбар бүр өөрийн түлхүүртэй): А = суурь код, Б, В… = суурь кодоос
+  // тогтмол код — хэвлэсэн багцыг дараа ч сэргээнэ. Багцын хуудас бүрт нэг шалгалтын код: examTag(setRef) (api/_eyesh.js-тэй ижил).
+  var SET_MAX = 6;   // eyeshcheck lib/eyesh.js VARIANTS (A–F)
+  function setSeeds(base, n) {
+    var out = [base], seen = {}; seen[base] = 1;
+    for (var i = 1; i < n; i++) {
+      var r = mulberry(fnv('cmxv|' + base + '|' + i, 2166136261)), s;
+      do { s = ''; for (var k = 0; k < 5; k++) s += SEED_ABC.charAt(Math.floor(r() * 32)); } while (seen[s]);
+      seen[s] = 1; out.push(s);
+    }
+    return out;
+  }
+  function setRef(slug, seeds, keys) { return seeds.length > 1 ? wsRef(slug, seeds.join('+'), keys.join('+')) : wsRef(slug, seeds[0], keys[0]); }
   var H = { rnd: rnd, nz: nz, pick: pick, shuffle: shuffle, gcd: gcd, lcm: lcm, fr: fr, sgn: sgn, par: par, th: th, dFmt: dFmt, C: C, makeMC: makeMC, gen: gen,
-            fnv: fnv, wsRef: wsRef, examTag: examTag, newSeed: newSeed, okSeed: okSeed, seeded: seeded };
+            fnv: fnv, wsRef: wsRef, examTag: examTag, newSeed: newSeed, okSeed: okSeed, seeded: seeded, setSeeds: setSeeds, setRef: setRef, SET_MAX: SET_MAX };
   if (typeof module !== 'undefined' && module.exports) { module.exports = H; return; }
   ['rnd', 'nz', 'pick', 'shuffle', 'gcd', 'lcm', 'fr', 'sgn', 'par', 'th', 'dFmt', 'C', 'makeMC', 'gen'].forEach(function (k) { if (!(k in root)) root[k] = H[k]; });
 
@@ -361,11 +374,11 @@
       return head(P, vl) + '<div class="task">I. Сонголттой тест. Зөв хариуг сонгоно уу. (1–' + P.T.length + ')</div>' + testHtml(P.T, true)
         + '<div class="task">II. Задгай даалгавар. Бодолтоо дэлгэрэнгүй бичнэ үү. (11–' + (10 + P.F.length) + ')</div>' + freeHtml(P.F, 26) + gradeHtml(true, P.T.length);
     }
-    // Тогтмол хуудсууд. ver: хариултын хуудсан дээр урьдчилан будах ХУВИЛБАР (0..9), -1 — будахгүй
-    function pagesHtml(P, ver, vl) {
+    // Тогтмол хуудсууд. ver: хариултын хуудсан дээр урьдчилан будах ХУВИЛБАР (0..9), -1 — будахгүй; tag: багцын нийтлэг шалгалтын код
+    function pagesHtml(P, ver, vl, tag) {
       var tt = totals(), sub = esc(cfg.title) + ' · ' + esc(cfg.grade) + (vl ? ' · Хувилбар ' + vl : '');
       return '<div class="cmx-pg as"><span class="cmx-pglab">1 · Хариултын хуудас (нүүр тал)</span>'
-          + answerSheet({ n: P.T.length, title: cfg.title + ' · ' + cfg.grade + (vl ? ' · Хувилбар ' + vl : ''), code: P.seed, tag: examTag(P.ref), ver: ver, p1: tt.p1, p2: tt.p2, big: PAPER !== 'a4' }) + '</div>'
+          + answerSheet({ n: P.T.length, title: cfg.title + ' · ' + cfg.grade + (vl ? ' · Хувилбар ' + vl : ''), code: P.seed, tag: tag != null ? tag : examTag(P.ref), ver: ver, p1: tt.p1, p2: tt.p2, big: PAPER !== 'a4' }) + '</div>'
         + '<div class="cmx-pg p2"><span class="cmx-pglab">2 · Хариултын хуудасны ар тал — 2 талт хэвлэнэ</span><div class="cmx-in">'
           + '<div class="p2h"><b>II хэсэг · Задгай даалгавар</b><span>' + sub + '<br>Код: <span class="cmx-cd">' + P.seed + '</span></span></div>'
           + '<div class="meta" style="margin-top:0"><span>Нэр: </span><span>Анги: </span><span>Огноо: </span></div>'
@@ -443,11 +456,28 @@
     window.layout = function () { draw(); };
     // KaTeX фонт ачаалагдсаны дараа хэмжээ өөрчлөгдөж болно — дахин тааруулна
     try { if (document.fonts && document.fonts.status !== 'loaded') document.fonts.ready.then(function () { if (CUR) draw(); }); } catch (e) {}
-    // eyesh-link.js: энэ хувилбарын тестийн түлхүүр (А–Г → A–D) ба код
-    window.CM_EXAM = function () {
-      if (!CUR || CUR.T.length !== cfg.tests.length || !/^[A-D]+$/.test(CUR.key)) return null;
-      return { kind: 'ws', slug: SLUG, seed: CUR.seed, key: CUR.key, ref: CUR.ref, title: cfg.title + ' · ' + cfg.grade + ' · ' + CUR.seed,
-        scores: CUR.T.map(function () { return TPT; }), topics: CUR.T.map(function (g) { return g.topic || cfg.topic || 'Бусад'; }), n: CUR.T.length };
+    // Олон хувилбарын багц: А = энэ код (CUR), Б, В… = setSeeds(CUR.seed, n). Багцын тоо ЭЕШ шалгагчийн цонхтой (eyesh-link.js) нэг.
+    var NKEY = 'cm_eyc_n_ws', SETC = {};
+    function setN() { var n = parseInt(lsGet(NKEY), 10); return n >= 2 && n <= SET_MAX ? n : 4; }
+    function setOf(n) { return setSeeds(CUR.seed, n).map(function (s, i) { return i ? (SETC[s] || (SETC[s] = make(s))) : CUR; }); }
+    function okP(P) { return !!P && P.T.length === cfg.tests.length && /^[A-D]+$/.test(P.key); }
+    function expP(P) { return { seed: P.seed, key: P.key, scores: P.T.map(function () { return TPT; }), topics: P.T.map(function (g) { return g.topic || cfg.topic || 'Бусад'; }) }; }
+    // eyesh-link.js: энэ хувилбарын тестийн түлхүүр (А–Г → A–D) ба код. n > 1 — n хувилбартай НЭГ шалгалт (variants: Б, В…,
+    // ref = setRef — багцын хариултын хуудас бүрт хэвлэсэн шалгалтын код үүнээс)
+    window.CM_EXAM = function (n) {
+      if (!okP(CUR)) return null;
+      n = Math.max(1, Math.min(SET_MAX, parseInt(n, 10) || 1));
+      var ex = expP(CUR);
+      ex.kind = 'ws'; ex.slug = SLUG; ex.ref = CUR.ref; ex.title = cfg.title + ' · ' + cfg.grade + ' · ' + CUR.seed; ex.n = CUR.T.length;
+      if (n > 1) {
+        var Ps = setOf(n);
+        if (!Ps.every(okP)) return null;
+        ex.variants = Ps.slice(1).map(expP);
+        ex.ref = setRef(SLUG, Ps.map(function (P) { return P.seed; }), Ps.map(function (P) { return P.key; }));
+        ex.title += ' · ' + n + ' хувилбар';
+        ex.letters = VCYR.slice(0, n);
+      }
+      return ex;
     };
     // ── «A4-т 2 ширхэг A5»: хэвлэхийн өмнө хуудас бүрийг хоёр хувилж A4 хэвтээ хуудсанд зэрэгцүүлнэ ──
     function build2up(src) {
@@ -494,29 +524,31 @@
       var o = document.createElement('div'); o.id = 'cmx-vmodal';
       o.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(20,15,40,.6);display:grid;place-items:center;padding:16px;font-family:"Segoe UI",Arial,sans-serif';
       o.innerHTML = '<div style="background:#fff;border-radius:16px;max-width:430px;width:100%;padding:20px;box-shadow:0 24px 60px -18px rgba(0,0,0,.5)"><div style="font-weight:900;color:#5a32d6;font-size:1.06rem;margin-bottom:4px">Олон хувилбар гаргах</div>'
-        + '<p style="color:#7a7390;font-size:.84rem;margin-bottom:12px;line-height:1.45">Хувилбар бүр өөр бодлоготой, өөрийн кодтой. ' + (pg ? 'Хариултын хуудсан дээр ХУВИЛБАР (А, Б, В…) урьдчилан будагдана. ' : '') + 'Төгсгөлд нь бүх хувилбарын код ба хариу. ЭЕШ шалгагчид хувилбар бүрийг кодоор нь оруулна.</p>'
-        + '<label style="display:block;font-size:.85rem;font-weight:700;color:#3a2d5e;margin-bottom:5px">Хувилбарын тоо (2–10)</label><input id="cmx-vcount" type="number" min="2" max="10" value="4" style="width:100%;box-sizing:border-box;border:1.6px solid #e7ddff;border-radius:10px;padding:.55rem .8rem;font-size:1rem;font-weight:700;outline:none;font-family:inherit;margin-bottom:14px">'
+        + '<p style="color:#7a7390;font-size:.84rem;margin-bottom:12px;line-height:1.45">Хувилбар бүр өөр бодлоготой, өөрийн кодтой (А нь энэ хуудасны код). ' + (pg ? 'Хариултын хуудсан дээр ХУВИЛБАР (А, Б, В…) урьдчилан будагдана. ' : '') + 'Төгсгөлд нь бүх хувилбарын код ба хариу. «ЭЕШ шалгагч» товчоор ижил тооны хувилбартай <b>нэг шалгалт</b> үүсгэнэ — хуудас бүрийг өөрийн хувилбарын түлхүүрээр дүгнэнэ.</p>'
+        + '<label style="display:block;font-size:.85rem;font-weight:700;color:#3a2d5e;margin-bottom:5px">Хувилбарын тоо (2–' + SET_MAX + ')</label><input id="cmx-vcount" type="number" min="2" max="' + SET_MAX + '" value="' + setN() + '" style="width:100%;box-sizing:border-box;border:1.6px solid #e7ddff;border-radius:10px;padding:.55rem .8rem;font-size:1rem;font-weight:700;outline:none;font-family:inherit;margin-bottom:14px">'
         + '<div style="display:flex;gap:8px;justify-content:flex-end"><button id="cmx-vcancel" style="border:1.4px solid #e7ddff;background:#faf7ff;color:#5a32d6;font-weight:800;border-radius:999px;padding:.5rem 1rem;cursor:pointer;font-family:inherit">Болих</button><button id="cmx-vgo" style="border:0;background:linear-gradient(135deg,#7B52EE,#A855F7);color:#fff;font-weight:800;border-radius:999px;padding:.5rem 1.2rem;cursor:pointer;font-family:inherit">Гаргаж хэвлэх</button></div></div>';
       document.body.appendChild(o);
       var cnt = o.querySelector('#cmx-vcount'); try { cnt.focus(); cnt.select(); } catch (e) {}
       o.addEventListener('click', function (e) { if (e.target === o) o.remove(); });
       o.querySelector('#cmx-vcancel').onclick = function () { o.remove(); };
-      o.querySelector('#cmx-vgo').onclick = function () { var n = parseInt(cnt.value, 10); if (!n || n < 1) return; o.remove(); variants(Math.max(2, Math.min(10, n))); };
+      o.querySelector('#cmx-vgo').onclick = function () { var n = parseInt(cnt.value, 10); if (!n || n < 1) return; o.remove(); CMX.printSet(n); };
     }
+    // Багцыг хэвлэнэ: А = энэ код, Б… = setSeeds; хариултын хуудас бүрт ХУВИЛБАР урьдчилан будагдсан, шалгалтын код нь багцынх
     function variants(N, noPrint) {
       var pg = paged(), old = document.getElementById('cmx-vbatch'); if (old) old.remove();
       var bx = document.createElement('div'); bx.id = 'cmx-vbatch'; pageClasses(bx, pg);
       bx.style.cssText = 'position:absolute;left:-99999px;top:0;width:' + (pg ? pap().w : 210) + 'mm';
       document.body.appendChild(bx);
-      var keys = [], used = {}, html = '';
+      var Ps = setOf(N), tag = examTag(setRef(SLUG, Ps.map(function (P) { return P.seed; }), Ps.map(function (P) { return P.key; })));
+      var keys = [], html = '';
       for (var i = 0; i < N; i++) {
-        var s; do { s = newSeed(); } while (used[s]); used[s] = 1;
-        var P = make(s), L = VCYR[i];
-        html += pg ? '<div class="cmx-vset">' + pagesHtml(P, i, L) + '</div>' : '<div class="sheet cmx-vsheet">' + classicHtml(P, L) + '</div>';
-        keys.push({ L: L, seed: s, key: P.key, ref: P.ref, t: P.T.map(function (g, k) { return (k + 1) + '-' + OL[g.mc.correct]; }).join(', '), f: P.F.map(function (f, k) { return (11 + k) + ') ' + ansTex(f.a); }).join(' &nbsp;·&nbsp; ') });
+        var P = Ps[i], L = VCYR[i];
+        html += pg ? '<div class="cmx-vset">' + pagesHtml(P, i, L, tag) + '</div>' : '<div class="sheet cmx-vsheet">' + classicHtml(P, L) + '</div>';
+        keys.push({ L: L, seed: P.seed, key: P.key, ref: P.ref, t: P.T.map(function (g, k) { return (k + 1) + '-' + OL[g.mc.correct]; }).join(', '), f: P.F.map(function (f, k) { return (11 + k) + ') ' + ansTex(f.a); }).join(' &nbsp;·&nbsp; ') });
       }
       var kb = '<div class="head"><h1>Хариун түлхүүр — бүх хувилбар</h1><div class="sub">' + esc(cfg.title) + ' · ' + esc(cfg.grade) + '</div></div>'
-        + '<div class="cmx-note">ЭЕШ шалгагч: хуудасны «Код» талбарт хувилбарын кодыг оруулж (Enter) «ЭЕШ шалгагч» товчийг дарна — хувилбар бүрт тусдаа шалгалт үүснэ. Өөр хувилбарын хариултын хуудсыг уншуулбал eyeshcheck анхааруулна.</div>'
+        + '<div class="cmx-note">ЭЕШ шалгагч: энэ хуудасны (код ' + Ps[0].seed + ') «ЭЕШ шалгагч» товч → «Хувилбарын тоо» ' + N + ' — ' + N + ' хувилбартай нэг шалгалт үүснэ; '
+        + 'хуудас бүрийг будсан ХУВИЛБАР-аар нь дүгнэнэ. Багцын бүх хариултын хуудсан дээр ижил шалгалтын код (' + tag + ').</div>'
         + keys.map(function (k) { return '<div style="margin:7px 0;break-inside:avoid;border-left:3px solid #A855F7;padding-left:8px"><div style="font-weight:800;color:#5a32d6;font-size:12.5px;margin-bottom:2px">Хувилбар ' + k.L + ' · код <span class="cmx-cd">' + k.seed + '</span></div><div style="font-size:11px;margin-bottom:2px"><b>Тест:</b> ' + k.t + '</div><div style="font-size:11px"><b>Задгай:</b> ' + k.f + '</div></div>'; }).join('');
       html += pg ? '<div class="cmx-pg key"><div class="cmx-in">' + kb + '</div></div>' : '<div class="sheet cmx-vsheet">' + kb + '</div>';
       bx.innerHTML = html;
@@ -530,6 +562,7 @@
       return keys;
     }
     CMX.variants = openVariantModal;
+    CMX.printSet = function (n) { n = Math.max(2, Math.min(SET_MAX, parseInt(n, 10) || 2)); lsSet(NKEY, String(n)); return variants(n); };   // ЭЕШ шалгагчийн цонхноос ч
     CMX._variants = variants;            // тест: CMX._variants(N, true) — хэвлэхгүйгээр бэлтгэнэ
     CMX._before2up = before2up;          // тест: page.pdf() beforeprint үүсгэдэггүй
     CMX.cur = function () { return CUR; };

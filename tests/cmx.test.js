@@ -179,6 +179,73 @@ test('eyesh-link.js: бүлгийн шалгалтын хуудсан дээр (
   assert.strictEqual(ctx2.EYESH, undefined);
 });
 
+test('cmx: олон хувилбарын багц — setSeeds тогтмол/давхцалгүй, setRef = normExam(kind:"ws", variants).ref', () => {
+  const s = H.setSeeds('K7Q2M', 6);
+  assert.strictEqual(H.SET_MAX, 6);
+  assert.strictEqual(s[0], 'K7Q2M');
+  assert.strictEqual(new Set(s).size, 6);
+  s.forEach((x) => assert.ok(H.okSeed(x), x));
+  assert.deepStrictEqual(H.setSeeds('K7Q2M', 6), s, 'тогтмол');
+  assert.deepStrictEqual(H.setSeeds('K7Q2M', 3), s.slice(0, 3), 'n-ээс үл хамаарна');
+  assert.notDeepStrictEqual(H.setSeeds('K7Q2N', 3), H.setSeeds('K7Q2M', 3));
+  const slug = 'shalgalt-material-3-6.html', keys = ['BCAABBBBAB', 'ABCDABCDAB', 'DDCCBBAADD'], seeds = s.slice(0, 3);
+  assert.strictEqual(H.setRef(slug, [seeds[0]], [keys[0]]), H.wsRef(slug, seeds[0], keys[0]), '1 хувилбар — өмнөх ref');
+  const sc = Array(10).fill(1), tp = Array(10).fill('Алгебр');
+  const ex = { kind: 'ws', slug, seed: seeds[0], key: keys[0], scores: sc, topics: tp,
+    variants: [1, 2].map((i) => ({ seed: seeds[i], key: keys[i], scores: Array(10).fill(2), topics: Array(10).fill('Геометр') })) };
+  const n = EY.normExam(ex);
+  assert.strictEqual(n.ok, true, n.error);
+  assert.strictEqual(n.exam.ref, H.setRef(slug, seeds, keys));
+  assert.notStrictEqual(n.exam.ref, H.wsRef(slug, seeds[0], keys[0]));
+  assert.deepStrictEqual(Object.keys(n.exam.variants), ['B', 'C']);
+  assert.deepStrictEqual(n.exam.variants.C.sec1Key, keys[2].split(''));
+  assert.deepStrictEqual(n.exam.variants.B.sec1Scores, Array(10).fill(2));
+  assert.deepStrictEqual(n.exam.variants.B.topics, Array(10).fill('Геометр'));
+  assert.strictEqual(n.exam.title, 'Шалгалт · ' + seeds[0] + ' · 3 хувилбар');
+  assert.deepStrictEqual(n.exam.meta.seeds, seeds);
+  assert.strictEqual(eyExamTag(n.exam.ref), H.examTag(H.setRef(slug, seeds, keys)), 'багцын хуудасны шалгалтын код');
+  const bad = (o) => assert.strictEqual(EY.normExam(Object.assign({}, ex, o)).ok, false, JSON.stringify(o).slice(0, 100));
+  const v = (seed, key, scores, topics) => ({ seed, key, scores: scores || sc, topics: topics || tp });
+  bad({ variants: [v(seeds[0], keys[1])] });                   // A-тай ижил код
+  bad({ variants: [v('abcde', keys[1])] });
+  bad({ variants: [v(seeds[1], 'ABC')] });
+  bad({ variants: [v(seeds[1], keys[1], Array(9).fill(1))] });
+  bad({ variants: [v(seeds[1], keys[1], null, Array(10).fill('Магадлал'))] });
+  bad({ variants: H.setSeeds('K7Q2M', 7).slice(1).map((x) => v(x, keys[1])) });   // 7 хувилбар
+  bad({ variants: 'x' });
+});
+
+test('eyesh-link.js: бүлгийн шалгалт — хувилбарын тоо 3 → CM_EXAM(3)-ийн багц, normExam ref = setRef', () => {
+  const store = new Map([['cm_eyc_n_ws', '3']]);
+  const el = () => ({ style: {}, setAttribute() {}, appendChild() {}, addEventListener() {}, classList: { add() {}, remove() {}, toggle() {} } });
+  const ctx = vm.createContext({
+    console: { log() {}, warn() {}, error() {}, info() {} },
+    location: { pathname: '/shalgalt-material-3-6.html', search: '?v=K7Q2M' },
+    localStorage: { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) },
+    document: { readyState: 'complete', getElementById: () => null, createElement: el, head: el(), documentElement: el(), querySelector: () => null, addEventListener() {} },
+    setTimeout: () => 0, clearInterval() {}, setInterval: () => 0,
+  });
+  vm.runInContext('var window=this,self=this;', ctx);
+  const slug = 'shalgalt-material-3-6.html', seeds = H.setSeeds('K7Q2M', 3), keys = ['BCAABBBBAB', 'ABCDABCDAB', 'DDCCBBAADD'];
+  const one = (i) => ({ seed: seeds[i], key: keys[i], scores: Array(10).fill(1), topics: Array(10).fill('Алгебр') });
+  ctx.CM_EXAM = (n) => {
+    const e = Object.assign(one(0), { kind: 'ws', slug, ref: H.wsRef(slug, seeds[0], keys[0]), title: 'III бүлэг — Шалгалтын материал · 6-р анги · K7Q2M', n: 10 });
+    if (n > 1) { e.variants = [1, 2].slice(0, n - 1).map(one); e.ref = H.setRef(slug, seeds.slice(0, n), keys.slice(0, n)); e.title += ' · ' + n + ' хувилбар'; }
+    return JSON.parse(JSON.stringify(e));
+  };
+  vm.runInContext(fs.readFileSync(path.join(F.WT, 'eyesh-link.js'), 'utf8'), ctx, { filename: 'eyesh-link.js' });
+  ctx.EYESH._set({ n: 1 });
+  assert.deepStrictEqual(Object.keys(JSON.parse(JSON.stringify(ctx.EYESH.buildExam()))).sort(), ['key', 'kind', 'scores', 'seed', 'slug', 'title', 'topics']);
+  ctx.EYESH._set({ n: 3 });
+  const b = JSON.parse(JSON.stringify(ctx.EYESH.buildExam()));
+  assert.strictEqual(b.variants.length, 2);
+  assert.strictEqual(b.title, 'III бүлэг — Шалгалтын материал · 6-р анги · K7Q2M · 3 хувилбар');
+  const n = EY.normExam(b);
+  assert.strictEqual(n.ok, true, n.error);
+  assert.strictEqual(n.exam.ref, H.setRef(slug, seeds, keys));
+  assert.deepStrictEqual(Object.keys(n.exam.variants), ['B', 'C']);
+});
+
 test('normExam(kind:"ws"): буруу оролт татгалзана; нэр цэвэрлэгдэнэ; түлхүүр өөр → ref өөр', () => {
   const ok = { kind: 'ws', slug: 'shalgalt-material-2-7.html', seed: 'AB3CD', key: 'ABCDABCDAB', scores: Array(10).fill(1), topics: Array(10).fill('Тооны онол') };
   const n = EY.normExam(Object.assign({}, ok, { title: ' <b>II</b> бүлэг\n шалгалт ' }));

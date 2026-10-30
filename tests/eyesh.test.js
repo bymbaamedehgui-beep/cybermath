@@ -28,8 +28,8 @@ function pageScript(file) {
   const main = /<script>\n([\s\S]*?)<\/script>/.exec(h)[1];
   return main.slice(0, main.indexOf('function build('));
 }
-function linkCtx(file) {
-  const store = new Map();
+function linkCtx(file, shared) {
+  const store = shared || new Map();   // shared — нөгөө хэсгийн хуудастай нэг localStorage (тусдаа хуудастай он)
   const el = () => ({ style: {}, setAttribute() {}, appendChild() {}, addEventListener() {} });
   const ctx = vm.createContext({
     console: { log() {}, warn() {}, error() {}, info() {} },
@@ -112,6 +112,132 @@ test('eyesh-link.js: 2022 — хоёр хэсэг НЭГ хуудсанд (eesh-
     const r = EY.normExam({ year: 2022, p1: a, p2: b });
     assert.strictEqual(r.ok, true, seed + ' ' + r.error);
   }
+});
+
+test('eyesh-link.js dseeds: B… хувилбарын үр тогтмол, 1000–9999, давхцалгүй, A нь суурь', () => {
+  const { ctx } = linkCtx('eesh-2022.html');
+  const d = (b, n) => plain(ctx.EYESH.dseeds(b, n));
+  assert.strictEqual(ctx.EYESH.NMAX, 6);
+  for (const base of ['orig', 1000, 4821, 9999]) {
+    const s = d(base, 6);
+    assert.strictEqual(s[0], base);
+    assert.deepStrictEqual(d(base, 6), s, 'тогтмол');
+    assert.deepStrictEqual(d(base, 3), s.slice(0, 3), 'n-ээс үл хамаарна');
+    assert.strictEqual(new Set(s.map(String)).size, 6, 'давхцалгүй ' + s);
+    s.slice(1).forEach((x) => assert.ok(Number.isInteger(x) && x >= 1000 && x <= 9999, String(x)));
+  }
+  assert.notDeepStrictEqual(d(4821, 4), d(4822, 4));
+});
+
+test('2022 (нэг хуудас): 4 хувилбартай шалгалт — B…D нь dseeds-ийн үрээр, normExam variants, ref/нэр; 1 хувилбартайд өмнөх шиг', () => {
+  const { ctx } = linkCtx('eesh-2022.html');
+  ctx.__E22 = ctx.e22_generate(4821, ctx); ctx.__E22N = ctx.e22n_generate(4821, ctx);
+  ctx.__E22.g = ctx.__E22N.g = ctx.E22_BUILD;
+  ctx.EYESH._set({ n: 1, sel1: 'cur', sel2: 'cur' });
+  const one = plain(ctx.EYESH.buildExam());
+  assert.deepStrictEqual(Object.keys(one).sort(), ['p1', 'p2', 'title', 'year']);
+  const n1 = EY.normExam(one);
+  assert.strictEqual(n1.ok, true, n1.error);
+  assert.strictEqual(n1.exam.variants, undefined);
+  // нэг хувилбартай шалгалтын ref өмнөх томьёогоор (eyeshcheck-д үүссэн шалгалтыг дахин ашиглана)
+  const crypto = require('crypto');
+  const s2 = ['2.1', '2.2', '2.3', '2.4'].map((s) => 'abcdefgh'.split('').map((r) => n1.exam.sec2Config[s][r].ans).join(''));
+  assert.strictEqual(n1.exam.ref, 'eesh2022:' + crypto.createHash('sha1').update(JSON.stringify([2022, n1.exam.sec1Key, s2])).digest('hex').slice(0, 20));
+
+  ctx.EYESH._set({ n: 4 });
+  const ex = plain(ctx.EYESH.buildExam());
+  assert.strictEqual(ex.variants.length, 3);
+  const seeds = plain(ctx.EYESH.dseeds(4821, 4));
+  ex.variants.forEach((v, i) => {
+    const s = seeds[i + 1], st1 = ctx.e22_generate(s, ctx), st2 = ctx.e22n_generate(s, ctx);
+    assert.deepStrictEqual(v.p1, { v: s, g: ctx.E22_BUILD, key: ctx.e22_letters(st1) }, 'B… 1-р хэсэг');
+    assert.deepStrictEqual(v.p2.v, s);
+    assert.deepStrictEqual(v.p2.items.map((it) => it.ans), plain(st2.items.map((it) => it.ans)), 'B… 2-р хэсэг');
+  });
+  const n = EY.normExam(ex);
+  assert.strictEqual(n.ok, true, n.error);
+  assert.deepStrictEqual(Object.keys(n.exam.variants), ['B', 'C', 'D']);
+  ['B', 'C', 'D'].forEach((L, i) => {
+    const v = n.exam.variants[L];
+    assert.deepStrictEqual(v.sec1Key, ex.variants[i].p1.key.split(''));
+    assert.deepStrictEqual(v.sec1Scores, n.exam.sec1Scores);
+    assert.deepStrictEqual(v.topics, n.exam.topics);
+    assert.strictEqual(Object.keys(v.sec2Config).length, 4);
+    Object.values(v.sec2Config).forEach((c) => near('abcdefgh'.split('').reduce((a, r) => a + (c[r].ans !== '' ? c[r].score : 0), 0), 7, L));
+  });
+  assert.notStrictEqual(n.exam.ref, n1.exam.ref);
+  assert.match(n.exam.ref, /^eesh2022:[0-9a-f]{20}$/);
+  assert.strictEqual(n.exam.title, 'ЭЕШ 2022 · Сонгох №4821·' + ctx.E22_BUILD + ' · Нөхөх №4821·' + ctx.E22_BUILD + ' · 4 хувилбар');
+  assert.deepStrictEqual(n.exam.meta.variants.map((m) => m.L), ['B', 'C', 'D']);
+  assert.strictEqual(EY.normExam(Object.assign({}, ex, { title: 'Сорил' })).exam.ref, n.exam.ref, 'нэр ref-д нөлөөлөхгүй');
+  // 2-р хэсэггүй (Оруулахгүй) бол хувилбаруудад ч 2-р хэсэг үгүй
+  ctx.EYESH._set({ sel2: 'none' });
+  const ex1 = plain(ctx.EYESH.buildExam());
+  assert.strictEqual(ex1.p2, null);
+  assert.ok(ex1.variants.every((v) => v.p2 === null));
+  const m1 = EY.normExam(ex1);
+  assert.strictEqual(m1.ok, true, m1.error);
+  assert.strictEqual(m1.exam.useSec2, false);
+  assert.ok(Object.values(m1.exam.variants).every((v) => v.sec2Config === undefined));
+});
+
+test('2024 (тусдаа хуудас): 2-р хэсгийн хуудас B… хувилбарыг localStorage-д бэлдэнэ → 1-р хэсгийн хуудсанд 3 хувилбартай шалгалт', () => {
+  const store = new Map([['cm_eyc_n_2024', '3']]);
+  const { ctx: nh } = linkCtx('eesh-2024-nohoh.html', store);
+  nh.__E24N = nh.e24n_generate(1234, nh); nh.__E24N.g = nh.E24N_BUILD;
+  nh.EYESH.remember();
+  const { ctx: sg } = linkCtx('eesh-2024-songoh.html', store);
+  sg.__E24 = sg.e24_generate(4321, sg); sg.__E24.g = sg.E24_BUILD;
+  // B… хувилбар бэлдээгүй (санасан хувилбар ганцаараа) → 3 хувилбараар 2-р хэсгийг оруулж чадахгүй
+  sg.EYESH._set({ n: 3, sel1: 'cur', sel2: 'mem' });
+  assert.strictEqual(sg.EYESH.buildExam(), null);
+  nh.EYESH._prepVars();
+  const mem = JSON.parse(store.get('cm_eesh_2024_p2'));
+  assert.strictEqual(mem.v, 1234);
+  assert.strictEqual(mem.vars.length, 5);
+  const ex = plain(sg.EYESH.buildExam());
+  assert.ok(ex, 'бэлэн');
+  assert.strictEqual(ex.variants.length, 2);
+  const s1 = plain(sg.EYESH.dseeds(4321, 3)), s2 = plain(sg.EYESH.dseeds(1234, 3));
+  ex.variants.forEach((v, i) => {
+    assert.strictEqual(v.p1.key, sg.e24_letters(sg.e24_generate(s1[i + 1], sg)));
+    assert.strictEqual(v.p2.v, s2[i + 1]);
+    assert.deepStrictEqual(v.p2.items.map((it) => it.ans), plain(nh.e24n_generate(s2[i + 1], nh).items.map((it) => it.ans)));
+  });
+  const n = EY.normExam(ex);
+  assert.strictEqual(n.ok, true, n.error);
+  assert.deepStrictEqual(Object.keys(n.exam.variants), ['B', 'C']);
+  // 2-р хэсгийн хуудсанд: 1-р хэсгийг санасан хувилбараас — тэр хуудас B… бэлдээгүй бол бэлэн биш, бэлдвэл бэлэн
+  nh.EYESH._set({ n: 3, sel1: 'mem', sel2: 'cur' });
+  assert.strictEqual(nh.EYESH.buildExam(), null);
+  sg.EYESH.remember(); sg.EYESH._prepVars();
+  const ex2 = plain(nh.EYESH.buildExam());
+  assert.ok(ex2 && ex2.variants.length === 2);
+  assert.deepStrictEqual(ex2.variants.map((v) => v.p1.key), ex.variants.map((v) => v.p1.key));
+  assert.deepStrictEqual(ex2.variants.map((v) => v.p2.v), ex.variants.map((v) => v.p2.v));
+  // эх (2024) 2-р хэсэг энэ хуудсанд — B… -ийг шууд бодно
+  nh.EYESH._set({ sel2: 'orig' });
+  nh.__E24N = nh.e24n_generate(1234, nh); nh.__E24N.g = nh.E24N_BUILD;
+  const ex3 = plain(nh.EYESH.buildExam());
+  assert.strictEqual(ex3.p2.v, 'orig');
+  assert.deepStrictEqual(ex3.variants.map((v) => v.p2.v), plain(nh.EYESH.dseeds('orig', 3)).slice(1));
+  assert.strictEqual(EY.normExam(ex3).ok, true);
+});
+
+test('normExam: хувилбартай ЭЕШ — буруу оролт татгалзана', () => {
+  const key = 'A'.repeat(36), it = { ans: { a: '1', b: '2' }, parts: [] }, p2 = { v: 1234, g: 'xx', items: [it, it, it, it] };
+  const base = { year: 2024, p1: { v: 1234, g: 'xx', key: key }, p2: p2 };
+  const V = (x) => Object.assign({}, base, { variants: x });
+  const ok = V([{ p1: { v: 2345, g: 'xx', key: 'B'.repeat(36) }, p2: p2 }]);
+  assert.strictEqual(EY.normExam(ok).ok, true);
+  const bad = (raw) => { const n = EY.normExam(raw); assert.strictEqual(n.ok, false, JSON.stringify(raw).slice(0, 160)); return n.error; };
+  bad(V('B'));
+  bad(V(Array(6).fill(ok.variants[0])));                                                    // 7 хувилбар
+  assert.match(bad(V([{ p1: { v: 2345, g: 'xx', key: 'B'.repeat(35) }, p2: p2 }])), /^B хувилбарын/);
+  assert.match(bad(V([ok.variants[0], { p1: { v: 999, g: 'xx', key: key }, p2: p2 }])), /^C хувилбарын/);
+  assert.match(bad(V([{ p1: ok.variants[0].p1 }])), /2-р хэсэг дутуу/);               // 2-р хэсэг A-д бий
+  assert.match(bad(V([{ p1: ok.variants[0].p1, p2: { v: 2345, g: 'xx', items: [it, it, it, { ans: { abc: '157', de: '10', fg: '12', hi: '13' } }] } }])), /2\.4.*a–h/);
+  assert.strictEqual(EY.normExam(Object.assign({}, base, { variants: [] })).exam.variants, undefined);
 });
 
 test('eyesh-link.js: олон оронтой (хуучин) хувилбар a–h-д багтахгүй гэж танина', () => {
@@ -324,6 +450,27 @@ test('handoff → redeem: код нэг удаа, хугацаатай; эрхг
   r = await E('redeem', { code: r.body.code });
   near(daysLeft(r.body.paidUntil), 10);
   assert.strictEqual(r.body.exam.useSec2, false);
+});
+
+test('handoff материалтай → redeem материалыг буцаана (eyeshcheck «ЭЕШ материал»); буруу/хэт том материал 400; материалгүй бол null', async () => {
+  const zlib = require('zlib');
+  const { ctx } = linkCtx('eesh-2024-nohoh.html');
+  const O = plain(ctx.EYESH.ORIG[2024]);
+  const mat = zlib.gzipSync(JSON.stringify({ v: 1, year: 2024, docs: [{ part: 1, n: 1, title: 'ЭЕШ 2024', cls: '', css: '', sheets: [{ L: 'A', label: 'Эх', html: '<p>x</p>' }], key: '' }] })).toString('base64');
+  assert.strictEqual(EY.normMaterial(mat), mat);
+  [null, 1, '', 'abc', 'H4sI', 'H4sI!!!!', 'H4sIAAA', 'Zm9v' + mat.slice(4), 'H4sI' + 'A'.repeat(EY.MATERIAL_MAX)].forEach((m) => assert.strictEqual(EY.normMaterial(m), null, String(m).slice(0, 20)));
+  let r = await E('handoff', { wstoken: wsTok('t@x.mn'), exam: { year: 2024, p1: O[1], p2: O[2] }, material: mat });
+  assert.strictEqual(r.statusCode, 200, JSON.stringify(r.body));
+  r = await E('redeem', { code: r.body.code });
+  assert.strictEqual(r.statusCode, 200);
+  assert.strictEqual(r.body.material, mat);
+  assert.strictEqual(r.body.exam.sec1Key.join(''), O[1].key);
+  r = await E('handoff', { wstoken: wsTok('t@x.mn'), exam: { year: 2024, p1: O[1] }, material: 'буруу' });
+  assert.strictEqual(r.statusCode, 400);
+  assert.match(r.body.error, /материал/);
+  r = await E('handoff', { wstoken: wsTok('t@x.mn'), exam: { year: 2024, p1: O[1] } });
+  r = await E('redeem', { code: r.body.code });
+  assert.strictEqual(r.body.material, null);
 });
 
 test('admin_handoff → redeem: зөвхөн админ токеноор; код нэг удаа, { kind:"admin" } л буцаана; багшийн код kind:"teacher"', async () => {
