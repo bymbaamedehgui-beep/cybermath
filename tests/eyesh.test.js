@@ -83,6 +83,37 @@ test('2-р хэсгийн шинэ хувилбар бүр ЭЕШ-ийн хар�
   });
 });
 
+test('eyesh-link.js: 2022 — хоёр хэсэг НЭГ хуудсанд (eesh-2022): эх түлхүүр ба нүд, шинэ хувилбар a–h-д багтана → normExam', () => {
+  const { ctx } = linkCtx('eesh-2022.html');
+  assert.strictEqual(ctx.EYESH.both, true);
+  ctx.__E22 = ctx.e22_generate('orig', ctx); ctx.__E22N = ctx.e22n_generate('orig', ctx);
+  const c1 = plain(ctx.EYESH.exportCur(1)), c2 = plain(ctx.EYESH.exportCur(2));
+  assert.deepStrictEqual(c1, { v: 'orig', g: '', key: 'ADCBEDCDEACBDEACBDEACDECBDACBDECABDC' });
+  assert.deepStrictEqual(c2.items.map((it) => it.ans), [
+    { a: '1', b: '4', c: '4', d: '8', e: '3', f: '3', g: '1', h: '5' },
+    { a: '9', bc: '18', d: '6', e: '3', f: '2', gh: '24' },
+    { ab: '30', c: '2', de: '90', fg: '20', h: '3' },
+    { a: '3', b: '2', c: '9', d: '4', e: '4', f: '1', g: '9', h: '4' }]);
+  assert.strictEqual(ctx.EYESH.fits(c2), true);
+  const src = plain(ctx.EYESH.sources());
+  assert.deepStrictEqual(src.s1.map((x) => x.id), ['cur']);
+  assert.deepStrictEqual(src.s2.map((x) => x.id), ['cur', 'none']);
+  const n = EY.normExam({ year: 2022, p1: c1, p2: c2 });
+  assert.strictEqual(n.ok, true, n.error);
+  assert.strictEqual(n.exam.title, 'ЭЕШ 2022 · Сонгох Эх · Нөхөх Эх');
+  assert.strictEqual(n.exam.topics.length, 36);
+  n.exam.topics.forEach((t) => assert.ok(TOPICS.indexOf(t) >= 0, t));
+  Object.values(n.exam.sec2Config).forEach((c) => near('abcdefgh'.split('').reduce((a, r) => a + (c[r].ans !== '' ? c[r].score : 0), 0), 7));
+  for (let seed = 1000; seed <= 9999; seed += 397) {
+    ctx.__E22 = ctx.e22_generate(seed, ctx); ctx.__E22N = ctx.e22n_generate(seed, ctx);
+    const a = plain(ctx.EYESH.exportCur(1)), b = plain(ctx.EYESH.exportCur(2));
+    assert.match(a.key, /^[A-E]{36}$/, 'seed ' + seed);
+    assert.strictEqual(ctx.EYESH.fits(b), true, 'seed ' + seed);
+    const r = EY.normExam({ year: 2022, p1: a, p2: b });
+    assert.strictEqual(r.ok, true, seed + ' ' + r.error);
+  }
+});
+
 test('eyesh-link.js: олон оронтой (хуучин) хувилбар a–h-д багтахгүй гэж танина', () => {
   const { ctx } = linkCtx('eesh-2024-nohoh.html');
   const items = [1, 2, 3, 4].map(() => ({ ans: { abc: '157', de: '10', fg: '12', hi: '13' }, parts: [] }));   // 9 нүд
@@ -151,7 +182,7 @@ test('normExam: буруу оролт татгалзана', () => {
   const key = 'A'.repeat(36), p2 = { v: 'orig', g: '', items: [1, 2, 3, 4].map(() => ({ ans: { a: '1' }, parts: [] })) };
   const bad = (raw) => { const n = EY.normExam(raw); assert.strictEqual(n.ok, false, JSON.stringify(raw).slice(0, 120)); return n.error; };
   bad(null); bad({});
-  bad({ year: 2022, p1: { v: 1234, g: '', key: key } });
+  bad({ year: 2021, p1: { v: 1234, g: '', key: key } });
   bad({ year: 2024, p1: { v: 999, g: '', key: key } });
   bad({ year: 2024, p1: { v: 1234, g: 'BAD!', key: key } });
   assert.match(bad({ year: 2024, p1: { v: 1234, g: '', key: 'A'.repeat(35) + '-' } }), /Шинэ хувилбар/);

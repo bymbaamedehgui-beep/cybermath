@@ -49,7 +49,9 @@ test('e1k: туслах функцууд', () => {
   assert.strictEqual(H.sgn(-3) + H.sgn(5), '-3+5');
   assert.strictEqual(H.sfx(4, 'д'), '4-т');
   assert.strictEqual(H.sfx(6, 'д'), '6-д');
-  assert.strictEqual(H.sfx(20, 'аар'), '20-оор');
+  assert.strictEqual(H.sfx(20, 'аар'), '20-иор');
+  assert.strictEqual(H.sfx(50, 'аас'), '50-иас');
+  assert.strictEqual(H.sfx(120, 'аас'), '120-иос');
   assert.strictEqual(H.sfx(10, 'ыг'), '10-ыг');
   assert.strictEqual(H.sfx(3.4, 'тай'), '3.4-тэй');
   assert.strictEqual(H.suf(45, 'ын'), 'ын');

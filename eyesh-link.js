@@ -1,17 +1,20 @@
-/* ЭЕШ шалгагч (eyeshcheck.com) — ЭЕШ хуудсуудын (eesh-YYYY-songoh / eesh-YYYY-nohoh) ба бүлгийн шалгалтын материалын
-   (cmx.js — window.CM_EXAM: 10 тест, хувилбарын кодтой) «ЭЕШ шалгагч» товч.
+/* ЭЕШ шалгагч (eyeshcheck.com) — ЭЕШ хуудсуудын (eesh-YYYY-songoh / eesh-YYYY-nohoh, эсвэл хоёр хэсэг НЭГ хуудсанд: eesh-YYYY)
+   ба бүлгийн шалгалтын материалын (cmx.js — window.CM_EXAM: 10 тест, хувилбарын кодтой) «ЭЕШ шалгагч» товч.
    Дарахад: Дасгалын төвийн бүртгэлээр нэвтэрсэн эсэх → эрх (POST /api/eyesh?action=status) → эрхгүй бол QPay
    (POST /api/qpay?action=create {plan:'eyesh'}, 1 сар) → нэг удаагийн код (POST /api/eyesh?action=handoff) →
    eyeshcheck.com/api/cm/sso руу form POST (шинэ таб): тэнд энэ хувилбарын зөв хариулттай шалгалт шууд үүснэ.
-   Хуудас бүр одоогийн хувилбараа localStorage 'cm_eesh_<он>_p<хэсэг>'-д санана — нөгөө хэсгийг тэр хуудаснаас хамт оруулна.
+   Хуудас бүр одоогийн хувилбараа localStorage 'cm_eesh_<он>_p<хэсэг>'-д санана — нөгөө хэсгийг тэр хуудаснаас хамт оруулна
+   (хоёр хэсэг нэг хуудсанд бол санахгүй — хоёуланг нь энэ хуудаснаас авна).
    2-р хэсгийг зөвхөн ЭЕШ-ийн хариултын хуудасны a–h мөрөнд багтах хувилбараар оруулна (эх хувилбар үргэлж багтана). */
 (function () {
   'use strict';
-  var m = /\/eesh-(\d{4})-(songoh|nohoh)(?:\.html)?$/.exec(location.pathname);
+  var m = /\/eesh-(\d{4})(?:-(songoh|nohoh))?(?:\.html)?$/.exec(location.pathname);
   // WS: бүлгийн шалгалт (cmx.js) — хувилбарын кодоор тогтмол тест; 2-р хэсэг (задгай) нь хариултын хуудасны ар талд, гараар дүгнэнэ
   var WS = !m && typeof window.CM_EXAM === 'function';
   if ((!m && !WS) || window.EYESH) return;
-  var YEAR = m ? +m[1] : 0, PART = m ? (m[2] === 'songoh' ? 1 : 2) : 1, YY = YEAR % 100;
+  // BOTH: хоёр хэсэг нэг хуудсанд (eesh-2022) — нэг үрээр хамт үүсдэг тул хоёуланг нь энэ хуудаснаас авна
+  var BOTH = !!m && !m[2];
+  var YEAR = m ? +m[1] : 0, PART = m && m[2] === 'nohoh' ? 2 : 1, YY = YEAR % 100;
   var PAGES = { 1: '/eesh-' + YEAR + '-songoh.html', 2: '/eesh-' + YEAR + '-nohoh.html' };
   var RESUME = 'cm_eyesh_resume', SSO_RE = /^https:\/\/eyeshcheck\.com\//;
   var POLL_MS = 3000, POLL_MAX = 200;
@@ -61,7 +64,7 @@
   }
 
   /* ── Хувилбар: одоогийн хуудаснаас + санасан ── */
-  function stNow() { return window[PART === 1 ? '__E' + YY : '__E' + YY + 'N'] || null; }
+  function stNow(p) { return window[(p || PART) === 1 ? '__E' + YY : '__E' + YY + 'N'] || null; }
   // Нөхөх бодлогын html → [['abc', 2], …]: «(N оноо)» хүртэлх нүднүүд нэг дэд асуулт. Эхэнд нь ирсэн «(7 оноо)» (2023) — хуваахгүй.
   function partsOf(html) {
     var s = String(html || '').replace(/<svg[\s\S]*?<\/svg>/g, ' '), re = /<span class="bx">([^<]*)<\/span>|\((\d+)\s*оноо\)/g, x, acc = '', out = [];
@@ -71,10 +74,11 @@
     }
     return out;
   }
-  function exportCur() {
-    var st = stNow(); if (!st || !st.items) return null;
+  function exportCur(p) {
+    p = p || PART;
+    var st = stNow(p); if (!st || !st.items) return null;
     var o = { v: st.seed, g: st.seed === 'orig' ? '' : String(st.g || '') };
-    if (PART === 1) {
+    if (p === 1) {
       var f = window['e' + YY + '_letters'];
       o.key = typeof f === 'function' ? String(f(st)) : '';
     } else {
@@ -96,7 +100,7 @@
     });
   }
   function remember() {
-    if (WS) return;
+    if (WS || BOTH) return;
     var o = exportCur(); if (!o) return;
     o.t = Date.now();
     lsSet('cm_eesh_' + YEAR + '_p' + PART, JSON.stringify(o));
@@ -110,6 +114,13 @@
 
   // Сонголтын жагсаалт: s1 — 1-р хэсэг (заавал), s2 — 2-р хэсэг (сүүлд нь «Оруулахгүй»)
   function sources() {
+    if (BOTH) {
+      var c1 = exportCur(1), c2 = exportCur(2), b1 = [], b2 = [];
+      if (okKey(c1)) b1.push({ id: 'cur', o: c1, hint: 'энэ хуудас' });
+      if (c2) b2.push({ id: 'cur', o: c2, hint: 'энэ хуудас', bad: !fits(c2) });
+      b2.push({ id: 'none', o: null, hint: 'зөвхөн 1-р хэсэг' });
+      return { s1: b1, s2: b2 };
+    }
     var me = exportCur(), mem = readMem(3 - PART), orig = ORIG[YEAR] || {}, s1 = [], s2 = [];
     if (PART === 1) {
       if (okKey(me)) s1.push({ id: 'cur', o: me, hint: 'энэ хуудас' });
@@ -228,7 +239,10 @@
     }).join('');
   }
   function pick(list, id) { for (var i = 0; i < list.length; i++) if (list[i].id === id && !list[i].bad) return list[i]; return null; }
-  function autoTitle(a, b) { return 'ЭЕШ ' + YEAR + ' · Сонгох ' + vshort(a.o) + (b && b.o ? ' · Нөхөх ' + vshort(b.o) : ''); }
+  function autoTitle(a, b) {
+    if (BOTH) return 'ЭЕШ ' + YEAR + ' · ' + vshort(a.o) + (b && b.o ? '' : ' · Сонгох');
+    return 'ЭЕШ ' + YEAR + ' · Сонгох ' + vshort(a.o) + (b && b.o ? ' · Нөхөх ' + vshort(b.o) : '');
+  }
   function wsCur() { try { return window.CM_EXAM(); } catch (e) { return null; } }
   function drawComposeWs() {
     var e = wsCur();
@@ -266,8 +280,9 @@
       + '</div>'
       + '<div class="eyc-sec"><div class="eyc-st">2-р хэсэг · Нөхөх даалгавар (2.1–2.4)</div>' + optHtml('eyc2', s2, S.sel2)
       + (bad2 ? '<div class="eyc-note">' + esc(vtxt(bad2.o)) + '-ийн хариу олон оронтой тул ЭЕШ-ийн хариултын хуудасны a–h мөрөнд багтахгүй. '
-              + (PART === 2 && ORIG[YEAR] && ORIG[YEAR][2] ? 'Хуудсан дээрх «Эх хувилбар» товчоор эх даалгаврыг гаргаж хэвлээд энд эхийг нь сонгоно уу.'
-                                                          : 'Эх хувилбарыг сонгох эсвэл 2-р хэсгийг оруулахгүй байж болно.') + '</div>' : '')
+              + (BOTH ? 'Хуудсан дээрх «Шинэ хувилбар» эсвэл «Эх хувилбар» товчоор өөр хувилбар гаргах эсвэл 2-р хэсгийг оруулахгүй байж болно.'
+                 : PART === 2 && ORIG[YEAR] && ORIG[YEAR][2] ? 'Хуудсан дээрх «Эх хувилбар» товчоор эх даалгаврыг гаргаж хэвлээд энд эхийг нь сонгоно уу.'
+                 : 'Эх хувилбарыг сонгох эсвэл 2-р хэсгийг оруулахгүй байж болно.') + '</div>' : '')
       + '</div>'
       + '<label class="eyc-lbl" for="eyc-ti">Шалгалтын нэр</label><input class="eyc-ti" id="eyc-ti" maxlength="120">'
       + '<div data-act></div>';
@@ -442,6 +457,6 @@
   function boot() {
     css(); addButton(); hookBuild(); remember(); resume();
   }
-  window.EYESH = { open: open, remember: remember, exportCur: exportCur, fits: fits, partsOf: partsOf, ORIG: ORIG, buildExam: buildExam, ws: WS };
+  window.EYESH = { open: open, remember: remember, exportCur: exportCur, fits: fits, partsOf: partsOf, ORIG: ORIG, buildExam: buildExam, sources: sources, ws: WS, both: BOTH };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();
