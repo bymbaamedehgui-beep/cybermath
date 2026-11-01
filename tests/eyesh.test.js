@@ -115,6 +115,36 @@ test('eyesh-link.js: 2022 — хоёр хэсэг НЭГ хуудсанд (eesh-
   }
 });
 
+test('eyesh-link.js: 2025 — хоёр хэсэг НЭГ хуудсанд (eesh-2025): эх түлхүүр ба нүд, шинэ хувилбар a–h-д багтана → normExam', () => {
+  const { ctx } = linkCtx('eesh-2025.html');
+  assert.strictEqual(ctx.EYESH.both, true);
+  ctx.__E25 = ctx.e25_generate('orig', ctx); ctx.__E25N = ctx.e25n_generate('orig', ctx);
+  const c1 = plain(ctx.EYESH.exportCur(1)), c2 = plain(ctx.EYESH.exportCur(2));
+  assert.deepStrictEqual(c1, { v: 'orig', g: '', key: 'BADBBECADBADAEBDADADEDAEABCDCADEDACD' });
+  assert.deepStrictEqual(c2.items.map((it) => it.ans), [
+    { a: '5', b: '4', cd: '42', ef: '50', gh: '50' },
+    { a: '8', b: '5', cd: '15', ef: '12', g: '1' },
+    { a: '7', b: '2', c: '2', d: '7', e: '4', f: '2', g: '7', h: '6' },
+    { a: '9', bcd: '675', efgh: '1850' }]);
+  assert.strictEqual(ctx.EYESH.fits(c2), true);
+  const n = EY.normExam({ year: 2025, p1: c1, p2: c2 });
+  assert.strictEqual(n.ok, true, n.error);
+  assert.strictEqual(n.exam.title, 'ЭЕШ 2025 · Сонгох Эх · Нөхөх Эх');
+  assert.strictEqual(n.exam.topics.length, 36);
+  n.exam.topics.forEach((t) => assert.ok(TOPICS.indexOf(t) >= 0, t));
+  Object.values(n.exam.sec2Config).forEach((c) => near('abcdefgh'.split('').reduce((a, r) => a + (c[r].ans !== '' ? c[r].score : 0), 0), 7));
+  for (let seed = 1000; seed <= 9999; seed += 397) {
+    ctx.__E25 = ctx.e25_generate(seed, ctx); ctx.__E25N = ctx.e25n_generate(seed, ctx);
+    const a = plain(ctx.EYESH.exportCur(1)), b = plain(ctx.EYESH.exportCur(2));
+    assert.match(a.key, /^[A-E]{36}$/, 'seed ' + seed);
+    assert.strictEqual(ctx.EYESH.fits(b), true, 'seed ' + seed);
+    const r = EY.normExam({ year: 2025, p1: a, p2: b });
+    assert.strictEqual(r.ok, true, seed + ' ' + r.error);
+  }
+  const cat = fs.readFileSync(path.join(F.WT, 'catalog.js'), 'utf8');
+  assert.ok(cat.indexOf("['eesh-2025.html','ЭЕШ 2025 — Сонгох ба нөхөх даалгавар']") >= 0 && cat.indexOf("'eesh-2025.html'") < cat.indexOf("'eesh-2024.html'"), 'каталогт 2025 нь 2024-ийн өмнө');
+});
+
 test('eyesh-link.js dseeds: B… хувилбарын үр тогтмол, 1000–9999, давхцалгүй, A нь суурь', () => {
   const { ctx } = linkCtx('eesh-2022.html');
   const d = (b, n) => plain(ctx.EYESH.dseeds(b, n));
