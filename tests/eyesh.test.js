@@ -47,21 +47,22 @@ const plain = (o) => JSON.parse(JSON.stringify(o));   // vm-ийн объект�
 
 beforeEach(() => F.reset());
 
-test('eyesh-link.js ORIG: 2024 эх 1-р хэсгийн түлхүүр = e24_generate(orig)', () => {
-  const { ctx } = linkCtx('eesh-2024-songoh.html');
+test('eyesh-link.js ORIG: 2024 эх 1-р хэсгийн түлхүүр = e24_generate(orig) (нэгдсэн eesh-2024)', () => {
+  const { ctx } = linkCtx('eesh-2024.html');
+  assert.strictEqual(ctx.EYESH.both, true);
   const st = ctx.e24_generate('orig', ctx);
   assert.strictEqual(ctx.e24_letters(st), ctx.EYESH.ORIG[2024][1].key);
   ctx.__E24 = st;
-  const cur = plain(ctx.EYESH.exportCur());
+  const cur = plain(ctx.EYESH.exportCur(1));
   assert.deepStrictEqual(cur, { v: 'orig', g: '', key: 'EDCAADCBDEAACDEAACBBDEDAACDEAACBDEAA' });
 });
 
 test('eyesh-link.js ORIG: 2024 ба 2023 эх 2-р хэсэг (нүд + дэд асуултын оноо) = генератор; эх нь a–h-д багтана', () => {
-  [['eesh-2024-nohoh.html', 'e24n_generate', '__E24N', 2024], ['eesh-2023-nohoh.html', 'e23n_generate', '__E23N', 2023]].forEach(([file, gen, glob, year]) => {
+  [['eesh-2024.html', 'e24n_generate', '__E24N', 2024], ['eesh-2023.html', 'e23n_generate', '__E23N', 2023]].forEach(([file, gen, glob, year]) => {
     const { ctx } = linkCtx(file);
     const st = ctx[gen]('orig', ctx);
     ctx[glob] = st;
-    const cur = plain(ctx.EYESH.exportCur());
+    const cur = plain(ctx.EYESH.exportCur(2));
     assert.deepStrictEqual(cur, plain(ctx.EYESH.ORIG[year][2]), file);
     assert.strictEqual(ctx.EYESH.fits(ctx.EYESH.ORIG[year][2]), true, file);
     const n = EY.normExam({ year: year, p1: { v: 1234, g: 'xx', key: 'A'.repeat(36) }, p2: cur });
@@ -70,11 +71,11 @@ test('eyesh-link.js ORIG: 2024 ба 2023 эх 2-р хэсэг (нүд + дэд �
 });
 
 test('2-р хэсгийн шинэ хувилбар бүр ЭЕШ-ийн хариултын хуудасны a–h мөрөнд багтана (2023, 2024) → eyeshcheck-д дүгнэгдэнэ', () => {
-  [['eesh-2024-nohoh.html', 'e24n_generate', '__E24N', 2024], ['eesh-2023-nohoh.html', 'e23n_generate', '__E23N', 2023]].forEach(([file, gen, glob, year]) => {
+  [['eesh-2024.html', 'e24n_generate', '__E24N', 2024], ['eesh-2023.html', 'e23n_generate', '__E23N', 2023]].forEach(([file, gen, glob, year]) => {
     const { ctx } = linkCtx(file);
     for (let seed = 1000; seed <= 9999; seed += 37) {
       ctx[glob] = ctx[gen](seed, ctx);
-      const cur = plain(ctx.EYESH.exportCur());
+      const cur = plain(ctx.EYESH.exportCur(2));
       assert.strictEqual(ctx.EYESH.fits(cur), true, file + ' ' + seed);
       const n = EY.normExam({ year: year, p1: { v: seed, g: 'xx', key: 'A'.repeat(36) }, p2: cur });
       assert.strictEqual(n.ok, true, file + ' ' + seed + ' ' + n.error);
@@ -181,47 +182,49 @@ test('2022 (нэг хуудас): 4 хувилбартай шалгалт — B�
   assert.ok(Object.values(m1.exam.variants).every((v) => v.sec2Config === undefined));
 });
 
-test('2024 (тусдаа хуудас): 2-р хэсгийн хуудас B… хувилбарыг localStorage-д бэлдэнэ → 1-р хэсгийн хуудсанд 3 хувилбартай шалгалт', () => {
-  const store = new Map([['cm_eyc_n_2024', '3']]);
-  const { ctx: nh } = linkCtx('eesh-2024-nohoh.html', store);
-  nh.__E24N = nh.e24n_generate(1234, nh); nh.__E24N.g = nh.E24N_BUILD;
-  nh.EYESH.remember();
-  const { ctx: sg } = linkCtx('eesh-2024-songoh.html', store);
-  sg.__E24 = sg.e24_generate(4321, sg); sg.__E24.g = sg.E24_BUILD;
-  // B… хувилбар бэлдээгүй (санасан хувилбар ганцаараа) → 3 хувилбараар 2-р хэсгийг оруулж чадахгүй
-  sg.EYESH._set({ n: 3, sel1: 'cur', sel2: 'mem' });
-  assert.strictEqual(sg.EYESH.buildExam(), null);
-  nh.EYESH._prepVars();
-  const mem = JSON.parse(store.get('cm_eesh_2024_p2'));
-  assert.strictEqual(mem.v, 1234);
-  assert.strictEqual(mem.vars.length, 5);
-  const ex = plain(sg.EYESH.buildExam());
-  assert.ok(ex, 'бэлэн');
-  assert.strictEqual(ex.variants.length, 2);
-  const s1 = plain(sg.EYESH.dseeds(4321, 3)), s2 = plain(sg.EYESH.dseeds(1234, 3));
+test('2024, 2023 нэгдсэн хуудас: хоёр build тэмдэг (сонгох/нөхөх), хувилбарууд dseeds-ийн үрээр → normExam', () => {
+  // 2024: эх хувилбартай; хуучин хуудсуудын build тэмдэг хадгалагдсан (f3 — сонгох, 4d — нөхөх)
+  const { ctx } = linkCtx('eesh-2024.html');
+  assert.strictEqual(ctx.EYESH.both, true);
+  assert.deepStrictEqual([ctx.E24_BUILD, ctx.E24N_BUILD], ['f3', '4d']);
+  ctx.__E24 = ctx.e24_generate(4321, ctx); ctx.__E24.g = ctx.E24_BUILD;
+  ctx.__E24N = ctx.e24n_generate(4321, ctx); ctx.__E24N.g = ctx.E24N_BUILD;
+  ctx.EYESH._set({ n: 3, sel1: 'cur', sel2: 'cur' });
+  const ex = plain(ctx.EYESH.buildExam());
+  assert.deepStrictEqual([ex.p1.g, ex.p2.g], ['f3', '4d']);
+  const s = plain(ctx.EYESH.dseeds(4321, 3));
   ex.variants.forEach((v, i) => {
-    assert.strictEqual(v.p1.key, sg.e24_letters(sg.e24_generate(s1[i + 1], sg)));
-    assert.strictEqual(v.p2.v, s2[i + 1]);
-    assert.deepStrictEqual(v.p2.items.map((it) => it.ans), plain(nh.e24n_generate(s2[i + 1], nh).items.map((it) => it.ans)));
+    assert.deepStrictEqual([v.p1.v, v.p1.g, v.p2.v, v.p2.g], [s[i + 1], 'f3', s[i + 1], '4d']);
+    assert.strictEqual(v.p1.key, ctx.e24_letters(ctx.e24_generate(s[i + 1], ctx)));
+    assert.deepStrictEqual(v.p2.items.map((it) => it.ans), plain(ctx.e24n_generate(s[i + 1], ctx).items.map((it) => it.ans)));
   });
   const n = EY.normExam(ex);
   assert.strictEqual(n.ok, true, n.error);
-  assert.deepStrictEqual(Object.keys(n.exam.variants), ['B', 'C']);
-  // 2-р хэсгийн хуудсанд: 1-р хэсгийг санасан хувилбараас — тэр хуудас B… бэлдээгүй бол бэлэн биш, бэлдвэл бэлэн
-  nh.EYESH._set({ n: 3, sel1: 'mem', sel2: 'cur' });
-  assert.strictEqual(nh.EYESH.buildExam(), null);
-  sg.EYESH.remember(); sg.EYESH._prepVars();
-  const ex2 = plain(nh.EYESH.buildExam());
-  assert.ok(ex2 && ex2.variants.length === 2);
-  assert.deepStrictEqual(ex2.variants.map((v) => v.p1.key), ex.variants.map((v) => v.p1.key));
-  assert.deepStrictEqual(ex2.variants.map((v) => v.p2.v), ex.variants.map((v) => v.p2.v));
-  // эх (2024) 2-р хэсэг энэ хуудсанд — B… -ийг шууд бодно
-  nh.EYESH._set({ sel2: 'orig' });
-  nh.__E24N = nh.e24n_generate(1234, nh); nh.__E24N.g = nh.E24N_BUILD;
-  const ex3 = plain(nh.EYESH.buildExam());
-  assert.strictEqual(ex3.p2.v, 'orig');
-  assert.deepStrictEqual(ex3.variants.map((v) => v.p2.v), plain(nh.EYESH.dseeds('orig', 3)).slice(1));
-  assert.strictEqual(EY.normExam(ex3).ok, true);
+  assert.strictEqual(n.exam.title, 'ЭЕШ 2024 · Сонгох №4321·f3 · Нөхөх №4321·4d · 3 хувилбар');
+  // 2023: 1-р хэсэг эх горимгүй — хувилбар үрээр (is / hd)
+  const c3 = linkCtx('eesh-2023.html').ctx;
+  assert.deepStrictEqual([c3.E23_BUILD, c3.E23N_BUILD], ['is', 'hd']);
+  c3.__E23 = c3.e23_generate(2468, c3); c3.__E23.g = c3.E23_BUILD;
+  c3.__E23N = c3.e23n_generate(2468, c3); c3.__E23N.g = c3.E23N_BUILD;
+  c3.EYESH._set({ n: 2, sel1: 'cur', sel2: 'cur' });
+  const e3 = plain(c3.EYESH.buildExam());
+  assert.strictEqual(e3.variants.length, 1);
+  assert.deepStrictEqual([e3.variants[0].p1.g, e3.variants[0].p2.g], ['is', 'hd']);
+  assert.strictEqual(EY.normExam(e3).ok, true);
+});
+
+test('хуучин тусдаа хуудсууд (сонгох/нөхөх) нэгдсэн хуудас руу шилжинэ (?v= хадгална); каталогт зөвхөн нэгдсэн хуудас', () => {
+  const cat = fs.readFileSync(path.join(F.WT, 'catalog.js'), 'utf8');
+  [2023, 2024].forEach((y) => {
+    assert.ok(cat.includes("['eesh-" + y + ".html','ЭЕШ " + y + " — Сонгох ба нөхөх даалгавар']"), 'каталог ' + y);
+    ['songoh', 'nohoh'].forEach((p) => {
+      const h = fs.readFileSync(path.join(F.WT, 'eesh-' + y + '-' + p + '.html'), 'utf8');
+      assert.ok(!cat.includes("'eesh-" + y + '-' + p + ".html'"), 'хуучин хуудас каталогт үлдсэн: ' + p);
+      assert.ok(h.includes('location.replace("/eesh-' + y + '.html"'), 'шилжүүлэг ' + y + p);
+      assert.ok(h.includes('[?&]v=(\\d{4})'), '?v= хадгална');
+      assert.ok(h.length < 2000, 'жижиг шилжүүлэх хуудас');
+    });
+  });
 });
 
 test('normExam: хувилбартай ЭЕШ — буруу оролт татгалзана', () => {
@@ -241,7 +244,7 @@ test('normExam: хувилбартай ЭЕШ — буруу оролт татг
 });
 
 test('eyesh-link.js: олон оронтой (хуучин) хувилбар a–h-д багтахгүй гэж танина', () => {
-  const { ctx } = linkCtx('eesh-2024-nohoh.html');
+  const { ctx } = linkCtx('eesh-2024.html');
   const items = [1, 2, 3, 4].map(() => ({ ans: { abc: '157', de: '10', fg: '12', hi: '13' }, parts: [] }));   // 9 нүд
   assert.strictEqual(ctx.EYESH.fits({ v: 1234, g: 'sg', items: items }), false);
   const n = EY.normExam({ year: 2024, p1: { v: 'orig', g: '', key: 'A'.repeat(36) }, p2: { v: 1234, g: 'sg', items: items } });
@@ -250,7 +253,7 @@ test('eyesh-link.js: олон оронтой (хуучин) хувилбар a�
 });
 
 test('normExam: 2024 эх хоёр хэсэг — оноо (72 + 4×7), сэдэв, хариу, ref', () => {
-  const { ctx } = linkCtx('eesh-2024-nohoh.html');
+  const { ctx } = linkCtx('eesh-2024.html');
   const O = plain(ctx.EYESH.ORIG[2024]);
   const n = EY.normExam({ year: 2024, p1: O[1], p2: O[2] });
   assert.strictEqual(n.ok, true, n.error);
@@ -410,7 +413,7 @@ test('QPay plan=eyesh: бүртгэл (ledger) унавал эрх олгогд�
 
 test('handoff → redeem: код нэг удаа, хугацаатай; эрхгүй ч код өгнө (eyeshcheck өөрөө шалгана)', async () => {
   F.db.wsLogin.set('t@x.mn', { email: 't@x.mn', name: 'Бат Болд', verified: true });
-  const { ctx } = linkCtx('eesh-2024-nohoh.html');
+  const { ctx } = linkCtx('eesh-2024.html');
   const O = plain(ctx.EYESH.ORIG[2024]);
   let r = await E('handoff', { wstoken: wsTok('t@x.mn'), exam: { year: 2024, p1: { v: 1, key: 'A' } } });
   assert.strictEqual(r.statusCode, 400); assert.ok(r.body.error);
@@ -454,7 +457,7 @@ test('handoff → redeem: код нэг удаа, хугацаатай; эрхг
 
 test('handoff материалтай → redeem материалыг буцаана (eyeshcheck «ЭЕШ материал»); буруу/хэт том материал 400; материалгүй бол null', async () => {
   const zlib = require('zlib');
-  const { ctx } = linkCtx('eesh-2024-nohoh.html');
+  const { ctx } = linkCtx('eesh-2024.html');
   const O = plain(ctx.EYESH.ORIG[2024]);
   const mat = zlib.gzipSync(JSON.stringify({ v: 1, year: 2024, docs: [{ part: 1, n: 1, title: 'ЭЕШ 2024', cls: '', css: '', sheets: [{ L: 'A', label: 'Эх', html: '<p>x</p>' }], key: '' }] })).toString('base64');
   assert.strictEqual(EY.normMaterial(mat), mat);
@@ -500,7 +503,7 @@ test('admin_handoff → redeem: зөвхөн админ токеноор; код
   assert.strictEqual((await E('redeem', { code: r.body.code })).statusCode, 404);
   // багшийн код өмнөх шигээ, kind:'teacher'
   F.db.wsLogin.set('t@x.mn', { email: 't@x.mn', name: 'Бат Болд', verified: true });
-  const { ctx } = linkCtx('eesh-2024-nohoh.html');
+  const { ctx } = linkCtx('eesh-2024.html');
   const O = plain(ctx.EYESH.ORIG[2024]);
   r = await E('handoff', { wstoken: wsTok('t@x.mn'), exam: { year: 2024, p1: O[1] } });
   r = await E('redeem', { code: r.body.code });

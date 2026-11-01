@@ -21,7 +21,7 @@ const jwt = require(require.resolve('jsonwebtoken', { paths: [F.API] }));
 const SEC = process.env.JWT_SECRET;
 
 const DEV = 'devaaaa11112222', DEV2 = 'devbbbb33334444';
-const G6 = 'jishig-daalgavar-1-6.html', G9 = 'troichlen-zadlal-12.html', EESH = 'eesh-2023-songoh.html';
+const G6 = 'jishig-daalgavar-1-6.html', G9 = 'troichlen-zadlal-12.html', EESH = 'eesh-2023.html';
 const tok = (e, dev) => jwt.sign(dev ? { email: e, ws: true, dev: dev } : { email: e, ws: true }, SEC);
 const HOUR = 3600e3;
 

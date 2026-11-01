@@ -119,7 +119,9 @@
     var st = null;
     try { st = window[genName(p)](seed, window); } catch (e) { st = null; }
     if (!st || !st.items) return null;
-    st.g = seed === 'orig' ? '' : String(window['E' + YY + (p === 2 && !BOTH ? 'N' : '') + '_BUILD'] || '');
+    // 2-р хэсгийн build тэмдэг: EYYN_BUILD (тусдаа нөхөх хуудас ба 2023/2024-ийн нэгдсэн хуудас), байхгүй бол EYY_BUILD (2022, 2025)
+    var tag = p === 2 ? (window['E' + YY + 'N_BUILD'] || window['E' + YY + '_BUILD']) : window['E' + YY + '_BUILD'];
+    st.g = seed === 'orig' ? '' : String(tag || '');
     return (GENC[k] = exportSt(st, p));
   }
   function okKey(o) { return !!o && /^[A-E]{36}$/.test(String(o.key || '')); }
