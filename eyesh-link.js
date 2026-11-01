@@ -483,8 +483,12 @@
       + '<li>Дүн, сэдвээрх тайлан, Excel</li></ul></div>'
       + '<button type="button" class="eyc-go" data-pay>' + ICO.qr + 'QPay-аар төлөх</button>'
       + '<div class="eyc-msg" data-msg></div>'
+      // ЭЕШ багц: ЭЕШ ажлын хуудас + ЭЕШ шалгагч 1 сар нэг төлбөрөөр (api/qpay.js plan='eeshpack') — зөвхөн ЭЕШ хуудсанд (бүлгийн шалгалтад биш)
+      + (S.st.pack_price && !WS ? '<div class="eyc-alt">ЭЕШ багц — ажлын хуудас + шалгагч, 1 сар · <b>' + fmt(S.st.pack_price) + '₮</b> '
+        + '<button type="button" class="eyc-link" data-pack>Багцаар авах</button></div>' : '')
       + '<div class="eyc-alt">eyeshcheck.com-д эрх нь идэвхтэй багш уу? <button type="button" class="eyc-link" data-free' + (canGo ? '' : ' disabled') + '>Шууд нэвтрэх</button></div>';
-    a.querySelector('[data-pay]').onclick = pay;
+    a.querySelector('[data-pay]').onclick = function () { pay('eyesh'); };
+    var pk = a.querySelector('[data-pack]'); if (pk) pk.onclick = function () { pay('eeshpack'); };
     a.querySelector('[data-free]').onclick = go;
   }
   function buildExam() {
@@ -709,21 +713,25 @@
     return '<a class="eyc-bank" href="' + esc(link) + '">' + (okLogo ? '<img alt="" src="' + esc(logo) + '" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'">' : '')
       + '<i' + (okLogo ? ' style="display:none"' : '') + '>' + ICO.bank + '</i><span>' + esc(name) + '</span></a>';
   }
-  function pay() {
+  // plan: 'eyesh' (ЭЕШ шалгагч) | 'eeshpack' (ЭЕШ багц: ажлын хуудас + шалгагч) — үнийг сервер тогтооно
+  function pay(plan) {
     if (S.busy) return;
+    plan = plan === 'eeshpack' ? 'eeshpack' : 'eyesh';
     S.busy = true; msg('', 'Нэхэмжлэх үүсгэж байна…');
-    post('/api/qpay?action=create', { plan: 'eyesh', wstoken: tok() }).then(function (x) {
+    post('/api/qpay?action=create', { plan: plan, wstoken: tok() }).then(function (x) {
       S.busy = false;
       var d = x.d;
       if (x.s === 401 || d.needLogin) return drawLogin(true);
       if (!d.ok || !d.invoice || !d.invoice.invoice_id) return msg('err', esc(d.error || 'Нэхэмжлэх үүсгэж чадсангүй. Дахин оролдоно уу.'));
-      S.inv = d.invoice; S.invEmail = String(d.email || '').toLowerCase();
+      S.inv = d.invoice; S.invEmail = String(d.email || '').toLowerCase(); S.invPlan = plan;
       drawInvoice(d.amount);
     }).catch(function () { S.busy = false; msg('err', 'Сүлжээний алдаа. Дахин оролдоно уу.'); });
   }
   function drawInvoice(amount) {
     var inv = S.inv, img = typeof inv.qr_image === 'string' ? inv.qr_image.replace(/\s+/g, '') : '';
-    var h = '<div class="eyc-sub">ЭЕШ шалгагч · 1 сар — <b>' + fmt(amount || (S.st && S.st.price) || 9900) + '₮</b>. Төлбөр баталгаажмагц шалгалтаа үүсгэнэ.</div>'
+    var pack = S.invPlan === 'eeshpack';
+    var h = '<div class="eyc-sub">' + (pack ? 'ЭЕШ багц (ажлын хуудас + ЭЕШ шалгагч)' : 'ЭЕШ шалгагч') + ' · 1 сар — <b>'
+      + fmt(amount || (pack ? S.st && S.st.pack_price : S.st && S.st.price) || 9900) + '₮</b>. Төлбөр баталгаажмагц шалгалтаа үүсгэнэ.</div>'
       + '<div class="eyc-qr"><div class="cap">QPay эсвэл банкны аппаар уншуулж төлнө үү</div>';
     if (img && /^[A-Za-z0-9+\/=]+$/.test(img)) h += '<img class="q" alt="QPay QR" src="data:image/png;base64,' + img + '">';
     if (typeof inv.qPay_shortUrl === 'string' && /^https:\/\//i.test(inv.qPay_shortUrl))
@@ -752,10 +760,10 @@
         var c = x.d;
         if (!c || c.paid !== true || !S.pollT) return;
         stopPoll(); S.inv = null;
-        S.st = { ok: true, active: true, expiry: c.eyesh || null, price: S.st && S.st.price };
+        S.st = { ok: true, active: true, expiry: c.eyesh || null, price: S.st && S.st.price, pack_price: S.st && S.st.pack_price };
         drawCompose();
         if (!c.eyesh) loadStatus();
-        else msg('ok', ICO.ok + ' Төлбөр баталгаажлаа! ЭЕШ шалгагчийн эрх ' + esc(ymd(c.eyesh)) + ' хүртэл.');
+        else msg('ok', ICO.ok + ' Төлбөр баталгаажлаа! ' + (S.invPlan === 'eeshpack' ? 'ЭЕШ ажлын хуудас ба ЭЕШ шалгагчийн' : 'ЭЕШ шалгагчийн') + ' эрх ' + esc(ymd(c.eyesh)) + ' хүртэл.');
       }).catch(function () {});
     }, POLL_MS);
   }

@@ -24,12 +24,15 @@ const A = (action, body) => Q(action, body, { headers: ADMIN });
 const daysLeft = (d) => (new Date(d).getTime() - Date.now()) / DAY;
 const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 0.01, (msg || '') + ' ' + a + ' ≈ ' + b);
 const PIN = '4821';
+// Тайлангийн сав бүр: ws/prem/games + слайд, ЭЕШ шалгагч (тус тусын бүртгэл) ба ЭЕШ багц (мэдээлэл, нийлбэрт орохгүй)
+const W0 = { ppt: { n: 0, sum: 0 }, eyesh: { n: 0, sum: 0 }, eeshpack: { n: 0, sum: 0 } };
+const win = (o) => Object.assign({}, o, W0);
 const pinHash = (pin) => crypto.createHmac('sha256', SEC).update('rpin|' + String(pin)).digest('hex');
 
 // ───────── Админы замын нэмэлт хуурамч SQL ─────────
 // _gamefake-ийн pool.query-г ороож, энд таних SQL-ийг санах ойгоор хариулна; бусдыг _gamefake руу дамжуулна
 // (тэнд танихгүй тоглоом/төлбөрийн SQL → db.unknown + throw). Админы зам транзакц ашигладаггүй.
-const X = { wsLogin: new Set(), wsPurch: [], grants: [], wsLoginAt: [], nextWs: 1, nextGrant: 1, pin: null };
+const X = { wsLogin: new Set(), wsPurch: [], grants: [], wsLoginAt: [], nextWs: 1, nextGrant: 1, pin: null, ppt: [] };
 function norm(s) { return String(s).replace(/\s+/g, ' ').trim(); }
 function tms(r) { return r.created_at instanceof Date ? r.created_at.getTime() : Number(r.created_at); }
 function dayOf(ms) { return new Date(ms).toISOString().slice(0, 10); }
@@ -39,6 +42,12 @@ function cond(c, p, d) {
   let m;
   if (c === 'granted = TRUE') return (r) => r.granted === true;
   if (c === "COALESCE(plan,'') <> 'game'") return (r) => (r.plan || '') !== 'game';
+  // prem-ээс хасах plan-ууд (тоглоом, слайд, ЭЕШ шалгагч, ЭЕШ багц — тус тусын савтай)
+  if ((m = c.match(/^COALESCE\(plan,''\) NOT IN \(((?:'\w+',?)+)\)$/))) {
+    const no = m[1].split(',').map((x) => x.replace(/'/g, ''));
+    return (r) => no.indexOf(r.plan || '') < 0;
+  }
+  if ((m = c.match(/^plan = '(\w+)'$/))) { const pl = m[1]; return (r) => r.plan === pl; }
   if ((m = c.match(/^created_at > NOW\(\) - INTERVAL '(\d+) days?'$/))) { const lim = Date.now() - Number(m[1]) * DAY; return (r) => tms(r) > lim; }
   if ((m = c.match(/^created_at >= \$(\d)::date$/))) { const t = Date.parse(p[Number(m[1]) - 1] + 'T00:00:00Z'); return (r) => tms(r) >= t; }
   if ((m = c.match(/^created_at < \(\$(\d)::date \+ INTERVAL '1 day'\)$/))) { const t = Date.parse(p[Number(m[1]) - 1] + 'T00:00:00Z') + DAY; return (r) => tms(r) < t; }
@@ -55,6 +64,8 @@ function tableRows(t) {
   if (t === 'pay_pending') return Array.from(F.db.pay.values());
   if (t === 'game_purchases') return F.db.purch;
   if (t === 'ws_admin_grants') return X.grants;
+  if (t === 'ws_ppt_purchases') return X.ppt;
+  if (t === 'ws_eyesh_purchases') return F.db.eyPurch;
   return unknown('table: ' + t);
 }
 const sumOf = (rows) => rows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
@@ -105,7 +116,7 @@ function adminQuery(q, p) {
       .map((g) => ({ email: g.email, grade: g.grade, months: g.months, note: g.note, created_at: new Date(g.created_at), game_key: g.game_key, realm: g.realm, days: g.days })) };
   }
   // ── тайлан: нийлбэр ──
-  if ((m = q.match(/^SELECT COUNT\(\*\)::int n, COALESCE\(SUM\(amount\),0\)::int s FROM (ws_purchases|pay_pending|game_purchases)(?: WHERE (.*))?$/))) {
+  if ((m = q.match(/^SELECT COUNT\(\*\)::int n, COALESCE\(SUM\(amount\),0\)::int s FROM (ws_purchases|pay_pending|game_purchases|ws_ppt_purchases|ws_eyesh_purchases)(?: WHERE (.*))?$/))) {
     const rows = tableRows(m[1]).filter(whereFn(m[2] || '', p));
     return { rows: [{ n: rows.length, s: sumOf(rows) }] };
   }
@@ -115,7 +126,7 @@ function adminQuery(q, p) {
     const re = /COALESCE\(\(SELECT SUM\(amount\) FROM (\w+) WHERE (.*?)\),0\)::int AS (\w+)/g;
     let c;
     while ((c = re.exec(m[1]))) cols.push({ t: c[1], w: c[2], as: c[3] });
-    if (cols.length !== 3) unknown('daily cols: ' + m[1]);
+    if (cols.length !== 5) unknown('daily cols: ' + m[1]);   // ws, prem, games, ppt, eyesh
     let days = [];
     if (m[2] === "NOW() - INTERVAL '29 days', NOW(), INTERVAL '1 day'") {
       for (let i = 29; i >= 0; i--) days.push(dayOf(Date.now() - i * DAY));
@@ -202,7 +213,7 @@ F.pool.query = async function (sql, p) {
 
 function xreset() {
   F.reset();
-  X.wsLogin.clear(); X.wsPurch.length = 0; X.grants.length = 0; X.wsLoginAt.length = 0; X.pin = null;
+  X.wsLogin.clear(); X.wsPurch.length = 0; X.grants.length = 0; X.wsLoginAt.length = 0; X.pin = null; X.ppt.length = 0;
   X.nextWs = 1; X.nextGrant = 1;
 }
 function wsLogin(email) { X.wsLogin.add(String(email).toLowerCase()); X.wsLoginAt.push(Date.now()); }
@@ -433,10 +444,10 @@ test('ws_report: ws / prem / games гурван сав; pay_pending-ийн plan=
 
   const r = await report();
   const w = r.win;
-  assert.deepStrictEqual(w.d1, { ws: { n: 1, sum: 39900 }, prem: { n: 0, sum: 0 }, games: { n: 1, sum: 1900 }, total: 41800 });
-  assert.deepStrictEqual(w.d7, { ws: { n: 1, sum: 39900 }, prem: { n: 1, sum: 9900 }, games: { n: 1, sum: 1900 }, total: 51700 });
-  assert.deepStrictEqual(w.d30, { ws: { n: 2, sum: 49800 }, prem: { n: 1, sum: 9900 }, games: { n: 1, sum: 1900 }, total: 61600 });
-  assert.deepStrictEqual(w.all, { ws: { n: 2, sum: 49800 }, prem: { n: 1, sum: 9900 }, games: { n: 2, sum: 3800 }, total: 63500 });
+  assert.deepStrictEqual(w.d1, win({ ws: { n: 1, sum: 39900 }, prem: { n: 0, sum: 0 }, games: { n: 1, sum: 1900 }, total: 41800 }));
+  assert.deepStrictEqual(w.d7, win({ ws: { n: 1, sum: 39900 }, prem: { n: 1, sum: 9900 }, games: { n: 1, sum: 1900 }, total: 51700 }));
+  assert.deepStrictEqual(w.d30, win({ ws: { n: 2, sum: 49800 }, prem: { n: 1, sum: 9900 }, games: { n: 1, sum: 1900 }, total: 61600 }));
+  assert.deepStrictEqual(w.all, win({ ws: { n: 2, sum: 49800 }, prem: { n: 1, sum: 9900 }, games: { n: 2, sum: 3800 }, total: 63500 }));
   Object.keys(w).forEach((k) => {
     assert.strictEqual(w[k].total, w[k].ws.sum + w[k].prem.sum + w[k].games.sum, k + ' total');
     assert.ok(!('game' in w[k]), k + ': хуучин "game" түлхүүр (Premium) prem болсон');
@@ -468,7 +479,7 @@ test('ws_report: сонгосон хугацаа (from/to) — game_purchases т
   const from = iso(Date.now() - 41 * DAY), to = iso(Date.now() - 39 * DAY);
   const r = await report({ from: to, to: from });   // урвуу өгсөн ч солигдоно
   assert.deepStrictEqual(r.range, { from: from, to: to });
-  assert.deepStrictEqual(r.win.custom, { ws: { n: 0, sum: 0 }, prem: { n: 0, sum: 0 }, games: { n: 2, sum: 3800 }, total: 3800 });
+  assert.deepStrictEqual(r.win.custom, win({ ws: { n: 0, sum: 0 }, prem: { n: 0, sum: 0 }, games: { n: 2, sum: 3800 }, total: 3800 }));
   assert.deepStrictEqual(r.byGame.map((x) => [x.game_key, x.realm, x.n, x.s]).sort(), [['chessmath', 'cm', 1, 1900], ['chessmath', 'ws', 1, 1900]]);
   assert.strictEqual(r.daily.length, 3);
   assert.ok(r.daily.every((x) => 'ws' in x && 'prem' in x && 'games' in x && !('game' in x)));
@@ -544,7 +555,7 @@ test('ledger heal: game_purchases бичигдээгүй төлсөн тогло
 
   r = await report();
   assert.strictEqual(r.games_healed, 1);
-  assert.deepStrictEqual(r.win.d1, { ws: { n: 0, sum: 0 }, prem: { n: 1, sum: 9900 }, games: { n: 1, sum: 1900 }, total: 11800 });
+  assert.deepStrictEqual(r.win.d1, win({ ws: { n: 0, sum: 0 }, prem: { n: 1, sum: 9900 }, games: { n: 1, sum: 1900 }, total: 11800 }));
   assert.deepStrictEqual(r.win.all.games, { n: 1, sum: 1900 });
   assert.strictEqual(r.daily[r.daily.length - 1].games, 1900);
   assert.deepStrictEqual(r.byGame.map((x) => [x.game_key, x.realm, x.n, x.s]), [['sudoku', 'ws', 1, 1900]]);

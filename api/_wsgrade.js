@@ -21,11 +21,12 @@ async function ensureGradeTable() {
 // Сар → хоног (12 сар = 365 хоног, бусад нь 30 хоногоор)
 function monthsToDays(months) { return months >= 12 ? 365 : months * 30; }
 
-async function grantGradeMonths(email, grade, months) {
+// db — транзакцын client (заавал биш; ЭЕШ багц api/qpay.js settleEeshPack). DDL (ensureGradeTable) нь pool-оор — транзакцаас өмнө дууд.
+async function grantGradeMonths(email, grade, months, db) {
   await ensureGradeTable();
   const exp = new Date();
   exp.setDate(exp.getDate() + monthsToDays(months));
-  await pool.query(
+  await (db || pool).query(
     `INSERT INTO ws_grade_access (email, grade, expires_at, updated_at) VALUES ($1,$2,$3,NOW())
      ON CONFLICT (email, grade) DO UPDATE
        SET expires_at = GREATEST(ws_grade_access.expires_at, EXCLUDED.expires_at), updated_at = NOW()`,

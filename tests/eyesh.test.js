@@ -367,7 +367,7 @@ test('status: токенгүй 401; эрхгүй → active:false, үнэ 9900, 
   assert.strictEqual(r.statusCode, 401);
   r = await E('status', { wstoken: wsTok('T@X.mn') });
   assert.strictEqual(r.statusCode, 200);
-  assert.deepStrictEqual(r.body, { ok: true, email: 't@x.mn', price: 9900, days: 30, expiry: null, active: false });
+  assert.deepStrictEqual(r.body, { ok: true, email: 't@x.mn', price: 9900, days: 30, expiry: null, active: false, pack_price: 19800 });
   r = await F.call(eyesh, { method: 'GET', query: { action: 'status' } });
   assert.strictEqual(r.statusCode, 405);
   r = await E('nope', { wstoken: wsTok('t@x.mn') });
@@ -439,6 +439,87 @@ test('QPay plan=eyesh: бүртгэл (ledger) унавал эрх олгогд�
   assert.strictEqual(r.statusCode, 200, JSON.stringify(r.body));
   assert.ok(r.body.granted.some((g) => g.plan === 'eyesh' && g.eyesh === true && g.email === 'b@x.mn'), JSON.stringify(r.body));
   near(daysLeft(F.db.eyAccess.get('b@x.mn')), 30);
+});
+
+test('QPay plan=eeshpack (ЭЕШ багц 19800): ЭЕШ ажлын хуудас 1 сар + ЭЕШ шалгагч 30 хоног НЭГ транзакцад; бүртгэл хоёр савд (9900 + 9900); давтан олгохгүй; wsstatus/status', async () => {
+  let r = await Q('create', { plan: 'eeshpack' });
+  assert.strictEqual(r.statusCode, 401); assert.strictEqual(r.body.needLogin, true);
+  assert.strictEqual(F.qp.invoices.length, 0);
+  // клиентийн amount/promo/email-д итгэхгүй
+  r = await Q('create', { plan: 'eeshpack', wstoken: wsTok('Bagsh@X.mn'), amount: 1, promo: 'BAGSH20', email: 'other@x.mn' });
+  assert.strictEqual(r.statusCode, 200, JSON.stringify(r.body));
+  assert.deepStrictEqual([r.body.email, r.body.amount, r.body.days, r.body.grade], ['bagsh@x.mn', 19800, 30, 'ЭЕШ']);
+  const inv = r.body.invoice.invoice_id;
+  assert.strictEqual(F.qp.invoices[0].body.amount, 19800);
+  assert.strictEqual(F.qp.invoices[0].body.invoice_description, 'CyberMath ЭЕШ багц (ажлын хуудас + ЭЕШ шалгагч) — 1 сар');
+  const row = F.db.pay.get(inv);
+  assert.deepStrictEqual([row.plan, row.months, row.amount, row.email, row.granted], ['eeshpack', 1, 19800, 'bagsh@x.mn', false]);
+
+  F.qp.paid.set(inv, 9900);                                       // дутуу (зөвхөн нэгийн үнэ)
+  r = await Q('check', { invoice_id: inv, email: 'bagsh@x.mn' });
+  assert.deepStrictEqual(r.body, { ok: true, paid: false });
+  assert.deepStrictEqual([F.db.eyAccess.size, F.db.wsGrade.length], [0, 0]);
+  F.qp.paid.set(inv, 19800);
+  r = await Q('check', { invoice_id: inv, email: 'bagsh@x.mn' });
+  assert.strictEqual(r.body.paid, true, JSON.stringify(r.body));
+  assert.strictEqual(r.body.grade, 'ЭЕШ');
+  near(daysLeft(r.body.expiry), 30); near(daysLeft(r.body.eyesh), 30);
+  assert.deepStrictEqual(F.db.wsGrade.map((x) => [x.email, x.grade]), [['bagsh@x.mn', 'ЭЕШ']]);
+  near(daysLeft(F.db.eyAccess.get('bagsh@x.mn')), 30);
+  // бүртгэл: ажлын хуудас (анги ЭЕШ) 9900 + ЭЕШ шалгагч 9900 = нэхэмжлэхийн 19800
+  assert.deepStrictEqual(F.db.wsPurch.map((x) => [x.email, x.amount, x.grade, x.invoice_id, x.months, x.promo]), [['bagsh@x.mn', 9900, 'ЭЕШ', inv, 1, null]]);
+  assert.deepStrictEqual(F.db.eyPurch, [{ invoice_id: inv, email: 'bagsh@x.mn', amount: 9900, days: 30 }]);
+  assert.ok(F.tg.some((t) => /ЭЕШ багц худалдан авлаа/.test(t) && /bagsh@x\.mn/.test(t) && /19800₮/.test(t)), F.tg.join('\n'));
+  assert.ok(!F.tg.some((t) => /Анхаар/.test(t)));
+  assert.deepStrictEqual(F.db.txLeaks, []);
+  assert.ok(F.db.txLog.indexOf('SAVEPOINT pack_ledger') >= 0, F.db.txLog.join(','));
+  // давтан check — дахин олгохгүй, ижил хугацаа
+  const e1 = r.body.eyesh, w1 = r.body.expiry;
+  r = await Q('check', { invoice_id: inv, email: 'bagsh@x.mn' });
+  assert.deepStrictEqual([r.body.paid, r.body.grade, r.body.eyesh, r.body.expiry], [true, 'ЭЕШ', e1, w1]);
+  assert.deepStrictEqual([F.db.wsPurch.length, F.db.eyPurch.length], [1, 1]);
+  // ЭЕШ шалгагч идэвхтэй; ЭЕШ хуудас ангийн эрхээр нээгдэнэ, багцын санал (pack) зөвхөн ЭЕШ бүлгийн хуудсанд
+  r = await E('status', { wstoken: wsTok('bagsh@x.mn') });
+  assert.deepStrictEqual([r.body.active, r.body.expiry, r.body.pack_price], [true, e1, 19800]);
+  r = await Q('wsstatus', { wstoken: wsTok('bagsh@x.mn'), slug: 'eesh-2025.html' });
+  assert.deepStrictEqual([r.body.active, r.body.scope, r.body.grade], [true, 'grade', 'ЭЕШ'], JSON.stringify(r.body));
+  assert.deepStrictEqual(r.body.pack, { price: 19800, days: 30, eyesh_price: 9900 });
+  r = await Q('wsstatus', { wstoken: wsTok('bagsh@x.mn'), slug: 'troichlen-zadlal-12.html' });
+  assert.strictEqual(r.body.active, false); assert.ok(!('pack' in r.body), JSON.stringify(r.body));
+  r = await Q('wsprices', {});
+  assert.strictEqual(r.body.pack_price, 19800);
+});
+
+test('QPay plan=eeshpack: бүртгэл унавал хоёр эрх олгогдоно (SAVEPOINT), Telegram анхааруулна; ws_reconcile нөхнө; EESH_PACK_PRICE', async () => {
+  F.db.failWsLedger = true;
+  let r = await Q('create', { plan: 'eeshpack', wstoken: wsTok('a@x.mn') });
+  const inv = r.body.invoice.invoice_id;
+  F.qp.paid.set(inv, 19800);
+  r = await Q('check', { invoice_id: inv, email: 'a@x.mn' });
+  assert.strictEqual(r.body.paid, true);
+  near(daysLeft(F.db.eyAccess.get('a@x.mn')), 30);
+  assert.deepStrictEqual(F.db.wsGrade.map((x) => x.grade), ['ЭЕШ']);
+  assert.deepStrictEqual([F.db.wsPurch.length, F.db.eyPurch.length], [0, 0], 'бүртгэл хоёулаа буцсан');
+  assert.ok(F.tg.some((t) => /Анхаар/.test(t) && /ws_purchases/.test(t)));
+  F.db.failWsLedger = false;
+  // Төлсөн атлаа check/callback ирээгүй нэхэмжлэх — тулгалт нөхнө
+  r = await Q('create', { plan: 'eeshpack', wstoken: wsTok('b@x.mn') });
+  const inv2 = r.body.invoice.invoice_id;
+  F.qp.paid.set(inv2, 19800);
+  r = await Q('ws_reconcile', {}, { headers: ADMIN });
+  assert.strictEqual(r.statusCode, 200, JSON.stringify(r.body));
+  assert.ok(r.body.granted.some((g) => g.plan === 'eeshpack' && g.eyesh === true && g.grade === 'ЭЕШ' && g.email === 'b@x.mn'), JSON.stringify(r.body));
+  near(daysLeft(F.db.eyAccess.get('b@x.mn')), 30);
+  // Үнийг env-ээр өөрчилж болно; бүртгэлд ЭЕШ шалгагч EYESH_PRICE, үлдэгдэл нь ажлын хуудас
+  process.env.EESH_PACK_PRICE = '15000';
+  try {
+    r = await Q('create', { plan: 'eeshpack', wstoken: wsTok('c@x.mn') });
+    assert.strictEqual(r.body.amount, 15000);
+    F.qp.paid.set(r.body.invoice.invoice_id, 15000);
+    await Q('check', { invoice_id: r.body.invoice.invoice_id, email: 'c@x.mn' });
+    assert.deepStrictEqual(F.db.wsPurch.filter((x) => x.email === 'c@x.mn').map((x) => x.amount), [5100]);
+    assert.deepStrictEqual(F.db.eyPurch.filter((x) => x.email === 'c@x.mn').map((x) => x.amount), [9900]);
+  } finally { delete process.env.EESH_PACK_PRICE; }
 });
 
 test('handoff → redeem: код нэг удаа, хугацаатай; эрхгүй ч код өгнө (eyeshcheck өөрөө шалгана)', async () => {

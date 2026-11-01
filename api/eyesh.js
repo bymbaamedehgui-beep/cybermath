@@ -51,7 +51,7 @@ module.exports = async (req, res) => {
     if (action === 'status') {
       if (!(await rateLimit('eyesh_st:' + em.slice(0, 254), 120, 600))) return res.status(429).json({ ok: false, error: TOO_MANY });
       const exp = await EY.expiry(em);
-      return res.json({ ok: true, email: em, price: EY.eyeshPrice(), days: EY.EYESH_DAYS, expiry: exp, active: !!exp });
+      return res.json({ ok: true, email: em, price: EY.eyeshPrice(), days: EY.EYESH_DAYS, expiry: exp, active: !!exp, pack_price: EY.packPrice() });
     }
     if (action === 'handoff') {
       if (!(await rateLimit('eyesh_ho:' + em.slice(0, 254), 30, 600)) || !(await rateLimit('eyesh_ho_ip:' + clientIp(req), 120, 600)))

@@ -212,7 +212,9 @@ async function revReport(opts) {
   const healed = gamesOk ? await healGameLedger() : 0;
   // Слайдын сагс (plan='ppt') ч prem-д орохгүй — ws_ppt_purchases-аас «ppt» савд тоологдоно.
   // ЭЕШ шалгагч (plan='eyesh') мөн адил — ws_eyesh_purchases-аас «eyesh» савд.
-  const NO_PREM_GAME = "granted = TRUE AND COALESCE(plan,'') NOT IN ('game','ppt','eyesh')";
+  // ЭЕШ багц (plan='eeshpack') — дүн нь ws_purchases (анги 'ЭЕШ') ба ws_eyesh_purchases-д хуваагдан бичигдсэн тул prem-д ОРОХГҮЙ;
+  // eeshpack нь зөвхөн мэдээлэл (тоо, дүн) — нийлбэрт нэмэгдэхгүй.
+  const NO_PREM_GAME = "granted = TRUE AND COALESCE(plan,'') NOT IN ('game','ppt','eyesh','eeshpack')";
   let pptOk = true;
   try { await PP.ensure(); } catch (e) { pptOk = false; console.error('[report ppt]', e.message); }
   let eyOk = true;
@@ -225,12 +227,15 @@ async function revReport(opts) {
     const gm = await gq('SELECT COUNT(*)::int n, COALESCE(SUM(amount),0)::int s FROM game_purchases ' + where, params, [{ n: 0, s: 0 }]);
     const pp = pptOk ? await pool.query('SELECT COUNT(*)::int n, COALESCE(SUM(amount),0)::int s FROM ws_ppt_purchases ' + where, params) : { rows: [{ n: 0, s: 0 }] };
     const ey = eyOk ? await pool.query('SELECT COUNT(*)::int n, COALESCE(SUM(amount),0)::int s FROM ws_eyesh_purchases ' + where, params) : { rows: [{ n: 0, s: 0 }] };
+    const pk = await pool.query("SELECT COUNT(*)::int n, COALESCE(SUM(amount),0)::int s FROM pay_pending "
+      + (where ? where + " AND granted = TRUE AND plan = 'eeshpack'" : "WHERE granted = TRUE AND plan = 'eeshpack'"), params);
     return {
       ws: { n: ws.rows[0].n, sum: ws.rows[0].s },
       prem: { n: pr.rows[0].n, sum: pr.rows[0].s },
       games: { n: gm.rows[0].n, sum: gm.rows[0].s },
       ppt: { n: pp.rows[0].n, sum: pp.rows[0].s },
       eyesh: { n: ey.rows[0].n, sum: ey.rows[0].s },
+      eeshpack: { n: pk.rows[0].n, sum: pk.rows[0].s },   // мэдээлэл: ws + eyesh савд аль хэдийн орсон
       total: ws.rows[0].s + pr.rows[0].s + gm.rows[0].s + pp.rows[0].s + ey.rows[0].s,
     };
   }
@@ -284,7 +289,7 @@ async function revReport(opts) {
            byGame: byGame.rows.map(function (x) { return Object.assign({ title: gTitle(x.game_key) }, x); }),
            grants: grants.rows.map(function (x) { return x.game_key ? Object.assign({ game_title: gTitle(x.game_key) }, x) : x; }),
            game_price: GM.gamePrice(), ppt_price: PP.pptPrice(), ppt_err: !pptOk || undefined, games_err: !gamesOk || undefined, games_healed: healed || undefined,
-           eyesh_price: EY.eyeshPrice(), eyesh_err: !eyOk || undefined,
+           eyesh_price: EY.eyeshPrice(), eyesh_err: !eyOk || undefined, pack_price: EY.packPrice(),
            range: custom ? { from: from, to: to } : null };
 }
 
@@ -770,6 +775,57 @@ async function settleEyesh(row, email) {
     (ledgerOk ? '' : '\n<b>Анхаар:</b> борлуулалтын бүртгэл (ws_eyesh_purchases) бичигдсэнгүй — ' + escTg(row.invoice_id)));
   return { granted: true, out: { ok: true, paid: true, eyesh: exp } };
 }
+// ЭЕШ багц (plan='eeshpack'): claim + ЭЕШ ажлын хуудас (ws_grade_access 'ЭЕШ', 1 сар) + ЭЕШ шалгагч (ws_eyesh_access +30 хоног)
+// НЭГ транзакцад — хоёулаа олгогдох эсвэл аль нь ч үгүй. Бүртгэл: дүнг хоёр савд хуваана — ws_eyesh_purchases (EYESH_PRICE,
+// дүнгээс хэтрэхгүй) ба ws_purchases (анги 'ЭЕШ', үлдэгдэл), нийлбэр = нэхэмжлэхийн дүн (prem-д орохгүй — NO_PREM_GAME).
+// Бүртгэл SAVEPOINT-оор тусгаарлагдана (мөнгө авсан тул эрх олгогдоно, дутсаныг Telegram-аар мэдэгдэнэ).
+const PACK_WS_SQL = `INSERT INTO ws_purchases (email, amount, promo, invoice_id, months, grade) VALUES ($1,$2,$3,$4,$5,$6)
+     ON CONFLICT (invoice_id) DO NOTHING RETURNING id`;
+async function settleEeshPack(row, email) {
+  // DDL транзакцаас ӨМНӨ (ws_purchases, ws_grade_access, ЭЕШ шалгагчийн хүснэгтүүд)
+  await EY.ensure(); await WG.ensureGradeTable(); await ensureWsExtra();
+  const amount = row.amount | 0, eyAmt = Math.min(EY.eyeshPrice(), amount), wsAmt = amount - eyAmt;
+  const client = await pool.connect();
+  let claimed = false, wsExp = null, eyExp = null, ledgerOk = true;
+  try {
+    await client.query('BEGIN');
+    claimed = await claimPending('pay_pending', row.invoice_id, client);
+    if (claimed) {
+      wsExp = (await WG.grantGradeMonths(email, EY.PACK_GRADE, 1, client)).toISOString();
+      eyExp = await EY.grant(email, EY.EYESH_DAYS, client);
+      await client.query('SAVEPOINT pack_ledger');
+      try {
+        await client.query(PACK_WS_SQL, [email, wsAmt, null, row.invoice_id, 1, EY.PACK_GRADE]);
+        await EY.record({ invoice_id: row.invoice_id, email: email, amount: eyAmt, days: EY.EYESH_DAYS }, client);
+        await client.query('RELEASE SAVEPOINT pack_ledger');
+      } catch (e) {
+        ledgerOk = false;
+        console.error('[eeshpack ledger]', row.invoice_id, e.message);
+        await client.query('ROLLBACK TO SAVEPOINT pack_ledger');
+      }
+    }
+    await client.query('COMMIT');
+  } catch (e) {
+    let broken;
+    try { await client.query('ROLLBACK'); } catch (re) { broken = re; }
+    client.release(broken);
+    throw e;
+  }
+  client.release();
+  if (!claimed) {
+    let ey = null, ws = null;
+    try { ey = await EY.expiry(email); } catch (e) { console.error('[eeshpack eyesh expiry]', e.message); }
+    try {
+      const g = (await WG.activeGrades(email)).filter(function (x) { return x.grade === EY.PACK_GRADE; })[0];
+      if (g) ws = new Date(g.expires_at).toISOString();
+    } catch (e) { console.error('[eeshpack grade expiry]', e.message); }
+    return { granted: false, out: { ok: true, paid: true, grade: EY.PACK_GRADE, expiry: ws, eyesh: ey } };
+  }
+  await notifyTelegram('<b>ЭЕШ багц худалдан авлаа</b>\n' + escTg(email) + '\n' + escTg(amount) + '₮ · ажлын хуудас ' +
+    wsExp.slice(0, 10) + ' хүртэл · ЭЕШ шалгагч ' + eyExp.slice(0, 10) + ' хүртэл' +
+    (ledgerOk ? '' : '\n<b>Анхаар:</b> борлуулалтын бүртгэл (ws_purchases, ws_eyesh_purchases) бичигдсэнгүй — ' + escTg(row.invoice_id)));
+  return { granted: true, out: { ok: true, paid: true, grade: EY.PACK_GRADE, expiry: wsExp, eyesh: eyExp } };
+}
 // Premium / friends / event / game нэхэмжлэхийг ХАДГАЛСАН мөрөөр НЭГ УДАА олгоно.
 // Буцаах: { granted: энэ дуудлага эрх олгосон эсэх, out: клиентийн хариу (бүтэц хуучинтай ижил) }
 // ДЕПЛОЙН АНХААРУУЛГА (rollback): энэ салбараас өмнөх хувилбар (origin/main) 'event'-ээс бусад бүх мөрийг Premium гэж олгодог.
@@ -780,7 +836,7 @@ async function settleEyesh(row, email) {
 async function settlePay(row) {
   const email = String(row.email).trim().toLowerCase();
   // Буруу/үл мэдэгдэх мөрийг claim хийхээс ӨМНӨ татгалзана — granted=FALSE хэвээр, админ тулгаж шалгана
-  if (row.plan !== 'event' && row.plan !== 'game' && row.plan !== 'ppt' && row.plan !== 'eyesh' && PAY_PREMIUM_PLANS.indexOf(row.plan) < 0) {
+  if (row.plan !== 'event' && row.plan !== 'game' && row.plan !== 'ppt' && row.plan !== 'eyesh' && row.plan !== 'eeshpack' && PAY_PREMIUM_PLANS.indexOf(row.plan) < 0) {
     console.error('[qpay settle] үл мэдэгдэх plan — эрх олгохгүй', row.invoice_id, row.plan);
     throw new Error('Тариф буруу (' + String(row.plan).slice(0, 20) + ')');
   }
@@ -792,6 +848,8 @@ async function settlePay(row) {
   if (row.plan === 'ppt') return settlePpt(row, email);
   // ЭЕШ шалгагч: мөн адил НЭГ транзакцад (settleEyesh)
   if (row.plan === 'eyesh') return settleEyesh(row, email);
+  // ЭЕШ багц (ажлын хуудас + шалгагч): мөн адил НЭГ транзакцад (settleEeshPack)
+  if (row.plan === 'eeshpack') return settleEeshPack(row, email);
   // Тоглоом: claim нь олголттой НЭГ транзакцад (settleGame) — энд autocommit-оор claim хийхгүй
   if (row.plan === 'game') return settleGame(row, email);
   const claimed = await claimPending('pay_pending', row.invoice_id);
@@ -954,6 +1012,7 @@ module.exports = async (req, res) => {
       const isGamePlan = plan === 'game';
       const isPptPlan = plan === 'ppt';
       const isEyeshPlan = plan === 'eyesh';
+      const isPackPlan = plan === 'eeshpack';   // ЭЕШ багц: ЭЕШ ажлын хуудас 1 сар + ЭЕШ шалгагч 30 хоног
       let email;
       let pptIds = null;
       // Тоглоом — 1 тоглоом × 30 хоног. realm-ээр имэйлийг ЗӨВХӨН тухайн сайтын токеноос авна:
@@ -1025,6 +1084,14 @@ module.exports = async (req, res) => {
         if (!email) return res.status(401).json({ ok: false, needLogin: true, error: 'Худалдан авахын тулд эхлээд нэвтэрнэ үү.' });
         if (!(await rateLimit('eyesh_inv:' + email.slice(0, 254), 20, 600)))
           return res.status(429).json({ ok: false, error: 'Хэт олон оролдлого. Түр хүлээгээд дахин оролдоно уу.' });
+      } else if (isPackPlan) {
+        // ЭЕШ багц — зөвхөн Дасгалын төвийн нэвтэрсэн данс (ws токен). Үнэ = EESH_PACK_PRICE (серверт), 1 сар; промо хамаарахгүй.
+        // Каталогт «ЭЕШ» бүлэг байхгүй бол (олгож чадахгүй эрхэнд) мөнгө авахгүй.
+        email = GM.normEmail(emailFromToken((req.body || {}).wstoken));
+        if (!email) return res.status(401).json({ ok: false, needLogin: true, error: 'Худалдан авахын тулд эхлээд нэвтэрнэ үү.' });
+        if (!wsGradeOk(EY.PACK_GRADE)) return res.status(400).json({ ok: false, error: 'ЭЕШ багц одоогоор боломжгүй' });
+        if (!(await rateLimit('eeshpack_inv:' + email.slice(0, 254), 20, 600)))
+          return res.status(429).json({ ok: false, error: 'Хэт олон оролдлого. Түр хүлээгээд дахин оролдоно уу.' });
       } else if (isWsPlan) {
         // Ажлын хуудасны эрхийг зөвхөн НЭВТЭРСЭН данс худалдан авна (H6): имэйлийг ЗӨВХӨН ws токеноос авна,
         // body.email-д огт итгэхгүй. Тоглоомын токен хүчингүй (emailFromToken нь ws:true шаардана).
@@ -1036,7 +1103,7 @@ module.exports = async (req, res) => {
       }
       const emailLc = email.trim().toLowerCase();
       const premiumPlan = premiumPlanNorm(plan);
-      if (!premiumPlan && ['wsyear', 'wsmonths', 'wsgrade', 'event', 'game', 'ppt', 'eyesh'].indexOf(plan) < 0)
+      if (!premiumPlan && ['wsyear', 'wsmonths', 'wsgrade', 'event', 'game', 'ppt', 'eyesh', 'eeshpack'].indexOf(plan) < 0)
         return res.status(400).json({ ok: false, error: 'Тариф буруу байна' });
 
       // Email-ыг богиносгож аюулгүй болгох — QPay-н sender_invoice_no/customer_code 45 тэмдэгт хязгаартай
@@ -1081,6 +1148,7 @@ module.exports = async (req, res) => {
 
       const desc = isPptPlan ? `CyberMath слайд хичээл — ${pptIds.length} ш — 1 сар`
                  : isEyeshPlan ? 'CyberMath ЭЕШ шалгагч — 1 сар'
+                 : isPackPlan ? 'CyberMath ЭЕШ багц (ажлын хуудас + ЭЕШ шалгагч) — 1 сар'
                  : isGamePlan ? `CyberMath тоглоом — ${GM.GAMES[gameKey].title}${gameGrade ? ' — ' + gameGrade + '-р анги' : ''} — 1 сар`.slice(0, 100)
                  : wgGrade != null ? `CyberMath ${wgGrade} — ${wgMonths} сар`.slice(0, 100)
                  : wsMonths != null ? `CyberMath Ажлын хуудас — ${wsMonths} сар`
@@ -1112,6 +1180,8 @@ module.exports = async (req, res) => {
         invAmount = PP.pptPrice() * pptIds.length;   // 1 хичээл × 1 сар; промо хамаарахгүй
       } else if (isEyeshPlan) {
         invAmount = EY.eyeshPrice();                 // 1 сар; промо хамаарахгүй
+      } else if (isPackPlan) {
+        invAmount = EY.packPrice();                  // 1 сар; промо хамаарахгүй
       }
 
       const token = await getToken();
@@ -1155,6 +1225,12 @@ module.exports = async (req, res) => {
               `INSERT INTO pay_pending (invoice_id, email, plan, months, amount, event_id) VALUES ($1,$2,'eyesh',1,$3,NULL)
                ON CONFLICT (invoice_id) DO NOTHING`,
               [invoice.invoice_id, emailLc, invAmount]);
+          } else if (isPackPlan) {
+            await ensurePayPending();
+            await pool.query(
+              `INSERT INTO pay_pending (invoice_id, email, plan, months, amount, event_id) VALUES ($1,$2,$3,$4,$5,$6)
+               ON CONFLICT (invoice_id) DO NOTHING`,
+              [invoice.invoice_id, emailLc, 'eeshpack', 1, invAmount, null]);
           } else if (isGamePlan) {
             await ensurePayPending();
             await pool.query(
@@ -1185,6 +1261,7 @@ module.exports = async (req, res) => {
       if (isGamePlan) return res.json({ ok: true, invoice, email: emailLc, game: gameKey, realm: gameRealm, amount: invAmount, grade: gameGrade });
       if (isPptPlan) return res.json({ ok: true, invoice, email: emailLc, ids: pptIds, amount: invAmount });
       if (isEyeshPlan) return res.json({ ok: true, invoice, email: emailLc, amount: invAmount, days: EY.EYESH_DAYS });
+      if (isPackPlan) return res.json({ ok: true, invoice, email: emailLc, amount: invAmount, days: EY.EYESH_DAYS, grade: EY.PACK_GRADE });
       return res.json(isWsPlan ? { ok: true, invoice, email: emailLc } : { ok: true, invoice });
     }
 
@@ -1267,7 +1344,7 @@ module.exports = async (req, res) => {
     if (req.query.action === 'wsprices') {
       return res.json({ ok: true, prices: WS_PRICES, months: WS_MONTHS,
         grade_prices: wsGradePrices(), grade_months: WS_GRADE_MONTHS,
-        grade_per_month: WS_GRADE_PER_MONTH, grades: WG.allGrades() });
+        grade_per_month: WS_GRADE_PER_MONTH, grades: WG.allGrades(), pack_price: EY.packPrice() });
     }
 
     // Азтаны хүрд — нүднүүдийн шошго (клиент ижил дарааллаар зурна)
@@ -1404,6 +1481,7 @@ module.exports = async (req, res) => {
               if (row.plan === 'game') { g.game = row.game_key; g.realm = row.realm; if (GM.normGrade(row.game_grade)) g.grade = GM.normGrade(row.game_grade); }
               if (row.plan === 'ppt') g.ppt = row.ppt_ids;
               if (row.plan === 'eyesh') g.eyesh = true;
+              if (row.plan === 'eeshpack') { g.eyesh = true; g.grade = EY.PACK_GRADE; }
               granted.push(g);
             }
           } catch (e) { console.error('[reconcile pay row]', row.invoice_id, e.message); }
@@ -1823,6 +1901,8 @@ module.exports = async (req, res) => {
       const gradePrices = { grade: offerGrade, grade_prices: wsGradePrices(),
         grade_months: WS_GRADE_MONTHS, grade_per_month: WS_GRADE_PER_MONTH,
         prices: WS_PRICES, months: WS_MONTHS };
+      // ЭЕШ бүлгийн хуудсанд «ЭЕШ багц» (ажлын хуудас + ЭЕШ шалгагч, 1 сар) — ws-store.js-ийн гурав дахь сонголт
+      if (offerGrade === EY.PACK_GRADE) gradePrices.pack = { price: EY.packPrice(), days: EY.EYESH_DAYS, eyesh_price: EY.eyeshPrice() };
 
       /* ── Төхөөрөмж (api/_wsdev.js) ── анхдагчаар хязгааргүй: зөвхөн бүртгэнэ. env WS_DEVICE_LIMIT=on үед л нэг имэйл →
          дээд тал нь MAX_DEVICES төхөөрөмж, токенд dev байвал одоогийн төхөөрөмжтэй ТААРАХ ёстой (токен хуулахыг таслана). */

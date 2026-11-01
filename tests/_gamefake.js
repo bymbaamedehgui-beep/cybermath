@@ -65,6 +65,7 @@ const db = {
   eyPurch: [],          // ws_eyesh_purchases [{invoice_id, email, amount, days}]
   eyHand: new Map(),    // ws_eyesh_handoff code_hash → {email, exam, material, expires_at(ms)}
   failEyLedger: false,  // ws_eyesh_purchases INSERT алдаа (SAVEPOINT шалгах)
+  failWsLedger: false,  // ws_purchases INSERT алдаа (ЭЕШ багцын бүртгэл, SAVEPOINT шалгах)
 };
 // ws_trials / ws_trial_marks / ws_trial_cfg (tests/_trialfake.js): db.trial.trials, db.trial.marks, db.trial.cfgFrom,
 // db.trial.shift (DB NOW шилжилт), db.trial.fail. PRIOR: db.wsLogin (ижил утас) + db.devices (ws_devices).
@@ -224,6 +225,21 @@ async function query(sql, p, tx) {
     const r = db.eyHand.get(p[0]); if (!r) return { rows: [] };
     db.eyHand.delete(p[0]);
     return { rows: [{ email: r.email, exam: r.exam, material: r.material == null ? null : r.material, live: r.expires_at > now() }] };
+  }
+  // ── ЭЕШ багц (api/qpay.js settleEeshPack): ангийн эрх (api/_wsgrade.js grantGradeMonths) + ажлын хуудасны бүртгэл, транзакц дотор ──
+  if (q === 'INSERT INTO ws_grade_access (email, grade, expires_at, updated_at) VALUES ($1,$2,$3,NOW()) ON CONFLICT (email, grade) DO UPDATE SET expires_at = GREATEST(ws_grade_access.expires_at, EXCLUDED.expires_at), updated_at = NOW()') {
+    const e = lc(p[0]), g = String(p[1]), exp = new Date(p[2]);
+    const old = db.wsGrade.find(function (r) { return r.email === e && r.grade === g; });
+    if (old) { const was = old.expires_at; old.expires_at = new Date(Math.max(new Date(was).getTime(), exp.getTime())); undo(function () { old.expires_at = was; }); }
+    else { const row = { email: e, grade: g, expires_at: exp }; db.wsGrade.push(row); undo(function () { const i = db.wsGrade.indexOf(row); if (i >= 0) db.wsGrade.splice(i, 1); }); }
+    return { rows: [] };
+  }
+  if (q === 'INSERT INTO ws_purchases (email, amount, promo, invoice_id, months, grade) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (invoice_id) DO NOTHING RETURNING id') {
+    if (db.failWsLedger) throw dbErr('ledger down', '42P01');
+    if (db.wsPurch.some(function (r) { return r.invoice_id === p[3]; })) return { rows: [] };
+    const row = { id: db.nextId++, email: p[0], amount: p[1], promo: p[2], invoice_id: p[3], months: p[4], grade: p[5] };
+    db.wsPurch.push(row); undo(function () { const i = db.wsPurch.indexOf(row); if (i >= 0) db.wsPurch.splice(i, 1); });
+    return { rows: [{ id: row.id }] };
   }
   if (q === 'SELECT name FROM ws_login WHERE lower(email)=$1 LIMIT 1') {
     const w = db.wsLogin.get(lc(p[0])); return { rows: w ? [{ name: w.name == null ? null : w.name }] : [] };
@@ -592,7 +608,7 @@ function reset() {
   process.env.GAME_PAYWALL = 'on';
   process.env.GAME_PAYWALL_REALMS = 'ws,cm';
   db.wsLogin.clear(); db.wsGrade.length = 0; db.wsPurch.length = 0; db.admGrants.length = 0; db.trial.reset();
-  db.eyAccess.clear(); db.eyPurch.length = 0; db.eyHand.clear(); db.failEyLedger = false;
+  db.eyAccess.clear(); db.eyPurch.length = 0; db.eyHand.clear(); db.failEyLedger = false; db.failWsLedger = false;
   process.env.WS_TRIAL_SECONDS = '0'; delete process.env.WS_TRIAL_FROM; delete process.env.WS_TRIAL_IP_DAY; delete process.env.VERCEL_ENV; delete process.env.AWS_LAMBDA_FUNCTION_NAME;
 }
 function addUser(email, o) {

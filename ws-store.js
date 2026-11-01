@@ -264,6 +264,8 @@
     var LABEL={1:'1 сар',3:'3 сар',6:'6 сар',9:'9 сар',12:'1 жил'};
     var LABD ={1:'1 сард',3:'3 сард',6:'6 сард',9:'9 сард',12:'1 жилд'};   // өгөх оршихын тийн ялгал
     var PLAN='all', GRADE=null, applied=false, lastPlan=null;
+    // ЭЕШ багц (ЭЕШ ажлын хуудас + ЭЕШ шалгагч, 1 сар) — сервер зөвхөн ЭЕШ бүлгийн хуудсанд d.pack буцаана (api/qpay.js wsstatus)
+    var PACK=null;
     // "6-р анги" → "6-р ангийн", "ЭЕШ" → "ЭЕШ-ийн" (харьяалахын тийн ялгал)
     function gGen(g){ g=String(g||''); if(/анги$/.test(g))return g.replace(/анги$/,'ангийн'); if(/хэл$/.test(g))return g+'ний'; return g?g+'-ийн':g; }
     var selMonths=3, appliedPromo=null, curPct=0;
@@ -271,8 +273,8 @@
     var planRow=o.querySelector('#wsPlan'), durRow=o.querySelector('#wsDur');
     var promoIn=o.querySelector('#wsPromo'),promoBtn=o.querySelector('#wsPromoBtn'),promoMsg=o.querySelector('#wsPromoMsg');
     var subEl=o.querySelector('#wsSubTitle');
-    function prices(){ return PLAN==='grade'?P_GR:P_ALL; }
-    function monthsList(){ return PLAN==='grade'?M_GR:M_ALL; }
+    function prices(){ return PLAN==='pack'&&PACK?{1:PACK.price}:PLAN==='grade'?P_GR:P_ALL; }
+    function monthsList(){ return PLAN==='pack'?[1]:PLAN==='grade'?M_GR:M_ALL; }
     function planBtnCss(on){
       return 'flex:1;min-width:0;cursor:pointer;font-weight:800;font-size:.84rem;border-radius:12px;padding:.55rem .3rem;line-height:1.25;transition:.12s;'
         +(on?'border:1.8px solid #7B52EE;background:#f4efff;color:#5a32d6;box-shadow:0 4px 12px -8px rgba(123,82,238,.9)'
@@ -283,6 +285,7 @@
       planRow.style.display='flex';
       planRow.innerHTML=''
         +'<button type="button" class="wsp" data-p="grade">'+esc(GRADE)+'<div style="font-weight:700;font-size:.72rem;opacity:.8">сард '+fmt(P_GR[1]||9900)+'₮</div></button>'
+        +(PACK?'<button type="button" class="wsp" data-p="pack">ЭЕШ багц<div style="font-weight:700;font-size:.72rem;opacity:.8">'+fmt(PACK.price)+'₮ · +шалгагч</div></button>':'')
         +'<button type="button" class="wsp" data-p="all">Бүх анги<div style="font-weight:700;font-size:.72rem;opacity:.8">6–12-р анги</div></button>';
       [].forEach.call(planRow.querySelectorAll('.wsp'),function(b){
         b.onclick=function(){ setPlan(b.getAttribute('data-p')); };
@@ -318,15 +321,22 @@
       else if(p!==lastPlan)selMonths=ml[0];                   // багц солигдвол хамгийн богиноос эхэлнэ
       else if(ml.indexOf(selMonths)<0)selMonths=ml[0];
       lastPlan=p;
-      if(subEl)subEl.innerHTML=(PLAN==='grade'&&GRADE)
+      if(subEl)subEl.innerHTML=(PLAN==='pack'&&PACK)
+        ? ('<b>'+esc(gGen(GRADE||'ЭЕШ'))+'</b> бүх ажлын хуудас + <b>ЭЕШ шалгагч</b> (eyeshcheck.com) — хариултын хуудсыг утсаар уншуулж дүгнэнэ')
+        : (PLAN==='grade'&&GRADE)
         ? ('<b>'+esc(gGen(GRADE))+'</b> бүх ажлын хуудсыг сонгосон хугацаанд <b>хязгааргүй</b>')
         : 'Бүх ажлын хуудсыг сонгосон хугацаанд <b>хязгааргүй</b> ашиглах';
+      // ЭЕШ багцад урамшууллын код хамаарахгүй (үнэ серверт тогтмол)
+      var promoOn=PLAN!=='pack';
+      if(promoIn&&promoIn.parentNode)promoIn.parentNode.style.display=promoOn?'flex':'none';
+      if(promoMsg)promoMsg.style.display=promoOn?'':'none';
       stylePlans(); buildDur(); renderPrice();
     }
     function renderPrice(){
-      var base=prices()[selMonths]||0, price=curPct>0?Math.round(base*(100-curPct)/100):base;
+      var pct=PLAN==='pack'?0:curPct;
+      var base=prices()[selMonths]||0, price=pct>0?Math.round(base*(100-pct)/100):base;
       var per='<span style="font-size:.86rem;color:#7a7390;font-weight:700">/ '+LABEL[selMonths]+'</span>';
-      if(curPct>0){
+      if(pct>0){
         priceBox.innerHTML='<span style="text-decoration:line-through;color:#b3a9cf;font-size:1.05rem;font-weight:800">'+fmt(base)+'₮</span> '+fmt(price)+'₮ '+per+' <span style="display:inline-block;background:#dcfce7;color:#16a34a;font-size:.72rem;font-weight:800;border-radius:999px;padding:2px 8px;vertical-align:middle">-'+curPct+'%</span>';
       } else { priceBox.innerHTML=fmt(base)+'₮ '+per; }
       renderCmp(price);
@@ -334,6 +344,12 @@
     // Шударга харьцуулалт — ЯГ ИЖИЛ хугацаанд бүх анги хэдэд болохыг харуулна
     function renderCmp(gradePrice){
       if(!cmpBox)return;
+      if(PLAN==='pack'&&PACK){                                 // багцын бүрэлдэхүүн
+        var eyP=PACK.eyesh_price||0, wsP=Math.max(0,PACK.price-eyP);
+        cmpBox.innerHTML='<span style="display:inline-block;font-weight:800;border-radius:9px;padding:5px 9px;background:#f6f3ff;border:1px solid #e7ddff;color:#5a32d6">'
+          +'Ажлын хуудас '+fmt(wsP)+'₮ + ЭЕШ шалгагч '+fmt(eyP)+'₮</span>';
+        return;
+      }
       if(PLAN!=='grade'||!GRADE){ cmpBox.innerHTML=''; return; }
       var allBase=P_ALL[selMonths];
       if(!allBase){                                            // тэр хугацаанд бүх ангийн багц байхгүй
@@ -401,6 +417,7 @@
         if(d.grade_prices)P_GR=d.grade_prices;
         if(d.grade_months&&d.grade_months.length)M_GR=d.grade_months;
         if(d.grade)GRADE=d.grade;
+        PACK=(d.pack&&d.pack.price>0)?d.pack:null;
       }
       // «Анги бүрийн эхний хуудас үнэгүй» — зөвхөн дугаартай ангид үнэн (ЭЕШ г.м. бүлэгт үнэгүй хуудас алга)
       var fnote=o.querySelector('#wsFreeNote'); if(fnote)fnote.style.display=(GRADE&&!/\d/.test(GRADE))?'none':'';
@@ -437,9 +454,9 @@
       if(!wt){ needLoginToBuy(); return; }                      // нэвтрээгүй — нэхэмжлэх үүсгэхгүй
       this.disabled=true;this.textContent='Нэхэмжлэх үүсгэж байна…';var btn=this;
       function resetBtn(){btn.disabled=false;btn.textContent='QPay-аар худалдан авах';}
-      var PAY=(PLAN==='grade'&&GRADE)?{plan:'wsgrade',grade:GRADE}:{plan:'wsmonths'};
-      // Имэйл илгээхгүй — сервер токеноос тодорхойлно
-      fetch('/api/qpay?action=create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({wstoken:wt,plan:PAY.plan,grade:PAY.grade,months:selMonths,promo:appliedPromo})})
+      var PAY=(PLAN==='pack'&&PACK)?{plan:'eeshpack'}:(PLAN==='grade'&&GRADE)?{plan:'wsgrade',grade:GRADE}:{plan:'wsmonths'};
+      // Имэйл илгээхгүй — сервер токеноос тодорхойлно (ЭЕШ багцад промо илгээхгүй)
+      fetch('/api/qpay?action=create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({wstoken:wt,plan:PAY.plan,grade:PAY.grade,months:selMonths,promo:PAY.plan==='eeshpack'?null:appliedPromo})})
         .then(function(r){return r.json().then(function(d){return {s:r.status,d:d};},function(){return {s:r.status,d:null};});}).then(function(x){
           var d=x.d;
           if(x.s===401||(d&&d.needLogin)){ resetBtn(); needLoginToBuy(); return; }

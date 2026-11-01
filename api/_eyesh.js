@@ -21,6 +21,13 @@ function eyeshPrice() {
   const n = parseInt(process.env.EYESH_PRICE, 10);
   return Number.isFinite(n) && n >= 100 && n <= 1000000 ? n : 9900;
 }
+// ЭЕШ багц (api/qpay.js plan='eeshpack') — ЭЕШ ажлын хуудас (Дасгалын төвийн «ЭЕШ» бүлэг, ws_grade_access) 1 сар + ЭЕШ шалгагч
+// EYESH_DAYS хоног НЭГ нэхэмжлэхээр. Үнэ EESH_PACK_PRICE (анхдагч 19800₮ = 9900 + 9900). Тайланд дүнг хоёр савд хуваана.
+const PACK_GRADE = 'ЭЕШ';
+function packPrice() {
+  const n = parseInt(process.env.EESH_PACK_PRICE, 10);
+  return Number.isFinite(n) && n >= 100 && n <= 1000000 ? n : 19800;
+}
 
 let ready = null;
 function ensure() {
@@ -294,5 +301,5 @@ async function redeem(code) {
   return { email: row.email, exam: row.exam || null, material: row.material || null };
 }
 
-module.exports = { EYESH_DAYS, HANDOFF_SEC, SSO_URL, ADMIN_HANDOFF, ADMIN_URL, TOPICS, VAR_L, MATERIAL_MAX, eyeshPrice, ensure, expiry, grant, record,
+module.exports = { EYESH_DAYS, HANDOFF_SEC, SSO_URL, ADMIN_HANDOFF, ADMIN_URL, TOPICS, VAR_L, MATERIAL_MAX, eyeshPrice, PACK_GRADE, packPrice, ensure, expiry, grant, record,
                    normExam, normS2Item, normMaterial, createHandoff, redeem, codeHash, wsRef, EYC_TOPICS };
