@@ -8,6 +8,7 @@
 // Ажиллуулах: node --test tests/ws-trial.test.js   (бодит DB/QPay 0 — tests/_gamefake.js)
 'use strict';
 const F = require('./_gamefake');
+process.env.WS_DEVICE_LIMIT = 'on';   // төхөөрөмжийн хязгаартай орчинд (анхдагчаар унтраалттай); хязгааргүйг tests/ws-device.test.js
 const { test, beforeEach } = require('node:test');
 const assert = require('node:assert');
 const path = require('path');

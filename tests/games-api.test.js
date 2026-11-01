@@ -2,6 +2,7 @@
 // Ажиллуулах: node --test tests/games-api.test.js   (бодит DB/QPay/Telegram 0 — tests/_gamefake.js)
 'use strict';
 const F = require('./_gamefake');
+process.env.WS_DEVICE_LIMIT = 'on';   // төхөөрөмжийн хязгаарын (анхдагчаар унтраалттай) логикийг шалгана; хязгааргүйг tests/ws-device.test.js
 const { test, beforeEach } = require('node:test');
 const assert = require('node:assert');
 const path = require('path');

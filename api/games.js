@@ -31,7 +31,8 @@
 //        GAME_INVITE_DAILY (5) урилга) → { ok:true, game, realm, invite, expires_at, max_uses, guests, url }
 //        (url = найздаа илгээх харьцангуй холбоос)
 //
-// Дасгалын төвийн токен: 2 төхөөрөмжийн хязгаар (api/_wsdev.js checkReq — wsstatus-ийн логик) status/launch/invite бүгдэд.
+// Дасгалын төвийн токен: төхөөрөмжийн шалгалт (api/_wsdev.js checkReq — wsstatus-ийн логик; анхдагчаар хязгааргүй,
+// env WS_DEVICE_LIMIT=on үед л хаана) status/launch/invite бүгдэд.
 // DB алдаа → 503 (fail-closed). Төлбөр асаалттай эсэх нь realm-ээр: GM.paywallOn(realm) — env GAME_PAYWALL_REALMS
 // (тавиагүй → GM.DEFAULT_PAYWALL_REALMS = ['ws']: эхний ээлжинд Дасгалын төвд л), GAME_PAYWALL=off → бүгд нээлттэй.
 // Төлбөргүй realm-д launch нэвтрэлт шаардахгүй (via 'off'), файл тоглоомд gate түгжээтэй үед л тасалбар (launchOut).

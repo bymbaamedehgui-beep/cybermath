@@ -1824,9 +1824,8 @@ module.exports = async (req, res) => {
         grade_months: WS_GRADE_MONTHS, grade_per_month: WS_GRADE_PER_MONTH,
         prices: WS_PRICES, months: WS_MONTHS };
 
-      /* ── Нэг имэйл → дээд тал нь 4 төхөөрөмж ──
-         Токенд dev байвал одоогийн төхөөрөмжтэй ТААРАХ ёстой (токен хуулахыг таслана).
-         dev-гүй хуучин токен бол сул байр байвал энэ төхөөрөмжийг бүртгэнэ. */
+      /* ── Төхөөрөмж (api/_wsdev.js) ── анхдагчаар хязгааргүй: зөвхөн бүртгэнэ. env WS_DEVICE_LIMIT=on үед л нэг имэйл →
+         дээд тал нь MAX_DEVICES төхөөрөмж, токенд dev байвал одоогийн төхөөрөмжтэй ТААРАХ ёстой (токен хуулахыг таслана). */
       // Үнэгүй туршилтын төхөөрөмж (api/_wstrial.js): толгой, байхгүй бол токены dev — толгойгүй хүсэлт «нэг төхөөрөмж =
       // нэг туршилт» / PRIOR dev шалгалтыг алгасахгүй. Толгой≠токен бол доор хаана (туршилт хүртэл хүрэхгүй).
       let trialDev = null;
@@ -1839,7 +1838,7 @@ module.exports = async (req, res) => {
         const useDev = curDev || tokDev || WDEV.keyFromToken(b.wstoken);
         let dchk = { ok: true };
         try {
-          if (tokDev && curDev && tokDev !== curDev) {
+          if (WDEV.LIMIT_ON && tokDev && curDev && tokDev !== curDev) {
             await WDEV.logBlock(email, curDev, WDEV.fpFrom(req), null, 'DEVICE_MISMATCH', null);
             dchk = { ok: false, error: 'DEVICE_MISMATCH', max: WDEV.MAX_DEVICES, devices: await WDEV.list(email) };
           } else {

@@ -25,6 +25,9 @@ process.env.GAME_PAYWALL_REALMS = 'ws,cm';
 // tests/ws-trial-*.test.js өөрөө асаана.
 process.env.WS_TRIAL_SECONDS = '0';
 delete process.env.WS_TRIAL_FROM; delete process.env.WS_TRIAL_IP_DAY; delete process.env.VERCEL_ENV; delete process.env.AWS_LAMBDA_FUNCTION_NAME;
+// Төхөөрөмжийн хязгаар (api/_wsdev.js) анхдагчаар УНТРААЛТТАЙ (2026-11-01). Хязгаарын логикийг шалгах тест өөрөө
+// api-г require хийхээс өмнө process.env.WS_DEVICE_LIMIT = 'on' тавина.
+delete process.env.WS_DEVICE_LIMIT;
 
 const DAY = 864e5;
 const db = {

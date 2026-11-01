@@ -8,6 +8,7 @@
 // Ажиллуулах: node tests/games-ws-ui.test.js
 'use strict';
 const F = require('./_gamefake');
+process.env.WS_DEVICE_LIMIT = 'on';   // 403 төхөөрөмжийн замыг (хязгаар асаалттай үеийн) клиент зөв харуулахыг шалгана
 const { test, beforeEach } = require('node:test');
 const assert = require('node:assert');
 const path = require('path');

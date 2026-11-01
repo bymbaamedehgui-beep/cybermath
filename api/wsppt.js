@@ -18,7 +18,7 @@
 // Эрх: слайд бүр ТУСДАА худалдан авна — 1 хичээл × 1 сар (PPT_PRICE, анхдагч 1900₮), сагсаар нэг нэхэмжлэхээр
 // (api/qpay.js plan='ppt' → api/_wsppt_pay.js). PPT_WS_INCLUDED=1 бол ажлын хуудасны эрх (бүх анги / тухайн анги /
 // туршилт) ч бүтнээр үзүүлнэ. Эрхгүй бол эхний preview_slides слайд. WS_PAYWALL=off → бүгд нээлттэй.
-// Төхөөрөмжийн хязгаар (api/_wsdev.js checkReq) ажлын хуудастай ижил. DB алдаа → 503.
+// Төхөөрөмжийн шалгалт (api/_wsdev.js checkReq; анхдагчаар хязгааргүй) ажлын хуудастай ижил. DB алдаа → 503.
 'use strict';
 const pool = require('./_db');
 const jwt = require('jsonwebtoken');

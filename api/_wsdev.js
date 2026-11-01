@@ -1,5 +1,8 @@
-// Ажлын хуудасны эрхийг НЭГ ИМЭЙЛ → ДЭЭД ТАЛ 2 ТӨХӨӨРӨМЖ-өөр хязгаарлана.
-// Яагаад: нэг хүн эрх худалдаж аваад нэвтрэлтээ бусдад дахин зардаг тохиолдол гарсан.
+// Ажлын хуудасны эрхийг НЭГ ИМЭЙЛ → ДЭЭД ТАЛ MAX_DEVICES ТӨХӨӨРӨМЖ-өөр хязгаарлах (env WS_DEVICE_LIMIT=on үед л).
+// 2026-11-01: эзэмшигчийн шийдвэрээр хязгаарыг УНТРААСАН — нэг бүртгэлээр хэдэн ч төхөөрөмжөөс нэвтэрнэ, токеныг өөр
+// төхөөрөмжид ашиглахыг ч хаахгүй (DEVICE_LIMIT / DEVICE_MISMATCH гарахгүй). Төхөөрөмжийг бүртгэсээр (админд харагдана,
+// үнэгүй туршилтын «нэг төхөөрөмж = нэг туршилт» хэвээр). Буцааж асаах: Vercel env WS_DEVICE_LIMIT=on.
+// Яагаад байсан: нэг хүн эрх худалдаж аваад нэвтрэлтээ бусдад дахин зардаг тохиолдол гарсан.
 //
 // Ажиллах зарчим:
 //   • Хөтөч бүр өөрийн санамсаргүй device_id-г localStorage-д хадгална (cm_device).
@@ -21,6 +24,7 @@
 const pool = require('./_db');
 const crypto = require('crypto');
 
+const LIMIT_ON = /^(1|on|true|yes)$/i.test(String(process.env.WS_DEVICE_LIMIT || '').trim());
 const MAX_DEVICES = parseInt(process.env.WS_MAX_DEVICES || '4', 10) || 4;
 // Нэг төхөөрөмжийг салгаад өөрийг нь холбох нь 30 хоногт дээд тал нь 3 удаа.
 // Ингэхгүй бол «салгаад → найздаа холбоод» гэж дахин зарах зам нээлттэй үлдэнэ.
@@ -174,6 +178,24 @@ async function check(email, devId, req) {
   const fp = fpFrom(req);
   const ip = ipOf(req);
 
+  // Хязгааргүй (анхдагч): төхөөрөмжийг зөвхөн бүртгэнэ — хэзээ ч хаахгүй
+  if (!LIMIT_ON) {
+    const has = await pool.query('SELECT device_id, fp, fp_changed_at FROM ws_devices WHERE email=$1 AND device_id=$2', [e, d]);
+    if (has.rows.length) {
+      await pool.query(
+        'UPDATE ws_devices SET last_seen=NOW(), ip=COALESCE($3, ip), fp=COALESCE(fp, $4) WHERE email=$1 AND device_id=$2',
+        [e, d, ip, fp]);
+    } else {
+      const ua0 = uaOf(req);
+      await pool.query(
+        `INSERT INTO ws_devices (email, device_id, label, ua, ip, fp, fp_changed_at) VALUES ($1,$2,$3,$4,$5,$6,NOW())
+     ON CONFLICT (email, device_id) DO UPDATE SET last_seen=NOW()`,
+        [e, d, labelFromUA(ua0), ua0, ip, fp]).catch(() => {});
+    }
+    await touchIp(e, d, ip);
+    return { ok: true, slot: has.rows.length ? 'existing' : 'new' };
+  }
+
   /* ── Хурууны хээгээр баталгаажуулах ──
      Зөвхөн device_id-гаар бол localStorage-оо хуулж өгөхөд хязгаар өнгөрнө.
      Тиймээс байр бүрд тухайн МАШИНЫ хээг хадгална:
@@ -247,7 +269,7 @@ async function checkReq(req, email, wstoken, tokDev) {
   if (!e) return { ok: false, error: 'NO_EMAIL' };
   const td = clean(tokDev);
   const cur = deviceIdFrom(req);
-  if (td && cur && td !== cur) {
+  if (LIMIT_ON && td && cur && td !== cur) {   // хязгааргүй үед токеныг өөр төхөөрөмжид ч ашиглаж болно
     await logBlock(e, cur, fpFrom(req), ipOf(req), 'DEVICE_MISMATCH', uaOf(req));
     return { ok: false, error: 'DEVICE_MISMATCH', max: MAX_DEVICES, devices: await list(e) };
   }
@@ -273,4 +295,4 @@ async function remove(email, devId) {
   return { ok: true };
 }
 
-module.exports = { MAX_DEVICES, SWAP_MAX, SWAP_DAYS, ensureTable, clean, deviceIdFrom, fpFrom, keyFromToken, logBlock, check, checkReq, list, remove, labelFromUA };
+module.exports = { LIMIT_ON, MAX_DEVICES, SWAP_MAX, SWAP_DAYS, ensureTable, clean, deviceIdFrom, fpFrom, keyFromToken, logBlock, check, checkReq, list, remove, labelFromUA };
