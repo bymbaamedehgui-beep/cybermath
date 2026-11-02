@@ -5,6 +5,8 @@
      a    — хариу ($…$ TeX; кирилл үгтэй бол өөрөө $-ээ тавина)
      fig  — Fig(...).svg() эсвэл tbl([...]); side:true бол асуултын баруун талд
      wk   — бодолтын зайн өндөр (мм, анхдагч 30)
+     s    — бодолт: алхмуудын массив (догол мөр бүр; $…$ / $$…$$ TeX); «Бодолт хавсаргах»-д «Хариу: a»-тай хамт гарна
+     sfig — бодолтын зураг (Fig(...).svg() эсвэл signLine({...})), алхмуудын баруун талд
    TeX-д < > БҮҮ бич — \lt \gt \le \ge (HTML таг болж эвдэрнэ).
    ws-store.js: WS_PAGED — хэвлэхэд нэг хуудсанд шахахгүй (25 бодлого олон хуудас). */
 (function (root) {
@@ -359,13 +361,52 @@
     };
   }
 
+  // Тэмдгийн шугам (бодолтод: интервалын арга, өсөх/буурах завсар) → '<svg …>'
+  //   signLine({ pts: ['2', '3'], sg: ['+', '-', '+'], arr: true, tag: { 1: 'min' }, ends: ['-2', '3.5'], fill: [0] })
+  //   pts — цэгүүдийн шошго (зүүнээс баруун тийш; lab-ын бичиглэл: 'x_1', '-1'), sg — завсар бүрийн тэмдэг (pts.length + 1 ширхэг)
+  //   arr — тэмдгийн дээр ↗/↘ сум (уламжлалын тэмдэг → монотон), tag — {цэгийн индекс: 'max'|'min'|…} цэгийн доор
+  //   ends — [зүүн, баруун] хязгаар (тасархай босоо шугам; null бол ±∞), fill — бүтэн (хаалттай) цэгийн индексүүд, бусад нь хөндий
+  function signLine(o) {
+    o = o || {};
+    var pts = o.pts || [], sg = o.sg || [], ends = o.ends || [null, null], tag = o.tag || {}, fill = o.fill || [];
+    var n = pts.length, W = o.w || Math.max(240, 90 + 70 * n), Hh = 58 + (Object.keys(tag).length ? 12 : 0);
+    var y = 36, xl = 14, xr = W - 18, a = ends[0] != null ? xl + 22 : xl, b = ends[1] != null ? xr - 26 : xr;
+    var gap = (b - a) / (n + 1), X = function (i) { return a + gap * (i + 1); }, s = '';
+    var T = function (x, yy, t, st) { return '<text x="' + n2(x) + '" y="' + yy + '" text-anchor="middle" font-size="' + ((st && st.size) || 12.5) + '" fill="' + ((st && st.c) || INK) + '"'
+      + (st && st.plain ? " font-family=\"'Segoe UI',Arial,sans-serif\"" : " font-family=\"'KaTeX_Main','Times New Roman',serif\"") + '>' + lab(t, (st && st.size) || 12.5, st && st.plain) + '</text>'; };
+    s += '<line x1="' + xl + '" y1="' + y + '" x2="' + xr + '" y2="' + y + '" stroke="' + INK + '" stroke-width="1.3"/>'
+      + '<path d="M' + (xr + 6) + ' ' + y + 'L' + (xr - 3) + ' ' + (y - 4) + 'L' + (xr - 3) + ' ' + (y + 4) + 'Z" fill="' + INK + '"/>';
+    [0, 1].forEach(function (k) {
+      if (ends[k] == null) return;
+      var x = k ? b : a;
+      s += '<line x1="' + n2(x) + '" y1="' + (y - 24) + '" x2="' + n2(x) + '" y2="' + (y + 8) + '" stroke="' + INK + '" stroke-width="1.1" stroke-dasharray="3 3"/>' + T(x, y + 20, String(ends[k]));
+    });
+    var bounds = [a].concat(pts.map(function (p, i) { return X(i); })).concat([b]);
+    sg.forEach(function (t, i) {
+      if (i >= bounds.length - 1 || !t) return;
+      var cx = (bounds[i] + bounds[i + 1]) / 2, pos = t === '+' || t === '＋';
+      s += T(cx, y - 7, pos ? '+' : '−', { size: 15, plain: true });
+      if (o.arr) {
+        var w2 = Math.min(18, (bounds[i + 1] - bounds[i]) / 2 - 6), y0 = pos ? y - 14 : y - 26, y1 = pos ? y - 26 : y - 14;
+        if (w2 > 6) s += '<path d="M' + n2(cx - w2) + ' ' + y0 + 'L' + n2(cx + w2) + ' ' + y1 + '" stroke="' + INK + '" stroke-width="1.2" fill="none"/>'
+          + '<path d="M' + n2(cx + w2) + ' ' + y1 + 'l' + (pos ? '-7 1.5l3.5 4' : '-3.5 -4l-3.5 5.5') + 'Z" fill="' + INK + '"/>';
+      }
+    });
+    pts.forEach(function (p, i) {
+      var x = X(i), full = fill.indexOf(i) >= 0;
+      s += '<circle cx="' + n2(x) + '" cy="' + y + '" r="3.4" fill="' + (full ? INK : '#fff') + '" stroke="' + INK + '" stroke-width="1.3"/>' + T(x, y + 20, String(p));
+      if (tag[i]) s += T(x, y + 33, String(tag[i]), { size: 11, plain: true, c: '#5a32d6' });
+    });
+    return '<svg class="e1k-fig" xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + Hh + '" viewBox="0 0 ' + W + ' ' + Hh + '">' + s + '</svg>';
+  }
+
   var H = { rnd: rnd, nz: nz, pick: pick, shuffle: shuffle, gcd: gcd, lcm: lcm, gen: gen, dec: dec, fr: fr, frs: frs, sgn: sgn, par: par, tm: tm, poly: poly,
-    surd: surd, rt: rt, mat: mat, pt: pt, DEG: DEG, sfx: sfx, suf: suf, Bx: Bx, steps: steps, tbl: tbl, Fig: Fig, spline: spline, setRng: setRng, mulberry: mulberry };
+    surd: surd, rt: rt, mat: mat, pt: pt, DEG: DEG, sfx: sfx, suf: suf, Bx: Bx, steps: steps, tbl: tbl, Fig: Fig, spline: spline, signLine: signLine, setRng: setRng, mulberry: mulberry };
   if (typeof module === 'object' && module.exports) { module.exports = H; return; }
   Object.keys(H).forEach(function (k) { if (!(k in root)) root[k] = H[k]; });
 
   /* ───────── хуудас ───────── */
-  var MACROS = { '\\bx': '\\boxed{\\mathit{#1}}' };
+  var MACROS = { '\\bx': '\\boxed{\\mathit{#1}}', '\\nc': '' };   // \nc — бодолтын тооцоо шалгагчид «энэ томьёог шалгахгүй» тэмдэг (харагдахгүй)
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
   var ICO = {
@@ -398,12 +439,17 @@
     '.ans-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 22px;font-size:12px;line-height:1.5}.ans-grid .a.wide{grid-column:1/-1}',
     '.ans-grid .a{display:flex;gap:5px;align-items:baseline}.ans-grid .a .an{color:var(--purple);font-weight:800;min-width:28px;flex:none}',
     '#answers{display:none}',
+    '.sol-page{margin-top:9mm;border-top:2px dashed #ddd;padding-top:7mm}.sol-page h2{font-size:15px;color:#5a32d6;margin-bottom:8px}#sols{display:none}',
+    '.sol{break-inside:avoid;page-break-inside:avoid;display:flex;gap:6px;align-items:baseline;margin:0 0 8px;padding:0 0 7px;border-bottom:1px dotted #e1d9f5}',
+    '.sol .sn{font-weight:800;color:var(--purple);font-size:13px;min-width:28px;flex:none}.sol .sb{flex:1;min-width:0;font-size:12.5px;line-height:1.6}',
+    '.sol .sb p{margin:0 0 3px}.sol .sb .katex-display{margin:3px 0}.sol .sa{margin-top:2px}.sol .sa b{color:var(--purple)}',
+    '.sbrow{display:flex;gap:12px;align-items:flex-start}.sbrow>.sbt{flex:1;min-width:0}.sol .fig{margin:2px 0 4px}',
     '.e1k-p12 .qm,.e1k-p12 .ql{font-size:12pt}.e1k-p12 .e1k-tbl{font-size:11.5pt}.e1k-p12 .ans-grid{font-size:11pt}',
     '.katex svg{max-width:none!important;height:inherit!important}',
     '.katex .fbox{border-color:#111}',
-    '@media (max-width:640px){.qrow{flex-direction:column}.fig.side{align-self:center}.ans-grid{grid-template-columns:1fr}}',
+    '@media (max-width:640px){.qrow,.sbrow{flex-direction:column}.fig.side{align-self:center}.ans-grid{grid-template-columns:1fr}}',
     '@media print{body{background:#fff;padding:0}.bar{display:none}.sheet{box-shadow:none;width:auto;min-height:auto;padding:0;margin:0}',
-    '.ans-page{break-before:page;margin-top:0;border-top:0;padding-top:0}',
+    '.ans-page,.sol-page{break-before:page;margin-top:0;border-top:0;padding-top:0}',
     /* ws-store-ийн хөл ганцаараа шинэ хуудсанд гарахгүй — сүүлийн бодлоготой хамт шилжинэ */
     '.sheet>.cm-foot{break-before:avoid;page-break-before:avoid;margin-top:6px}}'
   ].join('\n');
@@ -415,6 +461,22 @@
     try { renderMathInElement(el, { delimiters: [{ left: '$$', right: '$$', display: true }, { left: '$', right: '$', display: false }], throwOnError: false, macros: MACROS }); } catch (e) {}
   }
   function ansTex(a) { a = String(a); return /[$<]/.test(a) || /[А-Яа-яЁёӨөҮү]/.test(a) ? a : '$' + a + '$'; }
+  // Бодолт: g.s — алхмуудын массив (мөр бүр нэг догол мөр; '<p'/'<div'-ээр эхэлбэл шууд), g.sfig — бодолтын зураг (баруун талд)
+  // Богино мөр доторх томьёог ард нь залгасан дагавар/цэг таслалтай нь нэг мөрөнд барина: «$r=21$.», «$x$-ийн» (\$\$…\$\$-д хүрэхгүй)
+  function nwInline(h) {
+    return String(h).split('$$').map(function (seg, k) {
+      // $…$ хос бүрийг дарааллаар нь авна (урт томьёог хосолж алгасвал дараагийнхтай буруу хосолно); 40-өөс урт бол хэвээр
+      return k % 2 ? seg : seg.replace(/\$([^$]+)\$((?:-[^\s$<.,;:!?)]+)?[.,;:!?)]*)/g, function (m, t, tail) {
+        return t.length > 40 ? m : '<span class="nw">$' + t + '$' + tail + '</span>';
+      });
+    }).join('$$');
+  }
+  function solHTML(n, g) {
+    var body = (Array.isArray(g.s) ? g.s : [g.s]).map(function (p) { p = nwInline(p); return /^\s*<(p|div|table)\b/.test(p) ? p : '<p>' + p + '</p>'; }).join('');
+    if (g.sfig) body = '<div class="sbrow"><div class="sbt">' + body + '</div><div class="fig side">' + g.sfig + '</div></div>';
+    return '<div class="sol" data-n="' + n + '"><span class="sn">' + n + '.</span><div class="sb">' + body
+      + '<div class="sa"><b>Хариу:</b> ' + ansTex(g.a) + '</div></div></div>';
+  }
   function textLen(s) { return String(s).replace(/<[^>]*>/g, '').replace(/\\[a-z]+/gi, '').replace(/[${}]/g, '').length; }
 
   function page(cfg) {
@@ -426,12 +488,15 @@
     bar.innerHTML = '<button class="btn refresh" type="button" onclick="build()">' + ICO.ref + 'Шинэ бодлого</button>'
       + '<label><input type="checkbox" id="sw"' + (sw0 ? ' checked' : '') + '> Бодолтын зай</label>'
       + '<label><input type="checkbox" id="sa"> Хариу хавсаргах</label>'
+      + '<label id="ssl" style="display:none"><input type="checkbox" id="ss"> Бодолт хавсаргах</label>'
       + '<button class="btn" type="button" onclick="window.print()">' + ICO.prt + 'Хэвлэх / PDF</button>';
-    var sw = document.getElementById('sw'), sa = document.getElementById('sa');
+    var sw = document.getElementById('sw'), sa = document.getElementById('sa'), ss = document.getElementById('ss');
     sw.addEventListener('change', function () { lsSet('e1k_sw', sw.checked ? '1' : '0'); layout(); });
     sa.addEventListener('change', toggleAns);
+    ss.addEventListener('change', toggleSol);
     function toggleAns() { var el = document.getElementById('answers'); if (el) el.style.display = sa.checked ? 'block' : 'none'; }
-    window.toggleAns = toggleAns;
+    function toggleSol() { var el = document.getElementById('sols'); if (el) el.style.display = ss.checked ? 'block' : 'none'; }
+    window.toggleAns = toggleAns; window.toggleSol = toggleSol;
     function valid(g) { return g && typeof g.q === 'string' && g.q && g.a != null && String(g.a) !== ''; }
     window.build = function () {
       CUR = cfg.probs.map(function (fn, i) {
@@ -443,7 +508,7 @@
     };
     function layout() {
       if (!CUR) return window.build();
-      var WK = sw.checked, html = '', ak = '';
+      var WK = sw.checked, html = '', ak = '', sl = '';
       html += '<div class="head"><h1>' + escH(cfg.title) + '</h1>' + (cfg.sub ? '<div class="e1k-sub">' + escH(cfg.sub) + '</div>' : '') + '</div>'
         + '<div class="meta"><span>Нэр: </span><span>Анги: </span><span>Огноо: </span><span>Оноо: </span></div>';
       CUR.forEach(function (g, i) {
@@ -453,11 +518,14 @@
           + (WK ? '<div class="wk" style="height:' + (g.wk || 30) + 'mm"></div>' : '') + '</div>';
         var at = ansTex(g.a);
         ak += '<div class="a' + (g.wide || textLen(at) > 64 ? ' wide' : '') + '"><span class="an">' + n + '.</span><span>' + at + '</span></div>';
+        if (g.s) sl += solHTML(n, g);
       });
       html += '<div class="ans-page" id="answers"><h2>Хариунууд</h2><div class="ans-grid">' + ak + '</div></div>';
+      if (sl) html += '<div class="sol-page" id="sols"><h2>Бодолтууд</h2>' + sl + '</div>';
+      document.getElementById('ssl').style.display = sl ? '' : 'none';
       sh.innerHTML = html;
       sh.classList.toggle('e1k-p12', WK);
-      render(sh); toggleAns();
+      render(sh); toggleAns(); toggleSol();
       window.WS_TITLE = cfg.title; window.WS_ITEMS = [];
     }
     window.layout = layout;

@@ -2,6 +2,7 @@
 //   - туслахууд: бутархай, гишүүн/олон гишүүнт, язгуур, дагавар, нүд (Bx), зураг (Fig) — NaN-гүй
 //   - хуудас бүр 25 генератор (хэсэг бүрт эх дугаар 1–100: K-р хуудас 25((K−1) mod 4)+1-ээс), олон seed-ээр: алдаагүй, q/a хоосон биш, NaN/undefined алга,
 //     $ тэгш тоотой, TeX дотор < > байхгүй (HTML таг болж эвдэрдэг), зураг <svg>/<table>
+//   - 1-р хэсэг (хуудас 1–4): бодлого бүр бодолттой (s), бодолтын $…$ доторх тоон гинж зөв (tests/_texnum.js: 16+2·10=36 г.м)
 //   - каталогийн ЭЕШ бүлэгт 8 хуудас (1, 2-р хэсэг), vercel.json-д e1k.js
 // Ажиллуулах: node --test tests/e1k.test.js
 'use strict';
@@ -13,6 +14,8 @@ const vm = require('vm');
 
 const WT = path.resolve(__dirname, '..');
 const H = require(path.join(WT, 'e1k.js'));
+const TN = require('./_texnum.js');
+const SOL_PAGES = [1, 2, 3, 4];     // бодолттой хуудсууд (1-р хэсэг)
 // хэсэг бүр (Математик №P) 4 хуудас: K = 4(P−1)+j, хуудас бүрт эх дугаар 25(j−1)+1…25j
 const PAGES = [1, 2, 3, 4, 5, 6, 7, 8].map((k) => ({ k, file: path.join(WT, 'eesh1000-' + k + '.html'), first: 25 * ((k - 1) % 4) + 1 }));
 
@@ -71,6 +74,12 @@ test('e1k: туслах функцууд', () => {
   const sp = H.spline([[0, 0], [3, 2], [6, 7], [9, 9]]);
   assert.ok(Math.abs(sp(3) - 2) < 1e-12 && Math.abs(sp(6) - 7) < 1e-12);
   for (let x = 0; x < 9; x += 0.25) assert.ok(sp(x + 0.25) >= sp(x) - 1e-12, 'монотон');
+  const sl = H.signLine({ pts: ['2', '3'], sg: ['+', '-', '+'], arr: true, tag: { 1: 'min' }, ends: ['-2', '3.5'], fill: [0] });
+  assert.match(sl, /^<svg[\s\S]*<\/svg>$/);
+  assert.doesNotMatch(sl, /NaN|undefined/);
+  assert.strictEqual((sl.match(/<circle/g) || []).length, 2);
+  assert.deepStrictEqual(TN.chainIssues('P=16+2\\cdot 10=36'), []);
+  assert.strictEqual(TN.chainIssues('P=16+2\\cdot 10=35').length, 1);
 });
 
 for (const P of PAGES) {
@@ -106,6 +115,18 @@ for (const P of PAGES) {
           segs.forEach((t) => assert.doesNotMatch(t, /[<>]/, 'p' + n + ': TeX дотор < > — ' + t.slice(0, 60)));
         });
         if (g.fig != null) assert.match(String(g.fig), /^\s*<(svg|table|div)/, 'p' + n + ': fig');
+        if (SOL_PAGES.includes(P.k)) {
+          assert.ok(Array.isArray(g.s) && g.s.length && g.s.every((x) => typeof x === 'string' && x.trim()), 'p' + n + ': бодолт (s) алга');
+          assert.doesNotMatch(g.s.join(' ') + (g.sfig || ''), /NaN|undefined|Infinity|\[object/, 'p' + n + ': бодолт');
+          g.s.forEach((x) => {
+            const segs = mathSegs(x);
+            assert.ok(segs, 'p' + n + ': бодолтод $ тэнцээгүй — ' + x.slice(0, 80));
+            segs.forEach((t) => {
+              assert.doesNotMatch(t, /[<>]/, 'p' + n + ': бодолтын TeX дотор < > — ' + t.slice(0, 60));
+              assert.deepStrictEqual(TN.chainIssues(t), [], 'p' + n + ': бодолтын тооцоо — ' + t.slice(0, 80));
+            });
+          });
+        }
         seen.add(g.q + '|' + (g.fig || ''));
       }
       assert.ok(seen.size >= 2, 'p' + n + ': шинэчлэхэд өөрчлөгдөхгүй байна');
