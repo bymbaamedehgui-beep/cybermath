@@ -1,6 +1,6 @@
 // Нүүр сонголт (index.html #cm-pick): cyber-math.com руу ороход «Тоглоомын төв · Дасгалын төв»-ийн аль нэгийг сонгоно (2026-11-06).
 //   - "/"-д шууд орсон үед л гарна: query/hash, iframe/embed, суулгасан апп (standalone), энэ табад «Тоглоомын төв» сонгосон бол гарахгүй
-//   - «Дасгалын төв» → /worksheets (энгийн холбоос), «Тоглоомын төв» → сонголтыг хааж landing/апп хэвээр
+//   - «Дасгалын төв» → /dasgal (танилцуулга, энгийн холбоос), «Тоглоомын төв» → сонголтыг хааж landing/апп хэвээр
 // Ажиллуулах: node --test tests/entry-pick.test.js
 'use strict';
 const { test } = require('node:test');
@@ -26,7 +26,8 @@ test('сонголт: гарах нөхцөл ба товчнууд', () => {
   assert.match(blk, /sessionStorage\.getItem\('cm_center'\)/);
   assert.match(blk, /if \(c === 'game'\) return;/, 'энэ табад тоглоомын төв сонгосон бол дахин асуухгүй');
   assert.match(blk, /data-pick="game"[\s\S]*Тоглоомын төв/);
-  assert.match(blk, /href="\/worksheets" data-pick="ws"[\s\S]*Дасгалын төв/);
+  assert.match(blk, /href="\/dasgal" data-pick="ws"[\s\S]*Дасгалын төв/, 'Дасгалын төв → /dasgal (танилцуулга)');
+  assert.doesNotMatch(blk, /href="\/worksheets"/);
   assert.match(blk, /html\.cm-pick #cm-splash \{ display: none !important; \}/, 'сонголт гарахад splash нуугдана');
   assert.doesNotMatch(blk, /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u, 'эможи бүү');
 });
