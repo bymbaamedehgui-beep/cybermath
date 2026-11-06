@@ -169,7 +169,7 @@
   }
   /* Түгжээний ард/дээр үлдэх ёсгүй хэвлэх/үүсгэх цонхнууд: ангиар хэвлэх (ws-store), шалгалтын «Олон хувилбар»
      (хуудсанд, z-index 10000) ба тэдний бэлдсэн багц — түгжих мөчид нээлттэй байсан ч устгана. */
-  var LOCK_SWEEP=['cm-batchModal','cm-batch','cm-vmodal','cm-vbatch'];
+  var LOCK_SWEEP=['cm-batchModal','cm-batch','cm-vmodal','cm-vbatch','cmx-vbatch','eyc-batch','cm-keepbar'];
   function lockSweep(){ try{ LOCK_SWEEP.forEach(function(id){ var el=document.getElementById(id); if(el&&el.parentNode)el.parentNode.removeChild(el); }); }catch(e){} }
   function unlockWs(){ if(pollT){clearInterval(pollT);pollT=null;} var o=document.getElementById('wsLock'); if(o)o.parentNode.removeChild(o); var sh=document.getElementById('sheet'); if(sh){sh.style.filter='';sh.style.pointerEvents='';} lockInert(false); try{document.documentElement.classList.remove('cm-ws-locked');}catch(e){} /* Хэвлэх/PDF товчийг эргүүлж харуулах */ [].forEach.call(document.querySelectorAll('.bar .btn'),function(b){b.style.display='';}); }
   /* opts.why==='trial' — үнэгүй туршилт дууссан мөчид (баннертай). opts.soft — үнэгүй (WS_FREE) хуудас: агуулгыг
@@ -1211,9 +1211,48 @@
     modal.remove();
     function cleanup(){ var bx=document.getElementById('cm-batch'); if(bx)bx.remove(); var bc=document.getElementById('cm-batch-css'); if(bc)bc.remove(); window.removeEventListener('afterprint',cleanup); setPrint12(false); restoreWork();
       if(hasBuild&&!keep){ try{window.build();}catch(e){} brandSheet(); enhanceMeta(); } }
-    window.addEventListener('afterprint',cleanup);
+    keepBatch({ id:'cm-batch', label:names.length+' сурагчийн хуудас', onClose:cleanup });
     setTimeout(function(){ window.print(); }, 80);
   }
+
+  /* ─── Багц хэвлэлт (ангиар · олон хувилбар · ЭЕШ хувилбарууд): хэвлэсний дараа багцыг ШУУД УСТГАХГҮЙ ───
+     Багш хуудсаа нэг нэгээр хэвлэдэг (1-р хуудас × N хувь, дараа нь 2-р хуудас …). Өмнө нь хэвлэх цонх хаагдмагц багц
+     устаж (шалгалтын материалд дэлгэцийн бодлого ч шинэчлэгдэж) дараагийн хуудас өөр агуулгатай гардаг байсан
+     (2026-11-02 санал хүсэлт). Одоо багц «Дахин хэвлэх · Багцыг хаах» самбартай хэвээр үлдэж, «Хэвлэх» ч мөн энэ
+     багцыг хэвлэнэ; хуучин цэвэрлэгээ (onClose) зөвхөн «Багцыг хаах» үед ажиллана.
+     window.cmKeepBatch({ id: 'багцын элементийн id', label: 'юу хэвлэгдэх', onClose: fn }) — хуудас/хөдөлгүүр бүр дуудна. ─── */
+  var KEPT=null;
+  function keepBatch(o){
+    // Ижил id-тай багцыг дахин үүсгэсэн бол өмнөх cleanup-ыг дуудахгүй (шинэ багцыг устгана); өөр төрлийнхийг хаана
+    if(KEPT&&KEPT.id!==o.id){ var p=KEPT; KEPT=null; try{ if(p.onClose)p.onClose(); }catch(e){} }
+    KEPT=o;
+    if(!document.getElementById('cm-keep-css')){
+      var st=document.createElement('style'); st.id='cm-keep-css';
+      st.textContent='#cm-keepbar{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:9000;width:calc(100% - 24px);max-width:640px;box-sizing:border-box;'
+        +'display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 14px;background:#fff;border:1.6px solid #d9ccff;border-radius:16px;'
+        +'box-shadow:0 18px 44px -14px rgba(60,30,150,.45);font-family:"Segoe UI",Arial,sans-serif;color:#211C54}'
+        +'#cm-keepbar .kb-t{flex:1 1 260px;min-width:0;font-size:.86rem;line-height:1.4}#cm-keepbar .kb-t b{display:block;color:#5a32d6;font-size:.92rem}'
+        +'#cm-keepbar .kb-t span{color:#6D6890;font-weight:600}'
+        +'#cm-keepbar button{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:999px;padding:.55rem 1.05rem;font:inherit;font-weight:800;font-size:.86rem;cursor:pointer}'
+        +'#cm-keepbar .kb-p{color:#fff;background:linear-gradient(135deg,#7B52EE,#A855F7)}#cm-keepbar .kb-c{color:#5a32d6;background:#f3efff}'
+        +'@media print{#cm-keepbar{display:none!important}}';
+      document.head.appendChild(st);
+    }
+    var bar=document.getElementById('cm-keepbar');
+    if(!bar){ bar=document.createElement('div'); bar.id='cm-keepbar'; bar.setAttribute('role','status'); document.body.appendChild(bar); }
+    bar.innerHTML='<div class="kb-t"><b>Хэвлэх багц хадгалагдсан</b><span>'+esc(o.label||'Багц')+' — хуудсаа нэг нэгээр хэвлэж болно, агуулга нь өөрчлөгдөхгүй.</span></div>'
+      +'<button type="button" class="kb-p" data-k="print"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>Дахин хэвлэх</button>'
+      +'<button type="button" class="kb-c" data-k="close">Багцыг хаах</button>';
+    bar.onclick=function(e){ var b=e.target.closest('[data-k]'); if(!b)return; if(b.getAttribute('data-k')==='print')window.print(); else closeKept(); };
+  }
+  function closeKept(){
+    var o=KEPT; KEPT=null;
+    var bar=document.getElementById('cm-keepbar'); if(bar&&bar.parentNode)bar.parentNode.removeChild(bar);
+    if(o&&o.onClose){ try{o.onClose();}catch(e){} }
+  }
+  window.cmKeepBatch=keepBatch;
+  window.cmCloseBatch=closeKept;
+  window.cmKeptBatch=function(){ return !!(KEPT&&document.getElementById(KEPT.id)); };
 
   // ─── Хэвлэхэд нэг A4-д багтаах (шаардвал бага зэрэг жижигрүүлнэ) ───
   var PRINT_TARGET=1030;   // ~272mm (нэг A4 хуудасны боломжит өндөр, зайтайгаар)
@@ -1572,7 +1611,9 @@
     if(IS_QR)return;
     var pb=findPrintBtn(); if(!pb||pb._cmAsk)return; pb._cmAsk=1;
     var orig=pb.onclick;
-    pb.onclick=function(e){ if(e&&e.preventDefault)e.preventDefault(); printAsk(function(){ if(typeof orig==='function')orig.call(pb,e); else window.print(); }); };
+    pb.onclick=function(e){ if(e&&e.preventDefault)e.preventDefault();
+      if(window.cmKeptBatch&&window.cmKeptBatch()){ window.print(); return; }   // хадгалсан багц байвал түүнийг хэвлэнэ (хариу хадгалах асуулгагүй)
+      printAsk(function(){ if(typeof orig==='function')orig.call(pb,e); else window.print(); }); };
   }
   function printAsk(doPrint){
     var old=document.getElementById('cmPrAsk'); if(old)old.parentNode.removeChild(old);

@@ -546,6 +546,8 @@
     var plan = planOf();
     if (!plan) return msg('err', !S.n ? 'Хувилбарын тоог сонгоно уу.' : BOTH || PART === 1 ? '1-р хэсгийн хувилбар сонгоогүй байна.' : '2-р хэсгийг «Оруулахгүй» гэж сонгосон тул энэ хуудаснаас хэвлэх зүйлгүй.');
     var n = plan.n, cp = Math.max(1, Math.min(80, copies || n));
+    // Өмнө хэвлээд хадгалсан багц байвал хаана (хуудсыг сэргээж, хуучин багцыг устгана)
+    if (document.getElementById('eyc-batch') && window.cmCloseBatch) window.cmCloseBatch();
     msg('', 'Хувилбаруудыг бэлдэж байна…');
     capture(plan, function (html, restore) {
       var box = document.createElement('div'); box.id = 'eyc-batch';
@@ -559,12 +561,19 @@
         + '.eyc-bs{break-after:page;page-break-after:always;box-shadow:none!important;width:auto!important;min-height:auto!important;margin:0!important;padding:0!important;background:#fff}'
         + '.eyc-bs:last-child{break-after:auto;page-break-after:auto}}';
       document.head.appendChild(pcss);
-      var done = function () {
-        window.removeEventListener('afterprint', done);
-        box.remove(); pcss.remove(); restore();
+      // Хэвлэсний дараа хуудсыг өмнөх хувилбарт нь буцаана (unwind), харин багцыг (box) хадгална — багш хуудсаа
+      // нэг нэгээр хэвлэхэд агуулга өөрчлөгдөхгүй; «Багцыг хаах» (ws-store cmKeepBatch) үед л устгана.
+      var unwound = false;
+      var unwind = function () {
+        window.removeEventListener('afterprint', unwind);
+        if (unwound) return; unwound = true;
+        restore();
         if (ov && !S.inv) drawCompose();
       };
-      window.addEventListener('afterprint', done);
+      var done = function () { unwind(); box.remove(); pcss.remove(); };
+      window.addEventListener('afterprint', unwind);
+      if (window.cmKeepBatch) window.cmKeepBatch({ id: 'eyc-batch', label: cp + ' хуудас (' + n + ' хувилбар) + хариун түлхүүр', onClose: done });
+      else window.addEventListener('afterprint', done);
       msg('', '');
       setTimeout(function () { window.print(); }, 120);
     });

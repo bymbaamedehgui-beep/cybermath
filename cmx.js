@@ -558,7 +558,10 @@
       setPrintTarget('cmx-vbatch');
       function cleanup() { var b = document.getElementById('cmx-vbatch'); if (b) b.remove(); setPrintTarget(''); window.removeEventListener('afterprint', cleanup); }
       if (noPrint) return keys;
-      window.addEventListener('afterprint', cleanup); setTimeout(function () { window.print(); }, 200);
+      // Хэвлэсний дараа багцыг хадгална (хуудсаа нэг нэгээр хэвлэхэд агуулга өөрчлөгдөхгүй) — «Багцыг хаах» үед cleanup
+      if (window.cmKeepBatch) window.cmKeepBatch({ id: 'cmx-vbatch', label: N + ' хувилбар + хариун түлхүүр', onClose: cleanup });
+      else window.addEventListener('afterprint', cleanup);
+      setTimeout(function () { window.print(); }, 200);
       return keys;
     }
     CMX.variants = openVariantModal;
