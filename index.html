@@ -3858,14 +3858,22 @@ window.addEventListener('load', function() {
 <!-- ═══ Нүүр сонголт: Тоглоомын төв · Дасгалын төв (2026-11-06 эзэмшигч: «cyber-math.com руу ороход … сонголтоос сонгодог байлгая»;
      Тоглоомын төвийг багш хичээлдээ ашиглах талаас нь танилцуулна; «илүү гоё дизайнтай» — тоглоомын бодит зураг, ажлын хуудасны бодит хуудсууд)
      Гарах нөхцөл: "/"-д шууд орсон (query/hash-гүй), iframe/embed биш, суулгасан апп (standalone) биш, энэ табад «Тоглоомын төв»-ийг
-     аль хэдийн сонгоогүй (sessionStorage cm_center). «Дасгалын төв» → /dasgal (танилцуулга); «Тоглоомын төв» → энэ хуудас (landing/апп) хэвээр. -->
+     аль хэдийн сонгоогүй (sessionStorage cm_center). «Дасгалын төв» → /dasgal (танилцуулга); «Тоглоомын төв» → энэ хуудас (landing/апп) хэвээр.
+     Буцах (эзэмшигч: «аль нэг рүү нь орчихоод буцаад сонголт руугаа орж болохгүй байна»): «Тоглоомын төв» сонгоход history-д бичлэг
+     нэмнэ — хөтчийн «буцах» сонголтыг дахин нээнэ; «Төв солих» (нүүрний цэс, лого, апп-ын «Цааш») → window.cmShowPick();
+     бусад хуудаснаас /?pick (эсвэл /#pick) → табын сонголтоос үл хамааран сонголт гарна. -->
 <script>
 (function () {
   try {
     var d = document.documentElement, L = location;
     if (window.top !== window.self || d.classList.contains('cm-embed')) return;
-    if (L.search || (L.hash && L.hash.length > 1)) return;
     if (!/^\/(index\.html)?$/.test(L.pathname)) return;
+    if (/(^|[?&])pick(=|&|$)/.test(L.search.slice(1)) || L.hash === '#pick') {
+      try { history.replaceState(null, '', L.pathname); } catch (e) {}
+      d.classList.add('cm-pick');
+      return;
+    }
+    if (L.search || (L.hash && L.hash.length > 1)) return;
     if ((window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone) return;
     var c = null; try { c = sessionStorage.getItem('cm_center'); } catch (e) {}
     if (c === 'game') return;
@@ -3967,6 +3975,14 @@ window.addEventListener('load', function() {
   #cm-pick .pk-c:hover .pk-go svg { transform: translateX(4px); }
   #cm-pick .gm .pk-go { color: #2A1A00; background: linear-gradient(180deg, #FFD34D, #FFC113); box-shadow: 0 4px 0 #C98F00, 0 14px 26px -12px rgba(255,193,19,.8); }
   #cm-pick .ws .pk-go { color: #fff; background: linear-gradient(180deg, #3B82F6, #2563EB); box-shadow: 0 4px 0 #1E40AF, 0 14px 26px -12px rgba(37,99,235,.8); }
+  /* «Төв солих» — нүүрний цэс (.btn-nav-switch), нэвтэрсэн үеийн толгой (.cm-sw-chip; утсан дээр «Цааш» цэсэнд) */
+  .btn-nav-switch { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: transparent; border: 1.5px solid rgba(123,82,238,.35); border-radius: 8px;
+    font: 700 13px/1.2 'Nunito', system-ui, sans-serif; color: #5B3BD9; cursor: pointer; white-space: nowrap; }
+  .btn-nav-switch:hover { border-color: #7B52EE; background: rgba(123,82,238,.06); }
+  .btn-nav-switch svg, .cm-sw-chip svg { width: 15px; height: 15px; flex: none; }
+  .cm-sw-chip { border: 0; font: inherit; cursor: pointer; background: linear-gradient(135deg, #f0ebff, #e0d4ff); color: #5e3fd0; }
+  @media (max-width: 600px) { .btn-nav-switch span { display: none; } .btn-nav-switch { padding: 6px 8px; } }
+  @media (max-width: 760px) { .cm-sw-chip { display: none !important; } }
   @keyframes pkUp { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
   @keyframes pkFade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   @media (max-width: 760px) {
@@ -4054,7 +4070,15 @@ window.addEventListener('load', function() {
 <script>
 (function () {
   var o = document.getElementById('cm-pick'); if (!o) return;
-  var d = document.documentElement;
+  var d = document.documentElement, shown = false, imgs = false;
+  // Зургийг зөвхөн сонголт гарах үед татна (data-src — query/hash-тай зочин, апп хэрэглэгч дэмий татахгүй)
+  function loadImgs() {
+    if (imgs) return; imgs = true;
+    Array.prototype.forEach.call(o.querySelectorAll('img[data-src]'), function (i) { i.src = i.getAttribute('data-src'); });
+  }
+  // Сонголтыг нээнэ (фокусыг автоматаар тавихгүй — нэг карт «сонгогдсон» мэт харагдахгүй)
+  function show() { loadImgs(); shown = true; d.classList.add('cm-pick'); o.scrollTop = 0; }
+  window.cmShowPick = show;
   o.addEventListener('click', function (e) {
     var b = e.target.closest('[data-pick]'); if (!b) return;
     var v = b.getAttribute('data-pick');
@@ -4063,12 +4087,16 @@ window.addEventListener('load', function() {
     e.preventDefault();
     var sp = document.getElementById('cm-splash'); if (sp) sp.remove();
     d.classList.remove('cm-pick');
-    o.remove();
+    // Хөтчийн «буцах» → сонголт (доорх popstate); давтан сонговол бичлэг давхарлахгүй
+    try { if (history.state && history.state.cmc) history.replaceState({ cmc: 'game' }, ''); else history.pushState({ cmc: 'game' }, ''); } catch (er) {}
   });
-  // Гаргахгүй үед DOM-оос авна (фокусыг автоматаар тавихгүй — нэг карт «сонгогдсон» мэт харагдахгүй)
-  if (!d.classList.contains('cm-pick')) { o.remove(); return; }
-  // Зургийг зөвхөн сонголт гарах үед татна (data-src — query/hash-тай зочин, апп хэрэглэгч дэмий татахгүй)
-  Array.prototype.forEach.call(o.querySelectorAll('img[data-src]'), function (i) { i.src = i.getAttribute('data-src'); });
+  window.addEventListener('popstate', function (e) {
+    if (!shown || (e.state && e.state.cmc)) return;
+    if ((location.hash && location.hash.length > 1) || !/^\/(index\.html)?$/.test(location.pathname)) return;
+    show();
+  });
+  // Гаргахгүй үед далд хэвээр (DOM-д үлдэнэ — «Төв солих»-оор нээгдэнэ)
+  if (d.classList.contains('cm-pick')) show();
 })();
 </script>
 <!-- ═══ /Нүүр сонголт ═══ -->
@@ -4178,6 +4206,7 @@ window.addEventListener('load', function() {
     <li><a href="#plans">Тарифф</a></li>
   </ul>
   <div class="nav-actions">
+    <button type="button" class="btn-nav-switch" onclick="window.cmShowPick && cmShowPick()" title="Тоглоомын төв · Дасгалын төв" aria-label="Төв солих"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4 3 8l4 4"/><path d="M3 8h13a4 4 0 0 1 4 4"/><path d="m17 20 4-4-4-4"/><path d="M21 16H8a4 4 0 0 1-4-4"/></svg><span>Төв солих</span></button>
     <button class="btn-nav-login" onclick="openAuthModal('login')">Нэвтрэх</button>
     <button class="btn-nav-signup" onclick="openAuthModal('register')">Бүртгүүлэх →</button>
   </div>
@@ -5179,7 +5208,7 @@ document.head.appendChild(cmStyle);
 
 <!-- NAVBAR -->
 <nav class="navbar">
-  <a class="logo" href="#">
+  <a class="logo" href="#" onclick="if(window.cmShowPick){event.preventDefault();cmShowPick();}" title="Тоглоомын төв · Дасгалын төв">
     <svg class="logo-bird" viewBox="0 0 1683 415"  height="44"  fill="none" xmlns="http://www.w3.org/2000/svg" style="height:44px;width:auto;display:block;">
 <g clip-path="url(#clip0_71_11257)">
 <path d="M203.662 326.569C203.662 327.266 203.662 327.922 203.662 328.619C199.808 340.47 191.156 354.575 174.549 354.575C159.951 354.575 148.06 343.832 144.328 328.619C144.328 328.168 144.328 326.815 144.328 326.364" fill="#D79F01"/>
@@ -5200,6 +5229,7 @@ document.head.appendChild(cmStyle);
 </svg>
   </a>
   <div class="nav-stats">
+    <button type="button" class="stat-chip cm-sw-chip" onclick="window.cmShowPick && cmShowPick()" title="Тоглоомын төв · Дасгалын төв"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4 3 8l4 4"/><path d="M3 8h13a4 4 0 0 1 4 4"/><path d="m17 20 4-4-4-4"/><path d="M21 16H8a4 4 0 0 1-4-4"/></svg><span>Төв солих</span></button>
     <div class="nav-avatar-wrap" onclick="handleAvatarClick()" title="Профайл">
       <div class="nav-avatar-btn" id="nav-avatar-btn">
         <div class="nav-avatar-inner" id="nav-avatar-inner">

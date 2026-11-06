@@ -32,6 +32,31 @@ test('сонголт: гарах нөхцөл ба товчнууд', () => {
   assert.doesNotMatch(blk, /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u, 'эможи бүү');
 });
 
+test('буцах: «Тоглоомын төв» → history бичлэг, «буцах» сонголтыг нээнэ; ?pick заавал гаргана; cmShowPick', () => {
+  assert.match(blk, /if \(\/\(\^\|\[\?&\]\)pick\(=\|&\|\$\)\/\.test\(L\.search\.slice\(1\)\) \|\| L\.hash === '#pick'\)/, '?pick / #pick');
+  assert.match(blk, /history\.replaceState\(null, '', L\.pathname\)/, '?pick-ийг хаягаас арилгана');
+  assert.match(blk, /window\.cmShowPick = show;/);
+  assert.match(blk, /history\.pushState\(\{ cmc: 'game' \}, ''\)/);
+  assert.match(blk, /window\.addEventListener\('popstate', function \(e\) \{\s*if \(!shown \|\| \(e\.state && e\.state\.cmc\)\) return;/);
+  assert.doesNotMatch(blk, /o\.remove\(\)/, 'сонголт DOM-д үлдэнэ (дахин нээгдэнэ)');
+});
+
+test('«Төв солих» — нүүрний цэс, нэвтэрсэн үеийн лого/чип, апп-ын «Цааш», Дасгалын төвийн хуудсууд', () => {
+  assert.match(html, /class="btn-nav-switch" onclick="window\.cmShowPick && cmShowPick\(\)"/);
+  assert.match(html, /<a class="logo" href="#" onclick="if\(window\.cmShowPick\)\{event\.preventDefault\(\);cmShowPick\(\);\}"/);
+  assert.match(html, /class="stat-chip cm-sw-chip" onclick="window\.cmShowPick && cmShowPick\(\)"/);
+  const am = fs.readFileSync(path.join(__dirname, '..', 'app-mobile.js'), 'utf8');
+  assert.match(am, /\['Төв солих', IC\.swap, function \(\) \{ closeSheet\(\); if \(window\.cmShowPick\) window\.cmShowPick\(\); else location\.href = '\/\?pick'; \}\]/);
+  assert.match(am, /sw\.id = 'cm-land-switch'/, 'утасны угтах дэлгэц');
+  const css = fs.readFileSync(path.join(__dirname, '..', 'app-mobile.css'), 'utf8');
+  assert.match(css, /body\.cm-land-on #cm-land-switch \{ display: flex;/);
+  const tn = fs.readFileSync(path.join(__dirname, '..', 'tanilcuulga.html'), 'utf8');
+  assert.match(tn, /<a class="logo" href="\/\?pick"/);
+  assert.match(tn, /class="btn btn-o nav-sw" href="\/\?pick"/);
+  const ws = fs.readFileSync(path.join(__dirname, '..', 'worksheets.html'), 'utf8');
+  assert.match(ws, /<a class="cm-sw" href="\/\?pick"/);
+});
+
 test('сонголтын inline скриптүүд синтакс алдаагүй', () => {
   const re = /<script>([\s\S]*?)<\/script>/g; let m, n = 0;
   while ((m = re.exec(blk))) { new Function(m[1]); n++; }

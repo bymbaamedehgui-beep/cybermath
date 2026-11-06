@@ -22,6 +22,7 @@
     profile: S('<circle cx="12" cy="12" r="10"/><circle cx="12" cy="10" r="3"/><path d="M6.2 18.4a7 7 0 0 1 11.6 0"/>'),
     play: S('<circle cx="12" cy="12" r="10"/><path d="m10 8 6 4-6 4V8Z"/>'),
     install: S('<rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M12 7v7M9 11l3 3 3-3M10 18h4"/>'),
+    swap: S('<path d="M7 4 3 8l4 4"/><path d="M3 8h13a4 4 0 0 1 4 4"/><path d="m17 20 4-4-4-4"/><path d="M21 16H8a4 4 0 0 1-4-4"/>'),
     share: S('<path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 11v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8"/>'),
     plusbox: S('<rect x="3" y="3" width="18" height="18" rx="4"/><path d="M12 8v8M8 12h8"/>'),
     dots: S('<path d="M12 5h.01M12 12h.01M12 19h.01" stroke-width="3.2"/>'),
@@ -87,7 +88,9 @@
       ['Шалгалт', IC.exam, function () { go('exam'); }, soon ? 'Удахгүй' : ''],
       ['Найзууд', IC.friends, function () { closeSheet(); if (window.openFriends) window.openFriends(); }],
       ['Профайл', IC.profile, function () { closeSheet(); if (window.handleAvatarClick) window.handleAvatarClick(); }],
-      ['Зааварчилгаа', IC.play, function () { closeSheet(); if (window.openTutorialModal) window.openTutorialModal(); }]
+      ['Зааварчилгаа', IC.play, function () { closeSheet(); if (window.openTutorialModal) window.openTutorialModal(); }],
+      // Тоглоомын төв · Дасгалын төвийн сонголт руу (index.html #cm-pick)
+      ['Төв солих', IC.swap, function () { closeSheet(); if (window.cmShowPick) window.cmShowPick(); else location.href = '/?pick'; }]
     ];
     if (visible(document.getElementById('tab-btn-classroom'))) L.splice(2, 0, ['Анги', IC.cls, function () { go('classroom'); }]);
     if (!standalone()) L.push(['Апп суулгах', IC.install, function () { install(); }]);
@@ -202,6 +205,10 @@
       var f = document.getElementById('features'); if (f) setTimeout(function () { f.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50);
     });
     hc.appendChild(more);
+    // Тоглоомын төв · Дасгалын төвийн сонголт руу (index.html #cm-pick) — утсан дээр дээд цэсний товч нуугддаг тул энд
+    var sw = document.createElement('button'); sw.type = 'button'; sw.id = 'cm-land-switch'; sw.innerHTML = IC.swap + 'Төв солих';
+    sw.addEventListener('click', function () { if (window.cmShowPick) window.cmShowPick(); else location.href = '/?pick'; });
+    hc.appendChild(sw);
     if (!standalone()) {
       var ins = document.createElement('button'); ins.type = 'button'; ins.id = 'cm-land-install'; ins.textContent = 'Утсандаа апп болгож суулгах';
       ins.addEventListener('click', install);
