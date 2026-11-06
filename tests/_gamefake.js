@@ -50,6 +50,8 @@ const db = {
   devIps: new Map(),    // ws_device_ips 'email|device_id|ip' → last_seen
   devBlocks: [],        // ws_device_blocks
   tix: new Map(),       // game_ticket_used jti → exp
+  previews: new Map(),  // cm_game_previews 'subject|game_key' → started_at (Date)
+  failPrev: false,
   invites: new Map(),   // game_invites jti → {jti, realm, email, game_key, expires_at(ms), uses, devs[]}
   invUpdates: 0,        // амжилттай урилгын хэрэглээ (UPDATE) — зарцуулалтын тоо
   failGrant: false, failLedger: false, failRate: false, noPremUntil: false, failEnt: false, failConnect: false,
@@ -97,7 +99,7 @@ const HEAL_SQL = "INSERT INTO game_purchases (invoice_id, realm, email, game_key
   "WHERE p.plan = 'game' AND p.granted = TRUE AND p.realm IN ('ws', 'cm') AND p.game_key = ANY($1::text[]) " +
   "AND NOT EXISTS (SELECT 1 FROM game_purchases g WHERE g.invoice_id = p.invoice_id) " +
   "ON CONFLICT (invoice_id) DO NOTHING RETURNING invoice_id";
-const STRICT = /\b(pay_pending|ws_pending|game_access|game_purchases|users|rate_limits|ws_events|ws_event_regs|ws_devices|ws_device_ips|ws_device_blocks|ws_device_swaps|game_ticket_used|game_invites|ws_trials|ws_trial_marks|ws_trial_cfg|ws_eyesh_access|ws_eyesh_purchases|ws_eyesh_handoff)\b/;
+const STRICT = /\b(pay_pending|ws_pending|game_access|game_purchases|users|rate_limits|ws_events|ws_event_regs|ws_devices|ws_device_ips|ws_device_blocks|ws_device_swaps|game_ticket_used|game_invites|ws_trials|ws_trial_marks|ws_trial_cfg|ws_eyesh_access|ws_eyesh_purchases|ws_eyesh_handoff|cm_game_previews)\b/;
 function dkey(e, d) { return e + '|' + d; }
 
 // tx — транзакцын контекст (client.query) эсвэл null (autocommit). tx дотор өөрчлөлт бүр tx.undo-д бүртгэгдэнэ.
@@ -460,6 +462,25 @@ async function query(sql, p, tx) {
   // ── ws_trials / ws_trial_marks (api/_wstrial.js — шинэ дансны үнэгүй туршилт) ──
   { const tr = db.trial.handle(q, p); if (tr) return tr; }
 
+  // ── cm_game_previews (api/_cmpreview.js — Тоглоомын төвийн Premium-гүй туршилт) ──
+  // start(): CTE INSERT … ON CONFLICT DO NOTHING + өмнөх мөрүүдийн MIN (PG-ийн snapshot: шинээр орсон мөр 2-р дэд асуултад харагдахгүй)
+  if (/^WITH ins AS \( INSERT INTO cm_game_previews \(subject, game_key\) SELECT s, \$2 FROM unnest\(\$1::text\[\]\) AS s ON CONFLICT \(subject, game_key\) DO NOTHING RETURNING started_at \) SELECT LEAST\(/.test(q)) {
+    if (db.failPrev) throw dbErr('db down');
+    const subs = p[0], key = p[1], t = new Date(now()), olds = [];
+    subs.forEach(s => { const r = db.previews.get(s + '|' + key); if (r) olds.push(r.getTime()); });
+    let ins = null;
+    subs.forEach(s => { const k = s + '|' + key; if (!db.previews.has(k)) { db.previews.set(k, t); ins = t.getTime(); } });
+    const all = olds.concat(ins == null ? [] : [ins]);
+    return { rows: [{ started_at: all.length ? new Date(Math.min.apply(null, all)) : null, now: t }] };
+  }
+  if (q === 'SELECT game_key, MIN(started_at) AS started_at, NOW() AS now FROM cm_game_previews WHERE subject = ANY($1::text[]) GROUP BY game_key') {
+    if (db.failPrev) throw dbErr('db down');
+    const g = new Map();
+    db.previews.forEach((t, k) => { const i = k.lastIndexOf('|'), s = k.slice(0, i), key = k.slice(i + 1);
+      if (p[0].indexOf(s) >= 0) g.set(key, Math.min(g.has(key) ? g.get(key) : Infinity, t.getTime())); });
+    return { rows: Array.from(g, ([key, t]) => ({ game_key: key, started_at: new Date(t), now: new Date(now()) })) };
+  }
+
   if (STRICT.test(q)) { db.unknown.push(q); throw new Error('mock: unknown SQL'); }
   return { rows: [] }; // ws_settings, ws_promos гэх мэт — энэ тестэд хамаагүй
 }
@@ -600,6 +621,7 @@ function reset() {
   db.failGrant = false; db.failLedger = false; db.failRate = false; db.noPremUntil = false; db.failEnt = false; db.failConnect = false;
   db.failDev = false; db.failTix = false; db.failInv = false; db.failGradeSet = false; db.gradeSets.length = 0;
   db.devices.clear(); db.devIps.clear(); db.devBlocks.length = 0; db.tix.clear(); db.invites.clear(); db.invUpdates = 0;
+  db.previews.clear(); db.failPrev = false; delete process.env.CM_GAME_GATE; delete process.env.CM_GAME_PREVIEW_SECONDS;
   db.hangOn = null; hangHit = null;
   dropConnections(); db.locks.clear(); db.txLog.length = 0; db.txLeaks.length = 0;
   qp.invoices.length = 0; qp.paid.clear(); qp.checks.length = 0;

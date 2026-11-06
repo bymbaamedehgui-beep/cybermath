@@ -37,10 +37,17 @@
 // (тавиагүй → GM.DEFAULT_PAYWALL_REALMS = ['ws']: эхний ээлжинд Дасгалын төвд л), GAME_PAYWALL=off → бүгд нээлттэй.
 // Төлбөргүй realm-д launch нэвтрэлт шаардахгүй (via 'off'), файл тоглоомд gate түгжээтэй үед л тасалбар (launchOut).
 // catalog ?realm=ws|cm → тухайн realm-ийн enabled; realm-гүй → gate-ийн төлөв (GM.gateOn()).
+//
+// cyber-math.com Тоглоомын төв — Premium-гүй хэрэглэгчийн туршилт (api/_cmpreview.js; Bearer cm_token заавал биш — зочин бол төхөөрөмжөөр):
+//   POST ?action=pstatus {device}        → { ok, gate, premium, login, seconds, free:[key], used:[key], active:{key: until} }
+//   POST ?action=preview {game, device}  → Premium: { ok, premium:true } | үнэгүй тоглоом: { ok, free:true }
+//        | туршилт: { ok:true, until, server_now, seconds } | дууссан: 402 { ok:false, used:true, until }
+//   env CM_GAME_GATE=off → { ok, gate:false } (бүгд үнэгүй)
 'use strict';
 const guard = require('./_guard');
 const GM = require('./_games');
 const WDEV = require('./_wsdev');
+const PV = require('./_cmpreview');
 
 const MSG = {
   login: 'Тоглохын тулд эхлээд нэвтэрнэ үү.',
@@ -91,6 +98,34 @@ function gameKeyOf(v) {
   return GM.isGame(k) ? k : null;
 }
 function fail(status, body) { return { ok: false, status: status, body: Object.assign({ ok: false }, body) }; }
+
+// Premium-гүй хэрэглэгчийн туршилт (cm). Нэвтрээгүй / хүчингүй токен → зочин (зөвхөн төхөөрөмжөөр).
+async function previewAction(req, res, action) {
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: MSG.bad });
+  const ip = guard.clientIp(req);
+  if (await limited('games_pv_ip:' + ip, 300, 600)) return res.status(429).json({ ok: false, error: MSG.rate });
+  const b = bodyOf(req);
+  const seconds = PV.previewSeconds();
+  if (!PV.gateOn()) return res.json({ ok: true, gate: false, seconds: seconds });
+  const u = guard.requireUser(req) ? await GM.cmUser(req) : null;
+  const email = u && GM.normEmail(u.email);
+  if (email && await GM.isCmPremium(email)) return res.json({ ok: true, gate: true, premium: true, seconds: seconds });
+  const subjects = PV.subjectsOf(email, b.device);
+  if (!subjects.length) return res.status(400).json({ ok: false, error: MSG.bad });
+  if (action === 'pstatus') {
+    const s = await PV.status(subjects, seconds);
+    return res.json({ ok: true, gate: true, premium: false, login: !!email, seconds: seconds, free: PV.FREE_KEYS.slice(), used: s.used, active: s.active });
+  }
+  const key = gameKeyOf(b.game);
+  if (!key) return res.status(400).json({ ok: false, error: MSG.game });
+  if (PV.isFree(key)) return res.json({ ok: true, gate: true, free: true, game: key });
+  const r = await PV.start(subjects, key, seconds);
+  const out = { ok: r.ok, gate: true, premium: false, game: key, seconds: seconds, until: r.until.toISOString(), server_now: r.now.toISOString() };
+  if (r.ok) return res.json(out);
+  out.used = true;
+  out.error = 'Энэ тоглоомын ' + Math.round(seconds / 60) + ' минутын туршилт дууссан. Premium-аар бүх тоглоомыг хязгааргүй тоглоорой.';
+  return res.status(402).json(out);
+}
 
 // Хэрэглэгч таних. realm-ийн токеныг л хүлээн авна:
 //   cm → GM.cmUser (Bearer, tv; admin/ws/uid токен татгалзана), ws → guard.wsPayload(body.wstoken) + 2 төхөөрөмжийн хязгаар.
@@ -194,6 +229,8 @@ module.exports = async function handler(req, res) {
 
     res.setHeader('Cache-Control', 'no-store');
     if (guard.secretMissing(res)) return;
+    // ── cyber-math.com Тоглоомын төв: Premium-гүй хэрэглэгчийн туршилт (api/_cmpreview.js) ──
+    if (action === 'preview' || action === 'pstatus') return await previewAction(req, res, action);
     if (action !== 'status' && action !== 'launch' && action !== 'invite') return res.status(400).json({ ok: false, error: MSG.bad });
     if (req.method !== 'POST' && !(action === 'status' && req.method === 'GET')) return res.status(405).json({ ok: false, error: MSG.bad });
 
