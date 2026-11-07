@@ -332,8 +332,12 @@
     var ug = userGrade(), mineGrade = r.grade === ug && !isTeacher();
     var startHtml;
     if (r.start) {
+      // Ангийн хамгийн эхний сэдэв бол «өмнөх сэдвүүдийг эзэмшсэн» гэж бичихгүй
+      var p0 = S.plan[r.grade] && S.plan[r.grade].chapters && S.plan[r.grade].chapters[0];
+      var isFirst = !!(p0 && p0.topics && p0.topics[0] && +p0.topics[0].id === +r.start.id);
       startHtml = '<div class="pl-start"><span class="pl-k">' + I.flag + 'Эндээс эхэл</span><h3>' + esc(r.start.name) + '</h3>' +
-        '<p>Бүлэг: <b>' + esc(r.start.chapter) + '</b>. Үүнээс өмнөх сэдвүүдийг эзэмшсэн байна — тэдгээр нь давтахад нээлттэй.</p>' +
+        '<p>Бүлэг: <b>' + esc(r.start.chapter) + '</b>. ' + (isFirst ? 'Ангийн хамгийн эхний сэдэв — суурийг бататгаад дэс дараалан урагшилъя.'
+          : 'Үүнээс өмнөх сэдвүүдийг эзэмшсэн байна — тэдгээр нь давтахад нээлттэй.') + '</p>' +
         (mineGrade ? '<button type="button" class="pl-btn g pl-wide" data-act="begin">Энэ сэдвээс эхлэх' + I.arrow + '</button>'
           : '<p style="margin-top:8px">' + (isTeacher() ? 'Сурагч өөрөө сорил өгөхөд хичээлийн зам нь энэ сэдэв хүртэл нээгдэнэ.' : 'Хичээлийн зам таны профайлын ангиар (' + esc(ug || '—') + '-р анги) харагддаг.') + '</p>') + '</div>';
     } else {
