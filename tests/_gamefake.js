@@ -51,6 +51,7 @@ const db = {
   devBlocks: [],        // ws_device_blocks
   tix: new Map(),       // game_ticket_used jti → exp
   previews: new Map(),  // cm_game_previews 'subject|game_key' → started_at (Date)
+  extra: [],            // (q, p) => {rows} | null — тестийн нэмэлт SQL хариулагч
   failPrev: false,
   invites: new Map(),   // game_invites jti → {jti, realm, email, game_key, expires_at(ms), uses, devs[]}
   invUpdates: 0,        // амжилттай урилгын хэрэглээ (UPDATE) — зарцуулалтын тоо
@@ -129,6 +130,8 @@ async function query(sql, p, tx) {
     db.ddl.push(q); return { rows: [] };
   }
   const undo = tx ? function (fn) { tx.undo.push(fn); } : function () {};
+  // Тусдаа тестийн нэмэлт SQL (ж: tests/placement.test.js — nodes/questions/placement_results) — STRICT-ээс өмнө
+  for (const h of db.extra) { const r = h(q, p); if (r) return r; }
 
   // ── rate_limits (_guard.rateLimit) ──
   if (/^INSERT INTO rate_limits \(key, window_start, count\) VALUES \(\$1, NOW\(\), 1\) ON CONFLICT \(key\) DO UPDATE SET .* RETURNING count$/.test(q)) {

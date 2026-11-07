@@ -753,4 +753,4 @@ module.exports = async (req, res) => {
 };
 /* Тест ба зөвхөн-унших аудитад (handler-ийн зан төлөвт нөлөөгүй) */
 module.exports._game = { gameFit, gameFitSql, gameChapters, gameNodeKind, gameChapterName, gameHint, GAME_TAG_SRC, GAME_TRIM,
-  arenaFits, legacyMaxGradeSql, GAME_SOON, LEGACY_FILL_MIN };
+  arenaFits, legacyMaxGradeSql, GAME_SOON, LEGACY_FILL_MIN, gTrim, shuffleChoices, GAME_GRADE_RE };   /* api/_placement.js-д ч хэрэглэнэ */

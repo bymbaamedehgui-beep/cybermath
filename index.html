@@ -3166,6 +3166,20 @@ function cmAskGrade(opts) {
 function cmNodeForSlot(sl) { return window._PATH.on ? (window._PATH.s2n[sl] || null) : sl; }
 function cmSlotForNode(nd) { return window._PATH.on ? (window._PATH.n2s[nd] || null) : nd; }
 /* Дуусгасан хичээлийг СЛОТын id-гаар илэрхийлж буцаана (SVG-ийн бүх давталт слотоор ажилладаг) */
+/* Түвшин тогтоох сорилын нээлт (placement-ui.js → localStorage cm_placement {анги: {start: node id}}):
+   тухайн ангийн санал болгосон сэдэв хүртэлх слотууд нээлттэй (дуусгасанд тооцохгүй, XP-гүй) */
+function cmPlacementSlotOf(nodeId) {
+  var id = parseInt(nodeId, 10); if (!(id > 0)) return 0;
+  if (window._PATH && window._PATH.on) return window._PATH.n2s[id] || 0;
+  return id;   /* 9-р анги (хуучин зам): слот = node id */
+}
+function cmPlacementSlot() {
+  try {
+    var g = cmUserGrade(); if (!g || g === 'teacher') return 0;
+    var o = JSON.parse(localStorage.getItem('cm_placement') || '{}') || {};
+    return o[g] ? cmPlacementSlotOf(o[g].start) : 0;
+  } catch (e) { return 0; }
+}
 function cmCompletedSlots() {
   var c = (typeof getCompletedLessons === 'function') ? getCompletedLessons().map(function (x) { return parseInt(x); }) : [];
   if (!window._PATH.on) return c;
@@ -5642,7 +5656,7 @@ document.head.appendChild(cmStyle);
     <button class="tab-btn" onclick="switchTab('games')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:-3px;margin-right:5px"><rect x="2" y="6" width="20" height="14" rx="3" stroke="currentColor" stroke-width="2" fill="none"/><path d="M8 13H12M10 11V15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="12" r="1.2" fill="currentColor"/><circle cx="18.5" cy="14" r="1.2" fill="currentColor"/></svg>Games</button>
     <button class="tab-btn" onclick="switchTab('mathlet')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:-3px;margin-right:5px"><path d="M12 2L13.5 8H20L14.5 12L16.5 18L12 14L7.5 18L9.5 12L4 8H10.5L12 2Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" fill="none"/></svg>Mathlet</button>
     <button class="tab-btn" id="tab-btn-classroom" onclick="switchTab('classroom')" style="display:none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:-3px;margin-right:5px"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2"/><path d="M23 21v-2a4 4 0 0 0-3-3.87" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16 3.13a4 4 0 0 1 0 7.75" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Анги</button>
-    <button class="tab-btn" onclick="switchTab('exam')" style="position:relative;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:-3px;margin-right:5px"><path d="M9 11l3 3 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Шалгалт<span style="position:absolute;top:-6px;right:-4px;background:linear-gradient(135deg,#f59e0b,#d97706);color:white;font-size:0.55rem;font-weight:900;padding:2px 6px;border-radius:100px;letter-spacing:0.5px;white-space:nowrap;box-shadow:0 2px 4px rgba(245,158,11,0.4);">SOON</span></button>
+    <button class="tab-btn" onclick="switchTab('exam')" style="position:relative;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:-3px;margin-right:5px"><path d="M9 11l3 3 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Шалгалт</button>
   </div>
 
   <!-- PATH TAB -->
@@ -50025,6 +50039,7 @@ function renderMath(text) {
   }
   function unlockNextNodes() {
     var c = cmCompletedSlots();
+    var PL = cmPlacementSlot();   // түвшин тогтоох сорилоор нээгдсэн слот хүртэл
     // Nodes 108-125 нь устгагдсан тул HIDDEN_NODES хоосон
     var HIDDEN_NODES = [];
     /* Тухайн ангийн зам энэ слот хүртэл хүрэхгүй бол нуух (ж: 10-р анги 73 node → 74+ нуугдана).
@@ -50045,7 +50060,7 @@ function renderMath(text) {
       var prevDone;
       if (i === 126) prevDone = c.indexOf(107) !== -1;
       else prevDone = c.indexOf(i - 1) !== -1;
-      var isUnlocked = prevDone || c.indexOf(i) !== -1;
+      var isUnlocked = prevDone || c.indexOf(i) !== -1 || i <= PL;
       lock.style.display = isUnlocked ? 'none' : '';
       lock.style.filter = ''; // reset
       // lock-overlay нуух
@@ -50228,7 +50243,7 @@ function renderMath(text) {
     if (typeof checkHeartRegen === 'function') checkHeartRegen();
 
     var c = cmCompletedSlots();
-    if (id === 1 || c.indexOf(id - 1) !== -1) {
+    if (id === 1 || c.indexOf(id - 1) !== -1 || id <= cmPlacementSlot()) {
       // Зүрх шалгах — _currentUser-аас уншина (DOM биш)
       var hearts = (_currentUser && _currentUser.hearts !== undefined && _currentUser.hearts !== null)
         ? parseInt(_currentUser.hearts)
@@ -63293,6 +63308,9 @@ function sendAppChat(text) {
       <button onclick="openAssignChallenge()" style="flex:1;padding:11px;background:linear-gradient(135deg,#FFC800,#FF9600);border:none;border-radius:12px;color:white;font-family:'Baloo 2',sans-serif;font-weight:800;font-size:0.88rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" style="display:inline-block;"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg>Challenge оноох</button>
       <button onclick="downloadClassroomExcel()" style="flex:1;padding:11px;background:linear-gradient(135deg,#16a34a,#15803d);border:none;border-radius:12px;color:white;font-family:'Baloo 2',sans-serif;font-weight:800;font-size:0.88rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" style="display:inline-block;"><path d="M12 4v12M7 11l5 5 5-5M5 20h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Excel татах</button>
     </div>
+    <div style="margin-bottom:10px;">
+      <button onclick="window.plShowClass &amp;&amp; plShowClass(_currentClassroomId)" style="width:100%;padding:11px;background:linear-gradient(135deg,#7B52EE,#5B3BD9);border:none;border-radius:12px;color:white;font-family:'Baloo 2',sans-serif;font-weight:800;font-size:0.88rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><path d="M4 22V4M4 4h12l-2 4 2 4H4"/></svg>Түвшин тогтоох сорилын дүн</button>
+    </div>
     <div style="margin-bottom:16px;" id="live-class-button-wrap">
       <button id="live-class-toggle-btn" onclick="toggleLiveClass()" style="width:100%;padding:13px;background:linear-gradient(135deg,#FF4B4B,#E11D48);border:none;border-radius:12px;color:white;font-family:'Baloo 2',sans-serif;font-weight:900;font-size:0.92rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 12px rgba(225,29,72,0.3);"><svg viewBox="0 0 24 24" width="18" height="18" fill="none"><circle cx="12" cy="12" r="4" fill="currentColor"/><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/></svg><span id="live-class-btn-label">🔴 Live class эхлүүлэх</span></button>
     </div>
@@ -69656,5 +69674,6 @@ window.renderReactionBar = function(nodeId, container) {
 })();
 </script>
 <!-- ═══ /Тоглоомын төв: туршилт ═══ -->
+<script src="/placement-ui.js?v=1" defer></script>
 </body>
 </html>
