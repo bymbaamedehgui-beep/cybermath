@@ -3922,6 +3922,15 @@ window.addEventListener('load', function() {
   #cm-pick .gm .pk-art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 38%; transform: scale(1.02);
     transition: transform .5s cubic-bezier(.2,.8,.2,1); }
   #cm-pick .gm:hover .pk-art img { transform: scale(1.08); }
+  /* Слайд: .on — харагдаж буй, .out — зүүн тийш гарсан, бусад нь баруун талд хүлээнэ */
+  #cm-pick .pk-sl { position: absolute; inset: 0; overflow: hidden; transform: translateX(100%); transition: transform .6s cubic-bezier(.65,0,.35,1); }
+  #cm-pick .pk-sl.on { transform: none; }
+  #cm-pick .pk-sl.out { transform: translateX(-100%); }
+  #cm-pick .pk-cap { position: absolute; right: 16px; bottom: 30px; z-index: 2; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; pointer-events: none; }
+  #cm-pick .pk-cn { font-size: .74rem; font-weight: 900; letter-spacing: .03em; color: rgba(255,255,255,.95); text-shadow: 0 1px 8px rgba(0,0,0,.7); transition: opacity .25s; }
+  #cm-pick .pk-dots { display: flex; gap: 4px; }
+  #cm-pick .pk-dots i { width: 6px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.4); transition: width .3s, background .3s; }
+  #cm-pick .pk-dots i.on { width: 16px; background: #FFC113; }
   #cm-pick .gm .pk-art::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(26,14,71,0) 35%, rgba(26,14,71,.55) 70%, #1F1153 100%),
     linear-gradient(90deg, rgba(76,29,149,.35), transparent 55%); }
   #cm-pick .pk-chips { position: absolute; left: 16px; top: 16px; z-index: 2; display: flex; flex-wrap: wrap; gap: 7px; }
@@ -3995,6 +4004,8 @@ window.addEventListener('load', function() {
     #cm-pick .pk-c { border-radius: 22px; }
     #cm-pick .pk-art { height: 118px; }
     #cm-pick .pk-chips { left: 12px; top: 12px; gap: 6px; }
+    #cm-pick .pk-cap { right: 12px; bottom: 24px; }
+    #cm-pick .pk-cn { font-size: .68rem; }
     #cm-pick .pk-chip { padding: 5px 9px; font-size: .68rem; }
     #cm-pick .pk-paper { top: 14px; width: 54%; }
     #cm-pick .pk-paper.p2 { top: 8px; }
@@ -4016,6 +4027,7 @@ window.addEventListener('load', function() {
   @media (prefers-reduced-motion: reduce) {
     #cm-pick .pk-c, #cm-pick .pk-top, #cm-pick h1, #cm-pick .pk-sub { animation: none; }
     #cm-pick .pk-c, #cm-pick .pk-paper, #cm-pick .gm .pk-art img, #cm-pick .pk-go svg { transition: none; }
+    #cm-pick .pk-sl { transition: none; }
   }
 </style>
 <div id="cm-pick" role="dialog" aria-modal="true" aria-labelledby="cm-pick-t">
@@ -4027,8 +4039,15 @@ window.addEventListener('load', function() {
     <div class="pk-g">
       <button type="button" class="pk-c gm" data-pick="game">
         <span class="pk-art">
-          <img data-src="/assets/pick/game-hero.webp" alt="" width="960" height="562" decoding="async">
-          <span class="pk-chips"><span class="pk-chip"><b>17</b> тоглоом</span><span class="pk-chip">3D тулаан</span><span class="pk-chip">MATHLET</span></span>
+          <span class="pk-sl on" data-n="MATH MORTAL"><img data-src="/assets/pick/game-hero.webp" alt="" width="960" height="562" decoding="async"></span>
+          <span class="pk-sl" data-n="Математик Муурнууд"><img data-src="/assets/pick/s-kittens.webp" alt="" width="960" height="440" decoding="async"></span>
+          <span class="pk-sl" data-n="Мянгат"><img data-src="/assets/pick/s-myangat.webp" style="object-position:50% 0%" alt="" width="960" height="440" decoding="async"></span>
+          <span class="pk-sl" data-n="Math Block Blast"><img data-src="/assets/pick/s-blast.webp" alt="" width="960" height="440" decoding="async"></span>
+          <span class="pk-sl" data-n="MATH MORTAL · 3D тулаан"><img data-src="/assets/pick/s-mortal.webp" alt="" width="960" height="440" decoding="async"></span>
+          <span class="pk-sl" data-n="Тоон дарааллын таавар"><img data-src="/assets/pick/s-numseq.webp" alt="" width="960" height="440" decoding="async"></span>
+          <span class="pk-sl" data-n="Судоку"><img data-src="/assets/pick/s-sudoku.webp" alt="" width="960" height="440" decoding="async"></span>
+          <span class="pk-chips"><span class="pk-chip"><b>17</b> тоглоом</span></span>
+          <span class="pk-cap" aria-hidden="true"><span class="pk-cn">MATH MORTAL</span><span class="pk-dots"><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i></span></span>
         </span>
         <span class="pk-in">
           <span class="pk-h">
@@ -4097,6 +4116,26 @@ window.addEventListener('load', function() {
   });
   // Гаргахгүй үед далд хэвээр (DOM-д үлдэнэ — «Төв солих»-оор нээгдэнэ)
   if (d.classList.contains('cm-pick')) show();
+})();
+</script>
+<script>
+/* Тоглоомын төвийн картын слайд: MS тутам дараагийн тоглоом (сонголт харагдаж байхад, зураг ачаалагдсан бол) */
+(function () {
+  var MS = 2000;
+  var o = document.getElementById('cm-pick'); if (!o) return;
+  var S = o.querySelectorAll('.pk-sl'), D = o.querySelectorAll('.pk-dots i'), N = o.querySelector('.pk-cn'), k = 0;
+  if (S.length < 2) return;
+  try { if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return; } catch (e) {}
+  setInterval(function () {
+    if (document.hidden || !o.offsetWidth) return;
+    var n = (k + 1) % S.length, nx = S[n], im = nx.querySelector('img');
+    if (!im || !im.naturalWidth) return;   // ачаалагдаагүй бол хүлээнэ
+    nx.style.transition = 'none'; nx.classList.remove('out'); void nx.offsetWidth; nx.style.transition = '';
+    S[k].classList.remove('on'); S[k].classList.add('out'); nx.classList.add('on');
+    if (D[k]) D[k].classList.remove('on'); if (D[n]) D[n].classList.add('on');
+    if (N) { N.style.opacity = '0'; setTimeout(function () { N.textContent = nx.getAttribute('data-n') || ''; N.style.opacity = ''; }, 300); }
+    k = n;
+  }, MS);
 })();
 </script>
 <!-- ═══ /Нүүр сонголт ═══ -->

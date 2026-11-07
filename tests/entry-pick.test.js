@@ -60,5 +60,20 @@ test('«Төв солих» — нүүрний цэс, нэвтэрсэн үеи
 test('сонголтын inline скриптүүд синтакс алдаагүй', () => {
   const re = /<script>([\s\S]*?)<\/script>/g; let m, n = 0;
   while ((m = re.exec(blk))) { new Function(m[1]); n++; }
-  assert.strictEqual(n, 2);
+  assert.strictEqual(n, 3);
+});
+
+test('Тоглоомын төвийн картын слайд: зураг бүр байгаа, цэг = слайд, reduced-motion/нуугдсан үед зогсоно', () => {
+  const sl = blk.match(/<span class="pk-sl[^"]*" data-n="[^"]+"><img data-src="\/assets\/pick\/[a-z0-9-]+\.webp"/g) || [];
+  assert.ok(sl.length >= 5, 'слайд ' + sl.length);
+  for (const s of sl) {
+    const f = s.match(/\/assets\/pick\/[a-z0-9-]+\.webp/)[0];
+    assert.ok(fs.existsSync(path.join(__dirname, '..', f)), f + ' байхгүй');
+  }
+  assert.strictEqual((blk.match(/class="pk-sl on"/g) || []).length, 1, 'эхний слайд л .on');
+  const dots = (blk.match(/<span class="pk-dots">([\s\S]*?)<\/span>/) || [])[1] || '';
+  assert.strictEqual((dots.match(/<i/g) || []).length, sl.length, 'цэгийн тоо = слайдын тоо');
+  assert.match(blk, /prefers-reduced-motion: reduce\)'\)\.matches\) return;/, 'reduced-motion-д автоматаар солихгүй');
+  assert.match(blk, /if \(document\.hidden \|\| !o\.offsetWidth\) return;/, 'нуугдсан үед зогсоно');
+  assert.match(blk, /if \(!im \|\| !im\.naturalWidth\) return;/, 'зураг ачаалагдаагүй бол хүлээнэ');
 });
