@@ -10,6 +10,7 @@
   var MQ = window.matchMedia('(max-width: 768px)');
   function S(p) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + p + '</svg>'; }
   var IC = {
+    home: S('<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/>'),
     path: S('<path d="M9 4 3 6.5V20l6-2.5 6 2.5 6-2.5V4l-6 2.5L9 4Z"/><path d="M9 4v13.5M15 6.5V20"/>'),
     games: S('<rect x="2.5" y="7" width="19" height="11" rx="5.5"/><path d="M7.5 10.5v4M5.5 12.5h4"/><path d="M15.5 11.5h.01M17.5 13.5h.01" stroke-width="3"/>'),
     mathlet: S('<path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12L13 2Z"/>'),
@@ -29,6 +30,12 @@
     down: S('<path d="M12 4v15M6 13l6 6 6-6"/>')
   };
   var NAV = [['path', 'Зам', IC.path], ['games', 'Тоглоом', IC.games], ['mathlet', 'Mathlet', IC.mathlet], ['leaderboard', 'Тэргүүлэгч', IC.trophy], ['more', 'Цааш', IC.grid]];
+  // cm-ui.js «Нүүр» табыг (#tab-home) нэмсэн бол: Нүүр · Зам · Тоглоом · Тэргүүлэгч · Цааш (Mathlet «Цааш»-т шилжинэ)
+  function navFor() {
+    return document.getElementById('tab-home')
+      ? [['home', 'Нүүр', IC.home], ['path', 'Зам', IC.path], ['games', 'Тоглоом', IC.games], ['leaderboard', 'Тэргүүлэгч', IC.trophy], ['more', 'Цааш', IC.grid]]
+      : NAV;
+  }
   var app = null, land = null, nav = null, sheet = null, built = false;
 
   // Анхаар: tab-mathlet / tab-classroom / tab-exam нь #cybermath-app-ийн гадна (body-д) байрладаг
@@ -93,6 +100,7 @@
       ['Төв солих', IC.swap, function () { closeSheet(); if (window.cmShowPick) window.cmShowPick(); else location.href = '/?pick'; }]
     ];
     if (visible(document.getElementById('tab-btn-classroom'))) L.splice(2, 0, ['Анги', IC.cls, function () { go('classroom'); }]);
+    if (!NAV.some(function (n) { return n[0] === 'mathlet'; })) L.unshift(['Mathlet', IC.mathlet, function () { go('mathlet'); }]);
     if (!standalone()) L.push(['Апп суулгах', IC.install, function () { install(); }]);
     return L;
   }
@@ -182,6 +190,7 @@
   /* ── Апп (доод навигаци) ── */
   function build() {
     if (built) return; built = true;
+    NAV = navFor();
     nav = document.createElement('nav'); nav.id = 'cm-bnav'; nav.setAttribute('aria-label', 'Үндсэн цэс');
     nav.innerHTML = NAV.map(function (n) { return '<button type="button" data-k="' + n[0] + '"><i>' + n[2] + '</i><span>' + n[1] + '</span></button>'; }).join('');
     nav.addEventListener('click', function (e) {
