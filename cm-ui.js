@@ -348,6 +348,12 @@
     else {
       var me = String(u.email || '').toLowerCase(), mi = -1;
       L.forEach(function (x, i) { if (mi < 0 && ((u.id && x.id === u.id) || (me && String(x.email || '').toLowerCase() === me))) mi = i; });
+      if (mi < 0) {   // имэйл/нууц үгээр нэвтэрсэн бол id ирдэггүй — нэр + XP-ээр (cm-compete.js-тэй ижил)
+        var sn = shortName(u), cand = [], ux = +u.xp || 0;
+        L.forEach(function (x, i) { if (shortName(x) === sn) cand.push(i); });
+        var ex = cand.filter(function (i) { return (+L[i].xp || 0) === ux; });
+        mi = ex.length === 1 ? ex[0] : cand.length === 1 && Math.abs((+L[cand[0]].xp || 0) - ux) <= Math.max(200, ux * 0.05) ? cand[0] : -1;
+      }
       rows = '<ol>' + L.slice(0, 4).map(function (x, i) {
         var mine = i === mi;
         return '<li class="p' + (i + 1) + (mine ? ' me' : '') + '"><span class="r">' + (i + 1) + '</span><span class="av">' + (mine ? myAv() : avHtml(x.avatar)) + '</span><span class="nm">' +

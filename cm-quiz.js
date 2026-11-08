@@ -107,7 +107,7 @@
       // Хариултын гарчиг
       var opts = R.querySelectorAll('.option-btn');
       var ah = d.createElement('div'); ah.className = 'cmq-ah';
-      ah.innerHTML = '<b>' + (opts.length ? 'Хариултаа сонго' : 'Хариултаа бич') + '</b>' +
+      ah.innerHTML = '<b>' + (opts.length ? 'Хариултаа сонго' : R.querySelector('.cmg') ? 'Графикаа байгуул' : 'Хариултаа бич') + '</b>' +
         (opts.length ? '<small><kbd>1</kbd>–<kbd>' + Math.min(9, opts.length) + '</kbd> товчоор ч болно</small>' : '');
       R.insertBefore(ah, R.firstChild);
       [].forEach.call(opts, function (b, i) {
