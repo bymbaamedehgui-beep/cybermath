@@ -116,6 +116,35 @@ test('Гөлгөр холболт: квадрат функцийг яг давт
   assert.ok(G._slopes([1, 2, 3, 6].map(x => [x, 6 / x])).every(s => s <= 0));
 });
 
+test('Харагдац (GeoGebra шиг): гэр нь хуучинтай ижил, томруулахад заагчийн цэг хөдлөхгүй, гүйлгэх, торны алхам, π', () => {
+  const vw = { x0: -6, x1: 6, y0: -5, y1: 5, xs: 1, ys: 1, sx: 1, sy: 1, xl: 'x', yl: 'y', xf: '', lx: 0, ly: 0 };
+  const g = G._geo(vw, 440);   // padL 14, padT 18, нүд (440-14-18)/12 = 34px
+  assert.ok(near(g.X(-6), 14) && near(g.X(0), 218) && near(g.Y(5), 18) && near(g.Y(0), 188), 'гэр: v-ийн муж торонд яг');
+  const h = G._geo(vw, 440, g.home);
+  for (const x of [-6, -1.5, 0, 3, 6]) assert.ok(Math.abs(h.X(x) - g.X(x)) < 0.11, 'X ' + x);
+  for (const y of [-5, 0, 2.5, 5]) assert.ok(Math.abs(h.Y(y) - g.Y(y)) < 0.11, 'Y ' + y);
+  const c = G._camZoom(g, null, 2, 100, 80), g2 = G._geo(vw, 440, c);
+  assert.ok(Math.abs(g2.wx(100) - g.wx(100)) < 1e-9 && Math.abs(g2.wy(80) - g.wy(80)) < 1e-9, 'заагчийн доорх цэг');
+  assert.ok(near(g2.kx, g.kx * 2) && near(g2.ky, g.ky * 2));
+  assert.equal(G._camZoom(g, null, 1000, 0, 0).z, 8);
+  assert.equal(G._camZoom(g, null, 1e-6, 0, 0).z, 0.2);
+  const p = G._geo(vw, 440, G._camPan(g, null, 50, -30));
+  assert.ok(Math.abs(p.X(0) - (g.X(0) + 50)) < 0.11 && Math.abs(p.Y(0) - (g.Y(0) - 30)) < 0.11, 'гүйлгэх');
+  assert.equal(G._gstep(1, 34, 1), 1, 'гэрт үндсэн алхам');
+  assert.equal(G._gstep(1, 34 * 0.2, 1), 2, 'жижигрүүлэхэд 2');
+  assert.equal(G._gstep(1, 34 * 0.05, 1), 10, 'улам жижигрүүлэхэд 10');
+  assert.equal(G._gstep(1, 34 * 8, 1), 1, 'самбар: цэг наалдах алхмаас нарийн биш');
+  assert.equal(G._gstep(1, 34 * 8, 0.1), 0.2, '«График харах»: томруулахад 0.2');
+  const pv = Object.assign({}, vw, { xf: 'pi2' });
+  assert.deepEqual([1, 2, 3, 4, -1, -2, -3, 0.5].map(x => G._xlab(pv, x)), ['π/2', 'π', '3π/2', '2π', '−π/2', '−π', '−3π/2', '']);
+  // «График харах»: томруулах товчтой, хөтөлбөрийн бүртгэлтэй
+  const q = { q: '$y = 2x - 3$ функцийн графикийг байгуул', type: 'choice' };
+  ctx.currentLessonId = 52; const out = G.viewFor(q); delete ctx.currentLessonId;
+  assert.match(out, /class="cmg-view" data-cmgv="v\d+"/);
+  assert.match(out, /<div class="cmg-zoom"[^>]*>.*data-z="in".*data-z="out".*data-z="home"/);
+  assert.match(js, /sv\.addEventListener\('wheel', function \(e\) \{ navWheel\(me, e\); \}, \{ passive: false \}\);/);
+});
+
 test('«График харах»: текст дэх y = f(x)-ийг таних (x-ээс өөр үсэгтэйг алгасна)', () => {
   const ok = [['3x - 8', x => 3 * x - 8], ['\\dfrac{8}{x}', x => 8 / x], ['-x^2+4x-3', x => -x * x + 4 * x - 3], ['\\left(\\dfrac{1}{2}\\right)^x', x => Math.pow(0.5, x)], ['|x-1|-2', x => Math.abs(x - 1) - 2]];
   for (const [s, f] of ok) { const p = G._parseFn(s); assert.ok(p, s); [-2.5, -1, 0.5, 3].forEach(x => assert.ok(near(p(x), f(x)), s + ' @' + x)); }

@@ -524,16 +524,24 @@
 
   /* ════════ Зураг (SVG мөр) ════════ */
   function r1(v) { return Math.round(v * 10) / 10; }
-  function geo(v, W) {
+  /* Зургийн хэмжээ (W×H) v-ээс; «гэр» харагдацад v-ийн муж торонд яг багтана. cam = { z, cx, cy } — чирж гүйлгэсэн,
+     томруулсан харагдац (z — гэртэй харьцуулсан томруулалт, (cx; cy) — зургийн төвд байгаа цэг); null бол гэр.
+     pr — баруун зай (самбарт томруулах товчны багана торны цэгийг халхлахгүй). */
+  function geo(v, W, cam, pr) {
     var nx = Math.round((v.x1 - v.x0) / v.xs), ny = Math.round((v.y1 - v.y0) / v.ys);
-    var lab = Math.max(String(mn(v.y0)).length, String(mn(v.y1)).length), padL = v.x0 < 0 ? 14 : Math.max(22, 10 + lab * 7), padR = 18, padT = 18, padB = v.y0 < 0 ? 14 : 24;
+    var lab = Math.max(String(mn(v.y0)).length, String(mn(v.y1)).length), padL = v.x0 < 0 ? 14 : Math.max(22, 10 + lab * 7), padR = pr || 18, padT = 18, padB = v.y0 < 0 ? 14 : 24;
     var s = Math.max(14, Math.min(48, (W - padL - padR) / nx));
     if (ny * s + padT + padB > 560) s = Math.max(12, (560 - padT - padB) / ny);
-    var g = { v: v, s: s, nx: nx, ny: ny, padL: padL, padT: padT, W: r1(nx * s + padL + padR), H: r1(ny * s + padT + padB) };
-    g.X = function (x) { return r1(padL + (x - v.x0) / v.xs * s); };
-    g.Y = function (y) { return r1(padT + (v.y1 - y) / v.ys * s); };
-    g.wx = function (px) { return v.x0 + (px - padL) / s * v.xs; };
-    g.wy = function (py) { return v.y1 - (py - padT) / s * v.ys; };
+    var g = { v: v, s: s, W: r1(nx * s + padL + padR), H: r1(ny * s + padT + padB) };
+    var kx = s / v.xs, ky = s / v.ys, ox = padL - v.x0 * kx, oy = padT + v.y1 * ky;
+    g.home = { z: 1, cx: (g.W / 2 - ox) / kx, cy: (oy - g.H / 2) / ky };
+    if (cam) { kx *= cam.z; ky *= cam.z; ox = g.W / 2 - cam.cx * kx; oy = g.H / 2 + cam.cy * ky; }
+    g.kx = kx; g.ky = ky;
+    g.X = function (x) { return r1(ox + x * kx); };
+    g.Y = function (y) { return r1(oy - y * ky); };
+    g.wx = function (px) { return (px - ox) / kx; };
+    g.wy = function (py) { return (oy - py) / ky; };
+    g.vis = { x0: g.wx(0), x1: g.wx(g.W), y0: g.wy(g.H), y1: g.wy(0) };   // харагдаж буй муж
     return g;
   }
   function xlab(v, x) {
@@ -541,38 +549,60 @@
     var k = Math.round(x * 2);   // x нь π/2-ын нэгжээр
     if (k % 2) return '';
     var n = k / 2;
-    return n === 1 ? 'π/2' : n === 2 ? 'π' : n === 3 ? '3π/2' : n === 4 ? '2π' : mn(n) + 'π/2';
+    if (!n) return '0';
+    if (n % 2) return n === 1 ? 'π/2' : n === -1 ? '−π/2' : mn(n) + 'π/2';
+    return n === 2 ? 'π' : n === -2 ? '−π' : mn(n / 2) + 'π';
   }
   function arrowHead(x, y, deg, cls) { return '<path d="M0,0 L-9,-4.5 L-9,4.5 Z" class="' + cls + '" transform="translate(' + x + ',' + y + ') rotate(' + deg + ')"/>'; }
-  function gridSvg(g, cid) {
-    var v = g.v, h = '', i, x, y, xr = g.padL + g.nx * g.s, yb = g.padT + g.ny * g.s;
-    h += '<defs><clipPath id="' + cid + '"><rect x="' + g.padL + '" y="' + g.padT + '" width="' + r1(g.nx * g.s) + '" height="' + r1(g.ny * g.s) + '"/></clipPath></defs>';
-    h += '<rect x="0" y="0" width="' + g.W + '" height="' + g.H + '" class="bg"/>';
-    for (i = 0; i <= g.nx; i++) { x = r1(g.padL + i * g.s); h += '<line x1="' + x + '" y1="' + g.padT + '" x2="' + x + '" y2="' + r1(yb) + '" class="gl"/>'; }
-    for (i = 0; i <= g.ny; i++) { y = r1(g.padT + i * g.s); h += '<line x1="' + g.padL + '" y1="' + y + '" x2="' + r1(xr) + '" y2="' + y + '" class="gl"/>'; }
+  // Торны алхам: base·{…, 0.1, 0.2, 0.5, 1, 2, 5, 10, …} — нүд 11.5–96 px, floor-оос нарийн биш (самбарт — цэг наалдах алхам)
+  function gstep(base, k, floor) {
+    var c = [], e, j;
+    for (e = -1; e <= 5; e++) [1, 2, 5].forEach(function (n) { c.push(base * n * Math.pow(10, e)); });
+    c.sort(function (a, b) { return a - b; });
+    j = c.indexOf(base);
+    while (j < c.length - 1 && c[j] * k < 11.5) j++;
+    while (j > 0 && c[j] * k > 96 && c[j - 1] >= floor - 1e-9) j--;
+    return c[j];
+  }
+  function every(sp, need, pref) { var m = [1, 2, 5, 10].filter(function (k) { return k * sp >= need; })[0] || 10; return Math.max(m, pref || 1); }
+  // Хязгааргүй тор (харагдаж буй мужид), тэнхлэг, тэмдэглэгээ; тэнхлэг харагдахгүй бол тэмдэглэгээ ирмэгт наалдана
+  function gridSvg(g, cid, fine) {
+    var v = g.v, W = g.W, H = g.H, r = g.vis, h = '', i, x, y;
+    var sx = gstep(v.xs, g.kx, fine ? v.xs / 10 : Math.min(v.xs, v.sx)), sy = gstep(v.ys, g.ky, fine ? v.ys / 10 : Math.min(v.ys, v.sy));
+    var bx = v.x0 - Math.floor(v.x0 / v.xs + 1e-9) * v.xs, by = v.y0 - Math.floor(v.y0 / v.ys + 1e-9) * v.ys;   // тор v-ийн эхлэлтэй таарна
+    var ia = Math.ceil((r.x0 - bx) / sx - 1e-9), ib = Math.floor((r.x1 - bx) / sx + 1e-9), ja = Math.ceil((r.y0 - by) / sy - 1e-9), jb = Math.floor((r.y1 - by) / sy + 1e-9);
+    h += '<defs><clipPath id="' + cid + '"><rect x="0" y="0" width="' + W + '" height="' + H + '"/></clipPath></defs>';
+    h += '<rect x="0" y="0" width="' + W + '" height="' + H + '" class="bg"/>';
+    for (i = ia; i <= ib; i++) { x = g.X(bx + i * sx); h += '<line x1="' + x + '" y1="0" x2="' + x + '" y2="' + H + '" class="gl"/>'; }
+    for (i = ja; i <= jb; i++) { y = g.Y(by + i * sy); h += '<line x1="0" y1="' + y + '" x2="' + W + '" y2="' + y + '" class="gl"/>'; }
     var ax = v.x0 <= 0 && v.x1 >= 0 ? 0 : v.x0, ay = v.y0 <= 0 && v.y1 >= 0 ? 0 : v.y0, X0 = g.X(ax), Y0 = g.Y(ay);
-    h += '<line x1="' + g.padL + '" y1="' + Y0 + '" x2="' + r1(xr + 9) + '" y2="' + Y0 + '" class="ax"/>' + arrowHead(r1(xr + 13), Y0, 0, 'ah');
-    h += '<line x1="' + X0 + '" y1="' + r1(yb) + '" x2="' + X0 + '" y2="' + (g.padT - 9) + '" class="ax"/>' + arrowHead(X0, g.padT - 13, -90, 'ah');
-    var kx = v.lx || (g.s < 22 ? 2 : 1), ky = v.ly || (g.s < 22 ? 2 : 1);
-    for (i = 0; i <= g.nx; i++) {
-      var xv = v.x0 + i * v.xs, xi = Math.round(xv / v.xs);
-      if (near(xv, ax) || xi % kx) continue;
-      var t = xlab(v, xv); if (t) h += '<text x="' + g.X(xv) + '" y="' + r1(Y0 + 14) + '" class="tk" text-anchor="middle">' + t + '</text>';
+    var xin = X0 >= 0 && X0 <= W, yin = Y0 >= 0 && Y0 <= H;
+    if (yin) h += '<line x1="0" y1="' + Y0 + '" x2="' + r1(W - 6) + '" y2="' + Y0 + '" class="ax"/>' + arrowHead(r1(W - 2), Y0, 0, 'ah');
+    if (xin) h += '<line x1="' + X0 + '" y1="' + H + '" x2="' + X0 + '" y2="6" class="ax"/>' + arrowHead(X0, 2, -90, 'ah');
+    var tx = yin ? (Y0 + 14 > H - 3 ? Y0 - 6 : Y0 + 14) : Y0 > H ? H - 5 : 13;
+    var yw = Math.max(mn(by + ja * sy).length, mn(by + jb * sy).length) * 6.5 + 6, fl = xin && X0 < yw;   // зүүн ирмэгт багтахгүй бол тэнхлэгийн баруун талд
+    var ty = xin ? (fl ? X0 + 5 : X0 - 5) : X0 < 0 ? 4 : W - 4, an = xin ? (fl ? 'start' : 'end') : X0 < 0 ? 'start' : 'end';
+    var cw = Math.max(xlab(v, bx + ia * sx).length, xlab(v, bx + ib * sx).length);
+    var mx = every(sx * g.kx, Math.max(22, cw * 6 + 4), near(sx, v.xs) ? v.lx : 0), my = every(sy * g.ky, 22, near(sy, v.ys) ? v.ly : 0);
+    for (i = ia; i <= ib; i++) {
+      var xv = bx + i * sx;
+      if (near(xv, ax) || Math.round(xv / sx) % mx || g.X(xv) < 9 || g.X(xv) > W - 13) continue;   // ирмэгт тасрахгүй
+      var t = xlab(v, xv); if (t) h += '<text x="' + g.X(xv) + '" y="' + r1(tx) + '" class="tk" text-anchor="middle">' + t + '</text>';
     }
-    for (i = 0; i <= g.ny; i++) {
-      var yv = v.y0 + i * v.ys, yi = Math.round(yv / v.ys);
-      if (near(yv, ay) || yi % ky) continue;
-      h += '<text x="' + r1(X0 - 5) + '" y="' + r1(g.Y(yv) + 4) + '" class="tk" text-anchor="end">' + mn(yv) + '</text>';
+    for (i = ja; i <= jb; i++) {
+      var yv = by + i * sy;
+      if (near(yv, ay) || Math.round(yv / sy) % my || g.Y(yv) < 14 || g.Y(yv) > H - 5) continue;
+      h += '<text x="' + r1(ty) + '" y="' + r1(g.Y(yv) + 4) + '" class="tk" text-anchor="' + an + '">' + mn(yv) + '</text>';
     }
-    h += '<text x="' + r1(X0 - 5) + '" y="' + r1(Y0 + 14) + '" class="tk" text-anchor="end">' + (ax === 0 && ay === 0 ? 'O' : '') + '</text>';
-    h += '<text x="' + r1(xr + 4) + '" y="' + r1(Y0 - 8) + '" class="al" text-anchor="end">' + esc(v.xl) + '</text>';
-    h += '<text x="' + r1(X0 + 8) + '" y="' + (g.padT + 2) + '" class="al">' + esc(v.yl) + '</text>';
+    if (xin && yin && ax === 0 && ay === 0) h += '<text x="' + r1(X0 - 5) + '" y="' + r1(Y0 + 14) + '" class="tk" text-anchor="end">O</text>';
+    if (yin) h += '<text x="' + r1(W - 6) + '" y="' + r1(Y0 - 8 < 12 ? Y0 + 18 : Y0 - 8) + '" class="al" text-anchor="end">' + esc(v.xl) + '</text>';
+    if (xin) h += '<text x="' + r1(X0 > W - 30 ? X0 - 8 : X0 + 8) + '" y="18" class="al"' + (X0 > W - 30 ? ' text-anchor="end"' : '') + '>' + esc(v.yl) + '</text>';
     return h;
   }
-  // Шулууныг хавтгайн хүрээгээр тайрна (t0 = 0 бол цацраг)
+  // Шулууныг харагдаж буй мужаар (бага зэрэг илүүтэй) тайрна (t0 = 0 бол цацраг)
   function clipLine(g, a, b, ray) {
-    var v = g.v, dx = b[0] - a[0], dy = b[1] - a[1], t0 = ray ? 0 : -1e9, t1 = 1e9;
-    [[dx, a[0], v.x0, v.x1], [dy, a[1], v.y0, v.y1]].forEach(function (c) {
+    var r = g.vis, ex = (r.x1 - r.x0) * 0.05, ey = (r.y1 - r.y0) * 0.05, dx = b[0] - a[0], dy = b[1] - a[1], t0 = ray ? 0 : -1e9, t1 = 1e9;
+    [[dx, a[0], r.x0 - ex, r.x1 + ex], [dy, a[1], r.y0 - ey, r.y1 + ey]].forEach(function (c) {
       if (Math.abs(c[0]) < 1e-12) { if (c[1] < c[2] || c[1] > c[3]) { t0 = 1; t1 = 0; } return; }
       var u = (c[2] - c[1]) / c[0], w = (c[3] - c[1]) / c[0];
       t0 = Math.max(t0, Math.min(u, w)); t1 = Math.min(t1, Math.max(u, w));
@@ -606,17 +636,17 @@
       it.pts.forEach(function (p, i) { h += '<circle cx="' + g.X(p[0]) + '" cy="' + g.Y(p[1]) + '" r="4.5" class="' + cls + ' pt"/>' + lbl(g, p, it.ns && it.ns[i]); });
       return h;
     }
-    if (it.t === 'circle') return '<circle cx="' + g.X(it.c[0]) + '" cy="' + g.Y(it.c[1]) + '" r="' + r1(it.r / v.xs * g.s) + '" class="' + cls + ' ci"/>';
+    if (it.t === 'circle') return '<circle cx="' + g.X(it.c[0]) + '" cy="' + g.Y(it.c[1]) + '" r="' + r1(it.r * g.kx) + '" class="' + cls + ' ci"/>';
     if (it.t === 'fn') {
-      var f = it.f, dd = '', pen = false, prev = null;
+      var f = it.f, dd = '', pen = false, prev = null, rv = g.vis;
       if (f.pts) return '<polyline points="' + f.pts.map(function (p) { return g.X(p[0]) + ',' + g.Y(p[1]); }).join(' ') + '" class="' + cls + ' fn ' + (it.c || '') + '"/>';
-      var span = v.y1 - v.y0, py = null;
+      var span = rv.y1 - rv.y0, py = null;   // харагдаж буй мужийн өргөнөөр (чирж гүйлгэхэд муруй үргэлжилнэ)
       for (var i = 0; i <= 360; i++) {
-        var x = v.x0 + (v.x1 - v.x0) * i / 360, y = f(x);
+        var x = rv.x0 + (rv.x1 - rv.x0) * i / 360, y = f(x);
         var brk = prev != null && (it.br || []).some(function (b) { return prev < b && x >= b; });
-        if (!isFinite(y) || brk || Math.abs(y) > 1e4) { pen = false; prev = x; continue; }
+        if (!isFinite(y) || brk || Math.abs(y) > 1e6) { pen = false; prev = x; continue; }
         if (pen && Math.abs(y - py) > span * 1.5) pen = false;   // асимптотын үсрэлтийг холбохгүй
-        dd += (pen ? 'L' : 'M') + g.X(x) + ',' + g.Y(Math.max(v.y0 - span, Math.min(v.y1 + span, y)));
+        dd += (pen ? 'L' : 'M') + g.X(x) + ',' + g.Y(Math.max(rv.y0 - span, Math.min(rv.y1 + span, y)));
         pen = true; prev = x; py = y;
       }
       return dd ? '<path d="' + dd + '" class="' + cls + ' fn ' + (it.c || '') + '"/>' : '';
@@ -678,13 +708,49 @@
     }
     return d;
   }
-  function staticSvg(v, items, W) {
-    var g = geo(v, W || 440), cid = 'cmgc' + (++UID), h = gridSvg(g, cid) + '<g clip-path="url(#' + cid + ')">';
+  function body(g, items, cid) {
+    var h = gridSvg(g, cid, true) + '<g clip-path="url(#' + cid + ')">';
     items.forEach(function (it) { if (it.t !== 'pt') h += item(g, it, it.cls || 'gv'); });
     h += '</g>';
     items.forEach(function (it) { if (it.t === 'pt') h += item(g, it, it.cls || 'gv'); });
-    return '<svg class="cmg-svg" viewBox="0 0 ' + g.W + ' ' + g.H + '" role="img" aria-label="Функцийн график">' + h + '</svg>';
+    return h;
   }
+  function staticSvg(v, items, W) {
+    var g = geo(v, W || 440), cid = 'cmgc' + (++UID);
+    return '<svg class="cmg-svg" viewBox="0 0 ' + g.W + ' ' + g.H + '" role="img" aria-label="Функцийн график" data-cid="' + cid + '">' + body(g, items, cid) + '</svg>';
+  }
+
+  /* ════════ Харагдацыг чирж гүйлгэх, томруулах (GeoGebra шиг) — самбар ба «График харах»-д нийтлэг ════════
+     Хоосон газар чирэх — гүйлгэнэ; хулганы дугуй (эсвэл touchpad-ын чимхэлт) — заагчийн цэгийг тойрон томруулна;
+     хоёр хуруу — томруулж гүйлгэнэ; «+», «−», «гэр» товч. o: { svg, g, cam, ptrs, pinch, setCam(cam) }. */
+  var ZMIN = 0.2, ZMAX = 8;
+  var raf = window.requestAnimationFrame ? function (f) { return window.requestAnimationFrame(f); } : function (f) { return setTimeout(f, 16); };
+  function camOf(g, cam) { return cam ? { z: cam.z, cx: cam.cx, cy: cam.cy } : { z: 1, cx: g.home.cx, cy: g.home.cy }; }
+  function camPan(g, cam, dx, dy) { var c = camOf(g, cam); c.cx -= dx / g.kx; c.cy += dy / g.ky; return c; }
+  function camZoom(g, cam, f, px, py) {   // (px; py) дээрх цэг хөдлөхгүй
+    var c = camOf(g, cam), z = Math.max(ZMIN, Math.min(ZMAX, c.z * f)), wx = g.wx(px), wy = g.wy(py);
+    f = z / c.z; if (Math.abs(f - 1) < 1e-9) return c;
+    c.z = z; c.cx = wx + (g.W / 2 - px) / (g.kx * f); c.cy = wy + (py - g.H / 2) / (g.ky * f);
+    return c;
+  }
+  function navLoc(o, e) { var r = o.svg.getBoundingClientRect(); return { px: (e.clientX - r.left) * o.g.W / (r.width || 1), py: (e.clientY - r.top) * o.g.H / (r.height || 1) }; }
+  function navWheel(o, e) {
+    e.preventDefault();
+    var L = navLoc(o, e), dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
+    o.setCam(camZoom(o.g, o.cam, Math.exp(-Math.max(-240, Math.min(240, dy)) * (e.ctrlKey ? 0.008 : 0.0018)), L.px, L.py));
+  }
+  function navPinchStart(o) {
+    var k = Object.keys(o.ptrs), a = o.ptrs[k[0]], b = o.ptrs[k[1]];
+    o.pinch = { a: k[0], b: k[1], d: Math.hypot(a.px - b.px, a.py - b.py) || 1, mx: (a.px + b.px) / 2, my: (a.py + b.py) / 2 };
+  }
+  function navPinchMove(o) {
+    var P = o.pinch, a = o.ptrs[P.a], b = o.ptrs[P.b]; if (!a || !b) return;
+    var dd = Math.hypot(a.px - b.px, a.py - b.py) || 1, mx = (a.px + b.px) / 2, my = (a.py + b.py) / 2;
+    o.setCam(camPan(o.g, o.cam, mx - P.mx, my - P.my));
+    o.setCam(camZoom(o.g, o.cam, dd / P.d, mx, my));
+    P.d = dd; P.mx = mx; P.my = my;
+  }
+  function navZoomBtn(o, k) { if (k === 'home') o.setCam(null); else o.setCam(camZoom(o.g, o.cam, k === 'in' ? 1.25 : 0.8, o.g.W / 2, o.g.H / 2)); }
 
   /* ════════ Самбар ════════ */
   function S(p) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + p + '</svg>'; }
@@ -700,12 +766,17 @@
   };
   var ICU = S('<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>'), ICC = S('<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>'),
     ICE = S('<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>');
+  var ZOOM = '<div class="cmg-zoom" role="group" aria-label="Харагдац">' +
+    '<button type="button" data-z="in" title="Томруулах" aria-label="Томруулах">' + S('<path d="M12 5v14M5 12h14"/>') + '</button>' +
+    '<button type="button" data-z="out" title="Жижигрүүлэх" aria-label="Жижигрүүлэх">' + S('<path d="M5 12h14"/>') + '</button>' +
+    '<button type="button" data-z="home" title="Анхны харагдац" aria-label="Анхны харагдац">' + S('<path d="M3.5 11 12 4l8.5 7"/><path d="M6 9.5V20h12V9.5"/>') + '</button></div>';
   var B = null;   // одоогийн самбар
 
   function Board(host, G) {
     var me = this;
     this.host = host; this.G = G; this.v = G.v; this.pts = []; this.objs = []; this.hist = []; this.uid = 0; this.cid = 'cmgb' + (++UID);
     this.pend = null; this.sel = null; this.lock = false; this.res = null; this.showSol = false; this.drag = null; this.chain = null;
+    this.cam = null; this.ptrs = {}; this.pinch = null; this.raf = 0;
     var tools = G.tools.concat(['erase']);
     this.tool = G.tools.filter(function (t) { return t !== 'point' && t !== 'join'; })[0] || 'point';
     host.classList.add('cmg');
@@ -714,7 +785,7 @@
     }).join('') +
       '<i class="sp"></i><button type="button" class="ic" data-act="undo" title="Буцаах" aria-label="Буцаах">' + ICU + '</button>' +
       '<button type="button" class="ic" data-act="clear" title="Цэвэрлэх" aria-label="Цэвэрлэх">' + ICC + '</button></div>' +
-      '<div class="cmg-stage"><svg class="cmg-svg" role="application" aria-label="Координатын хавтгай"></svg></div>' +
+      '<div class="cmg-stage"><svg class="cmg-svg" role="application" aria-label="Координатын хавтгай"></svg>' + ZOOM + '</div>' +
       '<div class="cmg-foot"><span class="cmg-tip"></span><span class="cmg-list"></span></div><div class="cmg-res" hidden></div>';
     this.stage = host.querySelector('.cmg-stage'); this.svg = host.querySelector('.cmg-svg');
     this.tipEl = host.querySelector('.cmg-tip'); this.listEl = host.querySelector('.cmg-list'); this.resEl = host.querySelector('.cmg-res');
@@ -725,12 +796,14 @@
       else if (b.getAttribute('data-act') === 'clear') me.clear();
     });
     this.resEl.addEventListener('click', function (e) { if (e.target.closest('[data-sol]')) { me.showSol = !me.showSol; me.draw(); me.renderRes(); } });
+    host.querySelector('.cmg-zoom').addEventListener('click', function (e) { var b = e.target.closest('[data-z]'); if (b) navZoomBtn(me, b.getAttribute('data-z')); });
     var sv = this.svg;
     sv.addEventListener('pointerdown', function (e) { me.down(e); });
     sv.addEventListener('pointermove', function (e) { me.move(e); });
     sv.addEventListener('pointerup', function (e) { me.up(e); });
-    sv.addEventListener('pointercancel', function () { me.drag = null; });
+    sv.addEventListener('pointercancel', function (e) { me.up(e, true); });
     sv.addEventListener('pointerleave', function () { if (me.hov) me.hov.innerHTML = ''; });
+    sv.addEventListener('wheel', function (e) { navWheel(me, e); }, { passive: false });
     this.layout(); this.setTool(this.tool);
     if (window.ResizeObserver) {
       this.ro = new ResizeObserver(function () { if (!me.host.isConnected) { me.ro.disconnect(); return; } if (me.layout()) me.draw(); });
@@ -740,9 +813,14 @@
   Board.prototype.layout = function () {
     var w = Math.round(this.stage.clientWidth || 0) || 360;
     if (this.g && Math.abs(w - this.w) < 4) return false;
-    this.w = w; this.g = geo(this.v, w);
+    this.w = w; this.g = geo(this.v, w, this.cam, 52);
     this.svg.setAttribute('viewBox', '0 0 ' + this.g.W + ' ' + this.g.H);
     return true;
+  };
+  Board.prototype.setCam = function (c) {   // харагдац (гүйлгэх, томруулах) — зургийг дараагийн кадрт
+    var me = this;
+    this.cam = c; this.g = geo(this.v, this.w, c, 52);
+    if (!this.raf) this.raf = raf(function () { me.raf = 0; me.draw(); });
   };
   Board.prototype.setTool = function (t) {
     this.tool = t; this.pend = null; this.chain = null;
@@ -765,12 +843,13 @@
     var p = this.ptAt(x, y); if (p) return p;
     p = { id: ++this.uid, x: x, y: y, n: this.name() }; this.pts.push(p); return p;
   };
-  Board.prototype.snap = function (px, py) {
-    var v = this.v, g = this.g, x = Math.round(g.wx(px) / v.sx) * v.sx, y = Math.round(g.wy(py) / v.sy) * v.sy;
-    x = Math.min(v.x1, Math.max(v.x0, x)); y = Math.min(v.y1, Math.max(v.y0, y));
+  Board.prototype.snap = function (px, py) {   // торны цэгт наалдана; харагдаж буй мужаас гарахгүй
+    var v = this.v, r = this.g.vis, x = Math.round(this.g.wx(px) / v.sx) * v.sx, y = Math.round(this.g.wy(py) / v.sy) * v.sy;
+    x = Math.min(Math.floor(r.x1 / v.sx + 1e-9) * v.sx, Math.max(Math.ceil(r.x0 / v.sx - 1e-9) * v.sx, x));
+    y = Math.min(Math.floor(r.y1 / v.sy + 1e-9) * v.sy, Math.max(Math.ceil(r.y0 / v.sy - 1e-9) * v.sy, y));
     return [+x.toFixed(6), +y.toFixed(6)];
   };
-  Board.prototype.loc = function (e) { var r = this.svg.getBoundingClientRect(); return { px: (e.clientX - r.left) * this.g.W / r.width, py: (e.clientY - r.top) * this.g.H / r.height }; };
+  Board.prototype.loc = function (e) { return navLoc(this, e); };
   Board.prototype.hitPt = function (px, py, R) {
     var g = this.g, best = null, bd = R || 16;
     this.pts.forEach(function (p) { var dd = Math.hypot(g.X(p.x) - px, g.Y(p.y) - py); if (dd < bd) { bd = dd; best = p; } });
@@ -795,15 +874,24 @@
   Board.prototype.snapshot = function () { return JSON.stringify({ p: this.pts, o: this.objs, u: this.uid }); };
   Board.prototype.push = function (s) { if (s !== this.snapshot()) { this.hist.push(s); if (this.hist.length > 60) this.hist.shift(); } };
   Board.prototype.down = function (e) {
-    if (this.lock || (e.pointerType === 'mouse' && e.button !== 0)) return;
-    var L = this.loc(e), hp = this.hitPt(L.px, L.py, e.pointerType === 'touch' ? 22 : 16);
-    this.drag = { id: hp ? hp.id : null, x: L.px, y: L.py, moved: false, snap: null };
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    var L = this.loc(e);
+    this.ptrs[e.pointerId] = L;
     try { this.svg.setPointerCapture(e.pointerId); } catch (x) {}
     e.preventDefault();
+    if (Object.keys(this.ptrs).length >= 2) {   // хоёр хуруу — томруулна; чирж байсан цэгийг хадгална
+      var dr = this.drag; this.drag = null;
+      if (dr && dr.moved) { this.push(dr.snap); this.changed(); }
+      navPinchStart(this); this.svg.classList.add('grab');
+      return;
+    }
+    var hp = this.lock ? null : this.hitPt(L.px, L.py, e.pointerType === 'touch' ? 22 : 16);   // шалгасны дараа зөвхөн гүйлгэнэ
+    this.drag = { id: hp ? hp.id : null, x: L.px, y: L.py, moved: false, snap: null, pan: false };
   };
   Board.prototype.move = function (e) {
-    if (this.lock) return;
     var L = this.loc(e), dr = this.drag;
+    if (this.ptrs[e.pointerId]) this.ptrs[e.pointerId] = L;
+    if (this.pinch) { navPinchMove(this); return; }
     if (dr && dr.id != null && this.tool !== 'erase') {
       if (!dr.moved && Math.hypot(L.px - dr.x, L.py - dr.y) < 6) return;
       if (!dr.moved) { dr.moved = true; dr.snap = this.snapshot(); if (this.tool !== 'join') this.pend = null; }
@@ -811,17 +899,34 @@
       if (p && (p.x !== s[0] || p.y !== s[1]) && !this.ptAt(s[0], s[1])) { p.x = s[0]; p.y = s[1]; this.sel = p.id; this.draw(); }
       return;
     }
-    if (!dr && e.pointerType === 'mouse' && this.hov) {
+    if (dr) {   // хоосон газар (эсвэл «Устгах»-аар) чирэхэд харагдацыг гүйлгэнэ
+      if (!dr.pan) {
+        if (Math.hypot(L.px - dr.x, L.py - dr.y) < 6) return;
+        dr.pan = true; dr.lx = dr.x; dr.ly = dr.y; this.svg.classList.add('grab'); if (this.hov) this.hov.innerHTML = '';
+      }
+      this.setCam(camPan(this.g, this.cam, L.px - dr.lx, L.py - dr.ly)); dr.lx = L.px; dr.ly = L.py;
+      return;
+    }
+    if (this.lock) return;
+    if (e.pointerType === 'mouse' && this.hov) {
       var q = this.snap(L.px, L.py), g = this.g, h = '<circle cx="' + g.X(q[0]) + '" cy="' + g.Y(q[1]) + '" r="6" class="hov"/>';
       var pe = this.pend != null && this.byId(this.pend);
       if (pe) h = '<line x1="' + g.X(pe.x) + '" y1="' + g.Y(pe.y) + '" x2="' + g.X(q[0]) + '" y2="' + g.Y(q[1]) + '" class="rb"/>' + h;
       this.hov.innerHTML = this.tool === 'erase' ? '' : h;
     }
   };
-  Board.prototype.up = function (e) {
-    var dr = this.drag; this.drag = null;
-    if (!dr || this.lock) return;
+  Board.prototype.up = function (e, cancel) {
+    delete this.ptrs[e.pointerId];
+    var ks = Object.keys(this.ptrs);
+    if (this.pinch) {   // нэг хуруу үлдвэл гүйлгэлт үргэлжилнэ, товшилт болохгүй
+      if (ks.length < 2) { this.pinch = null; this.drag = ks.length ? { id: null, pan: true, x: 0, y: 0, lx: this.ptrs[ks[0]].px, ly: this.ptrs[ks[0]].py } : null; }
+      if (!ks.length) this.svg.classList.remove('grab');
+      return;
+    }
+    var dr = this.drag; this.drag = null; this.svg.classList.remove('grab');
+    if (!dr || dr.pan) return;
     if (dr.moved) { this.push(dr.snap); this.changed(); return; }
+    if (cancel || this.lock) return;
     var L = this.loc(e); this.click(L.px, L.py, dr.id);
   };
   Board.prototype.click = function (px, py, hid) {
@@ -996,11 +1101,62 @@
       var items = fs.map(function (o, i) { return { t: 'fn', f: o.f, br: [0], c: 'c' + i }; });
       // асимптотыг (x = 0) зөвхөн функц тэнд тасардаг үед л тасална
       items.forEach(function (it) { var a = it.f(-1e-7), b = it.f(1e-7); if (isFinite(a) && isFinite(b) && Math.abs(a - b) < 1e-3) it.br = []; });
-      return '<div class="cmg-view">' + staticSvg(v, items, 440) + '<div class="cmg-legend">' + fs.map(function (o, i) {
+      var vid = 'v' + (++VN); VIEWS[vid] = { v: v, items: items, W: 440 }; delete VIEWS['v' + (VN - 40)];
+      return '<div class="cmg-view" data-cmgv="' + vid + '"><div class="cmg-vstage">' + staticSvg(v, items, 440) + ZOOM + '</div>' +
+        '<p class="cmg-hint">Чирж гүйлгэнэ · дугуй эсвэл хоёр хуруугаар томруулна</p><div class="cmg-legend">' + fs.map(function (o, i) {
         return '<span><i class="c' + i + '"></i>$' + o.tex + '$</span>';
       }).join('') + '</div></div>';
     } catch (e) { return ''; }
   }
+  // «График харах»-ын зураг: эхний хүрэлт/заалтаар (pointerover) идэвхжинэ — сайтын renderQuestion-оос хамааралгүй
+  var VIEWS = {}, VN = 0;
+  function Viewer(el) {
+    var me = this, sp = VIEWS[el.getAttribute('data-cmgv')];
+    this.el = el; this.sp = sp; this.svg = el.querySelector('.cmg-svg'); this.cid = this.svg.getAttribute('data-cid') || 'cmgc' + (++UID);
+    this.cam = null; this.ptrs = {}; this.pinch = null; this.pan = null; this.raf = 0; this.g = geo(sp.v, sp.W, null);
+    var sv = this.svg;
+    sv.addEventListener('pointerdown', function (e) { me.down(e); });
+    sv.addEventListener('pointermove', function (e) { me.move(e); });
+    sv.addEventListener('pointerup', function (e) { me.up(e); });
+    sv.addEventListener('pointercancel', function (e) { me.up(e); });
+    sv.addEventListener('wheel', function (e) { navWheel(me, e); }, { passive: false });
+  }
+  Viewer.prototype.setCam = function (c) {
+    var me = this;
+    this.cam = c; this.g = geo(this.sp.v, this.sp.W, c);
+    if (!this.raf) this.raf = raf(function () { me.raf = 0; me.svg.innerHTML = body(me.g, me.sp.items, me.cid); });
+  };
+  Viewer.prototype.down = function (e) {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    var L = navLoc(this, e); this.ptrs[e.pointerId] = L;
+    try { this.svg.setPointerCapture(e.pointerId); } catch (x) {}
+    e.preventDefault();
+    this.svg.classList.add('grab');
+    if (Object.keys(this.ptrs).length >= 2) { this.pan = null; navPinchStart(this); } else this.pan = { lx: L.px, ly: L.py };
+  };
+  Viewer.prototype.move = function (e) {
+    if (!this.ptrs[e.pointerId]) return;
+    var L = navLoc(this, e); this.ptrs[e.pointerId] = L;
+    if (this.pinch) { navPinchMove(this); return; }
+    if (this.pan) { this.setCam(camPan(this.g, this.cam, L.px - this.pan.lx, L.py - this.pan.ly)); this.pan.lx = L.px; this.pan.ly = L.py; }
+  };
+  Viewer.prototype.up = function (e) {
+    delete this.ptrs[e.pointerId];
+    var ks = Object.keys(this.ptrs);
+    if (this.pinch && ks.length < 2) this.pinch = null;
+    this.pan = ks.length === 1 ? { lx: this.ptrs[ks[0]].px, ly: this.ptrs[ks[0]].py } : null;
+    if (!ks.length) this.svg.classList.remove('grab');
+  };
+  function viewOf(t) {
+    var w = t && t.closest ? t.closest('.cmg-view[data-cmgv]') : null;
+    if (!w || !VIEWS[w.getAttribute('data-cmgv')]) return null;
+    return w._cmgv || (w._cmgv = new Viewer(w));
+  }
+  d.addEventListener('pointerover', function (e) { try { viewOf(e.target); } catch (x) {} }, true);
+  d.addEventListener('click', function (e) {
+    var b = e.target && e.target.closest ? e.target.closest('.cmg-view [data-z]') : null; if (!b) return;
+    var o = viewOf(b); if (o) navZoomBtn(o, b.getAttribute('data-z'));
+  });
 
   /* ════════ Сайттай холбох ════════ */
   function answerHtml() { return '<div id="options" class="cmg-opts" style="grid-template-columns:1fr;"><div id="cmg-host" class="cmg"></div></div>'; }
@@ -1019,5 +1175,5 @@
     return B.check();
   }
   window.cmGraph = { inject: inject, answerHtml: answerHtml, mount: mount, check: check, viewFor: viewFor,
-    _gen: GEN, _nodes: NODES, _make: make, _evaluate: evaluate, _parseFn: parseFn, _findFns: findFns, _slopes: slopes, _board: function () { return B; } };
+    _gen: GEN, _nodes: NODES, _make: make, _evaluate: evaluate, _parseFn: parseFn, _findFns: findFns, _slopes: slopes, _board: function () { return B; }, _geo: geo, _camZoom: camZoom, _camPan: camPan, _gstep: gstep, _xlab: xlab };
 })();
