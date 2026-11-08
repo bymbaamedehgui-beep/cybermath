@@ -16,11 +16,13 @@
 <link rel="stylesheet" href="/cm-compete.css?v=1">
 <link rel="stylesheet" href="/cm-graph.css?v=2">
 <link rel="stylesheet" href="/cm-ach.css?v=1">
+<link rel="stylesheet" href="/cm-onol.css?v=1">
 <script src="/cm-ui.js?v=4" defer></script>
 <script src="/cm-quiz.js?v=2" defer></script>
 <script src="/cm-compete.js?v=1" defer></script>
 <script src="/cm-graph.js?v=2" defer></script>
 <script src="/cm-ach.js?v=1" defer></script>
+<script src="/cm-onol.js?v=1" defer></script>
 <script src="/app-mobile.js?v=2" defer></script>
 <!-- Нүүр дэлгэцэнд нэмбэл (iPhone/Android) хөтчийн мөргүй апп шиг нээгдэнэ -->
 <meta name="mobile-web-app-capable" content="yes">
@@ -48543,6 +48545,11 @@ document.head.appendChild(cmStyle);
       showIntroAndStart(id, node);
       return;
     }
+    // Онолын хуудас (cm-onol.js) — админы intro_html байхгүй хичээлд
+    if (window.cmOnol && window.cmOnol.has(id)) {
+      window.cmOnol.open(id, node);
+      return;
+    }
     // Intro байхгүй бол шууд хичээл эхлүүлнэ
     continueOpenLesson(id);
   }
@@ -48689,10 +48696,12 @@ document.head.appendChild(cmStyle);
   window.backToIntro = function() {
     var nodes = JSON.parse(localStorage.getItem('cm_nodes') || '[]');
     var node = nodes.find(function(n){ return n.id === currentLessonId; });
-    if (!node || !node.intro_html) return;
+    var onol = !(node && node.intro_html) && !!(window.cmOnol && window.cmOnol.has(currentLessonId));
+    if (!(node && node.intro_html) && !onol) return;
     // Одоогийн progress-ыг хадгалаад intro руу буцах. Дасгалаа үргэлжлүүлэхэд яг тэр асуултаас сэргэнэ
     saveLessonProgress(currentLessonId, { currentQ: currentQ, score: score, mistakes: mistakes });
-    showIntroAndStart(currentLessonId, node);
+    if (onol) window.cmOnol.open(currentLessonId, node, { resume: true });
+    else showIntroAndStart(currentLessonId, node);
   };
 
   // Intro-гүй openLesson-ы үлдсэн хэсэг
@@ -48981,7 +48990,7 @@ function renderMath(text) {
     // Энэ хичээлд онолын хуудас (intro_html) байгаа эсэхийг шалгах
     const _nodes = JSON.parse(localStorage.getItem('cm_nodes') || '[]');
     const _node = _nodes.find(function(n){ return n.id === currentLessonId; });
-    const _hasIntro = !!(_node && _node.intro_html && _node.intro_html.trim().length > 0);
+    const _hasIntro = !!(_node && _node.intro_html && _node.intro_html.trim().length > 0) || !!(window.cmOnol && window.cmOnol.has(currentLessonId));
     const _cmgView = (window.cmGraph && !(qData.hint && qData.hint.embed)) ? window.cmGraph.viewFor(qData) : '';
 
     document.getElementById('quiz-content').innerHTML = `
