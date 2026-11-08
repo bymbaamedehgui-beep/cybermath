@@ -318,15 +318,41 @@
       '<circle r="' + R + '" fill="url(#' + id + 's)"/>' +
       '<ellipse cx="' + rr(-R * 0.36) + '" cy="' + rr(-R * 0.4) + '" rx="' + rr(R * 0.36) + '" ry="' + rr(R * 0.2) + '" fill="url(#' + id + 'h)" transform="rotate(-32 ' + rr(-R * 0.36) + ' ' + rr(-R * 0.4) + ')"/>' +
       '<circle r="' + R + '" fill="none" stroke="' + col[0] + '" stroke-opacity=".55" stroke-width="1.4"/>' +
-      '<g transform="rotate(' + tilt + ')"><g clip-path="url(#' + id + 'f)">' + ring() + '</g></g>' + pBadge(c.state, R) + '</svg>';
+      '<g transform="rotate(' + tilt + ')"><g clip-path="url(#' + id + 'f)">' + ring() + '</g></g>' + pBadge(c.state, R, id) + '</svg>';
   }
-  function pBadge(st, R) {
+  function pBadge(st, R, id) {
     var x = rr(R * 0.72), y = rr(-R * 0.72);
     if (st === 'done') return '<g transform="translate(' + x + ' ' + y + ')"><circle r="11" fill="#22C55E" stroke="#fff" stroke-width="2.5"/><path d="m-5 0 3.5 3.5L5.5-4" stroke="#fff" stroke-width="2.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>';
     if (st === 'lock') return '<g transform="translate(' + x + ' ' + y + ')"><circle r="12" fill="#fff" fill-opacity=".92"/><rect x="-6" y="-3" width="12" height="9" rx="2.5" fill="#6A61A8"/><path d="M-3.8 -3v-2.6a3.8 3.8 0 0 1 7.6 0V-3" stroke="#6A61A8" stroke-width="2.2" fill="none"/></g>';
-    if (st === 'open') return '<g transform="translate(' + rr(R * 0.3) + ' ' + rr(-R * 0.92) + ') rotate(8)"><path d="M0 2V-24" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><path d="M0 -24h15l-4 5.5 4 5.5H0" fill="#FF5FA2"/></g>';
+    if (st === 'open') {   // Хоёр туг (эзэмшигч 2026-11-08): Монгол Улсын төрийн далбаа ба CyberMath-ийн алтан туг (B)
+      var k = rr(R / 50);
+      // хоёр туг баруун тийш намирна (Соёмбо шонгийн талд)
+      return '<g transform="translate(' + rr(-32 * k) + ' ' + rr(-40 * k) + ') rotate(-5) scale(' + k + ')">' +
+        '<path d="M0 2V-34" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><circle cy="-34.6" r="1.8" fill="#FFD84A"/>' +
+        '<rect x="0.8" y="-33" width="30" height="15" fill="#C4272F"/><rect x="10.8" y="-33" width="10" height="15" fill="#015197"/>' + SOYOMBO + '</g>' +
+        '<g transform="translate(' + rr(12 * k) + ' ' + rr(-48 * k) + ') rotate(5) scale(' + k + ')">' +
+        '<path d="M0 2V-40" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><circle cy="-40.6" r="1.8" fill="#FFD84A"/>' +
+        '<g transform="translate(.8 -39)"><defs><linearGradient id="' + id + 'cf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFD84A"/><stop offset="1" stop-color="#FFB300"/></linearGradient></defs>' +
+        '<rect width="62" height="24.8" rx="2" fill="url(#' + id + 'cf)"/>' + (LOGO ? '<use href="#cmx-logo-n" x="1.9" y="5" width="17.4" height="15.4"/>' : '') +
+        '<text x="' + (LOGO ? 22.9 : 5) + '" y="15.6" font-family="Nunito, sans-serif" font-weight="900" font-size="8.4" textLength="' + (LOGO ? 35.9 : 52) + '" lengthAdjust="spacingAndGlyphs" fill="#1E1A4D">CyberMath</text></g></g>';
+    }
     return '';
   }
+  /* CyberMath-ийн лого (нүүр сонголтын #cm-pick-ээс, хар хөх өнгөөр) — тугт <use>-ээр, газрын зурагт нэг удаа symbol болгоно */
+  var LOGO = null;
+  function logoSym() {
+    if (LOGO === null) {
+      var s = d.querySelector('#cm-pick .pk-logo');
+      LOGO = s ? s.innerHTML.replace(/#FFC113|#D79F01/gi, '#1E1A4D') : '';
+    }
+    return LOGO ? '<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><symbol id="cmx-logo-n" viewBox="0 0 367 325">' + LOGO + '</symbol></defs></svg>' : '';
+  }
+  // Соёмбо (жижиг хэмжээнд хялбаршуулсан): гал, нар, сар, гурвалжин, хэвтээ зураас, арга билэг, хоёр багана
+  var SOYOMBO = '<g fill="#F9CF02"><path d="M5.8 -32.4 7.1 -30.1H4.5Z"/><circle cx="5.8" cy="-29.1" r=".9"/>' +
+    '<path d="M4.55 -28.1A1.25 1.25 0 0 0 7.05 -28.1A1.25 .75 0 0 1 4.55 -28.1Z"/><path d="M4.4 -26.6H7.2L5.8 -25.4Z"/><rect x="4.4" y="-25" width="2.8" height=".6"/>' +
+    '<circle cx="5.8" cy="-23.1" r="1.3"/><rect x="4.4" y="-21.5" width="2.8" height=".6"/><path d="M4.4 -20.6H7.2L5.8 -19.4Z"/>' +
+    '<rect x="3.3" y="-26.6" width=".6" height="7.3"/><rect x="7.7" y="-26.6" width=".6" height="7.3"/></g>' +
+    '<path d="M5.8 -24.4a.65 .65 0 0 1 0 1.3a.65 .65 0 0 0 0 1.3" stroke="#C4272F" stroke-width=".35" fill="none"/>';
   // Шувуу гарагийн орой дээр зогсоно: пин (шувуу) өндөр ≈ 1.095 × өргөн (96 / утсанд 72)
   function pinOff(Hh) { return Hh < 400 ? PR_M + 73 : PR + 99; }
   var PR = 50, PR_M = 32;
@@ -357,7 +383,7 @@
     }
     var n = M.list.length, Hh = mapH(), P = geo(n, Hh), W = X0 * 2 + (n - 1) * GAP, R = Hh < 400 ? PR_M : PR, ph = 2 * R + 30, PAL = palettes(M.list);
     // Гарагуудын тойрог зам (төвүүдээр): бүдэг гэрэлтэлт + алтан тасархай
-    var lay = '<svg class="hx-road" width="' + (W + 60) + '" height="' + Hh + '" aria-hidden="true"><path d="' + roadD(P, -16) + '" fill="none" stroke="rgba(190,170,255,.16)" stroke-width="14" stroke-linecap="round"/>' +
+    var lay = logoSym() + '<svg class="hx-road" width="' + (W + 60) + '" height="' + Hh + '" aria-hidden="true"><path d="' + roadD(P, -16) + '" fill="none" stroke="rgba(190,170,255,.16)" stroke-width="14" stroke-linecap="round"/>' +
       '<path d="' + roadD(P, -16) + '" fill="none" stroke="#FFD84A" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="2 12" opacity=".75"/></svg>';
     M.list.forEach(function (c, i) {
       var ss = c.state === 'done' ? 'Дууссан' : c.state === 'lock' ? 'Түгжээтэй' : c.done + '/' + c.total + ' сэдэв';
