@@ -243,24 +243,95 @@
     for (var i = 0; i < n; i++) P.push({ x: X0 + i * GAP, y: Math.round(H * 0.5 + (i % 2 ? -1 : 1) * H * 0.1) });
     return P;
   }
-  function roadD(P) {
-    var px = P[0].x - 140, py = P[0].y + 34, dd = 'M' + px + ' ' + py;
-    P.forEach(function (p) { var mx = (px + p.x) / 2; dd += ' C' + mx + ' ' + py + ' ' + mx + ' ' + (p.y + 16) + ' ' + p.x + ' ' + (p.y + 16); px = p.x; py = p.y + 16; });
+  function roadD(P, dy) {   // dy: замыг цэгээс доош (арал) эсвэл төвөөр (гараг: -16 → p.y)
+    var o = 16 + (dy || 0), px = P[0].x - 140, py = P[0].y + o + 18, dd = 'M' + px + ' ' + py;
+    P.forEach(function (p) { var mx = (px + p.x) / 2; dd += ' C' + mx + ' ' + py + ' ' + mx + ' ' + (p.y + o) + ' ' + p.x + ' ' + (p.y + o); px = p.x; py = p.y + o; });
     return dd + ' C' + (px + 70) + ' ' + py + ' ' + (px + 90) + ' ' + (py - 24) + ' ' + (px + 170) + ' ' + (py - 34);
   }
-  function islSvg(st, night) {
-    var C = { done: ['#3BD18A', '#22A86D'], cur: ['#8B6CF6', '#5B3BD9'], open: ['#B9A6FF', '#8E79E8'], lock: night ? ['#4A3C8C', '#2F2466'] : ['#DED8F6', '#C4BBE9'] }[st];
-    var top = '';
-    if (st === 'done') top = '<circle cx="0" cy="-6" r="15" fill="#FFB300"/><path d="m-7 -6 5 5 10-10" stroke="#3B2700" stroke-width="3.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
-    else if (st === 'lock') top = '<rect x="-8" y="-10" width="16" height="13" rx="3" fill="#8F86BE"/><path d="M-5 -10v-4a5 5 0 0 1 10 0v4" stroke="#8F86BE" stroke-width="2.6" fill="none"/>';
-    else if (st === 'open') top = '<path d="M-2 4V-20" stroke="#5B3BD9" stroke-width="2.4" stroke-linecap="round"/><path d="M-2 -20h16l-4 6 4 6H-2" fill="#FF5FA2"/>';
-    var tree = st === 'lock' ? '' : '<circle cx="44" cy="-10" r="9" fill="#2FB879"/><rect x="42.5" y="-4" width="3" height="8" rx="1" fill="#8A5A2B"/><circle cx="-46" cy="-6" r="6" fill="#2FB879"/>';
-    return '<svg class="ig" viewBox="-75 -40 150 80" aria-hidden="true"><ellipse cx="0" cy="12" rx="70" ry="22" fill="' + C[1] + '"/>' +
-      '<ellipse cx="0" cy="0" rx="70" ry="22" fill="' + C[0] + '"/><ellipse cx="-16" cy="-8" rx="36" ry="8" fill="rgba(255,255,255,.28)"/>' + tree + top + '</svg>';
+  /* ── Гараг (эзэмшигч 2026-11-08: C «Математик гаригууд» — бодит 3D гараг, эргэлддэг бүслүүр, нэр цагаан/тод) ──
+     Бүлгийн нэрээс сэдэв (тоо, алгебр, координат, функц, тэгшитгэл, геометр, өгөгдөл, дараалал) → өнгө ба гадаргуугийн хэв.
+     Гадаргуу удаан эргэлдэнэ (2 хавтан, plSpin), бүслүүр ард/урд хуваагдана (бөмбөрцгийн ард/өмнө), бөөмс нь тойрон гүйнэ (plRing). */
+  var PTH = [[/тоо|бутархай|аравт|хувь|процент/i, 'num'], [/алгебр|илэрхийлэл|олон гишүүнт|үржигдэхүүн|зэрэг|язгуур/i, 'alg'],
+    [/координат|вектор|хувиргалт|тэгш хэм|зөөлт/i, 'crd'], [/функц|график|парабол|гипербол|муруй|уламжлал|интеграл/i, 'fun'],
+    [/тэгшитгэл|тэнцэтгэл|систем/i, 'eq'], [/тойрог|өнцөг|гурвалжин|дөрвөн|дүрс|геометр|биет|пифагор|талбай|эзлэхүүн|тригонометр|синус|косинус/i, 'geo'],
+    [/статистик|өгөгдөл|магадлал|диаграм|харьцаа|пропорц|комбинатор/i, 'dat'], [/дараалал|прогресс|логарифм|илтгэгч/i, 'seq']];
+  var PCOL = { num: ['#FFE2A6', '#FFA53D', '#A84E00'], alg: ['#AEF6E8', '#22C1A5', '#0A6255'], crd: ['#C2DAFF', '#4F8DFF', '#173C9C'],
+    fun: ['#E0D4FF', '#8E6CFF', '#3A1FA6'], eq: ['#FFD0DF', '#FF6B99', '#991A4A'], geo: ['#E2F8B8', '#86C93A', '#3A720B'],
+    dat: ['#C4F5FF', '#1FBFE3', '#08617C'], seq: ['#FFD9C4', '#FF7A45', '#9A320C'] };
+  // Дараалсан хоёр бүлэг ижил сэдэвтэй бол хоёр дахь нь өөр өнгөөр (гарагууд ялгаатай харагдана)
+  var PCOL2 = { num: ['#FFF3B0', '#F2C21B', '#7D5C00'], alg: ['#C2F7D2', '#36C46A', '#0F5F2B'], crd: ['#C6EEFF', '#33B5F0', '#06507A'],
+    fun: ['#F7D6FF', '#D24BEA', '#701883'], eq: ['#FFD3D3', '#F2675F', '#8E1B16'], geo: ['#E8FAB8', '#6BAE12', '#2F5408'],
+    dat: ['#B8F7F0', '#14B8A6', '#0B5E57'], seq: ['#FFE0B8', '#F59E3B', '#8A4A06'] };
+  var TILT = [-18, 14, -9, 20, -22, 11, -14, 17];
+  function ptheme(name, i) {
+    var best = null, at = 1e9;
+    PTH.forEach(function (t) { var m = t[0].exec(name || ''); if (m && m.index < at) { at = m.index; best = t[1]; } });
+    return best || ['num', 'alg', 'crd', 'fun', 'eq', 'geo', 'dat', 'seq'][i % 8];
   }
+  function rr(v) { return Math.round(v * 10) / 10; }
+  function surf(t, R) {   // гадаргуугийн нэг хавтан (өргөн 2R): цагаан тунгалаг хэв
+    var k = R / 44, h = '';
+    function T(x, y, fs, s) { h += '<text x="' + rr(x * k) + '" y="' + rr(y * k) + '" font-size="' + rr(fs * k) + '">' + s + '</text>'; }
+    function L(dd, w) { h += '<path d="' + dd.replace(/-?\d+(\.\d+)?/g, function (n) { return rr(+n * k); }) + '" stroke-width="' + rr((w || 2.2) * k) + '"/>'; }
+    if (t === 'num') { T(-34, -8, 17, '7'); T(2, -22, 13, '3'); T(-14, 24, 13, '½'); T(16, 14, 16, '9'); T(-40, 34, 10, '1'); T(30, -26, 9, '5'); }
+    else if (t === 'alg') { T(-30, -4, 19, 'x'); T(6, 20, 14, 'y²'); T(-8, -24, 11, 'a+b'); T(-40, 30, 10, '2x'); T(24, -10, 11, 'xy'); }
+    else if (t === 'crd') { for (var i = -44; i < 44; i += 88 / 6) { L('M' + rr(i) + ' -44V44', 1.1); L('M-44 ' + rr(i) + 'H44', 1.1); } L('M-44 6H44', 2.6); L('M-8 -44V44', 2.6); }
+    else if (t === 'fun') { L('M-44 0Q-33 -18 -22 0T0 0T22 0T44 0', 2.4); L('M-36 30C-28 -6 -12 -6 -4 30', 2.2); L('M8 -12C14 22 34 22 40 -12', 2.2); }
+    else if (t === 'eq') { T(-32, 6, 22, '='); T(6, -16, 14, '&lt;'); T(12, 26, 13, '≥'); T(-40, 34, 10, 'x'); T(26, 6, 11, '±'); }
+    else if (t === 'geo') { h += '<circle cx="' + rr(-16 * k) + '" cy="' + rr(-6 * k) + '" r="' + rr(14 * k) + '" stroke-width="' + rr(2.2 * k) + '" fill="none"/>'; L('M6 30L28 -6L40 30Z', 2.2); L('M-38 34H-12M-38 34L-20 14', 2); }
+    else if (t === 'dat') { [[-38, 14], [-26, -4], [-14, 6], [-2, -16], [10, 0], [22, -8], [34, 10]].forEach(function (b) { h += '<rect x="' + rr(b[0] * k) + '" y="' + rr(b[1] * k) + '" width="' + rr(8 * k) + '" height="' + rr((34 - b[1]) * k) + '" rx="' + rr(2 * k) + '"/>'; }); }
+    else { T(-36, -10, 13, '1'); T(-18, 0, 14, '3'); T(0, 10, 15, '5'); T(20, 20, 16, '7'); T(-30, 30, 10, '…'); }
+    return h;
+  }
+  function palettes(list) {   // бүлэг бүрийн [сэдэв, өнгө]
+    var out = [];
+    list.forEach(function (c, i) {
+      var th = ptheme(c.name, i), prev = out[i - 1];
+      out.push([th, prev && prev[0] === th && prev[1] === PCOL[th] ? PCOL2[th] : PCOL[th]]);
+    });
+    return out;
+  }
+  function planetSvg(c, i, R, pal) {
+    var th = pal[0], col = pal[1];
+    var w = rr(3.5 * R + 14), h = rr(2 * R + 30), id = 'pl' + i, rx = rr(1.72 * R), ry = rr(0.4 * R), tilt = TILT[i % TILT.length];
+    var spin = c.state === 'cur' ? 20 : c.state === 'lock' ? 46 : 30, rs = c.state === 'cur' ? 3.2 : c.state === 'lock' ? 12 : 6;
+    var ringC = c.state === 'cur' ? '#FFD84A' : c.state === 'done' ? '#B8F5D2' : '#FFFFFF';
+    function ring() {
+      return '<ellipse rx="' + rx + '" ry="' + ry + '" fill="none" stroke="' + col[0] + '" stroke-opacity=".42" stroke-width="' + rr(R * 0.16) + '"/>' +
+        '<ellipse rx="' + rr(rx * 0.9) + '" ry="' + rr(ry * 0.9) + '" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="1.2"/>' +
+        '<ellipse class="pl-rp" rx="' + rx + '" ry="' + ry + '" fill="none" stroke="' + ringC + '" stroke-width="' + rr(R * 0.055 + 0.6) + '" stroke-linecap="round" style="animation-duration:' + rs + 's"/>';
+    }
+    var tile = surf(th, R);
+    return '<svg class="ig pl" width="' + w + '" height="' + h + '" viewBox="' + rr(-w / 2) + ' ' + rr(-h / 2) + ' ' + w + ' ' + h + '" aria-hidden="true"><defs>' +
+      '<radialGradient id="' + id + 'g" cx="34%" cy="30%" r="78%"><stop offset="0" stop-color="' + col[0] + '"/><stop offset=".52" stop-color="' + col[1] + '"/><stop offset="1" stop-color="' + col[2] + '"/></radialGradient>' +
+      '<radialGradient id="' + id + 's" cx="32%" cy="28%" r="82%"><stop offset=".5" stop-color="#0B0630" stop-opacity="0"/><stop offset="1" stop-color="#0B0630" stop-opacity=".62"/></radialGradient>' +
+      '<radialGradient id="' + id + 'h"><stop offset="0" stop-color="#fff" stop-opacity=".75"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>' +
+      '<radialGradient id="' + id + 'a"><stop offset=".62" stop-color="' + col[1] + '" stop-opacity=".45"/><stop offset="1" stop-color="' + col[1] + '" stop-opacity="0"/></radialGradient>' +
+      '<clipPath id="' + id + 'c"><circle r="' + R + '"/></clipPath>' +
+      '<clipPath id="' + id + 'b"><rect x="' + (-2 * R) + '" y="' + (-R) + '" width="' + 4 * R + '" height="' + R + '"/></clipPath>' +
+      '<clipPath id="' + id + 'f"><rect x="' + (-2 * R) + '" y="0" width="' + 4 * R + '" height="' + R + '"/></clipPath></defs>' +
+      '<circle r="' + rr(R * 1.32) + '" fill="url(#' + id + 'a)"/>' +
+      '<g transform="rotate(' + tilt + ')"><g clip-path="url(#' + id + 'b)">' + ring() + '</g></g>' +
+      '<circle r="' + R + '" fill="url(#' + id + 'g)"/>' +
+      '<g clip-path="url(#' + id + 'c)"><g class="pl-sf" style="--pw:' + (-2 * R) + 'px;animation-duration:' + spin + 's">' +
+      '<g class="pl-pt">' + tile + '</g><g class="pl-pt" transform="translate(' + 2 * R + ' 0)">' + tile + '</g></g></g>' +
+      '<circle r="' + R + '" fill="url(#' + id + 's)"/>' +
+      '<ellipse cx="' + rr(-R * 0.36) + '" cy="' + rr(-R * 0.4) + '" rx="' + rr(R * 0.36) + '" ry="' + rr(R * 0.2) + '" fill="url(#' + id + 'h)" transform="rotate(-32 ' + rr(-R * 0.36) + ' ' + rr(-R * 0.4) + ')"/>' +
+      '<circle r="' + R + '" fill="none" stroke="' + col[0] + '" stroke-opacity=".55" stroke-width="1.4"/>' +
+      '<g transform="rotate(' + tilt + ')"><g clip-path="url(#' + id + 'f)">' + ring() + '</g></g>' + pBadge(c.state, R) + '</svg>';
+  }
+  function pBadge(st, R) {
+    var x = rr(R * 0.72), y = rr(-R * 0.72);
+    if (st === 'done') return '<g transform="translate(' + x + ' ' + y + ')"><circle r="11" fill="#22C55E" stroke="#fff" stroke-width="2.5"/><path d="m-5 0 3.5 3.5L5.5-4" stroke="#fff" stroke-width="2.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>';
+    if (st === 'lock') return '<g transform="translate(' + x + ' ' + y + ')"><circle r="12" fill="#fff" fill-opacity=".92"/><rect x="-6" y="-3" width="12" height="9" rx="2.5" fill="#6A61A8"/><path d="M-3.8 -3v-2.6a3.8 3.8 0 0 1 7.6 0V-3" stroke="#6A61A8" stroke-width="2.2" fill="none"/></g>';
+    if (st === 'open') return '<g transform="translate(' + rr(R * 0.3) + ' ' + rr(-R * 0.92) + ') rotate(8)"><path d="M0 2V-24" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><path d="M0 -24h15l-4 5.5 4 5.5H0" fill="#FF5FA2"/></g>';
+    return '';
+  }
+  // Шувуу гарагийн орой дээр зогсоно: пин (шувуу) өндөр ≈ 1.095 × өргөн (96 / утсанд 72)
+  function pinOff(Hh) { return Hh < 400 ? PR_M + 73 : PR + 99; }
+  var PR = 50, PR_M = 32;
   function decoHtml(s) {
-    if (s === 'night') return '<div class="hx-deco"><i class="stars"></i><i class="moon"></i></div>';
-    return '<div class="hx-deco"><i class="sun"></i><i class="cl c1"></i><i class="cl c2"></i><i class="cl c3"></i></div>';
+    return '<div class="hx-deco"><i class="stars"></i><i class="neb n1"></i><i class="neb n2"></i>' + (s === 'night' ? '<i class="moon"></i>' : '<i class="sun"></i>') + '</div>';
   }
   function lvHtml() {
     var lv = txt('nav-level-badge').replace(/^Lv\s*/i, ''), bar = d.getElementById('xp-bar'), u = user() || {};
@@ -284,17 +355,18 @@
       return h + '<div class="hx-map"><div class="hx-lay" style="width:100%"><div class="hx-load"><i></i><i></i><i></i></div></div></div>' +
         '<div class="hx-panel"><div class="hx-eb"><i></i>Газрын зураг</div><h2>Ачаалж байна…</h2></div></section>';
     }
-    var n = M.list.length, Hh = mapH(), P = geo(n, Hh), W = X0 * 2 + (n - 1) * GAP, night = s === 'night';
-    var lay = '<svg class="hx-road" width="' + (W + 60) + '" height="' + Hh + '" aria-hidden="true"><path d="' + roadD(P) + '" fill="none" stroke="' + (night ? 'rgba(255,255,255,.12)' : 'rgba(30,26,77,.09)') +
-      '" stroke-width="16" stroke-linecap="round"/><path d="' + roadD(P) + '" fill="none" stroke="#FFC113" stroke-width="4" stroke-linecap="round" stroke-dasharray="3 14" opacity=".8"/></svg>';
+    var n = M.list.length, Hh = mapH(), P = geo(n, Hh), W = X0 * 2 + (n - 1) * GAP, R = Hh < 400 ? PR_M : PR, ph = 2 * R + 30, PAL = palettes(M.list);
+    // Гарагуудын тойрог зам (төвүүдээр): бүдэг гэрэлтэлт + алтан тасархай
+    var lay = '<svg class="hx-road" width="' + (W + 60) + '" height="' + Hh + '" aria-hidden="true"><path d="' + roadD(P, -16) + '" fill="none" stroke="rgba(190,170,255,.16)" stroke-width="14" stroke-linecap="round"/>' +
+      '<path d="' + roadD(P, -16) + '" fill="none" stroke="#FFD84A" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="2 12" opacity=".75"/></svg>';
     M.list.forEach(function (c, i) {
       var ss = c.state === 'done' ? 'Дууссан' : c.state === 'lock' ? 'Түгжээтэй' : c.done + '/' + c.total + ' сэдэв';
-      lay += '<button type="button" class="hx-isl ' + c.state + (SEL === i ? ' sel' : '') + '" data-isl="' + i + '" style="left:' + P[i].x + 'px;top:' + (P[i].y - (Hh < 400 ? 31 : 40)) + 'px" ' +
-        'aria-label="' + esc((i + 1) + '-р арал: ' + c.name + ', ' + ss) + '">' + islSvg(c.state, night) + '<span class="nm">' + (i + 1) + '. ' + esc(c.name) + '</span><span class="ss">' + ss + '</span></button>';
+      lay += '<button type="button" class="hx-isl ' + c.state + (SEL === i ? ' sel' : '') + '" data-isl="' + i + '" style="left:' + P[i].x + 'px;top:' + (P[i].y - ph / 2) + 'px;--bd:' + (-i * 0.9) + 's" ' +
+        'aria-label="' + esc((i + 1) + '-р гараг: ' + c.name + ', ' + ss) + '">' + planetSvg(c, i, R, PAL[i]) + '<span class="nm">' + (i + 1) + '. ' + esc(c.name) + '</span><span class="ss">' + ss + '</span></button>';
     });
-    var pinTop = P[M.cur].y - (Hh < 400 ? 96 : 122);
+    var pinTop = P[M.cur].y - pinOff(Hh);
     lay += '<div class="hx-pin" style="left:' + P[M.cur].x + 'px;top:' + pinTop + 'px"><div class="bal">' + BALLOON + '</div><div class="ck">' + chick() + '</div></div>';
-    return h + '<div class="hx-stat"><b>' + (M.cur + 1) + ' / ' + n + '</b><span>арал · ' + esc(M.g) + '-р анги</span>' + lvHtml() + '</div>' +
+    return h + '<div class="hx-stat"><b>' + (M.cur + 1) + ' / ' + n + '</b><span>гараг · ' + esc(M.g) + '-р анги</span>' + lvHtml() + '</div>' +
       '<div class="hx-map" data-w="' + W + '"><div class="hx-lay' + (SEL != null ? ' zoom' : '') + '" style="width:' + (W + 60) + 'px;height:' + Hh + 'px' +
       (SEL != null ? ';--zx:' + P[SEL].x + 'px' : '') + '">' + lay + '</div></div>' + panelHtml(M) + '</section>';
   }
@@ -309,21 +381,21 @@
       });
       var pct = c.total ? Math.round(c.done * 100 / c.total) : 0;
       return '<div class="hx-panel"><button type="button" class="hx-back" data-isl="-1">' + IC.back + 'Газрын зураг</button>' +
-        '<div style="margin-top:8px"><span class="hx-chip st' + (c.state === 'done' ? ' done' : '') + '">' + (c.i + 1) + '-р арал · ' + (c.state === 'done' ? 'Дууссан' : c.state === 'lock' ? 'Түгжээтэй' : 'Нээлттэй') + '</span></div>' +
+        '<div style="margin-top:8px"><span class="hx-chip st' + (c.state === 'done' ? ' done' : '') + '">' + (c.i + 1) + '-р гараг · ' + (c.state === 'done' ? 'Дууссан' : c.state === 'lock' ? 'Түгжээтэй' : 'Нээлттэй') + '</span></div>' +
         '<h2>' + esc(c.name) + '</h2><div class="pw"><span>' + c.done + '/' + c.total + '</span><div class="hx-prog"><i style="width:' + pct + '%"></i></div><span>' + pct + '%</span></div>' +
         '<ul class="hx-tl">' + rows + '</ul></div>';
     }
     var nx = M.next, cc = M.list[M.cur];
     if (!nx || nx.slot == null) {
-      return '<div class="hx-panel"><div class="hx-eb"><i></i>Баяр хүргэе</div><h2>Бүх арлыг туулсан байна</h2><div class="mt">Замаар давтлага хийж медалиа ахиулаарай.</div>' +
+      return '<div class="hx-panel"><div class="hx-eb"><i></i>Баяр хүргэе</div><h2>Бүх гарагийг туулсан байна</h2><div class="mt">Замаар давтлага хийж медалиа ахиулаарай.</div>' +
         '<div class="ac" style="margin-top:16px"><button type="button" class="hx-btn gold" data-go="path">' + IC.map + 'Замыг харах</button></div></div>';
     }
     var p2 = cc && cc.total ? Math.round(cc.done * 100 / cc.total) : 0;
     return '<div class="hx-panel"><div class="hx-eb"><i></i>' + (nx.done ? 'Дараагийн зогсоол' : 'Аялал эхлэх') + '</div><h2>' + esc(nx.name) + '</h2>' +
-      '<div class="mt">' + (cc ? (M.cur + 1) + '-р арал · <b>' + esc(cc.name) + '</b>' : '') + '</div>' +
+      '<div class="mt">' + (cc ? (M.cur + 1) + '-р гараг · <b>' + esc(cc.name) + '</b>' : '') + '</div>' +
       (cc ? '<div class="pw"><span>' + cc.done + '/' + cc.total + '</span><div class="hx-prog"><i style="width:' + p2 + '%"></i></div><span>' + p2 + '%</span></div>' : '<div style="height:14px"></div>') +
       '<div class="ac"><button type="button" class="hx-btn gold" data-lesson="' + nx.slot + '">' + IC.play + 'Аялалаа үргэлжлүүлэх</button>' +
-      '<button type="button" class="hx-btn ghost sm" data-isl="' + M.cur + '">Арлыг харах</button></div></div>';
+      '<button type="button" class="hx-btn ghost sm" data-isl="' + M.cur + '">Гарагийг харах</button></div></div>';
   }
   function teacherPanel() {
     var hc = hasClassroom();
@@ -419,11 +491,11 @@
     lsSet('cmx_flown_' + M.g, k);
     if (M.cur <= 0) return;
     var skyEl = mapEl.parentNode, msg = d.createElement('div');
-    msg.className = 'hx-fly'; msg.innerHTML = IC.balloon + 'Түвшин тогтоох сорилын дүнгээр ' + (M.cur + 1) + '-р арал руу нислээ!';
+    msg.className = 'hx-fly'; msg.innerHTML = IC.balloon + 'Түвшин тогтоох сорилын дүнгээр ' + (M.cur + 1) + '-р гараг руу нислээ!';
     skyEl.appendChild(msg);
     setTimeout(function () { if (msg.parentNode) msg.parentNode.removeChild(msg); }, 6000);
     var pin = mapEl.querySelector('.hx-pin'); if (!pin || reduced()) return;
-    var off = Hh < 400 ? 96 : 122, from = P[0], to = P[M.cur], t0 = 0, D = Math.min(4200, 2200 + 240 * M.cur);
+    var off = pinOff(Hh), from = P[0], to = P[M.cur], t0 = 0, D = Math.min(4200, 2200 + 240 * M.cur);
     FLYING = true; pin.classList.add('fly');
     pin.style.left = from.x + 'px'; pin.style.top = (from.y - off) + 'px';
     mapEl.scrollLeft = 0;
