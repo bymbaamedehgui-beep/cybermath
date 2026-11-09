@@ -39,8 +39,10 @@
 // catalog ?realm=ws|cm → тухайн realm-ийн enabled; realm-гүй → gate-ийн төлөв (GM.gateOn()).
 //
 // cyber-math.com Тоглоомын төв — Premium-гүй хэрэглэгчийн туршилт (api/_cmpreview.js; Bearer cm_token заавал биш — зочин бол төхөөрөмжөөр):
-//   POST ?action=pstatus {device}        → { ok, gate, premium, login, seconds, free:[key], used:[key], active:{key: until} }
+//   POST ?action=pstatus {device}        → { ok, gate, premium, login, seconds, free:[key], used:[key], active:{key: until},
+//                                            owned:[key] (админаас олгосон cm-ийн эрх), all (бүх тоглоомын эрхтэй) }
 //   POST ?action=preview {game, device}  → Premium: { ok, premium:true } | үнэгүй тоглоом: { ok, free:true }
+//        | эрхтэй (game_access cm): { ok, owned:true, expires_at }
 //        | туршилт: { ok:true, until, server_now, seconds } | дууссан: 402 { ok:false, used:true, until }
 //   env CM_GAME_GATE=off → { ok, gate:false } (бүгд үнэгүй)
 'use strict';
@@ -112,13 +114,21 @@ async function previewAction(req, res, action) {
   if (email && await GM.isCmPremium(email)) return res.json({ ok: true, gate: true, premium: true, seconds: seconds });
   const subjects = PV.subjectsOf(email, b.device);
   if (!subjects.length) return res.status(400).json({ ok: false, error: MSG.bad });
+  // cyber-math.com-ийн тоглоомын эрх (game_access realm 'cm' — админы олголт): тэр тоглоом туршилтгүй, хязгааргүй.
+  // Бүх тоглоомын эрхтэй (GM.GAME_KEYS бүгд) → all:true — каталогт ороогүй cm тоглоомыг (Муурнууд) клиент мөн нээнэ.
+  // DB алдаа → эрхгүй гэж үзнэ (туршилт хэвээр — нэмэлт эрх олгохгүй).
+  let own = {};
+  if (email) { try { own = await GM.activeGames('cm', email); } catch (e) { console.error('[games preview own]', e.message); own = {}; } }
+  const allOwned = GM.GAME_KEYS.every(function (k) { return !!own[k]; });
   if (action === 'pstatus') {
     const s = await PV.status(subjects, seconds);
-    return res.json({ ok: true, gate: true, premium: false, login: !!email, seconds: seconds, free: PV.FREE_KEYS.slice(), used: s.used, active: s.active });
+    return res.json({ ok: true, gate: true, premium: false, login: !!email, seconds: seconds, free: PV.FREE_KEYS.slice(), used: s.used, active: s.active,
+      owned: Object.keys(own), all: allOwned });
   }
   const key = gameKeyOf(b.game);
   if (!key) return res.status(400).json({ ok: false, error: MSG.game });
   if (PV.isFree(key)) return res.json({ ok: true, gate: true, free: true, game: key });
+  if (own[key]) return res.json({ ok: true, gate: true, owned: true, game: key, expires_at: own[key] });
   const r = await PV.start(subjects, key, seconds);
   const out = { ok: r.ok, gate: true, premium: false, game: key, seconds: seconds, until: r.until.toISOString(), server_now: r.now.toISOString() };
   if (r.ok) return res.json(out);

@@ -116,15 +116,17 @@ async function ensureAdminGrants() {
   admGrantsReady = true;
 }
 // Админ эрх олгох бүрт мөнгөн дүнг нь бүртгэнэ — зөвхөн «үнэлгээ», revReport-ийн орлогод НЭМЭГДЭХГҮЙ (мөнгөгүй бүртгэл).
-// game = { game_key, realm, days } — тоглоомын олголт: дүн = GAME_PRICE × хоног/30.
+// game = { game_key, realm, days, count? } — тоглоомын олголт: дүн = GAME_PRICE × хоног/30 × тоглоомын тоо
+// (game_key '*' = «Бүх тоглоом» — сайт бүрт нэг мөр, count = тоглоомын тоо).
 async function logAdminGrant(email, grade, months, note, game) {
   try {
     await ensureAdminGrants();
     if (game) {
       const days = parseInt(game.days, 10) || GM.GAME_DAYS;
+      const n = Math.max(1, parseInt(game.count, 10) || 1);
       await pool.query(
         'INSERT INTO ws_admin_grants (email, grade, months, amount, source, note, game_key, realm, days) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
-        [String(email).trim().toLowerCase(), null, months, Math.round(GM.gamePrice() * days / GM.GAME_DAYS), 'admin', note || null,
+        [String(email).trim().toLowerCase(), null, months, Math.round(GM.gamePrice() * days / GM.GAME_DAYS) * n, 'admin', note || null,
          game.game_key, game.realm, days]);
       return;
     }
@@ -283,7 +285,7 @@ async function revReport(opts) {
   const grants = custom
     ? await pool.query(GCOLS + ' ' + RNG + ' ORDER BY created_at DESC LIMIT 300', [from, to])
     : await pool.query(GCOLS + " WHERE created_at > NOW() - INTERVAL '30 days' ORDER BY created_at DESC LIMIT 300");
-  const gTitle = function (k) { return GM.isGame(k) ? GM.GAMES[k].title : (k || null); };
+  const gTitle = gameTitle;
 
   return { ok: true, win: out, daily: daily.rows, byGrade: byGrade.rows,
            byGame: byGame.rows.map(function (x) { return Object.assign({ title: gTitle(x.game_key) }, x); }),
@@ -630,6 +632,32 @@ function gameGrantDays(b) {
   if (has(b.days)) { const d = Number(b.days); return Number.isInteger(d) && d >= 1 && d <= 366 ? d : 0; }
   if (has(b.months)) { const m = Number(b.months); return Number.isInteger(m) && m >= 1 && m <= 12 ? m * GM.GAME_DAYS : 0; }
   return GM.GAME_DAYS;
+}
+// Тоглоомын нэр (админы олголт/тайлан): '*' = админы «Бүх тоглоом» олголт
+function gameTitle(k) { return k === '*' ? 'Бүх тоглоом (' + GM.GAME_KEYS.length + ')' : GM.isGame(k) ? GM.GAMES[k].title : (k || null); }
+// Админы олон тоглоом / хоёр сайтын олголт — НЭГ транзакцад (хагас олголт үлдвэл дахин оролдоход давхар сунгана).
+// → хамгийн эрт дуусах огноо (өмнөх эрх үлдсэн тоглоом түүнээс хойш дуусна). DDL-ийг транзакцаас ӨМНӨ (settleGame шиг).
+async function grantGamesTx(realms, email, keys, days, grade) {
+  await GM.ensureGameTables();
+  const client = await pool.connect();
+  let min = null;
+  try {
+    await client.query('BEGIN');
+    for (const rl of realms) {
+      for (const k of keys) {
+        const e = await GM.grantGame(rl, email, k, days, client, grade);
+        if (!min || e < min) min = e;
+      }
+    }
+    await client.query('COMMIT');
+  } catch (e) {
+    let broken;
+    try { await client.query('ROLLBACK'); } catch (re) { broken = re; }
+    client.release(broken);
+    throw e;
+  }
+  client.release();
+  return min;
 }
 // Тоглоом (plan='game'): claim хийсэн дуудлага л (realm, email, game_key)-д +30 хоног НЭМЭГДДЭГ олгоно.
 // users.plan/premium_expiry-д ОГТ хүрэхгүй.
@@ -1547,17 +1575,23 @@ module.exports = async (req, res) => {
         return res.json({ ok: true, revoked: email });
       }
       // ── ТОГЛООМ: админ гараар олгох (мөнгөгүй бүртгэл) ──
-      // {realm:'ws'|'cm', email, game, days? (1–366) | months? (1–12), grade? (6–12), note?}. Нэмэгддэг: GREATEST(хуучин, NOW()) + хоног.
+      // {realm:'ws'|'cm'|'both', email, game: <түлхүүр>|'*', days? (1–366) | months? (1–12), grade? (6–12), note?}.
+      // Нэмэгддэг: GREATEST(хуучин, NOW()) + хоног. game '*' = БҮХ тоглоом (GM.GAME_KEYS), realm 'both' = хоёр сайт —
+      // олон мөрийг НЭГ транзакцад олгоно (хагас олголт үлдэхгүй: дахин оролдоход аль хэдийн олгогдсоныг давхар сунгахгүй).
       // grade — тоглоомын анги (заавал биш; өгвөл game_access.grade, өгөөгүй бол хуучнаараа). Буруу анги → 400.
       // Данс тухайн сайтад бүртгэлтэй байх ёстой (ws → ws_login, cm → users) — үсгийн алдаагаар хоосон эрх олгохгүй.
-      // game_purchases-д БИЧИХГҮЙ (QPay-гүй) → тайлангийн орлогод орохгүй; зөвхөн ws_admin_grants-д бүртгэнэ.
+      // 'both' үед бүртгэлтэй сайтдаа л олгоно, нөгөөг нь skipped-д буцаана; аль алинд нь бүртгэлгүй → 400.
+      // game_purchases-д БИЧИХГҮЙ (QPay-гүй) → тайлангийн орлогод орохгүй; зөвхөн ws_admin_grants-д бүртгэнэ (сайт бүрт нэг мөр).
       if (req.query.action === 'game_grant') {
-        const realm = GM.normRealm(b.realm);
-        if (!realm) return res.status(400).json({ ok: false, error: 'Сайт буруу байна (Дасгалын төв эсвэл cyber-math.com)' });
+        const rIn = String(b.realm == null ? '' : b.realm).trim().toLowerCase();
+        const both = rIn === 'both';
+        const realm = both ? null : GM.normRealm(rIn);
+        if (!both && !realm) return res.status(400).json({ ok: false, error: 'Сайт буруу байна (Дасгалын төв эсвэл cyber-math.com)' });
         const email = GM.normEmail(b.email);
         if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ ok: false, error: 'Зөв имэйл оруулна уу' });
-        const key = typeof b.game === 'string' ? b.game.trim() : '';
-        if (!GM.isGame(key)) return res.status(400).json({ ok: false, error: 'Тоглоом олдсонгүй' });
+        const all = b.game === '*';
+        const key = all ? '*' : typeof b.game === 'string' ? b.game.trim() : '';
+        if (!all && !GM.isGame(key)) return res.status(400).json({ ok: false, error: 'Тоглоом олдсонгүй' });
         const days = gameGrantDays(b);
         if (!days) return res.status(400).json({ ok: false, error: 'Хугацаа буруу байна (1–366 хоног эсвэл 1–12 сар)' });
         const hasGrade = b.grade != null && String(b.grade).trim() !== '';
@@ -1567,16 +1601,27 @@ module.exports = async (req, res) => {
           return res.status(400).json({ ok: false, soon: soon || undefined,
             error: soon ? String(b.grade).trim() + '-р анги тун удахгүй нээгдэнэ — өөр анги сонгоно уу' : 'Анги буруу байна (6–12)' });
         }
-        const acct = await pool.query(realm === 'ws'
-          ? 'SELECT 1 FROM ws_login WHERE lower(email)=$1 LIMIT 1'
-          : 'SELECT 1 FROM users WHERE lower(email)=$1 LIMIT 1', [email]);
-        if (!acct.rows.length) return res.status(400).json({ ok: false, noAccount: true,
-          error: 'Данс олдсонгүй: ' + email + ' ' + (realm === 'ws' ? 'Дасгалын төвд' : 'cyber-math.com-д') + ' бүртгэлгүй байна' });
-        const exp = await GM.grantGame(realm, email, key, days, null, grade);
-        await logAdminGrant(email, null, Math.max(1, Math.round(days / GM.GAME_DAYS)), String(b.note || '').slice(0, 200) || null,
-          { game_key: key, realm: realm, days: days });
-        const gOut = { ok: true, realm: realm, email: email, game: key, title: GM.GAMES[key].title, days: days,
-          expires_at: exp.toISOString() };
+        const want = both ? ['ws', 'cm'] : [realm], have = [];
+        for (const rl of want) {
+          const acct = await pool.query(rl === 'ws'
+            ? 'SELECT 1 FROM ws_login WHERE lower(email)=$1 LIMIT 1'
+            : 'SELECT 1 FROM users WHERE lower(email)=$1 LIMIT 1', [email]);
+          if (acct.rows.length) have.push(rl);
+        }
+        if (!have.length) return res.status(400).json({ ok: false, noAccount: true,
+          error: 'Данс олдсонгүй: ' + email + ' ' + (both ? 'хоёр сайтын алинд нь ч' : realm === 'ws' ? 'Дасгалын төвд' : 'cyber-math.com-д') + ' бүртгэлгүй байна' });
+        const keys = all ? GM.GAME_KEYS.slice() : [key];
+        const exp = keys.length === 1 && have.length === 1
+          ? await GM.grantGame(have[0], email, key, days, null, grade)
+          : await grantGamesTx(have, email, keys, days, grade);
+        const note = String(b.note || '').slice(0, 200) || null;
+        for (const rl of have) {
+          await logAdminGrant(email, null, Math.max(1, Math.round(days / GM.GAME_DAYS)), note, { game_key: key, realm: rl, days: days, count: keys.length });
+        }
+        const gOut = { ok: true, realm: both ? 'both' : realm, realms: have, email: email, game: key, title: gameTitle(key), count: keys.length,
+          days: days, expires_at: exp.toISOString() };
+        const skipped = want.filter(function (rl) { return have.indexOf(rl) < 0; });
+        if (skipped.length) gOut.skipped = skipped;
         if (grade) gOut.grade = grade;
         return res.json(gOut);
       }

@@ -852,7 +852,8 @@ function gmLoad(){
 function gmFillSelects(cat){
   [['gm-g-game','Тоглоом сонгох…'],['gm-f-game','Бүх тоглоом']].forEach(function(s){
     var el=document.getElementById(s[0]); if(!el||el.getAttribute('data-filled')||!cat.length) return;
-    el.innerHTML='<option value="">'+s[1]+'</option>'+cat.map(function(g){
+    /* Олгох талд «Бүх тоглоом» (game '*') — бүх тоглоомын эрх нэг дор (api/qpay.js game_grant) */
+    el.innerHTML='<option value="">'+s[1]+'</option>'+(s[0]==='gm-g-game'?'<option value="*">Бүх тоглоом ('+cat.length+')</option>':'')+cat.map(function(g){
       return '<option value="'+wsEsc(g.key)+'">'+wsEsc(g.title)+(g.multi?' · олон тоглогч':'')+'</option>';
     }).join('');
     el.setAttribute('data-filled','1');
@@ -970,13 +971,18 @@ window.gmGrant=function(){
   function say(ok,t){ msg.style.color=ok===null?'var(--muted)':(ok?'#16a34a':'#dc2626'); msg.textContent=t; }
   if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)){ say(false,'Зөв имэйл оруулна уу'); return; }
   if(!game){ say(false,'Тоглоом сонгоно уу'); return; }
+  var LOC={ws:'Дасгалын төвд',cm:'cyber-math.com-д',both:'хоёр сайтад'};
+  if(game==='*'&&!confirm('"'+em+'" хэрэглэгчид бүх тоглоомын эрхийг '+(LOC[realm]||realm)+' нээх үү?')) return;
   var body={realm:realm,email:em,game:game,note:note};
   if(dur==='d7') body.days=7; else body.months=parseInt(dur,10)||1;
   if(/^(6|7|8|9|10|11|12)$/.test(grade)) body.grade=grade;   /* заавал биш — эрх/хугацаанд нөлөөгүй */
   say(null,'Олгож байна…'); btn.disabled=true;
   wsPost('game_grant',body).then(function(d){
     if(d&&d.ok){
-      say(true,'Олголоо: '+(d.title||gmTitle(game))+' · '+(GM_RL[d.realm]||d.realm)+(d.grade?' · '+d.grade+'-р анги':'')+' · '+wsDate(d.expires_at).slice(0,10)+' хүртэл');
+      var rl=(d.realms||[d.realm]).map(function(r){ return GM_RL[r]||r; }).join(' + ');
+      var sk=(d.skipped||[]).map(function(r){ return LOC[r]||r; }).join(', ');
+      say(true,'Олголоо: '+(d.title||gmTitle(game))+' · '+rl+(d.grade?' · '+d.grade+'-р анги':'')+' · '+wsDate(d.expires_at).slice(0,10)+' хүртэл'
+        +(sk?' · '+sk+' бүртгэлгүй тул алгаслаа':''));
       document.getElementById('gm-g-email').value=''; document.getElementById('gm-g-note').value='';
       gmLoad();
     } else say(false,(d&&d.error)||'Олгож чадсангүй');
@@ -3622,7 +3628,7 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
           <div style="font-size:0.74rem;color:var(--muted);font-weight:700;margin-bottom:10px;">Мөнгөгүй бүртгэл — орлогод тооцохгүй. Хугацаа дуусаагүй бол үлдсэн хоног дээр нэмэгдэнэ. Имэйл тухайн сайтад бүртгэлтэй байх ёстой.</div>
           <div class="gm-form">
             <input id="gm-g-email" class="gm-email" type="email" placeholder="Имэйл хаяг" autocomplete="off" onkeydown="if(event.key==='Enter')gmGrant()">
-            <select id="gm-g-realm" title="Аль сайтын эрх"><option value="ws">Дасгалын төв</option><option value="cm">cyber-math.com</option></select>
+            <select id="gm-g-realm" title="Аль сайтын эрх"><option value="ws">Дасгалын төв</option><option value="cm">cyber-math.com</option><option value="both">Хоёр сайт</option></select>
             <select id="gm-g-game" title="Тоглоом"><option value="">Тоглоом сонгох…</option></select>
             <select id="gm-g-dur" title="Хугацаа"><option value="d7">7 хоног</option><option value="1" selected>1 сар</option><option value="2">2 сар</option><option value="3">3 сар</option><option value="6">6 сар</option><option value="12">1 жил</option></select>
             <select id="gm-g-grade" title="Тоглоомын бодлогын анги (заавал биш)"><option value="">Анги (заавал биш)</option><option value="6">6-р анги</option><option value="7">7-р анги</option><option value="8">8-р анги</option><option value="9">9-р анги</option><option value="10">10-р анги</option><option value="11" disabled>11-р анги — Тун удахгүй</option><option value="12">12-р анги</option></select>

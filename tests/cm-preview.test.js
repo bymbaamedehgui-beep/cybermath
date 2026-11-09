@@ -98,6 +98,28 @@ test('preview: ангийн тэмцээний гадны тоглоом үнэ�
   assert.strictEqual(new Date(s.body.until) - new Date(s.body.server_now), 30000);
 });
 
+test('preview: админаас олгосон cyber-math.com-ийн тоглоомын эрх → туршилтгүй; pstatus owned/all; Дасгалын төвийн эрх хамаарахгүй', async () => {
+  const GM = require(path.join(F.API, '_games.js'));
+  F.addUser('own@mail.mn');
+  await GM.grantGame('cm', 'own@mail.mn', 'sudoku', 30);
+  await GM.grantGame('ws', 'own@mail.mn', 'play2048', 30);
+  const a = await P('preview', { game: 'sudoku', device: DEV_A }, bearer('own@mail.mn'));
+  assert.strictEqual(a.statusCode, 200);
+  assert.deepStrictEqual([a.body.ok, a.body.owned, a.body.game], [true, true, 'sudoku']);
+  assert.ok(a.body.expires_at);
+  assert.strictEqual(F.db.previews.size, 0, 'туршилт бүртгэгдээгүй');
+  const b = await P('preview', { game: 'play2048', device: DEV_A }, bearer('own@mail.mn'));
+  assert.ok(b.body.until && !b.body.owned, 'Дасгалын төвийн эрх cyber-math.com-д үйлчлэхгүй → туршилт');
+  let s = await P('pstatus', { device: DEV_A }, bearer('own@mail.mn'));
+  assert.deepStrictEqual([s.body.owned, s.body.all], [['sudoku'], false]);
+  for (const k of GM.GAME_KEYS) await GM.grantGame('cm', 'own@mail.mn', k, 30);
+  s = await P('pstatus', { device: DEV_A }, bearer('own@mail.mn'));
+  assert.strictEqual(s.body.all, true);
+  assert.strictEqual(s.body.owned.length, GM.GAME_KEYS.length);
+  const g = await P('pstatus', { device: DEV_B });
+  assert.deepStrictEqual([g.body.owned, g.body.all], [[], false], 'зочин');
+});
+
 test('pstatus: ашигласан / идэвхтэй тоглоомууд, үнэгүй жагсаалт', async () => {
   await P('preview', { game: 'sudoku', device: DEV_A });
   await shifted(200000, () => P('preview', { game: 'numseq', device: DEV_A }));

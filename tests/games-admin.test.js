@@ -264,7 +264,9 @@ test('game_grant: буруу сайт/имэйл/тоглоом/хугацаа �
   wsLogin('a@x.mn');
   const cases = [
     [{ email: 'a@x.mn', game: 'sudoku' }, 'realm байхгүй'],
-    [{ realm: 'both', email: 'a@x.mn', game: 'sudoku' }, 'realm буруу'],
+    [{ realm: 'all', email: 'a@x.mn', game: 'sudoku' }, 'realm буруу («both» л зөвшөөрөгдөнө)'],
+    [{ realm: 'ws', email: 'a@x.mn', game: '**' }, 'од ганцаараа л'],
+    [{ realm: 'ws', email: 'a@x.mn', game: ' * ' }, 'зайтай од'],
     [{ realm: 'ws', email: 'not-an-email', game: 'sudoku' }, 'имэйл буруу'],
     [{ realm: 'ws', email: 'a@localhost', game: 'sudoku' }, 'домэйнгүй'],
     [{ realm: 'ws', email: 'a@x.mn', game: 'hack' }, 'allowlist-гүй'],
@@ -817,6 +819,113 @@ test('admin.html gmReconcile: тулгалтын хариунд нөхсөн б�
   await sb.ctx.gmReconcile();
   await new Promise((r) => setImmediate(r));
   assert.strictEqual(sb.el('gm-rec-msg').textContent, 'Шалгасан: 0 · нөхөж олгосон: 0');
+});
+
+// ── 2026-11-09 эзэмшигч: «Бүх тоглоомын эрхийг нээх боломжтой болго» — админ нэг хүнд бүх тоглоом, хоёр сайтад ──
+test('game_grant: «Бүх тоглоом» (game *) — бүх тоглоом НЭГ транзакцад, нэмэгддэг; ws_admin_grants-д сайт бүрт нэг мөр', async () => {
+  wsLogin('all@x.mn');
+  await GM.grantGame('ws', 'all@x.mn', 'sudoku', 10);          // өмнө нь судоку 10 хоног үлдсэн
+  F.db.txLog.length = 0;
+  const r = await A('game_grant', { realm: 'ws', email: 'all@x.mn', game: '*', note: 'багш' });
+  assert.strictEqual(r.statusCode, 200, JSON.stringify(r.body));
+  const N = GM.GAME_KEYS.length;
+  assert.deepStrictEqual([r.body.ok, r.body.realm, r.body.game, r.body.count, r.body.title, r.body.skipped], [true, 'ws', '*', N, 'Бүх тоглоом (' + N + ')', undefined]);
+  assert.deepStrictEqual(r.body.realms, ['ws']);
+  near(daysLeft(r.body.expires_at), 30, 'хамгийн эрт дуусах огноо');
+  for (const k of GM.GAME_KEYS) assert.ok(access('ws', 'all@x.mn', k), k);
+  near(daysLeft(access('ws', 'all@x.mn', 'sudoku').expires_at), 40, 'үлдсэн хоног дээр нэмэгдэнэ');
+  near(daysLeft(access('ws', 'all@x.mn', 'play2048').expires_at), 30);
+  assert.strictEqual(access('cm', 'all@x.mn', 'sudoku'), null, 'нөгөө сайтад олгохгүй');
+  assert.deepStrictEqual(F.db.txLog, ['BEGIN', 'COMMIT']);
+  assert.strictEqual(X.grants.length, 1);
+  const g = X.grants[0];
+  assert.deepStrictEqual([g.game_key, g.realm, g.days, g.months, g.note, g.amount], ['*', 'ws', 30, 1, 'багш', 1900 * N]);
+  assert.strictEqual(F.db.purch.length, 0, 'game_purchases-д бичихгүй');
+});
+
+test('game_grant: «Хоёр сайт» (realm both) — бүртгэлтэй сайт бүрт; нэгэнд л бүртгэлтэй бол нөгөөг алгасна; аль алинд нь үгүй → 400', async () => {
+  const N = GM.GAME_KEYS.length;
+  wsLogin('two@x.mn'); F.addUser('two@x.mn');
+  let r = await A('game_grant', { realm: 'both', email: 'two@x.mn', game: '*', months: 2, grade: '9' });
+  assert.strictEqual(r.statusCode, 200, JSON.stringify(r.body));
+  assert.deepStrictEqual([r.body.realm, r.body.realms, r.body.count, r.body.grade, r.body.skipped], ['both', ['ws', 'cm'], N, '9', undefined]);
+  near(daysLeft(r.body.expires_at), 60);
+  assert.strictEqual(F.db.access.size, 2 * N);
+  assert.ok([...F.db.access.values()].every((a) => a.grade === '9'), 'анги бүгдэд');
+  assert.deepStrictEqual(X.grants.map((x) => [x.realm, x.game_key, x.days]), [['ws', '*', 60], ['cm', '*', 60]]);
+
+  F.addUser('cmonly2@x.mn');                                   // зөвхөн cyber-math.com
+  r = await A('game_grant', { realm: 'both', email: 'cmonly2@x.mn', game: 'sudoku' });
+  assert.strictEqual(r.statusCode, 200, JSON.stringify(r.body));
+  assert.deepStrictEqual([r.body.realms, r.body.skipped, r.body.title, r.body.count], [['cm'], ['ws'], 'Судоку', 1]);
+  assert.ok(access('cm', 'cmonly2@x.mn', 'sudoku'));
+  assert.strictEqual(access('ws', 'cmonly2@x.mn', 'sudoku'), null);
+
+  const before = F.db.access.size;
+  r = await A('game_grant', { realm: 'both', email: 'ghost2@x.mn', game: '*' });
+  assert.strictEqual(r.statusCode, 400);
+  assert.strictEqual(r.body.noAccount, true);
+  assert.match(r.body.error, /хоёр сайтын алинд нь ч бүртгэлгүй/);
+  assert.strictEqual(F.db.access.size, before);
+});
+
+test('game_grant: олон тоглоомын олголт дундаа унавал бүгд буцна (хагас олголт, бүртгэл үлдэхгүй)', async () => {
+  wsLogin('fail@x.mn');
+  let n = 0;
+  Object.defineProperty(F.db, 'failGrant', { configurable: true, enumerable: true, get: () => ++n > 5, set: () => {} });
+  let r;
+  try { r = await A('game_grant', { realm: 'ws', email: 'fail@x.mn', game: '*' }); }
+  finally { delete F.db.failGrant; F.db.failGrant = false; }
+  assert.strictEqual(r.body.ok, false, JSON.stringify(r.body));
+  assert.strictEqual(F.db.access.size, 0, 'ROLLBACK — нэг ч эрх үлдээгүй');
+  assert.ok(F.db.txLog.indexOf('ROLLBACK') >= 0, F.db.txLog.join(','));
+  assert.deepStrictEqual(F.db.txLeaks, []);
+  assert.strictEqual(X.grants.length, 0, 'бүртгэл бичигдээгүй');
+});
+
+test('ws_report: «Бүх тоглоом» олголтыг нэрээр нь харуулна', async () => {
+  wsLogin('rep@x.mn');
+  await A('game_grant', { realm: 'ws', email: 'rep@x.mn', game: '*' });
+  X.pin = pinHash(PIN);
+  const r = await A('ws_report', { pin: PIN });
+  assert.strictEqual(r.body.ok, true, JSON.stringify(r.body));
+  const g = r.body.grants.find((x) => x.game_key === '*');
+  assert.ok(g, 'бүртгэл');
+  assert.strictEqual(g.game_title, 'Бүх тоглоом (' + GM.GAME_KEYS.length + ')');
+});
+
+test('admin.html gmGrant: «Бүх тоглоом» баталгаажуулалт асууна; хоёр сайт, алгассан сайтыг мэдэгдэнэ', async () => {
+  const sb = adminSandbox();
+  const posted = [];
+  sb.ctx.gmLoad = () => Promise.resolve();
+  sb.ctx.wsPost = (a, b) => {
+    posted.push(JSON.parse(JSON.stringify([a, b])));
+    return Promise.resolve({ ok: true, realm: 'both', realms: ['cm'], skipped: ['ws'], email: 'x@y.mn', game: '*', title: 'Бүх тоглоом (17)', count: 17,
+      days: 30, expires_at: '2026-12-09T00:00:00.000Z' });
+  };
+  sb.el('gm-g-email').value = 'X@y.mn'; sb.el('gm-g-realm').value = 'both'; sb.el('gm-g-game').value = '*'; sb.el('gm-g-dur').value = '1';
+  let asked = '';
+  sb.ctx.confirm = (m) => { asked = m; return false; };
+  sb.ctx.gmGrant();
+  assert.match(asked, /"x@y\.mn" хэрэглэгчид бүх тоглоомын эрхийг хоёр сайтад нээх үү\?/);
+  assert.strictEqual(posted.length, 0, 'татгалзвал илгээхгүй');
+  sb.ctx.confirm = () => true;
+  sb.ctx.gmGrant();
+  await new Promise((r) => setImmediate(r));
+  assert.deepStrictEqual(posted[0], ['game_grant', { realm: 'both', email: 'x@y.mn', game: '*', note: '', months: 1 }]);
+  assert.match(sb.el('gm-g-msg').textContent, /^Олголоо: Бүх тоглоом \(17\) · cyber-math\.com · .+ хүртэл · Дасгалын төвд бүртгэлгүй тул алгаслаа$/);
+  // нэг тоглоом — асуултгүй
+  asked = ''; posted.length = 0;
+  sb.el('gm-g-email').value = 'a@b.mn'; sb.el('gm-g-realm').value = 'ws'; sb.el('gm-g-game').value = 'sudoku';
+  sb.ctx.wsPost = (a, b) => { posted.push(1); return Promise.resolve({ ok: true, realm: 'ws', email: 'a@b.mn', game: 'sudoku', title: 'Судоку', days: 30, expires_at: '2026-12-09T00:00:00.000Z' }); };
+  sb.ctx.gmGrant();
+  await new Promise((r) => setImmediate(r));
+  assert.strictEqual(asked, '');
+  assert.match(sb.el('gm-g-msg').textContent, /^Олголоо: Судоку · Дасгалын төв · .+ хүртэл$/);
+  // «Бүх тоглоом» зөвхөн олгох сонголтод (шүүлтүүрт биш); «Хоёр сайт» олгох сайтын сонголтод
+  const html = fs.readFileSync(path.join(F.WT, 'admin.html'), 'utf8');
+  assert.match(html, /\(s\[0\]==='gm-g-game'\?'<option value="\*">Бүх тоглоом \('\+cat\.length\+'\)<\/option>':''\)/);
+  assert.match(html, /<select id="gm-g-realm"[^>]*><option value="ws">Дасгалын төв<\/option><option value="cm">cyber-math\.com<\/option><option value="both">Хоёр сайт<\/option><\/select>/);
 });
 
 test('тодорхойгүй SQL алга, бодит сүлжээ рүү хандаагүй', () => {

@@ -69567,7 +69567,8 @@ window.renderReactionBar = function(nodeId, container) {
   var CLOSE = { mathmortal: 'closeMathMortal', mathkittens: 'closeMathKittens', sudoku: 'closeSudoku', play2048: 'closePlay2048', myangat: 'closeMyangat',
     xpdrop: 'closeXpdrop', sbh: 'closeSbh', doroev: 'closeDoroev', chessmath: 'closeChessMath', daam: 'closeDaam', gomoku: 'closeGomoku', ludo: 'closeLudo' };
   var LOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
-  var S = { gate: true, premium: null, premAt: 0, seconds: 120, used: {}, run: null, guest: false, busy: false, who: null };
+  // owned — админаас олгосон cyber-math.com-ийн тоглоомын эрх (туршилтгүй); all — бүх тоглоомын эрхтэй (Муурнууд ч нээлттэй)
+  var S = { gate: true, premium: null, premAt: 0, seconds: 120, used: {}, owned: {}, all: false, run: null, guest: false, busy: false, who: null };
   var pill = d.getElementById('cm-pv-pill'), leftEl = d.getElementById('cm-pv-left');
 
   function embed() { return H.classList.contains('cm-embed'); }
@@ -69608,13 +69609,13 @@ window.renderReactionBar = function(nodeId, container) {
     if (sel && sel.parentNode) sel.parentNode.insertBefore(banner, sel);
   })();
   function paint() {
-    var show = S.gate && S.premium === false && !embed();
+    var show = S.gate && S.premium === false && !S.all && !embed();
     banner.classList.toggle('on', show);
     banner.querySelector('span').textContent = 'Тоглоом бүрийг нэг удаа ' + mins() + ' минут үнэгүй туршина · 9,900₮/сар';
     d.querySelectorAll('#game-selector .game-card').forEach(function (c) {
       var m = /startGame\('([a-z0-9]+)'\)/.exec(c.getAttribute('onclick') || ''); if (!m) return;
       var k = m[1], b = c.querySelector('.cm-pv-badge');
-      if (!show || FREE[k]) { if (b) b.remove(); return; }
+      if (!show || FREE[k] || S.owned[k]) { if (b) b.remove(); return; }
       if (!b) { b = d.createElement('span'); c.appendChild(b); }
       var used = !!S.used[k];
       b.className = 'cm-pv-badge ' + (used ? 'lock' : 'try');
@@ -69629,6 +69630,7 @@ window.renderReactionBar = function(nodeId, container) {
       if (j.seconds) S.seconds = j.seconds;
       S.premium = !!j.premium; if (S.premium) S.premAt = Date.now();
       S.used = {}; (j.used || []).forEach(function (k) { S.used[k] = 1; });
+      S.owned = {}; (j.owned || []).forEach(function (k) { S.owned[k] = 1; }); S.all = !!j.all;
       paint();
     }).catch(function () {});
   }
@@ -69688,7 +69690,7 @@ window.renderReactionBar = function(nodeId, container) {
     go(); count(key, S.seconds * 1000);
   }
   function gate(key, go) {
-    if (embed() || FREE[key] || !S.gate) return go();
+    if (embed() || FREE[key] || !S.gate || S.all || S.owned[key]) return go();
     if (S.premium === true && Date.now() - S.premAt < 10 * 60000) return go();
     if (S.busy) return;
     S.busy = true;
@@ -69697,6 +69699,7 @@ window.renderReactionBar = function(nodeId, container) {
       if (j.gate === false) { S.gate = false; paint(); return go(); }
       if (j.premium) { S.premium = true; S.premAt = Date.now(); paint(); return go(); }
       if (j.free) return go();
+      if (j.owned) { S.owned[key] = 1; paint(); return go(); }
       if (j.ok && j.until) {
         S.premium = false; paint(); go();
         return count(key, new Date(j.until).getTime() - new Date(j.server_now).getTime());
@@ -69739,7 +69742,7 @@ window.renderReactionBar = function(nodeId, container) {
   if (gs && 'IntersectionObserver' in window) new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) maybe(); }); }).observe(gs);
   setInterval(function () {
     var who = (window._currentUser && window._currentUser.email) || '';
-    if (S.who !== null && who !== S.who) { S.premium = null; paint(); maybe(true); }
+    if (S.who !== null && who !== S.who) { S.premium = null; S.owned = {}; S.all = false; paint(); maybe(true); }
     S.who = who;
   }, 3000);
   d.addEventListener('visibilitychange', function () { if (!d.hidden) maybe(); });

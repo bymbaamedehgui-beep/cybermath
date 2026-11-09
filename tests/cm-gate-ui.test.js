@@ -38,6 +38,16 @@ test('хаалга: preview/pstatus, embed алгасна, нэгдсэн хүн
   assert.strictEqual(n, 1);
 });
 
+test('админаас олгосон тоглоомын эрх (owned) ба бүх тоглоом (all) — туршилтгүй шууд нээгдэнэ', () => {
+  assert.match(blk, /owned: \{\}, all: false/);
+  assert.match(blk, /S\.owned = \{\}; \(j\.owned \|\| \[\]\)\.forEach\(function \(k\) \{ S\.owned\[k\] = 1; \}\); S\.all = !!j\.all;/);
+  assert.match(blk, /if \(embed\(\) \|\| FREE\[key\] \|\| !S\.gate \|\| S\.all \|\| S\.owned\[key\]\) return go\(\);/);
+  assert.match(blk, /if \(j\.owned\) \{ S\.owned\[key\] = 1; paint\(\); return go\(\); \}/);
+  assert.match(blk, /var show = S\.gate && S\.premium === false && !S\.all && !embed\(\);/);
+  assert.match(blk, /if \(!show \|\| FREE\[k\] \|\| S\.owned\[k\]\) \{ if \(b\) b\.remove\(\); return; \}/);
+  assert.match(blk, /S\.premium = null; S\.owned = \{\}; S\.all = false;/, 'бүртгэл солигдвол эрх цэвэрлэгдэнэ');
+});
+
 test('клиентийн үнэгүй тоглоомын жагсаалт = сервер (api/_cmpreview.js FREE_KEYS)', () => {
   const PV = require(path.join(WT, 'api', '_cmpreview.js'));
   const m = blk.match(/var FREE = \{([^}]*)\}/);
