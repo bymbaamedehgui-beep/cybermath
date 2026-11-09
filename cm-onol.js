@@ -10,7 +10,7 @@
   if (W.cmOnol) return;
 
   // Ангийн агуулгын сав: node id-ийн муж → файл
-  var PACKS = [{ lo: 601, hi: 621, src: '/onol/g12.js?v=1' }, { lo: 801, hi: 851, src: '/onol/g11.js?v=1' }];
+  var PACKS = [{ lo: 601, hi: 621, src: '/onol/g12.js?v=1' }, { lo: 801, hi: 851, src: '/onol/g11.js?v=2' }];
   var DATA = {}, WG = {}, S = null, UID = 0;
 
   /* ════════ Туслах ════════ */

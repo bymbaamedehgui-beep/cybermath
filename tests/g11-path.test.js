@@ -28,6 +28,15 @@ F.db.extra.push(function (q, p) {
       .sort((a, b) => ((a.sort_order || a.id) - (b.sort_order || b.id)) || a.id - b.id).map(n => ({ id: n.id, sort_order: n.sort_order })) };
   }
   if (q === 'UPDATE nodes SET sort_order = $2 WHERE id = $1') { const n = NODES.get(p[0]); if (n) n.sort_order = p[1]; return { rows: [] }; }
+  if (q === 'UPDATE questions SET hint = $3::jsonb, choices = $4::text[], correct = $5 WHERE node_id = $1 AND text = $2 AND hint = $6::jsonb AND choices = $7::text[] AND correct = $8') {
+    let n = 0;
+    QS.forEach(x => {
+      if (x.node_id !== p[0] || x.text !== p[1]) return;
+      if (JSON.stringify(JSON.parse(x.hint)) !== JSON.stringify(JSON.parse(p[5])) || JSON.stringify(x.choices) !== JSON.stringify(p[6]) || x.correct !== p[7]) return;
+      x.hint = p[2]; x.choices = p[3]; x.correct = p[4]; n++;
+    });
+    return { rows: [], rowCount: n };
+  }
   if (q === 'SELECT node_id, COUNT(*)::int AS n FROM questions WHERE node_id BETWEEN $1 AND $2 GROUP BY node_id') {
     const c = {}; QS.forEach(x => { if (x.node_id >= p[0] && x.node_id <= p[1]) c[x.node_id] = (c[x.node_id] || 0) + 1; });
     return { rows: Object.keys(c).map(k => ({ node_id: +k, n: c[k] })) };
@@ -85,7 +94,7 @@ test('installPath: node + бодлого нэмнэ, хуучин 11-р анги
   const r = await POST({ action: 'installPath', grade: '11' });
   assert.strictEqual(r.statusCode, 200);
   assert.deepStrictEqual(r.body, { ok: true, grade: '11', nodes_added: 51, nodes_total: 51, questions_added: G.QUESTIONS.length,
-    questions_total: G.QUESTIONS.length, nodes_filled: 51, old_moved: 4 });
+    questions_total: G.QUESTIONS.length, nodes_filled: 51, patched: 0, old_moved: 4 });
   assert.ok(INSERTS.length >= 7 && INSERTS.every(n => n <= 500), 'багц ≤500 мөр: ' + INSERTS.join(','));
   assert.deepStrictEqual([149, 150, 151, 152].map(id => NODES.get(id).sort_order), [951, 952, 953, 954]);
   assert.strictEqual(NODES.get(601).sort_order, 601);
@@ -116,6 +125,30 @@ test('installPath: бодлоготой node-д нэмэхгүй (админы �
   const r2 = await POST({ action: 'installPath', grade: '11' });
   assert.strictEqual(r2.body.nodes_filled, 1);
   assert.strictEqual(QS.filter(x => x.node_id === 851).length, 60);
+});
+
+test('PATCHES: суусан хуучин бодлогын санамж/сонголтыг засна; админы засварласанд хүрэхгүй; дахин дарахад 0', async () => {
+  assert.ok(Array.isArray(G.PATCHES) && G.PATCHES.length > 0);
+  G.PATCHES.forEach(x => {
+    const q = G.QUESTIONS.find(y => y.node_id === x.node_id && y.text === x.text);
+    assert.ok(q, x.node_id + ' засварын бодлого багцад байна');
+    assert.deepStrictEqual({ hint: q.hint, choices: q.choices, correct: q.correct }, x.to, 'to = багцын одоогийн утга');
+    assert.ok(x.to.choices.indexOf(x.to.correct) >= 0 && x.to.choices.length === 4);
+    assert.doesNotMatch(x.to.hint, /\$-г орлуул|\$-аас \$x\$|\}\{1\}=/, 'засагдсан санамж');
+  });
+  // DB-д хуучин (засваргүй) хувилбар суусан мэт
+  G.QUESTIONS.forEach(q => {
+    const x = G.PATCHES.find(y => y.node_id === q.node_id && y.text === q.text), s = x ? x.from : q;
+    QS.push({ text: q.text, node_id: q.node_id, correct: s.correct, choices: s.choices, hint: JSON.stringify({ text: s.hint }), difficulty: q.difficulty });
+  });
+  const ed = G.PATCHES[0], row = QS.find(y => y.node_id === ed.node_id && y.text === ed.text);
+  row.hint = JSON.stringify({ text: 'Админы санамж' });                     // админ гараар зассан
+  const r = await POST({ action: 'installPath', grade: '11' });
+  assert.strictEqual(r.body.questions_added, 0);
+  assert.strictEqual(r.body.patched, G.PATCHES.length - 1);
+  assert.strictEqual(JSON.parse(row.hint).text, 'Админы санамж');
+  G.PATCHES.slice(1).forEach(x => assert.strictEqual(JSON.parse(QS.find(y => y.node_id === x.node_id && y.text === x.text).hint).text, x.to.hint));
+  assert.strictEqual((await POST({ action: 'installPath', grade: '11' })).body.patched, 0);
 });
 
 test('installPath: зөвхөн админ; танихгүй анги → ok:false', async () => {

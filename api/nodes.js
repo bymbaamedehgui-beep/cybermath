@@ -54,8 +54,17 @@ async function installPath(grade) {
     batch = batch.concat(rows);
   }
   await flush();
+  // Суусан бодлогын засвар (санамж/сонголт): мөрийг (node_id, text) + ХУУЧИН утгаар нь олно — админы засварласанд хүрэхгүй,
+  // аль хэдийн засагдсан бол 0
+  let patched = 0;
+  for (const x of pack.PATCHES || []) {
+    const r = await pool.query(
+      'UPDATE questions SET hint = $3::jsonb, choices = $4::text[], correct = $5 WHERE node_id = $1 AND text = $2 AND hint = $6::jsonb AND choices = $7::text[] AND correct = $8',
+      [x.node_id, x.text, JSON.stringify({ text: x.to.hint }), x.to.choices, x.to.correct, JSON.stringify({ text: x.from.hint }), x.from.choices, x.from.correct]);
+    patched += r.rowCount || 0;
+  }
   return { ok: true, grade: grade, nodes_added: add.length, nodes_total: pack.NODES.length, questions_added: qAdd,
-    questions_total: pack.QUESTIONS.length, nodes_filled: by.size, old_moved: moved };
+    questions_total: pack.QUESTIONS.length, nodes_filled: by.size, patched: patched, old_moved: moved };
 }
 
 module.exports = async (req, res) => {
