@@ -14,6 +14,8 @@
     s = String(s == null ? '' : s).trim().replace(/^\$+|\$+$/g, '').trim();
     s = s.replace(/\\left|\\right/g, '').replace(/\\displaystyle|\\textstyle/g, '');
     s = s.replace(/\\dfrac|\\tfrac/g, '\\frac').replace(/\\cdot|\\times/g, '*').replace(/\\div/g, '/');
+    s = s.replace(/\\operatorname\{tg\}|\\tg\b/g, '\\tan').replace(/\\operatorname\{ctg\}|\\ctg\b/g, '\\cot').replace(/\\mathrm\{e\}/g, 'e');
+    s = s.replace(/\\mleft|\\mright/g, '').replace(/\\lvert|\\rvert|\\vert/g, '|');
     s = s.replace(/(\d)\\,(?=\d{3}(?!\d))/g, '$1');                 // мянгатын зай: 10\,235 → 10235
     s = s.replace(/\{,\}/g, '.').replace(/\\[,;:!]|\\ |~/g, ' ').replace(/\s+/g, ' ').trim();
     return s;
@@ -25,7 +27,9 @@
       if (c === ' ') { i++; continue; }
       if ((m = /^\d+(?:\.\d+)?|^\.\d+/.exec(s.slice(i)))) { out.push({ t: 'n', v: parseFloat(m[0]), s: m[0] }); i += m[0].length; continue; }
       if (c === '\\') {
-        if ((m = /^\\([a-zA-Z]+)/.exec(s.slice(i)))) { out.push({ t: 'c', v: m[1] }); i += m[0].length; continue; }
+        if ((m = /^\\([a-zA-Z]+)/.exec(s.slice(i)))) {
+          out.push(GREEK[m[1]] ? { t: 'v', v: m[1] } : { t: 'c', v: m[1] }); i += m[0].length; continue;
+        }
         out.push({ t: 'c', v: s[i + 1] || '' }); i += 2; continue;
       }
       if (/[a-zA-Z]/.test(c)) { out.push({ t: 'v', v: c }); i++; continue; }
@@ -33,7 +37,10 @@
     }
     return out;
   }
-  function Parser(toks, vars) { this.k = toks; this.i = 0; this.vars = vars || {}; }
+  var GREEK = { alpha: 1, beta: 1, gamma: 1, theta: 1, varphi: 1, phi: 1, lambda: 1, mu: 1, omega: 1, tau: 1 };
+  var FUNCS = { sin: Math.sin, cos: Math.cos, tan: Math.tan, cot: function (x) { return 1 / Math.tan(x); }, ln: Math.log,
+    log: function (x) { return Math.log(x) / Math.LN10; }, exp: Math.exp };
+  function Parser(toks, vars) { this.k = toks; this.i = 0; this.vars = vars || {}; this.abs = 0; }
   Parser.prototype.peek = function () { return this.k[this.i]; };
   Parser.prototype.isO = function (v) { var t = this.k[this.i]; return t && t.t === 'o' && t.v === v; };
   Parser.prototype.eat = function (v) { if (!this.isO(v)) throw new Error('expected ' + v); this.i++; };
@@ -45,8 +52,18 @@
   Parser.prototype.startsAtom = function () {
     var t = this.peek(); if (!t) return false;
     if (t.t === 'n' || t.t === 'v') return true;
-    if (t.t === 'o') return t.v === '(' || t.v === '{';
-    return t.t === 'c' && /^(frac|sqrt|pi|placeholder)$/.test(t.v);
+    if (t.t === 'o') return t.v === '(' || t.v === '{' || (t.v === '|' && this.abs === 0);
+    return t.t === 'c' && (/^(frac|sqrt|pi|placeholder)$/.test(t.v) || !!FUNCS[t.v]);
+  };
+  // Функцийн аргумент: (…) эсвэл далд үржвэрээр нийлсэн энгийн гишүүд (\sin 2x = sin(2x)), өөр функц дээр зогсоно
+  Parser.prototype.fnArg = function () {
+    if (this.isO('(') || this.isO('{')) return this.power();
+    var v = this.power();
+    for (;;) {
+      var t = this.peek();
+      if (!t || !this.startsAtom() || (t.t === 'c' && FUNCS[t.v]) || (t.t === 'o' && t.v === '|')) return v;
+      v *= this.power();
+    }
   };
   Parser.prototype.term = function () {
     var v = this.unary();
@@ -86,6 +103,7 @@
     if (t.t === 'n') { this.i++; return t.v; }
     if (t.t === 'o' && t.v === '(') { this.i++; var a = this.expr(); this.eat(')'); return a; }
     if (t.t === 'o' && t.v === '{') { return this.group(); }
+    if (t.t === 'o' && t.v === '|' && this.abs === 0) { this.i++; this.abs++; var av = this.expr(); this.abs--; this.eat('|'); return Math.abs(av); }
     if (t.t === 'v') {
       this.i++;
       if (!(t.v in this.vars)) throw new Error('var ' + t.v);
@@ -94,6 +112,11 @@
     if (t.t === 'c') {
       this.i++;
       if (t.v === 'pi') return Math.PI;
+      if (FUNCS[t.v]) {                                         // \sin x, \sin^{2}x, \cos(2x), \ln x
+        var pw = 1;
+        if (this.isO('^')) { this.i++; pw = this.unaryAtom(); }
+        return Math.pow(FUNCS[t.v](this.fnArg()), pw);
+      }
       if (t.v === 'frac') { var n = this.group(), d = this.group(); return n / d; }
       if (t.v === 'sqrt') {
         var idx = 2;
@@ -246,6 +269,68 @@
   }
   function safeAnalyze(c) { try { return analyze(c); } catch (e) { return null; } }
 
+  /* ── Чөлөөт талбар (илэрхийлэл): хариу нь хувьсагчтай — y=…, y'=…, f^{-1}(x)=… угтвартай эсвэл шууд илэрхийлэл.
+     Шалгах: хувьсагчдын хэд хэдэн утга дээр хоёр илэрхийллийг тулгана; «задал» бодлогод хариу нь үржвэр хэлбэртэй байх
+     ёстой; асуултын илэрхийллийг хуулж бичихээс сэргийлж хариуны урт (токен) хязгаартай. ── */
+  var DESIG = /^(y'|y|[fgh]'\(x\)|[fgh]\(x\)|f\^\{-1\}\(x\)|[sv]'\(t\)|[sva]\(t\)|S_\{?n\}?|a_\{?n\}?|b_\{?n\}?)\s*=\s*/;
+  var SAMPLE = [0.73, -1.37, 1.91, -0.58, 2.47, 0.29, -2.13, 1.13, 3.07, -0.91];
+  function varsOf(s) {
+    var seen = {}, out = [];
+    tokenize(prep(s)).forEach(function (t) { if (t.t === 'v' && !seen[t.v]) { seen[t.v] = 1; out.push(t.v); } });
+    return out.sort();
+  }
+  function samples(vars) {
+    var out = [];
+    for (var i = 0; i < SAMPLE.length; i++) {
+      var env = {};
+      vars.forEach(function (v, j) { env[v] = SAMPLE[(i + 3 * j) % SAMPLE.length] + 0.11 * j; });
+      out.push(env);
+    }
+    return out;
+  }
+  function evalEnv(s, env) { try { return evalTex(s, env); } catch (e) { return null; } }
+  function sameExpr(u, c, vars) {
+    var all = vars.slice(); varsOf(u).forEach(function (v) { if (all.indexOf(v) < 0) all.push(v); });
+    var ok = 0;
+    var envs = samples(all);
+    for (var i = 0; i < envs.length; i++) {
+      var a = evalEnv(u, envs[i]), b = evalEnv(c, envs[i]);
+      if (b === null) continue;                                  // зөв хариу тодорхойлогдоогүй цэг — алгасна
+      if (a === null || Math.abs(a - b) > 1e-6 * Math.max(1, Math.abs(a), Math.abs(b))) return false;
+      ok++;
+    }
+    return ok >= 3;
+  }
+  // Дээд түвшинд +/− алга (эхний хасахаас бусад), хаалттай → үржвэр хэлбэр: 3x(2x-3), (x+3)(x-5), -(x-2)^{2}
+  function isProduct(s) {
+    s = prep(s).replace(/\s+/g, '');
+    if (s.indexOf('(') < 0) return false;
+    var d = 0;
+    for (var i = 0; i < s.length; i++) {
+      var c = s[i];
+      if (c === '(' || c === '{' || c === '[') d++;
+      else if (c === ')' || c === '}' || c === ']') d--;
+      else if (d === 0 && (c === '+' || c === '-') && i > 0 && s[i - 1] !== '^') return false;
+    }
+    return true;
+  }
+  var FACTOR_Q = /задал|үржигдэхүүн болгон|үржвэр хэлбэр|хаалтаас гарга/i;
+  function analyzeExpr(correct, qtext) {
+    var s = prep(correct);
+    if (!s || /[Ѐ-ӿ]/.test(s) || /\\(lt|gt|le|ge|leq|geq|neq|ne|infty|pm|mp|cup|cap|in|approx|vec|overrightarrow|angle|circ)\b|[<>≤≥∞%]/.test(s) || INTERVAL.test(s)) return null;
+    var m = DESIG.exec(s), prefix = '', body = s;
+    if (m) { prefix = m[1] + '='; body = s.slice(m[0].length).trim(); }
+    if (!body || /[=,;]/.test(body) || /\\begin/.test(body)) return null;
+    var vars = varsOf(body);
+    if (!vars.length) return null;                              // хувьсагчгүй — тоон загвар
+    var ok = samples(vars).filter(function (env) { return evalEnv(body, env) !== null; }).length;
+    if (ok < 4) return null;
+    var factor = isProduct(body) && FACTOR_Q.test(String(qtext || ''));
+    return { kind: 'expr', expr: body, vars: vars, factor: factor, tok: tokenize(body).length, n: 1,
+      parts: [{ tpl: '\\placeholder[p0]{}', ids: ['p0'], own: [body] }], tpl: prefix + '\\placeholder[p0]{}' };
+  }
+  function safeExpr(c, q) { try { return analyzeExpr(c, q); } catch (e) { return null; } }
+
   /* ── Хэрэглэгчийн утгаар шалгах: vals[id] = LaTeX ── */
   function partValue(part, vals) {
     var s = part.tpl;
@@ -267,6 +352,14 @@
   }
   function checkVals(fx, vals) {
     try {
+      if (fx.kind === 'expr') {
+        var u = prep(String(vals.p0 == null ? '' : vals.p0));
+        var dm = DESIG.exec(u); if (dm) u = u.slice(dm[0].length).trim();   // «y=» дахин бичсэн бол хасна
+        if (!u || /[=,;]/.test(u)) return false;
+        if (fx.factor && !isProduct(u)) return false;
+        if (tokenize(u).length > fx.tok + 8) return false;
+        return sameExpr(u, fx.expr, fx.vars);
+      }
       var pv = fx.parts.map(function (p) { return partValue(p, vals); });
       if (fx.kind === 'num') return near(pv[0], fx.val);
       if (fx.kind === 'mat') return pv.length === fx.val.length && pv.every(function (v, i) { return near(v, fx.val[i]); });
@@ -297,10 +390,17 @@
 
   /* ── Хичээлд оруулах ── */
   var ASKS_CHOICE = /(^|[^А-Яа-яӨөҮүЁё])[Аа]ль(\s|$)|аль нь|сонго|зөв бэ|буруу бэ/;
+  // «… шулууны тэгшитгэл аль нь вэ?» — төгсгөлийн «X аль нь вэ?» нь сонголтгүйгээр ч хариулж болох асуулт → «X ямар вэ?»
+  // («Аль цэг…», «Аль функц тэгш вэ?», «Дараах тоонуудын аль нь…» — жинхэнэ сонгох асуулт, хасагдана)
+  var WHICH_END = /\s+аль нь вэ\?\s*$/;
   function eligible(q) {
     if (!q || (q.type && q.type !== 'choice')) return null;
-    if (ASKS_CHOICE.test(String(q.q || q.text || ''))) return null;
-    return safeAnalyze(q.correctAnswer != null ? q.correctAnswer : q.correct);
+    var text = String(q.q || q.text || ''), t2 = text.replace(WHICH_END, ' ямар вэ?');
+    if (ASKS_CHOICE.test(t2)) return null;
+    var c = q.correctAnswer != null ? q.correctAnswer : q.correct;
+    var fx = safeAnalyze(c) || safeExpr(c, text);
+    if (fx && t2 !== text) fx.text = t2;
+    return fx;
   }
   function inject(lesson, opt) {
     if (!lesson || !lesson.questions || !lesson.questions.length) return 0;
@@ -312,7 +412,7 @@
     var pick = [];
     if (cand.length <= want) pick = cand;
     else { var step = cand.length / want; for (var k = 0; k < want; k++) pick.push(cand[Math.floor(k * step + step / 2)]); }
-    pick.forEach(function (c) { var q = qs[c.i]; q.type = 'fillx'; q.fx = c.fx; });
+    pick.forEach(function (c) { var q = qs[c.i]; q.type = 'fillx'; q.fx = c.fx; if (c.fx.text) q.q = c.fx.text; });
     return pick.length;
   }
 
@@ -321,9 +421,28 @@
     return '<div id="options" class="cmfx" style="grid-template-columns:1fr;gap:8px;">'
       + '<div style="border:2.5px solid #7B52EE;border-radius:14px;background:#fff;padding:10px 12px;display:flex;justify-content:center;">'
       + '<math-field id="cmfx-mf" read-only style="font-size:1.45rem;min-width:120px;background:transparent;border:0;outline:0;color:#1a1040;"></math-field></div>'
-      + '<div style="text-align:center;font-size:0.76rem;color:#8b8ba3;font-weight:700;">Хоосон нүдийг бөглөөд «Шалгах» дарна уу</div>'
+      + '<div style="text-align:center;font-size:0.76rem;color:#8b8ba3;font-weight:700;">'
+      + (q && q.fx && q.fx.kind === 'expr' ? 'Хариугаа бүтнээр нь бичээд «Шалгах» дарна уу (бутархай, язгуур, зэрэг — математик гараас)'
+        : 'Хоосон нүдийг бөглөөд «Шалгах» дарна уу') + '</div>'
       + '</div>';
   }
+  // Математик гар гарахад цонхыг дээш шилжүүлж оруулах талбарыг ил үлдээнэ (index.html initIndexFillMf-тэй ижил)
+  var kbHooked = false;
+  function showKeyboard() {
+    var kb = root && root.mathVirtualKeyboard; if (!kb) return;
+    try { kb.container = document.body; } catch (e) {}
+    if (!kbHooked) {
+      kbHooked = true;
+      kb.addEventListener('geometrychange', function () {
+        var h = kb.boundingRect ? kb.boundingRect.height : 0, ov = document.getElementById('quiz-modal');
+        if (!ov) return;
+        if (h > 10 && kb.visible) { ov.style.alignItems = 'flex-start'; ov.style.paddingTop = '8px'; ov.style.paddingBottom = h + 'px'; }
+        else { ov.style.paddingTop = ''; ov.style.paddingBottom = ''; }
+      });
+    }
+    try { kb.show({ animate: true }); } catch (e) {}
+  }
+  function hideKeyboard() { var kb = root && root.mathVirtualKeyboard; try { if (kb && kb.visible) kb.hide(); } catch (e) {} }
   function promptVals(mf, fx) {
     var vals = {};
     fx.parts.forEach(function (p) { p.ids.forEach(function (id) { var v = ''; try { v = mf.getPromptValue(id) || ''; } catch (e) {} vals[id] = v; }); });
@@ -339,7 +458,13 @@
     var btn = document.getElementById('check-btn');
     if (btn) btn.disabled = true;
     mf.addEventListener('input', function () { var b = document.getElementById('check-btn'); if (b) b.disabled = !allFilled(mf, q.fx); });
-    setTimeout(function () { try { mf.focus(); } catch (e) {} }, 60);
+    mf.addEventListener('focus', showKeyboard);
+    mf.addEventListener('keydown', function (e) {                // Enter → шалгах (бүх нүд бөглөсөн бол)
+      if (e.key !== 'Enter') return;
+      var b = document.getElementById('check-btn');
+      if (b && !b.disabled && typeof root.checkAnswer === 'function') { e.preventDefault(); b.click(); }
+    });
+    setTimeout(function () { try { mf.focus(); } catch (e) {} showKeyboard(); }, 60);
   }
   function check(q) {
     var mf = document.getElementById('cmfx-mf');
@@ -347,10 +472,11 @@
     var vals = promptVals(mf, q.fx), ok = checkVals(q.fx, vals);
     q.fx.parts.forEach(function (p) { p.ids.forEach(function (id) { try { mf.setPromptState(id, ok ? 'correct' : 'incorrect', true); } catch (e) {} }); });
     try { mf.readOnly = true; } catch (e) {}
+    hideKeyboard();
     return { ok: ok, answer: Object.keys(vals).map(function (k) { return vals[k]; }).join('|') };
   }
 
-  var api = { prep: prep, evalTex: evalTex, analyze: safeAnalyze, checkVals: checkVals, ownVals: ownVals, eligible: eligible, inject: inject,
+  var api = { prep: prep, evalTex: evalTex, analyze: safeAnalyze, analyzeExpr: safeExpr, isProduct: isProduct, checkVals: checkVals, ownVals: ownVals, eligible: eligible, inject: inject,
     answerHtml: answerHtml, mount: mount, check: check };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.cmFill = api;
