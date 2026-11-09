@@ -2490,6 +2490,13 @@
         }
         return L;
       }
+      // Нэрийг pref чиглэлд, ойрхон цэгүүдээс (reps) холдуулж тавина
+      function away432(X, pref, reps) {
+        let vx = pref[0], vy = pref[1];
+        reps.forEach(function (R) { const ex = X[0] - R[0], ey = X[1] - R[1], d2 = ex * ex + ey * ey; if (d2 > 1e-12 && d2 < 9) { vx += 1.5 * ex / d2; vy += 1.5 * ey / d2; } });
+        const n = Math.hypot(vx, vy) || 1; vx /= n; vy /= n;
+        return { dx: 14 * vx || 0.01, dy: -14 * vy + 5 || 0.01, la: vx < -0.35 ? 'end' : vx > 0.35 ? 'start' : 'middle' };
+      }
       function lab432(d) { const t = d * Math.PI / 180, c = Math.cos(t), s = Math.sin(t); return { dx: 14 * c || 0.01, dy: -14 * s + 5 || 0.01, la: c < -0.35 ? 'end' : c > 0.35 ? 'start' : 'middle' }; }
       // Гурвалжин ABC (A — 100°, B, C — гулсуураар): талууд, талбай, багтсан тойргийн төв I, радиус r
       function tri432(P) {
@@ -2527,7 +2534,8 @@
               const T = tri432(P);
               return [Object.assign({ x: T.A[0], y: T.A[1], c: C.V, lb: 'A' }, lab432(100)), Object.assign({ x: T.B[0], y: T.B[1], c: C.V, lb: 'B' }, lab432(P.b)),
                 Object.assign({ x: T.C[0], y: T.C[1], c: C.V, lb: 'C' }, lab432(P.c)),
-                { x: Q432[0], y: Q432[1], c: C.T, lb: 'O', dx: 9, dy: -9 }, { x: T.I[0], y: T.I[1], c: C.PK, lb: 'I', dx: 9, dy: 18 }];
+                Object.assign({ x: Q432[0], y: Q432[1], c: C.T, lb: 'O' }, away432(Q432, [0.7, 0.7], [T.I])),
+                Object.assign({ x: T.I[0], y: T.I[1], c: C.PK, lb: 'I' }, away432(T.I, [-0.7, -0.7], [Q432]))];
             },
             info: function (P) {
               const T = tri432(P), f = function (v) { return U.rnd(v, 2); };
@@ -2725,6 +2733,13 @@
         for (let f = 2; f * f <= m; f++) while (m % (f * f) === 0) { m /= f * f; k *= f; }
         return m === 1 ? String(k) : (k === 1 ? '' : k) + '\\sqrt{' + m + '}';
       }
+      // Нэрийг pref чиглэлд, ойрхон цэгүүдээс (reps) холдуулж тавина; давхацвал pref чиглэлд
+      function away434(X, pref, reps) {
+        let vx = pref[0], vy = pref[1];
+        reps.forEach(function (R) { const ex = X[0] - R[0], ey = X[1] - R[1], d2 = ex * ex + ey * ey; if (d2 > 1e-12 && d2 < 9) { vx += 1.5 * ex / d2; vy += 1.5 * ey / d2; } });
+        const n = Math.hypot(vx, vy) || 1; vx /= n; vy /= n;
+        return { dx: 14 * vx || 0.01, dy: -14 * vy + 5 || 0.01, la: vx < -0.35 ? 'end' : vx > 0.35 ? 'start' : 'middle' };
+      }
       // Тойрог (олон хэрчим), dash — хэрчим алгасаж тасархай болгоно
       function circ434(cx, cy, r, col, dash) {
         const L = [];
@@ -2763,8 +2778,9 @@
             },
             marks: function (P) {
               const on = P.x + P.y === 0;
-              return [{ x: -3, y: -1, c: C.V, lb: 'A', dx: -10, dy: 18, la: 'end' }, { x: 1, y: 3, c: C.T, lb: 'B', dx: 10, dy: -8 },
-                { x: P.x, y: P.y, c: on ? C.GR : C.PK, lb: 'P', dx: 10, dy: -10 }];
+              const A = [-3, -1], B = [1, 3], Q = [P.x, P.y];
+              return [Object.assign({ x: A[0], y: A[1], c: C.V, lb: 'A' }, away434(A, [-0.8, -0.6], [Q])), Object.assign({ x: B[0], y: B[1], c: C.T, lb: 'B' }, away434(B, [0.8, 0.6], [Q])),
+                Object.assign({ x: Q[0], y: Q[1], c: on ? C.GR : C.PK, lb: 'P' }, away434(Q, [0.2, -0.98], [A, B]))];
             },
             info: function (P) {
               const a = (P.x + 3) * (P.x + 3) + (P.y + 1) * (P.y + 1), b = (P.x - 1) * (P.x - 1) + (P.y - 3) * (P.y - 3), s = '$PA=' + rt434(a) + '$, $PB=' + rt434(b) + '$';
@@ -3257,6 +3273,13 @@
         for (let f = 2; f * f <= m; f++) while (m % (f * f) === 0) { m /= f * f; k *= f; }
         return '\\sqrt{' + N + '}' + (m === 1 ? '=' + k : k > 1 ? '=' + k + '\\sqrt{' + m + '}' : '');
       }
+      // Нэрийг pref чиглэлд, ойрхон цэгүүдээс (reps) холдуулж тавина
+      function away441(X, pref, reps) {
+        let vx = pref[0], vy = pref[1];
+        reps.forEach(function (R) { const ex = X[0] - R[0], ey = X[1] - R[1], d2 = ex * ex + ey * ey; if (d2 > 1e-12 && d2 < 9) { vx += 1.5 * ex / d2; vy += 1.5 * ey / d2; } });
+        const n = Math.hypot(vx, vy) || 1; vx /= n; vy /= n;
+        return { dx: 14 * vx || 0.01, dy: -14 * vy + 5 || 0.01, la: vx < -0.35 ? 'end' : vx > 0.35 ? 'start' : 'middle' };
+      }
       function arrow441(x0, y0, x1, y1, col) {
         const L = [[x0, y0, x1, y1, col, 0]], dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy);
         if (len < 1e-9) return L;
@@ -3281,8 +3304,11 @@
               return [[A441[0], A441[1], P.x, A441[1], C.OR, 1], [P.x, A441[1], P.x, P.y, C.OR, 1]].concat(arrow441(0, 0, dx, dy, C.T), arrow441(A441[0], A441[1], P.x, P.y, C.V));
             },
             marks: function (P) {
-              const dx = P.x - A441[0], dy = P.y - A441[1], M = [{ x: A441[0], y: A441[1], c: C.V, lb: 'A', dx: -9, dy: 18, la: 'end' }, { x: P.x, y: P.y, c: C.PK, lb: 'B', dx: 9, dy: -9 }];
-              if (dx || dy) M.push({ x: dx, y: dy, c: C.T, lb: 'M', dx: 9, dy: 18 });
+              const dx = P.x - A441[0], dy = P.y - A441[1], n = Math.hypot(dx, dy), ux = n ? dx / n : 0.7071, uy = n ? dy / n : 0.7071;
+              const B = [P.x, P.y], E = [dx, dy];
+              const M = [Object.assign({ x: A441[0], y: A441[1], c: C.V, lb: 'A' }, away441(A441, [-ux, -uy], [B, E])),
+                Object.assign({ x: B[0], y: B[1], c: C.PK, lb: 'B' }, away441(B, [ux, uy], [A441, E]))];
+              if (n) M.push(Object.assign({ x: dx, y: dy, c: C.T, lb: 'M' }, away441(E, [ux, uy], [A441, B, [0, 0]])));
               return M;
             },
             info: function (P) {
@@ -4851,7 +4877,7 @@
         { k: 'check', q: 'Хуримтлагдсан давтамж: $10$-аас доош — $4$, $20$-иос доош — $15$, $30$-аас доош — $33$, $40$-өөс доош — $40$. Медиан аль завсарт байх вэ?',
           o: ['$10$–$20$', '$20$–$30$', '$30$–$40$', '$0$–$10$'], c: 1,
           why: '$\\dfrac{n}{2}=20$: $20$-иос доош $15$, $30$-аас доош $33$ — тиймээс $20$ дахь гишүүн $20$–$30$ завсарт.', hint: 'Босоо тэнхлэгийн $\\dfrac{n}{2}$ утгыг хай.' },
-        { k: 'check', q: '$120$ хүний өгөгдлийн хуримтлагдсан давтамжийн графикаас $Q_3$-ыг уншихын тулд босоо тэнхлэгийн аль утгаас хэвтээ шулуун татах вэ?',
+        { k: 'check', q: '$120$ хүний өгөгдлийн хуримтлагдсан давтамжийн графикаас $Q_3$ квартилыг уншихын тулд босоо тэнхлэгийн аль утгаас хэвтээ шулуун татах вэ?',
           o: ['$30$', '$60$', '$90$', '$75$'], c: 2,
           why: '$Q_3\\leftarrow\\dfrac{3n}{4}=\\dfrac{3\\cdot 120}{4}=90$.' },
         { k: 'sum', pts: ['Хуримтлагдсан давтамж — давтамжуудыг дараалан нэмсэн нийлбэр; сүүлийнх нь $n$.',
@@ -5385,7 +5411,7 @@
           f: [{ h: 'Нумын урт', m: 'l=\\dfrac{\\pi r\\alpha}{180^\\circ}=2\\pi r\\cdot\\dfrac{\\alpha}{360^\\circ}', n: '$\\alpha$ — төв өнцөг, градусаар. Радианаар бол $l=r\\alpha$.' },
             { h: 'Секторын талбай', m: 'S=\\dfrac{\\alpha}{360^\\circ}\\cdot\\pi r^{2}=\\dfrac{1}{2}lr', n: 'Радианаар: $S=\\dfrac{1}{2}r^{2}\\alpha$.' },
             { h: 'Сегментийн талбай', m: 'S_{\\text{сег}}=S_{\\text{сектор}}-S_{\\triangle AOB}=\\dfrac{\\alpha}{360^\\circ}\\cdot\\pi r^{2}-\\dfrac{1}{2}r^{2}\\sin\\alpha', n: '$\\alpha\\lt 180^\\circ$ үед. Радианаар нэг томьёо: $S_{\\text{сег}}=\\dfrac{1}{2}r^{2}(\\alpha-\\sin\\alpha)$.' }],
-          p2: ['Нумын урт ба секторын талбай нь бүтэн тойргийн урт $2\\pi r$, дугуйн талбай $\\pi r^{2}$-ийн $\\dfrac{\\alpha}{360^\\circ}$ хэсэг.'] },
+          p2: ['Нумын урт нь бүтэн тойргийн уртын ($2\\pi r$), секторын талбай нь дугуйн талбайн ($\\pi r^{2}$) $\\dfrac{\\alpha}{360^\\circ}$ хэсэг.'] },
         { k: 'ex', t: 'Нум, сектор, сегмент', q: 'Радиус нь $6$ см тойргийн $60^\\circ$ төв өнцөгт харгалзах нумын урт, секторын ба сегментийн талбайг ол.',
           s: [{ m: 'l=\\dfrac{\\pi\\cdot 6\\cdot 60^\\circ}{180^\\circ}=2\\pi\\approx 6.28\\ \\text{см}', n: '' },
             { m: 'S=\\dfrac{60^\\circ}{360^\\circ}\\cdot\\pi\\cdot 6^{2}=6\\pi\\approx 18.85\\ \\text{см}^{2}', n: 'Бүтэн дугуйн $\\dfrac{1}{6}$ хэсэг.' },
@@ -5519,6 +5545,155 @@
           'Конус: $l=\\sqrt{r^{2}+h^{2}}$, хажуу гадаргуу $\\pi rl$ — дэлгэхэд сектор.',
           'Бөмбөрцөг: $S=4\\pi R^{2}$, $V=\\dfrac{4}{3}\\pi R^{3}$.',
           'Нийлмэл биетийг хэсэгт хувааж тооцно; залгаас дахь гадаргуу тооцогдохгүй.'] }
+      ] };
+    })(),
+    471: (function () {
+      // 471 Биетийн хавтгай огтлол
+
+      // Шоо хэлбэрийн бяслаг ба хутга: зөв зургаан өнцөгт зүсэлт (x + y + z = 1.5)
+      const PIC471 = pic('<path d="M22 104H78V48H22Z" stroke="' + C.K + '" stroke-width="2.5"/><path d="M22 48L45.5 31.2H101.5L78 48M78 104L101.5 87.2V31.2" stroke="' + C.K + '" stroke-width="2.5"/>' +
+        '<path d="M45.5 87.2L22 104M45.5 87.2H101.5M45.5 87.2V31.2" stroke="' + C.K + '" stroke-width="1.8" stroke-dasharray="4 4"/>' +
+        '<path d="M89.8 95.6L78 76L50 48L33.8 39.6L45.5 59.2L73.5 87.2Z" fill="' + C.PK2 + '" opacity=".85" stroke="' + C.PK + '" stroke-width="2.5"/>' +
+        [[22, 104], [78, 104], [101.5, 87.2], [22, 48], [78, 48], [101.5, 31.2], [45.5, 31.2], [45.5, 87.2]].map(function (p) { return '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="2.6" fill="' + C.K + '"/>'; }).join('') +
+        '<path d="M64 20L112 6L110 14Z" fill="#E5E7EB" stroke="' + C.K + '" stroke-width="2"/><rect x="50" y="18" width="16" height="8" rx="3" transform="rotate(-16 58 22)" fill="' + C.OR + '" stroke="' + C.K + '" stroke-width="2"/>' +
+        tt(12, 20, '?', C.PK, 18, 'middle'));
+
+      // Шоо (ирмэг a = 1) ба n·p = t хавтгай: огтлолын олон өнцөгт (зүүн — ташуу проекц, баруун — жинхэнэ хэлбэр)
+      // хазайлт: босоо n = (1; 1; 0) — тэгш өнцөгт; хазгай n = (1; 0.7; 0.4) — 3…6 өнцөгт; диагональд ⊥ n = (1; 1; 1) — гурвалжин, зургаан өнцөгт
+      const V471 = [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0], [0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]];
+      const E471 = [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]];
+      const N471 = ['A', 'B', 'C', 'D', 'A₁', 'B₁', 'C₁', 'D₁'], NV471 = [[1, 1, 0], [1, 0.7, 0.4], [1, 1, 1]];
+      function pr471(p) { return [1 + 6 * (p[0] + 0.45 * p[1]), 0.8 + 6 * (p[2] + 0.32 * p[1])]; }
+      function cr471(a, b) { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]; }
+      function nm471(a) { const L = Math.sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]); return [a[0] / L, a[1] / L, a[2] / L]; }
+      function sec471(P) {
+        const n = NV471[Math.round(P.c * 2)], t = P.s * (n[0] + n[1] + n[2]), f = function (p) { return n[0] * p[0] + n[1] * p[1] + n[2] * p[2] - t; }, pts = [];
+        E471.forEach(function (e) {
+          const A = V471[e[0]], B = V471[e[1]], fa = f(A), fb = f(B);
+          if (Math.abs(fa) < 1e-9) pts.push(A);
+          if (Math.abs(fb) < 1e-9) pts.push(B);
+          if (Math.abs(fa) > 1e-9 && Math.abs(fb) > 1e-9 && fa * fb < 0) { const k = fa / (fa - fb); pts.push([A[0] + k * (B[0] - A[0]), A[1] + k * (B[1] - A[1]), A[2] + k * (B[2] - A[2])]); }
+        });
+        const Q = [];
+        pts.forEach(function (p) { if (!Q.some(function (q) { return Math.abs(p[0] - q[0]) + Math.abs(p[1] - q[1]) + Math.abs(p[2] - q[2]) < 1e-7; })) Q.push(p); });
+        const u = nm471(cr471(n, [0, 0, 1])), v = nm471(cr471(n, u));
+        const cen = [0, 1, 2].map(function (i) { return Q.reduce(function (a, p) { return a + p[i]; }, 0) / Q.length; });
+        const uv = Q.map(function (p) { const d = [p[0] - cen[0], p[1] - cen[1], p[2] - cen[2]]; return [d[0] * u[0] + d[1] * u[1] + d[2] * u[2], d[0] * v[0] + d[1] * v[1] + d[2] * v[2]]; });
+        const ix = Q.map(function (p, i) { return i; }).sort(function (i, j) { return Math.atan2(uv[i][1], uv[i][0]) - Math.atan2(uv[j][1], uv[j][0]); });
+        const UV = ix.map(function (i) { return uv[i]; });
+        let S = 0;
+        UV.forEach(function (p, i) { const q = UV[(i + 1) % UV.length]; S += p[0] * q[1] - q[0] * p[1]; });
+        return { P3: ix.map(function (i) { return Q[i]; }), UV: UV, S: Math.abs(S) / 2, t: t };
+      }
+      function fill471(pts, col, step) {
+        const L = [], ys = pts.map(function (p) { return p[1]; }), y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
+        for (let y = y0 + step / 2; y < y1; y += step) {
+          const xs = [];
+          for (let i = 0; i < pts.length; i++) {
+            const A = pts[i], B = pts[(i + 1) % pts.length];
+            if ((A[1] - y) * (B[1] - y) < 0) xs.push(A[0] + (y - A[1]) / (B[1] - A[1]) * (B[0] - A[0]));
+          }
+          if (xs.length >= 2) L.push([Math.min.apply(null, xs), y, Math.max.apply(null, xs), y, col]);
+        }
+        return L;
+      }
+      function ring471(pts, col) { return pts.map(function (p, i) { const q = pts[(i + 1) % pts.length]; return [p[0], p[1], q[0], q[1], col]; }); }
+      function draw471(P) {
+        const g = sec471(P), poly = g.P3.map(pr471), flat = g.UV.map(function (p) { return [14.6 + 4 * p[0], 4.9 + 4 * p[1]]; });
+        let L = fill471(poly, '#FBCFE8', 0.12).concat(fill471(flat, '#FBCFE8', 0.12));
+        E471.forEach(function (e) { const A = pr471(V471[e[0]]), B = pr471(V471[e[1]]); L.push([A[0], A[1], B[0], B[1], C.K, e[0] === 3 || e[1] === 3 ? 1 : 0]); });
+        return L.concat(ring471(poly, C.PK), ring471(flat, C.PK));
+      }
+      function name471(P, g) {
+        const n = g.P3.length, reg = P.c === 1 && (Math.abs(g.t - 1.5) < 1e-9 || g.t <= 1 + 1e-9 || g.t >= 2 - 1e-9);
+        if (n === 3) return reg ? 'зөв гурвалжин' : 'гурвалжин';
+        if (n === 4) return P.c === 0 ? 'тэгш өнцөгт' : 'дөрвөн өнцөгт';
+        if (n === 5) return 'таван өнцөгт';
+        return reg ? 'зөв зургаан өнцөгт' : 'зургаан өнцөгт';
+      }
+      // Бөмбөрцөг (R = 5, төв O) ба төвөөс d зайтай хавтгай: огтлол — r = √(R² − d²) радиустай дугуй
+      const O471 = [8, 6.2];
+      function sph471(P) {
+        const d = P.d, r = Math.sqrt(Math.max(0, 25 - d * d)), L = [], ox = O471[0], oy = O471[1];
+        for (let a = 0; a < 360; a += 5) { const t = a * Math.PI / 180, q = (a + 5) * Math.PI / 180; L.push([ox + 5 * Math.cos(t), oy + 5 * Math.sin(t), ox + 5 * Math.cos(q), oy + 5 * Math.sin(q), '#B9B2DA']); }
+        if (r > 1e-9) {
+          for (let x = -r + 0.09; x < r; x += 0.18) { const hc = 0.25 * Math.sqrt(Math.max(0, r * r - x * x)); L.push([ox + x, oy + d - hc, ox + x, oy + d + hc, '#FBCFE8']); }
+          for (let a = 0; a < 360; a += 10) { const t = a * Math.PI / 180, q = (a + 10) * Math.PI / 180; L.push([ox + r * Math.cos(t), oy + d + 0.25 * r * Math.sin(t), ox + r * Math.cos(q), oy + d + 0.25 * r * Math.sin(q), C.PK, a < 180 ? 1 : 0]); }
+        }
+        L.push([ox - 6.5, oy + d, ox + 6.5, oy + d, C.OR, 1], [ox, oy, ox, oy + d, C.T], [ox, oy + d, ox + r, oy + d, C.PK], [ox, oy, ox + r, oy + d, C.V]);
+        return L;
+      }
+
+      return { title: 'Биетийн хавтгай огтлол', cards: [
+        { k: 'hook', t: 'Бяслагийг зүсвэл', pic: PIC471,
+          p: ['Шоо хэлбэртэй бяслагийг хутгаар нэг удаа шулуун зүсье. Зүсэлтийн гадаргуу ямар дүрс болох вэ?',
+            'Дөрвөлжин гарах нь ойлгомжтой. Харин гурвалжин, бүр **зургаан өнцөгт** гарч болох уу?'],
+          rv: { b: 'Гарах уу?', a: ['**Гарна!** Нэг оройг «тайрвал» гурвалжин, шооны төвөөр диагональд перпендикуляр зүсвэл **зөв зургаан өнцөгт** гарна.',
+            'Биетийг хавтгайгаар зүсэхэд гарах дүрсийг **хавтгай огтлол** гэнэ.'] } },
+        { k: 'idea', t: 'Шоог зүсэх',
+          p: ['Ирмэг нь $a$ шоог хавтгайгаар огтолъё. Гулсуураар хавтгайн хазайлт ба байрлалыг сонго. Зүүн талд — огтлол шоон дотроо, баруун талд — огтлолын **жинхэнэ хэлбэр**.'],
+          w: { w: 'fx', x: [0.3, 18.3], y: [0.1, 9.9], ratio: 0.56, gx: 50, gy: 50,
+            p: [{ k: 'c', lb: 'Хавтгайн хазайлт', min: 0, max: 1, step: 0.5, v: 1, fmt: function (v) { return v === 0 ? 'босоо' : v === 1 ? 'диагональд ⊥' : 'хазгай'; } },
+              { k: 's', lb: 'Зүсэх байрлал', min: 0.05, max: 0.95, step: 0.05, v: 0.5, fmt: function (v) { return Math.round(v * 100) + '%'; } }],
+            f: [],
+            lines: draw471,
+            marks: function (P) {
+              const off = [[-14, 16], [6, 18], [10, 6], [-14, -6], [-22, -2], [4, 18], [8, -6], [-12, -10]];
+              const m = V471.map(function (p, i) { const q = pr471(p); return { x: q[0], y: q[1], c: C.K, lb: N471[i], dx: off[i][0], dy: off[i][1] }; });
+              sec471(P).P3.forEach(function (p) { const q = pr471(p); m.push({ x: q[0], y: q[1], c: C.PK }); });
+              return m;
+            },
+            info: function (P) {
+              const g = sec471(P), n = g.P3.length, diag = P.c === 0 && Math.abs(g.t - 1) < 1e-9;
+              return 'Огтлол: **' + name471(P, g) + '** ($' + n + '$ оройтой), талбай $S\\approx ' + U.rnd(g.S, 2) + 'a^{2}$.' +
+                (diag ? '\nЭнэ бол **диагональ огтлол**: $a$ ба $a\\sqrt{2}$ талтай тэгш өнцөгт, $S=a^{2}\\sqrt{2}$.' : '');
+            } },
+          cap: 'Хазайлтыг «босоо», «хазгай», «диагональд ⊥» болгож, байрлалыг гулсуулж үз: гурав, дөрөв, тав, зургаан өнцөгт гарна. «Босоо» ба $50\\%$ үед огтлол нь $BB_1D_1D$ **диагональ огтлол** болно.' },
+        { k: 'rule', t: 'Түгээмэл огтлолууд',
+          tbl: { h: ['Биет', 'Суурьтай параллел огтлол', 'Тэнхлэгээр дайрсан огтлол'], r: [['Цилиндр', 'суурьтай тэнцүү дугуй', 'тэгш өнцөгт $2r\\times h$'],
+            ['Конус', 'жижиг дугуй', 'адил хажуут гурвалжин'], ['Призм', 'суурьтай тэнцүү олон өнцөгт', '—'], ['Бөмбөрцөг', 'аль ч хавтгайгаар — дугуй', 'их дугуй ($r=R$)']] },
+          f: [{ h: 'Бөмбөрцгийн огтлол', m: 'r=\\sqrt{R^{2}-d^{2}}', n: '$d$ — бөмбөрцгийн төвөөс огтлох хавтгай хүртэлх зай.' },
+            { h: 'Шооны диагональ огтлол', m: 'S=a\\cdot a\\sqrt{2}=a^{2}\\sqrt{2}', n: 'Эсрэг хоёр ирмэгээр дайрсан огтлол — $a$ ба $a\\sqrt{2}$ талтай тэгш өнцөгт.' }],
+          p2: ['Огтлолын хэмжээг ихэвчлэн **Пифагорын теоремоор** олно.'] },
+        { k: 'idea', t: 'Бөмбөрцгийг зүсэх',
+          p: ['$R=5$ радиустай бөмбөрцгийг төвөөс нь $d$ зайтай хавтгайгаар огтолъё. Огтлол нь дугуй: төв $O$, огтлолын төв ба огтлолын хүрээн дээрх цэг **тэгш өнцөгт гурвалжин** үүсгэнэ.'],
+          w: { w: 'fx', x: [0.4, 15.6], y: [0.6, 12.4], ratio: 0.78, gx: 50, gy: 50,
+            p: [{ k: 'd', lb: 'Төвөөс хавтгай хүртэлх зай $d$', min: 0, max: 5, step: 0.5, v: 3 }],
+            f: [],
+            lines: sph471,
+            marks: function (P) {
+              const d = P.d, r = Math.sqrt(Math.max(0, 25 - d * d)), ox = O471[0], oy = O471[1];
+              return [{ x: ox, y: oy, c: C.K, lb: 'O', dx: -18, dy: 6 }, { x: ox + r, y: oy + d, c: C.PK },
+                { x: ox + r / 2, y: oy + d / 2, c: C.V, lb: 'R = 5', dx: 10, dy: 14 }];
+            },
+            info: function (P) {
+              const d = P.d, q = U.rnd(25 - d * d, 2), r = Math.sqrt(q), ri = Math.abs(r - Math.round(r)) < 1e-9;
+              if (q === 0) return '$d=R=5$: огтлол ганц цэг болж хумигдлаа — хавтгай бөмбөрцгийг **шүргэнэ**.';
+              return '$d=' + d + '$: $r=\\sqrt{R^{2}-d^{2}}=\\sqrt{25-' + U.rnd(d * d, 2) + '}' + (ri ? '=' + Math.round(r) : '\\approx ' + U.rnd(r, 2)) + '$, огтлолын талбай $\\pi r^{2}=' + q + '\\pi\\approx ' + U.rnd(Math.PI * q, 2) + '$' +
+                (d === 0 ? ' — төвөөр дайрсан **их дугуй**.' : '');
+            } },
+          cap: 'Цэнхэр — $d$, ягаан — огтлолын радиус $r$, нил ягаан — $R$. $d$ өсөх тусам огтлол жижгэрч, $d=5$ үед цэг болно.' },
+        { k: 'ex', t: 'Бөмбөрцгийн огтлол', q: '$R=5$ см радиустай бөмбөрцгийг төвөөс нь $3$ см зайтай хавтгайгаар огтлов. Огтлолын радиус ба талбайг ол.',
+          s: [{ m: 'r=\\sqrt{R^{2}-d^{2}}=\\sqrt{25-9}=4\\ \\text{см}', n: 'Төв, огтлолын төв ба огтлолын хүрээн дээрх цэг тэгш өнцөгт гурвалжин үүсгэнэ.' },
+            { m: 'S=\\pi r^{2}=16\\pi\\approx 50.3\\ \\text{см}^{2}', n: '' }],
+          a: 'Хариу: $r=4$ см, $S=16\\pi$ см²' },
+        { k: 'ex', t: 'Шооны диагональ огтлол', q: '$ABCDA_1B_1C_1D_1$ шооны ирмэг $4$ см. $AB_1C_1D$ огтлолын талбайг ол.',
+          s: [{ m: 'AB_1=\\sqrt{4^{2}+4^{2}}=4\\sqrt{2}\\ \\text{см}', n: '$ABB_1A_1$ талсын диагональ — Пифагорын теорем.' },
+            { m: 'B_1C_1=4\\ \\text{см},\\qquad AB_1\\perp B_1C_1', n: '$B_1C_1$ ирмэг $ABB_1A_1$ талст перпендикуляр тул огтлол нь **тэгш өнцөгт**.' },
+            { m: 'S=4\\cdot 4\\sqrt{2}=16\\sqrt{2}\\approx 22.6\\ \\text{см}^{2}', n: '' }],
+          a: 'Хариу: $16\\sqrt{2}$ см²' },
+        { k: 'trap', t: 'Радиусуудыг шууд бүү хас', p: ['$R=5$, $d=3$ үед огтлолын радиус:'],
+          bad: { m: 'r=R-d=5-3=2', n: 'Радиус ба зайг шууд хассан.' },
+          good: { m: 'r=\\sqrt{R^{2}-d^{2}}=\\sqrt{25-9}=4', n: '$r$ нь гипотенуз нь $R$ тэгш өнцөгт гурвалжны катет — Пифагорын теорем.' },
+          tip: 'Төвөөр дайрсан огтлол ($d=0$) хамгийн том: $r=R$.' },
+        { k: 'check', q: 'Шоог нэг хавтгайгаар огтлоход аль дүрс **гарахгүй** вэ?', o: ['Гурвалжин', 'Зургаан өнцөгт', 'Долоон өнцөгт', 'Таван өнцөгт'], c: 2,
+          why: 'Шоо $6$ талстай. Хавтгай талс бүрийг дээд тал нь нэг хэрчмээр огтлох тул огтлол хамгийн ихдээ $6$ талтай.' },
+        { k: 'check', q: 'Суурийн радиус нь $3$ см, өндөр нь $4$ см конусын тэнхлэгийн огтлолын талбай хэд вэ?', o: ['$12$ см²', '$24$ см²', '$9\\pi$ см²', '$15$ см²'], c: 0,
+          why: 'Тэнхлэгийн огтлол — суурь нь $2r=6$, өндөр нь $4$ гурвалжин: $S=\\dfrac{1}{2}\\cdot 6\\cdot 4=12$ см².', hint: 'Огтлол ямар дүрс вэ?' },
+        { k: 'sum', pts: ['Хавтгай огтлол — биетийг хавтгайгаар зүсэхэд гарах дүрс.',
+          'Шооны огтлол $3$–$6$ талтай; диагональ огтлол — $a$ ба $a\\sqrt{2}$ талтай тэгш өнцөгт.',
+          'Бөмбөрцгийн огтлол — дугуй: $r=\\sqrt{R^{2}-d^{2}}$.',
+          'Цилиндрийн тэнхлэгийн огтлол — тэгш өнцөгт, конусынх — адил хажуут гурвалжин.'] }
       ] };
     })()
   });
