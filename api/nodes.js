@@ -2,12 +2,26 @@ const pool = require('./_db');
 const { secretMissing, requireAdmin } = require('./_guard');
 
 // ── Хичээлийн замын багц суулгах (админ) ──
-// node: байхгүй бол л нэмнэ (админы засварласан нэр/дүрсийг дарахгүй); бодлого: зөвхөн БОДЛОГОГҮЙ node-д нэмнэ
-// (админы устгасан бодлогыг сэргээхгүй, генератор шинэчлэгдсэн ч давхардуулахгүй — солих бол тэр node-ийн бодлогыг
-// админ устгаад дахин суулгана); тухайн ангийн багцаас гадуурх хуучин node-уудыг УСТГАХГҮЙ, замын төгсгөлд (sort_order 951+).
-// Дахин дуудахад аюулгүй (нэмэх юм алга бол 0). Node бүр бүтнээрээ нэг олон мөрт INSERT-д (≤500 мөр) — тасарвал хагас node үлдэхгүй.
+// node: байхгүй бол л нэмнэ (админы засварласан нэр/дүрсийг дарахгүй); нэр засах (RENAMES, NAME_FIXES) — одоогийн нэр хуучинтай
+// ЯГ таарвал л. Бодлого (fill): 'empty' — зөвхөн БОДЛОГОГҮЙ node-д (шинэ анги: админы устгасныг сэргээхгүй, генератор
+// шинэчлэгдсэн ч давхардуулахгүй — солих бол тэр node-ийн бодлогыг админ устгаад дахин суулгана); 'add' — (node_id, text)
+// байхгүй бодлогыг нэмнэ (одоо байгаа хичээлийн бодлогыг нэмэгдүүлэх). move: тухайн ангийн багцаас гадуурх хуучин node-уудыг
+// УСТГАХГҮЙ, замын төгсгөлд (sort_order 951+). Дахин дуудахад аюулгүй (нэмэх юм алга бол 0). Node бүр бүтнээрээ нэг олон мөрт
+// INSERT-д (≤500 мөр) — тасарвал хагас node үлдэхгүй.
 // require нь статик бичвэртэй байх ёстой — Vercel (nft) хувьсагчаар дуудсан файлыг функцэд оруулдаггүй
-const PATHS = { '11': { load: () => require('./_g11path'), lo: 801, hi: 899 } };
+// 9-р анги: хуучин SVG зам (слот = node id, 1…107 → 126…162) — node зөөхгүй, шинэ сэдэв сул node-д (80–107, 126–129)
+const PATHS = {
+  '9': { load: () => require('./_g9path'), lo: 1, hi: 160, move: false, fill: 'add' },
+  '11': { load: () => require('./_g11path'), lo: 801, hi: 899, move: true, fill: 'empty' },
+};
+// Бүх ангийн node-ийн нэрийн бичгийн алдаа (ажлын хуудас/сурах бичгийн нэр томьёогоор) — аль ч ангийг суулгахад засагдана
+const NAME_FIXES = [
+  [348, 'Параллел зөөлт', 'Параллель зөөлт'],
+  [741, 'Параллел зөөлтөөр дараалан хувиргах', 'Параллель зөөлтөөр дараалан хувиргах'],
+  [456, 'Параллел зөөлт', 'Параллель зөөлт'],
+  [453, 'Цэгийн хувь дахь тэгш хэм', 'Цэгийн хувьд тэгш хэм'],
+  [447, 'Матрицын үржүүлэх үйлдэл', 'Матриц үржүүлэх үйлдэл'],
+];
 function rowsSql(n, w) {
   const out = [];
   for (let i = 0; i < n; i++) { const b = i * w, r = []; for (let j = 1; j <= w; j++) r.push('$' + (b + j)); out.push('(' + r.join(',') + ')'); }
@@ -25,22 +39,33 @@ async function installPath(grade) {
     await pool.query('INSERT INTO nodes (id, name, type, icon, grade, sort_order) VALUES ' + rowsSql(add.length, 6) + ' ON CONFLICT (id) DO NOTHING',
       [].concat.apply([], add.map((n) => n.slice(0, 6))));
   }
-  const old = await pool.query('SELECT id, sort_order FROM nodes WHERE grade = $1 AND (id < $2 OR id > $3) ORDER BY COALESCE(NULLIF(sort_order, 0), id), id',
-    [grade, P.lo, P.hi]);
-  let moved = 0;
-  for (let i = 0; i < old.rows.length; i++) {
-    if (+old.rows[i].sort_order === 951 + i) continue;
-    await pool.query('UPDATE nodes SET sort_order = $2 WHERE id = $1', [old.rows[i].id, 951 + i]);
-    moved++;
+  let renamed = 0;
+  for (const r of (pack.RENAMES || []).concat(NAME_FIXES)) {
+    const u = await pool.query("UPDATE nodes SET name = $3 WHERE id = $1 AND COALESCE(name, '') = $2", [r[0], r[1], r[2]]);
+    renamed += u.rowCount || 0;
   }
-  const cnt = await pool.query('SELECT node_id, COUNT(*)::int AS n FROM questions WHERE node_id BETWEEN $1 AND $2 GROUP BY node_id', [P.lo, P.hi]);
-  const filled = new Set(cnt.rows.filter((r) => +r.n > 0).map((r) => +r.node_id));
+  let moved = 0;
+  if (P.move) {
+    const old = await pool.query('SELECT id, sort_order FROM nodes WHERE grade = $1 AND (id < $2 OR id > $3) ORDER BY COALESCE(NULLIF(sort_order, 0), id), id',
+      [grade, P.lo, P.hi]);
+    for (let i = 0; i < old.rows.length; i++) {
+      if (+old.rows[i].sort_order === 951 + i) continue;
+      await pool.query('UPDATE nodes SET sort_order = $2 WHERE id = $1', [old.rows[i].id, 951 + i]);
+      moved++;
+    }
+  }
+  const ids = Array.from(new Set(pack.QUESTIONS.map((q) => q.node_id)));
   const by = new Map();
-  pack.QUESTIONS.forEach((q) => {
-    if (filled.has(q.node_id)) return;
-    if (!by.has(q.node_id)) by.set(q.node_id, []);
-    by.get(q.node_id).push(q);
-  });
+  const put = (q) => { if (!by.has(q.node_id)) by.set(q.node_id, []); by.get(q.node_id).push(q); };
+  if (P.fill === 'add') {
+    const eq = await pool.query('SELECT node_id, text FROM questions WHERE node_id = ANY($1::int[])', [ids]);
+    const seen = new Set(eq.rows.map((r) => r.node_id + '|' + r.text));
+    pack.QUESTIONS.forEach((q) => { if (!seen.has(q.node_id + '|' + q.text)) put(q); });
+  } else {
+    const cnt = await pool.query('SELECT node_id, COUNT(*)::int AS n FROM questions WHERE node_id = ANY($1::int[]) GROUP BY node_id', [ids]);
+    const filled = new Set(cnt.rows.filter((r) => +r.n > 0).map((r) => +r.node_id));
+    pack.QUESTIONS.forEach((q) => { if (!filled.has(q.node_id)) put(q); });
+  }
   let qAdd = 0, batch = [];
   const flush = async () => {
     if (!batch.length) return;
@@ -64,7 +89,7 @@ async function installPath(grade) {
     patched += r.rowCount || 0;
   }
   return { ok: true, grade: grade, nodes_added: add.length, nodes_total: pack.NODES.length, questions_added: qAdd,
-    questions_total: pack.QUESTIONS.length, nodes_filled: by.size, patched: patched, old_moved: moved };
+    questions_total: pack.QUESTIONS.length, nodes_filled: by.size, patched: patched, renamed: renamed, old_moved: moved };
 }
 
 module.exports = async (req, res) => {

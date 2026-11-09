@@ -37,9 +37,13 @@ F.db.extra.push(function (q, p) {
     });
     return { rows: [], rowCount: n };
   }
-  if (q === 'SELECT node_id, COUNT(*)::int AS n FROM questions WHERE node_id BETWEEN $1 AND $2 GROUP BY node_id') {
-    const c = {}; QS.forEach(x => { if (x.node_id >= p[0] && x.node_id <= p[1]) c[x.node_id] = (c[x.node_id] || 0) + 1; });
+  if (q === 'SELECT node_id, COUNT(*)::int AS n FROM questions WHERE node_id = ANY($1::int[]) GROUP BY node_id') {
+    const c = {}; QS.forEach(x => { if (p[0].indexOf(x.node_id) >= 0) c[x.node_id] = (c[x.node_id] || 0) + 1; });
     return { rows: Object.keys(c).map(k => ({ node_id: +k, n: c[k] })) };
+  }
+  if (q === "UPDATE nodes SET name = $3 WHERE id = $1 AND COALESCE(name, '') = $2") {
+    const n = NODES.get(p[0]); if (!n || (n.name || '') !== p[1]) return { rows: [], rowCount: 0 };
+    n.name = p[2]; return { rows: [], rowCount: 1 };
   }
   if (/^INSERT INTO questions \(text, node_id, correct, choices, hint, difficulty\) VALUES (\(\$\d+,\$\d+,\$\d+,\$\d+,\$\d+,\$\d+\),?)+$/.test(q)) {
     if (p.length > 6 * 500) throw new Error('нэг INSERT-д 500-аас олон мөр');
@@ -94,7 +98,7 @@ test('installPath: node + бодлого нэмнэ, хуучин 11-р анги
   const r = await POST({ action: 'installPath', grade: '11' });
   assert.strictEqual(r.statusCode, 200);
   assert.deepStrictEqual(r.body, { ok: true, grade: '11', nodes_added: 51, nodes_total: 51, questions_added: G.QUESTIONS.length,
-    questions_total: G.QUESTIONS.length, nodes_filled: 51, patched: 0, old_moved: 4 });
+    questions_total: G.QUESTIONS.length, nodes_filled: 51, patched: 0, renamed: 0, old_moved: 4 });
   assert.ok(INSERTS.length >= 7 && INSERTS.every(n => n <= 500), 'багц ≤500 мөр: ' + INSERTS.join(','));
   assert.deepStrictEqual([149, 150, 151, 152].map(id => NODES.get(id).sort_order), [951, 952, 953, 954]);
   assert.strictEqual(NODES.get(601).sort_order, 601);
@@ -149,6 +153,16 @@ test('PATCHES: суусан хуучин бодлогын санамж/сонг�
   assert.strictEqual(JSON.parse(row.hint).text, 'Админы санамж');
   G.PATCHES.slice(1).forEach(x => assert.strictEqual(JSON.parse(QS.find(y => y.node_id === x.node_id && y.text === x.text).hint).text, x.to.hint));
   assert.strictEqual((await POST({ action: 'installPath', grade: '11' })).body.patched, 0);
+});
+
+test('NAME_FIXES: бусад ангийн нэрийн бичгийн алдааг засна — одоогийн нэр яг таарвал л', async () => {
+  NODES.set(456, { id: 456, name: 'Параллел зөөлт', type: 'locked', icon: '', grade: '10', sort_order: 456 });
+  NODES.set(453, { id: 453, name: 'Админ өөрчилсөн нэр', type: 'locked', icon: '', grade: '10', sort_order: 453 });
+  const r = await POST({ action: 'installPath', grade: '11' });
+  assert.strictEqual(r.body.renamed, 1);
+  assert.strictEqual(NODES.get(456).name, 'Параллель зөөлт');
+  assert.strictEqual(NODES.get(453).name, 'Админ өөрчилсөн нэр');
+  assert.strictEqual((await POST({ action: 'installPath', grade: '11' })).body.renamed, 0);
 });
 
 test('installPath: зөвхөн админ; танихгүй анги → ok:false', async () => {

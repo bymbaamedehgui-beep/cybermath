@@ -21,6 +21,7 @@
 <script src="/cm-quiz.js?v=2" defer></script>
 <script src="/cm-compete.js?v=1" defer></script>
 <script src="/cm-graph.js?v=2" defer></script>
+<script src="/cm-fill.js?v=1" defer></script>
 <script src="/cm-ach.js?v=1" defer></script>
 <script src="/cm-onol.js?v=3" defer></script>
 <script src="/app-mobile.js?v=2" defer></script>
@@ -48810,6 +48811,7 @@ document.head.appendChild(cmStyle);
             })
           };
           if (window.cmGraph) { try { window.cmGraph.inject(currentLesson, id); } catch (e) {} }   // график байгуулах бодлого (cm-graph.js)
+          if (window.cmFill) { try { window.cmFill.inject(currentLesson); } catch (e) {} }   // 20 бодлогын 6–7 нь хариу нөхөх (cm-fill.js)
         } else {
           // DB-д бодлого огт байхгүй → "Тун удахгүй" placeholder (fallback хийхгүй)
           currentLesson = { title: 'Тун удахгүй', questions: [] };
@@ -49093,6 +49095,7 @@ function renderMath(text) {
       // Template blanks math-field-уудыг идэвхжүүлэх
       if (typeof window._initTplBlanks === 'function') window._initTplBlanks();
       if (window.cmGraph) window.cmGraph.mount(qData);   // график байгуулах самбар
+      if (window.cmFill) window.cmFill.mount(qData);     // хариу нөхөх нүд (MathLive)
     }, 50);
     // Хариулах хугацааны таймер (зөвхөн time_limit өгөгдсөн бол)
     if (window._qTimerId) { clearInterval(window._qTimerId); window._qTimerId = null; }
@@ -49131,6 +49134,7 @@ function renderMath(text) {
   function renderAnswerSection(qData) {
     var type = qData.type || 'choice';
     if (type === 'graph' && window.cmGraph) return window.cmGraph.answerHtml(qData);
+    if (type === 'fillx' && window.cmFill) return window.cmFill.answerHtml(qData);
     if (type === 'fill') {
       window._fillRaw = (qData.correctAnswer||qData.correct||'').toString().replace(/\$/g,'').trim();
       // Хэрэв загвар оруулсан бол загвар дотор inline input-ууд (бичсэн нь шинэ)
@@ -49775,6 +49779,9 @@ function renderMath(text) {
     if (type === 'graph') {
       var _gr = window.cmGraph ? window.cmGraph.check(qData) : { ok: false, answer: '' };
       isCorrect = !!_gr.ok; userAnswer = _gr.answer || '';
+    } else if (type === 'fillx') {
+      var _fx = window.cmFill ? window.cmFill.check(qData) : { ok: false, answer: '' };
+      isCorrect = !!_fx.ok; userAnswer = _fx.answer || '';
     } else if (type === 'choice') {
       userAnswer = selectedOpt;
       isCorrect = selectedOpt === qData.correct;
@@ -49966,6 +49973,8 @@ function renderMath(text) {
         // Тайлбар байхгүй бол зөв хариуг харуулах
         feedback.innerHTML = '<span class="feedback-icon">❌</span> Буруу! Зөв хариу: <strong>' + renderMath(qData.options[qData.correct] || '') + '</strong>';
       }
+      // Хариу нөхөх: сонголт харагдаагүй тул санамжтай хамт зөв хариуг ч харуулна
+      if (type === 'fillx' && hintText) feedback.innerHTML += '<div style="margin-top:4px;">Зөв хариу: <strong>' + renderMath(qData.correctAnswer || '') + '</strong></div>';
     }
 
     const checkBtn = document.getElementById('check-btn');
