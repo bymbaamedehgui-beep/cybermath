@@ -10,7 +10,7 @@
   if (W.cmOnol) return;
 
   // Ангийн агуулгын сав: node id-ийн муж → файл
-  var PACKS = [{ lo: 601, hi: 621, src: '/onol/g12.js?v=1' }];
+  var PACKS = [{ lo: 601, hi: 621, src: '/onol/g12.js?v=1' }, { lo: 801, hi: 851, src: '/onol/g11.js?v=1' }];
   var DATA = {}, WG = {}, S = null, UID = 0;
 
   /* ════════ Туслах ════════ */
@@ -614,11 +614,11 @@
     paint();
   };
 
-  /* Давхар функц: дотоод → гаднах «машин», уламжлалыг гаднаас дотогш */
+  /* Давхар функц: дотоод → гаднах «машин», уламжлалыг гаднаас дотогш (st өгвөл өөр 3 алхам — ж: f(g(2))-ийн утга) */
   WG.chain = function (host, o) {
     var E = o.ex, ei = 0, st = 0;
     function paint() {
-      var x = E[ei], steps = [
+      var x = E[ei], steps = x.st && x.st.length === 3 ? x.st : [
         'Гаднах функцийн уламжлал (дотоодыг хэвээр нь): $' + x.d1 + '$',
         'Дотоод функцийн уламжлал: $' + x.d2 + '$',
         'Үржүүлнэ: $y\'=' + x.res + '$'
@@ -637,6 +637,292 @@
       paint();
     });
     paint();
+  };
+
+  /* ── 11-р ангийн виджетүүд ── */
+  function fracTex(n, d) {   // хураасан бутархай → TeX
+    if (d < 0) { n = -n; d = -d; }
+    var g = gcd(Math.abs(n), d) || 1; n /= g; d /= g;
+    return d === 1 ? String(n) : (n < 0 ? '-' : '') + '\\dfrac{' + Math.abs(n) + '}{' + d + '}';
+  }
+  var SUB = '₀₁₂₃₄₅₆₇₈₉';
+  function sub(n) { return String(n).split('').map(function (c) { return SUB.charAt(+c); }).join(''); }
+  function stepper(key, val, lo, hi, label) {
+    return '<span class="dg-st">' + (label ? '<em>' + md(label) + '</em>' : '') + '<button type="button" class="cmo-ib" data-st="' + key + '" data-d="-1" aria-label="Багасгах"' + (val <= lo ? ' disabled' : '') + '>' + IC.minus +
+      '</button><b>' + val + '</b><button type="button" class="cmo-ib" data-st="' + key + '" data-d="1" aria-label="Нэмэх"' + (val >= hi ? ' disabled' : '') + '>' + IC.plus + '</button></span>';
+  }
+
+  /* Интервалын арга: a(x − r₁)(x − r₂) ? 0 — язгуурыг чирнэ, завсар бүрийн тэмдэг, параболын ноорог, шийд */
+  WG.sign = function (host, o) {
+    var nar = host.clientWidth > 0 && host.clientWidth < 520, VW = nar ? 440 : 640, VH = 240, L = 28, R = VW - 28, Y0 = 150, min = -7, max = 7, cid = 'cmos' + (++UID);
+    var OPS = { lt: '<', le: '\\le', gt: '>', ge: '\\ge' };
+    var s = { r1: clamp(o.roots ? o.roots[0] : -2, -6, 6), r2: clamp(o.roots ? o.roots[1] : 3, -6, 6), a: o.a < 0 ? -1 : 1, op: OPS[o.op] ? o.op : 'gt' };
+    function X(v) { return L + (v - min) * (R - L) / (max - min); }
+    function V(px) { return clamp(Math.round(min + (px - L) * (max - min) / (R - L)), -6, 6); }
+    host.innerHTML = '<div class="cmo-plot"><svg class="cmo-svg nl" viewBox="0 0 ' + VW + ' ' + VH + '" role="img" aria-label="Интервалын арга"></svg><span class="cmo-hint">' + IC.hand + 'Язгуурыг чир</span></div>' +
+      '<div class="cmo-sls"><div class="cmo-tg" role="group" aria-label="Тэмдэг">' + Object.keys(OPS).map(function (k) { return '<button type="button" data-op="' + k + '">' + tx(OPS[k]) + '</button>'; }).join('') + '</div>' +
+      '<div class="cmo-tg" role="group" aria-label="Ахлах коэффициент"><button type="button" data-a="1">' + tx('a>0') + '</button><button type="button" data-a="-1">' + tx('a<0') + '</button></div></div>' +
+      '<div class="cmo-wi" aria-live="polite"></div>';
+    var svg = host.querySelector('svg'), info = host.querySelector('.cmo-wi'), draw = frame(paint);
+    function f(x) { return s.a * (x - s.r1) * (x - s.r2); }
+    function holds(v) { return s.op === 'lt' ? v < 0 : s.op === 'le' ? v <= 0 : s.op === 'gt' ? v > 0 : v >= 0; }
+    function paint() {
+      var lo = Math.min(s.r1, s.r2), hi = Math.max(s.r1, s.r2), strict = s.op === 'lt' || s.op === 'gt', h = '', k, pth = '';
+      var vy = Math.abs(s.a) * (hi - lo) * (hi - lo) / 4, sc = 78 / Math.max(vy, 3);
+      for (k = 0; k <= 280; k++) { var x = min + (max - min) * k / 280; pth += (k ? 'L' : 'M') + rnd(X(x), 1) + ' ' + rnd(clamp(Y0 - f(x) * sc, -400, 700), 1); }
+      h += '<defs><clipPath id="' + cid + '"><rect x="0" y="8" width="' + VW + '" height="' + (VH - 16) + '"/></clipPath></defs>';
+      // шийдийн хэсэг (тэнхлэг дээр зузаан)
+      var segs = [], prev = null;
+      for (k = 0; k <= 560; k++) {
+        var xx = min + (max - min) * k / 560, ok = holds(f(xx));
+        if (ok && prev === null) prev = xx;
+        if ((!ok || k === 560) && prev !== null) { segs.push([prev, ok ? xx : min + (max - min) * (k - 1) / 560]); prev = null; }
+      }
+      segs.forEach(function (sg) { h += '<line x1="' + X(sg[0]) + '" y1="' + Y0 + '" x2="' + X(sg[1]) + '" y2="' + Y0 + '" stroke="#10B981" stroke-width="9" stroke-linecap="round" opacity=".9"/>'; });
+      h += '<g clip-path="url(#' + cid + ')"><path d="' + pth + '" fill="none" stroke="#7B52EE" stroke-width="3.5" opacity=".75"/></g>';
+      h += '<line x1="' + (L - 14) + '" y1="' + Y0 + '" x2="' + (R + 14) + '" y2="' + Y0 + '" class="ax"/><path d="M' + (R + 16) + ' ' + Y0 + 'l-10 -6v12z" class="ah"/>';
+      for (k = min; k <= max; k++) {
+        var root = k === s.r1 || k === s.r2;
+        h += '<line x1="' + X(k) + '" y1="' + (Y0 - 5) + '" x2="' + X(k) + '" y2="' + (Y0 + 5) + '" class="tk"/><text class="tl' + (root ? ' hl' : '') + '" x="' + X(k) + '" y="' + (Y0 + 26) + '"' +
+          (root ? ' fill="#1E1A4D"' : '') + '>' + mn(k) + '</text>';
+      }
+      // завсар бүрийн тэмдэг
+      var cuts = lo === hi ? [min, lo, max] : [min, lo, hi, max];
+      for (k = 0; k < cuts.length - 1; k++) {
+        var mid = (cuts[k] + cuts[k + 1]) / 2, w = X(cuts[k + 1]) - X(cuts[k]);
+        if (w < 26) continue;
+        var pos = f(mid) > 0;
+        h += '<text class="sg' + (pos ? ' p' : ' m') + '" x="' + X(mid) + '" y="' + (Y0 + (pos ? -14 : 46)) + '">' + (pos ? '+' : '−') + '</text>';
+      }
+      [s.r1, s.r2].forEach(function (r, i) {
+        if (i && s.r1 === s.r2) return;
+        h += '<circle class="pt" cx="' + X(r) + '" cy="' + Y0 + '" r="10" fill="' + (strict ? '#fff' : '#10B981') + '" stroke="#1E1A4D" stroke-width="3"/>';
+      });
+      svg.innerHTML = h;
+      var op = OPS[s.op], pf = s.r1 === s.r2 ? '(' + xm(s.r1) + ')^{2}' : '(' + xm(lo) + ')(' + xm(hi) + ')', lhs = (s.a < 0 ? '-' : '') + pf, sol;
+      if (lo === hi) {
+        var pos2 = s.a > 0;   // a(x−r)²: a>0 бол ≥ 0
+        if (s.op === (pos2 ? 'gt' : 'lt')) sol = '$x\\ne ' + lo + '$';
+        else if (s.op === (pos2 ? 'ge' : 'le')) sol = 'бүх бодит тоо';
+        else if (s.op === (pos2 ? 'lt' : 'gt')) sol = '**шийдгүй**';
+        else sol = '$x=' + lo + '$';
+      } else {
+        var inside = s.a > 0 ? (s.op === 'lt' || s.op === 'le') : (s.op === 'gt' || s.op === 'ge'), l = strict ? '<' : '\\le', g2 = strict ? '>' : '\\ge';
+        sol = inside ? '$' + lo + l + 'x' + l + hi + '$' : '$x' + l + lo + '$ эсвэл $x' + g2 + hi + '$';
+      }
+      info.innerHTML = md('$' + lhs + op + '0$ → ' + sol);
+      [].forEach.call(host.querySelectorAll('[data-op]'), function (b) { b.classList.toggle('on', b.getAttribute('data-op') === s.op); });
+      [].forEach.call(host.querySelectorAll('[data-a]'), function (b) { b.classList.toggle('on', +b.getAttribute('data-a') === s.a); });
+    }
+    dragger(svg, VW, VH, function (p) {
+      var d1 = Math.abs(p.x - X(s.r1)), d2 = Math.abs(p.x - X(s.r2));
+      return d1 <= d2 ? { who: 'r1', dist: d1 } : { who: 'r2', dist: d2 };
+    }, function (p, who) { if (!who) return; var v = V(p.x); if (v !== s[who]) { s[who] = v; draw(); } hideHint(host); });
+    host.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-op],[data-a]'); if (!b) return;
+      if (b.hasAttribute('data-op')) s.op = b.getAttribute('data-op'); else s.a = +b.getAttribute('data-a');
+      draw();
+    });
+    paint();
+  };
+
+  /* Прогресс: арифметик (a₁, d) / геометр (b₁, q) — гишүүд багана, ерөнхий гишүүн, Sₙ; ap+sum → Гауссын хос */
+  WG.seq = function (host, o) {
+    var gp = o.type === 'gp', QS = [-3, -2, -0.5, 0.5, 2, 3], showSum = o.sum !== false;
+    var s = { a: o.a1 != null ? o.a1 : (gp ? 1 : 2), d: o.d != null ? o.d : 3, qi: Math.max(0, QS.indexOf(o.q != null ? o.q : 2)), n: clamp(o.n || 6, 2, 10) };
+    var PAIR = ['#7B52EE', '#0B9FB3', '#F59E0B', '#DB2777', '#10B981'];
+    function term(k) {   // k-р гишүүн → { v, t (SVG), x (TeX) } — q = ±1/2 үед бутархай
+      if (!gp) { var v = s.a + (k - 1) * s.d; return { v: v, t: mn(v), x: String(v) }; }
+      var q = QS[s.qi], e = k - 1;
+      if (Math.abs(q) >= 1) { var w = s.a * Math.pow(q, e); return { v: w, t: mn(w), x: String(w) }; }
+      var num = s.a * (q < 0 && e % 2 ? -1 : 1), den = Math.pow(2, e), g = gcd(Math.abs(num), den) || 1;
+      num /= g; den /= g;
+      return { v: num / den, t: den === 1 ? mn(num) : (num < 0 ? '−' : '') + Math.abs(num) + '/' + den, x: fracTex(num, den) };
+    }
+    function qTex(q) { return Math.abs(q) >= 1 ? String(q) : (q < 0 ? '-' : '') + '\\dfrac{1}{2}'; }
+    function paint() {
+      var n = s.n, T = [], k, mx = 0, VW = 600, VH = 240, i;
+      for (k = 1; k <= n; k++) { T.push(term(k)); mx = Math.max(mx, Math.abs(T[k - 1].v)); }
+      var neg = T.some(function (t) { return t.v < 0; }), pos = T.some(function (t) { return t.v > 0; });
+      var base = neg && pos ? 128 : neg ? 40 : 200, room = neg && pos ? 88 : 150, sc = room / Math.max(mx, 1e-9);
+      var bw = (VW - 60) / n, h = '<line x1="20" y1="' + base + '" x2="' + (VW - 20) + '" y2="' + base + '" class="ax"/>';
+      for (k = 0; k < n; k++) {
+        var t = T[k], cx = 30 + bw * (k + 0.5), hgt = Math.max(2, Math.abs(t.v) * sc), y = t.v >= 0 ? base - hgt : base;
+        var col = gp ? '#0B9FB3' : (showSum ? PAIR[Math.min(k, n - 1 - k) % PAIR.length] : '#7B52EE');
+        h += '<rect x="' + (cx - bw * 0.32) + '" y="' + y + '" width="' + bw * 0.64 + '" height="' + hgt + '" rx="6" fill="' + col + '" opacity=".88"/>' +
+          '<text class="bl" x="' + cx + '" y="' + (t.v >= 0 ? y - 8 : y + hgt + 20) + '" fill="#1E1A4D">' + t.t + '</text>' +
+          '<text class="tl" x="' + cx + '" y="' + (t.v >= 0 ? base + 20 : base - 8) + '">' + (gp ? 'b' : 'a') + sub(k + 1) + '</text>';
+      }
+      var ctl = stepper('a', s.a, gp ? -5 : -9, gp ? 5 : 9, gp ? '$b_1$' : '$a_1$') + (gp ? '<span class="dg-st"><em>' + md('$q$') + '</em><button type="button" class="cmo-ib" data-st="q" data-d="-1" aria-label="Багасгах"' +
+        (s.qi <= 0 ? ' disabled' : '') + '>' + IC.minus + '</button><b>' + md('$' + qTex(QS[s.qi]) + '$') + '</b><button type="button" class="cmo-ib" data-st="q" data-d="1" aria-label="Нэмэх"' + (s.qi >= QS.length - 1 ? ' disabled' : '') + '>' + IC.plus + '</button></span>'
+        : stepper('d', s.d, -5, 5, '$d$')) + stepper('n', s.n, 2, 10, '$n$');
+      var last = T[n - 1], sumTxt;
+      if (!gp) {
+        var S = (s.a + last.v) * n / 2;
+        sumTxt = '$a_{' + n + '}=a_1+(' + n + '-1)d=' + s.a + (s.d < 0 ? '' : '+') + (n - 1) * s.d + '=' + last.v + '$' + (showSum ? '\n$S_{' + n + '}=\\dfrac{(a_1+a_{' + n + '})\\cdot ' + n + '}{2}=\\dfrac{(' + s.a + (last.v < 0 ? '' : '+') + last.v + ')\\cdot ' + n + '}{2}=' + S + '$' +
+          (n > 2 ? '\nӨнгө нэг хос бүрийн нийлбэр ижил: $a_1+a_{' + n + '}=a_2+a_{' + (n - 1) + '}=' + (s.a + last.v) + '$' : '') : '');
+      } else {
+        var q = QS[s.qi], P2 = Math.pow(2, n - 1), num = 0;   // Sₙ·2ⁿ⁻¹ — бүхэл
+        for (i = 0; i < n; i++) num += s.a * (Math.abs(q) >= 1 ? Math.pow(q, i) * P2 : (q < 0 && i % 2 ? -1 : 1) * Math.pow(2, n - 1 - i));
+        var Sx = Math.abs(q) >= 1 ? String(num / P2) : fracTex(num, P2);
+        sumTxt = '$b_{' + n + '}=b_1q^{' + (n - 1) + '}=' + last.x + '$' + (showSum ? '\n$S_{' + n + '}=\\dfrac{b_1(q^{' + n + '}-1)}{q-1}=' + Sx + '$' : '');
+      }
+      host.innerHTML = '<div class="cmo-sq"><svg class="cmo-svg" viewBox="0 0 ' + VW + ' ' + VH + '" role="img" aria-label="Прогрессийн гишүүд">' + h + '</svg>' +
+        '<div class="cmo-sls sq-c">' + ctl + '</div><div class="cmo-wi">' + md(sumTxt) + '</div></div>';
+    }
+    host.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-st]'); if (!b || b.disabled) return;
+      var k = b.getAttribute('data-st'), dd = +b.getAttribute('data-d');
+      if (k === 'q') s.qi = clamp(s.qi + dd, 0, QS.length - 1);
+      else if (k === 'a') { s.a = clamp(s.a + dd, gp ? -5 : -9, gp ? 5 : 9); if (gp && s.a === 0) s.a = dd; }
+      else if (k === 'd') s.d = clamp(s.d + dd, -5, 5);
+      else s.n = clamp(s.n + dd, 2, 10);
+      paint();
+    });
+    paint();
+  };
+
+  /* Огторгуйн координат (кабинет проекц): point — цэг ба проекц, dist — |AB| ба дундаж цэг, vec — OA⃗, OB⃗, скаляр үржвэр */
+  WG.xyz = function (host, o) {
+    var mode = o.mode || 'point', A = (o.A || [2, 3, 4]).slice(), B = (o.B || [-1, 2, 1]).slice(), VW = 440, VH = 400, ox = 220, oy = 200, u = 30, cx = 0.36;
+    function S(p) { return [ox + u * (p[1] - cx * p[0]), oy + u * (cx * p[0] - p[2])]; }
+    function ln(p, q, cls, extra) { var a = S(p), b = S(q); return '<line x1="' + rnd(a[0], 1) + '" y1="' + rnd(a[1], 1) + '" x2="' + rnd(b[0], 1) + '" y2="' + rnd(b[1], 1) + '" class="' + cls + '"' + (extra || '') + '/>'; }
+    function ptc(p, col, lb, dy) {
+      var a = S(p);
+      return '<circle cx="' + rnd(a[0], 1) + '" cy="' + rnd(a[1], 1) + '" r="7.5" fill="' + col + '" stroke="#fff" stroke-width="2.5"/>' +
+        (lb ? '<text class="ml" x="' + rnd(a[0] + 10, 1) + '" y="' + rnd(a[1] + (dy || -10), 1) + '" fill="' + col + '">' + lb + '</text>' : '');
+    }
+    function arrow(p, col) {
+      var a = S([0, 0, 0]), b = S(p), ang = Math.atan2(b[1] - a[1], b[0] - a[0]), L2 = 12;
+      return '<line x1="' + a[0] + '" y1="' + a[1] + '" x2="' + rnd(b[0], 1) + '" y2="' + rnd(b[1], 1) + '" stroke="' + col + '" stroke-width="4" stroke-linecap="round"/>' +
+        '<path d="M' + rnd(b[0], 1) + ' ' + rnd(b[1], 1) + 'L' + rnd(b[0] - L2 * Math.cos(ang - 0.4), 1) + ' ' + rnd(b[1] - L2 * Math.sin(ang - 0.4), 1) + 'L' + rnd(b[0] - L2 * Math.cos(ang + 0.4), 1) + ' ' + rnd(b[1] - L2 * Math.sin(ang + 0.4), 1) + 'Z" fill="' + col + '"/>';
+    }
+    function octant(p) {
+      if (!p[0] || !p[1] || !p[2]) return 'координатын хавтгай дээр';
+      var key = (p[0] > 0 ? '+' : '-') + (p[1] > 0 ? '+' : '-') + (p[2] > 0 ? '+' : '-');
+      return { '+++': 'I', '-++': 'II', '--+': 'III', '+-+': 'IV', '++-': 'V', '-+-': 'VI', '---': 'VII', '+--': 'VIII' }[key] + ' мөч';
+    }
+    function pt3(p) { return '(' + p[0] + ';\\,' + p[1] + ';\\,' + p[2] + ')'; }
+    function half(v) { return v % 2 === 0 ? String(v / 2) : fracTex(v, 2); }
+    function paint() {
+      var h = '', k;
+      [[0, 'x'], [1, 'y'], [2, 'z']].forEach(function (ax) {
+        var e1 = [0, 0, 0], e2 = [0, 0, 0], e3 = [0, 0, 0]; e1[ax[0]] = 5.6; e2[ax[0]] = -5.4; e3[ax[0]] = 6.1;
+        h += ln([0, 0, 0], e2, 'axn') + ln([0, 0, 0], e1, 'ax');
+        var t = S(e3); h += '<text class="axl" x="' + rnd(t[0], 1) + '" y="' + rnd(t[1] + 5, 1) + '">' + ax[1] + '</text>';
+        for (k = -5; k <= 5; k++) {
+          if (!k) continue;
+          var q = [0, 0, 0]; q[ax[0]] = k; var c = S(q);
+          h += '<circle cx="' + rnd(c[0], 1) + '" cy="' + rnd(c[1], 1) + '" r="' + (k > 0 ? 2.6 : 1.8) + '" fill="' + (k > 0 ? '#4B4475' : '#B9B2DA') + '"/>';
+          if (k > 0 && (k % 2 === 1 || ax[0] !== 0)) h += '<text class="tl" x="' + rnd(c[0] + (ax[0] === 2 ? -12 : 0), 1) + '" y="' + rnd(c[1] + (ax[0] === 2 ? 5 : 18), 1) + '">' + k + '</text>';
+        }
+      });
+      var O = [0, 0, 0], info;
+      if (mode === 'point') {
+        var Axy = [A[0], A[1], 0];
+        h += ln(A, Axy, 'cn') + ln(Axy, [A[0], 0, 0], 'cn') + ln(Axy, [0, A[1], 0], 'cn') + ln(A, [0, 0, A[2]], 'cn', ' opacity=".55"');
+        h += ptc(Axy, '#9A93C4') + ptc(A, '#7B52EE', 'A' + '(' + A.map(mn).join('; ') + ')');
+        info = 'Цэг $A' + pt3(A) + '$ — ' + octant(A) + '.\n$xy$ хавтгай дээрх проекц $A_1' + pt3(Axy) + '$, $z$ тэнхлэг дээрх проекц $(0;\\,0;\\,' + A[2] + ')$.';
+      } else if (mode === 'dist') {
+        var dx = B[0] - A[0], dy = B[1] - A[1], dz = B[2] - A[2], N = dx * dx + dy * dy + dz * dz, M = [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2, (A[2] + B[2]) / 2];
+        h += ln(A, B, 'sg3') + ptc(A, '#7B52EE', 'A') + ptc(B, '#0B9FB3', 'B') + ptc(M, '#F59E0B', 'M', 18);
+        var r = Math.sqrt(N);
+        info = '$|AB|=\\sqrt{(' + dx + ')^{2}+(' + dy + ')^{2}+(' + dz + ')^{2}}=\\sqrt{' + N + '}' + (Number.isInteger(r) ? '=' + r : '\\approx ' + rnd(r, 2)) + '$\n' +
+          'Дундаж цэг $M\\left(' + half(A[0] + B[0]) + ';\\,' + half(A[1] + B[1]) + ';\\,' + half(A[2] + B[2]) + '\\right)$';
+      } else {
+        var dot = A[0] * B[0] + A[1] * B[1] + A[2] * B[2], la = Math.sqrt(A[0] * A[0] + A[1] * A[1] + A[2] * A[2]), lb = Math.sqrt(B[0] * B[0] + B[1] * B[1] + B[2] * B[2]);
+        h += arrow(A, '#7B52EE') + arrow(B, '#0B9FB3') + ptc(O, '#1E1A4D');
+        var aE = S(A), bE = S(B);
+        h += '<text class="ml" x="' + rnd(aE[0] + 8, 1) + '" y="' + rnd(aE[1] - 8, 1) + '" fill="#7B52EE">a</text><text class="ml" x="' + rnd(bE[0] + 8, 1) + '" y="' + rnd(bE[1] - 8, 1) + '" fill="#0B9FB3">b</text>';
+        var cos = la && lb ? dot / (la * lb) : 0, ang = la && lb ? Math.acos(clamp(cos, -1, 1)) * 180 / Math.PI : 0;
+        var col = la && lb && Math.abs(Math.abs(cos) - 1) < 1e-9;
+        info = '$\\vec a=' + pt3(A) + ',\\ \\vec b=' + pt3(B) + '$\n$\\vec a\\cdot\\vec b=' + A[0] + '\\cdot ' + par(B[0]) + '+' + A[1] + '\\cdot ' + par(B[1]) + '+' + A[2] + '\\cdot ' + par(B[2]) + '=' + dot + '$' +
+          (la && lb ? '\n$\\cos\\varphi=\\dfrac{\\vec a\\cdot\\vec b}{|\\vec a|\\,|\\vec b|}\\approx ' + rnd(cos, 3) + '$, $\\varphi\\approx ' + rnd(ang, 1) + '^{\\circ}$' : '') +
+          (dot === 0 && la && lb ? ' — **перпендикуляр!**' : col ? ' — **коллинеар!**' : '');
+      }
+      var ctl = '<div class="xyz-r"><b class="xa">A</b>' + stepper('A0', A[0], -5, 5, '$x$') + stepper('A1', A[1], -5, 5, '$y$') + stepper('A2', A[2], -5, 5, '$z$') + '</div>' +
+        (mode === 'point' ? '' : '<div class="xyz-r"><b class="xb">B</b>' + stepper('B0', B[0], -5, 5, '$x$') + stepper('B1', B[1], -5, 5, '$y$') + stepper('B2', B[2], -5, 5, '$z$') + '</div>');
+      host.innerHTML = '<div class="cmo-xyz"><svg class="cmo-svg" viewBox="0 0 ' + VW + ' ' + VH + '" role="img" aria-label="Огторгуйн координат">' + h + '</svg>' +
+        '<div class="xyz-c">' + ctl + '</div><div class="cmo-wi">' + md(info) + '</div></div>';
+    }
+    host.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-st]'); if (!b || b.disabled) return;
+      var k = b.getAttribute('data-st'), P = k.charAt(0) === 'A' ? A : B, i = +k.charAt(1);
+      P[i] = clamp(P[i] + +b.getAttribute('data-d'), -5, 5);
+      paint();
+    });
+    paint();
+  };
+
+  /* Паскалын гурвалжин: мөр (n) → (a + b)ⁿ задаргаа, тоон дээр дарахад хоёр «эцэг» */
+  WG.pascal = function (host, o) {
+    var n = clamp(o.n != null ? o.n : 4, 0, 7), kk = -1, ROWS = 8, C = [[1]], r, k;
+    for (r = 1; r < ROWS; r++) { C.push([1]); for (k = 1; k < r; k++) C[r].push(C[r - 1][k - 1] + C[r - 1][k]); C[r].push(1); }
+    function expand(m) {
+      var s = '';
+      for (var j = 0; j <= m; j++) {
+        var c = C[m][j], a = m - j, b = j, t = (c === 1 && (a || b) ? '' : String(c)) + (a ? 'a' + (a > 1 ? '^{' + a + '}' : '') : '') + (b ? 'b' + (b > 1 ? '^{' + b + '}' : '') : '');
+        s += (j ? '+' : '') + t;
+      }
+      return s;
+    }
+    function paint() {
+      var h = '<div class="ps-t"><div class="ps-in">';
+      for (r = 0; r < ROWS; r++) {
+        h += '<div class="ps-r' + (r === n ? ' on' : '') + '"><small>' + 'n=' + r + '</small>';
+        for (k = 0; k <= r; k++) {
+          var par2 = kk >= 0 && r === n - 1 && (k === kk - 1 || k === kk), me = r === n && k === kk;
+          h += '<button type="button" class="ps-c' + (me ? ' me' : par2 ? ' pa' : '') + '" data-r="' + r + '" data-k="' + k + '">' + C[r][k] + '</button>';
+        }
+        h += '</div>';
+      }
+      h += '</div></div>';
+      var inf = '$(a+b)^{' + n + '}=' + expand(n) + '$\nКоэффициентүүдийн нийлбэр: $' + C[n].join('+') + '=2^{' + n + '}=' + Math.pow(2, n) + '$';
+      if (kk > 0 && kk < n) inf += '\n$C_{' + n + '}^{' + kk + '}=C_{' + (n - 1) + '}^{' + (kk - 1) + '}+C_{' + (n - 1) + '}^{' + kk + '}=' + C[n - 1][kk - 1] + '+' + C[n - 1][kk] + '=' + C[n][kk] + '$';
+      host.innerHTML = '<div class="cmo-ps">' + h + '<div class="cmo-wi">' + md(inf) + '</div></div>';
+    }
+    host.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-r]'); if (!b) return;
+      n = +b.getAttribute('data-r'); kk = +b.getAttribute('data-k'); paint();
+    });
+    paint();
+  };
+
+  /* 2×2 матриц: тодорхойлогч (диагональ), урвуу матриц эсвэл Крамерын дүрэм */
+  WG.det = function (host, o) {
+    var m = (o.m || [[2, 1], [3, 4]]).map(function (r) { return r.slice(); }), rhs = (o.rhs || [5, 6]).slice(), mode = o.mode === 'cramer' ? 'cramer' : 'inv';
+    function inp(key, v) { return '<input type="number" inputmode="numeric" min="-9" max="9" step="1" data-m="' + key + '" value="' + v + '" aria-label="' + key + '">'; }
+    function mat(rows) { return '\\begin{pmatrix}' + rows.map(function (r) { return r.join('&'); }).join('\\\\') + '\\end{pmatrix}'; }
+    function paint(keep) {
+      var a = m[0][0], b = m[0][1], c = m[1][0], d = m[1][1], D = a * d - b * c, out;
+      if (!keep) {
+        host.innerHTML = '<div class="cmo-dt"><div class="dt-m"><span class="br">(</span><div class="dt-g">' + inp('00', a) + inp('01', b) + inp('10', c) + inp('11', d) + '</div><span class="br">)</span>' +
+          (mode === 'cramer' ? '<span class="dt-x">' + tx('\\begin{pmatrix}x\\\\y\\end{pmatrix}=') + '</span><span class="br">(</span><div class="dt-g one">' + inp('r0', rhs[0]) + inp('r1', rhs[1]) + '</div><span class="br">)</span>' : '') +
+          '</div><div class="cmo-wi"></div></div>';
+      }
+      out = '$\\Delta=\\begin{vmatrix}' + a + '&' + b + '\\\\' + c + '&' + d + '\\end{vmatrix}=' + par(a) + '\\cdot ' + par(d) + '-' + par(b) + '\\cdot ' + par(c) + '=' + D + '$';
+      if (mode === 'inv') {
+        out += D ? '\n$A^{-1}=' + (D === 1 ? '' : D === -1 ? '-' : '\\dfrac{1}{' + D + '}') + mat([[d, -b], [-c, a]]) + (Math.abs(D) === 1 ? '' : '=' + mat([[fracTex(d, D), fracTex(-b, D)], [fracTex(-c, D), fracTex(a, D)]])) + '$'
+          : '\n$\\Delta=0$ тул **урвуу матриц оршин байхгүй**.';
+      } else {
+        var e = rhs[0], f = rhs[1], Dx = e * d - b * f, Dy = a * f - e * c;
+        out += '\n$\\Delta_x=' + Dx + ',\\ \\Delta_y=' + Dy + '$' + (D ? '\n$x=\\dfrac{\\Delta_x}{\\Delta}=' + fracTex(Dx, D) + ',\\ \\ y=\\dfrac{\\Delta_y}{\\Delta}=' + fracTex(Dy, D) + '$' :
+          '\n$\\Delta=0$ — систем ' + (Dx || Dy ? '**шийдгүй**' : '**төгсгөлгүй олон шийдтэй**') + '.');
+      }
+      host.querySelector('.cmo-wi').innerHTML = md(out);
+      [].forEach.call(host.querySelectorAll('input[data-m]'), function (x) {
+        var k = x.getAttribute('data-m');
+        x.classList.toggle('d1', k === '00' || k === '11'); x.classList.toggle('d2', k === '01' || k === '10');
+      });
+    }
+    host.addEventListener('input', function (e) {
+      var x = e.target, k = x.getAttribute && x.getAttribute('data-m'); if (!k) return;
+      var v = parseInt(x.value, 10); if (!isFinite(v)) return;
+      v = clamp(v, -9, 9);
+      if (k.charAt(0) === 'r') rhs[+k.charAt(1)] = v; else m[+k.charAt(0)][+k.charAt(1)] = v;
+      paint(true);
+    });
+    paint(false);
   };
 
   /* ════════ Онолын дэлгэц ════════ */

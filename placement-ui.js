@@ -8,7 +8,7 @@
   'use strict';
   var d = document;
   if (window.top !== window.self || d.documentElement.classList.contains('cm-embed')) return;
-  var GRADES = ['6', '7', '8', '9', '10', '12'];
+  var GRADES = ['6', '7', '8', '9', '10', '11', '12'];
   var LS = 'cm_placement';   // { "7": { start: nodeId, name, chapter, at } }
   var S = { grade: null, plan: {}, t: null, stage: 1, qs: [], k: 0, ans: [], sel: null, chapter: '', result: null, saved: false, last: {}, busy: false, synced: false };
   var root = null;
@@ -206,10 +206,9 @@
     return api('GET', 'plan', null, '&grade=' + encodeURIComponent(grade)).then(function (j) { if (j.ok) S.plan[grade] = j; return j; });
   }
   function home() {
-    if (!S.grade) { var g = userGrade(); S.grade = GRADES.indexOf(g) >= 0 ? g : (g === '11' ? '12' : '7'); }
+    if (!S.grade) { var g = userGrade(); S.grade = GRADES.indexOf(g) >= 0 ? g : '7'; }
     var g = S.grade, ug = userGrade();
-    var chips = GRADES.concat(['11']).sort(function (a, b) { return a - b; }).map(function (x) {
-      if (x === '11') return '<button type="button" class="pl-g" disabled>11<small>удахгүй</small></button>';
+    var chips = GRADES.map(function (x) {
       return '<button type="button" class="pl-g' + (x === g ? ' on' : '') + '" data-g="' + x + '">' + x + '<small>' + (x === ug ? 'миний анги' : 'анги') + '</small></button>';
     }).join('');
     var last = S.last[g], loc = lsGet()[g];

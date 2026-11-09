@@ -10,7 +10,10 @@ const path = require('path');
 const vm = require('vm');
 
 const R = p => fs.readFileSync(path.join(__dirname, '..', p), 'utf8');
-const html = R('index.html'), js = R('cm-onol.js'), css = R('cm-onol.css'), g12 = R('onol/g12.js'), v = JSON.parse(R('vercel.json'));
+const html = R('index.html'), js = R('cm-onol.js'), css = R('cm-onol.css'), g12 = R('onol/g12.js'), g11 = R('onol/g11.js'), v = JSON.parse(R('vercel.json'));
+// Агуулгын багцууд: анги, онолын файл, хичээлийн замын node-ууд (нэр нь гарчигтай ижил байх ёстой)
+// n — бүх хичээлд онол бэлэн бол яг тэр тоо; 11-р ангийн онол хэсэгчлэн нэмэгдэж байгаа (null — онол бүр замын node-той л таарна)
+const PACKS = [{ g: '12', src: g12, path: '../api/_g12path.js', n: 21 }, { g: '11', src: g11, path: '../api/_g11path.js', n: null }];
 const J = x => JSON.parse(JSON.stringify(x));
 const EMOJI = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u;
 
@@ -23,10 +26,10 @@ function engine() {
   return ctx.window.cmOnol;
 }
 // Агуулгын савыг ачаална
-function content() {
+function content(src) {
   const D = {}, E = engine();
   const ctx = { console, Math }; ctx.window = { cmOnol: { util: E.util, pack: o => Object.assign(D, o) } };
-  vm.createContext(ctx); vm.runInContext(g12, ctx);
+  vm.createContext(ctx); vm.runInContext(src || g12, ctx);
   return D;
 }
 // Карт доторх бүх бичвэр (md) ба цэвэр TeX
@@ -37,7 +40,11 @@ function walk(c, onMd, onTex) {
   (c.s || []).forEach(s => { onTex(s.m, 's'); s.n && onMd(s.n, 'sn'); });
   ['bad', 'good'].forEach(k => { if (c[k]) { onTex(c[k].m, k); c[k].n && onMd(c[k].n, k); } });
   if (c.tbl) [].concat(c.tbl.h || [], ...c.tbl.r).forEach(s => onMd(s, 'tbl'));
-  if (c.w && c.w.w === 'chain') c.w.ex.forEach(e => ['y', 'inn', 'out', 'd1', 'd2', 'res'].forEach(k => onTex(e[k], 'chain')));
+  // chain: уламжлалын (d1, d2, res) эсвэл утгын 3 алхамтай (st — md бичвэр) хэлбэр
+  if (c.w && c.w.w === 'chain') c.w.ex.forEach(e => {
+    ['y', 'inn', 'out', 'd1', 'd2', 'res'].forEach(k => e[k] != null && onTex(e[k], 'chain'));
+    (e.st || []).forEach(s => onMd(s, 'chain-st'));
+  });
 }
 const texOf = s => { const out = []; String(s).replace(/\$\$([\s\S]+?)\$\$|\$([^$]+?)\$/g, (m, a, b) => { out.push(a != null ? a : b); return ''; }); return out; };
 
@@ -48,6 +55,7 @@ test('холболт: css/js толгойд, vercel build (cm-onol.js, cm-onol.c
   const srcs = v.builds.map(b => b.src);
   ['cm-onol.js', 'cm-onol.css', 'onol/*.js'].forEach(s => assert.ok(srcs.includes(s), s));
   assert.match(js, /src: '\/onol\/g12\.js\?v=\d+'/);
+  assert.match(js, /\{ lo: 801, hi: 851, src: '\/onol\/g11\.js\?v=\d+' \}/);
 });
 
 test('index.html: intro_html давамгайлна, дараа нь cmOnol; «Онол» товч ба backToIntro', () => {
@@ -61,14 +69,14 @@ test('index.html: intro_html давамгайлна, дараа нь cmOnol; «�
 });
 
 test('cm-onol.js: синтакс, сайтын функцийг дарж бичихгүй, startLessonAfterIntro-оор эхлүүлнэ, эможигүй, .cmo- угтвар', () => {
-  new Function(js); new Function(g12);
+  new Function(js); new Function(g12); new Function(g11);
   assert.doesNotMatch(js, /\b(openLesson|continueOpenLesson|startLessonAfterIntro|showIntroAndStart|backToIntro|closeModal|renderQuestion|checkAnswer|getLessonProgress)\s*=(?!=)/);
   assert.match(js, /if \(typeof startLessonAfterIntro === 'function'\) startLessonAfterIntro\(id\);/);
-  [js, css, g12].forEach(s => assert.doesNotMatch(s, EMOJI, 'эможи бүү'));
+  [js, css, g12, g11].forEach(s => assert.doesNotMatch(s, EMOJI, 'эможи бүү'));
   const cls = new Set();
   css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\.([a-zA-Z][\w-]*)/g, (m, c) => { cls.add(c); return m; });
   // Сайтын ерөнхий класс зөвхөн .cmo / #quiz-modal.cmo-open дотор л; бусад нь .cmo- угтвартай эсвэл виджетийн дотоод богино класс
-  const foreign = [...cls].filter(c => !/^cmo/.test(c) && !/^(quiz-card|katex|katex-display|cmx|in-r|in-l|show|ok|no|try|on|off|done|go|ghost|hd|t|rm|nw|sum|res|uc|w|tl|e|hl|pl|bl|fl|ml|cv|as|tn|dp|pt|hl0|qn|vl|al|ax|ah|tk|gr|nl|fx|n|h|m|d|lb|s|c|in|out|pw-[\w-]+|lm-row|dg-[\w-]+|pl-[\w-]+|hn-[\w-]+|cv-[\w-]+|ch-[\w-]+|uc-[\w-]+|k-trap)$/.test(c));
+  const foreign = [...cls].filter(c => !/^cmo/.test(c) && !/^(quiz-card|katex|katex-display|cmx|in-r|in-l|show|ok|no|try|on|off|done|go|ghost|hd|t|rm|nw|sum|res|uc|w|tl|e|hl|pl|bl|fl|ml|cv|as|tn|dp|pt|hl0|qn|vl|al|ax|ah|tk|gr|nl|fx|n|h|m|d|lb|s|c|in|out|pw-[\w-]+|lm-row|dg-[\w-]+|pl-[\w-]+|hn-[\w-]+|cv-[\w-]+|ch-[\w-]+|uc-[\w-]+|k-trap|sg|sg3|p|axn|axl|cn|sq-[\w-]+|xyz-[\w-]+|xa|xb|ps-[\w-]+|me|pa|dt-[\w-]+|br|one|d1|d2)$/.test(c));
   // Эдгээр богино класс бүгд .cmo… угтвартай сонгогчийн дотор байх ёстой
   css.replace(/\/\*[\s\S]*?\*\//g, '').split('}').forEach(rule => {
     const sel = rule.split('{')[0].trim();
@@ -111,12 +119,13 @@ test('md(): бичвэрийг escape хийнэ, **тод**, $…$ KaTeX-гүй
   assert.match(md('x $1<2$ y'), /^x <span class="cmo-raw">1&lt;2<\/span> y$/);
 });
 
-test('Агуулга: 12-р ангийн 21 хичээл, нэр нь node-тэй ижил, бүтэц зөв', () => {
-  const D = content(), G = require('../api/_g12path.js');
-  const ids = Object.keys(D).map(Number).sort((a, b) => a - b);
-  assert.deepStrictEqual(ids, G.NODES.map(n => n[0]));
+PACKS.forEach(P => test('Агуулга: ' + P.g + '-р ангийн онол, нэр нь node-тэй ижил, бүтэц зөв', () => {
+  const D = content(P.src), G = require(P.path);
+  const ids = Object.keys(D).map(Number).sort((a, b) => a - b), all = G.NODES.map(n => n[0]);
+  if (P.n) assert.strictEqual(ids.length, P.n);
+  assert.ok(ids.length && ids.every(id => all.indexOf(id) >= 0), 'онол бүр замын node-той: ' + ids.join(','));
   const W = new Set((js.match(/WG\.(\w+) = function/g) || []).map(s => s.slice(3, -11)));
-  G.NODES.forEach(n => {
+  G.NODES.filter(n => D[n[0]]).forEach(n => {
     const L = D[n[0]], ks = L.cards.map(c => c.k);
     assert.strictEqual(L.title, n[1], 'гарчиг ' + n[0]);
     assert.ok(L.cards.length >= 6 && L.cards.length <= 10, n[0] + ' картын тоо');
@@ -136,10 +145,10 @@ test('Агуулга: 12-р ангийн 21 хичээл, нэр нь node-тэ�
       if (c.w) assert.ok(W.has(c.w.w), n[0] + '#' + i + ' зураг ' + c.w.w);
     });
   });
-});
+}));
 
-test('Агуулга: TeX ($ тэнцвэр, хаалт, \\left/\\right), тригонометрийн бичиглэл, эможигүй', () => {
-  const D = content(), bad = [];
+PACKS.forEach(P => test('Агуулга ' + P.g + '-р анги: TeX ($ тэнцвэр, хаалт, \\left/\\right), тригонометрийн бичиглэл, эможигүй', () => {
+  const D = content(P.src), bad = [];
   Object.keys(D).forEach(id => D[id].cards.forEach((c, i) => {
     const at = id + '#' + i;
     const tex = t => {
@@ -157,9 +166,9 @@ test('Агуулга: TeX ($ тэнцвэр, хаалт, \\left/\\right), три
     }, tex);
   }));
   assert.deepStrictEqual(bad, []);
-});
+}));
 
-test('Агуулга: тооны дагавар ($N$-аас, -т/-д, -ыг/-ийг…) сурах бичгийн дүрмээр', () => {
+PACKS.forEach(PK => test('Агуулга ' + PK.g + '-р анги: тооны дагавар ($N$-аас, -т/-д, -ыг/-ийг…) сурах бичгийн дүрмээр', () => {
   // Сүүлийн дуудагдах үгээр: 2 хоёр → -оос/-т/-оор/-ыг/-ын, 6 зургаа → -гаас/-д/-гаар/-г/-гийн …
   const W = {
     0: ['ээс', 'д', 'ээр', 'ийг', 'ийн'], 1: ['ээс', 'д', 'ээр', 'ийг', 'ийн'], 2: ['оос', 'т', 'оор', 'ыг', 'ын'], 3: ['аас', 'т', 'аар', 'ыг', 'ын'],
@@ -177,7 +186,7 @@ test('Агуулга: тооны дагавар ($N$-аас, -т/-д, -ыг/-и�
     return k % 10;
   };
   const caseOf = sfx => /с$/.test(sfx) ? 0 : /^[дт]$/.test(sfx) ? 1 : /р$/.test(sfx) ? 2 : /г$/.test(sfx) ? 3 : /н$/.test(sfx) ? 4 : -1;
-  const D = content(), bad = [];
+  const D = content(PK.src), bad = [];
   const scan = (s, at) => String(s).replace(/\$(-?\d+(?:\.\d+)?)\$-([Ѐ-ӿ]+)/g, (m, n, sfx) => {
     const c = caseOf(sfx), w = W[key(n)];
     if (c >= 0 && w && w[c] !== sfx) bad.push(at + ': ' + m + ' → -' + w[c]);
@@ -185,10 +194,10 @@ test('Агуулга: тооны дагавар ($N$-аас, -т/-д, -ыг/-и�
   });
   Object.keys(D).forEach(id => D[id].cards.forEach((c, i) => walk(c, s => scan(s, id + '#' + i), () => {})));
   assert.deepStrictEqual(bad, []);
-});
+}));
 
-test('Агуулга: функцийн зургууд (fx) бүх цэгт тоо/бичвэр буцаана', () => {
-  const D = content();
+PACKS.forEach(PK => test('Агуулга ' + PK.g + '-р анги: функцийн зургууд (fx) бүх цэгт тоо/бичвэр буцаана', () => {
+  const D = content(PK.src);
   Object.keys(D).forEach(id => D[id].cards.forEach((c, i) => {
     const w = c.w; if (!w || w.w !== 'fx') return;
     const P = {}; (w.p || []).forEach(q => { P[q.k] = q.v; });
@@ -204,4 +213,4 @@ test('Агуулга: функцийн зургууд (fx) бүх цэгт то�
     if (w.info) assert.strictEqual(typeof w.info(P, w.pt ? w.pt.x : null), 'string');
     if (w.marks) assert.ok(Array.isArray(w.marks(P, w.pt ? w.pt.x : null)));
   }));
-});
+}));

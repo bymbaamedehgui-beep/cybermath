@@ -15,7 +15,7 @@ const pool = require('./_db');
 const MSG = {
   bad: 'Хүсэлт буруу байна',
   grade: 'Энэ ангийн түвшин тогтоох сорил одоогоор байхгүй (6, 7, 8, 9, 10, 12-р анги)',
-  soon: '11-р ангийн сорил тун удахгүй нэмэгдэнэ',
+  soon: 'Энэ ангийн сорил тун удахгүй нэмэгдэнэ',
   rate: 'Хэт олон оролдлого. Түр хүлээгээд дахин оролдоно уу.',
   token: 'Сорилын хугацаа дууссан эсвэл буруу байна. Дахин эхлүүлнэ үү.',
   login: 'Нэвтэрнэ үү.',
@@ -49,10 +49,10 @@ module.exports = async (req, res) => {
     if (action === 'plan') {
       if (req.method !== 'GET') return res.status(405).json({ ok: false, error: MSG.bad });
       const g = String(q.grade || '').trim();
-      if (g === '11') return res.status(400).json({ ok: false, soon: true, error: MSG.soon });
       const grade = PL.normGrade(g);
       if (!grade) return res.status(400).json({ ok: false, error: MSG.grade });
       const chs = await PL.chapters(grade);
+      if (!chs.length) return res.status(400).json({ ok: false, soon: true, error: MSG.soon });   // анги замтай ч бодлогогүй (ж: 11-р анги суулгахаас өмнө)
       res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=300');
       return res.json({ ok: true, grade: grade, questions: PL.stage1(chs).length,
         chapters: chs.map(c => ({ name: c.name, topics: c.topics.map(t => ({ id: t.id, name: t.name })) })) });
@@ -67,10 +67,10 @@ module.exports = async (req, res) => {
       if (await limited('pl_start_ip:' + ip, 40, 600)) return res.status(429).json({ ok: false, error: MSG.rate });
       const b = bodyOf(req);
       const g = String(b.grade == null ? '' : b.grade).trim();
-      if (g === '11') return res.status(400).json({ ok: false, soon: true, error: MSG.soon });
       const grade = PL.normGrade(g);
       if (!grade) return res.status(400).json({ ok: false, error: MSG.grade });
       const chs = await PL.chapters(grade);
+      if (!chs.length) return res.status(400).json({ ok: false, soon: true, error: MSG.soon });
       const { items, qs } = await build(PL.stage1(chs));
       if (items.length < 3) return res.status(400).json({ ok: false, error: MSG.empty });
       const t = PL.sign({ g: grade, s: 1, i: items });

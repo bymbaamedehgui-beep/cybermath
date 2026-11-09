@@ -2889,6 +2889,10 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
             <span class="fold-count"></span>
           </div>
           <div class="fold-body" style="padding:0 20px 16px;">
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+              <button type="button" class="btn-sm btn-purple" onclick="qrvInstall('11')">11-р ангийн замыг суулгах</button>
+              <span id="qrv-install-msg" style="font-size:0.8rem;color:var(--muted);font-weight:700;">51 хичээл × 60 бодлого — зөвхөн бодлогогүй хичээлд нэмнэ, дахин дарахад аюулгүй</span>
+            </div>
             <div id="qrv-chips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;"></div>
             <div id="qrv-sum" style="font-size:0.82rem;color:var(--muted);font-weight:700;margin-bottom:10px;"></div>
             <div id="qrv-table" style="overflow-x:auto;"></div>
@@ -4572,6 +4576,24 @@ function closeMathModal() { closeChoiceMathModal(); }
     _qrvGrade = String(g || '');
     window._qrvGrade = _qrvGrade;
     loadQReview();
+  };
+
+  /* Хичээлийн замын багц суулгах (api/nodes.js installPath): байхгүй node/бодлогыг л нэмнэ, засварласныг дарахгүй */
+  window.qrvInstall = function (grade) {
+    var msg = document.getElementById('qrv-install-msg');
+    if (!confirm(grade + '-р ангийн хичээлийн замыг суулгах уу?\nБайгаа node, бодлогыг өөрчлөхгүй — шинэ node ба бодлогогүй хичээлд л бодлого нэмнэ.')) return;
+    if (msg) { msg.style.color = 'var(--muted)'; msg.textContent = 'Суулгаж байна…'; }
+    adminFetch(API + '/api/nodes', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'installPath', grade: grade }) })
+      .then(function (r) { return r.json(); }).then(function (d) {
+        if (!d || !d.ok) { if (msg) { msg.style.color = '#dc2626'; msg.textContent = (d && d.error) || 'Алдаа гарлаа'; } return; }
+        if (msg) {
+          msg.style.color = '#16a34a';
+          msg.textContent = 'Node +' + d.nodes_added + ' (нийт ' + d.nodes_total + '), бодлого +' + d.questions_added + ' (' + (d.nodes_filled || 0) + ' хичээлд)'
+            + (d.old_moved ? ', хуучин ' + d.old_moved + ' node замын төгсгөлд' : '');
+        }
+        qrvPick(grade);
+      }).catch(function () { if (msg) { msg.style.color = '#dc2626'; msg.textContent = 'Сүлжээний алдаа — дахин дарна уу'; } });
   };
 
   window.loadQReview = function () {

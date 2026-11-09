@@ -1,6 +1,63 @@
 const pool = require('./_db');
 const { secretMissing, requireAdmin } = require('./_guard');
 
+// ── Хичээлийн замын багц суулгах (админ) ──
+// node: байхгүй бол л нэмнэ (админы засварласан нэр/дүрсийг дарахгүй); бодлого: зөвхөн БОДЛОГОГҮЙ node-д нэмнэ
+// (админы устгасан бодлогыг сэргээхгүй, генератор шинэчлэгдсэн ч давхардуулахгүй — солих бол тэр node-ийн бодлогыг
+// админ устгаад дахин суулгана); тухайн ангийн багцаас гадуурх хуучин node-уудыг УСТГАХГҮЙ, замын төгсгөлд (sort_order 951+).
+// Дахин дуудахад аюулгүй (нэмэх юм алга бол 0). Node бүр бүтнээрээ нэг олон мөрт INSERT-д (≤500 мөр) — тасарвал хагас node үлдэхгүй.
+// require нь статик бичвэртэй байх ёстой — Vercel (nft) хувьсагчаар дуудсан файлыг функцэд оруулдаггүй
+const PATHS = { '11': { load: () => require('./_g11path'), lo: 801, hi: 899 } };
+function rowsSql(n, w) {
+  const out = [];
+  for (let i = 0; i < n; i++) { const b = i * w, r = []; for (let j = 1; j <= w; j++) r.push('$' + (b + j)); out.push('(' + r.join(',') + ')'); }
+  return out.join(',');
+}
+async function installPath(grade) {
+  const P = PATHS[grade];
+  if (!P) return { ok: false, error: 'Энэ ангийн хичээлийн замын багц алга' };
+  const pack = P.load();
+  await pool.query("ALTER TABLE questions ADD COLUMN IF NOT EXISTS difficulty TEXT DEFAULT 'medium'").catch(() => {});
+  const ex = await pool.query('SELECT id FROM nodes WHERE id = ANY($1::int[])', [pack.NODES.map((n) => n[0])]);
+  const have = new Set(ex.rows.map((r) => +r.id));
+  const add = pack.NODES.filter((n) => !have.has(n[0]));
+  if (add.length) {
+    await pool.query('INSERT INTO nodes (id, name, type, icon, grade, sort_order) VALUES ' + rowsSql(add.length, 6) + ' ON CONFLICT (id) DO NOTHING',
+      [].concat.apply([], add.map((n) => n.slice(0, 6))));
+  }
+  const old = await pool.query('SELECT id, sort_order FROM nodes WHERE grade = $1 AND (id < $2 OR id > $3) ORDER BY COALESCE(NULLIF(sort_order, 0), id), id',
+    [grade, P.lo, P.hi]);
+  let moved = 0;
+  for (let i = 0; i < old.rows.length; i++) {
+    if (+old.rows[i].sort_order === 951 + i) continue;
+    await pool.query('UPDATE nodes SET sort_order = $2 WHERE id = $1', [old.rows[i].id, 951 + i]);
+    moved++;
+  }
+  const cnt = await pool.query('SELECT node_id, COUNT(*)::int AS n FROM questions WHERE node_id BETWEEN $1 AND $2 GROUP BY node_id', [P.lo, P.hi]);
+  const filled = new Set(cnt.rows.filter((r) => +r.n > 0).map((r) => +r.node_id));
+  const by = new Map();
+  pack.QUESTIONS.forEach((q) => {
+    if (filled.has(q.node_id)) return;
+    if (!by.has(q.node_id)) by.set(q.node_id, []);
+    by.get(q.node_id).push(q);
+  });
+  let qAdd = 0, batch = [];
+  const flush = async () => {
+    if (!batch.length) return;
+    await pool.query('INSERT INTO questions (text, node_id, correct, choices, hint, difficulty) VALUES ' + rowsSql(batch.length, 6),
+      [].concat.apply([], batch.map((q) => [q.text, q.node_id, q.correct, q.choices, q.hint ? JSON.stringify({ text: q.hint }) : null, q.difficulty || 'medium'])));
+    qAdd += batch.length; batch = [];
+  };
+  // ≤500 мөр (≈3000 параметр) — функцийн хугацаанд багтана
+  for (const rows of by.values()) {
+    if (batch.length && batch.length + rows.length > 500) await flush();
+    batch = batch.concat(rows);
+  }
+  await flush();
+  return { ok: true, grade: grade, nodes_added: add.length, nodes_total: pack.NODES.length, questions_added: qAdd,
+    questions_total: pack.QUESTIONS.length, nodes_filled: by.size, old_moved: moved };
+}
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
@@ -42,6 +99,9 @@ module.exports = async (req, res) => {
         }
         return res.json({ ok: true });
       }
+
+      // Хичээлийн замын багц суулгах (админ › Бодлогууд › Learning path хяналт): 11-р анги — api/_g11path.js
+      if (action === 'installPath') return res.json(await installPath(String(req.body.grade || '')));
 
       // intro_html хадгалах (зөвхөн HTML widget)
       if (action === 'saveIntroHtml' && id != null) {
