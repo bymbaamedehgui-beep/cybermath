@@ -173,63 +173,22 @@ function userCodeDrop(email) {
 }
 // Enumeration-д мэдрэг endpoint (resend/forgot): данс олдоогүй / ашиглах утасгүй / дугаарын квот → бодит илгээлттэй ижил хэлбэр
 function smsAccepted(masked) { return { ok: true, sms: true, masked: masked }; }
+// Хуурамч хариу: verify.mn үед бодит хариу mode:'mo' талбартай тул хуурамч нь ч мөн адил (sms.moFake — юу ч хадгалахгүй)
+function fakeAccepted(masked) { return Object.assign(smsAccepted(masked), sms.moEnabled() ? moFields(sms.moFake(masked)) : {}); }
 
-/* ── OTP илгээх: textbee (MT) эхлээд, унавал verify.mn (MO) ──
-   Ихэнх хэрэглэгчийн туршлага хэвээр: код хүлээж авна. textbee ажиллахгүй үед л
-   «144773 руу илгээнэ үү» дэлгэц гарна — нэвтрэлт бүрмөсөн зогсохгүй.
-
-   Шилжихгүй тохиолдлууд:
-     SMS_UNCERTAIN            — textbee хүлээн авсан байж МАГАДГҮЙ. Хоёр өөр код
-                                явуулбал хэрэглэгч төөрнө.
-     phoneQuota / COOLDOWN    — санаатай тавьсан спам хориг. Нөгөө провайдераар
-     / SMS_LIMIT                тойрох нь хоригийн утгыг алдагдуулна.
-   SMS_BUSY / SMS_FULL нь эзэмшигчийн утасны хүчин чадлын хязгаар тул ШИЛЖИНЭ
-   (verify.mn-д тийм хязгаар байхгүй). */
-const MO_NO_FALLBACK = { SMS_UNCERTAIN: 1, SMS_COOLDOWN: 1, SMS_LIMIT: 1 };
+/* ── OTP илгээх: ЗӨВХӨН verify.mn (MO) — хэрэглэгч кодоо 144773 руу өөрөө илгээнэ ──
+   2026-11-09 эзэмшигчийн шийдвэр: textbee (MT) SMS код хэрэглэгчид ирэхгүй байсан тул БОЛИВ.
+   verify.mn асаалттай (VERIFYMN_ENABLED=1) үед textbee руу ХЭЗЭЭ Ч шилжихгүй: verify.mn түр
+   унавал SMS_UNAVAILABLE (хэрэглэгч дахин оролдоно). textbee нь зөвхөн verify.mn унтраалттай
+   орчинд (VERIFYMN_DISABLED=1 — яаралтай буцаалт, эсвэл тест) ажиллана. */
 async function sendOtp(o) {
-  /* textbee нь gateway утас унтарсан / интернэтгүй / апп хаагдсан үед ч HTTP 200
-     буцаадаг. Тиймээс "амжилттай"-д нь итгэж болохгүй — илгээхийн ӨМНӨ heartbeat
-     шалгаад, утас үхсэн бол шууд verify.mn руу. Эс бөгөөс код хаашаа ч хүрэхгүй
-     мөртлөө сервер амжилттай гэж үзэж, нөөц зам огт идэвхжихгүй. */
   if (!sms.moEnabled()) return await sms.sendCode(o);
-
-  /* 1. Утас үхсэн нь мэдэгдэж байвал textbee рүү огт хандахгүй */
-  let alive = true;
-  try { alive = await sms.gatewayAlive(); } catch (e) {}
-  if (!alive) {
-    let first;
-    try { first = await sms.sendMo(o); } catch (e) {}
-    if (first && first.ok) return first;
-    /* MO ч бүтсэнгүй — textbee-г ямар ч байсан оролдоно */
-  }
-
-  /* 2. textbee ба нөөц MO session-ийг ЗЭРЭГ — нэмэлт саатал үүсгэхгүй.
-     companion: энэ оролдлогыг textbee-гийн зам аль хэдийн квотод тооцсон тул
-     дугаарын cooldown-г дахин авахгүй (эс бөгөөс өөрөө өөрийгөө хаана). */
-  const moP = sms.sendMo(Object.assign({}, o, { companion: true })).catch(function () { return null; });
-  const sent = await sms.sendCode(o);
-  const comp = await moP;
-
-  if (sent.ok) {
-    /* textbee хүлээн авсан ч "хүрлээ" гэсэн баталгаа биш. Клиентэд нөөцийг хамт
-       өгнө — 30 секундэд код ирэхгүй бол хэрэглэгч хүлээхгүй, өөрөө шилжинэ. */
-    if (comp && comp.ok) sent.moBackup = comp;
-    return sent;
-  }
-  /* Санаатай хоригуудыг нөгөө провайдераар тойрохгүй */
-  if (sent.phoneQuota || MO_NO_FALLBACK[sent.code]) return sent;
-  return (comp && comp.ok) ? comp : sent;
+  try { return await sms.sendMo(o); }
+  catch (e) { sms.logErr('[otp] sendMo', e); return sms.mkFail('SMS_UNAVAILABLE'); }
 }
 /* MO амжилттай бол хариунд нэмэх талбарууд. sessionId ЭНД БАЙХГҮЙ (M4). */
 function moFields(sent) {
-  if (!sent) return {};
-  /* textbee амжилттай ч нөөц бэлэн — клиент 30 секундын дараа шилжинэ */
-  if (sent.mode !== 'mo') {
-    const b = sent.moBackup;
-    if (!b || !b.ok) return {};
-    return { moBackup: { moText: b.moText, smsUri: b.smsUri, shortcode: b.shortcode,
-      pollToken: b.pollToken, expiresAt: b.expiresAt, masked: b.masked2 } };
-  }
+  if (!sent || sent.mode !== 'mo') return {};
   return {
     mode: 'mo', moText: sent.moText, smsUri: sent.smsUri,
     shortcode: sent.shortcode, pollToken: sent.pollToken, expiresAt: sent.expiresAt,
@@ -362,7 +321,9 @@ module.exports = async (req, res) => {
         inviteRow = ir.rows[0];
       }
 
-      await pool.query(`DELETE FROM users WHERE verified=false AND verify_expiry < NOW()`).catch(() => {});
+      // Баталгаажаагүй (орхисон) бүртгэлийг 7 хоног хадгална: буцаж нэвтрэхэд 144773 дэлгэц гарч дуусгана (index.html doLogin).
+      // Тэр имэйлээр дахин бүртгүүлэхэд хуучин мөрийг доор устгадаг тул хэнийг ч хаахгүй.
+      await pool.query(`DELETE FROM users WHERE verified=false AND verify_expiry < NOW() - INTERVAL '7 days'`).catch(() => {});
       const exists = await pool.query('SELECT id, verified, phone FROM users WHERE LOWER(email)=LOWER($1)', [email]);
       if (exists.rows.length && exists.rows[0].verified !== false) {
         return res.status(400).json({ ok: false, error: 'И-мэйл бүртгэлтэй байна' });
@@ -550,7 +511,7 @@ module.exports = async (req, res) => {
       if (!pn.ok) {
         // Олдоогүй / утас хүчингүй → бодит илгээлттэй ижил хэлбэр (enumeration)
         await sms.padTo(t0);
-        return res.json(smsAccepted(sms.fakeMask(email)));
+        return res.json(fakeAccepted(sms.fakeMask(email)));
       }
       await ensureAttemptsColumn();
       const sent = await sendOtp({
@@ -558,7 +519,7 @@ module.exports = async (req, res) => {
         store: userCodeStore(email, false), drop: userCodeDrop(email), reuse: userCodeReuse(email, false),
       });
       if (sent.ok) return res.json(Object.assign(smsAccepted(sent.masked2), moFields(sent)));
-      if (sent.phoneQuota) { await sms.padTo(t0); return res.json(smsAccepted(sms.fakeMask(email))); }
+      if (sent.phoneQuota) { await sms.padTo(t0); return res.json(fakeAccepted(sms.fakeMask(email))); }
       return sms.failJson(res, sent, { reg: 'game' });
     }
 
@@ -620,7 +581,7 @@ module.exports = async (req, res) => {
       if (!dest) {
         // Олдоогүй / ашиглах утасгүй → хэрэглэгч байгаа эсэхийг хэлэхгүй: бодит илгээлттэй ижил хэлбэр, ойролцоо хугацаа
         await sms.padTo(t0);
-        return res.json(smsAccepted(sms.fakeMask(email)));
+        return res.json(fakeAccepted(sms.fakeMask(email)));
       }
       await ensureAttemptsColumn();
       const sent = await sendOtp({
@@ -631,7 +592,7 @@ module.exports = async (req, res) => {
       if (sent.phoneQuota) {
         // Дугаарын cooldown/өдрийн квот: өмнөх код хүчинтэй хэвээр; бүртгэлгүй имэйлийн хариутай ижил хэлбэр (спек S1 үл хамаарах)
         await sms.padTo(t0);
-        return res.json(smsAccepted(sms.maskPhone(dest, 2)));
+        return res.json(fakeAccepted(sms.maskPhone(dest, 2)));
       }
       return sms.failJson(res, sent);
     }

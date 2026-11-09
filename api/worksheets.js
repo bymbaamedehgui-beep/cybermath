@@ -75,39 +75,21 @@ function wsUsablePhone(row) {
 }
 // Enumeration-д мэдрэг endpoint (ws_forgot / ws_resend): бодит илгээлттэй ижил хэлбэр
 function wsAccepted(masked, extra) { return Object.assign({ ok: true }, extra || {}, { sms: true, masked: masked }); }
+// Хуурамч хариу: verify.mn үед бодит хариу mode:'mo' талбартай тул хуурамч нь ч мөн адил (sms.moFake — юу ч хадгалахгүй)
+function wsFake(masked, extra) { return Object.assign(wsAccepted(masked, extra), sms.moEnabled() ? wsMoFields(sms.moFake(masked)) : {}); }
 
-/* ── OTP: textbee (MT) эхлээд, унавал verify.mn (MO) ── api/auth.js-ийнхтэй ижил дүрэм.
-   textbee нь gateway утас унтарсан үед ч 200 буцаадаг тул илгээхийн ӨМНӨ heartbeat
-   шалгаад, утас үхсэн бол шууд MO руу. */
-const WS_MO_NO_FALLBACK = { SMS_UNCERTAIN: 1, SMS_COOLDOWN: 1, SMS_LIMIT: 1 };
+/* ── OTP: ЗӨВХӨН verify.mn (MO) ── api/auth.js sendOtp-той ижил дүрэм.
+   2026-11-09 эзэмшигчийн шийдвэр: textbee (MT) SMS код ирэхгүй байсан тул БОЛИВ — verify.mn
+   түр унавал ч textbee руу шилжихгүй (SMS_UNAVAILABLE). Хэрэглэгч кодоо 144773 руу өөрөө илгээнэ.
+   textbee нь зөвхөн verify.mn унтраалттай орчинд (VERIFYMN_DISABLED=1 — яаралтай буцаалт, тест). */
 async function wsSendOtp(o) {
-  /* Дасгалын төв: verify.mn ҮНДСЭН зам.
-     Тоглоомын талаас ялгаатай — энд textbee-г эхлээд оролдохгүй. Шалтгаан:
-     эзэмшигчийн Android утаснаас огт хамаарахгүй болгох. Хэрэглэгч кодоо
-     144773 руу өөрөө илгээнэ: утас унтарсан, интернэтгүй, SIM солигдсон
-     ямар ч тохиолдолд нэвтрэлт зогсохгүй.
-
-     textbee нь ЗӨВХӨН сүүлчийн хамгаалалт: verify.mn тохируулагдаагүй эсвэл
-     түр ажиллахгүй үед Дасгалын төв бүрмөсөн хаагдахаас сэргийлнэ. */
-  if (sms.moEnabled()) {
-    let mo;
-    try { mo = await sms.sendMo(o); } catch (e) {}
-    if (mo && mo.ok) return mo;
-    /* Дугаарын cooldown/квотод хоригдсон бол textbee-гээр тойрохгүй */
-    if (mo && (mo.phoneQuota || WS_MO_NO_FALLBACK[mo.code])) return mo;
-  }
-  return await sms.sendCode(o);
+  if (!sms.moEnabled()) return await sms.sendCode(o);
+  try { return await sms.sendMo(o); }
+  catch (e) { sms.logErr('[ws otp] sendMo', e); return sms.mkFail('SMS_UNAVAILABLE'); }
 }
 /* MO амжилттай бол хариунд нэмэх талбарууд (sessionId ЭНД БАЙХГҮЙ) */
 function wsMoFields(sent) {
-  if (!sent) return {};
-  /* textbee амжилттай ч нөөц бэлэн — клиент 30 секундын дараа шилжинэ */
-  if (sent.mode !== 'mo') {
-    const b = sent.moBackup;
-    if (!b || !b.ok) return {};
-    return { moBackup: { moText: b.moText, smsUri: b.smsUri, shortcode: b.shortcode,
-      pollToken: b.pollToken, expiresAt: b.expiresAt, masked: b.masked2 } };
-  }
+  if (!sent || sent.mode !== 'mo') return {};
   return {
     mode: 'mo', moText: sent.moText, smsUri: sent.smsUri,
     shortcode: sent.shortcode, pollToken: sent.pollToken, expiresAt: sent.expiresAt,
@@ -816,13 +798,13 @@ module.exports = async (req, res) => {
           const r = await pool.query('SELECT verified, phone, phone_verified_at FROM ws_login WHERE email=$1', [email]);
           // Олдоогүй / ашиглах утасгүй (баталгаажаагүй мөрийн утсыг өөр хүн бичсэн байж болно, H9) → хуурамч хариу, SMS 0
           const dest = wsUsablePhone(r.rows[0]);
-          if (!dest) { await sms.padTo(t0); return res.json(wsAccepted(sms.fakeMask(email))); }
+          if (!dest) { await sms.padTo(t0); return res.json(wsFake(sms.fakeMask(email))); }
           const sent = await wsSendOtp({
             purpose: 'reset', kind: 'acct', phone: dest, email: email, ip: ip,
             store: wsCodeStore(email, false), drop: function (code) { return dropCode(email, code); }, reuse: wsCodeReuse(email, false),
           });
           if (sent.ok) return res.json(Object.assign(wsAccepted(sent.masked2), wsMoFields(sent)));
-          if (sent.phoneQuota) { await sms.padTo(t0); return res.json(wsAccepted(sms.maskPhone(dest, 2))); }
+          if (sent.phoneQuota) { await sms.padTo(t0); return res.json(wsFake(sms.maskPhone(dest, 2))); }
           return sms.failJson(res, sent, { reg: 'ws' });
         }
         if (b.action === 'ws_reset') {
@@ -922,7 +904,7 @@ module.exports = async (req, res) => {
           const ip = clientIp(req);
           const pf = await sms.precheck({ ip: ip, email: email, kind: 'reg' });
           if (pf) return sms.failJson(res, pf, { reg: 'ws', pending: true });   // код оруулах дэлгэцээс дуудагдана
-          const fake = async function () { await sms.padTo(t0); return res.json(wsAccepted(sms.fakeMask(email), { needVerify: true })); };
+          const fake = async function () { await sms.padTo(t0); return res.json(wsFake(sms.fakeMask(email), { needVerify: true })); };
           // Олдоогүй / админ бэлтгэсэн мөр / утас хүчингүй → хуурамч хариу (enumeration), SMS 0
           const pn = row ? sms.normalizePhone(row.phone) : { ok: false };
           if (!row || row.phone_verified_at || !pn.ok) return fake();

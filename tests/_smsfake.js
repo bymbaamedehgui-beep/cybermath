@@ -33,6 +33,7 @@ const db = {
   ws: new Map(),         // email → ws_login row
   smsLog: [],
   smsState: new Map(),
+  vfm: new Map(),         // vfm_sessions: token_hash → row
   entitled: new Map(),    // table → Set(email)
   entFail: false,
   rateFail: false,
@@ -130,8 +131,9 @@ async function query(sql, p) {
   }
 
   // users (api/auth.js)
-  if (q === 'DELETE FROM users WHERE verified=false AND verify_expiry < NOW()') {
-    for (const [k, u] of db.users) if (u.verified === false && u.verify_expiry && new Date(u.verify_expiry).getTime() < now()) db.users.delete(k);
+  // Баталгаажаагүй (орхисон) бүртгэл 7 хоног хадгалагдана
+  if (q === "DELETE FROM users WHERE verified=false AND verify_expiry < NOW() - INTERVAL '7 days'") {
+    for (const [k, u] of db.users) if (u.verified === false && u.verify_expiry && new Date(u.verify_expiry).getTime() < now() - 7 * 86400e3) db.users.delete(k);
     return { rows: [] };
   }
   if ((m = q.match(/^SELECT ([a-z_, *1]+) FROM users WHERE LOWER\(email\)=LOWER\(\$1\)( AND verified IS NOT FALSE)?$/))) {
@@ -313,6 +315,32 @@ async function query(sql, p) {
     r.code_exp = new Date(p[1]); return { rows: [{ code: r.code }] };
   }
 
+  // verify.mn (MO) session-ууд (api/_sms.js sendMo / moCheck)
+  if (q === 'INSERT INTO vfm_sessions (token_hash, session_id, email, purpose, kind, phone_hash, expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7)') {
+    const row = { id: db.nextId++, token_hash: p[0], session_id: p[1], email: p[2], purpose: p[3], kind: p[4], phone_hash: p[5], expires_at: new Date(p[6]), consumed_at: null };
+    db.vfm.set(row.token_hash, row); return { rows: [] };
+  }
+  if (q === 'SELECT id, session_id, email, purpose, kind, expires_at, consumed_at FROM vfm_sessions WHERE token_hash = $1') {
+    const r = db.vfm.get(p[0]); return { rows: r ? [Object.assign({}, r)] : [] };
+  }
+  if (q === 'UPDATE vfm_sessions SET consumed_at = NOW() WHERE id = $1 AND consumed_at IS NULL RETURNING id') {
+    for (const r of db.vfm.values()) if (r.id === p[0] && !r.consumed_at) { r.consumed_at = new Date(); return { rows: [{ id: r.id }] }; }
+    return { rows: [] };
+  }
+  if (/^DELETE FROM vfm_sessions/.test(q)) return { rows: [] };
+  // worksheets.js ws_register MO зам: код хадгалахгүй мөр + ws_moVerify дуусгалт
+  if (q === 'INSERT INTO ws_login (email, pass_hash, verified, code, code_exp, name, phone) VALUES ($1,$2,FALSE,NULL,NULL,$3,$4) ON CONFLICT (email) DO UPDATE SET pass_hash=EXCLUDED.pass_hash, code=NULL, code_exp=NULL, code_attempts=0, name=EXCLUDED.name, phone=EXCLUDED.phone WHERE ws_login.verified=FALSE AND ws_login.phone_verified_at IS NULL RETURNING email') {
+    const [email, hash, name, phone] = p; const r = db.ws.get(email);
+    const fields = { pass_hash: hash, code: null, code_exp: null, code_attempts: 0, name, phone };
+    if (!r) { db.ws.set(email, Object.assign({ email, verified: false, phone_verified_at: null }, fields)); return { rows: [{ email }] }; }
+    if (!r.verified && !r.phone_verified_at) { Object.assign(r, fields); return { rows: [{ email }] }; }
+    return { rows: [] };
+  }
+  if (q === 'UPDATE ws_login SET pass_hash=$2, verified=TRUE, code=NULL, code_exp=NULL, code_attempts=0, phone_verified_at=NOW() WHERE email=$1') {
+    const r = db.ws.get(p[0]); if (r) Object.assign(r, { pass_hash: p[1], verified: true, code: null, code_exp: null, code_attempts: 0, phone_verified_at: new Date() });
+    return { rows: [] };
+  }
+
   // _sms.js promoNote — ws_promo_public-тэй ижил нөхцөл (db.promos: {active, personal, expires_at, max_uses, used_count})
   if (q === 'SELECT 1 FROM ws_promos WHERE active = TRUE AND COALESCE(personal, FALSE) = FALSE AND (expires_at IS NULL OR expires_at > NOW()) AND (max_uses IS NULL OR used_count < max_uses) LIMIT 1') {
     db.promoQueries = (db.promoQueries || 0) + 1;
@@ -331,7 +359,7 @@ async function query(sql, p) {
   // ws_trials / ws_trial_marks (api/_wstrial.js)
   { const tr = db.trial.handle(q, p); if (tr) return tr; }
 
-  if (/\b(users|ws_login|rate_limits|sms_log|sms_state|ws_access|ws_grade_access|ws_purchases|ws_pending|ws_event_regs|admin_invites|ws_invites|ws_promos|ws_trials|ws_trial_marks|ws_trial_cfg)\b/.test(q)) {
+  if (/\b(users|ws_login|rate_limits|sms_log|sms_state|ws_access|ws_grade_access|ws_purchases|ws_pending|ws_event_regs|admin_invites|ws_invites|ws_promos|ws_trials|ws_trial_marks|ws_trial_cfg|vfm_sessions)\b/.test(q)) {
     db.unknown.push(q);
     throw new Error('mock: unknown SQL');
   }
@@ -403,7 +431,7 @@ const responses = [];
 
 function reset() {
   // db.unknown-ийг цэвэрлэхгүй — файлын төгсгөлд нийтээр шалгана
-  db.rl.clear(); db.entitled.clear(); db.wsInv.clear(); db.entFail = false; db.rateFail = false; db.beforeWsUpsert = null;
+  db.rl.clear(); db.entitled.clear(); db.wsInv.clear(); db.vfm.clear(); db.entFail = false; db.rateFail = false; db.beforeWsUpsert = null;
   db.smsState.delete('paused_until');
   sms.mode = 'ok';
   delete process.env.SMS_DISABLED; delete process.env.SMS_DAY_MAX;

@@ -592,7 +592,8 @@ async function precheck(o) {
 
   // pc-1: тохиргоо, яаралтай унтраалга, админ pause
   if (disabled() || !hashKey()) return UNAV;
-  if (!apiKey()) { await notify('tg:sms:CONFIG', T30_WIN, tgClassText('CONFIG')); return UNAV; }
+  // verify.mn (MO) асаалттай бол textbee-гийн түлхүүр шаардлагагүй — код зөвхөн MO-гоор (auth/worksheets sendOtp)
+  if (!apiKey() && !moEnabled()) { await notify('tg:sms:CONFIG', T30_WIN, tgClassText('CONFIG')); return UNAV; }
   try {
     await ensureSmsTables();
     if ((await pausedUntil()) > Math.floor(Date.now() / 1000)) return UNAV;
@@ -628,18 +629,26 @@ async function precheck(o) {
 
   // pc-4: имэйлийн cooldown (kind тус бүр — нууц үг сэргээх оролдлого бүртгэлийг 10 минут хаахгүй).
   // SMS явалгүй бүтэлгүйтвэл sendCode буцаана (emCdKey).
-  h = await hit(emCdKey(kind, email), COOLDOWN_SEC);
-  if (!h) return UNAV;
-  if (h.count > 1) return mkFail('SMS_COOLDOWN', { wait: h.retryAfter });
+  // verify.mn (MO) үед ХЭРЭГЛЭХГҮЙ: MO session 5 минутад дуусдаг тул 10 минутын cooldown «Дахин код авах»-ыг
+  // хаагаад «утсанд ирсэн кодоо оруулна уу» гэж төөрөгдүүлдэг байсан (бид юу ч илгээхгүй — зардалгүй).
+  const mo = moEnabled();
+  if (!mo) {
+    h = await hit(emCdKey(kind, email), COOLDOWN_SEC);
+    if (!h) return UNAV;
+    if (h.count > 1) return mkFail('SMS_COOLDOWN', { wait: h.retryAfter });
+  }
 
-  // pc-5: имэйл|ip24 ба имэйлийн өдрийн хязгаар
+  // pc-5: имэйл|ip24 ба имэйлийн өдрийн хязгаар. MO-д өгөөмөр (session 5 минут тул дахин авах нь ердийн
+  // үзэгдэл) — спамын таг нь sendMo-гийн дугаарын өдрийн квот (reg 20 / acct 30) ба MO-ийн нийт квот.
+  const emIpMax = mo ? intEnv('VERIFYMN_EM_IP_DAY_MAX', 20) : EM_IP_DAY_MAX;
+  const emDayMax = mo ? intEnv('VERIFYMN_EM_DAY_MAX', 30) : EM_DAY_MAX;
   h = await hit(emIpKey(email, o.ip), DAY_WIN);
   if (!h) return UNAV;
-  if (h.count > EM_IP_DAY_MAX) return mkFail('SMS_LIMIT');
+  if (h.count > emIpMax) return mkFail('SMS_LIMIT');
   h = await hit(emDayKey(email), DAY_WIN);
   if (!h) return UNAV;
-  if (h.count === EM_DAY_MAX + 1) await notify('tg:sms:em:' + email, DAY_WIN, 'SMS: нэг имэйлд олон код хүсэв: ' + tgEmail(email));
-  if (h.count > EM_DAY_MAX) return mkFail('SMS_LIMIT');
+  if (h.count === emDayMax + 1) await notify('tg:sms:em:' + email, DAY_WIN, 'SMS: нэг имэйлд олон код хүсэв: ' + tgEmail(email));
+  if (h.count > emDayMax) return mkFail('SMS_LIMIT');
   return null;
 }
 
@@ -1106,6 +1115,19 @@ async function sendMo(o) {
   };
 }
 
+/* Хуурамч MO хариу (enumeration): данс олдоогүй / ашиглах утасгүй / дугаарын квот үед бодит sendMo-той
+   ИЖИЛ талбартай. verify.mn руу хандахгүй, юу ч хадгалахгүй — pollToken DB-д байхгүй тул moStatus UNKNOWN
+   (клиент PENDING-тэй адил хүлээж, хугацаа дуусахад «Дахин код авах» харуулна). */
+function moFake(masked) {
+  const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+  return {
+    ok: true, mode: 'mo', moText: code,
+    smsUri: 'sms:' + VFM.SHORTCODE + '?body=' + code, shortcode: VFM.SHORTCODE,
+    pollToken: newPollToken(), expiresAt: new Date(Date.now() + MO_TTL_SEC * 1000).toISOString(),
+    masked2: masked || null, masked4: masked || null,
+  };
+}
+
 /* Төлөв шалгах — ЗӨВХӨН pollToken-оор (M2).
    → { ok:true, status:'PENDING'|'VERIFIED'|'EXPIRED'|'UNKNOWN', email, purpose, kind }
    VERIFIED үед session-ийг consumed болгоно (M5) — давтан дуудахад PENDING биш EXPIRED. */
@@ -1222,7 +1244,7 @@ module.exports = {
   precheck, sendCode, markVerified, publicOtpResponse, padTo, mkFail, ERR, failJson, notify,
   status, setPause, deviceStatus, textbeeSend, limits, logErr, safeMsg, ensureSmsTables, ensureUserColumns, maxAccountsPerPhone, trustLegacyPhone,
   promoNote, PROMO_NOTE, CODE_TTL_MS, COOLDOWN_SEC,
-  sendMo, moCheck, moEnabled, ensureVfmTables, MO_TTL_SEC,
+  sendMo, moCheck, moEnabled, moFake, ensureVfmTables, MO_TTL_SEC,
   moRecent,
   gatewayAlive, gatewayCacheReset,
   // тестэд
