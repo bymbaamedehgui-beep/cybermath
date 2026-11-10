@@ -322,21 +322,23 @@
   }
   function pBadge(st, R, id) {
     var x = rr(R * 0.72), y = rr(-R * 0.72);
-    if (st === 'done') return '<g transform="translate(' + x + ' ' + y + ')"><circle r="11" fill="#22C55E" stroke="#fff" stroke-width="2.5"/><path d="m-5 0 3.5 3.5L5.5-4" stroke="#fff" stroke-width="2.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>';
+    // Дууссан гараг: хоёр туг + ногоон тэмдэг (эзэмшигч 2026-11-10: «дууссан хичээлүүд дээр нэмэлтээр туг гарах ёстой»)
+    if (st === 'done') return flags(R, id) + '<g transform="translate(' + x + ' ' + y + ')"><circle r="11" fill="#22C55E" stroke="#fff" stroke-width="2.5"/><path d="m-5 0 3.5 3.5L5.5-4" stroke="#fff" stroke-width="2.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>';
     if (st === 'lock') return '<g transform="translate(' + x + ' ' + y + ')"><circle r="12" fill="#fff" fill-opacity=".92"/><rect x="-6" y="-3" width="12" height="9" rx="2.5" fill="#6A61A8"/><path d="M-3.8 -3v-2.6a3.8 3.8 0 0 1 7.6 0V-3" stroke="#6A61A8" stroke-width="2.2" fill="none"/></g>';
-    if (st === 'open') {   // Хоёр туг (эзэмшигч 2026-11-08): Монгол Улсын төрийн далбаа ба CyberMath-ийн алтан туг (B)
-      var k = rr(R / 50);
-      // хоёр туг баруун тийш намирна (Соёмбо шонгийн талд)
-      return '<g transform="translate(' + rr(-32 * k) + ' ' + rr(-40 * k) + ') rotate(-5) scale(' + k + ')">' +
-        '<path d="M0 2V-34" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><circle cy="-34.6" r="1.8" fill="#FFD84A"/>' +
-        '<rect x="0.8" y="-33" width="30" height="15" fill="#C4272F"/><rect x="10.8" y="-33" width="10" height="15" fill="#015197"/>' + SOYOMBO + '</g>' +
-        '<g transform="translate(' + rr(12 * k) + ' ' + rr(-48 * k) + ') rotate(5) scale(' + k + ')">' +
-        '<path d="M0 2V-40" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><circle cy="-40.6" r="1.8" fill="#FFD84A"/>' +
-        '<g transform="translate(.8 -39)"><defs><linearGradient id="' + id + 'cf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFD84A"/><stop offset="1" stop-color="#FFB300"/></linearGradient></defs>' +
-        '<rect width="62" height="24.8" rx="2" fill="url(#' + id + 'cf)"/>' + (LOGO ? '<use href="#cmx-logo-n" x="1.9" y="5" width="17.4" height="15.4"/>' : '') +
-        '<text x="' + (LOGO ? 22.9 : 5) + '" y="15.6" font-family="Nunito, sans-serif" font-weight="900" font-size="8.4" textLength="' + (LOGO ? 35.9 : 52) + '" lengthAdjust="spacingAndGlyphs" fill="#1E1A4D">CyberMath</text></g></g>';
-    }
+    if (st === 'open') return flags(R, id);
     return '';
+  }
+  function flags(R, id) {   // Хоёр туг (эзэмшигч 2026-11-08): Монгол Улсын төрийн далбаа ба CyberMath-ийн алтан туг (B)
+    var k = rr(R / 50);
+    // хоёр туг баруун тийш намирна (Соёмбо шонгийн талд)
+    return '<g transform="translate(' + rr(-32 * k) + ' ' + rr(-40 * k) + ') rotate(-5) scale(' + k + ')">' +
+      '<path d="M0 2V-34" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><circle cy="-34.6" r="1.8" fill="#FFD84A"/>' +
+      '<rect x="0.8" y="-33" width="30" height="15" fill="#C4272F"/><rect x="10.8" y="-33" width="10" height="15" fill="#015197"/>' + SOYOMBO + '</g>' +
+      '<g transform="translate(' + rr(12 * k) + ' ' + rr(-48 * k) + ') rotate(5) scale(' + k + ')">' +
+      '<path d="M0 2V-40" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><circle cy="-40.6" r="1.8" fill="#FFD84A"/>' +
+      '<g transform="translate(.8 -39)"><defs><linearGradient id="' + id + 'cf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFD84A"/><stop offset="1" stop-color="#FFB300"/></linearGradient></defs>' +
+      '<rect width="62" height="24.8" rx="2" fill="url(#' + id + 'cf)"/>' + (LOGO ? '<use href="#cmx-logo-n" x="1.9" y="5" width="17.4" height="15.4"/>' : '') +
+      '<text x="' + (LOGO ? 22.9 : 5) + '" y="15.6" font-family="Nunito, sans-serif" font-weight="900" font-size="8.4" textLength="' + (LOGO ? 35.9 : 52) + '" lengthAdjust="spacingAndGlyphs" fill="#1E1A4D">CyberMath</text></g></g>';
   }
   /* CyberMath-ийн лого (нүүр сонголтын #cm-pick-ээс, хар хөх өнгөөр) — тугт <use>-ээр, газрын зурагт нэг удаа symbol болгоно */
   var LOGO = null;

@@ -123,3 +123,8 @@ test('Бодлогын дэлгэцийн хэв маяг зөвхөн html.cmx 
     s.split(',').forEach(x => assert.match(x.trim(), /^html\.cmx #quiz-modal\.cmq/, 'хүрээ: ' + x.trim()));
   });
 });
+test('Гарагийн туг: нээлттэй ба ДУУССАН гараг дээр хоёр туг (дууссанд ногоон тэмдэгтэй хамт, эзэмшигч 2026-11-10)', () => {
+  assert.match(js, /if \(st === 'done'\) return flags\(R, id\) \+ '<g transform/);
+  assert.match(js, /if \(st === 'open'\) return flags\(R, id\);/);
+  assert.match(js, /function flags\(R, id\) \{/);
+});
