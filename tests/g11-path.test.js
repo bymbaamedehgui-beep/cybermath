@@ -98,7 +98,7 @@ test('installPath: node + бодлого нэмнэ, хуучин 11-р анги
   const r = await POST({ action: 'installPath', grade: '11' });
   assert.strictEqual(r.statusCode, 200);
   assert.deepStrictEqual(r.body, { ok: true, grade: '11', nodes_added: 51, nodes_total: 51, questions_added: G.QUESTIONS.length,
-    questions_total: G.QUESTIONS.length, nodes_filled: 51, patched: 0, renamed: 0, old_moved: 4 });
+    questions_total: G.QUESTIONS.length, nodes_filled: 51, patched: 0, renamed: 0, old_moved: 4, ordered: 0, exam_named: 0, copied: 0 });
   assert.ok(INSERTS.length >= 7 && INSERTS.every(n => n <= 500), 'багц ≤500 мөр: ' + INSERTS.join(','));
   assert.deepStrictEqual([149, 150, 151, 152].map(id => NODES.get(id).sort_order), [951, 952, 953, 954]);
   assert.strictEqual(NODES.get(601).sort_order, 601);

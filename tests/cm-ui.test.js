@@ -69,7 +69,7 @@ test('Газрын зураг: өдөр/үдэш/шөнө (1), арал руу �
   assert.match(js, /if \(!pin \|\| reduced\(\)\) return;/, 'reduced-motion');
   // tryOpenLesson-ийн нээлтийн дүрэмтэй ижил (index.html)
   assert.match(js, /return s === 1 \|\| done\.indexOf\(s\) >= 0 \|\| done\.indexOf\(s - 1\) >= 0 \|\| s <= pl;/);
-  assert.match(html, /if \(id === 1 \|\| c\.indexOf\(id - 1\) !== -1 \|\| id <= cmPlacementSlot\(\)\) \{/);
+  assert.match(html, /if \(id === 1 \|\| c\.indexOf\(_prev\) !== -1 \|\| c\.indexOf\(id\) !== -1 \|\| id <= cmPlacementSlot\(\)\) \{/);
 });
 
 test('Үнэгүй тоглоомын жагсаалт index.html-ийн gate-тэй ижил', () => {

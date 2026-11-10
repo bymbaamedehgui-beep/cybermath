@@ -41,6 +41,12 @@ const SPLITS = {
     ['Рационал ба тригонометр функц', 613], ['Уламжлал', 615]],
 };
 
+// 9-р анги — сурах бичгийн I–IX бүлэг (api/_g9path.js CHAPTERS-тай ижил; g9-path тест тулгана): [нэр, эхлэх node, нөөц эхлэх node…]
+// — эхлэх нь 7–8-р ангийн давтлага (901–914), байхгүй бол бүлгийн эхний хичээл
+const SPLITS_9_ORDERED = [['Тоон олонлог, зэрэг, язгуур', 901, 1], ['Процент, харьцаа, пропорц', 903, 82], ['Магадлал', 904, 77],
+  ['Илэрхийлэл, тэгшитгэл, тэнцэтгэл биш', 905, 15], ['Дараалал, функц', 908, 47], ['Дүрс, өнцөг, байгуулалт', 909, 59],
+  ['Байршил, хөдөлгөөн, хувиргалт', 911, 89], ['Хэмжигдэхүүн', 912, 97], ['Өгөгдөлтэй ажиллах', 914, 127]];
+
 function normGrade(g) { g = String(g == null ? '' : g).trim(); return GRADES.indexOf(g) >= 0 ? g : null; }
 
 /* Бүлгүүд: [{ i, name, topics: [{ id, name, n }] }] — замын дарааллаар, MIN_Q-ээс олон тохирох бодлоготой сэдэв л */
@@ -53,16 +59,31 @@ async function chapters(grade) {
       GROUP BY n.id, n.name, n.sort_order
       ORDER BY COALESCE(NULLIF(n.sort_order, 0), n.id), n.id`, [grade, Q.GAME_TRIM, Q.GAME_TAG_SRC]);
   let chs = Q.gameChapters(r.rows);
-  const sp = SPLITS[grade];
+  // 9-р анги: «9-р ангийн замыг суулгах» сурах бичгийн дараалал (sort_order) суулгасан бол («📝» бататгалтай) id өсөхгүй —
+  // бүлгийг замын БАЙРЛАЛААР (эхлэх node-ийн байрлалаас) хуваана; үгүй бол хуучин SPLITS (id-аар)
+  const ord9 = grade === '9' && r.rows.some(x => String(x.name || '').indexOf('\u{1F4DD}') === 0);
+  const sp = ord9 ? SPLITS_9_ORDERED : SPLITS[grade];
   if (sp) {
     const all = [].concat.apply([], chs.map(c => c.topics));
     chs = sp.map(s => ({ name: s[0], topics: [] }));
-    all.forEach(t => {
-      if (Number(t.id) < sp[0][1]) return;              // эхний бүлгээс өмнөх (хуучин) node — бүлэгт орохгүй
-      let k = 0;
-      for (let j = 0; j < sp.length; j++) if (Number(t.id) >= sp[j][1]) k = j;
-      chs[k].topics.push(t);
-    });
+    if (ord9) {
+      const pos = new Map(r.rows.map((x, i) => [Number(x.id), i]));
+      const starts = sp.map(s => { for (const id of s.slice(1)) if (pos.has(id)) return pos.get(id); return -1; });
+      all.forEach(t => {
+        const i = pos.get(Number(t.id));
+        if (i == null || starts[0] < 0 || i < starts[0]) return;
+        let k = 0;
+        for (let j = 0; j < sp.length; j++) if (starts[j] >= 0 && i >= starts[j]) k = j;
+        chs[k].topics.push(t);
+      });
+    } else {
+      all.forEach(t => {
+        if (Number(t.id) < sp[0][1]) return;              // эхний бүлгээс өмнөх (хуучин) node — бүлэгт орохгүй
+        let k = 0;
+        for (let j = 0; j < sp.length; j++) if (Number(t.id) >= sp[j][1]) k = j;
+        chs[k].topics.push(t);
+      });
+    }
   }
   return chs
     .map(c => ({ name: Q.gTrim(c.name), topics: c.topics.filter(t => Number(t.n) >= MIN_Q && !REVIEW_RE.test(Q.gTrim(t.name))) }))
@@ -237,5 +258,5 @@ async function classResults(classroomId) {
   return r.rows;
 }
 
-module.exports = { GRADES, SPLITS, STAGE1_MAX, STAGE2_MAX, MIN_Q, normGrade, chapters, stage1, stage2, questionsFor, correctOf,
+module.exports = { GRADES, SPLITS, SPLITS_9_ORDERED, STAGE1_MAX, STAGE2_MAX, MIN_Q, normGrade, chapters, stage1, stage2, questionsFor, correctOf,
   sign, verify, grade, frontier, result, ensureTable, save, mine, classResults };

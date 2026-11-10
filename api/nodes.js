@@ -9,7 +9,8 @@ const { secretMissing, requireAdmin } = require('./_guard');
 // УСТГАХГҮЙ, замын төгсгөлд (sort_order 951+). Дахин дуудахад аюулгүй (нэмэх юм алга бол 0). Node бүр бүтнээрээ нэг олон мөрт
 // INSERT-д (≤500 мөр) — тасарвал хагас node үлдэхгүй.
 // require нь статик бичвэртэй байх ёстой — Vercel (nft) хувьсагчаар дуудсан файлыг функцэд оруулдаггүй
-// 9-р анги: хуучин SVG зам (слот = node id, 1…107 → 126…162) — node зөөхгүй, шинэ сэдэв сул node-д (80–107, 126–129)
+// 9-р анги: node зөөхгүй/устгахгүй; ORDER-оор sort_order-ыг сурах бичгийн бүлгийн дарааллаар (index.html нь DB-д «📝» бататгал
+// гарсны дараа 9-р ангийг бусад ангийн адил sort_order-оор зурна), COPIES — 8-р ангийн давтлага node (901–914)
 const PATHS = {
   '9': { load: () => require('./_g9path'), lo: 1, hi: 160, move: false, fill: 'add' },
   '11': { load: () => require('./_g11path'), lo: 801, hi: 899, move: true, fill: 'empty' },
@@ -43,6 +44,21 @@ async function installPath(grade) {
   for (const r of (pack.RENAMES || []).concat(NAME_FIXES)) {
     const u = await pool.query("UPDATE nodes SET name = $3 WHERE id = $1 AND COALESCE(name, '') = $2", [r[0], r[1], r[2]]);
     renamed += u.rowCount || 0;
+  }
+  // Замын дараалал (ORDER [id, sort_order] — 9-р анги сурах бичгийн бүлгээр) ба бататгалын нэр (FORCE_NAMES: «📝 …» — index.html
+  // cmBuildExamMap, api/questions gameNodeKind бататгалыг ингэж таньдаг). Зөвхөн тухайн ангийн node-д; юуг ч устгахгүй.
+  let ordered = 0, forced = 0;
+  if ((pack.ORDER || []).length) {
+    const o = pack.ORDER, vals = o.map((_, i) => '($' + (2 * i + 2) + '::int,$' + (2 * i + 3) + '::int)').join(',');
+    const r = await pool.query('UPDATE nodes n SET sort_order = v.so FROM (VALUES ' + vals + ') AS v(id, so) WHERE n.id = v.id AND n.grade = $1 AND n.sort_order IS DISTINCT FROM v.so',
+      [grade].concat([].concat.apply([], o.map((x) => [x[0], x[1]]))));
+    ordered = r.rowCount || 0;
+  }
+  if ((pack.FORCE_NAMES || []).length) {
+    const f = pack.FORCE_NAMES, vals = f.map((_, i) => '($' + (2 * i + 2) + '::int,$' + (2 * i + 3) + '::text)').join(',');
+    const r = await pool.query('UPDATE nodes n SET name = v.nm FROM (VALUES ' + vals + ') AS v(id, nm) WHERE n.id = v.id AND n.grade = $1 AND n.name IS DISTINCT FROM v.nm',
+      [grade].concat([].concat.apply([], f.map((x) => [x[0], x[1]]))));
+    forced = r.rowCount || 0;
   }
   let moved = 0;
   if (P.move) {
@@ -79,6 +95,19 @@ async function installPath(grade) {
     batch = batch.concat(rows);
   }
   await flush();
+  // Өмнөх ангийн давтлага (COPIES [шинэ node, эх node]): эх node-ийн бодлогыг бүх баганаар нь хуулна (id/serial/uuid-аас бусад),
+  // аль хэдийн байгаа (node_id, text)-ийг алгасна — дахин дарахад давхардахгүй
+  let copied = 0;
+  if ((pack.COPIES || []).length) {
+    const cr = await pool.query("SELECT column_name, column_default, is_generated, is_identity FROM information_schema.columns WHERE table_name = 'questions' AND table_schema = current_schema()");
+    const cols = cr.rows.filter((c) => c.column_name !== 'id' && c.column_name !== 'node_id' && c.is_generated !== 'ALWAYS' && c.is_identity !== 'YES' &&
+      !/nextval|uuid/i.test(c.column_default || '')).map((c) => '"' + String(c.column_name).replace(/"/g, '""') + '"');
+    if (cols.indexOf('"text"') >= 0) {
+      const sql = 'INSERT INTO questions (node_id, ' + cols.join(', ') + ') SELECT $1, ' + cols.map((c) => 'q.' + c).join(', ') +
+        ' FROM questions q WHERE q.node_id = $2 AND NOT EXISTS (SELECT 1 FROM questions d WHERE d.node_id = $1 AND d.text = q.text)';
+      for (const c of pack.COPIES) { const r = await pool.query(sql, [c[0], c[1]]); copied += r.rowCount || 0; }
+    }
+  }
   // Суусан бодлогын засвар (санамж/сонголт): мөрийг (node_id, text) + ХУУЧИН утгаар нь олно — админы засварласанд хүрэхгүй,
   // аль хэдийн засагдсан бол 0
   let patched = 0;
@@ -89,7 +118,8 @@ async function installPath(grade) {
     patched += r.rowCount || 0;
   }
   return { ok: true, grade: grade, nodes_added: add.length, nodes_total: pack.NODES.length, questions_added: qAdd,
-    questions_total: pack.QUESTIONS.length, nodes_filled: by.size, patched: patched, renamed: renamed, old_moved: moved };
+    questions_total: pack.QUESTIONS.length, nodes_filled: by.size, patched: patched, renamed: renamed, old_moved: moved,
+    ordered: ordered, exam_named: forced, copied: copied };
 }
 
 module.exports = async (req, res) => {

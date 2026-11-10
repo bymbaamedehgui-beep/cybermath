@@ -2954,13 +2954,22 @@ function cmBuildExamMap(list) {
   });
   return exam;
 }
+/* 9-р анги: DB-д сурах бичгийн бүлгийн дараалал суусан эсэх («9-р ангийн замыг суулгах» бататгалуудыг «📝 …» болгодог) */
+function cmG9Ordered(nodes) {
+  return (nodes || []).some(function (nd) { return String(nd.grade) === '9' && String(nd.name || '').indexOf('📝') === 0; });
+}
 /* Хэрэглэгчийн ангид тохирсон зураглал барина */
 function cmBuildPathMap(nodes) {
   var g = cmUserGrade();
   window._PATH = { on: false, s2n: {}, n2s: {}, exam: null, count: 0, grade: g };
-  if (!g || g === 'teacher' || g === '9') return;          /* 9-р анги ба багш — хуучин хэвээр */
-  var mine = (nodes || []).filter(function (nd) { return String(nd.grade) === g; })
-    .sort(function (a, b) { return (a.sort_order || a.id) - (b.sort_order || b.id); });
+  /* 9-р анги ба багш: дараалал суусан бол бусад анги шиг sort_order-оор, үгүй бол хуучин SVG (слот = node id) */
+  var pg = g === 'teacher' ? '9' : g;
+  if (!pg || (pg === '9' && !cmG9Ordered(nodes))) return;
+  var mine = (nodes || []).filter(function (nd) {
+    if (String(nd.grade) !== pg) return false;
+    /* 9-р ангийн нэргүй/тоон нэртэй хоосон node (109–125) — замд биш (DB-д хөндөхгүй) */
+    return pg !== '9' || /[A-Za-zЀ-ӿ]/.test(String(nd.name || ''));
+  }).sort(function (a, b) { return (a.sort_order || a.id) - (b.sort_order || b.id); });
   if (mine.length < 2) return;                              /* тухайн ангид зам алга — хуучин хэвээр */
   var slots = cmSlotOrder();
   if (!slots.length) return;
@@ -3269,6 +3278,7 @@ function applyNodeNamesToMap() {
       // Exam node-уудыг "Бататгал N" нэрээр override хийх (зөвхөн үндсэн 9-р ангийн зам дээр)
       try {
         if (cmUserGrade() && cmUserGrade() !== 'teacher' && cmUserGrade() !== '9') throw new Error('skip');
+        if (cmG9Ordered(nodes)) throw new Error('skip');   // сурах бичгийн дараалал суусан — бататгал «📝 …» нэртэй, sort_order-оор
         var EXAM_IDS = window.EXAM_NODE_SOURCES ? Object.keys(window.EXAM_NODE_SOURCES).map(function(k){ return parseInt(k); }).sort(function(a, b){ return a - b; }) : [5, 11, 16, 22, 26, 31, 36, 41, 46, 51, 56, 61, 67, 74, 79, 86, 92, 98, 104, 108, 112, 129, 136, 142];
         nodes.forEach(function(n){
           var idx = EXAM_IDS.indexOf(n.id);
@@ -47664,6 +47674,7 @@ document.head.appendChild(cmStyle);
         // EXAM_IDS дээр "Бататгал N" override хийх (зөвхөн үндсэн 9-р ангийн зам дээр)
         try {
           if (cmUserGrade() && cmUserGrade() !== 'teacher' && cmUserGrade() !== '9') throw new Error('skip');
+        if (cmG9Ordered(nodes)) throw new Error('skip');   // сурах бичгийн дараалал суусан — бататгал «📝 …» нэртэй, sort_order-оор
           var EXAM_IDS = window.EXAM_NODE_SOURCES ? Object.keys(window.EXAM_NODE_SOURCES).map(function(k){ return parseInt(k); }).sort(function(a, b){ return a - b; }) : [5, 11, 16, 22, 26, 31, 36, 41, 46, 51, 56, 61, 67, 74, 79, 86, 92, 98, 104, 108, 112, 129, 136, 142];
           nodes.forEach(function(n){
             var idx = EXAM_IDS.indexOf(n.id);
@@ -48335,6 +48346,13 @@ document.head.appendChild(cmStyle);
     var examIds = Object.keys(EXAM_NODE_SOURCES).map(function(k){ return parseInt(k); }).sort(function(a, b){ return a - b; });
     var bataggalNum = examIds.indexOf(parseInt(examId)) + 1;
     var bataggalTitle = 'Бататгал ' + bataggalNum;
+    /* Шинэ зам (sort_order): бататгалын нэр DB-ээс («📝 Өөрийгөө сорих 1 — …» → «Өөрийгөө сорих 1 — …») */
+    if (window._PATH && window._PATH.on) {
+      try {
+        var _en = (JSON.parse(localStorage.getItem('cm_nodes') || '[]').find(function (n) { return n.id === parseInt(examId); }) || {}).name;
+        if (_en) bataggalTitle = String(_en).replace(/^(📝|🏆)\s*/, '');
+      } catch (e) {}
+    }
 
     // Зөвхөн DB-аас авах — placeholder бодлого хэрэглэхгүй
     var fetchPromises = sourceNodeIds.map(function(nid) {
@@ -50276,7 +50294,10 @@ function renderMath(text) {
     if (typeof checkHeartRegen === 'function') checkHeartRegen();
 
     var c = cmCompletedSlots();
-    if (id === 1 || c.indexOf(id - 1) !== -1 || id <= cmPlacementSlot()) {
+    /* Өмнөх слот — SVG замын дарааллаар (107-ийн дараа 126; слот = id − 1 биш) */
+    var _ord = cmSlotOrder(), _pi = _ord.indexOf(id), _prev = _pi > 0 ? _ord[_pi - 1] : id - 1;
+    /* Дуусгасан хичээл үргэлж нээгдэнэ (unlockNextNodes-тэй ижил) — дараалалд шинэ давтлага орсон ч өмнө хийснээ давтаж болно */
+    if (id === 1 || c.indexOf(_prev) !== -1 || c.indexOf(id) !== -1 || id <= cmPlacementSlot()) {
       // Зүрх шалгах — _currentUser-аас уншина (DOM биш)
       var hearts = (_currentUser && _currentUser.hearts !== undefined && _currentUser.hearts !== null)
         ? parseInt(_currentUser.hearts)
@@ -50298,7 +50319,7 @@ function renderMath(text) {
       if (_nd === null) { showToast('Энэ хичээл тун удахгүй нэмэгдэнэ'); return; }
       openLesson(_nd);
     } else {
-      showToast('🔒 ' + (id-1) + '-р node-ийг эхлээд дуусгана уу!');
+      showToast('🔒 ' + _prev + '-р node-ийг эхлээд дуусгана уу!');
     }
   }
   /* ── Медалийн үнэлгээ (Eduten маягаар) ──

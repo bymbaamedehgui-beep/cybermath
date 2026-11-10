@@ -174,3 +174,28 @@ test('токен: хуурамч/өөрчилсөн → 400 expired; хариу 
   assert.strictEqual(r.body.chapter, 'Бүхэл тоо, зэрэг, язгуур');
   assert.strictEqual((await F.call(api, { method: 'GET', query: { action: 'submit' } })).statusCode, 405);
 });
+
+test('_placement: 9-р анги сурах бичгийн дараалал суусан (📝 бататгал) — бүлгийг замын БАЙРЛАЛААР (id өсөхгүй), давтлага бүлэгтээ', async () => {
+  const G9 = require(path.join(F.API, '_g9path.js'));
+  const keepN = NODES.filter(n => n.grade === '9'), keepQ = QS.length;
+  for (let i = NODES.length - 1; i >= 0; i--) if (NODES[i].grade === '9') NODES.splice(i, 1);
+  const ex = new Map(G9.FORCE_NAMES), rv = new Map(G9.NODES.map(n => [n[0], n[1]]));
+  G9.ORDER.forEach(([id]) => {                  // хуурамч сан ORDER-ийн (sort_order) дарааллаар буцаана
+    NODES.push({ id, grade: '9', name: ex.get(id) || rv.get(id) || 'Сэдэв ' + id });
+    for (let k = 0; k < 6; k++) QS.push({ id: ++qid, node_id: id, text: 'Q' + id + '-' + k, choices: ['A', 'B', 'C', 'D'], correct: 'A', difficulty: 'medium' });
+  });
+  try {
+    const chs = await PL.chapters('9');
+    assert.deepStrictEqual(chs.map(c => c.name), PL.SPLITS_9_ORDERED.map(s => s[0]));
+    const at = id => chs.findIndex(c => c.topics.some(t => t.id === id));
+    assert.strictEqual(at(901), 0); assert.strictEqual(at(1), 0); assert.strictEqual(at(81), 0);      // тоймлох — I бүлэгт
+    assert.strictEqual(at(82), 1); assert.strictEqual(at(87), 1);                                      // процент, пропорц — II
+    assert.strictEqual(at(77), 2); assert.strictEqual(at(88), 2);                                      // магадлал — III (id 77 < 82 ч)
+    assert.strictEqual(at(15), 3); assert.strictEqual(at(141), 3); assert.strictEqual(at(140), 3);     // IV
+    assert.strictEqual(at(914), 8); assert.strictEqual(at(133), 8);
+    chs.forEach(c => c.topics.forEach(t => assert.doesNotMatch(t.name, /^(\u{1F4DD}|Жишиг)/u, 'бататгал/жишиг сэдэв биш')));
+  } finally {
+    for (let i = NODES.length - 1; i >= 0; i--) if (NODES[i].grade === '9') NODES.splice(i, 1);
+    keepN.forEach(n => NODES.push(n)); QS.length = keepQ;
+  }
+});
