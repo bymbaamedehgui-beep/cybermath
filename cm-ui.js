@@ -162,17 +162,29 @@
     return { slot: slot, name: slot == null ? '' : nodeName(nidOf(slot), slot), total: order.length,
       done: order.filter(function (s) { return done.indexOf(s) >= 0; }).length };
   }
-  /* Бүлгүүд: /api/placement?action=plan (анги бүрийн бүлэг, сэдвийн id) — sessionStorage-д кэшилнэ */
-  var PLAN = {}, PLANING = {};
+  /* Бүлгүүд: /api/placement?action=plan (анги бүрийн бүлэг, сэдвийн id) — sessionStorage-д кэшилнэ. Кэш нь тухайн ангийн
+     node жагсаалтын тэмдэгтэй (sig) ба 30 минутын хугацаатай: зам өөрчлөгдвөл (ж: 9-р ангийн сурах бичгийн дараалал суусан)
+     хуудсыг дахин ачаалахад шинэ бүлгүүд гарна */
+  var PLAN = {}, PLANING = {}, PLAN_TTL = 30 * 60 * 1000;
+  function planSig(g) {
+    try {
+      var ns = JSON.parse(lsGet('cm_nodes') || '[]').filter(function (n) { return String(n.grade) === g; });
+      return ns.length + ':' + ns.reduce(function (a, n) { return (a * 31 + (+n.sort_order || 0) * 7 + String(n.name || '').length) % 1000000007; }, 0);
+    } catch (e) { return ''; }
+  }
   function plan(g) {
     if (!g || g === 'teacher') return null;
-    if (PLAN.hasOwnProperty(g)) return PLAN[g];
+    var sig = planSig(g);
+    if (PLAN.hasOwnProperty(g) && (!PLAN[g] || PLAN[g]._sig === sig)) return PLAN[g];
     PLAN[g] = null;
-    try { var c = sessionStorage.getItem('cmx_plan_' + g); if (c) { PLAN[g] = JSON.parse(c); return PLAN[g]; } } catch (e) {}
+    try {
+      var c = JSON.parse(sessionStorage.getItem('cmx_plan_' + g) || 'null');
+      if (c && c._sig === sig && Date.now() - (c._at || 0) < PLAN_TTL) { PLAN[g] = c; return PLAN[g]; }
+    } catch (e) {}
     PLANING[g] = true;
-    fetch('/api/placement?action=plan&grade=' + encodeURIComponent(g)).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+    fetch('/api/placement?action=plan&grade=' + encodeURIComponent(g) + '&s=' + encodeURIComponent(sig)).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
       PLANING[g] = false;
-      if (j && j.ok && j.chapters) { PLAN[g] = j; try { sessionStorage.setItem('cmx_plan_' + g, JSON.stringify(j)); } catch (e) {} }
+      if (j && j.ok && j.chapters) { j._sig = sig; j._at = Date.now(); PLAN[g] = j; try { sessionStorage.setItem('cmx_plan_' + g, JSON.stringify(j)); } catch (e) {} }
       if (activeTab() === 'home') render(true);
     }).catch(function () { PLANING[g] = false; if (activeTab() === 'home') render(true); });
     return null;
