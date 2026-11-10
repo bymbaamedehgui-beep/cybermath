@@ -3,8 +3,9 @@
 (function(){
   // WS_ITEMS тавиагүй хуудсуудад DOM-оос (текстээр) уншиж авах нөөц арга
   function scrapeItems(){
-    var as=document.querySelectorAll('#answers .ans-grid .a');
-    var ps=document.querySelectorAll('#sheet .grid .q, .grid .q');
+    // «− тоо +»-оор хэвлэхгүй болгосон бодлого/хариу (.wsc-h) — хадгалах багцад орохгүй
+    var as=document.querySelectorAll('#answers .ans-grid .a:not(.wsc-h)');
+    var ps=document.querySelectorAll('#sheet .grid .q:not(.wsc-h), .grid .q:not(.wsc-h)');
     var strip=function(s){return (s||'').replace(/\$/g,'').trim();};
     var arr=[];
     for(var i=0;i<as.length;i++){
@@ -1038,9 +1039,117 @@
   function watchSheet(){
     var sh=document.getElementById('sheet'); if(!sh)return;
     // "Шинэ бодлого" дарахад #sheet дахин үүсдэг тул тамга/талбар/заавар засварыг эргүүлж нэмнэ
-    new MutationObserver(function(){ if(!sh.querySelector('.cm-wm'))brandSheet(); enhanceMeta(); applyEdits(); })
+    new MutationObserver(function(){ if(!sh.querySelector('.cm-wm'))brandSheet(); enhanceMeta(); applyEdits(); wscApply(); })
       .observe(sh,{childList:true});
   }
+
+  // ─── Даалгавар тус бүрээс хэдэн бодлого хэвлэх (эзэмшигч 2026-11-10) ───
+  //  .task гарчгийн хажууд «− тоо / нийт +» (зөвхөн дэлгэцэнд; хэвлэхэд харагдахгүй). Эхнээс нь тоогоор авч, үлдсэн бодлого ба
+  //  хариуг хэвлэхгүй; 0 бол тэр даалгавар бүхэлдээ хэвлэгдэхгүй (дэлгэцэнд бүдэг гарчиг үлдэж тоог буцааж нэмж болно), хэвлэхэд
+  //  даалгаврын дугаар дараалан шинэчлэгдэнэ. Бодолтын зайтай/зайгүй аль алинд, «Шинэ бодлого»-ны дараа ч (localStorage: хуудас →
+  //  {даалгаврын индекс: тоо}). .task-гүй загварт бүх бодлого нэг даалгавар (удирдлага .rule-ийн дор). Гарчгийн агуулгад
+  //  (админы засвар — EDIT_SEL) хүрэхгүй: удирдлага нь гарчгийн ДАРААХ тэг өндөртэй мөрөнд, нуух нь зөвхөн класс.
+  var WSC_KEY='cm_wsc_'+(location.pathname.split('/').pop()||'').toLowerCase();
+  function wscLoad(){ try{ return JSON.parse(ls(WSC_KEY)||'{}')||{}; }catch(e){ return {}; } }
+  function wscCSS(){
+    if(document.getElementById('wsc-css'))return;
+    var st=document.createElement('style'); st.id='wsc-css';
+    st.textContent='.wsc-row{position:relative;height:0;margin:0;padding:0;border:0}'
+      +'.wsc{position:absolute;right:0;top:-25px;display:inline-flex;align-items:center;gap:3px;padding:2px 4px;border-radius:9px;background:rgba(255,255,255,.94);box-shadow:0 0 0 1px #E4DBFF;font:700 11.5px system-ui,-apple-system,"Segoe UI",sans-serif;color:#5a32d6;z-index:2;white-space:nowrap}'
+      +'.wsc button{width:20px;height:20px;border:0;border-radius:6px;background:#F1ECFF;color:#5a32d6;font:800 14px/20px system-ui,sans-serif;cursor:pointer;padding:0}'
+      +'.wsc button:disabled{opacity:.35;cursor:default}'
+      +'.wsc input{width:24px;height:20px;border:0;background:transparent;text-align:center;font:800 12px system-ui,sans-serif;color:#211C54;padding:0;-moz-appearance:textfield;appearance:textfield}'
+      +'.wsc input::-webkit-outer-spin-button,.wsc input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}'
+      +'.wsc .wsc-of{color:#9a8fc4;margin:0 2px 0 -2px}'
+      +'@media screen{.wsc-has{padding-right:112px!important}.task.wsc-off{opacity:.38}}'
+      +'.wsc-h{display:none!important}'
+      +'@media print{.wsc-row,.wsc{display:none!important}.task.wsc-off{display:none!important}.wsc-has{padding-right:0!important}}';
+    document.head.appendChild(st);
+  }
+  // Даалгаврууд: [{h: гарчиг, els: гарчгаас хойшхи элементүүд, qs: бодлогууд}]
+  function wscGroups(sh){
+    var out=[], hs=sh.querySelectorAll('.task');
+    var inAns=function(e){ return !!(e.closest&&e.closest('#answers,.ans-page')); };
+    if(hs.length){
+      [].forEach.call(hs,function(h){
+        if(inAns(h))return;
+        var els=[], qs=[], n=h.nextElementSibling;
+        while(n&&!(n.classList&&n.classList.contains('task'))&&!(n.matches&&n.matches('#answers,.ans-page'))){
+          if(!(n.classList&&n.classList.contains('wsc-row'))){ els.push(n); if(n.matches('.q'))qs.push(n); else [].push.apply(qs,[].slice.call(n.querySelectorAll('.q'))); }
+          n=n.nextElementSibling;
+        }
+        out.push({h:h,els:els,qs:qs});
+      });
+    } else {
+      var qs=[].filter.call(sh.querySelectorAll('.q'),function(q){ return !inAns(q)&&!(q.parentNode.closest&&q.parentNode.closest('.q')); });
+      var h=sh.querySelector('.rule')||sh.querySelector('.head');
+      if(qs.length>1&&h&&!inAns(h))out.push({h:h,els:[],qs:qs,single:true});
+    }
+    return out.filter(function(g){ return g.qs.length; });
+  }
+  function wscSet(i,v,max){
+    var C=wscLoad(); v=Math.max(0,Math.min(max,Math.round(+v||0)));
+    if(v>=max)delete C[i]; else C[i]=v;
+    lset(WSC_KEY,JSON.stringify(C)); wscApply();
+  }
+  function wscControl(g,i,want,max){
+    var r=g.h.nextElementSibling;
+    if(!(r&&r.classList&&r.classList.contains('wsc-row'))){
+      r=document.createElement('div'); r.className='wsc-row';
+      r.innerHTML='<span class="wsc" title="Энэ даалгавраас хэвлэх бодлогын тоо (0 — хэвлэхгүй)"><button type="button" data-d="-1" aria-label="Цөөлөх">−</button>'
+        +'<input type="number" inputmode="numeric" min="0" aria-label="Хэвлэх бодлогын тоо"><span class="wsc-of"></span><button type="button" data-d="1" aria-label="Нэмэх">+</button></span>';
+      g.h.parentNode.insertBefore(r,g.h.nextSibling);
+      r.addEventListener('click',function(e){ var b=e.target.closest&&e.target.closest('button'); if(!b)return; e.preventDefault(); e.stopPropagation();
+        wscSet(+r.getAttribute('data-i'),(+r.querySelector('input').value||0)+(+b.getAttribute('data-d')),+r.getAttribute('data-max')); });
+      r.querySelector('input').addEventListener('change',function(){ wscSet(+r.getAttribute('data-i'),this.value,+r.getAttribute('data-max')); });
+      r.querySelector('input').addEventListener('keydown',function(e){ e.stopPropagation(); if(e.key==='Enter')this.blur(); });
+    }
+    r.setAttribute('data-i',i); r.setAttribute('data-max',max);
+    var inp=r.querySelector('input'); inp.max=max; if(document.activeElement!==inp)inp.value=want;
+    r.querySelector('.wsc-of').textContent='/'+max;
+    r.querySelector('[data-d="-1"]').disabled=want<=0; r.querySelector('[data-d="1"]').disabled=want>=max;
+  }
+  function wscApply(){
+    if(IS_QR||inIframe())return;
+    var sh=document.getElementById('sheet'); if(!sh)return;
+    var gs=wscGroups(sh); if(!gs.length)return;
+    wscCSS();
+    var C=wscLoad();
+    gs.forEach(function(g,i){
+      var max=g.qs.length, want=C.hasOwnProperty(i)?Math.max(0,Math.min(max,+C[i]||0)):max;
+      g.qs.forEach(function(q,j){
+        var hide=j>=want; q.classList.toggle('wsc-h',hide);
+        var k=q.getAttribute('data-k'); if(k==null)return;
+        var a=sh.querySelector('#answers .a[data-k="'+k+'"]'); if(a)a.classList.toggle('wsc-h',hide);
+      });
+      g.els.forEach(function(e){ if(e.matches('.q')||!e.querySelector('.q'))return; e.classList.toggle('wsc-h',!e.querySelector('.q:not(.wsc-h)')); });
+      g.h.classList.add('wsc-has');
+      if(!g.single)g.h.classList.toggle('wsc-off',want===0);
+      wscControl(g,i,want,max);
+    });
+  }
+  // Хэвлэхэд: нуусан даалгаврыг алгасаж дугаарыг дараалуулна (гарчиг ба хариуны «3б)» шошго), хэвлэсний дараа буцаана
+  var wscPrinted=null;
+  function wscBeforePrint(){
+    wscAfterPrint();
+    var sh=document.getElementById('sheet'); if(!sh)return;
+    var gs=wscGroups(sh).filter(function(g){ return !g.single; }); if(!gs.length)return;
+    var undo=[], num=0;
+    gs.forEach(function(g){
+      if(g.h.classList.contains('wsc-off'))return;
+      num++;
+      var t=g.h.firstChild, m=t&&t.nodeType===3&&/^(\s*)(\d+)(\.\s*)/.exec(t.nodeValue);
+      if(!m||+m[2]===num)return;
+      var old=+m[2]; undo.push([t,t.nodeValue]); t.nodeValue=t.nodeValue.replace(/^(\s*)\d+/,'$1'+num);
+      g.qs.forEach(function(q){ var k=q.getAttribute('data-k'); if(k==null)return; var an=sh.querySelector('#answers .a[data-k="'+k+'"] .an');
+        if(an&&an.firstChild&&an.firstChild.nodeType===3&&new RegExp('^'+old+'(?!\\d)').test(an.firstChild.nodeValue)){ undo.push([an.firstChild,an.firstChild.nodeValue]); an.firstChild.nodeValue=an.firstChild.nodeValue.replace(/^\d+/,String(num)); } });
+    });
+    wscPrinted=undo;
+  }
+  function wscAfterPrint(){ if(wscPrinted){ wscPrinted.forEach(function(u){ u[0].nodeValue=u[1]; }); wscPrinted=null; } }
+  window.addEventListener('beforeprint',wscBeforePrint);
+  window.addEventListener('afterprint',wscAfterPrint);
+  window.cmWsCounts=wscApply;
 
   // ─── Ажлын хуудас бүрийн reaction + сэтгэгдэл ───
   var RX=[['like','👍'],['love','❤️'],['haha','😂'],['wow','😮'],['sad','😢'],['clap','👏']];
@@ -1835,7 +1944,7 @@
     b.onclick=function(){ cmtPicker(b); };
     bar.appendChild(b);
   }
-  function init(){ tidyBar(); injectBrandCSS(); brandSheet(); watchSheet(); enhanceMeta(); loadInstr(); if(!IS_QR){addBtn();addBatchBtn();addWorkToggle();hookPrintAsk();vidBtn();} themeInit(); addRefreshShortcut(); applyQR(); enforcePaywall(); injectSocial(); applyWantWork(); addWorkResize(); }
+  function init(){ tidyBar(); injectBrandCSS(); brandSheet(); watchSheet(); enhanceMeta(); loadInstr(); if(!IS_QR){addBtn();addBatchBtn();addWorkToggle();hookPrintAsk();vidBtn();} themeInit(); addRefreshShortcut(); applyQR(); enforcePaywall(); injectSocial(); applyWantWork(); addWorkResize(); try{wscApply();}catch(e){} }
   if(document.readyState!=='loading')init();
   else document.addEventListener('DOMContentLoaded',init);
 })();
