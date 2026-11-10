@@ -10,7 +10,7 @@ const path = require('path');
 const vm = require('vm');
 
 const R = p => fs.readFileSync(path.join(__dirname, '..', p), 'utf8');
-const html = R('index.html'), js = R('cm-onol.js'), css = R('cm-onol.css'), g12 = R('onol/g12.js'), g11 = R('onol/g11.js'), g10 = R('onol/g10.js'), g9 = R('onol/g9.js'), v = JSON.parse(R('vercel.json'));
+const html = R('index.html'), js = R('cm-onol.js'), css = R('cm-onol.css'), g12 = R('onol/g12.js'), g11 = R('onol/g11.js'), g10 = R('onol/g10.js'), g9 = R('onol/g9.js'), g8 = R('onol/g8.js'), v = JSON.parse(R('vercel.json'));
 // Агуулгын багцууд: анги, онолын файл, хичээлийн замын node-ууд (нэр нь гарчигтай ижил байх ёстой)
 // n — бүх хичээлд онол бэлэн бол яг тэр тоо; 11-р ангийн онол хэсэгчлэн нэмэгдэж байгаа (null — онол бүр замын node-той л таарна)
 // 10-р анги: node жагсаалт (зам нь DB-д, бодлогын багцгүй) — онолын гарчиг node-ийн нэртэй (447, 453, 456 засагдсан нэрээр)
@@ -31,6 +31,12 @@ const G10 = { NODES: [[401, 'Олонлог'], [402, 'Бүхэл тоон илт
   [463, 'Цэгэн диаграмм, корреляц'], [465, 'Факториал'], [466, 'Сэлгэмэл ба хэсэглэл'], [467, 'Нийцтэй ба нийцгүй үзэгдэл'],
   [468, 'Нийлмэл үзэгдлийн магадлал'], [469, 'Нумын урт, сектор, сегментийн талбай'], [470, 'Гадаргуугийн талбай ба эзлэхүүн'],
   [471, 'Биетийн хавтгай огтлол']] };
+// 8-р анги: эхний 20 хичээл (node 501–524, бататгал 507/511/515/523 хассан) — гарчиг DB-ийн нэртэй ижил
+const G8 = { NODES: [[501, 'Рационал тоо'], [502, 'Тоог тоймлох'], [503, 'Рационал тооны үйлдэл'], [504, 'Натурал илтгэгчтэй зэрэг'],
+  [505, 'Зэрэгт дэвшүүлэх, язгуур гаргах'], [506, '10-ын бүхэл илтгэгчтэй зэрэг'], [508, 'Процент'], [509, 'Масштаб'],
+  [510, 'Урвуу пропорционал хамаарал'], [512, 'Олонлог, түүн дээрх үйлдэл'], [513, 'Нийцтэй ба нийцгүй үзэгдэл'], [514, 'Үзэгдлийн магадлал'],
+  [516, 'Нэг ба олон гишүүнт'], [517, 'Квадратуудын ялгавар, квадратын томьёо'], [518, 'Үржигдэхүүн болгон задлах'], [519, 'Алгебрын бутархай'],
+  [520, 'Рационал тэгшитгэл'], [521, 'Шугаман тэгшитгэлийн систем'], [522, 'Шугаман тэнцэтгэл биш'], [524, 'Дараалал']] };
 // 9-р анги: эхний 20 хичээл (бататгал 5/11/16/22 хассан) — онол хэсэгчлэн нэмэгдэнэ, гарчиг DB-ийн нэртэй ижил
 const G9 = { NODES: [[1, 'Рационал тоо'], [2, 'Үет бутархайг энгийн бутархайд шилжүүлэх'], [3, 'Рационал тооны үйлдлүүд'], [4, 'Иррационал тоо'],
   [6, 'Квадрат язгуур агуулсан илэрхийлэл I'], [7, 'Квадрат язгуур агуулсан илэрхийлэл II'], [8, '10-ын бүхэл илтгэгчтэй зэрэг'],
@@ -39,7 +45,7 @@ const G9 = { NODES: [[1, 'Рационал тоо'], [2, 'Үет бутарха�
   [19, 'Квадратуудын ялгаврын томьёо'], [20, 'Нийлбэрийн квадратын томьёо'], [21, 'Ялгаврын квадратын томьёо'],
   [23, 'Олон гишүүнтийг олон гишүүнтээр үржүүлэх II'], [24, 'Олон гишүүнтийг үржигдэхүүн болгон задлах (бүлэглэх арга)']] };
 const PACKS = [{ g: '12', src: g12, path: '../api/_g12path.js', n: 21 }, { g: '11', src: g11, path: '../api/_g11path.js', n: null },
-  { g: '10', src: g10, nodes: G10, n: null }, { g: '9', src: g9, nodes: G9, n: null }];
+  { g: '10', src: g10, nodes: G10, n: null }, { g: '9', src: g9, nodes: G9, n: null }, { g: '8', src: g8, nodes: G8, n: 20 }];
 const J = x => JSON.parse(JSON.stringify(x));
 const EMOJI = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u;
 
@@ -98,10 +104,10 @@ test('index.html: intro_html давамгайлна (cmOnol.over-оос буса
 });
 
 test('cm-onol.js: синтакс, сайтын функцийг дарж бичихгүй, startLessonAfterIntro-оор эхлүүлнэ, эможигүй, .cmo- угтвар', () => {
-  new Function(js); new Function(g12); new Function(g11); new Function(g10); new Function(g9);
+  new Function(js); new Function(g12); new Function(g11); new Function(g10); new Function(g9); new Function(g8);
   assert.doesNotMatch(js, /\b(openLesson|continueOpenLesson|startLessonAfterIntro|showIntroAndStart|backToIntro|closeModal|renderQuestion|checkAnswer|getLessonProgress)\s*=(?!=)/);
   assert.match(js, /if \(typeof startLessonAfterIntro === 'function'\) startLessonAfterIntro\(id\);/);
-  [js, css, g12, g11, g10, g9].forEach(s => assert.doesNotMatch(s, EMOJI, 'эможи бүү'));
+  [js, css, g12, g11, g10, g9, g8].forEach(s => assert.doesNotMatch(s, EMOJI, 'эможи бүү'));
   const cls = new Set();
   css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\.([a-zA-Z][\w-]*)/g, (m, c) => { cls.add(c); return m; });
   // Сайтын ерөнхий класс зөвхөн .cmo / #quiz-modal.cmo-open дотор л; бусад нь .cmo- угтвартай эсвэл виджетийн дотоод богино класс
@@ -151,6 +157,15 @@ test('cmOnol.over: зөвхөн 9-р ангийн онолтой хичээл а
   [5, 11, 16, 22, 25, 26, 135, 401, 601, 801].forEach(id => assert.strictEqual(E.over(id), false, 'over биш ' + id));
   [5, 11, 16, 22, 25].forEach(id => assert.strictEqual(E.has(id), false, 'онолгүй ' + id));
   [401, 601, 801].forEach(id => assert.strictEqual(E.has(id), true, 'хуучин муж ' + id));
+});
+
+test('8-р анги: PACKS ids = onol/g8.js-ийн хичээлүүд, over биш (хуучин онол байхгүй), бататгалд онол үгүй', () => {
+  const E = engine(), ids = Object.keys(content(g8)).map(Number).sort((a, b) => a - b);
+  const m = /\{ ids: \[([\d, ]+)\], src: '\/onol\/g8\.js\?v=\d+' \}/.exec(js);
+  assert.ok(m, 'PACKS-д 8-р ангийн сав');
+  assert.deepStrictEqual(m[1].split(',').map(Number), ids);
+  ids.forEach(id => { assert.strictEqual(E.has(id), true, 'has ' + id); assert.strictEqual(E.over(id), false, 'over биш ' + id); });
+  [507, 511, 515, 523, 525].forEach(id => assert.strictEqual(E.has(id), false, 'онолгүй ' + id));
 });
 
 test('md(): бичвэрийг escape хийнэ, **тод**, $…$ KaTeX-гүй үед ч эвдрэхгүй', () => {
