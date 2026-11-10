@@ -2886,6 +2886,8 @@ function updateNodeVisuals() {
 // 14+ үсэгтэй бол 2 эгнээ болгож tspan-аар хуваана
 function applyNodeName(textEl, name) {
   if (!textEl || !name) return;
+  /* Бататгалын «📝 / 🏆» тэмдэг — DB-д бататгалыг таних тэмдэг, замын бичвэрт эможи харуулахгүй */
+  name = String(name).replace(/^(📝|🏆)\s*/, '');
   // Дахин шинэчлэхгүй (одоогийн харагдах текст нэртэй ижил бол алгасах)
   if (textEl.textContent === name) return;
   if (name.length > 14) {
@@ -3482,8 +3484,69 @@ function applySectionLabels() {
       }
     }
   } catch(e) {}
+  try { cmG9ChapterLabels(); } catch (e) {}
 }
 window.applySectionLabels = applySectionLabels;
+
+/* 9-р анги (сурах бичгийн дараалал суусан, _PATH): «Learn» замын хуучин 25 гарчиг (тогтмол байрлалтай, хуучин бүлгийн нэртэй)-ийг нууж,
+   «Математик IX»-ийн I–IX бүлгийн гарчгийг бүлгийн эхний хичээлийн өмнө зурна. I — замын эхний гарчгийн байранд; II–IX — өмнөх
+   хичээл ба эхний хичээлийн хоорондох зайд, өмнөх хичээлийн ЭСРЭГ талд (хичээлийн нэр, замын шугамтай давхцахгүй).
+   [гарчиг, эхлэх node, нөөц эхлэх node] — api/_placement.js SPLITS_9_ORDERED-тэй ижил (tests/g9-pathmap.test.js тулгана). */
+var CM_G9_CHAPTERS = [['I. Тоон олонлог, зэрэг, язгуур', 901, 1], ['II. Процент, харьцаа, пропорц', 903, 82], ['III. Магадлал', 904, 77],
+  ['IV. Илэрхийлэл, тэгшитгэл, тэнцэтгэл биш', 905, 15], ['V. Дараалал, функц', 908, 47], ['VI. Дүрс, өнцөг, байгуулалт', 909, 59],
+  ['VII. Байршил, хөдөлгөөн, хувиргалт', 911, 89], ['VIII. Хэмжигдэхүүн', 912, 97], ['IX. Өгөгдөлтэй ажиллах', 914, 127]];
+var CM_G9_CH_COL = ['#58CC02', '#FF9600', '#1CB0F6', '#CE82FF', '#FF4B4B', '#00B8A9', '#7B52EE', '#E5A000', '#FF6FA8'];
+function cmG9ChapterLabels() {
+  var svg = document.getElementById('path-svg'); if (!svg) return;
+  Array.from(svg.querySelectorAll('.cm-g9ch')).forEach(function (e) { e.parentNode.removeChild(e); });
+  var P = window._PATH;
+  var on = !!(P && P.on && (cmUserGrade() === '9' || cmUserGrade() === 'teacher'));
+  /* Хуучин гарчиг (text + дэвсгэр 2 rect + хажуугийн 2 line) — 9-р ангийн шинэ замд нууна, бусад үед хөндөхгүй */
+  function legacy(n, show) {
+    var t = document.getElementById('section-label-' + n); if (!t) return null;
+    var parts = [t], p = t.previousElementSibling, k;
+    for (k = 0; k < 2 && p && p.tagName.toLowerCase() === 'rect'; k++, p = p.previousElementSibling) parts.push(p);
+    p = t.nextElementSibling;
+    for (k = 0; k < 2 && p && p.tagName.toLowerCase() === 'line'; k++, p = p.nextElementSibling) parts.push(p);
+    parts.forEach(function (e) { if (show === false) { e.setAttribute('data-cm-g9h', '1'); e.style.display = 'none'; } });
+    return t;
+  }
+  if (!on) {
+    Array.from(svg.querySelectorAll('[data-cm-g9h]')).forEach(function (e) { e.style.display = ''; e.removeAttribute('data-cm-g9h'); });
+    return;
+  }
+  for (var n = 2; n <= 30; n++) legacy(n, false);
+  var NS = 'http://www.w3.org/2000/svg';
+  function el(tag, at) { var e = document.createElementNS(NS, tag); for (var k in at) e.setAttribute(k, at[k]); return e; }
+  function slotOfCh(c) { for (var j = 1; j < c.length; j++) { var s = P.n2s[c[j]]; if (s) return s; } return null; }
+  function circ(s) { return svg.querySelector('circle[onclick="tryOpenLesson(' + s + ')"]'); }
+  var ord = cmSlotOrder();
+  CM_G9_CHAPTERS.forEach(function (c, i) {
+    var col = CM_G9_CH_COL[i % CM_G9_CH_COL.length], s = slotOfCh(c); if (!s) return;
+    if (i === 0) {   /* I бүлэг — замын эхний гарчгийн байр (дэвсгэр нь тэр урттай) */
+      var t1 = legacy(1); if (t1) { t1.textContent = c[0]; t1.style.display = ''; }
+      return;
+    }
+    var pi = ord.indexOf(s), ps = pi > 0 ? ord[pi - 1] : null, pc = ps && circ(ps); if (!pc) return;
+    var px = +pc.getAttribute('cx'), py = +pc.getAttribute('cy');
+    /* Өмнөх хичээлийн эсрэг тал: төв ба баруун (≥ 210) → зүүн, зүүн → баруун; дундах замын шугамаас холдуулна */
+    var lo = px >= 210 ? 12 : px + 140, hi = px >= 210 ? (px === 210 ? 130 : 150) : 408;
+    var fs = 11, cw = 6.6, maxc = Math.max(10, Math.floor((hi - lo - 20) / cw));
+    var words = c[0].split(' '), lines = [], cur = '';
+    words.forEach(function (w) { var nx = cur ? cur + ' ' + w : w; if (nx.length > maxc && cur) { lines.push(cur); cur = w; } else cur = nx; });
+    if (cur) lines.push(cur);
+    var longest = 0; lines.forEach(function (l) { longest = Math.max(longest, l.length); });
+    var w = Math.min(hi - lo, Math.round(longest * cw) + 22), h = lines.length * 13 + 10;
+    var x = Math.round((lo + hi) / 2 - w / 2), y = Math.round(py + 57 - h / 2);
+    var g = el('g', { 'class': 'cm-g9ch', 'pointer-events': 'none' });
+    g.appendChild(el('rect', { x: x, y: y, width: w, height: h, rx: Math.min(h / 2, 14), fill: col, 'fill-opacity': '0.12' }));
+    g.appendChild(el('rect', { x: x, y: y, width: w, height: h, rx: Math.min(h / 2, 14), fill: 'none', stroke: col, 'stroke-width': '1.5', opacity: '0.5' }));
+    var tx = el('text', { x: x + w / 2, y: y + 15, 'font-size': fs, fill: col, 'text-anchor': 'middle', 'font-weight': '800', 'font-family': 'sans-serif' });
+    lines.forEach(function (l, k) { var ts = el('tspan', { x: x + w / 2, dy: k ? 13 : 0 }); ts.textContent = l; tx.appendChild(ts); });
+    g.appendChild(tx);
+    svg.appendChild(g);
+  });
+}
 </script>
 <script src="/mathlive.min.js"></script>
 <style>

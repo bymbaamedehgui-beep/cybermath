@@ -68,3 +68,18 @@ test('tryOpenLesson: өмнөх слот SVG дарааллаар (126-ийн ө
   assert.match(body, /var _ord = cmSlotOrder\(\), _pi = _ord\.indexOf\(id\), _prev = _pi > 0 \? _ord\[_pi - 1\] : id - 1;/);
   assert.match(body, /if \(id === 1 \|\| c\.indexOf\(_prev\) !== -1 \|\| c\.indexOf\(id\) !== -1 \|\| id <= cmPlacementSlot\(\)\) \{/);
 });
+
+test('Learn замын бүлгийн гарчиг: CM_G9_CHAPTERS = api/_placement SPLITS_9_ORDERED (эхлэл ба нэр), I–IX дугаартай; эможигүй нэр', () => {
+  const m = /var CM_G9_CHAPTERS = (\[[\s\S]*?\]\]);/.exec(html);
+  assert.ok(m, 'CM_G9_CHAPTERS');
+  const CH = JSON.parse(JSON.stringify(vm.runInNewContext(m[1]))), PL = require('../api/_placement');   // vm-ийн массивыг энэ хүрээнд
+  assert.deepStrictEqual(CH.map(c => c.slice(1)), PL.SPLITS_9_ORDERED.map(s => s.slice(1)));
+  const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'];
+  assert.deepStrictEqual(CH.map(c => c[0]), PL.SPLITS_9_ORDERED.map((s, i) => ROMAN[i] + '. ' + s[0]));
+  assert.match(html, /try \{ cmG9ChapterLabels\(\); \} catch \(e\) \{\}\n\}\nwindow\.applySectionLabels = applySectionLabels;/);
+  // applyNodeName: бататгалын «📝/🏆» тэмдгийг замын бичвэрт харуулахгүй
+  const ctx = {}; vm.createContext(ctx); vm.runInContext(fn('applyNodeName'), ctx);
+  const el = { textContent: '' };
+  ctx.applyNodeName(el, '📝 Сорил 1'); assert.strictEqual(el.textContent, 'Сорил 1');
+  ctx.applyNodeName(el, '🏆 Эцэс'); assert.strictEqual(el.textContent, 'Эцэс');
+});
