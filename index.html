@@ -23,7 +23,7 @@
 <script src="/cm-graph.js?v=2" defer></script>
 <script src="/cm-fill.js?v=2" defer></script>
 <script src="/cm-ach.js?v=1" defer></script>
-<script src="/cm-onol.js?v=5" defer></script>
+<script src="/cm-onol.js?v=6" defer></script>
 <script src="/app-mobile.js?v=2" defer></script>
 <!-- Нүүр дэлгэцэнд нэмбэл (iPhone/Android) хөтчийн мөргүй апп шиг нээгдэнэ -->
 <meta name="mobile-web-app-capable" content="yes">
@@ -48542,11 +48542,13 @@ document.head.appendChild(cmStyle);
     // Intro HTML байгаа эсэхийг шалгах
     var nodes = JSON.parse(localStorage.getItem('cm_nodes') || '[]');
     var node = nodes.find(function(n){ return n.id === id; });
-    if (node && node.intro_html && node.intro_html.trim().length > 0) {
+    // cmOnol.over(id) — шинэ онол админы хуучин intro_html-ийг орлоно (9-р ангийн эхний 20 хичээл)
+    var onolOver = !!(window.cmOnol && window.cmOnol.over && window.cmOnol.over(id));
+    if (node && node.intro_html && node.intro_html.trim().length > 0 && !onolOver) {
       showIntroAndStart(id, node);
       return;
     }
-    // Онолын хуудас (cm-onol.js) — админы intro_html байхгүй хичээлд
+    // Онолын хуудас (cm-onol.js) — админы intro_html байхгүй (эсвэл over) хичээлд
     if (window.cmOnol && window.cmOnol.has(id)) {
       window.cmOnol.open(id, node);
       return;
@@ -48697,8 +48699,9 @@ document.head.appendChild(cmStyle);
   window.backToIntro = function() {
     var nodes = JSON.parse(localStorage.getItem('cm_nodes') || '[]');
     var node = nodes.find(function(n){ return n.id === currentLessonId; });
-    var onol = !(node && node.intro_html) && !!(window.cmOnol && window.cmOnol.has(currentLessonId));
-    if (!(node && node.intro_html) && !onol) return;
+    var adm = !!(node && node.intro_html) && !(window.cmOnol && window.cmOnol.over && window.cmOnol.over(currentLessonId));
+    var onol = !adm && !!(window.cmOnol && window.cmOnol.has(currentLessonId));
+    if (!adm && !onol) return;
     // Одоогийн progress-ыг хадгалаад intro руу буцах. Дасгалаа үргэлжлүүлэхэд яг тэр асуултаас сэргэнэ
     saveLessonProgress(currentLessonId, { currentQ: currentQ, score: score, mistakes: mistakes });
     if (onol) window.cmOnol.open(currentLessonId, node, { resume: true });

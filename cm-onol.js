@@ -1,7 +1,7 @@
 /* CyberMath — хичээлийн өмнөх «Онол» (cm-onol.js + cm-onol.css; агуулга onol/gNN.js).
    Хичээл бүрт 6–8 алхамтай богино аялал: сонирхолтой эхлэл → гол санаа (чирж, гулсуулж үздэг зураг) → томьёо →
    алхам алхмаар жишээ → анхаарах алдаа → өөрөө шалгах → товчхондоо → «Дасгал эхлэх».
-   index.html-д 3 холбоос: openLesson (админы intro_html байхгүй үед cmOnol.has(id) → cmOnol.open), backToIntro
+   index.html-д 3 холбоос: openLesson (админы intro_html байхгүй эсвэл cmOnol.over(id) үед cmOnol.has(id) → cmOnol.open), backToIntro
    (дасгалын «Онол» товч), renderQuestion (_hasIntro). Агуулгын сав тухайн ангийн хичээл нээгдэх үед л ачаалагдана.
    Бодлого, оноо, явцад ХҮРЭХГҮЙ — эхлүүлэхдээ сайтын startLessonAfterIntro(id)-г дуудна. */
 (function () {
@@ -9,8 +9,11 @@
   var d = document, W = window;
   if (W.cmOnol) return;
 
-  // Ангийн агуулгын сав: node id-ийн муж → файл
-  var PACKS = [{ lo: 601, hi: 621, src: '/onol/g12.js?v=1' }, { lo: 801, hi: 851, src: '/onol/g11.js?v=2' }, { lo: 401, hi: 473, src: '/onol/g10.js?v=2' }];
+  // Ангийн агуулгын сав: node id-ийн муж (эсвэл ids жагсаалт) → файл.
+  // over: true — тэр хичээлд админы хуучин intro_html байсан ч энэ онол харагдана (9-р ангийн эхний 20 хичээлээс онол бэлэн нь;
+  // ids нь onol/g9.js-ийн хичээлтэй ЯГ ижил байх — үгүй бол хуучин онол нь далдлагдаж шинэ нь ачаалагдахгүй).
+  var PACKS = [{ lo: 601, hi: 621, src: '/onol/g12.js?v=1' }, { lo: 801, hi: 851, src: '/onol/g11.js?v=2' }, { lo: 401, hi: 473, src: '/onol/g10.js?v=2' },
+    { ids: [1, 2, 13, 14, 15, 17, 18, 19, 20, 21, 23, 24], src: '/onol/g9.js?v=1', over: true }];
   var DATA = {}, WG = {}, S = null, UID = 0;
 
   /* ════════ Туслах ════════ */
@@ -1089,7 +1092,10 @@
   }
 
   /* ════════ Сав ачаалах, нээх ════════ */
-  function packOf(id) { for (var i = 0; i < PACKS.length; i++) if (id >= PACKS[i].lo && id <= PACKS[i].hi) return PACKS[i]; return null; }
+  function packOf(id) {
+    for (var i = 0; i < PACKS.length; i++) { var p = PACKS[i]; if (p.ids ? p.ids.indexOf(id) >= 0 : id >= p.lo && id <= p.hi) return p; }
+    return null;
+  }
   function load(pk, cb) {
     if (pk.ok) return cb(true);
     if (pk.q) return pk.q.push(cb);
@@ -1102,6 +1108,7 @@
     d.head.appendChild(s);
   }
   function has(id) { id = +id; return !!(id && (DATA[id] || packOf(id))); }
+  function over(id) { var p = packOf(+id); return !!(p && p.over); }   // админы intro_html-ээс давамгайлах эсэх
   function open(id, node, opt) {
     id = +id;
     if (DATA[id]) return show(id, node, opt);
@@ -1126,5 +1133,5 @@
   }
   if (d.readyState === 'loading') d.addEventListener('DOMContentLoaded', init); else init();
 
-  W.cmOnol = { has: has, open: open, pack: pack, md: md, util: { polyTex: polyTex, rnd: rnd, par: par, xm: xm }, _data: DATA, _t: { trig: trig, radTex: radTex, polyTex: polyTex, piLab: piLab, md: md } };
+  W.cmOnol = { has: has, over: over, open: open, pack: pack, md: md, util: { polyTex: polyTex, rnd: rnd, par: par, xm: xm }, _data: DATA, _t: { trig: trig, radTex: radTex, polyTex: polyTex, piLab: piLab, md: md } };
 })();
