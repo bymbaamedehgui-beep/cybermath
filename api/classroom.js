@@ -88,7 +88,8 @@ module.exports = async (req, res) => {
       }
 
       if (join_code) {
-        const r = await pool.query('SELECT * FROM classrooms WHERE join_code=$1', [join_code.toUpperCase()]);
+        // Ангийн QR-ын урилга — нэвтрээгүй хүн дууддаг тул багшийн имэйл зэрэг багана буцаахгүй
+        const r = await pool.query('SELECT name, grade, join_code FROM classrooms WHERE join_code=$1', [join_code.toUpperCase()]);
         if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Код олдсонгүй' });
         return res.json({ ok: true, classroom: r.rows[0] });
       }
@@ -241,7 +242,9 @@ module.exports = async (req, res) => {
         const c = await pool.query('SELECT * FROM classrooms WHERE join_code=$1', [join_code.toUpperCase()]);
         if (!c.rows.length) return res.status(404).json({ ok: false, error: 'Код буруу байна' });
         const classroom = c.rows[0];
-        await pool.query(
+        // QR-ыг дахин уншуулж болно — сурагч жагсаалтад хоёр дахин гарахгүй
+        const already = await pool.query('SELECT 1 FROM class_members WHERE classroom_id=$1 AND student_email=$2', [classroom.id, student_email]);
+        if (!already.rows.length) await pool.query(
           'INSERT INTO class_members (classroom_id, student_email) VALUES ($1,$2) ON CONFLICT DO NOTHING',
           [classroom.id, student_email]
         );
