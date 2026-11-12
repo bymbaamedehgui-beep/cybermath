@@ -57,6 +57,23 @@
     b.onclick=function(){window.wsSaveCurrent(b);};
     bar.appendChild(b);
   }
+  // ─── Смарт дэлгэц: «Самбар» — зүүн талд хуудас, баруун талд гараар бичих самбар (ws-board.js-ийг дарахад л ачаална) ───
+  var ICO_BOARD='<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="13" rx="2"/><path d="M12 17v3M8 21h8M7 12.5l3-3 2.5 2.5L17 7.5"/></svg>';
+  function boardBtn(){
+    var bar=document.querySelector('.bar'); if(!bar||bar.querySelector('.ws-board'))return;
+    var b=document.createElement('button');
+    b.className='btn ws-board'; b.type='button'; b.title='Смарт дэлгэц: хуудас + гараар бичих самбар';
+    b.innerHTML=ICO_BOARD+'Самбар';
+    b.onclick=function(){
+      if(window.wsBoard){window.wsBoard.toggle();return;}
+      b.disabled=true;
+      var s=document.createElement('script'); s.src='/ws-board.js?v=1';
+      s.onload=function(){b.disabled=false; if(window.wsBoard)window.wsBoard.open();};
+      s.onerror=function(){b.disabled=false; if(s.parentNode)s.parentNode.removeChild(s); alert('Самбар ачаалж чадсангүй. Дахин оролдоно уу.');};
+      document.head.appendChild(s);
+    };
+    bar.appendChild(b);
+  }
   // ─── QR / сурагчийн горим: ?qr=1 бол хариу ба бодолт харагдахгүй ───
   var IS_QR=/[?&]qr=1(&|$)/.test(location.search);
   // ?work=1 — бодолтын зайтайгаар шууд нээнэ (хэвлэх, багц PDF-д тохиромжтой)
@@ -718,6 +735,8 @@
       +B+'>label input[type=checkbox]:checked::after{transform:translateX(13px)}'
       +B+'>label input[type=checkbox]:focus-visible{outline:2px solid #A78BFA;outline-offset:2px}'
       +B+'>button[onclick*="print"]{order:4;margin-left:auto;padding:0 18px;color:#fff;background:linear-gradient(135deg,#7B52EE,#A855F7);box-shadow:0 3px 0 #5532C9}'
+      +B+'>.ws-board{order:3;background:#EEF2FF;color:#3730A3}'
+      +'@media (max-width:900px){'+B+'>.ws-board{display:none}}'   /* смарт дэлгэц/компьютерт — утсанд самбар багтахгүй */
       /* Мөр таслах */
       +B+'>.cmbar-br{order:5;flex-basis:100%;height:0;margin:2px 0 0;border-top:1px dashed #ECE7FA}'
       /* Доод мөр: Тэмдэглэх · Ангиар хэвлэх · Үнэгүй ··· Бодолтын зай 100% · N бодлого · Анхны хэмжээ */
@@ -1944,7 +1963,7 @@
     b.onclick=function(){ cmtPicker(b); };
     bar.appendChild(b);
   }
-  function init(){ tidyBar(); injectBrandCSS(); brandSheet(); watchSheet(); enhanceMeta(); loadInstr(); if(!IS_QR){addBtn();addBatchBtn();addWorkToggle();hookPrintAsk();vidBtn();} themeInit(); addRefreshShortcut(); applyQR(); enforcePaywall(); injectSocial(); applyWantWork(); addWorkResize(); try{wscApply();}catch(e){} }
+  function init(){ tidyBar(); injectBrandCSS(); brandSheet(); watchSheet(); enhanceMeta(); loadInstr(); if(!IS_QR){addBtn();addBatchBtn();addWorkToggle();hookPrintAsk();vidBtn();boardBtn();} themeInit(); addRefreshShortcut(); applyQR(); enforcePaywall(); injectSocial(); applyWantWork(); addWorkResize(); try{wscApply();}catch(e){} }
   if(document.readyState!=='loading')init();
   else document.addEventListener('DOMContentLoaded',init);
 })();
