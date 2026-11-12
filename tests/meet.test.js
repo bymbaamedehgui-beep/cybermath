@@ -119,8 +119,9 @@ test('админ: тохиргоо хадгалах, холбоос зөвхөн
   assert.strictEqual((await post(Object.assign({}, base, { at: '2026-11-13T19:00' }), true)).code, 400, 'цагийн бүсгүй огноо');
   const s = await post(Object.assign({}, base, { link: 'https://meet.google.com/abc-defg-hij' }), true);
   assert.strictEqual(s.body.ok, true);
-  assert.strictEqual(s.body.cfg.poster, MEET.DEFAULT.poster, 'постер хэвээр');
+  assert.ok(!('poster' in JSON.parse(db.settings.meet)), 'постер DB-д хадгалагдахгүй (кодын статик файл)');
   const g = await get();
+  assert.strictEqual(g.body.meet.poster, MEET.DEFAULT.poster);
   assert.strictEqual(g.body.meet.hasLink, true);
   assert.ok(!('link' in g.body.meet));
   assert.strictEqual((await post({ action: 'meet_me', id: first.id, key: first.key })).body.link, 'https://meet.google.com/abc-defg-hij');

@@ -16,10 +16,10 @@ const JWT_SECRET = process.env.JWT_SECRET || 'cybermath-default-secret-change-in
 const DEFAULT = {
   title: 'CyberMath-ийг хичээлдээ хэрхэн ашиглах вэ?',
   at: '2026-11-13T19:00:00+08:00', mins: 120, link: '', active: true,
-  poster: '/assets/meet/poster-2026-11-13.jpg',
+  poster: '/assets/meet/poster-2026-11-13b.jpg',
 };
 const USAGE = { using: 'Одоо ашиглаж байгаа', heard: 'Сонссон, ашиглаж үзээгүй', new: 'Анх удаа сонсож байна' };
-const INTERESTS = { ws: 'Ажлын хуудас', exam: 'Жишиг даалгавар ба шалгалт', ppt: 'Слайд хичээл', class: 'Анги ба QR', mathlet: 'Mathlet тэмцээн', eesh: 'ЭЕШ-ийн бэлтгэл' };
+const INTERESTS = { ws: 'Ажлын хуудас', exam: 'Жишиг даалгавар ба шалгалт', ppt: 'Слайд хичээл', games: 'Математик тоглоомууд', class: 'Анги ба QR', mathlet: 'Mathlet тэмцээн', eesh: 'ЭЕШ-ийн бэлтгэл' };
 
 function isAdmin(req) {
   const auth = req.headers.authorization || req.headers.Authorization || '';
@@ -27,15 +27,7 @@ function isAdmin(req) {
   try { const d = jwt.verify(auth.slice(7), JWT_SECRET); return !!(d && d.admin); } catch (e) { return false; }
 }
 
-// Шинэ бүртгэлийг эзэмшигчид Telegram-аар (api/worksheets.js-ийн sendTelegram-тай ижил; env байхгүй бол алгасна)
-async function telegram(text) {
-  const token = process.env.TELEGRAM_BOT_TOKEN, chat = process.env.TELEGRAM_CHAT_ID;
-  if (!token || !chat) return;
-  try {
-    await fetch('https://api.telegram.org/bot' + token + '/sendMessage', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chat, text: text, parse_mode: 'HTML', disable_web_page_preview: true }) });
-  } catch (e) { console.error('[meet telegram]', e.message); }
-}
+const TG = require('./_telegram');   // шинэ бүртгэл бүрийг эзэмшигчид Telegram-аар
 
 let _ready = null;
 function tables() {
@@ -72,7 +64,7 @@ async function config() {
   const r = await pool.query(`SELECT sval FROM ws_settings WHERE skey='meet'`);
   let c = {};
   if (r.rows.length) { try { c = JSON.parse(r.rows[0].sval || '{}') || {}; } catch (e) { c = {}; } }
-  return Object.assign({}, DEFAULT, c);
+  return Object.assign({}, DEFAULT, c, { poster: DEFAULT.poster });   // постер — кодын статик файл (DB-д хадгалахгүй)
 }
 // Уулзалтын түлхүүр — бүртгэлийг уулзалт тус бүрээр (Улаанбаатарын огноогоор) ялгана
 const meetKey = (c) => new Date(Date.parse(c.at) + 8 * 3600e3).toISOString().slice(0, 10);
@@ -120,9 +112,15 @@ async function handle(req, res) {
          RETURNING id, rkey, (xmax = 0) AS fresh`, vals);
       const row = r.rows[0];
       const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      if (row.fresh !== false) await telegram('📝 <b>Уулзалтын бүртгэл</b> (' + meetKey(c) + ')\n\n👤 ' + esc(name) + '\n📞 ' + phone
-        + (email ? '\n📧 ' + esc(email) : '') + (vals[5] ? '\n🏫 ' + esc(vals[5]) : '') + (vals[6] ? ', ' + esc(vals[6]) : '')
-        + (grades.length ? '\n📚 ' + grades.join(', ') + '-р анги' : '') + (usage ? '\n• ' + USAGE[usage] : ''));
+      if (row.fresh !== false) {
+        let total = '';
+        try { total = (await pool.query('SELECT COUNT(*)::int AS n FROM ws_meet_regs WHERE meet=$1', [meetKey(c)])).rows[0].n; } catch (e) { /* тоо заавал биш */ }
+        await TG.sendTelegram('📝 <b>Уулзалтын бүртгэл</b> (' + meetKey(c) + (total ? ' · нийт ' + total : '') + ')\n\n👤 ' + esc(name) + '\n📞 ' + phone
+          + (email ? '\n📧 ' + esc(email) : '') + (vals[5] ? '\n🏫 ' + esc(vals[5]) : '') + (vals[6] ? ', ' + esc(vals[6]) : '')
+          + (grades.length ? '\n📚 ' + grades.join(', ') + '-р анги' : '') + (usage ? '\n• ' + USAGE[usage] : '')
+          + (interests.length ? '\n⭐ ' + interests.map((k) => INTERESTS[k]).join(', ') : '')
+          + (vals[10] ? '\n❓ ' + esc(vals[10]) : ''));
+      }
       return res.json({ ok: true, id: Number(row.id), key: row.rkey, link: c.link || null, meet: pub(c) }), true;
     }
 
@@ -145,8 +143,7 @@ async function handle(req, res) {
       if (!title) return res.status(400).json({ ok: false, error: 'Гарчиг оруулна уу' }), true;
       if (!Number.isFinite(Date.parse(at)) || !/[+-]\d\d:\d\d$|Z$/.test(at)) return res.status(400).json({ ok: false, error: 'Огноо, цаг буруу' }), true;
       if (link && !/^https:\/\/[^\s<>"']+$/.test(link)) return res.status(400).json({ ok: false, error: 'Холбоос https:// -ээр эхэлнэ' }), true;
-      const prev = await config();
-      const c = { title, at, mins: Math.min(600, Math.max(15, parseInt(b.mins, 10) || 120)), link: link.slice(0, 300), active: b.active !== false, poster: prev.poster };
+      const c = { title, at, mins: Math.min(600, Math.max(15, parseInt(b.mins, 10) || 120)), link: link.slice(0, 300), active: b.active !== false };
       await pool.query(`INSERT INTO ws_settings (skey, sval, updated_at) VALUES ('meet',$1,NOW())
         ON CONFLICT (skey) DO UPDATE SET sval=EXCLUDED.sval, updated_at=NOW()`, [JSON.stringify(c)]);
       return res.json({ ok: true, cfg: c, key: meetKey(c), open: isOpen(c) }), true;

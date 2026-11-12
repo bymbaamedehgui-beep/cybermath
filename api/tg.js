@@ -2,6 +2,7 @@
 // Env: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TG_WEBHOOK_SECRET
 // Нэг удаа тохируулах: GET  /api/tg?setup=1&secret=<TG_WEBHOOK_SECRET>
 const pool = require('./_db');
+const TG = require('./_telegram');
 const { sendFeedbackReply } = require('./_email');
 
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -10,12 +11,7 @@ const SECRET = process.env.TG_WEBHOOK_SECRET || '';
 
 async function tgSend(chatId, text, replyTo) {
   if (!TOKEN) return;
-  try {
-    await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text: text, reply_to_message_id: replyTo, disable_web_page_preview: true })
-    });
-  } catch (e) { console.error('[tg send]', e.message); }
+  await TG.call('sendMessage', { chat_id: chatId, text: text, reply_to_message_id: replyTo, disable_web_page_preview: true });
 }
 
 module.exports = async (req, res) => {
@@ -27,13 +23,8 @@ module.exports = async (req, res) => {
     if (!TOKEN) return res.status(400).json({ ok: false, error: 'TELEGRAM_BOT_TOKEN тохируулаагүй байна' });
     const proto = req.headers['x-forwarded-proto'] || 'https';
     const url = `${proto}://${req.headers['host']}/api/tg?secret=${encodeURIComponent(SECRET)}`;
-    try {
-      const r = await fetch(`https://api.telegram.org/bot${TOKEN}/setWebhook`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, secret_token: SECRET, allowed_updates: ['message'], drop_pending_updates: true })
-      });
-      return res.status(200).json({ ok: true, webhook_url: url, telegram: await r.json() });
-    } catch (e) { return res.status(500).json({ ok: false, error: e.message }); }
+    const tr = await TG.call('setWebhook', { url, secret_token: SECRET, allowed_updates: ['message'], drop_pending_updates: true });
+    return res.status(tr && tr.ok ? 200 : 500).json({ ok: !!(tr && tr.ok), webhook_url: url, telegram: tr });
   }
 
   // ── Оношлогоо: webhook бүртгэгдсэн эсэх / орчны хувьсагч шалгах ──
@@ -41,8 +32,8 @@ module.exports = async (req, res) => {
     if (!SECRET || q.secret !== SECRET) return res.status(403).json({ ok: false, error: 'secret буруу эсвэл TG_WEBHOOK_SECRET тохируулаагүй' });
     if (q.info) {
       if (!TOKEN) return res.status(400).json({ ok: false, error: 'TELEGRAM_BOT_TOKEN алга' });
-      try { const r = await fetch(`https://api.telegram.org/bot${TOKEN}/getWebhookInfo`); return res.status(200).json(await r.json()); }
-      catch (e) { return res.status(500).json({ ok: false, error: e.message }); }
+      const wi = await TG.call('getWebhookInfo', {});
+      return res.status(wi && wi.ok ? 200 : 500).json(wi);
     }
     let mapped = 0;
     try { const c = await pool.query('SELECT COUNT(*)::int AS n FROM ws_feedback WHERE tg_msg_id IS NOT NULL'); mapped = c.rows[0].n; } catch (e) {}

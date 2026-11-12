@@ -569,7 +569,7 @@ function stub(rel, exports) {
   require.cache[f] = { id: f, filename: f, loaded: true, exports: exports };
 }
 stub('_db.js', pool);
-stub('_telegram.js', { sendTelegram: async function () { return { ok: true }; } });
+stub('_telegram.js', { sendTelegram: async function (t) { tg.push(String(t)); return { ok: true }; } });
 stub('_email.js', new Proxy({}, { get: function () { return async function () { return { ok: true }; }; } }));
 
 // ── QPay + Telegram fetch stub (бодит сүлжээ 0) ──

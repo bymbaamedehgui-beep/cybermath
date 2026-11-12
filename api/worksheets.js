@@ -294,15 +294,8 @@ function isAdmin(req) {
 
 // Санал хүсэлт ирэхэд Telegram-аар мэдэгдэх (env: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
 async function sendTelegram(text) {
-  const token = process.env.TELEGRAM_BOT_TOKEN, chat = process.env.TELEGRAM_CHAT_ID;
-  if (!token || !chat) return null;
-  try {
-    const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chat, text: text, parse_mode: 'HTML', disable_web_page_preview: true })
-    });
-    return await r.json();   // { ok, result: { message_id, ... } }
-  } catch (e) { console.error('[telegram]', e.message); return null; }
+  const j = await tg.sendTelegram(text);   // api/_telegram.js — { ok, result: { message_id, ... } }
+  return j && j.ok ? j : null;
 }
 
 module.exports = async (req, res) => {

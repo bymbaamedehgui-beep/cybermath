@@ -8,14 +8,7 @@ function escTg(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').rep
 function jwtSecret() { return process.env.JWT_SECRET || ''; }
 // Telegram мэдэгдэл (сургалтын төлбөр гэх мэт)
 async function notifyTelegram(text) {
-  const tok = process.env.TELEGRAM_BOT_TOKEN, chat = process.env.TELEGRAM_CHAT_ID;
-  if (!tok || !chat) return;
-  try {
-    await fetch(`https://api.telegram.org/bot${tok}/sendMessage`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chat, text: text, parse_mode: 'HTML', disable_web_page_preview: true })
-    });
-  } catch (e) { console.error('[qpay tg]', e.message); }
+  await require('./_telegram').sendTelegram(text);   // IPv4, хугацаатай, алдааны шалтгааныг логт бичнэ
 }
 // Ажлын хуудсын шаталсан үнэ (сараар). 3 сараас багагүй.
 const WS_PRICES = { 3: 39900, 6: 69900, 9: 99900, 12: 119900 };
