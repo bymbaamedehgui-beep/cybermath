@@ -318,6 +318,13 @@
   .ppt-wrap{background:linear-gradient(135deg,#eef4ff,#f5f0ff);border-color:#d6e0ff}
   .ppt-wrap .game-head .tag{background:linear-gradient(135deg,#2563eb,var(--purple))}
   .pcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:11px}
+  /* Ангиар ангилах: чип (Бүгд · 10-р анги · …) + «Бүгд» дээр анги бүр гарчигтай */
+  .chips.pgr{margin:0 0 12px}
+  .chips.pgr .chip b{font-weight:800;opacity:.7;margin-left:3px}
+  .chips.pgr .chip:disabled{opacity:.45;cursor:default}
+  .pgrp+.pgrp{margin-top:18px}
+  .pgrp-h{display:flex;align-items:center;gap:8px;font-weight:900;font-size:1rem;color:var(--purple-d);margin:0 0 8px}
+  .pgrp-h span{font-size:.74rem;font-weight:800;color:var(--soft);background:#fff;border:1px solid var(--line);border-radius:999px;padding:.12rem .55rem}
   .ppt-wrap.collapsed .pcard.gx{display:none}
   .pcard{display:flex;flex-direction:column;min-width:0;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;text-decoration:none;color:inherit;box-shadow:0 8px 22px -16px rgba(37,99,235,.55);transition:transform .15s,box-shadow .15s,border-color .15s}
   .pcard:hover{transform:translateY(-2px);box-shadow:0 16px 30px -16px rgba(37,99,235,.7);border-color:#c7d5ff}
@@ -487,6 +494,7 @@
     <div class="game-head"><span class="tag">Слайд</span><h2 id="slidesTitle">Слайд хичээлүүд</h2><span class="gcount" id="slidesCount"></span></div>
     <div class="ppt-hl"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="m9 9.5 2 2 4-4"/></svg><div>Слайд бүрт <b>сурах бичгийн бүх бодлогын бодолт, бодох арга</b> алхам алхмаар, анимейшнтэйгээр орсон.</div></div>
     <div class="game-sub">PowerPoint-гүйгээр шууд үзнэ — товших, сум дарахад алхам алхмаар үргэлжилнэ. Нэг хичээл <b id="pptPriceTxt">1,900₮</b> — <b>1 сар</b>. Сагсанд хэд хэдийг хийгээд нэг дор төлнө. Эхний 2 слайд үнэгүй.</div>
+    <div class="chips pgr" id="pptGrades" role="group" aria-label="Анги" hidden></div>
     <div class="pcards" id="pcards"></div>
     <button type="button" class="gmore" id="slidesMore" hidden></button>
   </section>
@@ -2773,9 +2781,16 @@ startPromoBuy();
 var PPTW=(function(){
   var decks=[],sec=document.getElementById('slidesSec'),box=document.getElementById('pcards'),more=document.getElementById('slidesMore');
   var ICO_PLAY='<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg>';
-  var SHOW=8;
-  function card(d,i){
-    return '<a class="pcard'+(i>=SHOW?' gx':'')+'" href="/ppt.html?id='+d.id+'">'
+  var SHOW=8,SHOW_G=4,pg=null,lastBand,GRALL=[],chipsEl=document.getElementById('pptGrades');
+  function gnum(g){var m=/\d+/.exec(g||'');return m?+m[0]:99;}
+  // Анги (тоогоор) → бүлэг.сэдэв дугаар («4.1 …») → дугааргүй нь (нэмэлт даалгавар г.м.) серверийн дарааллаар төгсгөлд
+  function ordered(L){
+    return L.map(function(d,i){var m=/^(\d+)\.(\d+)/.exec(d.title||'');return {d:d,k:[gnum(d.grade),m?0:1,m?+m[1]:0,m?+m[2]:0,i]};})
+      .sort(function(a,b){for(var j=0;j<5;j++)if(a.k[j]!==b.k[j])return a.k[j]-b.k[j];return 0;})
+      .map(function(x){return x.d;});
+  }
+  function card(d,i,lim){
+    return '<a class="pcard'+(i>=lim?' gx':'')+'" href="/ppt.html?id='+d.id+'">'
       +'<span class="pthumb">'+(d.poster?'<img loading="lazy" src="'+esc(d.poster)+'" alt="">':'')+'<span class="pplay">'+ICO_PLAY+'</span></span>'
       +'<span class="pbody"><span class="pname">'+esc(d.title)+'</span>'
       +'<span class="pmeta"><span class="gbadge multi">'+esc(d.grade)+'</span><span class="gbadge multi">'+d.slides+' слайд</span>'
@@ -2784,18 +2799,45 @@ var PPTW=(function(){
   }
   function filter(){
     if(!decks.length){sec.hidden=true;return;}
-    var g=(activeBand&&/\d/.test(activeBand))?activeBand:null;
+    var band=(activeBand&&/\d/.test(activeBand))?activeBand:null;
+    if(band!==lastBand){lastBand=band;pg=null;}        // зүүн талд анги сонгоход тэр ангиас эхэлнэ
     var q=norm(document.getElementById('q').value.trim());
-    var L=decks.filter(function(d){return (!g||d.grade===g)&&(!q||norm(d.title+' '+(d.topic||'')+' '+d.grade).indexOf(q)>=0);});
-    sec.hidden=!L.length;
-    box.innerHTML=L.map(card).join('');
+    var all=ordered(decks.filter(function(d){return !q||norm(d.title+' '+(d.topic||'')+' '+d.grade).indexOf(q)>=0;}));
+    var cnt={};all.forEach(function(d){cnt[d.grade]=(cnt[d.grade]||0)+1;});
+    var g=pg!==null?pg:(band||'all');
+    if(pg===null&&band&&!cnt[band]){sec.hidden=true;return;}   // сонгосон ангид слайд алга
+    if(g!=='all'&&!cnt[g])g='all';
+    var L=g==='all'?all:all.filter(function(d){return d.grade===g;});
+    sec.hidden=!all.length;
+    // Ангийн чип — 2 ба түүнээс олон ангид слайд байвал
+    chipsEl.hidden=GRALL.length<2;
+    if(!chipsEl.hidden)chipsEl.innerHTML='<button type="button" class="chip'+(g==='all'?' on':'')+'" data-i="-1" aria-pressed="'+(g==='all')+'">Бүгд<b>'+all.length+'</b></button>'
+      +GRALL.map(function(gr,i){var n=cnt[gr]||0;return '<button type="button" class="chip'+(g===gr?' on':'')+'" data-i="'+i+'" aria-pressed="'+(g===gr)+'"'+(n?'':' disabled')+'>'+esc(gr)+'<b>'+n+'</b></button>';}).join('');
+    var grouped=g==='all'&&Object.keys(cnt).length>1,over;
+    if(grouped){
+      box.className='pgroups';
+      box.innerHTML=GRALL.filter(function(gr){return cnt[gr];}).map(function(gr){
+        return '<div class="pgrp"><div class="pgrp-h">'+esc(gr)+'<span>'+cnt[gr]+' хичээл</span></div><div class="pcards">'
+          +L.filter(function(d){return d.grade===gr;}).map(function(d,i){return card(d,i,SHOW_G);}).join('')+'</div></div>';
+      }).join('');
+      over=GRALL.some(function(gr){return (cnt[gr]||0)>SHOW_G;});
+    }else{
+      box.className='pcards';
+      box.innerHTML=L.map(function(d,i){return card(d,i,SHOW);}).join('');
+      over=L.length>SHOW;
+    }
     document.getElementById('slidesCount').textContent=L.length+' хичээл';
-    more.hidden=L.length<=SHOW;
+    more.hidden=!over;
     more.textContent=sec.classList.contains('collapsed')?'Бүгдийг харах ('+L.length+')':'Хураах';
   }
   more.onclick=function(){sec.classList.toggle('collapsed');filter();};
+  chipsEl.addEventListener('click',function(e){
+    var b=e.target.closest('.chip'); if(!b||b.disabled)return;
+    var i=+b.getAttribute('data-i'); pg=i<0?'all':GRALL[i]; filter();
+  });
   fetch('/api/wsppt?action=list').then(function(r){return r.json();}).then(function(j){
     decks=(j&&j.decks)||[];
+    GRALL=[];ordered(decks).forEach(function(d){if(GRALL.indexOf(d.grade)<0)GRALL.push(d.grade);});   // анги тоогоор өсөх
     if(j&&j.price&&window.PPTCART)PPTCART.setPrice(j.price);
     PPT_BY_SG={}; decks.forEach(function(d){ if(d.sg)(PPT_BY_SG[d.sg]=PPT_BY_SG[d.sg]||[]).push(d); });
     [].forEach.call(document.querySelectorAll('.sg-ppt[data-sgid]'),function(el){ el.innerHTML=pptChips(+el.getAttribute('data-sgid')); });
