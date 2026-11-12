@@ -472,6 +472,7 @@
     </div>
   </div>
 
+  <div id="meetBanner"></div>
   <div id="eventBanner"></div>
 
   <section id="gamesSec" class="game-wrap collapsed" hidden aria-labelledby="gamesTitle">
@@ -2819,6 +2820,58 @@ fetch('/api/worksheets?titles=1').then(function(r){return r.json();})
   })
   .catch(function(){})
   .then(function(){computeNew();renderCatalog();updateNewCount();initReorder();});
+</script>
+<script>
+/* ── Багш нарт зориулсан онлайн уулзалт (api/_meet.js): бүх хэрэглэгчид баннер + өдөрт нэг удаа постертэй цонх; бүртгэл → /meet ──
+   Уулзалт дуусах эсвэл админ идэвхгүй болгоход API meet:null буцааж, юу ч гарахгүй. */
+(function(){
+  var DOW=['Ням','Даваа','Мягмар','Лхагва','Пүрэв','Баасан','Бямба'];
+  function h(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  function ls(k,v){try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v);}catch(e){return null;}}
+  function ub(ms){var d=new Date(ms+8*3600e3);return {m:d.getUTCMonth()+1,d:d.getUTCDate(),w:d.getUTCDay(),hm:('0'+d.getUTCHours()).slice(-2)+':'+('0'+d.getUTCMinutes()).slice(-2),day:Math.floor((ms+8*3600e3)/864e5)};}
+  var CAM='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="13" height="12" rx="2.5"/><path d="M15.5 10.5 21 7.5v9l-5.5-3"/></svg>';
+  var X='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+  fetch('/api/worksheets?meet=1').then(function(r){return r.json();}).then(function(d){
+    var m=d&&d.meet,el=document.getElementById('meetBanner'); if(!m||!el)return;
+    var reg=null; try{reg=JSON.parse(ls('cm_meet_reg_'+m.key)||'null');}catch(e){}
+    var t=Date.parse(m.at),u=ub(t),dd=u.day-ub(Date.now()).day;
+    var when=(dd===0?'Өнөөдөр, ':dd===1?'Маргааш, ':'')+u.m+' сарын '+u.d+' ('+DOW[u.w]+') '+u.hm+' · '+h(m.platform||'Google Meet');
+    var label=m.live?(reg?'Нэгдэх':'Бүртгүүлж нэгдэх'):(reg?'Бүртгэгдсэн — дэлгэрэнгүй':'Бүртгүүлэх');
+    el.innerHTML='<div style="background:#fff;border:1px solid #ece7fb;border-left:5px solid var(--purple);border-radius:16px;padding:15px 18px;margin-bottom:16px;box-shadow:0 12px 34px -22px rgba(90,50,214,.55);display:flex;flex-wrap:wrap;gap:12px 16px;align-items:center">'
+      +'<span style="flex:none;width:48px;height:48px;border-radius:14px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2))">'+CAM+'</span>'
+      +'<div style="flex:1;min-width:200px">'
+        +'<span style="display:inline-flex;align-items:center;gap:6px;background:#f3eefe;color:#7B52EE;border-radius:999px;padding:.18rem .7rem;font-size:.7rem;font-weight:900;letter-spacing:.4px">'+(m.live?'<span style="width:7px;height:7px;border-radius:50%;background:#FF4B6E"></span>ОДОО ЯВАГДАЖ БАЙНА':'БАГШ НАРТ · ОНЛАЙН УУЛЗАЛТ')+'</span>'
+        +'<div style="font-size:1.1rem;font-weight:900;line-height:1.25;color:#211C54;margin-top:6px">'+h(m.title)+'</div>'
+        +'<div style="font-size:.86rem;color:#6b6590;font-weight:800;margin-top:3px">'+when+'</div>'
+      +'</div>'
+      +'<a href="/meet" style="text-decoration:none;border-radius:12px;padding:.65rem 1.4rem;font-weight:800;font-size:.92rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2));box-shadow:0 10px 22px -12px rgba(123,82,238,.9)">'+label+'</a>'
+    +'</div>';
+    // Бүртгүүлээгүй хүнд өдөрт нэг удаа постертэй цонх
+    var pk='cm_meet_pop_'+m.key,today=String(ub(Date.now()).day);
+    if(reg||ls(pk)===today)return;
+    var tries=0;
+    setTimeout(function show(){
+      if(document.getElementById('meetPop'))return;
+      // Нэвтрэх / сургалтын цонх нээлттэй бол давхарлахгүй — хаагдтал хүлээнэ (2 минут хүртэл)
+      if(document.getElementById('wsLogin')||document.getElementById('evModal')){if(++tries<120)setTimeout(show,1000);return;}
+      ls(pk,today);
+      var o=document.createElement('div');o.id='meetPop';
+      o.style.cssText='position:fixed;inset:0;z-index:205;background:rgba(20,15,40,.62);display:grid;place-items:center;padding:16px;overflow-y:auto';
+      o.innerHTML='<div style="position:relative;background:#fff;border-radius:20px;max-width:440px;width:100%;padding:14px;box-shadow:0 24px 60px -18px rgba(0,0,0,.5)">'
+        +'<button type="button" id="meetPopX" aria-label="Хаах" style="position:absolute;top:10px;right:10px;border:0;background:rgba(255,255,255,.92);width:32px;height:32px;border-radius:50%;cursor:pointer;color:#555;display:grid;place-items:center">'+X+'</button>'
+        +(m.poster?'<img src="'+h(m.poster)+'" alt="'+h(m.title)+'" style="display:block;width:100%;max-height:62vh;object-fit:contain;border-radius:12px;background:#1A1040">':'')
+        +'<div style="text-align:center;font-weight:900;color:#211C54;margin:12px 4px 2px">'+h(m.title)+'</div>'
+        +'<div style="text-align:center;font-weight:800;color:#6b6590;font-size:.88rem">'+when+'</div>'
+        +'<div style="display:flex;gap:8px;margin-top:12px"><button type="button" id="meetPopLater" style="flex:1;border:0;cursor:pointer;border-radius:999px;padding:.75rem;font-weight:800;background:#f3eefe;color:#5a32d6">Дараа</button>'
+        +'<a href="/meet" style="flex:2;text-align:center;text-decoration:none;border-radius:999px;padding:.75rem;font-weight:900;color:#fff;background:linear-gradient(135deg,#7B52EE,#A855F7)">Бүртгүүлэх</a></div>'
+      +'</div>';
+      var close=function(){o.remove();};
+      o.addEventListener('click',function(e){if(e.target===o)close();});
+      document.body.appendChild(o);
+      document.getElementById('meetPopX').onclick=close;document.getElementById('meetPopLater').onclick=close;
+    },1500);
+  }).catch(function(){});
+})();
 </script>
 <script src="/ppt-cart.js"></script>
 <script src="/games-host.js"></script>
