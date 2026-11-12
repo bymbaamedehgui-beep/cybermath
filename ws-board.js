@@ -221,7 +221,7 @@
   /* ── Бодлогыг самбарт гаргах ── */
   function clean(n) {
     var c = n.cloneNode(true);
-    [].forEach.call(c.querySelectorAll('.wk,.wsc-row,.cm-del,button,input,select,script,.ws-vid'), function (x) { x.parentNode.removeChild(x); });   // .wk — бодолтын зай
+    [].forEach.call(c.querySelectorAll('.wk,.work,.wsc-row,.cm-del,button,input,select,script,.ws-vid'), function (x) { x.parentNode.removeChild(x); });   // .wk/.work — бодолтын зай (990 / 138 хуудас)
     [].forEach.call(c.querySelectorAll('[id]'), function (x) { x.removeAttribute('id'); });
     [].forEach.call(c.querySelectorAll('[contenteditable]'), function (x) { x.removeAttribute('contenteditable'); });
     c.removeAttribute('id'); c.classList.remove('wsb-pinned');
