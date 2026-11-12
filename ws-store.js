@@ -67,7 +67,7 @@
     b.onclick=function(){
       if(window.wsBoard){window.wsBoard.toggle();return;}
       b.disabled=true;
-      var s=document.createElement('script'); s.src='/ws-board.js?v=2';
+      var s=document.createElement('script'); s.src='/ws-board.js?v=3';
       s.onload=function(){b.disabled=false; if(window.wsBoard)window.wsBoard.open();};
       s.onerror=function(){b.disabled=false; if(s.parentNode)s.parentNode.removeChild(s); alert('Самбар ачаалж чадсангүй. Дахин оролдоно уу.');};
       document.head.appendChild(s);

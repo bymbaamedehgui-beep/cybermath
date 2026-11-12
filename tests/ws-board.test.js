@@ -45,3 +45,13 @@ test('ws-board.js: хэвлэхэд гарахгүй, эможигүй, том �
   assert.match(s, /touch-action:none/);
   assert.doesNotMatch(s, /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
 });
+
+test('самбартай үед зөвхөн ажлын хуудас томорно: товч, Ctrl+дугуй/товчлол, чимхэлт; хөтчийн томруулалтыг хаана', () => {
+  const s = R('ws-board.js');
+  assert.match(s, /html\.wsb-on,html\.wsb-on body\{touch-action:pan-x pan-y\}/, 'хөтчийн чимхэж томруулалтыг хаана');
+  assert.match(s, /W\.addEventListener\('wheel', function \(e\) \{\s*if \(!st\.on \|\| !e\.ctrlKey\) return;\s*e\.preventDefault\(\);/);
+  assert.match(s, /\}, \{ passive: false \}\);/);
+  assert.match(s, /data-z="-"[\s\S]*data-z="\+"[\s\S]*data-z="0"/, '− + Багтаах');
+  assert.match(s, /function spacer\(\)/, 'томруулсан хуудас самбарын доор нуугдахгүй');
+  assert.match(R('ws-store.js'), /s\.src='\/ws-board\.js\?v=3'/);
+});
