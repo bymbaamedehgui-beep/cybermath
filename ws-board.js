@@ -32,8 +32,8 @@
   var COLORS = [['#1f1d2e', 'Хар'], ['#2563eb', 'Хөх'], ['#dc2626', 'Улаан'], ['#16a34a', 'Ногоон']];
   var SIZES = [3, 7], ERASER = 34, SHEET_W = 793.7;            // 210мм
   var BGS = [['grid', 'Дөрвөлжин тор'], ['lines', 'Шугам'], ['blank', 'Хоосон']];
-  var st = { on: false, pages: [newPage()], cur: 0, color: COLORS[0][0], size: SIZES[0], eraser: false, bg: 0, frac: 0.58, z: null };
-  var el = {}, ctx = null, dpr = 1, live = null, curZ = 1;
+  var st = { on: false, pages: [newPage()], cur: 0, color: COLORS[0][0], size: SIZES[0], eraser: false, bg: 0, frac: 0.58 };
+  var el = {}, ctx = null, dpr = 1, live = null;
   try { var f = parseFloat(localStorage.getItem('cm_wsb_w')); if (f >= 0.35 && f <= 0.75) st.frac = f; } catch (e) {}
 
   var I = function (d, w) { return '<svg viewBox="0 0 24 24" width="' + (w || 22) + '" height="' + (w || 22) + '" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>'; };
@@ -86,15 +86,6 @@
       + '.wsb-tools .wsb-sep{width:1px;height:30px;background:#EEE8FF;margin:0 2px}'
       + '.wsb-tools .wsb-n{min-width:64px;text-align:center;font-weight:800;color:#5a32d6;font-size:15px}'
       + '.wsb-tools .wsb-close{margin-left:auto;background:#7B52EE;border-color:#7B52EE;color:#fff}'
-      /* Ажлын хуудасны томруулалт (зүүн доод булан); хөтчийн чимхэж томруулахыг хааж, зөвхөн хуудсанд */
-      + 'html.wsb-on,html.wsb-on body{touch-action:pan-x pan-y}'
-      + '#wsbZoom{display:none}'
-      + 'html.wsb-on #wsbZoom{position:fixed;left:14px;bottom:14px;z-index:96;display:flex;align-items:center;gap:6px;padding:6px;background:rgba(255,255,255,.96);'
-        + 'border:1px solid #E4DAFF;border-radius:18px;box-shadow:0 14px 34px -18px rgba(60,30,150,.55);font-family:inherit}'
-      + '#wsbZoom button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:48px;height:48px;padding:0 10px;border-radius:13px;'
-        + 'border:1.5px solid #E7E0FA;background:#fff;color:#3F3A5C;font:inherit;font-size:15px;font-weight:800;cursor:pointer}'
-      + '#wsbZoom button:active{transform:translateY(1px)}'
-      + '#wsbZoom .wsbz-l{min-width:58px;text-align:center;font-weight:800;color:#5a32d6;font-size:15px}'
       + '}'
       + '@media print{#wsBoard{display:none!important}html.wsb-on body{margin-right:0!important}html.wsb-on .sheet{zoom:1!important}}';
     D.head.appendChild(s);
@@ -125,7 +116,7 @@
     el = { box: b, pin: b.querySelector('.wsb-pin'), paper: b.querySelector('.wsb-paper'), cv: b.querySelector('canvas'), tools: b.querySelector('.wsb-tools'), split: b.querySelector('.wsb-split') };
     ctx = el.cv.getContext('2d');
     el.tools.addEventListener('click', onTool);
-    bindDraw(); bindSplit(); bindZoom();
+    bindDraw(); bindSplit();
     if (W.ResizeObserver) new ResizeObserver(fit).observe(el.paper); else W.addEventListener('resize', fit);
     W.addEventListener('resize', zoomSheet);
     D.addEventListener('click', onSheetClick, true);
@@ -264,76 +255,14 @@
     var k = (e.key || '').toLowerCase();
     if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); if (e.shiftKey) redo(page()); else undo(page()); render(); sync(); }
     else if ((e.ctrlKey || e.metaKey) && k === 'y') { e.preventDefault(); redo(page()); render(); sync(); }
-    // Хөтчийн томруулалтын товчлолыг зөвхөн ажлын хуудсанд
-    else if ((e.ctrlKey || e.metaKey) && (k === '=' || k === '+' || e.code === 'NumpadAdd')) { e.preventDefault(); setZ(curZ * 1.2); }
-    else if ((e.ctrlKey || e.metaKey) && (k === '-' || e.code === 'NumpadSubtract')) { e.preventDefault(); setZ(curZ / 1.2); }
-    else if ((e.ctrlKey || e.metaKey) && (k === '0' || e.code === 'Numpad0')) { e.preventDefault(); st.z = null; zoomSheet({ x: paneW() / 2, y: W.innerHeight / 2 }); }
   }
 
-  /* ── Хуваах шугам, хуудасны томруулалт ──
-     Самбартай үед зөвхөн ажлын хуудас (.sheet) томорно — «− % + Багтаах», Ctrl+дугуй, Ctrl +/−/0, хоёр хуруугаар чимхэх.
-     Хөтчийн томруулалтыг (самбар, товчлуурын мөр хамт томордог) энэ үед хаана. st.z = null бол зүүн талдаа багтаана. */
+  /* ── Хуваах шугам, хуудасны томруулалт ── */
   function setW() { D.documentElement.style.setProperty('--wsb-w', Math.round(st.frac * 1000) / 10 + 'vw'); zoomSheet(); }
-  function paneW() { return W.innerWidth * (1 - st.frac); }
-  function fitZ() { return Math.max(0.35, Math.min(1.4, (paneW() - 28) / SHEET_W)); }
-  function zoomSheet(keep) {
+  function zoomSheet() {
     if (!st.on) return;
-    var sh = D.getElementById('sheet') || D.querySelector('.sheet'), z = st.z || fitZ(), u = 0, v = 0, r0;
-    if (keep && sh) { r0 = sh.getBoundingClientRect(); u = (keep.x - r0.left) / curZ; v = (keep.y - r0.top) / curZ; }
+    var lw = W.innerWidth * (1 - st.frac) - 28, z = Math.max(0.35, Math.min(1.4, lw / SHEET_W));
     [].forEach.call(D.querySelectorAll('.sheet'), function (s) { s.style.zoom = String(Math.round(z * 1000) / 1000); });
-    curZ = z;
-    spacer();
-    if (keep && sh) { var r1 = sh.getBoundingClientRect(); W.scrollBy(r1.left + u * z - keep.x, r1.top + v * z - keep.y); }
-    if (el.zl) el.zl.textContent = Math.round(z * 100) + '%';
-  }
-  function setZ(z, keep) {
-    st.z = Math.max(0.4, Math.min(3, z));
-    if (Math.abs(st.z - fitZ()) < 0.02) st.z = null;               // багтаасан хэмжээнд ойртвол автомат багтаалт руу
-    zoomSheet(keep || { x: paneW() / 2, y: W.innerHeight / 2 });
-  }
-  // Томруулсан хуудасны баруун хэсэг самбарын доор нуугдахгүй — гүйлгэх мужийг самбарын өргөнөөр сунгана
-  function spacer() {
-    var sp = D.getElementById('wsbSpacer');
-    if (!sp) { sp = D.createElement('div'); sp.id = 'wsbSpacer'; sp.setAttribute('aria-hidden', 'true'); sp.style.cssText = 'position:absolute;top:0;width:1px;height:1px;pointer-events:none;visibility:hidden'; D.body.appendChild(sp); }
-    var right = 0;
-    [].forEach.call(D.querySelectorAll('.sheet'), function (s) { right = Math.max(right, s.getBoundingClientRect().right + W.scrollX); });
-    sp.style.left = Math.max(0, Math.round(right + (W.innerWidth - paneW()) + 6)) + 'px';
-  }
-  function bindZoom() {
-    var zb = D.createElement('div'); zb.id = 'wsbZoom'; zb.setAttribute('role', 'group'); zb.setAttribute('aria-label', 'Ажлын хуудсыг томруулах');
-    zb.innerHTML = '<button type="button" data-z="-" aria-label="Жижигрүүлэх" title="Жижигрүүлэх (Ctrl −)">' + I('<path d="M5 12h14"/>') + '</button>'
-      + '<span class="wsbz-l">100%</span>'
-      + '<button type="button" data-z="+" aria-label="Томруулах" title="Томруулах (Ctrl +)">' + I('<path d="M12 5v14M5 12h14"/>') + '</button>'
-      + '<button type="button" data-z="0" class="wsbz-fit" title="Зүүн талдаа багтаах (Ctrl 0)">' + I('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>', 20) + '<span>Багтаах</span></button>';
-    D.body.appendChild(zb);
-    el.zl = zb.querySelector('.wsbz-l');
-    zb.addEventListener('click', function (e) {
-      var b = e.target.closest('button'); if (!b) return;
-      var k = b.getAttribute('data-z');
-      if (k === '0') { st.z = null; zoomSheet({ x: paneW() / 2, y: W.innerHeight / 2 }); }
-      else setZ(curZ * (k === '+' ? 1.2 : 1 / 1.2));
-    });
-    // Ctrl + хулганы дугуй / тачпадын чимхэлт (Chrome-д ctrlKey-тэй wheel болж ирдэг)
-    W.addEventListener('wheel', function (e) {
-      if (!st.on || !e.ctrlKey) return;
-      e.preventDefault();
-      if (e.clientX < paneW()) setZ(curZ * Math.exp(-e.deltaY * 0.0025), { x: e.clientX, y: e.clientY });
-    }, { passive: false });
-    // Хоёр хуруугаар чимхэх (смарт самбар) — зүүн талд л
-    var pin0 = null;
-    var dist = function (t) { return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY); };
-    D.addEventListener('touchstart', function (e) {
-      if (!st.on || e.touches.length !== 2) return;
-      if (e.touches[0].clientX >= paneW() || e.touches[1].clientX >= paneW()) return;
-      pin0 = { d: dist(e.touches), z: curZ };
-    }, { passive: true });
-    D.addEventListener('touchmove', function (e) {
-      if (!pin0 || e.touches.length !== 2) return;
-      e.preventDefault();
-      var t = e.touches, mid = { x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 };
-      setZ(pin0.z * dist(t) / Math.max(1, pin0.d), mid);
-    }, { passive: false });
-    D.addEventListener('touchend', function (e) { if (e.touches.length < 2) pin0 = null; }, { passive: true });
   }
   function bindSplit() {
     var drag = null;
@@ -356,7 +285,6 @@
     st.on = false; live = null;
     D.documentElement.classList.remove('wsb-on'); el.box.hidden = true;
     [].forEach.call(D.querySelectorAll('.sheet'), function (s) { s.style.zoom = ''; });
-    var sp = D.getElementById('wsbSpacer'); if (sp) sp.parentNode.removeChild(sp);
     [].forEach.call(D.querySelectorAll('#sheet .q.wsb-pinned'), function (q) { q.classList.remove('wsb-pinned'); });
   }
   root.wsBoard = { open: open, close: close, toggle: function () { if (st.on) close(); else open(); }, isOpen: function () { return st.on; }, _st: st };
