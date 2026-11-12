@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="mn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Самбарт нээх — CyberMath</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{min-height:100vh;display:grid;place-items:center;padding:24px 16px;font-family:'Nunito',system-ui,-apple-system,'Segoe UI',sans-serif;color:#211C54;
+    background:radial-gradient(700px 500px at 100% 0,rgba(168,85,247,.18),transparent 60%),#f6f3ff}
+  .wrap{width:100%;max-width:560px}
+  .card{background:#fff;border:1px solid #ece6ff;border-radius:28px;padding:30px 28px 26px;text-align:center;box-shadow:0 24px 60px -34px rgba(90,50,214,.7)}
+  .card img{height:46px;display:block;margin:0 auto 14px}
+  h1{font-size:1.6rem;font-weight:900;color:#3B2A8C}
+  h2{font-size:1.1rem;font-weight:900;color:#3B2A8C;text-align:left}
+  p{color:#6b6590;font-weight:700;margin-top:6px;line-height:1.5}
+  input{width:100%;margin-top:22px;border:2.5px solid #7B52EE;border-radius:20px;padding:16px 10px;font:inherit;font-size:3rem;font-weight:900;letter-spacing:.3em;text-align:center;color:#211C54;outline:none}
+  input::placeholder{color:#D9D1F5;letter-spacing:.3em}
+  button{width:100%;margin-top:16px;border:0;border-radius:999px;padding:18px;font:inherit;font-size:1.25rem;font-weight:900;color:#fff;cursor:pointer;background:linear-gradient(135deg,#7B52EE,#A855F7)}
+  button:disabled{opacity:.6;cursor:default}
+  .msg{min-height:1.4em;margin-top:12px;font-weight:800;color:#dc2626}
+  .hint{margin-top:16px;font-size:.88rem;color:#8a83a8;font-weight:700}
+  .inbox{margin-top:16px;text-align:left}
+  .live{display:flex;align-items:center;gap:10px;margin:8px 0 12px;font-weight:800;color:#4B2BBF;background:#F5F1FF;border-radius:14px;padding:10px 14px}
+  .live i{width:10px;height:10px;border-radius:50%;background:#7B52EE;box-shadow:0 0 0 0 rgba(123,82,238,.5);animation:p 1.6s infinite}
+  @keyframes p{to{box-shadow:0 0 0 10px rgba(123,82,238,0)}}
+  .items a{display:flex;align-items:center;justify-content:space-between;gap:12px;text-decoration:none;color:#211C54;border:1.5px solid #ece6ff;border-radius:16px;padding:14px 16px;margin-top:8px;font-weight:800}
+  .items a:hover{border-color:#7B52EE;background:#FBFAFF}
+  .items small{color:#8a83a8;font-weight:700;white-space:nowrap}
+  [hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+<main class="card">
+  <img src="/assets/cybermath-logo.svg" alt="CyberMath">
+  <h1>Самбарт нээх</h1>
+  <p>Компьютер дээрх ажлын хуудасны «Самбарт илгээх» товчоор гарсан 6 оронтой кодыг оруулна уу</p>
+  <form id="f" autocomplete="off">
+    <input id="c" inputmode="numeric" pattern="[0-9 ]*" maxlength="7" placeholder="000000" aria-label="6 оронтой код" autofocus>
+    <button id="go" type="submit">Нээх</button>
+    <div class="msg" id="m" role="status"></div>
+  </form>
+  <div class="hint">Самбар дээр нэвтрэх шаардлагагүй. Нэг удаа холбогдсоны дараа багшийн илгээсэн даалгавар энд өөрөө нээгдэнэ.</div>
+  <section class="inbox" id="inbox" hidden>
+    <div class="live"><i></i><span>Самбар холбогдсон — багш илгээхэд өөрөө нээгдэнэ</span></div>
+    <h2>Илгээсэн даалгаврууд</h2>
+    <div class="items" id="items"></div>
+  </section>
+</main>
+</div>
+<script>
+(function () {
+  'use strict';
+  var f = document.getElementById('f'), c = document.getElementById('c'), m = document.getElementById('m'), go = document.getElementById('go');
+  var SLUG = /^[a-z0-9][a-z0-9._-]*\.html$/;
+  function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { return null; } }
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function open(code) {
+    m.textContent = ''; go.disabled = true; go.textContent = 'Нээж байна…';
+    var p = ls('cm_wsb_pair');
+    fetch('/api/worksheets?board=' + code + '&peek=1', p ? { headers: { Authorization: 'Bearer ' + p } } : {}).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d || !d.ok || !SLUG.test(d.slug || '')) throw new Error((d && d.error) || 'Код олдсонгүй эсвэл хугацаа нь дууссан');
+      if (d.pair) ls('cm_wsb_pair', d.pair);
+      location.href = '/' + d.slug + '?b=' + code;
+    }).catch(function (e) { m.textContent = e.message || 'Сервертэй холбогдоход алдаа гарлаа'; go.disabled = false; go.textContent = 'Нээх'; c.focus(); });
+  }
+  c.addEventListener('input', function () { var v = c.value.replace(/\D/g, '').slice(0, 6); c.value = v; m.textContent = ''; if (v.length === 6) open(v); });
+  f.addEventListener('submit', function (e) { e.preventDefault(); var v = c.value.replace(/\D/g, ''); if (v.length !== 6) { m.textContent = '6 оронтой кодоо оруулна уу'; c.focus(); return; } open(v); });
+  var q = /[?&]c=(\d{6})(?:&|$)/.exec(location.search); if (q) { c.value = q[1]; open(q[1]); return; }
+
+  /* Холбогдсон самбар: сүүлийн даалгаврууд (зөвхөн харах — устгах товч байхгүй) + шинэ илгээлтийг хүлээнэ */
+  var pair = ls('cm_wsb_pair'); if (!pair) return;
+  var H = { headers: { Authorization: 'Bearer ' + pair } }, t0 = Date.now();
+  var wait = function () { return Date.now() - t0 > 30 * 60e3 ? 30000 : 8000; };
+  var fmt = function (t) { var d = new Date(t); return isNaN(d) ? '' : ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); };
+  fetch('/api/worksheets?board_list=1', H).then(function (r) { if (r.status === 401) { ls('cm_wsb_pair', null); throw 0; } return r.json(); }).then(function (d) {
+    var items = (d && d.items) || [];
+    // Жагсаалтын хамгийн сүүлийнхээс (серверийн цагаар) хойших илгээлтийг хүлээнэ — самбарын цаг буруу байсан ч алгасахгүй
+    var top = items[0] && /^\d{6}$/.test(items[0].code) ? items[0] : null, since = top ? top.created_at : '', not = top ? top.code : '';
+    document.getElementById('inbox').hidden = false;
+    document.getElementById('items').innerHTML = items.length ? items.filter(function (x) { return SLUG.test(x.slug) && /^\d{6}$/.test(x.code); }).map(function (x) {
+      return '<a href="/' + x.slug + '?b=' + x.code + '"><span>' + esc(x.title || x.slug) + '</span><small>' + fmt(x.created_at) + '</small></a>';
+    }).join('') : '<p>Одоогоор илгээсэн даалгавар алга</p>';
+    (function poll() {
+      if (document.visibilityState === 'hidden') return setTimeout(poll, wait());
+      fetch('/api/worksheets?board_next=1&after=' + encodeURIComponent(since) + '&not=' + not, H).then(function (r) {
+        if (r.status === 401) { ls('cm_wsb_pair', null); document.getElementById('inbox').hidden = true; return 0; }
+        return r.json().then(function (x) {
+          var n = x && x.next; if (n && /^\d{6}$/.test(n.code) && SLUG.test(n.slug)) { location.href = '/' + n.slug + '?b=' + n.code; return 0; }
+          return 1;
+        });
+      }).catch(function () { return 1; }).then(function (again) { if (again) setTimeout(poll, wait()); });
+    })();
+  }).catch(function () {});
+})();
+</script>
+</body>
+</html>

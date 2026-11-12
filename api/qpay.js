@@ -18,6 +18,7 @@ function wsBasePrice(months) { return WS_PRICES[wsNormMonths(months)]; }
 const WS_YEAR_PRICE = WS_PRICES[12];   // хуучин 'wsyear' нийцэл
 // ── Ажлын хуудсыг АНГИАР худалдан авах (нэг анги = сард 9900) ──
 const WG = require('./_wsgrade');
+const WSB = require('./_wsboard');
 const SMS = require('./_sms');
 const WDEV = require('./_wsdev');
 // Үнэгүй туршилт — худалдаж аваагүй бүртгэлтэй данс бүрт нэг удаа (ажлын хуудас, серверийн цаг) — api/_wstrial.js
@@ -1921,6 +1922,9 @@ module.exports = async (req, res) => {
       if (!enabled) return res.json({ ok: true, enabled: false, active: true });
       await ensureWsTable();
       const b = req.body || {};
+      // «Самбарт илгээх» (api/_wsboard.js): эрхтэй багшийн гаргасан кодоор нээсэн смарт самбар — ЗӨВХӨН тэр хуудас, кодын хугацаанд.
+      // ws_token/имэйл өгөхгүй, туршилт эхлүүлэхгүй.
+      if (b.wsb && WSB.verify(b.wsb, b.slug)) return res.json({ ok: true, enabled: true, active: true, scope: 'board', grades: [] });
       // Имэйлийг ЗӨВХӨН ажлын хуудасны (ws:true) токеноос авна. Тоглоомын токен (b.token) хүлээн авахгүй (H8).
       let email = null;
       if (b.wstoken) email = emailFromToken(b.wstoken);

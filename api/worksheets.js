@@ -10,6 +10,7 @@ const tg = require('./_telegram');
 const WDEV = require('./_wsdev');
 const MEDIA = require('./_media');
 const MEET = require('./_meet');
+const WSBOARD = require('./_wsboard');
 // 5 минутын үнэгүй туршилт (серверийн цаг) — худалдаж аваагүй данс бүрт нэг удаа, дараагийн амжилттай нэвтрэлтэд эхэлнэ
 const WT = require('./_wstrial');
 const JWT_SECRET = process.env.JWT_SECRET || 'cybermath-default-secret-change-in-prod';
@@ -306,6 +307,9 @@ module.exports = async (req, res) => {
 
   // Дасгалын төвийн «Видео» / «Интерактив» цэс (api/_media.js) — доорх олон хүснэгтийн DDL-ийг алгасна
   // Багш нарт зориулсан онлайн уулзалт — тохиргоо, бүртгэл (api/_meet.js)
+  // «Самбарт илгээх» — ажлын хуудсыг кодоор смарт самбар руу (api/_wsboard.js)
+  try { if (await WSBOARD.handle(req, res)) return; }
+  catch (e) { console.error('[wsboard]', e.message); return res.status(500).json({ ok: false, error: 'Серверийн алдаа' }); }
   try { if (await MEET.handle(req, res)) return; }
   catch (e) { console.error('[meet]', e.message); return res.status(500).json({ ok: false, error: 'Серверийн алдаа' }); }
   try { if (await MEDIA.handle(req, res)) return; }

@@ -29,7 +29,7 @@ test('түүх: нэмэх, буцаах, дахих, цэвэрлэхийг б�
 
 test('ws-store.js: «Самбар» товч — ws-board.js-ийг дарахад л ачаална, QR/утсанд гарахгүй', () => {
   const s = R('ws-store.js').replace(/\r\n/g, '\n');
-  assert.match(s, /if\(!IS_QR\)\{[^}]*boardBtn\(\);\}/);
+  assert.match(s, /if\(!IS_QR\)\{[^}]*boardBtn\(\);[^}]*\}/);
   assert.match(s, /s\.src='\/ws-board\.js\?v=\d+'/);
   assert.match(s, /if\(window\.wsBoard\)\{window\.wsBoard\.toggle\(\);return;\}/);
   assert.match(s, /@media \(max-width:900px\)\{'\+B\+'>\.ws-board\{display:none\}\}/);
