@@ -179,6 +179,17 @@ test('геометр, тооны машин, санамжийн цэс ба то
   assert.doesNotMatch(s, /new Function|eval\(/, 'илэрхийллийг eval-гүй задална');
 });
 
+test('самбарыг гүйлгэх, томруулах (бүх дэвсгэрт): дугуй, зурвас, «Гүйлгэх», чимхэх; тор/шугам бичгийн хамт', () => {
+  const s = R('ws-board.js');
+  assert.match(s, /else panBy\(e\.shiftKey \? -e\.deltaY : -e\.deltaX, e\.shiftKey \? 0 : -e\.deltaY\);/, 'дугуйгаар гүйлгэнэ');
+  assert.match(s, /if \(e\.ctrlKey \|\| isCoord\(\)\) zoomAt\(/, 'Ctrl+дугуйгаар томруулна');
+  assert.match(s, /if \(ts\.length === 2\) \{ live\.mode = 'pend'; live\.z0 = pinch0\(ts\); return; \}/, 'бүх дэвсгэрт чимхэж томруулна');
+  assert.match(s, /function sbar\(\)/); assert.match(s, /class="wsb-vs"/, 'гүйлгэх зурвас');
+  assert.match(s, /data-pz="hand"/, '«Гүйлгэх» горим');
+  assert.match(s, /if \(isCoord\(\)\) plane\(c, w, h\); else pattern\(c, w, h\);/, 'тор/шугам канвас дээр');
+  assert.doesNotMatch(s, /\.wsb-paper\.bg-grid\{background-image/, 'CSS тор гүйлгэхэд хөдлөхгүй тул хасагдсан');
+});
+
 test('ws-store.js: «Самбар» товч — ws-board.js-ийг дарахад л ачаална, QR/утсанд гарахгүй', () => {
   const s = R('ws-store.js').replace(/\r\n/g, '\n');
   assert.match(s, /if\(!IS_QR\)\{[^}]*boardBtn\(\);[^}]*\}/);
@@ -205,5 +216,5 @@ test('самбартай үед зөвхөн ажлын хуудас томор�
   assert.match(s, /\}, \{ passive: false \}\);/);
   assert.match(s, /data-z="-"[\s\S]*data-z="\+"[\s\S]*data-z="0"/, '− + Багтаах');
   assert.match(s, /function spacer\(\)/, 'томруулсан хуудас самбарын доор нуугдахгүй');
-  assert.match(R('ws-store.js'), /var BOARD_JS='\/ws-board\.js\?v=5'/);
+  assert.match(R('ws-store.js'), /var BOARD_JS='\/ws-board\.js\?v=6'/);
 });

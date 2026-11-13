@@ -250,7 +250,7 @@
   }
   // ─── Смарт дэлгэц: «Самбар» — зүүн талд хуудас, баруун талд гараар бичих самбар (ws-board.js-ийг дарахад л ачаална) ───
   var ICO_BOARD='<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="13" rx="2"/><path d="M12 17v3M8 21h8M7 12.5l3-3 2.5 2.5L17 7.5"/></svg>';
-  var BOARD_JS='/ws-board.js?v=5', boardWait=null;
+  var BOARD_JS='/ws-board.js?v=6', boardWait=null;
   function loadBoard(cb){
     if(window.wsBoard)return cb(window.wsBoard);
     if(boardWait){boardWait.push(cb);return;}
