@@ -17,11 +17,13 @@ const live = (c) => c.expires_at > new Date();
 const pool = { async query(sql, p) {
   const q = norm(sql); p = p || [];
   if (q.startsWith('CREATE TABLE IF NOT EXISTS ws_board_codes')) return { rows: [] };
+  if (q.startsWith('ALTER TABLE ws_board_codes ADD COLUMN IF NOT EXISTS view TEXT')) return { rows: [] };
   if (q === 'SELECT 1 FROM ws_access WHERE email=$1 AND expires_at > NOW()') return { rows: db.access[p[0]] ? [{ '?column?': 1 }] : [] };
   if (q === 'DELETE FROM ws_board_codes WHERE expires_at < NOW()') { db.codes = db.codes.filter(live); return { rows: [] }; }
   if (q.startsWith('INSERT INTO ws_board_codes')) {
     if (db.codes.some((c) => c.code === p[0])) return { rows: [] };
-    const row = { code: p[0], slug: p[1], email: p[2], title: p[3], html: p[4], answers: p[5], created_at: new Date(db.clock += 1000), us: 1 + (db.tick++ % 998), expires_at: new Date(Date.now() + 12 * 3600e3) };
+    const row = { code: p[0], slug: p[1], email: p[2], title: p[3], html: p[4], answers: p[5], created_at: new Date(db.clock += 1000), us: 1 + (db.tick++ % 998), expires_at: new Date(Date.now() + 12 * 3600e3),
+      rev: 0, hrev: 0, brev: 0, view: null, bd: null, seen_at: null };
     db.codes.push(row); return { rows: [{ code: row.code, expires_at: row.expires_at }] };
   }
   if (q === 'SELECT code, slug, email, title, html, answers, created_at, expires_at, NOW() AS now FROM ws_board_codes WHERE code=$1 AND expires_at > NOW()') return { rows: db.codes.filter((c) => c.code === p[0] && live(c)).map((c) => Object.assign({}, c, { now: new Date(db.clock + 1) })) };
@@ -30,6 +32,18 @@ const pool = { async query(sql, p) {
   // Postgres: created_at микросекундтэй (us), pg драйвер JS Date-д миллисекунд хүртэл тайрна — бодит харьцуулалтыг дуурайна
   if (q === 'SELECT code, slug, title, created_at FROM ws_board_codes WHERE email=$1 AND expires_at > NOW() AND created_at > $2 AND code <> $3 ORDER BY created_at DESC LIMIT 1') return { rows: mine(p[0]).filter((c) => c.created_at.getTime() * 1000 + c.us > p[1].getTime() * 1000 && c.code !== p[2]).slice(0, 1).map(pick) };
   if (q === 'SELECT code, slug, title, created_at FROM ws_board_codes WHERE email=$1 AND expires_at > NOW() ORDER BY created_at DESC LIMIT 20') return { rows: mine(p[0]).slice(0, 20).map(pick) };
+  if (q.startsWith('UPDATE ws_board_codes SET view=$3, rev=rev+1, seen_at=NOW()')) {
+    const row = db.codes.find((c) => c.code === p[0] && c.email === p[1] && live(c)); if (!row) return { rows: [] };
+    row.view = p[2]; row.rev++; row.seen_at = new Date();
+    if (p[3] != null) { row.html = p[3]; row.answers = p[4]; row.hrev++; }
+    if (p[5] != null) { row.bd = p[5]; row.brev++; }
+    return { rows: [{ rev: row.rev }] };
+  }
+  if (q.startsWith('SELECT rev, hrev, brev, (seen_at > NOW() - INTERVAL')) {
+    const row = db.codes.find((c) => c.code === p[0] && live(c)); if (!row) return { rows: [] };
+    return { rows: [{ rev: row.rev, hrev: row.hrev, brev: row.brev, live: !!row.seen_at && row.seen_at > new Date(Date.now() - 45000),
+      view: row.rev > p[1] ? row.view : null, html: row.hrev > p[2] ? row.html : null, answers: row.hrev > p[2] ? row.answers : null, bd: row.brev > p[3] ? row.bd : null }] };
+  }
   throw new Error('SQL: ' + q);
 } };
 const stub = (f, e) => { const id = path.join(API, f); require.cache[id] = { id, filename: id, loaded: true, exports: e }; };
@@ -138,6 +152,41 @@ test('хязгаар: нэг сургуулийн олон самбар (нэг 
   assert.deepStrictEqual(db.keys, ['wsboard:get:10.1.1.1', 'wsboard:get:all@x.mn:10.1.1.1', 'wsboard:poll:all@x.mn:10.1.1.1', 'wsboard:poll:all@x.mn:10.1.1.1']);
 });
 
+test('шууд дагалт: зөвхөн тэр кодыг гаргасан багш шинэчилнэ; самбар зөвхөн өөрчлөгдсөнийг авна; скрипт цэвэрлэнэ', async () => {
+  const s = await send({ wstoken: wsTok('all@x.mn'), slug: 'live-12.html', html: HTML });
+  const code = s.body.code, tok = (await get({ board: code })).body.token;
+  const V = (o) => JSON.stringify(Object.assign({ fw: 0.5, fx: 0.25, ft: -0.1 }, o || {}));
+  const pv = (body, headers) => call({ method: 'POST', body: Object.assign({ action: 'board_view', code }, body), headers: headers || {} });
+  const gv = (r, h, d, t) => get({ board_view: '1', t: t || tok, r: String(r), h: String(h), d: String(d) });
+  assert.strictEqual((await pv({ view: V() })).code, 401, 'нэвтрээгүй');
+  assert.strictEqual((await pv({ wstoken: wsTok('b@x.mn'), view: V() })).body.gone, true, 'өөр багшийн код');
+  assert.strictEqual((await pv({ wstoken: wsTok('all@x.mn'), view: '{"a":"<script>"}' })).code, 400);
+  assert.strictEqual((await pv({ wstoken: wsTok('all@x.mn'), view: V(), bd: 'буруу' })).code, 400);
+  let g = await gv(0, 0, 0);
+  assert.deepStrictEqual([g.body.rev, g.body.live, 'view' in g.body, 'html' in g.body, 'bd' in g.body], [0, false, false, false, false], 'компьютер хараахан мэдэгдээгүй');
+  assert.strictEqual(g.headers['Cache-Control'], 'no-store');
+  assert.strictEqual((await pv({ wstoken: wsTok('all@x.mn'), view: V({ fw: 0.8 }) })).body.rev, 1);
+  g = await gv(0, 0, 0);
+  assert.deepStrictEqual([g.body.rev, g.body.live, JSON.parse(g.body.view).fw, 'html' in g.body], [1, true, 0.8, false]);
+  assert.strictEqual('view' in (await gv(1, 0, 0)).body, false, 'өөрчлөгдөөгүйг дахин явуулахгүй');
+  const bd = JSON.stringify({ open: true, frac: 0.5, bg: 3, tone: 1, cur: 0, n: 2, z: 1.3, W: 800, H: 600,
+    page: { qi: 2, pin: '<b onclick="x()">1</b><script>alert(1)</script>', strokes: [{ c: '#1f1d2e', w: 3, p: [[1, 2], [3, 4]] }] } });
+  assert.strictEqual((await pv({ wstoken: wsTok('all@x.mn'), view: V(), html: HTML + '<script>x</script>', answers: '<i>a</i>', bd })).body.rev, 2);
+  g = await gv(1, 0, 0);
+  assert.ok(g.body.html.includes('class="katex"') && !/<script/i.test(g.body.html), 'агуулга цэвэрлэгдсэн');
+  const b2 = JSON.parse(g.body.bd);
+  assert.deepStrictEqual([b2.open, b2.n, b2.z, b2.bg, b2.tone, b2.page.qi, b2.page.strokes.length, /onclick|<script/i.test(b2.page.pin)], [true, 2, 1.3, 3, 1, 2, 1, false]);
+  g = await gv(2, 1, 1);
+  assert.deepStrictEqual(['view' in g.body, 'html' in g.body, 'bd' in g.body], [false, false, false]);
+  assert.strictEqual((await get({ board_view: '1', t: 'buruu' })).code, 401);
+  assert.strictEqual((await get({ board_view: '1', t: wsTok('all@x.mn') })).code, 401, 'нэвтрэлтийн токен самбарын токен биш');
+  const a = await send({ slug: 'adm-12.html', html: HTML }, { authorization: ADMIN });
+  assert.strictEqual((await call({ method: 'POST', body: { action: 'board_view', code: a.body.code, view: V() }, headers: { authorization: ADMIN } })).body.rev, 1, 'админы код');
+  db.codes.find((c) => c.code === code).expires_at = new Date(Date.now() - 1000);
+  assert.strictEqual((await gv(0, 0, 0)).body.gone, true, 'хугацаа дууссан код');
+  assert.strictEqual((await pv({ wstoken: wsTok('all@x.mn'), view: V() })).body.gone, true);
+});
+
 test('холболт: wsstatus токеныг шалгана, worksheets.js, ws-store.js (зөвхөн харах), /s хуудас', () => {
   const q = R('api/qpay.js').replace(/\r\n/g, '\n'), ws = q.indexOf("req.query.action === 'wsstatus'");
   assert.match(q, /if \(b\.wsb && WSB\.verify\(b\.wsb, b\.slug\)\) return res\.json\(\{ ok: true, enabled: true, active: true, scope: 'board', grades: \[\] \}\);/);
@@ -152,6 +201,12 @@ test('холболт: wsstatus токеныг шалгана, worksheets.js, ws-
   assert.match(s, /html\.ws-view \.bar>\*:not\(\.ws-board\):not\(\.ws-viewbadge\)\{display:none!important\}/, 'самбар талд зөвхөн «Самбар» товч');
   assert.match(s, /if\(\(e\.ctrlKey\|\|e\.metaKey\)&&e\.key==='Enter'\)\{e\.preventDefault\(\);e\.stopImmediatePropagation\(\);\} \},true\);/, 'Ctrl+Enter-ээр шинэчлэхгүй');
   assert.match(s, /function applyBoardCode\(\)\{\n    if\(!BOARD_CODE\)return;\n    viewOnly\(\);/);
+  assert.match(s, /showSendCode\(d\.code\); liveStart\(d\.code,html,ans\);/, 'илгээсний дараа компьютерыг дагуулна');
+  assert.match(s, /putSheet\(d\.html,d\.answers\);\n        follow\(d\.token\);/);
+  assert.doesNotMatch(s, /bb\.click\(\)/, 'самбарыг автоматаар нээхгүй — компьютер дээр нээлттэй бол л');
+  assert.match(s, /'\/api\/worksheets\?board_view=1&t='\+encodeURIComponent\(tok\)/);
+  assert.match(s, /setTimeout\(poll,S\.live\?1000:5000\)/, 'компьютер идэвхтэй үед 1 сек');
+  assert.match(s, /if\(!sh&&!sb&&vk===L\.vk&&Date\.now\(\)-L\.t<20000\)return;/, 'өөрчлөлтгүй бол 20 сек тутам л');
   assert.match(s, /watchNext\(d\.now\|\|d\.created_at,BOARD_CODE\);/, 'серверийн цаг + одоогийн кодыг хасна');
   assert.match(s, /'&not='\+\(not\|\|''\)/);
   assert.match(s, /if\(r\.status===401\)\{try\{localStorage\.removeItem\('cm_wsb_pair'\);\}catch\(e\)\{\}return 0;\}/, 'хүчингүй холболтоор давтахгүй');

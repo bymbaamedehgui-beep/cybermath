@@ -8,6 +8,9 @@
 //        pair (typ:'wsbp', багшийн имэйл, 180 хоног) — самбар «холбогдсон» болж, дараагийн илгээлтүүдийг кодгүйгээр авна («шууд илгээх»):
 //   GET  ?board_next=1&after=ISO&not=CODE · ?board_list=1 (Authorization: Bearer pair) — шинэ/сүүлийн даалгаврууд. Самбар талд зөвхөн харах:
 //        устгах, өөрчлөх зам байхгүй (эзэмшигч: «Илгээсэн даалгаварыг зөвхөн харах … устгах боломжгүй … шинэчлэх боломжгүй»).
+//   POST board_view {wstoken, code, view[, html, answers][, bd]} — илгээсэн багш тэр кодын харагдацыг шинэчилнэ (шууд дагалт, эзэмшигч:
+//        «Ком дээрээсээ томруулвал яг л томорсон нь дэлгэц дээр харагдах ёстой»); GET ?board_view=1&t=<wsb>&r&h&d — самбар зөвхөн
+//        өөрчлөгдсөнийг авна (rev · hrev · brev), live — компьютер 45 сек дотор мэдэгдсэн.
 // api/worksheets.js бусад DDL-ээс ӨМНӨ дууддаг: handle() → true бол хариу өгсөн. verify() — api/qpay.js wsstatus.
 const pool = require('./_db');
 const jwt = require('jsonwebtoken');
@@ -31,8 +34,16 @@ function tables() {
       expires_at TIMESTAMPTZ NOT NULL
     )`).catch((e) => {
       if (e && (e.code === '23505' || e.code === '42P07')) return;
-      _ready = null; throw e;
-    });
+      throw e;
+    })
+      // Шууд дагалт (2026-11-13): харагдац, самбарын төлөв, хувилбарын тоолуурууд, компьютерын сүүлийн мэдэгдэл
+      .then(() => pool.query(`ALTER TABLE ws_board_codes ADD COLUMN IF NOT EXISTS view TEXT, ADD COLUMN IF NOT EXISTS bd TEXT,
+        ADD COLUMN IF NOT EXISTS rev INT NOT NULL DEFAULT 0, ADD COLUMN IF NOT EXISTS hrev INT NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS brev INT NOT NULL DEFAULT 0, ADD COLUMN IF NOT EXISTS seen_at TIMESTAMPTZ`))
+      .catch((e) => {
+        if (e && (e.code === '42701' || e.code === '23505')) return;
+        _ready = null; throw e;
+      });
   }
   return _ready;
 }
@@ -73,6 +84,32 @@ function verify(tok, slug) {
     return !!(p && p.typ === 'wsb' && p.slug === normSlug(slug));
   } catch (e) { return false; }
 }
+// Самбарын (кодын) токеноос код — шууд дагалтад
+function tokCode(tok) {
+  try {
+    const p = jwt.verify(String(tok || ''), guard.jwtSecret(), { algorithms: ['HS256'] });
+    return p && p.typ === 'wsb' && /^\d{6}$/.test(String(p.c)) ? String(p.c) : null;
+  } catch (e) { return null; }
+}
+// Компьютерын самбарын төлөв (ws-board.js state()): бүтэц, тоог шалгаж, бодлогын HTML-ийг цэвэрлэнэ (зурлагыг самбар өөрөө шалгана)
+function cleanBd(s) {
+  let o; try { o = JSON.parse(String(s)); } catch (e) { return null; }
+  if (!o || typeof o !== 'object') return null;
+  const num = (v, a, b, d) => (typeof v === 'number' && isFinite(v) ? Math.max(a, Math.min(b, v)) : d);
+  const pg = o.page && typeof o.page === 'object' ? o.page : {};
+  const strokes = Array.isArray(pg.strokes) ? pg.strokes : [];
+  if (strokes.length > 5000) return null;
+  return JSON.stringify({ open: !!o.open, frac: num(o.frac, 0.35, 0.75, 0.58), bg: num(o.bg, 0, 3, 0) | 0, tone: num(o.tone, 0, 3, 0) | 0, cur: num(o.cur, 0, 199, 0) | 0,
+    n: num(o.n, 1, 200, 1) | 0, z: o.z == null ? null : num(o.z, 0.2, 6, null), W: num(o.W, 0, 20000, 0), H: num(o.H, 0, 20000, 0),
+    calc: o.calc && typeof o.calc === 'object' ? { open: !!o.calc.open, fx: num(o.calc.fx, 0, 1, null), fy: num(o.calc.fy, 0, 1, null), e: String(o.calc.e || '').slice(0, 200),
+      r: typeof o.calc.r === 'number' && isFinite(o.calc.r) ? o.calc.r : null, err: !!o.calc.err, deg: o.calc.deg !== false, frac: !!o.calc.frac } : null, hint: !!o.hint,
+    page: { qi: num(pg.qi, -1, 5000, -1) | 0, pin: clean(typeof pg.pin === 'string' ? pg.pin : '').slice(0, 200000), strokes: strokes,
+      // Харагдац, координатын эх, геометр — самбар (ws-board.js normGeo) нарийн шалгана; энд хэмжээг хязгаарлана
+      v: pg.v && typeof pg.v === 'object' ? { s: num(pg.v.s, 0.05, 20, 1), x: num(pg.v.x, -1e7, 1e7, 0), y: num(pg.v.y, -1e7, 1e7, 0) } : null,
+      o: pg.o && typeof pg.o === 'object' && typeof pg.o.x === 'number' && typeof pg.o.y === 'number' ? { x: num(pg.o.x, -1e7, 1e7, 0), y: num(pg.o.y, -1e7, 1e7, 0) } : null,
+      geo: pg.geo && typeof pg.geo === 'object' ? { pts: Array.isArray(pg.geo.pts) ? pg.geo.pts.slice(0, 2000) : [], objs: Array.isArray(pg.geo.objs) ? pg.geo.objs.slice(0, 2000) : [],
+        fns: Array.isArray(pg.geo.fns) ? pg.geo.fns.slice(0, 20) : [], n: num(pg.geo.n, 0, 100000, 0) | 0 } : null } });
+}
 // Төлсөн эрх: бүх анги (ws_access) эсвэл энэ хуудасны ангийн эрх. Үнэгүй туршилт хамаарахгүй.
 async function entitled(email, slug) {
   try {
@@ -88,7 +125,7 @@ async function entitled(email, slug) {
 
 async function handle(req, res) {
   const q = req.query || {}, b = req.method === 'POST' ? (req.body || {}) : {};
-  if (!(req.method === 'GET' && (q.board || q.board_next || q.board_list)) && b.action !== 'board_send') return false;
+  if (!(req.method === 'GET' && (q.board || q.board_next || q.board_list || q.board_view)) && b.action !== 'board_send' && b.action !== 'board_view') return false;
   try {
     await tables();
     // Холбогдсон самбар: багшийн хамгийн сүүлд илгээсэн (after-аас хойш) эсвэл сүүлийн 20 даалгавар — устгах/өөрчлөх зам байхгүй
@@ -111,6 +148,23 @@ async function handle(req, res) {
         WHERE email=$1 AND expires_at > NOW() ORDER BY created_at DESC LIMIT 20`, [email]);
       return res.json({ ok: true, items: r.rows }), true;
     }
+    // Самбар: компьютерыг дагах — кодын токеноор (токен = кодыг олж авсны баталгаа тул IP-ийн хязгааргүй; 1 сек тутам)
+    if (req.method === 'GET' && q.board_view) {
+      res.setHeader('Cache-Control', 'no-store');
+      const code = tokCode(q.t);
+      if (!code) return res.status(401).json({ ok: false, gone: true }), true;
+      const n = (v) => Math.max(0, parseInt(v, 10) || 0);
+      const r = await pool.query(`SELECT rev, hrev, brev, (seen_at > NOW() - INTERVAL '45 seconds') AS live,
+          CASE WHEN rev > $2 THEN view END AS view, CASE WHEN hrev > $3 THEN html END AS html,
+          CASE WHEN hrev > $3 THEN answers END AS answers, CASE WHEN brev > $4 THEN bd END AS bd
+        FROM ws_board_codes WHERE code=$1 AND expires_at > NOW()`, [code, n(q.r), n(q.h), n(q.d)]);
+      if (!r.rows.length) return res.status(404).json({ ok: false, gone: true }), true;
+      const x = r.rows[0], out = { ok: true, rev: x.rev, hrev: x.hrev, brev: x.brev, live: !!x.live };
+      if (x.view != null) out.view = x.view;
+      if (x.html != null) { out.html = x.html; out.answers = x.answers || ''; }
+      if (x.bd != null) out.bd = x.bd;
+      return res.json(out), true;
+    }
     if (req.method === 'GET') {
       res.setHeader('Cache-Control', 'no-store');
       // Код таах оролдлогоос IP-ээр 40/10 мин; холбогдсон самбар (pair токентой) багш+IP-ээр өргөн — нэг сургуулийн олон самбар
@@ -127,6 +181,25 @@ async function handle(req, res) {
         pair: row.email ? pairToken(row.email) : null };
       if (!q.peek) { out.html = row.html; out.answers = row.answers || ''; }
       return res.json(out), true;
+    }
+    // POST board_view — компьютер: өөрийн гаргасан кодын харагдац (заавал), агуулга, самбарын төлөв (өөрчлөгдсөн бол)
+    if (b.action === 'board_view') {
+      const admin = guard.requireAdmin(req), email = guard.wsEmail(b.wstoken);
+      if (!admin && !email) return res.status(401).json({ ok: false, needLogin: true }), true;
+      const code = String(b.code || '').replace(/\D/g, '');
+      const view = typeof b.view === 'string' && b.view.length <= 2000 && /^\{[^<>]*\}$/.test(b.view) ? b.view : null;
+      if (code.length !== 6 || !view) return res.status(400).json({ ok: false, error: 'Буруу хүсэлт' }), true;
+      if (!(await guard.rateLimit('wsboard:view:' + (email || 'admin'), 1500, 600))) return res.status(429).json({ ok: false, error: 'Түр хүлээнэ үү' }), true;
+      const html = b.html != null ? clean(b.html) : null, answers = b.html != null ? clean(b.answers) : null;
+      const bd = b.bd != null ? cleanBd(b.bd) : null;
+      if (b.bd != null && bd == null) return res.status(400).json({ ok: false, error: 'Самбарын төлөв буруу' }), true;
+      if (Buffer.byteLength(html || '') + Buffer.byteLength(answers || '') + Buffer.byteLength(bd || '') > MAX_BYTES) return res.status(413).json({ ok: false, error: 'Хэт том' }), true;
+      const r = await pool.query(`UPDATE ws_board_codes SET view=$3, rev=rev+1, seen_at=NOW(),
+          html=COALESCE($4, html), answers=COALESCE($5, answers), hrev=hrev+(CASE WHEN $4::text IS NULL THEN 0 ELSE 1 END),
+          bd=COALESCE($6, bd), brev=brev+(CASE WHEN $6::text IS NULL THEN 0 ELSE 1 END)
+        WHERE code=$1 AND email=$2 AND expires_at > NOW() RETURNING rev`, [code, email || 'admin', view, html, answers, bd]);
+      if (!r.rows.length) return res.status(404).json({ ok: false, gone: true }), true;
+      return res.json({ ok: true, rev: r.rows[0].rev }), true;
     }
     // POST board_send
     const admin = guard.requireAdmin(req);
@@ -158,4 +231,4 @@ async function handle(req, res) {
   }
 }
 
-module.exports = { handle, verify, normSlug, clean };
+module.exports = { handle, verify, normSlug, clean, cleanBd };
