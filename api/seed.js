@@ -169,23 +169,6 @@ module.exports = async (req, res) => {
         { grade: '11-р анги', name: '1.1 Квадрат тэгшитгэл', slugs: ['kvadrat-shinjleh-11.html', 'kvadrat-bodoh-11.html', 'kvadrat-grafik-11.html', 'kvadrat-uguulber-11.html'] },
         { grade: '11-р анги', name: '1.2 Квадрат тэнцэтгэл биш', slugs: ['tentsbish-sistem-11.html', 'tentsbish-interval-11.html', 'tentsbish-holimog-11.html'] },
         { grade: '11-р анги', name: '1.3 Тэнцэтгэл биш — график', slugs: ['tentsbish-lavlah-11.html', 'tentsbish-grafik-unshih-11.html', 'tentsbish-grafik-bodoh-11.html', 'tentsbish-grafik-tusgai-11.html'] },
-        // ЭЕШ бүлэг: материал, ЭЕШ 1000 хэсгээр ба агуулгаар (2026-11-13)
-        { grade: 'ЭЕШ', name: 'ЭЕШ — 2022–2025 оны материал', slugs: ['eesh-2025.html', 'eesh-2024.html', 'eesh-2023.html', 'eesh-2022.html'] },
-        { grade: 'ЭЕШ', name: 'ЭЕШ 1000 — хэсгээр', slugs: ['eesh1000-1.html', 'eesh1000-2.html', 'eesh1000-3.html', 'eesh1000-4.html', 'eesh1000-5.html', 'eesh1000-6.html', 'eesh1000-7.html', 'eesh1000-8.html', 'eesh1000-9.html', 'eesh1000-10.html', 'eesh1000-11.html', 'eesh1000-12.html'] },
-        { grade: 'ЭЕШ', name: 'ЭЕШ 1000 — Тоо ба илэрхийлэл', slugs: ['eesh1000-too-1.html'] },
-        { grade: 'ЭЕШ', name: 'ЭЕШ 1000 — Модуль, тэгшитгэл, тэнцэтгэл биш', slugs: ['eesh1000-modul-1.html'] },
-        { grade: 'ЭЕШ', name: 'ЭЕШ 1000 — Олон гишүүнт, рационал бутархай', slugs: ['eesh1000-olon-gishuunt-1.html', 'eesh1000-olon-gishuunt-2.html'] },
-        { grade: 'ЭЕШ', name: 'ЭЕШ 1000 — Илтгэгч ба логарифм', slugs: ['eesh1000-logarifm-1.html'] },
-        { grade: 'ЭЕШ', name: 'ЭЕШ 1000 — Функц ба график', slugs: ['eesh1000-funkts-1.html'] },
-        { grade: 'ЭЕШ', name: 'ЭЕШ 1000 — Дараалал ба цуваа', slugs: ['eesh1000-daraalal-1.html'] },
-        { grade: 'ЭЕШ', name: 'ЭЕШ 1000 — Тригонометр', slugs: ['eesh1000-trigonometr-1.html'] },
-        { grade: 'ЭЕШ', name: 'ЭЕШ 1000 — Уламжлал', slugs: ['eesh1000-ulamjlal-1.html', 'eesh1000-ulamjlal-2.html'] },
-        { grade: 'ЭЕШ', name: 'ЭЕШ 1000 — Интеграл', slugs: ['eesh1000-integral-1.html', 'eesh1000-integral-2.html'] },
-        { grade: 'ЭЕШ', name: 'ЭЕШ 1000 — Магадлал, статистик', slugs: ['eesh1000-magadlal-1.html', 'eesh1000-magadlal-2.html'] },
-        { grade: 'ЭЕШ', name: 'ЭЕШ 1000 — Комплекс тоо', slugs: ['eesh1000-kompleks-1.html'] },
-        { grade: 'ЭЕШ', name: 'ЭЕШ 1000 — Вектор, огторгуйн координат', slugs: ['eesh1000-vektor-1.html'] },
-        { grade: 'ЭЕШ', name: 'ЭЕШ 1000 — Хувиргалт ба матриц', slugs: ['eesh1000-huvirgalt-1.html'] },
-        { grade: 'ЭЕШ', name: 'ЭЕШ 1000 — Геометр', slugs: ['eesh1000-geometr-1.html'] },
       ];
       const seedAddRow = await pool.query(`SELECT sval FROM ws_settings WHERE skey='sg_seeded_add'`);
       let seededAdd = [];

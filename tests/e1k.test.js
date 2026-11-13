@@ -1,10 +1,10 @@
 // «ЭЕШ 1000 бодлого» (e1k.js + eesh1000-N.html):
 //   - туслахууд: бутархай, гишүүн/олон гишүүнт, язгуур, дагавар, нүд (Bx), зураг (Fig) — NaN-гүй
-//   - хуудас бүр 25 генератор (хэсэг бүрт эх дугаар 1–100: K-р хуудас 25((K−1) mod 4)+1-ээс), олон seed-ээр: алдаагүй, q/a хоосон биш, NaN/undefined алга,
+//   - хуудас бүр 25 генератор (4-р хэсэг 27/27/26/26; K-р хуудас хэсгийнхээ дараалсан дугаараас), олон seed-ээр: алдаагүй, q/a хоосон биш, NaN/undefined алга,
 //     $ тэгш тоотой, TeX дотор < > байхгүй (HTML таг болж эвдэрдэг), зураг <svg>/<table>
 //   - 1-р хэсэг (хуудас 1–4): бодлого бүр бодолттой (s), бодолтын $…$ доторх тоон гинж зөв (tests/_texnum.js: 16+2·10=36 г.м)
-//   - каталогийн ЭЕШ бүлэгт 12 хуудас (1–3-р хэсэг), vercel.json-д e1k.js
-//   - агуулгаар ангилсан хуудсууд (eesh1000-<сэдэв>-<n>.html, scripts/e1k/topics.js → build_topics.js): 3 хэсгийн 300 бодлого
+//   - каталогийн ЭЕШ бүлэгт 16 хуудас (1–4-р хэсэг), vercel.json-д e1k.js
+//   - агуулгаар ангилсан хуудсууд (eesh1000-<сэдэв>-<n>.html, scripts/e1k/topics.js → build_topics.js): 4 хэсгийн 406 бодлого
 //     бүгд ЯГ нэг удаа, хуудас бүр ≤ 25, генератор бүр өөрийн хүрээнд (IIFE) олон seed-ээр алдаагүй, каталогт «ЭЕШ 1000 — <сэдэв>-<n>»
 // Ажиллуулах: node --test tests/e1k.test.js
 'use strict';
@@ -18,9 +18,14 @@ const WT = path.resolve(__dirname, '..');
 const H = require(path.join(WT, 'e1k.js'));
 const TN = require('./_texnum.js');
 const SOL_PAGES = [1, 2, 3, 4];     // бодолттой хуудсууд (1-р хэсэг)
-// хэсэг бүр (Математик №P) 4 хуудас: K = 4(P−1)+j, хуудас бүрт эх дугаар 25(j−1)+1…25j
-const PAGES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((k) => ({ k, file: path.join(WT, 'eesh1000-' + k + '.html'), first: 25 * ((k - 1) % 4) + 1 }));
-const NPARTS = 3;                   // агуулгаар ангилсан хуудсуудад орсон хэсгийн тоо
+// хэсэг бүр (Математик №P) 4 хуудас: K = 4(P−1)+j; хуудас бүрийн бодлогын тоо SIZES (scripts/e1k/build_e1k.js-тэй ижил)
+const SIZES = { 4: [27, 27, 26, 26] }, sizes = (P) => SIZES[P] || [25, 25, 25, 25];
+const NPARTS = 4;
+const PAGES = Array.from({ length: 4 * NPARTS }, (_, i) => i + 1).map((k) => {
+  const P = Math.ceil(k / 4), j = (k - 1) % 4, sz = sizes(P);
+  return { k, P, file: path.join(WT, 'eesh1000-' + k + '.html'), first: sz.slice(0, j).reduce((a, b) => a + b, 0) + 1, n: sz[j] };
+});
+const NPROB = (P) => sizes(P).reduce((a, b) => a + b, 0);                   // агуулгаар ангилсан хуудсуудад орсон хэсгийн тоо
 const TOPIC_FILES = fs.readdirSync(WT).filter((f) => /^eesh1000-[a-z][a-z-]*-\d+\.html$/.test(f)).sort();
 
 function mathSegs(s) {
@@ -87,7 +92,7 @@ test('e1k: туслах функцууд', () => {
 });
 
 for (const P of PAGES) {
-  test('e1k: ' + path.basename(P.file) + ' — 25 генератор, олон seed-ээр алдаагүй', () => {
+  test('e1k: ' + path.basename(P.file) + ' — ' + P.n + ' генератор, олон seed-ээр алдаагүй', () => {
     assert.ok(fs.existsSync(P.file), 'файл байхгүй');
     const html = fs.readFileSync(P.file, 'utf8');
     assert.match(html, /<script src="\/e1k\.js\?v=\d+"><\/script>/);
@@ -99,7 +104,7 @@ for (const P of PAGES) {
     vm.runInContext(m[1], ctx, { filename: path.basename(P.file) });
     assert.ok(cfg, 'E1K.page дуудагдаагүй');
     assert.strictEqual(cfg.first, P.first);
-    assert.strictEqual(cfg.probs.length, 25);
+    assert.strictEqual(cfg.probs.length, P.n);
     assert.strictEqual(cfg.title, 'ЭЕШ 1000 ' + Math.ceil(P.k / 4) + '-' + ((P.k - 1) % 4 + 1));   // «ЭЕШ 1000 хэсэг-хуудас»
     cfg.probs.forEach((fn, i) => {
       const n = P.first + i;
@@ -157,7 +162,7 @@ test('e1k: агуулгаар ангилсан хуудсууд — ' + NPARTS +
     });
   });
   const missing = [];
-  for (let P = 1; P <= NPARTS; P++) for (let n = 1; n <= 100; n++) if (!seen[P + '.' + n]) missing.push(P + '.' + n);
+  for (let P = 1; P <= NPARTS; P++) for (let n = 1; n <= NPROB(P); n++) if (!seen[P + '.' + n]) missing.push(P + '.' + n);
   assert.deepStrictEqual(missing, [], 'ангилалгүй бодлого');
 });
 
@@ -200,7 +205,7 @@ for (const f of TOPIC_FILES) {
   });
 }
 
-test('e1k: каталогийн ЭЕШ бүлэгт 12 хуудас (3 хэсэг) + агуулгаар ангилсан хуудсууд, vercel.json-д e1k.js', () => {
+test('e1k: каталогийн ЭЕШ бүлэгт ' + PAGES.length + ' хуудас (' + NPARTS + ' хэсэг) + агуулгаар ангилсан хуудсууд, vercel.json-д e1k.js', () => {
   const ctx = vm.createContext({ window: {} });
   vm.runInContext(fs.readFileSync(path.join(WT, 'catalog.js'), 'utf8'), ctx);
   const g = ctx.window.WS_LIST.find((x) => x[0] === 'ЭЕШ');
@@ -210,7 +215,7 @@ test('e1k: каталогийн ЭЕШ бүлэгт 12 хуудас (3 хэсэ�
     assert.ok(e, f + ' каталогт');
     assert.match(e[1], /^ЭЕШ 1000 — .+-\d+$/, f + ': нэр «ЭЕШ 1000 — <сэдэв>-<n>»');
   });
-  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].forEach((k) => {
+  PAGES.map((x) => x.k).forEach((k) => {
     const e = g[1].find((x) => x[0] === 'eesh1000-' + k + '.html');
     assert.ok(e, 'eesh1000-' + k + '.html каталогт');
     assert.strictEqual(e[1], 'ЭЕШ 1000 ' + Math.ceil(k / 4) + '-' + ((k - 1) % 4 + 1));
@@ -218,3 +223,56 @@ test('e1k: каталогийн ЭЕШ бүлэгт 12 хуудас (3 хэсэ�
   const vj = JSON.parse(fs.readFileSync(path.join(WT, 'vercel.json'), 'utf8'));
   assert.ok(vj.builds.some((b) => b.src === 'e1k.js'), 'vercel.json builds: e1k.js');
 });
+
+// ЭЕШ нүүр (Дасгалын төв, ws-browse.js «Бэнто»): eesh-topics.js нь хуудсуудтай яг тохирно, ачаалагдана, deploy-д орно
+test("e1k: eesh-topics.js — сэдэв бүрийн хуудас, бодлогын тоо, салбар, хэсгийн хуудас файлуудтай тохирно", () => {
+  const ctx = vm.createContext({ window: {} });
+  vm.runInContext(fs.readFileSync(path.join(WT, "eesh-topics.js"), "utf8"), ctx);
+  const ET = ctx.window.EESH_TOPICS;
+  assert.ok(ET && Array.isArray(ET.topics) && Array.isArray(ET.parts) && Array.isArray(ET.doms), "EESH_TOPICS бүтэц");
+  const doms = new Set(ET.doms.map((d) => d[0]));
+  assert.strictEqual(ET.parts.length, NPARTS, "хэсгийн тоо");
+  ET.parts.forEach(([P, n, sizes], i) => {
+    assert.strictEqual(P, i + 1);
+    assert.strictEqual(sizes.length, 4, P + "-р хэсэг 4 хуудас");
+    assert.strictEqual(sizes.reduce((a, b) => a + b, 0), n, P + "-р хэсгийн бодлогын тоо");
+  });
+  const files = new Set();
+  let total = 0;
+  ET.topics.forEach((t) => {
+    assert.match(t.s, /^[a-z][a-z-]*$/);
+    assert.ok(doms.has(t.d), t.s + ": салбар " + t.d);
+    assert.strictEqual(t.c.length, NPARTS, t.s + ": хэсэг тус бүрийн тоо");
+    const sumC = t.c.reduce((a, b) => a + b, 0), sumP = t.p.reduce((a, p) => a + p[0], 0);
+    assert.strictEqual(sumC, sumP, t.s + ": c ба p-ийн нийлбэр");
+    total += sumP;
+    const per = new Array(NPARTS).fill(0);
+    t.p.forEach(([n, sub], j) => {
+      const file = "eesh1000-" + t.s + "-" + (j + 1) + ".html";
+      files.add(file);
+      const html = fs.readFileSync(path.join(WT, file), "utf8");
+      const refs = /probs: \[([^\]]*)\]/.exec(html)[1].split(',');
+      assert.strictEqual(refs.length, n, file + ': бодлогын тоо');
+      assert.ok(sub && html.includes("sub: '" + sub + "'"), file + ': дэд гарчиг');
+      refs.forEach((r) => { per[+/^\s*e(\d+)_/.exec(r)[1] - 1]++; });
+    });
+    assert.deepStrictEqual(per, Array.from(t.c), t.s + ': хэсэг тус бүрээс');   // t.c — өөр vm-ийн массив
+  });
+  assert.deepStrictEqual([...files].sort(), TOPIC_FILES, "eesh-topics.js ↔ eesh1000-<сэдэв>-<n>.html");
+  assert.strictEqual(total, ET.parts.reduce((a, p) => a + p[1], 0), "бүх бодлого сэдэвт");
+});
+
+test("e1k: ЭЕШ нүүр — worksheets.html eesh-topics.js-ийг ws-browse.js-ээс өмнө ачаална, vercel.json-д бий, ws-browse.js-д чиглүүлэлт", () => {
+  const ws = fs.readFileSync(path.join(WT, "worksheets.html"), "utf8");
+  const a = ws.indexOf("<script src=\"/eesh-topics.js\"></script>"), b = ws.indexOf("<script src=\"/ws-browse.js\"></script>");
+  assert.ok(a > 0 && b > a, "eesh-topics.js → ws-browse.js дараалал");
+  const vj = JSON.parse(fs.readFileSync(path.join(WT, "vercel.json"), "utf8"));
+  assert.ok(vj.builds.some((x) => x.src === "eesh-topics.js"), "vercel.json builds: eesh-topics.js");
+  const js = fs.readFileSync(path.join(WT, "ws-browse.js"), "utf8");
+  assert.ok(js.includes('t(\\d+|rest|e-[a-z-]+|p\\d+|[yo])'), 'parseHash: ЭЕШ-ийн e-/p/y/o');
+  assert.ok(js.includes("closest('[data-et]')"), 'data-et товшилт');
+  assert.ok(js.includes("d.label === 'ЭЕШ' && window.EESH_TOPICS"), 'ЭЕШ бүлгийг таних');
+  // api/seed.js — ЭЕШ дэд бүлэг нэмэхгүй (нүүр өөрөө ангилна)
+  assert.ok(!/grade: 'ЭЕШ'/.test(fs.readFileSync(path.join(WT, "api/seed.js"), "utf8")), "seed.js-д ЭЕШ дэд бүлэг байх ёсгүй");
+});
+

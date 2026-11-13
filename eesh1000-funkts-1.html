@@ -14,7 +14,7 @@
 <div class="sheet" id="sheet"></div>
 <script>
 /* ЭЕШ 1000 — Функц ба график-1 — ЭЕШ-ийн 1000 бодлого, агуулгаар: Харгалзаа, муж ба дүр, урвуу функц, квадрат ба бутархай функц, параметрт муруй.
-   Эх: 1.20, 1.71, 1.83, 3.61, 3.87, 1.95, 2.94, 1.100, 2.10, 2.11, 2.12, 2.15 (хэсэг.бодлого). Бодлого бүр өөрийн генератортой: «Шинэ бодлого» дарахад тоо нь өөрчлөгдөнө. */
+   Эх: 1.20, 1.71, 1.83, 3.61, 3.87, 1.95, 2.94, 1.100, 2.10, 2.11, 2.12, 2.15, 4.45, 4.9 (хэсэг.бодлого). Бодлого бүр өөрийн генератортой: «Шинэ бодлого» дарахад тоо нь өөрчлөгдөнө. */
 
 /* 1.20 */
 var e1_20 = (function () {
@@ -434,11 +434,79 @@ function p15() {
 return p15;
 })();
 
+/* 4.45 */
+var e4_45 = (function () {
+// 45. y = arcsin(u)/√v (эсвэл arccos): муж = {−1 ≤ u ≤ 1} ∩ {v > 0} (язгуур хуваарьт тул хатуу).
+//     u = (x − h)/w хэлбэрийн шугаман: x/k + m, (x − m)/k, kx − m ⇒ h − w ≤ x ≤ h + w.
+//     v: c² − x², px − x², −(x − r₁)(x − r₂), x² − c², x − p, p − x, (x − r₁)(x − r₂) — эерэг байх нээлттэй завсар(ууд).
+//     Огтлолцол яг нэг завсар (урт > 0), ядаж нэг төгсгөл нь язгуураас (хатуу), ядаж нэг нь arcsin-аас (хатуу биш).
+function p45_cut(lo, hi, opens) {   // [lo; hi] ∩ (a₁; b₁) ∪ … → [{l, lc, r, rc}]
+  var out = [];
+  opens.forEach(function (o) {
+    var l = Math.max(lo, o[0]), r = Math.min(hi, o[1]);
+    if (r - l > 1e-9) out.push({ l: l, lc: lo > o[0], r: r, rc: hi < o[1] });
+  });
+  return out;
+}
+function p45_tex(v) {   // бүхэл эсвэл хуваарь ≤ 3 бутархай
+  for (var d = 1; d <= 3; d++) { var n = Math.round(v * d); if (Math.abs(n / d - v) < 1e-9) return fr(n, d); }
+  return null;
+}
+function p45() {
+  var t = rnd(1, 20), U, lo, hi, k, m, I = Infinity;
+  if (t <= 10) { k = pick([2, 2, 2, 3, 4]); m = pick([-2, -1, -1, 0, 1, 1, 2]); U = '\\frac{x}{' + k + '}' + (m ? sgn(m) : ''); lo = k * (-1 - m); hi = k * (1 - m); }
+  else if (t <= 15) { k = pick([2, 3, 3, 4, 5]); m = nz(-4, 4); U = '\\frac{' + poly([1, -m]) + '}{' + k + '}'; lo = m - k; hi = m + k; }
+  else { k = pick([1, 1, 2, 3]); m = rnd(-3, 3); U = poly([k, -m]); lo = (m - 1) / k; hi = (m + 1) / k; }
+  var w = rnd(1, 20), V, opens, c, p, r1, r2;
+  if (w <= 8) { c = rnd(1, 5); V = c * c + '-x^2'; opens = [[-c, c]]; }
+  else if (w <= 11) { p = nz(-6, 6); V = tm(p, 'x', true) + '-x^2'; opens = [p > 0 ? [0, p] : [p, 0]]; }
+  else if (w <= 14) { r1 = rnd(-4, 3); r2 = r1 + rnd(2, 6); V = poly([-1, r1 + r2, -r1 * r2]); opens = [[r1, r2]]; }
+  else if (w <= 16) { c = rnd(1, 4); V = 'x^2-' + c * c; opens = [[-I, -c], [c, I]]; }
+  else if (w <= 18) { p = nz(-5, 5); V = rnd(0, 1) ? poly([1, -p]) : p + '-x'; opens = /^x/.test(V) ? [[p, I]] : [[-I, p]]; }
+  else { r1 = rnd(-4, 3); r2 = r1 + rnd(1, 5); V = poly([1, -(r1 + r2), r1 * r2]); opens = [[-I, r1], [r2, I]]; }
+  var cut = p45_cut(lo, hi, opens);
+  if (cut.length !== 1) return null;
+  var z = cut[0], L = p45_tex(z.l), R = p45_tex(z.r);
+  if (!L || !R || (z.lc && z.rc) || (!z.lc && !z.rc)) return null;   // язгуур ба arcsin хоёулаа нөлөөлнө
+  var f = rnd(1, 10) <= 7 ? 'arcsin' : 'arccos';
+  return {
+    q: '$y=\\dfrac{\\' + f + '\\left(' + U + '\\right)}{\\sqrt{' + V + '}}$ функцийн тодорхойлогдох мужийг олоорой.',
+    a: '$' + L + '\\' + (z.lc ? 'le' : 'lt') + ' x\\' + (z.rc ? 'le' : 'lt') + ' ' + R + '$',
+    wk: 24,
+    t: { lo: lo, hi: hi, opens: opens }
+  };
+}
+return p45;
+})();
+
+/* 4.9 */
+var e4_9 = (function () {
+// 9. x = a·cos α + p, y = b·sin α + q (заримдаа sin ↔ cos солих) ⇒ cos²α + sin²α = 1 ⇒ (x − p)²/a² + (y − q)²/b² = 1 (эллипс);
+//    a = b бол тойрог (x − p)² + (y − q)² = a².
+function p9() {
+  var a = rnd(2, 7), b = rnd(2, 7), sh = rnd(1, 10) <= 4, p = sh ? rnd(-4, 4) : 0, q = sh ? rnd(-4, 4) : 0, sw = rnd(1, 5) === 1;
+  if (a === b && rnd(0, 2)) return null;                            // тойрог хааяа
+  if (sh && !p && !q) return null;
+  if (!sh && !sw && a === 2 && b === 3) return null;                  // эх тоо тогтмол хувилбар болохгүй
+  var fx = sw ? '\\sin\\alpha' : '\\cos\\alpha', fy = sw ? '\\cos\\alpha' : '\\sin\\alpha';
+  var sq = function (v, c) { return c ? '(' + v + sgn(-c) + ')^2' : v + '^2'; };
+  var ans = a === b ? sq('x', p) + '+' + sq('y', q) + '=' + a * a
+    : '\\dfrac{' + sq('x', p) + '}{' + a * a + '}+\\dfrac{' + sq('y', q) + '}{' + b * b + '}=1';
+  return {
+    q: '$x=' + a + fx + (p ? sgn(p) : '') + '$, $y=' + b + fy + (q ? sgn(q) : '') + '$ бол $x;\\,y$-ын хамаарлыг ол.',
+    a: '$' + ans + '$',
+    wk: 20,
+    t: { a: a, b: b, p: p, q: q, sw: sw }
+  };
+}
+return p9;
+})();
+
 E1K.page({
   title: 'ЭЕШ 1000 — Функц ба график-1',
   sub: 'Харгалзаа, муж ба дүр, урвуу функц, квадрат ба бутархай функц, параметрт муруй',
   first: 1,
-  probs: [e1_20, e1_71, e1_83, e3_61, e3_87, e1_95, e2_94, e1_100, e2_10, e2_11, e2_12, e2_15]
+  probs: [e1_20, e1_71, e1_83, e3_61, e3_87, e1_95, e2_94, e1_100, e2_10, e2_11, e2_12, e2_15, e4_45, e4_9]
 });
 </script>
 <script src="/ws-store.js?v=40"></script>

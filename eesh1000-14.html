@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ЭЕШ 1000 4-2</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/e1k.js?v=2"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* ЭЕШ 1000 4-2 — ЭЕШ-ийн 1000 бодлого, 4-р хэсэг (28–54-р бодлого).
+   Бодлого бүр өөрийн генератортой: «Шинэ бодлого» дарахад тоо нь өөрчлөгдөнө. Хөдөлгүүр: /e1k.js */
+
+// 28. t = √v гэвэл v² + s·a³√v = t(t³ + s·a³) = t(t + s·a)(t² − s·a·t + a²),  v√v − s·a·v + a²√v = t(t² − s·a·t + a²)
+//     ⇒ (v² + s·a³√v) : (v√v − s·a·v + a²√v) = √v + s·a.  Үлдсэн үржигдэхүүн √v − s·a бол хариу v − a² (эх шиг),
+//     √v + s·a бол (√v + s·a)² = v + 2s·a√v + a².  Хувьсагчийн үсэг, a ∈ {1, 2, 3}, s = ±1, үржигдэхүүн, байрлал санамсаргүй
+//     (гэр бүл нарийн — нийт ~140 ялгаатай хувилбар).  Муж: v > 0.
+var p28_V = ['y', 'y', 'y', 'x', 'a', 'b', 'm', 't'];
+function p28() {
+  var v = pick(p28_V), a = pick([1, 1, 2, 2, 3]), s = pick([1, -1]), sq = rnd(1, 100) <= 30, R = '\\sqrt{' + v + '}';
+  var N = v + '^2' + tm(s * a * a * a, R);                        // v² ± a³√v
+  var D = v + R + tm(-s * a, v) + tm(a * a, R);                   // v√v ∓ a·v + a²√v
+  var F = R + sgn(sq ? s * a : -s * a);                           // үржигдэхүүн √v ∓ a (эсвэл √v ± a)
+  var E = rnd(1, 100) <= 70 ? '(' + N + ')\\times\\dfrac{' + F + '}{' + D + '}' : '\\dfrac{' + N + '}{' + D + '}\\times(' + F + ')';
+  var ans = sq ? '(' + R + sgn(s * a) + ')^2=' + v + tm(2 * s * a, R) + sgn(a * a) : v + sgn(-a * a);
+  return {
+    q: '$' + E + '$ илэрхийллийг хялбарчлаарай.',
+    a: '$' + ans + '$',
+    wk: 26,
+    t: { v: v, a: a, s: s, sq: sq }
+  };
+}
+
+// 29. x² + (αa + β)x + γa + δ = 0 (α = ±1): Виетээр x₁ + x₂ = −(αa + β), x₁x₂ = γa + δ ⇒ S(a) = x₁² + x₂² = (αa + β)² − 2(γa + δ),
+//     параболын орой a* = γ − αβ.  Язгуурууд бодит байх нөхцөл D(a) = (αa + β)² − 4(γa + δ) ≥ 0.
+//     D(a*) ≥ 0 бол хариу a* (эх шиг, ~80%).  Эс бөгөөс D(a) = (a − a₁)(a − a₂), a₁ < a* < a₂ (бүхэл): D ≥ 0 муж дээр S нь a₁ хүртэл
+//     буурч, a₂-оос өснө ⇒ хариу нь S(a₁) = (αa₁ + β)²/2, S(a₂)-ийн багад харгалзах ирмэг (давхар язгуур).
+function p29() {
+  var al = pick([1, 1, 1, -1]), be = nz(-6, 6), ga = pick([1, 1, 1, 2, 2, 3, -1, -2]), A = ga - al * be, de, ans;
+  if (Math.abs(A) > 9) return null;
+  if (rnd(1, 100) <= 80) {
+    de = rnd(-12, 12);
+    if ((al * A + be) * (al * A + be) - 4 * (ga * A + de) < 0) return null;
+    if (A === 0 && rnd(0, 2)) return null;
+    ans = A;
+  } else {
+    var sum = 4 * ga - 2 * al * be, a1 = rnd(-12, 12), a2 = sum - a1;     // D(a) = a² − (a₁ + a₂)a + a₁a₂
+    if (!(a1 < A && A < a2) || (be * be - a1 * a2) % 4) return null;
+    de = (be * be - a1 * a2) / 4;
+    var s1 = Math.abs(al * a1 + be), s2 = Math.abs(al * a2 + be);
+    if (s1 === s2) return null;
+    ans = s1 < s2 ? a1 : a2;
+  }
+  if (Math.abs(de) > 15) return null;
+  var xc;
+  if (al === 1) xc = '+(a' + sgn(be) + ')x';
+  else if (be > 0) xc = rnd(0, 1) ? '+(' + be + '-a)x' : '-(a-' + be + ')x';
+  else xc = '-(a+' + (-be) + ')x';
+  return {
+    q: '$x^2' + xc + tm(ga, 'a') + (de ? sgn(de) : '') + '=0$ тэгшитгэлийн хоёр язгуурын квадратын нийлбэр нь хамгийн бага байхаар $a$ параметрийн утгыг олоорой.',
+    a: '$a=' + ans + '$',
+    wk: 30,
+    t: { al: al, be: be, ga: ga, de: de }
+  };
+}
+
+// 30. Талууд u = √m + Q, v = √m − Q (Q = n эсвэл √k), c = √(2(m + Q²)): u² + v² = c² ⇒ тэгш өнцөгт, богино 2 тал нь катетууд.
+//     v катетыг тойруулбал конус V_v = πu²v/3, u-г тойруулбал V_u = πv²u/3 ⇒ их : бага = u : v = (m + Q² + 2Q√m)/(m − Q²) (хураана),
+//     бага : их = (m + Q² − 2Q√m)/(m − Q²).  m ≤ 23 (квадрат хуваагчгүй), хариу «гоё» (A ≤ 24, B ≤ 6, D ≤ 12, r ≤ 99) хослолуудаас:
+//     ~40% бүхэл гипотенузтай, ~45% Q бүхэл (эх шиг √m ± n), үлдсэн нь аль ч; талуудын дараалал заримдаа холилдоно.
+//     [ЗАС: эх «харьцаа аль байж болох вэ?» (сонголттой) — энд аль эзлэхүүнийг алинд харьцуулахыг зааж нээлттэй хариутай]
+var p30_L = (function () {
+  var SF = [2, 3, 5, 6, 7, 10, 11, 13, 14, 15, 17, 19, 21, 22, 23], L = [];
+  SF.forEach(function (m) {
+    var qs = [], n;
+    for (n = 1; n * n < m; n++) qs.push([n * n, String(n)]);
+    SF.forEach(function (k) { if (k < m) qs.push([k, '\\sqrt{' + k + '}']); });
+    qs.forEach(function (q) {
+      if (Math.sqrt(m) - Math.sqrt(q[0]) < 0.3) return;
+      var S = surd(m * q[0]), A = m + q[0], B = 2 * S.k, D = m - q[0], g = gcd(gcd(A, B), D);
+      if (A / g > 24 || B / g > 6 || D / g > 12 || S.r > 99) return;
+      L.push({ m: m, Q2: q[0], Qt: q[1], A: A / g, B: B / g, D: D / g, r: S.r, ih: surd(2 * (m + q[0])).r === 1, iq: q[1].length < 3 });
+    });
+  });
+  return [L.filter(function (o) { return o.ih; }), L.filter(function (o) { return o.iq; }), L];
+})();
+function p30() {
+  var w = rnd(1, 100), o = pick(p30_L[w <= 40 ? 0 : w <= 85 ? 1 : 2]), C = surd(2 * (o.m + o.Q2));
+  var big = rnd(1, 100) <= 65, num = o.A + (big ? '+' : '-') + rt(o.B, o.r);
+  var u = '\\sqrt{' + o.m + '}+' + o.Qt, v = '\\sqrt{' + o.m + '}-' + o.Qt, sides = rnd(1, 100) <= 60 ? [u, C.tex, v] : shuffle([u, C.tex, v]);
+  return {
+    q: 'Талуудын урт нь $' + sides.join(';\\ ') + '$ байх гурвалжин байв. Эдгээрээс богино байх 2 талыг нь тойруулан эргүүлэхэд үүсэх 2 биетийн '
+      + (big ? 'их эзлэхүүнийг бага эзлэхүүнд' : 'бага эзлэхүүнийг их эзлэхүүнд') + ' харьцуулсан харьцааг олоорой.',
+    a: '$' + (o.D === 1 ? num : '\\dfrac{' + num + '}{' + o.D + '}') + '$',
+    wk: 30,
+    t: { m: o.m, Q2: o.Q2, big: big }
+  };
+}
+
+// 31. sin3α = 3sinα − 4sin³α, cos3α = 4cos³α − 3cosα ⇒
+//     sin³α·sin3α + cos³α·cos3α = 4(cos⁶α − sin⁶α) − 3(cos⁴α − sin⁴α) = cos2α·(1 − sin²2α) = cos³2α  (эх шиг, ~75%);
+//     cos³α·cos3α − sin³α·sin3α = 4(cos⁶α + sin⁶α) − 3(cos⁴α + sin⁴α) = 1 − 1.5·sin²2α = (3cos²2α − 1)/2.
+//     Өгөгдөл: cos2α = p/q (|p| < q ≤ 7, ~70%), заримдаа sin²α = (1 − cos2α)/2 эсвэл cos²α = (1 + cos2α)/2 (q ≤ 5). Хариу хураасан бутархай.
+function p31() {
+  var w = rnd(1, 100), q = w <= 70 ? pick([2, 3, 3, 3, 4, 4, 5, 5, 5, 6, 7]) : rnd(2, 5), p = nz(1 - q, q - 1), giv, E, n, d;
+  if (gcd(p, q) !== 1) return null;
+  if (w <= 70) giv = '\\cos 2\\alpha=' + fr(p, q);
+  else if (w <= 85) giv = '\\sin^2\\alpha=' + fr(q - p, 2 * q);
+  else giv = '\\cos^2\\alpha=' + fr(q + p, 2 * q);
+  var T1 = '\\sin^3\\alpha\\cdot\\sin 3\\alpha', T2 = '\\cos^3\\alpha\\cdot\\cos 3\\alpha';
+  if (rnd(1, 100) <= 75) { E = rnd(0, 2) ? T1 + '+' + T2 : T2 + '+' + T1; n = p * p * p; d = q * q * q; }
+  else { E = T2 + '-' + T1; n = 3 * p * p - q * q; d = 2 * q * q; }
+  return {
+    q: '$' + giv + '$ бол $' + E + '$ илэрхийллийн утгыг олоорой.',
+    a: '$' + fr(n, d) + '$',
+    wk: 26,
+    t: { p: p, q: q }
+  };
+}
+
+// 32. Мөч бүрт sin, cos монотон ⇒ a < f(x) < b тэнцэтгэл бишийн өгсөн (нээлттэй) мөч доторх шийд нь нэг нээлттэй завсар;
+//     зааг нь f = a эсвэл f = b стандарт өнцөг (15°-ын үржвэр) эсвэл мөчийн зааг. Мөчийг 15°-ын 6 хэсэгт хувааж, хэсэг бүрийн
+//     дунд цэг дээр шалгаж завсрыг олно. Хоосон/бүтэн мөч хасагдана; хоёр зааг нь дотоод цэг байх нь давамгай (эх шиг).
+//     Хязгаарыг заримдаа хялбарчлаагүй хэлбэрээр (хуваарьт язгууртай г.м.) бичнэ.  Мөч: I, II голдуу, заримдаа III, IV.
+//     [ЗАС: эх «… шийд аль нь вэ?» (сонголттой) — энд «… шийдийг олоорой»]
+var p32_V = [[-90, '1'], [-60, 'r3'], [-45, 'r2'], [-30, 'h'], [0, '0'], [30, 'h'], [45, 'r2'], [60, 'r3'], [90, '1']];   // [arcsin (°), бичиглэл]
+var p32_R = { '0': ['0'], '1': ['1'], h: ['\\dfrac{1}{2}', '0.5'], r2: ['\\dfrac{\\sqrt{2}}{2}', '\\dfrac{1}{\\sqrt{2}}', '\\dfrac{\\sqrt{6}}{2\\sqrt{3}}'],
+  r3: ['\\dfrac{\\sqrt{3}}{2}', '\\dfrac{3}{2\\sqrt{3}}', '\\dfrac{\\sqrt{6}}{2\\sqrt{2}}'] };
+var p32_Q = ['0', '\\dfrac{\\pi}{2}', '\\pi', '\\dfrac{3\\pi}{2}', '2\\pi'];
+function p32_tex(v) { var L = p32_R[v[1]], s = L.length > 1 && rnd(1, 100) <= 50 ? L[rnd(1, L.length - 1)] : L[0]; return (v[0] < 0 ? '-' : '') + s; }
+function p32_pi(deg) { var g = gcd(deg, 180), p = deg / g, q = 180 / g, n = (p === 1 ? '' : p) + '\\pi'; return deg === 0 ? '0' : q === 1 ? n : '\\dfrac{' + n + '}{' + q + '}'; }
+function p32() {
+  var f = rnd(1, 100) <= 55 ? 'sin' : 'cos', qd = pick([1, 1, 1, 2, 2, 2, 3, 4]), i = rnd(0, 7), j = rnd(i + 1, 8);
+  if ((i === 0 || j === 8) && rnd(1, 100) <= 70) return null;           // ±1 хязгаар (мөч дотор үргэлж биелнэ) — цөөн
+  var t0 = 90 * (qd - 1), RAD = Math.PI / 180, lo = Math.sin(p32_V[i][0] * RAD), hi = Math.sin(p32_V[j][0] * RAD), cell = [], k;
+  for (k = 0; k < 6; k++) { var x = (t0 + 7.5 + 15 * k) * RAD, y = f === 'sin' ? Math.sin(x) : Math.cos(x); cell.push(y > lo && y < hi); }
+  var a = cell.indexOf(true), b = cell.lastIndexOf(true);
+  if (a < 0 || (a === 0 && b === 5)) return null;                      // хоосон эсвэл бүтэн мөч
+  for (k = a; k <= b; k++) if (!cell[k]) return null;
+  if ((a === 0 || b === 5) && rnd(1, 100) <= 75) return null;          // нэг зааг нь мөчийн зааг — цөөн
+  return {
+    q: '$' + p32_tex(p32_V[i]) + '\\lt\\' + f + ' x\\lt ' + p32_tex(p32_V[j]) + '$ тэнцэтгэл бишийн шийдүүдийн хувьд $' + p32_Q[qd - 1] + '\\lt x\\lt ' + p32_Q[qd]
+      + '$ завсарт харьяалагдах шийдийг олоорой.',
+    a: '$' + p32_pi(t0 + 15 * a) + '\\lt x\\lt ' + p32_pi(t0 + 15 * (b + 1)) + '$',
+    wk: 24,
+    t: { f: f, qd: qd, i: i, j: j }
+  };
+}
+
+// 33. y = c(x − r)(x² + px + q), p² − 4q < 0 ⇒ график абсцисс тэнхлэгийг зөвхөн (r; 0) цэгт огтолно.
+//     y'(r) = c(r² + pr + q) = k ≠ 0 ⇒ шүргэгч y = k(x − r) = kx − kr.  Олон гишүүнтийг задалж эх шиг өсөх зэргээр (~60%),
+//     заримдаа буурах зэргээр бичнэ; c = ±1 голдуу (заримдаа ±2), r = ±1..±3, коэффициент |·| ≤ 12.
+function p33() {
+  var c = pick([-1, -1, -1, 1, 1, 1, -2, 2]), r = nz(-3, 3), p = rnd(-4, 4), q = rnd(1, 8);
+  if (p * p - 4 * q >= 0) return null;
+  var k3 = c, k2 = c * (p - r), k1 = c * (q - p * r), k0 = -c * q * r;            // (x − r)(x² + px + q) задаргаа
+  if (Math.max(Math.abs(k2), Math.abs(k1), Math.abs(k0)) > 12 || (!k2 && !k1)) return null;
+  var k = c * (r * r + p * r + q), b = -k * r;
+  if (Math.abs(k) > 40) return null;
+  var y = rnd(1, 100) <= 60 ? String(k0) + tm(k1, 'x') + tm(k2, 'x^2') + tm(k3, 'x^3') : poly([k3, k2, k1, k0]);
+  return {
+    q: '$y=' + y + '$ функцийн графикийн абсцисс тэнхлэгийг огтлох цэгт нь татсан шүргэгч шулууны тэгшитгэлийг олоорой.',
+    a: '$y=' + tm(k, 'x', true) + sgn(b) + '$',
+    wk: 30,
+    t: { c: c, r: r, p: p, q: q }
+  };
+}
+
+// 34. AD = DB ⇒ △ABD адил хажуут: ∠BAD = ∠ABD; AD биссектрис тул ∠A = 2∠B ⇔ a² = b(b + c)  (a = BC, b = AC, c = AB).
+//     Бүхэл хувилбар: b = k·s², c = k(t² − s²), a = k·s·t, s < t < 2s (гурвалжны тэнцэтгэл биш), талууд ≤ 50.
+//     Заримдаа (~20%) b(b + c) бүтэн квадрат биш — BC = √(b(b + c)) хялбарчилсан язгуур.
+//     Ихэнхдээ BC-г (эх шиг), заримдаа AB-г (c = a²/b − b) эсвэл AC-г (b² + bc − a² = 0) асууна.
+var p34_ST = [[2, 3], [2, 3], [2, 3], [3, 4], [3, 4], [3, 5], [4, 5], [4, 7], [5, 6], [5, 7], [5, 8], [6, 7], [7, 8]];
+function p34() {
+  var w = rnd(1, 100), b, c, a, aT = null, ask;
+  if (w <= 20) {
+    b = rnd(2, 6); c = rnd(2, 10);
+    var S = surd(b * (b + c));
+    if (S.r === 1 || b === c || Math.sqrt(b * (b + c)) + b - c < 0.5) return null;          // c < a + b
+    ask = 'BC'; aT = S.tex;
+  } else {
+    var st = pick(p34_ST), s = st[0], t = st[1], k = rnd(1, 4);
+    b = k * s * s; c = k * (t * t - s * s); a = k * s * t;
+    if (Math.max(a, b, c) > 50) return null;
+    ask = w <= 70 ? 'BC' : w <= 85 ? 'AB' : 'AC';
+  }
+  var giv = ask === 'BC' ? ['AC', b, 'AB', c] : ask === 'AB' ? ['AC', b, 'BC', a] : ['AB', c, 'BC', a];
+  return {
+    q: '$' + giv[0] + '=' + giv[1] + '$ нэгж, $' + giv[2] + '=' + giv[3] + '$ нэгж урттай $ABC$ гурвалжны $A$ оройн дотоод өнцгийн биссектрис $AD=DB$ байхаар '
+      + '$BC$ талтай $D$ цэгт огтлолцсон бол $' + ask + '$ талын уртыг олоорой.',
+    a: '$' + ask + '=' + (ask === 'BC' ? (aT || a) : ask === 'AB' ? c : b) + '$',
+    wk: 30,
+    t: { a: a, b: b, c: c, ask: ask }
+  };
+}
+
+// 35. Арифметик прогресс a₁ < 0, d > 0: aₙ = a₁ + (n − 1)d; сөрөг гишүүд бүгдийг нэмтэл нийлбэр буурч, дараа нь өснө
+//     ⇒ k = ⌈|a₁|/d⌉ (сөрөг гишүүдийн тоо), S_min = k·a₁ + k(k − 1)d/2  (aₖ₊₁ = 0 бол S_k = S_{k+1} — утга нэг).
+//     Заримдаа (~25%) a₁ > 0, d < 0 — хамгийн их утга.  3 ≤ k ≤ 12.
+function p35() {
+  var mx = rnd(1, 100) <= 25, A = rnd(8, 45), d = rnd(2, 9), k = Math.ceil(A / d);
+  if (k < 3 || k > 12) return null;
+  var a1 = mx ? A : -A, dd = mx ? -d : d, S = k * a1 + k * (k - 1) * dd / 2;
+  return {
+    q: 'Арифметик прогрессийн эхний гишүүн нь $' + a1 + '$, ялгавар нь $' + dd + '$ бол эхний $n$ гишүүний нийлбэрийн хамгийн ' + (mx ? 'их' : 'бага') + ' утгыг олоорой.',
+    a: '$' + S + '$',
+    wk: 26,
+    t: { a1: a1, d: dd }
+  };
+}
+
+// 36. tg α = t.  Хүртвэр, хуваарийг cos³α-д хуваавал sinα/cos³α = t(1 + t²), cosα/cos³α = 1 + t², sin³α/cos³α = t³ ⇒
+//     (A·sinα + B·cosα)/(C·sin³α + D·cos³α) = (At + B)(1 + t²)/(Ct³ + D)  (эх шиг, ~70%); заримдаа урвуу бутархай (~15%),
+//     эсвэл E/(P·sin²α + Q·sinα·cosα + R·cos²α) = E(1 + t²)/(Pt² + Qt + R) (~15%, E = E(sin²α + cos²α)).
+//     t бүхэл эсвэл энгийн бутархай; хариу хураасан бутархай (|·| ≤ 99, бүхэл давамгай).
+var p36_T = [[2, 1], [2, 1], [3, 1], [3, 1], [3, 1], [4, 1], [5, 1], [-2, 1], [-3, 1], [1, 2], [1, 3], [-1, 2], [3, 2], [2, 3]];
+function p36() {
+  var T = pick(p36_T), tn = T[0], td = T[1], w = rnd(1, 100), S = '\\sin\\alpha', C = '\\cos\\alpha', E, N, D;
+  if (w <= 85) {
+    var A = rnd(1, 6), B = rnd(1, 100) <= 65 ? 0 : nz(-4, 4), c3 = pick([1, 1, 1, 2]), d3 = nz(-5, 5);
+    if ((B && gcd(A, B) > 1) || gcd(c3, d3) > 1) return null;                 // хүртвэр/хуваарийн коэффициентүүд нийтлэг хуваагчгүй
+    var lin = tm(A, S, true) + tm(B, C), cub = tm(c3, '\\sin^3\\alpha', true) + tm(d3, '\\cos^3\\alpha');
+    var Ln = (A * tn + B * td) * (tn * tn + td * td), Cn = c3 * tn * tn * tn + d3 * td * td * td;   // td³-оор үржүүлсэн
+    if (w <= 70) { E = '\\dfrac{' + lin + '}{' + cub + '}'; N = Ln; D = Cn; }
+    else { E = '\\dfrac{' + cub + '}{' + lin + '}'; N = Cn; D = Ln; }
+  } else {
+    var e = rnd(1, 9), P = pick([1, 1, 2, 3]), Q = nz(-4, 4), R = nz(-4, 4);
+    if (gcd(gcd(P, Q), R) > 1) return null;
+    E = '\\dfrac{' + e + '}{' + tm(P, '\\sin^2\\alpha', true) + tm(Q, S + C) + tm(R, '\\cos^2\\alpha') + '}';
+    N = e * (tn * tn + td * td); D = P * tn * tn + Q * tn * td + R * td * td;
+  }
+  if (!N || !D) return null;
+  var g = gcd(N, D), n = N / g, d = D / g;
+  if (d < 0) { n = -n; d = -d; }
+  if (Math.abs(n) > 99 || d > 99 || (d !== 1 && rnd(1, 100) <= 65)) return null;
+  return {
+    q: '$\\operatorname{tg}\\alpha=' + fr(tn, td) + '$ бол $' + E + '$ илэрхийллийн утгыг олоорой.',
+    a: '$' + fr(n, d) + '$',
+    wk: 26,
+    t: { tn: tn, td: td }
+  };
+}
+
+// 37. L = log_B a: log_B(B·a) = 1 + L, log_B(a⁴) = 4L ⇒ √(log²_B(Ba) − log_B a⁴) = √((1 − L)²) = |1 − L|.
+//     a < B (L < 1): K + L + (1 − L) = K + 1;  a > B (L > 1): K − L + (L − 1) = K − 1  (логарифмууд хасагдана).
+//     Суурь 10 (lg, эх шиг) голдуу, заримдаа 2, 3, 5; a нь B-ийн зэрэг биш; гишүүдийн дараалал, K санамсаргүй.
+var p37_A = { 10: [2, 3, 4, 5, 6, 7, 8, 9], 2: [3, 5, 6, 7], 3: [2, 4, 5, 7], 5: [2, 3, 4, 6, 7] };
+function p37() {
+  var B = pick([10, 10, 10, 10, 2, 3, 5]), a = pick(p37_A[B]), K = rnd(1, 9), lt = a < B, w = rnd(1, 100), E, ans;
+  var lg = function (x, sq) { return (B === 10 ? '\\lg' + (sq ? '^2' : '') : '\\log_{' + B + '}' + (sq ? '^{2}' : '')) + ' ' + x; };
+  var R = '\\sqrt{' + lg(B * a, 1) + '-' + lg(Math.pow(a, 4)) + '}', L = lg(a), sL = (lt ? '+' : '-') + L;
+  if (w <= 55) { E = K + sL + '+' + R; ans = lt ? K + 1 : K - 1; }                       // эх шиг
+  else if (w <= 80) { E = R + sL + '+' + K; ans = lt ? K + 1 : K - 1; }
+  else { E = (lt ? '' : '-') + L + '+' + R + '-' + K; ans = (lt ? 1 : -1) - K; }
+  return {
+    q: '$' + E + '$ илэрхийллийг хялбарчлаарай.',
+    a: '$' + ans + '$',
+    wk: 26,
+    t: { B: B, a: a, K: K }
+  };
+}
+
+// 38. √(p² + rq² ± 2pq√r) = |p ± q√r|;  (X² − Y²)/Z = (X − Y)(X + Y)/Z = M² (X + Y — тоймтой тоо);  √(q²r) = q√r задлаагүй
+//     бичигдэж, язгууртай гишүүн хасагдана ⇒ хариу бүхэл: p + M (эсвэл p < q√r ба «−» үед M − p).
+//     r ∈ {2, 3, 5, 6, 7}, p ≤ 6, q ≤ 4 (q ≥ 2 давамгай — сүүлийн язгуур задлаагүй хэлбэрээр); гишүүдийн дараалал заримдаа өөр.
+//     [ЗАС: эх «… утга аль нь вэ?» (сонголттой) — энд «… утгыг олоорой»]
+function p38() {
+  var r = pick([2, 3, 3, 5, 6, 7]), p = rnd(1, 6), q = rnd(1, 4), A = p * p + r * q * q, B2 = 2 * p * q;
+  if (A > 90 || (q === 1 && rnd(0, 2))) return null;
+  var neg = rnd(1, 100) <= 30, big = p * p > r * q * q, ls, base;
+  if (!neg) { ls = '-'; base = p; }                  // (p + q√r) − q√r
+  else if (big) { ls = '+'; base = p; }              // (p − q√r) + q√r
+  else { ls = '-'; base = -p; }                      // (q√r − p) − q√r
+  var S = pick([100, 200, 300, 400, 500, 600, 800, 1000, 1000]), M = rnd(2, 12), Dd = 2 * rnd(2, 49);
+  if (Dd >= S) return null;
+  var Z = S * Dd / (M * M);
+  if (Z !== Math.floor(Z) || Z < 12 || Z > 999 || Z === Dd || Z === S || base + M <= 0) return null;
+  var X = (S + Dd) / 2, Y = (S - Dd) / 2;
+  var first = '\\sqrt{' + A + (neg ? '-' : '+') + B2 + '\\sqrt{' + r + '}}', mid = '\\sqrt{\\dfrac{' + X + '^2-' + Y + '^2}{' + Z + '}}', last = '\\sqrt{' + q * q * r + '}';
+  var E = rnd(1, 100) <= 70 ? first + '+' + mid + ls + last : mid + '+' + first + ls + last;
+  return {
+    q: '$' + E + '$ илэрхийллийн утгыг олоорой.',
+    a: '$' + (base + M) + '$',
+    wk: 26,
+    t: { p: p, q: q, r: r, neg: neg, X: X, Y: Y, Z: Z }
+  };
+}
+
+// 39. a² − b² = (a − b)(a + b) = N, a, b ∈ ℕ.  N = p (сондгой анхны тоо, ~70%): a − b = 1, a + b = p ⇒ a = (p + 1)/2, b = (p − 1)/2;
+//     N = 4p (p сондгой анхны): a − b, a + b ижил тэгш/сондгой ⇒ a − b = 2, a + b = 2p ⇒ a = p + 1, b = p − 1.  Аль алинд нь шийд цорын ганц.
+//     Асуух нь: a·b (эх шиг, ~75%) эсвэл a² + b².
+var p39_P = [5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79];
+function p39() {
+  var N, a, b, ab = rnd(1, 100) <= 75;
+  if (rnd(1, 100) <= 70) { var p = pick(p39_P); N = p; a = (p + 1) / 2; b = (p - 1) / 2; }
+  else { var p2 = pick([3, 5, 7, 11, 13, 17, 19, 23]); N = 4 * p2; a = p2 + 1; b = p2 - 1; }
+  if (!ab && N > 45) return null;                                    // a² + b² том тоо болохгүй
+  return {
+    q: '$a^2-b^2=' + N + '$ ба $a,b\\in\\mathbb{N}$ бол $' + (ab ? 'a\\times b$-гийн' : 'a^2+b^2$-ын') + ' утгыг олоорой.',
+    a: '$' + (ab ? a * b : a * a + b * b) + '$',
+    wk: 22,
+    t: { N: N, a: a, b: b }
+  };
+}
+
+// 40. (P, Q, R) — a, b, c-ийн сэлгэмэл.  1) P^{2k}·Q (эсвэл Q/P^{2k}, Q³P^{2k}, −P^{2k}Q)-ийн тэмдэг ⇒ Q-ийн тэмдэг (P ≠ 0);
+//     2) QR < 0 (эсвэл Q/R, Q³R) ⇒ R нь Q-ийн эсрэг тэмдэгтэй;  3) R − P (P − R)-ийн тэмдэг ⇒ P нь R-ээс 0-ээс цааш талд.
+//     ⇒ Q < 0 бол Q < R < P, Q > 0 бол P < R < Q.  Үсгийн үүрэг, хэлбэр, тэмдэг санамсаргүй; нөхцлүүдийн дараалал заримдаа холилдоно.
+//     [ЗАС: эх «… эрэмбэ аль нь вэ?» (сонголттой) — энд «… эрэмбийг олоорой»]
+function p40() {
+  var L = shuffle(['a', 'b', 'c']), P = L[0], Q = L[1], R = L[2], sQ = pick([-1, 1]), sR = -sQ, e = pick([2, 4, 4, 6]);
+  var rel = function (s) { return s < 0 ? '\\lt 0' : '\\gt 0'; }, Pe = P + '^' + e, QR = [Q, R].sort().join('');
+  var c1 = pick([
+    [Pe + '\\times ' + Q, sQ], [Pe + Q, sQ], [Q + Pe, sQ], ['\\dfrac{' + Q + '}{' + Pe + '}', sQ], [Q + '^3' + Pe, sQ], ['-' + Pe + Q, -sQ]
+  ]);
+  var c2 = pick([[QR, -1], [QR, -1], ['\\dfrac{' + Q + '}{' + R + '}', -1], ['\\dfrac{' + R + '}{' + Q + '}', -1], [Q + '^3' + R, -1], ['-' + QR, 1]]);
+  var c3 = pick([[R + '-' + P, -sR], [P + '-' + R, sR]]);           // sR > 0 ⇒ P > R;  sR < 0 ⇒ P < R
+  var cs = [c1[0] + rel(c1[1]), c2[0] + rel(c2[1]), c3[0] + rel(c3[1])];
+  if (rnd(1, 100) <= 30) cs = shuffle(cs);
+  return {
+    q: '$' + cs.join(';\\ ') + '$ байх $a;\\ b;\\ c$ тоонуудын эрэмбийг олоорой.',
+    a: '$' + (sQ < 0 ? Q + '\\lt ' + R + '\\lt ' + P : P + '\\lt ' + R + '\\lt ' + Q) + '$',
+    wk: 18,
+    t: { P: P, Q: Q, R: R, sQ: sQ }
+  };
+}
+
+// 41. log_{1/p} pᵐ = −m (эсвэл log_{1/p}(1/pᵐ) = m),  log_q(1/qⁿ) = −n (эсвэл log_q qⁿ = n),  (sᵏ)^{log_s t} = (s^{log_s t})ᵏ = tᵏ
+//     ⇒ L₁·L₂ ÷ tᵏ — хураасан бутархай.  Бүх хослолыг (p, m, q, n, хэлбэр, хуваагч) урьдчилан бүхэл / бутархай (хуваарь ≤ 9)
+//     хариутай хоёр бүлэгт хувааж ~80% бүхлээс сонгоно.  Хүчин зүйлсийн хэлбэр, суурь, дараалал санамсаргүй.
+var p41_E = [[3, 2, 2], [5, 2, 2], [7, 2, 2], [2, 2, 3], [5, 2, 3], [3, 3, 2], [5, 3, 2], [3, 2, 4], [3, 4, 2], [2, 3, 3], [2, 2, 5]];   // [s, k, t]: (s^k)^{log_s t} = t^k
+var p41_C = (function () {
+  var I = [], F = [];
+  [[2, 6], [3, 4], [5, 3]].forEach(function (pm) {
+    for (var m = 2; m <= pm[1]; m++) [[2, 5], [3, 3], [5, 3], [7, 2]].forEach(function (qn) {
+      for (var n = 1; n <= qn[1]; n++) for (var f = 0; f < 4; f++) p41_E.forEach(function (X, xi) {
+        var N = (f & 1 ? -m : m) * (f & 2 ? -n : n), D = Math.pow(X[2], X[1]), d = D / gcd(N, D), o = [pm[0], m, f & 1, qn[0], n, f & 2, xi];
+        if (d === 1) I.push(o); else if (d <= 9) F.push(o);
+      });
+    });
+  });
+  return [I, F];
+})();
+function p41() {
+  var o = pick(p41_C[rnd(1, 100) <= 80 ? 0 : 1]), p = o[0], m = o[1], f1 = !!o[2], q = o[3], n = o[4], f2 = !!o[5], X = p41_E[o[6]];
+  if (rnd(1, 100) <= 30 && (f1 !== f2)) return null;                              // хоёр логарифм хоёулаа сөрөг (эх шиг) давамгай
+  if ((p === q && rnd(0, 1)) || (n === 1 && (!f2 || rnd(0, 2)))) return null;     // log_q q = 1 гэх мэт хэт энгийн — цөөн
+  var T1 = '\\log_{\\frac{1}{' + p + '}}' + (f1 ? Math.pow(p, m) : '\\dfrac{1}{' + Math.pow(p, m) + '}'), v1 = f1 ? -m : m;
+  var T2 = '\\log_{' + q + '}' + (f2 ? '\\dfrac{1}{' + Math.pow(q, n) + '}' : Math.pow(q, n)), v2 = f2 ? -n : n;
+  var T3 = Math.pow(X[0], X[1]) + '^{\\log_{' + X[0] + '}' + X[2] + '}', v3 = Math.pow(X[2], X[1]), N = v1 * v2;
+  var E = rnd(1, 100) <= 75 ? T1 + '\\times ' + T2 : T2 + '\\times ' + T1;
+  return {
+    q: '$' + E + '\\div ' + T3 + '$ үйлдлийг гүйцэтгээрэй.',
+    a: '$' + fr(N, v3) + '$',
+    wk: 22,
+    t: { p: p, m: m, q: q, n: n, X: X }
+  };
+}
+
+// 42. Давхар илтгэгч тэнцэтгэл биш  L ≤ b^{αx+β} < U.  L, U нь c-ийн бүхэл зэрэг (1/c^k, 1, c^k), суурь b = c^j эсвэл 1/c^j.
+//     c-ийн илтгэгчээр: s₁ ≤ γx + δ < s₂ (γ = ±jα, δ = ±jβ). γ сөрөг (суурь 1-ээс бага) бол тэмдэг эргэж,
+//     хатуу/хатуу биш тэмдэг нь эсрэг төгсгөлд шилжинэ. Хариу: x-ийн завсар (төгсгөл бүхэл эсвэл хуваарь ≤ 4 бутархай).
+function p42_pw(c, s) { return s > 0 ? String(Math.pow(c, s)) : s === 0 ? '1' : '\\dfrac{1}{' + Math.pow(c, -s) + '}'; }
+// 3-x, 2x+1, x-4;  «1-x»-ийг {1}-x гэж бичнэ (харагдах байдал ижил, шалгагчийн «^1» анхааруулгаас сэргийлнэ)
+function p42_lin(a, b) { return a < 0 && b > 0 ? (b === 1 ? '{1}' : b) + tm(a, 'x') : poly([a, b]); }
+function p42() {
+  var c = pick([2, 2, 3, 3, 3, 5, 7]), j = c <= 3 && rnd(1, 5) === 1 ? 2 : 1, dir = rnd(1, 3) === 1 ? 1 : -1;
+  var al = pick([1, 1, 1, 1, 2, 2, 3, -1, -1]), be = rnd(-6, 6), mx = { 2: 7, 3: 5, 5: 4, 7: 3 }[c];
+  var s1 = rnd(-mx, mx), s2 = rnd(-mx, mx);
+  if (s1 >= s2 || s2 - s1 > 8) return null;
+  var rr = pick([['le', 'lt'], ['le', 'lt'], ['le', 'lt'], ['le', 'le'], ['lt', 'le'], ['lt', 'lt']]);
+  var g = dir * j * al, d = dir * j * be, lo, hi, rL, rH;
+  if (g > 0) { lo = [s1 - d, g]; rL = rr[0]; hi = [s2 - d, g]; rH = rr[1]; }
+  else { lo = [s2 - d, g]; rL = rr[1]; hi = [s1 - d, g]; rH = rr[0]; }          // сөрөг γ-д хуваахад тэмдэг эргэнэ
+  var den = function (e) { return Math.abs(e[1]) / gcd(e[0], e[1]); };
+  if (den(lo) > 4 || den(hi) > 4 || Math.abs(lo[0] / lo[1]) > 12 || Math.abs(hi[0] / hi[1]) > 12) return null;
+  var B = dir > 0 ? String(Math.pow(c, j)) : '\\left(\\dfrac{1}{' + Math.pow(c, j) + '}\\right)';
+  return {
+    q: '$' + p42_pw(c, s1) + '\\' + rr[0] + ' ' + B + '^{' + p42_lin(al, be) + '}\\' + rr[1] + ' ' + p42_pw(c, s2) + '$ тэнцэтгэл бишийн шийдийг олоорой.',
+    a: '$' + fr(lo[0], lo[1]) + '\\' + rL + ' x\\' + rH + ' ' + fr(hi[0], hi[1]) + '$',
+    wk: 24,
+    t: { c: c, j: j, dir: dir, al: al, be: be, s1: s1, s2: s2, rr: rr }
+  };
+}
+
+// 43. Текст бодлого (урвуугаар зохиосон). Нийт N асуулт: 1-р өдөр N·p₁/q₁ + a₁, 2-р өдөр үлдсэний P% + a₂,
+//     3-р өдрийн үдээс өмнө үлдсэний p₃/q₃ хэсэг; R асуулт үлдэв. Сүүлээс нь: N₃ = q₃k (R = k(q₃ − p₃)),
+//     N₂ = (N₃ + a₂)/(1 − P/100), N = (N₂ + a₁)/(1 − p₁/q₁) — алхам бүрт бүхэл байхаар a₂, a₁-ийг сонгоно.
+var p43_F1 = [[1, 5], [1, 5], [1, 4], [1, 3], [1, 6], [1, 8], [1, 10], [2, 5], [3, 10], [2, 7], [3, 8], [1, 7]];
+var p43_P = [20, 25, 30, 40, 40, 50, 60, 75, 10, 15, 35, 45];
+var p43_F3 = [[2, 3], [2, 3], [1, 2], [3, 4], [3, 5], [2, 5], [1, 3], [4, 5], [5, 6], [1, 4]];
+function p43() {
+  var f1 = pick(p43_F1), P = pick(p43_P), f3 = pick(p43_F3), k = rnd(1, 6), a;
+  var N3 = f3[1] * k, R = N3 - k * f3[0];                       // 3-р өдрийн өглөө байсан ба үлдсэн асуулт
+  var gu = gcd(100 - P, 100), u = (100 - P) / gu, v = 100 / gu;  // 1 − P/100 = u/v
+  var c2 = [], c1 = [];
+  for (a = 2; a <= 12; a++) if ((N3 + a) % u === 0) c2.push(a);
+  if (!c2.length) return null;
+  var a2 = pick(c2), N2 = (N3 + a2) / u * v, w = f1[1] - f1[0];
+  for (a = 2; a <= 15; a++) if ((N2 + a) % w === 0) c1.push(a);
+  if (!c1.length) return null;
+  var a1 = pick(c1), N = (N2 + a1) / w * f1[1];
+  if (N < 30 || N > 240 || R < 2 || R > 30) return null;
+  return {
+    q: 'Сурагч эхний өдөр нийт асуултын $\\dfrac{' + f1[0] + '}{' + f1[1] + '}$ хэсэг ба ' + a1 + ' асуулт, 2 дахь өдөр үлдсэн асуултын '
+      + P + '% ба ' + a2 + ' асуулт, 3 дахь өдрийн үдээс өмнө үлдсэн асуултынхаа $\\dfrac{' + f3[0] + '}{' + f3[1] + '}$ хэсгийг боловсруулахад '
+      + R + ' асуулт боловсруулаагүй үлдсэн бол шалгалт хэдэн асуулттай байсан бэ?',
+    a: '$' + N + '$',
+    wk: 30,
+    t: { N: N, N2: N2, N3: N3, R: R }
+  };
+}
+
+// 44. A — арифметик прогрессийн нийлбэр p/q + (p + r)/q + (p + 2r)/q + ⋯ + a_n (q анхны тоо, сүүлийн гишүүн голдуу бүхэл):
+//     n = (q·a_n − p)/r + 1, A = n(a₁ + a_n)/2.  B — хязгааргүй буурах геометр прогрессийн нийлбэр b₁/(1 − ρ) (|ρ| < 1).
+//     b₁ = s·(a₁ + a_n) байхаар зохиосон тул A/B = n(1 − ρ)/(2s) — хураасан бутархай.
+var p44_RHO = [[1, 2], [1, 3], [1, 3], [1, 3], [1, 4], [1, 5], [2, 3], [2, 5], [3, 5], [-1, 2], [-1, 3]];
+function p44_join(ts) { return ts.map(function (t, i) { return i && t[0] !== '-' ? '+' + t : t; }).join(''); }
+function p44() {
+  var q = pick([5, 7, 7, 7, 11, 13]), r = rnd(1, 4), p = rnd(1, 2 * q - 1);
+  if ([p, p + r, p + 2 * r].some(function (t) { return t % q === 0; })) return null;   // эхний 3 гишүүн бүхэл биш
+  var n = rnd(8, 36), last = p + (n - 1) * r;
+  if (last % q !== 0 && rnd(1, 4) > 1) return null;      // сүүлийн гишүүн ихэвчлэн бүхэл
+  if (last > 25 * q) return null;
+  var rho = pick(p44_RHO), s = pick([[1, 1], [1, 1], [1, 1], [1, 1], [2, 1], [1, 2]]);
+  var bn = s[0] * (p + last), bd = s[1] * q, gb = gcd(bn, bd);
+  bn /= gb; bd /= gb;                                     // b₁ = s·(a₁ + a_n)
+  var Bf = [[bn, bd], [bn * rho[0], bd * rho[1]], [bn * rho[0] * rho[0], bd * rho[1] * rho[1]]];
+  if (Bf.some(function (f) { var g = gcd(f[0], f[1]); return Math.abs(f[0]) / g > 999 || f[1] / g > 999; })) return null;
+  var an = n * (rho[1] - rho[0]) * s[1], ad = 2 * s[0] * rho[1];   // A/B = n(1 − ρ)/(2s)
+  return {
+    q: '$A=' + [fr(p, q), fr(p + r, q), fr(p + 2 * r, q)].join('+') + '+\\cdots+' + fr(last, q) + '$; $B='
+      + p44_join(Bf.map(function (f) { return fr(f[0], f[1]); })) + (rho[0] < 0 ? '-' : '+') + '\\cdots$ бол $\\dfrac{A}{B}=?$',
+    a: '$\\dfrac{A}{B}=' + fr(an, ad) + '$',
+    wk: 32,
+    t: { p: p, q: q, r: r, n: n, rho: rho, s: s }
+  };
+}
+
+// 45. y = arcsin(u)/√v (эсвэл arccos): муж = {−1 ≤ u ≤ 1} ∩ {v > 0} (язгуур хуваарьт тул хатуу).
+//     u = (x − h)/w хэлбэрийн шугаман: x/k + m, (x − m)/k, kx − m ⇒ h − w ≤ x ≤ h + w.
+//     v: c² − x², px − x², −(x − r₁)(x − r₂), x² − c², x − p, p − x, (x − r₁)(x − r₂) — эерэг байх нээлттэй завсар(ууд).
+//     Огтлолцол яг нэг завсар (урт > 0), ядаж нэг төгсгөл нь язгуураас (хатуу), ядаж нэг нь arcsin-аас (хатуу биш).
+function p45_cut(lo, hi, opens) {   // [lo; hi] ∩ (a₁; b₁) ∪ … → [{l, lc, r, rc}]
+  var out = [];
+  opens.forEach(function (o) {
+    var l = Math.max(lo, o[0]), r = Math.min(hi, o[1]);
+    if (r - l > 1e-9) out.push({ l: l, lc: lo > o[0], r: r, rc: hi < o[1] });
+  });
+  return out;
+}
+function p45_tex(v) {   // бүхэл эсвэл хуваарь ≤ 3 бутархай
+  for (var d = 1; d <= 3; d++) { var n = Math.round(v * d); if (Math.abs(n / d - v) < 1e-9) return fr(n, d); }
+  return null;
+}
+function p45() {
+  var t = rnd(1, 20), U, lo, hi, k, m, I = Infinity;
+  if (t <= 10) { k = pick([2, 2, 2, 3, 4]); m = pick([-2, -1, -1, 0, 1, 1, 2]); U = '\\frac{x}{' + k + '}' + (m ? sgn(m) : ''); lo = k * (-1 - m); hi = k * (1 - m); }
+  else if (t <= 15) { k = pick([2, 3, 3, 4, 5]); m = nz(-4, 4); U = '\\frac{' + poly([1, -m]) + '}{' + k + '}'; lo = m - k; hi = m + k; }
+  else { k = pick([1, 1, 2, 3]); m = rnd(-3, 3); U = poly([k, -m]); lo = (m - 1) / k; hi = (m + 1) / k; }
+  var w = rnd(1, 20), V, opens, c, p, r1, r2;
+  if (w <= 8) { c = rnd(1, 5); V = c * c + '-x^2'; opens = [[-c, c]]; }
+  else if (w <= 11) { p = nz(-6, 6); V = tm(p, 'x', true) + '-x^2'; opens = [p > 0 ? [0, p] : [p, 0]]; }
+  else if (w <= 14) { r1 = rnd(-4, 3); r2 = r1 + rnd(2, 6); V = poly([-1, r1 + r2, -r1 * r2]); opens = [[r1, r2]]; }
+  else if (w <= 16) { c = rnd(1, 4); V = 'x^2-' + c * c; opens = [[-I, -c], [c, I]]; }
+  else if (w <= 18) { p = nz(-5, 5); V = rnd(0, 1) ? poly([1, -p]) : p + '-x'; opens = /^x/.test(V) ? [[p, I]] : [[-I, p]]; }
+  else { r1 = rnd(-4, 3); r2 = r1 + rnd(1, 5); V = poly([1, -(r1 + r2), r1 * r2]); opens = [[-I, r1], [r2, I]]; }
+  var cut = p45_cut(lo, hi, opens);
+  if (cut.length !== 1) return null;
+  var z = cut[0], L = p45_tex(z.l), R = p45_tex(z.r);
+  if (!L || !R || (z.lc && z.rc) || (!z.lc && !z.rc)) return null;   // язгуур ба arcsin хоёулаа нөлөөлнө
+  var f = rnd(1, 10) <= 7 ? 'arcsin' : 'arccos';
+  return {
+    q: '$y=\\dfrac{\\' + f + '\\left(' + U + '\\right)}{\\sqrt{' + V + '}}$ функцийн тодорхойлогдох мужийг олоорой.',
+    a: '$' + L + '\\' + (z.lc ? 'le' : 'lt') + ' x\\' + (z.rc ? 'le' : 'lt') + ' ' + R + '$',
+    wk: 24,
+    t: { lo: lo, hi: hi, opens: opens }
+  };
+}
+
+// 46. α₁a⃗ + β₁b⃗ = u⃗, α₂a⃗ + β₂b⃗ = v⃗ ⇒ a⃗, b⃗ (шугаман систем), cos φ = a⃗·b⃗ / (|a⃗|·|b⃗|).
+//     a⃗, b⃗ — жижиг бүхэл координаттай, коллинеар биш, a⃗·b⃗ ≠ 0; өгөх векторууд |координат| ≤ 9.
+//     Хариу: √(|a⃗|²|b⃗|²) = k√r ⇒ cos φ = (a⃗·b⃗)√r/(kr) — хураасан, хуваарь рационал.
+var p46_C = [[[1, 1], [2, 1]], [[1, 1], [2, 1]], [[1, 1], [1, -1]], [[1, -1], [2, 1]], [[1, 2], [1, 1]], [[2, 1], [1, -1]],
+  [[1, 1], [1, 2]], [[1, -1], [1, 1]], [[1, 1], [3, 1]], [[2, 1], [3, 1]], [[1, 2], [2, 3]], [[2, -1], [1, 1]]];
+function p46_lc(c) { return tm(c[0], '\\vec a', true) + tm(c[1], '\\vec b'); }
+function p46_dot(x, y) { return x[0] * y[0] + x[1] * y[1] + x[2] * y[2]; }
+function p46() {
+  var a = [rnd(-3, 4), rnd(-3, 4), rnd(-3, 4)], b = [rnd(-3, 4), rnd(-3, 4), rnd(-3, 4)], cb = pick(p46_C);
+  if (rnd(0, 2) === 0) cb = [cb[1], cb[0]];
+  var u = [0, 1, 2].map(function (i) { return cb[0][0] * a[i] + cb[0][1] * b[i]; }), v = [0, 1, 2].map(function (i) { return cb[1][0] * a[i] + cb[1][1] * b[i]; });
+  if (u.concat(v).some(function (z) { return Math.abs(z) > 9; })) return null;
+  var D = p46_dot(a, b), A2 = p46_dot(a, a), B2 = p46_dot(b, b);
+  if (!A2 || !B2 || !D || D * D === A2 * B2) return null;            // тэг вектор, перпендикуляр, коллинеар биш
+  if (a.filter(function (z) { return z === 0; }).length + b.filter(function (z) { return z === 0; }).length > 2) return null;
+  var S = surd(A2 * B2), val;
+  if (S.r === 1) val = fr(D, S.k);
+  else {
+    var g = gcd(D, S.k * S.r), nn = D / g, dd = S.k * S.r / g;
+    if (dd > 70) return null;                                         // хэт том хуваарьгүй (√102/102 мэт)
+    val =(nn < 0 ? '-' : '') + (dd === 1 ? rt(Math.abs(nn), S.r) : '\\dfrac{' + rt(Math.abs(nn), S.r) + '}{' + dd + '}');
+  }
+  return {
+    q: '$' + p46_lc(cb[0]) + '=(' + u.join(',\\,') + ')$, $' + p46_lc(cb[1]) + '=(' + v.join(',\\,') + ')$ байх $\\vec a$ ба $\\vec b$ векторын хоорондох өнцгийн косинусыг олоорой.',
+    a: '$' + val + '$',
+    wk: 28,
+    t: { a: a, b: b, cb: cb }
+  };
+}
+
+// 47. Бүх талс нь будагтай кубийг n³ (n = 3…10) тэнцүү кубэд хуваав. Будагтай талсын тоогоор:
+//     3 талс — 8 (оройн), яг 2 — 12(n − 2) (ирмэгийн), яг 1 — 6(n − 2)² (талсын), будаггүй — (n − 2)³ (дотор).
+//     Үзэгдэл: ядаж 2 / яг 2 / яг 1 / 3 талс / ядаж 1 / нэг ч талс будаггүй / ихдээ 1. P = тоо / n³ (хураасан).
+var p47_E = [
+  ['ядаж 2 талс нь будагтай', function (n) { return 8 + 12 * (n - 2); }],
+  ['ядаж 2 талс нь будагтай', function (n) { return 8 + 12 * (n - 2); }],
+  ['ядаж 2 талс нь будагтай', function (n) { return 8 + 12 * (n - 2); }],
+  ['яг 2 талс нь будагтай', function (n) { return 12 * (n - 2); }],
+  ['яг 1 талс нь будагтай', function (n) { return 6 * (n - 2) * (n - 2); }],
+  ['3 талс нь будагтай', function () { return 8; }],
+  ['ядаж 1 талс нь будагтай', function (n) { return n * n * n - (n - 2) * (n - 2) * (n - 2); }],
+  ['нэг ч талс нь будаггүй', function (n) { return (n - 2) * (n - 2) * (n - 2); }],
+  ['ихдээ 1 талс нь будагтай', function (n) { return 6 * (n - 2) * (n - 2) + (n - 2) * (n - 2) * (n - 2); }]
+];
+function p47() {
+  var n = rnd(3, 10), E = pick(p47_E), N = n * n * n, c = E[1](n);
+  return {
+    q: 'Бүх талс нь будагтай кубийг ' + N + ' ширхэг тэнцүү кубэд хуваав. Эдгээр кубүүдээс таамгаар ' + sfx(1, 'ыг')
+      + ' сонгоход ' + E[0] + ' куб таарах магадлалыг олоорой.',
+    a: '$P=' + fr(c, N) + '$',
+    wk: 26,
+    t: { n: n, c: c }
+  };
+}
+
+// 48. y = Ax² + Bx + C ба y = mx + k шулуун x₁ < x₂ бүхэл цэгүүдэд огтлолцоно: m = B + A(x₁ + x₂), k = C − Ax₁x₂.
+//     Хашигдсан дүрсийн талбай S = |A|(x₂ − x₁)³/6 (хураасан бутархай эсвэл бүхэл).
+function p48() {
+  var A = pick([1, 1, 1, 1, 1, -1, -1, 2, -2]), B = rnd(1, 10) <= 6 ? 0 : nz(-4, 4), C = rnd(1, 10) <= 5 ? 0 : nz(-5, 5);
+  var x1 = rnd(-4, 3), L = pick([1, 2, 2, 3, 3, 3, 4, 4, 5]), x2 = x1 + L;
+  if (Math.abs(A) * L * L * L > 160) return null;
+  var m = B + A * (x1 + x2), k = C - A * x1 * x2;
+  if (Math.abs(m) > 9 || Math.abs(k) > 15 || (m === 0 && k === 0) || (m === 0 && rnd(0, 2))) return null;
+  var P = A < 0 && B === 0 && C > 0 ? C + tm(A, 'x^2') : poly([A, B, C]);         // 4-x^2 (эх шиг)
+  var Ln = m === 0 ? String(k) : m < 0 && k > 0 ? k + tm(m, 'x') : poly([m, k]);   // 4-x, x+2
+  return {
+    q: '$y=' + P + '$, $y=' + Ln + '$ функцүүдээр хашигдсан дүрсийн талбайг олоорой.',
+    a: '$S=' + fr(Math.abs(A) * L * L * L, 6) + '$',
+    wk: 26,
+    t: { A: A, B: B, C: C, m: m, k: k, x1: x1, x2: x2 }
+  };
+}
+
+// 49. Тэгш өнцөгт гурвалжин — Пифагорын гурвал (a, b, c)·k: багтсан тойргийн радиус r = (a + b − c)/2,
+//     багтаасан тойргийн радиус R = c/2. Өгөгдөл: хоёр катет (голдуу) эсвэл нэг катет ба гипотенуз.
+var p49_T = [[3, 4, 5], [5, 12, 13], [8, 15, 17], [7, 24, 25], [20, 21, 29], [12, 35, 37], [9, 40, 41], [28, 45, 53],
+  [11, 60, 61], [33, 56, 65], [16, 63, 65], [48, 55, 73], [13, 84, 85], [36, 77, 85], [39, 80, 89], [65, 72, 97]];
+function p49() {
+  var T = rnd(1, 10) <= 7 ? p49_T[rnd(0, 5)] : pick(p49_T), k = rnd(1, 4), a = T[0] * k, b = T[1] * k, c = T[2] * k, w = rnd(1, 10);
+  if (c > 100 || (c > 60 && rnd(0, 1))) return null;               // голдуу жижиг тоо (эх шиг)
+  if (rnd(0, 1)) { var z = a; a = b; b = z; }
+  var head = 'Тэгш өнцөгт гурвалжны ', q, ans;
+  if (w <= 6) { q = head + 'катетууд ' + a + ' ба ' + b + ' бол багтсан тойргийн радиус хэд вэ?'; ans = 'r=' + (a + b - c) / 2; }
+  else if (w <= 8) { q = head + 'нэг катет ' + a + ', гипотенуз ' + c + ' бол багтсан тойргийн радиус хэд вэ?'; ans = 'r=' + (a + b - c) / 2; }
+  else { q = head + 'катетууд ' + a + ' ба ' + b + ' бол багтаасан тойргийн радиус хэд вэ?'; ans = 'R=' + fr(c, 2); }
+  return { q: q, a: '$' + ans + '$', wk: 20, t: { a: a, b: b, c: c } };
+}
+
+// 50. Хялбарчлах (адилтгалын гэр бүл — хувилбар цөөн нь санаатай): F·(m² ± mn + n²) / (F·(m² + n²)) ÷ (m³ ∓ n³)/(m⁴ − n⁴)
+//     = (m² ± mn + n²)/(m² + n²) · (m − n)(m + n)(m² + n²)/((m ∓ n)(m² ± mn + n²)) = m ± n.
+//     Хувилбарууд: хувьсагчийн нэр (7), тэмдэг ±, нийтлэг хүчин зүйл F ∈ {m, n, mn, m², n²}, урвуу дараалал (хариу 1/(m ± n)).
+var p50_V = [['m', 'n'], ['a', 'b'], ['x', 'y'], ['p', 'q'], ['u', 'v'], ['c', 'd'], ['s', 't']];
+var p50_F = [[1, 0], [0, 1], [1, 1], [2, 0], [0, 2]];
+function p50_mono(v, i, j) { return (i ? v[0] + (i > 1 ? '^' + i : '') : '') + (j ? v[1] + (j > 1 ? '^' + j : '') : ''); }
+function p50() {
+  var v = pick(p50_V), sg = rnd(1, 3) === 1 ? '-' : '+', F = pick(p50_F), inv = rnd(1, 4) === 1;
+  var t1 = p50_mono(v, F[0] + 2, F[1]), t2 = p50_mono(v, F[0] + 1, F[1] + 1), t3 = p50_mono(v, F[0], F[1] + 2);
+  var P = '\\dfrac{' + t1 + sg + t2 + '+' + t3 + '}{' + t1 + '+' + t3 + '}';
+  var Q = '\\dfrac{' + v[0] + '^3' + (sg === '+' ? '-' : '+') + v[1] + '^3}{' + v[0] + '^4-' + v[1] + '^4}';
+  var res = v[0] + sg + v[1];
+  return {
+    q: '$' + (inv ? Q + '\\div' + P : P + '\\div' + Q) + '$ илэрхийллийг хялбарчлаарай.',
+    a: '$' + (inv ? '\\dfrac{1}{' + res + '}' : res) + '$',
+    wk: 28,
+    t: { v: v, sg: sg, F: F, inv: inv }
+  };
+}
+
+// 51. ABC гурвалжны нэг тал ба хоёр өнцөг (15°-ын үржвэр, тэгш өнцөггүй) өгөгдөнө; орто төв H.
+//     Синусын теорем: 2R = (тал)/sin(эсрэг өнцөг); оройгоос орто төв хүртэлх зай XH = 2R·|cos X|.
+//     Өгсөн талын эсрэг өнцөг ба асуух оройн өнцөг ∈ {30°, 45°, 60°, 120°, 135°, 150°} ⇒ хариу k√r/d (хялбарчилсан).
+var p51_NM = { A: 'BAC', B: 'ABC', C: 'ACB' }, p51_OPP = { A: 'BC', B: 'AC', C: 'AB' };
+var p51_KS = { 30: 1, 150: 1, 45: 2, 135: 2, 60: 3, 120: 3 };   // sin = √k/2
+var p51_KC = { 30: 3, 150: 3, 45: 2, 135: 2, 60: 1, 120: 1 };   // |cos| = √k/2
+function p51() {
+  var A = 15 * rnd(1, 10), B = 15 * rnd(1, 10), C = 180 - A - B;
+  if (C < 15 || A === 90 || B === 90 || C === 90) return null;
+  if (Math.max(A, B, C) > 90 && rnd(0, 2)) return null;            // мохоо өнцөгт гурвалжин цөөн
+  var an = { A: A, B: B, C: C }, X = pick(['A', 'A', 'B', 'C']), Y = pick(['A', 'B', 'C', 'C']);
+  var k1 = p51_KC[an[X]], k2 = p51_KS[an[Y]];
+  if (!k1 || !k2) return null;
+  var qq = pick([1, 1, 1, 2, 3]), pp = qq === 1 ? rnd(2, 8) : rnd(1, 4);
+  // XH = s·|cos X|/sin Y = p√q·√k₁/√k₂ = p√(q·k₁·k₂)/k₂
+  var S = surd(qq * k1 * k2), nn = pp * S.k, g = gcd(nn, k2), num = nn / g, den = k2 / g;
+  var val = den === 1 ? rt(num, S.r) : '\\dfrac{' + rt(num, S.r) + '}{' + den + '}';
+  var shown = shuffle(['A', 'B', 'C']).slice(0, 2).sort();
+  return {
+    q: '$ABC$ гурвалжны хувьд $' + p51_OPP[Y] + '=' + rt(pp, qq) + '$, ' + shown.map(function (V) { return '$\\angle ' + p51_NM[V] + '=' + an[V] + '^\\circ$'; }).join(', ')
+      + ' ба орто төв нь $H$ бол $' + X + 'H$ хэрчмийн уртыг олоорой.',
+    a: '$' + X + 'H=' + val + '$',
+    wk: 30,
+    t: { A: A, B: B, C: C, X: X, Y: Y }
+  };
+}
+
+// 52. R радиустай бөмбөрцөгт багтсан зөв дөрвөн өнцөгт призм (суурь a талтай квадрат, өндөр h): гол диагональ = 2R ⇒
+//     2a² + h² = 4R². Өндөр h (тэгш) өгвөл a² = 2R² − h²/2 бүхэл; суурийн тал a (бүхэл эсвэл k√2) өгвөл h = √(4R² − 2a²) бүхэл.
+//     V_б/V_п = (4/3)πR³ / (a²h) = 4R³π / (3a²h) — хураасан.
+function p52() {
+  var R = rnd(3, 15), giv, h, a2, cs = [], x;
+  var byH = rnd(1, 10) <= 7;
+  if (byH) { var t = rnd(1, R - 1); h = 2 * t; a2 = 2 * (R * R - t * t); giv = String(h); }
+  else {
+    for (x = 1; 2 * x * x < 4 * R * R; x++) {
+      var hh = 4 * R * R - 2 * x * x, s = Math.round(Math.sqrt(hh));
+      if (s * s === hh) cs.push([String(x), x * x, s]);                       // a = x
+      var w = R * R - x * x, z = Math.round(Math.sqrt(w));
+      if (w > 0 && z * z === w) cs.push(['$' + rt(x, 2) + '$', 2 * x * x, 2 * z]);   // a = x√2 ⇒ h = 2√(R² − x²)
+    }
+    if (!cs.length) return null;
+    var c = pick(cs); giv = c[0]; a2 = c[1]; h = c[2];
+  }
+  var n = 4 * R * R * R, d = 3 * a2 * h, g = gcd(n, d);
+  n /= g; d /= g;
+  if (d > 400 || n > 999) return null;
+  var val = d === 1 ? (n === 1 ? '' : n) + '\\pi' : '\\dfrac{' + (n === 1 ? '' : n) + '\\pi}{' + d + '}';
+  return {
+    q: R + ' радиустай бөмбөрцөгт багтсан <b><i>зөв дөрвөн өнцөгт призмийн ' + (byH ? 'өндөр' : 'суурийн тал') + '</i></b> ' + giv
+      + ' бол бөмбөрцгийн эзлэхүүнийг призмийн эзлэхүүнд харьцуулсан харьцааг олоорой.',
+    a: '$' + val + '$',
+    wk: 30,
+    t: { R: R, h: h, a2: a2 }
+  };
+}
+
+// 53. log_{1/c}(x − p) − log_{1/c²}(L) ∨ K,  L = q − rx (голдуу) эсвэл rx − q;  L(p) = s > 0.
+//     log_{1/c}y = −log_c y, log_{1/c²}y = −½·log_c y ⇒ LHS = ½·log_c L − log_c t (t = x − p) ⇒ LHS > K ⇔ L > M·t²  (M = c^{2K}).
+//     L = s ∓ rt ⇒ Mt² ± rt − s ⋚ 0, язгуурууд t₁ < 0 < t₂ (D бүтэн квадрат) ⇒ «>»: p < x < p + t₂; «<»: p + t₂ < x < q/r
+//     (L = rx − q үед x > p + t₂); «≥, ≤» үед p + t₂ орно. Муж: x > p, L > 0.
+function p53() {
+  var c = pick([2, 3, 3]), K = c === 2 ? pick([1, 1, 0, 2, -1]) : pick([1, 1, 1, 0, -1]);
+  var Mn = K >= 0 ? Math.pow(c, 2 * K) : 1, Md = K >= 0 ? 1 : Math.pow(c, -2 * K);
+  var inc = rnd(1, 4) === 1, r = rnd(1, 5), s = rnd(1, 24), p = rnd(-3, 5);
+  var D = r * r * Md * Md + 4 * Mn * Md * s, sq = Math.round(Math.sqrt(D));
+  if (sq * sq !== D) return null;
+  var tn = (inc ? r * Md : -r * Md) + sq, td = 2 * Mn, gt = gcd(tn, td);   // t₂ = tn/td > 0
+  tn /= gt; td /= gt;
+  var q = inc ? r * p - s : s + r * p;                                        // L(p) = s
+  if (!inc && q <= 0 && rnd(0, 2)) return null;
+  if (td > 30 || Math.abs(p + tn / td) > 25) return null;
+  var rel = pick(['gt', 'gt', 'gt', 'gt', 'lt', 'ge', 'le']);
+  var T = fr(p * td + tn, td), Q = fr(q, r), ans;
+  if (rel === 'gt' || rel === 'ge') ans = p + '\\lt x\\' + (rel === 'gt' ? 'lt ' : 'le ') + T;
+  else if (inc) ans = 'x\\' + rel.replace('l', 'g') + ' ' + T;                // x > p + t₂ (x ≥ …)
+  else ans = T + '\\' + rel + ' x\\lt ' + Q;
+  var L = inc ? poly([r, -q]) : q === 0 ? tm(-r, 'x', true) : q + tm(-r, 'x');
+  return {
+    q: '$\\log_{\\frac{1}{' + c + '}}' + (p ? '(' + poly([1, -p]) + ')' : 'x') + '-\\log_{\\frac{1}{' + c * c + '}}(' + L + ')\\' + rel + ' ' + K
+      + '$ тэнцэтгэл бишийг бодоорой.',
+    a: '$' + ans + '$',
+    wk: 32,
+    t: { c: c, K: K, inc: inc, r: r, s: s, p: p, rel: rel }
+  };
+}
+
+// 54. sinⁿy + cosⁿy = V (n = 8, 6, 4; y = x, 2x эсвэл x/2), u = sin²2y:  sin⁴ + cos⁴ = 1 − u/2,  sin⁶ + cos⁶ = 1 − 3u/4,
+//     sin⁸ + cos⁸ = (1 − u/2)² − u²/8 = 1 − u + u²/8 (нөгөө язгуур нь 1-ээс их — хасагдана).
+//     u ∈ {0, 1/4, 1/2, 3/4, 1} ⇒ cos 4y = 1 − 2u (стандарт утга) ⇒ y-ийн ерөнхий шийд (хүснэгт p54_U); x = y/m.
+var p54_U = [[1, 4, 1, 12, true, 1, 2], [1, 2, 1, 8, false, 1, 4], [3, 4, 1, 6, true, 1, 2], [1, 1, 1, 4, false, 1, 2],
+  [0, 1, 0, 1, false, 1, 2]];   // [u_n, u_d, a_n, a_d, ±, b_n, b_d]: y = ±aπ + bπk
+function p54_pi(n, d, k) {   // (n/d)·π (k бол ·k)
+  var g = gcd(n, d); n /= g; d /= g;
+  var top = (n === 1 ? '' : n) + '\\pi' + (k ? ' k' : '');
+  return d === 1 ? top : '\\dfrac{' + top + '}{' + d + '}';
+}
+function p54() {
+  var n = pick([8, 8, 8, 6, 6, 4, 4]), U = pick(p54_U), m = pick([[1, 1], [1, 1], [1, 1], [2, 1], [2, 1], [3, 1], [1, 2]]);
+  if (U[0] === 0 && rnd(0, 2)) return null;                       // sin 2y = 0 тохиолдол цөөн
+  if (n === 8 && U[1] === 2 && m[0] === 1 && m[1] === 1 && rnd(0, 3)) return null;   // эх тэгшитгэл ховор
+  var un = U[0], ud = U[1], vn, vd;
+  if (n === 4) { vn = 2 * ud - un; vd = 2 * ud; }
+  else if (n === 6) { vn = 4 * ud - 3 * un; vd = 4 * ud; }
+  else { vn = 8 * ud * ud - 8 * un * ud + un * un; vd = 8 * ud * ud; }
+  // x = y/m:  m = m₀/m₁ ⇒ x = y·m₁/m₀
+  var an = U[2] * m[1], ad = U[3] * m[0], bn = U[5] * m[1], bd = U[6] * m[0];
+  var arg = m[0] === 1 && m[1] === 1 ? 'x' : m[1] === 1 ? m[0] + 'x' : '\\dfrac{x}{' + m[1] + '}';
+  var sol = 'x=' + (an ? (U[4] ? '\\pm' : '') + p54_pi(an, ad) + '+' : '') + p54_pi(bn, bd, true) + ',\\ k\\in\\mathbb{Z}';
+  return {
+    q: '$\\sin^' + n + ' ' + arg + '+\\cos^' + n + ' ' + arg + '=' + fr(vn, vd) + '$ тэгшитгэлийг бодоорой.',
+    a: '$' + sol + '$',
+    wk: 32,
+    t: { n: n, u: [un, ud], m: m }
+  };
+}
+
+E1K.page({
+  title: 'ЭЕШ 1000 4-2',
+  sub: '4-р хэсэг · 28–54-р бодлого',
+  first: 28,
+  probs: [p28, p29, p30, p31, p32, p33, p34, p35, p36, p37, p38, p39, p40, p41, p42, p43, p44, p45, p46, p47, p48, p49, p50, p51, p52, p53, p54]
+});
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

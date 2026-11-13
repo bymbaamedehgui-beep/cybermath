@@ -13,8 +13,8 @@
 <div class="bar" id="bar"></div>
 <div class="sheet" id="sheet"></div>
 <script>
-/* ЭЕШ 1000 — Илтгэгч ба логарифм-1 — ЭЕШ-ийн 1000 бодлого, агуулгаар: Логарифмын чанар, илтгэгч ба логарифм тэгшитгэл, тэнцэтгэл биш, систем.
-   Эх: 3.23, 3.24, 3.25, 3.26, 3.29, 3.31, 3.30, 3.27, 3.28, 3.32, 3.33, 3.34, 1.50, 1.72, 3.62, 3.88, 3.63, 3.89 (хэсэг.бодлого). Бодлого бүр өөрийн генератортой: «Шинэ бодлого» дарахад тоо нь өөрчлөгдөнө. */
+/* ЭЕШ 1000 — Илтгэгч ба логарифм-1 — ЭЕШ-ийн 1000 бодлого, агуулгаар: Логарифмын чанар, илэрхийллийн утга, илтгэгч ба логарифм тэгшитгэл.
+   Эх: 3.23, 3.24, 3.25, 3.26, 4.20, 4.41, 4.37, 4.72, 3.31, 3.30, 3.29, 3.27, 3.28, 3.32, 3.33, 4.62, 3.34, 4.21, 3.62, 3.88, 4.99 (хэсэг.бодлого). Бодлого бүр өөрийн генератортой: «Шинэ бодлого» дарахад тоо нь өөрчлөгдөнө. */
 
 /* 3.23 */
 var e3_23 = (function () {
@@ -162,33 +162,146 @@ function p26() {
 return p26;
 })();
 
-/* 3.29 */
-var e3_29 = (function () {
-// 29. log_b x = c·log_b n + (±½)·log_b h² + (±⅓)·log_b j³  ⇒  x = nᶜ · h^(±1) · j^(±1)  (b-ийн зэрэгтэй тоог хэрэглэхгүй).
-//     Эхний гишүүн бүхэл коэффициенттэй (2, 3), ½ ба ⅓-тэй гишүүдийн дараалал, тэмдэг санамсаргүй (дор хаяж нэг нь «−»).
-//     Хариу бүхэл (голдуу) эсвэл энгийн бутархай (эх: log₅x = 2log₅3 + ½log₅49 − ⅓log₅27 → x = 21).
-function p29_pw(n, b) { while (n % b === 0) n /= b; return n === 1; }      // n нь b-ийн зэрэг эсэх
-function p29() {
-  var b = pick([2, 3, 5, 5, 6, 7]), c = pick([2, 2, 3]), n = c === 2 ? rnd(2, 6) : rnd(2, 3), h = rnd(2, 9), j = rnd(2, 5);
-  if (p29_pw(n, b) || p29_pw(h, b) || p29_pw(j, b)) return null;
-  var sg = pick([[1, -1], [1, -1], [1, -1], [-1, 1], [-1, 1], [-1, -1], [1, 1]]), s2 = sg[0], s3 = sg[1];
-  var N = Math.pow(n, c), D = 1;
-  if (s2 > 0) N *= h; else D *= h;
-  if (s3 > 0) N *= j; else D *= j;
-  var gg = gcd(N, D); N /= gg; D /= gg;
-  if (N === D || N > 200 || D > 30) return null;
-  if (D > 1 && rnd(1, 100) <= 55) return null;                    // бүхэл хариу давамгай (эх шиг)
-  var L = '\\log_' + b + ' ';
-  var T2 = { c: [s2, 2], t: L + h * h }, T3 = { c: [s3, 3], t: L + j * j * j }, rest = rnd(0, 1) ? [T2, T3] : [T3, T2];
-  var rhs = c + L + n + rest.map(function (o) { return tm(o.c, o.t); }).join('');
+/* 4.20 */
+var e4_20 = (function () {
+// 20. Суурь солих томьёо: log_{α^e₁}β^{f₁}·log_{β^e₂}γ^{f₂}·log_{γ^e₃}α^{f₃} = (f₁f₂f₃)/(e₁e₂e₃)·log_αβ·log_βγ·log_γα = f₁f₂f₃/(e₁e₂e₃)
+//     (α, β, γ — ялгаатай анхны тоо). Өмнөх коэффициент C-г хариу бүхэл байхаар (заримдаа бутархай) сонгоно;
+//     гинжийн дарааллыг заримдаа холино.
+var p20_MX = { 2: 128, 3: 243, 5: 625, 7: 343 };
+function p20() {
+  var pr = shuffle([2, 3, 5, 7]).slice(0, 3), L = [], fn = 1, fd = 1, big = 0, i;
+  for (i = 0; i < 3; i++) {
+    var X = pr[i], Y = pr[(i + 1) % 3], e = rnd(1, 4), f = rnd(1, 4), Xe = Math.pow(X, e), Yf = Math.pow(Y, f);
+    if (Xe > p20_MX[X] || Yf > p20_MX[Y]) return null;
+    if (e > 1) big++;
+    if (f > 1) big++;
+    fn *= f; fd *= e;
+    L.push('\\log_{' + Xe + '}' + Yf);
+  }
+  if (big < 3) return null;
+  var g = gcd(fn, fd); fn /= g; fd /= g;
+  if (fd > 6 || fn > 16) return null;
+  var C = fd === 1 ? pick([1, 1, 2, 3]) : rnd(0, 4) === 0 ? 1 : fd * pick([1, 1, 2]);
+  if (C > 12) return null;
+  var vn = C * fn, vd = fd; g = gcd(vn, vd); vn /= g; vd /= g;
+  if (vn / vd > 40 || (vd === 1 && vn === 1 && rnd(0, 1))) return null;
+  if (rnd(0, 3) === 0) L = shuffle(L);
   return {
-    q: '$' + L + 'x=' + rhs + '$ тэгшитгэлийн шийдийг олоорой.',
-    a: '$x=' + fr(N, D) + '$',
+    q: '$' + (C > 1 ? C + '\\times ' : '') + L.join('\\times ') + '=?$',
+    a: '$' + fr(vn, vd) + '$',
     wk: 24,
-    t: { b: b, c: c, n: n, h: h, j: j, s2: s2, s3: s3 }
+    t: { pr: pr, C: C }
   };
 }
-return p29;
+return p20;
+})();
+
+/* 4.41 */
+var e4_41 = (function () {
+// 41. log_{1/p} pᵐ = −m (эсвэл log_{1/p}(1/pᵐ) = m),  log_q(1/qⁿ) = −n (эсвэл log_q qⁿ = n),  (sᵏ)^{log_s t} = (s^{log_s t})ᵏ = tᵏ
+//     ⇒ L₁·L₂ ÷ tᵏ — хураасан бутархай.  Бүх хослолыг (p, m, q, n, хэлбэр, хуваагч) урьдчилан бүхэл / бутархай (хуваарь ≤ 9)
+//     хариутай хоёр бүлэгт хувааж ~80% бүхлээс сонгоно.  Хүчин зүйлсийн хэлбэр, суурь, дараалал санамсаргүй.
+var p41_E = [[3, 2, 2], [5, 2, 2], [7, 2, 2], [2, 2, 3], [5, 2, 3], [3, 3, 2], [5, 3, 2], [3, 2, 4], [3, 4, 2], [2, 3, 3], [2, 2, 5]];   // [s, k, t]: (s^k)^{log_s t} = t^k
+var p41_C = (function () {
+  var I = [], F = [];
+  [[2, 6], [3, 4], [5, 3]].forEach(function (pm) {
+    for (var m = 2; m <= pm[1]; m++) [[2, 5], [3, 3], [5, 3], [7, 2]].forEach(function (qn) {
+      for (var n = 1; n <= qn[1]; n++) for (var f = 0; f < 4; f++) p41_E.forEach(function (X, xi) {
+        var N = (f & 1 ? -m : m) * (f & 2 ? -n : n), D = Math.pow(X[2], X[1]), d = D / gcd(N, D), o = [pm[0], m, f & 1, qn[0], n, f & 2, xi];
+        if (d === 1) I.push(o); else if (d <= 9) F.push(o);
+      });
+    });
+  });
+  return [I, F];
+})();
+function p41() {
+  var o = pick(p41_C[rnd(1, 100) <= 80 ? 0 : 1]), p = o[0], m = o[1], f1 = !!o[2], q = o[3], n = o[4], f2 = !!o[5], X = p41_E[o[6]];
+  if (rnd(1, 100) <= 30 && (f1 !== f2)) return null;                              // хоёр логарифм хоёулаа сөрөг (эх шиг) давамгай
+  if ((p === q && rnd(0, 1)) || (n === 1 && (!f2 || rnd(0, 2)))) return null;     // log_q q = 1 гэх мэт хэт энгийн — цөөн
+  var T1 = '\\log_{\\frac{1}{' + p + '}}' + (f1 ? Math.pow(p, m) : '\\dfrac{1}{' + Math.pow(p, m) + '}'), v1 = f1 ? -m : m;
+  var T2 = '\\log_{' + q + '}' + (f2 ? '\\dfrac{1}{' + Math.pow(q, n) + '}' : Math.pow(q, n)), v2 = f2 ? -n : n;
+  var T3 = Math.pow(X[0], X[1]) + '^{\\log_{' + X[0] + '}' + X[2] + '}', v3 = Math.pow(X[2], X[1]), N = v1 * v2;
+  var E = rnd(1, 100) <= 75 ? T1 + '\\times ' + T2 : T2 + '\\times ' + T1;
+  return {
+    q: '$' + E + '\\div ' + T3 + '$ үйлдлийг гүйцэтгээрэй.',
+    a: '$' + fr(N, v3) + '$',
+    wk: 22,
+    t: { p: p, m: m, q: q, n: n, X: X }
+  };
+}
+return p41;
+})();
+
+/* 4.37 */
+var e4_37 = (function () {
+// 37. L = log_B a: log_B(B·a) = 1 + L, log_B(a⁴) = 4L ⇒ √(log²_B(Ba) − log_B a⁴) = √((1 − L)²) = |1 − L|.
+//     a < B (L < 1): K + L + (1 − L) = K + 1;  a > B (L > 1): K − L + (L − 1) = K − 1  (логарифмууд хасагдана).
+//     Суурь 10 (lg, эх шиг) голдуу, заримдаа 2, 3, 5; a нь B-ийн зэрэг биш; гишүүдийн дараалал, K санамсаргүй.
+var p37_A = { 10: [2, 3, 4, 5, 6, 7, 8, 9], 2: [3, 5, 6, 7], 3: [2, 4, 5, 7], 5: [2, 3, 4, 6, 7] };
+function p37() {
+  var B = pick([10, 10, 10, 10, 2, 3, 5]), a = pick(p37_A[B]), K = rnd(1, 9), lt = a < B, w = rnd(1, 100), E, ans;
+  var lg = function (x, sq) { return (B === 10 ? '\\lg' + (sq ? '^2' : '') : '\\log_{' + B + '}' + (sq ? '^{2}' : '')) + ' ' + x; };
+  var R = '\\sqrt{' + lg(B * a, 1) + '-' + lg(Math.pow(a, 4)) + '}', L = lg(a), sL = (lt ? '+' : '-') + L;
+  if (w <= 55) { E = K + sL + '+' + R; ans = lt ? K + 1 : K - 1; }                       // эх шиг
+  else if (w <= 80) { E = R + sL + '+' + K; ans = lt ? K + 1 : K - 1; }
+  else { E = (lt ? '' : '-') + L + '+' + R + '-' + K; ans = (lt ? 1 : -1) - K; }
+  return {
+    q: '$' + E + '$ илэрхийллийг хялбарчлаарай.',
+    a: '$' + ans + '$',
+    wk: 26,
+    t: { B: B, a: a, K: K }
+  };
+}
+return p37;
+})();
+
+/* 4.72 */
+var e4_72 = (function () {
+// 72. lg-ийн ойролцоо утга (4 орон) өгөгдсөн: lg 5, lg 2, lg 3, lg 7 эсвэл lg 2 ба lg 3. N = 5^k·10^d (2^k·10^d, 3^k·10^d,
+//     7^k·10^d, 2^a·3^b·10^d) ⇒ lg N = k·lg p + d — ӨГСӨН утгаас (10⁻⁴ нэгжээр бүхэл тоогоор, яг) тооцоолж 4 оронтой бичнэ.
+//     N бүхэл (≤ 10⁶, 5-аас дээш оронтойд мянгатын зай) эсвэл аравтын бутархай (≤ 4 орон); 1–9 биш.
+var p72_L = { 2: 3010, 3: 4771, 5: 6990, 7: 8451 };
+function p72_d4(K) {   // 10⁻⁴ нэгж → '3.7960', '-1.9030'
+  var a = Math.abs(K), s = String(a % 10000);
+  while (s.length < 4) s = '0' + s;
+  return (K < 0 ? '-' : '') + Math.floor(a / 10000) + '.' + s;
+}
+function p72_num(M, e) {   // M·10^e → TeX: 6250, 12\,500, 0.0125
+  var s = String(M);
+  if (e >= 0) {
+    for (var i = 0; i < e; i++) s += '0';
+    return s.length >= 5 ? s.replace(/\B(?=(\d{3})+$)/g, '\\,') : s;
+  }
+  while (s.length <= -e) s = '0' + s;
+  return s.slice(0, s.length + e) + '.' + s.slice(s.length + e);
+}
+function p72() {
+  var mode = pick(['5', '5', '5', '5', '2', '2', '2', '3', '7', '23', '23', '23']), ex = {}, d = rnd(-3, 4), M = 1, e = d, K = d * 10000;
+  if (mode === '23') { ex[2] = nz(-3, 5); ex[3] = rnd(1, 4); }
+  else { var p = +mode; ex[p] = p === 3 ? rnd(2, 5) : p === 7 ? rnd(2, 3) : nz(-4, 7); }
+  Object.keys(ex).forEach(function (pp) {
+    var p = +pp, k = ex[p];
+    K += k * p72_L[p];
+    if (k > 0) M *= Math.pow(p, k);
+    else { M *= Math.pow(10 / p, -k); e += k; }   // p = 2, 5: p⁻¹ = (10/p)·10⁻¹
+  });
+  while (M % 10 === 0) { M /= 10; e++; }
+  var digits = String(M).length;
+  if (e >= 0 && digits + e > 6) return null;                // N ≤ 10⁶
+  if (e < 0 && (-e > 4 || digits > 4)) return null;         // ≤ 4 аравтын орон, цөөн цифр
+  if (e === 0 && M < 10) return null;                       // 1–9 биш
+  if (e < 0 && rnd(0, 2)) return null;                      // аравтын бутархай N цөөн (ихэнхдээ бүхэл, эх шиг)
+  if (mode === '5' || mode === '2') { if (Math.abs(ex[+mode]) === 1 && rnd(0, 2)) return null; }
+  var Nt = p72_num(M, e), Nv = M * Math.pow(10, e), G = Object.keys(ex).map(Number).sort();
+  var given = G.map(function (p) { return '$\\lg ' + p + '=0.' + p72_L[p] + '$'; }).join(', ');
+  return {
+    q: given + ' бол $\\lg ' + Nt + '$-' + suf(Nv, 'ын') + ' утгыг олоорой.',
+    a: '$\\lg ' + Nt + '\\approx ' + p72_d4(K) + '$',
+    wk: 22,
+    t: { ex: ex, d: d, K: K }
+  };
+}
+return p72;
 })();
 
 /* 3.31 */
@@ -241,6 +354,35 @@ function p30() {
   return { q: q, a: b.key() + '; шулуун', wk: 40, t: { A: A, B: B, k: k } };
 }
 return p30;
+})();
+
+/* 3.29 */
+var e3_29 = (function () {
+// 29. log_b x = c·log_b n + (±½)·log_b h² + (±⅓)·log_b j³  ⇒  x = nᶜ · h^(±1) · j^(±1)  (b-ийн зэрэгтэй тоог хэрэглэхгүй).
+//     Эхний гишүүн бүхэл коэффициенттэй (2, 3), ½ ба ⅓-тэй гишүүдийн дараалал, тэмдэг санамсаргүй (дор хаяж нэг нь «−»).
+//     Хариу бүхэл (голдуу) эсвэл энгийн бутархай (эх: log₅x = 2log₅3 + ½log₅49 − ⅓log₅27 → x = 21).
+function p29_pw(n, b) { while (n % b === 0) n /= b; return n === 1; }      // n нь b-ийн зэрэг эсэх
+function p29() {
+  var b = pick([2, 3, 5, 5, 6, 7]), c = pick([2, 2, 3]), n = c === 2 ? rnd(2, 6) : rnd(2, 3), h = rnd(2, 9), j = rnd(2, 5);
+  if (p29_pw(n, b) || p29_pw(h, b) || p29_pw(j, b)) return null;
+  var sg = pick([[1, -1], [1, -1], [1, -1], [-1, 1], [-1, 1], [-1, -1], [1, 1]]), s2 = sg[0], s3 = sg[1];
+  var N = Math.pow(n, c), D = 1;
+  if (s2 > 0) N *= h; else D *= h;
+  if (s3 > 0) N *= j; else D *= j;
+  var gg = gcd(N, D); N /= gg; D /= gg;
+  if (N === D || N > 200 || D > 30) return null;
+  if (D > 1 && rnd(1, 100) <= 55) return null;                    // бүхэл хариу давамгай (эх шиг)
+  var L = '\\log_' + b + ' ';
+  var T2 = { c: [s2, 2], t: L + h * h }, T3 = { c: [s3, 3], t: L + j * j * j }, rest = rnd(0, 1) ? [T2, T3] : [T3, T2];
+  var rhs = c + L + n + rest.map(function (o) { return tm(o.c, o.t); }).join('');
+  return {
+    q: '$' + L + 'x=' + rhs + '$ тэгшитгэлийн шийдийг олоорой.',
+    a: '$x=' + fr(N, D) + '$',
+    wk: 24,
+    t: { b: b, c: c, n: n, h: h, j: j, s2: s2, s3: s3 }
+  };
+}
+return p29;
 })();
 
 /* 3.27 */
@@ -373,6 +515,43 @@ function p33() {
 return p33;
 })();
 
+/* 4.62 */
+var e4_62 = (function () {
+// 62. lg(x + α) + lg(x + β) = lg M + lg(x + γ)  ⇒  (x + α)(x + β) = M(x + γ), муж: x + α, x + β, x + γ > 0.
+//     lg M нь k·lg c (M = cᵏ), lg 6, lg 12 эсвэл 1 (= lg 10) хэлбэртэй.
+//     Урвуугаар: язгуур r₁ < r₂ = r₁ + δ, y = x − r₁ орлуулбал u = r₁ + α, v = r₁ + β, w = r₁ + γ:
+//     (y + u)(y + v) = M(y + w) язгуур y = 0, δ ⇔ uv = Mw, u + v = M − δ.
+//     y = 0 мужид ⇔ u, v, w > 0 (тэгвэл y = δ ч мужид) ⇒ хоёр шийд (эх шиг, ~60%); үгүй бол зөвхөн r₂ (нөгөө нь гадны шийд).
+var p62_M = [[6, '\\lg 6'], [8, '3\\lg 2'], [8, '3\\lg 2'], [10, '1'], [12, '\\lg 12'], [16, '4\\lg 2'], [25, '2\\lg 5'], [27, '3\\lg 3'], [32, '5\\lg 2'], [36, '2\\lg 6'],
+  [4, '2\\lg 2'], [9, '2\\lg 3'], [5, '\\lg 5'], [7, '\\lg 7']];
+function p62_L(c) { return c ? '\\lg(x' + sgn(c) + ')' : '\\lg x'; }
+function p62() {
+  var both = rnd(1, 10) <= 6, Mo = pick(p62_M), M = Mo[0], C = [];
+  for (var d = 1; d <= 14; d++) for (var u = -12; u <= 30; u++) {
+    var v = M - d - u;
+    if (v <= u || (u * v) % M) continue;
+    var w = u * v / M;
+    if (w === u || w === v) continue;                                   // lg(x + γ) нь зүүн талын логарифмтай давхцахгүй
+    var ok0 = u > 0 && v > 0 && w > 0, ok1 = d + u > 0 && d + v > 0 && d + w > 0;
+    if (!ok1 || ok0 !== both) continue;
+    for (var r1 = -6; r1 <= 20; r1++) {
+      var al = u - r1, be = v - r1, ga = w - r1;
+      if (Math.abs(al) > 9 || Math.abs(be) > 9 || Math.abs(ga) > 9 || r1 + d > 22) continue;
+      C.push([al, be, ga, r1, r1 + d]);
+    }
+  }
+  if (!C.length) return null;
+  var c = pick(C), lhs = rnd(1, 4) === 1 ? [c[1], c[0]] : [c[0], c[1]], ok = both ? [c[3], c[4]] : [c[4]];
+  return {
+    q: '$' + p62_L(lhs[0]) + '+' + p62_L(lhs[1]) + '=' + Mo[1] + '+' + p62_L(c[2]) + '$ тэгшитгэлийг бодоорой.',
+    a: ok.map(function (r) { return '$x=' + r + '$'; }).join('; '),
+    wk: 28,
+    t: { M: M, al: c[0], be: c[1], ga: c[2], r: [c[3], c[4]], both: both }
+  };
+}
+return p62;
+})();
+
 /* 3.34 */
 var e3_34 = (function () {
 // 34. p·e^(−x) = q·eˣ + r, t = eˣ > 0 ⇒ q·t² + r·t − p = 0 = (b·t − a)(u·t + s): нэг язгуур a/b > 0, нөгөө нь −s/u < 0
@@ -392,58 +571,29 @@ function p34() {
 return p34;
 })();
 
-/* 1.50 */
-var e1_50 = (function () {
-// 50. x − y = d, b^(x+p) = (b^k)^y → x + p = k·y → y = (d + p)/(k − 1), x = y + d; x + y = 2y + d.
-var p50_B = [[2, 2, 4], [2, 3, 8], [3, 2, 9], [3, 3, 27], [5, 2, 25], [2, 2, 4]];   // [суурь, k, суурь^k]
-function p50() {
-  var B = pick(p50_B), b = B[0], k = B[1], d = nz(-5, 5), p = nz(-4, 4);
-  if ((d + p) % (k - 1)) return null;
-  var y = (d + p) / (k - 1), x = y + d;
-  if (Math.abs(x) > 9 || Math.abs(y) > 9) return null;
-  // Бодолт (гар бичмэл): b^k-г b суурьт шилжүүлж илтгэгчүүдийг тэнцүүлнэ → шугаман систем; x-ийг хоёр тэгшитгэлээс илэрхийлж тэнцүүлнэ
-  var ey = tm(k, 'y', true), e1 = 'y' + sgn(d), e2 = ey + sgn(-p);
+/* 4.21 */
+var e4_21 = (function () {
+// 21. f(x) = a^x: f(x₀) = k·f(m) ⇔ a^{x₀} = k·a^m ⇔ x₀ = m + log_a k.  k = a^j·r (r нь a-д хуваагдахгүй) гэвэл
+//     x₀ = (m + j) + log_a r (r = 1 бол бүхэл);  s = m + j > 0 бол мөн x₀ = log_a(a^s·r), s < 0 бол log_a(r/a^{|s|}).
+function p21() {
+  var a = pick([2, 2, 2, 3, 3, 5]), m = rnd(-2, 5), k = rnd(2, 12);
+  if (m === 0 && rnd(0, 2)) return null;
+  var j = 0, r = k;
+  while (r % a === 0) { r /= a; j++; }
+  if (r === 1 && rnd(0, 1)) return null;                         // бүхэл хариу цөөн
+  var s = m + j, L = '\\log_{' + a + '}', x0;
+  if (r === 1) x0 = String(s);
+  else if (s > 0) x0 = (Math.pow(a, s) * r <= 999 ? L + (Math.pow(a, s) * r) + '=' : '') + s + '+' + L + r;
+  else if (s === 0) x0 = L + r;
+  else x0 = L + '\\dfrac{' + r + '}{' + Math.pow(a, -s) + '}=' + L + r + '-' + (-s);
   return {
-    q: '$\\begin{cases}x-y=' + d + '\\\\' + b + '^{x' + sgn(p) + '}=' + B[2] + '^{y}\\end{cases}$ систем тэгшитгэлээс $x+y$-ийг олоорой.',
-    a: '$x+y=' + (x + y) + '$',
-    wk: 26,
-    s: [
-      '$' + B[2] + '^{y}=\\left(' + b + '^{' + k + '}\\right)^{y}=' + b + '^{' + ey + '}$ тул $' + b + '^{x' + sgn(p) + '}=' + b + '^{' + ey + '}$.'
-        + ' Суурь нь тэнцүү тул илтгэгч нь тэнцүү: $x' + sgn(p) + '=' + ey + '$.',
-      '$$\\begin{cases}x-y=' + d + '\\\\x' + sgn(p) + '=' + ey + '\\end{cases}\\Rightarrow\\begin{cases}x=' + e1 + '\\\\x=' + e2 + '\\end{cases}\\Rightarrow '
-        + e1 + '=' + e2 + (k === 2 ? '' : '\\Rightarrow ' + (k - 1) + 'y=' + (d + p)) + '\\Rightarrow y=' + y + '.$$',
-      '$x=' + y + sgn(d) + '=' + x + '$ тул $x+y=' + (y ? x + (y < 0 ? '' : '+') + y + '=' : '') + (x + y) + '$.'
-    ],
-    t: { b: b, k: k, d: d, p: p }
+    q: '$f(x)=' + a + '^x$ ба $f(x_0)=' + k + 'f(' + m + ')$ бол $x_0$ утгыг олоорой.',
+    a: '$x_0=' + x0 + '$',
+    wk: 20,
+    t: { a: a, k: k, m: m }
   };
 }
-return p50;
-})();
-
-/* 1.72 */
-var e1_72 = (function () {
-// 72. b1^x + b2^y = S, b1^x − b2^y = D ⇒ b1^x = (S + D)/2, b2^y = (S − D)/2 → x, y → x·y (заримдаа x + y).
-var p72_E = { 2: 6, 3: 4, 5: 3, 7: 2 };
-function p72() {
-  var bs = shuffle([2, 3, 5, 7]), b1 = bs[0], b2 = bs[1], x = rnd(1, p72_E[b1]), y = rnd(1, p72_E[b2]);
-  var u = Math.pow(b1, x), v = Math.pow(b2, y), prod = rnd(0, 3) > 0;
-  if (u <= v || x + y < 3) return null;
-  // Бодолт (гар бичмэл): тэгшитгэлүүдийг нэмж 2·b1^x = 2u → x; эхнийхэд орлуулж b2^y = v → y.
-  var pw = function (bb, e, val) { return e === 1 ? '=' + val : '=' + val + '=' + bb + '^{' + e + '}'; };
-  return {
-    q: '$\\begin{cases}' + b1 + '^x+' + b2 + '^y=' + (u + v) + '\\\\' + b1 + '^x-' + b2 + '^y=' + (u - v) + '\\end{cases}$ бол '
-      + (prod ? '$x\\times y$ үржвэрийн' : '$x+y$ нийлбэрийн') + ' утгыг олоорой.',
-    a: '$x=' + x + ',\\ y=' + y + ',\\ ' + (prod ? 'x\\times y=' + x * y : 'x+y=' + (x + y)) + '$',
-    wk: 24,
-    s: [
-      'Тэгшитгэлүүдийг нэмбэл $$2\\cdot ' + b1 + '^x=' + 2 * u + '\\Rightarrow ' + b1 + '^x' + pw(b1, x, u) + '\\Rightarrow x=' + x + '.$$',
-      'Эхний тэгшитгэлд орлуулбал $$' + (x === 1 ? u : b1 + '^{' + x + '}') + '+' + b2 + '^y=' + (u + v) + '\\Rightarrow ' + b2 + '^y' + pw(b2, y, v) + '\\Rightarrow y=' + y + '.$$',
-      'Иймд $' + (prod ? 'x\\times y=' + x + '\\cdot ' + y + '=' + x * y : 'x+y=' + x + '+' + y + '=' + (x + y)) + '$.'
-    ],
-    t: {}
-  };
-}
-return p72;
+return p21;
 })();
 
 /* 3.62 */
@@ -489,70 +639,37 @@ function p88() {
 return p88;
 })();
 
-/* 3.63 */
-var e3_63 = (function () {
-// 63. Логарифм тэнцэтгэл биш log_B(p − x) − log_{B²}(x − q) ≤ k, муж q < x < p.  log_{B²}(x − q) = ½·log_B(x − q) тул
-//     2·log_B(p − x) − log_B(x − q) ≤ 2k ⇔ (p − x)² ≤ K(x − q), K = B^{2k} ⇔ r₁ ≤ x ≤ r₂, r₁,₂ = p + (K ∓ s)/2, s = √(K² + 4K(p − q)).
-//     Үргэлж q < r₁ < p < r₂ ⇒  ≤: r₁ ≤ x < p;  <: r₁ < x < p;  ≥: q < x ≤ r₁;  >: q < x < r₁  (s бүхэл, r₁ бүхэл байхаар p − q-г сонгоно).
-//     (эх: log₂(4 − x) − log₄(x − 1) ≤ 1 → (4 − x)² ≤ 4(x − 1) → 2 ≤ x ≤ 10 → 2 ≤ x < 4)
-function p63() {
-  var B = rnd(1, 4) === 1 ? 3 : 2, k = B === 2 ? pick([1, 1, 1, 1, 0, 2]) : pick([1, 1, 0]), K = Math.pow(B, 2 * k), ds = [], d, s;
-  for (d = 1; d <= 16; d++) {
-    s = Math.round(Math.sqrt(K * (K + 4 * d)));
-    if (s * s === K * (K + 4 * d) && (K - s) % 2 === 0) ds.push([d, s]);
-  }
-  var c = pick(ds);
-  d = c[0]; s = c[1];
-  var p = rnd(1, 9), q = p - d, r1 = p + (K - s) / 2;
-  if (q < -9) return null;
-  var rel = pick(['le', 'le', 'le', 'le', 'lt', 'ge', 'gt']);
-  var ineq = '\\log_' + B + '(' + p + '-x)-\\log_' + B * B + (q ? '(x' + sgn(-q) + ')' : ' x') + '\\' + rel + ' ' + k;
-  var ans = rel === 'le' ? r1 + '\\le x\\lt ' + p : rel === 'lt' ? r1 + '\\lt x\\lt ' + p : rel === 'ge' ? q + '\\lt x\\le ' + r1 : q + '\\lt x\\lt ' + r1;
+/* 4.99 */
+var e4_99 = (function () {
+// 99. (x² − b)(c^x − c^k) = 0-ийг задалсан хэлбэрээр: c^x·x² − b·c^x + b·c^k = c^k·x² (b = c^j бол b·c^x = c^{x+j}).
+//     Бүлэглэж үржигдэхүүн болгоход x² − b = 0 ⇒ x = ±√b,  c^x = c^k ⇒ x = k  (k² ≠ b — гурван ялгаатай шийд).
+//     Асуулт голдуу шийдүүдийн квадратуудын нийлбэр 2b + k², заримдаа нийлбэр k эсвэл үржвэр −bk.
+function p99() {
+  var c = pick([2, 2, 3, 3, 4, 4, 5]), k = pick([1, 1, 2, 2, 3]), ck = Math.pow(c, k);
+  var b = rnd(0, 9) < 6 ? Math.pow(rnd(1, 5), 2) : pick([2, 3, 5, 6, 7, 8, 10, 12]);
+  if (ck > 64 || b === k * k || b * ck > 320) return null;
+  var j = -1, t = 1, e;
+  for (e = 0; e <= 8; e++) { if (t === b) j = e; t *= c; }
+  var term = j === 0 ? c + '^x' : j > 0 ? c + '^{x+' + j + '}' : b + '\\times ' + c + '^x';
+  var eq = c + '^x\\times x^2-' + term + '+' + b * ck + '=' + ck + 'x^2';
+  var kind = pick(['sq', 'sq', 'sq', 'sq', 'sq', 'sum', 'prod']);
+  var Q = { sq: 'квадратуудын нийлбэрийг', sum: 'нийлбэрийг', prod: 'үржвэрийг' }[kind];
+  var A = { sq: 'x_1^2+x_2^2+x_3^2=' + (2 * b + k * k), sum: 'x_1+x_2+x_3=' + k, prod: 'x_1x_2x_3=' + (-b * k) }[kind];
   return {
-    q: '$' + ineq + '$ тэнцэтгэл бишийг бодоорой.',
-    a: '$' + ans + '$',
-    wk: 32,
-    t: { B: B, k: k, p: p, q: q, r1: r1, rel: rel }
+    q: '$' + eq + '$ тэгшитгэлийн шийдүүдийн ' + Q + ' олоорой.',
+    a: '$' + A + '$',
+    wk: 28,
+    t: { c: c, k: k, b: b, kind: kind }
   };
 }
-return p63;
-})();
-
-/* 3.89 */
-var e3_89 = (function () {
-// 89. (63-ын ихэр) Логарифм тэнцэтгэл биш log_B(p − x) − log_{B²}(x − q) ≤ k, муж q < x < p.  log_{B²}(x − q) = ½·log_B(x − q) тул
-//     2·log_B(p − x) − log_B(x − q) ≤ 2k ⇔ (p − x)² ≤ K(x − q), K = B^{2k} ⇔ r₁ ≤ x ≤ r₂, r₁,₂ = p + (K ∓ s)/2, s = √(K² + 4K(p − q)).
-//     Үргэлж q < r₁ < p < r₂ ⇒  ≤: r₁ ≤ x < p;  <: r₁ < x < p;  ≥: q < x ≤ r₁;  >: q < x < r₁  (s бүхэл, r₁ бүхэл байхаар p − q-г сонгоно).
-//     Эхийн бичлэг: «Логарифм тэнцэтгэл биш бодоорой.» дараагийн мөрөнд тэнцэтгэл биш.
-//     (эх: log₂(2 − x) − log₄(x + 1) ≤ 1 → (2 − x)² ≤ 4(x + 1) → 0 ≤ x ≤ 8 → 0 ≤ x < 2)
-function p89() {
-  var B = rnd(1, 4) === 1 ? 3 : 2, k = B === 2 ? pick([1, 1, 1, 1, 0, 2]) : pick([1, 1, 0]), K = Math.pow(B, 2 * k), ds = [], d, s;
-  for (d = 1; d <= 16; d++) {
-    s = Math.round(Math.sqrt(K * (K + 4 * d)));
-    if (s * s === K * (K + 4 * d) && (K - s) % 2 === 0) ds.push([d, s]);
-  }
-  var c = pick(ds);
-  d = c[0]; s = c[1];
-  var p = rnd(1, 9), q = p - d, r1 = p + (K - s) / 2;
-  if (q < -9) return null;
-  var rel = pick(['le', 'le', 'le', 'le', 'lt', 'ge', 'gt']);
-  var ineq = '\\log_' + B + '(' + p + '-x)-\\log_' + B * B + (q ? '(x' + sgn(-q) + ')' : ' x') + '\\' + rel + ' ' + k;
-  var ans = rel === 'le' ? r1 + '\\le x\\lt ' + p : rel === 'lt' ? r1 + '\\lt x\\lt ' + p : rel === 'ge' ? q + '\\lt x\\le ' + r1 : q + '\\lt x\\lt ' + r1;
-  return {
-    q: 'Логарифм тэнцэтгэл биш бодоорой.<br>&emsp;$' + ineq + '$',
-    a: '$' + ans + '$',
-    wk: 32,
-    t: { B: B, k: k, p: p, q: q, r1: r1, rel: rel }
-  };
-}
-return p89;
+return p99;
 })();
 
 E1K.page({
   title: 'ЭЕШ 1000 — Илтгэгч ба логарифм-1',
-  sub: 'Логарифмын чанар, илтгэгч ба логарифм тэгшитгэл, тэнцэтгэл биш, систем',
+  sub: 'Логарифмын чанар, илэрхийллийн утга, илтгэгч ба логарифм тэгшитгэл',
   first: 1,
-  probs: [e3_23, e3_24, e3_25, e3_26, e3_29, e3_31, e3_30, e3_27, e3_28, e3_32, e3_33, e3_34, e1_50, e1_72, e3_62, e3_88, e3_63, e3_89]
+  probs: [e3_23, e3_24, e3_25, e3_26, e4_20, e4_41, e4_37, e4_72, e3_31, e3_30, e3_29, e3_27, e3_28, e3_32, e3_33, e4_62, e3_34, e4_21, e3_62, e3_88, e4_99]
 });
 </script>
 <script src="/ws-store.js?v=40"></script>

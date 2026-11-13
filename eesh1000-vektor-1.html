@@ -14,7 +14,7 @@
 <div class="sheet" id="sheet"></div>
 <script>
 /* ЭЕШ 1000 — Вектор, огторгуйн координат-1 — ЭЕШ-ийн 1000 бодлого, агуулгаар: Вектор, скаляр үржвэр, огторгуйн цэг, шулуун ба хавтгай.
-   Эх: 1.28, 1.67, 1.8, 1.55, 1.91, 1.13, 1.39, 1.60, 2.30, 2.27, 2.28, 2.31, 2.32, 2.29, 2.33, 2.34, 2.35 (хэсэг.бодлого). Бодлого бүр өөрийн генератортой: «Шинэ бодлого» дарахад тоо нь өөрчлөгдөнө. */
+   Эх: 1.28, 1.67, 1.8, 1.55, 1.91, 1.13, 1.39, 1.60, 2.30, 2.27, 2.28, 2.31, 2.32, 2.29, 2.33, 2.34, 2.35, 4.3, 4.58, 4.46 (хэсэг.бодлого). Бодлого бүр өөрийн генератортой: «Шинэ бодлого» дарахад тоо нь өөрчлөгдөнө. */
 
 /* 1.28 */
 var e1_28 = (function () {
@@ -712,11 +712,117 @@ function p35() {
 return p35;
 })();
 
+/* 4.3 */
+var e4_3 = (function () {
+// 3. OAB гурвалжин, OA дээр OC:CA = m:n ⇒ OC⃗ = m/(m+n)·a⃗;  AB дээр AD:DB = p:q (голдуу дундаж цэг) ⇒
+//    OD⃗ = OA⃗ + p/(p+q)·AB⃗ = q/(p+q)·a⃗ + p/(p+q)·b⃗;  CD⃗ = OD⃗ − OC⃗ = (q/(p+q) − m/(m+n))·a⃗ + p/(p+q)·b⃗.
+//    a⃗-ийн коэффициент 0 (CD ∥ OB) бол алгасна. Зураг эх шиг: O→A, O→B, C→D сум, 5 цэг, a⃗, b⃗ шошго (хариу бичихгүй).
+var p3_CR = [[1, 2], [2, 1], [1, 3], [3, 1], [2, 3], [3, 2], [1, 4], [4, 1], [3, 4], [4, 3]];
+var p3_DR = [[1, 1], [1, 1], [1, 1], [1, 2], [2, 1], [1, 3], [3, 1], [2, 3], [3, 2]];
+function p3_vl(f, P, Q, u, ch, off) {   // P→Q хэрчмийн u хэсгийн цэгээс (дэлгэцийн) зүүн нормалын дагуу off px зайд налуу үсэг + дээр нь жижиг сум
+  f.raw(function (T) {
+    var x1 = T.X(P[0]), y1 = T.Y(P[1]), x2 = T.X(Q[0]), y2 = T.Y(Q[1]), L = Math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
+    var nx = (y2 - y1) / L, ny = -(x2 - x1) / L;
+    var x = x1 + (x2 - x1) * u + nx * off, y = y1 + (y2 - y1) * u + ny * off + 5;
+    var ay = y - (ch === 'b' ? 14.5 : 11), x0 = x - 4.5, xe = x + 5.5;
+    return '<text x="' + x.toFixed(2) + '" y="' + y.toFixed(2) + '" font-size="15" font-family="\'KaTeX_Main\',\'Times New Roman\',serif" font-style="italic" text-anchor="middle" fill="#1b1b1b">' + ch + '</text>'
+      + '<line x1="' + x0.toFixed(2) + '" y1="' + ay.toFixed(2) + '" x2="' + (xe - 2).toFixed(2) + '" y2="' + ay.toFixed(2) + '" stroke="#1b1b1b" stroke-width="1"/>'
+      + '<polygon points="' + xe.toFixed(2) + ',' + ay.toFixed(2) + ' ' + (xe - 3.6).toFixed(2) + ',' + (ay - 2).toFixed(2) + ' ' + (xe - 3.6).toFixed(2) + ',' + (ay + 2).toFixed(2) + '" fill="#1b1b1b"/>';
+  });
+}
+function p3() {
+  var cr = pick(p3_CR), dr = pick(p3_DR), m = cr[0], n = cr[1], p = dr[0], q = dr[1];
+  var an = q * (m + n) - m * (p + q), ad = (p + q) * (m + n);   // a⃗-ийн коэффициент an/ad
+  if (!an) return null;
+  if (m === 1 && n === 2 && p === q) return null;                 // эх тоо тогтмол хувилбар болохгүй
+  var t = m / (m + n), s = p / (p + q);
+  var O = [0, 0], A = [3.3, 3.4], B = [5.8, 0];
+  var C = [A[0] * t, A[1] * t], D = [A[0] + (B[0] - A[0]) * s, A[1] + (B[1] - A[1]) * s];
+  var f = Fig({ w: 220, pad: 14 });
+  f.seg(A, B, { w: 1.4 })
+    .arrow(O, A, { w: 1.5, h: 8 }).arrow(O, B, { w: 1.5, h: 8 }).arrow(C, D, { w: 1.5, h: 8 });
+  [O, A, B, C, D].forEach(function (P) { f.dot(P, { r: 2.3 }); });
+  f.text(O, 'O', { pos: 'sw', size: 14 }).text(A, 'A', { pos: 'n', size: 14 }).text(B, 'B', { pos: 'se', size: 14 })
+    .text(C, 'C', { pos: 'nw', size: 14 }).text(D, 'D', { pos: 'e', size: 14 });
+  p3_vl(f, O, A, t >= 0.5 ? t / 2 : (1 + t) / 2, 'a', 13);       // a⃗ шошго OA-ийн урт хэсгийн дунд (C-ээс хол)
+  p3_vl(f, O, B, 0.5, 'b', -16);
+  f.ext([-0.45, -0.75]).ext([6.3, 3.85]);
+  var dtxt = p === q ? '$D$ цэг нь $AB$ талын дундаж цэг бөгөөд ' : '$AB$ тал дээр $AD:DB=' + p + ':' + q + '$ байх $D$ цэг авав. ';
+  return {
+    q: '$OAB$ гурвалжны $OA$ тал дээр $OC:CA=' + m + ':' + n + '$ байх $C$ цэг' + (p === q ? ' авав. ' : ', ') + dtxt
+      + '$\\overrightarrow{OA}=\\vec a$, $\\overrightarrow{OB}=\\vec b$ бол $\\overrightarrow{CD}$ векторыг $\\vec a$ ба $\\vec b$ векторуудаар илэрхийлээрэй.',
+    a: '$\\overrightarrow{CD}=' + fr(an, ad) + '\\vec a+' + fr(p, p + q) + '\\vec b$',
+    fig: f.svg(), side: true, wk: 30,
+    t: { m: m, n: n, p: p, q: q }
+  };
+}
+return p3;
+})();
+
+/* 4.58 */
+var e4_58 = (function () {
+// 58. Коллинеар векторууд: координат бүр тэгээс ялгаатай тул a ∥ b ⇔ a = λb (λ ≠ 0).
+//     Хоёулаа мэдэгдэх координатын хосоос λ-г олж, x = λ·b_i, y = a_j/λ.  Урвуугаар: w (тэггүй бүхэл), a = m·w, b = n·w.
+//     x нь a-ийн i-р, y нь b-ийн j-р координат (i ≠ j); асуулт: xy (эх шиг) эсвэл x + y.
+function p58() {
+  var w = [nz(-4, 4), nz(-4, 4), nz(-4, 4)], m = nz(-3, 3), n = nz(-3, 3);
+  if (m === n || gcd(m, n) !== 1) return null;
+  var A = w.map(function (v) { return m * v; }), B = w.map(function (v) { return n * v; });
+  var i = rnd(0, 2), j = rnd(0, 2);
+  if (i === j) return null;
+  var x = A[i], y = B[j];
+  if (Math.abs(x) === 1 && Math.abs(y) === 1) return null;
+  var sum = rnd(1, 10) <= 3;
+  var vec = function (V, k, nm) { return '(' + V.map(function (v, t) { return t === k ? nm : String(v); }).join(',\\,') + ')'; };
+  return {
+    q: '$\\vec a=' + vec(A, i, 'x') + '$; $\\vec b=' + vec(B, j, 'y') + '$ векторууд коллинеар байх <span class="nw">$x,y$-ийн</span> ' + (sum ? 'нийлбэрийг' : 'үржвэрийг') + ' олоорой.',
+    a: '$x=' + x + ',\\ y=' + y + '$; $' + (sum ? 'x+y=' + (x + y) : 'xy=' + x * y) + '$',
+    wk: 22,
+    t: { A: A, B: B, i: i, j: j }
+  };
+}
+return p58;
+})();
+
+/* 4.46 */
+var e4_46 = (function () {
+// 46. α₁a⃗ + β₁b⃗ = u⃗, α₂a⃗ + β₂b⃗ = v⃗ ⇒ a⃗, b⃗ (шугаман систем), cos φ = a⃗·b⃗ / (|a⃗|·|b⃗|).
+//     a⃗, b⃗ — жижиг бүхэл координаттай, коллинеар биш, a⃗·b⃗ ≠ 0; өгөх векторууд |координат| ≤ 9.
+//     Хариу: √(|a⃗|²|b⃗|²) = k√r ⇒ cos φ = (a⃗·b⃗)√r/(kr) — хураасан, хуваарь рационал.
+var p46_C = [[[1, 1], [2, 1]], [[1, 1], [2, 1]], [[1, 1], [1, -1]], [[1, -1], [2, 1]], [[1, 2], [1, 1]], [[2, 1], [1, -1]],
+  [[1, 1], [1, 2]], [[1, -1], [1, 1]], [[1, 1], [3, 1]], [[2, 1], [3, 1]], [[1, 2], [2, 3]], [[2, -1], [1, 1]]];
+function p46_lc(c) { return tm(c[0], '\\vec a', true) + tm(c[1], '\\vec b'); }
+function p46_dot(x, y) { return x[0] * y[0] + x[1] * y[1] + x[2] * y[2]; }
+function p46() {
+  var a = [rnd(-3, 4), rnd(-3, 4), rnd(-3, 4)], b = [rnd(-3, 4), rnd(-3, 4), rnd(-3, 4)], cb = pick(p46_C);
+  if (rnd(0, 2) === 0) cb = [cb[1], cb[0]];
+  var u = [0, 1, 2].map(function (i) { return cb[0][0] * a[i] + cb[0][1] * b[i]; }), v = [0, 1, 2].map(function (i) { return cb[1][0] * a[i] + cb[1][1] * b[i]; });
+  if (u.concat(v).some(function (z) { return Math.abs(z) > 9; })) return null;
+  var D = p46_dot(a, b), A2 = p46_dot(a, a), B2 = p46_dot(b, b);
+  if (!A2 || !B2 || !D || D * D === A2 * B2) return null;            // тэг вектор, перпендикуляр, коллинеар биш
+  if (a.filter(function (z) { return z === 0; }).length + b.filter(function (z) { return z === 0; }).length > 2) return null;
+  var S = surd(A2 * B2), val;
+  if (S.r === 1) val = fr(D, S.k);
+  else {
+    var g = gcd(D, S.k * S.r), nn = D / g, dd = S.k * S.r / g;
+    if (dd > 70) return null;                                         // хэт том хуваарьгүй (√102/102 мэт)
+    val =(nn < 0 ? '-' : '') + (dd === 1 ? rt(Math.abs(nn), S.r) : '\\dfrac{' + rt(Math.abs(nn), S.r) + '}{' + dd + '}');
+  }
+  return {
+    q: '$' + p46_lc(cb[0]) + '=(' + u.join(',\\,') + ')$, $' + p46_lc(cb[1]) + '=(' + v.join(',\\,') + ')$ байх $\\vec a$ ба $\\vec b$ векторын хоорондох өнцгийн косинусыг олоорой.',
+    a: '$' + val + '$',
+    wk: 28,
+    t: { a: a, b: b, cb: cb }
+  };
+}
+return p46;
+})();
+
 E1K.page({
   title: 'ЭЕШ 1000 — Вектор, огторгуйн координат-1',
   sub: 'Вектор, скаляр үржвэр, огторгуйн цэг, шулуун ба хавтгай',
   first: 1,
-  probs: [e1_28, e1_67, e1_8, e1_55, e1_91, e1_13, e1_39, e1_60, e2_30, e2_27, e2_28, e2_31, e2_32, e2_29, e2_33, e2_34, e2_35]
+  probs: [e1_28, e1_67, e1_8, e1_55, e1_91, e1_13, e1_39, e1_60, e2_30, e2_27, e2_28, e2_31, e2_32, e2_29, e2_33, e2_34, e2_35, e4_3, e4_58, e4_46]
 });
 </script>
 <script src="/ws-store.js?v=40"></script>

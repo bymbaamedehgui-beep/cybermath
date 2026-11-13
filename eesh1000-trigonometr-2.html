@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ЭЕШ 1000 — Тригонометр-2</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/e1k.js?v=2"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* ЭЕШ 1000 — Тригонометр-2 — ЭЕШ-ийн 1000 бодлого, агуулгаар: Тригонометр тэгшитгэл, систем, тэнцэтгэл биш.
+   Эх: 2.37, 2.36, 4.14, 4.16, 4.25, 4.96, 4.54, 4.15, 4.17, 4.32, 4.63 (хэсэг.бодлого). Бодлого бүр өөрийн генератортой: «Шинэ бодлого» дарахад тоо нь өөрчлөгдөнө. */
+
+/* 2.37 */
+var e2_37 = (function () {
+// 37. sin kx = c (cos kx = c), x ∈ [0; L], L ∈ {π/2, π, 2π}: θ = kx-ийн [0°; 360°) дахь үндсэн шийдүүд (хүснэгтээс),
+//     θ + 360°·m ≤ k·L → x = θ/k. Бүх шийдийг (1–4 ширхэг) өсөх дарааллаар жагсаана (эх: sin 2x = 1, [0; π/2] → π/4).
+var p37_C = [   // [c-ийн TeX, sin θ = c-ийн шийдүүд, cos θ = c-ийн шийдүүд] (градус, [0°; 360°))
+  ['0', [0, 180], [90, 270]], ['1', [90], [0]], ['-1', [270], [180]],
+  ['\\dfrac{1}{2}', [30, 150], [60, 300]], ['-\\dfrac{1}{2}', [210, 330], [120, 240]],
+  ['\\dfrac{\\sqrt{2}}{2}', [45, 135], [45, 315]], ['-\\dfrac{\\sqrt{2}}{2}', [225, 315], [135, 225]],
+  ['\\dfrac{\\sqrt{3}}{2}', [60, 120], [30, 330]], ['-\\dfrac{\\sqrt{3}}{2}', [240, 300], [150, 210]]
+];
+function p37_x(th, k) {   // x = θ/k градус → π-ээр: θ/(180k)·π
+  if (!th) return '0';
+  var n = th, d = 180 * k, g = gcd(n, d);
+  n /= g; d /= g;
+  var top = (n === 1 ? '' : n) + '\\pi';
+  return d === 1 ? top : '\\dfrac{' + top + '}{' + d + '}';
+}
+function p37() {
+  var cs = rnd(0, 2) === 0, k = pick([1, 2, 2, 2, 3, 3, 4]), L = pick([90, 180, 180, 360]), C = pick(p37_C), base = cs ? C[2] : C[1], sol = [], m;
+  for (m = 0; m * 360 <= k * L; m++) base.forEach(function (t) { if (t + 360 * m <= k * L) sol.push(t + 360 * m); });
+  sol.sort(function (a, b) { return a - b; });
+  if (sol.length < 1 || sol.length > 4) return null;
+  if (k === 1 && L === 90 && rnd(0, 1)) return null;     // хэт хялбарыг цөөлнө
+  var IT = L === 90 ? '\\left[0,\\dfrac{\\pi}{2}\\right]' : L === 180 ? '[0,\\pi]' : '[0,2\\pi]';
+  return {
+    q: '$\\' + (cs ? 'cos' : 'sin') + ' ' + (k === 1 ? '' : k) + 'x=' + C[0] + '$ тэгшитгэлийн $' + IT + '$ завсар дахь шийдүүдийг ол.',
+    a: sol.length === 1 ? '$x=' + p37_x(sol[0], k) + '$' : sol.map(function (t, i) { return '$x_' + (i + 1) + '=' + p37_x(t, k) + '$'; }).join(', '),
+    wk: 24,
+    t: { k: k, L: L, sol: sol }
+  };
+}
+return p37;
+})();
+
+/* 2.36 */
+var e2_36 = (function () {
+// 36. y = A·sin x (A·cos x)-ийн графикаас [0; 2π] эсвэл [−π; π] завсарт эерэг (сөрөг) утгатай хэсгийг олох.
+//     Завсрыг π/2-ийн алхмаар хувааж, хэсэг бүрийн тэмдгийг дунд цэгээр тогтооно; зэргэлдээ «тохирох» хэсгүүдийг нийлүүлнэ
+//     (sin, cos-ийн тэг энгийн тул тэмдэг зөвхөн тэгт солигдоно). Завсрын төгсгөлд функц тэг биш, тэмдэг тохирвол хаалттай.
+//     Зураг: эх шиг тоон хуваарьтай тэнхлэг (тэгүүдийг π-гээр тэмдэглэхгүй).
+function p36_pt(k) {   // k·π/2 → TeX
+  if (!k) return '0';
+  var a = Math.abs(k), s = k < 0 ? '-' : '';
+  if (a % 2 === 0) return s + (a === 2 ? '' : a / 2) + '\\pi';
+  return s + '\\dfrac{' + (a === 1 ? '' : a) + '\\pi}{2}';
+}
+function p36_free(fn, x0, x1, y0, y1) {   // y = fn(x) муруй [x0; x1]×[y0; y1] тэгш өнцөгтөөр дайрахгүй эсэх
+  for (var i = 0; i <= 30; i++) { var y = fn(x0 + (x1 - x0) * i / 30); if (y > y0 && y < y1) return false; }
+  return true;
+}
+function p36() {
+  var cs = rnd(0, 2) === 0, A = pick([1, 1, 1, 1, -1, -1, 2, -2]), I = rnd(0, 2) ? [0, 4] : [-2, 2], pos = rnd(0, 1) === 1, want = pos ? 1 : -1;
+  var fn = function (x) { return A * (cs ? Math.cos(x) : Math.sin(x)); };
+  var sg = function (k) { var v = Math.round(fn(k * Math.PI / 2) * 1e9); return v > 0 ? 1 : v < 0 ? -1 : 0; };   // k·π/2 цэг дээрх тэмдэг
+  var segs = [], k;
+  for (k = I[0]; k < I[1]; k++) {
+    if ((fn((k + 0.5) * Math.PI / 2) > 0 ? 1 : -1) !== want) continue;
+    var L = segs[segs.length - 1];
+    if (L && L[1] === k) L[1] = k + 1; else segs.push([k, k + 1]);
+  }
+  var tex = segs.map(function (s) {
+    var lc = s[0] === I[0] && sg(s[0]) === want, rc = s[1] === I[1] && sg(s[1]) === want, l = p36_pt(s[0]), r = p36_pt(s[1]), big = /frac/.test(l + r);
+    return (big ? '\\left' : '') + (lc ? '[' : '(') + l + ';\\,' + r + (big ? '\\right' : '') + (rc ? ']' : ')');
+  }).join('\\cup ');
+  // зураг: [0; 2π]-д −2…7, [−π; π]-д −4…4 хуваарьтай; муруйг эхэлж зурж, хуваарийн бичгийг муруйгаас чөлөөтэй талд нь тавина
+  var X0 = I[0] ? -4.5 : -2.6, X1 = I[0] ? 4.6 : 7.5, M = Math.max(2, Math.abs(A)), xs = [], ys = [], i;
+  var f = Fig({ view: [X0, X1, -M - 0.9, M + 0.6], w: 300 });
+  for (i = Math.ceil(X0 + 0.3); i <= X1 - 0.4; i++) if (i) xs.push(i);
+  for (i = -M; i <= M; i++) if (i) ys.push(i);
+  f.axes({ o: false }).curve(fn, X0, X1, { w: 1.7 })
+    .ticks(xs.map(function (x) { return [x, '']; }), ys.map(function (y) { return [y, '']; }));
+  var put = function (P, s, c) {   // c: [[байрлал, x0, x1, y0, y1], …] — эхний чөлөөтэй хувилбар (бүгд давхцвал эхнийх)
+    var best = c[0][0];
+    for (var j = c.length - 1; j >= 0; j--) if (p36_free(fn, P[0] + c[j][1], P[0] + c[j][2], P[1] + c[j][3], P[1] + c[j][4])) best = c[j][0];
+    f.text(P, s, { pos: best, size: 10.5, off: best.length > 1 ? 5 : 6, halo: true });
+  };
+  xs.forEach(function (x) { var w = x < 0 ? 0.22 : 0.14; put([x, 0], dec(x), [['s', -w, w, -0.6, -0.18], ['n', -w, w, 0.18, 0.6]]); });
+  ys.forEach(function (y) { put([0, y], dec(y), [['w', -0.6, -0.15, -0.16, 0.16], ['e', 0.15, 0.6, -0.16, 0.16], ['nw', -0.5, -0.1, 0.12, 0.55], ['sw', -0.5, -0.1, -0.55, -0.12]]); });
+  put([0, 0], '0', [['sw', -0.4, -0.08, -0.55, -0.12], ['se', 0.08, 0.4, -0.55, -0.12], ['nw', -0.4, -0.08, 0.12, 0.55], ['ne', 0.08, 0.4, 0.12, 0.55]]);
+  return {
+    q: '$y=' + (A === 1 ? '' : A === -1 ? '-' : A) + '\\' + (cs ? 'cos' : 'sin') + ' x$ функцийн графикаас $x\\in' + (I[0] ? '[-\\pi,\\pi]' : '[0,2\\pi]')
+      + '$ завсарт ' + (pos ? 'эерэг' : 'сөрөг') + ' утгатай байдаг хэсгийг ол.',
+    a: '$x\\in' + tex + '$',
+    fig: f.svg(), wk: 20,
+    t: { fn: fn }
+  };
+}
+return p36;
+})();
+
+/* 4.14 */
+var e4_14 = (function () {
+// 14. (a·cos x + b·sin x)²/(D + E·sin 2x) = R, a = r·cos t, b = r·sin t (t = ±π/6, ±π/3), E·R = ab, D = E·sin 2t.
+//     Хүртвэр = (a² + b²)/2 + (a² − b²)/2·cos 2x + ab·sin 2x ⇒ sin 2x-ийн гишүүд хураагдаж cos 2x = −cos 2t ⇒ x = ±(π/2 − t) + πk.
+//     x = t − π/2 + πk үед хүртвэр ба хуваарь хоёулаа 0 (0/0) — хасагдана ⇒ ганц цуваа x = π/2 − t + πk.
+//     Хувилбар: t, масштаб (1, √3, 2), E (2, 4), гишүүдийн дараалал, хуваарийг 2E·sin x·cos x хэлбэрээр.
+function p14_s(k, r) { return r === 1 ? String(k) : (k === 1 ? '' : k) + '\\sqrt{' + r + '}'; }   // k√r (k > 0)
+function p14_tm(k, r, fn, first) {   // ±k√r·fn гишүүн
+  var a = Math.abs(k), body = (a === 1 && r === 1 ? '' : p14_s(a, r)) + fn;
+  return (k < 0 ? '-' : first ? '' : '+') + body;
+}
+function p14() {
+  var T = pick([[1, 3, 1, 1], [1, 1, 1, 3], [1, 3, -1, 1], [1, 1, -1, 3]]);   // a = T[0]√T[1], b = T[2]√T[3]  (t = π/6, π/3, −π/6, −π/3)
+  var sc = pick([[1, 1], [1, 1], [1, 3], [2, 1]]);                           // масштаб k√r
+  var a = [T[0], T[1]], b = [T[2], T[3]];
+  if (sc[1] === 3) { a = a[1] === 3 ? [3 * a[0], 1] : [a[0], 3]; b = b[1] === 3 ? [3 * b[0], 1] : [b[0], 3]; }
+  else { a = [a[0] * sc[0], a[1]]; b = [b[0] * sc[0], b[1]]; }
+  // ab = (a₀b₀)·√(a₁b₁); a₁b₁ ∈ {3} ⇒ ab = P√3,  P тэмдэгтэй
+  var P = a[0] * b[0] * (a[1] * b[1] === 9 ? 3 : 1), rr = a[1] * b[1] === 9 ? 1 : 3;
+  if (rr !== 3) return null;
+  var E = pick([2, 2, 4]) * (P < 0 ? -1 : 1);                               // R = ab/E > 0
+  // D = E·sin 2t, sin 2t = ±√3/2 (тэмдэг нь ab-ийнх) ⇒ D = |E|·√3/2 > 0
+  var Dk = Math.abs(E) / 2, Rn = Math.abs(P), Rd = Math.abs(E), g = gcd(Rn, Rd); Rn /= g; Rd /= g;
+  var Rt = Rd === 1 ? p14_s(Rn, 3) : '\\dfrac{' + p14_s(Rn, 3) + '}{' + Rd + '}';
+  var ca = p14_tm(a[0], a[1], '\\cos x', true), sb = p14_tm(b[0], b[1], '\\sin x', false);
+  var NUM = rnd(1, 4) === 1 && b[0] > 0 ? p14_tm(b[0], b[1], '\\sin x', true) + p14_tm(a[0], a[1], '\\cos x', false) : ca + sb;
+  var Dt = p14_s(Dk, 3), form = rnd(1, 6), Es = form === 6 ? p14_tm(2 * E, 1, '\\sin x\\cos x', false) : p14_tm(E, 1, '\\sin 2x', false);
+  var DEN = form === 5 && E > 0 ? p14_tm(E, 1, '\\sin 2x', true) + '+' + Dt : Dt + Es;
+  if (Rn === 1 && Rd === 2 && a[0] === 1 && a[1] === 3 && b[0] === 1 && b[1] === 1 && E === 2 && form <= 4 && NUM === ca + sb) return null;   // эх бодлого
+  var t = T[2] > 0 ? (T[1] === 3 ? 1 : 2) : (T[1] === 3 ? -1 : -2);         // t = π/6, π/3, −π/6, −π/3
+  var X = { 1: '\\dfrac{\\pi}{3}', 2: '\\dfrac{\\pi}{6}', '-1': '-\\dfrac{\\pi}{3}', '-2': '-\\dfrac{\\pi}{6}' }[t];   // π/2 − t (mod π)
+  return {
+    q: '$\\dfrac{(' + NUM + ')^2}{' + DEN + '}=' + Rt + '$ тэгшитгэлийг бодоорой.',
+    a: '$x=' + X + '+\\pi k,\\ k\\in\\mathbb{Z}$',
+    wk: 34,
+    t: { a: a, b: b, E: E, form: form }
+  };
+}
+return p14;
+})();
+
+/* 4.16 */
+var e4_16 = (function () {
+// 16. cos⁶x + sin⁶x = 1 − ¾·sin²2x = ¼ + ¾·cos²2x  (cos⁴x + sin⁴x = ½ + ½·cos²2x).  C = cos 2x гэвэл
+//     ¾C² − pC + ¼ − q = 0  (4-р зэрэгт: ½C² − pC + ½ − q = 0).  Язгуурууд c₁ (стандарт утга) ба c₂ (|c₂| > 1 — гадны язгуур,
+//     заримдаа мөн стандарт утга) ⇒ p = ¾(c₁ + c₂), q = (1 − 3c₁c₂)/4  (4-р зэрэгт: p = (c₁ + c₂)/2, q = (1 − c₁c₂)/2).
+//     cos 2x = c ⇒ x = ±φ/2 + 180°k (φ = arccos c); [L°; R°] завсарт орох шийдүүдийн үржвэр (2 шийдтэй үед) эсвэл нийлбэр.
+var p16_CV = [[-1, 1, 180], [-1, 2, 120], [0, 1, 90], [1, 2, 60], [1, 1, 0]];   // cos 2x = n/d, φ = arccos (градус)
+var p16_X = [[3, 2], [2, 1], [5, 2], [3, 1], [4, 3], [5, 3], [5, 4], [7, 4], [7, 3], [7, 2], [9, 4], [5, 1]];   // |c₂| > 1
+function p16() {
+  var six = rnd(0, 3) > 0, c1 = pick(p16_CV), c2;
+  if (rnd(0, 4) === 0) { c2 = pick(p16_CV); if (c2 === c1) return null; }
+  else { var x2 = pick(p16_X); c2 = [rnd(0, 1) ? x2[0] : -x2[0], x2[1], null]; }
+  var n1 = c1[0], d1 = c1[1], n2 = c2[0], d2 = c2[1], sn = n1 * d2 + n2 * d1, dd = d1 * d2, pn, pd, qn, qd, g;
+  if (!sn) return null;                                       // p ≠ 0
+  if (six) { pn = 3 * sn; pd = 4 * dd; qn = dd - 3 * n1 * n2; qd = 4 * dd; }
+  else { pn = sn; pd = 2 * dd; qn = dd - n1 * n2; qd = 2 * dd; }
+  g = gcd(pn, pd); pn /= g; pd /= g; g = gcd(qn, qd); qn /= g; qd /= g;
+  if (pd > 16 || qd > 16 || Math.abs(pn) > 40 || Math.abs(qn) > 40) return null;
+  var L = pick([-180, -90, -90, 0, 0, 90, 90, 90, 180]), R = L + pick([180, 180, 180, 270, 360]), sols = [];
+  if (R > 360) return null;
+  [c1, c2].forEach(function (c) {
+    if (c[2] == null) return;                                  // |c| > 1 — шийдгүй
+    for (var k = -4; k <= 4; k++) [c[2] / 2 + 180 * k, -c[2] / 2 + 180 * k].forEach(function (x) {
+      if (x >= L && x <= R && sols.indexOf(x) < 0) sols.push(x);
+    });
+  });
+  sols.sort(function (u, v) { return u - v; });
+  if (sols.length < 2 || sols.length > 5 || sols.indexOf(0) >= 0) return null;
+  var prod = sols.length === 2 && rnd(0, 3) > 0, val, ans;
+  if (prod) {
+    val = sols[0] * sols[1];
+    ans = par(sols[0]) + '\\cdot ' + par(sols[1]) + '=' + val;
+  } else {
+    val = sols.reduce(function (s, x) { return s + x; }, 0);
+    if (!val) return null;
+    ans = sols.map(function (x, i) { return (x < 0 ? '-' : i ? '+' : '') + Math.abs(x) + '^\\circ'; }).join('') + '=' + val + '^\\circ';
+  }
+  var lhs = six ? (rnd(0, 3) ? '\\cos^6x+\\sin^6x' : '\\sin^6x+\\cos^6x') : (rnd(0, 3) ? '\\cos^4x+\\sin^4x' : '\\sin^4x+\\cos^4x');
+  var rhs = tm([pn, pd], '\\cos 2x', true) + tm([qn, qd], '');
+  return {
+    q: '$' + lhs + '=' + rhs + '$ тэгшитгэлийн $' + L + '^\\circ\\le x\\le ' + R + '^\\circ$ завсар дахь шийдүүдийн ' + (prod ? 'үржвэрийг' : 'нийлбэрийг') + ' ол.',
+    a: '$' + ans + '$',
+    wk: 34,
+    t: { six: six, c1: c1, c2: c2, L: L, R: R, sols: sols }
+  };
+}
+return p16;
+})();
+
+/* 4.25 */
+var e4_25 = (function () {
+// 25. a·cos²x + b·cos x·sin x = d (эсвэл a·sin²x + b·sin x·cos x = d): d = d(sin²x + cos²x) гэж нэгэн төрөлжүүлээд cos²x-д хуваавал
+//     (cos x = 0 нь шийд биш) tg x-ийн квадрат тэгшитгэл.  Урвуугаар: язгуурууд t₁ ≠ t₂ (рационал) ⇒ a, b бүхэл, d нэг оронтой аравтын
+//     (1-р хэлбэрт d·t² − b·t + d − a = 0, 2-рт (a − d)t² + b·t − d = 0).  Завсар [L; R] (π/2-ийн бүхэл үржвэр төгсгөлтэй) дахь
+//     шийдийн тоо: x = arctg t + πk бүрийг тоолно; t = 0 бол x = πk (завсрын төгсгөл дээр байж болно).
+var p25_T = [[0, 1], [1, 3], [-1, 3], [1, 2], [-1, 2], [2, 3], [-2, 3], [3, 4], [-3, 4], [1, 1], [-1, 1], [4, 3], [-4, 3], [3, 2], [-3, 2],
+  [2, 1], [-2, 1], [3, 1], [-3, 1], [4, 1], [-4, 1], [5, 1], [-5, 1]];
+var p25_I = [[1, 3], [1, 3], [1, 3], [0, 2], [0, 2], [-1, 1], [-1, 1], [0, 4], [2, 4], [0, 1], [0, 3], [-2, 2], [1, 2], [-2, 0], [2, 3]];   // π/2-ийн нэгжээр
+function p25_pi(u) {   // u·π/2 → TeX
+  if (!u) return '0';
+  var a = Math.abs(u), s = u < 0 ? '-' : '';
+  if (a % 2 === 0) return s + (a === 2 ? '' : a / 2) + '\\pi';
+  return s + '\\dfrac{' + (a === 1 ? '' : a) + '\\pi}{2}';
+}
+function p25() {
+  var t1 = pick(p25_T), t2 = pick(p25_T);
+  if (t1[0] * t2[1] === t2[0] * t1[1]) return null;
+  var Sn = t1[0] * t2[1] + t2[0] * t1[1], Pn = t1[0] * t2[0], Dd = t1[1] * t2[1];   // t₁ + t₂ = Sn/Dd, t₁t₂ = Pn/Dd
+  var F2 = rnd(0, 3) === 0, cands = [], L, a, b, d10;
+  if (!Sn) return null;                                               // b ≠ 0
+  for (L = -50; L <= 50; L++) {                                       // λ = L/10
+    if (!L) continue;
+    if (!F2) {                                                        // d = λ, b = λ(t₁ + t₂), a = λ(1 − t₁t₂)
+      if (L < 0 || (L * Sn) % (10 * Dd) || (L * (Dd - Pn)) % (10 * Dd)) continue;
+      b = L * Sn / (10 * Dd); a = L * (Dd - Pn) / (10 * Dd); d10 = L;
+    } else {                                                          // a − d = λ, b = −λ(t₁ + t₂), d = −λt₁t₂
+      if ((L * Sn) % (10 * Dd) || (L * Pn) % Dd) continue;
+      b = -L * Sn / (10 * Dd); d10 = -L * Pn / Dd;
+      if (d10 <= 0 || (L + d10) % 10) continue;
+      a = (L + d10) / 10;
+    }
+    if (!a || !b || Math.abs(a) > 9 || Math.abs(b) > 6 || d10 > 50) continue;
+    cands.push([a, b, d10]);
+  }
+  if (!cands.length) return null;
+  var c = pick(cands), I = pick(p25_I), cnt = 0;
+  a = c[0]; b = c[1]; d10 = c[2];
+  if (a < 0 && rnd(0, 2)) return null;                                // сөрөг тэргүүлэх коэффициент цөөн
+  [t1, t2].forEach(function (t) {
+    var k, u0 = 2 * Math.atan(t[0] / t[1]) / Math.PI;                  // arctg t, π/2-ийн нэгжээр
+    for (k = -4; k <= 4; k++) {
+      if (!t[0]) { if (2 * k >= I[0] && 2 * k <= I[1]) cnt++; }
+      else if (u0 + 2 * k > I[0] && u0 + 2 * k < I[1]) cnt++;
+    }
+  });
+  if (cnt > 4 || (!cnt && rnd(0, 4))) return null;
+  var ts = [t1, t2].sort(function (u, v) { return u[0] / u[1] - v[0] / v[1]; });
+  var lhs = F2 ? tm(a, '\\sin^2x', true) + tm(b, '\\sin x\\cdot\\cos x') : tm(a, '\\cos^2x', true) + tm(b, '\\cos x\\cdot\\sin x');
+  return {
+    q: '$' + lhs + '=' + dec(d10 / 10) + '$ тэгшитгэл $\\left[' + p25_pi(I[0]) + ';\\ ' + p25_pi(I[1]) + '\\right]$ завсарт хэдэн шийдтэй вэ?',
+    a: '$' + cnt + '$ $\\left(\\operatorname{tg}x=' + fr(ts[0][0], ts[0][1]) + ';\\ ' + fr(ts[1][0], ts[1][1]) + '\\right)$',
+    wk: 30,
+    t: { a: a, b: b, d: d10 / 10, F2: F2, I: I, t: ts }
+  };
+}
+return p25;
+})();
+
+/* 4.96 */
+var e4_96 = (function () {
+// 96. a·sin²x = b·sin 2x ⇔ sin x·(a·sin x − 2b·cos x) = 0 ⇔ sin x = 0 эсвэл tg x = 2b/a;
+//     a·cos²x = b·sin 2x ⇔ cos x = 0 эсвэл ctg x = 2b/a.  2b/a ∈ {±√3, ±1, ±1/√3} ⇒ x = ±π/3, ±π/4, ±π/6 (+πn).
+//     Завсрын төгсгөл π/2-ийн үржвэр (голдуу битүү завсар); шийдүүдийг π/12 нэгжээр тоолж нийлбэрийг хураана (0 биш).
+var p96_K = [   // [2b/a (tg эсвэл ctg-ийн утга) → x₀ (π/12 нэгжээр, tg x = …), b/a = K-ийн бичлэг: [a-гүй, a-тай]]
+  { t: 4, c: 2, A: ['\\frac{\\sqrt{3}}{2}', ''], B: ['2', '\\sqrt{3}'] },    // 2b/a = √3
+  { t: 3, c: 3, A: ['\\frac{1}{2}', ''], B: ['2', ''] },                     // 2b/a = 1
+  { t: 2, c: 4, A: ['\\frac{\\sqrt{3}}{6}', ''], B: ['2\\sqrt{3}', ''] }     // 2b/a = 1/√3
+];
+var p96_I = [[0, 2], [0, 2], [0, 4], [-2, 2], [-1, 1], [-1, 2], [0, 3], [-2, 0], [1, 3], [2, 4], [-2, 1], [-1, 3], [1, 4]];
+function p96_e(m) {   // m·π/2 → TeX (завсрын төгсгөл; мөрийн өндрийг өсгөхгүй \frac)
+  if (!m) return '0';
+  var s = m < 0 ? '-' : '', a = Math.abs(m);
+  return s + (a % 2 ? '\\frac{' + (a === 1 ? '' : a) + '\\pi}{2}' : (a === 2 ? '' : a / 2) + '\\pi');
+}
+function p96() {
+  var K = pick(p96_K), neg = rnd(0, 3) === 0, cs = rnd(0, 3) === 0, mul = rnd(0, 2) === 0;
+  // tg x-ийн утга (π/12 нэгжээр өнцөг): sin² хэлбэрт tg x = 2b/a, cos² хэлбэрт tg x = a/(2b)
+  var x0 = (cs ? K.c : K.t) * (neg ? -1 : 1);
+  var I = pick(p96_I), cl = rnd(0, 4) ? [1, 1] : pick([[0, 0], [1, 0], [0, 1]]);
+  var L = 6 * I[0], R = 6 * I[1], roots = [], n, x;
+  var inI = function (v) { return (v > L || (cl[0] && v === L)) && (v < R || (cl[1] && v === R)); };
+  for (n = -6; n <= 6; n++) {
+    x = cs ? 6 + 12 * n : 12 * n; if (inI(x)) roots.push(x);
+    x = x0 + 12 * n; if (inI(x)) roots.push(x);
+  }
+  var S = roots.reduce(function (s, v) { return s + v; }, 0);
+  if (roots.length < 2 || !S) return null;
+  var g = gcd(S, 12), N = S / g, D = 12 / g, aN = Math.abs(N);
+  var ans = (N < 0 ? '-' : '') + (D === 1 ? (aN === 1 ? '' : aN) + '\\pi' : '\\dfrac{' + (aN === 1 ? '' : aN) + '\\pi}{' + D + '}');
+  var tr = cs ? '\\cos^2 x' : '\\sin^2 x', lhs = mul ? K.B[0] + tr : tr, rhs = mul ? K.B[1] : K.A[0];
+  var eq = lhs + '=' + (neg ? '-' : '') + rhs + '\\sin 2x';
+  var iv = (cl[0] ? '[' : '(') + p96_e(I[0]) + ';\\,' + p96_e(I[1]) + (cl[1] ? ']' : ')');
+  return {
+    q: '$' + eq + '$ тэгшитгэлийн $' + iv + '$ завсар дахь шийдүүдийн нийлбэрийг олоорой.',
+    a: '$' + ans + '$',
+    wk: 28,
+    t: { eq: eq, I: I, cl: cl, roots: roots }
+  };
+}
+return p96;
+})();
+
+/* 4.54 */
+var e4_54 = (function () {
+// 54. sinⁿy + cosⁿy = V (n = 8, 6, 4; y = x, 2x эсвэл x/2), u = sin²2y:  sin⁴ + cos⁴ = 1 − u/2,  sin⁶ + cos⁶ = 1 − 3u/4,
+//     sin⁸ + cos⁸ = (1 − u/2)² − u²/8 = 1 − u + u²/8 (нөгөө язгуур нь 1-ээс их — хасагдана).
+//     u ∈ {0, 1/4, 1/2, 3/4, 1} ⇒ cos 4y = 1 − 2u (стандарт утга) ⇒ y-ийн ерөнхий шийд (хүснэгт p54_U); x = y/m.
+var p54_U = [[1, 4, 1, 12, true, 1, 2], [1, 2, 1, 8, false, 1, 4], [3, 4, 1, 6, true, 1, 2], [1, 1, 1, 4, false, 1, 2],
+  [0, 1, 0, 1, false, 1, 2]];   // [u_n, u_d, a_n, a_d, ±, b_n, b_d]: y = ±aπ + bπk
+function p54_pi(n, d, k) {   // (n/d)·π (k бол ·k)
+  var g = gcd(n, d); n /= g; d /= g;
+  var top = (n === 1 ? '' : n) + '\\pi' + (k ? ' k' : '');
+  return d === 1 ? top : '\\dfrac{' + top + '}{' + d + '}';
+}
+function p54() {
+  var n = pick([8, 8, 8, 6, 6, 4, 4]), U = pick(p54_U), m = pick([[1, 1], [1, 1], [1, 1], [2, 1], [2, 1], [3, 1], [1, 2]]);
+  if (U[0] === 0 && rnd(0, 2)) return null;                       // sin 2y = 0 тохиолдол цөөн
+  if (n === 8 && U[1] === 2 && m[0] === 1 && m[1] === 1 && rnd(0, 3)) return null;   // эх тэгшитгэл ховор
+  var un = U[0], ud = U[1], vn, vd;
+  if (n === 4) { vn = 2 * ud - un; vd = 2 * ud; }
+  else if (n === 6) { vn = 4 * ud - 3 * un; vd = 4 * ud; }
+  else { vn = 8 * ud * ud - 8 * un * ud + un * un; vd = 8 * ud * ud; }
+  // x = y/m:  m = m₀/m₁ ⇒ x = y·m₁/m₀
+  var an = U[2] * m[1], ad = U[3] * m[0], bn = U[5] * m[1], bd = U[6] * m[0];
+  var arg = m[0] === 1 && m[1] === 1 ? 'x' : m[1] === 1 ? m[0] + 'x' : '\\dfrac{x}{' + m[1] + '}';
+  var sol = 'x=' + (an ? (U[4] ? '\\pm' : '') + p54_pi(an, ad) + '+' : '') + p54_pi(bn, bd, true) + ',\\ k\\in\\mathbb{Z}';
+  return {
+    q: '$\\sin^' + n + ' ' + arg + '+\\cos^' + n + ' ' + arg + '=' + fr(vn, vd) + '$ тэгшитгэлийг бодоорой.',
+    a: '$' + sol + '$',
+    wk: 32,
+    t: { n: n, u: [un, ud], m: m }
+  };
+}
+return p54;
+})();
+
+/* 4.15 */
+var e4_15 = (function () {
+// 15. Логарифм тэгшитгэл: log_{a−x²}F = log_{a−x²}G ⇔ F = G, муж: a − x² > 0, a − x² ≠ 1, F = G > 0.
+//     Хос (F, G) бүрт F = G-ийн [0; 2π) дахь бүх шийд (π-ийн рационал хэсгээр) мэдэгдэнэ → x = rπ + 2πk;
+//     |x| < √a ба G(x) > 0 нөхцөлөөр шүүнэ. x = rπ нь ±√(a − 1)-тэй хэзээ ч тэнцэхгүй (x = 0 үед суурь a ≠ 1) тул суурь ≠ 1 автоматаар.
+var p15_FAM = [
+  // [F, G, F = G-ийн [0; 2π) дахь шийдүүд ([n, d] → nπ/d), G(x)]
+  ['\\sin x+\\cos x', '\\sin x', [[1, 2], [3, 2]], function (x) { return Math.sin(x); }],
+  ['\\sin x-\\cos x', '\\sin x', [[1, 2], [3, 2]], function (x) { return Math.sin(x); }],
+  ['\\sin 2x', '\\sin x', [[0, 1], [1, 1], [1, 3], [5, 3]], function (x) { return Math.sin(x); }],
+  ['\\sin 2x', '\\cos x', [[1, 2], [3, 2], [1, 6], [5, 6]], function (x) { return Math.cos(x); }],
+  ['\\cos 2x', '\\sin x', [[1, 6], [5, 6], [3, 2]], function (x) { return Math.sin(x); }],
+  ['2\\sin^2x', '\\sin x', [[0, 1], [1, 1], [1, 6], [5, 6]], function (x) { return Math.sin(x); }],
+  ['1-\\cos 2x', '\\sin x', [[0, 1], [1, 1], [1, 6], [5, 6]], function (x) { return Math.sin(x); }],
+  ['2\\cos^2x', '\\cos x', [[1, 2], [3, 2], [1, 3], [5, 3]], function (x) { return Math.cos(x); }],
+  ['1+\\cos 2x', '\\cos x', [[1, 2], [3, 2], [1, 3], [5, 3]], function (x) { return Math.cos(x); }],
+  ['\\sin x+\\cos x', '2\\sin x', [[1, 4], [5, 4]], function (x) { return 2 * Math.sin(x); }],
+  ['\\sin x+\\cos x', '2\\cos x', [[1, 4], [5, 4]], function (x) { return 2 * Math.cos(x); }],
+  ['\\sin x', '\\cos x', [[1, 4], [5, 4]], function (x) { return Math.cos(x); }],
+  ['\\sqrt{3}\\sin x', '\\cos x', [[1, 6], [7, 6]], function (x) { return Math.cos(x); }],
+  ['\\sin x', '\\sqrt{3}\\cos x', [[1, 3], [4, 3]], function (x) { return Math.sqrt(3) * Math.cos(x); }],
+  ['\\cos 2x', '-\\sin x', [[1, 2], [7, 6], [11, 6]], function (x) { return -Math.sin(x); }]
+];
+function p15_pi(n, d) {   // nπ/d → TeX
+  var g = gcd(n, d); n /= g; d /= g;
+  if (!n) return '0';
+  var a = Math.abs(n), num = (a === 1 ? '' : a) + '\\pi';
+  return (n < 0 ? '-' : '') + (d === 1 ? num : '\\dfrac{' + num + '}{' + d + '}');
+}
+function p15_arg(s) { return /^\\(sin|cos) [^+-]*$/.test(s) ? s : '(' + s + ')'; }
+function p15() {
+  var fm = pick(p15_FAM), a = pick([2, 3, 3, 4, 4, 5, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 18, 20, 25, 30, 36, 40]), sols = [], k;
+  fm[2].forEach(function (r) {
+    for (k = -4; k <= 4; k++) {
+      var n = r[0] + 2 * k * r[1], d = r[1], x = n * Math.PI / d;
+      if (x * x >= a || Math.abs(a - x * x - 1) < 1e-9) continue;      // суурь > 0, ≠ 1
+      if (!(fm[3](x) > 1e-9)) continue;                                 // логарифмын аргумент > 0
+      sols.push([n, d, x]);
+    }
+  });
+  if (!sols.length) return null;
+  sols.sort(function (u, v) { return u[2] - v[2]; });
+  var ans;
+  if (sols.length === 1) ans = '$x=' + p15_pi(sols[0][0], sols[0][1]) + '$';
+  else if (sols.length === 2 && Math.abs(sols[0][2] + sols[1][2]) < 1e-9) ans = '$x=\\pm' + p15_pi(sols[1][0], sols[1][1]) + '$';
+  else ans = sols.map(function (s, i) { return '$x_' + (i + 1) + '=' + p15_pi(s[0], s[1]) + '$'; }).join(', ');
+  var B = '\\log_{' + a + '-x^2}', L = p15_arg(fm[0]), R = p15_arg(fm[1]);
+  if (rnd(0, 2) === 0) { var t = L; L = R; R = t; }
+  return {
+    q: '$' + B + L + '=' + B + R + '$ тэгшитгэлийг бодоорой.',
+    a: ans,
+    wk: 32,
+    t: { a: a, F: fm[0], G: fm[1] }
+  };
+}
+return p15;
+})();
+
+/* 4.17 */
+var e4_17 = (function () {
+// 17. Систем √(P − kQ) = R, P + kQ = S;  (P, R, S) = (sin x, cos x, sin²x) эсвэл (cos x, sin x, cos²x), Q = cos y, sin y эсвэл tg y.
+//     1-р тэгшитгэлийг квадрат зэрэгт дэвшүүлбэл (R ≥ 0) P − kQ = R²; 2-р тэгшитгэлтэй нэмбэл 2P = R² + S = 1 ⇒ P = ½;
+//     R ≥ 0 нөхцөлийг хангах ганц цуврал x = x₀ + 2πk үлдэнэ.  kQ = S − P ⇒ Q = (S − P)/k ⇒ y-ийн ерөнхий шийд (± arccos, (−1)ⁿ arcsin, arctg).
+//     S-ийг заримдаа 1 − cos²x (1 − sin²x) хэлбэрээр бичнэ.  Хувилбар: 2 · 3 · 3 · 2 = 36.
+function p17() {
+  var sx = rnd(0, 1) === 1, k = rnd(1, 3), Q = pick(['c', 's', 't']), alt = rnd(0, 2) === 0;
+  var P = sx ? '\\sin x' : '\\cos x', R = sx ? '\\cos x' : '\\sin x';
+  var S = alt ? (sx ? '1-\\cos^2x' : '1-\\sin^2x') : (sx ? '\\sin^2x' : '\\cos^2x');
+  var kQ = (k > 1 ? k : '') + { c: '\\cos y', s: '\\sin y', t: '\\operatorname{tg}y' }[Q], v = 4 * k;
+  var Y = Q === 'c' ? '\\pm\\arccos\\left(-\\dfrac{1}{' + v + '}\\right)+2\\pi n'
+    : Q === 's' ? '(-1)^{n+1}\\arcsin\\dfrac{1}{' + v + '}+\\pi n'
+    : '-\\operatorname{arctg}\\dfrac{1}{' + v + '}+\\pi n';
+  return {
+    q: '$\\begin{cases}\\sqrt{' + P + '-' + kQ + '}=' + R + '\\\\ ' + P + '+' + kQ + '=' + S + '\\end{cases}$ тэгшитгэлийн системийг бодоорой.',
+    a: '$x=' + (sx ? '\\dfrac{\\pi}{6}' : '\\dfrac{\\pi}{3}') + '+2\\pi k$, $y=' + Y + '$, $k,n\\in\\mathbb{Z}$',
+    wk: 40,
+    t: { sx: sx, k: k, Q: Q, alt: alt }
+  };
+}
+return p17;
+})();
+
+/* 4.32 */
+var e4_32 = (function () {
+// 32. Мөч бүрт sin, cos монотон ⇒ a < f(x) < b тэнцэтгэл бишийн өгсөн (нээлттэй) мөч доторх шийд нь нэг нээлттэй завсар;
+//     зааг нь f = a эсвэл f = b стандарт өнцөг (15°-ын үржвэр) эсвэл мөчийн зааг. Мөчийг 15°-ын 6 хэсэгт хувааж, хэсэг бүрийн
+//     дунд цэг дээр шалгаж завсрыг олно. Хоосон/бүтэн мөч хасагдана; хоёр зааг нь дотоод цэг байх нь давамгай (эх шиг).
+//     Хязгаарыг заримдаа хялбарчлаагүй хэлбэрээр (хуваарьт язгууртай г.м.) бичнэ.  Мөч: I, II голдуу, заримдаа III, IV.
+//     [ЗАС: эх «… шийд аль нь вэ?» (сонголттой) — энд «… шийдийг олоорой»]
+var p32_V = [[-90, '1'], [-60, 'r3'], [-45, 'r2'], [-30, 'h'], [0, '0'], [30, 'h'], [45, 'r2'], [60, 'r3'], [90, '1']];   // [arcsin (°), бичиглэл]
+var p32_R = { '0': ['0'], '1': ['1'], h: ['\\dfrac{1}{2}', '0.5'], r2: ['\\dfrac{\\sqrt{2}}{2}', '\\dfrac{1}{\\sqrt{2}}', '\\dfrac{\\sqrt{6}}{2\\sqrt{3}}'],
+  r3: ['\\dfrac{\\sqrt{3}}{2}', '\\dfrac{3}{2\\sqrt{3}}', '\\dfrac{\\sqrt{6}}{2\\sqrt{2}}'] };
+var p32_Q = ['0', '\\dfrac{\\pi}{2}', '\\pi', '\\dfrac{3\\pi}{2}', '2\\pi'];
+function p32_tex(v) { var L = p32_R[v[1]], s = L.length > 1 && rnd(1, 100) <= 50 ? L[rnd(1, L.length - 1)] : L[0]; return (v[0] < 0 ? '-' : '') + s; }
+function p32_pi(deg) { var g = gcd(deg, 180), p = deg / g, q = 180 / g, n = (p === 1 ? '' : p) + '\\pi'; return deg === 0 ? '0' : q === 1 ? n : '\\dfrac{' + n + '}{' + q + '}'; }
+function p32() {
+  var f = rnd(1, 100) <= 55 ? 'sin' : 'cos', qd = pick([1, 1, 1, 2, 2, 2, 3, 4]), i = rnd(0, 7), j = rnd(i + 1, 8);
+  if ((i === 0 || j === 8) && rnd(1, 100) <= 70) return null;           // ±1 хязгаар (мөч дотор үргэлж биелнэ) — цөөн
+  var t0 = 90 * (qd - 1), RAD = Math.PI / 180, lo = Math.sin(p32_V[i][0] * RAD), hi = Math.sin(p32_V[j][0] * RAD), cell = [], k;
+  for (k = 0; k < 6; k++) { var x = (t0 + 7.5 + 15 * k) * RAD, y = f === 'sin' ? Math.sin(x) : Math.cos(x); cell.push(y > lo && y < hi); }
+  var a = cell.indexOf(true), b = cell.lastIndexOf(true);
+  if (a < 0 || (a === 0 && b === 5)) return null;                      // хоосон эсвэл бүтэн мөч
+  for (k = a; k <= b; k++) if (!cell[k]) return null;
+  if ((a === 0 || b === 5) && rnd(1, 100) <= 75) return null;          // нэг зааг нь мөчийн зааг — цөөн
+  return {
+    q: '$' + p32_tex(p32_V[i]) + '\\lt\\' + f + ' x\\lt ' + p32_tex(p32_V[j]) + '$ тэнцэтгэл бишийн шийдүүдийн хувьд $' + p32_Q[qd - 1] + '\\lt x\\lt ' + p32_Q[qd]
+      + '$ завсарт харьяалагдах шийдийг олоорой.',
+    a: '$' + p32_pi(t0 + 15 * a) + '\\lt x\\lt ' + p32_pi(t0 + 15 * (b + 1)) + '$',
+    wk: 24,
+    t: { f: f, qd: qd, i: i, j: j }
+  };
+}
+return p32;
+})();
+
+/* 4.63 */
+var e4_63 = (function () {
+// 63. lo ⋖ sin x ⋖ hi (эсвэл cos x) тэнцэтгэл бишийг f монотон байх [A; B] завсарт бодно (хил нь стандарт утгууд).
+//     f монотон тул шийд нэг завсар: хил нь f = lo, f = hi цэгүүд (⋖ = ≤ бол орно) эсвэл [A; B]-ийн ирмэг (тэнцэтгэл биш биелбэл орно).
+//     Тооцоо: 7.5° алхамтай цэгүүдэд гишүүнчлэлийг яг (стандарт өнцөгт индексээр) шалгаж, хил 15°-ын үржвэр дээр байдгийг ашиглан
+//     нээлттэй/хаалттай төгсгөлийг тогтооно. Шийдийн нэг төгсгөл нь [A; B]-ийн дотор байна (бүх завсар биш).
+var p63_V = [['-1', -1], ['-\\frac{\\sqrt{3}}{2}', -Math.sqrt(3) / 2], ['-\\frac{\\sqrt{2}}{2}', -Math.SQRT2 / 2], ['-\\frac{1}{2}', -0.5], ['0', 0],
+  ['\\frac{1}{2}', 0.5], ['\\frac{\\sqrt{2}}{2}', Math.SQRT2 / 2], ['\\frac{\\sqrt{3}}{2}', Math.sqrt(3) / 2], ['1', 1]];
+var p63_S = { 0: 4, 30: 5, 45: 6, 60: 7, 90: 8, 120: 7, 135: 6, 150: 5, 180: 4, 210: 3, 225: 2, 240: 1, 270: 0, 300: 1, 315: 2, 330: 3 };
+var p63_I = { s: [[-90, 90], [90, 270], [0, 90], [90, 180], [90, 180], [180, 270], [270, 360], [-90, 0], [-180, -90]],
+  c: [[0, 180], [180, 360], [0, 90], [90, 180], [180, 270], [270, 360], [-180, 0], [-90, 0], [-180, -90]] };
+function p63_idx(f, t) { var u = f === 's' ? t : 90 - t; u = ((u % 360) + 360) % 360; return u in p63_S ? p63_S[u] : -1; }
+function p63_in(f, t, lo, sl, hi, sh) {
+  var i = p63_idx(f, t), v;
+  if (i >= 0) return (sl ? i > lo : i >= lo) && (sh ? i < hi : i <= hi);
+  v = f === 's' ? Math.sin(t * Math.PI / 180) : Math.cos(t * Math.PI / 180);   // стандарт биш өнцөгт хилтэй тэнцэхгүй
+  return v > p63_V[lo][1] && v < p63_V[hi][1];
+}
+function p63_ang(t, cmd) {
+  if (t === 0) return '0';
+  var g = gcd(t, 180), n = t / g, d = 180 / g, s = n < 0 ? '-' : '', a = Math.abs(n), num = (a === 1 ? '' : a) + '\\pi';
+  return d === 1 ? s + num : s + '\\' + cmd + '{' + num + '}{' + d + '}';
+}
+function p63() {
+  var f = rnd(1, 10) <= 7 ? 's' : 'c', I = pick(p63_I[f]), A = I[0], B = I[1];
+  var lo = rnd(0, 7), hi = rnd(lo + 1, 8), sl = rnd(1, 3) > 1, sh = rnd(1, 3) > 1;   // true → хатуу (<)
+  if ((lo === 0 && !sl) || (hi === 8 && !sh)) return null;                       // −1 ≤ f, f ≤ 1 — үргэлж үнэн
+  var pts = [], mem = [], t, i;
+  for (t = A; t <= B; t += 7.5) { pts.push(t); mem.push(p63_in(f, t, lo, sl, hi, sh)); }
+  var i0 = mem.indexOf(true), i1 = mem.lastIndexOf(true);
+  if (i0 < 0) return null;
+  for (i = i0; i <= i1; i++) if (!mem[i]) return null;
+  var Lo = pts[i0] % 15 !== 0, Ro = pts[i1] % 15 !== 0, Lv = Lo ? pts[i0] - 7.5 : pts[i0], Rv = Ro ? pts[i1] + 7.5 : pts[i1];
+  if (!(Lv < Rv) || (Lv === A && Rv === B)) return null;
+  var fx = f === 's' ? '\\sin x' : '\\cos x', S = function (st) { return st ? '\\lt ' : '\\le '; };
+  return {
+    q: '$' + p63_V[lo][0] + S(sl) + fx + S(sh) + p63_V[hi][0] + '$ тэнцэтгэл бишийн $\\left[' + p63_ang(A, 'frac') + ';\\,' + p63_ang(B, 'frac')
+      + '\\right]$ завсар дахь шийдийн олонлогийг олоорой.',
+    a: '$' + p63_ang(Lv, 'dfrac') + S(Lo) + 'x' + S(Ro) + p63_ang(Rv, 'dfrac') + '$',
+    wk: 24,
+    t: { f: f, A: A, B: B, lo: lo, hi: hi, sl: sl, sh: sh }
+  };
+}
+return p63;
+})();
+
+E1K.page({
+  title: 'ЭЕШ 1000 — Тригонометр-2',
+  sub: 'Тригонометр тэгшитгэл, систем, тэнцэтгэл биш',
+  first: 1,
+  probs: [e2_37, e2_36, e4_14, e4_16, e4_25, e4_96, e4_54, e4_15, e4_17, e4_32, e4_63]
+});
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>
