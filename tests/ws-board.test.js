@@ -200,6 +200,35 @@ test('муруй: цэгүүдийг гөлгөр муруйгаар холбо�
   assert.deepStrictEqual(g.objs, [{ t: 'curve', p: [1, 2, 3], c: '#000000' }, { t: 'curve', p: [1, 2, 3], c: '#000000', cl: 1 }]);
 });
 
+test('санамж: ажлын хуудас БҮРД (гарчгаар) томьёо гарна — сэдэв таарахгүй бол ангийн гол томьёо', () => {
+  const dir = path.join(__dirname, '..'), miss = [];
+  let n = 0;
+  for (const f of fs.readdirSync(dir)) {
+    if (!f.endsWith('.html') || f === 'index.html' || f === 'worksheets.html') continue;
+    const src = fs.readFileSync(path.join(dir, f), 'utf8');
+    if (src.indexOf('ws-store.js') < 0) continue;
+    const t = (/<title>([^<]*)<\/title>/.exec(src) || [])[1] || '';
+    n++;
+    const h = B.hintsFor(t + ' /' + f);
+    if (!h.length || h.some((x) => !x[1] || !x[2].length || x[2].some((y) => typeof y !== 'string' || !y))) miss.push(f + ' — ' + t);
+  }
+  assert.ok(n > 1000, 'ажлын хуудсууд олдсон: ' + n);
+  assert.deepStrictEqual(miss, [], 'санамжгүй хуудас');
+  assert.strictEqual(B.hintsFor('Логарифмын чанар-1 (12-р анги)')[0][1], 'Логарифм');
+  assert.strictEqual(B.hintsFor('I бүлэг — Жишиг даалгавар (7-р анги)')[0][1], '7-р анги — гол томьёо', 'бүлгийн жишиг — ангийн карт');
+  assert.ok(B.hintsFor('Квадрат тэнцэтгэл биш — интервалын арга').length <= 2, 'ихдээ 2 карт');
+  // Өмнө буруу таарч байсан сэдвүүд (үгийн хувилбар, давхцал)
+  const T = (t) => B.hintsFor(t).map((x) => x[1]);
+  assert.deepStrictEqual(T('Олонлог-1 (6-р анги) /olonlog-1-6.html'), ['Олонлог'], 'olonlog- — логарифм биш');
+  assert.deepStrictEqual(T('Солбисон өнцөг · зэрэгцээ шулуун ба огтлогч /solbison-ongo.html'), ['Параллель шулуун', 'Өнцөг'], 'зэрэгцээ — зэрэг биш');
+  assert.strictEqual(T('Гурван хувьсагчтай ШТС — Гаусс 1 (11-р анги)')[0], 'Тэгшитгэлийн систем', 'хувьсагч — хувь биш');
+  assert.deepStrictEqual(T('Тоолох бодлогууд-1 (6-р анги)'), ['Тоолох'], 'бодлого → бодлогууд');
+  assert.deepStrictEqual(T('Үйлдлийн дараалал-1 (3-р анги)'), ['Үйлдлийн дараалал'], 'прогресс биш');
+  assert.deepStrictEqual(T('Шүргэгч, талбай ба урвуу бодлого — хүнд (10-р анги) /shurgegch-hard-2-10.html'), ['Шүргэгч', 'Талбай, периметр'], 'муруйн шүргэгч — тойргийнх биш');
+  assert.deepStrictEqual(T('Аравтын бутархай нэмэх — 18 бодлого (6-р анги)'), ['Бутархай'], 'тусгай карт байвал ерөнхий нь гарахгүй');
+  assert.deepStrictEqual(T('Баганаар нэмэх, хасах-1 (3-р анги)'), ['Нэмэх, хасах'], 'тусгай карт байхгүй бол ерөнхий нь');
+});
+
 test('ws-store.js: «Самбар» товч — ws-board.js-ийг дарахад л ачаална, QR/утсанд гарахгүй', () => {
   const s = R('ws-store.js').replace(/\r\n/g, '\n');
   assert.match(s, /if\(!IS_QR\)\{[^}]*boardBtn\(\);[^}]*\}/);
@@ -226,5 +255,5 @@ test('самбартай үед зөвхөн ажлын хуудас томор�
   assert.match(s, /\}, \{ passive: false \}\);/);
   assert.match(s, /data-z="-"[\s\S]*data-z="\+"[\s\S]*data-z="0"/, '− + Багтаах');
   assert.match(s, /function spacer\(\)/, 'томруулсан хуудас самбарын доор нуугдахгүй');
-  assert.match(R('ws-store.js'), /var BOARD_JS='\/ws-board\.js\?v=7'/);
+  assert.match(R('ws-store.js'), /var BOARD_JS='\/ws-board\.js\?v=8'/);
 });

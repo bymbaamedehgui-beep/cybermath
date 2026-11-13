@@ -57,19 +57,11 @@
     b.onclick=function(){window.wsSaveCurrent(b);};
     bar.appendChild(b);
   }
-  // ─── «Самбарт илгээх»: одоогийн хуудсыг (бодлого + хариу) 6 оронтой кодоор смарт самбарын хөтөч рүү (api/_wsboard.js) ───
-  //   Самбар дээр cyber-math.com/s → код → <хуудас>.html?b=КОД: хуулбарыг тавиад самбарын горимоор нээнэ. Нэвтрэх шаардлагагүй —
-  //   кодын токен wsstatus-д зөвхөн энэ хуудсыг 12 цаг нээнэ. Бодлого Math.random-оор үүсдэг тул харагдаж буй HTML-ийг дамжуулна.
+  // ─── Самбар тал: <хуудас>.html?b=КОД (cyber-math.com/s) — багшийн илгээсэн хуулбарыг зөвхөн харах горимоор (api/_wsboard.js).
+  //   Кодын токен wsstatus-д зөвхөн энэ хуудсыг 12 цаг нээнэ. Компьютер талын «Самбарт илгээх» товчийг эзэмшигчийн хүсэлтээр
+  //   хассан (2026-11-13: «самбарт илгээх товчийг устгая») — шинэ код гарахгүй, өмнө гарсан код хугацаандаа ажиллана. ───
   var ICO_CAST='<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"/><path d="M2 12a9 9 0 0 1 8 8M2 16a5 5 0 0 1 4 4M2 20h.01"/></svg>';
   var BOARD_CODE=(/[?&]b=(\d{6})(?:&|$)/.exec(location.search)||[])[1]||null;
-  function snapHTML(el){
-    if(!el)return '';
-    var c=el.cloneNode(true);
-    [].forEach.call(c.querySelectorAll('.wsc-row,.wsc-h,.cm-del,.ws-vid,script'),function(x){if(x.parentNode)x.parentNode.removeChild(x);});
-    [].forEach.call(c.querySelectorAll('[contenteditable]'),function(x){x.removeAttribute('contenteditable');});
-    [].forEach.call(c.querySelectorAll('.wsb-pinned,.wsb-has'),function(x){x.classList.remove('wsb-pinned','wsb-has');});
-    return c.innerHTML;
-  }
   // Серверээс ирсэн хуулбарыг DOM-оор дахин цэвэрлэнэ (скрипт, үйл явдлын атрибут, javascript: холбоос)
   function safeHTML(html){
     var doc=new DOMParser().parseFromString('<div id="x">'+String(html||'')+'</div>','text/html'), r=doc.getElementById('x');
@@ -78,84 +70,6 @@
     [].forEach.call(r.querySelectorAll('*'),function(n){ [].slice.call(n.attributes).forEach(function(a){ var k=a.name.toLowerCase();
       if(k.indexOf('on')===0||(/^(href|src|xlink:href|action|formaction)$/.test(k)&&/^\s*(javascript|vbscript|data:text)/i.test(a.value)))n.removeAttribute(a.name); }); });
     return r.innerHTML;
-  }
-  function showSendCode(code){
-    var o=document.getElementById('wsSendCode'); if(o)o.parentNode.removeChild(o);
-    o=document.createElement('div'); o.id='wsSendCode';
-    o.style.cssText='position:fixed;inset:0;z-index:220;background:rgba(20,15,40,.55);display:grid;place-items:center;padding:16px';
-    o.innerHTML='<div role="dialog" aria-modal="true" aria-label="Самбарт илгээх" style="background:#fff;border-radius:22px;max-width:440px;width:100%;padding:24px 24px 20px;text-align:center;box-shadow:0 24px 60px -18px rgba(0,0,0,.5);font-family:inherit">'
-      +'<div style="font-weight:900;font-size:1.15rem;color:#3B2A8C">Самбарт илгээх код</div>'
-      +'<div class="wsc-code" style="font-weight:900;font-size:3.2rem;letter-spacing:.12em;color:#211C54;margin:10px 0 6px">'+code.slice(0,3)+' '+code.slice(3)+'</div>'
-      +'<div style="background:#F5F1FF;border-radius:14px;padding:10px 12px;color:#4B2BBF;font-weight:800;font-size:.92rem">Холбогдсон самбар дээр хэдэн секундэд нээгдэж, энэ дэлгэцийг дагана: томруулах, гүйлгэх, самбарт бичих бүхэн шууд харагдана</div>'
-      +'<div style="text-align:left;margin:12px 2px 0;color:#4b3f7a;font-weight:700;font-size:.9rem;line-height:1.55">Анх удаа бол: самбарын хөтөчөөр <b>cyber-math.com/s</b> нээгээд энэ кодыг оруулна. Дараагийн илгээлтүүд кодгүйгээр шууд гарна.</div>'
-      +'<div style="color:#8a83a8;font-size:.82rem;margin-top:10px">Самбар дээр зөвхөн харна: шинэчлэх, устгах боломжгүй. Код 12 цаг хүчинтэй.</div>'
-      +'<button type="button" style="margin-top:16px;border:0;cursor:pointer;border-radius:999px;padding:.75rem 2rem;font-weight:800;color:#fff;background:linear-gradient(135deg,#7B52EE,#A855F7)">Хаах</button></div>';
-    o.addEventListener('click',function(e){ if(e.target===o||e.target.tagName==='BUTTON')o.parentNode.removeChild(o); });
-    document.body.appendChild(o);
-  }
-  function sendBtn(){
-    var bar=document.querySelector('.bar'); if(!bar||bar.querySelector('.ws-send'))return;
-    var b=document.createElement('button');
-    b.className='btn ws-send'; b.type='button'; b.title='Энэ хуудсыг кодоор смарт самбарын хөтөч рүү илгээх';
-    b.innerHTML=ICO_CAST+'Самбарт илгээх';
-    b.onclick=function(){
-      var tok=ls('cm_ws_token'), adm=ls('cm_admin_token'), sh=document.getElementById('sheet');
-      if(!tok&&!adm){alert('Самбарт илгээхийн тулд Дасгалын төвд нэвтэрсэн байх хэрэгтэй.');return;}
-      if(!sh)return;
-      var h1=document.querySelector('#sheet .head h1, .head h1, #sheet h1'), hd=wsHdr();
-      if(adm)hd.Authorization='Bearer '+adm;
-      b.disabled=true;
-      var html=snapHTML(sh), ans=snapHTML(document.getElementById('answers'));
-      fetch('/api/worksheets',{method:'POST',headers:hd,body:JSON.stringify({action:'board_send',wstoken:tok,slug:curSlug(),
-        title:(h1&&h1.textContent.trim())||document.title,html:html,answers:ans})})
-        .then(function(r){return r.json();})
-        .then(function(d){ if(!d||!d.ok){alert((d&&d.error)||'Илгээж чадсангүй. Дахин оролдоно уу.');return;} showSendCode(d.code); liveStart(d.code,html,ans); })
-        .catch(function(){alert('Сүлжээний алдаа. Дахин оролдоно уу.');})
-        .then(function(){b.disabled=false;});
-    };
-    bar.appendChild(b);
-  }
-  // ─── Компьютер тал: илгээсний дараа самбар энэ хуудсыг дагана — агуулга (DOM өөрчлөгдөхөд), томруулалт/гүйлгэлт,
-  //   самбарын төлөв (wsBoard.rev). Өөрчлөлтгүй бол 20 сек тутам л «идэвхтэй» гэж мэдэгдэнэ (эзэмшигч: «Ажлын хуудас ком дээр
-  //   харагдаж буйгаараа л харагдах ёстой. Ком дээрээсээ томруулвал яг л томорсон нь дэлгэц дээр харагдах ёстой»). ───
-  var LIVE=null;
-  // Хуудасны дэлгэц дэх өргөний хувь (fw), зүүн ирмэг (fx), дээд ирмэг (ft — хуудасны өргөнөөр) — дэлгэцийн хэмжээнээс хамаарахгүй
-  function liveView(){
-    var sh=document.getElementById('sheet')||document.querySelector('.sheet'); if(!sh)return null;
-    var r=sh.getBoundingClientRect(), vw=window.innerWidth||1, w=r.width||1;
-    return {fw:+(w/vw).toFixed(4),fx:+(r.left/vw).toFixed(4),ft:+(r.top/w).toFixed(4)};
-  }
-  function liveStart(code,html,ans){
-    liveStop();
-    var L=LIVE={code:code,h:html,a:ans,vk:'',br:-1,t:0,busy:false,dirty:false};
-    L.mo=new MutationObserver(function(){L.dirty=true;});
-    ['sheet','answers'].forEach(function(id){var n=document.getElementById(id); if(n)L.mo.observe(n,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['class','style','hidden']});});
-    L.sc=function(){clearTimeout(L.tm); L.tm=setTimeout(livePush,200);};
-    window.addEventListener('scroll',L.sc,{passive:true}); window.addEventListener('resize',L.sc);
-    L.iv=setInterval(livePush,1000);
-    var b=document.querySelector('.bar .ws-send'); if(b){b.classList.add('ws-live'); b.title='Самбар энэ хуудсыг шууд дагаж байна. Дахин дарвал шинэ код гарна.';}
-    livePush();
-  }
-  function liveStop(){
-    var L=LIVE; if(!L)return; LIVE=null;
-    clearInterval(L.iv); clearTimeout(L.tm); L.mo.disconnect();
-    window.removeEventListener('scroll',L.sc); window.removeEventListener('resize',L.sc);
-    var b=document.querySelector('.bar .ws-send'); if(b)b.classList.remove('ws-live');
-  }
-  function livePush(){
-    var L=LIVE; if(!L||L.busy||document.visibilityState==='hidden')return;
-    var v=liveView(); if(!v)return;
-    var vk=JSON.stringify(v), B=window.wsBoard, br=B&&B.rev?B.rev():-1, body={action:'board_view',wstoken:ls('cm_ws_token'),code:L.code,view:vk}, sh=0, sb=0;
-    if(L.dirty){ L.dirty=false; var h=snapHTML(document.getElementById('sheet')), a=snapHTML(document.getElementById('answers')); if(h!==L.h||a!==L.a){body.html=h;body.answers=a;sh=1;} }
-    if(B&&br!==L.br){ body.bd=JSON.stringify(B.state()); sb=1; }
-    if(!sh&&!sb&&vk===L.vk&&Date.now()-L.t<20000)return;
-    L.busy=true;
-    var hd=wsHdr(), adm=ls('cm_admin_token'); if(adm)hd.Authorization='Bearer '+adm;
-    fetch('/api/worksheets',{method:'POST',headers:hd,body:JSON.stringify(body)}).then(function(r){return r.json();}).then(function(d){
-      if(d&&d.ok){ L.vk=vk; L.t=Date.now(); if(sh){L.h=body.html;L.a=body.answers;} if(sb)L.br=br; }
-      else if(d&&d.gone){ if(LIVE===L)liveStop(); }
-      else if(sh)L.dirty=true;
-    }).catch(function(){ if(sh)L.dirty=true; }).then(function(){ L.busy=false; });
   }
   // Самбар тал: ?b=КОД — хуулбарыг тавиад (хуудас өөрөө бодлогоо үүсгэсний дараа) компьютерыг дагана
   // Самбар талд зөвхөн харах: «Шинэ бодлого», «− тоо +», засах/устгах, хадгалах, хэвлэх товчгүй; Ctrl+Enter ажиллахгүй. «Самбар» (бичих) үлдэнэ.
@@ -250,7 +164,7 @@
   }
   // ─── Смарт дэлгэц: «Самбар» — зүүн талд хуудас, баруун талд гараар бичих самбар (ws-board.js-ийг дарахад л ачаална) ───
   var ICO_BOARD='<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="13" rx="2"/><path d="M12 17v3M8 21h8M7 12.5l3-3 2.5 2.5L17 7.5"/></svg>';
-  var BOARD_JS='/ws-board.js?v=7', boardWait=null;
+  var BOARD_JS='/ws-board.js?v=8', boardWait=null;
   function loadBoard(cb){
     if(window.wsBoard)return cb(window.wsBoard);
     if(boardWait){boardWait.push(cb);return;}
@@ -935,10 +849,6 @@
       +B+'>label input[type=checkbox]:focus-visible{outline:2px solid #A78BFA;outline-offset:2px}'
       +B+'>button[onclick*="print"]{order:4;margin-left:auto;padding:0 18px;color:#fff;background:linear-gradient(135deg,#7B52EE,#A855F7);box-shadow:0 3px 0 #5532C9}'
       +B+'>.ws-board{order:3;background:#EEF2FF;color:#3730A3}'
-      +B+'>.ws-send{order:3;background:#F0F9FF;color:#075985}'
-      +B+'>.ws-send.ws-live{background:#FEF2F2;color:#B42318}'+B+'>.ws-send.ws-live::after{content:"";width:8px;height:8px;border-radius:50%;background:#ef4444;animation:wsLive 1.4s infinite}'
-      +'@keyframes wsLive{50%{opacity:.25}}'
-      +'@media (max-width:640px){'+B+'>.ws-send{display:none}}'
       +'@media (max-width:900px){'+B+'>.ws-board{display:none}}'   /* смарт дэлгэц/компьютерт — утсанд самбар багтахгүй */
       /* Мөр таслах */
       +B+'>.cmbar-br{order:5;flex-basis:100%;height:0;margin:2px 0 0;border-top:1px dashed #ECE7FA}'
@@ -2166,7 +2076,7 @@
     b.onclick=function(){ cmtPicker(b); };
     bar.appendChild(b);
   }
-  function init(){ tidyBar(); injectBrandCSS(); brandSheet(); watchSheet(); enhanceMeta(); loadInstr(); if(!IS_QR){addBtn();addBatchBtn();addWorkToggle();hookPrintAsk();vidBtn();boardBtn();sendBtn();applyBoardCode();} themeInit(); addRefreshShortcut(); applyQR(); enforcePaywall(); injectSocial(); applyWantWork(); addWorkResize(); try{wscApply();}catch(e){} }
+  function init(){ tidyBar(); injectBrandCSS(); brandSheet(); watchSheet(); enhanceMeta(); loadInstr(); if(!IS_QR){addBtn();addBatchBtn();addWorkToggle();hookPrintAsk();vidBtn();boardBtn();applyBoardCode();} themeInit(); addRefreshShortcut(); applyQR(); enforcePaywall(); injectSocial(); applyWantWork(); addWorkResize(); try{wscApply();}catch(e){} }
   if(document.readyState!=='loading')init();
   else document.addEventListener('DOMContentLoaded',init);
 })();

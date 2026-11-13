@@ -195,18 +195,16 @@ test('холболт: wsstatus токеныг шалгана, worksheets.js, ws-
   assert.ok(w.indexOf('WSBOARD.handle(req, res)') > 0 && w.indexOf('WSBOARD.handle(req, res)') < w.indexOf('MEDIA.handle(req, res)'));
   const s = R('ws-store.js').replace(/\r\n/g, '\n');
   assert.match(s, /slug:curSlug\(\),wsb:ss\('cm_wsb:'\+curSlug\(\)\)\};/);
-  assert.match(s, /if\(!IS_QR\)\{[^}]*sendBtn\(\);applyBoardCode\(\);\}/);
+  assert.match(s, /if\(!IS_QR\)\{[^}]*boardBtn\(\);applyBoardCode\(\);\}/);
+  assert.doesNotMatch(s, /sendBtn|ws-send|board_send|liveStart|Самбарт илгээх'/, '«Самбарт илгээх» товчийг хассан (эзэмшигч: «самбарт илгээх товчийг устгая»)');
   assert.match(s, /function safeHTML\(html\)/);
-  assert.match(s, /'\.wsc-row,\.wsc-h,\.cm-del,\.ws-vid,script'/, 'хэвлэхгүй болгосон бодлого самбарт очихгүй');
   assert.match(s, /html\.ws-view \.bar>\*:not\(\.ws-board\):not\(\.ws-viewbadge\)\{display:none!important\}/, 'самбар талд зөвхөн «Самбар» товч');
   assert.match(s, /if\(\(e\.ctrlKey\|\|e\.metaKey\)&&e\.key==='Enter'\)\{e\.preventDefault\(\);e\.stopImmediatePropagation\(\);\} \},true\);/, 'Ctrl+Enter-ээр шинэчлэхгүй');
   assert.match(s, /function applyBoardCode\(\)\{\n    if\(!BOARD_CODE\)return;\n    viewOnly\(\);/);
-  assert.match(s, /showSendCode\(d\.code\); liveStart\(d\.code,html,ans\);/, 'илгээсний дараа компьютерыг дагуулна');
   assert.match(s, /putSheet\(d\.html,d\.answers\);\n        follow\(d\.token\);/);
   assert.doesNotMatch(s, /bb\.click\(\)/, 'самбарыг автоматаар нээхгүй — компьютер дээр нээлттэй бол л');
   assert.match(s, /'\/api\/worksheets\?board_view=1&t='\+encodeURIComponent\(tok\)/);
   assert.match(s, /setTimeout\(poll,S\.live\?1000:5000\)/, 'компьютер идэвхтэй үед 1 сек');
-  assert.match(s, /if\(!sh&&!sb&&vk===L\.vk&&Date\.now\(\)-L\.t<20000\)return;/, 'өөрчлөлтгүй бол 20 сек тутам л');
   assert.match(s, /watchNext\(d\.now\|\|d\.created_at,BOARD_CODE\);/, 'серверийн цаг + одоогийн кодыг хасна');
   assert.match(s, /'&not='\+\(not\|\|''\)/);
   assert.match(s, /if\(r\.status===401\)\{try\{localStorage\.removeItem\('cm_wsb_pair'\);\}catch\(e\)\{\}return 0;\}/, 'хүчингүй холболтоор давтахгүй');
@@ -218,5 +216,5 @@ test('холболт: wsstatus токеныг шалгана, worksheets.js, ws-
   assert.match(sh, /'&not=' \+ not, H\)/);
   assert.match(sh, /location\.href = '\/' \+ d\.slug \+ '\?b=' \+ code;/);
   assert.doesNotMatch(sh, /delete|устгах<\/button>/i, 'самбар дээр устгах үйлдэл байхгүй');
-  assert.doesNotMatch(sh + s.slice(s.indexOf('Самбарт илгээх»: одоогийн'), s.indexOf('Смарт дэлгэц: «Самбар»')), /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
+  assert.doesNotMatch(sh + s.slice(s.indexOf('Самбар тал: <хуудас>.html?b=КОД'), s.indexOf('Смарт дэлгэц: «Самбар»')), /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
 });

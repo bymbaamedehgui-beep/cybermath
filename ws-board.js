@@ -288,11 +288,167 @@
     return out;
   }
 
+  /* ── Санамж (эзэмшигч: «Тухайн ажлын хуудастай хамааралтай томьёо теоремыг хэт нуршихгүй ойлгомжтой байдлаар санамж гэсэн
+     товчинд … самбараа нээсэн үед л харагдах ёстой», «Санамжийн томьёог бүх сэдэвт нэмээрэй»): хуудасны гарчиг/хаягаас сэдвийг
+     таньж гол томьёог (KaTeX) товч харуулна — тусгай сэдэв эхэнд, ерөнхий нь сүүлд (2 хүртэл карт). Сэдэв таарахгүй бол (бүлгийн
+     жишиг, шалгалт) тухайн ангийн гол томьёо. tests/ws-board.test.js — ажлын хуудас бүр санамжтай. ── */
+  var HINTS = [
+    // анализ
+    [/шүргэгчийн налалт|\/shurgegch-(hard|nalalt)/, 'Шүргэгч', ["k = f'(x_0) = \\operatorname{tg}\\alpha", "y = f(x_0) + f'(x_0)(x - x_0)"]],
+    [/уламжлал|ulamjlal/, 'Уламжлал', ["(x^n)' = n x^{n-1}", "(\\sin x)' = \\cos x,\\quad (\\cos x)' = -\\sin x", "(\\operatorname{tg} x)' = \\dfrac{1}{\\cos^2 x}", "(e^x)' = e^x,\\quad (\\ln x)' = \\dfrac{1}{x}", "(uv)' = u'v + uv'", "\\left(\\dfrac{u}{v}\\right)' = \\dfrac{u'v - uv'}{v^2}", "\\big(f(g(x))\\big)' = f'(g(x)) \\cdot g'(x)"]],
+    [/интеграл|integral|эх функц/, 'Интеграл', ['\\int x^n dx = \\dfrac{x^{n+1}}{n + 1} + C', '\\int \\dfrac{dx}{x} = \\ln|x| + C', '\\int_a^b f(x)\\,dx = F(b) - F(a)']],
+    // зэрэг, логарифм, язгуур
+    [/логарифм|logarifm|\blog-/, 'Логарифм', ['\\log_a b = c \\iff a^c = b', '\\log_a(xy) = \\log_a x + \\log_a y', '\\log_a \\tfrac{x}{y} = \\log_a x - \\log_a y', '\\log_a x^k = k\\log_a x', '\\log_a b = \\dfrac{\\log_c b}{\\log_c a}', 'a^{\\log_a b} = b']],
+    [/илтгэгч тэгшитгэл|илтгэгч тэнцэтгэл|ижил суурьт|iltgegch-teng/, 'Илтгэгч тэгшитгэл', ['a^{f(x)} = a^{g(x)} \\iff f(x) = g(x)', 'a > 1:\\ a^{f} > a^{g} \\iff f > g', '0 < a < 1:\\ a^{f} > a^{g} \\iff f < g', 't = a^x > 0\\ \\text{— шинэ хувьсагч}']],
+    [/aˣ|eˣ|ln x|илтгэгч функц|логарифм функц/, 'Илтгэгч ба логарифм функц', ['y = a^x:\\ a > 1\\ \\text{өсөх},\\ 0 < a < 1\\ \\text{буурах}', '\\text{График } (0;\\ 1)\\text{ цэгээр гарна}', 'y = \\log_a x \\iff x = a^y', 'y = \\ln x \\iff x = e^y']],
+    [/^(?!.*(зэрэгцээ|zeregts)).*(зэрэг|зэргийн|zereg|илтгэгч|iltgegch)/, 'Зэрэг', ['a^m \\cdot a^n = a^{m+n}', 'a^m : a^n = a^{m-n}', '(a^m)^n = a^{mn}', '(ab)^n = a^n b^n', 'a^0 = 1,\\quad a^{-n} = \\dfrac{1}{a^n}', 'a^{\\frac{m}{n}} = \\sqrt[n]{a^m}']],
+    [/иррационал/, 'Иррационал тоо', ['\\text{Рационал: } \\tfrac{m}{n};\\ \\text{иррационал: } \\sqrt{2},\\ \\pi', '\\sqrt{ab} = \\sqrt{a}\\sqrt{b}', '\\dfrac{1}{\\sqrt{a}} = \\dfrac{\\sqrt{a}}{a}']],
+    [/язгуур|yazguur|sqrt/, 'Язгуур', ['\\sqrt{ab} = \\sqrt{a}\\sqrt{b}', '\\sqrt{\\tfrac{a}{b}} = \\dfrac{\\sqrt{a}}{\\sqrt{b}}', '(\\sqrt{a})^2 = a,\\quad \\sqrt{a^2} = |a|', '\\sqrt[n]{a^m} = a^{\\frac{m}{n}}']],
+    // квадрат
+    [/квадрат функц|квадрат график|парабол|kvadrat-funk|parabol|grafik-ax2/, 'Квадрат функц', ['y = ax^2 + bx + c', 'x_0 = -\\dfrac{b}{2a},\\quad y_0 = -\\dfrac{D}{4a}', 'y = a(x - h)^2 + k:\\ \\text{орой } (h;\\ k)', 'a > 0 \\Rightarrow \\text{салаа дээш}']],
+    [/квадрат тэгшитгэл|kvadrat-tegsh|kv-tegsh|виет/, 'Квадрат тэгшитгэл', ['ax^2 + bx + c = 0', 'D = b^2 - 4ac', 'x_{1,2} = \\dfrac{-b \\pm \\sqrt{D}}{2a}', 'x_1 + x_2 = -\\dfrac{b}{a},\\quad x_1 x_2 = \\dfrac{c}{a}']],
+    [/квадрат тэнцэтгэл биш/, 'Квадрат тэнцэтгэл биш', ['a > 0,\\ x_1 < x_2:', 'ax^2 + bx + c > 0 \\iff x < x_1,\\ x > x_2', 'ax^2 + bx + c < 0 \\iff x_1 < x < x_2', '\\text{Интервал бүрд тэмдгийг шалгана}']],
+    // алгебр
+    [/^(?!.*(анхны|хаалт задлах)).*(товчилсон|tovchilson|үржвэрийн томьёо|задла|zadlal|квадратуудын ялгавар|нийлбэрийн квадрат|ялгаврын квадрат|бүтэн квадрат|кубын томьёо|7 томьёо)/, 'Товчилсон үржүүлэх томьёо', ['(a \\pm b)^2 = a^2 \\pm 2ab + b^2', 'a^2 - b^2 = (a - b)(a + b)', '(a \\pm b)^3 = a^3 \\pm 3a^2b + 3ab^2 \\pm b^3', 'a^3 \\pm b^3 = (a \\pm b)(a^2 \\mp ab + b^2)', 'x^2 + bx = \\left(x + \\tfrac{b}{2}\\right)^2 - \\tfrac{b^2}{4}']],
+    [/безу|олон гишүүнтийн хуваалт/, 'Олон гишүүнтийн хуваалт', ['P(x) = (x - a)\\,Q(x) + r,\\quad r = P(a)', 'P(a) = 0 \\iff (x - a) \\mid P(x)', '\\text{Бүхэл язгуур — сул гишүүний хуваагч}']],
+    [/гишүүнчлэн үржүүлэх|олон гишүүнтээр үржих|× олон гишүүнт|хаалт задлах/, 'Гишүүнчлэн үржүүлэх', ['a(b + c) = ab + ac', '(a + b)(c + d) = ac + ad + bc + bd', 'x^m \\cdot x^n = x^{m+n}']],
+    [/ерөнхий үржигдэхүүн/, 'Ерөнхий үржигдэхүүн', ['ab + ac = a(b + c)', 'ab - ac = a(b - c)', 'ax^2 + bx = x(ax + b)']],
+    [/нэг гишүүнт|олон гишүүнт/, 'Нэг ба олон гишүүнт', ['(a x^m)(b x^n) = ab\\, x^{m+n}', 'a x^n + b x^n = (a + b) x^n', '\\text{Зэрэг — хамгийн их илтгэгч}']],
+    [/^(?!.*гишүүнт).*стандарт хэлбэр/, 'Стандарт хэлбэр', ['a \\cdot 10^n,\\quad 1 \\le a < 10', '(a \\cdot 10^m)(b \\cdot 10^n) = ab \\cdot 10^{m+n}', '\\dfrac{a \\cdot 10^m}{b \\cdot 10^n} = \\dfrac{a}{b} \\cdot 10^{m-n}']],
+    [/рационал тэгшитгэл|квадратад шилждэг|биквадрат/, 'Рационал тэгшитгэл', ['\\dfrac{P(x)}{Q(x)} = 0 \\iff P(x) = 0,\\ Q(x) \\ne 0', 'x^4 + px^2 + q = 0:\\ t = x^2 \\ge 0', '\\text{Хариуг мужаар шалгана}']],
+    [/рационал функц/, 'Рационал функц', ['y = \\dfrac{P(x)}{Q(x)},\\quad Q(x) \\ne 0', '\\text{Босоо асимптот: } Q(x) = 0']],
+    // тригонометр
+    [/тэгш өнцөгт гурвалж|талын урт олох|өнцөг олох · тригонометр|гарын хурууны/, 'Тэгш өнцөгт гурвалжин', ['\\sin\\alpha = \\dfrac{\\text{эсрэг катет}}{\\text{гипотенуз}}', '\\cos\\alpha = \\dfrac{\\text{хавсарсан катет}}{\\text{гипотенуз}}', '\\operatorname{tg}\\alpha = \\dfrac{\\text{эсрэг катет}}{\\text{хавсарсан катет}}', '\\sin 30^\\circ = \\tfrac12,\\ \\sin 45^\\circ = \\tfrac{\\sqrt2}{2},\\ \\sin 60^\\circ = \\tfrac{\\sqrt3}{2}', '\\operatorname{tg} 30^\\circ = \\tfrac{1}{\\sqrt3},\\ \\operatorname{tg} 45^\\circ = 1,\\ \\operatorname{tg} 60^\\circ = \\sqrt3']],
+    [/тусгай.*өнцг|том өнцг/, 'Тусгай өнцөг', ['\\sin 30^\\circ = \\tfrac12,\\ \\sin 45^\\circ = \\tfrac{\\sqrt2}{2},\\ \\sin 60^\\circ = \\tfrac{\\sqrt3}{2}', '\\cos 30^\\circ = \\tfrac{\\sqrt3}{2},\\ \\cos 60^\\circ = \\tfrac12', '\\operatorname{tg} 30^\\circ = \\tfrac{1}{\\sqrt3},\\ \\operatorname{tg} 45^\\circ = 1', '\\sin(180^\\circ - \\alpha) = \\sin\\alpha', '\\cos(180^\\circ - \\alpha) = -\\cos\\alpha']],
+    [/тригонометр функцийн тэмдэг/, 'Тригонометр функцийн тэмдэг', ['\\sin\\alpha > 0:\\ \\text{I, II мөч}', '\\cos\\alpha > 0:\\ \\text{I, IV мөч}', '\\operatorname{tg}\\alpha > 0:\\ \\text{I, III мөч}']],
+    [/мөч/, 'Координатын мөч', ['\\text{I: } (+;\\ +),\\quad \\text{II: } (-;\\ +)', '\\text{III: } (-;\\ -),\\quad \\text{IV: } (+;\\ -)', '\\text{I: } 0^\\circ\\text{–}90^\\circ,\\quad \\text{II: } 90^\\circ\\text{–}180^\\circ', '\\text{III: } 180^\\circ\\text{–}270^\\circ,\\quad \\text{IV: } 270^\\circ\\text{–}360^\\circ']],
+    [/радиан|нэгж тойрог|эргэлтийн өнцөг|давхацсан/, 'Эргэлтийн өнцөг, радиан', ['180^\\circ = \\pi\\ \\text{рад}', '1\\ \\text{рад} = \\dfrac{180^\\circ}{\\pi} \\approx 57^\\circ', 'l = R\\alpha,\\quad S = \\tfrac12 R^2\\alpha', '\\alpha + 360^\\circ \\cdot k\\ \\text{— давхацсан өнцөг}']],
+    [/тригонометр|trigonometr|синус|косинус|тангенс|\bsin|\bcos|\btg\b/, 'Тригонометр', ['\\sin^2\\alpha + \\cos^2\\alpha = 1', '\\operatorname{tg}\\alpha = \\dfrac{\\sin\\alpha}{\\cos\\alpha}', '1 + \\operatorname{tg}^2\\alpha = \\dfrac{1}{\\cos^2\\alpha}', '\\sin 2\\alpha = 2\\sin\\alpha\\cos\\alpha', '\\cos 2\\alpha = \\cos^2\\alpha - \\sin^2\\alpha']],
+    // геометр (тусгай нь эхэнд)
+    [/медиан(?!.*өгөгд)/, 'Медиан', ['\\text{Медианууд нэг цэгт огтлолцоно}', 'AO : OA_1 = 2 : 1', 'm_a = \\tfrac12\\sqrt{2b^2 + 2c^2 - a^2}']],
+    [/биссектрис/, 'Биссектрис', ['\\dfrac{AL}{LC} = \\dfrac{AB}{BC}', '\\text{Цэг нь өнцгийн талуудаас ижил зайтай}']],
+    [/гурвалжны шугам/, 'Гурвалжны шугамууд', ['\\text{Медиан — эсрэг талын дундаж руу}', '\\text{Биссектрис — өнцгийг тэнцүү хуваана}', '\\text{Өндөр — эсрэг талд перпендикуляр}', '\\text{Дундаж шугам} = \\tfrac12\\ \\text{суурь}']],
+    [/гурвалжинд багтсан|гурвалжныг багтаасан|багтсан ба багтаасан тойрог|гадаад радиус/, 'Багтсан, багтаасан тойрог', ['r = \\dfrac{S}{p},\\quad p = \\dfrac{a + b + c}{2}', 'R = \\dfrac{abc}{4S} = \\dfrac{a}{2\\sin A}', '\\text{Тэгш өнцөгт: } R = \\tfrac{c}{2},\\ r = \\tfrac{a + b - c}{2}']],
+    [/багтсан өнцөг|төв өнцөг|нумын хамаарал|тойрог ба өнцөг/, 'Багтсан өнцөг', ['\\text{Багтсан} = \\tfrac12\\ \\text{төв өнцөг}', '\\text{Диаметрт тулсан өнцөг} = 90^\\circ', '\\text{Нэг нумд тулсан өнцгүүд тэнцүү}']],
+    [/(багтсан|багтаасан).*(олон|дөрвөн) өнцөгт|циклик/, 'Багтсан, багтаасан олон өнцөгт', ['\\text{Багтсан: } \\angle A + \\angle C = 180^\\circ', '\\text{Багтаасан: } a + c = b + d', 'S = p\\,r\\quad (p\\text{ — хагас периметр})', 'a_n = 2R\\sin\\dfrac{180^\\circ}{n}']],
+    [/хоёр тойрг|хоёр тойрог|шүргэлцсэн тойр/, 'Хоёр тойрог', ['d = R + r\\ \\text{— гаднаас шүргэлцэнэ}', 'd = R - r\\ \\text{— дотроос шүргэлцэнэ}', 'R - r < d < R + r\\ \\text{— огтлолцоно}', 'd > R + r\\ \\text{— огтлолцохгүй}']],
+    [/тойргийн тэгшитгэл|toirog-tegsh/, 'Тойргийн тэгшитгэл', ['(x - a)^2 + (y - b)^2 = r^2', '\\text{Төв } (a;\\ b),\\ \\text{радиус } r', 'x^2 + y^2 = r^2\\ \\text{— төв } O']],
+    [/харилцан байршил|хэрчим таслах/, 'Харилцан байршил', ['\\text{Тэгшитгэлүүдийг системээр бодно}', 'D > 0:\\ \\text{2 цэгт огтлолцоно}', 'D = 0:\\ \\text{шүргэнэ}', 'D < 0:\\ \\text{огтлолцохгүй}', '\\text{Шулуун, тойрог: } d < r,\\ d = r,\\ d > r']],
+    [/^(?!.*(гипербол|\/shurgegch-(hard|nalalt))).*(хөвч|шүргэгч(?!ийн налалт)|огтлогчуу|огтлогчийн|оройтой өнцг)/, 'Тойргийн чанар', ['\\text{Хөвчүүд: } AE \\cdot EB = CE \\cdot ED', '\\text{Шүргэгч, огтлогч: } PT^2 = PA \\cdot PB', '\\text{Шүргэгч} \\perp \\text{радиус}', 'PA = PB\\ \\text{— хоёр шүргэгч}', '\\text{Хөвч-шүргэгчийн өнцөг} = \\tfrac12\\ \\text{нум}', '\\text{Гадна оройтой: } \\tfrac12(\\text{нум}_1 - \\text{нум}_2)']],
+    [/фалес/, 'Фалесын теорем', ['\\dfrac{AB}{BC} = \\dfrac{A_1B_1}{B_1C_1}', 'AA_1 \\parallel BB_1 \\parallel CC_1']],
+    [/төсөөтэй(?! гишүүд)/, 'Төсөөтэй дүрс', ['\\dfrac{a_1}{a_2} = \\dfrac{b_1}{b_2} = \\dfrac{c_1}{c_2} = k', '\\dfrac{P_1}{P_2} = k,\\quad \\dfrac{S_1}{S_2} = k^2']],
+    [/^(?!.*координат).*(параллель шулуун|зэрэгцээ шулуун|солбисон)/, 'Параллель шулуун', ['\\text{Тохирох өнцгүүд тэнцүү}', '\\text{Дотор солбисон өнцгүүд тэнцүү}', '\\text{Нэг талын дотор: } \\alpha + \\beta = 180^\\circ']],
+    [/геометр байр|гомотети/, 'Геометр байр', ['OM = r\\ \\text{— тойрог}', 'MA = MB\\ \\text{— дундаж перпендикуляр}', 'OA_1 = k \\cdot OA\\ \\text{— гомотети}']],
+    [/пифагор|pifagor/, 'Пифагорын теорем', ['a^2 + b^2 = c^2', 'c = \\sqrt{a^2 + b^2}']],
+    [/гурвалжныг ангилах|гурвалжны төрөл|гурвалжин ба .*(ангилах|төрөл)/, 'Гурвалжны төрөл', ['\\text{Өнцгөөр: хурц, тэгш, мохоо}', '\\text{Талаар: зөв, адил хажуут, элдэв}', '\\angle A + \\angle B + \\angle C = 180^\\circ']],
+    [/дөрвөн өнцөгтийг ангилах|дөрвөн өнцөгтийн төрөл/, 'Дөрвөн өнцөгт', ['\\text{Параллелограмм — эсрэг талууд} \\parallel', '\\text{Тэгш өнцөгт — 4 өнцөг } 90^\\circ', '\\text{Ромб — 4 тал тэнцүү}', '\\text{Квадрат — тэгш өнцөгт ромб}', '\\text{Трапец — 1 хос тал} \\parallel']],
+    [/олон өнцөгт/, 'Олон өнцөгт', ['\\text{Дотоод өнцгүүд: } (n - 2) \\cdot 180^\\circ', '\\text{Гадаад өнцгүүд: } 360^\\circ', '\\text{Диагональ: } \\dfrac{n(n - 3)}{2}']],
+    [/гурвалж|gurvaljin/, 'Гурвалжин', ['\\angle A + \\angle B + \\angle C = 180^\\circ', '\\text{Гадаад өнцөг} = \\angle A + \\angle B', 'S = \\tfrac{1}{2} a h_a = \\tfrac{1}{2} ab\\sin C', '\\dfrac{a}{\\sin A} = \\dfrac{b}{\\sin B} = 2R', 'c^2 = a^2 + b^2 - 2ab\\cos C']],
+    [/өнцөг|өнцг|ontsog/, 'Өнцөг', ['\\text{Тэгш} = 90^\\circ,\\quad \\text{дэлгэмэл} = 180^\\circ', '\\text{Хурц} < 90^\\circ < \\text{мохоо} < 180^\\circ', '\\text{Хамар өнцгүүд: } \\alpha + \\beta = 180^\\circ', '\\text{Босоо өнцгүүд тэнцүү}']],
+    [/масштаб/, 'Масштаб', ['\\text{Масштаб} = \\dfrac{\\text{зураг дээрх урт}}{\\text{бодит урт}}', '1:1000 \\Rightarrow 1\\ \\text{см} = 10\\ \\text{м}']],
+    [/тэгш хэмтэй дүрс/, 'Тэгш хэм', ['\\text{Тэнхлэг дүрсийг 2 ижил хэсэгт хуваана}', '\\text{Квадрат — 4, тэгш өнцөгт — 2 тэнхлэг}', '\\text{Тойрог — тоо томшгүй олон}']],
+    [/биет таних|биет, түүний|дэлгээс/, 'Биет', ['\\text{Шоо: 6 талс, 12 ирмэг, 8 орой}', '\\text{Орой} - \\text{ирмэг} + \\text{талс} = 2', '\\text{Шоо: } S = 6a^2', '\\text{Параллелепипед: } S = 2(ab + bc + ac)']],
+    [/талбай|talbai|периметр|perimetr/, 'Талбай, периметр', ['\\text{Тэгш өнцөгт: } S = ab,\\; P = 2(a + b)', '\\text{Гурвалжин: } S = \\tfrac{1}{2} a h', '\\text{Параллелограмм: } S = a h', '\\text{Трапец: } S = \\tfrac{a + b}{2} h', '\\text{Дугуй: } S = \\pi r^2']],
+    [/тойрог|тойрг|toirog|дугуй|dugui/, 'Тойрог, дугуй', ['d = 2r', 'C = 2\\pi r = \\pi d', 'S = \\pi r^2', 'l = \\dfrac{\\pi r \\alpha}{180^\\circ}']],
+    [/эзлэхүүн|ezlehuun|биет|цилиндр|конус|бөмбөг/, 'Эзлэхүүн', ['\\text{Шоо: } V = a^3', '\\text{Параллелепипед: } V = abc', '\\text{Цилиндр: } V = \\pi r^2 h', '\\text{Конус: } V = \\tfrac{1}{3}\\pi r^2 h', '\\text{Бөмбөрцөг: } V = \\tfrac{4}{3}\\pi r^3', '1\\ \\text{л} = 1\\ \\text{дм}^3 = 1000\\ \\text{см}^3']],
+    // координат, вектор, матриц
+    [/огторгуй|проекц|координатын хавтгайтай|оройн координат/, 'Огторгуй', ['d^2 = (x_2 - x_1)^2 + (y_2 - y_1)^2', '\\qquad + (z_2 - z_1)^2', 'M\\left(\\tfrac{x_1 + x_2}{2};\\ \\tfrac{y_1 + y_2}{2};\\ \\tfrac{z_1 + z_2}{2}\\right)', 'O\\text{-ийн тэгш хэм: } (-x;\\ -y;\\ -z)', 'Oxy\\text{-ийн тэгш хэм: } (x;\\ y;\\ -z)']],
+    [/координат|koordinat|хоёр цэгийн зай|зай ба дундаж|дундаж цэг/, 'Координат', ['d = \\sqrt{(x_2 - x_1)^2 + (y_2 - y_1)^2}', 'M\\left(\\dfrac{x_1 + x_2}{2};\\ \\dfrac{y_1 + y_2}{2}\\right)']],
+    [/вектор|vektor/, 'Вектор', ['\\overrightarrow{AB} = (x_B - x_A;\\ y_B - y_A)', '\\vec a + \\vec b = (x_1 + x_2;\\ y_1 + y_2)', '|\\vec a| = \\sqrt{x^2 + y^2}', '\\vec a \\cdot \\vec b = x_1 x_2 + y_1 y_2']],
+    [/^(?!.*тэгш хэмтэй дүрс).*(зөөлт|эргүүлэлт|байршил, хөдөлгөөн|тэгш хэм)/, 'Зөөлт, тэгш хэм', ['\\text{Зөөлт: } (x;\\ y) \\to (x + a;\\ y + b)', 'Ox\\text{: } (x;\\ y) \\to (x;\\ -y)', 'Oy\\text{: } (x;\\ y) \\to (-x;\\ y)', 'O\\text{: } (x;\\ y) \\to (-x;\\ -y)', '90^\\circ\\text{ эргүүлэлт: } (x;\\ y) \\to (-y;\\ x)']],
+    [/крамер/, 'Крамерын дүрэм', ['\\Delta = \\begin{vmatrix} a_1 & b_1 \\\\ a_2 & b_2 \\end{vmatrix} = a_1 b_2 - a_2 b_1', 'x = \\dfrac{\\Delta_x}{\\Delta},\\ y = \\dfrac{\\Delta_y}{\\Delta},\\ z = \\dfrac{\\Delta_z}{\\Delta}', '\\Delta \\ne 0\\ \\text{— ганц шийдтэй}']],
+    [/матриц|тодорхойлогч/, 'Матриц', ['\\det\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix} = ad - bc', 'A^{-1} = \\dfrac{1}{ad - bc}\\begin{pmatrix} d & -b \\\\ -c & a \\end{pmatrix}', 'AX = B \\Rightarrow X = A^{-1}B']],
+    // тэнцэтгэл биш, прогресс, систем
+    [/модул|modul/, 'Модуль', ['|a| = a\\ (a \\ge 0),\\quad |a| = -a\\ (a < 0)', '|x| < a \\iff -a < x < a', '|x| > a \\iff x < -a \\text{ эсвэл } x > a']],
+    [/хагас хавтгай|шийдийн муж|шугаман программ|хоёр хувьсагчтай.*тэнцэтгэл биш/, 'Хагас хавтгай', ['y > kx + b\\ \\text{— шулууны дээд тал}', 'y < kx + b\\ \\text{— доод тал}', '\\text{Их, бага утга — мужийн оройд}']],
+    [/тэнцэтгэл биш.*систем/, 'Тэнцэтгэл бишийн систем', ['\\text{Шийд — шийдүүдийн огтлолцол}', '\\{x > a;\\ x < b\\} \\Rightarrow a < x < b']],
+    [/тэнцэтгэл биш|тоон завсар/, 'Тэнцэтгэл биш', ['a < b \\Rightarrow a + c < b + c', 'c > 0:\\ ac < bc;\\quad c < 0:\\ ac > bc', '[a;\\ b]:\\ a \\le x \\le b', '(a;\\ b):\\ a < x < b']],
+    [/^(?!.*(үйлдлийн дараалал|арифметик дундаж|дүрс)).*(прогресс|дараал|daraalal)/, 'Прогресс', ['a_n = a_1 + (n - 1)d', 'S_n = \\dfrac{(a_1 + a_n)\\,n}{2}', 'b_n = b_1 q^{\\,n-1}', 'S_n = \\dfrac{b_1(q^n - 1)}{q - 1}']],
+    [/^(?!.*координатын систем).*систем|штс|огтлолцлын цэг/, 'Тэгшитгэлийн систем', ['\\text{Орлуулах: нэгийг илэрхийлж орлуулна}', '\\text{Нэмэх: коэффициент тэнцүүлж нэмнэ}', '\\text{График: огтлолцлын цэг — шийд}', '\\dfrac{a_1}{a_2} \\ne \\dfrac{b_1}{b_2} \\Rightarrow \\text{ганц шийд}']],
+    // шулуун, функц
+    [/налалт|шулууны график|шугаман функц|шулууны тэгшитгэл|shugaman-funk|linear|y-kx|координатын арга — (параллель|перпендикуляр)|параллель\/перпендикуляр/, 'Шулуун, налалт', ['y = kx + b', 'k = \\dfrac{y_2 - y_1}{x_2 - x_1} = \\operatorname{tg}\\alpha', '\\parallel:\\ k_1 = k_2,\\qquad \\perp:\\ k_1 k_2 = -1']],
+    [/y = a\/x²/, 'y = a/x²', ['y = \\dfrac{a}{x^2},\\quad x \\ne 0', '\\text{Тэгш функц: } Oy\\text{-ийн тэгш хэм}', 'a > 0 \\Rightarrow y > 0', '\\text{Асимптот: } x = 0,\\ y = 0']],
+    [/y = a\/x(?!²)|гипербол/, 'Гипербол y = k/x', ['y = \\dfrac{k}{x},\\quad x \\ne 0', 'k > 0:\\ \\text{I, III мөч}', 'k < 0:\\ \\text{II, IV мөч}', '\\text{Асимптот: } x = 0,\\ y = 0']],
+    [/axⁿ/, 'y = axⁿ', ['n\\ \\text{тэгш} \\Rightarrow \\text{тэгш функц}', 'n\\ \\text{сондгой} \\Rightarrow \\text{сондгой функц}']],
+    [/давхар функц/, 'Давхар функц', ['(f \\circ g)(x) = f(g(x))', '\\text{Муж: } g(x) \\in D(f)']],
+    [/урвуу функц|урвуутай|харилцан нэг утгатай/, 'Урвуу функц', ['y = f(x) \\iff x = f^{-1}(y)', 'f(f^{-1}(x)) = x', '\\text{Урвуутай} \\iff \\text{харилцан нэг утгатай}', '\\text{График } y = x\\text{-ийн хувьд тэгш хэмтэй}']],
+    [/тэгш ба сондгой|тэгш\/сондгой|сондгой функц/, 'Тэгш, сондгой функц', ['\\text{Тэгш: } f(-x) = f(x),\\ \\text{тэнхлэг } Oy', '\\text{Сондгой: } f(-x) = -f(x),\\ \\text{төв } O']],
+    [/өсөх|буурах/, 'Өсөх, буурах', ['x_1 < x_2 \\Rightarrow f(x_1) < f(x_2)\\ \\text{— өсөх}', 'x_1 < x_2 \\Rightarrow f(x_1) > f(x_2)\\ \\text{— буурах}', "f'(x) > 0 \\Rightarrow \\text{өсөх}"]],
+    [/^(?!.*уламжлал).*(тодорхойлогдох|утгын муж|муж, дүр|муж ба дүр|муж, параметр|дүр ба|утгын завсар|харгалзаа|функц)/, 'Функц', ['y = f(x):\\ x\\text{ бүрд ганц } y', 'D(f)\\text{ — тодорхойлогдох муж}', 'E(f)\\text{ — утгын муж}', '\\sqrt{u}:\\ u \\ge 0;\\quad \\dfrac{1}{u}:\\ u \\ne 0', '\\text{Босоо шулуун 1 цэгт л огтолно}']],
+    // статистик, магадлал, тоолол
+    [/арифметик дундаж|өгөгд|далайц|дундаж утга|моод/, 'Өгөгдөл', ['\\bar x = \\dfrac{x_1 + x_2 + \\dots + x_n}{n}', '\\text{Медиан — эрэмбэлсэн өгөгдлийн дунд}', '\\text{Моод — хамгийн олон давтагдсан}', '\\text{Далайц} = \\max - \\min']],
+    [/дүрсийн дараалал|дүрсэн дараалал|зүй тогтол|ерөнхий гишүүн/, 'Зүй тогтол', ['a_n = a_1 + (n - 1)d', 'd = a_2 - a_1', '\\text{Дараагийн гишүүн} = \\text{өмнөх} + d']],
+    [/сэлгэмэл|хэлхээс|комбинатор|kombinator/, 'Комбинаторик', ['P_n = n!', 'A_n^k = \\dfrac{n!}{(n - k)!}', 'C_n^k = \\dfrac{n!}{k!\\,(n - k)!}']],
+    [/магадлал|magadlal|үзэгдэл|үзэгдл|туршилт|зоос|шударга тоглоом|нийцгүй|нийцтэй/, 'Магадлал', ['P(A) = \\dfrac{m}{n},\\quad P(\\bar A) = 1 - P(A)', '\\text{Нийцгүй: } P(A \\cup B) = P(A) + P(B)', '\\text{Нийцтэй: мөн } P(A \\cap B)\\text{-г хасна}', '\\text{Хоёр шоо: } 6 \\cdot 6 = 36\\ \\text{үр дүн}']],
+    [/эйлер|венн|олонлог/, 'Олонлог', ['|A \\cup B| = |A| + |B| - |A \\cap B|', 'A \\cap B\\ \\text{— огтлолцол}', 'A \\cup B\\ \\text{— нэгдэл}']],
+    [/боломж|тоолох бодлог|үржвэрийн зарчим|тоо зохиох/, 'Тоолох', ['\\text{Үржвэрийн зарчим: } m \\cdot n', '\\text{Нэмэх зарчим: } m + n', '\\text{Боломж} = \\dfrac{\\text{таатай}}{\\text{бүгд}}']],
+    [/хэллэг/, 'Хэллэг', ['\\text{Үнэн эсвэл худал өгүүлбэр}', '\\neg A\\ \\text{— үгүйсгэл}', 'A \\land B,\\quad A \\lor B,\\quad A \\Rightarrow B']],
+    [/турших арга/, 'Турших арга', ['\\text{Утгуудыг орлуулж шалгана}', '\\text{Бүхэл шийд — сул гишүүний хуваагч}']],
+    // тэгшитгэл
+    [/тэгшитгэл — [345]-р анги|үл мэдэгдэгч/, 'Үл мэдэгдэгчийг олох', ['x + a = b \\Rightarrow x = b - a', 'x - a = b \\Rightarrow x = b + a', 'a - x = b \\Rightarrow x = a - b', 'x \\cdot a = b \\Rightarrow x = b : a', 'x : a = b \\Rightarrow x = b \\cdot a']],
+    [/^(?!.*(квадрат|илтгэгч|рационал|модул|логарифм|тригонометр|— [345]-р анги)).*(шугаман тэгшитгэл|тэгшитгэл зохи|тэгшитгэл —|тэгшитгэл ба дүрс|бутархайтай тэгшитгэл|тэгшитгэл бичих)/, 'Шугаман тэгшитгэл', ['ax + b = 0 \\Rightarrow x = -\\dfrac{b}{a}\\ (a \\ne 0)', 'a = b \\iff a + c = b + c', 'a = b \\iff ac = bc\\ (c \\ne 0)', '\\text{Шалгах: олсон утгаа орлуулна}']],
+    // харьцаа, хувь, бутархай
+    [/пропорц|proporc|харьцаа|haritsaa/, 'Пропорц', ['\\dfrac{a}{b} = \\dfrac{c}{d} \\iff ad = bc', 'a : b = ak : bk\\ (k \\ne 0)', 'y = kx\\ \\text{— шууд},\\quad y = \\dfrac{k}{x}\\ \\text{— урвуу}', '\\text{Харьцаагаар хуваах } (a : b):', '\\dfrac{a}{a + b} S,\\quad \\dfrac{b}{a + b} S']],
+    [/хувь(?!сагч)|хувий|процент/, 'Хувь', ['a\\text{-ийн } p\\% = \\dfrac{a \\cdot p}{100}', 'p = \\dfrac{a}{b} \\cdot 100\\%', '\\text{Өсөлт } p\\%:\\ a\\left(1 + \\tfrac{p}{100}\\right)', '\\text{Бууралт } p\\%:\\ a\\left(1 - \\tfrac{p}{100}\\right)']],
+    [/^(?!.*илтгэгч).*(рационал тоо|ижил хуваарь|бутархай|butarhai)/, 'Бутархай', ['\\dfrac{a}{b} \\pm \\dfrac{c}{d} = \\dfrac{ad \\pm bc}{bd}', '\\dfrac{a}{b} \\cdot \\dfrac{c}{d} = \\dfrac{ac}{bd},\\quad \\dfrac{a}{b} : \\dfrac{c}{d} = \\dfrac{ad}{bc}', '\\dfrac{a}{b} = \\dfrac{ak}{bk}\\ (k \\ne 0)', 'a\\tfrac{b}{c} = \\dfrac{ac + b}{c}', '0{,}4 = 0{,}40 > 0{,}35']],
+    [/хялбарч|ижил гишүүд|төсөөтэй гишүүд|алгебрын илэрхийлэл|алгебр илэрхийлэл|илэрхийллийн утга|утга олох|алгебрын сонгон|хаалт задлах/, 'Илэрхийлэл хялбарчлах', ['ax + bx = (a + b)x', 'a(b + c) = ab + ac', '-(a - b) = b - a', '\\text{Утга: үсгийн оронд тоо орлуулна}']],
+    // тоо
+    [/^(?!.*(бутархай|илтгэгч)).*(эерэг|сөрөг|бүхэл тоо|тоон шулуун)/, 'Эерэг, сөрөг тоо', ['(+)(+) = +,\\quad (-)(-) = +', '(+)(-) = -', 'a - b = a + (-b),\\quad -(-a) = a', '|-a| = a,\\quad -5 < -2']],
+    [/ром тоо/, 'Ром тоо', ['\\mathrm{I} = 1,\\ \\mathrm{V} = 5,\\ \\mathrm{X} = 10,\\ \\mathrm{L} = 50', '\\mathrm{C} = 100,\\ \\mathrm{D} = 500,\\ \\mathrm{M} = 1000', '\\mathrm{IV} = 4,\\ \\mathrm{IX} = 9,\\ \\mathrm{XL} = 40,\\ \\mathrm{XC} = 90']],
+    [/анхны тоо|анхны үржигдэхүүн/, 'Анхны тоо', ['\\text{Зөвхөн 1 ба өөртөө хуваагдана}', '2,\\ 3,\\ 5,\\ 7,\\ 11,\\ 13,\\ 17,\\ 19,\\ 23,\\ 29,\\ \\dots', '60 = 2^2 \\cdot 3 \\cdot 5']],
+    [/хиех|хбех/, 'ХИЕХ, ХБЕХ', ['12 = 2^2 \\cdot 3,\\quad 18 = 2 \\cdot 3^2', '\\text{ХИЕХ} = 2 \\cdot 3 = 6', '\\text{ХБЕХ} = 2^2 \\cdot 3^2 = 36', '\\text{ХИЕХ} \\cdot \\text{ХБЕХ} = a \\cdot b']],
+    [/хуваагдах тооны шинж|хуваагч|хуваагдагч/, 'Хуваагдах шинж', ['2:\\ \\text{сүүлийн цифр тэгш}', '3:\\ \\text{цифрийн нийлбэр 3-т хуваагдана}', '9:\\ \\text{цифрийн нийлбэр 9-д хуваагдана}', '5:\\ \\text{0 эсвэл 5-аар төгсөнө}', '10:\\ \\text{0-ээр төгсөнө}']],
+    [/хүрд/, 'Үржүүлэх хүрд', ['a \\cdot b = b \\cdot a', '9 \\cdot n = 10 \\cdot n - n', '5 \\cdot n = 10 \\cdot n : 2', 'a : b = c \\iff c \\cdot b = a']],
+    [/хялбар арга|хялбар тооцоолол|арав, зуугаар/, 'Хялбар тооцоолол', ['37 \\cdot 10 = 370,\\quad 37 \\cdot 100 = 3700', '3700 : 100 = 37', '25 \\cdot 4 = 100,\\quad 125 \\cdot 8 = 1000', 'a(b + c) = ab + ac']],
+    // текст бодлого
+    [/хөдөлгөөний бодлого|хурд/, 'Хөдөлгөөн', ['s = v \\cdot t,\\quad v = \\dfrac{s}{t},\\quad t = \\dfrac{s}{v}', '\\text{Угтан: } v_1 + v_2,\\quad \\text{хөөж: } v_1 - v_2']],
+    [/ажлын бодлого/, 'Ажлын бодлого', ['A = p \\cdot t', '\\text{ажил} = \\text{бүтээмж} \\times \\text{хугацаа}', '\\text{Хамт: } \\dfrac{1}{t} = \\dfrac{1}{t_1} + \\dfrac{1}{t_2}']],
+    [/худалдаа/, 'Худалдаа', ['\\text{Үнэ} = \\text{нэгжийн үнэ} \\times \\text{тоо}', '\\text{Хариулт} = \\text{төлсөн} - \\text{үнэ}']],
+    [/дахин багасгах|дахин ихэсгэх|зөрүү ба харьцуулах/, 'Харьцуулах', ['k\\ \\text{дахин их: } a = k \\cdot b', 'k\\ \\text{дахин бага: } a = b : k', 'c\\text{-ээр их: } a = b + c']],
+    [/хэрчмийн арга|нийлбэр-зөрүү/, 'Нийлбэр, ялгавраар', ['x + y = S,\\quad x - y = d', 'x = \\dfrac{S + d}{2},\\quad y = \\dfrac{S - d}{2}']],
+    [/нийлбэрийг үржвэр/, 'Нийлбэр ба үржвэр', ['\\underbrace{a + a + \\dots + a}_{n} = n \\cdot a']],
+    [/үйлдлийн дараалал|холимог үйлдэл/, 'Үйлдлийн дараалал', ['1)\\ \\text{Хаалт}', '2)\\ \\text{Зэрэг}', '3)\\ \\times,\\ :\\ \\text{— зүүнээс баруун}', '4)\\ +,\\ -\\ \\text{— зүүнээс баруун}']],
+    [/тоймл|тойролт|toimloh/, 'Тоймлох', ['\\text{Дараагийн цифр } \\ge 5 \\Rightarrow +1', '\\text{Дараагийн цифр } < 5 \\Rightarrow \\text{хэвээр}', '\\text{Зуут хүртэл: } 3\\,746 \\approx 3\\,700']],
+    [/эеш|eesh/, 'ЭЕШ — гол томьёо', ['x_{1,2} = \\dfrac{-b \\pm \\sqrt{D}}{2a},\\quad D = b^2 - 4ac', '\\log_a(xy) = \\log_a x + \\log_a y', '\\sin^2\\alpha + \\cos^2\\alpha = 1', "(x^n)' = n x^{n-1}", 'S_n = \\dfrac{(a_1 + a_n)n}{2}']],
+    [/олимпиад/, 'Олимпиад', ['1 + 2 + \\dots + n = \\dfrac{n(n + 1)}{2}', '\\text{тэгш} + \\text{сондгой} = \\text{сондгой}', 'a \\equiv b \\pmod m \\iff m \\mid (a - b)']],
+    // ерөнхий (4 дэх 1 — сул): тусгай сэдэв таарвал гарахгүй
+    [/өгүүлбэртэй бодлого|хоёр үйлдэлтэй|үйлдлийн гишүүд|гинжин үйлдэл|урвуу бодлого/, 'Бодлого бодох', ['a + b = c \\Rightarrow a = c - b', 'a - b = c \\Rightarrow a = b + c', 'a \\cdot b = c \\Rightarrow a = c : b', '\\text{Өгөгдөл} \\to \\text{бодолт} \\to \\text{шалгах}'], 1],
+    [/дүрс/, 'Дүрс', ['\\text{Гурвалжин — 3 тал, 3 өнцөг}', '\\text{Тэгш өнцөгт — 4 тэгш өнцөг}', '\\text{Квадрат — 4 тал тэнцүү}', '\\text{Тойрог — төвөөс ижил зайтай}'], 1],
+    [/урт, хугацаа|хүндийг|хугацааг|хэмжих/, 'Хэмжих нэгж', ['1\\ \\text{км} = 1000\\ \\text{м}', '1\\ \\text{м} = 100\\ \\text{см} = 1000\\ \\text{мм}', '1\\ \\text{т} = 1000\\ \\text{кг},\\quad 1\\ \\text{кг} = 1000\\ \\text{г}', '1\\ \\text{хоног} = 24\\ \\text{цаг}', '1\\ \\text{цаг} = 60\\ \\text{мин},\\quad 1\\ \\text{мин} = 60\\ \\text{с}'], 1],
+    [/үржих|үржүүлэх|үржвэр/, 'Үржүүлэх', ['a \\cdot b = b \\cdot a', '(a \\cdot b) \\cdot c = a \\cdot (b \\cdot c)', 'a(b + c) = ab + ac', '\\text{Баганаар: нэгжээс эхэлж үржүүлнэ}'], 1],
+    [/хуваах|хуваалт/, 'Хуваах', ['a = b \\cdot q + r,\\quad 0 \\le r < b', '\\text{Шалгах: } q \\cdot b + r = a', 'a : 1 = a,\\quad a : a = 1,\\quad 0 : a = 0', '\\text{Тэгт хуваахгүй}'], 1],
+    [/^(?!.*нэмэх арга).*(нэмэх|хасах)/, 'Нэмэх, хасах', ['a + b = b + a', '(a + b) + c = a + (b + c)', 'a - b = c \\iff c + b = a', '\\text{Баганаар: ижил оронг дор нь бичнэ}'], 1],
+    [/тоог унших|унших, бичих|тоог жиших|бутархайг жиших|бутархай жиших|эрэмбэлэх|хүртэлх тоо|олон оронтой тоо/, 'Тоо, орон', ['1\\,000\\,000 = 10^6\\ (\\text{сая})', '\\text{Орон: нэгж, аравт, зуут, мянгат}', '\\text{Олон оронтой нь их}', '\\text{Тэнцүү бол ахлах оронгоос жишнэ}'], 1],
+  ];
+  // Сэдэв таарахгүй (бүлгийн жишиг даалгавар, шалгалтын материал, давтлага) — тухайн ангийн гол томьёо
+  var GRADE_HINTS = {
+    3: ['a + b = b + a,\\quad a \\cdot b = b \\cdot a', 'a(b + c) = ab + ac', '1\\ \\text{м} = 100\\ \\text{см},\\ 1\\ \\text{цаг} = 60\\ \\text{мин}'],
+    4: ['a = b \\cdot q + r,\\quad r < b', 's = v \\cdot t', '1\\ \\text{кг} = 1000\\ \\text{г},\\ 1\\ \\text{км} = 1000\\ \\text{м}'],
+    5: ['\\dfrac{a}{b} \\cdot \\dfrac{c}{d} = \\dfrac{ac}{bd}', 'S = ab,\\quad P = 2(a + b)', '\\text{Хуваагдах шинж: 2, 3, 5, 9, 10}'],
+    6: ['(-)(-) = +,\\quad (+)(-) = -', 'ax + b = 0 \\Rightarrow x = -\\tfrac{b}{a}', 'p\\% = \\tfrac{p}{100}', 'a(b + c) = ab + ac'],
+    7: ['ax + bx = (a + b)x', '(a + b)(c + d) = ac + ad + bc + bd', 'x^m x^n = x^{m+n}', 'P(A) = \\tfrac{m}{n}'],
+    8: ['y = kx + b,\\quad k = \\tfrac{y_2 - y_1}{x_2 - x_1}', '\\text{Систем: орлуулах, нэмэх, график}', 'c < 0:\\ a < b \\Rightarrow ac > bc', 'a \\cdot 10^n,\\quad 1 \\le a < 10'],
+    9: ['(a \\pm b)^2 = a^2 \\pm 2ab + b^2', 'a^2 - b^2 = (a - b)(a + b)', 'x_{1,2} = \\tfrac{-b \\pm \\sqrt{D}}{2a}', 'a^2 + b^2 = c^2'],
+    10: ['y = \\tfrac{k}{x},\\quad y = a^x', 'k_1 k_2 = -1 \\iff \\perp', '\\tfrac{P(x)}{Q(x)} = 0 \\iff P = 0,\\ Q \\ne 0', '|x| < a \\iff -a < x < a'],
+    11: ['\\sin^2\\alpha + \\cos^2\\alpha = 1', '180^\\circ = \\pi', '\\text{Тэгш: } f(-x) = f(x)', '\\det\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix} = ad - bc'],
+    12: ["(x^n)' = n x^{n-1}", '\\int x^n dx = \\tfrac{x^{n+1}}{n + 1} + C', '\\log_a b = \\tfrac{\\ln b}{\\ln a}', "(e^x)' = e^x"],
+  };
+  // txt — хуудасны гарчиг (document.title — «(N-р анги)»-тай) + хаяг; ихдээ 2 карт. Ерөнхий (сул) карт зөвхөн тусгай нь
+  // олдоогүй үед. Сэдэв огт таарахгүй бол ангийн гол томьёо.
+  function hintsFor(txt) {
+    txt = String(txt || '').toLowerCase().replace(/\s+/g, ' ');
+    var all = HINTS.filter(function (x) { return x[0].test(txt); }), strong = all.filter(function (x) { return !x[3]; });
+    var out = (strong.length ? strong : all).slice(0, 2);
+    var g = /(\d{1,2})-р анги/.exec(txt);
+    if (!out.length && g && GRADE_HINTS[+g[1]]) out = [[null, g[1] + '-р анги — гол томьёо', GRADE_HINTS[+g[1]]]];
+    return out;
+  }
+
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = { newPage: newPage, emptyGeo: emptyGeo, addStroke: addStroke, clearPage: clearPage, delStrokes: delStrokes, geoOp: geoOp, undo: undo, redo: redo,
       inPoly: inPoly, polyArea: polyArea, insideFrac: insideFrac, eraseLasso: eraseLasso, gestureOf: gestureOf, palmAt: palmAt,
       normStroke: normStroke, inkOn: inkOn, INK_L: INK_L, INK_D: INK_D, compileFn: compileFn, calcEval: calcEval, toFrac: toFrac, fmtCalc: fmtCalc,
-      fmtNum: fmtNum, ptName: ptName, normGeo: normGeo };
+      fmtNum: fmtNum, ptName: ptName, normGeo: normGeo, HINTS: HINTS, GRADE_HINTS: GRADE_HINTS, hintsFor: hintsFor };
     return;
   }
 
@@ -607,7 +763,7 @@
     }, true);
     bindDraw(); bindSplit(); bindZoom(); bindCalc(); bindScroll();
     el.hint.querySelector('.wsb-hx').addEventListener('click', function () { hintOpen(false); });
-    var hs = hintsFor(); if (hs.length) { el.hint.querySelector('.wsb-hb').innerHTML = hintHtml(hs); el.tools.querySelector('.wsb-hintb').hidden = false; }
+    var hs = pageHints(); if (hs.length) { el.hint.querySelector('.wsb-hb').innerHTML = hintHtml(hs); el.tools.querySelector('.wsb-hintb').hidden = false; }
     // Хулганы дугуй: гүйлгэнэ (Shift — хэвтээ); Ctrl+дугуй, тачпадын чимхэлт — томруулна; координатын хавтгайд дугуй томруулна (GeoGebra шиг)
     el.paper.addEventListener('wheel', function (e) {
       if (st.ro) return;
@@ -1348,41 +1504,10 @@
     h.addEventListener('pointerup', up); h.addEventListener('pointercancel', up);
   }
 
-  /* ── Санамж (эзэмшигч: «Тухайн ажлын хуудастай хамааралтай томьёо теоремыг хэт нуршихгүй ойлгомжтой байдлаар санамж гэсэн
-     товчинд … самбараа нээсэн үед л харагдах ёстой. хэт олон үг … хэрэггүй»): хуудасны гарчиг/хаягаас сэдвийг таньж, гол томьёо
-     (KaTeX). Таарах сэдэвгүй бол товч гарахгүй. ── */
-  var HINTS = [
-    [/логарифм|logarifm|log-/, 'Логарифм', ['\\log_a b = c \\iff a^c = b', '\\log_a(xy) = \\log_a x + \\log_a y', '\\log_a \\tfrac{x}{y} = \\log_a x - \\log_a y', '\\log_a x^k = k\\log_a x', '\\log_a b = \\dfrac{\\log_c b}{\\log_c a}', 'a^{\\log_a b} = b']],
-    [/квадрат тэгшитгэл|kvadrat-tegsh|kv-tegsh|виет/, 'Квадрат тэгшитгэл', ['ax^2 + bx + c = 0', 'D = b^2 - 4ac', 'x_{1,2} = \\dfrac{-b \\pm \\sqrt{D}}{2a}', 'x_1 + x_2 = -\\dfrac{b}{a},\\quad x_1 x_2 = \\dfrac{c}{a}']],
-    [/квадрат функц|парабол|kvadrat-funk|parabol|grafik-ax2/, 'Квадрат функц', ['y = ax^2 + bx + c', 'x_0 = -\\dfrac{b}{2a},\\quad y_0 = -\\dfrac{D}{4a}', 'a > 0 \\Rightarrow \\text{салаа дээш}']],
-    [/зэрэг|zereg|илтгэгч|iltgegch/, 'Зэрэг', ['a^m \\cdot a^n = a^{m+n}', 'a^m : a^n = a^{m-n}', '(a^m)^n = a^{mn}', '(ab)^n = a^n b^n', 'a^0 = 1,\\quad a^{-n} = \\dfrac{1}{a^n}', 'a^{\\frac{m}{n}} = \\sqrt[n]{a^m}']],
-    [/язгуур|yazguur|sqrt/, 'Язгуур', ['\\sqrt{ab} = \\sqrt{a}\\sqrt{b}', '\\sqrt{\\tfrac{a}{b}} = \\dfrac{\\sqrt{a}}{\\sqrt{b}}', '(\\sqrt{a})^2 = a,\\quad \\sqrt{a^2} = |a|', '\\sqrt[n]{a^m} = a^{\\frac{m}{n}}']],
-    [/товчилсон|tovchilson|үржвэрийн томьёо|задла|zadlal/, 'Товчилсон үржүүлэх томьёо', ['(a \\pm b)^2 = a^2 \\pm 2ab + b^2', 'a^2 - b^2 = (a - b)(a + b)', '(a \\pm b)^3 = a^3 \\pm 3a^2b + 3ab^2 \\pm b^3', 'a^3 \\pm b^3 = (a \\pm b)(a^2 \\mp ab + b^2)']],
-    [/пифагор|pifagor/, 'Пифагорын теорем', ['a^2 + b^2 = c^2', 'c = \\sqrt{a^2 + b^2}']],
-    [/тригонометр|trigonometr|синус|косинус|\bsin|\bcos|\btg\b/, 'Тригонометр', ['\\sin^2\\alpha + \\cos^2\\alpha = 1', '\\operatorname{tg}\\alpha = \\dfrac{\\sin\\alpha}{\\cos\\alpha}', '1 + \\operatorname{tg}^2\\alpha = \\dfrac{1}{\\cos^2\\alpha}', '\\sin 2\\alpha = 2\\sin\\alpha\\cos\\alpha', '\\cos 2\\alpha = \\cos^2\\alpha - \\sin^2\\alpha']],
-    [/гурвалжин|gurvaljin/, 'Гурвалжин', ['\\angle A + \\angle B + \\angle C = 180^\\circ', 'S = \\tfrac{1}{2} a h_a = \\tfrac{1}{2} ab\\sin C', '\\dfrac{a}{\\sin A} = \\dfrac{b}{\\sin B} = \\dfrac{c}{\\sin C} = 2R', 'c^2 = a^2 + b^2 - 2ab\\cos C']],
-    [/өнцөг|ontsog/, 'Өнцөг', ['\\text{Хамар өнцгүүд: } \\alpha + \\beta = 180^\\circ', '\\text{Босоо өнцгүүд тэнцүү}', '\\text{Гурвалжны өнцгүүд: } 180^\\circ']],
-    [/талбай|talbai|периметр|perimetr/, 'Талбай, периметр', ['\\text{Тэгш өнцөгт: } S = ab,\\; P = 2(a + b)', '\\text{Гурвалжин: } S = \\tfrac{1}{2} a h', '\\text{Параллелограмм: } S = a h', '\\text{Трапец: } S = \\tfrac{a + b}{2} h', '\\text{Дугуй: } S = \\pi r^2']],
-    [/тойрог|toirog|дугуй|dugui/, 'Тойрог, дугуй', ['C = 2\\pi r', 'S = \\pi r^2', 'l = \\dfrac{\\pi r \\alpha}{180^\\circ}']],
-    [/эзлэхүүн|ezlehuun|биет|цилиндр|конус|бөмбөг/, 'Эзлэхүүн', ['\\text{Шоо: } V = a^3', '\\text{Тэгш өнцөгт параллелепипед: } V = abc', '\\text{Цилиндр: } V = \\pi r^2 h', '\\text{Конус: } V = \\tfrac{1}{3}\\pi r^2 h', '\\text{Бөмбөрцөг: } V = \\tfrac{4}{3}\\pi r^3']],
-    [/бутархай|butarhai/, 'Бутархай', ['\\dfrac{a}{b} + \\dfrac{c}{d} = \\dfrac{ad + bc}{bd}', '\\dfrac{a}{b} \\cdot \\dfrac{c}{d} = \\dfrac{ac}{bd}', '\\dfrac{a}{b} : \\dfrac{c}{d} = \\dfrac{ad}{bc}']],
-    [/хувь|huvi|процент/, 'Хувь', ['a\\text{-ийн } p\\% = \\dfrac{a \\cdot p}{100}', 'p = \\dfrac{a}{b} \\cdot 100\\%']],
-    [/пропорц|proporc|харьцаа|haritsaa/, 'Пропорц', ['\\dfrac{a}{b} = \\dfrac{c}{d} \\iff ad = bc']],
-    [/арифметик прогресс|arifmetik|прогресс|progress|дараалал|daraalal/, 'Прогресс', ['a_n = a_1 + (n - 1)d', 'S_n = \\dfrac{(a_1 + a_n)\\,n}{2}', 'b_n = b_1 q^{\\,n-1}', 'S_n = \\dfrac{b_1(q^n - 1)}{q - 1}']],
-    [/шугаман функц|шулууны тэгшитгэл|shugaman-funk|linear|y-kx/, 'Шугаман функц', ['y = kx + b', 'k = \\dfrac{y_2 - y_1}{x_2 - x_1}', '\\parallel:\\ k_1 = k_2,\\qquad \\perp:\\ k_1 k_2 = -1']],
-    [/координат|koordinat|хоёр цэгийн зай/, 'Координат', ['d = \\sqrt{(x_2 - x_1)^2 + (y_2 - y_1)^2}', 'M\\left(\\dfrac{x_1 + x_2}{2};\\ \\dfrac{y_1 + y_2}{2}\\right)']],
-    [/вектор|vektor/, 'Вектор', ['\\vec a + \\vec b = (x_1 + x_2;\\ y_1 + y_2)', '|\\vec a| = \\sqrt{x^2 + y^2}', '\\vec a \\cdot \\vec b = x_1 x_2 + y_1 y_2']],
-    [/модуль|modul/, 'Модуль', ['|a| = a\\ (a \\ge 0),\\quad |a| = -a\\ (a < 0)', '|x| < a \\iff -a < x < a', '|x| > a \\iff x < -a \\text{ эсвэл } x > a']],
-    [/магадлал|magadlal/, 'Магадлал', ['P(A) = \\dfrac{m}{n}', 'P(\\bar A) = 1 - P(A)']],
-    [/сэлгэмэл|хэлхээс|байрлал|комбинатор|kombinator/, 'Комбинаторик', ['P_n = n!', 'A_n^k = \\dfrac{n!}{(n - k)!}', 'C_n^k = \\dfrac{n!}{k!\\,(n - k)!}']],
-    [/уламжлал|ulamjlal/, 'Уламжлал', ['(x^n)\' = n x^{n-1}', '(\\sin x)\' = \\cos x,\\quad (\\cos x)\' = -\\sin x', '(e^x)\' = e^x,\\quad (\\ln x)\' = \\dfrac{1}{x}', '(uv)\' = u\'v + uv\'']],
-    [/интеграл|integral/, 'Интеграл', ['\\int x^n dx = \\dfrac{x^{n+1}}{n + 1} + C', '\\int \\dfrac{dx}{x} = \\ln|x| + C', '\\int_a^b f(x)\\,dx = F(b) - F(a)']],
-    [/үйлдлийн дараалал|зэрэгцээ үйлдэл|hosolson|холимог үйлдэл/, 'Үйлдлийн дараалал', ['1)\\ (\\;)\\quad 2)\\ \\times,\\ :\\quad 3)\\ +,\\ -']],
-    [/тоймлох|toimloh/, 'Тоймлох', ['\\text{Дараагийн цифр } \\ge 5 \\Rightarrow \\text{нэмэгдүүлнэ}', '\\text{Дараагийн цифр } < 5 \\Rightarrow \\text{хэвээр}']],
-  ];
-  function hintsFor() {
-    var h = D.querySelector('#sheet .head h1, .head h1, #sheet h1'), txt = (((h && h.textContent) || D.title || '') + ' ' + location.pathname).toLowerCase();
-    return HINTS.filter(function (x) { return x[0].test(txt); }).slice(0, 2);
+  // Санамж — өгөгдөл, сэдэв таних нь дээрх загварын хэсэгт (HINTS, hintsFor)
+  function pageHints() {
+    var h = D.querySelector('#sheet .head h1, .head h1, #sheet h1');
+    return hintsFor(D.title + ' ' + ((h && h.textContent) || '') + ' ' + location.pathname);
   }
   function hintHtml(list) {
     var K = W.katex, esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
@@ -1576,5 +1701,5 @@
     bump();
   }
   root.wsBoard = { open: open, close: close, toggle: function () { if (st.on) close(); else open(); }, isOpen: function () { return st.on; },
-    rev: function () { return rv; }, state: state, mirror: mirror, setZoom: setZoom, isMirror: function () { return st.ro; }, _st: st };
+    rev: function () { return rv; }, state: state, mirror: mirror, setZoom: setZoom, isMirror: function () { return st.ro; }, _st: st, _hints: { HINTS: HINTS, GRADE_HINTS: GRADE_HINTS } };
 })(typeof window !== 'undefined' ? window : globalThis);
