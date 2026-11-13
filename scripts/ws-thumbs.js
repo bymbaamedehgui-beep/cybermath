@@ -114,7 +114,7 @@ async function shot(page, base, slug) {
 
   const srv = await serve();
   const base = 'http://127.0.0.1:' + srv.address().port;
-  const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--hide-scrollbars'] });
+  const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--hide-scrollbars', '--edge-skip-compat-layer-relaunch'] });   // Edge 156+: туггүй бол эхлэхгүй
   try {
     const slugs = await catalogSlugs(browser, base);
     if (slugs.length < 100) throw new Error('каталог дутуу ачаалагдлаа (' + slugs.length + ')');

@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ЭЕШ 1000 — Уламжлал-1</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/e1k.js?v=2"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* ЭЕШ 1000 — Уламжлал-1 — ЭЕШ-ийн 1000 бодлого, агуулгаар: Уламжлал бодох: үндсэн томьёо, үржвэр, ногдвор, давхар функц, 2-р эрэмбийн уламжлал.
+   Эх: 1.16, 3.41, 3.64, 3.66, 2.42, 2.43, 3.65, 1.46, 1.68, 2.44, 2.45, 2.46, 2.47, 3.73, 2.41 (хэсэг.бодлого). Бодлого бүр өөрийн генератортой: «Шинэ бодлого» дарахад тоо нь өөрчлөгдөнө. */
+
+/* 1.16 */
+var e1_16 = (function () {
+// 16. f(x) = dx³ + ax² + bx + c  →  f'(x) = 3dx² + 2ax + b  (ихэвчлэн квадрат, заримдаа куб).
+// Бодолтын завсрын мөр: гишүүн бүрийн уламжлал (үржвэрийг бодоогүй) — [-2, 4, -5, 7] → -2\cdot 3x^{2}+4\cdot 2x-5
+function p16_mid(cs) {
+  var deg = cs.length - 1, out = '';
+  cs.forEach(function (c, i) {
+    var p = deg - i, xv = p === 2 ? 'x' : 'x^{' + (p - 1) + '}';
+    if (p === 0 || !c) return;
+    if (p === 1) out += out ? sgn(c) : dec(c);
+    else out += (c < 0 ? '-' : out ? '+' : '') + (Math.abs(c) === 1 ? '' : Math.abs(c) + '\\cdot ') + p + xv;
+  });
+  return out;
+}
+function p16() {
+  var cub = rnd(0, 9) < 3, d = cub ? nz(-3, 3) : 0, a = nz(-5, 5), b = nz(-9, 9), c = rnd(-9, 9);
+  var f = cub ? [d, a, b, c] : [a, b, c], df = cub ? [3 * d, 2 * a, b] : [2 * a, b];
+  // Бодолт (гар бичмэл): f'(x) = (…)' = …  (зэрэгт функцийн уламжлал гишүүн бүрээр)
+  var mid = p16_mid(f), res = poly(df);
+  return {
+    q: '$f(x)=' + poly(f) + '$ функцийн уламжлалыг ол.',
+    a: "$f'(x)=" + poly(df) + '$',
+    wk: 18,
+    s: [
+      "Гишүүн бүрийн уламжлалыг $(x^n)'=nx^{n-1}$, $(c)'=0$ томьёогоор олъё: "
+        + "$$f'(x)=\\left(" + poly(f) + "\\right)'=" + (mid === res ? '' : mid + '=') + res + '.$$'
+    ],
+    t: { f: f }
+  };
+}
+return p16;
+})();
+
+/* 3.41 */
+var e3_41 = (function () {
+// 41. Уламжлалыг гишүүн бүрээр: (a·sin kx)' = ak·cos kx, (a·cos kx)' = −ak·sin kx, (c·xⁿ)' = cn·xⁿ⁻¹, (тогтмол)' = 0.
+//     Хэлбэр: a·sin x + c, a·cos x + c, a·sin x + b·cos x, a·sin kx + c, a·cos kx + c, тригонометр + xⁿ холимог;
+//     тогтмол заримдаа урд талд.   (эх: y = sin x + 1 → y' = cos x)
+function p41_tx(T, first) {   // гишүүн [төрөл 's'|'c'|'p', коэф, k|n] → TeX
+  var c = T[1], n = T[2];
+  if (T[0] !== 'p') return tm(c, (T[0] === 's' ? '\\sin ' : '\\cos ') + (n === 1 ? '' : n) + 'x', first);
+  if (n === 0) return first ? dec(c) : sgn(c);
+  return tm(c, n === 1 ? 'x' : 'x^' + n, first);
+}
+function p41_dt(T) {   // гишүүний уламжлал (тогтмолынх null)
+  if (T[0] === 's') return ['c', T[1] * T[2], T[2]];
+  if (T[0] === 'c') return ['s', -T[1] * T[2], T[2]];
+  return T[2] ? ['p', T[1] * T[2], T[2] - 1] : null;
+}
+function p41_sum(L) { return L.filter(Boolean).map(function (T, i) { return p41_tx(T, !i); }).join(''); }
+function p41() {
+  var f = pick([0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5]), A = pick([1, 1, 2, 3, 4, 5, -1, -1, -2, -3, -4]), B = pick([1, 2, 3, 4, -1, -2, -3]);
+  var k = rnd(2, 5), c = rnd(0, 3) ? nz(-9, 9) : 0, L;
+  if (f === 0) L = [['s', A, 1]];
+  else if (f === 1) L = [['c', A, 1]];
+  else if (f === 2) { L = [['s', A, 1], ['c', B, 1]]; if (rnd(0, 1)) L.reverse(); if (rnd(0, 2)) c = 0; }
+  else if (f === 3) L = [['s', A, k]];
+  else if (f === 4) L = [['c', A, k]];
+  else { L = [[pick(['s', 'c']), A, 1], ['p', B, pick([1, 2, 2, 3])]]; if (rnd(0, 1)) L.reverse(); if (rnd(0, 1)) c = 0; }
+  if (c) { if (rnd(0, 2) || c < 0) L.push(['p', c, 0]); else L.unshift(['p', c, 0]); }   // сөрөг тогтмол урд биш
+  return {
+    q: '$y=' + p41_sum(L) + '$ функцийн уламжлал нь аль вэ?',
+    a: "$y'=" + p41_sum(L.map(p41_dt)) + '$',
+    wk: 16,
+    t: { L: L }
+  };
+}
+return p41;
+})();
+
+/* 3.64 */
+var e3_64 = (function () {
+// 64. (tg kx)' = k/cos²kx, (ctg kx)' = −k/sin²kx, (mx)' = m, (тогтмол)' = 0.
+//     Хэлбэр: a ± b·tg x, b·tg x + a, a·ctg x (+c), tg kx, b·tg kx (+c), a·ctg kx, mx ± b·tg x, b·tg x ± ctg x.
+//     (эх: y = 5 − tg x → y' = −1/cos²x)
+function p64_tx(T, first) {   // гишүүн [төрөл 't'|'k'|'p', коэф, k|n] → TeX
+  var c = T[1], n = T[2];
+  if (T[0] !== 'p') return tm(c, '\\operatorname{' + (T[0] === 't' ? 'tg' : 'ctg') + '}' + (n === 1 ? 'x' : n + 'x'), first);
+  if (n === 0) return first ? dec(c) : sgn(c);
+  return tm(c, 'x', first);
+}
+function p64_dx(T, first) {   // гишүүний уламжлал → TeX (тогтмолынх '')
+  var c = T[1], n = T[2], v, den;
+  if (T[0] === 'p') return n ? (first ? dec(c) : sgn(c)) : '';
+  v = T[0] === 't' ? c * n : -c * n;
+  den = (T[0] === 't' ? '\\cos^2' : '\\sin^2') + (n === 1 ? 'x' : ' ' + n + 'x');
+  return (v < 0 ? '-' : first ? '' : '+') + '\\dfrac{' + Math.abs(v) + '}{' + den + '}';
+}
+function p64() {
+  var f = pick([0, 0, 0, 1, 1, 2, 2, 3, 4, 4, 5, 6, 7]), b = pick([1, 1, 1, 2, 3, 4, 5, -1, -1, -2, -3]), k = rnd(2, 6);
+  var c = rnd(0, 2) ? nz(-9, 9) : 0, L;
+  if (f === 0) { L = [['p', rnd(1, 9), 0], ['t', b, 1]]; c = 0; }   // a ± b·tg x (эх хэлбэр)
+  else if (f === 1) L = [['t', b, 1]];
+  else if (f === 2) L = [['k', b, 1]];
+  else if (f === 3) L = [['t', 1, k]];
+  else if (f === 4) { if (Math.abs(b) === 1) b *= rnd(2, 4); if (Math.abs(b) * k > 30) return null; L = [['t', b, k]]; }
+  else if (f === 5) { if (Math.abs(b) * k > 30) return null; L = [['k', b, k]]; }
+  else if (f === 6) { L = [['p', nz(-6, 6), 1], ['t', b, 1]]; if (rnd(0, 1)) L.reverse(); c = 0; }
+  else { L = [['t', b, 1], ['k', pick([1, -1, 2, -2, 3]), 1]]; if (rnd(0, 1)) L.reverse(); c = 0; }
+  if (c) { if (rnd(0, 2) || c < 0) L.push(['p', c, 0]); else L.unshift(['p', c, 0]); }   // сөрөг тогтмол урд биш
+  var D = '', Y = L.map(function (T, i) { return p64_tx(T, !i); }).join('');
+  L.forEach(function (T) { D += p64_dx(T, !D); });
+  return {
+    q: '$y=' + Y + '$ функцийн уламжлал нь аль вэ?',
+    a: "$y'=" + D + '$',
+    wk: 16,
+    t: { L: L }
+  };
+}
+return p64;
+})();
+
+/* 3.66 */
+var e3_66 = (function () {
+// 66. (ln u)' = u'/u:  ln kx → 1/x;  ln xᵏ → k/x;  k·ln x → k/x;  a·ln kx → a/x;  ln kxⁿ → n/x;
+//     ln(kx + m) → k/(kx + m);  ln(m − kx) → k/(kx − m);  ln(x² + m) → 2x/(x² + m).   (эх: y = ln 3x → 1/x)
+function p66() {
+  var f = pick([0, 0, 1, 1, 2, 2, 3, 4, 5, 5, 5, 6, 6, 7]), k = rnd(2, 9), Y, D;
+  if (f === 0) { Y = '\\ln ' + k + 'x'; D = '\\dfrac{1}{x}'; }
+  else if (f === 1) { k = rnd(2, 7); Y = '\\ln x^' + k; D = '\\dfrac{' + k + '}{x}'; }
+  else if (f === 2) { k = pick([2, 3, 4, 5, 6, 7, 8, -2, -3, -4, -5]); Y = k + '\\ln x'; D = (k < 0 ? '-' : '') + '\\dfrac{' + Math.abs(k) + '}{x}'; }
+  else if (f === 3) { var a = rnd(2, 6); k = rnd(2, 7); Y = a + '\\ln ' + k + 'x'; D = '\\dfrac{' + a + '}{x}'; }
+  else if (f === 4) { var n = rnd(2, 5); k = rnd(2, 7); Y = '\\ln ' + k + 'x^' + n; D = '\\dfrac{' + n + '}{x}'; }
+  else if (f === 5) {
+    k = rnd(1, 6); var m = nz(-9, 9);
+    if (gcd(k, m) !== 1) return null;
+    Y = '\\ln(' + poly([k, m]) + ')'; D = '\\dfrac{' + k + '}{' + poly([k, m]) + '}';
+  }
+  else if (f === 6) {
+    k = rnd(1, 5); var mm = rnd(1, 9);
+    if (gcd(k, mm) !== 1) return null;
+    Y = '\\ln(' + mm + tm(-k, 'x') + ')'; D = '\\dfrac{' + k + '}{' + poly([k, -mm]) + '}';
+  }
+  else { var c = rnd(1, 9); Y = '\\ln(x^2+' + c + ')'; D = '\\dfrac{2x}{x^2+' + c + '}'; }
+  return {
+    q: '$y=' + Y + '$ бол $\\dfrac{dy}{dx}=?$',
+    a: '$\\dfrac{dy}{dx}=' + D + '$',
+    wk: 14,
+    t: { f: f }
+  };
+}
+return p66;
+})();
+
+/* 2.42 */
+var e2_42 = (function () {
+// 42. y = a·x^m + b·x^n (+ c), y'(±1) = a·m·(±1)^{m−1} + b·n·(±1)^{n−1}  (эх: y = 2x^{10} − 6x^5, y'(1) = −10).
+function p42() {
+  var m = rnd(6, 20), n = rnd(2, m - 1), a = nz(-9, 9), b = nz(-9, 9), c = rnd(0, 2) ? 0 : nz(-9, 9), x0 = rnd(0, 2) ? 1 : -1;
+  if (Math.abs(a) === 1 && Math.abs(b) === 1) return null;
+  var v = a * m * Math.pow(x0, m - 1) + b * n * Math.pow(x0, n - 1);
+  if (!v) return null;
+  return {
+    q: '$y=' + tm(a, 'x^{' + m + '}', true) + tm(b, 'x^{' + n + '}') + (c ? sgn(c) : '') + "$ бол $y'(" + x0 + ')$ утгыг ол.',
+    a: "$y'(" + x0 + ')=' + v + '$',
+    wk: 18,
+    t: { a: a, b: b, m: m, n: n, x0: x0 }
+  };
+}
+return p42;
+})();
+
+/* 2.43 */
+var e2_43 = (function () {
+// 43. y = A·sin kx, A·cos kx, A·tg kx:  y'(x₀) = Ak·cos kx₀,  −Ak·sin kx₀,  Ak/cos² kx₀  (kx₀ нь 30°/45°-ийн үржвэр).
+//     Утгыг n√r/d хэлбэрээр яг тооцно (эх: y = sin x, y'(0) = 1).
+var p43_X = [[0, 1], [0, 1], [1, 6], [1, 4], [1, 3], [1, 2], [2, 3], [3, 4], [5, 6], [1, 1]];    // x₀ = (p/q)·π
+var p43_C = { 0: [1, 1, 1], 30: [1, 3, 2], 45: [1, 2, 2], 60: [1, 1, 2], 90: [0, 1, 1] };          // cos ρ = n√r/d
+function p43_cos(deg) {   // cos(deg°) = [n, r, d] (n тэмдэгтэй)
+  var u = ((deg % 360) + 360) % 360, rho = u <= 90 ? u : u <= 180 ? 180 - u : u <= 270 ? u - 180 : 360 - u, c = p43_C[rho];
+  return [(u > 90 && u < 270 ? -1 : 1) * c[0], c[1], c[2]];
+}
+function p43_f(p, r, q) {   // p√r/q → TeX
+  if (!p) return '0';
+  var g = gcd(p, q); p /= g; q /= g;
+  var a = Math.abs(p), core = r === 1 ? String(a) : (a === 1 ? '' : a) + '\\sqrt{' + r + '}';
+  return (p < 0 ? '-' : '') + (q === 1 ? core : '\\dfrac{' + core + '}{' + q + '}');
+}
+function p43() {
+  var fn = pick(['sin', 'sin', 'cos', 'cos', 'tg']), A = pick([1, 1, 1, 2, 3, -1, -2]), k = fn === 'tg' ? pick([1, 1, 2]) : pick([1, 1, 2, 2, 3]), X = pick(p43_X);
+  var deg = k * 180 * X[0] / X[1], v;
+  if (fn === 'sin') { var c = p43_cos(deg); v = [A * k * c[0], c[1], c[2]]; }
+  else if (fn === 'cos') { var s = p43_cos(90 - deg); v = [-A * k * s[0], s[1], s[2]]; }
+  else { var t = p43_cos(deg); if (!t[0]) return null; v = [A * k * t[2] * t[2], 1, t[0] * t[0] * t[1]]; }
+  if (!v[0] && rnd(0, 2)) return null;
+  if (A === 1 && k === 1 && X[0] === 0 && rnd(0, 1)) return null;
+  var x0 = X[0] === 0 ? '0' : X[1] === 1 ? '\\pi' : '\\dfrac{' + (X[0] === 1 ? '' : X[0]) + '\\pi}{' + X[1] + '}';
+  var yp = X[1] > 1 ? "y'\\left(" + x0 + '\\right)' : "y'(" + x0 + ')';
+  var Y = tm(A, (fn === 'tg' ? '\\operatorname{tg} ' : '\\' + fn + ' ') + (k === 1 ? '' : k) + 'x', true);
+  return {
+    q: '$y=' + Y + '$ бол $' + yp + '$ утгыг ол.',
+    a: '$' + yp + '=' + p43_f(v[0], v[1], v[2]) + '$',
+    wk: 18,
+    t: { fn: fn, A: A, k: k }
+  };
+}
+return p43;
+})();
+
+/* 3.65 */
+var e3_65 = (function () {
+// 65. y = a·cos x + b ⇒ y'(x₀) = −a·sin x₀;  y = a·sin x + b ⇒ y'(x₀) = a·cos x₀.  x₀ = (p/q)π стандарт өнцөг,
+//     утгыг n√r/d хэлбэрээр яг тооцно (тэг утгатайг алгасна).   (эх: y = 2cos x − 3, y'(π/6) = −1)
+var p65_X = [[1, 6], [1, 4], [1, 3], [1, 2], [2, 3], [3, 4], [5, 6], [1, 1], [7, 6], [5, 4], [4, 3], [3, 2], [5, 3], [7, 4], [11, 6],
+  [-1, 6], [-1, 4], [-1, 3], [-1, 2]];
+var p65_S = { 0: [0, 1, 1], 30: [1, 1, 2], 45: [1, 2, 2], 60: [1, 3, 2], 90: [1, 1, 1] };   // sin ρ = n√r/d
+function p65_sin(deg) {   // sin(deg°) = [n, r, d] (n тэмдэгтэй)
+  var u = ((deg % 360) + 360) % 360, rho = u <= 90 ? u : u <= 180 ? 180 - u : u <= 270 ? u - 180 : 360 - u, v = p65_S[rho];
+  return [(u > 180 ? -1 : 1) * v[0], v[1], v[2]];
+}
+function p65_v(n, r, d) {   // n√r/d → TeX (хураасан)
+  if (!n) return '0';
+  var g = gcd(n, d); n /= g; d /= g;
+  var core = r === 1 ? String(Math.abs(n)) : rt(Math.abs(n), r);
+  return (n < 0 ? '-' : '') + (d === 1 ? core : '\\dfrac{' + core + '}{' + d + '}');
+}
+function p65_x(p, q) {   // (p/q)π → TeX
+  var a = Math.abs(p), num = (a === 1 ? '' : a) + '\\pi';
+  return (p < 0 ? '-' : '') + (q === 1 ? num : '\\dfrac{' + num + '}{' + q + '}');
+}
+function p65() {
+  var C = rnd(0, 2) > 0, a = pick([1, 2, 2, 3, 4, 5, 6, -1, -2, -3, -4]), b = rnd(0, 5) ? nz(-9, 9) : 0, X = pick(p65_X);
+  var deg = 180 * X[0] / X[1], s = C ? p65_sin(deg) : p65_sin(90 - deg);   // cos x → y' = −a·sin x₀; sin x → y' = a·cos x₀
+  var n = (C ? -a : a) * s[0];
+  if (!n) return null;
+  if (X[0] < 0 && rnd(0, 1)) return null;           // сөрөг өнцөг цөөн
+  var fn = C ? '\\cos x' : '\\sin x', Y = rnd(0, 3) || !b ? tm(a, fn, true) + (b ? sgn(b) : '') : b + tm(a, fn);
+  var yp = "y'\\left(" + p65_x(X[0], X[1]) + '\\right)';
+  return {
+    q: '$y=' + Y + '$ бол $' + yp + '=?$',
+    a: '$' + yp + '=' + p65_v(n, s[1], s[2]) + '$',
+    wk: 18,
+    t: { C: C, a: a, b: b, X: X }
+  };
+}
+return p65;
+})();
+
+/* 1.46 */
+var e1_46 = (function () {
+// 46. f'(a)-ийн утга. Хэлбэрүүд (a = s² язгууртайд):
+//     k/√x → −k/(2s³);  k√x → k/(2s);  k·x√x → 3ks/2;  k/x² → −2k/a³ (a бүхэл).
+function p46() {
+  var f = pick([0, 0, 1, 2, 3]), k = rnd(1, 6), s, a, n, d, tex;
+  if (f === 0) { s = rnd(1, 3); a = s * s; n = -k; d = 2 * s * s * s; tex = '\\dfrac{' + k + '}{\\sqrt{x}}'; }
+  else if (f === 1) { s = rnd(1, 5); a = s * s; n = k; d = 2 * s; tex = (k === 1 ? '' : k) + '\\sqrt{x}'; }
+  else if (f === 2) { s = rnd(1, 4); a = s * s; n = 3 * k * s; d = 2; tex = (k === 1 ? '' : k) + 'x\\sqrt{x}'; }
+  else { a = pick([1, 2, 3, -1, -2]); n = -2 * k; d = a * a * a; tex = '\\dfrac{' + k + '}{x^2}'; }
+  if (Math.abs(d) / gcd(n, d) > 64) return null;
+  if (a === 1 && f !== 3 && k === 1) return null;
+  // Бодолт (гар бичмэл): зэрэгт хэлбэрт шилжүүлээд (x^n)' = n·x^(n−1), дараа нь x = a-г орлуулна
+  var K = k === 1 ? '' : k + '\\cdot ', g = gcd(k, 2), kn = k / g, kd = 2 / g, ch, at;
+  if (f === 0) {
+    ch = '\\left(' + tex + '\\right)\'=\\left(' + K + 'x^{-0.5}\\right)\'=' + K + '(-0.5)\\cdot x^{-1.5}=-\\dfrac{' + kn + '}{' + (kd === 1 ? '' : kd) + 'x\\sqrt{x}}';
+    at = '-\\dfrac{' + kn + '}{' + (kd === 1 ? '' : kd + '\\cdot ') + a + '\\cdot\\sqrt{' + a + '}}';
+  } else if (f === 1) {
+    ch = '\\left(' + tex + '\\right)\'=\\left(' + K + 'x^{0.5}\\right)\'=' + K + '0.5\\cdot x^{-0.5}=\\dfrac{' + kn + '}{' + (kd === 1 ? '' : kd) + '\\sqrt{x}}';
+    at = '\\dfrac{' + kn + '}{' + (kd === 1 ? '' : kd) + '\\sqrt{' + a + '}}' + (kd === 1 ? '' : '=\\dfrac{' + kn + '}{' + kd + '\\cdot ' + s + '}');
+  } else if (f === 2) {
+    ch = '\\left(' + tex + '\\right)\'=\\left(' + K + 'x^{1.5}\\right)\'=' + K + '1.5\\cdot x^{0.5}=' + tm([3 * k, 2], '\\sqrt{x}', true);
+    at = tm([3 * k, 2], '', true) + '\\cdot\\sqrt{' + a + '}=' + tm([3 * k, 2], '', true) + '\\cdot ' + s;
+  } else {
+    ch = '\\left(' + tex + '\\right)\'=\\left(' + K + 'x^{-2}\\right)\'=' + K + '(-2)\\cdot x^{-3}=-\\dfrac{' + 2 * k + '}{x^3}';
+    at = '-\\dfrac{' + 2 * k + '}{' + par(a) + '^3}';
+  }
+  return {
+    q: '$f(x)=' + tex + '$ функцийн хувьд $f\'(' + a + ')$-' + suf(a, 'ын') + ' утгыг ол.',
+    a: '$f\'(' + a + ')=' + fr(n, d) + '$',
+    wk: 22,
+    s: [
+      'Функцийг зэрэгт хэлбэрт шилжүүлж $(x^n)\'=nx^{n-1}$ томьёогоор уламжлалыг олбол $$f\'(x)=' + ch + '.$$',
+      '$$f\'(' + a + ')=' + (a === 1 ? '' : at + '=') + fr(n, d) + '.$$'
+    ],
+    t: { f: f, k: k, a: a }
+  };
+}
+return p46;
+})();
+
+/* 1.68 */
+var e1_68 = (function () {
+// 68. f(x) = (αx + β)^n ⇒ f'(x) = n·α·(αx + β)^{n−1}.  Хэлбэр: (a − bx), (a + bx), (bx − a), (bx + a).
+function p68() {
+  var n = rnd(3, 8), b = rnd(1, 4), a = rnd(1, 9), form = rnd(0, 3);
+  var al = form === 0 ? -b : b, be = form === 2 ? -a : a;
+  var u = form < 2 ? a + tm(al, 'x', false) : tm(b, 'x', true) + sgn(be);
+  // Бодолт (гар бичмэл): t = αx + β, t' = α; f'(x) = (tⁿ)'·t' = n·tⁿ⁻¹·α.
+  return {
+    q: '$f(x)=(' + u + ')^{' + n + '}$ функцийн уламжлалыг ол.',
+    a: "$f'(x)=" + (n * al) + '(' + u + ')^{' + (n - 1) + '}$',
+    wk: 20,
+    s: [
+      "$t=" + u + "$ гэж орлуулбал $f=t^{" + n + "}$, $t'=" + al + "$.",
+      "Нийлмэл функцийн уламжлалын томьёогоор $$f'(x)=\\left(t^{" + n + "}\\right)'\\cdot t'=" + n + "t^{" + (n - 1) + "}\\cdot " + par(al) + "=" + (n * al) + '(' + u + ')^{' + (n - 1) + '}.$$'
+    ],
+    t: {}
+  };
+}
+return p68;
+})();
+
+/* 2.44 */
+var e2_44 = (function () {
+// 44. y = (ax² + bx + c)ⁿ ⇒ y' = n(ax² + bx + c)ⁿ⁻¹·(2ax + b) ⇒ y'(0) = n·b·cⁿ⁻¹.
+//     Их бол зэргийн хэлбэрээр үлдээнэ (эх: (5x² − x + 5)³⁰ → −30·5²⁹).
+function p44() {
+  var a = nz(-9, 9), b = nz(-9, 9), c = pick([2, 2, 3, 3, 4, 5, 5, 6, 7, 1]), n = rnd(0, 5) ? rnd(6, 40) : pick([50, 60, 100]);
+  var K = n * b, P = Math.pow(c, n - 1);
+  var v = c === 1 || Math.abs(K * P) < 1e5 ? String(K * P) : K + '\\cdot ' + c + '^{' + (n - 1) + '}';
+  return {
+    q: '$y=(' + poly([a, b, c]) + ')^{' + n + "}$ бол $y'(0)=?$",
+    a: "$y'(0)=" + v + '$',
+    wk: 20,
+    t: { a: a, b: b, c: c, n: n }
+  };
+}
+return p44;
+})();
+
+/* 2.45 */
+var e2_45 = (function () {
+// 45. y = (ax² + bx + c)·e^{kx} ⇒ y' = (2ax + b + k(ax² + bx + c))·e^{kx}:
+//     y'(0) = b + kc;  y'(1) = (2a + b + k(a + b + c))·e^k  (эх: (x² − 5x + 6)eˣ, y'(0) = 1).
+function p45() {
+  var a = pick([1, 1, 1, 2, -1, 3]), b = nz(-9, 9), c = nz(-9, 9), x0 = rnd(0, 3) ? 0 : 1, k = x0 ? pick([1, 1, 2, -1]) : pick([1, 1, 1, 2, 3, -1, -2]), M, v;
+  if (!x0) { M = b + k * c; v = String(M); }
+  else {
+    M = 2 * a + b + k * (a + b + c);
+    v = k === -1 ? (M < 0 ? '-' : '') + '\\dfrac{' + Math.abs(M) + '}{e}' : tm(M, k === 1 ? 'e' : 'e^{' + k + '}', true);
+  }
+  if (!M || Math.abs(M) > 40) return null;
+  return {
+    q: '$y=(' + poly([a, b, c]) + ')e^{' + tm(k, 'x', true) + "}$ бол $y'(" + x0 + ')=?$',
+    a: "$y'(" + x0 + ')=' + v + '$',
+    wk: 20,
+    t: { a: a, b: b, c: c, k: k }
+  };
+}
+return p45;
+})();
+
+/* 2.46 */
+var e2_46 = (function () {
+// 46. y = p·sin x/(a + b·cos x) ⇒ y' = p(a·cos x + b)/(a + b·cos x)²:  y'(0) = p/(a + b),  y'(π/2) = pb/a²;
+//     y = p·cos x/(a + b·sin x) ⇒ y' = −p(a·sin x + b)/(a + b·sin x)²:  y'(0) = −pb/a²,  y'(π/2) = −p/(a + b).
+//     (эх: sin x/(1 + cos x), y'(0) = 1/2)
+function p46() {
+  var S = rnd(0, 2) > 0, p = pick([1, 1, 1, 1, 2, 3]), a = rnd(1, 5), b = pick([1, 1, 1, 2, -1, -1, 3, -2]), h = rnd(0, 3) === 0, n, d;   // h: x₀ = π/2
+  if (a + b === 0) return null;
+  if (S) { if (h) { n = p * b; d = a * a; } else { n = p; d = a + b; } }
+  else { if (h) { n = -p; d = a + b; } else { n = -p * b; d = a * a; } }
+  if (Math.abs(d) / gcd(n, d) > 36) return null;
+  var yp = h ? "y'\\left(\\dfrac{\\pi}{2}\\right)" : "y'(0)";
+  return {
+    q: '$y=\\dfrac{' + tm(p, S ? '\\sin x' : '\\cos x', true) + '}{' + a + tm(b, S ? '\\cos x' : '\\sin x') + '}$ бол $' + yp + '=?$',
+    a: '$' + yp + '=' + fr(n, d) + '$',
+    wk: 22,
+    t: { S: S, p: p, a: a, b: b }
+  };
+}
+return p46;
+})();
+
+/* 2.47 */
+var e2_47 = (function () {
+// 47. y = (ax + b)/(cx + d) ⇒ y' = (ad − bc)/(cx + d)²  (эх: (x − 1)/(x + 1), y'(1) = 1/2).
+function p47() {
+  var a = pick([1, 1, 1, 2, 3, -1, -2]), b = nz(-9, 9), c = pick([1, 1, 1, 2, 3]), d = nz(-9, 9), x0 = rnd(-2, 3);
+  if ((a < 0 && b < 0) || gcd(a, b) > 1 || gcd(c, d) > 1) return null;   // хүртвэр, хуваарь ерөнхий үржигдэхүүнгүй
+  var det = a * d - b * c, den = c * x0 + d;
+  if (!det || !den || Math.abs(den) > 6) return null;
+  return {
+    q: '$y=\\dfrac{' + (a > 0 ? poly([a, b]) : b + tm(a, 'x')) + '}{' + poly([c, d]) + "}$ бол $y'(" + x0 + ')=?$',
+    a: "$y'(" + x0 + ')=' + fr(det, den * den) + '$',
+    wk: 20,
+    t: { a: a, b: b, c: c, d: d }
+  };
+}
+return p47;
+})();
+
+/* 3.73 */
+var e3_73 = (function () {
+// 73. 2-р эрэмбийн уламжлал гишүүн бүрээр: (a·sin kx)'' = −ak²·sin kx, (b·cos kx)'' = −bk²·cos kx,
+//     (c·xⁿ)'' = cn(n−1)·xⁿ⁻² (n ≤ 1 бол 0), (d·e^{kx})'' = dk²·e^{kx}.   (эх: f(x) = sin x − 2x → f''(x) = −sin x)
+function p73_tx(T, first) {   // гишүүн [төрөл 's'|'c'|'p'|'e', коэф, k|n] → TeX ('' — тэг)
+  var c = T[1], n = T[2];
+  if (!c) return '';
+  if (T[0] === 's' || T[0] === 'c') return tm(c, (T[0] === 's' ? '\\sin ' : '\\cos ') + (n === 1 ? '' : n) + 'x', first);
+  if (T[0] === 'e') return tm(c, 'e^{' + tm(n, 'x', true) + '}', first);
+  if (n === 0) return first ? dec(c) : sgn(c);
+  return tm(c, n === 1 ? 'x' : 'x^' + n, first);
+}
+function p73_d2(T) {   // гишүүний 2-р уламжлал
+  var c = T[1], n = T[2];
+  if (T[0] === 's' || T[0] === 'c') return [T[0], -c * n * n, n];
+  if (T[0] === 'e') return ['e', c * n * n, n];
+  return n >= 2 ? ['p', c * n * (n - 1), n - 2] : ['p', 0, 0];
+}
+function p73_sum(L) { var out = ''; L.forEach(function (T) { out += p73_tx(T, !out); }); return out || '0'; }
+function p73() {
+  var f = pick([0, 0, 1, 1, 2, 3, 3, 4, 5]), A = pick([1, 1, 2, 3, 4, -1, -1, -2, -3]), B = pick([1, 2, 3, -1, -2, -3]);
+  var C = pick([1, 2, 3, 4, 5, -1, -2, -3, -4]), tr = pick(['s', 'c']), k = pick([1, 1, 2, 2, 3, 4]), L;
+  if (f === 0) L = [[tr, A, 1], ['p', C, 1]];                                     // эх: sin x − 2x
+  else if (f === 1) { L = [[tr, A, 1], ['p', C, pick([2, 3, 3, 4])]]; if (rnd(0, 1)) L.reverse(); }
+  else if (f === 2) { L = [['s', A, k], ['c', B, pick([1, 2, 3])]]; if (L[0][2] === L[1][2] && rnd(0, 1)) return null; }
+  else if (f === 3) { L = [[tr, A, pick([2, 3, 4, 5])], ['p', C, pick([1, 2, 3])]]; if (rnd(0, 1)) L.reverse(); }
+  else if (f === 4) L = [[tr, A, k], ['p', C, 3], ['p', B, 1]];
+  else { L = [['e', pick([1, 1, 2, 3, -1]), pick([1, 2, 3, -1, -2])], [tr, A, k]]; if (rnd(0, 1)) L.reverse(); }
+  if (rnd(0, 3) === 0) L.push(['p', nz(-9, 9), 0]);                              // заримдаа сул гишүүн
+  return {
+    q: '$f(x)=' + p73_sum(L) + '$ функцийн 2-р эрэмбийн уламжлалыг ол.',
+    a: "$f''(x)=" + p73_sum(L.map(p73_d2)) + '$',
+    wk: 18,
+    t: { L: L }
+  };
+}
+return p73;
+})();
+
+/* 2.41 */
+var e2_41 = (function () {
+// 41. y'(x) ⋚ 0 тэнцэтгэл биш (тодорхойлогдох муж x > 0):  c + b·ln x → y' = b/x;  kx − m·ln x → (kx − m)/x;
+//     m·ln x − kx → (m − kx)/x;  ln x − x/k → (k − x)/(kx);  ax² − m·ln x → (2ax² − m)/x;  m·ln x − ax² → (m − 2ax²)/x.
+//     Хариу: x > r эсвэл 0 < x < r (эх: y = 1 + ln x, y' > 0 → x > 0).
+var p41_R = [[1, 1], [2, 1], [3, 1], [1, 2], [3, 2], [5, 2], [-2], [-3], [-5]];   // ax² хэлбэрийн r = p/q эсвэл √n (−n гэж тэмдэглэв)
+function p41() {
+  var f = pick([0, 1, 1, 2, 2, 3, 4, 4, 5, 5]), gt = rnd(0, 1) === 1, y, R, inc, k, m, a, rr;
+  if (f === 0) {
+    var c = rnd(0, 6), b = pick([1, 1, 2, 3, -1, -2, -3]);
+    if ((b > 0) !== gt) return null;                                   // хоосон олонлогоос зайлсхийнэ
+    y = c ? c + tm(b, '\\ln x') : tm(b, '\\ln x', true); R = '0'; inc = gt;
+  } else if (f <= 3) {
+    k = rnd(1, 4); m = rnd(1, 9);
+    if (f === 3) { k = rnd(2, 6); m = 1; }
+    if (gcd(m, k) !== 1 && rnd(0, 1)) return null;
+    R = fr(m, k); inc = f === 1;
+    y = f === 1 ? tm(k, 'x', true) + tm(-m, '\\ln x') : f === 2 ? tm(m, '\\ln x', true) + tm(-k, 'x') : '\\ln x-\\dfrac{x}{' + k + '}';
+    if (f === 3) R = String(k);
+  } else {
+    a = rnd(1, 3); rr = pick(p41_R);
+    if (rr.length === 1) { m = 2 * a * -rr[0]; R = '\\sqrt{' + -rr[0] + '}'; }
+    else { m = 2 * a * rr[0] * rr[0] / (rr[1] * rr[1]); R = fr(rr[0], rr[1]); }
+    if (m !== Math.round(m) || m > 40) return null;
+    inc = f === 4;
+    y = f === 4 ? tm(a, 'x^2', true) + tm(-m, '\\ln x') : tm(m, '\\ln x', true) + tm(-a, 'x^2');
+  }
+  if (f && rnd(0, 3) === 0) y += sgn(nz(-6, 6));                       // заримдаа сул гишүүн
+  return {
+    q: '$y=' + y + "$ функцийн хувьд $y'(x)" + (gt ? '\\gt' : '\\lt') + ' 0$ тэнцэтгэл бишийг бод.',
+    a: '$' + (gt === inc ? 'x\\gt ' + R : '0\\lt x\\lt ' + R) + '$',
+    wk: 22,
+    t: { f: f }
+  };
+}
+return p41;
+})();
+
+E1K.page({
+  title: 'ЭЕШ 1000 — Уламжлал-1',
+  sub: 'Уламжлал бодох: үндсэн томьёо, үржвэр, ногдвор, давхар функц, 2-р эрэмбийн уламжлал',
+  first: 1,
+  probs: [e1_16, e3_41, e3_64, e3_66, e2_42, e2_43, e3_65, e1_46, e1_68, e2_44, e2_45, e2_46, e2_47, e3_73, e2_41]
+});
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

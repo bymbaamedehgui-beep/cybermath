@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ЭЕШ 1000 — Тоо ба илэрхийлэл-1</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/e1k.js?v=2"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* ЭЕШ 1000 — Тоо ба илэрхийлэл-1 — ЭЕШ-ийн 1000 бодлого, агуулгаар: Рационал ба иррационал тоо, зэрэг, язгуур, стандарт хэлбэр, хувь.
+   Эх: 1.10, 1.47, 1.70, 1.11, 1.15, 1.18, 1.69, 1.14, 1.73, 1.36, 1.57 (хэсэг.бодлого). Бодлого бүр өөрийн генератортой: «Шинэ бодлого» дарахад тоо нь өөрчлөгдөнө. */
+
+/* 1.10 */
+var e1_10 = (function () {
+// 10. Таван тооноос рационал (эсвэл иррационал) тоонуудыг ялгах. 2–3 рационал (үетэй/төгсгөлөг аравтын бутархай,
+//     бүтэн квадратын язгуур, бүтэн кубын язгуур, энгийн бутархай, бүхэл) + үлдсэн нь иррационал (π, бүтэн биш язгуур, …).
+//     Төрлүүдийг давхардуулахгүй сонгож холино; хариу нь харагдсан дарааллаар.
+function p10_rat(kind) {
+  var v, p, q;
+  if (kind === 'per') {        // үетэй бутархай: 2.(07), 0.(3), 1.2(6)
+    var per = rnd(0, 1) ? String(rnd(1, 8)) : String(rnd(0, 9)) + String(rnd(1, 9));
+    if (per.length === 2 && per[0] === per[1]) per = per[0];
+    var pre = rnd(0, 9) < 3 ? String(rnd(1, 9)) : '';
+    return (rnd(0, 9) < 2 ? '-' : '') + rnd(0, 5) + '.' + pre + '(' + per + ')';
+  }
+  if (kind === 'dec') {        // төгсгөлөг аравтын бутархай: -4.5, 0.25, 3.14
+    if (rnd(0, 9) < 1) return '3.14';
+    v = rnd(0, 1) ? nz(-99, 99) / 10 : nz(-999, 999) / 100;
+    if (Math.round(v) === v) return null;
+    return dec(v);
+  }
+  if (kind === 'sq') return (rnd(0, 9) < 2 ? '-' : '') + '\\sqrt{' + Math.pow(rnd(2, 12), 2) + '}';
+  if (kind === 'cb') { v = rnd(2, 5); return '\\sqrt[3]{' + (rnd(0, 9) < 3 ? -1 : 1) * v * v * v + '}'; }
+  if (kind === 'frac') {
+    if (rnd(0, 9) < 1) return '\\dfrac{22}{7}';
+    q = rnd(2, 9); p = rnd(1, 20);
+    if (gcd(p, q) !== 1) return null;
+    return (rnd(0, 9) < 4 ? '-' : '') + '\\dfrac{' + p + '}{' + q + '}';
+  }
+  return String(rnd(-15, 15));   // бүхэл
+}
+function p10_irr(kind) {
+  var n;
+  if (kind === 'pi') return pick(['\\pi', '\\pi', '\\dfrac{\\pi}{2}', '2\\pi', '-\\pi', '\\pi+1', '\\dfrac{\\pi}{3}']);
+  if (kind === 'rt') { n = pick([2, 3, 5, 6, 7, 10, 11, 13, 15, 17]); return (rnd(0, 9) < 2 ? '-' : '') + (rnd(0, 9) < 2 ? rnd(2, 3) : '') + '\\sqrt{' + n + '}'; }
+  if (kind === 'rt1') { n = pick([2, 3, 5, 6, 7]); return rnd(0, 1) ? '\\sqrt{' + n + '}' + pick(['+', '-']) + rnd(1, 3) : rnd(1, 3) + '-\\sqrt{' + n + '}'; }
+  if (kind === 'cbrt') return '\\sqrt[3]{' + pick([2, 3, 4, 5, 6, 7, 9, 10, 25]) + '}';
+  return pick(['0.1010010001\\ldots', '1.2122122212222\\ldots', '0.12112111211112\\ldots']);   // үегүй хязгааргүй
+}
+function p10() {
+  var nr = rnd(2, 3), ni = 5 - nr;
+  var rk = shuffle(['per', 'dec', 'sq', 'cb', 'frac', 'int']).slice(0, nr), ik = shuffle(['pi', 'rt', 'rt1', 'cbrt', 'non']).slice(0, ni);
+  if (rk.indexOf('per') < 0 && rk.indexOf('dec') < 0 && rnd(0, 1)) return null;   // ихэвчлэн аравтын бутархай орно
+  if (ik.indexOf('pi') < 0 && rnd(0, 1)) return null;                               // ихэвчлэн π орно
+  var items = [], seen = {}, i, x;
+  for (i = 0; i < nr; i++) { x = p10_rat(rk[i]); if (x == null) return null; items.push({ s: x, r: true, k: rk[i] }); }
+  for (i = 0; i < ni; i++) { x = p10_irr(ik[i]); items.push({ s: x, r: false, k: ik[i] }); }
+  for (i = 0; i < 5; i++) { if (seen[items[i].s]) return null; seen[items[i].s] = 1; }
+  if (items.some(function (o) { return o.s === '0' || o.s === '1' || o.s === '-1'; })) return null;
+  items = shuffle(items);
+  var askR = rnd(0, 9) < 7;
+  // Бодолт (гар бичмэл): рационал ба иррационал тоонуудыг тус тусад нь бичнэ (асуусан төрөл сүүлд), шалтгааныг хаалтад.
+  var lineR = '<b>Рационал тоонууд:</b> ' + items.filter(function (o) { return o.r; }).map(p10_why).join(', ') + '.';
+  var lineI = '<b>Иррационал тоонууд:</b> ' + items.filter(function (o) { return !o.r; }).map(p10_why).join(', ') + '.';
+  return {
+    q: '$' + items.map(function (o) { return o.s; }).join(',\\ ') + '$ тоонуудаас бүх ' + (askR ? 'рационал' : 'иррационал') + ' тоог ялгаж бич.',
+    a: '$' + items.filter(function (o) { return o.r === askR; }).map(function (o) { return o.s; }).join(',\\ ') + '$',
+    wk: 18,
+    s: [
+      'Рационал тоо $\\frac{m}{n}$ ($m$ бүхэл, $n$ натурал) хэлбэрт бичигдэнэ: бүхэл тоо, энгийн бутархай, төгсгөлөг ба үетэй аравтын бутархай. '
+        + 'Иррационал тоо нь үегүй хязгааргүй аравтын бутархай.',
+      askR ? lineI : lineR,
+      askR ? lineR : lineI
+    ],
+    t: { askR: askR }
+  };
+}
+// Бодолтын тайлбар: тоо + яагаад рационал/иррационал болох (хаалтад)
+function p10_why(o) {
+  var s = o.s, t = '$' + s + '$', m, v;
+  if (o.k === 'per') return t + ' (үетэй аравтын бутархай)';
+  if (o.k === 'dec') return t + ' (төгсгөлөг аравтын бутархай)';
+  if (o.k === 'frac') return t + ' (энгийн бутархай)';
+  if (o.k === 'int') return t + ' (бүхэл тоо)';
+  if (o.k === 'sq') { m = /\{(\d+)\}/.exec(s); v = Math.round(Math.sqrt(+m[1])); return '$' + s + '=' + (s[0] === '-' ? -v : v) + '$'; }
+  if (o.k === 'cb') { m = /\{(-?\d+)\}/.exec(s); v = Math.round(Math.cbrt(+m[1])); return '$' + s + '=' + v + '$'; }
+  if (o.k === 'pi') return s === '\\pi' ? t : t + ' ($\\pi$ иррационал)';
+  if (o.k === 'rt') { m = /\\sqrt\{(\d+)\}/.exec(s); return t + ' ($' + m[1] + '$ бүтэн квадрат биш)'; }
+  if (o.k === 'rt1') { m = /\\sqrt\{(\d+)\}/.exec(s); return t + ' ($\\sqrt{' + m[1] + '}$ иррационал)'; }
+  if (o.k === 'cbrt') { m = /\{(\d+)\}/.exec(s); return t + ' ($' + m[1] + '$ бүтэн куб биш)'; }
+  return t + ' (үегүй хязгааргүй аравтын бутархай)';
+}
+return p10;
+})();
+
+/* 1.47 */
+var e1_47 = (function () {
+// 47. Бүхэл, аравтын бутархай, энгийн бутархай, π-тэй тоо — 4 тоо √n-ийн ойролцоо (≥ 0.01 зайтай);
+//     √n-ээс бага (эсвэл их) тоонуудыг ялгана. Дор хаяж нэг нь тохирно, нэг нь тохирохгүй.
+var p47_PI = [[1, 1], [1, 2], [1, 3], [1, 4], [1, 6], [2, 3], [3, 4], [5, 6], [3, 2], [4, 3], [5, 4], [7, 6], [5, 3], [7, 4], [11, 6], [2, 1]];
+function p47() {
+  var n = pick([2, 2, 3, 5, 6, 7, 10]), R = Math.sqrt(n), far = function (v) { return Math.abs(v - R) >= 0.01; };
+  var pools = [[], [], [], []], i, p, q;
+  [Math.floor(R), Math.ceil(R)].forEach(function (v) { pools[0].push({ v: v, t: String(v) }); });
+  for (i = Math.round(R * 10) - 5; i <= Math.round(R * 10) + 5; i++) if (i % 10 && far(i / 10)) pools[1].push({ v: i / 10, t: dec(i / 10) });
+  for (q = 2; q <= 9; q++) for (p = Math.ceil((R - 0.5) * q); p <= (R + 0.5) * q; p++) {
+    if (gcd(p, q) === 1 && p % q && far(p / q)) pools[2].push({ v: p / q, t: '\\dfrac{' + p + '}{' + q + '}' });
+  }
+  p47_PI.forEach(function (km) {
+    var v = km[0] * Math.PI / km[1];
+    if (Math.abs(v - R) <= 0.8 && far(v)) pools[3].push({ v: v, t: km[1] === 1 ? (km[0] === 1 ? '' : km[0]) + '\\pi' : '\\dfrac{' + (km[0] === 1 ? '' : km[0]) + '\\pi}{' + km[1] + '}' });
+  });
+  if (pools.some(function (P) { return !P.length; })) return null;
+  var xs = shuffle(pools.map(function (P) { return pick(P); }));
+  for (i = 0; i < 4; i++) for (p = i + 1; p < 4; p++) if (Math.abs(xs[i].v - xs[p].v) < 0.02) return null;
+  var less = rnd(1, 3) !== 1, sel = xs.filter(function (x) { return less ? x.v < R : x.v > R; });
+  if (!sel.length || sel.length === 4) return null;
+  // Бодолт (гар бичмэл): √n ≈ (аравтын бутархай); тоо бүрийг аравтын бутархайгаар илэрхийлж √n-тэй харьцуулна.
+  //   2 оронгоор харьцуулахад тэнцүү/эргэлзээтэй гарвал 3 орон авна (тоонууд √n-ээс ≥ 0.01 зайтай тул хангалттай)
+  var dg = xs.every(function (x) { var u = +x.v.toFixed(2), w = +R.toFixed(2); return u !== w && (u < w) === (x.v < R); }) ? 2 : 3;
+  var cmp = xs.map(function (x) {
+    var mid = /^\d+(\.\d+)?$/.test(x.t) ? '' : Math.abs(x.v * 1000 - Math.round(x.v * 1000)) < 1e-9 ? '=' + dec(x.v) : '\\approx ' + dec(x.v, dg);
+    return x.t + mid + (x.v < R ? '\\lt' : '\\gt') + '\\sqrt{' + n + '}';
+  });
+  var st = sel.map(function (x) { return '$' + x.t + '$'; }), lst = st.length === 1 ? st[0] : st.slice(0, -1).join(', ') + ' ба ' + st[st.length - 1];
+  return {
+    q: '$' + xs.map(function (x) { return x.t; }).join(',\\ ') + '$ тоонуудаас $\\sqrt{' + n + '}$-' + suf(n, 'аас') + ' '
+      + (less ? 'бага' : 'их') + ' байх бүх тоог ялган бич.',
+    a: '$' + sel.map(function (x) { return x.t; }).join(',\\ ') + '$',
+    wk: 18,
+    s: [
+      '$\\sqrt{' + n + '}\\approx ' + dec(R, dg) + '$ гэдгийг ашиглан тоо бүрийг $\\sqrt{' + n + '}$-' + suf(n, 'тай') + ' харьцуулбал $$' + cmp.join(',\\qquad ') + '.$$',
+      'Иймд $\\sqrt{' + n + '}$-' + suf(n, 'аас') + ' ' + (less ? 'бага' : 'их') + ' тоо нь ' + lst + '.'
+    ],
+    t: { n: n, less: less }
+  };
+}
+return p47;
+})();
+
+/* 1.70 */
+var e1_70 = (function () {
+// 70. Нөхцөлөөс хоёр тооны харьцааг тогтоох. Хүснэгтэд зөвхөн нөхцөлөөр БҮРЭН тодорхойлогдох хосууд:
+//     [X, харьцаа, Y]; хосыг санамсаргүй сольж харьцааг эргүүлнэ. (Эх: −1 < a < 0, 0 < b < 1 ⇒ −a < 1/b.)
+//     Нөхцөлд зөвхөн илэрхийлэлд орсон хувьсагчийнхыг бичнэ; ихэнхдээ a, b хоёулаа орсон хос.
+var p70_S = [
+  { c: { a: '$-1\\lt a\\lt 0$', b: '$0\\lt b\\lt 1$' }, w: 3, P: [
+    ['-a', '<', '\\dfrac{1}{b}'], ['a', '<', 'b'], ['\\dfrac{1}{a}', '<', '-b'], ['a', '>', '-\\dfrac{1}{b}'], ['a^2', '<', '\\dfrac{1}{b}'],
+    ['ab', '<', 'b'], ['\\dfrac{1}{a}', '<', 'a'], ['a', '<', 'a^2'], ['a^3', '>', 'a'], ['b^2', '<', 'b'], ['\\sqrt{b}', '>', 'b'],
+    ['a-1', '<', '-b'], ['b+1', '>', '-a'], ['-\\dfrac{1}{a}', '>', 'b'], ['\\dfrac{a}{b}', '<', 'a'], ['ab', '>', 'a'], ['a^2', '<', '-a'],
+    ['\\dfrac{1}{b}', '>', 'b'], ['b^3', '<', 'b^2']] },
+  { c: { a: '$0\\lt a\\lt 1$', b: '$b\\gt 1$' }, w: 2, P: [
+    ['a', '<', 'b'], ['\\dfrac{1}{a}', '>', 'a'], ['a^2', '<', 'b'], ['-a', '>', '-b'], ['a^2', '<', 'a'], ['b^2', '>', 'b'], ['\\sqrt{a}', '>', 'a'],
+    ['\\sqrt{b}', '<', 'b'], ['ab', '<', 'b'], ['ab', '>', 'a'], ['\\dfrac{1}{b}', '<', 'b'], ['\\dfrac{a}{b}', '<', 'a'],
+    ['\\dfrac{1}{b}', '<', '\\dfrac{1}{a}'], ['a-1', '<', 'b-1']] },
+  { c: { a: '$a\\lt -1$', b: '$b\\gt 1$' }, w: 2, P: [
+    ['a', '<', 'b'], ['\\dfrac{1}{a}', '>', 'a'], ['a^2', '>', '-a'], ['ab', '<', 'a'], ['\\dfrac{1}{b}', '<', 'b'], ['a^3', '<', 'a'],
+    ['-a', '>', '\\dfrac{1}{b}'], ['\\dfrac{1}{a}', '<', '\\dfrac{1}{b}'], ['b^2', '>', 'b'], ['\\dfrac{a}{b}', '>', 'a']] },
+  { c: { a: '$a\\gt 1$' }, w: 1, P: [['a^2', '>', 'a'], ['\\sqrt{a}', '<', 'a'], ['\\dfrac{1}{a}', '<', 'a'], ['a^3', '>', 'a^2'], ['\\dfrac{1}{a}', '>', '\\dfrac{1}{a^2}']] }
+];
+// Бодолт (гар бичмэл): нөхцөлөөс илэрхийлэл бүрийн мужийг гаргаж завсрын тоогоор (1, 0, −1) жиших, эсвэл тэнцэтгэл бишийг
+// эерэг/сөрөг тоогоор үржүүлэх. p70_R[i][j] — p70_S[i].P[j]-ийн [тайлбар, гинж]; гинж X-ээс Y хүртэл (хос солигдвол урвуулна).
+function p70_m(ineq, k, pos) {   // ineq = null → өмнө гаргасан тэнцэтгэл бишийг «Үүнийг» гэж заана
+  return (ineq ? '$' + ineq + '$ тэнцэтгэл бишийн хоёр талыг' : 'Үүнийг') + ' ' + (pos ? 'эерэг' : 'сөрөг') + ' $' + k + '$ тоогоор үржүүлбэл тэмдэг нь '
+    + (pos ? 'хэвээр үлдэнэ.' : 'эсрэгээр солигдоно.');
+}
+var p70_R = [
+  [   // −1 < a < 0, 0 < b < 1
+    ['$-1\\lt a\\lt 0\\Rightarrow 0\\lt -a\\lt 1$; $0\\lt b\\lt 1\\Rightarrow\\dfrac{1}{b}\\gt 1$.', ['-a', '<', '1', '<', '\\dfrac{1}{b}']],
+    ['Нөхцөлөөс $a$ сөрөг, $b$ эерэг тоо.', ['a', '<', '0', '<', 'b']],
+    ['$-1\\lt a\\lt 0\\Rightarrow\\dfrac{1}{a}\\lt -1$; $0\\lt b\\lt 1\\Rightarrow -1\\lt -b\\lt 0$.', ['\\dfrac{1}{a}', '<', '-1', '<', '-b']],
+    ['$0\\lt b\\lt 1\\Rightarrow\\dfrac{1}{b}\\gt 1\\Rightarrow -\\dfrac{1}{b}\\lt -1$; мөн $a\\gt -1$.', ['a', '>', '-1', '>', '-\\dfrac{1}{b}']],
+    ['$-1\\lt a\\lt 0\\Rightarrow 0\\lt a^2\\lt 1$; $0\\lt b\\lt 1\\Rightarrow\\dfrac{1}{b}\\gt 1$.', ['a^2', '<', '1', '<', '\\dfrac{1}{b}']],
+    ['$a$ сөрөг, $b$ эерэг тул $ab\\lt 0$.', ['ab', '<', '0', '<', 'b']],
+    ['$-1\\lt a\\lt 0\\Rightarrow\\dfrac{1}{a}\\lt -1$.', ['\\dfrac{1}{a}', '<', '-1', '<', 'a']],
+    ['$a\\lt 0$, харин $a^2\\gt 0$.', ['a', '<', '0', '<', 'a^2']],
+    ['$-1\\lt a\\lt 0\\Rightarrow a^2\\lt 1$. ' + p70_m(null, 'a', false), ['a^3', '>', 'a']],
+    [p70_m('b\\lt 1', 'b', true), ['b^2', '<', 'b']],
+    ['$0\\lt b\\lt 1\\Rightarrow 0\\lt\\sqrt{b}\\lt 1$. ' + p70_m('\\sqrt{b}\\lt 1', '\\sqrt{b}', true), ['\\sqrt{b}', '>', '\\sqrt{b}\\cdot\\sqrt{b}', '=', 'b']],
+    ['$-1\\lt a\\lt 0\\Rightarrow -2\\lt a-1\\lt -1$; $0\\lt b\\lt 1\\Rightarrow -1\\lt -b\\lt 0$.', ['a-1', '<', '-1', '<', '-b']],
+    ['$0\\lt b\\lt 1\\Rightarrow b+1\\gt 1$; $-1\\lt a\\lt 0\\Rightarrow 0\\lt -a\\lt 1$.', ['b+1', '>', '1', '>', '-a']],
+    ['$-1\\lt a\\lt 0\\Rightarrow\\dfrac{1}{a}\\lt -1\\Rightarrow -\\dfrac{1}{a}\\gt 1$; мөн $b\\lt 1$.', ['-\\dfrac{1}{a}', '>', '1', '>', 'b']],
+    ['$0\\lt b\\lt 1\\Rightarrow\\dfrac{1}{b}\\gt 1$. ' + p70_m(null, 'a', false), ['\\dfrac{a}{b}', '<', 'a']],
+    [p70_m('b\\lt 1', 'a', false), ['ab', '>', 'a']],
+    ['$-1\\lt a\\lt 0\\Rightarrow 0\\lt -a\\lt 1$. ' + p70_m('-a\\lt 1', '-a', true), ['a^2', '=', '(-a)\\cdot(-a)', '<', '-a']],
+    ['$0\\lt b\\lt 1\\Rightarrow\\dfrac{1}{b}\\gt 1$.', ['\\dfrac{1}{b}', '>', '1', '>', 'b']],
+    [p70_m('b\\lt 1', 'b^2', true), ['b^3', '<', 'b^2']]
+  ],
+  [   // 0 < a < 1, b > 1
+    ['Нөхцөлөөс $a\\lt 1$, $b\\gt 1$.', ['a', '<', '1', '<', 'b']],
+    ['$0\\lt a\\lt 1\\Rightarrow\\dfrac{1}{a}\\gt 1$.', ['\\dfrac{1}{a}', '>', '1', '>', 'a']],
+    ['$0\\lt a\\lt 1\\Rightarrow 0\\lt a^2\\lt 1$; мөн $b\\gt 1$.', ['a^2', '<', '1', '<', 'b']],
+    ['$0\\lt a\\lt 1\\Rightarrow -1\\lt -a\\lt 0$; $b\\gt 1\\Rightarrow -b\\lt -1$.', ['-a', '>', '-1', '>', '-b']],
+    [p70_m('a\\lt 1', 'a', true), ['a^2', '<', 'a']],
+    [p70_m('b\\gt 1', 'b', true), ['b^2', '>', 'b']],
+    ['$0\\lt a\\lt 1\\Rightarrow 0\\lt\\sqrt{a}\\lt 1$. ' + p70_m('\\sqrt{a}\\lt 1', '\\sqrt{a}', true), ['\\sqrt{a}', '>', '\\sqrt{a}\\cdot\\sqrt{a}', '=', 'a']],
+    ['$b\\gt 1\\Rightarrow\\sqrt{b}\\gt 1$. ' + p70_m(null, '\\sqrt{b}', true), ['\\sqrt{b}', '<', '\\sqrt{b}\\cdot\\sqrt{b}', '=', 'b']],
+    [p70_m('a\\lt 1', 'b', true), ['ab', '<', 'b']],
+    [p70_m('b\\gt 1', 'a', true), ['ab', '>', 'a']],
+    ['$b\\gt 1\\Rightarrow 0\\lt\\dfrac{1}{b}\\lt 1$.', ['\\dfrac{1}{b}', '<', '1', '<', 'b']],
+    ['$b\\gt 1\\Rightarrow\\dfrac{1}{b}\\lt 1$. ' + p70_m(null, 'a', true), ['\\dfrac{a}{b}', '<', 'a']],
+    ['$b\\gt 1\\Rightarrow\\dfrac{1}{b}\\lt 1$; $0\\lt a\\lt 1\\Rightarrow\\dfrac{1}{a}\\gt 1$.', ['\\dfrac{1}{b}', '<', '1', '<', '\\dfrac{1}{a}']],
+    ['$a\\lt 1\\Rightarrow a-1\\lt 0$; $b\\gt 1\\Rightarrow b-1\\gt 0$.', ['a-1', '<', '0', '<', 'b-1']]
+  ],
+  [   // a < −1, b > 1
+    ['$a\\lt -1$ тул $a$ сөрөг, $b\\gt 1$ тул $b$ эерэг.', ['a', '<', '0', '<', 'b']],
+    ['$a\\lt -1\\Rightarrow -1\\lt\\dfrac{1}{a}\\lt 0$.', ['\\dfrac{1}{a}', '>', '-1', '>', 'a']],
+    ['$a\\lt -1\\Rightarrow -a\\gt 1$. ' + p70_m(null, '-a', true), ['a^2', '=', '(-a)\\cdot(-a)', '>', '-a']],
+    [p70_m('b\\gt 1', 'a', false), ['ab', '<', 'a']],
+    ['$b\\gt 1\\Rightarrow 0\\lt\\dfrac{1}{b}\\lt 1$.', ['\\dfrac{1}{b}', '<', '1', '<', 'b']],
+    ['$a\\lt -1\\Rightarrow a^2\\gt 1$. ' + p70_m(null, 'a', false), ['a^3', '<', 'a']],
+    ['$a\\lt -1\\Rightarrow -a\\gt 1$; $b\\gt 1\\Rightarrow\\dfrac{1}{b}\\lt 1$.', ['-a', '>', '1', '>', '\\dfrac{1}{b}']],
+    ['$a\\lt -1\\Rightarrow\\dfrac{1}{a}\\lt 0$; $b\\gt 1\\Rightarrow\\dfrac{1}{b}\\gt 0$.', ['\\dfrac{1}{a}', '<', '0', '<', '\\dfrac{1}{b}']],
+    [p70_m('b\\gt 1', 'b', true), ['b^2', '>', 'b']],
+    ['$b\\gt 1\\Rightarrow\\dfrac{1}{b}\\lt 1$. ' + p70_m(null, 'a', false), ['\\dfrac{a}{b}', '>', 'a']]
+  ],
+  [   // a > 1
+    [p70_m('a\\gt 1', 'a', true), ['a^2', '>', 'a']],
+    ['$a\\gt 1\\Rightarrow\\sqrt{a}\\gt 1$. ' + p70_m(null, '\\sqrt{a}', true), ['\\sqrt{a}', '<', '\\sqrt{a}\\cdot\\sqrt{a}', '=', 'a']],
+    ['$a\\gt 1\\Rightarrow 0\\lt\\dfrac{1}{a}\\lt 1$.', ['\\dfrac{1}{a}', '<', '1', '<', 'a']],
+    [p70_m('a\\gt 1', 'a^2', true), ['a^3', '>', 'a^2']],
+    ['$a\\gt 1\\Rightarrow 0\\lt\\dfrac{1}{a}\\lt 1$. ' + p70_m('\\dfrac{1}{a}\\lt 1', '\\dfrac{1}{a}', true), ['\\dfrac{1}{a}', '>', '\\dfrac{1}{a}\\cdot\\dfrac{1}{a}', '=', '\\dfrac{1}{a^2}']]
+  ]
+];
+function p70() {
+  var bag = [];
+  p70_S.forEach(function (s) { for (var i = 0; i < s.w; i++) bag.push(s); });
+  var S = pick(bag), e = pick(S.P), X = e[0], Y = e[2], lt = e[1] === '<';
+  var v = (X + Y).replace(/\\[a-z]+/g, ''), va = /a/.test(v), vb = /b/.test(v);
+  if (S.c.b && !(va && vb) && rnd(0, 2)) return null;        // хоёр хувьсагчтай нөхцөлд ихэвчлэн a, b хоёулаа орсон хос
+  if (rnd(0, 1)) { X = e[2]; Y = e[0]; lt = !lt; }
+  var cond = (va ? [S.c.a] : []).concat(vb ? [S.c.b] : []).join(' ба ');
+  var R = p70_R[p70_S.indexOf(S)][S.P.indexOf(e)], ch = R[1].slice(), REL = { '<': '\\lt ', '>': '\\gt ', '=': '=' };
+  if (X !== e[0]) ch = ch.reverse().map(function (z) { return z === '<' ? '>' : z === '>' ? '<' : z; });
+  return {
+    q: cond + ' бол $' + X + '$ ба $' + Y + '$ тоог жиш.',
+    a: '$' + X + (lt ? '\\lt ' : '\\gt ') + Y + '$',
+    wk: 18,
+    s: [R[0], 'Иймд $' + ch.map(function (z, i) { return i % 2 ? REL[z] : z; }).join('') + '$.'],
+    t: {}
+  };
+}
+return p70;
+})();
+
+/* 1.11 */
+var e1_11 = (function () {
+// 11. m1·10^e1 · m2·10^e2 үржвэрийг стандарт хэлбэрт: c·10^k (1 ≤ c < 10, c нь 1–2 цифртэй).
+//     Тоонуудыг энгийнээр бичнэ (350, 2000, 0.004, 25\,000 — 5+ оронтой бүхэлд \, бүлэглэлт).
+var p11_S = [2, 3, 4, 5, 6, 7, 8, 9, 12, 14, 15, 16, 18, 24, 25, 32, 35, 45, 48, 75, 125];
+function p11_num(s, e) {   // s·10^e-ийн аравтын бичлэг (s нь 10-т хуваагдахгүй)
+  var str = String(s);
+  if (e >= 0) {
+    str += Array(e + 1).join('0');
+    return str.length >= 5 ? str.replace(/\B(?=(\d{3})+$)/g, '\\,') : str;
+  }
+  var k = -e;
+  if (str.length > k) return str.slice(0, str.length - k) + '.' + str.slice(str.length - k);
+  return '0.' + Array(k - str.length + 1).join('0') + str;
+}
+function p11() {
+  var s1 = pick(p11_S), s2 = pick(p11_S), m = s1 * s2, z = 0, e1, e2;
+  while (m % 10 === 0) { m /= 10; z++; }
+  if (m >= 100 || m === 1) return null;
+  if (s1 < 10 && s2 < 10 && z === 0) return null;   // хэт энгийн (2·3 г.м)
+  var st = pick(['ii', 'ii', 'ii', 'id', 'dd']);
+  if (st === 'ii') { e1 = rnd(0, 3); e2 = rnd(1, 4); }
+  else if (st === 'id') { e1 = rnd(1, 4); e2 = -rnd(1, 3); }
+  else { e1 = -rnd(1, 3); e2 = -rnd(1, 3); }
+  var n1 = p11_num(s1, e1), n2 = p11_num(s2, e2);
+  if (n1.replace(/\D/g, '').length > 7 || n2.replace(/\D/g, '').length > 7) return null;
+  if (/^\d$/.test(n1) || /^\d$/.test(n2)) return null;   // нэг оронтой бүхэл үржигдэхүүн хэт энгийн
+  var k = z + e1 + e2 + (m >= 10 ? 1 : 0), c = m >= 10 ? m / 10 : m;
+  if (Math.abs(k) < 2) return null;
+  if (rnd(0, 1)) { var tmp = n1; n1 = n2; n2 = tmp; }
+  // Бодолт (гар бичмэл): тоо бүрийг s·10^e болгож, үржвэрийг P·10^E → c·10^k (1 ≤ c < 10).
+  var F = n1 === p11_num(s1, e1) ? [[s1, e1, n1], [s2, e2, n2]] : [[s2, e2, n1], [s1, e1, n2]], P = s1 * s2, E = e1 + e2;
+  var pw = function (x) { return x === 1 ? '10' : '10^{' + x + '}'; };
+  var dc = F.filter(function (o) { return o[1] !== 0; }).map(function (o) { return '$' + o[2] + '=' + o[0] + '\\cdot ' + pw(o[1]) + '$'; });
+  var ex = F[0][1] && F[1][1] ? '10^{' + (F[0][1] === 1 ? '{1}' : F[0][1]) + (F[1][1] < 0 ? F[1][1] : '+' + F[1][1]) + '}' : pw(F[0][1] || F[1][1]);
+  var PE = E === 0 ? String(P) : P + '\\cdot ' + pw(E), j = String(P).length - 1;
+  return {
+    q: '$' + n1 + '\\cdot ' + n2 + '$ үржвэрийг олж, стандарт хэлбэрт бич.',
+    a: '$' + dec(c) + '\\cdot 10^{' + k + '}$',
+    wk: 20,
+    s: [
+      (dc.length === 2 ? 'Тоо бүрийг $a\\cdot 10^{n}$ хэлбэрт бичвэл ' + dc[0] + ' ба ' + dc[1] + '. Иймд ' : dc[0] + ' тул ')
+        + '$$' + n1 + '\\cdot ' + n2 + '=' + F[0][0] + '\\cdot ' + F[1][0] + '\\cdot ' + ex + '=' + PE + '.$$',
+      'Стандарт хэлбэр нь $c\\cdot 10^{k}$ ($1\\le c\\lt 10$): $' + P + '=' + dec(c) + '\\cdot ' + pw(j) + '$'
+        + (E === 0 ? '.' : ' тул $' + PE + '=' + dec(c) + '\\cdot 10^{' + k + '}$.')   // E = 0 бол үржвэр нь P өөрөө
+    ],
+    t: { s1: s1, e1: e1, s2: s2, e2: e2 }
+  };
+}
+return p11;
+})();
+
+/* 1.15 */
+var e1_15 = (function () {
+// 15. (1/p)^(−n) ∓ (q^m)^(1/m) = p^n ∓ q  (q^m-ийг тоогоор: 25, 27, 64, …).
+function p15() {
+  var p = rnd(2, 5), n = pick([2, 2, 3]), P = Math.pow(p, n);
+  var m = rnd(0, 9) < 7 ? 2 : 3, q = m === 2 ? rnd(2, 9) : rnd(2, 6), Q = Math.pow(q, m);
+  var s = rnd(0, 9) < 7 ? -1 : 1, ans = P + s * q;
+  if (P > 125 || ans === 0) return null;
+  // Бодолт (гар бичмэл): (1/p)^(−n) = pⁿ, Q^(1/m) = ᵐ√Q
+  var op = s < 0 ? '-' : '+', root = m === 2 ? '\\sqrt{' + Q + '}' : '\\sqrt[3]{' + Q + '}';
+  return {
+    q: '$\\left(\\dfrac{1}{' + p + '}\\right)^{-' + n + '}' + (s < 0 ? '-' : '+') + Q + '^{\\frac{1}{' + m + '}}$ үйлдлийг гүйцэтгэ.',
+    a: '$' + ans + '$',
+    wk: 20,
+    s: [
+      'Зэргийн тодорхойлолтоор $\\left(\\frac{1}{a}\\right)^{-n}=a^n$, $a^{\\frac{1}{m}}=\\sqrt[m]{a}$ тул '
+        + '$$\\left(\\dfrac{1}{' + p + '}\\right)^{-' + n + '}' + op + Q + '^{\\frac{1}{' + m + '}}=' + p + '^' + n + op + root + '=' + P + op + q + '=' + ans + '.$$'
+    ],
+    t: { p: p, n: n, q: q, m: m, s: s }
+  };
+}
+return p15;
+})();
+
+/* 1.18 */
+var e1_18 = (function () {
+// 18. Зэрэгтэй үйлдэл: ((b^{1/m})^k · (b²)^{u/v}) : (b^c)^{1/d}  (эх: ((2^{1/6})^3·4^{3/4}):64^{1/3} = 1).
+//     b-ийн илтгэгч E = k/m + 2u/v − c/d бүхэл (−2..3) байхаар c, d-г сонгоно → хариу b^E.
+var p18_C = { 2: [3, 4, 5, 6, 7], 3: [3, 4, 5] };   // хуваагч N = b^c (8, 16, 32, 64, 128 / 27, 81, 243)
+// Бодолтод: b^{n/d} (хураасан илтгэгч); илтгэгч 1 бол зөвхөн b
+function p18_pw(b, n, d) { return n === d ? String(b) : b + '^{' + frs(n, d) + '}'; }
+function p18() {
+  var b = pick([2, 2, 2, 3]), m = rnd(2, 6), k = rnd(2, 5), v = rnd(3, 6), u = rnd(1, 5);
+  if (k % m === 0 || gcd(u, v) !== 1 || (2 * u) % v === 0) return null;
+  var sn = k * v + 2 * u * m, sd = m * v, Emax = b === 2 ? 3 : 2, cand = [];
+  p18_C[b].forEach(function (c) {
+    for (var d = 2; d <= 6; d++) {
+      var en = sn * d - c * sd, ed = sd * d;          // E = sn/sd − c/d
+      if (en % ed !== 0) continue;
+      var E = en / ed;
+      if (E >= -2 && E <= Emax) cand.push([c, d, E]);
+    }
+  });
+  if (!cand.length) return null;
+  var ch = pick(cand), c = ch[0], d = ch[1], E = ch[2], N = Math.pow(b, c), B2 = b * b;
+  var q = '$\\left(\\left(' + b + '^{\\frac{1}{' + m + '}}\\right)^{' + k + '}\\cdot ' + B2 + '^{\\frac{' + u + '}{' + v + '}}\\right):'
+    + N + '^{\\frac{1}{' + d + '}}$ үйлдлийг гүйцэтгэ.';
+  var a = E >= 0 ? String(Math.pow(b, E)) : fr(1, Math.pow(b, -E));
+  // Бодолт (гар бичмэл): бүгдийг b суурьтай зэрэгт шилжүүлж илтгэгчийг нэмж/хасна
+  var S = p18_pw(b, sn, sd), fin = E === 1 ? String(b) : b + '^{' + E + '}=' + a;
+  var s3 = S + ':' + N + '^{\\frac{1}{' + d + '}}=' + S + ':\\left(' + b + '^{' + c + '}\\right)^{\\frac{1}{' + d + '}}=' + S + ':' + p18_pw(b, c, d) + '='
+    + (sn === sd ? '' : b + '^{' + frs(sn, sd) + '-' + frs(c, d) + '}=') + fin;
+  return { q: q, a: '$' + a + '$', wk: 24,
+    s: [
+      'Зэргийн чанарууд: $(a^x)^y=a^{xy}$, $a^x\\cdot a^y=a^{x+y}$, $a^x:a^y=a^{x-y}$.',
+      '$' + B2 + '=' + b + '^2$ тул $$\\left(' + b + '^{\\frac{1}{' + m + '}}\\right)^{' + k + '}\\cdot\\left(' + b + '^2\\right)^{\\frac{' + u + '}{' + v + '}}='
+        + p18_pw(b, k, m) + '\\cdot ' + p18_pw(b, 2 * u, v) + '=' + b + '^{' + frs(k, m) + '+' + frs(2 * u, v) + '}=' + S + '.$$',
+      '$' + N + '=' + b + '^{' + c + '}$ тул $$' + s3 + '.$$'
+    ],
+    t: { b: b, m: m, k: k, B2: B2, u: u, v: v, N: N, d: d } };
+}
+return p18;
+})();
+
+/* 1.69 */
+var e1_69 = (function () {
+// 69. (p√b ∓ q√b)^{e}: p ∓ q = b^j ⇒ суурь b^j·√b = b^{(2j+1)/2};  e = 2t/(2j+1) ⇒ утга b^t.
+function p69() {
+  var b = pick([2, 2, 3, 3, 5]), j = pick([1, 1, 2]), t = rnd(1, 4), num = 2 * t, den = 2 * j + 1, g = gcd(num, den);
+  var en = num / g, ed = den / g, val = Math.pow(b, t), bj = Math.pow(b, j);
+  if (ed === 1 || val > 81) return null;
+  var plus = !rnd(0, 3), p, q;
+  if (plus) { p = rnd(1, bj - 1); q = bj - p; } else { q = rnd(1, 7); p = q + bj; }
+  if (p > 15 || q > 15 || q < 1) return null;
+  // Бодолт (гар бичмэл): p√b ± q√b = b^j·√b = b^j·b^{1/2} = b^{(2j+1)/2};  (b^{(2j+1)/2})^{e} = b^t.
+  var e = '^{\\frac{' + en + '}{' + ed + '}}', h = '\\frac{' + den + '}{2}';
+  return {
+    q: '$\\left(' + rt(p, b) + (plus ? '+' : '-') + rt(q, b) + '\\right)^{\\frac{' + en + '}{' + ed + '}}$ илэрхийллийн утгыг ол.',
+    a: '$' + val + '$',
+    wk: 22,
+    s: [
+      'Хаалтан доторх илэрхийллийг хялбарчилж, зэрэг хэлбэрт бичье: $$' + rt(p, b) + (plus ? '+' : '-') + rt(q, b) + '=' + rt(bj, b) + '='
+        + (j === 1 ? b : b + '^{' + j + '}') + '\\cdot ' + b + '^{\\frac{1}{2}}=' + b + '^{' + h + '}.$$',
+      '$(a^m)^n=a^{mn}$ чанараар $$\\left(' + b + '^{' + h + '}\\right)' + e + '=' + b + '^{' + h + '\\cdot\\frac{' + en + '}{' + ed + '}}=' + (t === 1 ? b : b + '^{' + t + '}=' + val) + '.$$'
+    ],
+    t: {}
+  };
+}
+return p69;
+})();
+
+/* 1.14 */
+var e1_14 = (function () {
+// 14. √x(x + s₁a) − x(√x + s₂b) = x√x + s₁a√x − x√x − s₂bx = −s₂b·x + s₁a·√x.
+function p14() {
+  var a = rnd(1, 6), b = rnd(1, 6), s1 = pick([-1, -1, 1]), s2 = pick([-1, -1, 1]);
+  // Бодолт (гар бичмэл): хаалт задалж x√x гишүүд устана
+  var L = '\\sqrt{x}(x' + sgn(s1 * a) + ')-x(\\sqrt{x}' + sgn(s2 * b) + ')', R = tm(-s2 * b, 'x', true) + tm(s1 * a, '\\sqrt{x}');
+  return {
+    q: '$\\sqrt{x}(x' + sgn(s1 * a) + ')-x(\\sqrt{x}' + sgn(s2 * b) + ')$ илэрхийллийг хялбарчил.',
+    a: '$' + tm(-s2 * b, 'x', true) + tm(s1 * a, '\\sqrt{x}') + '$',
+    wk: 22,
+    s: [
+      'Хаалтуудыг задалж, төсөөтэй гишүүдийг эмхэтгэе ($x\\sqrt{x}$ ба $-x\\sqrt{x}$ гишүүд устана): '
+        + '$$' + L + '=x\\sqrt{x}' + tm(s1 * a, '\\sqrt{x}') + '-x\\sqrt{x}' + tm(-s2 * b, 'x') + '=' + R + '.$$'
+    ],
+    t: { a: a, b: b, s1: s1, s2: s2 }
+  };
+}
+return p14;
+})();
+
+/* 1.73 */
+var e1_73 = (function () {
+// 73. √(kb(√(ma)+√(ma−nb))(√(ma)−√(ma−nb))) хялбарчлах: (√u+√v)(√u−√v) = u − v = nb →
+//     язгуурын дотор kn·b² (kn — бүтэн квадрат) → √(kn)·|b|. Нөхцөлөөс b ≥ 0 (эх) эсвэл b ≤ 0 (|b| = −b).
+//     Хувилбар: (√(ma+nb)+√(ma))(√(ma+nb)−√(ma)) = nb.
+var p73_KN = [[1, 1], [1, 1], [1, 1], [1, 1], [2, 2], [1, 4], [4, 1], [3, 3], [1, 9], [9, 1], [2, 8], [8, 2], [4, 4]];
+function p73() {
+  var kn = pick(p73_KN), k = kn[0], n = kn[1], m = pick([1, 1, 1, 2, 3]);
+  // typ 0: эх — √(ma) ± √(ma−nb), 0 ≤ nb ≤ ma · 1: √(ma+nb) ± √(ma), a,b ≥ 0
+  //     2: эх илэрхийлэл, a ≥ 0, b ≤ 0          · 3: √(ma+nb) ± √(ma), −ma ≤ nb ≤ 0
+  var typ = pick([0, 0, 0, 0, 1, 1, 1, 2, 2, 3]);
+  var A = m === 1 ? 'a' : m + 'a', B = n === 1 ? 'b' : n + 'b', u, v, cond;
+  if (typ === 0 || typ === 2) { u = '\\sqrt{' + A + '}'; v = '\\sqrt{' + A + '-' + B + '}'; }
+  else { u = '\\sqrt{' + A + '+' + B + '}'; v = '\\sqrt{' + A + '}'; }
+  if (typ === 0) cond = '$0\\le ' + B + '\\le ' + A + '$';
+  else if (typ === 1) cond = '$a\\ge 0$, $b\\ge 0$';
+  else if (typ === 2) cond = '$a\\ge 0$, $b\\le 0$';
+  else cond = '$-' + A + '\\le ' + B + '\\le 0$';
+  var f1 = '\\left(' + u + '+' + v + '\\right)', f2 = '\\left(' + u + '-' + v + '\\right)';
+  var expr = '\\sqrt{' + (k === 1 ? '' : k) + 'b' + (rnd(0, 3) ? f1 + f2 : f2 + f1) + '}';
+  var s = Math.round(Math.sqrt(k * n)), sign = typ >= 2 ? -1 : 1;
+  // Бодолт (гар бичмэл): (√u+√v)(√u−√v) = u − v = nb → √(kb·nb) = √(kn·b²) = √(kn)·|b|; нөхцөлөөс b ≥ 0 (эсвэл b ≤ 0).
+  var kb = (k === 1 ? '' : k) + 'b', sb = (s === 1 ? '' : s) + '|b|';
+  var diff = typ === 0 || typ === 2 ? A + '-(' + A + '-' + B + ')' : '(' + A + '+' + B + ')-' + A;
+  var why = typ === 1 ? '$b\\ge 0$' : typ === 2 ? '$b\\le 0$' : (n === 1 ? '' : '$' + (typ ? B + '\\le 0' : '0\\le ' + B) + '$, өөрөөр хэлбэл ') + (typ ? '$b\\le 0$' : '$b\\ge 0$');
+  return {
+    q: '$' + expr + '$ илэрхийллийг хялбарчлаарай. Энд ' + cond + ' байна.',
+    a: '$' + tm(sign * s, 'b', true) + '$',
+    wk: 22,
+    s: [
+      'Квадратуудын ялгаврын томьёогоор $$' + f1 + f2 + '=' + diff + '=' + B + '.$$',
+      'Иймд язгуурын доорх илэрхийлэл $' + kb + '\\cdot ' + B + '$ болно: $$\\sqrt{' + kb + '\\cdot ' + B + '}=\\sqrt{' + (k * n === 1 ? '' : k * n) + 'b^2}=' + sb + '.$$',
+      'Нөхцөлөөс ' + why + ' тул $|b|=' + (sign > 0 ? 'b' : '-b') + '$. Иймд илэрхийллийн утга $' + (s === 1 ? '' : sb + '=') + tm(sign * s, 'b', true) + '$.'
+    ],
+    t: { k: k, m: m, n: n, typ: typ }
+  };
+}
+return p73;
+})();
+
+/* 1.36 */
+var e1_36 = (function () {
+// 36. P төгрөгийг m сар тутам r% (нийлмэл) хүүтэй жил хадгалуулах нь жилийн n·r% (n = 12/m) хүүтэйгээс хэдээр илүү:
+//     P·((1 + r/100)^n − 1 − n·r/100) = P·((100+r)^n − 100^n − n·r·100^(n−1)) / 100^n. Бүхэл бус бол төгрөгөөр тоймлоно (≈).
+var p36_P = [[5e5, '500 мянган'], [1e6, '1 сая'], [1e6, '1 сая'], [2e6, '2 сая'], [3e6, '3 сая'], [5e6, '5 сая']];
+function p36_th(n) {   // 2727 → 2\,727 (мянгатыг зайгаар)
+  var s = String(n), out = '';
+  while (s.length > 3) { out = '\\,' + s.slice(-3) + out; s = s.slice(0, -3); }
+  return s + out;
+}
+function p36() {
+  var P = pick(p36_P), m = pick([3, 4, 4, 6]), n = 12 / m, r = rnd(1, 5);
+  var D = Math.pow(100, n), num = P[0] * (Math.pow(100 + r, n) - D - n * r * Math.pow(100, n - 1));
+  var v = Math.floor(num / D), rem = num - v * D;
+  if (rem < 0) { v--; rem += D; } else if (rem >= D) { v++; rem -= D; }
+  var approx = rem !== 0;
+  if (approx) {
+    if (Math.abs(rem / D - 0.5) < 0.05) return null;   // тоймлоход хоёрдмол
+    if (rem / D > 0.5) v++;
+  }
+  if (v < 100) return null;
+  // Бодолт (гар бичмэл): нийлмэл хүү P·(1 + r/100)^n, энгийн жилийн хүү P·(1 + n·r/100), ялгавар. (n = 12/m — жилд хүү бодогдох тоо)
+  var A1 = P[0] * Math.pow(100 + r, n), A2 = P[0] * (100 + n * r) / 100;   // A1 = (жилийн эцсийн дүн)·100^n — бүхэл, яг
+  var P0 = p36_th(P[0]), g1 = dec(1 + r / 100), g2 = dec(1 + n * r / 100);
+  return {
+    q: P[1] + ' төгрөгийг ' + m + ' сар тутам $' + r + '\\%$ хүүтэйгээр жил хадгалуулах нь жилийн $' + n * r
+      + '\\%$ хүүтэйгээр жил хадгалуулахаас хэдэн төгрөгөөр илүү ашигтай вэ?',
+    a: '$' + (approx ? '\\approx ' : '') + p36_th(v) + '$ төгрөг',
+    wk: 30,
+    s: [
+      'Жилд $12:' + m + '=' + n + '$ удаа $' + r + '\\%$-ийн хүү бодогдож, хүү нь мөнгөн дээр нэмэгдэнэ. Нийлмэл хүүгийн томьёогоор жилийн эцэст $$'
+        + P0 + '\\cdot ' + g1 + '^' + n + '=' + p36_dn(A1, D) + '\\text{ төг}.$$',
+      'Жилийн $' + n * r + '\\%$-ийн хүүтэй бол жилийн эцэст $' + P0 + '\\cdot ' + g2 + '=' + p36_th(A2) + '$ төг.',
+      'Иймд $' + p36_dn(A1, D) + '-' + p36_th(A2) + '=' + p36_dn(A1 - A2 * D, D) + (approx ? '\\approx ' + p36_th(v) : '') + '$ төгрөгөөр илүү ашигтай.'
+    ],
+    t: { P: P[0], m: m, r: r }
+  };
+}
+// num/den (den = 100^n, num бүхэл) → аравтын бутархай, бүхэл хэсгийг мянгатаар: 1\,125\,508.81
+function p36_dn(num, den) {
+  var ip = Math.floor(num / den), fp = num - ip * den, s = p36_th(ip);
+  if (fp) { var fs = String(fp); while (fs.length < String(den).length - 1) fs = '0' + fs; s += '.' + fs.replace(/0+$/, ''); }
+  return s;
+}
+return p36;
+})();
+
+/* 1.57 */
+var e1_57 = (function () {
+// 57. T кг хайлшинд c кг зэс; a кг төмөр нэмэхэд зэсийн эзлэх хувь p хувиар (нэгжээр) буурав:
+//     100c/T − 100c/(T+a) = p ⇒ c = p·T(T+a)/(100a).  (Заримдаа үүргийг сольж: зэс нэмж, төмрийн хувь буурна.)
+function p57() {
+  var T = pick([40, 50, 60, 80, 100, 120]), a = pick([10, 15, 20, 25, 30, 40]), p = rnd(2, 25);
+  var num = p * T * (T + a);
+  if (num % (100 * a)) return null;
+  var c = num / (100 * a);
+  if (c < 0.15 * T || c > 0.9 * T) return null;
+  var sw = !rnd(0, 2), X = sw ? 'төмөр' : 'зэс', Y = sw ? 'зэс' : 'төмөр', Xg = sw ? 'төмрийн' : 'зэсийн';
+  // Бодолт (гар бичмэл): x кг → эзлэх хувь x/T·100% → x/(T+a)·100%; ялгавар = p ⇒ T(T+a)-аар үржүүлж шугаман тэгшитгэл.
+  var Tn = T + a, L = 100 * a;
+  return {
+    q: 'Зэс ба төмрийн $' + T + '$ кг хайлшинд $' + a + '$ кг ' + Y + ' нэмэхэд ' + Xg + ' эзлэх хувь нь $' + p
+      + '$ хувиар багассан бол хайлшинд хэдэн килограмм ' + X + ' байсан бэ?',
+    a: '$' + c + '$ кг',
+    wk: 30,
+    s: [
+      'Хайлшинд $x$ кг ' + X + ' байсан гэе. Анх ' + Xg + ' эзлэх хувь $\\dfrac{x}{' + T + '}\\cdot 100\\%$ байна. Харин $' + a + '$ кг ' + Y
+        + ' нэмсний дараа хайлшийн масс $' + Tn + '$ кг болж, ' + Xg + ' эзлэх хувь $\\dfrac{x}{' + Tn + '}\\cdot 100\\%$ болж буурна.',
+      'Эзлэх хувь $' + p + '$ хувиар багассан тул $$\\dfrac{x}{' + T + '}\\cdot 100-\\dfrac{x}{' + Tn + '}\\cdot 100=' + p + '$$',
+      'Хоёр талыг $' + T + '\\cdot ' + Tn + '$-' + suf(Tn, 'аар') + ' үржүүлбэл $$100x\\cdot ' + Tn + '-100x\\cdot ' + T + '=' + p + '\\cdot ' + T + '\\cdot ' + Tn
+        + '\\Rightarrow ' + L + 'x=' + num + '\\Rightarrow x=\\dfrac{' + num + '}{' + L + '}=' + c + '$$'
+    ],
+    t: { T: T, a: a, p: p }
+  };
+}
+return p57;
+})();
+
+E1K.page({
+  title: 'ЭЕШ 1000 — Тоо ба илэрхийлэл-1',
+  sub: 'Рационал ба иррационал тоо, зэрэг, язгуур, стандарт хэлбэр, хувь',
+  first: 1,
+  probs: [e1_10, e1_47, e1_70, e1_11, e1_15, e1_18, e1_69, e1_14, e1_73, e1_36, e1_57]
+});
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

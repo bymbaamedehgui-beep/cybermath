@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ЭЕШ 1000 — Олон гишүүнт, рационал бутархай-2</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/e1k.js?v=2"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* ЭЕШ 1000 — Олон гишүүнт, рационал бутархай-2 — ЭЕШ-ийн 1000 бодлого, агуулгаар: Үлдэгдлийн теорем, хуваагч, язгуур; хялбар бутархайд задлах.
+   Эх: 3.15, 2.4, 1.9, 3.16, 3.17, 1.31, 3.18, 2.8, 1.53, 1.77, 1.19, 2.5, 2.6, 1.85, 3.19, 3.20, 3.21 (хэсэг.бодлого). Бодлого бүр өөрийн генератортой: «Шинэ бодлого» дарахад тоо нь өөрчлөгдөнө. */
+
+/* 3.15 */
+var e3_15 = (function () {
+// 15. p(x) = ax³ + bx² + cx + d олон гишүүнтийг x − r-д хуваахад гарах үлдэгдэл нь p(r) (Безугийн теорем).
+//     r ∈ {±1, ±2}; үлдэгдэл голдуу ≠ 0, |p(r)| ≤ 30  (эх: 5x³ − 13x² + 17x − 7, x − 1 → 2).
+function p15() {
+  var r = pick([1, 1, 1, -1, -1, -1, 2, 2, -2, -2]), a = pick([2, 3, 3, 4, 5, 5, 6, 7, -2, -3]);
+  var b = nz(-15, 15), c = nz(-20, 20), d = nz(-12, 12);
+  if (a === 5 && b === -13 && c === 17 && d === -7 && r === 1) return null;   // эх тоо тогтмол хувилбар болохгүй
+  var R = a * r * r * r + b * r * r + c * r + d;
+  if (Math.abs(R) > 30 || (R === 0 && rnd(0, 3))) return null;               // 0 үлдэгдэл ховор
+  return {
+    q: '$p(x)=' + poly([a, b, c, d]) + '$ олон гишүүнтийг <span class="nw">$' + poly([1, -r]) + '$-' + suf(Math.abs(r), 'д')
+      + '</span> хуваахад гарах үлдэгдлийг олоорой.',
+    a: '$' + R + '$',
+    wk: 22,
+    t: { P: [a, b, c, d], r: r }
+  };
+}
+return p15;
+})();
+
+/* 2.4 */
+var e2_4 = (function () {
+// 4. P(x) = x³ + ax² + cx + b; (x − u)-д хуваахад r₁, (x − v)-д хуваахад r₂ үлдэнэ ⇔ P(u) = r₁, P(v) = r₂ (Безу):
+//    a(u² − v²) = r₁ − r₂ − (u³ − v³) − c(u − v),  b = r₁ − u³ − au² − cu  (u² ≠ v²). Хариу бутархай байж болно.
+//    (эх: c = −4, (x − 1) → 1, (x + 2) → −1  ⇒  a = −5/3)
+function p4() {
+  var u = pick([1, 1, 1, 2, -1, -2, 3, -3]), v = pick([1, -1, 2, -2, -2, 3, -3]);
+  if (u === v || u === -v) return null;
+  var c = nz(-6, 6), r1 = nz(-5, 5), r2 = nz(-5, 5);
+  if (rnd(0, 1)) {                       // заримдаа бүхэл a, b-ээс үлдэгдлүүдийг тооцно (бүхэл хариу)
+    var a0 = nz(-4, 4), b0 = nz(-6, 6);
+    r1 = u * u * u + a0 * u * u + c * u + b0; r2 = v * v * v + a0 * v * v + c * v + b0;
+    if (!r1 || !r2 || Math.abs(r1) > 15 || Math.abs(r2) > 15) return null;
+  }
+  var D = u * u - v * v, N = r1 - r2 - (u * u * u - v * v * v) - c * (u - v);   // a = N/D
+  var bN = D * (r1 - u * u * u - c * u) - N * u * u;                              // b = bN/D
+  var ask = pick(['a', 'a', 'a', 'a', 'b', 'a+b']), vN = ask === 'a' ? N : ask === 'b' ? bN : N + bN;
+  var den = Math.abs(D) / gcd(vN, D);
+  if (den > 6 || Math.abs(vN / D) > 12) return null;
+  if (ask === 'a' && !N) return null;
+  // дагаврыг томьёоноос тасрахгүй байлгана (nw)
+  var dv = function (w) { return '<span class="nw">$(' + poly([1, -w]) + ')$-' + suf(Math.abs(w), 'д') + '</span>'; };
+  return {
+    q: '$P(x)=x^3+ax^2' + tm(c, 'x') + '+b$ олон гишүүнтийг ' + dv(u) + ' хуваахад $' + r1 + '$ үлддэг ба ' + dv(v) + ' хуваахад $' + r2
+      + '$ үлддэг бол <span class="nw">$' + ask + '$-гийн</span> утгыг олоорой.',
+    a: '$' + ask + '=' + fr(vN, D) + '$',
+    wk: 28,
+    t: { u: u, v: v, c: c, r1: r1, r2: r2, ask: ask }
+  };
+}
+return p4;
+})();
+
+/* 1.9 */
+var e1_9 = (function () {
+// 9. P(x) = (x³ + e)·S(x) + R(x), x³ + e = (x + e)(x² − ex + 1), e = ±1, R = αx² + βx + γ.
+//    x + e-д хуваахад R(−e) = α − eβ + γ, x² − ex + 1-д хуваахад R − α(x² − ex + 1) = (β + αe)x + (γ − α) үлдэнэ.
+//    Эдгээрээс R-ийг сэргээнэ (хариу нь R).
+function p9() {
+  var e = rnd(0, 9) < 6 ? 1 : -1, al = nz(-3, 3), be = rnd(-5, 5), ga = rnd(-5, 5);
+  var r1 = al - e * be + ga, u = be + al * e, v = ga - al;
+  if (!r1 || !u || Math.abs(r1) > 12) return null;
+  var L = poly([1, e]), Q = poly([1, -e, 1]);
+  // Бодолт (гар бичмэл): P(−e) = r1 (Безу); R(x) = a·Q(x) + ux + v хэлбэртэй; R(−e) = P(−e) → a.
+  var lin = poly([u, v]), w = -e * u + v, x0 = -e;
+  // орлуулга: x² ∓ x + 1 ба ux + v-д x = x₀-г тавина (ux + v нь зөвхөн x бол утга нь x₀ өөрөө тул алгасна)
+  var qs = x0 === 1 ? '1^2+1+1' : '(-1)^2-(-1)+1', ls = (u === 1 ? '' : u === -1 ? '-' : u + '\\cdot ') + par(x0) + (v ? sgn(v) : '');
+  var lp = v === 0 && u === 1 ? '' : ', $' + lin + '=' + (ls === String(w) ? '' : ls + '=') + w + '$';
+  return {
+    q: '$P(x)$ олон гишүүнтийг $' + L + '$-д хуваахад $' + r1 + '$ үлдэх ба $' + Q + '$-д хуваахад $' + poly([u, v]) + '$ үлдэнэ. '
+      + '$P(x)$ олон гишүүнтийг $(' + L + ')(' + Q + ')$ олон гишүүнтэд хуваахад гарах үлдэгдлийг олоорой.',
+    a: '$R(x)=' + poly([al, be, ga]) + '$',
+    wk: 32,
+    s: [
+      '$P(x)=(' + L + ')\\cdot Q_1(x)' + sgn(r1) + '$ тул Безугийн теоремоор $P(' + x0 + ')=' + r1 + '$.',
+      '$P(x)=(' + L + ')(' + Q + ')\\cdot Q_2(x)+R(x)$, $\\deg R(x)\\le 2$. $P(x)$ ба $R(x)$-ийг $' + Q + '$-д хуваахад ижил үлдэгдэл гарах тул '
+        + '$R(x)=a(' + Q + ')' + (lin[0] === '-' ? '' : '+') + lin + '$ хэлбэртэй.',
+      '$x=' + x0 + '$ үед $' + L + '=0$ тул $P(' + x0 + ')=R(' + x0 + ')$. Мөн энэ үед $' + Q + '=' + qs + '=3$' + lp + ' тул '
+        + '$$R(' + x0 + ')=3a' + (w ? sgn(w) : '') + '=' + r1 + '\\Rightarrow a=' + al + '.$$',
+      'Иймд $R(x)=' + (al === 1 ? '' : al === -1 ? '-' : al) + '(' + Q + ')' + (lin[0] === '-' ? '' : '+') + lin + '=' + poly([al, be, ga]) + '$.'
+    ],
+    t: { e: e, al: al, be: be, ga: ga }
+  };
+}
+return p9;
+})();
+
+/* 3.16 */
+var e3_16 = (function () {
+// 16. p(x) = kx⁴ + ax² + cx + b нь x² − (r₁ + r₂)x + r₁r₂ = (x − r₁)(x − r₂)-д хуваагдана ⇔ p(r₁) = p(r₂) = 0:
+//     a·r² + b = −k·r⁴ − c·r (r = r₁, r₂) ⇒ a = −c/(r₁ + r₂) − k(r₁² + r₂²), b = −k·r₁⁴ − a·r₁² − c·r₁  (r₁ ≠ ±r₂, c нь r₁ + r₂-т хуваагдана).
+//     (эх: 4x⁴ + ax² + 11x + b, x² + x − 2 → a = −9, b = −6)
+function p16() {
+  var r1 = nz(-3, 3), r2 = nz(-3, 3);
+  if (r1 >= r2 || r1 === -r2) return null;
+  var S = r1 + r2, k = pick([1, 2, 2, 3, 3, 4, 4, 5]), c = nz(-20, 20);
+  if (c % S) return null;                                      // a бүхэл
+  var a = -c / S - k * (r1 * r1 + r2 * r2), b = -k * Math.pow(r1, 4) - a * r1 * r1 - c * r1;
+  if (!a || !b || Math.abs(a) > 30 || Math.abs(b) > 50) return null;
+  if (k === 4 && c === 11 && r1 === -2 && r2 === 1) return null;   // эх тоо тогтмол хувилбар болохгүй
+  return {
+    q: '$p(x)=' + tm(k, 'x^4', true) + '+ax^2' + tm(c, 'x') + '+b$ олон гишүүнт $' + poly([1, -S, r1 * r2])
+      + '$ олон гишүүнтэд хуваагддаг байх $a,b$ тогтмол тоонуудыг олоорой.',
+    a: '$a=' + a + '$, $b=' + b + '$',
+    wk: 34,
+    t: { k: k, c: c, r: [r1, r2] }
+  };
+}
+return p16;
+})();
+
+/* 3.17 */
+var e3_17 = (function () {
+// 17. p(x) = kx³ + ax² + bx + d нь x − r₁-д хуваагдана (p(r₁) = 0), mx + n-д хуваахад R үлдэгдэлтэй (p(−n/m) = R).
+//     Бүхэл a, b, R гарахаар p = (x − r₁)(kx² + ux + v) байгуулна: k = mk', u = k'n + mu', v = u'n + mv' ⇒ R = −(n + mr₁)·v'.
+//     (эх: 8x³ + ax² + bx − 1, x + 1-д хуваагдана, 2x + 1-д хуваахад 1 үлдэнэ → a = 6, b = −3)
+function p17() {
+  var m = pick([2, 2, 2, 3, 1]), n = m === 1 ? nz(-4, 4) : nz(-3, 3);
+  if (gcd(m, n) !== 1) return null;
+  var r1 = pick([-2, -1, -1, 1, 1, 2]);
+  if (m * r1 === -n) return null;                                   // r₁ ≠ −n/m
+  var kp = m === 1 ? rnd(1, 6) : m === 2 ? rnd(1, 4) : rnd(1, 3), k = m * kp;
+  var up = rnd(-5, 5), vp = nz(-5, 5), u = kp * n + m * up, v = up * n + m * vp;
+  var a = u - k * r1, b = v - u * r1, d = -v * r1, R = -(n + m * r1) * vp;
+  if (!a || !b || !d || Math.abs(a) > 20 || Math.abs(b) > 20 || Math.abs(d) > 12 || Math.abs(R) > 12) return null;
+  if (k === 8 && d === -1 && r1 === -1 && m === 2 && n === 1 && R === 1) return null;   // эх тоо тогтмол хувилбар болохгүй
+  var dv = function (s, w) { return '<span class="nw">$' + s + '$-' + suf(Math.abs(w), 'д') + '</span>'; };
+  return {
+    q: '$p(x)=' + tm(k, 'x^3', true) + '+ax^2+bx' + sgn(d) + '$ олон гишүүнт нь ' + dv(poly([1, -r1]), r1) + ' хуваагдах бөгөөд '
+      + dv(poly([m, n]), n) + ' хуваахад $' + R + '$ үлдэгдэлтэй байдаг бол $a,b$ тогтмол тоонуудыг олоорой.',
+    a: '$a=' + a + '$, $b=' + b + '$',
+    wk: 34,
+    t: { k: k, d: d, r1: r1, m: m, n: n, R: R }
+  };
+}
+return p17;
+})();
+
+/* 1.31 */
+var e1_31 = (function () {
+// 31. P(x) = kx³ + ax² + b нь (x − r)²-д хуваагдана ⇔ P(r) = P'(r) = 0 → a = −3kr/2, b = kr³/2
+//     (эх: P = 2x³ + ax² + b, (x+2)² → a = 6, b = −8, ab = −48). kr тэгш байх ёстой (a, b бүхэл).
+function p31() {
+  var k = rnd(1, 4), r = pick([-3, -2, -1, 1, 2, 3]);
+  if ((k * r) % 2 !== 0) return null;
+  var a = -3 * k * r / 2, b = k * r * r * r / 2, ask = pick(['ab', 'ab', 'a+b']), v = ask === 'ab' ? a * b : a + b;
+  if (Math.abs(a * b) > 400) return null;
+  // Бодолт (гар бичмэл): Безугийн теоремоор P(r) = 0; (x − r)² | P → (x − r) | P' → P'(r) = 0 → a, дараа нь b.
+  var r2 = r * r, C = -k * r * r * r, D = poly([1, -r]), pr = par(r), direct = r2 === 1 && ask === 'a+b';
+  var Dd = '$(' + D + ')$-' + suf(Math.abs(r), 'д');   // (x±1)-д, (x±2)-т, (x±3)-т
+  var s1 = '$P(x)$ нь ' + Dd + ' хуваагдах тул Безугийн теоремоор $P(' + r + ')=0$: $$P(' + r + ')=' + (k === 1 ? '' : k + '\\cdot ') + pr + '^3+a\\cdot ' + pr + '^2+b='
+    + (-C) + tm(r2, 'a') + '+b=0' + (direct ? '.$$' : '\\Rightarrow ' + tm(r2, 'a', true) + '+b=' + C + '.$$');
+  // b = C − r²·a (r² = 1 үед «C − a = C − 3» гэж давтахгүй)
+  var bs = 'b=' + C + tm(-r2, 'a') + '=' + C + '-' + (r2 === 1 ? par(a) : r2 + '\\cdot ' + par(a)) + (r2 === 1 && a > 0 ? '' : '=' + C + sgn(-r2 * a)) + '=' + b;
+  return {
+    q: '$P(x)=' + tm(k, 'x^3', true) + '+ax^2+b$ олон гишүүнт $(' + D + ')^2$-д хуваагддаг бол $' + ask + '$ хэдтэй тэнцүү вэ?',
+    a: '$' + ask + '=' + v + '$', wk: 30,
+    s: direct ? [s1, 'Эндээс шууд $a+b=' + v + '$.'] : [
+      s1,
+      '$P(x)$ нь $(' + D + ')^2$-д хуваагддаг тул $P\'(x)=' + tm(3 * k, 'x^2', true) + '+2ax$ нь ' + Dd + ' хуваагдана. Безугийн теоремоор $$P\'(' + r + ')='
+        + 3 * k + '\\cdot ' + pr + '^2+2a\\cdot ' + pr + '=' + 3 * k * r2 + tm(2 * r, 'a') + '=0\\Rightarrow a=' + a + '.$$',
+      'Эндээс $' + bs + '$. Иймд $' + (ask === 'ab' ? 'ab=' + par(a) + '\\cdot ' + par(b) : 'a+b=' + a + sgn(b)) + '=' + v + '$.'
+    ],
+    t: { k: k, r: r, ask: ask }
+  };
+}
+return p31;
+})();
+
+/* 3.18 */
+var e3_18 = (function () {
+// 18. p(x) = x³ + mx² + kax + la-ийн нэг хуваагч x + a ⇔ p(−a) = 0 (Безу):
+//     p(−a) = −a³ + ma² − ka² + la = −a(a² − (m − k)a − l) = −a(a − α)(a − β) ⇒ a ∈ {0; α; β}  (α ≠ β, тэг биш бүхэл).
+//     Заримдаа хуваагч x − a: p(a) = a(a² + (m + k)a + l).  (эх: x³ + 4x² + 7ax + 4a, x + a → a ∈ {−4; 0; 1})
+function p18() {
+  var al = nz(-5, 5), be = nz(-5, 5);
+  if (al >= be) return null;
+  var plus = rnd(0, 3) > 0, m = pick([2, 3, 4, 4, 5, 6, 1, -2, -3]), k, l;
+  if (plus) { k = m - (al + be); l = -al * be; } else { k = -(al + be) - m; l = al * be; }
+  if (!k || Math.abs(k) > 12) return null;
+  if (plus && m === 4 && k === 7 && l === 4) return null;   // эх тоо тогтмол хувилбар болохгүй
+  var vals = [0, al, be].sort(function (x, y) { return x - y; });
+  return {
+    q: '$x^3' + tm(m, 'x^2') + tm(k, 'ax') + tm(l, 'a') + '$ олон гишүүнтийн нэг хуваагч нь $x' + (plus ? '+' : '-') + 'a$ бол <span class="nw">$a$-ийн</span> утгыг олоорой.',
+    a: '$a\\in\\{' + vals.join(';\\ ') + '\\}$',
+    wk: 30,
+    t: { m: m, k: k, l: l, plus: plus }
+  };
+}
+return p18;
+})();
+
+/* 2.8 */
+var e2_8 = (function () {
+// 8. x² + px + c (c > 0, бүтэн квадрат биш) олон гишүүнтийн язгуурууд x₁x₂ = c, p = −(x₁ + x₂) (Виет).
+//    Натурал язгууруудын хос {x₁ < x₂} = c-ийн хуваагчдын хос → τ(c)/2; бүхэл язгуур бол сөрөг хосууд нэмэгдэж τ(c).
+//    (эх: c = 12 → (1; 12), (2; 6), (3; 4) — 3 хос)
+var p8_C = [6, 8, 10, 12, 12, 12, 14, 15, 18, 18, 20, 20, 21, 22, 24, 24, 28, 30, 32, 40, 42, 44, 45, 48, 50, 52, 54, 56, 60, 63, 66, 70, 72, 75, 80, 84, 90, 96];
+function p8() {
+  var c = pick(p8_C), nat = rnd(1, 4) > 1, pairs = [], d;
+  for (d = 1; d * d < c; d++) if (c % d === 0) pairs.push([d, c / d]);
+  if (!nat && pairs.length > 4) return null;
+  if (nat && pairs.length < 2) return null;
+  var all = nat ? pairs : pairs.concat(pairs.map(function (q) { return [-q[0], -q[1]]; }));
+  return {
+    q: '$P(x)=x^2+px+' + c + '$ олон гишүүнт хичнээн хос ' + (nat ? 'натурал' : 'бүхэл') + ' язгууруудтай вэ?',
+    a: '$' + all.length + '$ хос: ' + all.map(function (q) { return '$' + pt(q[0], q[1]) + '$'; }).join(', '),
+    wk: 22,
+    t: { c: c, nat: nat }
+  };
+}
+return p8;
+})();
+
+/* 1.53 */
+var e1_53 = (function () {
+// 53. r₁ < r₂ < r₃ язгууртай гурван зэргийн олон гишүүнт: P(x) = (x − r₁)(x − r₂)(x − r₃) — задалж бичнэ.
+function p53() {
+  var r = [rnd(-5, 5), rnd(-5, 5), rnd(-5, 5)].sort(function (a, b) { return a - b; });
+  if (r[0] === r[1] || r[1] === r[2]) return null;
+  var e1 = r[0] + r[1] + r[2], e2 = r[0] * r[1] + r[0] * r[2] + r[1] * r[2], e3 = r[0] * r[1] * r[2];
+  if (Math.abs(e3) > 60 || Math.abs(e2) > 40) return null;
+  var fac = r.slice().sort(function (a, b) { return (a === 0 ? -1 : 0) - (b === 0 ? -1 : 0); })   // x хүчин зүйлийг эхэнд
+    .map(function (v) { return v === 0 ? 'x' : '(x' + sgn(-v) + ')'; }).join('');
+  // Бодолт (гар бичмэл): Безугийн теоремоор P(x) = a(x − r₁)(x − r₂)(x − r₃), a ≠ 0; a = 1 үед хоёр хаалтыг
+  //   эхэлж үржүүлнэ: 0 язгуур бол x-ийн дараах хоёрыг, эсрэг тэмдэгтэй хос бол (x − u)(x + u) = x² − u², бусад үед эхний хоёрыг.
+  var o = r.slice().sort(function (a, b) { return (a === 0 ? -1 : 0) - (b === 0 ? -1 : 0); }), mid;
+  var p53_f = function (v) { return '(x' + sgn(-v) + ')'; };
+  if (o[0] === 0) mid = 'x(' + poly([1, -(o[1] + o[2]), o[1] * o[2]]) + ')';
+  else {
+    var pr = [0, 1, 2], j1, j2;   // эсрэг тэмдэгтэй хос (ганц л байж болно) байвал түүнийг эхэлж үржүүлнэ
+    for (j1 = 0; j1 < 3; j1++) for (j2 = j1 + 1; j2 < 3; j2++) if (o[j1] === -o[j2]) pr = [j1, j2, 3 - j1 - j2];
+    mid = '(' + poly([1, -(o[pr[0]] + o[pr[1]]), o[pr[0]] * o[pr[1]]]) + ')' + p53_f(o[pr[2]]);
+  }
+  return {
+    q: '$' + r.join(',\\ ') + '$ тоонууд язгуур нь болох гурван зэргийн олон гишүүнтийг бичээрэй.',
+    a: '$P(x)=' + fac + '=' + poly([1, -e1, e2, -e3]) + '$',
+    wide: true, wk: 24,
+    s: [
+      'Безугийн теоремоор $x_0$ нь $P(x)$ олон гишүүнтийн язгуур бол $P(x)$ нь $x-x_0$ хоёр гишүүнтэд хуваагдана. Иймд $$P(x)=a' + fac + ',\\quad a\\ne 0$$',
+      '$a=1$ гэж аваад хаалтуудыг задалбал $$P(x)=' + fac + '=' + mid + '=' + poly([1, -e1, e2, -e3]) + '$$'
+    ],
+    t: { r: r }
+  };
+}
+return p53;
+})();
+
+/* 1.77 */
+var e1_77 = (function () {
+// 77. f(x) = x³ + mx² + px + q, x₁ = r язгуур: f(r) = 0 → m = −(r³ + pr + q)/r²; Виет: x₁+x₂+x₃ = −m.
+//     Язгуурууд r, s, t — ялгаатай бүхэл тоо (p = rs+rt+st, q = −rst).
+function p77() {
+  var r = pick([-3, -2, -1, 1, 2, 2, 3]), s = nz(-4, 4), t = nz(-4, 4);
+  if (s === t || s === r || t === r) return null;
+  var p = r * s + r * t + s * t, q = -r * s * t, S = r + s + t;
+  if (!p || Math.abs(p) > 15 || Math.abs(q) > 24 || !S) return null;
+  // Бодолт (гар бичмэл): Виетийн теорем x₁+x₂+x₃ = −m; f(x₁) = 0 → m (эх бодолтын 2 аргын богино нь)
+  var r2 = r * r, K = r * r * r + p * r + q, m = -K / r2;
+  return {
+    q: '$f(x)=x^3+mx^2' + tm(p, 'x') + sgn(q) + '$ олон гишүүнтийн язгуурууд нь $x_1=' + r + ';\\ x_2;\\ x_3$ бол $x_1+x_2+x_3$ нийлбэрийг олоорой.',
+    a: '$x_1+x_2+x_3=' + S + '$',
+    wk: 26,
+    s: [
+      'Виетийн теоремоор $x_1+x_2+x_3=-m$.',
+      '$x_1=' + r + '$ нь язгуур тул $f(' + r + ')=0$: $$' + par(r) + '^3+m\\cdot ' + par(r) + '^2' + (p === 1 ? '+' : p === -1 ? '-' : sgn(p) + '\\cdot ') + par(r) + sgn(q) + '=0'
+        + '\\Rightarrow ' + (r * r * r) + tm(r2, 'm') + sgn(p * r) + sgn(q) + '=0' + (r2 === 1 ? '' : '\\Rightarrow ' + tm(r2, 'm', true) + '=' + (-K)) + '\\Rightarrow m=' + m + '.$$',
+      'Иймд $x_1+x_2+x_3=-m=' + (m < 0 ? '-(' + m + ')=' : '') + S + '$.'
+    ],
+    t: { r: r, p: p, q: q }
+  };
+}
+return p77;
+})();
+
+/* 1.19 */
+var e1_19 = (function () {
+// 19. c/(x²−ax) ± c/(x²+ax) хялбарчлах (эх: 1/(x²−x) + 1/(x²+x) = 2/(x²−1)).
+//     Нийлбэр: c(x+a + x−a)/(x(x²−a²)) = 2c/(x²−a²); ялгавар: ±2ac/(x(x²−a²)).
+function p19() {
+  var a = rnd(1, 6), c = pick([1, 1, 1, 1, 2, 3]), plus = rnd(0, 2) > 0, sw = rnd(0, 2) === 0;
+  var ax = (a === 1 ? '' : a) + 'x', D1 = 'x^2-' + ax, D2 = 'x^2+' + ax, F = sw ? [D2, D1] : [D1, D2];
+  var q = '$\\dfrac{' + c + '}{' + F[0] + '}' + (plus ? '+' : '-') + '\\dfrac{' + c + '}{' + F[1] + '}$ илэрхийллийг хялбарчил.';
+  var ans = plus ? '\\dfrac{' + 2 * c + '}{x^2-' + a * a + '}' : (sw ? '-' : '') + '\\dfrac{' + 2 * a * c + '}{x(x^2-' + a * a + ')}';
+  // Бодолт (гар бичмэл): хуваарийг x(x∓a) болгон задалж, ерөнхий хуваарь x(x²−a²)-д шилжүүлнэ
+  var fm = '(x-' + a + ')', fp = '(x+' + a + ')', cd = 'x(x^2-' + a * a + ')', cc = c === 1 ? '' : String(c), op = plus ? '+' : '-';
+  var fac = [D1 + '=x' + fm, D2 + '=x' + fp];
+  if (sw) fac.reverse();
+  var d1 = sw ? 'x' + fp : 'x' + fm, d2 = sw ? 'x' + fm : 'x' + fp, m1 = sw ? fm : fp, m2 = sw ? fp : fm;
+  return { q: q, a: '$' + ans + '$', wk: 24,
+    s: [
+      'Хуваарь бүрийг үржигдэхүүнд задалбал $' + fac[0] + '$, $' + fac[1] + '$. Ерөнхий хуваарь нь <span class="nw">$x' + fm + fp + '=' + cd + '$</span>.',
+      '$$\\dfrac{' + c + '}{' + d1 + '}' + op + '\\dfrac{' + c + '}{' + d2 + '}=\\dfrac{' + cc + m1 + op + cc + m2 + '}{' + cd + '}='
+        + (plus ? '\\dfrac{' + 2 * c + 'x}{' + cd + '}=' : '') + ans + '.$$'
+    ],
+    t: { a: a, c: c, plus: plus, sw: sw } };
+}
+return p19;
+})();
+
+/* 2.5 */
+var e2_5 = (function () {
+// 5. (mx + n)/((x − p)(x − q)) = A/(x − p) − B/(x − q)  ⇔  mx + n = A(x − q) − B(x − p)  (хуваарийг задалж бичнэ):
+//    x = p → A = (mp + n)/(p − q),  x = q → B = (mq + n)/(p − q).  Бүхэл A, B-ээс m = A − B, n = Bp − Aq.
+//    [ЗАС: эхийн хуваарь x² − x + 2 нь (x+1)(x−2)-той таарахгүй → x² − x − 2]  (эх: (x−8)/(x²−x−2) → A = 3, B = 2, A·B = 6)
+function p5() {
+  var p = nz(-5, 5), q = nz(-5, 5);
+  if (p === q) return null;
+  var A = pick([1, 2, 2, 3, 3, 4, 5, -1, -2, -3]), B = pick([1, 2, 2, 3, 4, 5, -1, -2, -3]);
+  var m = A - B, n = B * p - A * q;
+  if (!m || !n || Math.abs(m) > 5 || Math.abs(n) > 20) return null;
+  if (m < 0 && rnd(0, 2)) return null;                    // эх шиг хүртвэрийн ахлах коэффициент голдуу эерэг
+  var ask = pick([0, 0, 0, 1, 2]), E = ['A\\cdot B', 'A+B', 'A-B'][ask], V = [A * B, A + B, A - B][ask];
+  return {
+    q: '$\\dfrac{' + poly([m, n]) + '}{' + poly([1, -(p + q), p * q]) + '}=\\dfrac{A}{' + poly([1, -p]) + '}-\\dfrac{B}{' + poly([1, -q]) + '}$ бол $' + E + '=?$',
+    a: '$A=' + A + ',\\ B=' + B + ';\\ ' + E + '=' + V + '$',
+    wk: 28,
+    t: { p: p, q: q, A: A, B: B, ask: ask }
+  };
+}
+return p5;
+})();
+
+/* 2.6 */
+var e2_6 = (function () {
+// 6. N(x)/(x³ + rx²) = A/(x + r) − (Cx + B)/x²  ⇔  N(x) = Ax² − (Cx + B)(x + r) = (A − C)x² − (Cr + B)x − Br.
+//    N-д x² байхгүй → A = C = j;  N = −(jr + B)x − Br.  j = 1 үед эхийн загвар (x + B)/x² (асуулт A + B),
+//    заримдаа j ≠ 1 → (Cx + B)/x² (асуулт A + B + C).  B = −jr үед N = jr² тогтмол.
+//    [ЗАС: эхийн 1/(x³ + x) нь өгсөн задаргаатай таарахгүй → 1/(x³ + x²)]  (эх: 1/(x³+x²) = 1/(x+1) − (x−1)/x² → A + B = 0)
+function p6() {
+  var r = pick([1, 1, 2, 2, 3, 4, -1, -2, -3]), gen2 = rnd(1, 5) === 1, j = gen2 ? pick([2, 2, 3, -1, -2]) : 1;
+  var B = rnd(1, 5) <= 2 ? -j * r : nz(-6, 6);
+  var n1 = -(j * r + B), n0 = -B * r;
+  if (!B || Math.abs(n1) > 9 || Math.abs(n0) > 24) return null;
+  var xr = poly([1, r]), ask, E, V, ans;
+  if (!gen2) {
+    ask = pick([0, 0, 0, 0, 1, 2]); E = ['A+B', 'A\\cdot B', 'A-B'][ask]; V = [j + B, j * B, j - B][ask];
+    ans = 'A=' + j + ',\\ B=' + B + ';\\ ' + E + '=' + V;
+  } else {
+    E = 'A+B+C'; V = 2 * j + B;
+    ans = 'A=' + j + ',\\ B=' + B + ',\\ C=' + j + ';\\ ' + E + '=' + V;
+  }
+  return {
+    q: '$\\dfrac{' + poly([n1, n0]) + '}{' + poly([1, r, 0, 0]) + '}=\\dfrac{A}{' + xr + '}-\\dfrac{' + (gen2 ? 'Cx' : 'x') + '+B}{x^2}$ бол $' + E + '=?$',
+    a: '$' + ans + '$',
+    wk: 28,
+    t: { r: r, j: j, B: B }
+  };
+}
+return p6;
+})();
+
+/* 1.85 */
+var e1_85 = (function () {
+// 85. N(x)/(x²(x+r)) = A/x + B/x² + C/(x+r) ⇔ N(x) = Ax(x+r) + B(x+r) + Cx²:
+//     x = 0 → B = N(0)/r, x = −r → C = N(−r)/r², x²-ийн коэффициент → A = u − C (эх: u = 0 → A + B + C = B).
+// Бодолтын мөр доторх ($…$) томьёог мөр хооронд таслахгүй ($$…$$-д хүрэхгүй)
+function p85_nw(s) { return s.split(/(\$\$[\s\S]*?\$\$)/).map(function (p, i) { return i % 2 ? p : p.replace(/\$[^$]+\$(-[А-Яа-яЁёӨөҮү]+)?[.,;:)]*/g, function (m) { return '<span class="nw">' + m + '</span>'; }); }).join(''); }
+function p85() {
+  var r = pick([1, 1, 2, -1, -2, 3]), B = nz(-4, 4), C = nz(-3, 3), u = rnd(0, 9) < 7 ? 0 : pick([1, 2, -1]);
+  var A = u - C;
+  if (!A) return null;
+  var n2 = A + C, n1 = A * r + B, n0 = B * r;            // N(x) = n2·x² + n1·x + n0
+  if (!n1 || Math.abs(n1) > 12 || Math.abs(n0) > 12) return null;
+  var ask = pick([0, 0, 0, 0, 1, 2]), E = ['A+B+C', 'A\\cdot B\\cdot C', 'A-B+C'][ask], V = [A + B + C, A * B * C, A - B + C][ask];
+  var xr = 'x' + sgn(r);
+  // Бодолт (гар бичмэл): нийтлэг хуваарьт оруулж хүртвэрүүдийг тэнцүүлнэ → x-ийн зэргүүдийн коэффициент тэнцүү.
+  var fin;
+  if (ask === 0) fin = 'Эндээс $B=' + B + '$, $A+C=' + n2 + '$ тул $A+B+C=(A+C)+B=' + n2 + '+' + par(B) + '=' + V + '$.';
+  else if (ask === 2) fin = 'Эндээс $B=' + B + '$, $A+C=' + n2 + '$ тул $A-B+C=(A+C)-B=' + n2 + '-' + par(B) + '=' + V + '$.';
+  else fin = 'Эндээс $B=' + B + '$, $' + tm(r, 'A', true) + sgn(B) + '=' + n1 + '\\Rightarrow A=' + A + '$, $C=' + (n2 ? n2 + '-' + par(A) : '-A') + '=' + C + '$ тул '
+    + '$A\\cdot B\\cdot C=' + A + '\\cdot ' + par(B) + '\\cdot ' + par(C) + '=' + V + '$.';
+  return {
+    q: '$\\dfrac{' + poly([n2, n1, n0]) + '}{x^2(' + xr + ')}=\\dfrac{A}{x}+\\dfrac{B}{x^2}+\\dfrac{C}{' + xr + '}$ бол $' + E + '$-ийг олоорой.',
+    a: '$' + E + '=' + V + '$',
+    wk: 30,
+    s: [
+      'Нийтлэг хуваарьт оруулбал $$\\dfrac{A}{x}+\\dfrac{B}{x^2}+\\dfrac{C}{' + xr + '}=\\dfrac{A(' + poly([1, r, 0]) + ')+B(' + xr + ')+Cx^2}{x^2(' + xr + ')}.$$',
+      'Хүртвэрүүд тэнцүү тул $$x^2(A+C)+x(' + tm(r, 'A', true) + '+B)' + tm(r, 'B') + '=' + poly([n2, n1, n0]) + '.$$',
+      '$x$-ийн ижил зэргүүдийн коэффициентүүдийг тэнцүүлбэл $$\\begin{cases}A+C=' + n2 + '\\\\' + tm(r, 'A', true) + '+B=' + n1 + '\\\\' + tm(r, 'B', true) + '=' + n0 + '\\end{cases}$$',
+      fin
+    ].map(p85_nw),
+    t: { r: r, N: [n2, n1, n0], ask: ask }
+  };
+}
+return p85;
+})();
+
+/* 3.19 */
+var e3_19 = (function () {
+// 19. f(x) = N(x)/((x − p)(x − q)²) = A/(x − p) + B/(x − q) + C/(x − q)²  ⇔  N = A(x − q)² + B(x − p)(x − q) + C(x − p):
+//     x = p → A = N(p)/(p − q)²,  x = q → C = N(q)/(q − p),  x²-ийн коэффициент → B = N₂ − A.
+//     Бүхэл A, B, C-ээс N-ийг задалж бичнэ; асуулт голдуу A + B + C (заримдаа A·B·C, A − B + C).
+//     (эх: (4x² + 12)/((x + 1)(x − 3)²) → A = 1, B = 3, C = 12; A + B + C = 16)
+function p19() {
+  var p = nz(-4, 4), q = nz(-4, 4);
+  if (p === q) return null;
+  var A = nz(-5, 5), B = nz(-6, 6), C = nz(-12, 12);
+  var N2 = A + B, N1 = -2 * A * q - B * (p + q) + C, N0 = A * q * q + B * p * q - C * p;
+  if (!N2 || Math.abs(N2) > 9 || Math.abs(N1) > 30 || Math.abs(N0) > 40) return null;
+  if (N2 < 0 && rnd(0, 2)) return null;                          // хүртвэрийн ахлах коэффициент голдуу эерэг (эх шиг)
+  if (p === -1 && q === 3 && A === 1 && B === 3 && C === 12) return null;   // эх тоо тогтмол хувилбар болохгүй
+  var ask = pick([0, 0, 0, 0, 1, 2]), E = ['A+B+C', 'A\\cdot B\\cdot C', 'A-B+C'][ask], V = [A + B + C, A * B * C, A - B + C][ask];
+  var Lp = poly([1, -p]), Lq = poly([1, -q]);
+  return {
+    q: '$f(x)=\\dfrac{' + poly([N2, N1, N0]) + '}{(' + Lp + ')(' + Lq + ')^2}$ функц $f(x)=\\dfrac{A}{' + Lp + '}+\\dfrac{B}{' + Lq + '}+\\dfrac{C}{(' + Lq + ')^2}$'
+      + ' хэлбэрт задардаг бол $' + E + '$ олоорой.',
+    a: '$A=' + A + ',\\ B=' + B + ',\\ C=' + C + ';\\ ' + E + '=' + V + '$',
+    wk: 32,
+    t: { p: p, q: q, N: [N2, N1, N0], ask: ask }
+  };
+}
+return p19;
+})();
+
+/* 3.20 */
+var e3_20 = (function () {
+// 20. Хялбар бутархайд задлах ХЭЛБЭРИЙГ харгалзуулах. Хуваарь (x − p)²(x − q) үед:
+//     deg N = 4 → Ax + B + C/(x − p) + D/(x − p)² + E/(x − q);  deg N = 3 → A + B/(x − p) + C/(x − p)² + D/(x − q);
+//     deg N = 2 → A/(x − p) + B/(x − p)² + C/(x − q);  хуваарь (x − p)(x − q), deg N = 1 → A/(x − p) + B/(x − q).
+//     [ЗАС: эхэд A ба C сонголт ЯГ ижил байсан → 4 өөр хэлбэр; 4-р илэрхийллийн хуваарь x(x + 1) маягийн (давхар хүчингүй)]
+//     Хүртвэр λxᵏ + c; задаргааны БҮХ коэффициент ≠ 0 (хураагдах, гишүүн алга болох тохиолдолгүй). Илэрхийлэл ба үсгийг холино.
+//     (эх: (x⁴ + 5), (x³ + 5), (x² + 5), (x + 5) / x²(x + 1) → 1–B, 2–D, 3–A, 4–C)
+function p20_dec(N, p, q, sq) {   // N/((x − p)²(x − q)) [sq] эсвэл N/((x − p)(x − q)) задаргааны коэффициентүүд (олон гишүүнт хэсэг, дараа нь бутархайнууд)
+  var D = sq ? [1, -(2 * p + q), p * p + 2 * p * q, -p * p * q] : [1, -(p + q), p * q], r = N.slice(), Q = [];
+  while (r.length >= D.length) { var c = r[0]; Q.push(c); for (var i = 0; i < D.length; i++) r[i] -= c * D[i]; r.shift(); }
+  var ev = function (x) { return r.reduce(function (s, k) { return s * x + k; }, 0); };
+  if (!sq) return Q.concat([ev(p) / (p - q), ev(q) / (q - p)]);
+  var R2 = r.length === 3 ? r[0] : 0, ga = ev(q) / ((q - p) * (q - p));      // R = α(x − p)(x − q) + β(x − q) + γ(x − p)²
+  return Q.concat([R2 - ga, ev(p) / (p - q), ga]);
+}
+function p20() {
+  var p = pick([0, 0, 0, 0, 1, -1, 2, -2]), q = nz(-3, 3), lam = pick([1, 1, 1, 1, 2, 3]), c = nz(-9, 9);
+  if (q === p) return null;
+  if (p === 0 && q === -1 && lam === 1 && c === 5) return null;     // эх тоо тогтмол хувилбар болохгүй
+  var NN = [4, 3, 2, 1].map(function (k) { var N = [lam]; for (var i = 0; i < k; i++) N.push(0); N[k] += c; return N; });
+  var ok = NN.every(function (N, t) { return p20_dec(N, p, q, t < 3).every(function (v) { return Math.abs(v) > 1e-9; }); });
+  if (!ok) return null;
+  var Lp = p ? poly([1, -p]) : 'x', Lq = poly([1, -q]), P2 = p ? '(' + Lp + ')^2' : 'x^2';
+  var Dsq = P2 + '(' + Lq + ')', Dl = p ? '(' + Lp + ')(' + Lq + ')' : 'x(' + Lq + ')';
+  var E = NN.map(function (N, t) { return '\\dfrac{' + poly(N) + '}{' + (t < 3 ? Dsq : Dl) + '}'; });
+  var F = [
+    'Ax+B+\\dfrac{C}{' + Lp + '}+\\dfrac{D}{' + P2 + '}+\\dfrac{E}{' + Lq + '}',
+    'A+\\dfrac{B}{' + Lp + '}+\\dfrac{C}{' + P2 + '}+\\dfrac{D}{' + Lq + '}',
+    '\\dfrac{A}{' + Lp + '}+\\dfrac{B}{' + P2 + '}+\\dfrac{C}{' + Lq + '}',
+    '\\dfrac{A}{' + Lp + '}+\\dfrac{B}{' + Lq + '}'
+  ];
+  var ord = shuffle([0, 1, 2, 3]), lt = shuffle([0, 1, 2, 3]), L = 'ABCD';
+  var row = function (lab, tex) { return '<div style="height:3.3em;display:flex;align-items:center;white-space:nowrap">' + lab + '.&nbsp;$' + tex + '$</div>'; };
+  return {
+    q: 'Дараах бутархай рационал илэрхийллүүдийг хялбар бутархайнуудын нийлбэр хэлбэрт задалжээ. Зөв харгалзуулаарай.'
+      + '<div style="display:flex;flex-wrap:wrap;column-gap:3.5em;margin:2px 0 0 1.4em">'
+      + '<div>' + ord.map(function (t, i) { return row(i + 1, E[t]); }).join('') + '</div>'
+      + '<div>' + lt.map(function (t, j) { return row(L[j], F[t]); }).join('') + '</div></div>',
+    a: '<span class="nw">' + ord.map(function (t, i) { return (i + 1) + '–' + L[lt.indexOf(t)]; }).join(', ') + '</span>',
+    wk: 24,
+    t: { p: p, q: q, lam: lam, c: c }
+  };
+}
+return p20;
+})();
+
+/* 3.21 */
+var e3_21 = (function () {
+// 21. N(x)/(L·S²), L = p − x (эх шиг) эсвэл x − p, S = qx + r:  N = A·S² + B·L·S + C·L  ⇒  N/(L·S²) = A/L + B/S + C/S².
+//     Бүхэл A, B, C-ээс N-ийг задалж бичнэ; L ба S-ийн язгуур ялгаатай.
+//     (эх: (8x² + 9x + 8)/((1 − x)(2x + 3)²) = 1/(1 − x) − 2/(2x + 3) + 5/(2x + 3)²)
+function p21() {
+  var st = rnd(0, 2) > 0, p = st ? rnd(1, 5) : nz(-5, 5), l1 = st ? -1 : 1, l0 = st ? p : -p;   // L = l1·x + l0
+  var qq = pick([1, 2, 2, 3]), r = nz(-5, 5);
+  if (gcd(qq, r) !== 1 || l0 * qq === l1 * r) return null;          // S хураагдахгүй, L ба S-ийн язгуур ялгаатай
+  var A = nz(-4, 4), B = nz(-4, 4), C = nz(-8, 8);
+  var N2 = A * qq * qq + B * l1 * qq, N1 = 2 * A * qq * r + B * (l1 * r + l0 * qq) + C * l1, N0 = A * r * r + B * l0 * r + C * l0;
+  if (!N2 || Math.abs(N2) > 20 || Math.abs(N1) > 40 || Math.abs(N0) > 40) return null;
+  if (N2 < 0 && rnd(0, 1)) return null;
+  if (st && p === 1 && qq === 2 && r === 3 && A === 1 && B === -2 && C === 5) return null;   // эх тоо тогтмол хувилбар болохгүй
+  var Lt = st ? p + '-x' : poly([1, -p]), St = poly([qq, r]);
+  var T = function (k, den, first) { return (k < 0 ? '-' : first ? '' : '+') + '\\dfrac{' + Math.abs(k) + '}{' + den + '}'; };
+  return {
+    q: '$\\dfrac{' + poly([N2, N1, N0]) + '}{(' + Lt + ')(' + St + ')^2}$ илэрхийллийг хялбар рационал бутархайнуудын нийлбэрт задал.',
+    a: '$' + T(A, Lt, true) + T(B, St) + T(C, '(' + St + ')^2') + '$',
+    wk: 40,
+    t: { L: [l1, l0], S: [qq, r], A: A, B: B, C: C }
+  };
+}
+return p21;
+})();
+
+E1K.page({
+  title: 'ЭЕШ 1000 — Олон гишүүнт, рационал бутархай-2',
+  sub: 'Үлдэгдлийн теорем, хуваагч, язгуур; хялбар бутархайд задлах',
+  first: 1,
+  probs: [e3_15, e2_4, e1_9, e3_16, e3_17, e1_31, e3_18, e2_8, e1_53, e1_77, e1_19, e2_5, e2_6, e1_85, e3_19, e3_20, e3_21]
+});
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

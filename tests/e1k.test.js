@@ -3,7 +3,9 @@
 //   - хуудас бүр 25 генератор (хэсэг бүрт эх дугаар 1–100: K-р хуудас 25((K−1) mod 4)+1-ээс), олон seed-ээр: алдаагүй, q/a хоосон биш, NaN/undefined алга,
 //     $ тэгш тоотой, TeX дотор < > байхгүй (HTML таг болж эвдэрдэг), зураг <svg>/<table>
 //   - 1-р хэсэг (хуудас 1–4): бодлого бүр бодолттой (s), бодолтын $…$ доторх тоон гинж зөв (tests/_texnum.js: 16+2·10=36 г.м)
-//   - каталогийн ЭЕШ бүлэгт 8 хуудас (1, 2-р хэсэг), vercel.json-д e1k.js
+//   - каталогийн ЭЕШ бүлэгт 12 хуудас (1–3-р хэсэг), vercel.json-д e1k.js
+//   - агуулгаар ангилсан хуудсууд (eesh1000-<сэдэв>-<n>.html, scripts/e1k/topics.js → build_topics.js): 3 хэсгийн 300 бодлого
+//     бүгд ЯГ нэг удаа, хуудас бүр ≤ 25, генератор бүр өөрийн хүрээнд (IIFE) олон seed-ээр алдаагүй, каталогт «ЭЕШ 1000 — <сэдэв>-<n>»
 // Ажиллуулах: node --test tests/e1k.test.js
 'use strict';
 const { test } = require('node:test');
@@ -17,7 +19,9 @@ const H = require(path.join(WT, 'e1k.js'));
 const TN = require('./_texnum.js');
 const SOL_PAGES = [1, 2, 3, 4];     // бодолттой хуудсууд (1-р хэсэг)
 // хэсэг бүр (Математик №P) 4 хуудас: K = 4(P−1)+j, хуудас бүрт эх дугаар 25(j−1)+1…25j
-const PAGES = [1, 2, 3, 4, 5, 6, 7, 8].map((k) => ({ k, file: path.join(WT, 'eesh1000-' + k + '.html'), first: 25 * ((k - 1) % 4) + 1 }));
+const PAGES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((k) => ({ k, file: path.join(WT, 'eesh1000-' + k + '.html'), first: 25 * ((k - 1) % 4) + 1 }));
+const NPARTS = 3;                   // агуулгаар ангилсан хуудсуудад орсон хэсгийн тоо
+const TOPIC_FILES = fs.readdirSync(WT).filter((f) => /^eesh1000-[a-z][a-z-]*-\d+\.html$/.test(f)).sort();
 
 function mathSegs(s) {
   const out = []; let i = 0;
@@ -134,12 +138,79 @@ for (const P of PAGES) {
   });
 }
 
-test('e1k: каталогийн ЭЕШ бүлэгт 8 хуудас (2 хэсэг), vercel.json-д e1k.js', () => {
+// Агуулгаар ангилсан хуудсууд: бодлого бүр «/* P.N */ var eP_N = (function () { … return pN; })();»
+test('e1k: агуулгаар ангилсан хуудсууд — ' + NPARTS + ' хэсгийн бодлого бүр ЯГ нэг удаа, хуудас бүр ≤ 25', () => {
+  assert.ok(TOPIC_FILES.length >= 14, 'сэдвийн хуудас: ' + TOPIC_FILES.length);
+  const seen = {};
+  TOPIC_FILES.forEach((f) => {
+    const html = fs.readFileSync(path.join(WT, f), 'utf8');
+    const m = /probs: \[([^\]]*)\]/.exec(html);
+    assert.ok(m, f + ': probs');
+    const refs = m[1].split(',').map((x) => x.trim());
+    assert.ok(refs.length >= 1 && refs.length <= 25, f + ': ' + refs.length + ' бодлого');
+    refs.forEach((r) => {
+      const mm = /^e(\d+)_(\d+)$/.exec(r);
+      assert.ok(mm, f + ': ' + r);
+      const k = mm[1] + '.' + mm[2];
+      assert.ok(!seen[k], k + ' давхардсан (' + seen[k] + ', ' + f + ')');
+      seen[k] = f;
+    });
+  });
+  const missing = [];
+  for (let P = 1; P <= NPARTS; P++) for (let n = 1; n <= 100; n++) if (!seen[P + '.' + n]) missing.push(P + '.' + n);
+  assert.deepStrictEqual(missing, [], 'ангилалгүй бодлого');
+});
+
+for (const f of TOPIC_FILES) {
+  test('e1k: ' + f + ' — генератор бүр өөрийн хүрээнд, олон seed-ээр алдаагүй', () => {
+    const html = fs.readFileSync(path.join(WT, f), 'utf8');
+    assert.match(html, /<script src="\/e1k\.js\?v=\d+"><\/script>/);
+    assert.match(html, /<script src="\/ws-store\.js\?v=\d+"><\/script>/);
+    const m = /<script>\n([\s\S]*?E1K\.page\([\s\S]*?\);)\n<\/script>/.exec(html);
+    assert.ok(m, 'E1K.page скрипт олдсонгүй');
+    let cfg = null;
+    const ctx = vm.createContext(Object.assign({ console, E1K: { page: (c) => { cfg = c; } } }, H));
+    vm.runInContext(m[1], ctx, { filename: f });
+    assert.ok(cfg, 'E1K.page дуудагдаагүй');
+    assert.strictEqual(cfg.first, 1);
+    assert.match(cfg.title, /^ЭЕШ 1000 — .+-\d+$/);
+    const refs = /probs: \[([^\]]*)\]/.exec(html)[1].split(',').map((x) => x.trim());
+    assert.strictEqual(cfg.probs.length, refs.length);
+    cfg.probs.forEach((fn, i) => {
+      const r = refs[i], n = +r.split('_')[1];
+      assert.strictEqual(typeof fn, 'function', r);
+      assert.strictEqual(fn.name, 'p' + n, r + ': функцийн нэр');
+      const seen = new Set();
+      for (let k = 0; k < 25; k++) {
+        H.setRng(H.mulberry(6151 * (k + 1) + 97 * i + n));
+        const g = H.gen(fn, (x) => x && typeof x.q === 'string' && x.q && x.a != null && String(x.a) !== '');
+        H.setRng(null);
+        assert.ok(g, r + ': генератор бүтэлгүй');
+        assert.doesNotMatch(g.q + ' ' + g.a + ' ' + (g.fig || ''), /NaN|undefined|Infinity|\[object/, r);
+        [g.q, String(g.a)].forEach((s) => {
+          const segs = mathSegs(s);
+          assert.ok(segs, r + ': $ тэнцээгүй — ' + s.slice(0, 80));
+          segs.forEach((t) => assert.doesNotMatch(t, /[<>]/, r + ': TeX дотор < > — ' + t.slice(0, 60)));
+        });
+        if (g.fig != null) assert.match(String(g.fig), /^\s*<(svg|table|div)/, r + ': fig');
+        seen.add(g.q + '|' + (g.fig || ''));
+      }
+      assert.ok(seen.size >= 2, r + ': шинэчлэхэд өөрчлөгдөхгүй байна');
+    });
+  });
+}
+
+test('e1k: каталогийн ЭЕШ бүлэгт 12 хуудас (3 хэсэг) + агуулгаар ангилсан хуудсууд, vercel.json-д e1k.js', () => {
   const ctx = vm.createContext({ window: {} });
   vm.runInContext(fs.readFileSync(path.join(WT, 'catalog.js'), 'utf8'), ctx);
   const g = ctx.window.WS_LIST.find((x) => x[0] === 'ЭЕШ');
   assert.ok(g, 'ЭЕШ бүлэг');
-  [1, 2, 3, 4, 5, 6, 7, 8].forEach((k) => {
+  TOPIC_FILES.forEach((f) => {
+    const e = g[1].find((x) => x[0] === f);
+    assert.ok(e, f + ' каталогт');
+    assert.match(e[1], /^ЭЕШ 1000 — .+-\d+$/, f + ': нэр «ЭЕШ 1000 — <сэдэв>-<n>»');
+  });
+  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].forEach((k) => {
     const e = g[1].find((x) => x[0] === 'eesh1000-' + k + '.html');
     assert.ok(e, 'eesh1000-' + k + '.html каталогт');
     assert.strictEqual(e[1], 'ЭЕШ 1000 ' + Math.ceil(k / 4) + '-' + ((k - 1) % 4 + 1));

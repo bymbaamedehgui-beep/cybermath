@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ЭЕШ 1000 — Модуль, тэгшитгэл, тэнцэтгэл биш-1</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/e1k.js?v=2"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* ЭЕШ 1000 — Модуль, тэгшитгэл, тэнцэтгэл биш-1 — ЭЕШ-ийн 1000 бодлого, агуулгаар: Модуль, модультай тэгшитгэл ба тэнцэтгэл биш, параметртэй тэнцэтгэл биш.
+   Эх: 2.1, 2.2, 1.48, 2.13, 2.14, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 1.12, 1.27, 1.37, 1.5, 1.65, 1.92 (хэсэг.бодлого). Бодлого бүр өөрийн генератортой: «Шинэ бодлого» дарахад тоо нь өөрчлөгдөнө. */
+
+/* 2.1 */
+var e2_1 = (function () {
+// 1. Модультай илэрхийлэл, 0 < a < b нь дараалал нь мэдэгдэж буй тогтмолууд (e, π, √n, бүхэл, 1.5):
+//    |a − b| + s₁|±a| + s₂|±b| = (b − a) + s₁a + s₂b  →  2b, 2b − 2a эсвэл −2a  (s₁ = +, s₂ = − → 0 тул хасна);
+//    |a − b| + |b − c| (a < b < c, дунд нь иррационал) = c − a.   (эх: |e − π| + |e| + |−π| = 2π)
+var p1_C = [   // [TeX, утга, рационал эсэх]
+  ['1', 1, 1], ['\\sqrt{2}', Math.SQRT2, 0], ['1.5', 1.5, 1], ['\\sqrt{3}', Math.sqrt(3), 0], ['2', 2, 1],
+  ['\\sqrt{5}', Math.sqrt(5), 0], ['\\sqrt{6}', Math.sqrt(6), 0], ['\\sqrt{7}', Math.sqrt(7), 0], ['e', Math.E, 0],
+  ['3', 3, 1], ['\\pi', Math.PI, 0], ['\\sqrt{10}', Math.sqrt(10), 0], ['\\sqrt{11}', Math.sqrt(11), 0], ['4', 4, 1]
+];
+// x < y дараалал сурагчдад ойлгомжтой эсэх: алгебрын тоонууд (квадратаар жишнэ) эсвэл зөрүү ≥ 0.3,
+// мөн мэдэгдэж буй 2 < e < 3 < π < 4
+function p1_ok(x, y) {
+  if (x[1] >= y[1]) return false;
+  if (x[0] !== 'e' && x[0] !== '\\pi' && y[0] !== 'e' && y[0] !== '\\pi') return true;
+  return y[1] - x[1] >= 0.3 || /^(2<e|e<3|3<\\pi|\\pi<4)$/.test(x[0] + '<' + y[0]);
+}
+// Σ kᵢ·Cᵢ → TeX (рационал хэсгийг нэгтгэж, эерэг гишүүнийг түрүүлж бичнэ)
+function p1_lin(ts) {
+  var r = 0, irr = {}, ord = [];
+  ts.forEach(function (t) {
+    if (t[1][2]) r += t[0] * t[1][1];
+    else { if (!(t[1][0] in irr)) { irr[t[1][0]] = 0; ord.push(t[1][0]); } irr[t[1][0]] += t[0]; }
+  });
+  r = Math.round(r * 100) / 100;
+  var parts = ord.filter(function (k) { return irr[k]; }).map(function (k) { return [irr[k], k]; });
+  if (r) parts.push([r, null]);
+  if (!parts.length) return '0';
+  parts.sort(function (A, B) { return (B[0] > 0) - (A[0] > 0); });
+  return parts.map(function (p, i) { return p[1] ? tm(p[0], p[1], i === 0) : (i === 0 ? dec(p[0]) : sgn(p[0])); }).join('');
+}
+function p1_abs(s) { return '\\lvert ' + s + '\\rvert'; }
+function p1() {
+  var C = p1_C, fam = pick(['A', 'A', 'A', 'A', 'A', 'B', 'B', 'C', 'D', 'D']), expr, ans;
+  if (fam !== 'D') {
+    // тал хувь нь e эсвэл π-тэй (эх шиг); хоёр тоо хэт холгүй (≤ 1.6)
+    var u = rnd(0, 1) ? pick([C[8], C[10]]) : pick(C), w = pick(C), a = u[1] < w[1] ? u : w, b = u[1] < w[1] ? w : u;
+    if (!p1_ok(a, b) || (a[2] && b[2]) || b[1] - a[1] > 1.6) return null;
+    var s1 = fam === 'A' ? 1 : -1, s2 = fam === 'C' ? -1 : 1;
+    var n1 = rnd(0, 2) === 0, n2 = rnd(0, 2) > 0;   // модулийн доторх тэмдэг (эх: |e|, |−π|)
+    expr = p1_abs(a[0] + '-' + b[0]) + (s1 > 0 ? '+' : '-') + p1_abs((n1 ? '-' : '') + a[0]) + (s2 > 0 ? '+' : '-') + p1_abs((n2 ? '-' : '') + b[0]);
+    // |a − b| = b − a (a < b)
+    ans = p1_lin([[1, b], [-1, a], [s1, a], [s2, b]]);
+  } else {
+    var x = pick(C), y = pick(C), z = pick(C);
+    if (!p1_ok(x, y) || !p1_ok(y, z) || !p1_ok(x, z) || y[2] || z[1] - x[1] > 2.1) return null;
+    var o1 = rnd(0, 3) > 0, o2 = rnd(0, 3) > 0;           // true: доторх нь сөрөг (x − y, y − z)
+    if (!o1 && !o2) return null;
+    expr = p1_abs(o1 ? x[0] + '-' + y[0] : y[0] + '-' + x[0]) + '+' + p1_abs(o2 ? y[0] + '-' + z[0] : z[0] + '-' + y[0]);
+    ans = p1_lin([[1, z], [-1, x]]);
+  }
+  if (ans === '0') return null;
+  return {
+    q: '$A=' + expr + '$ илэрхийллийн утгыг ол.',
+    a: '$A=' + ans + '$',
+    wk: 18,
+    t: { fam: fam }
+  };
+}
+return p1;
+})();
+
+/* 2.2 */
+var e2_2 = (function () {
+// 2. x < r (эсвэл x > r) үед c₁√((m₁x+n₁)²) − c₂√((m₂x+n₂)²), c₁m₁ = c₂m₂ (язгуурын доорхыг задалж бичнэ).
+//    √(u²) = |u|; r нь хоёр язгуураас (−n₁/m₁, −n₂/m₂) зүүн (баруун) талд тул модулиуд ижил тэмдэгтэй σ = ∓1
+//    → x устаж σ(c₁n₁ − c₂n₂) тогтмол үлдэнэ.  (эх: x < −1, 2√(x²−2x+1) − √(4x²+4x+1) = 3)
+function p2() {
+  var m1 = pick([1, 1, 1, 1, 2]), m2 = pick([2, 2, 2, 3, 3, 4]);
+  if (m1 === m2) return null;
+  var g = gcd(m1, m2), c1 = m2 / g, c2 = m1 / g, n1 = nz(-5, 5), n2 = nz(-5, 5);
+  if (gcd(m1, n1) > 1 || gcd(m2, n2) > 1) return null;      // (2x+4)² = 4(x+2)² гэх мэт хэлбэрээс зайлсхийнэ
+  var z1 = -n1 / m1, z2 = -n2 / m2;
+  if (Math.abs(z1 - z2) < 1e-9) return null;                 // ижил язгуур → илэрхийлэл тэгтэй адил
+  var left = rnd(1, 3) > 1, r = left ? Math.floor(Math.min(z1, z2)) - pick([0, 0, 1, 2]) : Math.ceil(Math.max(z1, z2)) + pick([0, 0, 1, 2]);
+  if (Math.abs(r) > 6) return null;
+  var val = (left ? -1 : 1) * (c1 * n1 - c2 * n2);
+  var T1 = tm(c1, '\\sqrt{' + poly([m1 * m1, 2 * m1 * n1, n1 * n1]) + '}', true), T2 = tm(c2, '\\sqrt{' + poly([m2 * m2, 2 * m2 * n2, n2 * n2]) + '}', true);
+  var sw = rnd(1, 4) === 1;                                   // дарааллыг солих → утгын тэмдэг эсрэг
+  if (sw) val = -val;
+  if (Math.abs(val) > 16) return null;
+  return {
+    q: '$x' + (left ? '\\lt ' : '\\gt ') + r + '$ бол $' + (sw ? T2 + '-' + T1 : T1 + '-' + T2) + '$ илэрхийллийн утгыг ол.',
+    a: '$' + val + '$',
+    wk: 24,
+    t: { m1: m1, n1: n1, m2: m2, n2: n2, c1: c1, c2: c2, r: r, left: left, sw: sw }
+  };
+}
+return p2;
+})();
+
+/* 1.48 */
+var e1_48 = (function () {
+// 48. √((a−u)²) ± √(a² − 2va + v²) = |a − u| ± |a − v|, {u, v} = {p, q}, p < q; мужаас (p<a<q, a>q, a<p) хамаарч модулийг задлана.
+function p48() {
+  var p = nz(-4, 5), q = nz(-3, 8);
+  if (q - p < 2) return null;
+  var sw = rnd(1, 4) === 1, u = sw ? q : p, v = sw ? p : q;
+  var reg = pick([0, 0, 0, 1, 2]), plus = rnd(1, 10) <= 7;   // 0: p<a<q, 1: a>q, 2: a<p
+  var cond = reg === 0 ? p + '\\lt a\\lt ' + q : reg === 1 ? 'a\\gt ' + q : 'a\\lt ' + p;
+  // мужид: |a − w| = σ_w·(a − w)
+  var sg = function (w) { return reg === 0 ? (w === p ? 1 : -1) : reg === 1 ? 1 : -1; };
+  var su = sg(u), sv = (plus ? 1 : -1) * sg(v);
+  var ca = su + sv, c0 = -su * u - sv * v;                   // ca·a + c0
+  var first = '\\sqrt{' + (u ? '(a' + sgn(-u) + ')^2' : 'a^2') + '}';
+  var second = '\\sqrt{' + poly([1, -2 * v, v * v], 'a') + '}';
+  // Бодолт (гар бичмэл): a² − 2va + v² = (a − v)², √(t²) = |t| → мужид модулийг тэмдгээр нь задлана
+  var op = plus ? '+' : '-', lin = function (w) { return 'a' + (w ? sgn(-w) : ''); };   // a − w
+  var ab = function (w) { return '|' + lin(w) + '|'; };
+  var opn = function (w) { return sg(w) > 0 ? '(' + lin(w) + ')' : '(' + (w ? w + '-a' : '-a') + ')'; };   // |a − w| мужид
+  var sgnTxt = function (w) { return '$' + lin(w) + (sg(w) > 0 ? '\\gt 0' : '\\lt 0') + '$'; };
+  var opnEq = function (w) { return '$' + ab(w) + '=' + opn(w).slice(1, -1) + '$'; };
+  return {
+    q: '$' + cond + '$ үед $' + first + (plus ? '+' : '-') + second + '$ илэрхийллийг хялбарчил.',
+    a: '$' + poly([ca, c0], 'a') + '$',
+    wk: 24,
+    s: [
+      '$' + poly([1, -2 * v, v * v], 'a') + '=(' + lin(v) + ')^2$ ба $\\sqrt{t^2}=|t|$ тул $$' + first + op + second + '=' + ab(u) + op + ab(v) + '.$$',
+      '$' + cond + '$ үед ' + sgnTxt(u) + ', ' + sgnTxt(v) + ' тул ' + opnEq(u) + ', ' + opnEq(v) + '. Иймд $$' + ab(u) + op + ab(v) + '='
+        + opn(u) + op + opn(v) + '=' + poly([ca, c0], 'a') + '.$$'
+    ],
+    t: { u: u, v: v, reg: reg, plus: plus }
+  };
+}
+return p48;
+})();
+
+/* 2.13 */
+var e2_13 = (function () {
+// 13. y = k|x − p| + q функцийн [u; v] хэрчим дээрх хамгийн бага (их) утга: y(u), y(v) ба орой x = p хэрчимд
+//     орвол y(p) = q — эдгээрээс хамгийн бага (их) нь. u, v нь бүхэл эсвэл хагас тоо.  (эх: y = |x − 1| − 1, [−1/2; 3/2] → −1)
+function p13() {
+  var k = pick([1, 1, 1, 1, 2, 3, -1, -2]), p = rnd(-3, 3), q = rnd(-4, 4), half = rnd(0, 2) > 0;
+  var U, V;                                        // u = U/2, v = V/2
+  if (half) { U = 2 * rnd(-4, 3) + 1; V = U + 2 * rnd(1, 3); } else { U = 2 * rnd(-4, 3); V = U + 2 * rnd(1, 3); }
+  var inside = 2 * p > U && 2 * p < V;
+  if (!inside && rnd(0, 2)) return null;           // ихэвчлэн орой хэрчим дотор (эх шиг)
+  var mx = rnd(1, 4) === 1, f2 = function (X2) { return k * Math.abs(X2 - 2 * p) + 2 * q; };   // 2·y(X2/2)
+  var vals = [f2(U), f2(V)];
+  if (inside) vals.push(2 * q);
+  var best = mx ? Math.max.apply(null, vals) : Math.min.apply(null, vals);
+  if (best === 0 && rnd(0, 1)) return null;
+  var fx = tm(k, '|x' + (p ? sgn(-p) : '') + '|', true) + (q ? sgn(q) : '');
+  return {
+    q: '$y=' + fx + '$ функцийн $' + fr(U, 2) + '\\le x\\le ' + fr(V, 2) + '$ хэрчим дээрх хамгийн ' + (mx ? 'их' : 'бага') + ' утгыг ол.',
+    a: '$' + fr(best, 2) + '$',
+    wk: 20,
+    t: { k: k, p: p, q: q, U: U, V: V, mx: mx }
+  };
+}
+return p13;
+})();
+
+/* 2.14 */
+var e2_14 = (function () {
+// 14. y = |kx + a| (+ b) функцийн график нь модулийн доторх илэрхийлэл тэг болох x = −a/k шулууны хувьд тэгш хэмтэй:
+//     −a/k = c ⇒ a = −kc.  Заримдаа үл мэдэгдэх нь x-ийн коэффициент: y = |ax + m|, −m/a = c ⇒ a = −m/c.
+//     (эх: y = |x + a|, x = −1 → a = 1)
+function p14() {
+  var v = pick([1, 1, 1, 2, 2, 3]), c, num, a, fx;
+  var b = rnd(1, 4) === 1 ? nz(-4, 4) : 0, tail = b ? sgn(b) : '';
+  if (v === 1) {                                   // y = |x + a|
+    c = nz(-6, 6); a = -c; fx = '|x+a|';
+  } else if (v === 2) {                            // y = |kx + a|, c бүхэл эсвэл (k = 2 үед) хагас
+    var k = pick([2, 2, 3, 4]);
+    num = nz(-9, 9);                              // c = num/2 (k = 2) эсвэл бүхэл
+    if (k === 2 && rnd(0, 1)) { if (num % 2 === 0) return null; c = [num, 2]; a = -num; }
+    else { c = nz(-4, 4); a = -k * c; }
+    fx = '|' + k + 'x+a|';
+  } else {                                         // y = |ax + m|
+    c = nz(-4, 4); a = nz(-5, 5);
+    var m = -a * c;
+    if (Math.abs(a) === 1) return null;
+    fx = '|ax' + sgn(m) + '|';
+  }
+  var cx = Array.isArray(c) ? fr(c[0], c[1]) : String(c);
+  return {
+    q: '$y=' + fx + tail + '$ функцийн график $x=' + cx + '$ шулууны хувьд тэгш хэмтэй бол $a=?$',
+    a: '$a=' + a + '$',
+    wk: 18,
+    t: { v: v, a: a }
+  };
+}
+return p14;
+})();
+
+/* 3.1 */
+var e3_1 = (function () {
+// 1. |k·a^x − m| = c  ⇔  k·a^x = m + c  эсвэл  k·a^x = m − c  (a^x > 0 тул сөрөг/тэг салаа шийдгүй).
+//    Нэг салаа нь a-ийн бүхэл зэрэг (бүхэл x); нөгөө салаа нь m − c ≤ 0 (шийдгүй) эсвэл бас бүхэл зэрэг (2 шийд).
+//    (эх: |2·5^x − 3| = 7 → 2·5^x = 10 → x = 1;  2·5^x = −4 — шийдгүй)
+function p1_v(k, a, x) {   // k·a^x бүхэл бол түүнийг, үгүй бол null
+  var p = Math.pow(a, Math.abs(x));
+  return x >= 0 ? k * p : (k % p === 0 ? k / p : null);
+}
+function p1() {
+  var a = pick([2, 2, 3, 3, 5]), k = pick([1, 2, 2, 3, 3, 4, 5, 6]), two = rnd(1, 100) <= 35, m, c, xs;
+  if ((k === a || k === a * a) && rnd(1, 10) <= 7) return null;   // k·a^x = a^{x+1} хэлбэр цөөн
+  var x1 = rnd(-1, 3), v1 = p1_v(k, a, x1);
+  if (v1 == null) return null;
+  if (!two) {
+    if (v1 < 3 || v1 > 150) return null;
+    m = rnd(1, Math.floor(v1 / 2)); c = v1 - m;            // c ≥ m ⇒ k·a^x = m − c ≤ 0 — шийдгүй
+    xs = [x1];
+  } else {
+    var x2 = rnd(-1, 3), v2 = p1_v(k, a, x2);
+    if (x2 === x1 || v2 == null || (v1 + v2) % 2) return null;
+    m = (v1 + v2) / 2; c = Math.abs(v1 - v2) / 2;          // m ± c = v1, v2 (хоёулаа эерэг)
+    if (m > 150) return null;
+    xs = [Math.min(x1, x2), Math.max(x1, x2)];
+  }
+  var L = (k > 1 ? k + '\\cdot ' : '') + a + '^x';
+  return {
+    q: '$|' + L + '-' + m + '|=' + c + '$ тэгшитгэлийн шийдийг олоорой.',
+    a: xs.length === 1 ? '$x=' + xs[0] + '$' : '$x_1=' + xs[0] + ',\\ x_2=' + xs[1] + '$',
+    wk: 26,
+    t: { a: a, k: k, m: m, c: c, xs: xs }
+  };
+}
+return p1;
+})();
+
+/* 3.2 */
+var e3_2 = (function () {
+// 2. |ax + b| ± |cx + d| = e: модулийн доторх илэрхийллүүдийн тэмдгийн 4 хослол бүрээр шугаман тэгшитгэл бодож,
+//    олсон x-ийг анхны тэгшитгэлд ЯГ орлуулж шалгана (хугарлын цэгүүдээр хуваасан завсрын арга).
+//    Шийд 1–2 (бүхэл эсвэл энгийн бутархай); аль нэг завсарт адилтгал болох (хязгааргүй олон шийд) тохиолдлыг хасна.
+//    (эх: |2x − 1| − |x − 3| = 2 → x = −4; x = 2)
+function p2() {
+  var a = pick([1, 1, 2, 2, 3]), b = nz(-6, 6), c = pick([1, 1, 2, 2, 3]), d = nz(-6, 6);
+  var s = rnd(1, 100) <= 65 ? -1 : 1, e = s < 0 ? nz(-3, 8) : rnd(2, 12);
+  if (a * d === b * c) return null;                                      // хугарлын цэгүүд давхцна
+  // 3 завсар тус бүрт налалт 0 ба утга 0 бол адилтгал — хасна
+  var p1 = -b / a, p2 = -d / c, lo = Math.min(p1, p2), hi = Math.max(p1, p2);
+  var F = function (x) { return Math.abs(a * x + b) + s * Math.abs(c * x + d) - e; };
+  if ([lo - 1, (lo + hi) / 2, hi + 1].some(function (t) {
+    var sl = (a * t + b > 0 ? a : -a) + s * (c * t + d > 0 ? c : -c);
+    return sl === 0 && Math.abs(F(t)) < 1e-9;
+  })) return null;
+  var sols = [];
+  [[1, 1], [1, -1], [-1, 1], [-1, -1]].forEach(function (sg) {
+    var A = sg[0] * a + s * sg[1] * c, B = sg[0] * b + s * sg[1] * d - e;   // A·x + B = 0
+    if (!A) return;
+    var N = -B, D = A;
+    if (D < 0) { N = -N; D = -D; }
+    var g0 = gcd(N, D); N /= g0; D /= g0;
+    if (Math.abs(a * N + b * D) + s * Math.abs(c * N + d * D) !== e * D) return;   // яг орлуулга (x = N/D)
+    if (!sols.some(function (z) { return z[0] === N && z[1] === D; })) sols.push([N, D]);
+  });
+  if (!sols.length || sols.length > 2) return null;
+  if (sols.some(function (z) { return z[1] > 4 || Math.abs(z[0] / z[1]) > 10; })) return null;
+  if (sols.some(function (z) { return z[1] > 1; }) && rnd(0, 2)) return null;   // голдуу бүхэл шийд
+  if (sols.length === 1 && rnd(0, 1)) return null;                              // голдуу 2 шийд (эх шиг)
+  sols.sort(function (u, v) { return u[0] / u[1] - v[0] / v[1]; });
+  var X = sols.map(function (z) { return fr(z[0], z[1]); });
+  return {
+    q: '$|' + poly([a, b]) + '|' + (s < 0 ? '-' : '+') + '|' + poly([c, d]) + '|=' + e + '$ тэгшитгэлийн шийдийг олоорой.',
+    a: X.length === 1 ? '$x=' + X[0] + '$' : '$x_1=' + X[0] + ',\\ x_2=' + X[1] + '$',
+    wk: 30,
+    t: { a: a, b: b, c: c, d: d, s: s, e: e }
+  };
+}
+return p2;
+})();
+
+/* 3.3 */
+var e3_3 = (function () {
+// 3. f(x) = |x − p| − |qx + r|, q ≥ 2: x = −r/q-ээс зүүн тийш налалт q ± 1 > 0, баруун тийш −q ± 1 < 0 ⇒ f нэг оргилтой,
+//    f_max = f(−r/q) = |pq + r|/q, хоёр талдаа −∞ ⇒ f(x) = a: хоёр шийд ⇔ a < f_max, нэг ⇔ a = f_max, шийдгүй ⇔ a > f_max.
+//    Урвуу хэлбэр |qx + r| − |x − p| = a: хамгийн бага утга −f_max ⇒ хоёр шийд ⇔ a > −f_max.
+//    Голдуу «хоёр шийдтэй», заримдаа «шийдгүй» / «яг нэг шийдтэй».  (эх: |2 − x| − |2x + 1| = a → a < 5/2)
+function p3() {
+  var p = nz(-5, 5), q = pick([2, 2, 2, 3]), r = nz(-7, 7), M = Math.abs(p * q + r);
+  if (!M || M > 30) return null;
+  if (r % q === 0 && rnd(0, 1)) return null;                   // голдуу бутархай оргил (эх шиг)
+  var rev = rnd(1, 100) <= 30, ask = pick([2, 2, 2, 2, 2, 0, 0, 1]);
+  var A1 = p > 0 && rnd(1, 3) > 1 ? p + '-x' : 'x' + sgn(-p);   // |x − p| («|2-x|» эсвэл «|x-2|», «|x+3|»)
+  var A2 = poly([q, r]);
+  var L = rev ? '|' + A2 + '|-|' + A1 + '|' : '|' + A1 + '|-|' + A2 + '|';
+  var E = fr(rev ? -M : M, q), ans;                             // оргил (хонхор)-ын утга
+  if (ask === 1) ans = '$a=' + E + '$';
+  else {
+    var up = (ask === 2) === rev;                               // (E; +∞) эсэх
+    ans = '$a\\in' + (up ? '\\left(' + E + ';\\ +\\infty\\right)' : '\\left(-\\infty;\\ ' + E + '\\right)') + '$';
+  }
+  var what = ask === 2 ? 'хоёр шийдтэй байх $a$ параметрийн утгын олонлогийг'
+    : ask === 0 ? 'шийдгүй байх $a$ параметрийн утгын олонлогийг' : 'яг нэг шийдтэй байх $a$ параметрийн утгыг';
+  return {
+    q: '$' + L + '=a$ тэгшитгэл ' + what + ' олоорой.',
+    a: ans,
+    wk: 34,
+    t: { p: p, q: q, r: r, rev: rev, ask: ask }
+  };
+}
+return p3;
+})();
+
+/* 3.4 */
+var e3_4 = (function () {
+// 4. |x − p| R kx − m (R: ≤, <, ≥, >), |k| ≥ 2: g(x) = kx − m − |x − p| хатуу монотон (налалт k ± 1) ⇒ ганц тэг x*:
+//    x ≥ p салаа: x* = (m − p)/(k − 1), x ≤ p салаа: x* = (m + p)/(k + 1). Шийд нь x*-ээс нэг талын цацраг
+//    (k > 0 бол g өснө: «≤» ⇔ g ≥ 0 ⇔ x ≥ x*;  k < 0 бол эсрэгээр).  (эх: |x − 3| ≤ 3x − 4 → x* = 7/4, x ≥ 7/4)
+var p4_R = ['\\le', '\\lt', '\\ge', '\\gt'];
+function p4() {
+  var p = nz(-6, 6), k = pick([2, 2, 3, 3, 4, 5, -2, -3]), m = nz(-9, 9), ri = pick([0, 0, 0, 0, 1, 2, 3]);
+  var N, D;
+  if ((m - p) * (k - 1) >= p * (k - 1) * (k - 1)) { N = m - p; D = k - 1; }      // (m − p)/(k − 1) ≥ p
+  else { N = m + p; D = k + 1; if ((m + p) * (k + 1) > p * (k + 1) * (k + 1)) return null; }   // (m + p)/(k + 1) ≤ p
+  if (D < 0) { N = -N; D = -D; }
+  var g0 = gcd(N, D); N /= g0; D /= g0;
+  if (Math.abs(N / D) > 10) return null;
+  if (D === 1 && rnd(0, 1)) return null;                       // бутархай хил элбэг (эх: 7/4)
+  // k > 0: «≤» → ≥, «<» → >, «≥» → ≤, «>» → <;  k < 0: тэмдэг хэвээр
+  var ai = k > 0 ? [2, 3, 0, 1][ri] : ri;
+  var rhs = k < 0 && m < 0 ? (-m) + tm(k, 'x') : tm(k, 'x', true) + sgn(-m);
+  return {
+    q: '$|x' + sgn(-p) + '|' + p4_R[ri] + ' ' + rhs + '$ тэнцэтгэл бишийн шийдийн олонлогийг олоорой.',
+    a: '$x' + p4_R[ai] + ' ' + fr(N, D) + '$',
+    wk: 30,
+    t: { p: p, k: k, m: m, ri: ri }
+  };
+}
+return p4;
+})();
+
+/* 3.5 */
+var e3_5 = (function () {
+// 5. t = c^x > 0: |c^{x+k} − n| ≤ |c^{x+j}| ⇔ |c^k·t − n| ≤ c^j·t ⇔ n/(c^k + c^j) ≤ t ≤ n/(c^k − c^j)  (k > j).
+//    e = k − j, n = c^{d+j}(c^e − 1) ⇒ дээд хил t = c^d (x ≤ d), доод хил t = c^d(c^e − 1)/(c^e + 1) = a/b
+//    (хураасан, a ≥ 2, b ≥ 2 тул c-ийн бүхэл зэрэг биш) ⇒ x ≥ log_c(a/b) = (ln a − ln b)/ln c. Нүд бүр нэг цифр, d ≥ 0.
+//    (эх: |2^{x+2} − 3| ≤ |2^x|: c = 2, k = 2, j = 0, n = 3 → 3/5 ≤ t ≤ 1 → a = 3, b = 5, c = 2, d = 0)
+var p5_C = (function () {   // [c, e, d, a, b] — a/b = c^d(c^e − 1)/(c^e + 1) нэг оронтой
+  var L = [];
+  for (var c = 2; c <= 9; c++) for (var e = 1; e <= 3; e++) for (var d = 0; d <= 3; d++) {
+    var N = Math.pow(c, d) * (Math.pow(c, e) - 1), D = Math.pow(c, e) + 1, g = gcd(N, D);
+    N /= g; D /= g;
+    if (N >= 2 && N <= 9 && D >= 2 && D <= 9) L.push([c, e, d, N, D]);
+  }
+  return L;
+})();
+function p5() {
+  var o = pick(p5_C), c = o[0], e = o[1], d = o[2], A = o[3], B = o[4];
+  var j = pick([0, 0, 0, 0, 0, 1, 1, 1, 2, -1]), k = j + e;
+  if (k < 1 || d + j < 0) return null;
+  var n = Math.pow(c, d + j) * (Math.pow(c, e) - 1);
+  if (n > 300) return null;
+  var P = c + '^{x+' + k + '}', Lx = rnd(1, 4) === 1 ? '|' + n + '-' + P + '|' : '|' + P + '-' + n + '|';
+  var Rx = '|' + c + (j ? '^{x' + sgn(j) + '}' : '^x') + '|';
+  var b = Bx();
+  var q = '$' + Lx + '\\le' + Rx + '$ тэнцэтгэл бишийн шийдийн олонлог $\\dfrac{\\ln' + b('a', A) + '-\\ln' + b('b', B) + '}{\\ln' + b('c', c) + '}\\le x\\le'
+    + b('d', d) + '$ байна.';
+  return { q: q, a: b.key(), wk: 50, t: { c: c, k: k, j: j, n: n } };
+}
+return p5;
+})();
+
+/* 3.6 */
+var e3_6 = (function () {
+// 6. a > 0: |x + ma| > k|x − a| ⇔ (x + ma)² − k²(x − a)² > 0 ⇔ ((1 − k)x + (m + k)a)((1 + k)x + (m − k)a) > 0
+//    ⇔ (k − m)/(k + 1)·a < x < (m + k)/(k − 1)·a  (k ≥ 2; (m + k)/(k − 1) бүхэл, (k − m)/(k + 1) бүхэл биш бутархай).
+//    Толин хэлбэр |x − ma| > k|x + a| (x → −x) ⇔ −(m + k)/(k − 1)·a < x < −(k − m)/(k + 1)·a.
+//    b) a = a₀ ∈ {2, …, 6} үед завсар дахь бүхэл тоонууд (1–9 ширхэг — нэг нүд). Нүдний үсэг уншигдах дарааллаар, «−» нүдний гадна.
+//    (эх: |x + a| > 2|x − a| → ]a/3; 3a[, a = 3 → ]1; 9[ → 7 бүхэл тоо)
+var p6_KM = [[2, 1], [2, 1], [2, 1], [3, 1], [3, 1], [3, 1], [4, 2], [5, 3], [6, 4], [7, 5], [4, 5], [3, 5], [5, 7]];
+function p6() {
+  var km = pick(p6_KM), k = km[0], m = km[1], mir = rnd(1, 100) <= 30, a0 = rnd(2, 6);
+  var LN = k - m, LD = k + 1, g0 = gcd(LN, LD), C = (m + k) / (k - 1);
+  LN /= g0; LD /= g0;
+  if (C !== Math.round(C) || !LN || LD === 1) return null;
+  var lo = LN * a0 / LD, hi = C * a0, cnt = 0;                 // a₀ үед ]lo; hi[ (толин хэлбэрт ]−hi; −lo[ — тоо нь ижил)
+  for (var x = Math.floor(lo) + 1; x < hi; x++) cnt++;
+  if (cnt < 1 || cnt > 9) return null;
+  var b = Bx(), ma = (m === 1 ? '' : m) + 'a', fra = function () { return '\\dfrac{' + b('A', Math.abs(LN)) + '}{' + b('B', LD) + '}a'; }, iv;
+  if (!mir) { var f1 = (LN < 0 ? '-' : '') + fra(); iv = f1 + ',\\ ' + b('C', C) + 'a'; }
+  else { var c1 = '-' + b('C', C) + 'a'; iv = c1 + ',\\ ' + (LN > 0 ? '-' : '') + fra(); }
+  var L1 = mir ? '|x-' + ma + '|' : '|x+' + ma + '|', L2 = k + (mir ? '|x+a|' : '|x-a|');
+  var ineq = rnd(1, 100) <= 25 ? L2 + '\\lt ' + L1 : L1 + '\\gt ' + L2;   // заримдаа «k|x − a| < |x + ma|» гэж бичнэ
+  var q = 'Эерэг тогтмол $a$ тооны хувьд $' + ineq + '$ байх тэнцэтгэл биш өгөгджээ.'
+    + '<div style="margin:3px 0 0 1.2em">a) Тэнцэтгэл бишийн шийдийн олонлог $x\\in\\left]' + iv + '\\right[$ байна.</div>'
+    + '<div style="margin:2px 0 0 1.2em">b) $a=' + a0 + '$ үед бүхэл тоон шийдийн тоо $' + b('D', cnt) + '$ байна.</div>';
+  return { q: q, a: b.key(), wk: 50, t: { k: k, m: m, mir: mir, a0: a0 } };
+}
+return p6;
+})();
+
+/* 1.12 */
+var e1_12 = (function () {
+// 12. ax + b ⋚ c (a ≠ 0)  →  x ⋚ (c − b)/a; a < 0 бол тэнцэтгэл бишийн тэмдэг эсрэгээр эргэнэ.
+//     Хил ихэвчлэн бүхэл, заримдаа энгийн бутархай.
+var p12_R = ['\\ge', '\\le', '\\gt', '\\lt'], p12_F = [1, 0, 3, 2];
+function p12() {
+  var a = (rnd(0, 9) < 7 ? -1 : 1) * rnd(2, 6), b = nz(-9, 9), ri = rnd(0, 3), c;
+  if (rnd(0, 9) < 8) c = a * nz(-5, 5) + b;     // бүхэл хил
+  else c = nz(-12, 12);                          // ихэвчлэн бутархай хил
+  if (c === b || Math.abs(c) > 25) return null;
+  var ra = a < 0 ? p12_F[ri] : ri;
+  // Бодолт (гар бичмэл): a < 0 бол x-тэй гишүүнийг баруун, тоог зүүн тал руу шилжүүлж эерэг коэффициентэд хуваана (b − c R |a|x → (b−c)/|a| R x);
+  //   a > 0 бол ax R c − b → x R (c − b)/a. Эцэст нь завсраар бичнэ.
+  var R = p12_R[ri], lhs = tm(a, 'x', true) + sgn(b) + R + ' ' + c, v = fr(c - b, a), ch;
+  if (a < 0) {
+    ch = lhs + '\\Rightarrow ' + (c ? b + sgn(-c) + R + ' ' + tm(-a, 'x', true) + '\\Rightarrow ' : '') + (b - c) + R + ' ' + tm(-a, 'x', true)
+      + '\\Rightarrow ' + fr(b - c, -a) + R + ' x';
+  } else {
+    ch = lhs + '\\Rightarrow ' + tm(a, 'x', true) + R + ' ' + (c ? c + sgn(-b) + '\\Rightarrow ' + tm(a, 'x', true) + R + ' ' : '') + (c - b)
+      + '\\Rightarrow x' + R + ' ' + v;
+  }
+  var iv = { '\\ge': '\\left[' + v + ';\\,+\\infty\\right[', '\\gt': '\\left]' + v + ';\\,+\\infty\\right[',
+    '\\le': '\\left]-\\infty;\\,' + v + '\\right]', '\\lt': '\\left]-\\infty;\\,' + v + '\\right[' }[p12_R[ra]];
+  return {
+    q: '$' + tm(a, 'x', true) + sgn(b) + p12_R[ri] + ' ' + c + '$ тэнцэтгэл бишийг бод.',
+    a: '$x' + p12_R[ra] + ' ' + fr(c - b, a) + '$',
+    wk: 20,
+    s: [
+      (a < 0 ? '$x$-тэй гишүүнийг баруун, тоог зүүн тал руу шилжүүлбэл' : 'Тоог баруун тал руу шилжүүлж, $x$-ийн эерэг коэффициентэд хуваавал') + ' $$' + ch + '.$$',
+      'Иймд $x' + p12_R[ra] + ' ' + v + '$, өөрөөр хэлбэл $x\\in' + iv + '$.'
+    ],
+    t: { a: a, b: b, c: c, ri: ri }
+  };
+}
+return p12;
+})();
+
+/* 1.27 */
+var e1_27 = (function () {
+// 27. Дөрвөн тэнцэтгэл бишийн шийдийн огтлолцол (эх: x≥1, −2<x≤3, 2≤x<4, x<2.5 → 2≤x<2.5).
+//     0: x ≥ c (доод), 1–2: давхар, 3: x < c (дээд). Хязгаарлагч доод хил L ба дээд хил U нь хоёр өөр
+//     тэнцэтгэл бишээс; бусад хил нь L-ээс (U-ээс) дор хаяж 0.5-аар сул тул хариуны хатуу/сул нь тодорхой.
+function p27_s(o) {
+  if (o.l != null && o.u != null) return dec(o.l) + (o.ls ? '\\lt ' : '\\le ') + 'x' + (o.us ? '\\lt ' : '\\le ') + dec(o.u);
+  if (o.l != null) return 'x' + (o.ls ? '\\gt ' : '\\ge ') + dec(o.l);
+  return 'x' + (o.us ? '\\lt ' : '\\le ') + dec(o.u);
+}
+function p27() {
+  var L = rnd(-6, 6) / 2, U = L + rnd(1, 6) / 2, lo = rnd(0, 2), hi = rnd(1, 3), I = [{}, {}, {}, {}], i;
+  if (lo === hi) return null;
+  for (i = 0; i <= 2; i++) { I[i].l = i === lo ? L : L - rnd(1, 8) / 2; I[i].ls = rnd(0, 1) === 1; }
+  for (i = 1; i <= 3; i++) { I[i].u = i === hi ? U : U + rnd(1, 8) / 2; I[i].us = rnd(0, 1) === 1; }
+  if (I[0].l < -7 || I[1].l < -7 || I[2].l < -7 || I[1].u > 8 || I[2].u > 8 || I[3].u > 8) return null;
+  var order = rnd(0, 1) ? [0, 1, 2, 3] : shuffle([0, 1, 2, 3]), S = order.map(function (j) { return p27_s(I[j]); });
+  if (S[0] === S[1] || S[0] === S[2] || S[0] === S[3] || S[1] === S[2] || S[1] === S[3] || S[2] === S[3]) return null;
+  var ans = dec(L) + (I[lo].ls ? '\\lt ' : '\\le ') + 'x' + (I[hi].us ? '\\lt ' : '\\le ') + dec(U);
+  // Бодолт (гар бичмэл): шийдүүдийг тоон шулуун дээр дүрсэлж, давхацсан хэсгийг авна.
+  var Q = order.map(function (j) { return I[j]; });
+  var uq = function (a) { return a.filter(function (z, i) { return a.indexOf(z) === i; }); };
+  var lows = uq(Q.filter(function (o) { return o.l != null; }).map(function (o) { return dec(o.l); }));
+  var ups = uq(Q.filter(function (o) { return o.u != null; }).map(function (o) { return dec(o.u); }));
+  return {
+    q: 'Дөрвөн тэнцэтгэл бишийн шийд ' + S.map(function (s) { return '$' + s + '$'; }).join(', ') + ' гарчээ. Эдгээрийн огтлолцлыг ол.',
+    a: '$' + ans + '$', wk: 22,
+    s: [
+      'Шийдүүдийг тоон шулуун дээр дүрсэлье (зураг). Огтлолцолд бүх тэнцэтгэл бишийг зэрэг хангах $x$ орно.',
+      'Доод хилүүд: $' + lows.join(',\\ ') + '$, хамгийн их нь $' + dec(L) + '$ тул $x' + (I[lo].ls ? '\\gt ' : '\\ge ') + dec(L) + '$. Дээд хилүүд: $'
+        + ups.join(',\\ ') + '$, хамгийн бага нь $' + dec(U) + '$ тул $x' + (I[hi].us ? '\\lt ' : '\\le ') + dec(U) + '$.',
+      'Иймд огтлолцол $' + ans + '$.'
+    ],
+    sfig: p27_fig(Q, L, U, I[lo].ls, I[hi].us),
+    t: { I: Q }
+  };
+}
+// Бодолтын зураг: тоон шулуун (хилүүд тэнцүү зайтай, масштабгүй), тэнцэтгэл биш бүр өөр түвшинд, огтлолцол будсан
+function p27_fig(Q, L, U, Ls, Us) {
+  var vals = [];
+  Q.forEach(function (o) { [o.l, o.u].forEach(function (v) { if (v != null && vals.indexOf(v) < 0) vals.push(v); }); });
+  vals.sort(function (a, b) { return a - b; });
+  var m = vals.length, X = function (v) { return vals.indexOf(v) + 1; }, x0 = 0.25, x1 = m + 0.75, K = '#5a32d6';
+  var f = Fig({ free: true, w: 220, h: 128, view: [0, m + 1, -0.7, 4.5], pad: 12, padB: 22 });
+  f.rect(X(L), 0, X(U), 4.35, { fill: K, op: 0.12, c: 'none' });
+  Q.forEach(function (o, i) {
+    var y = 4 - i, a = o.l != null ? X(o.l) : x0, b = o.u != null ? X(o.u) : x1;
+    f.seg([a, y], [b, y], { w: 1.5 });
+    if (o.l != null) f.seg([a, 0], [a, y], { w: 0.8, dash: '3 3', c: '#777' }).dot([a, y], { r: 2.6, open: o.ls });
+    if (o.u != null) f.seg([b, 0], [b, y], { w: 0.8, dash: '3 3', c: '#777' }).dot([b, y], { r: 2.6, open: o.us });
+  });
+  f.seg([X(L), 0], [X(U), 0], { w: 4, c: K }).arrow([0, 0], [m + 1, 0], { w: 1.2, h: 7 }).text([m + 1, 0], 'x', { pos: 'se', size: 12 })
+    .ticks(vals.map(function (v) { return [X(v), dec(v)]; }), [], { size: 11 })
+    .dot([X(L), 0], { r: 2.8, open: Ls, c: K }).dot([X(U), 0], { r: 2.8, open: Us, c: K });
+  return f.svg();
+}
+return p27;
+})();
+
+/* 1.37 */
+var e1_37 = (function () {
+// 37. c·x² ± k·a·x (≤ | < | ≥ | >) 0 тэнцэтгэл биш (a — параметр). Язгуурууд 0 ба ρ = κ·a, κ = ∓k/c.
+//     a > 0, a = 0, a < 0 гурван тохиолдол: завсар / гаднах хэсэг; a = 0 үед c·x² (≤ → x = 0, < → шийдгүй, ≥ → ℝ, > → x ≠ 0).
+function p37_m(n, d) {   // (n/d)·a → a, -a, 2a, \dfrac{3a}{2}, -\dfrac{a}{2}
+  var g = gcd(n, d); n /= g; d /= g;
+  var s = n < 0 ? '-' : '', A = Math.abs(n);
+  if (d === 1) return s + (A === 1 ? '' : A) + 'a';
+  return s + '\\dfrac{' + (A === 1 ? '' : A) + 'a}{' + d + '}';
+}
+function p37() {
+  var ck = pick([[1, 1], [1, 1], [1, 1], [1, 2], [1, 2], [1, 3], [1, 3], [2, 1], [2, 3], [3, 1], [3, 2]]), c = ck[0], k = ck[1];
+  var s = pick([-1, -1, 1]), rel = pick(['\\le', '\\le', '\\lt', '\\ge', '\\gt']);
+  var lhs = (c === 1 ? '' : c) + 'x^2' + (s < 0 ? '-' : '+') + (k === 1 ? '' : k) + 'ax';
+  var kn = -s * k, R = p37_m(kn, c);          // ρ = (kn/c)·a
+  var strict = rel === '\\lt' || rel === '\\gt', inside = rel === '\\le' || rel === '\\lt';
+  function part(lo, hi) {
+    if (inside) { var o = strict ? '\\lt' : '\\le'; return '$' + lo + o + ' x' + o + ' ' + hi + '$'; }
+    return '$x' + (strict ? '\\lt' : '\\le') + ' ' + lo + '$ эсвэл $x' + (strict ? '\\gt' : '\\ge') + ' ' + hi + '$';
+  }
+  // a > 0: ρ-ийн тэмдэг = kn-ийн тэмдэг; a < 0: эсрэг
+  var pos = kn > 0 ? part('0', R) : part(R, '0'), neg = kn > 0 ? part(R, '0') : part('0', R);
+  var zero = { '\\le': '$x=0$', '\\lt': 'шийдгүй', '\\ge': '$x\\in\\mathbb{R}$', '\\gt': '$x\\ne 0$' }[rel];
+  // Бодолт (гар бичмэл): x-ийг хаалтнаас гаргаж x(cx ± ka) ≤ 0; язгуурууд 0 ба ρ; a-гийн тэмдгээр язгууруудын байрлал өөрчлөгдөнө.
+  // (Гар бичмэлд a = 0 тохиолдол орхигдсон — нэмж бичив.)
+  var fac = 'x(' + (c === 1 ? '' : c) + 'x' + (s < 0 ? '-' : '+') + (k === 1 ? '' : k) + 'a)', cx2 = (c === 1 ? '' : c) + 'x^2';
+  // ρ-ийн тэмдэг (a > 0 үед kn-ийн тэмдэгтэй ижил); ρ = a бол давтахгүй
+  var rs = function (sg) { return R === 'a' ? '' : '$' + R + (sg > 0 ? '\\gt' : '\\lt') + ' 0$ тул '; };
+  var z0 = { '\\le': '$' + cx2 + '\\le 0\\Rightarrow x=0$', '\\lt': '$' + cx2 + '\\lt 0$ — шийдгүй (учир нь $' + cx2 + '\\ge 0$)',
+    '\\ge': '$' + cx2 + '\\ge 0$ — бүх $x$-д биелнэ, $x\\in\\mathbb{R}$', '\\gt': '$' + cx2 + '\\gt 0\\Rightarrow x\\ne 0$' }[rel];
+  return {
+    q: '$' + lhs + rel + ' 0$ тэнцэтгэл бишийг бод.',
+    a: '$a\\gt 0$ үед ' + pos + '; $a=0$ үед ' + zero + '; $a\\lt 0$ үед ' + neg,
+    wide: true, wk: 32,
+    s: [
+      '$' + lhs + rel + ' 0\\Rightarrow ' + fac + rel + ' 0$. Язгуурууд нь $x=0$ ба $x=' + R + '$. $y=' + lhs + '$ парабол дээшээ салаатай тул шийд нь язгууруудын '
+        + (inside ? 'хоорондох завсар' : 'гадна талын хэсэг') + (strict ? ' (язгуурууд орохгүй)' : ' (язгуурууд орно)') + '.',
+      '$a\\gt 0$ үед ' + rs(kn) + pos + '.',
+      '$a=0$ үед ' + z0 + '.',
+      '$a\\lt 0$ үед ' + rs(-kn) + neg + '.'
+    ],
+    t: { c: c, k: k, s: s, rel: rel }
+  };
+}
+return p37;
+})();
+
+/* 1.5 */
+var e1_5 = (function () {
+// 5. x² ∓ (a − m)x − ma < 0, a > 0: (x − a)(x + m) < 0 → −m < x < a  (эсвэл (x + a)(x − m) < 0 → −a < x < m).
+//    Бүхэл шийдийн тоо = ⌈a⌉ + m − 1 = N  ⇒  N − m < a ≤ N − m + 1  (N − m ≥ 1).
+var p5_W = { 2: 'хоёр', 3: 'гурван', 4: 'дөрвөн', 5: 'таван', 6: 'зургаан' };
+function p5() {
+  var N = rnd(2, 6), m = rnd(1, 4), s = pick([-1, -1, 1]), L = N - m;
+  if (L < 1) return null;
+  var ex = 'x^2' + (s < 0 ? '-' : '+') + '(a-' + m + ')x-' + (m === 1 ? '' : m) + 'a';
+  // Бодолт (гар бичмэл): үржигдэхүүн болгон задлаад −m < x < a (эсвэл −a < x < m); бүхэл шийдүүдийг тоочиж a-ийн мужийг гаргана.
+  var ints = [], i;
+  for (i = 0; i < N; i++) ints.push(s < 0 ? -m + 1 + i : -L + i);
+  var sol = s < 0
+    ? [
+      '$' + ex + '=(x-a)(x+' + m + ')$ тул тэнцэтгэл биш $(x-a)(x+' + m + ')\\lt 0$ болно.',
+      'Язгуурууд нь $x=-' + m + '$ ба $x=a$. $a\\gt 0$ тул шийд нь $-' + m + '\\lt x\\lt a$ завсар.',
+      'Энэ завсарт яг ' + p5_W[N] + ' бүхэл тоо байх ёстой; тэдгээр нь $' + ints.join(',\\ ') + '$ байна. Иймд $x=' + L + '$ шийд болж, $x=' + (L + 1)
+        + '$ шийд болохгүй байх ёстой: $' + L + '\\lt a\\le ' + (L + 1) + '$.'
+    ]
+    : [
+      '$' + ex + '=(x+a)(x-' + m + ')$ тул тэнцэтгэл биш $(x+a)(x-' + m + ')\\lt 0$ болно.',
+      'Язгуурууд нь $x=-a$ ба $x=' + m + '$. $a\\gt 0$ тул шийд нь $-a\\lt x\\lt ' + m + '$ завсар.',
+      'Энэ завсарт яг ' + p5_W[N] + ' бүхэл тоо байх ёстой; тэдгээр нь $' + ints.join(',\\ ') + '$ байна. Иймд $x=' + (-L) + '$ шийд болж, $x=' + (-L - 1)
+        + '$ шийд болохгүй байх ёстой: $' + (-L - 1) + '\\le -a\\lt ' + (-L) + '$, өөрөөр хэлбэл $' + L + '\\lt a\\le ' + (L + 1) + '$.'
+    ];
+  return {
+    q: '$a\\gt 0$ тоо байг. $' + ex + '\\lt 0$ тэнцэтгэл биш яг ' + p5_W[N] + ' бүхэл шийдтэй байх $a$ тооны утгын мужийг олоорой.',
+    a: '$' + L + '\\lt a\\le ' + (L + 1) + '$',
+    wk: 30,
+    s: sol,
+    sfig: p5_fig(m, L, N, s),
+    t: { N: N, m: m, s: s }
+  };
+}
+// Бодолтын зураг: тоон шулуун — тогтмол язгуур (хөндий цэг), бүхэл шийдүүд (бүтэн цэг), хөдөлгөөнт язгуурын муж (a эсвэл −a).
+function p5_fig(m, L, N, s) {
+  var x0 = s < 0 ? -m : -L - 1, x1 = s < 0 ? L + 1 : m, fx = s < 0 ? -m : m, g = Fig({ w: 220, pad: 14 }), i;
+  var lo = Math.min(x0, x1) - 0.8, hi = Math.max(x0, x1) + 0.8;
+  g.arrow([lo, 0], [hi + 0.3, 0], { w: 1.2, h: 7 });
+  for (i = Math.ceil(lo); i <= hi; i++) g.seg([i, -0.12], [i, 0.12], { w: 1 }).text([i, -0.12], String(i), { pos: 's', size: 11 });
+  for (i = 0; i < N; i++) g.dot([s < 0 ? -m + 1 + i : -L + i, 0], { r: 3 });
+  g.dot([fx, 0], { r: 3, open: true });
+  // хөдөлгөөнт язгуурын муж
+  var u0 = s < 0 ? L : -L - 1, u1 = u0 + 1, yb = 0.55;
+  g.seg([u0, yb], [u1, yb], { w: 2.4 }).seg([u0, 0.05], [u0, yb], { w: 0.8, dash: '2 2' }).seg([u1, 0.05], [u1, yb], { w: 0.8, dash: '2 2' })
+    .dot([u0, yb], { r: 2.8, open: s < 0 }).dot([u1, yb], { r: 2.8, open: s > 0 })
+    .text([(u0 + u1) / 2, yb], s < 0 ? 'a' : '-a', { pos: 'n', size: 13 });
+  g.ext([lo, -0.7]).ext([hi, 1.2]);
+  return g.svg();
+}
+return p5;
+})();
+
+/* 1.65 */
+var e1_65 = (function () {
+// 65. x² − 2ax + (pa + q) > 0 (∀x) ⇔ D/4 = a² − pa − q < 0 ⇔ (a − r1)(a − r2) < 0 ⇔ r1 < a < r2
+//     (p = r1 + r2, q = −r1·r2).  «≥ 0» хувилбарт D ≤ 0 ⇒ r1 ≤ a ≤ r2.
+// Бодолт: «$…$-дагавар»-ыг нэг мөрөнд байлгах (мөр таслалт дагаврын өмнө орохгүй)
+function p65_nw(t) { return t.replace(/\$[^$]+\$-[А-Яа-яЁёӨөҮү]+/g, function (m) { return '<span class="nw">' + m + '</span>'; }); }
+function p65() {
+  var r1 = rnd(-5, 4), r2 = rnd(r1 + 2, Math.min(r1 + 7, 6)), p = r1 + r2, q0 = -r1 * r2, st = rnd(0, 2) > 0;
+  var cst = tm(p, 'a', false) + (q0 ? sgn(q0) : '');
+  // Бодолт (гар бичмэл): ахлах коэффициент 1 > 0 тул D < 0 (≥ хувилбарт D ≤ 0) → a² − pa − q < 0 → (a − r1)(a − r2) < 0.
+  var C = p ? tm(p, 'a', true) + (q0 ? sgn(q0) : '') : String(q0), rel = st ? '\\lt 0' : '\\le 0';
+  var C4 = p && q0 ? '4(' + C + ')' : '4\\cdot ' + (C.charAt(0) === '-' ? '(' + C + ')' : C);
+  var fa = function (r) { return r ? '(a' + sgn(-r) + ')' : 'a'; }, fac = !r1 ? 'a' + fa(r2) : !r2 ? 'a' + fa(r1) : fa(r1) + fa(r2);
+  return {
+    q: '$x^2-2ax' + cst + (st ? '\\gt 0' : '\\ge 0') + '$ тэнцэтгэл биш бүх бодит тоо $x$-ийн хувьд үнэн байх $a$ тооны утгын мужийг олоорой.',
+    a: '$' + r1 + (st ? '\\lt a\\lt ' : '\\le a\\le ') + r2 + '$',
+    wk: 28,
+    s: [
+      'Квадрат гурван гишүүнтийн ахлах коэффициент $1\\gt 0$ тул тэнцэтгэл биш бүх $x$-ийн хувьд үнэн байх нөхцөл нь $D' + rel + '$:'
+        + ' $$D=(-2a)^2-' + C4 + '=' + poly([4, -4 * p, -4 * q0], 'a') + rel + '.$$',
+      '$4$-т хуваавал $$' + poly([1, -p, -q0], 'a') + rel + '\\Rightarrow ' + fac + rel + '\\Rightarrow ' + r1 + (st ? '\\lt a\\lt ' : '\\le a\\le ') + r2 + '.$$'
+    ].map(p65_nw),
+    t: {}
+  };
+}
+return p65;
+})();
+
+/* 1.92 */
+var e1_92 = (function () {
+// 92. y = n·ax² парабол y = m·ax + k шулуунтай яг хоёр цэгээр огтлолцох a-ийн утгууд.
+//     n·a·x² − m·a·x − k = 0, a ≠ 0: D = m²a² + 4nak = a(m²a + 4nk) > 0 ⇒ хилүүд 0 ба −4nk/m².
+//     k > 0: a ∈ (−∞; −4nk/m²) ∪ (0; +∞);  k < 0: a ∈ (−∞; 0) ∪ (4n|k|/m²; +∞).
+function p92() {
+  var n = pick([1, 1, 1, 2]), m = pick([1, 1, 2, 3]), k = nz(-4, 4);
+  var B = fr(-4 * n * k, m * m);
+  var ans = k > 0 ? 'a\\in(-\\infty;\\,' + B + ')\\cup(0;\\,+\\infty)' : 'a\\in(-\\infty;\\,0)\\cup(' + B + ';\\,+\\infty)';
+  // Бодолт (гар бичмэл): n·ax² − m·ax − k = 0, D = m²a² − 4·na·(−k) = a(m²a + 4nk) > 0
+  var roots = k > 0 ? ['a=' + B, 'a=0'] : ['a=0', 'a=' + B];
+  return {
+    q: '${y=' + tm(n, 'ax^2', true) + '}$ парабол ${y=' + tm(m, 'ax', true) + sgn(k) + '}$ шулуунтай яг хоёр цэгээр огтлолцдог байх '
+      + '<span class="nw">$a$-ийн</span> бүх бодит тоон утгын олонлогийг ол.',
+    a: '$' + ans + '$', wk: 28,
+    s: [
+      'Огтлолцлын цэгүүдийн абсцисс нь $' + tm(n, 'ax^2', true) + '=' + tm(m, 'ax', true) + sgn(k) + '$, өөрөөр хэлбэл $' + tm(n, 'ax^2', true) + tm(-m, 'ax') + sgn(-k) + '=0$'
+        + ' тэгшитгэлийн шийдүүд байна. $a\\ne 0$ үед энэ квадрат тэгшитгэл яг хоёр шийдтэй байх нөхцөл нь $D\\gt 0$:'
+        + ' $$D=' + tm(m * m, 'a^2', true) + '-4\\cdot ' + tm(n, 'a', true) + '\\cdot ' + par(-k) + '=' + tm(m * m, 'a^2', true) + tm(4 * n * k, 'a')
+        + '\\gt 0\\Rightarrow a(' + tm(m * m, 'a', true) + sgn(4 * n * k) + ')\\gt 0.$$',
+      'Зүүн талын язгуурууд $' + roots[0] + '$, $' + roots[1] + '$ бөгөөд ахлах коэффициент нь эерэг тул тэнцэтгэл биш язгууруудын гадна биелнэ. Иймд $' + ans + '$.'
+    ],
+    t: { n: n, m: m, k: k }
+  };
+}
+return p92;
+})();
+
+E1K.page({
+  title: 'ЭЕШ 1000 — Модуль, тэгшитгэл, тэнцэтгэл биш-1',
+  sub: 'Модуль, модультай тэгшитгэл ба тэнцэтгэл биш, параметртэй тэнцэтгэл биш',
+  first: 1,
+  probs: [e2_1, e2_2, e1_48, e2_13, e2_14, e3_1, e3_2, e3_3, e3_4, e3_5, e3_6, e1_12, e1_27, e1_37, e1_5, e1_65, e1_92]
+});
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>

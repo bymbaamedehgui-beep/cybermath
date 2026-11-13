@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ЭЕШ 1000 — Уламжлал-2</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="/e1k.js?v=2"></script>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+/* ЭЕШ 1000 — Уламжлал-2 — ЭЕШ-ийн 1000 бодлого, агуулгаар: Уламжлалын хэрэглээ: шүргэгч, экстремум, функцийн шинжилгээ, хамгийн их ба бага утга.
+   Эх: 3.42, 1.23, 3.74, 2.100, 1.38, 3.57, 1.99, 1.80, 1.86, 1.93, 3.82 (хэсэг.бодлого). Бодлого бүр өөрийн генератортой: «Шинэ бодлого» дарахад тоо нь өөрчлөгдөнө. */
+
+/* 3.42 */
+var e3_42 = (function () {
+// 42. x₀ цэгт татсан шүргэгчийн налалт k = f'(x₀):
+//     a·ln x → a/x₀;  ln mx → 1/x₀;  a·ln x + bx → a/x₀ + b;  a√x (x₀ = s²) → a/(2s);  axⁿ + bx → anx₀ⁿ⁻¹ + b;
+//     a·e^{kx} (x₀ = 0 эсвэл ln m) → ak·m^k;  ln(px + q) → p/(px₀ + q);  x·ln x + bx (x₀ = 1, e, e²) → ln x₀ + 1 + b.
+//     (эх: f(x) = ln x, x = 2 → 1/2)
+function p42() {
+  var f = pick([0, 0, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7]), F, X, n, d = 1, x0, a, b, k;
+  if (f === 0) { a = pick([1, 1, 2, 3, 4, 5, -1, -2, -3]); x0 = rnd(2, 9); F = tm(a, '\\ln x', true); X = String(x0); n = a; d = x0; }
+  else if (f === 1) { k = rnd(2, 9); x0 = rnd(1, 9); F = '\\ln ' + k + 'x'; X = String(x0); n = 1; d = x0; }
+  else if (f === 2) {
+    a = nz(-6, 6); b = nz(-5, 5); x0 = rnd(1, 6); n = a + b * x0; d = x0;
+    F = rnd(0, 1) ? tm(a, '\\ln x', true) + tm(b, 'x') : tm(b, 'x', true) + tm(a, '\\ln x');
+  }
+  else if (f === 3) { a = rnd(1, 8); var s = rnd(1, 5); x0 = s * s; F = tm(a, '\\sqrt{x}', true); X = String(x0); n = a; d = 2 * s; }
+  else if (f === 4) {
+    var p = rnd(2, 5); a = pick([1, 1, 2, 3, -1, -2]); b = rnd(0, 1) ? 0 : nz(-6, 6); x0 = nz(-3, 3);
+    if (p >= 4 && Math.abs(x0) > 2) return null;
+    n = a * p * Math.pow(x0, p - 1) + b;
+    F = tm(a, 'x^' + p, true) + (b ? tm(b, 'x') : '');
+  }
+  else if (f === 5) {
+    k = pick([1, 2, 3, -1, -2]); a = pick([1, 1, 1, 2, 3]);
+    var mm = rnd(0, 2) ? pick([2, 3]) : 1;   // x₀ = ln m (m = 1 → x₀ = 0)
+    if (Math.abs(k) === 3 && mm === 3) return null;
+    X = mm === 1 ? '0' : '\\ln ' + mm;
+    if (k > 0) { n = a * k * Math.pow(mm, k); d = 1; } else { n = a * k; d = Math.pow(mm, -k); }
+    F = tm(a, 'e^{' + tm(k, 'x', true) + '}', true);
+  }
+  else if (f === 6) {
+    var P = rnd(1, 5), Q = nz(-9, 9); x0 = rnd(0, 5);
+    if (gcd(P, Q) !== 1 || P * x0 + Q < 1) return null;
+    F = '\\ln(' + poly([P, Q]) + ')'; X = String(x0); n = P; d = P * x0 + Q;
+  }
+  else {
+    var e = rnd(0, 2); b = rnd(0, 1) ? 0 : nz(-4, 4);
+    F = 'x\\ln x' + (b ? tm(b, 'x') : ''); X = e === 0 ? '1' : e === 1 ? 'e' : 'e^{2}'; n = e + 1 + b;
+  }
+  if (X == null) X = String(x0);
+  if (!n) return null;                            // хэвтээ шүргэгчээс зайлсхийнэ
+  if (Math.abs(n / d) > 200) return null;
+  return {
+    q: '$f(x)=' + F + '$ функцийн $x=' + X + '$ цэгт шүргэгч шулууны налалтыг олоорой.',
+    a: "$k=f'(" + X + ')=' + fr(n, d) + '$',
+    wk: 18,
+    t: { f: f }
+  };
+}
+return p42;
+})();
+
+/* 1.23 */
+var e1_23 = (function () {
+// 23. y = x² + bx (+c) графикийн шүргэгч y = mx + n шулуунтай параллел байх цэг: 2x₀ + b = m
+//     (эх: y = x² + x, y = 5x + 3 → (2; 6)). Шулуун нь өөрөө шүргэгч биш (n ≠ y₀ − m·x₀).
+function p23() {
+  var b = nz(-5, 5), c = rnd(0, 1) ? 0 : nz(-6, 6), x0 = nz(-4, 4), m = 2 * x0 + b, n = nz(-6, 6);
+  if (m === 0) return null;
+  var y0 = x0 * x0 + b * x0 + c;
+  if (n === y0 - m * x0 || Math.abs(y0) > 30) return null;
+  // Бодолт (гар бичмэл): шүргэгчийн налалт k = f'(x₀); параллел ⇔ налалт тэнцүү → 2x₀ + b = m → x₀, y₀ = f(x₀)
+  var bt = b === 1 ? '+' + par(x0) : b === -1 ? '-' + par(x0) : sgn(b) + '\\cdot ' + par(x0);
+  return {
+    q: '$y=' + poly([1, b, c]) + '$ функцийн графикийн аль цэгт татсан шүргэгч $y=' + poly([m, n]) + '$ шулуунтай параллел байх вэ?',
+    a: '$' + pt(x0, y0) + '$', wk: 24,
+    s: [
+      "$y=f(x)$ функцийн графикийн $(x_0;\\,y_0)$ цэгт татсан шүргэгч шулууны налалт $k=f'(x_0)$. Параллел шулуунуудын налалт тэнцүү "
+        + "($l_1\\parallel l_2\\Leftrightarrow k_1=k_2$) ба $y=" + poly([m, n]) + "$ шулууны налалт $k=" + m + "$ тул $f'(x_0)=" + m + '$.',
+      "$$f'(x)=\\left(" + poly([1, b, c]) + "\\right)'=" + poly([2, b]) + '\\ \\Rightarrow\\ 2x_0' + sgn(b) + '=' + m + '\\ \\Rightarrow\\ x_0=' + x0 + '.$$',
+      '$$y_0=f(' + x0 + ')=' + par(x0) + '^2' + bt + (c ? sgn(c) : '') + '=' + y0 + '.$$ Иймд шүргэлтийн цэг $' + pt(x0, y0) + '$.'
+    ],
+    t: { b: b, c: c, m: m, n: n }
+  };
+}
+return p23;
+})();
+
+/* 3.74 */
+var e3_74 = (function () {
+// 74. Шүргэгч: y = f'(x₀)(x − x₀) + f(x₀) = kx + (f(x₀) − k·x₀).
+//     f = A·sin x (+c): k = A·cos x₀;  f = A·cos x (+c): k = −A·sin x₀;  f = A·tg x (+c): k = A/cos²x₀.
+//     x₀ = (p/q)π стандарт өнцөг, k ≠ 0; утгыг n√r/d хэлбэрээр яг тооцож π-тэй гишүүнийг хураана; tg-ийн утга 1/√3 хэлбэрээр.
+//     c ≠ 0 зөвхөн тригонометр утга рационал үед (хариу kx + тоо + π-тэй гишүүн).   (эх: y = tg x, x₀ = π/4 → y = 2x + 1 − π/2)
+var p74_X = [[1, 6], [1, 4], [1, 3], [1, 2], [2, 3], [3, 4], [5, 6], [1, 1], [-1, 6], [-1, 4], [-1, 3], [-1, 2]];   // x₀ = (p/q)π
+var p74_S = { 0: [0, 1, 1], 30: [1, 1, 2], 45: [1, 2, 2], 60: [1, 3, 2], 90: [1, 1, 1] };                       // sin ρ = n√r/d
+function p74_sin(deg) {   // sin(deg°) = [n, r, d] (n тэмдэгтэй)
+  var u = ((deg % 360) + 360) % 360, rho = u <= 90 ? u : u <= 180 ? 180 - u : u <= 270 ? u - 180 : 360 - u, v = p74_S[rho];
+  return [(u > 180 ? -1 : 1) * v[0], v[1], v[2]];
+}
+function p74_q(n, r, d) {   // |n|√r/d (хураасан, тэмдэггүй) → TeX
+  var g = gcd(n, d), a = Math.abs(n) / g, b = d / g, core = r === 1 ? String(a) : rt(a, r);
+  return b === 1 ? core : '\\dfrac{' + core + '}{' + b + '}';
+}
+function p74_pl(t) { return t ? (t[0] === '-' ? t : '+' + t) : ''; }
+function p74_x(p, q) {   // (p/q)π → TeX
+  var a = Math.abs(p), num = (a === 1 ? '' : a) + '\\pi';
+  return (p < 0 ? '-' : '') + (q === 1 ? num : '\\dfrac{' + num + '}{' + q + '}');
+}
+function p74() {
+  var F = pick(['sin', 'sin', 'cos', 'cos', 'tg', 'tg', 'tg']), X = pick(p74_X), deg = 180 * X[0] / X[1];
+  var A = F === 'tg' ? pick([1, 1, 1, 2, -1]) : pick([1, 1, 1, 2, -1, -2]), k, v, inv = false;   // k, v = [n, r, d]
+  var s = p74_sin(deg), co = p74_sin(90 - deg);
+  if (F === 'sin') { v = s; k = [A * co[0], co[1], co[2]]; }
+  else if (F === 'cos') { v = co; k = [-A * s[0], s[1], s[2]]; }
+  else {
+    if (!co[0]) return null;                                         // tg x₀ тодорхойлогдохгүй
+    k = [A * co[2] * co[2], 1, co[0] * co[0] * co[1]];               // A/cos²x₀
+    if (!s[0]) v = [0, 1, 1];
+    else if (s[1] === co[1]) v = [s[0] * co[0], 1, 1];               // ±1
+    else if (s[1] === 3) v = [s[0] * co[0], 3, 1];                   // ±√3
+    else { v = [s[0] * co[0], 3, 1]; inv = true; }                  // ±1/√3
+  }
+  if (!k[0]) return null;                                            // хэвтээ шүргэгч
+  var c = v[1] === 1 && rnd(0, 2) === 0 ? nz(-3, 3) : 0;
+  // kx гишүүн (бутархай коэффициентийг бусад гишүүдтэй ижил хэмжээтэй \dfrac-аар)
+  var kg = gcd(k[0], k[2]), kn = k[0] / kg, kd = k[2] / kg, kc = k[1] === 1 ? String(Math.abs(kn)) : rt(Math.abs(kn), k[1]);
+  var KX = (kn < 0 ? '-' : '') + (kd === 1 ? (kc === '1' ? '' : kc) : '\\dfrac{' + kc + '}{' + kd + '}') + 'x';
+  // f(x₀) гишүүн
+  var N = A * v[0], F0;
+  if (!N && !c) F0 = '';
+  else if (v[1] === 1) F0 = fr(N * 1 + c * v[2], v[2]);
+  else if (inv) F0 = (N < 0 ? '-' : '') + (N % 3 ? '\\dfrac{' + Math.abs(N) + '}{\\sqrt{3}}' : rt(Math.abs(N) / 3, 3));
+  else F0 = (N < 0 ? '-' : '') + p74_q(N, v[1], v[2]);
+  if (F0 === '0') F0 = '';
+  // −k·x₀ = −(kn·p)/(kd·q)·√r·π
+  var pn = -kn * X[0], pd = kd * X[1], pg = gcd(pn, pd); pn /= pg; pd /= pg;
+  var pnum = (Math.abs(pn) === 1 ? '' : Math.abs(pn)) + (k[1] === 1 ? '' : '\\sqrt{' + k[1] + '}') + '\\pi';
+  var PI = (pn < 0 ? '-' : '+') + (pd === 1 ? pnum : '\\dfrac{' + pnum + '}{' + pd + '}');
+  var fn = F === 'sin' ? '\\sin x' : F === 'cos' ? '\\cos x' : '\\operatorname{tg}x';
+  return {
+    q: '$y=' + tm(A, fn, true) + (c ? sgn(c) : '') + '$ функцийн $x=' + p74_x(X[0], X[1]) + '$ цэгт татсан шүргэгч шулууны тэгшитгэл бичээрэй.',
+    a: '$y=' + KX + p74_pl(F0) + PI + '$',
+    wk: 28,
+    t: { F: F, A: A, c: c, X: X }
+  };
+}
+return p74;
+})();
+
+/* 2.100 */
+var e2_100 = (function () {
+// 100. (2-р хэсэг) f(x) = x² + Bx + C (бүх x-д эерэг, орой x = −B/2 ≥ 1), x₀ дахь шүргэгч y = mx − b (m = 2x₀ + B ∈ {2, 3}, b > 0).
+//   Шүргэгч Ox-ийг 0 < x_t = b/m < x₀ цэгт огтолно → дүрс: x ∈ [0; x₀], доороосоо Ox (x ≤ x_t) ба шүргэгчээр, дээрээсээ f-ээр:
+//   S = ∫₀^{x₀} f dx − y₀²/(2m) = N/3 (N ⋮̸ 3 — бутархай хураагдсан, эх шиг хуваарь 3). Тойрог: төв нормал дээр (e; 0),
+//   e = x₀ + m·y₀, r² = y₀²(1 + m²). Эх: x² − 8x + 17, x₀ = 5 → 2, 8, 77, 9, 20.
+function p100() {
+  var m = pick([2, 2, 3]), x0 = rnd(2, 8), y0 = rnd(1, 8), B = m - 2 * x0, C = y0 - m * x0 + x0 * x0;
+  var bb = m * x0 - y0, h = -B / 2;
+  if (B * B >= 4 * C || h < 1 || bb < 2) return null;
+  var num = 2 * m * x0 * x0 * x0 + 3 * m * B * x0 * x0 + 6 * m * C * x0 - 3 * y0 * y0;   // 6m·S
+  if (num % (2 * m)) return null;
+  var N = num / (2 * m), e = x0 + m * y0, r2 = y0 * y0 * (1 + m * m);
+  if (N % 3 === 0 || N < 4 || N > 450 || e > 40 || r2 > 500) return null;
+  var b = Bx();
+  // {…} — KaTeX «=»-ийн ард мөр таслахгүй
+  var q = '${f(x)=' + poly([1, B, C]) + '}$ функц өгөгдөв.' + steps([
+    '$f(x)$ функцийн ${x_0=' + x0 + '}$ абсцисстай $M$ цэгт татсан шүргэгч шулууны тэгшитгэл ${y=' + b('A', m) + 'x-' + b('B', bb) + '}$ байна.',
+    '$f(x)$ функцийн график, шүргэгч шулуун болон координатын тэнхлэгүүдээр хашигдах дүрсийн талбай нь $\\dfrac{' + b('S', N) + '}{3}$ байна.',
+    '$f(x)$ функцийн графикийг $M$ цэгт шүргэх, төв нь $Ox$ тэнхлэг дээр орших тойргийн тэгшитгэл ${(x-' + b('E', e) + ')^2+y^2=' + b('R', r2) + '}$ байна.'
+  ]);
+  return { q: q, a: b.key(), wide: true, wk: 55, t: { B: B, C: C, x0: x0 } };
+}
+return p100;
+})();
+
+/* 1.38 */
+var e1_38 = (function () {
+// 38. Куб функцийн бүх минимумын цэг. y' = k(x − p)(x − q), p < q:
+//     y = (k/3)x³ − (k(p+q)/2)x² + kpq·x + c; k > 0 бол минимум x = q, k < 0 бол x = p.  (6y-ээр бүхэл тооцоолно)
+function p38() {
+  var k = pick([2, 2, -2, 3, -3, 6, -6]), p = rnd(-3, 4), q = rnd(-3, 5), c = nz(-6, 9);
+  if (p >= q || p + q === 0 || p * q === 0) return null;
+  if (Math.abs(k) === 3 && (p + q) % 2) return null;          // x²-ийн коэффициент бүхэл байх
+  var c3 = [2 * k, 6], c2 = [-3 * k * (p + q), 6], c1 = k * p * q;
+  if (Math.abs(c1) > 40 || Math.abs(c2[0] / 6) > 24) return null;
+  var xm = k > 0 ? q : p, Y6 = 2 * k * xm * xm * xm - 3 * k * (p + q) * xm * xm + 6 * k * p * q * xm + 6 * c;
+  if (Math.abs(Y6) > 6 * 70) return null;
+  if (Y6 % 6 && rnd(1, 20) > 7) return null;                 // бүхэл y_min илүү олон (эх: 10)
+  // Бодолт (гар бичмэл): y' = k(x² − (p+q)x + pq) = 0 → D → x₁, x₂; тэмдгийн шугам → «−»-аас «+» болох цэг минимум; y_min-ийг орлуулж олно
+  var S = p + q, Pq = p * q, X = par(xm), mx = k > 0 ? p : q;
+  var terms = [[[2 * k, 6], 3], [[-3 * k * S, 6], 2], [[k * Pq, 1], 1], [[c, 1], 0]];
+  var sub = terms.map(function (o, i) { return p38_m(o[0][0], o[0][1], X, o[1], !i); }).join('');
+  var vals = terms.map(function (o, i) { return p38_v(o[0][0] * Math.pow(xm, o[1]), o[0][1], !i); }).join('');
+  return {
+    q: '$y=' + poly([c3, c2, c1, c]) + '$ функцийн бүх минимумын цэгийг ол.',
+    a: '$x_{min}=' + xm + '$, $y_{min}=' + fr(Y6, 6) + '$',
+    wk: 32,
+    s: [
+      'Уламжлалыг олбол $$y\'=' + poly([k, -k * S, k * Pq]) + '=' + k + '(' + poly([1, -S, Pq]) + ').$$',
+      '$y\'=0$ үед $' + poly([1, -S, Pq]) + '=0$, $D=' + S * S + '-4\\cdot ' + par(Pq) + '=' + (S * S - 4 * Pq) + '$, $$x_{1,2}=\\dfrac{' + S + '\\pm ' + (q - p)
+        + '}{2}\\Rightarrow x_1=' + p + ',\\ x_2=' + q + '.$$',
+      'Уламжлалын тэмдгийг тоон шулуун дээр тэмдэглэе (зураг). $x=' + xm + '$ цэгийг дайрахад $y\'$-ийн тэмдэг «−»-аас «+» болж өөрчлөгдөх тул $x=' + xm
+        + '$ нь минимумын цэг, харин $x=' + mx + '$ цэгт «+»-ээс «−» болж өөрчлөгдөх тул максимумын цэг байна.',
+      '$$y_{min}=y(' + xm + ')=' + sub + '=' + vals + '=' + fr(Y6, 6) + '.$$'
+    ],
+    sfig: signLine({ pts: [String(p), String(q)], sg: k > 0 ? ['+', '-', '+'] : ['-', '+', '-'], arr: true, tag: k > 0 ? { 0: 'max', 1: 'min' } : { 0: 'min', 1: 'max' } }),
+    t: { k: k, p: p, q: q, c: c }
+  };
+}
+// Орлуулалтын гишүүн: (n/d)·X^e (X — хаалттай тоо), тэмдэгтэй; |n/d| = 1 бол коэффициентийг бичихгүй
+function p38_m(n, d, X, e, first) {
+  var g = gcd(n, d), a = Math.abs(n / g), b = d / g, co = a === 1 && b === 1 && e ? '' : (b === 1 ? String(a) : '\\frac{' + a + '}{' + b + '}') + (e ? '\\cdot ' : '');
+  return (n < 0 ? '-' : first ? '' : '+') + co + (e ? X + (e > 1 ? '^' + e : '') : '');
+}
+// Утга n/d (хураасан), эхнийхээс бусдад тэмдэгтэй
+function p38_v(n, d, first) { var t = fr(n, d); return first || t[0] === '-' ? t : '+' + t; }
+return p38;
+})();
+
+/* 3.57 */
+var e3_57 = (function () {
+// 57. Муж x > 0.  y = ax² − b·ln x (b = 2a·x₀²) ⇒ y' = (2ax² − b)/x = 0 ⇒ x = x₀, y' «−»-ээс «+» ⇒ минимум, y_min = ax₀² − b·ln x₀;
+//     y = b·ln x − ax² ⇒ максимум.   y = mx − k·ln x (k = m·x₀) ⇒ y' = (mx − k)/x ⇒ x₀ = k/m — минимум;  k·ln x − mx ⇒ максимум.
+//     Заримдаа + c. ln x₀-ийг хураана (ln 4 = 2ln 2, ln ½ = −ln 2).   (эх: 0.5x² − ln x → x = 1 минимум, y_min = 1/2)
+function p57_lnp(m) {   // m = p^j (p хамгийн бага суурь) → [p, j]
+  for (var p = 2; p <= m; p++) { var j = 0, t = m; while (t % p === 0) { t /= p; j++; } if (t === 1) return [p, j]; }
+  return [m, 1];
+}
+function p57_val(Rn, Rd, L, base) {   // Rn/Rd + L·ln(base) → TeX (эерэг гишүүн түрүүлнэ)
+  var lt = '\\ln ' + base;
+  if (!L) return fr(Rn, Rd);
+  if (!Rn) return tm(L, lt, true);
+  if (Rn > 0 || L < 0) return fr(Rn, Rd) + tm(L, lt);
+  return tm(L, lt, true) + '-' + fr(-Rn, Rd);
+}
+function p57() {
+  var fam = rnd(0, 1), mx = rnd(0, 2) === 0, c = rnd(0, 2) ? 0 : nz(-5, 5), P, Q = 1, Y, Rn, Rd, Lc;   // x₀ = P/Q; y₀ = Rn/Rd + Lc·ln x₀
+  if (fam === 0) {
+    var a2 = pick([1, 1, 2, 2, 3, 4, 5, 6]), a = a2 / 2;                 // a = 0.5, 1, 1.5, …, 3
+    P = pick([1, 1, 2, 2, 3]);
+    var b = a2 * P * P;                                                  // b = 2a·x₀²
+    if (b > 36) return null;
+    Y = mx ? tm(b, '\\ln x', true) + tm(-a, 'x^2') : tm(a, 'x^2', true) + tm(-b, '\\ln x');
+    Rn = (mx ? -1 : 1) * a2 * P * P + 2 * c; Rd = 2; Lc = mx ? b : -b;
+  } else {
+    var m = pick([1, 1, 1, 2, 2, 3, 4]), X = pick([[1, 2], [1, 1], [2, 1], [2, 1], [3, 1], [3, 1], [4, 1], [5, 1]]);
+    P = X[0]; Q = X[1];
+    var k = m * P / Q;                                                   // k = m·x₀
+    if (k !== Math.round(k) || k > 20) return null;
+    Y = mx ? tm(k, '\\ln x', true) + tm(-m, 'x') : tm(m, 'x', true) + tm(-k, '\\ln x');
+    Rn = (mx ? -k : k) + c; Rd = 1; Lc = mx ? k : -k;
+  }
+  if (c) Y += sgn(c);
+  // ln x₀ = j·ln p (x₀ = P бүхэл) эсвэл −j·ln p (x₀ = 1/Q)
+  var base = 0, L = 0;
+  if (Q === 1 && P > 1) { var pj = p57_lnp(P); base = pj[0]; L = Lc * pj[1]; }
+  else if (Q > 1) { var qj = p57_lnp(Q); base = qj[0]; L = -Lc * qj[1]; }
+  var tp = mx ? 'max' : 'min';
+  return {
+    q: '$y=' + Y + '$ функцийн экстремумын цэгийг олоорой.',
+    a: '$x=' + fr(P, Q) + '$ — ' + (mx ? 'максимумын' : 'минимумын') + ' цэг ($y_{' + tp + '}=' + p57_val(Rn, Rd, L, base) + '$)',
+    wk: 28,
+    t: { fam: fam, mx: mx }
+  };
+}
+return p57;
+})();
+
+/* 1.99 */
+var e1_99 = (function () {
+// 99. (2-р хэсэг) y = x³/3 − ((p+q)/2)x² + pq·x + C, q = p+3 → y' = (x−p)(x−q); y(p) = d (их), y(q) = d − (q−p)³/6 = d − 4.5 (бага, сөрөг).
+//   C = d − p³/3 − 3p²/2. Буурах завсар p < x < q. y = k гурван шийдтэй ⇔ d − 4.5 < k < d → −(9−2d)/2 < k < d.
+//   p ∈ {−2, −1, 1, 2, 3} (p = 0 үед их утга y тэнхлэг дээр буюу зураг давхцана — хассан), d ∈ {1…4}.
+//   p сөрөг бол x = −[b] (тэмдэг нүдний гадна); p+q сөрөг бол y' = x² + [a]x − … .
+//   Зураг: графикийн тойм (x, y масштаб тусдаа), их утга y тэнхлэг дээр d нүдээр, бага утгыг тоогоор (эх шиг);
+//   бичгүүдийг муруй/тэнхлэг/тасархай шугамтай давхцахгүй байрлалд тавина.
+function p99_fig(p, q, d, C0, letter) {
+  var ym = d - 4.5, F = function (x) { return x * x * x / 3 - (p + q) / 2 * x * x + p * q * x + C0; };
+  var Y0 = ym - 1.2, Y1 = d + 1.5, W = 230, H = 225, pd = 14, pr = 24;
+  var solve = function (lo, hi, y) { for (var i = 0; i < 80; i++) { var mid = (lo + hi) / 2; if (F(mid) < y) lo = mid; else hi = mid; } return (lo + hi) / 2; };
+  var X0 = Math.min(solve(p - 12, p, Y0) - 0.25, -0.7), X1 = Math.max(solve(q, q + 12, Y1) + 0.35, 0.7);  // муруй доод/дээд хүрээгээр гарна
+  var sx = (W - pd - pr) / (X1 - X0), sy = (H - 2 * pd) / (Y1 - Y0);
+  var SX = function (x) { return pd + (x - X0) * sx; }, SY = function (y) { return pd + (Y1 - y) * sy; };
+  var f = Fig({ view: [X0, X1, Y0, Y1], free: true, w: W, h: H, pad: pd, padR: pr }), dsh = { dash: '4 3', w: 1, c: '#555' };
+  f.axes({ o: false }).seg([0, d], [p, d], dsh).seg([0, ym], [q, ym], dsh).curve(F, X0, X1, { w: 1.6 }).dot([p, d], { r: 2.2 }).dot([q, ym], { r: 2.2 });
+  // саад (px): муруй, тэнхлэгүүд, тасархай шугамууд; тавьсан бичгүүдийн хүрээ
+  var obs = [], used = [], i;
+  for (i = 0; i <= 700; i++) { var xx = X0 + (X1 - X0) * i / 700, yy = F(xx); if (yy > Y0 - 0.05 && yy < Y1 + 0.05) obs.push([SX(xx), SY(yy)]); }
+  var line = function (a, c) { var n = Math.ceil(Math.hypot(SX(c[0]) - SX(a[0]), SY(c[1]) - SY(a[1])) / 2); for (var j = 0; j <= n; j++) obs.push([SX(a[0] + (c[0] - a[0]) * j / n), SY(a[1] + (c[1] - a[1]) * j / n)]); };
+  line([X0, 0], [X1, 0]); line([0, Y0], [0, Y1]); line([0, d], [p, d]); line([0, ym], [q, ym]);
+  var free = function (bx) {
+    var j, u;
+    for (j = 0; j < obs.length; j++) if (obs[j][0] > bx[0] - 1.5 && obs[j][0] < bx[2] + 1.5 && obs[j][1] > bx[1] - 1.5 && obs[j][1] < bx[3] + 1.5) return false;
+    for (j = 0; j < used.length; j++) { u = used[j]; if (bx[0] < u[2] + 2 && bx[2] > u[0] - 2 && bx[1] < u[3] + 2 && bx[3] > u[1] - 2) return false; }
+    return true;
+  };
+  var wid = function (s, size) { var w = 0; for (var j = 0; j < s.length; j++) { var c = s[j]; w += /[−=\-]/.test(c) ? 0.78 : /\d/.test(c) ? 0.5 : c === '.' ? 0.28 : c === ' ' ? 0.3 : /[()]/.test(c) ? 0.39 : 0.58; } return w * size; };
+  // Fig-ийн textAt-ийн дүрмээр бичгийн хүрээ (px)
+  var tbox = function (P, pos, off, size, wd) {
+    var ax = SX(P[0]), ay = SY(P[1]), bl = /n/.test(pos) ? ay - off : /s/.test(pos) ? ay + off + 0.72 * size : ay + 0.35 * size, k = pos.length === 1 ? 1 : 0.6;
+    var x0 = /e/.test(pos) ? ax + off * k : ax - off * k - wd;
+    return [x0, bl - 0.75 * size, x0 + wd, bl + 0.22 * size];
+  };
+  var place = function (P, s, cands, size, off, force) {
+    var wd = wid(s, size), j, bx;
+    for (j = 0; j < cands.length; j++) { bx = tbox(P, cands[j], off, size, wd); if (free(bx)) break; }
+    if (j === cands.length) { if (!force) return false; j = 0; bx = tbox(P, cands[0], off, size, wd); }
+    used.push(bx); f.text(P, s, { pos: cands[j], size: size, off: off, halo: true });
+    return true;
+  };
+  // их утга — y тэнхлэгийн хажууд хүрээтэй үсэг (нүд): тасархай шугамын эсрэг тал, давхцвал нөгөө тал
+  var bxL = [SX(0) - 18, SY(d) - 8, SX(0) - 5, SY(d) + 8], bxR = [SX(0) + 5, SY(d) - 8, SX(0) + 18, SY(d) + 8];
+  var bb = p > 0 ? (free(bxL) ? bxL : bxR) : (free(bxR) ? bxR : bxL);
+  used.push(bb);
+  f.raw(function () {
+    return '<rect x="' + bb[0].toFixed(2) + '" y="' + bb[1].toFixed(2) + '" width="13" height="16" fill="#fff" stroke="#1b1b1b" stroke-width="1"/>'
+      + '<text x="' + (bb[0] + 6.5).toFixed(2) + '" y="' + (bb[1] + 12.3).toFixed(2) + '" font-size="12.5" font-family="\'KaTeX_Main\',\'Times New Roman\',serif" font-style="italic" text-anchor="middle" fill="#1b1b1b">' + letter + '</text>';
+  });
+  place([0, ym], dec(ym), ['w', 'sw', 'nw', 'se', 'ne'], 11, 4, true);           // бага утга
+  place([0, 0], 'O', ['sw', 'nw', 'se', 'ne'], 12, 6, true);                      // координатын эх
+  var xm = (p + q) / 2, done = false;                                          // «y = f(x)»: эх шиг буурах хэсгийн баруун талд, эс бөгөөс баруун салаанд
+  [xm + 0.45, xm + 0.7, xm + 0.25, xm + 0.95, xm + 0.05, q + 0.6, q + 0.9, q + 0.3].forEach(function (x) { if (!done) done = place([x, F(x)], 'y = f(x)', ['e'], 11.5, 6, false); });
+  return f.svg();
+}
+// Бодолт: y(v)-ийг гишүүнээр нь орлуулж ерөнхий хуваарьт шилжүүлнэ: v³/3 − (2p+3)v²/2 + pq·v + c0/6
+//   → «\dfrac{1}{3}-\dfrac{5}{2}+4+\dfrac{7}{6}=\dfrac{2-15+24+7}{6}=3»
+function p99_at(p, q, c0, v) {
+  var T = [[v * v * v, 3], [-(2 * p + 3) * v * v, 2], [p * q * v, 1], [c0, 6]].map(function (t) { var g = gcd(t[0], t[1]); return [t[0] / g, t[1] / g]; });
+  var L = 1, a = '', n = '', N = 0;
+  T.forEach(function (t) { L = lcm(L, t[1]); });
+  T.forEach(function (t, k) { var m = t[0] * L / t[1]; a += (k && t[0] > 0 ? '+' : '') + fr(t[0], t[1]); n += (k && m > 0 ? '+' : '') + m; N += m; });
+  return a + '=\\dfrac{' + n + '}{' + L + '}=' + fr(N, L);
+}
+function p99() {
+  var p = pick([-2, -1, 1, 1, 2, 3]), q = p + 3, d = rnd(1, 4), ym = d - 4.5;
+  var c0 = [6 * d - 2 * p * p * p - 9 * p * p, 6], C0 = c0[0] / 6;
+  var Y = poly([[1, 3], [-(2 * p + 3), 2], p * q, c0]), s = p + q, b = Bx();
+  var yp = 'x^2' + (s < 0 ? '+' : '-') + b('A', Math.abs(s)) + 'x' + sgn(p * q);
+  var sb = (p < 0 ? '-' : '') + b('B', Math.abs(p)), sc = b('C', q);
+  // {…} — KaTeX «=», «<»-ийн ард мөр таслахгүй
+  var s1 = "${y'=" + yp + '}$ байна. ${' + yp + '=0}$ гэдгээс сэжигтэй цэгүүд нь ${x=' + sb + '}$, ${x=' + sc + '}$, ${(' + sb + '\\lt ' + sc + ')}$ байна.';
+  var sd = b('D', d);
+  var s2 = 'Дээрх сэжигтэй цэгүүдээс функцийн экстремум утгууд нь ${y=' + sd + '}$, ${y=' + dec(ym) + '}$ байна.';
+  var s3 = 'Мөн функцийн буурах завсар нь ${' + p + '\\lt x\\lt ' + b('E', q) + '}$ байна. Иймд функцийн графикийг тоймлон зурвал:';
+  var s4 = '${' + Y + '=k}$ тэгшитгэл ялгаатай гурван бодит шийдтэй байх $k$-ийн утгын муж нь ${-\\dfrac{' + b('F', 9 - 2 * d) + '}{2}\\lt k\\lt ' + b('G', d) + '}$ байна.';
+  var qs = '${y=' + Y + '}$ функцийг уламжлал хэрэглэн шинжилье.' + steps([s1, s2, s3, s4]);
+  // Бодолт (гар бичмэл): y' = x² − (p+q)x + pq = (x−p)(x−q); y(p), y(q) орлуулж; тэмдгийн шугам → буурах завсар; y = k шулуун.
+  var yq = poly([1, -s, p * q]), fz = 9 - 2 * d;
+  var sol = [
+    "<b>(1)</b> Функцийн уламжлал $$y'=\\left(" + Y + "\\right)'=" + yq + '\\quad(' + b('A') + '=' + Math.abs(s) + ').$$'
+      + '${' + yq + '=(x' + sgn(-p) + ')(x' + sgn(-q) + ')=0}$ тул сэжигтэй цэгүүд $x=' + p + '$ $(' + b('B') + (p < 0 ? '=' + (-p) : '') + ')$, $x=' + q + '$ $(' + b('C') + ')$.',
+    '<b>(2)</b> Сэжигтэй цэгүүд дэх функцийн утга: '
+      + '$$\\begin{aligned}y(' + p + ')&=' + p99_at(p, q, c0[0], p) + '\\quad(' + b('D') + '),\\\\'
+      + 'y(' + q + ')&=' + p99_at(p, q, c0[0], q) + '=' + dec(ym) + '.\\end{aligned}$$',
+    "<b>(3)</b> $y'$-ийн тэмдэг:",
+    '<div class="fig">' + signLine({ pts: [String(p), String(q)], sg: ['+', '-', '+'], arr: true, tag: { 0: 'max', 1: 'min' } }) + '</div>',
+    'Иймд функц ${' + p + '\\lt x\\lt ' + q + '}$ $(' + b('E') + ')$ завсарт буурна; $x=' + p + '$ — максимумын, $x=' + q + '$ — минимумын цэг.',
+    '<b>(4)</b> Тэгшитгэлийн шийдийн тоо нь функцийн график ба $y=k$ шулууны огтлолцлын цэгийн тоотой тэнцүү. '
+      + 'Графикаас харахад $y=k$ шулуун графикийг гурван цэгээр огтлолцох нь ${y_{\\min}\\lt k\\lt y_{\\max}}$ үед байна. Иймд '
+      + '$$' + fr(-fz, 2) + '\\lt k\\lt ' + d + '\\quad(' + b('F') + '=' + fz + ',\\ ' + b('G') + '=' + d + ').$$'
+  ];
+  return { q: qs, a: b.key(), fig: p99_fig(p, q, d, C0, sd.slice(4, -1)), side: true, wide: true, wk: 55, s: sol, t: { p: p, d: d } };
+}
+return p99;
+})();
+
+/* 1.80 */
+var e1_80 = (function () {
+// 80. f'(x)-ийн графикаас: f' нь x₀ цэгт тэмдгээ «−»-ээс «+» болгон солих тул f нь [a; x₀]-д буурч,
+//     [x₀; b]-д өснө → хамгийн бага утга x = x₀ (толин хувилбар: −f', хамгийн их утга).
+//     f'(x) = g(x) = x³ − 1.5(e₁+e₂)x² + 3e₁e₂x + d (экстремумууд e₁ < e₂), g(x₀) = 0;
+//     x₀ нь e₂-оос баруун (эх: g(e₁), g(e₂) < 0) эсвэл e₁-ээс зүүн (g(e₁), g(e₂) > 0).
+function p80_h(e1, e2) { return function (x) { return x * x * x - 1.5 * (e1 + e2) * x * x + 3 * e1 * e2 * x; }; }
+function p80_inv(g, y, lo, hi) { for (var i = 0; i < 60; i++) { var m = (lo + hi) / 2; if ((g(m) - y) * (g(lo) - y) > 0) lo = m; else hi = m; } return (lo + hi) / 2; }
+// Бодолтын мөр доторх ($…$) томьёог мөр хооронд таслахгүй ($$…$$-д хүрэхгүй)
+function p80_nw(s) { return s.split(/(\$\$[\s\S]*?\$\$)/).map(function (p, i) { return i % 2 ? p : p.replace(/\$[^$]+\$(-[А-Яа-яЁёӨөҮү]+)?[.,;:)]*/g, function (m) { return '<span class="nw">' + m + '</span>'; }); }).join(''); }
+function p80() {
+  var right = rnd(0, 2) > 0, mir = rnd(0, 2) === 0;
+  var e1 = rnd(-5, 3) / 2, e2 = e1 + pick([1.5, 2, 2.5, 3]), x0, a, b;
+  if (right) { x0 = e2 + pick([1.5, 2]); b = x0 + pick([0.5, 0.5, 1]); a = e1 - pick([1, 1.5, 2]); }
+  else { x0 = e1 - pick([1.5, 2]); a = x0 - pick([0.5, 0.5, 1]); b = e2 + pick([1, 1.5, 2]); }
+  var X = [a, e1, e2, x0, b];
+  if (a > -0.5 || b < 0.5 || b - a > 7.5) return null;
+  for (var i = 0; i < 5; i++) if (X[i] === 0) return null;
+  var h = p80_h(e1, e2), dd = -h(x0), g0 = function (x) { return h(x) + dd; };
+  var ga = g0(a), g1 = g0(e1), g2 = g0(e2), gb = g0(b), lo = Math.min(ga, g2), hi = Math.max(gb, g1), R = hi - lo;
+  if (right) { if (g1 > -0.14 * R || g1 - g2 < 0.14 * R || gb < 0.14 * R || ga > -0.14 * R) return null; }
+  else { if (g2 < 0.14 * R || g1 - g2 < 0.14 * R || ga > -0.14 * R || gb - g1 < 0.2 * R) return null; }
+  var sg = mir ? -1 : 1, g = function (x) { return sg * g0(x); }, Y0 = mir ? -hi : lo, Y1 = mir ? -lo : hi;
+  var f = Fig({ view: [a - 0.5, b + 0.6, Y0 - 0.06 * R, Y1 + 0.1 * R], free: true, w: 260, h: 220 });
+  f.axes({ o: false }).ticks(X.map(function (x) { return [x, '']; }), [], { len: 3 }).curve(g, a, b, { w: 1.6 });
+  [a, e1, e2, b].forEach(function (x) { var P = [x, g(x)]; f.arrow(P, [x, 0], { dash: '4 3', w: 1, h: 6 }).dot(P, { r: 2.2 }); });
+  X.forEach(function (x, i) {
+    var pos = i === 3 ? (right ? (mir ? 'sw' : 'nw') : (mir ? 'ne' : 'se')) : g(x) < 0 ? 'n' : 's';
+    f.text([x, 0], dec(x), { pos: pos, size: 11, off: 5, halo: true });
+  });
+  // f'(x) шошго: эх хувилбарт x₀-ийн өмнөх өсөх хэсгийн баруун талд, нөгөөд нь сүүлийн өсөх хэсгийн зүүн талд
+  var yl = right ? 0.6 * g2 : g1 + 0.6 * (gb - g1), xl = right ? p80_inv(g0, yl, e2, x0) : p80_inv(g0, yl, e2, b);
+  f.raw(function (T) {   // «f′(x)»: зураасыг f-ээс бага зэрэг баруун тийш, дээш
+    var x = T.X(xl) + (right ? 8 : -8), y = T.Y(sg * yl) + 4.4;
+    return '<text x="' + x.toFixed(2) + '" y="' + y.toFixed(2) + '" font-size="12.5" font-family="\'KaTeX_Main\',\'Times New Roman\',serif" text-anchor="' + (right ? 'start' : 'end') + '" fill="#1b1b1b">'
+      + '<tspan font-style="italic">f</tspan><tspan dx="1.6" dy="-4.8" font-size="10">′</tspan><tspan dy="4.8">(</tspan><tspan font-style="italic">x</tspan>)</text>';
+  });
+  // Бодолт (гар бичмэл): f'-ийн тэмдгийн шугам — x₀ цэгт тэмдгээ солино → f буурч/өсч → x₀ нь хамгийн бага (их) утгын цэг.
+  var A_ = dec(a), B_ = dec(b), X_ = dec(x0), lt = mir ? '\\gt' : '\\lt', gt = mir ? '\\lt' : '\\gt';
+  return {
+    q: 'Зураг дээр $f(x)$ функцийн уламжлал болох $f\'(x)$ функцийн график $[' + dec(a) + ';\\,' + dec(b) + ']$ завсарт өгөв. Энэ завсрын ямар утганд $f(x)$ функц хамгийн ' + (mir ? 'их' : 'бага') + ' утгаа авах вэ?',
+    a: '$x=' + dec(x0) + '$',
+    fig: f.svg(), wk: 24,
+    s: [
+      'Графикаас $f\'(x)=0$ нь зөвхөн $x=' + X_ + '$ үед биелэх ба $[' + A_ + ';\\,' + X_ + ')$ завсарт $f\'(x)' + lt + ' 0$, $(' + X_ + ';\\,' + B_ + ']$ завсарт $f\'(x)' + gt + ' 0$ байна.'
+        + ' ($x=' + dec(e1) + '$, $x=' + dec(e2) + '$ нь $f\'(x)$-ийн экстремумын цэгүүд; тэнд уламжлал тэмдгээ солихгүй.)',
+      'Эндээс $f(x)$ функц $[' + A_ + ';\\,' + X_ + ']$ завсарт ' + (mir ? 'өсөж' : 'буурч') + ', $[' + X_ + ';\\,' + B_ + ']$ завсарт ' + (mir ? 'буурна' : 'өснө')
+        + ': уламжлал $x=' + X_ + '$ цэгт тэмдгээ ' + (mir ? '«+»-ээс «−»' : '«−»-аас «+»') + ' болгон сольж байна.',
+      'Иймд $x=' + X_ + '$ үед $f(x)$ функц хамгийн ' + (mir ? 'их' : 'бага') + ' утгаа авна.'
+    ].map(p80_nw),
+    sfig: signLine({ pts: [X_], sg: mir ? ['+', '-'] : ['-', '+'], arr: true, tag: { 0: mir ? 'max' : 'min' }, ends: [A_, B_], fill: [0] }),
+    t: { g: g, a: a, b: b, mir: mir }
+  };
+}
+return p80;
+})();
+
+/* 1.86 */
+var e1_86 = (function () {
+// 86. αr + βh = s, V = πr²h = πr²(s − αr)/β; V'(r) = 0 → r = 2s/(3α), h = s/(3β) → V_max = 4πs³/(27α²β).
+//     s нь 3-ын үржвэр; V_max/π бүхэл эсвэл 2, 3 хуваарьтай энгийн бутархай.
+// Бодолтын мөр доторх ($…$) томьёог мөр хооронд таслахгүй ($$…$$-д хүрэхгүй)
+function p86_nw(s) { return s.split(/(\$\$[\s\S]*?\$\$)/).map(function (p, i) { return i % 2 ? p : p.replace(/\$[^$]+\$(-[А-Яа-яЁёӨөҮү]+)?[.,;:)]*/g, function (m) { return '<span class="nw">' + m + '</span>'; }); }).join(''); }
+// Тэмдгийн шугам (0; s/α) завсарт; s/α бутархай бол баруун хязгаарыг текстийн \dfrac-тай ижил босоо бутархайгаар бичнэ
+function p86_sl(r0, s, al) {
+  var g = gcd(s, al), n = s / g, d = al / g;
+  var svg = signLine({ pts: [String(r0)], sg: ['+', '-'], arr: true, tag: { 0: 'max' }, ends: ['0', d === 1 ? String(n) : n + '/' + d], fill: [0] });
+  if (d === 1) return svg;
+  return svg.replace(/<text x="([\d.]+)" y="([\d.]+)"([^>]*)>(\d+)\/(\d+)<\/text>/, function (m, x, y, rest, a, b) {
+    var X = +x, Y = +y, w = Math.max(a.length, b.length) * 3.3 + 1.5, at = rest.replace(/font-size="[\d.]+"/, 'font-size="11"');
+    return '<text x="' + x + '" y="' + (Y - 2) + '"' + at + '>' + a + '</text>'
+      + '<line x1="' + (X - w).toFixed(2) + '" y1="' + (Y + 0.5) + '" x2="' + (X + w).toFixed(2) + '" y2="' + (Y + 0.5) + '" stroke="#1b1b1b" stroke-width="0.9"/>'
+      + '<text x="' + x + '" y="' + (Y + 10) + '"' + at + '>' + b + '</text>';
+  });
+}
+function p86() {
+  var al = pick([1, 1, 1, 2, 3]), be = pick([1, 1, 1, 2, 3]), s = 3 * rnd(1, 5);
+  if (gcd(al, be) > 1) return null;                      // 2r+2h=12 гэх мэт хураагдах нөхцөлгүй
+  var num = 4 * s * s * s, den = 27 * al * al * be, g0 = gcd(num, den), n = num / g0, d = den / g0;
+  if (d > 3 || n / d < 1 || n / d > 300) return null;
+  if (d > 1 && rnd(0, 1)) return null;                  // бутархай хариуг цөөн
+  var nn = n === 1 ? '' : String(n), V = d === 1 ? nn + '\\pi' : '\\dfrac{' + nn + '\\pi}{' + d + '}';
+  // Бодолт (гар бичмэл): h-ийг r-ээр илэрхийлж V(r) = πr²h; f(r) = r²(s − αr), f'(r) = 0 → r₀ = 2s/(3α) (бүхэл);
+  // тэмдгийн шугам (0; s/α) завсарт «+ −» → max; h₀ = (s − αr₀)/β, V_max = π·r₀²·h₀.
+  var r0 = 2 * s / (3 * al), hN = s - al * r0, ar = tm(al, 'r', true), sar = s + '-' + ar;
+  var pc = be === 1 ? '\\pi ' : '\\dfrac{\\pi}{' + be + '}', hT = be === 1 ? sar : '\\dfrac{' + sar + '}{' + be + '}', Vr = pc + 'r^2(' + sar + ')';
+  var hV = be === 1 ? s + '-' + (al === 1 ? '' : al + '\\cdot ') + r0 + '=' + hN : '\\dfrac{' + s + '-' + (al === 1 ? '' : al + '\\cdot ') + r0 + '}{' + be + '}=' + fr(hN, be);
+  return {
+    q: '$' + tm(al, 'r', true) + tm(be, 'h') + '=' + s + '$ байх $r$ радиустай, $h$ өндөртэй цилиндрийн эзлэхүүний хамгийн их утгыг ол.',
+    a: '$V_{max}=' + V + '$',
+    wk: 30,
+    s: [
+      'Нөхцлөөс $h=' + hT + '$ тул $$V=\\pi r^2h=' + Vr + ',\\quad 0\\lt r\\lt ' + fr(s, al) + '.$$',
+      '$V=' + pc + 'f(r)$, үүнд $f(r)=r^2(' + sar + ')=' + tm(s, 'r^2', true) + tm(-al, 'r^3') + '$. Уламжлалыг тэгтэй тэнцүүлбэл $$f\'(r)=' + tm(2 * s, 'r', true) + tm(-3 * al, 'r^2')
+        + '=' + tm(3 * al, 'r', true) + '(' + r0 + '-r)=0\\Rightarrow r=0\\ \\text{эсвэл}\\ r=' + r0 + '.$$',
+      '$0\\lt r\\lt ' + r0 + '$ үед $f\'(r)\\gt 0$, $' + r0 + '\\lt r\\lt ' + fr(s, al) + '$ үед $f\'(r)\\lt 0$ тул $r=' + r0 + '$ нь хамгийн их утгын цэг.',
+      'Иймд $h=' + hV + '$ ба $$V_{max}=\\pi\\cdot ' + r0 + '^2\\cdot ' + fr(hN, be) + '=' + V + '.$$'
+    ].map(p86_nw),
+    sfig: p86_sl(r0, s, al),
+    t: { al: al, be: be, s: s }
+  };
+}
+return p86;
+})();
+
+/* 1.93 */
+var e1_93 = (function () {
+// 93. Цөөрөм ABCD: D-ээс завиар AB дээрх M хүртэл, цааш AB дагуу явганаар B хүртэл.
+//     T(x) = √(d² + x²)/v₁ + (L − x)/v₂, T'(x) = 0 ⇒ x/√(d² + x²) = v₁/v₂ ⇒ x* = d·v₁/w, w = √(v₂² − v₁²).
+//     (v₁, w, v₂) Пифагорын гурвал: (4,3,5) эх, (3,4,5), (8,6,10), (6,8,10) (10 км/ц → «гүйдэг»).
+//     T_min = L/v₂ + d·w/(v₁v₂); x* нь 0.5-ын үржвэр, L > x*, минут бүхэл.
+var p93_F = [[4, 5, 3], [4, 5, 3], [3, 5, 4], [3, 5, 4], [8, 10, 6], [6, 10, 8]];
+// Бодолтын зурагт √(n + x²) шошго: язгуурын тэмдэг + дээд зураас (Pw — ертөнцийн цэг, dx, dy — дэлгэцийн px шилжилт)
+function p93_rad(g, Pw, n, dx, dy) {
+  g.raw(function (T) {
+    var x0 = T.X(Pw[0]) + dx, y = T.Y(Pw[1]) + dy, w = String(n).length * 6 + 21, F = function (v) { return (+v).toFixed(1); };
+    var top = y - 11.5, xr = x0 + 8.5;
+    return '<polyline points="' + F(x0) + ',' + F(y - 4) + ' ' + F(x0 + 2) + ',' + F(y - 5.5) + ' ' + F(x0 + 5) + ',' + F(y + 1) + ' ' + F(xr) + ',' + F(top) + ' ' + F(xr + w + 2) + ',' + F(top)
+      + '" fill="none" stroke="#1b1b1b" stroke-width="0.9" stroke-linejoin="round" stroke-linecap="round"/>'
+      + '<text x="' + F(xr + 1.5) + '" y="' + F(y) + '" font-size="12" font-family="\'KaTeX_Main\',\'Times New Roman\',serif" fill="#1b1b1b">' + n
+      + '+<tspan font-style="italic">x</tspan><tspan dy="-5" font-size="8.4">2</tspan></text>';
+  });
+}
+function p93() {
+  var F = pick(p93_F), v1 = F[0], v2 = F[1], w = F[2], run = v2 > 5;
+  var d = pick([2, 3, 4, 6, 8]), L = rnd(3, 12);
+  if ((2 * d * v1) % w) return null;
+  var xs = d * v1 / w;
+  if (L - xs < 0.9 || L - xs > 6 || L / d < 1.25 || L / d > 3) return null;
+  var num = 60 * (L * v1 + d * w), den = v1 * v2;           // T_min (минут) = num/den
+  if (num % den) return null;
+  var mins = num / den, hh = Math.floor(mins / 60), mm = mins % 60;
+  var hStr = mins % 3 === 0 ? dec(mins / 60) : fr(mins, 60);
+  var hm = mm === 0 ? '' : ' (' + (hh ? hh + ' ц ' : '') + mm + ' мин)';
+  // Зураг (масштабтай, M — ерөнхий байрлалд, хариуг илчлэхгүй)
+  var A = [0, 0], B = [L, 0], C = [L, d], D = [0, d], xm = (xs > 0.5 * L ? 0.34 : 0.6) * L, M = [xm, 0];
+  var f = Fig({ w: 250, h: 150, pad: 18 });
+  f.poly([A, B, C, D], { w: 1.5 }).seg(D, M, { dash: '5 4', w: 1.3 })
+    .dot(A).dot(B).dot(C).dot(D).dot(M)
+    .text(D, 'D', { pos: 'nw' }).text(C, 'C', { pos: 'ne' }).text(A, 'A', { pos: 'sw' }).text(B, 'B', { pos: 'se' }).text(M, 'M', { pos: 's' })
+    .text([0, d / 2], dec(d), { pos: 'w' }).text([xm / 2, 0], 'x', { pos: 'n' }).text([(xm + L) / 2, 0], dec(L) + ' − x', { pos: 'n' });
+  var go = run ? ['гүйдэг', 'гүйж'] : ['алхдаг', 'алхаж'];
+  // Бодолт (гар бичмэл): T(x) = √(d²+x²)/v₁ + (L−x)/v₂ → T'(x) = 0 → v₂x = v₁√(d²+x²) → x* (x ≥ 0) → тэмдгийн шугам → T(x*)
+  var dd = d * d, sq = '\\sqrt{' + dd + '+x^2}', X = dec(xs);
+  var t1 = fr(d * v2, w * v1), t2 = fr(2 * L - 2 * xs, 2 * v2), tf = fr(mins, 60);
+  var tEnd = t1 + '+' + t2 + (tf === hStr ? '' : '=' + tf) + '=' + hStr;
+  var g = Fig({ w: 210, h: 130, pad: 18 });
+  g.poly([A, B, C, D], { w: 1.3 }).seg(D, M, { dash: '5 4', w: 1.5 }).seg(M, B, { w: 2.6 }).right(A, B, D, { s: 7 })
+    .dot(D).dot(M).dot(B)
+    .text(D, 'D', { pos: 'nw' }).text(C, 'C', { pos: 'ne' }).text(A, 'A', { pos: 'sw' }).text(B, 'B', { pos: 'se' }).text(M, 'M', { pos: 's' })
+    .text([0, d / 2], dec(d), { pos: 'w' }).text([xm / 2, 0], 'x', { pos: 'n' }).text([(xm + L) / 2, 0], dec(L) + ' − x', { pos: 'n' });
+  p93_rad(g, [xm / 2, d / 2], dd, 5, -4);
+  return {
+    q: '$ABCD$ тэгш өнцөгт хэлбэртэй цөөрмийн $D$ цэгт завьтай хүн байв. Завьчин $B$ цэгт очихоор төлөвлөжээ. '
+      + 'Завь $' + v1 + '$ км/ц хурдтай хөвөх бөгөөд завьнаасаа буугаад $' + v2 + '$ км/ц хурдтай ' + go[0] + '. '
+      + 'Хэрэв ${AD=' + d + '}$ км, ${AB=' + L + '}$ км бол $AB$ хэрчмийн аль цэг дээр завиа орхиод цааш ' + go[1]
+      + ' $B$ цэгт хүрэхэд нийт зарцуулсан хугацаа хамгийн багадаа хэд байх вэ?',
+    a: '${AM=' + dec(xs) + '}$ км үед ${T_{\\min}=' + hStr + '}$ ц' + hm,
+    fig: f.svg(), wk: 34,
+    s: [
+      '$AM=x$ км $(0\\le x\\le ' + L + ')$ гэвэл Пифагорын теоремоор $DM=' + sq + '$, мөн $MB=' + L + '-x$. Нийт хугацаа (цагаар)'
+        + ' $$T(x)=\\dfrac{' + sq + '}{' + v1 + '}+\\dfrac{' + L + '-x}{' + v2 + '}.$$',
+      '$$\\begin{aligned}T\'(x)&=\\dfrac{1}{' + v1 + '}\\cdot\\dfrac{2x}{2' + sq + '}-\\dfrac{1}{' + v2 + '}\\\\&=\\dfrac{x}{' + v1 + sq + '}-\\dfrac{1}{' + v2 + '}=0'
+        + '\\Rightarrow ' + v2 + 'x=' + v1 + sq + '.\\end{aligned}$$',
+      'Квадрат зэрэгт дэвшүүлбэл $' + v2 * v2 + 'x^2=' + v1 * v1 + '(' + dd + '+x^2)$, $' + w * w + 'x^2=' + v1 * v1 * dd + '$, $x^2=' + dec(xs * xs) + '$.'
+        + ' $x\\ge 0$ тул <span class="nw">$x=' + X + '$.</span> $[0;\\,' + L + ']$ завсарт <span class="nw">$T\'(x)$-ийн</span> тэмдэг:',
+      '<div class="fig">' + signLine({ pts: [X], sg: ['-', '+'], arr: true, tag: { 0: 'min' }, ends: ['0', String(L)] }) + '</div>',
+      'Иймд $x=' + X + '$ буюу $AM=' + X + '$ км үед хугацаа хамгийн бага:'
+        + ' $$T_{\\min}=T(' + X + ')=\\dfrac{\\sqrt{' + dd + '+' + dec(xs * xs) + '}}{' + v1 + '}+\\dfrac{' + L + '-' + X + '}{' + v2 + '}=' + tEnd + '\\text{ цаг}.$$'
+    ],
+    sfig: g.svg(),
+    t: { v1: v1, v2: v2, d: d, L: L, xs: xs, mins: mins }
+  };
+}
+return p93;
+})();
+
+/* 3.82 */
+var e3_82 = (function () {
+// 82. [ЗАС] AB ∥ Oy ⇒ A(x; x + c), B(x; e^{x+d}), |AB| = |h(x)|, h(x) = x + c − e^{x+d};
+//     h'(x) = 1 − e^{x+d} = 0 ⇒ x₀ = −d, h(x₀) = c − d − 1 = H > 0 (h-ийн хамгийн их утга).
+//     Эх [−4; 1] завсарт |h(1)| = e² − 5 ≈ 2.39 > 2 болж хамгийн их утга ирмэгт гардаг байсан тул завсрын төгсгөлүүдэд
+//     |h| ≤ H − 0.25 байхаар [L; R]-ийг сонгоно ⇒ |AB|-ийн хамгийн их утга дотоод цэг x₀-д, H.   (эх хариу: 2)
+function p82() {
+  var d = rnd(-3, 3), H = pick([1, 2, 2, 3, 3, 4, 5]), c = H + d + 1, x0 = -d;
+  var R = x0 + pick([1, 1, 2]), L = x0 - rnd(1, 6);
+  var h = function (x) { return x + c - Math.exp(x + d); };
+  if (Math.abs(h(L)) > H - 0.25 || Math.abs(h(R)) > H - 0.25) return null;
+  var ln = 'y=x' + (c ? sgn(c) : ''), ex = 'y=e^{x' + (d ? sgn(d) : '') + '}', G = rnd(0, 3) ? [ln, ex] : [ex, ln];
+  return {
+    q: '$' + L + '\\le x\\le ' + R + '$ завсарт өгсөн $' + G[0] + '$, $' + G[1] + '$ функцийн графикууд дээр харгалзан $A,B$ цэгүүдийг $AB$ шулуун $y$ тэнхлэгтэй параллель байхаар авчээ. $AB$ хэрчмийн хамгийн их утгыг олоорой.',
+    a: '$AB_{max}=' + H + '$ ($x=' + x0 + '$ үед)',
+    wk: 30,
+    t: { c: c, d: d, L: L, R: R }
+  };
+}
+return p82;
+})();
+
+E1K.page({
+  title: 'ЭЕШ 1000 — Уламжлал-2',
+  sub: 'Уламжлалын хэрэглээ: шүргэгч, экстремум, функцийн шинжилгээ, хамгийн их ба бага утга',
+  first: 1,
+  probs: [e3_42, e1_23, e3_74, e2_100, e1_38, e3_57, e1_99, e1_80, e1_86, e1_93, e3_82]
+});
+</script>
+<script src="/ws-store.js?v=40"></script>
+</body>
+</html>
