@@ -190,6 +190,16 @@ test('самбарыг гүйлгэх, томруулах (бүх дэвсгэр
   assert.doesNotMatch(s, /\.wsb-paper\.bg-grid\{background-image/, 'CSS тор гүйлгэхэд хөдлөхгүй тул хасагдсан');
 });
 
+test('муруй: цэгүүдийг гөлгөр муруйгаар холбоно (парабол, гипербол); ирсэн муруй, битүү эсэхийг шалгана', () => {
+  const s = R('ws-board.js');
+  assert.match(s, /\['curve', 'Муруй'\]/);
+  assert.match(s, /function smooth\(c, P, closed\)/);
+  assert.match(s, /else if \(ob\.t === 'curve'\) smooth\(c, ps\.map\(S\), !!ob\.cl\);/);
+  const g = B.normGeo({ pts: [{ id: 1, x: -1, y: 1, c: '#000000' }, { id: 2, x: 0, y: 0, c: '#000000' }, { id: 3, x: 1, y: 1, c: '#000000' }],
+    objs: [{ t: 'curve', p: [1, 2, 3], c: '#000000' }, { t: 'curve', p: [1, 2, 3], c: '#000000', cl: 1 }, { t: 'curve', p: [1, 9], c: '#000000' }], n: 3 });
+  assert.deepStrictEqual(g.objs, [{ t: 'curve', p: [1, 2, 3], c: '#000000' }, { t: 'curve', p: [1, 2, 3], c: '#000000', cl: 1 }]);
+});
+
 test('ws-store.js: «Самбар» товч — ws-board.js-ийг дарахад л ачаална, QR/утсанд гарахгүй', () => {
   const s = R('ws-store.js').replace(/\r\n/g, '\n');
   assert.match(s, /if\(!IS_QR\)\{[^}]*boardBtn\(\);[^}]*\}/);
@@ -216,5 +226,5 @@ test('самбартай үед зөвхөн ажлын хуудас томор�
   assert.match(s, /\}, \{ passive: false \}\);/);
   assert.match(s, /data-z="-"[\s\S]*data-z="\+"[\s\S]*data-z="0"/, '− + Багтаах');
   assert.match(s, /function spacer\(\)/, 'томруулсан хуудас самбарын доор нуугдахгүй');
-  assert.match(R('ws-store.js'), /var BOARD_JS='\/ws-board\.js\?v=6'/);
+  assert.match(R('ws-store.js'), /var BOARD_JS='\/ws-board\.js\?v=7'/);
 });

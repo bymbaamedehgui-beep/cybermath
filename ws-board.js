@@ -277,10 +277,10 @@
       if (q && (q.id | 0) === q.id && fin(q.x) && fin(q.y) && hex.test(q.c)) { out.pts.push({ id: q.id, x: q.x, y: q.y, nm: String(q.nm || '').slice(0, 8), c: q.c }); ids[q.id] = 1; }
     });
     (Array.isArray(g.objs) ? g.objs : []).slice(0, 2000).forEach(function (ob) {
-      if (!ob || ['seg', 'line', 'ray', 'poly', 'circ'].indexOf(ob.t) < 0 || !Array.isArray(ob.p) || !hex.test(ob.c)) return;
+      if (!ob || ['seg', 'line', 'ray', 'poly', 'circ', 'curve'].indexOf(ob.t) < 0 || !Array.isArray(ob.p) || !hex.test(ob.c)) return;
       var p = ob.p.slice(0, 200).filter(function (id) { return ids[id]; });
       if (p.length !== ob.p.length || p.length < (ob.t === 'poly' ? 3 : 2)) return;
-      out.objs.push({ t: ob.t, p: p, c: ob.c });
+      out.objs.push(ob.t === 'curve' && ob.cl ? { t: ob.t, p: p, c: ob.c, cl: 1 } : { t: ob.t, p: p, c: ob.c });
     });
     (Array.isArray(g.fns) ? g.fns : []).slice(0, 20).forEach(function (f) {
       if (f && typeof f.f === 'string' && f.f.length <= 80 && hex.test(f.c) && compileFn(f.f)) out.fns.push({ f: f.f, c: f.c });
@@ -304,7 +304,7 @@
   var SHEET_W = 793.7, UNIT = 40;            // 210мм; координатын нэгж (px, томруулаагүй үед)
   var BGS = [['grid', 'Тор'], ['lines', 'Шугам'], ['blank', 'Хоосон'], ['coord', 'Координат']];
   var TONES = [['white', 'Цагаан', '#ffffff'], ['black', 'Хар', '#15171e'], ['green', 'Ногоон', '#1d3a2c'], ['navy', 'Хөх', '#14213d']];
-  var GEO_T = [['pt', 'Цэг'], ['seg', 'Хэрчим'], ['line', 'Шулуун'], ['ray', 'Цацраг'], ['poly', 'Олон өнцөгт'], ['circ', 'Тойрог'],
+  var GEO_T = [['pt', 'Цэг'], ['seg', 'Хэрчим'], ['line', 'Шулуун'], ['ray', 'Цацраг'], ['curve', 'Муруй'], ['poly', 'Олон өнцөгт'], ['circ', 'Тойрог'],
     ['tri', 'Гурвалжин'], ['rect', 'Тэгш өнцөгт'], ['move', 'Зөөх'], ['del', 'Устгах']];
   // Хоёр дахь хуруу: эхний зурлага 600мс, 30px-ээс бага бол «хоёр хуруу»; 320px-ээс хол бол өөр гар (тоохгүй)
   var EARLY = 600, SHORT = 30, NEAR = 320;
@@ -356,6 +356,7 @@
     line: I('<path d="M2 22 22 2"/>' + DOT(8, 16) + DOT(16, 8)),
     ray: I('<path d="M5 19 22 2"/>' + DOT(5, 19) + DOT(13, 11)),
     poly: I('<path d="M5 18 3.5 9 12 3.5 20.5 9 19 18z"/>'),
+    curve: I('<path d="M3 19C6 9 8.5 6 12 6s6 3 9 13"/>' + DOT(3, 19) + DOT(12, 6) + DOT(21, 19)),
     circ: I('<circle cx="12" cy="12" r="8.5"/>' + DOT(12, 12)),
     tri: I('<path d="M12 4 3 20h18z"/>'),
     rect: I('<rect x="3" y="6" width="18" height="12" rx="1"/>'),
@@ -695,6 +696,27 @@
     if (yAx) { c.textAlign = 'left'; c.textBaseline = 'top'; c.fillText('y', ox + 9, 4); }
     if (xAx && yAx) { c.textAlign = 'right'; c.textBaseline = 'top'; c.fillText('O', ox - 6, oy + 6); }
   }
+  // Цэгүүдийг дайрсан гөлгөр муруй (эзэмшигч: «парабол гипербол гэх мэт графикуудыг холбоход муруй байдлаар»): төв зайн
+  // (centripetal, α = 0.5) Catmull-Rom → Безье — цэг бүрийг дайрна, гогцоо/үзүүр үүсгэхгүй. Нээлттэй бол үзүүрт тусгал цэг.
+  function smooth(c, P, closed) {
+    var n = P.length; if (n < 2) return;
+    c.moveTo(P[0][0], P[0][1]);
+    if (n === 2 && !closed) { c.lineTo(P[1][0], P[1][1]); return; }
+    var at = function (i) {
+      if (closed) return P[(i % n + n) % n];
+      if (i < 0) return [2 * P[0][0] - P[1][0], 2 * P[0][1] - P[1][1]];
+      if (i > n - 1) return [2 * P[n - 1][0] - P[n - 2][0], 2 * P[n - 1][1] - P[n - 2][1]];
+      return P[i];
+    };
+    var dd = function (a, b) { return Math.max(1e-4, Math.sqrt(Math.hypot(b[0] - a[0], b[1] - a[1]))); };
+    for (var i = 0, m = closed ? n : n - 1; i < m; i++) {
+      var p0 = at(i - 1), p1 = at(i), p2 = at(i + 1), p3 = at(i + 2), d1 = dd(p0, p1), d2 = dd(p1, p2), d3 = dd(p2, p3);
+      var k1 = 3 * d1 * (d1 + d2), k2 = 3 * d3 * (d3 + d2), e1 = 2 * d1 * d1 + 3 * d1 * d2 + d2 * d2, e2 = 2 * d3 * d3 + 3 * d3 * d2 + d2 * d2;
+      c.bezierCurveTo((d1 * d1 * p2[0] - d2 * d2 * p0[0] + e1 * p1[0]) / k1, (d1 * d1 * p2[1] - d2 * d2 * p0[1] + e1 * p1[1]) / k1,
+        (d3 * d3 * p1[0] - d2 * d2 * p3[0] + e2 * p2[0]) / k2, (d3 * d3 * p1[1] - d2 * d2 * p3[1] + e2 * p2[1]) / k2, p2[0], p2[1]);
+    }
+    if (closed) c.closePath();
+  }
   // Шулуун/цацрагийг харагдах хүрээнээс цааш сунгана (канвас тасална)
   function extend(a, b, w, h, ray) {
     var dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy); if (!L) return null;
@@ -731,6 +753,7 @@
       if (ob.t === 'seg') { c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); }
       else if (ob.t === 'line' || ob.t === 'ray') { var e = extend(a, b, w, h, ob.t === 'ray'); if (!e) return; c.moveTo(e[0][0], e[0][1]); c.lineTo(e[1][0], e[1][1]); }
       else if (ob.t === 'circ') c.arc(a[0], a[1], Math.hypot(b[0] - a[0], b[1] - a[1]), 0, Math.PI * 2);
+      else if (ob.t === 'curve') smooth(c, ps.map(S), !!ob.cl);
       else { ps.forEach(function (q, i) { var s = S(q); if (i) c.lineTo(s[0], s[1]); else c.moveTo(s[0], s[1]); }); c.closePath(); c.globalAlpha = 0.12; c.fill(); c.globalAlpha = 1; }
       c.stroke();
     });
@@ -891,6 +914,7 @@
     if (ob.t === 'seg') return segDist(sp, a, b) < 12;
     if (ob.t === 'line' || ob.t === 'ray') { var e = extend(a, b, r.width, r.height, ob.t === 'ray'); return !!e && segDist(sp, e[0], e[1]) < 12; }
     if (ob.t === 'circ') return Math.abs(Math.hypot(sp[0] - a[0], sp[1] - a[1]) - Math.hypot(b[0] - a[0], b[1] - a[1])) < 12;
+    if (ob.t === 'curve') { for (var j = 0; j < ps.length - (ob.cl ? 0 : 1); j++) if (segDist(sp, ps[j], ps[(j + 1) % ps.length]) < 16) return true; return false; }
     for (var i = 0; i < ps.length; i++) if (segDist(sp, ps[i], ps[(i + 1) % ps.length]) < 12) return true;
     return inPoly(sp[0], sp[1], ps);
   }
@@ -930,6 +954,12 @@
     if (t === 'tri' || t === 'rect') { if (drag) shape(t, L.s0, sp); }
     else if (t === 'del') { if (!drag) delAt(sp); }
     else if (t === 'pt') { if (!ptAt(sp)) addPt(snap(sPl(sp))); }
+    else if (t === 'curve') {                    // дараалан дарна; сүүлийн цэг дээр дахин — дуусна, эхний цэг дээр — битүү
+      var qc = ptAt(sp), cur = gp && gp.t === 'curve' ? gp.ids : null;
+      if (cur && qc && cur.length >= 3 && qc.id === cur[0]) { g.objs.push({ t: 'curve', p: cur.slice(), c: st.color, cl: 1 }); gp = null; }
+      else if (cur && qc && cur.length >= 2 && qc.id === cur[cur.length - 1]) { g.objs.push({ t: 'curve', p: cur.slice(), c: st.color }); gp = null; }
+      else { qc = qc || addPt(snap(sPl(sp))); if (!cur) gp = { t: 'curve', ids: [] }; if (gp.ids[gp.ids.length - 1] !== qc.id) gp.ids.push(qc.id); }
+    }
     else if (t === 'poly') {
       var q = ptAt(sp);
       if (gp && gp.t === 'poly' && q && q.id === gp.ids[0] && gp.ids.length >= 3) { g.objs.push({ t: 'poly', p: gp.ids.slice(), c: st.color }); gp = null; }
@@ -964,6 +994,10 @@
       var ps = gp.ids.map(function (id) { return byId[id] && plS(byId[id].x, byId[id].y); }).filter(Boolean);
       if (ps.length) {
         if (gp.t === 'poly') { c.beginPath(); ps.concat([hv]).forEach(function (q, i) { if (i) c.lineTo(q[0], q[1]); else c.moveTo(q[0], q[1]); }); c.stroke(); }
+        else if (gp.t === 'curve') {
+          c.beginPath(); smooth(c, ps.concat([hv]), false); c.stroke();
+          if (ps.length >= 2) { var lp = ps[ps.length - 1]; c.setLineDash([]); c.font = '700 13px system-ui,sans-serif'; c.fillStyle = '#7B52EE'; c.textAlign = 'left'; c.textBaseline = 'top'; c.fillText('дахин дарж дуусгана', lp[0] + 12, lp[1] + 10); }
+        }
         else line2(c, gp.t, ps[0], hv);
         c.setLineDash([]); ps.forEach(function (q) { c.beginPath(); c.arc(q[0], q[1], 9, 0, Math.PI * 2); c.stroke(); });
       }
