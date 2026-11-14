@@ -242,8 +242,9 @@
     // Хуудас бүр ДҮҮРЭН (fitAll): ажлын хуудас 1 хуудас (бодолтын зайг томруулж/багасгаж дүүргэнэ) эсвэл 2+ хуудас (бодлогын хооронд
     // тэнцүү хувааж, хуудас тус бүрийн бодолтын зайгаар дүүргэнэ) — бодлого ганцаараа халихгүй. AF_MIN…AF_MAX — бодолтын зайн
     // коэффициент (анхны хэмжээтэй харьцуулсан); 1 хуудсанд F1_MIN-ээс бага болох бол 2 хуудас. Бодолтын зайгүй хуудас бага зэрэг
-    // халивал (≤ 1/Z1) хуудсыг Z1+ болгож 1 хуудсанд (текстийг үүнээс илүү жижигрүүлэхгүй). FIT_H — бөөрөнхийлөлтөд 3 мм нөөц.
-    var FIT_H = PAGE_H - 3 * MM, AF_MIN = 0.4, AF_MAX = 3, ZM_MIN = 0.5, Z1 = 0.94, F1_MIN = 0.55;
+    // халивал (≤ 1/Z1) хуудсыг Z1+ болгож 1 хуудсанд (текстийг үүнээс илүү жижигрүүлэхгүй). FIT_H — 8 мм нөөц: хэвлэхэд мөр
+    // шилжилт дэлгэцээс бага зэрэг өөр (урт өгүүлбэр нэг мөр илүү) — 3 мм-д 2-р ангийн 6 хуудас нэг хуудсаар халисан.
+    var FIT_H = PAGE_H - 8 * MM, AF_MIN = 0.4, AF_MAX = 3, ZM_MIN = 0.5, Z1 = 0.94, F1_MIN = 0.55;
     var HEADS = '.task, .sec, h1, h2, h3, h4, h5, .intro';   // гарчиг — дараагийн бодлогоосоо хуудсаар салахгүй
     var ICO_OK = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
     var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
@@ -539,6 +540,7 @@
         var res = ITEMS.map(calc);
         ITEMS.forEach(function (x, i) { paint(x, res[i]); });
         totals();
+        retarget();                                                        // ангийн ном 200 (эсвэл 300) хуудас
       });
     };
 
@@ -562,6 +564,7 @@
     }
     function render() {
       var app = document.getElementById('app'), h = '';
+      try { var tg0 = localStorage.getItem(TG_KEY + D.label); if (tg0 && /^(auto|200|300|none)$/.test(tg0)) TG = tg0; } catch (e) {}
       var nCh = D.chapters.length; VR = { v: 'I', a: 0, b: Math.max(0, nCh - 1) };
       try {
         var vr = JSON.parse(localStorage.getItem(VOL_KEY + D.label) || 'null');
@@ -575,12 +578,13 @@
         + '<label class="tb-f">Нүүр <select id="cvsel">' + COVERS.map(function (c) { return '<option value="' + c[0] + '"' + (c[0] === CV ? ' selected' : '') + '>' + c[1] + '</option>'; }).join('') + '</select></label>'
         + '<label class="tb-f" title="Нүүрэнд гарах дэвтрийн дугаар">Дэвтэр <select id="volsel">' + ['', 'I', 'II', 'III', 'IV'].map(function (v) { return '<option value="' + v + '"' + (v === VR.v ? ' selected' : '') + '>' + (v || '—') + '</option>'; }).join('') + '</select></label>'
         + '<label class="tb-f" title="Энэ дэвтэрт орох бүлгүүд">Бүлэг <select id="cha">' + chOpt(VR.a) + '</select>–<select id="chb">' + chOpt(VR.b) + '</select></label>'
+        + '<label class="tb-f" title="Ангийн номын нийт хуудас (Авто: 200, багтах боломжгүй бол 300)">Зорилт <select id="tgsel">' + [['auto', 'Авто (200/300)'], ['200', '200'], ['300', '300'], ['none', 'Хязгааргүй']].map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === TG ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>'
         + '<button type="button" id="flipb">Ном шиг харах</button><button type="button" id="prt">Хэвлэх / PDF</button></div></div>'
         + '<div class="tip">Хэвлэхэд <b>хуудас бүр дүүрэн</b>: ажлын хуудас 1 хуудас эсвэл (урт бол) бодлогын хооронд тэнцүү хуваасан 2 хуудас болж, '
         + 'бодолтын зай нь хуудсыг дүүргэнэ. <b>Хуудас: Авто / 1 / 2</b>-оор өөрөө сонгож болно. <b>Гарчгийг</b> дарж засна. Бодолтын зай бүрийг '
         + '<b>баруун доод булангаас нь чирж</b> томруулна/жижигрүүлнэ, <b>×</b> — тэр зайг арилгана; даалгаврын гарчгийн <b>−</b> / <b>+</b> — зайн хэмжээ, '
         + '<b>Зайгүй</b> — бүх зайг нь арилгана, <b>↺</b> — анхных; <b>бодлого − / +</b> — бодлогын тоог бүтэн мөрөөр (анхдагчаар мөр бүр дүүрэн), <b>Шинэ бодлого</b> — өөр бодлого. CyberMath тамга хэвлэх хуудас бүрийн голд. '
-        + 'Хуудас бүрт огноо, төгсгөлд нь <b>үнэлгээний мөр</b> (сурагч өөрийгөө, багш) автоматаар орно. <b>Ном шиг харах</b> — хэвлэхэд яг ямар харагдахыг '
+        + '<b>Зорилт</b> — ангийн номыг яг 200 хуудас (багтахгүй бол 300) болгоно: 2 хуудастайг 1 болгож зай багасгана, шаардлагатай бол бага бодолттой даалгаврын зайг хасна. Хуудас бүрт огноо, төгсгөлд нь <b>үнэлгээний мөр</b> (сурагч өөрийгөө, багш) автоматаар орно. <b>Ном шиг харах</b> — хэвлэхэд яг ямар харагдахыг '
         + 'хоёр нүүрээр эргүүлж үзнэ. <span class="tip-r">Улаан тасархай</span> — хуудас солигдох газар. Өөрчлөлт бүр автоматаар хадгалагдана.</div>';
       // Нүүр — 8 загвар («Нүүр» сонголт, энэ хөтөчид хадгалагдана), дэвтрийн дугаар, cyber-math.com руу орох QR-тай
       coverData(); cvKey = CV + JSON.stringify(COVER_DATA) + (window.katex ? 'k' : '');
@@ -623,6 +627,7 @@
       setTbh(); window.addEventListener('resize', setTbh);
       document.getElementById('prt').onclick = function () { window.print(); };
       document.getElementById('flipb').onclick = function () { openFlip(); };
+      document.getElementById('tgsel').onchange = function () { TG = this.value; try { localStorage.setItem(TG_KEY + D.label, TG); } catch (e) {} tgStuck = -1; ITEMS.forEach(function (x) { x.tgBad = false; }); retarget(); };
       document.getElementById('cvsel').onchange = function () { CV = this.value; try { localStorage.setItem(CV_KEY, CV); } catch (e) {} redrawCover(true); };
       var saveVR = function () { try { localStorage.setItem(VOL_KEY + D.label, JSON.stringify(VR)); } catch (e) {} };
       document.getElementById('volsel').onchange = function () { VR.v = this.value; saveVR(); redrawCover(); };
@@ -656,7 +661,14 @@
       var h = hostOf(t); if (!h) return;
       var x = h._it, s = cfg(x.it.slug);
       if (a === 'inc') { s.off = !t.checked; syncBar(x); totals(); save(x); }
-      else if (a === 'ok') { s.ok = t.checked; syncBar(x); totals(); vis(x); save(x); }
+      else if (a === 'ok') {
+        s.ok = t.checked;
+        if (s.ok) {                                                        // зорилтын сонголт (хуудасны тоо, хассан зай) тогтворжино
+          if (x.tp && !s.p) s.p = x.tp;
+          if (x.rm) Object.keys(x.rm).forEach(function (k) { if (+k >= 0 && s.g[+k] == null) s.g[+k] = 0; });
+        }
+        syncBar(x); totals(); vis(x); save(x);
+      }
       else if (a === 'wk') { s.nw = !t.checked; syncBar(x); reload(x); }
     }
     // Гарчиг засах: бичих бүрд хадгална (ажлын хуудасныхтай ижил бол хоосон — анхных), Enter — дуусгах, гарахад хуудсыг дахин дүүргэнэ
@@ -828,7 +840,11 @@
     }
 
     // Даалгаврын жин (гарчгийн − / +): тэр даалгаврын бодолтын зай бусдаасаа их/бага; 0 — нуух
-    function wOf(x, b) { var s = cfg(x.it.slug), k = +b.getAttribute('data-g'); return k >= 0 && s.g[k] != null ? s.g[k] : 1; }
+    function wOf(x, b) {
+      var s = cfg(x.it.slug), k = +b.getAttribute('data-g');
+      if (k >= 0 && s.g[k] != null) return s.g[k];
+      return x.rm && x.rm[k] ? 0 : 1;                                     // хуудасны зорилтод бодолтын зайг нь хассан даалгавар
+    }
     // Гараар тогтоосон өндөр (мм) — bh["даалгавар.дугаар"]; 0 — тэр зайг арилгасан; null — авто (хуудсыг дүүргэхэд оролцоно)
     function fixOf(x, b) { var s = cfg(x.it.slug), key = b.getAttribute('data-bk'); return key != null && s.bh[key] != null ? +s.bh[key] : null; }
     // Бодолтын зайн өндөр = анхны өндөр (data-h0) × даалгаврын жин × тухайн хуудсыг дүүргэх коэффициент (x.bf[i]; fitAll),
@@ -876,7 +892,8 @@
           U: U.map(function (u) { var r = u.el.getBoundingClientRect(); return { el: u.el, t: r.top - top0, b: r.bottom - top0, h: r.height, ba: u.ba || u.el.matches(HEADS),
             tb: /table/.test(getComputedStyle(u.el.parentNode).display), ev: u.el.classList.contains('wsx-ev') }; }),
           // гараар тогтоосон өндөртэй зай хуудсыг дүүргэхэд оролцохгүй (жин 0)
-          B: x.boxes.map(function (b) { return { t: b.getBoundingClientRect().top - top0, h0w: fixOf(x, b) != null ? 0 : (+b.getAttribute('data-h0') || 0) * Math.max(0, wOf(x, b)) }; }) };
+          B: x.boxes.map(function (b) { return { t: b.getBoundingClientRect().top - top0, k: +b.getAttribute('data-g'),
+            h0w: fixOf(x, b) != null ? 0 : (+b.getAttribute('data-h0') || 0) * Math.max(0, wOf(x, b)) }; }) };
       });
       xs.forEach(plan);                                                    // B, C
       xs.forEach(function (x) {                                           // D — бичнэ
@@ -936,7 +953,7 @@
       // Хуудасны тоо: бодолтын зай дунджаар F1_MIN-ээс багагүй байх хамгийн цөөн хуудас (H1 — зай F1_MIN үеийн өндөр);
       // бодолтын зайгүй хуудас бага зэрэг халивал (≤ 1/Z1) хэмжээг багасгаж 1 хуудсанд
       var W = Wsum(-1e9, 1e9), H1 = H + (F1_MIN - AF_MIN) * W;
-      var P = s.p || 0;
+      var P = s.p || x.tp || 0;                                            // tp — хуудасны зорилтын тоо (retarget)
       if (!P) P = W > 0 ? Math.max(1, Math.ceil(H1 / FIT_H)) : (H * Z1 <= FIT_H ? 1 : Math.ceil(H / FIT_H));
       x.cuts = []; x.zm = 1;
       if (P >= 2) {
@@ -986,7 +1003,7 @@
           return cuts;
         };
         var cuts = null;
-        if (s.p) cuts = split(P, true);
+        if (s.p || x.tp) cuts = split(P, true);
         else for (var n = P; !cuts && n <= Math.min(P + 2, 8); n++) cuts = split(n, false);
         x.cuts = cuts || [];
         if (!x.cuts.length) P = 1;                                         // хуваах газаргүй (нэг нэгж хуудаснаас урт) — 1 хуудсанд жижигрүүлнэ
@@ -1132,12 +1149,110 @@
         var n = x.pages || 1;
         x.sec.querySelector('.pno').textContent = !inVol(x) ? 'энэ дэвтэрт ороогүй' : cfg(x.it.slug).off ? 'номд ороогүй' : 'х. ' + x.p0 + (n > 1 ? '–' + (x.p0 + n - 1) : '');
       });
-      document.getElementById('sum').innerHTML = 'Нийт <b>' + (p - 1) + '</b> хуудас · ' + inc.length + ' ажлын хуудас'
-        + ' <span class="s1">1 хуудастай ' + one + '</span> <span class="s2">2+ хуудастай ' + more + '</span>';
+      TOTAL = p - 1;
+      var T = TG === 'none' ? 0 : TG === 'auto' ? (tgAutoT || 200) : +TG, dT = TOTAL - T;
+      document.getElementById('sum').innerHTML = 'Нийт <b>' + TOTAL + '</b> хуудас'
+        + (T ? (TG === 'auto' && T !== 200 && T !== 300 ? ' <span class="tg off">200-д багтахгүй — 300-аас бага</span>'
+          : ' <span class="tg' + (dT ? ' off' : '') + '">зорилт ' + T + (dT ? ' (' + (dT > 0 ? '+' : '') + dT + (dT < 0 ? ', ажлын хуудас цөөн' : '') + ')' : ' — таарсан') + '</span>') : '')
+        + ' · ' + inc.length + ' ажлын хуудас <span class="s1">1 хуудастай ' + one + '</span> <span class="s2">2+ хуудастай ' + more + '</span>';
       var ok = ITEMS.filter(function (x) { return cfg(x.it.slug).ok; }).length;
       document.getElementById('prog').innerHTML = 'Шалгасан <b>' + ok + '</b> / ' + ITEMS.length;
       redrawCover();                                                       // нүүрний бүлэг/сэдэв/хуудасны тоо дэвтрийн хүрээгээр
       refreshFlip();
+      if (T && dT && !tgBusy && ITEMS.length && TOTAL !== tgStuck) { clearTimeout(tgTimer); tgTimer = setTimeout(retarget, 900); }   // засварын дараа зорилт руу
+    }
+
+    // ── Хуудасны зорилт: ангийн ном яг T хуудас (Авто — 200; 200-д багтах боломжгүй бол 300). Хуудасны тоог гараар заасан (s.p),
+    // «Шалгасан» ба номд ороогүй хуудсанд хүрэхгүй. Бусдад ажиллах үеийн x.tp (хуудасны тоо) ба x.rm (бодолтын зайг нь хассан
+    // даалгавар): илүү бол 2+ хуудастайг нэгээр цөөлнө — эхлээд зай багасгаад (AF_MIN хүртэл) багтдагийг, дараа нь бага бодолттой
+    // даалгаврын (харьцуулах, нөхөх, тэмдэг тавих…) зайг хасаж багтаана; дутуу бол агуулга ихтэйг нэг хуудсаар нэмнэ (зай ≤ 2×).
+    // «Шалгасан» болгоход эдгээр сонголт s.p / s.g-д хадгалагдаж тогтворжино.
+    var TG_KEY = 'cm_book_target:', TG = 'auto', TOTAL = 0, tgBusy = false, tgTimer = null, tgAutoT = 0, tgStuck = -1;
+    var SMALL = /харьцуул|жиш|тэмдэг|[<>]|үнэн|худал|сонго|дугуйл|холбо|нөх|бөглө|тоймло|ойролцоо|унш|тоол|дараалал|үргэлжлүүл|орны|цифр|нэрл|хувиргаарай|шилжүүл/i;
+    var BIG = /бодоорой|баганаар|үгэн|тэгшитгэл|тэнцэтгэл|зур|байгуул|нотол|батал/i;
+    function tgLabel(hd) { if (!hd) return ''; var c = hd.cloneNode(true), sc = c.querySelector('.wsx-sc'); if (sc) sc.remove(); return c.textContent; }
+    // Олон баганатай даалгаварт нэг мөрийн нүднүүд зэрэгцээ — хасахад хэмнэгдэх өндөр нь МӨР бүрийн хамгийн өндөр нүд (нүдний нийлбэр биш)
+    function tgInfo(x) {
+      var s = cfg(x.it.slug), m = x.m; if (!m) return null;
+      var G = {}, W = 0;
+      m.B.forEach(function (b) {
+        if (!(b.h0w > 0)) return;
+        var g = G[b.k] || (G[b.k] = { k: b.k, rows: {}, n: 0 }), r = Math.round(b.t / 4);
+        g.rows[r] = Math.max(g.rows[r] || 0, b.h0w); g.n++;
+      });
+      var gs = Object.keys(G).map(function (k) {
+        var g = G[k], lab = tgLabel(x.heads[g.k]), sm = SMALL.test(lab), bg = BIG.test(lab), w = 0, nr = 0;
+        Object.keys(g.rows).forEach(function (r) { w += g.rows[r]; nr++; });
+        g.w = w; g.h = AF_MIN * w; W += w;
+        g.sc = (w / Math.max(1, nr)) * (sm ? 0.5 : 1) * (bg ? 4 : 1); g.big = bg && !sm; return g;
+      }).filter(function (g) { return g.k < 0 || s.g[g.k] == null; }).sort(function (a, b) { return a.sc - b.sc; });
+      return { H: m.H, W: W, gs: gs };
+    }
+    // P → P−1: зайг AF_MIN хүртэл багасгаж, хүрэхгүй бол бага бодолттой даалгаврын зайг хасна; сүүлчийн арга — текстийг ≥ Z1 (94%)
+    // хүртэл жижигрүүлэх (номын бодолтын зайгүй хуудасны дүрэмтэй ижил) — өндөр өртөгтэй тул эцэст нь сонгогдоно
+    function dropPlan(x, I) {
+      var P = x.pages || 1; if (P < 2) return null;
+      var lim = (P - 1) * FIT_H - 2 * MM, H = I.H, W = I.W, rm = [];
+      for (var i = 0; i < I.gs.length && H > lim; i++) { if (I.gs[i].big) continue; H -= I.gs[i].h; W -= I.gs[i].w; rm.push(I.gs[i].k); }
+      var zoom = H > lim;
+      if (zoom && (P - 1 > 1 || H * Z1 > lim)) return null;
+      var f = W > 0 ? AF_MIN + Math.max(0, lim - H) / W : 3;
+      return { x: x, P: P - 1, rm: rm, cost: rm.length * 10 + (zoom ? 60 + (H / lim - 1) * 400 : 0) + 1 / Math.max(0.05, f) };
+    }
+    // P → P+1 (зөвхөн зай хэт томрохгүй бол: ≤ 2×), ажиллах үед хассан зайтай хуудсыг хөндөхгүй
+    function addPlan(x, I) {
+      var P = x.pages || 1; if (P >= 3 || I.W <= 0 || (x.rm && Object.keys(x.rm).length)) return null;
+      var f = AF_MIN + ((P + 1) * FIT_H - I.H) / I.W;
+      return f <= 2 ? { x: x, P: P + 1, rm: null, cost: f } : null;
+    }
+    function tgAdjustable(x) { var s = cfg(x.it.slug); return inBook(x) && !s.ok && !s.p && x.m && !x.tgBad; }
+    function tgValue() { return TG === '300' ? 300 : 200; }
+    // Ажиллах үеийн бүх сонголтыг (tp, rm) буцаана — ном анхны (авто) хуудаслалттай болно
+    function tgReset() {
+      var rs = ITEMS.filter(function (x) { return x.tp || (x.rm && Object.keys(x.rm).length) || x.tgBad; });
+      rs.forEach(function (x) { x.tp = 0; x.rm = null; x.tgBad = false; });
+      if (rs.length) { fitAll(rs); rs.forEach(function (x) { paint(x, calc(x)); }); }
+      totals();
+    }
+    // Авто: эхлээд яг 200; хүрэхгүй бол (ажлын хуудас олон) бүгдийг буцааж, 300-аас их номыг яг 300 болгоно (300-аас бага бол байгаагаар).
+    // Ажлын хуудас цөөн (200-д хүргэхийн тулд хиймлээр томруулах шаардлагатай) номыг томруулахгүй.
+    function retarget() {
+      if (tgBusy || !ITEMS.length) return;
+      tgBusy = true;
+      try {
+        if (TG === 'none') { tgReset(); tgAutoT = 0; }
+        else {
+          var T = tgAutoT = tgValue();
+          toward(T);
+          if (TG === 'auto' && TOTAL > T) {
+            tgReset();
+            if (TOTAL > 300) toward(tgAutoT = 300); else tgAutoT = TOTAL;    // 200-д багтахгүй — 300 (эсвэл түүнээс бага бол байгаагаар)
+          }
+          tgStuck = TOTAL !== tgAutoT ? TOTAL : -1;                        // хүрч чадаагүй бол дараагийн засвар хүртэл дахин оролдохгүй
+        }
+      } finally { tgBusy = false; }
+      totals();
+    }
+    function toward(T) {
+          for (var round = 0; round < 30; round++) {
+            var d = TOTAL - T; if (!d) break;
+            var plans = [];
+            ITEMS.forEach(function (x) { if (!tgAdjustable(x)) return; var I = tgInfo(x); if (!I) return; var pl = d > 0 ? dropPlan(x, I) : addPlan(x, I); if (pl) plans.push(pl); });
+            // дутуу үед: бүх боломжоор нэмсэн ч хүрэхгүй бол (цөөн ажлын хуудастай анги) хиймлээр томруулахгүй
+            if (!plans.length || (d < 0 && round === 0 && plans.length < -d)) break;
+            plans.sort(function (a, b) { return a.cost - b.cost; });
+            var pick = plans.slice(0, Math.abs(d)), xs = pick.map(function (pl) { return pl.x; });
+            var was = xs.map(function (x) { return { tp: x.tp, rm: x.rm, pages: x.pages || 1 }; });
+            pick.forEach(function (pl) { pl.x.tp = pl.P; if (pl.rm && pl.rm.length) { pl.x.rm = Object.assign({}, pl.x.rm || {}); pl.rm.forEach(function (k) { pl.x.rm[k] = 1; }); } });
+            fitAll(xs);
+            var res = xs.map(calc);
+            // буцаана (дахин сонгохгүй): 94%-иас (Z1) их жижгэрсэн, эсвэл хуудасны тоо хүссэн зүг рүү өөрчлөгдөөгүй
+            var back = xs.filter(function (x, i) { return (x.zm && x.zm < Z1 - 0.005) || (d > 0 ? res[i].pages >= was[i].pages : res[i].pages <= was[i].pages); });
+            back.forEach(function (x) { var w = was[xs.indexOf(x)]; x.tp = w.tp; x.rm = w.rm; x.tgBad = true; });
+            if (back.length) { fitAll(back); back.forEach(function (x) { res[xs.indexOf(x)] = calc(x); }); }
+            xs.forEach(function (x, i) { paint(x, res[i]); });
+            totals();                                                      // TOTAL шинэчлэгдэнэ (tgBusy — дахин retarget товлохгүй)
+          }
     }
 
     // ── «Ном шиг харах»: хэвлэхэд гарах хуудсуудыг (нүүр, агуулга, ажлын хуудас бүрийн хуудас) эргүүлж, тэр дор нь засаж шалгана ──
@@ -1342,6 +1457,7 @@
     '.tb-r{display:flex;align-items:center;flex-wrap:wrap;gap:8px 14px}',
     '.tb-r:last-child #flipb{margin-left:auto}.tb #flipb{background:#22305e;color:#fff;box-shadow:inset 0 0 0 1.5px #3B4A80}',
     '.tb #sum{color:#c4cdea;font-size:13px}.tb #sum b{color:#FFC93C;font-size:15px}',
+    '.tb #sum .tg{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:99px;font-size:12px;font-weight:800;background:rgba(34,197,94,.2);color:#86efac}.tb #sum .tg.off{background:rgba(245,158,11,.22);color:#fcd34d}',
     '.tb .s1,.tb .s2{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:99px;font-size:12px;font-weight:800}.tb .s1{background:rgba(34,197,94,.2);color:#86efac}.tb .s2{background:rgba(245,158,11,.22);color:#fcd34d}',
     '.tb .prog{margin-right:auto;padding:3px 10px;border-radius:99px;background:rgba(34,197,94,.18);color:#bbf7d0;font-weight:800;font-size:12.5px}.tb .prog b{color:#fff}',
     '.tb button,.tb select{border:0;border-radius:10px;padding:8px 13px;font-family:inherit;font-weight:800;font-size:13px;cursor:pointer}',
@@ -1556,6 +1672,7 @@
     '.wsx-paper .wsx-date{margin-left:auto;white-space:nowrap;font:600 10pt/1.3 "Segoe UI",Arial,sans-serif;color:#4b4566;border:0!important;padding:0!important;flex:none!important;min-width:0!important}',
     '.wsx-paper .wsx-date i{display:inline-block;width:9mm;height:3.6mm;margin:0 1mm;border-bottom:1px solid #8a84a3;vertical-align:baseline}.wsx-paper .wsx-date i.y{width:7mm;margin-left:.4mm}',
     '.wsx-paper .g2s{display:none!important}',
+    '.wsx-paper .cm-foot{display:none!important}',                      // номд «№N · CyberMath Дасгалын төв · …» хөл хэрэггүй
     '.wsx-paper .wsx-ev{display:flex;align-items:center;gap:4mm;margin-top:5mm;padding:2.6mm 4mm;border:1.2px solid #D9D3EE;border-radius:3mm;break-inside:avoid;background:#fff;font:600 9.5pt/1.2 "Segoe UI",Arial,sans-serif;color:#4b4566}',
     '.wsx-paper .ev-c{display:flex;align-items:center;gap:2.5mm;flex:1;min-width:0}.wsx-paper .ev-c+.ev-c{border-left:1.2px solid #E7E2F7;padding-left:4mm}',
     '.wsx-paper .ev-c b{font-weight:800;color:#5B3BD9;white-space:nowrap}',
