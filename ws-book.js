@@ -564,7 +564,7 @@
     }
     function render() {
       var app = document.getElementById('app'), h = '';
-      try { var tg0 = localStorage.getItem(TG_KEY + D.label); if (tg0 && /^(auto|200|300|none)$/.test(tg0)) TG = tg0; } catch (e) {}
+      try { TG = TG_DEF[D.label] || 'auto'; var tg0 = localStorage.getItem(TG_KEY + D.label); if (tg0 && /^(auto|min|none|[1-9][0-9]{1,2})$/.test(tg0)) TG = tg0; } catch (e) {}
       var nCh = D.chapters.length; VR = { v: 'I', a: 0, b: Math.max(0, nCh - 1) };
       try {
         var vr = JSON.parse(localStorage.getItem(VOL_KEY + D.label) || 'null');
@@ -578,7 +578,7 @@
         + '<label class="tb-f">Нүүр <select id="cvsel">' + COVERS.map(function (c) { return '<option value="' + c[0] + '"' + (c[0] === CV ? ' selected' : '') + '>' + c[1] + '</option>'; }).join('') + '</select></label>'
         + '<label class="tb-f" title="Нүүрэнд гарах дэвтрийн дугаар">Дэвтэр <select id="volsel">' + ['', 'I', 'II', 'III', 'IV'].map(function (v) { return '<option value="' + v + '"' + (v === VR.v ? ' selected' : '') + '>' + (v || '—') + '</option>'; }).join('') + '</select></label>'
         + '<label class="tb-f" title="Энэ дэвтэрт орох бүлгүүд">Бүлэг <select id="cha">' + chOpt(VR.a) + '</select>–<select id="chb">' + chOpt(VR.b) + '</select></label>'
-        + '<label class="tb-f" title="Ангийн номын нийт хуудас (Авто: 200, багтах боломжгүй бол 300)">Зорилт <select id="tgsel">' + [['auto', 'Авто (200/300)'], ['200', '200'], ['300', '300'], ['none', 'Хязгааргүй']].map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === TG ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>'
+        + '<label class="tb-f" title="Ангийн номын нийт хуудас (Авто: 200, багтах боломжгүй бол 300)">Зорилт <select id="tgsel">' + [['auto', 'Авто (200/300)'], ['min', 'Хамгийн бага'], ['100', '100'], ['150', '150'], ['200', '200'], ['250', '250'], ['300', '300'], ['none', 'Хязгааргүй']].map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === TG ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>'
         + '<button type="button" id="flipb">Ном шиг харах</button><button type="button" id="prt">Хэвлэх / PDF</button></div></div>'
         + '<div class="tip">Хэвлэхэд <b>хуудас бүр дүүрэн</b>: ажлын хуудас 1 хуудас эсвэл (урт бол) бодлогын хооронд тэнцүү хуваасан 2 хуудас болж, '
         + 'бодолтын зай нь хуудсыг дүүргэнэ. <b>Хуудас: Авто / 1 / 2</b>-оор өөрөө сонгож болно. <b>Гарчгийг</b> дарж засна. Бодолтын зай бүрийг '
@@ -1150,9 +1150,9 @@
         x.sec.querySelector('.pno').textContent = !inVol(x) ? 'энэ дэвтэрт ороогүй' : cfg(x.it.slug).off ? 'номд ороогүй' : 'х. ' + x.p0 + (n > 1 ? '–' + (x.p0 + n - 1) : '');
       });
       TOTAL = p - 1;
-      var T = TG === 'none' ? 0 : TG === 'auto' ? (tgAutoT || 200) : +TG, dT = TOTAL - T;
+      var T = TG === 'none' ? 0 : TG === 'min' ? (tgAutoT || 1) : TG === 'auto' ? (tgAutoT || 200) : +TG, dT = TOTAL - T;
       document.getElementById('sum').innerHTML = 'Нийт <b>' + TOTAL + '</b> хуудас'
-        + (T ? (TG === 'auto' && T !== 200 && T !== 300 ? ' <span class="tg off">200-д багтахгүй — 300-аас бага</span>'
+        + (T ? (TG === 'min' ? ' <span class="tg">хамгийн бага</span>' : TG === 'auto' && T !== 200 && T !== 300 ? ' <span class="tg off">200-д багтахгүй — 300-аас бага</span>'
           : ' <span class="tg' + (dT ? ' off' : '') + '">зорилт ' + T + (dT ? ' (' + (dT > 0 ? '+' : '') + dT + (dT < 0 ? ', ажлын хуудас цөөн' : '') + ')' : ' — таарсан') + '</span>') : '')
         + ' · ' + inc.length + ' ажлын хуудас <span class="s1">1 хуудастай ' + one + '</span> <span class="s2">2+ хуудастай ' + more + '</span>';
       var ok = ITEMS.filter(function (x) { return cfg(x.it.slug).ok; }).length;
@@ -1167,6 +1167,9 @@
     // даалгавар): илүү бол 2+ хуудастайг нэгээр цөөлнө — эхлээд зай багасгаад (AF_MIN хүртэл) багтдагийг, дараа нь бага бодолттой
     // даалгаврын (харьцуулах, нөхөх, тэмдэг тавих…) зайг хасаж багтаана; дутуу бол агуулга ихтэйг нэг хуудсаар нэмнэ (зай ≤ 2×).
     // «Шалгасан» болгоход эдгээр сонголт s.p / s.g-д хадгалагдаж тогтворжино.
+    // Ангийн анхдагч зорилт (эзэмшигч 2026-11-14: 10-р анги 250, 11-р анги 100); бусад нь Авто (200, багтахгүй бол 300)
+    // 6–12-р анги — «Хамгийн бага» (эзэмшигч 2026-11-14: боломжит хамгийн бага хуудас)
+    var TG_DEF = { '6-р анги': 'min', '7-р анги': 'min', '8-р анги': 'min', '9-р анги': 'min', '10-р анги': 'min', '11-р анги': 'min', '12-р анги': 'min' };
     var TG_KEY = 'cm_book_target:', TG = 'auto', TOTAL = 0, tgBusy = false, tgTimer = null, tgAutoT = 0, tgStuck = -1;
     var SMALL = /харьцуул|жиш|тэмдэг|[<>]|үнэн|худал|сонго|дугуйл|холбо|нөх|бөглө|тоймло|ойролцоо|унш|тоол|дараалал|үргэлжлүүл|орны|цифр|нэрл|хувиргаарай|шилжүүл/i;
     var BIG = /бодоорой|баганаар|үгэн|тэгшитгэл|тэнцэтгэл|зур|байгуул|нотол|батал/i;
@@ -1206,7 +1209,7 @@
       return f <= 2 ? { x: x, P: P + 1, rm: null, cost: f } : null;
     }
     function tgAdjustable(x) { var s = cfg(x.it.slug); return inBook(x) && !s.ok && !s.p && x.m && !x.tgBad; }
-    function tgValue() { return TG === '300' ? 300 : 200; }
+    function tgValue() { return /^[0-9]+$/.test(TG) ? +TG : 200; }
     // Ажиллах үеийн бүх сонголтыг (tp, rm) буцаана — ном анхны (авто) хуудаслалттай болно
     function tgReset() {
       var rs = ITEMS.filter(function (x) { return x.tp || (x.rm && Object.keys(x.rm).length) || x.tgBad; });
@@ -1221,6 +1224,7 @@
       tgBusy = true;
       try {
         if (TG === 'none') { tgReset(); tgAutoT = 0; }
+        else if (TG === 'min') { toward(1); tgAutoT = TOTAL; tgStuck = TOTAL; }   // хамгийн бага: боломжтой бүх хуудсыг нэгээр цөөлнө
         else {
           var T = tgAutoT = tgValue();
           toward(T);
