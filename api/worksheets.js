@@ -1231,8 +1231,19 @@ module.exports = async (req, res) => {
         const d = b.data && typeof b.data === 'object' ? b.data : {};
         const sc = (v) => { const n = Number(v); return Number.isFinite(n) ? Math.min(2, Math.max(0, Math.round(n * 100) / 100)) : 1; };
         // p — хэвлэхэд хэдэн хуудас: 0 автомат (ws-book.js fitAll: 1 эсвэл 2 дүүрэн хуудас), 1/2/3 — админ сонгосон
+        // t — номд харагдах гарчиг (хоосон — ажлын хуудасныхаа); bh — бодолтын зай тус бүр { "даалгавар.дугаар": мм } (0 — зайгүй,
+        // байхгүй — авто); n — даалгавар тус бүрийн бодлогын тоо (null — анхных); r — бодлогын сонголтын үр (0 — slug-аас тогтмол)
+        const mm = (v) => { if (v == null || v === '') return null; const n = Number(v); return Number.isFinite(n) ? Math.min(280, Math.max(0, Math.round(n * 2) / 2)) : null; };
+        const cnt = (v) => { if (v == null) return null; const n = Math.round(Number(v)); return Number.isFinite(n) ? Math.min(40, Math.max(1, n)) : null; };
+        const bh = {};
+        if (d.bh && typeof d.bh === 'object' && !Array.isArray(d.bh)) {
+          Object.keys(d.bh).filter(k => /^-?\d{1,3}\.\d{1,3}$/.test(k)).slice(0, 300).forEach(k => { const v = mm(d.bh[k]); if (v != null) bh[k] = v; });
+        }
+        const r = Math.round(Number(d.r));
         const clean = { s: sc(d.s == null ? 1 : d.s), g: Array.isArray(d.g) ? d.g.slice(0, 40).map(v => (v == null ? null : sc(v))) : [], off: !!d.off, nw: !!d.nw, ok: !!d.ok,
-          p: [1, 2, 3].indexOf(Number(d.p)) >= 0 ? Number(d.p) : 0 };
+          p: [1, 2, 3].indexOf(Number(d.p)) >= 0 ? Number(d.p) : 0,
+          t: typeof d.t === 'string' ? d.t.replace(/[\u0000-\u001f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160) : '',
+          bh: bh, n: Array.isArray(d.n) ? d.n.slice(0, 40).map(cnt) : [], r: Number.isFinite(r) && r > 0 ? r % 1000000000 : 0 };
         await pool.query(
           `INSERT INTO ws_book (slug, data, updated_at) VALUES ($1,$2::jsonb,NOW())
            ON CONFLICT (slug) DO UPDATE SET data=EXCLUDED.data, updated_at=NOW()`,
