@@ -255,5 +255,5 @@ test('самбартай үед зөвхөн ажлын хуудас томор�
   assert.match(s, /\}, \{ passive: false \}\);/);
   assert.match(s, /data-z="-"[\s\S]*data-z="\+"[\s\S]*data-z="0"/, '− + Багтаах');
   assert.match(s, /function spacer\(\)/, 'томруулсан хуудас самбарын доор нуугдахгүй');
-  assert.match(R('ws-store.js'), /var BOARD_JS='\/ws-board\.js\?v=8'/);
+  assert.match(R('ws-store.js'), /var BOARD_JS='\/ws-board\.js\?v=9'/);
 });
