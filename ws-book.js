@@ -695,7 +695,7 @@
     function onDbl(e) {                                                    // бариулыг 2 дарвал — тэр зай дахин авто
       var g = e.target.closest ? e.target.closest('.wsx-grip') : null; if (!g) return;
       var b = g.closest('[data-bk]'), h = hostOf(g); if (!b || !h) return;
-      var x = h._it; delete cfg(x.it.slug).bh[b.getAttribute('data-bk')]; apply(x); totals(); save(x);
+      var x = h._it; touch(x); delete cfg(x.it.slug).bh[b.getAttribute('data-bk')]; apply(x); totals(); save(x);
     }
     function bindEdit(root) {
       root.addEventListener('click', onClick); root.addEventListener('change', onChange); root.addEventListener('input', onInput);
@@ -791,7 +791,7 @@
       var end = function (ev) {
         window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', end); window.removeEventListener('pointercancel', end);
         b.classList.remove('wsx-drag');
-        if (ev.type === 'pointerup') { s.bh[key] = Math.min(280, Math.round(hOf(ev) / MM * 2) / 2); save(x); }
+        if (ev.type === 'pointerup') { touch(x); s.bh[key] = Math.min(280, Math.round(hOf(ev) / MM * 2) / 2); save(x); }
         apply(x); totals();
       };
       b.classList.add('wsx-drag');
@@ -818,8 +818,9 @@
       var a = b.getAttribute('data-a'); if (!a) return;
       var host = hostOf(b); if (!host) return;
       var x = host._it, s = cfg(x.it.slug), sc = b.closest('.wsx-sc'), gk = sc ? sc.getAttribute('data-g') : null;
+      if (/^(g|gx|rs|bx|n|p)$/.test(a)) touch(x);
       if (a === 'g') s.g[+gk] = clamp((s.g[+gk] == null ? 1 : s.g[+gk]) + (+b.getAttribute('data-d')) * 0.1);
-      else if (a === 'gx') s.g[+gk] = s.g[+gk] != null && s.g[+gk] <= 0 ? 1 : 0;        // даалгаврын бүх зай: арилгах ↔ буцаах
+      else if (a === 'gx') s.g[+gk] = (s.g[+gk] != null ? s.g[+gk] : (x.rm && x.rm[gk] ? 0 : 1)) <= 0 ? 1 : 0;        // даалгаврын бүх зай: арилгах ↔ буцаах
       else if (a === 'rs') Object.keys(s.bh).forEach(function (key) { if (key.split('.')[0] === gk) delete s.bh[key]; });
       else if (a === 'bx') { var bx = b.closest('[data-bk]'); if (!bx) return; s.bh[bx.getAttribute('data-bk')] = 0; }
       else if (a === 'n') {                                                // бодлогын тоо — товшилт дууссаны дараа хуудсыг дахин ачаална
@@ -861,7 +862,7 @@
         var hl = b.querySelector(':scope > .wsx-hl'); if (hl) hl.textContent = f != null ? f + ' мм' : '';
       });
       [].forEach.call(x.sec.querySelectorAll('.wsx-sc'), function (c) {
-        var k = c.getAttribute('data-g'), g = s.g[+k] == null ? 1 : s.g[+k], z = c.querySelector('.z b'), zx = c.querySelector('.zx'), rs = c.querySelector('.rs');
+        var k = c.getAttribute('data-g'), g = s.g[+k] != null ? s.g[+k] : (x.rm && x.rm[k] ? 0 : 1), z = c.querySelector('.z b'), zx = c.querySelector('.zx'), rs = c.querySelector('.rs');
         if (z) z.textContent = pct(g);
         if (zx) { zx.classList.toggle('on', g <= 0); zx.textContent = g <= 0 ? 'Зай нэмэх' : 'Зайгүй'; }
         if (rs) rs.hidden = !Object.keys(s.bh).some(function (key) { return key.split('.')[0] === k; });
@@ -954,6 +955,8 @@
       // бодолтын зайгүй хуудас бага зэрэг халивал (≤ 1/Z1) хэмжээг багасгаж 1 хуудсанд
       var W = Wsum(-1e9, 1e9), H1 = H + (F1_MIN - AF_MIN) * W;
       var P = s.p || x.tp || 0;                                            // tp — хуудасны зорилтын тоо (retarget)
+      // Заасан хуудсанд багтаахын тулд текстийг 94%-иас (Z1) их жижигрүүлэх болвол багтах хэмжээгээр хуудсыг нэмнэ (дараагийн хуудас руу)
+      if (P && H > P * FIT_H / Z1) P = Math.ceil(H / FIT_H);
       if (!P) P = W > 0 ? Math.max(1, Math.ceil(H1 / FIT_H)) : (H * Z1 <= FIT_H ? 1 : Math.ceil(H / FIT_H));
       x.cuts = []; x.zm = 1;
       if (P >= 2) {
@@ -1209,6 +1212,9 @@
       return f <= 2 ? { x: x, P: P + 1, rm: null, cost: f } : null;
     }
     function tgAdjustable(x) { var s = cfg(x.it.slug); return inBook(x) && !s.ok && !s.p && x.m && !x.tgBad; }
+    // Гараар засахад (зай, чирэх, бодлогын тоо, хуудас) зорилт тэр хуудсыг хүчээр барихаа болино — агуулга нэмэгдвэл дараагийн
+    // хуудас руу шилжинэ (текст жижигрэхгүй); зорилтын хассан бусад зай хэвээр, цаашид зорилт энэ хуудсанд хүрэхгүй
+    function touch(x) { x.tp = 0; x.tgBad = true; }
     function tgValue() { return /^[0-9]+$/.test(TG) ? +TG : 200; }
     // Ажиллах үеийн бүх сонголтыг (tp, rm) буцаана — ном анхны (авто) хуудаслалттай болно
     function tgReset() {
