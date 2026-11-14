@@ -46,17 +46,54 @@
     var a = seed >>> 0;
     return function () { a = (a + 0x6D2B79F5) >>> 0; var t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
   }
+  // Бодлогын тоо (даалгавар бүр): админы заасан тоо, эс бөгөөс сүүлийн мөр дүүрэхээр баганын тоогоор ДЭЭШ тоймлоно (4 баганад 6 → 8) —
+  // номд хоосон нүд үлдэхгүй. snapshot() илүүг нь хасна (w.__bookN); w.__bookCols — баганын тоо («бодлого − / +» бүтэн мөрөөр алхана).
+  // Бодолтын зайгүй горимд хөдөлгүүр нөөцийг (cap+3) харуулаад trimToFit-ээр нэг хуудсанд багтаадаг — нөөцийг бүтэн мөр болгож,
+  // trimToFit-ийг мөр мөрөөр хасдаг rowTrim-ээр солино (нэг нэгээр хасахад сүүлийн мөр дутуу үлддэг).
+  function gridCols(w, g) { return (w.getComputedStyle(g).gridTemplateColumns || '').split(/\s+/).filter(function (v) { return v && v !== 'none'; }).length; }
+  function rowTrim(w, keep) {
+    return function (sheet, target) {
+      var gs = [].slice.call(sheet.querySelectorAll('.grid[data-gr]'));
+      var qsOf = function (g) { return [].filter.call(g.children, function (c) { return c.classList.contains('q'); }); };
+      var drop = function (g, m) {
+        var qs = qsOf(g);
+        while (m-- > 0 && qs.length) { var q = qs.pop(), a = sheet.querySelector('#answers .a[data-k="' + q.getAttribute('data-k') + '"]'); if (a) a.remove(); q.remove(); }
+      };
+      var hOf = function () { return typeof w.probeH === 'function' ? w.probeH(sheet) : sheet.scrollHeight; };
+      gs.forEach(function (g) { var c = gridCols(w, g) || 1, k = qsOf(g).length; if (c > 1 && k > c && k % c) drop(g, k % c); });
+      for (var h = hOf(), guard = 0; h > target && guard < 80; guard++) {
+        var best = null, bestR = 1;
+        gs.forEach(function (g, j) { if (keep[j]) return; var c = gridCols(w, g) || 1, r = Math.ceil(qsOf(g).length / c); if (r > bestR) { bestR = r; best = g; } });
+        if (!best) break;
+        drop(best, gridCols(w, best) || 1); h = hOf();
+      }
+      if (typeof w.relabel === 'function') w.relabel(sheet);
+    };
+  }
   function reseed(w, slug, o) {
     if (!w.TASKS || !w.TASKS.forEach || typeof w.build !== 'function') return;
     var base = slug + ':' + ((o && o.r) || 0), n = (o && Array.isArray(o.n)) ? o.n : [];
+    var d = w.document, grids = d.querySelectorAll('.grid[data-gr]'), sw = d.getElementById('sw'), work = sw ? sw.checked : true;
+    var eff = [], colsA = [], keep = [];
     w.TASKS.forEach(function (t, j) {
-      if (n[j] != null && n[j] > 0) t.cap = +n[j];
+      var g = grids.length === w.TASKS.length ? grids[j] : null, cols = +t.cols || 1, shown = t.cap;
+      if (g) {
+        cols = gridCols(w, g) || cols;
+        shown = [].filter.call(g.children, function (c) { return c.classList.contains('q'); }).length || t.cap;
+      }
+      var set = n[j] != null && n[j] > 0, up = function (v) { return cols > 1 ? Math.ceil(v / cols) * cols : v; };
+      colsA[j] = cols; keep[j] = set;
+      if (work) { eff[j] = set ? +n[j] : up(shown); t.cap = eff[j]; }
+      else { eff[j] = set ? +n[j] : null; t.cap = Math.max(up(t.cap + 3), set ? +n[j] : 0) - 3; }   // зайгүй: тоог rowTrim шийднэ
+      if (t.cap < 1) t.cap = 1;
       var orig = t.fn, R = rng(hash(base + ':' + j));
       if (typeof orig !== 'function') return;
       t.fn = function () { var M = w.Math, keep = M.random; M.random = R; try { return orig.apply(this, arguments); } finally { M.random = keep; } };
     });
-    var keep = w.Math.random; w.Math.random = rng(hash(base));
-    try { w.build(); } finally { w.Math.random = keep; }
+    w.__bookN = eff; w.__bookCols = colsA;
+    if (!work && typeof w.trimToFit === 'function') w.trimToFit = rowTrim(w, keep);
+    var kr = w.Math.random; w.Math.random = rng(hash(base));
+    try { w.build(); } finally { w.Math.random = kr; }
   }
   function loadSheet(slug, work, o) {
     work = work !== false;
@@ -96,16 +133,16 @@
     [].forEach.call(cl.querySelectorAll('#answers, .ans-page, .sols-page, .cm-grip, .cm-del, script'), function (x) { x.remove(); });
     [].forEach.call(cl.querySelectorAll('[contenteditable], [data-cm-ed]'), function (x) { x.removeAttribute('contenteditable'); x.removeAttribute('data-cm-ed'); });
     cl.removeAttribute('contenteditable');
-    // Шинэ хөдөлгүүр: даалгавар бүр нэг .grid[data-gr] (TASKS-ийн дарааллаар). c0 — анхны тоо (cap), n — харагдаж буй тоо.
-    // Бодолтын зайгүй горимд хөдөлгүүр бүх нөөцийг (cap+3) харуулдаг тул тоог зааж өгсөн бол илүүг нь хасна.
+    // Шинэ хөдөлгүүр: даалгавар бүр нэг .grid[data-gr] (TASKS-ийн дарааллаар). c0 — анхны тоо (cap), n — харагдаж буй тоо,
+    // cols — баганын тоо. reseed()-ийн тоо (w.__bookN; мөр дүүргэсэн эсвэл админы заасан)-ноос илүүг хасна.
     var tasks = null;
     try {
-      var grids = cl.querySelectorAll('.grid[data-gr]'), want = (o && Array.isArray(o.n)) ? o.n : [];
+      var grids = cl.querySelectorAll('.grid[data-gr]'), want = (w && w.__bookN) || ((o && Array.isArray(o.n)) ? o.n : []), cols = (w && w.__bookCols) || [];
       if (w && w.WSPEC && Array.isArray(w.WSPEC.tasks) && w.TASKS && grids.length && grids.length === w.TASKS.length) {
         tasks = [].map.call(grids, function (g, j) {
           var qs = [].filter.call(g.children, function (c) { return c.classList.contains('q'); });
           if (want[j] != null && want[j] > 0) qs.slice(want[j]).forEach(function (q) { q.remove(); });
-          return { c0: +w.WSPEC.tasks[j].cap || qs.length, n: want[j] != null && want[j] > 0 ? Math.min(qs.length, want[j]) : qs.length };
+          return { c0: +w.WSPEC.tasks[j].cap || qs.length, n: want[j] != null && want[j] > 0 ? Math.min(qs.length, want[j]) : qs.length, cols: cols[j] || 1 };
         });
       }
     } catch (e) { tasks = null; }
@@ -542,7 +579,7 @@
         + '<div class="tip">Хэвлэхэд <b>хуудас бүр дүүрэн</b>: ажлын хуудас 1 хуудас эсвэл (урт бол) бодлогын хооронд тэнцүү хуваасан 2 хуудас болж, '
         + 'бодолтын зай нь хуудсыг дүүргэнэ. <b>Хуудас: Авто / 1 / 2</b>-оор өөрөө сонгож болно. <b>Гарчгийг</b> дарж засна. Бодолтын зай бүрийг '
         + '<b>баруун доод булангаас нь чирж</b> томруулна/жижигрүүлнэ, <b>×</b> — тэр зайг арилгана; даалгаврын гарчгийн <b>−</b> / <b>+</b> — зайн хэмжээ, '
-        + '<b>Зайгүй</b> — бүх зайг нь арилгана, <b>↺</b> — анхных; <b>бодлого − / +</b> — бодлогын тоо, <b>Шинэ бодлого</b> — өөр бодлого. '
+        + '<b>Зайгүй</b> — бүх зайг нь арилгана, <b>↺</b> — анхных; <b>бодлого − / +</b> — бодлогын тоог бүтэн мөрөөр (анхдагчаар мөр бүр дүүрэн), <b>Шинэ бодлого</b> — өөр бодлого. CyberMath тамга хэвлэх хуудас бүрийн голд. '
         + 'Хуудас бүрт огноо, төгсгөлд нь <b>үнэлгээний мөр</b> (сурагч өөрийгөө, багш) автоматаар орно. <b>Ном шиг харах</b> — хэвлэхэд яг ямар харагдахыг '
         + 'хоёр нүүрээр эргүүлж үзнэ. <span class="tip-r">Улаан тасархай</span> — хуудас солигдох газар. Өөрчлөлт бүр автоматаар хадгалагдана.</div>';
       // Нүүр — 8 загвар («Нүүр» сонголт, энэ хөтөчид хадгалагдана), дэвтрийн дугаар, cyber-math.com руу орох QR-тай
@@ -693,6 +730,8 @@
         h1.setAttribute('contenteditable', 'plaintext-only'); if (h1.contentEditable !== 'plaintext-only') h1.setAttribute('contenteditable', 'true');
       }
       metaFix(x); evRow(x);
+      var wm0 = x.sheet.querySelector('.cm-wm:not(.wsx-wm)');               // тамгыг хэвлэх хуудас бүрт stamps() байрлуулна
+      if (wm0) { x.wmHTML = wm0.outerHTML; wm0.remove(); }
       x.heads = [].slice.call(x.sheet.querySelectorAll('.task, .sec'));
       var headOf = function (el) { var k = -1; x.heads.forEach(function (hd, i) { if (hd.compareDocumentPosition(el) & 4) k = i; }); return k; };
       // бодолтын зай: нүд (.wk .work .pw .wgrid .wz) ба бодлогын доорх хариултын мөр (.bl .wl — блок үед л; мөр доторх «____» биш)
@@ -720,7 +759,7 @@
           + '<button type="button" class="zx" data-a="gx" title="Энэ даалгаврын бодолтын зайг арилгах / буцаах">Зайгүй</button>'
           + '<button type="button" class="rs" data-a="rs" title="Гараар тохируулсан зайг анхных болгох" hidden>' + ICO_RS + '</button>';
         gs.forEach(function (j) {
-          c += '<span class="cnt" data-t="' + j + '" title="Бодлогын тоо"><button type="button" data-a="n" data-d="-1">−</button><b>' + (s.n[j] != null ? s.n[j] : T[j].n) + '</b>'
+          c += '<span class="cnt" data-t="' + j + '" title="Бодлогын тоо (бүтэн мөрөөр нэмж хасна)"><button type="button" data-a="n" data-d="-1">−</button><b>' + T[j].n + '</b>'
             + '<button type="button" data-a="n" data-d="1">+</button><i>бодлого</i></span>';
         });
         hd.insertAdjacentHTML('beforeend', c + '</span>');
@@ -773,7 +812,9 @@
       else if (a === 'bx') { var bx = b.closest('[data-bk]'); if (!bx) return; s.bh[bx.getAttribute('data-bk')] = 0; }
       else if (a === 'n') {                                                // бодлогын тоо — товшилт дууссаны дараа хуудсыг дахин ачаална
         var ct = b.closest('.cnt'), j = +ct.getAttribute('data-t'), T = x.it.snap && x.it.snap.tasks; if (!T || !T[j]) return;
-        var cur = s.n[j] != null ? s.n[j] : T[j].n, nv = Math.max(1, Math.min(40, cur + (+b.getAttribute('data-d'))));
+        // бүтэн мөрөөр алхана (4 баганад 6 → + 8, − 4): мөр дутуу үлдэхгүй; дараалсан товшилтод харагдаж буй тооноос
+        var c = T[j].cols || 1, cur = +ct.querySelector('b').textContent || T[j].n, up = +b.getAttribute('data-d') > 0;
+        var nv = Math.max(c, Math.min(40, up ? (Math.floor(cur / c) + 1) * c : (Math.ceil(cur / c) - 1) * c));
         if (nv === cur) return;
         s.n[j] = nv; ct.querySelector('b').textContent = nv;
         setSt(x, 'Бодлогын тоо өөрчлөгдөж байна…', 'busy');
@@ -1053,7 +1094,21 @@
       fit.textContent = [pw.length ? 'зай ' + pw.map(function (p) { return pct(p.f); }).join(' / ') : '', zm < 0.995 ? 'хэмжээ ' + pct(zm) : '',
         nf ? '+ ' + nf + ' зайн талбай' : ''].filter(Boolean).join(' · ');
       fit.className = 'fit' + (zm < 0.8 || pw.some(function (p) { return p.f < F1_MIN - 0.001; }) ? ' small' : '');
+      stamps(x, r);
       vis(x);
+    }
+    // CyberMath тамга (ws-store-ийн .cm-wm) — ажлын хуудасны голд биш, хэвлэх ХУУДАС БҮРИЙН голд (2 хуудастай бол хоёуланд).
+    // Байрлал нь sheet-ийн CSS px (zoom-оор хуваана); үнэмлэхүй байрлалтай тул хуудаслалтад нөлөөлөхгүй.
+    function stamps(x, r) {
+      [].forEach.call(x.sheet.querySelectorAll('.wsx-wm'), function (e) { e.remove(); });
+      if (!x.wmHTML) return;
+      var zm = x.zm || 1, st = [0].concat(r.br), tot = r.total;
+      st.forEach(function (y0, q) {
+        var y1 = Math.min(q + 1 < st.length ? st[q + 1] : tot, y0 + PAGE_H), d = document.createElement('div');
+        d.innerHTML = x.wmHTML; var wm = d.firstElementChild; if (!wm) return;
+        wm.classList.remove('mid'); wm.classList.add('wsx-wm'); wm.style.top = Math.round((y0 + (y1 - y0) / 2) / zm) + 'px';
+        x.sheet.insertBefore(wm, x.sheet.firstChild);
+      });
     }
     function vis(x) { x.sec.classList.toggle('hid', (onlyLong && x.pages < 2) || (onlyTodo && cfg(x.it.slug).ok)); }
     // Хуудасны дугаар (хэвлэхэд доод талд гарна): 1 — нүүр (дугааргүй), 2… — агуулга, дараа нь номд орсон ажлын хуудсууд.
@@ -1258,7 +1313,14 @@
       }
       return pages;
     }
-    function setSt(x, html, cls) { var e = x.sec.querySelector('.sst'); e.innerHTML = html; e.className = 'sst ' + (cls || ''); }
+    function setSt(x, html, cls) {
+      var e = x.sec.querySelector('.sst'); e.innerHTML = html; e.className = 'sst ' + (cls || '');
+      if (FP) [].forEach.call(FP.ov.querySelectorAll('.fp-ctl'), function (c) {   // «Ном шиг харах»-ын доод мөрөнд ч харуулна
+        if (c._it !== x) return;
+        var q = c.querySelector('.fst') || c.appendChild(document.createElement('span'));
+        q.className = 'fst ' + (cls || ''); q.innerHTML = html;
+      });
+    }
     function save(x) {
       var slug = x.it.slug; setSt(x, 'Хадгалж байна…', 'busy');
       clearTimeout(timers[slug]);
@@ -1522,6 +1584,7 @@
     '.fp-ctl .pgsel{display:inline-flex;align-items:center;gap:3px;white-space:nowrap}',
     '.fp-ctl button{border:1.5px solid #E7E2F7;background:#fff;color:#5B3BD9;border-radius:8px;height:26px;padding:0 8px;font:inherit;font-weight:800;cursor:pointer;white-space:nowrap}',
     '.fp-ctl .pgsel button.on{background:#5B3BD9;color:#fff;border-color:#5B3BD9}',
+    '.fp-ctl .fst{font-size:12px;font-weight:800;color:#8a84a3;white-space:nowrap}.fp-ctl .fst.ok{color:#15803d}.fp-ctl .fst.busy{color:#b45309}.fp-ctl .fst.err{color:#b91c1c}',
     '.fp-seg{display:inline-flex;gap:2px}.fp-seg button{border-radius:0}.fp-seg button:first-child{border-radius:10px 0 0 10px}.fp-seg button:last-child{border-radius:0 10px 10px 0}.fp-seg button.on{background:#5B3BD9}',
     '.fp-ok{color:#bbf7d0;font-weight:700;font-size:13px}.fp-ok b{color:#fff}',
     '#flip.clean .wsx-sc,#flip.clean .wsx-bx,#flip.clean .wsx-hl{display:none!important}#flip.clean .wsx-fix{outline:0!important}#flip.clean .wsx-ttl:hover{outline:0!important}',
