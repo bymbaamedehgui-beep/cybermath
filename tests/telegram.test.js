@@ -75,6 +75,20 @@ test('сүлжээний алдаанд нэг удаа дахин оролдо�
   assert.strictEqual(seen.length, 2, 'зөвхөн нэг дахин оролдлого');
 }));
 
+test('функц хөлдөөд (минутын дараа) сэрэхэд хугацаа хэтэрсэн бол дахин илгээхгүй — давхар мэдэгдэл гарахгүй', withEnv(async () => {
+  const now0 = Date.now, base = now0();
+  let t = base;
+  Date.now = () => t;
+  try {
+    const seen = fakeHttps([{ err: 'ETIMEDOUT' }, { json: { ok: true } }]);
+    const p = TG.sendTelegram('🆕 шинэ бүртгэл');
+    t = base + 4 * 60 * 1000;                        // эхний хүсэлт явсны дараа функц 4 минут хөлдсөн
+    const r = await p;
+    assert.deepStrictEqual(r, { ok: false, error: 'STALE' });
+    assert.strictEqual(seen.length, 1, 'дахин илгээгээгүй');
+  } finally { Date.now = now0; }
+}));
+
 test('Telegram татгалзвал (401) дахин оролдохгүй, хариуг буцаана', withEnv(async () => {
   const seen = fakeHttps([{ json: { ok: false, error_code: 401, description: 'Unauthorized' } }]);
   const r = await TG.sendTelegram('x');

@@ -28,15 +28,26 @@ function once(method, body, token) {
   });
 }
 
+// Vercel функц хариу өгсний дараа «хөлддөг»: хүлээлгүй илгээсэн мэдэгдэл дараагийн дуудалтаар (минутын дараа) сэрэхэд
+// хугацаа хэтэрсэн мэт харагдах боловч эхний хүсэлт аль хэдийн хүрсэн байж болно — дахин илгээвэл ДАВХАР мэдэгдэл гарна
+// (2026-11-15: «Дасгалын төв — шинэ бүртгэл» 7:25 ба 7:29). Иймд STALE_MS-ээс удаан болсон оролдлогыг дахин илгээхгүй.
+const STALE_MS = 10000;
+
 // Bot API-ийн дурын арга (sendMessage, setWebhook, getWebhookInfo …) — хэзээ ч throw хийхгүй
 async function call(method, payload) {
   const token = String(process.env.TELEGRAM_BOT_TOKEN || '').trim();
   if (!token) return { ok: false, skipped: 'no env' };
   const body = JSON.stringify(payload || {});
   let j;
+  const t0 = Date.now();
   try {
     try { j = await once(method, body, token); }
     catch (e1) {
+      if (Date.now() - t0 > STALE_MS) {
+        console.error('[telegram] ' + method + ' ' + Math.round((Date.now() - t0) / 1000) + ' сек (функц хөлдсөн) — давхардахгүйн тулд дахин илгээхгүй: '
+          + (e1.code || '') + ' ' + e1.message);
+        return { ok: false, error: 'STALE' };
+      }
       console.error('[telegram] ' + method + ' 1-р оролдлого: ' + (e1.code || '') + ' ' + e1.message);
       await new Promise((r) => setTimeout(r, 500));
       j = await once(method, body, token);

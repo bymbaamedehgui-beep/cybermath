@@ -298,6 +298,11 @@ async function sendTelegram(text) {
   const j = await tg.sendTelegram(text);   // api/_telegram.js — { ok, result: { message_id, ... } }
   return j && j.ok ? j : null;
 }
+// Бүртгэлийн мэдэгдлийг хариу өгөхөөс ӨМНӨ илгээж дуусгана (≤ 2.5 сек) — хүлээлгүй үлдээвэл Vercel функц хөлдөж мэдэгдэл
+// алдагдах эсвэл сэрэхдээ давтагдах байв. Хэзээ ч throw хийхгүй.
+function tgWait(p) {
+  return Promise.race([Promise.resolve(p).catch(() => null), new Promise((r) => setTimeout(r, 2500))]);
+}
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -724,10 +729,10 @@ module.exports = async (req, res) => {
               return res.status(400).json({ ok: false, existed: true, error: 'Энэ имэйл бүртгэлтэй байна. Нэвтэрнэ үү.' });
             }
             try {
-              sendTelegram('🆕 <b>Дасгалын төв — шинэ бүртгэл (урилгаар)</b>\n\n'
+              await tgWait(sendTelegram('🆕 <b>Дасгалын төв — шинэ бүртгэл (урилгаар)</b>\n\n'
                 + '👤 ' + tgEsc(name || '(нэргүй)') + '\n'
                 + '📧 ' + tgEsc(email) + (phone ? ('\n📱 ' + sms.maskPhone(phone, 2)) : '')
-                + '\n🎫 ' + inv.slice(0, 4) + '…').catch(() => {});
+                + '\n🎫 ' + inv.slice(0, 4) + '…'));
             } catch (e) {}
             return wsIssue(req, res, email, { invited: true });
           }
@@ -863,8 +868,8 @@ module.exports = async (req, res) => {
           await sms.markVerified(r.rows[0].phone);
           try {
             const u = r.rows[0];
-            sendTelegram('🆕 <b>Дасгалын төв — шинэ бүртгэл (verify.mn)</b>\n\n👤 ' + (u.name || '(нэргүй)') + '\n📧 ' + mem
-              + (u.phone ? ('\n📱 ' + sms.maskPhone(u.phone, 2)) : '')).catch(() => {});
+            await tgWait(sendTelegram('🆕 <b>Дасгалын төв — шинэ бүртгэл (verify.mn)</b>\n\n👤 ' + (u.name || '(нэргүй)') + '\n📧 ' + mem
+              + (u.phone ? ('\n📱 ' + sms.maskPhone(u.phone, 2)) : '')));
           } catch (e) {}
           return wsIssue(req, res, mem);
         }
@@ -893,7 +898,7 @@ module.exports = async (req, res) => {
             const msg = '🆕 <b>Дасгалын төв — шинэ бүртгэл</b>\n\n'
               + '👤 ' + (u.name || '(нэргүй)') + '\n'
               + '📧 ' + email + (u.phone ? ('\n📱 ' + sms.maskPhone(u.phone, 2)) : '');
-            sendTelegram(msg).catch(() => {});
+            await tgWait(sendTelegram(msg));
           } catch (e) {}
           return wsIssue(req, res, email);
         }
