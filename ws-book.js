@@ -621,9 +621,9 @@
     }
     // ── Дэвтрийн нэмэлт хуудсууд (эзэмшигч 2026-11-15): х.2 өмнөх үг + хэвлэлийн мэдээлэл, х.3 хэрэглэх заавар, ажлын хуудсуудын дараа
     // «Миний ахиц» хүснэгт, тэмдэглэл (1 эсвэл 2 — хоёр талаар хэвлэхэд арын хавтас гадна талдаа тэгш хуудсанд). Хуудас бүр ЯГ нэг
-    // хэвлэх хуудас (өндөр тогтмол, мөр тогтмол өндөртэй) — хуудаслалт хэмжилтгүйгээр таарна. Тэмдэглэл, арын хавтас нийт/зорилтод орохгүй.
+    // хэвлэх хуудас (өндөр тогтмол, мөр тогтмол өндөртэй) — хуудаслалт хэмжилтгүйгээр таарна. Нэмэлт хуудсууд, тэмдэглэл, арын хавтас зорилтод орохгүй.
     var IMPRINT = { author: 'Бямбадорж', year: 2026, edition: '1 дэх хэвлэл' };
-    var FRONT = 2, FM = { prg: 0, prgN: 0, note: 0, noteN: 1 };
+    var FRONT = 2, FM = { prg: 0, prgN: 0, note: 0, noteN: 1, all: 0 };
     var FM_H = 268, PRG_ROW = 6.1, PRG_H1 = 34, PRG_HN = 10;       // мм: хуудасны ашиглах өндөр (нөөцтэй), мөр, толгой
     function gradeGen() { return /анги$/.test(D.label) ? D.label + 'йн' : D.label; }   // «11-р анги» → «11-р ангийн»
     function fmPre() {
@@ -1316,9 +1316,11 @@
         var n = x.pages || 1;
         x.sec.querySelector('.pno').textContent = !inVol(x) ? 'энэ дэвтэрт ороогүй' : cfg(x.it.slug).off ? 'номд ороогүй' : 'х. ' + x.p0 + (n > 1 ? '–' + (x.p0 + n - 1) : '');
       });
-      TOTAL = p - 1;
+      // зорилт (Авто 200/300, хамгийн бага) — өмнөх шигээ нүүр + агуулга + ажлын хуудас; нэмэлт хуудсууд (өмнөх үг, заавар, «Миний ахиц»),
+      // тэмдэглэл, арын хавтас зорилтод ОРОХГҮЙ (эс бөгөөс 2-р анги 200-д багтахгүй болж шахалт бүхэлдээ буцаагдав)
+      FM.all = p - 1; TOTAL = FM.all - FRONT - FM.prgN;
       var T = TG === 'none' ? 0 : TG === 'min' ? (tgAutoT || 1) : TG === 'auto' ? (tgAutoT || 200) : +TG, dT = TOTAL - T;
-      document.getElementById('sum').innerHTML = 'Нийт <b>' + TOTAL + '</b> хуудас + тэмдэглэл ' + FM.noteN + ' + арын хавтас'
+      document.getElementById('sum').innerHTML = 'Нийт <b>' + FM.all + '</b> хуудас (үндсэн ' + TOTAL + ') + тэмдэглэл ' + FM.noteN + ' + арын хавтас'
         + (T ? (TG === 'min' ? ' <span class="tg">хамгийн бага</span>' : TG === 'auto' && T !== 200 && T !== 300 ? ' <span class="tg off">200-д багтахгүй — 300-аас бага</span>'
           : ' <span class="tg' + (dT ? ' off' : '') + '">зорилт ' + T + (dT ? ' (' + (dT > 0 ? '+' : '') + dT + (dT < 0 ? ', ажлын хуудас цөөн' : '') + ')' : ' — таарсан') + '</span>') : '')
         + ' · ' + inc.length + ' ажлын хуудас <span class="s1">1 хуудастай ' + one + '</span> <span class="s2">2+ хуудастай ' + more + '</span>';
@@ -1449,7 +1451,7 @@
         for (var q = 0; q < n; q++) P.push({ k: 'ws', x: x, q: q, n: n, from: st2[q] || 0, to: q + 1 < st2.length ? st2[q + 1] : (x.tot || PAGE_H), no: x.p0 + q });
       });
       [].forEach.call(document.querySelectorAll('#fm-end .fm'), function (e, i) { P.push({ k: 'fm', el: e, no: FM.prg + i, t: e.classList.contains('fm-note') ? 'Тэмдэглэл' : 'Миний ахиц' }); });
-      if (document.getElementById('backcover')) P.push({ k: 'back', no: TOTAL + FM.noteN + 1 });
+      if (document.getElementById('backcover')) P.push({ k: 'back', no: FM.all + FM.noteN + 1 });
       return P;
     }
     // bare — эргэх навчинд (засварын хэрэгсэлгүй)
