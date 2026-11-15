@@ -84,3 +84,21 @@ test('book_set: гарчиг (t), бодолтын зай тус бүр (bh: { "
   const r3 = await W({ action: 'book_set', slug: 'x-2.html', data: { bh: [1, 2, 3], r: 'abc' } }, ADMIN);
   assert.deepStrictEqual(r3.body.data.bh, {}, 'массив bh хүлээж авахгүй'); assert.strictEqual(r3.body.data.r, 0);
 });
+
+test('B5 дэвтэр (paper: b5): тохиргоо тусдаа мөрөнд (b5:slug), A4-ийнх хөндөгдөхгүй; book_get-д A4 нь B5-ийн мөргүй', async () => {
+  await W({ action: 'book_set', slug: 'a-9.html', data: { off: true, p: 2, ok: true } }, ADMIN);
+  const r = await W({ action: 'book_set', paper: 'b5', slug: 'a-9.html', data: { p: 1 } }, ADMIN);
+  assert.strictEqual(r.statusCode, 200);
+  assert.deepStrictEqual([...book.keys()].sort(), ['a-9.html', 'b5:a-9.html']);
+  assert.strictEqual(JSON.parse(book.get('a-9.html')).p, 2, 'A4-ийн тохиргоо хэвээр');
+  assert.strictEqual(JSON.parse(book.get('b5:a-9.html')).p, 1);
+  const a4 = await W({ action: 'book_get' }, ADMIN);
+  assert.deepStrictEqual(Object.keys(a4.body).sort(), ['book', 'ok']);
+  assert.deepStrictEqual(Object.keys(a4.body.book), ['a-9.html'], 'A4-д B5-ийн мөр орохгүй');
+  const b5 = await W({ action: 'book_get', paper: 'b5' }, ADMIN);
+  assert.strictEqual(b5.body.book['a-9.html'].p, 2);
+  assert.deepStrictEqual(Object.keys(b5.body.book5), ['a-9.html']);
+  assert.strictEqual(b5.body.book5['a-9.html'].p, 1);
+  for (const o of [undefined, USER]) assert.strictEqual((await W({ action: 'book_set', paper: 'b5', slug: 'a-9.html', data: {} }, o)).statusCode, 401);
+  assert.strictEqual((await W({ action: 'book_set', paper: 'b5', slug: 'b5:a-9.html', data: {} }, ADMIN)).statusCode, 400, 'slug-д угтвар бичиж болохгүй');
+});

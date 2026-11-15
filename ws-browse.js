@@ -194,7 +194,7 @@
   }
   function gradeHtml(d) {
     var book = d.chapters.length && typeof isAdmin === 'function' && isAdmin()
-      ? '<button type="button" class="wsb-nwsw" data-book="1">' + ICO.book + ' Дасгал ажлын дэвтэр</button>' : '';
+      ? '<span class="wsb-bk"><button type="button" class="wsb-nwsw" data-book="1" aria-haspopup="menu">' + ICO.book + ' Дасгал ажлын дэвтэр</button></span>' : '';
     var h = '<div class="wsb-head"><span class="wsb-num">' + esc((d.label.match(/^\d+/) || [''])[0] || '·') + '</span><h2>' + esc(d.label) + '</h2>' + book + '</div>'
       + '<div class="wsb-meta"><span>' + d.items.length + ' хуудас</span>' + progHtml(d.items) + '</div>'
       + (d.label === 'ЭЕШ' && window.EESH_TOOL ? '<div class="wsb-eesh">' + EESH_TOOL + '</div>' : '');
@@ -541,13 +541,27 @@
     for (var i = 0; i < gs.length; i++) if (gs[i][0] === lab) { ST.g = i; return; }
   }
 
-  // Дасгал ажлын дэвтэр (админ): попапыг товшилтоос шууд нээнэ (blocker), ws-book.js-ийг хэрэгтэй үед л ачаална
-  function openBook() {
+  // Дасгал ажлын дэвтэр (админ): товч → цаасны сонголт (A4 — одоогийн, B5 — тусдаа тохиргоотой), сонголтын товшилтоос
+  // попапыг шууд нээнэ (blocker), ws-book.js-ийг хэрэгтэй үед л ачаална
+  function bookMenu(btn) {
+    var box = btn.parentNode, m = box.querySelector('.wsb-bkm');
+    if (m) { m.remove(); return; }
+    box.insertAdjacentHTML('beforeend', '<div class="wsb-bkm" role="menu">'
+      + '<button type="button" role="menuitem" data-bookp="a4"><b>A4</b><span>210 × 297 мм — одоогийн дэвтэр</span></button>'
+      + '<button type="button" role="menuitem" data-bookp="b5"><b>B5</b><span>176 × 250 мм — тусдаа тохиргоотой</span></button></div>');
+    m = box.querySelector('.wsb-bkm');
+    if (m.getBoundingClientRect().left < 8) m.classList.add('l');      // нарийн дэлгэцэнд товчны зүүн ирмэгээс
+  }
+  document.addEventListener('click', function (e) {
+    var m = document.querySelector('.wsb-bkm'); if (m && !(e.target.closest && e.target.closest('.wsb-bk'))) m.remove();
+  }, true);
+  document.addEventListener('keydown', function (e) { var m = e.key === 'Escape' && document.querySelector('.wsb-bkm'); if (m) m.remove(); });
+  function openBook(paper) {
     var pw = window.open('', '_blank');
     if (!pw) { alert('Popup блоклогдсон байна. Хөтчийн popup зөвшөөрлийг идэвхжүүлээд дахин дарна уу.'); return; }
-    var g = ST.g, go = function () { window.WSBOOK.build(g, pw); };
+    var g = ST.g, go = function () { window.WSBOOK.build(g, pw, paper); };
     if (window.WSBOOK) { go(); return; }
-    var s = document.createElement('script'); s.src = '/ws-book.js?v=20';
+    var s = document.createElement('script'); s.src = '/ws-book.js?v=21';
     s.onload = go; s.onerror = function () { try { pw.document.body.textContent = 'ws-book.js ачаалагдсангүй'; } catch (e) {} };
     document.head.appendChild(s);
   }
@@ -568,7 +582,8 @@
     if ((el = t.closest('[data-view]'))) { e.preventDefault(); view(el.getAttribute('data-view')); return; }
     if ((el = t.closest('[data-new]'))) { go({ nw: !ST.nw, nwAll: false, q: '' }, { noHash: true }); return; }
     if ((el = t.closest('[data-nwall]'))) { ST.nwAll = el.getAttribute('data-nwall') === '1'; render(true); return; }
-    if ((el = t.closest('[data-book]'))) { openBook(); return; }
+    if ((el = t.closest('[data-bookp]'))) { el.closest('.wsb-bkm').remove(); openBook(el.getAttribute('data-bookp')); return; }
+    if ((el = t.closest('[data-book]'))) { bookMenu(el); return; }
     if ((el = t.closest('[data-gpick]'))) { go({ g: +el.getAttribute('data-gpick'), ch: null, t: null, q: '' }); return; }
     if ((el = t.closest('[data-et]'))) { go({ t: el.getAttribute('data-et') || null, ch: null, q: '' }); return; }   // ЭЕШ нүүр / хэсэг
     if ((el = t.closest('[data-go]'))) {

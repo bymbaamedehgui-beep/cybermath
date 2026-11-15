@@ -171,8 +171,18 @@
     return loadSheet(slug, work, o).then(function (s) { restore(); return s; }, function (e) { restore(); throw e; });
   }
 
-  /* ── 3) Бүтээх: татах явц попапд, дараа нь ном ── */
-  function build(gi, pw) {
+  // B5 дэвтэр: өөрийн тохиргоо (b5:slug) хадгалагдаагүй хуудас A4-ийн агуулгын сонголтыг өвлөнө — номд оруулах эсэх, бодолтын
+  // зайгүй, гарчиг, бодлогын тоо/үр, даалгаврын зай (g, bh). «Шалгасан» ба хуудасны тоо (p) B5-д тусдаа
+  function b5Settings(a4, b5) {
+    var out = {};
+    Object.keys(a4 || {}).forEach(function (k) { var s = a4[k] || {}; out[k] = { off: s.off, nw: s.nw, t: s.t, n: s.n, r: s.r, g: s.g, bh: s.bh }; });
+    Object.keys(b5 || {}).forEach(function (k) { out[k] = b5[k]; });
+    return out;
+  }
+
+  /* ── 3) Бүтээх: татах явц попапд, дараа нь ном. paper: 'b5' — B5 дэвтэр (эс бөгөөс A4) ── */
+  function build(gi, pw, paper) {
+    var b5 = paper === 'b5', pl = b5 ? ' · B5' : '';
     var o = outline(gi);
     if (!o || !o.chapters.length) { try { pw.document.body.textContent = 'Энэ ангид ажлын хуудас алга.'; } catch (e) {} return; }
     var list = [], seen = {};
@@ -186,21 +196,21 @@
     });
     try {
       pw.document.open();
-      pw.document.write('<!doctype html><html lang="mn"><head><meta charset="utf-8"><title>Дасгал ажлын дэвтэр — ' + esc(o.label) + '</title></head>'
+      pw.document.write('<!doctype html><html lang="mn"><head><meta charset="utf-8"><title>Дасгал ажлын дэвтэр — ' + esc(o.label) + pl + '</title></head>'
         + '<body style="margin:0;font:700 15px \'Segoe UI\',Arial,sans-serif;color:#4b4566;background:#f4f2f8;text-align:center;padding:110px 20px">'
-        + '<div style="font-size:22px;font-weight:900;color:#14214a;margin-bottom:10px">Дасгал ажлын дэвтэр · ' + esc(o.label) + '</div>'
+        + '<div style="font-size:22px;font-weight:900;color:#14214a;margin-bottom:10px">Дасгал ажлын дэвтэр · ' + esc(o.label) + pl + '</div>'
         + '<div id="st">Ажлын хуудсуудыг ачаалж байна…</div><div style="margin-top:8px;font-size:13px;color:#8a84a3">Энэ цонхыг болон Дасгалын төвийн хуудсыг бүү хаагаарай.</div></body></html>');
       pw.document.close();
     } catch (e) {}
     // ЗӨВХӨН АДМИН: серверээр (book_get, админы JWT) баталгаажсаны дараа л ажлын хуудсуудыг ачаална
-    fetch('/api/worksheets', { method: 'POST', headers: adminHdr(), body: JSON.stringify({ action: 'book_get' }) })
+    fetch('/api/worksheets', { method: 'POST', headers: adminHdr(), body: JSON.stringify(b5 ? { action: 'book_get', paper: 'b5' } : { action: 'book_get' }) })
       .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { status: r.status, j: j }; }); })
       .then(function (x) {
         if (!(x.j && x.j.ok)) {
           try { pw.document.getElementById('st').textContent = x.status === 401 ? 'Зөвхөн админ ашиглана. /admin хуудсаар нэвтэрнэ үү.' : 'Сервертэй холбогдож чадсангүй. Дахин оролдоно уу.'; } catch (e) {}
           return;
         }
-        load(x.j.book || {});
+        load(b5 ? b5Settings(x.j.book, x.j.book5) : (x.j.book || {}));
       }, function () { try { pw.document.getElementById('st').textContent = 'Сервертэй холбогдож чадсангүй. Дахин оролдоно уу.'; } catch (e) {} });
     function load(settings) {
       var restore = scaleOff(), done = 0, next = 0;
@@ -224,16 +234,16 @@
           if (!it.snap) return;
           it.cls = it.snap.styles.map(function (t) { if (!idx.has(t)) { idx.set(t, blocks.length); blocks.push(t); } return 'cb-' + idx.get(t); }).join(' ');
         });
-        var D = { label: o.label, year: new Date().getFullYear(), list: list, blocks: blocks, settings: settings,
+        var D = { paper: b5 ? 'b5' : 'a4', label: o.label, year: new Date().getFullYear(), list: list, blocks: blocks, settings: settings,
           chapters: o.chapters.map(function (c) { return { roman: c.roman, title: c.title, topics: c.topics.map(function (t) { return { num: t.num, title: t.title }; }) }; }) };
         pw.document.open();
         // Скрипт stylesheet-ээс ӨМНӨ: хүлээгдэж буй CSS-ийн дараах inline скрипт хойшилдог тул __bookInit доор шууд дуудагдахгүй болно
         pw.document.write('<!doctype html><html lang="mn"><head><meta charset="utf-8"><base href="' + location.origin + '/">'
-          + '<title>Дасгал ажлын дэвтэр — ' + esc(o.label) + '</title>'
+          + '<title>Дасгал ажлын дэвтэр — ' + esc(o.label) + pl + '</title>'
           + '<script>(' + bookMain.toString() + ')();<\/script>'
           + '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">'
           + '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&display=swap">'
-          + '<style>' + BOOK_CSS + '</style></head><body><div id="app"></div></body></html>');
+          + '<style>' + BOOK_CSS + (b5 ? BOOK_CSS_B5 : '') + '</style></head><body><div id="app"></div></body></html>');
         pw.document.close();
         pw.__bookInit(D);
       });
@@ -249,6 +259,8 @@
     // халивал (≤ 1/Z1) хуудсыг Z1+ болгож 1 хуудсанд (текстийг үүнээс илүү жижигрүүлэхгүй). FIT_H — 8 мм нөөц: хэвлэхэд мөр
     // шилжилт дэлгэцээс бага зэрэг өөр (урт өгүүлбэр нэг мөр илүү) — 3 мм-д 2-р ангийн 6 хуудас нэг хуудсаар халисан.
     var FIT_H = PAGE_H - 8 * MM, AF_MIN = 0.4, AF_MAX = 3, ZM_MIN = 0.5, Z1 = 0.94, F1_MIN = 0.55;
+    // Цаас (мм): A4 — анхдагч; B5 — 176×250, захын зай 10 (__bookInit D.paper-аар). key — B5-ийн зорилт/дэвтрийн хүрээг A4-өөс тусад хадгална
+    var PAPER = { pw: 210, ph: 297, m: 11, key: '' };
     var HEADS = '.task, .sec, h1, h2, h3, h4, h5, .intro';   // гарчиг — дараагийн бодлогоосоо хуудсаар салахгүй
     var ICO_OK = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
     var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
@@ -268,6 +280,8 @@
     function coverHTML(v) { KIT = KIT || coverKit(); return KIT.cover(Object.assign({ v: v }, COVER_DATA)).replace('<section class="cover', '<section id="cover" class="cover'); }
     // Арын хавтас — номын сүүлийн хуудас (хуудасны дугааргүй, нийт/зорилтын тоонд орохгүй)
     function backHTML(v) { KIT = KIT || coverKit(); return KIT.back(Object.assign({ v: v }, COVER_DATA)).replace('<section class="cover', '<section id="backcover" class="cover'); }
+    // B5: A4-ийн нүүр/арын хавтсыг B5 хуудсанд (.cvz) 250/297 масштабаар — баруун ирмэгээс 0.8 мм тайрагдана
+    function cvWrap(h) { return PAPER.key ? '<div class="cvz">' + h + '</div>' : h; }
     function coverKit() {
       var QR_N = 25, QR_D = 'M0 0h7v1h-7zM11 0h1v1h-1zM14 0h1v1h-1zM18 0h7v1h-7zM0 1h1v1h-1zM6 1h1v1h-1zM8 1h5v1h-5zM18 1h1v1h-1zM24 1h1v1h-1zM0 2h1v1h-1zM2 2h3v1h-3zM6 2h1v1h-1zM8 2h1v1h-1zM12 2h1v1h-1zM15 2h2v1h-2zM18 2h1v1h-1zM20 2h3v1h-3zM24 2h1v1h-1zM0 3h1v1h-1zM2 3h3v1h-3zM6 3h1v1h-1zM8 3h1v1h-1zM10 3h1v1h-1zM12 3h3v1h-3zM18 3h1v1h-1zM20 3h3v1h-3zM24 3h1v1h-1zM0 4h1v1h-1zM2 4h3v1h-3zM6 4h1v1h-1zM11 4h3v1h-3zM16 4h1v1h-1zM18 4h1v1h-1zM20 4h3v1h-3zM24 4h1v1h-1zM0 5h1v1h-1zM6 5h1v1h-1zM9 5h2v1h-2zM12 5h3v1h-3zM16 5h1v1h-1zM18 5h1v1h-1zM24 5h1v1h-1zM0 6h7v1h-7zM8 6h1v1h-1zM10 6h1v1h-1zM12 6h1v1h-1zM14 6h1v1h-1zM16 6h1v1h-1zM18 6h7v1h-7zM8 7h1v1h-1zM11 7h2v1h-2zM0 8h1v1h-1zM6 8h1v1h-1zM8 8h1v1h-1zM10 8h6v1h-6zM17 8h2v1h-2zM21 8h3v1h-3zM1 9h1v1h-1zM3 9h3v1h-3zM8 9h2v1h-2zM14 9h2v1h-2zM17 9h1v1h-1zM19 9h5v1h-5zM0 10h3v1h-3zM5 10h4v1h-4zM10 10h1v1h-1zM12 10h2v1h-2zM15 10h2v1h-2zM19 10h3v1h-3zM23 10h2v1h-2zM0 11h2v1h-2zM5 11h1v1h-1zM8 11h1v1h-1zM10 11h1v1h-1zM12 11h1v1h-1zM14 11h1v1h-1zM16 11h3v1h-3zM21 11h1v1h-1zM24 11h1v1h-1zM1 12h1v1h-1zM5 12h2v1h-2zM8 12h2v1h-2zM16 12h1v1h-1zM18 12h2v1h-2zM24 12h1v1h-1zM0 13h1v1h-1zM2 13h2v1h-2zM5 13h1v1h-1zM8 13h1v1h-1zM12 13h2v1h-2zM15 13h2v1h-2zM19 13h1v1h-1zM23 13h1v1h-1zM0 14h1v1h-1zM2 14h1v1h-1zM4 14h4v1h-4zM10 14h1v1h-1zM13 14h4v1h-4zM18 14h4v1h-4zM23 14h2v1h-2zM0 15h1v1h-1zM4 15h2v1h-2zM10 15h1v1h-1zM12 15h1v1h-1zM19 15h1v1h-1zM21 15h2v1h-2zM24 15h1v1h-1zM0 16h1v1h-1zM2 16h1v1h-1zM4 16h1v1h-1zM6 16h3v1h-3zM10 16h1v1h-1zM12 16h3v1h-3zM16 16h5v1h-5zM22 16h1v1h-1zM8 17h2v1h-2zM13 17h1v1h-1zM16 17h1v1h-1zM20 17h1v1h-1zM0 18h7v1h-7zM9 18h1v1h-1zM12 18h2v1h-2zM16 18h1v1h-1zM18 18h1v1h-1zM20 18h1v1h-1zM24 18h1v1h-1zM0 19h1v1h-1zM6 19h1v1h-1zM10 19h2v1h-2zM14 19h1v1h-1zM16 19h1v1h-1zM20 19h1v1h-1zM0 20h1v1h-1zM2 20h3v1h-3zM6 20h1v1h-1zM10 20h2v1h-2zM15 20h6v1h-6zM22 20h3v1h-3zM0 21h1v1h-1zM2 21h3v1h-3zM6 21h1v1h-1zM12 21h3v1h-3zM17 21h2v1h-2zM23 21h2v1h-2zM0 22h1v1h-1zM2 22h3v1h-3zM6 22h1v1h-1zM9 22h2v1h-2zM13 22h3v1h-3zM21 22h2v1h-2zM24 22h1v1h-1zM0 23h1v1h-1zM6 23h1v1h-1zM12 23h2v1h-2zM15 23h6v1h-6zM24 23h1v1h-1zM0 24h7v1h-7zM8 24h1v1h-1zM10 24h4v1h-4zM16 24h1v1h-1zM18 24h1v1h-1zM21 24h1v1h-1zM24 24h1v1h-1z';
       var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
@@ -572,6 +586,11 @@
 
     window.__bookInit = function (data) {
       D = data;
+      if (D.paper === 'b5') {
+        PAPER = { pw: 176, ph: 250, m: 10, key: 'b5:' };
+        PAGE_H = (PAPER.ph - 2 * PAPER.m) * MM; FIT_H = PAGE_H - 8 * MM;
+        document.documentElement.classList.add('b5');
+      }
       Object.keys(D.settings || {}).forEach(function (k) {
         var s = D.settings[k] || {};
         SET[k] = { s: s.s == null ? 1 : +s.s, g: Array.isArray(s.g) ? s.g.map(function (v) { return v == null ? null : +v; }) : [], off: !!s.off, nw: !!s.nw, ok: !!s.ok,
@@ -595,6 +614,7 @@
       if (katex && !katex.sheet) ready.push(new Promise(function (r) { katex.onload = katex.onerror = r; }));
       // Эхний тооцоо багцаар: бүгдийг уншаад → бүгдийг бичээд → бүгдийг уншаад → бүгдийг бичнэ (119 хуудсанд layout-ыг дахин дахин бодуулахгүй)
       Promise.race([Promise.all(ready), new Promise(function (r) { setTimeout(r, 5000); })]).then(function () {
+        ITEMS.forEach(fitWide);                                            // зөвхөн B5
         ITEMS.forEach(measure);
         fitAll(ITEMS);
         var res = ITEMS.map(calc);
@@ -723,14 +743,15 @@
     }
     function render() {
       var app = document.getElementById('app'), h = '';
-      try { TG = TG_DEF[D.label] || 'auto'; var tg0 = localStorage.getItem(TG_KEY + D.label); if (tg0 && /^(auto|min|none|[1-9][0-9]{1,2})$/.test(tg0)) TG = tg0; } catch (e) {}
+      // анхдагч зорилт A4, B5-д ижил (TG_DEF); сонгосон зорилт цаас тус бүрд тусдаа хадгалагдана
+      try { TG = TG_DEF[D.label] || 'auto'; var tg0 = localStorage.getItem(TG_KEY + PAPER.key + D.label); if (tg0 && /^(auto|min|none|[1-9][0-9]{1,2})$/.test(tg0)) TG = tg0; } catch (e) {}
       var nCh = D.chapters.length; VR = { v: 'I', a: 0, b: Math.max(0, nCh - 1) };
       try {
-        var vr = JSON.parse(localStorage.getItem(VOL_KEY + D.label) || 'null');
+        var vr = JSON.parse(localStorage.getItem(VOL_KEY + PAPER.key + D.label) || 'null');
         if (vr) { VR.v = typeof vr.v === 'string' ? vr.v : 'I'; VR.a = Math.max(0, Math.min(nCh - 1, vr.a | 0)); VR.b = Math.max(VR.a, Math.min(nCh - 1, vr.b == null ? nCh - 1 : vr.b | 0)); }
       } catch (e) {}
       // Хэрэгслийн мөр — санамсаргүй хуваагдахгүйн тулд 2 тодорхой мөр: (1) нэр, тоо, явц (2) удирдлага
-      h += '<div class="tb"><div class="tb-r"><b>Дасгал ажлын дэвтэр · ' + esc(D.label) + '</b><span id="sum"></span><span id="prog" class="prog"></span></div>'
+      h += '<div class="tb"><div class="tb-r"><b>Дасгал ажлын дэвтэр · ' + esc(D.label) + (PAPER.key ? ' · B5' : '') + '</b><span id="sum"></span><span id="prog" class="prog"></span></div>'
         + '<div class="tb-r"><label class="tb-f"><input type="checkbox" id="onlyTodo"> Зөвхөн шалгаагүй</label>'
         + '<label class="tb-f"><input type="checkbox" id="onlyLong"> Зөвхөн 2+ хуудастай</label>'
         + '<select id="jump"><option value="">Хуудас руу очих…</option>' + D.list.map(function (it) { return '<option value="' + it.n + '">№' + it.n + ' ' + esc(it.title) + '</option>'; }).join('') + '</select>'
@@ -747,7 +768,7 @@
         + 'хоёр нүүрээр эргүүлж үзнэ. <span class="tip-r">Улаан тасархай</span> — хуудас солигдох газар. Өөрчлөлт бүр автоматаар хадгалагдана.</div>';
       // Нүүр — 8 загвар («Нүүр» сонголт, энэ хөтөчид хадгалагдана), дэвтрийн дугаар, cyber-math.com руу орох QR-тай
       coverData(); cvKey = CV + JSON.stringify(COVER_DATA) + (window.katex ? 'k' : '');
-      h += coverHTML(CV);
+      h += cvWrap(coverHTML(CV));
       h += fmPre() + fmUse();                                            // х.2 өмнөх үг + хэвлэлийн мэдээлэл, х.3 заавар
       // Агуулга — хэвлэсэн хуудасны дугаараар (хуудас бүрийн доод талын дугаартай таарна); дугаарыг totals() тооцоолно
       // Хэвлэх цонхны захын зай/масштаб өөрчлөгдвөл хуудаслалт агуулгатай таарахгүй — тэр үед л агуулгын хуудсанд гарна (container query)
@@ -779,7 +800,7 @@
           + '<div class="wsx-paper ' + it.cls + '" style="' + esc(it.snap.root) + '">' + it.snap.html + '</div></section>';
       });
       // Арын хавтас — номын сүүлийн хуудас (нийт/зорилтын тоонд орохгүй: одоогийн хуудаслалт, засвар хэвээр)
-      h += '<div id="fm-end"></div>' + backHTML(CV);                    // «Миний ахиц», тэмдэглэл (totals зурна), арын хавтас
+      h += '<div id="fm-end"></div>' + cvWrap(backHTML(CV));            // «Миний ахиц», тэмдэглэл (totals зурна), арын хавтас
       app.innerHTML = h;
       D.list.forEach(function (it) {
         if (!it.snap) return;
@@ -792,9 +813,9 @@
       setTbh(); window.addEventListener('resize', setTbh);
       document.getElementById('prt').onclick = function () { window.print(); };
       document.getElementById('flipb').onclick = function () { openFlip(); };
-      document.getElementById('tgsel').onchange = function () { TG = this.value; try { localStorage.setItem(TG_KEY + D.label, TG); } catch (e) {} tgStuck = -1; ITEMS.forEach(function (x) { x.tgBad = false; }); retarget(); };
+      document.getElementById('tgsel').onchange = function () { TG = this.value; try { localStorage.setItem(TG_KEY + PAPER.key + D.label, TG); } catch (e) {} tgStuck = -1; ITEMS.forEach(function (x) { x.tgBad = false; }); retarget(); };
       document.getElementById('cvsel').onchange = function () { CV = this.value; try { localStorage.setItem(CV_KEY, CV); } catch (e) {} redrawCover(true); };
-      var saveVR = function () { try { localStorage.setItem(VOL_KEY + D.label, JSON.stringify(VR)); } catch (e) {} };
+      var saveVR = function () { try { localStorage.setItem(VOL_KEY + PAPER.key + D.label, JSON.stringify(VR)); } catch (e) {} };
       document.getElementById('volsel').onchange = function () { VR.v = this.value; saveVR(); redrawCover(); };
       document.getElementById('cha').onchange = function () {
         VR.a = +this.value; if (VR.b < VR.a) { VR.b = VR.a; document.getElementById('chb').value = String(VR.b); }
@@ -963,6 +984,33 @@
       window.addEventListener('pointermove', mv); window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
     }
     function measure(x) { x.boxes.forEach(function (b) { b.setAttribute('data-h0', b.getBoundingClientRect().height || parseFloat(getComputedStyle(b).height) || 40); }); }
+    // B5: нарийн талбайд (156 мм) багтахгүй хэсэг (1.5 мм-ээс их халисан). Бодлого олон баганатай торонд байвал баганыг нэгээр
+    // цөөлнө (текст A4-тэй ижил хэмжээтэй хэвээр); үгүй бол (ганц баганад ч өргөн томьёо, зураг) тэр бодлогыг л жижигрүүлнэ (zoom).
+    // Хэмжихээс (measure) ӨМНӨ, фонт ачаалагдсаны дараа; хамгийн их халисныг нэг нэгээр (≤ 16 алхам)
+    function fitWide(x) {
+      if (!PAPER.key || !x.sheet) return;
+      [].forEach.call(x.sheet.querySelectorAll('[data-wz]'), function (e) { e.style.zoom = ''; e.style.gridTemplateColumns = ''; e.removeAttribute('data-wz'); });
+      var skip = '.wsx-sc, .wsx-bx, .wsx-hl, .gd, .wsx-wm, .cm-wm, .wsx-ev';
+      for (var k = 0; k < 16; k++) {
+        var R = x.sheet.getBoundingClientRect(), abs = [], worst = null, over = 1.5 * MM, rr0 = null;
+        [].forEach.call(x.sheet.querySelectorAll('*'), function (e) { var p = getComputedStyle(e).position; if (p === 'absolute' || p === 'fixed') abs.push(e); });
+        [].forEach.call(x.sheet.querySelectorAll('*'), function (e) {
+          if (e.closest(skip) || (e.parentNode && e.parentNode.closest && e.parentNode.closest('svg'))) return;
+          if (abs.some(function (a) { return a.contains(e); }) || getComputedStyle(e).display === 'none') return;
+          var rr = e.getBoundingClientRect(); if (!rr.width) return;
+          if (rr.right - R.right > over) { over = rr.right - R.right; worst = e; rr0 = rr; }
+        });
+        if (!worst) return;
+        var q = worst.closest('.q, .prob, .t-item'); if (q && !x.sheet.contains(q)) q = null;
+        var g = q && q.parentNode !== x.sheet ? q.parentNode : null, gs = g ? getComputedStyle(g) : null;
+        var n = gs && /grid/.test(gs.display) ? gs.gridTemplateColumns.split(/\s+/).filter(function (v) { return v && v !== 'none'; }).length : 0;
+        if (n > 1) { g.style.gridTemplateColumns = 'repeat(' + (n - 1) + ', minmax(0, 1fr))'; g.setAttribute('data-wz', '1'); continue; }
+        var el = q || worst.closest('.katex') || worst, r = el.getBoundingClientRect();
+        var z = (el.style.zoom ? +el.style.zoom : 1) * Math.max(0.4, Math.min(1, (R.right - r.left) / Math.max(1, rr0.right - r.left) - 0.005));
+        if (getComputedStyle(el).display === 'inline') el.style.display = 'inline-block';
+        el.style.zoom = z.toFixed(3); el.setAttribute('data-wz', '1');
+      }
+    }
     // Бодолтын зайтай ↔ зайгүй: ажлын хуудсыг тухайн горимоор нь дахин ачаална (Дасгалын төвийн цонх нээлттэй байх ёстой)
     function reload(x) {
       var s = cfg(x.it.slug), op = window.opener;
@@ -973,7 +1021,7 @@
         x.paper.className = 'wsx-paper ' + clsFor(snap.styles);
         x.paper.setAttribute('style', snap.root);
         x.paper.innerHTML = snap.html;
-        prep(x); measure(x); apply(x); totals(); save(x);
+        prep(x); fitWide(x); measure(x); apply(x); totals(); save(x);
       }, function (e) { setSt(x, 'Ачаалж чадсангүй: ' + esc(String((e && e.message) || e)), 'err'); })
         .then(function () { x.sec.classList.remove('busy'); });
     }
@@ -1270,7 +1318,7 @@
       var pages = r.pages, br = r.br;
       x.pages = pages; x.br = br; x.tot = r.total;                         // «Ном шиг харах» хуудас бүрийг эндээс хэрчинэ
       [].forEach.call(x.paper.querySelectorAll('.gd'), function (g) { g.remove(); });
-      br.forEach(function (y, i) { x.paper.insertAdjacentHTML('beforeend', '<div class="gd" style="top:calc(11mm + ' + Math.round(y) + 'px)"><span>' + (i + 2) + '-р хуудас</span></div>'); });
+      br.forEach(function (y, i) { x.paper.insertAdjacentHTML('beforeend', '<div class="gd" style="top:calc(' + PAPER.m + 'mm + ' + Math.round(y) + 'px)"><span>' + (i + 2) + '-р хуудас</span></div>'); });
       var pg = x.sec.querySelector('.pgs');
       pg.textContent = pages + ' хуудас'; pg.className = 'pgs p' + Math.min(pages, 3);
       // Хуудас дүүргэсэн бодолтын зай (анхны хэмжээтэй харьцуулсан, хуудас тус бүрээр) эсвэл жижигрүүлсэн хэмжээ
@@ -1445,7 +1493,7 @@
       var P = [{ k: 'cover' }, { k: 'fm', el: document.getElementById('fm-pre'), no: 2, t: 'Өмнөх үг' }, { k: 'fm', el: document.getElementById('fm-use'), no: 3, t: 'Хэрэглэх заавар' }],
         toc = document.querySelector('.toc'), nT = tocPages();
       if (toc) {
-        var c0 = toc.getBoundingClientRect().top + 11 * MM, end = toc.getBoundingClientRect().bottom - 11 * MM - c0;
+        var c0 = toc.getBoundingClientRect().top + PAPER.m * MM, end = toc.getBoundingClientRect().bottom - PAPER.m * MM - c0;
         var st = [0].concat([].map.call(toc.querySelectorAll('.toc-pb'), function (r) { return r.getBoundingClientRect().top - c0; }));
         for (var i = 0; i < nT; i++) P.push({ k: 'toc', from: st[i] || 0, to: i + 1 < st.length ? st[i + 1] : end, no: 2 + FRONT + i });
       }
@@ -1547,8 +1595,8 @@
     }
     function fitFlip() {
       if (!FP) return;
-      var st = FP.ov.querySelector('.fp-stage'), w = st.clientWidth - 80, h = st.clientHeight - 24, W = (FP.mode === 2 ? 420 : 210) * MM;
-      var k = Math.max(0.1, Math.min(w / W, h / (297 * MM)));
+      var st = FP.ov.querySelector('.fp-stage'), w = st.clientWidth - 80, h = st.clientHeight - 24, W = (FP.mode === 2 ? 2 : 1) * PAPER.pw * MM;
+      var k = Math.max(0.1, Math.min(w / W, h / (PAPER.ph * MM)));
       FP.k = k; FP.ov.querySelector('.fp-book').style.transform = 'translate(-50%,-50%) scale(' + k + ')';
     }
     function closeFlip() {
@@ -1624,7 +1672,9 @@
       var slug = x.it.slug; setSt(x, 'Хадгалж байна…', 'busy');
       clearTimeout(timers[slug]);
       timers[slug] = setTimeout(function () {
-        fetch('/api/worksheets', { method: 'POST', headers: hdr(), body: JSON.stringify({ action: 'book_set', slug: slug, data: cfg(slug) }) })
+        var body = { action: 'book_set', slug: slug, data: cfg(slug) };
+        if (PAPER.key) body.paper = 'b5';                                  // B5-ийн тохиргоо тусдаа (A4-ийнх хөндөгдөхгүй)
+        fetch('/api/worksheets', { method: 'POST', headers: hdr(), body: JSON.stringify(body) })
           .then(function (r) { return r.json(); })
           .then(function (j) { if (j && j.ok) setSt(x, ICO_OK + ' Хадгалсан', 'ok'); else setSt(x, 'Хадгалагдсангүй: ' + esc((j && j.error) || ''), 'err'); })
           .catch(function () { setSt(x, 'Сүлжээний алдаа — дахин оролдоно уу', 'err'); });
@@ -1982,5 +2032,25 @@
     '.cover,.toc,.wsx,.fm{margin:0!important;box-shadow:none!important}.toc{padding:0;width:auto}.fm{padding:0!important;width:auto!important}.wsx{width:auto}.wsx-paper{width:auto;padding:0;box-shadow:none;opacity:1!important}}',
   ].join('');
 
-  window.WSBOOK = { build: build, snap: snapOne, _main: bookMain, _css: BOOK_CSS, _outline: outline };   // snap — засварлагч хуудсыг дахин ачаална; _main/_css/_outline — тест
+  // B5 дэвтэр (176×250 мм, захын зай 10 → талбай 156×230 мм): зөвхөн B5 попапд BOOK_CSS-ийн дараа. Ажлын хуудас B5 талбайн
+  // өргөнд дахин урсана (текст A4-тэй ижил хэмжээтэй); нүүр/арын хавтас (250/297) ба нэмэлт хуудсууд (156/188) — A4-ийнхийг масштабаар
+  var BOOK_CSS_B5 = [
+    '@page{size:176mm 250mm;margin:10mm}',
+    '.b5 .wsx,.b5 .wsx-err{width:176mm}.b5 .wsx-paper{width:156mm;padding:10mm}.b5 .toc{width:156mm;padding:10mm}',
+    // агуулгын анхааруулга: хэвлэх талбай 156 мм биш бол (A4-ийн 188 мм-ийн нөхцөлийг цуцлана)
+    '@container (max-width:184mm){.b5 .toc-warn{display:none}}',
+    '@container (min-width:160mm) or (max-width:152mm){.b5 .toc-warn{display:block;position:absolute;z-index:9;top:0;right:0;width:108mm;padding:3mm 4mm;border:.7mm solid #dc2626;border-radius:3mm;background:#fff;color:#b91c1c;font:600 10pt/1.45 "Segoe UI",Arial,sans-serif}}',
+    '.b5 .cvz{page:cover;position:relative;width:176mm;height:250mm;margin:16px auto;overflow:hidden;background:#FBFAF6;box-shadow:0 10px 30px -14px rgba(20,33,74,.35)}',
+    '.b5 .cvz>.cover,.b5 .fp-pg>.cover{zoom:.84175;margin:0!important;box-shadow:none!important}',
+    '.b5 .fm{zoom:.82979}',
+    // үнэлгээний мөр: нарийн өргөнд шугам богино, багтахгүй бол багшийн хэсэг 2 мөр
+    '.b5 .wsx-paper .ev-c:first-child{flex:none}.b5 .wsx-paper .ev-t{flex-wrap:wrap;row-gap:1.5mm}.b5 .wsx-paper .ev-t i{width:10mm}.b5 .wsx-paper .ev-t i.w{width:17mm}',
+    // «Ном шиг харах»
+    '.b5 .fp-book{width:352mm;height:250mm}.b5 #flip.one .fp-book{width:176mm}',
+    '.b5 .fp-l,.b5 .fp-r,.b5 .fp-l>.fp-w,.b5 .fp-r>.fp-w,.b5 .fp-face>.fp-w,.b5 .fp-pg,.b5 .fp-leaf{width:176mm;height:250mm}.b5 .fp-leaf.fwd{left:176mm}',
+    '.b5 .fp-vp{left:10mm;top:10mm;width:156mm}.b5 .fp-src{width:156mm!important}.b5 .fp-no{height:10mm}',
+    '@media print{.b5 .cvz{margin:0!important;box-shadow:none!important}}'
+  ].join('');
+
+  window.WSBOOK = { build: build, snap: snapOne, _main: bookMain, _css: BOOK_CSS, _cssB5: BOOK_CSS_B5, _outline: outline, _b5Settings: b5Settings };   // snap — засварлагч хуудсыг дахин ачаална; _main/_css/_outline — тест
 })();

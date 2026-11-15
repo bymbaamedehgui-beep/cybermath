@@ -1225,11 +1225,14 @@ module.exports = async (req, res) => {
       if (b.action === 'book_get' || b.action === 'book_set') {
         if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' });
         await bookTable();
+        // B5 дэвтэр (paper: 'b5') — тохиргоо тусдаа мөрөнд ('b5:' + slug), A4-ийнх хөндөгдөхгүй. B5-д A4-ийн тохиргоог ч
+        // буцаана (өөрийн мөргүй хуудас A4-ийн агуулгын сонголтыг өвлөнө — ws-book.js b5Settings)
+        const b5 = b.paper === 'b5';
         if (b.action === 'book_get') {
           const r = await pool.query('SELECT slug, data FROM ws_book');
-          const book = {};
-          r.rows.forEach(x => { book[x.slug] = x.data || {}; });
-          return res.json({ ok: true, book: book });
+          const book = {}, book5 = {};
+          r.rows.forEach(x => { if (x.slug.indexOf('b5:') === 0) book5[x.slug.slice(3)] = x.data || {}; else book[x.slug] = x.data || {}; });
+          return res.json(b5 ? { ok: true, book: book, book5: book5 } : { ok: true, book: book });
         }
         const slug = String(b.slug || '').slice(0, 140);
         if (!/^[A-Za-z0-9._-]+\.html$/.test(slug)) return res.status(400).json({ ok: false, error: 'slug буруу' });
@@ -1252,7 +1255,7 @@ module.exports = async (req, res) => {
         await pool.query(
           `INSERT INTO ws_book (slug, data, updated_at) VALUES ($1,$2::jsonb,NOW())
            ON CONFLICT (slug) DO UPDATE SET data=EXCLUDED.data, updated_at=NOW()`,
-          [slug, JSON.stringify(clean)]);
+          [(b5 ? 'b5:' : '') + slug, JSON.stringify(clean)]);
         return res.json({ ok: true, data: clean });
       }
       // Мэдээллийн зурвас (announce) авах — нээлттэй

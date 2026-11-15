@@ -55,5 +55,5 @@ test('Бусад ангид нөлөөлөхгүй (анги бүр зөвхөн
 });
 
 test('ws-book.js-ийн шинэ хувилбарыг ачаална (кэш)', () => {
-  assert.match(R('ws-browse.js'), /s\.src = '\/ws-book\.js\?v=20';/);
+  assert.match(R('ws-browse.js'), /s\.src = '\/ws-book\.js\?v=21';/);
 });
