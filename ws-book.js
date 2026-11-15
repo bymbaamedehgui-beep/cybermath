@@ -262,6 +262,8 @@
     var CV_KEY = 'cm_book_cover', CV = 'c', COVER_DATA = null, KIT = null;
     try { var cv0 = localStorage.getItem(CV_KEY); if (cv0 && COVERS.some(function (c) { return c[0] === cv0; })) CV = cv0; } catch (e) {}
     function coverHTML(v) { KIT = KIT || coverKit(); return KIT.cover(Object.assign({ v: v }, COVER_DATA)).replace('<section class="cover', '<section id="cover" class="cover'); }
+    // Арын хавтас — номын сүүлийн хуудас (хуудасны дугааргүй, нийт/зорилтын тоонд орохгүй)
+    function backHTML(v) { KIT = KIT || coverKit(); return KIT.back(Object.assign({ v: v }, COVER_DATA)).replace('<section class="cover', '<section id="backcover" class="cover'); }
     function coverKit() {
       var QR_N = 25, QR_D = 'M0 0h7v1h-7zM11 0h1v1h-1zM14 0h1v1h-1zM18 0h7v1h-7zM0 1h1v1h-1zM6 1h1v1h-1zM8 1h5v1h-5zM18 1h1v1h-1zM24 1h1v1h-1zM0 2h1v1h-1zM2 2h3v1h-3zM6 2h1v1h-1zM8 2h1v1h-1zM12 2h1v1h-1zM15 2h2v1h-2zM18 2h1v1h-1zM20 2h3v1h-3zM24 2h1v1h-1zM0 3h1v1h-1zM2 3h3v1h-3zM6 3h1v1h-1zM8 3h1v1h-1zM10 3h1v1h-1zM12 3h3v1h-3zM18 3h1v1h-1zM20 3h3v1h-3zM24 3h1v1h-1zM0 4h1v1h-1zM2 4h3v1h-3zM6 4h1v1h-1zM11 4h3v1h-3zM16 4h1v1h-1zM18 4h1v1h-1zM20 4h3v1h-3zM24 4h1v1h-1zM0 5h1v1h-1zM6 5h1v1h-1zM9 5h2v1h-2zM12 5h3v1h-3zM16 5h1v1h-1zM18 5h1v1h-1zM24 5h1v1h-1zM0 6h7v1h-7zM8 6h1v1h-1zM10 6h1v1h-1zM12 6h1v1h-1zM14 6h1v1h-1zM16 6h1v1h-1zM18 6h7v1h-7zM8 7h1v1h-1zM11 7h2v1h-2zM0 8h1v1h-1zM6 8h1v1h-1zM8 8h1v1h-1zM10 8h6v1h-6zM17 8h2v1h-2zM21 8h3v1h-3zM1 9h1v1h-1zM3 9h3v1h-3zM8 9h2v1h-2zM14 9h2v1h-2zM17 9h1v1h-1zM19 9h5v1h-5zM0 10h3v1h-3zM5 10h4v1h-4zM10 10h1v1h-1zM12 10h2v1h-2zM15 10h2v1h-2zM19 10h3v1h-3zM23 10h2v1h-2zM0 11h2v1h-2zM5 11h1v1h-1zM8 11h1v1h-1zM10 11h1v1h-1zM12 11h1v1h-1zM14 11h1v1h-1zM16 11h3v1h-3zM21 11h1v1h-1zM24 11h1v1h-1zM1 12h1v1h-1zM5 12h2v1h-2zM8 12h2v1h-2zM16 12h1v1h-1zM18 12h2v1h-2zM24 12h1v1h-1zM0 13h1v1h-1zM2 13h2v1h-2zM5 13h1v1h-1zM8 13h1v1h-1zM12 13h2v1h-2zM15 13h2v1h-2zM19 13h1v1h-1zM23 13h1v1h-1zM0 14h1v1h-1zM2 14h1v1h-1zM4 14h4v1h-4zM10 14h1v1h-1zM13 14h4v1h-4zM18 14h4v1h-4zM23 14h2v1h-2zM0 15h1v1h-1zM4 15h2v1h-2zM10 15h1v1h-1zM12 15h1v1h-1zM19 15h1v1h-1zM21 15h2v1h-2zM24 15h1v1h-1zM0 16h1v1h-1zM2 16h1v1h-1zM4 16h1v1h-1zM6 16h3v1h-3zM10 16h1v1h-1zM12 16h3v1h-3zM16 16h5v1h-5zM22 16h1v1h-1zM8 17h2v1h-2zM13 17h1v1h-1zM16 17h1v1h-1zM20 17h1v1h-1zM0 18h7v1h-7zM9 18h1v1h-1zM12 18h2v1h-2zM16 18h1v1h-1zM18 18h1v1h-1zM20 18h1v1h-1zM24 18h1v1h-1zM0 19h1v1h-1zM6 19h1v1h-1zM10 19h2v1h-2zM14 19h1v1h-1zM16 19h1v1h-1zM20 19h1v1h-1zM0 20h1v1h-1zM2 20h3v1h-3zM6 20h1v1h-1zM10 20h2v1h-2zM15 20h6v1h-6zM22 20h3v1h-3zM0 21h1v1h-1zM2 21h3v1h-3zM6 21h1v1h-1zM12 21h3v1h-3zM17 21h2v1h-2zM23 21h2v1h-2zM0 22h1v1h-1zM2 22h3v1h-3zM6 22h1v1h-1zM9 22h2v1h-2zM13 22h3v1h-3zM21 22h2v1h-2zM24 22h1v1h-1zM0 23h1v1h-1zM6 23h1v1h-1zM12 23h2v1h-2zM15 23h6v1h-6zM24 23h1v1h-1zM0 24h7v1h-7zM8 24h1v1h-1zM10 24h4v1h-4zM16 24h1v1h-1zM18 24h1v1h-1zM21 24h1v1h-1zM24 24h1v1h-1z';
       var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
@@ -496,7 +498,61 @@
         }
         return h + '</section>';
       }
-      return { cover: cover, qr: qr };
+      // Арын хавтас (номын сүүлийн хуудас): нүүрний загварын өнгө/дэвсгэрийг (cv-<v>) дагана; C төрлийнхөд нуруу баруун талд.
+      // Агуулга: товч танилцуулга, энэ дэвтэрт орсон бүлгүүд, 3 онцлог, QR (cyber-math.com). C.cht = [{ r: 'I', t: 'Бүлгийн нэр' }]
+      function back(C) {
+        var v = C.v || 'a', num = String(C.num || ''), cty = /^c/.test(v), dark = v === 'a' || v === 'd';
+        var vol = C.vol ? String(C.vol) : '', vb = vol ? '<span class="cv-vol">' + esc(vol) + '</span>' : '';
+        var brand = '<div class="cv-brand"><img src="/assets/cybermath-mascot.svg" alt=""><b>CYBERMATH</b><span>Дасгалын төв</span></div>';
+        var ic = function (p) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + p + '</svg>'; };
+        var FT = [
+          [ic('<rect x="3.5" y="3.5" width="17" height="17" rx="2.5"/><path d="M3.5 9.5h17M3.5 15h17M9.5 3.5v17M15 3.5v17" stroke-width="1.1" opacity=".55"/><path d="M14.5 17.5l5.5-5.5 1.8 1.8-5.5 5.5-2.4.6z" fill="#fff"/>'), 'Бодолтын зай', 'хуудас бүрт'],
+          [ic('<path d="M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/>'), 'Үнэлгээний мөр', 'сурагч ба багш'],
+          [ic('<rect x="2.8" y="7.5" width="18.4" height="10" rx="5"/><path d="M7.5 10.6v3.8M5.6 12.5h3.8"/><circle cx="15.6" cy="11.4" r=".9" fill="currentColor" stroke="none"/><circle cx="17.8" cy="13.6" r=".9" fill="currentColor" stroke="none"/>'), 'Тоглоомын төв', 'тоглож давтана']
+        ];
+        var chs = (C.cht || []).filter(function (c) { return c && c.t; });
+        var it = function (x, y, t, c) { return '<text x="' + x + '" y="' + y + '" font-family="Cambria Math,Cambria,Times New Roman,serif" font-style="italic" font-weight="700" font-size="4.2" fill="' + c + '">' + t + '</text>'; };
+        var h = '<section class="cover back cv-' + v + (cty ? ' sp' : '') + '">';
+        if (cty) h += '<div class="bk-spine"><span>МАТЕМАТИК · ДАСГАЛ АЖЛЫН ДЭВТЭР' + (vol ? ' ' + esc(vol) : '') + '</span></div>';
+        if (v === 'a') {                                                     // одтой шөнө (нүүртэй ижил)
+          var R = rnd(11), st = '';
+          for (var i = 0; i < 90; i++) st += '<circle cx="' + (R() * 210).toFixed(1) + '" cy="' + (R() * 297).toFixed(1) + '" r="' + (0.16 + R() * 0.45).toFixed(2) + '" opacity="' + (0.3 + R() * 0.6).toFixed(2) + '"/>';
+          h += '<svg class="cv-bg" viewBox="0 0 210 297" preserveAspectRatio="none" aria-hidden="true"><g fill="#fff">' + st + '</g></svg>';
+        } else if (!dark) {                                                  // бүдэг том тойрог (дээд талд)
+          h += '<svg class="cv-bg" viewBox="0 0 210 297" aria-hidden="true">'
+            + '<g fill="none" stroke="#14214A" stroke-width=".45" opacity=".16"><circle cx="' + (cty ? 150 : 166) + '" cy="30" r="22"/><path d="M' + (cty ? 150 : 166) + ' 30l15.6-15.6"/></g></svg>';
+        }
+        // Онцлог ба QR-ын хоорондох сул зайд (бүлгийн тооноос хамааран өөр) — нүүрний C-тэй нэг хэв маягийн жижиг тод дүрсүүд
+        // Дүрс бүр тусдаа svg — мөрийн өргөнөөр жигд тархаж, өндөр нь сул зайд тааруулж (≤ 18 мм) багасна
+        var DS = [
+          ['2 1 50 33', '<g fill="none" stroke="#14214A" stroke-width=".45" stroke-linecap="round" opacity=".28"><path d="M4 28H50M48 26.4l2 1.6-2 1.6M12 33V3M10.4 5l1.6-2 1.6 2"/></g>'
+            + '<path d="M18 6Q31 44 44 6" fill="none" stroke="#7B61FF" stroke-width=".9" opacity=".42"/><g fill="#FF7A59" opacity=".6"><circle cx="18" cy="6" r=".9"/><circle cx="31" cy="25" r=".9"/><circle cx="44" cy="6" r=".9"/></g>'],
+          ['63 8 28 23', '<polygon points="66,28 88,28 66,11" fill="#7B61FF" fill-opacity=".12" stroke="#7B61FF" stroke-width=".9" stroke-linejoin="round"/><path d="M66 24h4v4" fill="none" stroke="#7B61FF" stroke-width=".55"/>'],
+          ['95 10 18 18', '<circle cx="104" cy="19" r="7" fill="#FF7A59" fill-opacity=".12" stroke="#FF7A59" stroke-width=".9"/><path d="M104 19h7" stroke="#FF7A59" stroke-width=".7"/><circle cx="104" cy="19" r=".8" fill="#FF7A59"/>' + it(106.2, 17.6, 'r', '#FF7A59')],
+          ['121 10 18 18', '<polygon points="137.5,19 133.75,25.5 126.25,25.5 122.5,19 126.25,12.5 133.75,12.5" fill="#0F9F94" fill-opacity=".12" stroke="#0F9F94" stroke-width=".9" stroke-linejoin="round"/>'],
+          ['143 9 26 21', '<path d="M166 27H146L160 12" fill="none" stroke="#7B61FF" stroke-width=".9" stroke-linecap="round" stroke-linejoin="round"/>'
+            + '<path d="M154 27A8 8 0 0 0 152.02 21.73" fill="none" stroke="#7B61FF" stroke-width=".6"/>' + it(156, 24.6, 'α', '#7B61FF')]
+        ];
+        var deco = dark ? '' : DS.map(function (d) { return '<svg viewBox="' + d[0] + '" aria-hidden="true">' + d[1] + '</svg>'; }).join('');
+        h += '<div class="cv-in">' + brand
+          + '<div class="bk-card"><i class="c-tape"></i>'
+          + (num ? '<div class="bk-num' + (num.length > 1 ? ' two' : '') + '"><b>' + esc(num) + '</b><span>АНГИ</span></div>' : '')
+          + '<div class="cv-kick">МАТЕМАТИК' + (num ? '' : ' · ' + esc(String(C.label || '').toUpperCase())) + '</div>'
+          + '<h2>Дасгал ажлын дэвтэр' + vb + '</h2>'
+          + '<p class="bk-p">Сурах бичгийн бүлэг, сэдвийн дарааллаар бэлтгэсэн ажлын хуудсууд. Хуудас бүр бодолтын зайтай, сурагч өөрийгөө, багш сурагчийг үнэлэх мөртэй.</p>'
+          + (chs.length ? '<div class="bk-h">Энэ дэвтэрт</div><ol class="bk-ch' + (chs.length > 8 ? ' two' : '') + '">' + chs.map(function (c) {
+            return '<li><b>' + esc(c.r || '•') + '</b><span>' + esc(c.t) + '</span></li>';
+          }).join('') + '</ol>' : '')
+          + '<div class="c-st">' + esc([C.ch + ' бүлэг', C.tp + ' сэдэв', C.ws + ' ажлын хуудас'].join(' · ')) + '</div></div>'
+          + '<div class="bk-ft">' + FT.map(function (f) { return '<div>' + f[0] + '<b>' + f[1] + '</b><span>' + f[2] + '</span></div>'; }).join('') + '</div>'
+          + '<div class="bk-deco">' + deco + '</div>'
+          + '<div class="bk-low"><div class="bk-site"><b>cyber-math.com</b><span>Дасгалын төв · Тоглоомын төв</span></div>'
+          + '<div class="cv-qrb">' + qr() + '<div class="cv-qrt"><b>Онлайн дасгал</b><span>Утсаараа уншуулаад<br>cyber-math.com руу ороорой</span></div></div></div>'
+          + '<div class="cv-foot"><span>CyberMath</span><span>' + esc(C.year) + '</span></div>'
+          + '</div></section>';
+        return h;
+      }
+      return { cover: cover, back: back, qr: qr };
     }
     /* COVERKIT:END */
     // CSS блок → .cb-N (дахин ачаалсан хуудсанд шинэ блок гарвал энд нэмнэ)
@@ -551,16 +607,17 @@
     function inBook(x) { return !cfg(x.it.slug).off && inVol(x); }
     // Нүүрний өгөгдөл — тухайн дэвтэрт орсон бүлэг, сэдэв, ажлын хуудсаар
     function coverData() {
-      var gm = String(D.label).match(/^(\d+)\s*-?\s*р?\s*анги$/i), chs = [], tp = 0, ws = 0;
-      D.chapters.forEach(function (c, i) { if (i < VR.a || i > VR.b) return; if (c.roman) chs.push(c.roman); tp += c.topics.length; });
+      var gm = String(D.label).match(/^(\d+)\s*-?\s*р?\s*анги$/i), chs = [], cht = [], tp = 0, ws = 0;
+      D.chapters.forEach(function (c, i) { if (i < VR.a || i > VR.b) return; if (c.roman) { chs.push(c.roman); cht.push({ r: c.roman, t: c.title }); } tp += c.topics.length; });
       D.list.forEach(function (it) { if (it.snap && it.ci >= VR.a && it.ci <= VR.b && !cfg(it.slug).off) ws++; });
-      COVER_DATA = { label: D.label, num: gm ? gm[1] : '', ch: chs.length || (VR.b - VR.a + 1), tp: tp, ws: ws, year: D.year, chs: chs, vol: VR.v };
+      COVER_DATA = { label: D.label, num: gm ? gm[1] : '', ch: chs.length || (VR.b - VR.a + 1), tp: tp, ws: ws, year: D.year, chs: chs, cht: cht, vol: VR.v };
     }
     var cvKey = '';
     function redrawCover(force) {
       coverData(); var k = CV + JSON.stringify(COVER_DATA) + (window.katex ? 'k' : '');
       if (k === cvKey && !force) return; cvKey = k;
       var old = document.getElementById('cover'); if (old) old.outerHTML = coverHTML(CV);
+      var bk = document.getElementById('backcover'); if (bk) bk.outerHTML = backHTML(CV);
     }
     function render() {
       var app = document.getElementById('app'), h = '';
@@ -615,6 +672,8 @@
           + '<span class="sst"></span></div>'
           + '<div class="wsx-paper ' + it.cls + '" style="' + esc(it.snap.root) + '">' + it.snap.html + '</div></section>';
       });
+      // Арын хавтас — номын сүүлийн хуудас (нийт/зорилтын тоонд орохгүй: одоогийн хуудаслалт, засвар хэвээр)
+      h += backHTML(CV);
       app.innerHTML = h;
       D.list.forEach(function (it) {
         if (!it.snap) return;
@@ -1154,7 +1213,7 @@
       });
       TOTAL = p - 1;
       var T = TG === 'none' ? 0 : TG === 'min' ? (tgAutoT || 1) : TG === 'auto' ? (tgAutoT || 200) : +TG, dT = TOTAL - T;
-      document.getElementById('sum').innerHTML = 'Нийт <b>' + TOTAL + '</b> хуудас'
+      document.getElementById('sum').innerHTML = 'Нийт <b>' + TOTAL + '</b> хуудас + арын хавтас'
         + (T ? (TG === 'min' ? ' <span class="tg">хамгийн бага</span>' : TG === 'auto' && T !== 200 && T !== 300 ? ' <span class="tg off">200-д багтахгүй — 300-аас бага</span>'
           : ' <span class="tg' + (dT ? ' off' : '') + '">зорилт ' + T + (dT ? ' (' + (dT > 0 ? '+' : '') + dT + (dT < 0 ? ', ажлын хуудас цөөн' : '') + ')' : ' — таарсан') + '</span>') : '')
         + ' · ' + inc.length + ' ажлын хуудас <span class="s1">1 хуудастай ' + one + '</span> <span class="s2">2+ хуудастай ' + more + '</span>';
@@ -1283,6 +1342,7 @@
         var br = x.br || [], st2 = [0].concat(br), n = x.pages || 1;
         for (var q = 0; q < n; q++) P.push({ k: 'ws', x: x, q: q, n: n, from: st2[q] || 0, to: q + 1 < st2.length ? st2[q + 1] : (x.tot || PAGE_H), no: x.p0 + q });
       });
+      if (document.getElementById('backcover')) P.push({ k: 'back', no: TOTAL + 1 });
       return P;
     }
     // bare — эргэх навчинд (засварын хэрэгсэлгүй)
@@ -1290,7 +1350,7 @@
       var el = document.createElement('div'); el.className = 'fp-w';
       var pg = document.createElement('div'); pg.className = 'fp-pg'; el.appendChild(pg);
       if (!p) { pg.classList.add('fp-blank'); return el; }
-      if (p.k === 'cover') { var cv = document.getElementById('cover'); if (cv) { cv = cv.cloneNode(true); cv.removeAttribute('id'); pg.appendChild(cv); } return el; }
+      if (p.k === 'cover' || p.k === 'back') { var cv = document.getElementById(p.k === 'back' ? 'backcover' : 'cover'); if (cv) { cv = cv.cloneNode(true); cv.removeAttribute('id'); pg.appendChild(cv); } return el; }
       var src = p.k === 'toc' ? document.querySelector('.toc') : p.x.paper; if (!src) return el;
       var cl = src.cloneNode(true);
       [].forEach.call(cl.querySelectorAll('.gd, .toc-warn' + (bare ? ', .wsx-sc, .wsx-bx, .wsx-hl' : '')), function (e) { e.remove(); });
@@ -1305,7 +1365,7 @@
     // Доод мөр: харагдаж буй ажлын хуудасны удирдлага (жинхэнэ хуудасны тохиргоог өөрчилнө)
     function ctlEl(p) {
       var el = document.createElement('div'); el.className = 'fp-w fp-ctl';
-      if (!p || p.k !== 'ws') { el.innerHTML = '<span class="t">' + (p ? (p.k === 'cover' ? 'Нүүр' : 'Агуулга') : '') + '</span>'; return el; }
+      if (!p || p.k !== 'ws') { el.innerHTML = '<span class="t">' + (p ? (p.k === 'cover' ? 'Нүүр' : p.k === 'back' ? 'Арын хавтас' : 'Агуулга') : '') + '</span>'; return el; }
       var x = p.x, s = cfg(x.it.slug), pb = function (v, l) { return '<button type="button" data-a="p" data-v="' + v + '"' + ((s.p || 0) === v ? ' class="on"' : '') + '>' + l + '</button>'; };
       el._it = x; el.classList.toggle('ok', s.ok);
       el.innerHTML = '<b>№' + x.it.n + '</b><span class="t">' + esc(s.t || x.it.title) + (p.n > 1 ? ' <i>' + (p.q + 1) + '/' + p.n + '</i>' : '') + '</span>'
@@ -1621,6 +1681,43 @@
   '.cv-o .cv-line{position:absolute;left:0;bottom:0;width:100%;height:14mm}',
   '.cv-o .cv-chick{position:absolute;left:8mm;bottom:8.5mm;width:40mm;filter:drop-shadow(0 3mm 4mm rgba(20,33,74,.18))}',
   '.cv-o .o-low{margin-top:auto;display:flex;align-items:flex-end;gap:10mm}',
+  /* арын хавтас — бүх загварт (дэвсгэр нь cv-<v>-ээс), C төрлийнхөд нуруу баруун талд */
+  '.cover.back .cv-in{padding:18mm 20mm 13mm}.cover.back.sp .cv-in{padding:18mm 33mm 13mm 17mm}',
+  '.cover.back .bk-spine{position:absolute;right:0;top:0;bottom:0;width:17mm;background:#14214A;display:flex;align-items:center;justify-content:center;z-index:3}',
+  '.cover.back .bk-spine:after{content:"";position:absolute;left:-2.4mm;top:0;bottom:0;width:2.4mm;background:#FFC93C}',
+  '.cover.back .bk-spine span{transform:rotate(90deg);white-space:nowrap;font-size:9pt;font-weight:800;letter-spacing:.42em;color:#FFC93C}',
+  '.cover.back .bk-card{position:relative;margin-top:17mm;padding:11mm 11mm 9mm;border:.7mm solid #14214A;border-radius:6mm;background:#fff;box-shadow:2.4mm 2.4mm 0 #14214A;color:#14214A}',
+  '.cover.back .c-tape{position:absolute;left:14mm;top:-5mm;width:44mm;height:10mm;transform:rotate(-4deg);background:rgba(255,201,60,.8)}',
+  '.cover.back .bk-num{position:absolute;right:-8mm;top:-12mm;width:30mm;height:30mm;border-radius:50%;background:#FFC93C;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#14214A;font-weight:900}',
+  '.cover.back .bk-num:before{content:"";position:absolute;inset:-2.6mm;border-radius:50%;border:.4mm dashed #14214A}',
+  '.cover.back .bk-num b{font-size:42pt;line-height:.8;letter-spacing:-1pt}.cover.back .bk-num.two b{font-size:30pt}',
+  '.cover.back .bk-num span{margin-top:2mm;font-size:6.5pt;line-height:1;font-weight:800;letter-spacing:.36em;padding-left:.36em}',
+  '.cover.back .cv-kick{margin:0;font-size:9.5pt;color:#7B61FF}',
+  '.cover.back h2{margin:3mm 0 0;max-width:120mm;font-size:24pt;line-height:1.08;font-weight:800;letter-spacing:-.3pt;color:#14214A}',
+  '.cover.back .bk-p{margin:4.5mm 0 0;max-width:132mm;font-size:10pt;line-height:1.55;font-weight:600;color:#4A5072}',
+  '.cover.back .bk-h{margin-top:6.5mm;font-size:8pt;font-weight:800;letter-spacing:.26em;text-transform:uppercase;color:#7B61FF}',
+  '.cover.back .bk-ch{list-style:none;margin:2.8mm 0 0;padding:0;display:grid;gap:2mm}',
+  '.cover.back .bk-ch.two{grid-template-columns:1fr 1fr;column-gap:7mm}',
+  '.cover.back .bk-ch li{display:flex;align-items:baseline;gap:3mm;min-width:0;font-size:10pt;font-weight:600;line-height:1.3;color:#14214A}',
+  '.cover.back .bk-ch b{flex:none;min-width:8mm;font-weight:800;color:#7B61FF}',
+  '.cover.back .bk-ch span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+  '.cover.back .c-st{margin-top:5.5mm;padding-top:4mm;border-top:.4mm dashed #C9CCDB;font-size:9.5pt;font-weight:700;color:#6B7090}',
+  '.cover.back .bk-ft{display:grid;grid-template-columns:repeat(3,1fr);gap:5mm;margin-top:10mm}',
+  '.cover.back .bk-ft div{padding:4mm 4mm 3.6mm;border:.55mm solid #14214A;border-radius:4mm;background:#fff;box-shadow:1.4mm 1.4mm 0 #14214A;color:#14214A}',
+  '.cover.back .bk-ft svg{display:block;width:8.5mm;height:8.5mm;color:#7B61FF}',
+  '.cover.back .bk-ft b{display:block;margin-top:2.6mm;font-size:9.5pt;font-weight:800}',
+  '.cover.back .bk-ft span{display:block;margin-top:.8mm;font-size:8pt;font-weight:600;color:#6B7090}',
+  '.cover.back .bk-deco{flex:1 1 auto;min-height:4mm;display:flex;align-items:center;justify-content:space-around;padding:4mm 2mm;overflow:hidden}',
+  '.cover.back .bk-deco svg{display:block;height:100%;max-height:18mm;width:auto}',
+  '.cover.back .bk-low{margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:8mm}',
+  '.cover.back .bk-site b{display:block;font-size:16pt;font-weight:800;letter-spacing:.02em;color:#14214A}',
+  '.cover.back .bk-site span{display:block;margin-top:1.6mm;font-size:9pt;font-weight:700;color:#6B7090}',
+  '.cover.back .cv-qrb{padding:3.5mm 5mm 3.5mm 3.5mm;border:.6mm solid #14214A;border-radius:4mm;background:#fff;box-shadow:1.6mm 1.6mm 0 #14214A}',
+  '.cover.back .cv-foot{margin-top:7mm}',
+  '.cover.back.cv-d{background:linear-gradient(160deg,#937DFF 0%,#5B3BD9 45%,#14214A 100%)}',
+  '.cover.back.cv-a .cv-brand b,.cover.back.cv-d .cv-brand b,.cover.back.cv-a .bk-site b,.cover.back.cv-d .bk-site b{color:#fff}',
+  '.cover.back.cv-a .cv-brand span,.cover.back.cv-d .cv-brand span{color:#DCD4FF;border-left-color:rgba(255,255,255,.35)}',
+  '.cover.back.cv-a .bk-site span,.cover.back.cv-d .bk-site span,.cover.back.cv-a .cv-foot,.cover.back.cv-d .cv-foot{color:#C9D2F2}',
     /* COVERCSS:END */
     /* агуулга */
     '.toc{break-before:page;width:188mm;margin:16px auto;background:#fff;padding:11mm;box-sizing:content-box;position:relative;container-type:inline-size}',
