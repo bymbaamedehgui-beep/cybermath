@@ -43,12 +43,12 @@ async function buy(email, game, grade, extra) {
 
 beforeEach(() => F.reset());
 
-test('_games: normGrade / normTopic allowlist (6–12; бусад → null)', () => {
-  assert.deepStrictEqual(GM.GRADES, ['6', '7', '8', '9', '10', '11', '12']);
+test('_games: normGrade / normTopic allowlist (5–12; бусад → null)', () => {
+  assert.deepStrictEqual(GM.GRADES, ['5', '6', '7', '8', '9', '10', '11', '12']);
   assert.deepStrictEqual(GM.SOON_GRADES, ['11']);
   ['6', '7', '10', '12', ' 8 ', 9, 12].forEach((v) => assert.strictEqual(GM.normGrade(v), String(v).trim(), JSON.stringify(v)));
   // 11-р анги «Тун удахгүй» → null (худалдан авах/launch/олголтод сонгогдохгүй)
-  ['5', '13', '0', '08', '7a', 'abc', '', null, undefined, 6.5, [], {}, ['8'], true, '__proto__', '11', 11, ' 11 '].forEach((v) =>
+  ['4', '13', '0', '08', '7a', 'abc', '', null, undefined, 6.5, [], {}, ['8'], true, '__proto__', '11', 11, ' 11 '].forEach((v) =>
     assert.strictEqual(GM.normGrade(v), null, JSON.stringify(v)));
   assert.strictEqual(GM.normTopic('512'), '512');
   assert.strictEqual(GM.normTopic(0), '0');
@@ -56,8 +56,8 @@ test('_games: normGrade / normTopic allowlist (6–12; бусад → null)', ()
   ['-1', '1234567', 'x', '1.5', '', null, {}].forEach((v) => assert.strictEqual(GM.normTopic(v), null, JSON.stringify(v)));
 });
 
-test('create: буруу анги (5, 13, 7a, 08, массив) → 400, нэхэмжлэх/мөр ҮҮСЭХГҮЙ; ангигүй (хуучин клиент) → 200, game_grade NULL', async () => {
-  for (const bad of ['5', '13', 5, 13, '7a', '08', 'abc', ['8'], { g: 8 }, 6.5]) {
+test('create: буруу анги (4, 13, 7a, 08, массив) → 400, нэхэмжлэх/мөр ҮҮСЭХГҮЙ; ангигүй (хуучин клиент) → 200, game_grade NULL', async () => {
+  for (const bad of ['4', '13', 4, 13, '7a', '08', 'abc', ['8'], { g: 8 }, 6.5]) {
     const r = await Q('create', { plan: 'game', realm: 'ws', game: 'sudoku', wstoken: wsTok('kid@x.mn'), game_grade: bad });
     assert.strictEqual(r.statusCode, 400, JSON.stringify(bad) + ' ' + JSON.stringify(r.body));
     assert.strictEqual(r.body.badGrade, true);
@@ -77,7 +77,7 @@ test('create: буруу анги (5, 13, 7a, 08, массив) → 400, нэх�
   assert.strictEqual((await Q('create', { plan: 'game', realm: 'ws', game: 'sudoku', game_grade: '13' })).statusCode, 401);
 });
 
-test('create: анги ҮНЭД нөлөөлөхгүй (6–12 бүгд ижил, GAME_PRICE); нэхэмжлэх дээр анги, тайлбарт «N-р анги»', async () => {
+test('create: анги ҮНЭД нөлөөлөхгүй (5–12 бүгд ижил, GAME_PRICE); нэхэмжлэх дээр анги, тайлбарт «N-р анги»', async () => {
   const amounts = [];
   // 11-р анги «Тун удахгүй» → 400 {badGrade, soon}, нэхэмжлэх үүсэхгүй
   const n0 = F.qp.invoices.length;
@@ -94,7 +94,7 @@ test('create: анги ҮНЭД нөлөөлөхгүй (6–12 бүгд ижил
     amounts.push(row.amount, r.body.amount, F.qp.invoices[F.qp.invoices.length - 1].body.amount);
   }
   assert.ok(amounts.every((a) => a === 1900), JSON.stringify(amounts));
-  assert.strictEqual(F.qp.invoices[2].body.invoice_description, 'CyberMath тоглоом — MATH MORTAL — 8-р анги — 1 сар');
+  assert.strictEqual(F.qp.invoices[3].body.invoice_description, 'CyberMath тоглоом — MATH MORTAL — 8-р анги — 1 сар');
   process.env.GAME_PRICE = '2500';
   const r = await Q('create', { plan: 'game', realm: 'ws', game: 'ludo', wstoken: wsTok('p@x.mn'), game_grade: '12' });
   assert.strictEqual(F.db.pay.get(r.body.invoice.invoice_id).amount, 2500);
@@ -181,7 +181,7 @@ test('launch: эрхтэй + хүчинтэй анги → game_access.grade UPD
   assert.match(r.body.url, /^\/sudoku\.html\?realm=ws&grade=10&topic=0&t=/, 'сэдэвгүй → topic=0');
   assert.strictEqual(access('ws', 'k@x.mn', 'sudoku').grade, '10');
   // буруу анги/сэдэв → үл тоомсорлоно (тоглоомыг хаахгүй), url хуучин хэлбэрээр
-  for (const bad of ['13', '5', 'x', '', null]) {
+  for (const bad of ['13', '4', 'x', '', null]) {
     r = await launchWs('k@x.mn', 'sudoku', { grade: bad, topic: '9' });
     assert.strictEqual(r.statusCode, 200);
     assert.match(r.body.url, /^\/sudoku\.html\?realm=ws&t=[A-Za-z0-9._%-]+$/, JSON.stringify(bad));

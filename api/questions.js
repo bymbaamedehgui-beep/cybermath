@@ -153,13 +153,13 @@ async function pickUnseen(email, nodeId, rows, n) {
 }
 
 /* ── Тоглоомын нийтлэг бодлогын сан (Дасгалын төв ба гадны тоглоомууд) ──
-   GET ?game_topics=<6..12>                      → бүлэг → сэдэв (node) + тоглоомд тохирох бодлогын тоо
-   GET ?game=<6..12>&topic=<node_id|0>&n=<1..60> → санамсаргүй тохирох бодлого (topic=0 → ангийн бүх сэдэв)
+   GET ?game_topics=<5..12>                      → бүлэг → сэдэв (node) + тоглоомд тохирох бодлогын тоо
+   GET ?game=<5..12>&topic=<node_id|0>&n=<1..60> → санамсаргүй тохирох бодлого (topic=0 → ангийн бүх сэдэв)
    Анги = NODE-ийн анги (questions.grade найдваргүй: 12-р ангид NULL). Нийтийн, админ/токен шаардахгүй.
    «Тохирох» бодлого: type='choice', шалгалтын биш, зураггүй, хоосон биш 4 ЯЛГААТАЙ сонголт, зөв хариу
    сонголтуудын дотор, текст/сонголтод HTML шошго ба сондгой тооны $ (эвдэрсэн KaTeX) байхгүй.
    Шүүлт SQL-д (gameFitSql — тоолох, ачаалал багасгах) ба JS-д (gameFit — давхар хамгаалалт) ИЖИЛ дүрмээр. */
-const GAME_GRADE_RE = /^(6|7|8|9|10|11|12)$/;
+const GAME_GRADE_RE = /^(5|6|7|8|9|10|11|12)$/;
 /* «Тун удахгүй» анги (эзэмшигчийн шийдвэр: 11-р ангийн бодлого хангалтгүй) — тоглоомын салбарт 400 {soon:true}.
    Клиентээр тойрох боломжгүй (games.js launch / qpay create мөн _games.js normGrade-ээр татгалзана). */
 const GAME_SOON = { '11': 1 };
@@ -303,7 +303,7 @@ async function gameNodes(g) {
 }
 async function gameTopicsHandler(req, res) {
   const g = String(req.query.game_topics == null ? '' : req.query.game_topics).trim();
-  if (!GAME_GRADE_RE.test(g)) return gameBad(res, 'game_topics: анги 6–12 байх ёстой');
+  if (!GAME_GRADE_RE.test(g)) return gameBad(res, 'game_topics: анги 5–12 байх ёстой');
   if (GAME_SOON[g]) return gameSoon(res, g);
   let rows;
   if (gameHud(req.query)) {
@@ -333,7 +333,7 @@ async function gameTopicsHandler(req, res) {
 async function gameQuestionsHandler(req, res) {
   const q = req.query;
   const g = String(q.game == null ? '' : q.game).trim();
-  if (!GAME_GRADE_RE.test(g)) return gameBad(res, 'game: анги 6–12 байх ёстой');
+  if (!GAME_GRADE_RE.test(g)) return gameBad(res, 'game: анги 5–12 байх ёстой');
   if (GAME_SOON[g]) return gameSoon(res, g);
   const hud = gameHud(q);
   const topic = gameInt(q.topic, 0);

@@ -12,6 +12,7 @@ const { secretMissing, requireAdmin } = require('./_guard');
 // 9-р анги: node зөөхгүй/устгахгүй; ORDER-оор sort_order-ыг сурах бичгийн бүлгийн дарааллаар (index.html нь DB-д «📝» бататгал
 // гарсны дараа 9-р ангийг бусад ангийн адил sort_order-оор зурна), COPIES — 8-р ангийн давтлага node (901–914)
 const PATHS = {
+  '5': { load: () => require('./_g5path'), lo: 1001, hi: 1099, move: true, fill: 'empty' },
   '9': { load: () => require('./_g9path'), lo: 1, hi: 160, move: false, fill: 'add' },
   '11': { load: () => require('./_g11path'), lo: 801, hi: 899, move: true, fill: 'empty' },
 };
@@ -164,7 +165,7 @@ module.exports = async (req, res) => {
         return res.json({ ok: true });
       }
 
-      // Хичээлийн замын багц суулгах (админ › Бодлогууд › Learning path хяналт): 11-р анги — api/_g11path.js
+      // Хичээлийн замын багц суулгах (админ › Бодлогууд › Learning path хяналт): 5-р анги — api/_g5path.js, 11-р анги — api/_g11path.js
       if (action === 'installPath') return res.json(await installPath(String(req.body.grade || '')));
 
       // intro_html хадгалах (зөвхөн HTML widget)

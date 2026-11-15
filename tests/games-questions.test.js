@@ -213,7 +213,7 @@ beforeEach(() => {
 
 // ───────────── game_topics ─────────────
 test('game_topics: буруу анги → 400, SQL 0, no-store', async () => {
-  for (const g of ['', '5', '13', '10x', '6-old', 'abc', '07', '1 0', ['7', '8']]) {
+  for (const g of ['', '4', '13', '10x', '6-old', 'abc', '07', '1 0', ['7', '8']]) {
     db.log.length = 0;
     const r = await get({ game_topics: g });
     assert.strictEqual(r.statusCode, 400, JSON.stringify(g));
@@ -277,7 +277,7 @@ test('HTML шошгоны regex: шошгыг барина, TeX тэнцэтгэ
 // ───────────── game ─────────────
 test('game: буруу параметр → 400, SQL 0', async () => {
   const bad = [
-    { game: '' }, { game: '5' }, { game: '13' }, { game: '10x' }, { game: 'abc' }, { game: ['8', '9'] },
+    { game: '' }, { game: '4' }, { game: '13' }, { game: '10x' }, { game: 'abc' }, { game: ['8', '9'] },
     { game: '8', topic: 'abc' }, { game: '8', topic: '-1' }, { game: '8', topic: '1.5' }, { game: '8', topic: '5e2' },
     { game: '8', n: '0' }, { game: '8', n: 'abc' }, { game: '8', n: '-3' }, { game: '8', n: '2.5' },
   ];

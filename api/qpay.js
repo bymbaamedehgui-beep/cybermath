@@ -168,7 +168,7 @@ function revDay(x) {
 // тоглоом, ws|cm. invoice_id давхардахгүй (NOT EXISTS + ON CONFLICT) — дахин дуудахад аюулгүй. Админы олголт
 // (pay_pending-гүй) хэзээ ч орохгүй. Огноо = нэхэмжлэх үүссэн огноо (төлсөн огноо pay_pending-д хадгалагддаггүй),
 // expires_at = одоогийн дуусах огноо. Алдаа → 0 (тайлан/жагсаалт унахгүй, дараагийн удаа дахин оролдоно).
-// grade = нэхэмжлэх дээрх анги (pay_pending.game_grade, create-д 6–12 allowlist-ээр шалгагдсан; NULL байж болно).
+// grade = нэхэмжлэх дээрх анги (pay_pending.game_grade, create-д 5–12 allowlist-ээр шалгагдсан; NULL байж болно).
 const HEAL_GAME_LEDGER_SQL = `INSERT INTO game_purchases (invoice_id, realm, email, game_key, amount, days, expires_at, created_at, grade)
      SELECT p.invoice_id, p.realm, LOWER(TRIM(p.email)), p.game_key, COALESCE(p.amount, 0),
             $2::int * GREATEST(1, LEAST(12, COALESCE(p.months, 1))), a.expires_at, COALESCE(p.created_at, NOW()),
@@ -548,7 +548,7 @@ async function ensurePayPending() {
   // Тоглоомын нэхэмжлэх (plan='game'): аль тоглоом, аль realm ('ws' Дасгалын төв / 'cm' cyber-math.com)
   await pool.query(`ALTER TABLE pay_pending ADD COLUMN IF NOT EXISTS game_key TEXT`).catch(()=>{});
   await pool.query(`ALTER TABLE pay_pending ADD COLUMN IF NOT EXISTS realm TEXT`).catch(()=>{});
-  // Тоглоомын анги (6–12) — үнэ/эрхэд нөлөөгүй, settleGame → game_access.grade + game_purchases.grade
+  // Тоглоомын анги (5–12) — үнэ/эрхэд нөлөөгүй, settleGame → game_access.grade + game_purchases.grade
   await pool.query(`ALTER TABLE pay_pending ADD COLUMN IF NOT EXISTS game_grade TEXT`).catch(()=>{});
   // Слайдын сагс (plan='ppt'): хичээлийн id-ууд '2,3,6' — үнэ = PPT_PRICE × тоо (нэхэмжлэх үүсэх үеийн)
   await pool.query(`ALTER TABLE pay_pending ADD COLUMN IF NOT EXISTS ppt_ids TEXT`).catch(()=>{});
@@ -1051,16 +1051,16 @@ module.exports = async (req, res) => {
         if (!email) return res.status(401).json({ ok: false, needLogin: true, error: 'Худалдан авахын тулд эхлээд нэвтэрнэ үү.' });
         gameKey = typeof b.game === 'string' ? b.game.trim() : '';
         if (!GM.isGame(gameKey)) return res.status(400).json({ ok: false, error: 'Тоглоом олдсонгүй' });
-        // Тоглоомын анги (6–12): Дасгалын төвд худалдан авахдаа сонгоно. Үнэ/эрх/хоногт ОГТ нөлөөлөхгүй — зөвхөн
+        // Тоглоомын анги (5–12): Дасгалын төвд худалдан авахдаа сонгоно. Үнэ/эрх/хоногт ОГТ нөлөөлөхгүй — зөвхөн
         // pay_pending.game_grade → game_purchases.grade / game_access.grade. Байхгүй бол NULL (cm, хуучин клиент);
-        // буруу утга (5, 13, '7a' …) → 400, нэхэмжлэх үүсэхгүй. body.game_grade (body.grade — ижил утгатай нэр).
+        // буруу утга (4, 13, '7a' …) → 400, нэхэмжлэх үүсэхгүй. body.game_grade (body.grade — ижил утгатай нэр).
         const gRaw = b.game_grade != null && b.game_grade !== '' ? b.game_grade : (b.grade != null && b.grade !== '' ? b.grade : null);
         if (gRaw != null) {
           gameGrade = GM.normGrade(gRaw);
           if (!gameGrade) {
             const soon = GM.SOON_GRADES.indexOf(String(gRaw).trim()) >= 0;   // 11-р анги — «Тун удахгүй»
             return res.status(400).json({ ok: false, badGrade: true, soon: soon || undefined,
-              error: soon ? String(gRaw).trim() + '-р анги тун удахгүй нээгдэнэ — өөр анги сонгоно уу' : 'Анги буруу байна (6–12-р анги сонгоно уу)' });
+              error: soon ? String(gRaw).trim() + '-р анги тун удахгүй нээгдэнэ — өөр анги сонгоно уу' : 'Анги буруу байна (5–12-р анги сонгоно уу)' });
           }
         }
         if (!(await rateLimit('game_inv:' + gameRealm + ':' + email.slice(0, 254), 20, 600)))
@@ -1569,7 +1569,7 @@ module.exports = async (req, res) => {
         return res.json({ ok: true, revoked: email });
       }
       // ── ТОГЛООМ: админ гараар олгох (мөнгөгүй бүртгэл) ──
-      // {realm:'ws'|'cm'|'both', email, game: <түлхүүр>|'*', days? (1–366) | months? (1–12), grade? (6–12), note?}.
+      // {realm:'ws'|'cm'|'both', email, game: <түлхүүр>|'*', days? (1–366) | months? (1–12), grade? (5–12), note?}.
       // Нэмэгддэг: GREATEST(хуучин, NOW()) + хоног. game '*' = БҮХ тоглоом (GM.GAME_KEYS), realm 'both' = хоёр сайт —
       // олон мөрийг НЭГ транзакцад олгоно (хагас олголт үлдэхгүй: дахин оролдоход аль хэдийн олгогдсоныг давхар сунгахгүй).
       // grade — тоглоомын анги (заавал биш; өгвөл game_access.grade, өгөөгүй бол хуучнаараа). Буруу анги → 400.
@@ -1593,7 +1593,7 @@ module.exports = async (req, res) => {
         if (hasGrade && !grade) {
           const soon = GM.SOON_GRADES.indexOf(String(b.grade).trim()) >= 0;   // 11-р анги — «Тун удахгүй»
           return res.status(400).json({ ok: false, soon: soon || undefined,
-            error: soon ? String(b.grade).trim() + '-р анги тун удахгүй нээгдэнэ — өөр анги сонгоно уу' : 'Анги буруу байна (6–12)' });
+            error: soon ? String(b.grade).trim() + '-р анги тун удахгүй нээгдэнэ — өөр анги сонгоно уу' : 'Анги буруу байна (5–12)' });
         }
         const want = both ? ['ws', 'cm'] : [realm], have = [];
         for (const rl of want) {

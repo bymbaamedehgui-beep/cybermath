@@ -148,7 +148,7 @@ test('embed: grade/topic шалгалт — 6..12 ба /^\\d{1,6}$/ л; буру
     assert.strictEqual(E.S.qApiUrl(), '/api/questions?game=' + want.grade + '&topic=' + want.topic + '&n=60', s);
   }
   // 11-р анги «Тун удахгүй» — сонголт болохгүй (хуучин зан төлөв)
-  for (const s of ['', '&grade=5', '&grade=13', '&grade=10x', '&grade=abc', '&grade=', '&g=8', '&max_grade=8', '&grade=%38', '&grade=11', '&grade=11&topic=5']) {
+  for (const s of ['', '&grade=4', '&grade=13', '&grade=10x', '&grade=abc', '&grade=', '&g=8', '&max_grade=8', '&grade=%38', '&grade=11', '&grade=11&topic=5']) {
     const E = embed({ search: '?embed=daam&realm=ws' + s, launch: { ok: true, game: 'daam', kind: 'inline', via: 'access' } });
     await ticks();
     assert.strictEqual(E.S.CM_EMBED.sel, null, s);
@@ -310,17 +310,17 @@ test('index.html: inline тоглоомууд fetch(qApiUrl())-аар татаж
 });
 
 // ───────────────────────── MATH MORTAL (math-mortal/quiz.js) ─────────────────────────
-test('MATH MORTAL quiz.js: 6–12-р анги, URL grade/topic (хадгалахгүй), game_topics/game хариуг задлах', async () => {
+test('MATH MORTAL quiz.js: 5–12-р анги, URL grade/topic (хадгалахгүй), game_topics/game хариуг задлах', async () => {
   global.location = { search: '?realm=ws&grade=10&topic=1234', host: 'cyber-math.com' };
   const mod = await import(pathToFileURL(path.join(WT, 'math-mortal', 'quiz.js')).href + '?t=' + Date.now());
   const T = mod.__test;
   assert.deepStrictEqual(T.normalizeSettings({ grade: 6 }).grade, 6);
   assert.deepStrictEqual(T.normalizeSettings({ grade: 12 }).grade, 12);
   assert.deepStrictEqual(T.normalizeSettings({ grade: 13 }).grade, 12);
-  assert.deepStrictEqual(T.normalizeSettings({ grade: 3 }).grade, 6);
+  assert.deepStrictEqual(T.normalizeSettings({ grade: 3 }).grade, 5);
   assert.deepStrictEqual(T.normalizeSettings({ grade: 11 }).grade, 7, '11-р анги «Тун удахгүй» → анхдагч анги');
   assert.deepStrictEqual(T.urlSelection(), { grade: 10, node: 1234 });
-  for (const [s, want] of [['?grade=6', { grade: 6, node: 0 }], ['?grade=12&topic=x', { grade: 12, node: 0 }], ['?grade=5', null], ['?grade=10x', null], ['?g=8', null], ['', null], ['?grade=11', null], ['?grade=11&topic=5', null]]) {
+  for (const [s, want] of [['?grade=6', { grade: 6, node: 0 }], ['?grade=12&topic=x', { grade: 12, node: 0 }], ['?grade=5', { grade: 5, node: 0 }], ['?grade=4', null], ['?grade=10x', null], ['?g=8', null], ['', null], ['?grade=11', null], ['?grade=11&topic=5', null]]) {
     global.location = { search: s, host: 'cyber-math.com' };
     assert.deepStrictEqual(T.urlSelection(), want, s);
   }
@@ -374,7 +374,7 @@ function pickerEls(areaId, g) {
 const NODES = [
   { id: 901, grade: '9', name: 'Квадрат тэгшитгэл', sort_order: 1 }, { id: 902, grade: '9', name: 'Хоосон сэдэв', sort_order: 2 },
   { id: 903, grade: '9', name: 'Цөөн сэдэв', sort_order: 3 }, { id: 904, grade: '9', name: 'Олон бодлоготой', sort_order: 4 },
-  { id: 1101, grade: '11', name: 'Интеграл', sort_order: 1 }, { id: 501, grade: '5', name: 'Бутархай', sort_order: 1 },
+  { id: 1101, grade: '11', name: 'Интеграл', sort_order: 1 }, { id: 501, grade: '4', name: 'Бутархай', sort_order: 1 },
 ];
 const TOPICS9 = { ok: true, grade: '9', total: 47, chapters: [{ name: '', topics: [{ id: 901, name: 'Квадрат тэгшитгэл', n: 9 }, { id: 903, name: 'Цөөн сэдэв', n: 3 }, { id: 904, name: 'Олон бодлоготой', n: 35 }] }] };
 test('cyber-math.com «Агуулга»: бодлогогүй/доод хэмжээнээс цөөн хичээл харагдахгүй (game_topics n), 11-р анги «Тун удахгүй»', async () => {
@@ -401,8 +401,8 @@ test('cyber-math.com «Агуулга»: бодлогогүй/доод хэмж�
   P.S.cmPickerGrade(E.sel);
   assert.deepStrictEqual([E.list.style.display, E.list.innerHTML], ['none', '']);
   assert.strictEqual(P.fetches.length, 1);
-  // 1–5-р анги: тоглоомын сан биш — шүүхгүй (хуучнаараа), сүлжээ 0
-  E = pickerEls('daam-area', '5');
+  // 1–4-р анги: тоглоомын сан биш — шүүхгүй (хуучнаараа), сүлжээ 0
+  E = pickerEls('daam-area', '4');
   P.S.cmPickerGrade(E.sel);
   await ticks();
   assert.deepStrictEqual([...E.list.innerHTML.matchAll(/data-node="(\d+)"/g)].map((m) => m[1]), ['501']);
@@ -506,12 +506,12 @@ test('MATH MORTAL prefetch: сэдвийн HUD бодлого хүрэлцэхг
   } finally { delete global.window; delete global.fetch; }
 });
 
-test('MATH MORTAL: index.html-д 6–12-р ангийн сонголт + «Офлайн» тэмдэг (эможигүй); quiz.js шинэ endpoint-ийг ашиглана', () => {
+test('MATH MORTAL: index.html-д 5–12-р ангийн сонголт + «Офлайн» тэмдэг (эможигүй); quiz.js шинэ endpoint-ийг ашиглана', () => {
   const html = fs.readFileSync(path.join(WT, 'math-mortal', 'index.html'), 'utf8');
   const sel = /<select id="grade-select">([\s\S]*?)<\/select>/.exec(html)[1];
-  assert.deepStrictEqual([...sel.matchAll(/value="(\d+)"/g)].map((m) => m[1]), ['6', '7', '8', '9', '10', '11', '12']);
+  assert.deepStrictEqual([...sel.matchAll(/value="(\d+)"/g)].map((m) => m[1]), ['5', '6', '7', '8', '9', '10', '11', '12']);
   assert.match(sel, /<option value="11" disabled[^>]*>11-р анги — Тун удахгүй<\/option>/, '11-р анги харагдана, сонгогдохгүй');
-  assert.deepStrictEqual([...sel.matchAll(/<option value="(\d+)"(?![^>]*disabled)/g)].map((m) => m[1]), ['6', '7', '8', '9', '10', '12']);
+  assert.deepStrictEqual([...sel.matchAll(/<option value="(\d+)"(?![^>]*disabled)/g)].map((m) => m[1]), ['5', '6', '7', '8', '9', '10', '12']);
   const off = /<span id="math-offline"[^>]*hidden>([\s\S]*?)<\/span>/.exec(html);
   assert.ok(off, '#math-offline (анхдагч нуугдсан)');
   assert.match(off[1], /<svg /);
@@ -564,7 +564,7 @@ for (const [rel, min] of [['games/play2048.html', 8], ['games/sudoku.html', 12]]
     assert.deepStrictEqual(r.bank, [], 'correct сонголтод байхгүй → хасна');
     r = await bank(rel, '?grade=10', (u) => ({ questions: Q(5) }));
     assert.deepStrictEqual(r.bank, [], 'grade-гүй (хуучин сервер) хариу → жишиг бодлого');
-    for (const s of ['', '?grade=5', '?grade=13', '?g=8', '?grade=8x', '?grade=11', '?grade=11&topic=4']) {   // 11 «Тун удахгүй» → хуучнаараа
+    for (const s of ['', '?grade=4', '?grade=13', '?g=8', '?grade=8x', '?grade=11', '?grade=11&topic=4']) {   // 11 «Тун удахгүй» → хуучнаараа
       r = await bank(rel, s, (u) => ({ ok: true, questions: [{ id: 1, type: 'choice', text: 'a', choices: ['1', '2'], correct: '1' }, { id: 2, type: 'fill', text: 'b', correct: '3' }] }));
       assert.strictEqual(r.sel, null, s);
       assert.deepStrictEqual(r.urls, ['/api/questions?max_grade=10'], s + ': хуучин зам');
@@ -583,7 +583,7 @@ test('games/numseq.html: анги → түвшин (6 easy, 7–8 medium, 9–10
   const run = (search) => { const S = { location: { search: search }, URLSearchParams: URLSearchParams }; vm.createContext(S); vm.runInContext(fn, S); return vm.runInContext('gradeDifficulty()', S); };
   const want = { 6: 'easy', 7: 'medium', 8: 'medium', 9: 'hard', 10: 'hard', 11: 'expert', 12: 'expert' };
   Object.keys(want).forEach((g) => assert.strictEqual(run('?realm=ws&grade=' + g + '&topic=55'), want[g], g));
-  ['', '?grade=5', '?grade=13', '?grade=abc', '?g=8'].forEach((s) => assert.strictEqual(run(s), null, s));
+  ['', '?grade=4', '?grade=13', '?grade=abc', '?g=8'].forEach((s) => assert.strictEqual(run(s), null, s));
   assert.ok(src.indexOf("state.difficulty = gradeDifficulty() || persisted.difficulty || 'easy';") >= 0);
   assert.ok(!/persisted\.difficulty\s*=\s*gradeDifficulty/.test(src), 'persisted-д бичихгүй');
 });

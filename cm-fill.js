@@ -213,6 +213,12 @@
       }).join('\\\\') + '\\end{' + mm[1] + 'matrix}';
       return finish({ kind: 'mat', val: val, parts: parts, tpl: tpl });
     }
+    // Холимог тоо (5–6-р анги): 2\frac{1}{3} = 2 + 1/3 — үржвэр БИШ. Загвар □\frac{□}{□}, шалгахдаа бүхэл + хүртвэр/хуваарь
+    var mx = /^(\d+)\s*\\frac\{\s*(\d+)\s*\}\{\s*(\d+)\s*\}$/.exec(s);
+    if (mx && +mx[3] > 0) {
+      var tm = templ(s, ctr); parts.push(tm);
+      return finish({ kind: 'mix', val: +mx[1] + mx[2] / mx[3], parts: parts, tpl: tm.tpl });
+    }
     var items = splitTop(s, ',');
     // x=4 · x_1=-3, x_2=2 · x=\pm 6 · x=6, y=3
     var asg = items.map(function (it) { return /^([a-zA-Z](?:_\{?\d+\}?)?)\s*=\s*(.+)$/.exec(it); });
@@ -359,6 +365,14 @@
         if (fx.factor && !isProduct(u)) return false;
         if (tokenize(u).length > fx.tok + 8) return false;
         return sameExpr(u, fx.expr, fx.vars);
+      }
+      if (fx.kind === 'mix') {
+        var mv = fx.parts[0].ids.map(function (id) {
+          var u = String(vals[id] == null ? '' : vals[id]).trim().replace(/(\d),(\d)/g, '$1.$2');
+          if (!u) throw new Error('empty');
+          return evalTex(u);
+        });
+        return mv[2] !== 0 && near(mv[0] + mv[1] / mv[2], fx.val);
       }
       var pv = fx.parts.map(function (p) { return partValue(p, vals); });
       if (fx.kind === 'num') return near(pv[0], fx.val);

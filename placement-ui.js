@@ -8,7 +8,7 @@
   'use strict';
   var d = document;
   if (window.top !== window.self || d.documentElement.classList.contains('cm-embed')) return;
-  var GRADES = ['6', '7', '8', '9', '10', '11', '12'];
+  var GRADES = ['5', '6', '7', '8', '9', '10', '11', '12'];
   var LS = 'cm_placement';   // { "7": { start: nodeId, name, chapter, at } }
   var S = { grade: null, plan: {}, t: null, stage: 1, qs: [], k: 0, ans: [], sel: null, chapter: '', result: null, saved: false, last: {}, busy: false, synced: false };
   var root = null;

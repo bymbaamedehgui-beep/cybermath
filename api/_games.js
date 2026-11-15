@@ -158,8 +158,8 @@ function normEmail(e) {
 function publicCatalog() {
   return GAME_KEYS.map(function (k) { const x = GAMES[k]; return { key: k, title: x.title, kind: x.kind, multi: x.multi }; });
 }
-// Тоглоомын бодлогын анги (6–12). Үнэ/эрх ангиас ОГТ хамаарахгүй — зөвхөн allowlist-ээр шалгаж бүртгэнэ.
-const GRADES = Object.freeze(['6', '7', '8', '9', '10', '11', '12']);
+// Тоглоомын бодлогын анги (5–12). Үнэ/эрх ангиас ОГТ хамаарахгүй — зөвхөн allowlist-ээр шалгаж бүртгэнэ.
+const GRADES = Object.freeze(['5', '6', '7', '8', '9', '10', '11', '12']);
 // «Тун удахгүй» анги (эзэмшигчийн шийдвэр: 11-р ангийн бодлого хангалтгүй) — худалдан авах (qpay create 400 badGrade),
 // launch (үл тоомсорлоно), админы олголт (400)-д СОНГОГДОХГҮЙ. Хадгалсан 11 → null (клиент ангийг дахин асууна).
 const SOON_GRADES = Object.freeze(['11']);
@@ -218,7 +218,7 @@ const DDL = [
   "ALTER TABLE game_invites ADD COLUMN IF NOT EXISTS devs TEXT[] NOT NULL DEFAULT '{}'",
   'CREATE INDEX IF NOT EXISTS idx_game_tix_exp ON game_ticket_used(exp)',
   'CREATE INDEX IF NOT EXISTS idx_game_inv_exp ON game_invites(expires_at)',
-  // Тоглоомын бодлогын анги (6–12, NULL = тодорхойгүй — хуучин мөр). Эрх/үнэд нөлөөгүй.
+  // Тоглоомын бодлогын анги (5–12, NULL = тодорхойгүй — хуучин мөр). Эрх/үнэд нөлөөгүй.
   'ALTER TABLE game_access ADD COLUMN IF NOT EXISTS grade TEXT',
   'ALTER TABLE game_purchases ADD COLUMN IF NOT EXISTS grade TEXT',
 ];

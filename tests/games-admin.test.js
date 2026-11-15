@@ -729,7 +729,7 @@ test('ws_report byGame тоглоом × сайт × АНГИ; game_list мөр/
   assert.deepStrictEqual(l.pending.map((p) => [p.invoice_id, p.game_grade]), [[pend.body.invoice.invoice_id, '12']]);
   // админ олголт анги тавина (заавал биш), буруу анги → 400
   wsLogin('gift@x.mn');
-  assert.strictEqual((await A('game_grant', { realm: 'ws', email: 'gift@x.mn', game: 'daam', grade: '5' })).statusCode, 400);
+  assert.strictEqual((await A('game_grant', { realm: 'ws', email: 'gift@x.mn', game: 'daam', grade: '4' })).statusCode, 400);
   assert.strictEqual(access('ws', 'gift@x.mn', 'daam'), null);
   // 11-р анги «Тун удахгүй» — админ ч олгохгүй (400)
   assert.strictEqual((await A('game_grant', { realm: 'ws', email: 'gift@x.mn', game: 'daam', grade: '11' })).statusCode, 400);

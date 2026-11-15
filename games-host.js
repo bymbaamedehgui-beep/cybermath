@@ -128,8 +128,8 @@
   function ssSet(k, v) { try { if (v == null) W.sessionStorage.removeItem(k); else W.sessionStorage.setItem(k, v); } catch (e) {} }
 
   // ───────────── анги / сэдэв (тоглоомын бодлогын сонголт — үнэ/эрхэд НӨЛӨӨЛӨХГҮЙ) ─────────────
-  // URL-ийн параметр: grade=<6..12>&topic=<node_id|0>. 'g' нэрийг ХЭРЭГЛЭХГҮЙ (gate/game.js DROP_Q хасдаг).
-  var GRADES = ['6', '7', '8', '9', '10', '11', '12'];
+  // URL-ийн параметр: grade=<5..12>&topic=<node_id|0>. 'g' нэрийг ХЭРЭГЛЭХГҮЙ (gate/game.js DROP_Q хасдаг).
+  var GRADES = ['5', '6', '7', '8', '9', '10', '11', '12'];
   // Сэдэвт байх доод бодлогын тоо (үүнээс цөөн сэдэв жагсаалтад гарахгүй) — тоглоом нэг тоглолтод хэдэн бодлого шаарддагаар
   var MIN = { sbh: 20, myangat: 15, sudoku: 12, xpdrop: 10, flagbattle: 10, songon: 10, nicebattle: 10, mathmortal: 4 };
   var MIN_DEF = 8;
@@ -350,7 +350,7 @@
   }
   function invite(key, o) { return jpost(GAMES_API + '?action=invite', body(o, { game: key }), headers(o)); }
   // Тоглоомын эрх худалдан авах нэхэмжлэх: дүн/имэйлийг сервер тогтооно (клиентээс зөвхөн тоглоом + realm + токен + анги).
-  // o.grade — худалдан авалтад бүртгэх анги (6–12; үнэд нөлөөлөхгүй).
+  // o.grade — худалдан авалтад бүртгэх анги (5–12; үнэд нөлөөлөхгүй).
   function buyCreate(key, o) {
     return jpost(QPAY_API + '?action=create', body(o, { plan: 'game', game: key, game_grade: normGrade(o && o.grade) }), headers(o));
   }
@@ -366,7 +366,7 @@
   }
 
   // ───────────── урилга (?game=<key>&ginv=<токен>) — gp-s5 GPAY-тэй ижил sessionStorage формат ─────────────
-  // ?game=<key>[&ginv=<токен>][&grade=<6..12>&topic=<id>] → { key, inv, sel? } (sel — host-ийн анги/сэдэв, байвал л)
+  // ?game=<key>[&ginv=<токен>][&grade=<5..12>&topic=<id>] → { key, inv, sel? } (sel — host-ийн анги/сэдэв, байвал л)
   function parseInvite(search) {
     var out = { key: null, inv: null };
     var s = String(search || '');

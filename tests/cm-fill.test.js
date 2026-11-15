@@ -134,3 +134,17 @@ test('index.html холболт: script, inject, answerHtml, mount, checkAnswer;
   assert.match(html, /type === 'fillx'\) \{\s*\n\s*var _fx = window\.cmFill \? window\.cmFill\.check\(qData\)/);
   assert.ok(v.builds.some(b => b.src === 'cm-fill.js'), 'vercel.json builds');
 });
+
+test('холимог тоо (5–6-р анги): 2⅓ = 2 + 1/3 (үржвэр биш) — зөвхөн тэнцүү утга зөв, хоосон/0 хуваарь буруу', () => {
+  const fx = F.analyze('$2\\dfrac{1}{3}$');
+  assert.strictEqual(fx.kind, 'mix');
+  assert.ok(Math.abs(fx.val - 7 / 3) < 1e-9);
+  assert.strictEqual(F.checkVals(fx, F.ownVals(fx)), true);
+  assert.strictEqual(F.checkVals(fx, fill(fx, ['1', '4', '3'])), true, '1 4/3 = 2 1/3');
+  assert.strictEqual(F.checkVals(fx, fill(fx, ['2', '2', '6'])), true, '2 2/6 = 2 1/3');
+  assert.strictEqual(F.checkVals(fx, fill(fx, ['1', '2', '3'])), false, '1 2/3 (өмнө нь үржвэрээр 2/3 = 2·1/3 болж зөв гэж тооцогддог байв)');
+  assert.strictEqual(F.checkVals(fx, fill(fx, ['6', '1', '9'])), false);
+  assert.strictEqual(F.checkVals(fx, fill(fx, ['2', '1', '0'])), false);
+  assert.strictEqual(F.checkVals(fx, fill(fx, ['', '1', '3'])), false);
+  assert.strictEqual(F.analyze('\\dfrac{3}{4}').kind, 'num', 'энгийн бутархай хэвээр');
+});

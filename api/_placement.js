@@ -12,7 +12,7 @@ const jwt = require('jsonwebtoken');
 const pool = require('./_db');
 const Q = require('./questions')._game;
 
-const GRADES = ['6', '7', '8', '9', '10', '11', '12']; // хичээлийн замтай ангиуд (11 — node 801–851, админ «Суулгах»-аас хойш бодлоготой)
+const GRADES = ['5', '6', '7', '8', '9', '10', '11', '12']; // хичээлийн замтай ангиуд (5 — node 1001–1050, 11 — node 801–851; админ «Суулгах»-аас хойш бодлоготой)
 const MIN_Q = 4;                                      // үүнээс цөөн тохирох бодлоготой сэдэв сорилд орохгүй
 const STAGE1_MAX = 18;
 const STAGE2_MAX = 8;

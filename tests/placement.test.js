@@ -77,7 +77,7 @@ test('_placement: 7-р анги 10 бүлэг (SPLITS), 1-р шат 18 сэдэ�
   assert.ok(c9[0].topics.every(t => t.name !== 'Бататгал 1'));
 });
 
-test('plan: нийтийн, бүлэг ба бодлогын тоо; 11-р анги «удахгүй», 5-р анги байхгүй', async () => {
+test('plan: нийтийн, бүлэг ба бодлогын тоо; 11-р анги «удахгүй», 4-р анги байхгүй', async () => {
   const r = await F.call(api, { method: 'GET', query: { action: 'plan', grade: '7' } });
   assert.strictEqual(r.statusCode, 200);
   assert.strictEqual(r.body.chapters.length, 10);
@@ -85,7 +85,7 @@ test('plan: нийтийн, бүлэг ба бодлогын тоо; 11-р ан�
   assert.match(r.headers['Cache-Control'], /public/);
   const s = await F.call(api, { method: 'GET', query: { action: 'plan', grade: '11' } });
   assert.strictEqual(s.statusCode, 400); assert.strictEqual(s.body.soon, true);
-  assert.strictEqual((await F.call(api, { method: 'GET', query: { action: 'plan', grade: '5' } })).statusCode, 400);
+  assert.strictEqual((await F.call(api, { method: 'GET', query: { action: 'plan', grade: '4' } })).statusCode, 400);
 });
 
 test('start: зөв хариу клиентэд очихгүй, сонголт 4, токентой', async () => {

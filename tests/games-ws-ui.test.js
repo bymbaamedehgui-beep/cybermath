@@ -448,7 +448,7 @@ test('GW: худалдан авах → QPay QR → poll (paid:false → амж�
   assert.match(P.q('gpBuy', '.gp-price').textContent, /^1 900₮/);
   const go = P.q('gpBuy', '[data-gp-go]');
   // анги ЗААВАЛ: сонгоогүй үед QPay товч идэвхгүй, дарсан ч нэхэмжлэх үүсэхгүй
-  assert.strictEqual(P.doc.querySelectorAll('#gpBuy [data-gr]').length, 6, '6–10, 12-р анги (сонгох боломжтой)');
+  assert.strictEqual(P.doc.querySelectorAll('#gpBuy [data-gr]').length, 7, '5–10, 12-р анги (сонгох боломжтой)');
   // 11-р анги «Тун удахгүй»: харагдана, идэвхгүй, сонгогдохгүй
   const s11 = P.q('gpBuy', '[data-gr-soon="11"]');
   assert.ok(s11 && s11.disabled, '11-р анги идэвхгүй');

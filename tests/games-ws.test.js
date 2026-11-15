@@ -142,12 +142,12 @@ test('games-host: cardState / embedUrl / parseInvite / fmt / ymd / esc / rounds'
 });
 
 test('games-host: анги/сэдэв — normSel / withSel / embedUrl(sel) / parseInvite(sel) / selLabel / topicGroups (MIN, 11-р анги, numseq)', () => {
-  assert.deepStrictEqual(H0.GRADES, ['6', '7', '8', '9', '10', '11', '12']);
+  assert.deepStrictEqual(H0.GRADES, ['5', '6', '7', '8', '9', '10', '11', '12']);
   assert.deepStrictEqual(H0.normSel({ grade: 8, topic: '512', name: '\u{1F4DD}  Шугаман  тэгшитгэл ' }), { grade: '8', topic: '512', name: 'Шугаман тэгшитгэл' });
   assert.deepStrictEqual(H0.normSel({ grade: '12', topic: 'x' }), { grade: '12', topic: '0', name: '' });
   assert.deepStrictEqual(H0.normSel({ grade: '9', topic: '0', name: 'X' }), { grade: '9', topic: '0', name: '' }, 'бүх сэдэвт нэргүй');
   // 11-р анги «Тун удахгүй»: сонголт болохгүй (хадгалсан 11 → null → анги дахин асууна)
-  [null, {}, { grade: '5' }, { grade: '13' }, { grade: 'g' }, { topic: '5' }, 'x', { grade: '11' }, { grade: 11, topic: '3' }].forEach((v) => assert.strictEqual(H0.normSel(v), null, JSON.stringify(v)));
+  [null, {}, { grade: '4' }, { grade: '13' }, { grade: 'g' }, { topic: '5' }, 'x', { grade: '11' }, { grade: 11, topic: '3' }].forEach((v) => assert.strictEqual(H0.normSel(v), null, JSON.stringify(v)));
   assert.deepStrictEqual([H0.isSoon('11'), H0.isSoon(11), H0.isSoon('12'), H0.isSoon(null), H0.normGrade('11')], [true, true, false, false, null]);
   const s = { grade: '8', topic: '512', name: 'Шугаман' };
   assert.strictEqual(H0.selLabel(s), '8-р анги · Шугаман');
@@ -163,7 +163,7 @@ test('games-host: анги/сэдэв — normSel / withSel / embedUrl(sel) / pa
   assert.strictEqual(H0.withSel('/math-mortal/#x', s), '/math-mortal/?grade=8&topic=512#x');
   assert.strictEqual(H0.withSel('https://8-9-songon.vercel.app', s), 'https://8-9-songon.vercel.app/?grade=8&topic=512');
   assert.strictEqual(H0.withSel('/x.html?grade=10&topic=0', s), '/x.html?grade=10&topic=0', 'сервер залгасан бол давхарлахгүй');
-  assert.strictEqual(H0.withSel('/x.html', { grade: '5' }), '/x.html');
+  assert.strictEqual(H0.withSel('/x.html', { grade: '4' }), '/x.html');
   assert.strictEqual(H0.withSel('/x.html', null), '/x.html');
   // 'g' параметр ХЭРЭГЛЭХГҮЙ (gate/game.js хасдаг)
   assert.doesNotMatch(H0.withSel('/x.html', s), /[?&]g=/);

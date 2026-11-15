@@ -1,11 +1,11 @@
 /* MATH MORTAL — бодлогын эх сурвалж.
  *
- * Бодлогыг АНГИ (6–12) + СЭДЭВ-ээр нь сонгоно (тоглоомуудын нийтлэг сан):
+ * Бодлогыг АНГИ (5–12) + СЭДЭВ-ээр нь сонгоно (тоглоомуудын нийтлэг сан):
  *   GET /api/questions?game_topics=<анги>               → тухайн ангийн бүлэг/сэдвүүд {chapters:[{name, topics:[{id,name,n}]}]}
  *   GET /api/questions?game=<анги>&topic=<сэдэв|0>&n=60 → тэр сэдвийн (0 бол ангийн бүх сэдвийн) 4 сонголттой бодлогууд
  * Сэдэв сонгоогүй бол ангийн бүх сэдвээс холино. Сэдвээс HUD-д тохирох бодлого
  * олдохгүй бол ангийн бүх сэдвээс авна. Хялбар бодлогыг илүүд үзнэ.
- * URL-ийн ?grade=<6..12>&topic=<node_id> (Дасгалын төв) нь анги/сэдвийг урьдчилан
+ * URL-ийн ?grade=<5..12>&topic=<node_id> (Дасгалын төв) нь анги/сэдвийг урьдчилан
  * сонгоно — сольж болно, гэхдээ localStorage-д ХАДГАЛАХГҮЙ (cyber-math.com-той хуваалцдаг).
  * Сүлжээгүй / API алдаа гарвал доорх нөөц генератор ажиллана тул тоглоом
  * хэзээ ч зогсохгүй («Офлайн — жишиг бодлого» тэмдэг гарна).
@@ -17,16 +17,16 @@
 
 const STORAGE_KEY = 'mortal-arena-quiz-settings';
 const DEFAULTS = { grade: 7, topic: 'math', node: 0, seconds: 15 };
-const GRADE_MIN = 6, GRADE_MAX = 12;
+const GRADE_MIN = 5, GRADE_MAX = 12;
 const TOPICS = new Set(['math', 'science', 'language']);
 const TIME_CHOICES = new Set([5, 10, 15, 20, 30, 45, 60]);
 
-/* Тоглоомд 6–12-р ангийн, цөөн үйлдэлтэй (HUD-д багтах) бодлогыг хэрэглэнэ.
+/* Тоглоомд 5–12-р ангийн, цөөн үйлдэлтэй (HUD-д багтах) бодлогыг хэрэглэнэ.
    Урт / өгүүлбэртэй бодлогыг fitsHud() хасна — HUD дээр уншиж амжихгүй. */
 /* 11-р анги «Тун удахгүй» (сонголтод саарал, сонгогдохгүй; сервер ?game=11 → 400) */
 const SOON_GRADES = new Set([11]);
-const CM_GRADES = new Set([6, 7, 8, 9, 10, 12]);
-const GRADE_RE = /^(6|7|8|9|10|12)$/;
+const CM_GRADES = new Set([5, 6, 7, 8, 9, 10, 12]);
+const GRADE_RE = /^(5|6|7|8|9|10|12)$/;
 const API_BASE = (typeof location !== 'undefined' && /cyber-math|localhost|127\.0\.0\.1/.test(location.host))
   ? '' : 'https://cyber-math.com';
 const BATCH = 60;
@@ -39,7 +39,7 @@ const MAX_OPT_LEN = 26;     /* нэг сонголтын хамгийн урт *
 const MAX_WORDS = 6;        /* математикаас гадуурх үгийн дээд тоо */
 const MAX_OPS = 4;          /* нэмэх/хасах/үржих/хуваах/зэрэг/язгуурын дээд тоо */
 
-/* Дасгалын төвөөс ирсэн анги/сэдэв: ?grade=<6..12>&topic=<node_id|0> ('g' нэрийг gate хасдаг) */
+/* Дасгалын төвөөс ирсэн анги/сэдэв: ?grade=<5..12>&topic=<node_id|0> ('g' нэрийг gate хасдаг) */
 function urlSelection() {
   try {
     if (typeof location === 'undefined') return null;
