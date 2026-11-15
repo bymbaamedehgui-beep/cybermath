@@ -17,8 +17,9 @@
   }
 
   /* ── 1) Агуулга: бүлэг → сэдэв (жишиг/шалгалт орно) → ажлын хуудсууд ── */
-  // Дэвтэрт оруулахгүй хуудас (анги → slug): 10-р ангийн төгсгөлийн «ЖИШИГ ДААЛГАВАР — бодолт хавсаргасан» 10 хувилбар
-  var BOOK_SKIP = { '10-р анги': /^jishig-daalgavar-\d+-10\.html$/ };
+  // Дэвтэрт оруулахгүй хуудас (анги → slug): ангийн төгсгөлийн «ЖИШИГ ДААЛГАВАР» хувилбарууд —
+  // 6-р анги 40 («Заавал бодох 360 бодлого»), 10-р анги 10 («бодолт хавсаргасан»)
+  var BOOK_SKIP = { '6-р анги': /^jishig-daalgavar-\d+-6\.html$/, '10-р анги': /^jishig-daalgavar-\d+-10\.html$/ };
   function outline(gi) {
     var d = window.WSB && WSB.gdata(gi); if (!d) return null;
     var skip = BOOK_SKIP[d.label], keep = function (w) { return !(skip && skip.test(w[0])); };
