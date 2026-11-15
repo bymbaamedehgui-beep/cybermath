@@ -2171,7 +2171,9 @@ function openLogin(auto,view){
     function tick(){ var el=q('#fgMoLeft'); if(!el){wsMoStop();return;}
       var left=Math.max(0,Math.round((until-Date.now())/1000));
       el.textContent=left>0?('Үлдсэн хугацаа '+Math.floor(left/60)+':'+(left%60<10?'0':'')+(left%60)):'';
-      if(left<=0){ moRetryFn=function(cb){wsMoRetry('ws_forgot',cb);}; wsMoExpired('#fgMsg','#fgMo'); } }
+      if(left<=0){
+        if(!tick.g){ tick.g=Date.now(); var mg=q('#fgMsg'); if(mg){mg.style.color='var(--soft)';mg.textContent='Шалгаж байна… SMS-ээ илгээсэн бол түр хүлээнэ үү.';} wsMoForgotPoll(); }
+        else if(Date.now()-tick.g>10000){ moRetryFn=function(cb){wsMoRetry('ws_forgot',cb);}; wsMoExpired('#fgMsg','#fgMo'); } } }
     tick(); moT=setInterval(tick,1000);
     moP=setInterval(wsMoForgotPoll,3000); setTimeout(wsMoForgotPoll,1500);
     return true;
@@ -2258,7 +2260,11 @@ function openLogin(auto,view){
     function tick(){ var el=q('#vMoLeft'); if(!el||!q('#vMo')){wsMoStop();return;}
       var left=Math.max(0,Math.round((until-Date.now())/1000));
       el.textContent=left>0?('Үлдсэн хугацаа '+Math.floor(left/60)+':'+(left%60<10?'0':'')+(left%60)):'';
-      if(left<=0){ moRetryFn=function(cb){wsMoRetry('ws_resend',cb);}; wsMoExpired('#vMsg','#vMo'); } }
+      /* 0 болсны дараа шууд «дууслаа» гэхгүй: SMS хоцорч ирж болох тул нэг удаа дахин шалгаад 10 сек хүлээнэ
+         (сервер verify.mn «баталгаажсан» гэвэл хугацаа өнгөрсөн ч дуусгана; биш бол EXPIRED-ээр зогсоно) */
+      if(left<=0){
+        if(!tick.g){ tick.g=Date.now(); var mg=q('#vMsg'); if(mg){mg.style.color='var(--soft)';mg.textContent='Шалгаж байна… SMS-ээ илгээсэн бол түр хүлээнэ үү.';} wsMoPoll(); }
+        else if(Date.now()-tick.g>10000){ moRetryFn=function(cb){wsMoRetry('ws_resend',cb);}; wsMoExpired('#vMsg','#vMo'); } } }
     tick(); moT=setInterval(tick,1000);
     moP=setInterval(wsMoPoll,3000); setTimeout(wsMoPoll,1500);
     return true;

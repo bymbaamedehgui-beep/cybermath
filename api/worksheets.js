@@ -212,7 +212,7 @@ async function codeAttempt(email, ipk, input) {
   if (!/^\d{6}$/.test(code)) return { ok: false, status: 400, error: MSG_CODE_BAD };
   const lim = await firstLimitHit([
     ['wscode:em:' + email, 10, 86400, MSG_TOO_MANY],
-    ['wscode:ip:' + ipk, 30, 900, MSG_TOO_MANY],
+    ['wscode:ip:' + ipk, 300, 900, MSG_TOO_MANY],          // сургуулийн нэг IP (имэйл тутамд 10/өдөр хэвээр)
   ]);
   if (lim) return { ok: false, status: 429, error: lim };
   const r = await pool.query(
@@ -586,7 +586,7 @@ module.exports = async (req, res) => {
       }
       // ── Урилгын линк шалгах (нийтийн): хүчинтэй бол бүртгэлийн маягтыг SMS-гүй горимоор нээнэ ──
       if (b.action === 'ws_invite_info') {
-        const lim = await firstLimitHit([['wsinv:ip:' + ipKey(clientIp(req)), 60, 900, MSG_TOO_MANY]]);
+        const lim = await firstLimitHit([['wsinv:ip:' + ipKey(clientIp(req)), 1000, 900, MSG_TOO_MANY]]);   // зөвхөн шалгах — анги бүхэлдээ нэг IP-ээр
         if (lim) return res.status(429).json({ ok: false, error: lim });
         const t = wsInviteNorm(b.invite);
         if (!t) return res.status(400).json({ ok: false, code: 'INVITE_BAD', error: MSG_INVITE_BAD });
@@ -616,7 +616,7 @@ module.exports = async (req, res) => {
           // Нууц үгийн brute force хязгаар: имэйл тутам 15 минутад 20, IP тутам 15 минутад 100
           const llim = await firstLimitHit([
             ['wslogin:em:' + email, 20, 900, MSG_TOO_MANY],
-            ['wslogin:ip:' + ipKey(clientIp(req)), 100, 900, MSG_TOO_MANY],
+            ['wslogin:ip:' + ipKey(clientIp(req)), 1000, 900, MSG_TOO_MANY],   // сургуулийн нэг IP (имэйл тутамд 20 хэвээр)
           ]);
           if (llim) return res.status(429).json({ ok: false, error: llim });
           const okp = await bcrypt.compare(String(b.pass || ''), r.rows[0].pass_hash);
@@ -644,7 +644,7 @@ module.exports = async (req, res) => {
           if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Бүртгэлгүй имэйл' });
           const llim = await firstLimitHit([
             ['wsdev:em:' + email, 20, 900, MSG_TOO_MANY],
-            ['wsdev:ip:' + ipKey(clientIp(req)), 60, 900, MSG_TOO_MANY],
+            ['wsdev:ip:' + ipKey(clientIp(req)), 300, 900, MSG_TOO_MANY],
           ]);
           if (llim) return res.status(429).json({ ok: false, error: llim });
           if (!(await bcrypt.compare(String(b.pass || ''), r.rows[0].pass_hash))) {
@@ -666,7 +666,7 @@ module.exports = async (req, res) => {
           if (!r.rows.length) return res.status(404).json({ ok: false, error: 'Бүртгэлгүй имэйл' });
           const llim = await firstLimitHit([
             ['wsdevrm:em:' + email, 10, 900, MSG_TOO_MANY],
-            ['wsdevrm:ip:' + ipKey(clientIp(req)), 30, 900, MSG_TOO_MANY],
+            ['wsdevrm:ip:' + ipKey(clientIp(req)), 150, 900, MSG_TOO_MANY],
           ]);
           if (llim) return res.status(429).json({ ok: false, error: llim });
           if (!(await bcrypt.compare(String(b.pass || ''), r.rows[0].pass_hash))) {
@@ -699,7 +699,7 @@ module.exports = async (req, res) => {
             const inv = wsInviteNorm(b.invite);
             if (!inv) return res.status(400).json({ ok: false, code: 'INVITE_BAD', error: MSG_INVITE_BAD });
             const ilim = await firstLimitHit([
-              ['wsinvreg:ip:' + ipKey(clientIp(req)), 60, 3600, MSG_TOO_MANY],
+              ['wsinvreg:ip:' + ipKey(clientIp(req)), 600, 3600, MSG_TOO_MANY],   // урилгын max_uses нь дээд хязгаар
               ['wsinvreg:em:' + email, 10, 3600, MSG_TOO_MANY],
             ]);
             if (ilim) return res.status(429).json({ ok: false, error: ilim });

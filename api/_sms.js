@@ -974,6 +974,7 @@ function moLimits() {
   };
 }
 const MO_TTL_SEC = 300;            // verify.mn session 5 минут
+const MO_GRACE_SEC = 600;          // хугацаа дууссанаас хойш verify.mn «VERIFIED» гэвэл дуусгаж болох хугацаа (moCheck)
 
 let _vfmReady = false;
 async function ensureVfmTables() {
@@ -1176,11 +1177,14 @@ async function moCheck(pollToken, opts) {
     if (!r.rows.length) return { ok: false, status: 'UNKNOWN' };
     const row = r.rows[0];
     if (row.consumed_at) return { ok: true, status: 'EXPIRED', spent: true };
-    if (new Date(row.expires_at).getTime() < Date.now()) return { ok: true, status: 'EXPIRED' };
+    // Хугацаа (5 мин) дууссан ч MO_GRACE_SEC хүртэл verify.mn-ээс асууна: SMS-ийг хугацаандаа илгээсэн ч дуусгалт (нууц үг
+    // бичих, SMS хоцрох) удсан сурагч «хугацаа дууссан» болдог байв. Баталгааг verify.mn л өгнө (V3), нэг л удаа (M5) хэвээр.
+    const late = new Date(row.expires_at).getTime() < Date.now();
+    if (new Date(row.expires_at).getTime() + MO_GRACE_SEC * 1000 < Date.now()) return { ok: true, status: 'EXPIRED' };
 
     const st = await VFM.sessionStatus(row.session_id);   // V3: callback-т итгэхгүй
     if (!st.ok) return { ok: false, status: 'UNKNOWN', cls: st.cls };
-    if (st.status !== 'VERIFIED') return { ok: true, status: st.status };
+    if (st.status !== 'VERIFIED') return { ok: true, status: late ? 'EXPIRED' : st.status };
 
     // Зөвхөн мэдээлнэ — зарцуулахгүй (дуудагч дараа нь consume: true-гээр дуусгана)
     if (!consume) {

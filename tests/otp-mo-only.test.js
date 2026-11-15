@@ -185,6 +185,32 @@ test('Дасгалын төв: илгээмэгц ws_moStatus → ws_moVerify т
   assert.strictEqual(F.sms.calls.length, 0);
 });
 
+test('Дасгалын төв: 5 минут өнгөрсөн ч verify.mn «VERIFIED» бол 10 минут хүртэл дуусгана; хэтэрвэл эсвэл баталгаажаагүй бол EXPIRED', async () => {
+  const back = (tok, sec) => { for (const row of F.db.vfm.values()) if (row.expires_at) row.expires_at = new Date(Date.now() - sec * 1000); };
+  // SMS-ээ хугацаандаа илгээсэн, нууц үгээ бичих хооронд хугацаа өнгөрсөн (2 мин хоцорсон)
+  const r = await W(wsReg('late@x.mn'));
+  assertMo(r.body);
+  userSent(r.body.moText);
+  back(r.body.pollToken, 120);
+  assert.strictEqual((await W({ action: 'ws_moStatus', pollToken: r.body.pollToken })).body.status, 'VERIFIED');
+  const v = await W({ action: 'ws_moVerify', pollToken: r.body.pollToken, pass: 'secret1' });
+  assert.ok(v.body.ok && v.body.token, JSON.stringify(v.body));
+  assert.strictEqual(F.db.ws.get('late@x.mn').verified, true);
+  // Хугацаа өнгөрсөн, verify.mn баталгаажуулаагүй → EXPIRED (дахин код авна)
+  F.reset(); VM.sessions.clear();
+  const r2 = await W(wsReg('late2@x.mn'));
+  back(r2.body.pollToken, 60);
+  assert.strictEqual((await W({ action: 'ws_moStatus', pollToken: r2.body.pollToken })).body.status, 'EXPIRED');
+  // 10 минутаас их хоцорсон бол verify.mn-ээс асуухгүй — EXPIRED
+  F.reset(); VM.sessions.clear();
+  const r3 = await W(wsReg('late3@x.mn'));
+  userSent(r3.body.moText);
+  back(r3.body.pollToken, 11 * 60);
+  assert.strictEqual((await W({ action: 'ws_moStatus', pollToken: r3.body.pollToken })).body.status, 'EXPIRED');
+  const v3 = await W({ action: 'ws_moVerify', pollToken: r3.body.pollToken, pass: 'secret1' });
+  assert.strictEqual(v3.statusCode, 400);
+});
+
 test('Дасгалын төв: хуурамч ws_resend / ws_forgot хариу MO хэлбэртэй', async () => {
   const a = await W({ action: 'ws_resend', email: 'ghost@x.mn' });
   const b = await W({ action: 'ws_forgot', email: 'ghost2@x.mn' });
