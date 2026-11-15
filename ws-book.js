@@ -17,22 +17,25 @@
   }
 
   /* ── 1) Агуулга: бүлэг → сэдэв (жишиг/шалгалт орно) → ажлын хуудсууд ── */
+  // Дэвтэрт оруулахгүй хуудас (анги → slug): 10-р ангийн төгсгөлийн «ЖИШИГ ДААЛГАВАР — бодолт хавсаргасан» 10 хувилбар
+  var BOOK_SKIP = { '10-р анги': /^jishig-daalgavar-\d+-10\.html$/ };
   function outline(gi) {
     var d = window.WSB && WSB.gdata(gi); if (!d) return null;
+    var skip = BOOK_SKIP[d.label], keep = function (w) { return !(skip && skip.test(w[0])); };
     var chapters = [];
     var addNode = function (n, topics) {
-      var items = WSB.deepItems(n);
+      var items = WSB.deepItems(n).filter(keep);
       if (items.length) topics.push({ num: n.exam ? '' : (n.num || ''), title: n.exam ? 'Жишиг ба шалгалт' : n.title, items: items });
     };
     d.chapters.forEach(function (c) {
-      var topics = [];
-      if (c.own && c.own.length) topics.push({ num: '', title: c.title, items: c.own.slice() });
+      var topics = [], own = (c.own || []).filter(keep);
+      if (own.length) topics.push({ num: '', title: c.title, items: own });
       (c.kids || []).forEach(function (k) { addNode(k, topics); });
       if (topics.length) chapters.push({ roman: c.roman || '', title: c.title, topics: topics });
     });
-    var extra = [];
+    var extra = [], rest = d.rest.filter(keep);
     d.extras.forEach(function (n) { addNode(n, extra); });
-    if (d.rest.length) extra.push({ num: '', title: 'Бусад хуудас', items: d.rest.slice() });
+    if (rest.length) extra.push({ num: '', title: 'Бусад хуудас', items: rest });
     if (extra.length) chapters.push({ roman: '', title: 'Нэмэлт', topics: extra });
     return { label: d.label, chapters: chapters };
   }
@@ -1978,5 +1981,5 @@
     '.cover,.toc,.wsx,.fm{margin:0!important;box-shadow:none!important}.toc{padding:0;width:auto}.fm{padding:0!important;width:auto!important}.wsx{width:auto}.wsx-paper{width:auto;padding:0;box-shadow:none;opacity:1!important}}',
   ].join('');
 
-  window.WSBOOK = { build: build, snap: snapOne, _main: bookMain, _css: BOOK_CSS };   // snap — засварлагч хуудсыг дахин ачаална; _main/_css — урьдчилан харах тест
+  window.WSBOOK = { build: build, snap: snapOne, _main: bookMain, _css: BOOK_CSS, _outline: outline };   // snap — засварлагч хуудсыг дахин ачаална; _main/_css/_outline — тест
 })();
