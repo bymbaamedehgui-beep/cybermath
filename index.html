@@ -52185,6 +52185,7 @@ function toggleAvatarSection() {
     if (tv) tv.style.display = 'block';
     if (sv) sv.style.display = 'none';
     if (nv) nv.style.display = 'none';
+    cmTeacherNotes();
 
     fetch('/api/classroom?teacher_email=' + encodeURIComponent(_currentUser.email))
       .then(function(r){ return r.json(); })
@@ -52213,6 +52214,82 @@ function toggleAvatarSection() {
         }).join('');
       });
   }
+
+  /* ── Багшийн мэдэгдэл ── сурагч даалгавраа бүрэн дуусгахад зөвхөн тухайн ангийн багшид энд харагдана
+     (api/users.js teacherNotes / teacherNotesSeen). Шинэ мэдэгдэлтэй бол нээлттэй, үгүй бол хураалттай. */
+  var _tn = { d: null, open: false };
+  var TN_BELL = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" style="vertical-align:-3px;display:inline-block;"><path d="M6 16v-5a6 6 0 0112 0v5l1.5 2h-15L6 16z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 20a2 2 0 004 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+  var TN_DONE = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" style="display:block;"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M8 12.5l2.5 2.5L16 9.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  function _tnWhen(s) {
+    var t = new Date(s); if (isNaN(t.getTime())) return '';
+    var p = function (x) { return (x < 10 ? '0' : '') + x; };
+    return p(t.getMonth() + 1) + '/' + p(t.getDate()) + ' ' + p(t.getHours()) + ':' + p(t.getMinutes());
+  }
+  function _tnRender() {
+    var box = document.getElementById('cm-tnotes'), d = _tn.d;
+    if (!box) return;
+    var notes = (d && d.notes) || [];
+    if (!notes.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    var unseen = d.unseen || 0, F = 'font-family:\'Baloo 2\',sans-serif;';
+    var list = unseen ? notes.filter(function (n) { return !n.seen_at; }) : (_tn.open ? notes : []);
+    var more = list.length > 10 ? list.length - 10 : 0;
+    var bs = 'background:#f5f0ff;border:none;border-radius:20px;color:#7B52EE;' + F + 'font-weight:800;font-size:0.78rem;padding:5px 12px;cursor:pointer;';
+    box.innerHTML = '<div style="background:white;border-radius:16px;padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,0.08);border:2px solid #f0ebff;border-left:4px solid #7B52EE;">'
+      + '<div style="display:flex;align-items:center;gap:8px;">'
+      + '<span style="color:#7B52EE;">' + TN_BELL + '</span>'
+      + '<div style="' + F + 'font-weight:900;font-size:0.95rem;color:#3C3C3C;flex:1;">Мэдэгдэл'
+      + (unseen ? ' <span style="background:#7B52EE;color:white;border-radius:20px;padding:1px 8px;font-size:0.72rem;margin-left:4px;">' + unseen + ' шинэ</span>' : '')
+      + '</div>'
+      + (unseen ? '<button onclick="cmTeacherNotesSeen()" style="' + bs + '">Уншсан</button>'
+                : '<button onclick="cmTeacherNotesToggle()" style="' + bs + '">' + (_tn.open ? 'Хураах' : 'Харах') + '</button>')
+      + '</div>'
+      + list.slice(0, 10).map(function (n) {
+          return '<div style="display:flex;gap:10px;align-items:flex-start;padding-top:9px;margin-top:9px;border-top:1px solid #f3efff;">'
+            + '<span style="color:#22A06B;flex:none;margin-top:2px;">' + TN_DONE + '</span>'
+            + '<div style="flex:1;min-width:0;' + F + '">'
+            + '<div style="font-size:0.86rem;color:#3C3C3C;line-height:1.35;"><b>' + _esc(n.student_name || n.student_email) + '</b> «' + _esc(n.title) + '» даалгаврыг дуусгалаа</div>'
+            + '<div style="font-size:0.74rem;color:#999;margin-top:2px;">' + [n.class_name ? _esc(n.class_name) : '', n.lessons ? n.lessons + ' хичээл' : '', _tnWhen(n.created_at)].filter(Boolean).join(' · ') + '</div>'
+            + '</div></div>';
+        }).join('')
+      + (more ? '<div style="' + F + 'font-size:0.78rem;color:#999;margin-top:8px;">бас ' + more + ' мэдэгдэл</div>' : '')
+      + '</div>';
+    box.style.display = 'block';
+  }
+  function cmTeacherNotes() {
+    if (!_currentUser || !_currentUser.email || _currentUser.role !== 'teacher' || !document.getElementById('cm-tnotes')) return;
+    authFetch('/api/users', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: _currentUser.email, action: 'teacherNotes' })
+    }).then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || !d.ok) return;
+        var prev = _tn.d ? (_tn.d.unseen || 0) : 0;
+        _tn.d = d; _tnRender();
+        if (d.unseen > prev) showToast('Даалгавраа дуусгасан сурагч: ' + d.unseen);
+      }).catch(function () {});
+  }
+  window.cmTeacherNotesSeen = function () {
+    if (!_currentUser || !_currentUser.email) return;
+    authFetch('/api/users', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: _currentUser.email, action: 'teacherNotesSeen' })
+    }).then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || !d.ok || !_tn.d) return;
+        (_tn.d.notes || []).forEach(function (n) { n.seen_at = n.seen_at || new Date().toISOString(); });
+        _tn.d.unseen = 0; _tn.open = false; _tnRender();
+      }).catch(function () {});
+  };
+  window.cmTeacherNotesToggle = function () { _tn.open = !_tn.open; _tnRender(); };
+  // «Миний ангиуд» харагдаж байх үед 2 минут тутам шинэчилнэ (таб далд бол үгүй)
+  setInterval(function () {
+    if (document.hidden) return;
+    var tv = document.getElementById('classroom-teacher-view');
+    if (tv && tv.offsetParent !== null) cmTeacherNotes();
+  }, 120000);
+  /* ── /Багшийн мэдэгдэл ── */
 
   // Сурагчийн нэгдсэн бүх ангиудыг хадгалах
   var _myJoinedClassrooms = [];
@@ -60562,6 +60639,7 @@ function toggleAvatarSection() {
         <div style="font-family:'Baloo 2',sans-serif;font-weight:900;font-size:1.1rem;color:#3C3C3C;">📚 Миний ангиуд</div>
         <button onclick="openCreateClassroom()" style="background:linear-gradient(135deg,#7B52EE,#A855F7);border:none;border-radius:20px;color:white;font-family:'Baloo 2',sans-serif;font-weight:800;font-size:0.85rem;padding:8px 16px;cursor:pointer;">+ Анги үүсгэх</button>
       </div>
+      <div id="cm-tnotes" style="display:none;margin-bottom:14px;"></div>
       <div id="classroom-list" style="display:flex;flex-direction:column;gap:12px;">
         <div style="text-align:center;padding:30px;color:#aaa;font-family:'Baloo 2',sans-serif;">Уншиж байна...</div>
       </div>

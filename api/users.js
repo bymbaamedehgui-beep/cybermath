@@ -88,6 +88,31 @@ async function sendTelegramNotification(message) {
   await require('./_telegram').sendTelegram(message);   // IPv4, хугацаатай, алдааны шалтгааныг логт бичнэ
 }
 
+// Багшийн мэдэгдэл: сурагч даалгавраа (challenge) бүрэн дуусгахад тухайн ангийн багшид харагдана.
+// ukey = сурагч|challenge — нэг сурагчийн нэг даалгавар нэг л удаа.
+let _tnReady = null;
+function ensureTeacherNotes() {
+  if (!_tnReady) {
+    const dup = function (e) { if (!(e && (e.code === '23505' || e.code === '42P07'))) throw e; };   // зэрэг үүсгэх уралдаан
+    _tnReady = (async function () {
+      await pool.query(`CREATE TABLE IF NOT EXISTS teacher_notes (
+        id BIGSERIAL PRIMARY KEY,
+        teacher_email TEXT NOT NULL,
+        ukey TEXT NOT NULL,
+        student_email TEXT,
+        student_name TEXT,
+        class_name TEXT,
+        title TEXT,
+        lessons INT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        seen_at TIMESTAMPTZ
+      )`).catch(dup);
+      await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS teacher_notes_ukey ON teacher_notes (teacher_email, ukey)').catch(dup);
+    })().catch(function (e) { _tnReady = null; throw e; });
+  }
+  return _tnReady;
+}
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
@@ -482,13 +507,7 @@ module.exports = async (req, res) => {
           "UPDATE classrooms SET challenges = COALESCE(challenges,'[]'::jsonb) || $2::jsonb WHERE id=$1",
           [classroomId, JSON.stringify([challenge])]).catch(()=>{});
 
-        // Telegram мэдэгдэл
-        const teacherInfo = await pool.query('SELECT first_name, last_name FROM users WHERE email=$1', [email]);
-        const className = await pool.query('SELECT name FROM classrooms WHERE id=$1', [classroomId]);
-        const tName = teacherInfo.rows[0] ? (teacherInfo.rows[0].last_name || '') + ' ' + teacherInfo.rows[0].first_name : email;
-        const cName = className.rows[0] ? className.rows[0].name : 'Анги#' + classroomId;
-        const msg = `🎯 <b>Багш challenge оноолоо</b>\n\n👨‍🏫 ${tName.trim()}\n🏫 ${cName}\n📝 "${title}"\n📚 ${lessons.length} хичээл (${lessons.join(', ')})\n👥 ${m.rows.length} сурагчид илгээгдлээ${dueDate ? '\n📅 ' + dueDate : ''}`;
-        sendTelegramNotification(msg).catch(()=>{});
+        // Сайтын эзэн рүү Telegram илгээхгүй — илгээсэн багш «N сурагчид илгээгдлээ» хариугаа өөрөө харна
         return res.json({ ok: true, count: m.rows.length, challenge });
       }
 
@@ -590,6 +609,21 @@ module.exports = async (req, res) => {
           });
         });
         return res.json({ ok: true, challenges: enriched });
+      }
+
+      // Багшийн мэдэгдэл (сурагч даалгавраа дуусгасан) — зөвхөн өөрт ирсэн нь, сүүлийн 30
+      if (action === 'teacherNotes') {
+        await ensureTeacherNotes();
+        const r = await pool.query(
+          `SELECT id, student_email, student_name, class_name, title, lessons, created_at, seen_at
+             FROM teacher_notes WHERE teacher_email=$1 ORDER BY id DESC LIMIT 30`, [email]);
+        const u = await pool.query('SELECT COUNT(*)::int AS n FROM teacher_notes WHERE teacher_email=$1 AND seen_at IS NULL', [email]);
+        return res.json({ ok: true, notes: r.rows, unseen: (u.rows[0] || {}).n || 0 });
+      }
+      if (action === 'teacherNotesSeen') {
+        await ensureTeacherNotes();
+        await pool.query('UPDATE teacher_notes SET seen_at=NOW() WHERE teacher_email=$1 AND seen_at IS NULL', [email]);
+        return res.json({ ok: true });
       }
 
       // ===== БАГШИЙН БОДЛОГЫН САН =====
@@ -992,34 +1026,46 @@ module.exports = async (req, res) => {
       }
 
       if (completed_lesson !== undefined) {
-        await pool.query(
+        const added = await pool.query(
           `UPDATE users SET completed_lessons = array_append(COALESCE(completed_lessons,'{}'), $1::int)
            WHERE email=$2 AND NOT ($1::int = ANY(COALESCE(completed_lessons,'{}')))`,
           [completed_lesson, email]
         );
-        // Энэ хичээл нь challenge-д багтаж байгаа эсэхийг шалгах
-        try {
+        // Энэ хичээлээр challenge бүрэн дуусвал — зөвхөн тухайн ангийн багшид мэдэгдэл (сайтын эзэн рүү Telegram биш).
+        // Шинээр дуусгасан үед л: хуучин хичээлээ давтан хийхэд дахин мэдэгдэхгүй.
+        if (added && added.rowCount) try {
           const r = await pool.query('SELECT challenges, completed_lessons, first_name, last_name FROM users WHERE email=$1', [email]);
           if (r.rows.length) {
             let list = r.rows[0].challenges || [];
             if (typeof list === 'string') { try { list = JSON.parse(list); } catch(e) { list = []; } }
-            const done = r.rows[0].completed_lessons || [];
+            if (!Array.isArray(list)) list = [];
+            const done = (r.rows[0].completed_lessons || []).map(Number);
             const studentName = ((r.rows[0].last_name || '') + ' ' + (r.rows[0].first_name || '')).trim();
             // Challenge бүрийг шалгах: одоо нэмсэн хичээл challenge-ийн нэг хэсэг үү?
             for (const c of list) {
+              if (!c) continue;
               const lessons = Array.isArray(c.lessons) ? c.lessons.map(l => parseInt(l)) : [];
               if (!lessons.includes(parseInt(completed_lesson))) continue;
-              // Бүх challenge хичээлийг хийж дуусгасан уу?
-              const allDone = lessons.every(l => done.includes(l));
-              const completedCount = lessons.filter(l => done.includes(l)).length;
-              if (allDone) {
-                // Challenge бүрэн дуусгасан — багш руу telegram
-                const msg = `✅ <b>Сурагч challenge дуусгалаа!</b>\n\n👤 ${studentName || email}\n🎯 "${c.title}"\n📚 ${lessons.length}/${lessons.length} хичээл бүгд хийгдсэн`;
-                sendTelegramNotification(msg).catch(()=>{});
+              if (!lessons.every(l => done.includes(l))) continue;
+              // Хүлээн авагч: ангийн одоогийн багш (анги устсан бол оноосон багш)
+              let teacher = String(c.assignedBy || '').trim().toLowerCase(), className = null;
+              if (c.classroomId) {
+                const cr = await pool.query('SELECT teacher_email, name FROM classrooms WHERE id=$1', [c.classroomId]);
+                if (cr.rows.length) {
+                  teacher = String(cr.rows[0].teacher_email || teacher).trim().toLowerCase();
+                  className = cr.rows[0].name || null;
+                }
               }
+              if (!teacher) continue;
+              await ensureTeacherNotes();
+              await pool.query(
+                `INSERT INTO teacher_notes (teacher_email, ukey, student_email, student_name, class_name, title, lessons)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (teacher_email, ukey) DO NOTHING`,
+                [teacher, email + '|' + (c.id || c.assignedAt || c.title), email, studentName || null, className,
+                 String(c.title || '').slice(0, 200), lessons.length]);
             }
           }
-        } catch(e) { /* non-fatal */ }
+        } catch(e) { console.error('[teacher_notes]', e && e.message); /* non-fatal */ }
       }
 
       const sets = [];
