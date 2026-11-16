@@ -46,7 +46,7 @@ test('ws-browse: «Дасгал ажлын дэвтэр» → A4 / B5 сонго
   assert.match(br, /data-bookp="a4"/); assert.match(br, /data-bookp="b5"/);
   assert.match(br, /openBook\(el\.getAttribute\('data-bookp'\)\)/);
   assert.match(br, /window\.WSBOOK\.build\(g, pw, paper, opts\)/);   // opts.bw — хар цагаан (tests/ws-book-bw.test.js)
-  assert.match(br, /s\.src = '\/ws-book\.js\?v=22';/);
+  assert.match(br, /s\.src = '\/ws-book\.js\?v=23';/);
   assert.match(css, /\.wsb-bkm\{position:absolute;/);
   assert.doesNotMatch(br.slice(br.indexOf('function bookMenu'), br.indexOf('function openBook')), /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
   new Function(br);

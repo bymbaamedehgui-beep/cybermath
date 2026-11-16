@@ -21,6 +21,14 @@
   // Дэвтэрт оруулахгүй хуудас (анги → slug): ангийн төгсгөлийн «ЖИШИГ ДААЛГАВАР» хувилбарууд —
   // 6-р анги 40 («Заавал бодох 360 бодлого»), 10-р анги 10 («бодолт хавсаргасан»)
   var BOOK_SKIP = { '6-р анги': /^jishig-daalgavar-\d+-6\.html$/, '10-р анги': /^jishig-daalgavar-\d+-10\.html$/ };
+  // Цахим номын түлхүүр — ws-browse.js ebookKey-тэй ИЖИЛ. Дасгалын төвийн хуудсыг шинэчлэлтээс өмнө нээсэн хэвээр байвал
+  // хуучин ws-browse.js-д ebookKey байхгүй (ws-book.js-ийг ?v-ээс үл хамааран шинээр нь авна) — «Цахим ном нийтлэх» идэвхгүй болдог байв
+  function ebKey(label) {
+    if (window.WSB && typeof WSB.ebookKey === 'function') return WSB.ebookKey(label) || '';
+    var m = /^(\d{1,2})-р анги$/.exec(String(label || ''));
+    if (m) return +m[1] >= 2 && +m[1] <= 12 ? m[1] : '';
+    return label === 'ЭЕШ' ? 'eesh' : label === 'Олимпиад' ? 'olimpiad' : '';
+  }
   function outline(gi) {
     var d = window.WSB && WSB.gdata(gi); if (!d) return null;
     var skip = BOOK_SKIP[d.label], keep = function (w) { return !(skip && skip.test(w[0])); };
@@ -237,7 +245,7 @@
           it.cls = it.snap.styles.map(function (t) { if (!idx.has(t)) { idx.set(t, blocks.length); blocks.push(t); } return 'cb-' + idx.get(t); }).join(' ');
         });
         // key — цахим номын холбоос (/devter/<key>, ws-browse.js ebookKey); бүлгийн нэр танигдахгүй бол '' (нийтлэхгүй)
-        var D = { paper: b5 ? 'b5' : 'a4', bw: bw, key: (WSB.ebookKey && WSB.ebookKey(o.label)) || '', label: o.label, year: new Date().getFullYear(), list: list, blocks: blocks, settings: settings,
+        var D = { paper: b5 ? 'b5' : 'a4', bw: bw, key: ebKey(o.label), label: o.label, year: new Date().getFullYear(), list: list, blocks: blocks, settings: settings,
           chapters: o.chapters.map(function (c) { return { roman: c.roman, title: c.title, topics: c.topics.map(function (t) { return { num: t.num, title: t.title }; }) }; }) };
         pw.document.open();
         // Скрипт stylesheet-ээс ӨМНӨ: хүлээгдэж буй CSS-ийн дараах inline скрипт хойшилдог тул __bookInit доор шууд дуудагдахгүй болно
@@ -2247,5 +2255,5 @@
     '@media print{.b5 .cvz{margin:0!important;box-shadow:none!important}}'
   ].join('');
 
-  window.WSBOOK = { build: build, snap: snapOne, _main: bookMain, _css: BOOK_CSS, _cssB5: BOOK_CSS_B5, _outline: outline, _b5Settings: b5Settings };   // snap — засварлагч хуудсыг дахин ачаална; _main/_css/_outline — тест
+  window.WSBOOK = { build: build, snap: snapOne, _main: bookMain, _css: BOOK_CSS, _cssB5: BOOK_CSS_B5, _outline: outline, _b5Settings: b5Settings, _ebKey: ebKey };   // snap — засварлагч хуудсыг дахин ачаална; _main/_css/_outline — тест
 })();

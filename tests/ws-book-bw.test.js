@@ -65,9 +65,9 @@ test('bookMain: хар цагаан — CSSOM дүрэм, inline, SVG шинж, 
   new Function(main);
 });
 
-test('build: opts.bw → D.bw, цахим номын түлхүүр (WSB.ebookKey); гарчигт «Хар цагаан»', () => {
+test('build: opts.bw → D.bw, цахим номын түлхүүр (ebKey — WSB.ebookKey эсвэл өөрийн хуулбар); гарчигт «Хар цагаан»', () => {
   assert.match(src, /function build\(gi, pw, paper, opts\) \{\s*var b5 = paper === 'b5', bw = !!\(opts && opts\.bw\)/);
-  assert.match(src, /var D = \{ paper: b5 \? 'b5' : 'a4', bw: bw, key: \(WSB\.ebookKey && WSB\.ebookKey\(o\.label\)\) \|\| '',/);
+  assert.match(src, /var D = \{ paper: b5 \? 'b5' : 'a4', bw: bw, key: ebKey\(o\.label\), label: o\.label,/);
   assert.match(src, /pl = \(b5 \? ' · B5' : ''\) \+ \(bw \? ' · Хар цагаан' : ''\)/);
 });
 
@@ -93,7 +93,7 @@ test('ws-browse: цэсэнд Өнгөт / Хар цагаан (хадгалаг
   assert.doesNotMatch(menu, /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
   assert.match(br, /localStorage\.setItem\(BW_KEY, on \? '1' : '0'\)/);
   assert.match(br, /var g = ST\.g, opts = \{ bw: bookBw\(\) \}, go = function \(\) \{ window\.WSBOOK\.build\(g, pw, paper, opts\); \};/);
-  assert.match(br, /s\.src = '\/ws-book\.js\?v=22';/);
+  assert.match(br, /s\.src = '\/ws-book\.js\?v=23';/);
   assert.match(br, /ebookKey: ebookKey \};/);
   assert.match(css, /\.wsb-bkc\{display:flex;/); assert.match(css, /\.wsb-bke\{display:flex;/);
   assert.doesNotMatch(css.slice(css.indexOf('.wsb-bkc')), /#FFC800|#FFF3|#FEF3C7|#fff8e/i, 'шар хайрцаггүй');

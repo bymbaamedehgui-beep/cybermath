@@ -55,5 +55,16 @@ test('Бусад ангид нөлөөлөхгүй (анги бүр зөвхөн
 });
 
 test('ws-book.js-ийн шинэ хувилбарыг ачаална (кэш)', () => {
-  assert.match(R('ws-browse.js'), /s\.src = '\/ws-book\.js\?v=22';/);
+  assert.match(R('ws-browse.js'), /s\.src = '\/ws-book\.js\?v=23';/);
+});
+
+// 2026-11-16 эзэмшигч «цахим ном нийтлэх ажиллахгүй» (товч идэвхгүй): Дасгалын төвийн хуудсыг шинэчлэлтээс өмнө нээсэн хэвээр
+// байхад хуучин ws-browse.js-д ebookKey байхгүй — ws-book.js түлхүүрээ өөрөө олно
+test('цахим номын түлхүүр: ws-browse.js-ийн ebookKey байхгүй (хуучин хуудас) ч ws-book.js өөрөө олно', () => {
+  const run = wsb => { const win = { WSB: wsb }; win.window = win; vm.runInNewContext(src, win); return win.WSBOOK._ebKey; };
+  const k = run({ gdata: () => null });
+  assert.deepStrictEqual(['2-р анги', '10-р анги', '12-р анги', 'ЭЕШ', 'Олимпиад', '1-р анги', '13-р анги', 'Бусад', ''].map(k),
+    ['2', '10', '12', 'eesh', 'olimpiad', '', '', '', '']);
+  assert.strictEqual(run({ ebookKey: () => 'x' })('10-р анги'), 'x', 'шинэ ws-browse.js байвал түүнийг ашиглана');
+  assert.match(src, /key: ebKey\(o\.label\)/);
 });
