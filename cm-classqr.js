@@ -97,7 +97,8 @@
   }
   function init() {
     var code = parseCode(root.location.search);
-    if (!code || me()) return;                      // нэвтэрсэн бол _onLogin → afterLogin
+    if (!code) return;
+    if (me()) { if (root._cmLoginDone) afterLogin(); return; }   // нэвтэрсэн бол _onLogin → afterLogin (_onLogin түрүүлсэн бол — утсанд — энд)
     remember(code);
     fetch('/api/classroom?join_code=' + encodeURIComponent(code)).then(function (r) {
       if (r.status === 404) {

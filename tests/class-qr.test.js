@@ -39,7 +39,7 @@ function page(o) {
   const loc = new URL(o.url || 'https://cyber-math.com/');
   const location = { get href() { return loc.href; }, get search() { return loc.search; }, get origin() { return loc.origin; } };
   const win = {
-    location, _currentUser: o.user || null, _myClassrooms: [],
+    location, _currentUser: o.user || null, _myClassrooms: [], _cmLoginDone: !!o.loginDone,
     history: { replaceState(_s, _t, u) { const n = new URL(u, loc.href); loc.pathname = n.pathname; loc.search = n.search; loc.hash = n.hash; } },
     openJoinClassroom() { els['join-code-input'].value = ''; },
     doJoinClassroom(cb) { calls.join.push(els['join-code-input'].value); calls.cb = cb; },
@@ -70,6 +70,15 @@ test('нэвтэрсэн сурагч холбоосоор орвол шууд �
   assert.strictEqual(p.calls.tab, 1);
   p.win.cmClassQr.afterLogin();
   assert.strictEqual(p.calls.join.length, 1, '_onLogin дахин дуудагдвал давтахгүй');
+});
+
+test('_onLogin модулиас түрүүлсэн бол (утсанд defer скрипт хожуу ачаалагдана) init өөрөө нэгтгэнэ', () => {
+  const p = page({ url: 'https://cyber-math.com/?class=K7M2QX', user: STUDENT, loginDone: true });
+  assert.deepStrictEqual(p.calls.join, ['K7M2QX']);
+  assert.deepStrictEqual(p.calls.fetch, [], 'урилга татахгүй');
+  assert.strictEqual(p.url(), '/');
+  p.win.cmClassQr.afterLogin();
+  assert.strictEqual(p.calls.join.length, 1, '_onLogin-ийн хугацаа хэмжигч дараа нь ирсэн ч давтахгүй');
 });
 
 test('QR-гүй ердийн нэвтрэлтэд юу ч хийхгүй', () => {
