@@ -137,3 +137,14 @@ test('devter.html: зөвхөн унших — хэвлэх/татах/заса�
   assert.ok(!new RegExp('^' + rt.src + '$').test('/devter/9/../x'));
   assert.ok(v.builds.some((b) => b.src === '*.html'), 'devter.html статикаар');
 });
+
+// 2026-11-16 эзэмшигч «цахим номын бүх бодлогууд харагдахгүй»: өнгө заагаагүй бичиг (ажлын хуудасны .qm) body.ev-ийн цагааныг өвлөж
+// цагаан дээр цагаанаар байв — номын хэсэг дэвтрийн попапын body-той ижил бичгийн өнгөтэй
+test('devter.html: номын хуудасны бичиг дэвтрийн body-ийн өнгөтэй (body.ev-ийн цагааныг өвлөхгүй)', () => {
+  const h = R('devter.html'), book = R('ws-book.js');
+  const ink = (book.match(/body\{font-family:'Segoe UI',Arial,sans-serif;color:(#[0-9a-fA-F]{6})/) || [])[1];
+  assert.ok(ink, 'ws-book.js попапын body өнгө');
+  assert.match(h, /body\.ev\{[^}]*color:#fff/);
+  assert.match(h, new RegExp('\\.ev-book\\{color:' + ink + '\\}'));
+  assert.match(h, /<div class="ev-book" id="book">/);
+});
