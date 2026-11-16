@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const pool = require('./_db');
 const sms = require('./_sms');
+const PHC = require('./_phonechg');
 const tg = require('./_telegram');
 const { validateEmail } = require('./_email_validate');
 const { ensureExpiryCheck } = require('./_premium');
@@ -233,7 +234,7 @@ async function verifyPassword(input, stored) {
 }
 
 // users.phone_verified_at / email_unverified / token_version баганыг ашигладаг action-ууд
-const USER_COL_ACTIONS = ['register', 'verify', 'resend', 'verifyResetCode', 'reset', 'resetWithCode', 'forgot', 'sendResetCode', 'adminUserPhone', 'adminSetPhone'];
+const USER_COL_ACTIONS = ['register', 'verify', 'resend', 'verifyResetCode', 'reset', 'resetWithCode', 'forgot', 'sendResetCode', 'adminUserPhone', 'adminSetPhone', 'phoneHint', 'phoneChange'];
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -455,6 +456,18 @@ module.exports = async (req, res) => {
         return res.json({ ok: true, status: 'VERIFIED', purpose: 'reset', email: em, code: one });
       }
 
+      /* Дугаар солих (api/_phonechg.js): шинэ дугаараас илгээсэн нь нотлогдсон — хүлээгдэж буй дугаарыг бичээд,
+         нууц үг сэргээхтэй ижил нэг удаагийн кодоор resetWithCode урсгал руу шилжүүлнэ */
+      if (c.purpose === 'phone') {
+        const ch = await PHC.commit('users', em, c);
+        if (!ch) return res.json({ ok: true, status: 'EXPIRED' });
+        tg.sendTelegram(PHC.tgText('Тоглоомын төв', em, ch, u.plan === 'premium' ? 'Premium' : '')).catch(() => {});
+        await ensureAttemptsColumn();
+        const one = PHC.oneTimeCode();
+        await userCodeStore(em, true)(one);
+        return res.json({ ok: true, status: 'VERIFIED', purpose: 'phone', email: em, code: one });
+      }
+
       if (u.verified) return res.json({ ok: true, status: 'VERIFIED', alreadyVerified: true });
       await pool.query('UPDATE users SET verified=true, verify_code=NULL, verify_expiry=NULL, phone_verified_at=NOW(), email_unverified=TRUE WHERE LOWER(email)=LOWER($1)', [em]);
       await sms.markVerified(u.phone);
@@ -584,6 +597,29 @@ module.exports = async (req, res) => {
         return res.json(fakeAccepted(sms.maskPhone(dest, 2)));
       }
       return sms.failJson(res, sent);
+    }
+
+    // ═══ Дугаар солих — нууц үг сэргээх «Дугаараа сольсон уу?» (api/_phonechg.js) ═══
+    // phoneHint: бүртгэлтэй утасны сүүлийн 2 орон (данс/утасгүй бол хуурамч — forgot-той ижил итгэмжлэгдсэн утас)
+    if (action === 'phoneHint' || action === 'phoneChange') {
+      if (!email) return res.status(400).json({ ok: false, error: 'Зөв и-мэйл оруулна уу' });
+      const r = await pool.query('SELECT phone, phone_verified_at, email_unverified FROM users WHERE LOWER(email)=LOWER($1) AND verified IS NOT FALSE', [email]);
+      const cur = r.rows.length ? usablePhone(r.rows[0]) : null;
+      if (action === 'phoneHint') {
+        if (!(await rateLimit('auth:phhint:ip:' + ip, 60, 3600)) || !(await rateLimit('auth:phhint:em:' + email, 20, 86400))) {
+          return res.status(429).json({ ok: false, error: TOO_MANY });
+        }
+        return res.json({ ok: true, masked: PHC.hint(cur, email) });
+      }
+      const b = req.body || {};
+      const x = await PHC.request({ scope: 'game', table: 'users', email: email, ip: ip, current: cur, oldPhone: b.oldPhone, newPhone: b.newPhone,
+        countPhone: async function (p) {
+          const pc = await pool.query('SELECT count(*)::int AS n FROM users WHERE phone=$1 AND verified IS NOT FALSE', [p]);
+          return Number(pc.rows[0] && pc.rows[0].n) || 0;
+        } });
+      if (x.fail) return sms.failJson(res, x.fail, { fields: x.field ? { field: x.field } : null });
+      if (!x.ok) return res.status(x.http).json(x.body);
+      return res.json(Object.assign({ ok: true, masked: x.masked }, moFields(x.sent)));
     }
 
     // ═══ АДМИН: хэрэглэгчийн утас (SMS) ба SMS төлөв ═══

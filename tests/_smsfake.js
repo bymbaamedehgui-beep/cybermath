@@ -320,7 +320,7 @@ async function query(sql, p) {
     const row = { id: db.nextId++, token_hash: p[0], session_id: p[1], email: p[2], purpose: p[3], kind: p[4], phone_hash: p[5], expires_at: new Date(p[6]), consumed_at: null };
     db.vfm.set(row.token_hash, row); return { rows: [] };
   }
-  if (q === 'SELECT id, session_id, email, purpose, kind, expires_at, consumed_at FROM vfm_sessions WHERE token_hash = $1') {
+  if (q === 'SELECT id, session_id, email, purpose, kind, phone_hash, expires_at, consumed_at FROM vfm_sessions WHERE token_hash = $1') {
     const r = db.vfm.get(p[0]); return { rows: r ? [Object.assign({}, r)] : [] };
   }
   if (q === 'UPDATE vfm_sessions SET consumed_at = NOW() WHERE id = $1 AND consumed_at IS NULL RETURNING id') {
@@ -328,6 +328,21 @@ async function query(sql, p) {
     return { rows: [] };
   }
   if (/^DELETE FROM vfm_sessions/.test(q)) return { rows: [] };
+  // api/_phonechg.js — дугаар солих: хүлээгдэж буй шинэ дугаар (pending_phone) → MO баталгаажвал phone болно
+  if ((m = q.match(/^UPDATE (users|ws_login) SET pending_phone=\$2, pending_phone_at=NOW\(\) WHERE (LOWER\(email\)=LOWER\(\$1\)|email=\$1) RETURNING email$/))) {
+    const r = m[1] === 'users' ? db.users.get(lc(p[0])) : db.ws.get(p[0]); if (!r) return { rows: [] };
+    Object.assign(r, { pending_phone: p[1], pending_phone_at: new Date() }); return { rows: [{ email: r.email }] };
+  }
+  if (q === 'UPDATE users SET phone=pending_phone, phone_verified_at=NOW(), pending_phone=NULL, pending_phone_at=NULL, verify_code=NULL, verify_expiry=NULL, token_version=COALESCE(token_version,0)+1 WHERE LOWER(email)=LOWER($1) AND pending_phone=$2 RETURNING phone') {
+    const u = db.users.get(lc(p[0])); if (!u || u.pending_phone !== p[1]) return { rows: [] };
+    Object.assign(u, { phone: u.pending_phone, phone_verified_at: new Date(), pending_phone: null, pending_phone_at: null, verify_code: null, verify_expiry: null, token_version: (u.token_version | 0) + 1 });
+    return { rows: [{ phone: u.phone }] };
+  }
+  if (q === 'UPDATE ws_login SET phone=pending_phone, phone_verified_at=NOW(), pending_phone=NULL, pending_phone_at=NULL, code=NULL, code_exp=NULL, code_attempts=0 WHERE email=$1 AND pending_phone=$2 RETURNING phone') {
+    const r = db.ws.get(p[0]); if (!r || r.pending_phone !== p[1]) return { rows: [] };
+    Object.assign(r, { phone: r.pending_phone, phone_verified_at: new Date(), pending_phone: null, pending_phone_at: null, code: null, code_exp: null, code_attempts: 0 });
+    return { rows: [{ phone: r.phone }] };
+  }
   // worksheets.js ws_register MO зам: код хадгалахгүй мөр + ws_moVerify дуусгалт
   if (q === 'INSERT INTO ws_login (email, pass_hash, verified, code, code_exp, name, phone) VALUES ($1,$2,FALSE,NULL,NULL,$3,$4) ON CONFLICT (email) DO UPDATE SET pass_hash=EXCLUDED.pass_hash, code=NULL, code_exp=NULL, code_attempts=0, name=EXCLUDED.name, phone=EXCLUDED.phone WHERE ws_login.verified=FALSE AND ws_login.phone_verified_at IS NULL RETURNING email') {
     const [email, hash, name, phone] = p; const r = db.ws.get(email);

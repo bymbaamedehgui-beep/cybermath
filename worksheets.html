@@ -1927,13 +1927,21 @@ function openLogin(auto,view){
     +'<div id="vForgot" style="display:none">'
       +'<div id="fgStep1"><p style="color:var(--soft);font-size:.85rem;margin-bottom:10px">Бүртгэлтэй имэйлээ оруулна уу. Дараа нь гарах кодыг дансны утаснаасаа 144773 руу SMS-ээр илгээж баталгаажуулна.</p>'
         +'<input id="fgEmail" type="email" placeholder="Имэйл хаяг" style="'+iS+'" />'
-        +'<button id="fgBtn" style="'+bS+'">Код авах</button></div>'
+        +'<button id="fgBtn" style="'+bS+'">Код авах</button>'
+        +'<a href="#" data-fgph style="display:block;text-align:center;margin-top:10px;font-size:.84rem;color:var(--purple-d);font-weight:800;text-decoration:none">Дугаараа сольсон уу?</a></div>'
       +'<div id="fgStep2" style="display:none">'+spamNote
-        +'<div style="font-size:.74rem;color:var(--soft);margin:-4px 0 10px;line-height:1.4">Код ирэхгүй бол дансанд утас бүртгэгдээгүй эсвэл буруу байж магадгүй. Админтай холбогдоно уу.</div>'
+        +'<div style="font-size:.74rem;color:var(--soft);margin:-4px 0 10px;line-height:1.4">Код ирэхгүй бол дансанд утас бүртгэгдээгүй эсвэл буруу байж магадгүй. Дугаараа сольсон бол <a href="#" data-fgph style="color:var(--purple-d);font-weight:800;text-decoration:none">энд дарна уу</a>, эс бөгөөс админтай холбогдоно уу.</div>'
         +'<input id="fgCode" type="text" inputmode="numeric" maxlength="6" placeholder="6 оронтой код" style="'+iS+';text-align:center;letter-spacing:6px;font-weight:900" />'
         +'<input id="fgPass" type="password" placeholder="Шинэ нууц үг (6+)" style="'+iS+'" />'
         +'<input id="fgPass2" type="password" placeholder="Шинэ нууц үг давтах" style="'+iS+'" />'
         +'<button id="fgBtn2" style="'+bS+'">Нууц үг шинэчлэх</button></div>'
+      // Дугаар солих (api/_phonechg.js): сэжүүр **** **15 → хуучин дугаар бүтэн + шинэ дугаар → шинэ дугаараас 144773 руу код
+      +'<div id="fgPhone" style="display:none">'
+        +'<p style="color:var(--soft);font-size:.85rem;margin-bottom:10px;line-height:1.5">Бүртгэлтэй дугаар: <b id="fgPhHint" style="color:#4c23c4;letter-spacing:1px">…</b><br>Хуучин дугаараа бүтнээр нь, дараа нь шинэ дугаараа оруулна уу. Шинэ дугаараасаа баталгаажуулах SMS илгээнэ.</p>'
+        +'<input id="fgPhOld" type="tel" inputmode="numeric" maxlength="8" placeholder="Хуучин дугаар (8 орон)" autocomplete="off" style="'+iS+'" />'
+        +'<input id="fgPhNew" type="tel" inputmode="numeric" maxlength="8" placeholder="Шинэ дугаар (8 орон)" style="'+iS+'" />'
+        +'<button id="fgPhBtn" style="'+bS+'">Үргэлжлүүлэх</button>'
+        +'<a href="#" id="fgPhBack" style="display:block;text-align:center;margin-top:10px;font-size:.84rem;color:var(--purple-d);font-weight:800;text-decoration:none">← Буцах</a></div>'
       +'<div id="fgMsg" style="font-size:.83rem;font-weight:700;margin-top:9px;min-height:1em"></div>'
       +'<div style="margin-top:10px;font-size:.84rem;color:var(--soft)"><a href="#" data-go="login" style="color:var(--purple-d);font-weight:800;text-decoration:none">← Нэвтрэх рүү буцах</a></div>'
     +'</div>'
@@ -2146,6 +2154,9 @@ function openLogin(auto,view){
 
   /* Нууц үг сэргээх дэлгэцэд MO блок. Баталгаажмагц сервер нэг удаагийн код
      өгнө — түүнийг нуугдмал талбарт бөглөөд хэрэглэгч зөвхөн шинэ нууц үгээ бичнэ. */
+  /* Дугаар солих горим (fgPh = {masked}): MO хайрцгийн тайлбар — шинэ дугаараас; «Дахин код авах» — ws_phoneChange */
+  var fgPh=null;
+  function fgRetry(){ return fgPh ? function(cb){ fgPhoneSend(cb); } : function(cb){ wsMoRetry('ws_forgot',cb); }; }
   function wsShowMoForgot(mo){
     var st=q('#fgStep2'); if(!st||!mo||!mo.moText) return false;
     wsMoStop(); wsMoDisarm();
@@ -2157,7 +2168,7 @@ function openLogin(auto,view){
     if(!box){ box=document.createElement('div'); box.id='fgMo'; st.insertBefore(box, st.firstChild); }
     box.style.display='block';
     box.innerHTML='<div style="font-size:.84rem;color:var(--soft);margin-bottom:10px;line-height:1.5">'
-      +'Доорх кодыг <b>'+sc+'</b> дугаарт SMS-ээр илгээнэ үү.</div>'
+      +(fgPh?('Доорх кодыг <b>шинэ</b> дугаараасаа'+(fgPh.masked?(' (<b>'+fgPh.masked+'</b>)'):'')+' <b>'+sc+'</b> дугаарт SMS-ээр илгээнэ үү.'):('Доорх кодыг <b>'+sc+'</b> дугаарт SMS-ээр илгээнэ үү.'))+'</div>'
       +'<div style="border:2px dashed #c9b8f7;border-radius:14px;background:#faf8ff;padding:12px;text-align:center;margin-bottom:10px">'
       +'<div style="font-size:.7rem;font-weight:800;color:#8b7fae;letter-spacing:.5px">ИЛГЭЭХ КОД</div>'
       +'<div style="font-size:1.8rem;font-weight:900;color:#4c23c4;letter-spacing:7px;font-family:ui-monospace,Menlo,Consolas,monospace">'+code+'</div>'
@@ -2173,7 +2184,7 @@ function openLogin(auto,view){
       el.textContent=left>0?('Үлдсэн хугацаа '+Math.floor(left/60)+':'+(left%60<10?'0':'')+(left%60)):'';
       if(left<=0){
         if(!tick.g){ tick.g=Date.now(); var mg=q('#fgMsg'); if(mg){mg.style.color='var(--soft)';mg.textContent='Шалгаж байна… SMS-ээ илгээсэн бол түр хүлээнэ үү.';} wsMoForgotPoll(); }
-        else if(Date.now()-tick.g>10000){ moRetryFn=function(cb){wsMoRetry('ws_forgot',cb);}; wsMoExpired('#fgMsg','#fgMo'); } } }
+        else if(Date.now()-tick.g>10000){ moRetryFn=fgRetry(); wsMoExpired('#fgMsg','#fgMo'); } } }
     tick(); moT=setInterval(tick,1000);
     moP=setInterval(wsMoForgotPoll,3000); setTimeout(wsMoForgotPoll,1500);
     return true;
@@ -2183,13 +2194,13 @@ function openLogin(auto,view){
     var tok=moTok;
     api('ws_moStatus',{pollToken:tok}).then(function(x){ var d=x.d;
       if(!d||!d.ok||tok!==moTok) return;
-      if(d.status==='EXPIRED'){ moRetryFn=function(cb){wsMoRetry('ws_forgot',cb);}; wsMoExpired('#fgMsg','#fgMo'); return; }
+      if(d.status==='EXPIRED'){ moRetryFn=fgRetry(); wsMoExpired('#fgMsg','#fgMo'); return; }
       if(d.status!=='VERIFIED'||!d.code) return;
-      wsMoStop();
+      wsMoStop(); fgPh=null;
       var box=q('#fgMo'); if(box)box.style.display='none';
       var c=q('#fgCode'); if(c){c.value=d.code;c.style.display='none';}   /* нуугдмал — хэрэглэгч бичих шаардлагагүй */
       ['#fgPass','#fgPass2','#fgBtn2'].forEach(function(x){var e=q(x); if(e)e.style.display='';});
-      var m=q('#fgMsg'); if(m){m.style.color='#16a34a';m.textContent='✓ Баталгаажлаа — шинэ нууц үгээ оруулна уу';}
+      var m=q('#fgMsg'); if(m){m.style.color='#16a34a';m.textContent=d.purpose==='phone'?'✓ Дугаар солигдлоо — шинэ нууц үгээ оруулна уу':'✓ Баталгаажлаа — шинэ нууц үгээ оруулна уу';}
       setTimeout(function(){ var p=q('#fgPass'); if(p)p.focus(); },40);
     }).catch(function(){});
   }
@@ -2313,6 +2324,41 @@ function openLogin(auto,view){
       else{b.disabled=false;b.textContent='Нууц үг шинэчлэх';m.style.color='#dc2626';m.textContent=(d&&d.error)||'Алдаа';}
     }).catch(function(){b.disabled=false;b.textContent='Нууц үг шинэчлэх';m.style.color='#dc2626';m.textContent='Сүлжээний алдаа';});
   }
+  // Дугаар солих (api/_phonechg.js): ws_phoneHint → хуучин дугаар бүтэн + шинэ → ws_phoneChange (MO) → ws_moStatus → ws_reset
+  function fgPhoneOpen(){
+    var email=(q('#fgEmail').value||'').trim().toLowerCase(),m=q('#fgMsg');
+    if(!okE(email)){m.style.color='#dc2626';m.textContent='Эхлээд бүртгэлтэй имэйлээ оруулна уу';q('#fgEmail').focus();return;}
+    wsMoStop(); wsMoDisarm(); fgPh=null; curEmail=email;
+    var box=q('#fgMo'); if(box){box.style.display='none';box.innerHTML='';}
+    q('#fgStep1').style.display='none'; q('#fgStep2').style.display='none'; q('#fgPhone').style.display='block';
+    m.textContent=''; var h=q('#fgPhHint'); h.textContent='…';
+    api('ws_phoneHint',{email:email}).then(function(x){var d=x.d; h.textContent=d&&d.ok&&d.masked?d.masked:'—'; if(d&&!d.ok&&d.error){m.style.color='#dc2626';m.textContent=d.error;}}).catch(function(){h.textContent='—';});
+    setTimeout(function(){var f=q('#fgPhOld'); if(f)f.focus();},40);
+  }
+  function fgPhoneBack(){
+    wsMoStop(); wsMoDisarm(); fgPh=null;
+    var box=q('#fgMo'); if(box){box.style.display='none';box.innerHTML='';}
+    ['#fgCode','#fgPass','#fgPass2','#fgBtn2'].forEach(function(x){var e=q(x); if(e)e.style.display='';});   /* ердийн сэргээлтийн талбарууд */
+    q('#fgPhone').style.display='none'; q('#fgStep2').style.display='none'; q('#fgStep1').style.display='block';
+    q('#fgMsg').textContent='';
+  }
+  /* cb — «Дахин код авах»-аас (алдааны мессеж эсвэл null) */
+  function fgPhoneSend(cb){
+    var oldP=(q('#fgPhOld').value||'').replace(/\D/g,''),newP=(q('#fgPhNew').value||'').replace(/\D/g,''),m=q('#fgMsg'),b=q('#fgPhBtn');
+    var fail=function(t){m.style.color='#dc2626';m.textContent=t;if(cb)cb(t);};
+    if(oldP.length!==8) return fail('Хуучин дугаараа 8 оронгоор бүтэн оруулна уу');
+    if(newP.length!==8) return fail('Шинэ дугаараа 8 оронгоор оруулна уу');
+    if(oldP===newP) return fail('Шинэ дугаар хуучинтайгаа ижил байна');
+    b.disabled=true;b.textContent='Шалгаж байна…';m.textContent='';
+    api('ws_phoneChange',{email:curEmail,oldPhone:oldP,newPhone:newP}).then(function(x){var d=x.d;
+      b.disabled=false;b.textContent='Үргэлжлүүлэх';
+      if(!d||!d.ok||d.mode!=='mo'||!d.moText) return fail((d&&d.error)||'Алдаа');
+      fgPh={masked:d.masked||''};
+      q('#fgPhone').style.display='none'; q('#fgStep2').style.display='block';
+      wsShowMoForgot(d);
+      if(cb)cb(null);
+    }).catch(function(){b.disabled=false;b.textContent='Үргэлжлүүлэх';fail('Сүлжээний алдаа');});
+  }
   function bindGo(){ [].forEach.call(o.querySelectorAll('[data-go]'),function(a){ a.onclick=function(e){e.preventDefault();var v=a.getAttribute('data-go');showView(v);setTimeout(function(){var f=q('#'+(v==='login'?'lgEmail':v==='register'?'rgName':v==='forgot'?'fgEmail':'vCode'));if(f)f.focus();},40);}; }); }
   bindGo();
   q('#lgBtn').onclick=doLogin; q('#lgPass').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();});
@@ -2321,6 +2367,11 @@ function openLogin(auto,view){
   q('#vResend').onclick=function(e){e.preventDefault();var m=q('#vMsg');m.style.color='var(--soft)';m.textContent='Илгээж байна…';api('ws_resend',{email:curEmail}).then(resendResult).catch(function(){m.style.color='#dc2626';m.textContent='Сүлжээний алдаа';});};
   q('#fgBtn').onclick=doForgot; q('#fgCode').addEventListener('input',function(){this.value=this.value.replace(/\D/g,'').slice(0,6);});
   q('#fgBtn2').onclick=doReset;
+  [].forEach.call(o.querySelectorAll('[data-fgph]'),function(a){a.onclick=function(e){e.preventDefault();fgPhoneOpen();};});
+  q('#fgPhBack').onclick=function(e){e.preventDefault();fgPhoneBack();};
+  q('#fgPhBtn').onclick=function(){fgPhoneSend();};
+  q('#fgPhNew').addEventListener('keydown',function(e){if(e.key==='Enter')fgPhoneSend();});
+  ['#fgPhOld','#fgPhNew'].forEach(function(s){q(s).addEventListener('input',function(){this.value=this.value.replace(/\D/g,'').slice(0,8);});});
   var guest=o.querySelector('[data-guest]'); if(guest)guest.onclick=function(e){e.preventDefault();lsSet('cm_ws_dismissed','1');o.remove();};
   o.addEventListener('mousedown',function(e){if(e.target===o&&!auto){lsSet('cm_ws_dismissed','1');o.remove();}});
   applyInv();

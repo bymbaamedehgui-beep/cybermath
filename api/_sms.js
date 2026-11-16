@@ -204,6 +204,8 @@ const SMS_TEXT = {
   verify: 'CyberMath бүртгэлийн код: {code}. Хэнд ч бүү хэл. 20 мин.',
   reset: 'CyberMath нууц үг сэргээх код: {code}. Хэнд ч бүү хэл. 20 мин.',
   login: 'CyberMath нэвтрэх код: {code}. Хэнд ч бүү хэл. 20 мин.',
+  // Дугаар солих (api/_phonechg.js) — зөвхөн MO: хэрэглэгч шинэ дугаараасаа кодоо 144773 руу илгээнэ
+  phone: 'CyberMath дугаар солих код: {code}. Хэнд ч бүү хэл. 20 мин.',
 };
 function codeText(purpose, code) {
   const t = SMS_TEXT[purpose];
@@ -1172,7 +1174,7 @@ async function moCheck(pollToken, opts) {
   try {
     await ensureVfmTables();
     const r = await pool.query(
-      `SELECT id, session_id, email, purpose, kind, expires_at, consumed_at
+      `SELECT id, session_id, email, purpose, kind, phone_hash, expires_at, consumed_at
        FROM vfm_sessions WHERE token_hash = $1`, [pollHash(tok)]);
     if (!r.rows.length) return { ok: false, status: 'UNKNOWN' };
     const row = r.rows[0];
@@ -1188,14 +1190,15 @@ async function moCheck(pollToken, opts) {
 
     // Зөвхөн мэдээлнэ — зарцуулахгүй (дуудагч дараа нь consume: true-гээр дуусгана)
     if (!consume) {
-      return { ok: true, status: 'VERIFIED', pending: true, email: row.email, purpose: row.purpose, kind: row.kind };
+      return { ok: true, status: 'VERIFIED', pending: true, email: row.email, purpose: row.purpose, kind: row.kind, phone_hash: row.phone_hash };
     }
     // M5 — яг нэг л удаа
     const up = await pool.query(
       `UPDATE vfm_sessions SET consumed_at = NOW() WHERE id = $1 AND consumed_at IS NULL RETURNING id`,
       [row.id]);
     if (!up.rows.length) return { ok: true, status: 'EXPIRED', spent: true };
-    return { ok: true, status: 'VERIFIED', email: row.email, purpose: row.purpose, kind: row.kind };
+    // phone_hash — дугаар солих (api/_phonechg.js commit) хүлээгдэж буй дугаартай тулгана. Клиент рүү гаргахгүй.
+    return { ok: true, status: 'VERIFIED', email: row.email, purpose: row.purpose, kind: row.kind, phone_hash: row.phone_hash };
   } catch (e) { logErr('[mo] check', e); return { ok: false, status: 'UNKNOWN' }; }
 }
 

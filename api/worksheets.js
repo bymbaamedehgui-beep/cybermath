@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const { sendFeedbackReply } = require('./_email');
 const { rateLimit, clientIp } = require('./_guard');
 const sms = require('./_sms');
+const PHC = require('./_phonechg');
 const tg = require('./_telegram');
 const WDEV = require('./_wsdev');
 const MEDIA = require('./_media');
@@ -606,7 +607,7 @@ module.exports = async (req, res) => {
       // ── Дасгалын төвийн нэвтрэлт: бүртгэл → код → баталгаажуулах → нэвтрэх ──
       if (['ws_register','ws_verify','ws_login','ws_resend','ws_forgot','ws_reset',
            'ws_devices','ws_device_remove','ws_device_admin',
-           'ws_moStatus','ws_moVerify'].indexOf(b.action) >= 0) {
+           'ws_moStatus','ws_moVerify','ws_phoneHint','ws_phoneChange'].indexOf(b.action) >= 0) {
         await ensureWsLogin();
         const email = String(b.email || '').trim().toLowerCase();
         /* MO үйлдлүүд хэрэглэгчийг pollToken-оор таних тул имэйл шаардахгүй
@@ -817,6 +818,29 @@ module.exports = async (req, res) => {
           if (sent.phoneQuota) { await sms.padTo(t0); return res.json(wsFake(sms.maskPhone(dest, 2))); }
           return sms.failJson(res, sent, { reg: 'ws' });
         }
+        /* Дугаар солих — «Нууц үг мартсан?»-ын «Дугаараа сольсон уу?» (api/_phonechg.js). ws_phoneHint: бүртгэлтэй утасны
+           сүүлийн 2 орон (данс/утасгүй бол хуурамч); ws_phoneChange: хуучин дугаар бүтэн таарвал шинэ дугаараас MO код */
+        if (b.action === 'ws_phoneHint' || b.action === 'ws_phoneChange') {
+          const ip = clientIp(req);
+          const r = await pool.query('SELECT verified, phone, phone_verified_at FROM ws_login WHERE email=$1', [email]);
+          const cur = wsUsablePhone(r.rows[0]);
+          if (b.action === 'ws_phoneHint') {
+            const hlim = await firstLimitHit([
+              ['wsphhint:ip:' + ipKey(ip), 60, 3600, MSG_TOO_MANY],
+              ['wsphhint:em:' + email, 20, 86400, MSG_TOO_MANY],
+            ]);
+            if (hlim) return res.status(429).json({ ok: false, error: hlim });
+            return res.json({ ok: true, masked: PHC.hint(cur, email) });
+          }
+          const x = await PHC.request({ scope: 'ws', table: 'ws_login', email: email, ip: ipKey(ip), current: cur, oldPhone: b.oldPhone, newPhone: b.newPhone,
+            countPhone: async function (p) {
+              const pc = await pool.query('SELECT count(*)::int AS n FROM ws_login WHERE phone=$1 AND verified=TRUE AND (phone_verified_at IS NOT NULL OR invite IS NULL)', [p]);
+              return Number(pc.rows[0] && pc.rows[0].n) || 0;
+            } });
+          if (x.fail) return sms.failJson(res, x.fail, { reg: 'ws', fields: x.field ? { field: x.field } : null });
+          if (!x.ok) return res.status(x.http).json(x.body);
+          return res.json(Object.assign({ ok: true, masked: x.masked }, wsMoFields(x.sent)));
+        }
         if (b.action === 'ws_reset') {
           const pass = String(b.pass || '');
           if (pass.length < 6) return res.status(400).json({ ok: false, error: 'Нууц үг 6+ тэмдэгт байх ёстой' });
@@ -848,6 +872,21 @@ module.exports = async (req, res) => {
             const one = String(require('crypto').randomInt(0, 1000000)).padStart(6, '0');
             await wsCodeStore(mem, false)(one);
             return res.json({ ok: true, status: 'VERIFIED', purpose: 'reset', email: mem, code: one });
+          }
+          /* Дугаар солих: шинэ дугаараас илгээсэн нь нотлогдсон — хүлээгдэж буй дугаарыг бичээд нэг удаагийн кодоор ws_reset
+             урсгал руу (api/_phonechg.js) */
+          if (c.status === 'VERIFIED' && c.purpose === 'phone') {
+            const fin = await sms.moCheck(String(b.pollToken || ''), { consume: true });
+            if (!fin.ok || fin.status !== 'VERIFIED') return res.json({ ok: true, status: 'EXPIRED' });
+            const mem = String(fin.email || '').toLowerCase();
+            const ch = await PHC.commit('ws_login', mem, fin);
+            if (!ch) return res.json({ ok: true, status: 'EXPIRED' });
+            let ent = false;
+            try { ent = await wsEntitled(mem); } catch (e) { sms.logErr('[ws phone tg]', e); }
+            tg.sendTelegram(PHC.tgText('Дасгалын төв', mem, ch, ent ? 'эрхтэй данс' : '')).catch(() => {});
+            const one = PHC.oneTimeCode();
+            await wsCodeStore(mem, false)(one);
+            return res.json({ ok: true, status: 'VERIFIED', purpose: 'phone', email: mem, code: one });
           }
           return res.json({ ok: true, status: c.status, purpose: c.purpose || null });
         }

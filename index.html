@@ -58452,9 +58452,11 @@ function toggleAvatarSection() {
       var s1 = document.getElementById('reset-step1');
       var s2 = document.getElementById('reset-step2');
       var sc = document.getElementById('reset-step-code');
+      var sp = document.getElementById('reset-step-phone');
       if (s1) s1.style.display = 'block';
       if (s2) s2.style.display = 'none';
       if (sc) sc.style.display = 'none';
+      if (sp) sp.style.display = 'none';
       var re = document.getElementById('reset-email');
       if (re) re.value = '';
       ['rst-dot0','rst-dot1','rst-dot2'].forEach(function(id,i){
@@ -59252,6 +59254,11 @@ function toggleAvatarSection() {
         setTimeout(function () { _moResetReady(d.email, d.code); }, 500);
         return;
       }
+      /* Дугаар солих — дугаар солигдлоо, нэг удаагийн кодоор шинэ нууц үг тавих алхам руу */
+      if (d.purpose === 'phone' && d.code) {
+        setTimeout(function () { _moPhoneReady(d.email, d.code); }, 500);
+        return;
+      }
       /* Бүртгэл — шууд нэвтэрнэ */
       if (d.user) {
         setTimeout(function () {
@@ -59285,6 +59292,101 @@ function toggleAvatarSection() {
     } catch (e) {}
   }
   window.showMoStep = showMoStep;
+
+  /* ── Дугаар солих (api/_phonechg.js; эзэмшигч 2026-11-16: «******15 гэх мэтээр таарвал шинэ дугаараа хийгээд
+     баталгаажуулах мсж илгээдэг болго»): сэжүүр **** **15 → хуучин дугаар бүтэн + шинэ дугаар → шинэ дугаараас 144773 руу
+     код (MO) → баталгаажмагц сервер нэг удаагийн код өгч, одоо байгаа «Шинэ нууц үг» алхам руу шилжинэ ── */
+  var _pcChanged = false;
+  function showPhoneChange() {
+    var email = (document.getElementById('reset-email').value || '').trim().toLowerCase();
+    var err = document.getElementById('auth-error'), suc = document.getElementById('auth-success');
+    err.textContent = ''; suc.textContent = '';
+    if (!email || email.indexOf('@') < 1) { err.textContent = 'Эхлээд бүртгэлтэй и-мэйлээ оруулна уу.'; document.getElementById('reset-email').focus(); return; }
+    _moStop(); _moDisarm(); _moToken = null;
+    /* Нууц үг сэргээх MO хайрцагт ижил id-тай (mo-status, mo-left) элемент үлдвэл энэ цонхны тоолуур/шалгалт түүнийг олно */
+    var mb0 = document.getElementById('mo-reset-box'); if (mb0) mb0.remove();
+    ['reset-step1', 'reset-step-code', 'reset-step2'].forEach(function (id) { var e = document.getElementById(id); if (e) e.style.display = 'none'; });
+    document.getElementById('reset-step-phone').style.display = 'block';
+    document.getElementById('pc-form').style.display = '';
+    var mo = document.getElementById('pc-mo'); mo.style.display = 'none'; mo.innerHTML = '';
+    document.getElementById('pc-email').textContent = email;
+    var hint = document.getElementById('pc-hint'); hint.textContent = '…';
+    fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'phoneHint', email: email }) })
+      .then(function (r) { return r.json(); }).then(function (d) {
+        hint.textContent = d && d.ok && d.masked ? d.masked : '—';
+        if (d && !d.ok && d.error) err.textContent = d.error;
+      }).catch(function () { hint.textContent = '—'; });
+    setTimeout(function () { var o = document.getElementById('pc-old'); if (o) o.focus(); }, 60);
+  }
+  function hidePhoneChange() {
+    _moStop(); _moDisarm(); _moToken = null;
+    var mo = document.getElementById('pc-mo'); mo.style.display = 'none'; mo.innerHTML = '';
+    document.getElementById('reset-step-phone').style.display = 'none';
+    document.getElementById('reset-step1').style.display = 'block';
+    document.getElementById('auth-error').textContent = '';
+    document.getElementById('auth-success').textContent = '';
+  }
+  /* done — «Дахин код авах»-аас дуудахад (алдааны мессеж эсвэл null) */
+  function doPhoneChange(done) {
+    var email = (document.getElementById('reset-email').value || '').trim().toLowerCase();
+    var oldP = (document.getElementById('pc-old').value || '').replace(/\D/g, '');
+    var newP = (document.getElementById('pc-new').value || '').replace(/\D/g, '');
+    var err = document.getElementById('auth-error'), suc = document.getElementById('auth-success'), btn = document.getElementById('pc-btn');
+    var fail = function (m) { err.textContent = m; if (typeof done === 'function') done(m); };
+    err.textContent = ''; suc.textContent = '';
+    if (oldP.length !== 8) return fail('Хуучин дугаараа 8 оронгоор бүтэн оруулна уу.');
+    if (newP.length !== 8) return fail('Шинэ дугаараа 8 оронгоор оруулна уу.');
+    if (oldP === newP) return fail('Шинэ дугаар хуучинтайгаа ижил байна.');
+    if (btn) { btn.disabled = true; btn.textContent = 'Шалгаж байна...'; }
+    fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'phoneChange', email: email, oldPhone: oldP, newPhone: newP }) })
+      .then(function (r) { return r.json(); }).then(function (d) {
+        if (btn) { btn.disabled = false; btn.textContent = 'Үргэлжлүүлэх →'; }
+        if (!d || !d.ok || d.mode !== 'mo' || !d.moText) return fail((d && d.error) || 'Алдаа гарлаа');
+        showMoPhone(d);
+        if (typeof done === 'function') done(null);
+      }).catch(function () { if (btn) { btn.disabled = false; btn.textContent = 'Үргэлжлүүлэх →'; } fail('Холбогдоход алдаа гарлаа'); });
+  }
+  function showMoPhone(mo) {
+    _moStop(); _moDisarm();
+    _moRetryFn = function (done) { doPhoneChange(done); };
+    document.getElementById('pc-form').style.display = 'none';
+    var box = document.getElementById('pc-mo'), sc = String(mo.shortcode || '144773');
+    box.style.display = 'block';
+    box.innerHTML = '<div style="font-size:.86rem;color:#6c6486;font-weight:600;line-height:1.5;margin-bottom:10px;text-align:center;">'
+      + 'Доорх кодыг <b>шинэ</b> дугаараасаа' + (mo.masked ? ' (<b>' + _esc(mo.masked) + '</b>)' : '') + ' <b>' + _esc(sc) + '</b> дугаарт SMS-ээр илгээнэ үү.</div>'
+      + _moBlockHtml({ moText: mo.moText, shortcode: sc });
+    _moQr(box, sc, String(mo.moText || ''));
+    _moToken = mo.pollToken || null;
+    var until = mo.expiresAt ? Date.parse(mo.expiresAt) : (Date.now() + 300000);
+    function tick() {
+      var el = document.getElementById('mo-left');
+      if (!el || !document.getElementById('pc-mo').contains(el)) { _moStop(); return; }
+      var left = Math.max(0, Math.round((until - Date.now()) / 1000));
+      el.textContent = left > 0 ? ('Үлдсэн хугацаа ' + Math.floor(left / 60) + ':' + (left % 60 < 10 ? '0' : '') + (left % 60)) : '';
+      if (left <= 0) _moExpired();
+    }
+    tick();
+    _moTick = setInterval(tick, 1000);
+    _moPoll = setInterval(_moCheck, 3000);
+    setTimeout(_moCheck, 1500);
+  }
+  function _moPhoneReady(email, code) {
+    try {
+      _pcChanged = true;
+      document.getElementById('reset-step-phone').style.display = 'none';
+      var box = document.getElementById('reset-step-code');
+      if (box) {
+        box.style.display = 'block';
+        var mb = document.getElementById('mo-reset-box'); if (mb) mb.style.display = 'none';
+        var grp = box.querySelector('.auth-input-group'); if (grp) grp.style.display = '';
+        var btn = box.querySelector('button.auth-btn-primary'); if (btn) btn.style.display = '';
+      }
+      var inp = document.getElementById('reset-code'); if (inp) inp.value = code;
+      [].forEach.call(document.querySelectorAll('#reset-target-email'), function (e) { e.textContent = email; });
+      doVerifyResetCode();
+    } catch (e) {}
+  }
 
   function submitVerifyCode() {
     var code = (document.getElementById('verify-code-input')||{}).value || '';
@@ -59448,7 +59550,8 @@ function toggleAvatarSection() {
       if (!d.ok) { err.textContent = d.error || 'Код буруу байна'; return; }
       document.getElementById('reset-step-code').style.display = 'none';
       document.getElementById('reset-step2').style.display = 'block';
-      suc.textContent = '✓ Код зөв байна. Шинэ нууц үгээ оруулна уу.';
+      suc.textContent = _pcChanged ? '✓ Дугаар солигдлоо. Шинэ нууц үгээ оруулна уу.' : '✓ Код зөв байна. Шинэ нууц үгээ оруулна уу.';
+      _pcChanged = false;
     }).catch(function(){ err.textContent = 'Алдаа гарлаа'; });
   }
 
@@ -64429,6 +64532,7 @@ function sendAppChat(text) {
             <div style="font-size:0.78rem;color:#888;margin-top:6px;line-height:1.4;">Сэргээх код дансанд бүртгэлтэй утасны дугаар руу SMS-ээр ирнэ.</div>
           </div>
           <button class="auth-btn auth-btn-primary" onclick="checkResetEmail()">Шалгах →</button>
+          <button type="button" onclick="showPhoneChange()" style="width:100%;padding:10px;margin-top:4px;background:none;border:none;color:#7B52EE;font-weight:800;cursor:pointer;font-size:0.86rem;font-family:inherit;">Дугаараа сольсон уу?</button>
         </div>
         <!-- Step 1.5: Код оруулах -->
         <div id="reset-step-code" style="display:none;">
@@ -64438,8 +64542,26 @@ function sendAppChat(text) {
             <input id="reset-code" type="text" inputmode="numeric" autocomplete="one-time-code" class="auth-input" placeholder="123456" maxlength="6" style="letter-spacing:6px;text-align:center;font-size:1.3rem;font-weight:900;" onkeydown="if(event.key==='Enter')doVerifyResetCode()">
           </div>
           <button class="auth-btn auth-btn-primary" onclick="doVerifyResetCode()">Баталгаажуулах →</button>
-          <div style="font-size:0.76rem;color:#888;margin-top:8px;line-height:1.4;text-align:center;">Код ирэхгүй бол дансанд утас бүртгэгдээгүй эсвэл буруу байж магадгүй. Админтай холбогдоно уу.</div>
+          <div style="font-size:0.76rem;color:#888;margin-top:8px;line-height:1.4;text-align:center;">Код ирэхгүй бол дансанд утас бүртгэгдээгүй эсвэл буруу байж магадгүй. Дугаараа сольсон бол <span onclick="showPhoneChange()" style="color:#7B52EE;font-weight:800;cursor:pointer;">энд дарна уу</span>, эс бөгөөс админтай холбогдоно уу.</div>
           <button onclick="checkResetEmail()" style="width:100%;padding:10px;background:none;border:none;color:#7B52EE;font-weight:700;cursor:pointer;font-size:0.85rem;display:flex;align-items:center;justify-content:center;gap:6px;"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg> Код дахин илгээх</button>
+        </div>
+        <!-- Дугаар солих (api/_phonechg.js): хуучин дугаар бүтэн таарвал шинэ дугаараас 144773 руу баталгаажуулах SMS -->
+        <div id="reset-step-phone" style="display:none;">
+          <div class="auth-email-confirm"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M10.5 18.5h3"/></svg> <span id="pc-email"></span></div>
+          <div id="pc-form">
+            <div style="font-size:0.84rem;color:#6c6486;font-weight:600;line-height:1.5;margin-bottom:12px;">Бүртгэлтэй дугаар: <b id="pc-hint" style="color:#4c23c4;letter-spacing:1px;">…</b><br>Хуучин дугаараа бүтнээр нь, дараа нь шинэ дугаараа оруулна уу. Шинэ дугаараасаа баталгаажуулах SMS илгээнэ.</div>
+            <div class="auth-input-group">
+              <label class="auth-input-label">Хуучин дугаар</label>
+              <input id="pc-old" type="tel" inputmode="numeric" maxlength="8" class="auth-input" placeholder="8 оронтой дугаар" autocomplete="off">
+            </div>
+            <div class="auth-input-group">
+              <label class="auth-input-label">Шинэ дугаар</label>
+              <input id="pc-new" type="tel" inputmode="numeric" maxlength="8" class="auth-input" placeholder="8 оронтой дугаар" autocomplete="tel-national" onkeydown="if(event.key==='Enter')doPhoneChange()">
+            </div>
+            <button id="pc-btn" class="auth-btn auth-btn-primary" onclick="doPhoneChange()">Үргэлжлүүлэх →</button>
+          </div>
+          <div id="pc-mo" style="display:none;"></div>
+          <button type="button" onclick="hidePhoneChange()" style="width:100%;padding:10px;margin-top:4px;background:none;border:none;color:#7B52EE;font-weight:700;cursor:pointer;font-size:0.85rem;font-family:inherit;">← Буцах</button>
         </div>
         <!-- Step 2 -->
         <div id="reset-step2" style="display:none;">
