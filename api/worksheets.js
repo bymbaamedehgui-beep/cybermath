@@ -11,6 +11,7 @@ const WDEV = require('./_wsdev');
 const MEDIA = require('./_media');
 const MEET = require('./_meet');
 const WSBOARD = require('./_wsboard');
+const EBOOK = require('./_ebook');
 // 5 минутын үнэгүй туршилт (серверийн цаг) — худалдаж аваагүй данс бүрт нэг удаа, дараагийн амжилттай нэвтрэлтэд эхэлнэ
 const WT = require('./_wstrial');
 const JWT_SECRET = process.env.JWT_SECRET || 'cybermath-default-secret-change-in-prod';
@@ -319,6 +320,9 @@ module.exports = async (req, res) => {
   catch (e) { console.error('[meet]', e.message); return res.status(500).json({ ok: false, error: 'Серверийн алдаа' }); }
   try { if (await MEDIA.handle(req, res)) return; }
   catch (e) { console.error('[media]', e.message); return res.status(500).json({ ok: false, error: 'Серверийн алдаа' }); }
+  // Дасгал ажлын дэвтрийн цахим ном (api/_ebook.js): нийтийн унших (/devter/<key>), админы нийтлэх
+  try { if (await EBOOK.handle(req, res)) return; }
+  catch (e) { console.error('[ebook]', e.message); return res.status(500).json({ ok: false, error: 'Серверийн алдаа' }); }
 
   try {
     await pool.query(`

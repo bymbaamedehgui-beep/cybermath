@@ -6,7 +6,8 @@
    тоо (Авто / 1 / 2), даалгавар тус бүрийн зай (− / +), номд оруулах эсэх, «Шалгасан» тэмдэг; хэвлэхэд хэдэн хуудас
    эзлэхийг шууд харна (улаан тасархай = хуудасны хил). Тохиргоо серверт (api/worksheets.js book_get/book_set)
    өөрчлөлт бүрд автоматаар хадгалагдана. Ажлын хуудсыг далд iframe-д зурж #sheet-ийг өөрийн CSS-тэй нь хуулна
-   (ижил CSS блок нэг удаа, .cb-N дотор nesting). Нээх: Дасгалын төв → анги (админ) → «Дасгал ажлын дэвтэр». */
+   (ижил CSS блок нэг удаа, .cb-N дотор nesting). Нээх: Дасгалын төв → анги (админ) → «Дасгал ажлын дэвтэр».
+   «Хар цагаан» (bwSet) — дотор хуудас саарал, хавтас өнгөтөөрөө; «Цахим ном нийтлэх» (publishEbook) — /devter/<key> (devter.html). */
 (function () {
   'use strict';
   var CONC = 3, WKS_KEY = 'cm_ws_wk_scale';
@@ -180,9 +181,10 @@
     return out;
   }
 
-  /* ── 3) Бүтээх: татах явц попапд, дараа нь ном. paper: 'b5' — B5 дэвтэр (эс бөгөөс A4) ── */
-  function build(gi, pw, paper) {
-    var b5 = paper === 'b5', pl = b5 ? ' · B5' : '';
+  /* ── 3) Бүтээх: татах явц попапд, дараа нь ном. paper: 'b5' — B5 дэвтэр (эс бөгөөс A4); opts.bw — хар цагаан (дотор хуудас саарал,
+     нүүр/арын хавтас өнгөтөөрөө — bookMain bwSet) ── */
+  function build(gi, pw, paper, opts) {
+    var b5 = paper === 'b5', bw = !!(opts && opts.bw), pl = (b5 ? ' · B5' : '') + (bw ? ' · Хар цагаан' : '');
     var o = outline(gi);
     if (!o || !o.chapters.length) { try { pw.document.body.textContent = 'Энэ ангид ажлын хуудас алга.'; } catch (e) {} return; }
     var list = [], seen = {};
@@ -234,7 +236,8 @@
           if (!it.snap) return;
           it.cls = it.snap.styles.map(function (t) { if (!idx.has(t)) { idx.set(t, blocks.length); blocks.push(t); } return 'cb-' + idx.get(t); }).join(' ');
         });
-        var D = { paper: b5 ? 'b5' : 'a4', label: o.label, year: new Date().getFullYear(), list: list, blocks: blocks, settings: settings,
+        // key — цахим номын холбоос (/devter/<key>, ws-browse.js ebookKey); бүлгийн нэр танигдахгүй бол '' (нийтлэхгүй)
+        var D = { paper: b5 ? 'b5' : 'a4', bw: bw, key: (WSB.ebookKey && WSB.ebookKey(o.label)) || '', label: o.label, year: new Date().getFullYear(), list: list, blocks: blocks, settings: settings,
           chapters: o.chapters.map(function (c) { return { roman: c.roman, title: c.title, topics: c.topics.map(function (t) { return { num: t.num, title: t.title }; }) }; }) };
         pw.document.open();
         // Скрипт stylesheet-ээс ӨМНӨ: хүлээгдэж буй CSS-ийн дараах inline скрипт хойшилдог тул __bookInit доор шууд дуудагдахгүй болно
@@ -603,6 +606,7 @@
       st.textContent = D.blocks.map(function (t, i) { return '.cb-' + i + '{' + t + '}'; }).join('\n');
       document.head.appendChild(st);
       render();
+      if (D.bw) bwSet(true);                                               // хар цагаан — өнгө л солигдоно, хуудаслалт хэвээр
       if (!window.katex) {                                                 // нүүрний томьёо KaTeX-ээр (ачаалагдсаны дараа нүүрийг дахин зурна)
         var ks = document.createElement('script');
         ks.src = 'https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js';
@@ -751,7 +755,7 @@
         if (vr) { VR.v = typeof vr.v === 'string' ? vr.v : 'I'; VR.a = Math.max(0, Math.min(nCh - 1, vr.a | 0)); VR.b = Math.max(VR.a, Math.min(nCh - 1, vr.b == null ? nCh - 1 : vr.b | 0)); }
       } catch (e) {}
       // Хэрэгслийн мөр — санамсаргүй хуваагдахгүйн тулд 2 тодорхой мөр: (1) нэр, тоо, явц (2) удирдлага
-      h += '<div class="tb"><div class="tb-r"><b>Дасгал ажлын дэвтэр · ' + esc(D.label) + (PAPER.key ? ' · B5' : '') + '</b><span id="sum"></span><span id="prog" class="prog"></span></div>'
+      h += '<div class="tb"><div class="tb-r"><b>Дасгал ажлын дэвтэр · ' + esc(D.label) + (PAPER.key ? ' · B5' : '') + '</b><span id="bwtag" class="bwtag">Хар цагаан</span><span id="sum"></span><span id="prog" class="prog"></span><span id="ebkst" class="ebk-st"></span></div>'
         + '<div class="tb-r"><label class="tb-f"><input type="checkbox" id="onlyTodo"> Зөвхөн шалгаагүй</label>'
         + '<label class="tb-f"><input type="checkbox" id="onlyLong"> Зөвхөн 2+ хуудастай</label>'
         + '<select id="jump"><option value="">Хуудас руу очих…</option>' + D.list.map(function (it) { return '<option value="' + it.n + '">№' + it.n + ' ' + esc(it.title) + '</option>'; }).join('') + '</select>'
@@ -759,7 +763,10 @@
         + '<label class="tb-f" title="Нүүрэнд гарах дэвтрийн дугаар">Дэвтэр <select id="volsel">' + ['', 'I', 'II', 'III', 'IV'].map(function (v) { return '<option value="' + v + '"' + (v === VR.v ? ' selected' : '') + '>' + (v || '—') + '</option>'; }).join('') + '</select></label>'
         + '<label class="tb-f" title="Энэ дэвтэрт орох бүлгүүд">Бүлэг <select id="cha">' + chOpt(VR.a) + '</select>–<select id="chb">' + chOpt(VR.b) + '</select></label>'
         + '<label class="tb-f" title="Ангийн номын нийт хуудас (Авто: 200, багтах боломжгүй бол 300)">Зорилт <select id="tgsel">' + [['auto', 'Авто (200/300)'], ['min', 'Хамгийн бага'], ['100', '100'], ['150', '150'], ['200', '200'], ['250', '250'], ['300', '300'], ['none', 'Хязгааргүй']].map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === TG ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>'
-        + '<button type="button" id="flipb">Ном шиг харах</button><button type="button" id="prt">Хэвлэх / PDF</button></div></div>'
+        + '<label class="tb-f" title="Дотор хуудас саарал (хар цагаан хэвлэл), нүүр ба арын хавтас өнгөтөөрөө. Хуудаслалт өөрчлөгдөхгүй"><input type="checkbox" id="bwsel"> Хар цагаан</label>'
+        + '<button type="button" id="flipb">Ном шиг харах</button>'
+        + '<button type="button" id="ebk"' + (D.key ? ' title="Одоогийн хуудаслалтаар (өнгөтөөр) cyber-math.com/devter/' + esc(D.key) + ' холбоост нийтэлнэ — хэн ч нэвтрэлтгүй зөвхөн уншина"' : ' disabled title="Энэ бүлэгт цахим ном нийтлэхгүй"') + '>Цахим ном нийтлэх</button>'
+        + '<button type="button" id="prt">Хэвлэх / PDF</button></div></div>'
         + '<div class="tip">Хэвлэхэд <b>хуудас бүр дүүрэн</b>: ажлын хуудас 1 хуудас эсвэл (урт бол) бодлогын хооронд тэнцүү хуваасан 2 хуудас болж, '
         + 'бодолтын зай нь хуудсыг дүүргэнэ. <b>Хуудас: Авто / 1 / 2</b>-оор өөрөө сонгож болно. <b>Гарчгийг</b> дарж засна. Бодолтын зай бүрийг '
         + '<b>баруун доод булангаас нь чирж</b> томруулна/жижигрүүлнэ, <b>×</b> — тэр зайг арилгана; даалгаврын гарчгийн <b>−</b> / <b>+</b> — зайн хэмжээ, '
@@ -813,6 +820,8 @@
       setTbh(); window.addEventListener('resize', setTbh);
       document.getElementById('prt').onclick = function () { window.print(); };
       document.getElementById('flipb').onclick = function () { openFlip(); };
+      document.getElementById('bwsel').onchange = function () { bwSet(this.checked); };
+      document.getElementById('ebk').onclick = function () { publishEbook(); };
       document.getElementById('tgsel').onchange = function () { TG = this.value; try { localStorage.setItem(TG_KEY + PAPER.key + D.label, TG); } catch (e) {} tgStuck = -1; ITEMS.forEach(function (x) { x.tgBad = false; }); retarget(); };
       document.getElementById('cvsel').onchange = function () { CV = this.value; try { localStorage.setItem(CV_KEY, CV); } catch (e) {} redrawCover(true); };
       var saveVR = function () { try { localStorage.setItem(VOL_KEY + PAPER.key + D.label, JSON.stringify(VR)); } catch (e) {} };
@@ -1680,6 +1689,187 @@
           .catch(function () { setSt(x, 'Сүлжээний алдаа — дахин оролдоно уу', 'err'); });
       }, 700);
     }
+
+    // ── Хар цагаан (эзэмшигч 2026-11-16: «хараар хэвлүүлэхэд бэлдэж … Хавтас буюу урд хойд хуудас өнгөтөөрөө»): дотор хуудсын
+    // өнгийг саарал болгоно (Rec.601 гэрэлтэлт — цагаан бичигтэй ягаан мөр бараан саарал болж уншигдсан хэвээр): CSS дүрэм (CSSOM —
+    // ::before, ::after ч), inline style, SVG fill/stroke/stop-color. Текст вектор хэвээр: CSS filter-тэй агуулгыг Chrome хэвлэхэд
+    // растер болгож бүдгэрүүлдэг тул filter зөвхөн зурагт (img, canvas, video, svg image). Нүүр/арын хавтас (.cover, .cv-*, .cvz)
+    // хөндөгдөхгүй. Зөвхөн өнгө солигдоно — хуудаслалт, хуудасны тоо өөрчлөгдөхгүй. Унтраахад анхны утгыг (undo) сэргээнэ.
+    var BW = { on: false, undo: [], sheets: [], mo: null, cx: null, memo: Object.create(null) };
+    var BW_COVER = /\.cover\b|\.cv-[a-z0-9]|#cover\b|#backcover\b|\.cvz\b/;
+    var BW_PROP = /color|background|border|outline|shadow|^fill$|^stroke$|decoration|caret|column-rule|^filter$|^--/;
+    var BW_TOK = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|hwb)\([^()]*\)|(?<![-\w#.])[a-zA-Z]{3,20}(?![-\w(])/g;
+    var BW_NAMED = ' aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue blueviolet brown burlywood cadetblue'
+      + ' chartreuse chocolate coral cornflowerblue cornsilk crimson cyan darkblue darkcyan darkgoldenrod darkgray darkgreen darkgrey darkkhaki'
+      + ' darkmagenta darkolivegreen darkorange darkorchid darkred darksalmon darkseagreen darkslateblue darkslategray darkslategrey darkturquoise'
+      + ' darkviolet deeppink deepskyblue dimgray dimgrey dodgerblue firebrick floralwhite forestgreen fuchsia gainsboro ghostwhite gold goldenrod'
+      + ' gray green greenyellow grey honeydew hotpink indianred indigo ivory khaki lavender lavenderblush lawngreen lemonchiffon lightblue'
+      + ' lightcoral lightcyan lightgoldenrodyellow lightgray lightgreen lightgrey lightpink lightsalmon lightseagreen lightskyblue lightslategray'
+      + ' lightslategrey lightsteelblue lightyellow lime limegreen linen magenta maroon mediumaquamarine mediumblue mediumorchid mediumpurple'
+      + ' mediumseagreen mediumslateblue mediumspringgreen mediumturquoise mediumvioletred midnightblue mintcream mistyrose moccasin navajowhite'
+      + ' navy oldlace olive olivedrab orange orangered orchid palegoldenrod palegreen paleturquoise palevioletred papayawhip peachpuff peru pink'
+      + ' plum powderblue purple rebeccapurple red rosybrown royalblue saddlebrown salmon sandybrown seagreen seashell sienna silver skyblue'
+      + ' slateblue slategray slategrey snow springgreen steelblue tan teal thistle tomato turquoise violet wheat white whitesmoke yellow yellowgreen ';
+    function bwRgba(s) {
+      var c = BW.cx || (BW.cx = document.createElement('canvas').getContext('2d'));
+      c.fillStyle = '#000'; c.fillStyle = s; var a = c.fillStyle;
+      c.fillStyle = '#fff'; c.fillStyle = s; if (c.fillStyle !== a) return null;              // өнгө биш (хоёр эхлэлээс өөр үр дүн)
+      var m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(a);
+      if (m) return [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16), 1];
+      m = /^rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?\)$/.exec(a);
+      return m ? [+m[1], +m[2], +m[3], m[4] == null ? 1 : +m[4]] : null;
+    }
+    function bwGray(t) {
+      if (t in BW.memo) return BW.memo[t];
+      var c = /^[a-z]+$/i.test(t) && BW_NAMED.indexOf(' ' + t.toLowerCase() + ' ') < 0 ? null : bwRgba(t), g = t;
+      if (c) { var y = Math.round(0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]); g = c[3] < 1 ? 'rgba(' + y + ', ' + y + ', ' + y + ', ' + c[3] + ')' : 'rgb(' + y + ', ' + y + ', ' + y + ')'; }
+      return (BW.memo[t] = g);
+    }
+    // url(...) доторх (зураг, #id) хөндөгдөхгүй
+    function bwStr(v) { return String(v).split(/(url\([^)]*\))/).map(function (s, i) { return i % 2 ? s : s.replace(BW_TOK, function (t) { return bwGray(t); }); }).join(''); }
+    function bwDecl(st) {
+      var ns = []; for (var i = 0; i < st.length; i++) if (BW_PROP.test(st[i])) ns.push(st[i]);
+      ns.forEach(function (n) {
+        var v = st.getPropertyValue(n); if (!v) return;
+        var g = bwStr(v); if (g === v) return;
+        var pr = st.getPropertyPriority(n);
+        BW.undo.push({ st: st, n: n, v: v, pr: pr }); st.setProperty(n, g, pr);
+      });
+    }
+    function bwRules(rs) {
+      for (var i = 0; i < rs.length; i++) {
+        var r = rs[i];
+        if (r.selectorText && BW_COVER.test(r.selectorText)) continue;               // нүүр/арын хавтас — өнгөтөөрөө
+        if (r.style) bwDecl(r.style);
+        if (r.cssRules) bwRules(r.cssRules);                                          // @media, ажлын хуудасны блок (.cb-N { … })
+      }
+    }
+    function bwSheets() {
+      [].forEach.call(document.styleSheets, function (s) {
+        if (BW.sheets.indexOf(s) >= 0) return;
+        var rs; try { rs = s.cssRules; } catch (e) { return; }                       // өөр домэйны (KaTeX, Google Fonts) — уншигдахгүй, өнгөгүй
+        BW.sheets.push(s); bwRules(rs);
+      });
+    }
+    var BW_SVG = 'http://www.w3.org/2000/svg', BW_ATTR = ['fill', 'stroke', 'stop-color', 'flood-color', 'lighting-color', 'color'];
+    function bwSkip(e) { return !!(e.classList && (e.classList.contains('cover') || e.classList.contains('cvz'))); }
+    function bwEls(root) {
+      if (!root || root.nodeType !== 1 || bwSkip(root) || (root.closest && root.closest('.cover, .cvz'))) return;
+      var tw = document.createTreeWalker(root, 1, { acceptNode: function (e) { return bwSkip(e) ? 2 : 1; } });   // 2 — нүүрийг бүхэлд нь алгасна
+      for (var e = root; e; e = tw.nextNode()) {
+        if (e.style && e.style.length) bwDecl(e.style);
+        if (e.namespaceURI === BW_SVG) BW_ATTR.forEach(function (a) {
+          var v = e.getAttribute(a); if (!v) return;
+          var g = bwStr(v); if (g !== v) { BW.undo.push({ e: e, a: a, v: v }); e.setAttribute(a, g); }
+        });
+        if (/^(img|canvas|video|image)$/i.test(e.tagName)) {
+          BW.undo.push({ st: e.style, n: 'filter', v: e.style.getPropertyValue('filter'), pr: e.style.getPropertyPriority('filter') });
+          e.style.setProperty('filter', 'grayscale(1)');
+        }
+      }
+    }
+    function bwSet(on) {
+      on = !!on; if (on === BW.on) return;
+      BW.on = on;
+      document.documentElement.classList.toggle('bw', on);
+      var cb = document.getElementById('bwsel'); if (cb) cb.checked = on;
+      document.title = document.title.replace(/ · Хар цагаан$/, '') + (on ? ' · Хар цагаан' : '');
+      if (on) {
+        bwSheets(); bwEls(document.getElementById('app'));
+        // дахин ачаалсан ажлын хуудас, «Миний ахиц», шинэ CSS блок (clsFor) — нэмэгдмэгц саарал
+        BW.mo = new MutationObserver(function (ms) {
+          ms.forEach(function (m) {
+            if (m.target === document.head) bwSheets();
+            else [].forEach.call(m.addedNodes, function (n) { if (n.nodeType === 1) bwEls(n); });
+          });
+        });
+        BW.mo.observe(document.getElementById('app'), { childList: true, subtree: true });
+        BW.mo.observe(document.head, { childList: true });
+        return;
+      }
+      if (BW.mo) { BW.mo.disconnect(); BW.mo = null; }
+      for (var i = BW.undo.length - 1; i >= 0; i--) { var u = BW.undo[i]; if (u.a) u.e.setAttribute(u.a, u.v); else u.st.setProperty(u.n, u.v, u.pr); }
+      BW.undo = []; BW.sheets = [];
+    }
+
+    // ── Цахим ном (эзэмшигч 2026-11-16: «шууд цахим ном хэлбэрээр хүмүүст харуулах … нэг нэг линк … хэн ч татаж авах засварлах
+    // боломжгүйгээр»): «Ном шиг харах»-ын хуудаслалтыг (pageList) засварын хэрэгсэлгүйгээр, ӨНГӨТӨӨР нь серверт нийтэлнэ — devter.html
+    // (/devter/<key>) хэн ч нэвтрэлтгүй зөвхөн уншина (api/_ebook.js). Ажлын хуудас бүрийн HTML нэг удаа (papers); хуудас нь түүний
+    // .wsx-pb (fitAll-ийн таслал) хоорондох хэсэг — үзэгчийн фонт өөр ч бодлого хуваагдахгүй; from/to — хэвлэлийн px хэрчим (нөөц).
+    // JSON-ийг UTF-8 байтаар хувааж хэсэг бүрийг тусад нь gzip (хөтөч Content-Encoding-оор өөрөө задална) → base64 → ebook_put,
+    // эцэст ebook_commit (бүх хэсэг ирсний дараа л шинэ хувилбар идэвхжинэ).
+    var EB_PART = 2600000;                                                  // gzip хэсэг ≤ 2.6 МБ (Vercel-ийн хүсэлт 4.5 МБ — base64 ×4/3)
+    function ebClean(el) {
+      var c = el.cloneNode(true);
+      c.removeAttribute('id');
+      [].forEach.call(c.querySelectorAll('.gd, .toc-warn, .wsx-sc, .wsx-bx, .wsx-hl, script'), function (e) { e.remove(); });
+      [].forEach.call(c.querySelectorAll('[contenteditable]'), function (e) { e.removeAttribute('contenteditable'); });
+      [].forEach.call(c.querySelectorAll('.wsx-fix, .wsx-drag'), function (e) { e.classList.remove('wsx-fix', 'wsx-drag'); });
+      return c.outerHTML;
+    }
+    function ebookData() {
+      var P = pageList(), papers = [], at = new Map(), pages = [];
+      P.forEach(function (p) {
+        if (p.k === 'cover' || p.k === 'back') pages.push({ k: p.k });
+        else if (p.k === 'fm') pages.push({ k: 'fm', no: p.no, h: p.el ? ebClean(p.el) : '' });
+        else if (p.k === 'toc') pages.push({ k: 'toc', no: p.no, from: Math.round(p.from), to: Math.round(p.to) });
+        else {
+          if (!at.has(p.x)) { at.set(p.x, papers.length); papers.push(ebClean(p.x.paper)); }
+          pages.push({ k: 'ws', no: p.no, p: at.get(p.x), q: p.q, n: p.n, from: Math.round(p.from), to: Math.round(p.to) });
+        }
+      });
+      var cv = document.getElementById('cover'), bk = document.getElementById('backcover'), toc = document.querySelector('.toc');
+      return { v: 1, key: D.key, label: D.label, paper: D.paper, at: new Date().toISOString(),
+        css: [].map.call(document.querySelectorAll('style'), function (s) { return s.textContent; }),
+        cover: cv ? ebClean(cv) : '', back: bk ? ebClean(bk) : '', toc: toc ? ebClean(toc) : '', papers: papers, pages: pages };
+    }
+    function ebGz(bytes) {
+      return new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer().then(function (b) { return new Uint8Array(b); });
+    }
+    function ebB64(u8) { var s = ''; for (var i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); }
+    function publishEbook() {
+      var btn = document.getElementById('ebk'), st = document.getElementById('ebkst');
+      var say = function (h, cls) { st.innerHTML = h; st.className = 'ebk-st ' + (cls || ''); };
+      if (!D.key || btn.disabled) return;
+      if (typeof CompressionStream !== 'function' || typeof TextEncoder !== 'function') { say('Энэ хөтөч дэмжихгүй — Chrome эсвэл Edge-ийн шинэ хувилбараар нийтэлнэ үү', 'err'); return; }
+      var was = BW.on, data;
+      try { if (was) bwSet(false); data = ebookData(); }                       // цахим ном өнгөтөөрөө
+      catch (e) { say('Бэлтгэж чадсангүй: ' + esc((e && e.message) || e), 'err'); return; }
+      finally { if (was) bwSet(true); }
+      btn.disabled = true; say('Цахим номыг нийтэлж байна…', 'busy');
+      var bytes = new TextEncoder().encode(JSON.stringify(data)), up = Date.now().toString(36) + Math.random().toString(36).slice(2, 8), parts = [];
+      var post = function (body) {
+        return fetch('/api/worksheets', { method: 'POST', headers: hdr(), body: JSON.stringify(body) })
+          .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!j.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; }); });
+      };
+      var pack = function (a, b) {                                            // том бол хоёр хувааж дахин шахна
+        return ebGz(bytes.subarray(a, b)).then(function (gz) {
+          if (gz.length > EB_PART && b - a > 65536) { var m = a + Math.floor((b - a) / 2); return pack(a, m).then(function () { return pack(m, b); }); }
+          parts.push(gz);
+        });
+      };
+      var chain = Promise.resolve(), STEP = 8000000;
+      for (var a = 0; a < bytes.length; a += STEP) (function (a0, b0) { chain = chain.then(function () { return pack(a0, b0); }); })(a, Math.min(bytes.length, a + STEP));
+      chain.then(function () {
+        var i = 0, n = parts.length;
+        if (n > 40) throw new Error('хэт том (' + Math.round(bytes.length / 1048576) + ' МБ)');
+        var next = function () {
+          if (i >= n) return post({ action: 'ebook_commit', key: D.key, up: up, n: n, pages: data.pages.length, label: D.label, paper: D.paper });
+          say('Цахим номыг нийтэлж байна… ' + (i + 1) + ' / ' + n, 'busy');
+          return post({ action: 'ebook_put', key: D.key, up: up, i: i, n: n, data: ebB64(parts[i++]) }).then(next);
+        };
+        return next();
+      }).then(function () {
+        var url = new URL('/devter/' + D.key, document.baseURI).href;
+        say('Нийтэллээ: <a href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(url.replace(/^https?:\/\//, '')) + '</a><button type="button" id="ebkcp">Линк хуулах</button>', 'ok');
+        var cp = document.getElementById('ebkcp');
+        cp.onclick = function () {
+          (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject(new Error('clipboard')))
+            .then(function () { cp.textContent = 'Хууллаа'; }, function () { cp.textContent = 'Хуулж чадсангүй'; });
+        };
+      }).catch(function (e) { say('Нийтэлж чадсангүй: ' + esc((e && e.message) || e), 'err'); })
+        .then(function () { btn.disabled = false; });
+    }
   }
 
   var BOOK_CSS = [
@@ -1697,6 +1887,11 @@
     '.tb button,.tb select{border:0;border-radius:10px;padding:8px 13px;font-family:inherit;font-weight:800;font-size:13px;cursor:pointer}',
     '.tb #prt{background:#FFC93C;color:#3a2600}.tb select{background:#22305e;color:#fff;max-width:260px}',
     '.tb-f{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:13px;cursor:pointer}',
+    // хар цагаан горимын тэмдэг, цахим ном нийтлэх
+    '.tb .bwtag{display:none;padding:2px 9px;border-radius:99px;background:#e5e7eb;color:#111827;font-size:12px;font-weight:900}html.bw .tb .bwtag{display:inline-block}',
+    '.tb #ebk{background:#22305e;color:#fff;box-shadow:inset 0 0 0 1.5px #3B4A80}.tb #ebk:disabled{opacity:.45;cursor:default}',
+    '.tb .ebk-st{font-size:12.5px;font-weight:700;color:#c4cdea}.tb .ebk-st:empty{display:none}.tb .ebk-st.ok{color:#bbf7d0}.tb .ebk-st.err{color:#fecaca}.tb .ebk-st.busy{color:#fde68a}',
+    '.tb .ebk-st a{color:#FFC93C;font-weight:900}.tb .ebk-st button{margin-left:8px;padding:4px 10px;background:#FFC93C;color:#3a2600}',
     '.tip{max-width:210mm;margin:14px auto 0;padding:10px 14px;border-left:3px solid #7B52EE;border-radius:8px;background:#fff;font-size:13px;line-height:1.5;color:#4b4566}.tip-r{color:#dc2626;font-weight:800}',
     /* COVERCSS:BEGIN */
   '.cover{page:cover;position:relative;width:210mm;height:297mm;margin:16px auto;overflow:hidden;background:#FBFAF6;box-shadow:0 10px 30px -14px rgba(20,33,74,.35);font-family:Montserrat,"Segoe UI",Arial,sans-serif;color:#14214A}',

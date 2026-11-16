@@ -541,16 +541,37 @@
     for (var i = 0; i < gs.length; i++) if (gs[i][0] === lab) { ST.g = i; return; }
   }
 
-  // Дасгал ажлын дэвтэр (админ): товч → цаасны сонголт (A4 — одоогийн, B5 — тусдаа тохиргоотой), сонголтын товшилтоос
-  // попапыг шууд нээнэ (blocker), ws-book.js-ийг хэрэгтэй үед л ачаална
+  // Дасгал ажлын дэвтэр (админ): товч → өнгө (Өнгөт / Хар цагаан — энэ хөтөчид хадгалагдана) + цаасны сонголт (A4 — одоогийн,
+  // B5 — тусдаа тохиргоотой), сонголтын товшилтоос попапыг шууд нээнэ (blocker), ws-book.js-ийг хэрэгтэй үед л ачаална.
+  // Доод мөр: тухайн ангийн цахим ном (/devter/<key> — devter.html, нийтэлсэн эсэх) — нээх, линк хуулах
+  var BW_KEY = 'cm_book_bw';
+  function bookBw() { try { return localStorage.getItem(BW_KEY) === '1'; } catch (e) { return false; } }
+  // Цахим номын түлхүүр (api/_ebook.js KEY_RE): «9-р анги» → 9 (2–12), ЭЕШ → eesh, Олимпиад → olimpiad (бусад — нийтлэхгүй)
+  function ebookKey(label) {
+    var m = /^(\d{1,2})-р анги$/.exec(String(label || ''));
+    if (m) return +m[1] >= 2 && +m[1] <= 12 ? m[1] : '';
+    return label === 'ЭЕШ' ? 'eesh' : label === 'Олимпиад' ? 'olimpiad' : '';
+  }
   function bookMenu(btn) {
-    var box = btn.parentNode, m = box.querySelector('.wsb-bkm');
+    var box = btn.parentNode, m = box.querySelector('.wsb-bkm'), d = gdata(ST.g), key = d ? ebookKey(d.label) : '', bw = bookBw();
     if (m) { m.remove(); return; }
+    var url = location.origin + '/devter/' + key;
     box.insertAdjacentHTML('beforeend', '<div class="wsb-bkm" role="menu">'
+      + '<div class="wsb-bkc" role="group" aria-label="Өнгө"><button type="button" data-bookc="0"' + (bw ? '' : ' class="on"') + ' aria-pressed="' + !bw + '">Өнгөт</button>'
+      + '<button type="button" data-bookc="1"' + (bw ? ' class="on"' : '') + ' aria-pressed="' + bw + '">Хар цагаан</button></div>'
       + '<button type="button" role="menuitem" data-bookp="a4"><b>A4</b><span>210 × 297 мм — одоогийн дэвтэр</span></button>'
-      + '<button type="button" role="menuitem" data-bookp="b5"><b>B5</b><span>176 × 250 мм — тусдаа тохиргоотой</span></button></div>');
+      + '<button type="button" role="menuitem" data-bookp="b5"><b>B5</b><span>176 × 250 мм — тусдаа тохиргоотой</span></button>'
+      + '<p class="wsb-bkn">Хар цагаан: дотор хуудас саарал, нүүр ба арын хавтас өнгөтөөрөө</p>'
+      + (key ? '<div class="wsb-bke">' + ICO.book + '<span class="t"><b>Цахим ном</b><small data-ebkst>' + esc(url.replace(/^https?:\/\//, '')) + '</small></span>'
+        + '<a href="/devter/' + key + '" target="_blank" rel="noopener">Нээх</a><button type="button" data-ebkcp="' + esc(url) + '">Линк хуулах</button></div>' : '')
+      + '</div>');
     m = box.querySelector('.wsb-bkm');
     if (m.getBoundingClientRect().left < 8) m.classList.add('l');      // нарийн дэлгэцэнд товчны зүүн ирмэгээс
+    if (key) fetch('/api/worksheets?ebook=' + key).then(function (r) { return r.json(); }).then(function (j) {   // нийтэлсэн эсэх
+      var s = m.querySelector('[data-ebkst]'); if (!s) return;
+      s.textContent = j && j.ok ? 'Нийтэлсэн · ' + String(j.updated || '').slice(0, 10) + ' · ' + j.pages + ' хуудас'
+        : 'Нийтлээгүй — номыг нээгээд «Цахим ном нийтлэх»';
+    }).catch(function () {});
   }
   document.addEventListener('click', function (e) {
     var m = document.querySelector('.wsb-bkm'); if (m && !(e.target.closest && e.target.closest('.wsb-bk'))) m.remove();
@@ -559,9 +580,9 @@
   function openBook(paper) {
     var pw = window.open('', '_blank');
     if (!pw) { alert('Popup блоклогдсон байна. Хөтчийн popup зөвшөөрлийг идэвхжүүлээд дахин дарна уу.'); return; }
-    var g = ST.g, go = function () { window.WSBOOK.build(g, pw, paper); };
+    var g = ST.g, opts = { bw: bookBw() }, go = function () { window.WSBOOK.build(g, pw, paper, opts); };
     if (window.WSBOOK) { go(); return; }
-    var s = document.createElement('script'); s.src = '/ws-book.js?v=21';
+    var s = document.createElement('script'); s.src = '/ws-book.js?v=22';
     s.onload = go; s.onerror = function () { try { pw.document.body.textContent = 'ws-book.js ачаалагдсангүй'; } catch (e) {} };
     document.head.appendChild(s);
   }
@@ -582,6 +603,18 @@
     if ((el = t.closest('[data-view]'))) { e.preventDefault(); view(el.getAttribute('data-view')); return; }
     if ((el = t.closest('[data-new]'))) { go({ nw: !ST.nw, nwAll: false, q: '' }, { noHash: true }); return; }
     if ((el = t.closest('[data-nwall]'))) { ST.nwAll = el.getAttribute('data-nwall') === '1'; render(true); return; }
+    if ((el = t.closest('[data-bookc]'))) {                             // Өнгөт / Хар цагаан — цэс нээлттэй үлдэнэ
+      var on = el.getAttribute('data-bookc') === '1';
+      try { localStorage.setItem(BW_KEY, on ? '1' : '0'); } catch (e2) {}
+      [].forEach.call(el.parentNode.children, function (b) { var me = b === el; b.classList.toggle('on', me); b.setAttribute('aria-pressed', String(me)); });
+      return;
+    }
+    if ((el = t.closest('[data-ebkcp]'))) {
+      var u = el.getAttribute('data-ebkcp'), done = function (txt) { el.textContent = txt; setTimeout(function () { el.textContent = 'Линк хуулах'; }, 2000); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(u).then(function () { done('Хууллаа'); }, function () { done('Хуулж чадсангүй'); });
+      else done('Хуулж чадсангүй');
+      return;
+    }
     if ((el = t.closest('[data-bookp]'))) { el.closest('.wsb-bkm').remove(); openBook(el.getAttribute('data-bookp')); return; }
     if ((el = t.closest('[data-book]'))) { bookMenu(el); return; }
     if ((el = t.closest('[data-gpick]'))) { go({ g: +el.getAttribute('data-gpick'), ch: null, t: null, q: '' }); return; }
@@ -722,8 +755,8 @@
     var _te = toggleEdit;
     window.toggleEdit = toggleEdit = function () { var r = _te.apply(this, arguments); if (ROOT && !window.editMode) { CACHE = {}; SEARCH = null; render(); } return r; };
   }
-  // gdata/groups/titleOf/deepItems — ws-book.js (Дасгал ажлын дэвтэр) каталогийн бүтцийг эндээс уншина;
+  // gdata/groups/titleOf/deepItems — ws-book.js (Дасгал ажлын дэвтэр) каталогийн бүтцийг эндээс уншина, ebookKey — цахим номын холбоос;
   // view — дээд цэсний таб солих (worksheets.html-ийн GW.scrollTo / PPTW.scrollTo дууддаг)
-  window.WSB = { render: function () { CACHE = {}; SEARCH = null; render(); }, state: ST, gdata: gdata, groups: groups, titleOf: titleOf, deepItems: deepItems, view: view };
+  window.WSB = { render: function () { CACHE = {}; SEARCH = null; render(); }, state: ST, gdata: gdata, groups: groups, titleOf: titleOf, deepItems: deepItems, view: view, ebookKey: ebookKey };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
