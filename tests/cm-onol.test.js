@@ -10,7 +10,7 @@ const path = require('path');
 const vm = require('vm');
 
 const R = p => fs.readFileSync(path.join(__dirname, '..', p), 'utf8');
-const html = R('index.html'), js = R('cm-onol.js'), css = R('cm-onol.css'), g12 = R('onol/g12.js'), g11 = R('onol/g11.js'), g10 = R('onol/g10.js'), g9 = R('onol/g9.js'), g8 = R('onol/g8.js'), g7 = R('onol/g7.js'), v = JSON.parse(R('vercel.json'));
+const html = R('index.html'), js = R('cm-onol.js'), css = R('cm-onol.css'), g12 = R('onol/g12.js'), g11 = R('onol/g11.js'), g10 = R('onol/g10.js'), g9 = R('onol/g9.js'), g8 = R('onol/g8.js'), g7 = R('onol/g7.js'), g6 = R('onol/g6.js'), v = JSON.parse(R('vercel.json'));
 // Агуулгын багцууд: анги, онолын файл, хичээлийн замын node-ууд (нэр нь гарчигтай ижил байх ёстой)
 // n — бүх хичээлд онол бэлэн бол яг тэр тоо; 11-р ангийн онол хэсэгчлэн нэмэгдэж байгаа (null — онол бүр замын node-той л таарна)
 // 10-р анги: node жагсаалт (зам нь DB-д, бодлогын багцгүй) — онолын гарчиг node-ийн нэртэй (447, 453, 456 засагдсан нэрээр)
@@ -48,9 +48,14 @@ const G9 = { NODES: [[1, 'Рационал тоо'], [2, 'Үет бутарха�
 const G7 = { NODES: [[701, 'Тооны модул'], [702, 'Бүхэл тооны нэмэх, хасах үйлдэл'], [703, 'Бүхэл тооны үржүүлэх, хуваах үйлдэл'],
   [704, 'Тооны куб зэрэг ба куб язгуур'], [705, 'Тоог анхны тоон үржигдэхүүнд задлах'], [706, 'ХИЕХ, ХБЕХ'], [707, '10-ын натурал илтгэгчтэй зэрэг'],
   [708, 'Аравтын бутархайг жиших, эрэмбэлэх'], [709, 'Тоог тоймлох'], [710, 'Хялбар аргаар тооцоолох']] };
+// 6-р анги: эхний 10 хичээл (node 301–310) — гарчиг DB-ийн нэртэй ижил
+const G6 = { NODES: [[301, 'Бүхэл тоонуудыг жиших'], [302, 'Бүхэл тооны нэмэх, хасах үйлдэл'], [303, 'Бүхэл тооны үржүүлэх, хуваах үйлдэл'],
+  [304, '4, 6 ба 8-д хуваагдах тооны шинж'], [305, 'Ерөнхий хуваагч ба хамгийн их ерөнхий хуваагч'],
+  [306, 'Ерөнхий хуваагдагч ба хамгийн бага ерөнхий хуваагдагч'], [307, 'Анхны тоо'], [308, 'Тооны квадрат зэрэг ба квадрат язгуур'],
+  [309, 'Хэллэг'], [310, 'Олонлог']] };
 const PACKS = [{ g: '12', src: g12, path: '../api/_g12path.js', n: 21 }, { g: '11', src: g11, path: '../api/_g11path.js', n: null },
   { g: '10', src: g10, nodes: G10, n: null }, { g: '9', src: g9, nodes: G9, n: null }, { g: '8', src: g8, nodes: G8, n: 20 },
-  { g: '7', src: g7, nodes: G7, n: 10 }];
+  { g: '7', src: g7, nodes: G7, n: 10 }, { g: '6', src: g6, nodes: G6, n: 10 }];
 const J = x => JSON.parse(JSON.stringify(x));
 const EMOJI = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u;
 
@@ -109,10 +114,10 @@ test('index.html: intro_html давамгайлна (cmOnol.over-оос буса
 });
 
 test('cm-onol.js: синтакс, сайтын функцийг дарж бичихгүй, startLessonAfterIntro-оор эхлүүлнэ, эможигүй, .cmo- угтвар', () => {
-  new Function(js); new Function(g12); new Function(g11); new Function(g10); new Function(g9); new Function(g8); new Function(g7);
+  new Function(js); new Function(g12); new Function(g11); new Function(g10); new Function(g9); new Function(g8); new Function(g7); new Function(g6);
   assert.doesNotMatch(js, /\b(openLesson|continueOpenLesson|startLessonAfterIntro|showIntroAndStart|backToIntro|closeModal|renderQuestion|checkAnswer|getLessonProgress)\s*=(?!=)/);
   assert.match(js, /if \(typeof startLessonAfterIntro === 'function'\) startLessonAfterIntro\(id\);/);
-  [js, css, g12, g11, g10, g9, g8, g7].forEach(s => assert.doesNotMatch(s, EMOJI, 'эможи бүү'));
+  [js, css, g12, g11, g10, g9, g8, g7, g6].forEach(s => assert.doesNotMatch(s, EMOJI, 'эможи бүү'));
   const cls = new Set();
   css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\.([a-zA-Z][\w-]*)/g, (m, c) => { cls.add(c); return m; });
   // Сайтын ерөнхий класс зөвхөн .cmo / #quiz-modal.cmo-open дотор л; бусад нь .cmo- угтвартай эсвэл виджетийн дотоод богино класс
@@ -130,6 +135,10 @@ test('cm-onol.js: синтакс, сайтын функцийг дарж бич�
   // Томьёоны гарчиг (f[].h) том үсгээр бичигддэг — доторх KaTeX-ийн хувьсагч ($x$, $m\gt n$) жижиг үсгээрээ үлдэнэ
   assert.match(css, /^\.cmo-f \.h \{[^}]*text-transform: uppercase;/m);
   assert.match(css, /^\.cmo-f \.h \.katex \{ text-transform: none;/m);
+  // Хариу (.cmo-ans), тайлбарын (.cmo-fb) дүрсний хэмжээ зөвхөн шууд дүрсэнд — KaTeX-ийн √, вектор сумны дотоод svg-г шахахгүй
+  assert.doesNotMatch(css, /^\.cmo-(ans|fb) svg \{/m);
+  assert.match(css, /^\.cmo-ans > svg \{ width: 22px; height: 22px; \}/m);
+  assert.match(css, /^\.cmo-fb > div > svg \{ width: 22px; height: 22px;/m);
 });
 
 test('Тусгай өнцгийн яг утга (нэгж тойрог) — тоон утгатай таарна', () => {
@@ -184,6 +193,16 @@ test('7-р анги: PACKS ids = onol/g7.js-ийн хичээлүүд (701–710
   assert.deepStrictEqual(ids, [701, 702, 703, 704, 705, 706, 707, 708, 709, 710]);
   ids.forEach(id => { assert.strictEqual(E.has(id), true, 'has ' + id); assert.strictEqual(E.over(id), false, 'over биш ' + id); });
   [700, 711, 730, 761].forEach(id => assert.strictEqual(E.has(id), false, 'онолгүй ' + id));
+});
+
+test('6-р анги: PACKS ids = onol/g6.js-ийн хичээлүүд (301–310), over биш, дараагийн хичээлүүдэд онол хараахан үгүй', () => {
+  const E = engine(), ids = Object.keys(content(g6)).map(Number).sort((a, b) => a - b);
+  const m = /\{ ids: \[([\d, ]+)\], src: '\/onol\/g6\.js\?v=\d+' \}/.exec(js);
+  assert.ok(m, 'PACKS-д 6-р ангийн сав');
+  assert.deepStrictEqual(m[1].split(',').map(Number), ids);
+  assert.deepStrictEqual(ids, [301, 302, 303, 304, 305, 306, 307, 308, 309, 310]);
+  ids.forEach(id => { assert.strictEqual(E.has(id), true, 'has ' + id); assert.strictEqual(E.over(id), false, 'over биш ' + id); });
+  [300, 311, 330, 379].forEach(id => assert.strictEqual(E.has(id), false, 'онолгүй ' + id));
 });
 
 test('fx: чирэгддэг цэгийн x0-ийг муруй (fn 3 дахь) ба зураас (lines 2 дахь аргумент)-д дамжуулна — 709-ийн тоймлох шулуун цэгийг дагана', () => {
