@@ -67,6 +67,10 @@
   .ag b{display:block;font-weight:900;font-size:.95rem}
   .ag span{display:block;color:var(--soft);font-weight:700;font-size:.84rem;line-height:1.35}
   .foot{text-align:center;color:var(--soft);font-weight:700;font-size:.84rem;margin-top:18px}
+  .call{position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;background:#120c2e}
+  .callbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;color:#fff;font-weight:900;font-size:.95rem}
+  .callbar button{border:0;border-radius:999px;padding:.45rem 1.1rem;font:inherit;font-weight:900;font-size:.88rem;color:#fff;background:var(--red);cursor:pointer}
+  .call iframe{flex:1;width:100%;border:0;background:#000}
   [hidden]{display:none!important}
   @media (max-width:420px){.hero h1{font-size:1.5rem}.w b{font-size:.92rem}.two{grid-template-columns:1fr;gap:0}}
 </style>
@@ -84,7 +88,7 @@
     <div class="when">
       <div class="w"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="3"/><path d="M3 9.5h18M8 3v3M16 3v3"/></svg><b id="mDay">—</b><small id="mDow"></small></div>
       <div class="w"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><b id="mTime">—</b><small>УБ-ын цагаар</small></div>
-      <div class="w"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="13" height="12" rx="2.5"/><path d="M15.5 10.5 21 7.5v9l-5.5-3"/></svg><b>Google Meet</b><small>Онлайнаар</small></div>
+      <div class="w"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="13" height="12" rx="2.5"/><path d="M15.5 10.5 21 7.5v9l-5.5-3"/></svg><b id="mPlat">Google Meet</b><small>Онлайнаар</small></div>
     </div>
     <div class="status" id="mStatus" hidden><span class="dot"></span><span id="mStatusT"></span></div>
   </section>
@@ -97,7 +101,7 @@
 
   <section class="card" id="formCard" hidden>
     <h2>Бүртгүүлэх</h2>
-    <p class="hint">Бүртгүүлсний дараа Google Meet-ийн холбоос энэ хуудсанд гарна. Таны хариултаар танилцуулгаа хэрэгцээнд тань тааруулна.</p>
+    <p class="hint" id="fHint">Бүртгүүлсний дараа Google Meet-ийн холбоос энэ хуудсанд гарна. Таны хариултаар танилцуулгаа хэрэгцээнд тань тааруулна.</p>
     <form id="regForm" novalidate>
       <label class="f" for="fName">Овог, нэр <em>*</em></label>
       <input id="fName" type="text" autocomplete="name" maxlength="80" placeholder="Жишээ: Б. Сарантуяа">
@@ -143,6 +147,11 @@
       <div class="linkrow" id="dLink"></div>
     </div>
     <div class="note" id="dWait" hidden>Google Meet-ийн холбоос уулзалт эхлэхээс өмнө энэ хуудсанд гарна. Энэ хуудсыг хадгалаад, цагтаа орж ирээрэй.</div>
+    <div id="dRoom" hidden>
+      <div class="stack"><button class="btn meet" id="dRoomBtn" type="button"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="13" height="12" rx="2.5"/><path d="M15.5 10.5 21 7.5v9l-5.5-3"/></svg>Уулзалтад нэгдэх</button></div>
+      <div class="msg" id="dRoomMsg" role="status"></div>
+      <div class="note" id="dRoomWait">Уулзалт энэ хуудсан дээр явагдана — нэмэлт програм хэрэггүй. «Уулзалтад нэгдэх» товч эхлэхээс 30 минутын өмнө идэвхжинэ. Камер, микрофоны зөвшөөрөл асуувал «Allow» дарна уу.</div>
+    </div>
     <div class="stack">
       <a class="btn ghost" id="dCal" href="#" target="_blank" rel="noopener">Google Календарт нэмэх</a>
       <button class="btn ghost" id="dEdit" type="button">Мэдээллээ засах</button>
@@ -162,12 +171,16 @@
   </section>
   <p class="foot">Холбоо барих: 8844 9307 · cyber-math.com</p>
 </main>
+<div class="call" id="call" hidden>
+  <div class="callbar"><span id="callTitle">CyberMath уулзалт</span><button type="button" id="callClose">Гарах</button></div>
+  <iframe id="callFrame" title="Онлайн уулзалт" allow="camera; microphone; fullscreen; speaker; display-capture; autoplay; clipboard-write"></iframe>
+</div>
 <script>
 (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
   var DOW = ['Ням', 'Даваа', 'Мягмар', 'Лхагва', 'Пүрэв', 'Баасан', 'Бямба'];
-  var M = null, REG = null, poll = null;
+  var M = null, REG = null, poll = null, rtimer = null;
   function lsGet(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
   function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
   function post(body) {
@@ -177,18 +190,20 @@
   // Улаанбаатарын цаг (UTC+8) — хэрэглэгчийн төхөөрөмжийн бүсээс үл хамаарна
   function ub(ms) { var d = new Date(ms + 8 * 3600e3); return { y: d.getUTCFullYear(), m: d.getUTCMonth() + 1, d: d.getUTCDate(), w: d.getUTCDay(), hm: ('0' + d.getUTCHours()).slice(-2) + ':' + ('0' + d.getUTCMinutes()).slice(-2), day: Math.floor((ms + 8 * 3600e3) / 864e5) }; }
   function dayWord(ms) { var a = ub(ms).day - ub(Date.now()).day; return a === 0 ? 'Өнөөдөр' : a === 1 ? 'Маргааш' : ''; }
-  function whenText() { var t = Date.parse(M.at), u = ub(t), w = dayWord(t); return (w ? w + ', ' : '') + u.m + ' сарын ' + u.d + ' (' + DOW[u.w] + ') ' + u.hm + ' · Google Meet'; }
+  function whenText() { var t = Date.parse(M.at), u = ub(t), w = dayWord(t); return (w ? w + ', ' : '') + u.m + ' сарын ' + u.d + ' (' + DOW[u.w] + ') ' + u.hm + ' · ' + (M.inapp ? 'CyberMath' : 'Google Meet'); }
   function calUrl() {
     var f = function (ms) { return new Date(ms).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''); };
     return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent('CyberMath — багш нарт зориулсан онлайн танилцуулга')
       + '&dates=' + f(Date.parse(M.at)) + '/' + f(Date.parse(M.end))
-      + '&details=' + encodeURIComponent('Google Meet-ийн холбоос: https://cyber-math.com/meet');
+      + '&details=' + encodeURIComponent((M.inapp ? 'Уулзалтад нэгдэх' : 'Google Meet-ийн холбоос') + ': https://cyber-math.com/meet');
   }
   function hero() {
     var t = Date.parse(M.at), u = ub(t), w = dayWord(t);
     $('mDay').textContent = u.m + ' сарын ' + u.d;
     $('mDow').textContent = (w ? w + ' · ' : '') + DOW[u.w] + ' гараг';
     $('mTime').textContent = u.hm;
+    $('mPlat').textContent = M.inapp ? 'CyberMath' : 'Google Meet';
+    if (M.inapp) $('fHint').textContent = 'Бүртгүүлсний дараа уулзалтад энэ хуудаснаас шууд нэгдэнэ — нэмэлт програм хэрэггүй. Таны хариултаар танилцуулгаа хэрэгцээнд тань тааруулна.';
     var st = $('mStatus'); st.hidden = false;
     if (M.live) { st.className = 'status live'; $('mStatusT').textContent = 'Одоо явагдаж байна'; }
     else { st.className = 'status'; $('mStatusT').textContent = 'Бүртгэл нээлттэй'; }
@@ -198,15 +213,26 @@
     $('dTitle').textContent = 'Бүртгэгдлээ' + (name ? ', ' + name : '');
     $('dWhen').textContent = whenText();
     $('dCal').href = calUrl();
+    $('dRoom').hidden = !M.inapp;                         // CyberMath дотор уулзалт — Meet холбоос хүлээх шаардлагагүй
+    if (M.inapp) { roomState(); if (!rtimer) rtimer = setInterval(roomState, 30000); }
     if (link) { $('dLinkBox').hidden = false; $('dWait').hidden = true; $('dJoin').href = link; $('dLink').textContent = link; if (poll) { clearInterval(poll); poll = null; } }
     else {
-      $('dLinkBox').hidden = true; $('dWait').hidden = false;
+      $('dLinkBox').hidden = true; $('dWait').hidden = !!M.inapp;
       if (!poll) poll = setInterval(refresh, 60000);      // админ холбоосоо нэмэхэд хуудсыг шинэчлэхгүйгээр гарна
     }
   }
+  // «Уулзалтад нэгдэх» — эхлэхээс 30 минутын өмнөөс идэвхтэй
+  function roomState() { $('dRoomBtn').disabled = Date.now() < Date.parse(M.at) - 30 * 60e3; }
   function refresh() {
     if (!REG) return;
-    post({ action: 'meet_me', id: REG.id, key: REG.key }).then(function (d) { if (d && d.ok) showDone(REG.name, d.link); });
+    post({ action: 'meet_me', id: REG.id, key: REG.key }).then(function (d) {
+      if (d && d.ok) showDone(REG.name, d.link);
+      else if (d && d.ok === false && !d.error) {            // админ бүртгэлийг устгасан — маягтыг дахин харуулна
+        if (poll) { clearInterval(poll); poll = null; }
+        var s = lsGet('cm_meet_reg_' + M.key); REG = null; fill(s && s.form);
+        $('doneCard').hidden = true; $('formCard').hidden = false;
+      }
+    }).catch(function () {});
   }
   /* ── маягт ── */
   var G = $('fGrades');
@@ -252,6 +278,24 @@
     var s = lsGet('cm_meet_reg_' + M.key); fill(s && s.form);
     $('doneCard').hidden = true; $('formCard').hidden = false;
     $('formCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  /* ── CyberMath дотор уулзалт (Daily) — өрөө private, сервер бүртгүүлсэн хүнд л токен өгнө ── */
+  $('dRoomBtn').addEventListener('click', function () {
+    if (!REG) return;
+    var b = $('dRoomBtn'), msg = $('dRoomMsg');
+    b.disabled = true; msg.className = 'msg'; msg.textContent = 'Холбогдож байна…';
+    post({ action: 'meet_join', id: REG.id, key: REG.key }).then(function (d) {
+      b.disabled = false;
+      if (!d || !d.ok) { msg.className = 'msg err'; msg.textContent = (d && d.error) || 'Алдаа гарлаа'; return; }
+      msg.textContent = '';
+      $('callTitle').textContent = M.title || 'CyberMath уулзалт';
+      $('callFrame').src = d.url + (d.url.indexOf('?') < 0 ? '?' : '&') + 't=' + encodeURIComponent(d.token);
+      $('call').hidden = false; document.body.style.overflow = 'hidden';
+    }).catch(function () { b.disabled = false; msg.className = 'msg err'; msg.textContent = 'Сервертэй холбогдоход алдаа гарлаа'; });
+  });
+  $('callClose').addEventListener('click', function () {
+    if (!confirm('Уулзалтаас гарах уу?')) return;
+    $('callFrame').src = 'about:blank'; $('call').hidden = true; document.body.style.overflow = '';
   });
   /* ── эхлэл ── */
   fetch('/api/worksheets?meet=1').then(function (r) { return r.json(); }).then(function (d) {

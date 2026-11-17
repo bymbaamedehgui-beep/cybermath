@@ -628,6 +628,9 @@ window.meetLoad=async function(){
   document.getElementById('meet-mins').value=c.mins||120;
   document.getElementById('meet-link').value=c.link||'';
   document.getElementById('meet-active').checked=c.active!==false;
+  document.getElementById('meet-inapp').checked=c.inapp===true;
+  var ds=document.getElementById('meet-daily');
+  ds.style.color=d.daily?'#16a34a':'#dc2626'; ds.textContent=d.daily?'Daily холбогдсон':'Daily: DAILY_API_KEY тохируулаагүй';
   var st=document.getElementById('meet-state');
   st.style.color=d.open?'#16a34a':'#94a3b8'; st.textContent=d.open?'· бүртгэл нээлттэй':'· идэвхгүй / дууссан';
   await meetLoadRegs();
@@ -642,23 +645,45 @@ window.meetLoadRegs=async function(){
   var th='padding:6px 8px;text-align:left;font-size:0.75rem;color:var(--muted);border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);';
   var td='padding:6px 8px;font-size:0.8rem;border-bottom:1px solid var(--border);vertical-align:top;';
   box.innerHTML='<table style="width:100%;border-collapse:collapse;"><thead><tr>'
-    +['#','Нэр','Утас','Имэйл','Сургууль, аймаг','Анги','CyberMath','Сонирхол','Асуулт','Огноо'].map(function(x){return '<th style="'+th+'">'+x+'</th>';}).join('')
+    +['#','Нэр','Утас','Имэйл','Сургууль, аймаг','Анги','CyberMath','Сонирхол','Асуулт','Огноо',''].map(function(x){return '<th style="'+th+'">'+x+'</th>';}).join('')
     +'</tr></thead><tbody>'+_meetRegs.map(function(x,i){
       return '<tr>'+[i+1,x.name,x.phone,x.email||'',[x.school,x.aimag].filter(Boolean).join(', '),(x.grades||[]).join(', '),
         _meetMaps.usage[x.usage]||'',(x.interests||[]).map(function(k){return _meetMaps.interests[k]||k;}).join(', '),x.question||'',
-        x.created_at?new Date(x.created_at).toLocaleString('mn-MN',{timeZone:'Asia/Ulaanbaatar'}):''].map(function(v){return '<td style="'+td+'">'+wsEsc(v)+'</td>';}).join('')+'</tr>';
+        x.created_at?new Date(x.created_at).toLocaleString('mn-MN',{timeZone:'Asia/Ulaanbaatar'}):''].map(function(v){return '<td style="'+td+'">'+wsEsc(v)+'</td>';}).join('')
+        +'<td style="'+td+'"><button type="button" onclick="meetDel('+(+x.id)+')" title="Бүртгэлээс устгах" aria-label="Бүртгэлээс устгах" style="background:none;border:1px solid var(--border);border-radius:7px;padding:4px 6px;cursor:pointer;color:#dc2626;display:inline-flex;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button></td></tr>';
     }).join('')+'</tbody></table>';
+};
+window.meetDel=async function(id){
+  var x=_meetRegs.filter(function(r){return r.id===id;})[0]; if(!x)return;
+  if(!confirm('Уулзалтын бүртгэлээс устгах уу?\n\n'+x.name+' · '+x.phone+(x.email?' · '+x.email:'')+'\n\nБуцаах боломжгүй. Тэр хүнд Meet холбоос харагдахаа болино.'))return;
+  var msg=document.getElementById('meet-copy-msg');
+  try{
+    var d=await wsPostW('meet_del',{id:id}); if(!d||!d.ok)throw new Error((d&&d.error)||'алдаа');
+    msg.style.color='#16a34a';msg.textContent='Устгалаа: '+x.name;
+    await meetLoadRegs();
+  }catch(e){msg.style.color='#dc2626';msg.textContent='Алдаа: '+e.message;}
 };
 window.saveMeet=async function(){
   var m=document.getElementById('meet-msg'),at=document.getElementById('meet-at').value;
   m.style.color='var(--muted)';m.textContent='Хадгалж байна…';
   try{
     var d=await wsPostW('meet_set',{title:document.getElementById('meet-title').value.trim(),at:at?at+':00+08:00':'',
-      mins:+document.getElementById('meet-mins').value||120,link:document.getElementById('meet-link').value.trim(),active:document.getElementById('meet-active').checked});
+      mins:+document.getElementById('meet-mins').value||120,link:document.getElementById('meet-link').value.trim(),active:document.getElementById('meet-active').checked,
+      inapp:document.getElementById('meet-inapp').checked});
     if(!d||!d.ok)throw new Error((d&&d.error)||'алдаа');
     m.style.color='#16a34a';m.textContent=d.open?'✓ Хадгаллаа — Дасгалын төвд харагдаж байна':'✓ Хадгаллаа (идэвхгүй / дууссан тул харагдахгүй)';
     await meetLoad();
   }catch(e){m.style.color='#dc2626';m.textContent='Алдаа: '+e.message;}
+};
+// CyberMath дотор уулзалт (Daily): хөтлөгчийн (is_owner) токентой өрөөг шинэ цонхонд — попап хаагдахгүйн тулд цонхыг түрүүлж нээнэ
+window.meetHost=async function(){
+  var m=document.getElementById('meet-msg'),w=window.open('','_blank');
+  if(w)w.opener=null;
+  try{
+    var d=await wsPostW('meet_host',{}); if(!d||!d.ok)throw new Error((d&&d.error)||'алдаа');
+    var u=d.url+(d.url.indexOf('?')<0?'?':'&')+'t='+encodeURIComponent(d.token);
+    if(w)w.location.href=u; else location.href=u;
+  }catch(e){if(w)w.close();m.style.color='#dc2626';m.textContent='Алдаа: '+e.message;}
 };
 window.meetCopyEmails=function(){
   var seen={},list=_meetRegs.map(function(x){return (x.email||'').toLowerCase();}).filter(function(e){if(!e||seen[e])return false;seen[e]=1;return true;});
@@ -3582,8 +3607,11 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
           </div>
           <div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap;">
             <label style="display:inline-flex;align-items:center;gap:6px;font-size:0.85rem;font-weight:700;cursor:pointer;"><input id="meet-active" type="checkbox"> Идэвхтэй (Дасгалын төвд харагдана)</label>
+            <label style="display:inline-flex;align-items:center;gap:6px;font-size:0.85rem;font-weight:700;cursor:pointer;" title="Уулзалт cyber-math.com/meet хуудсан дээр явагдана (Daily) — Google Meet холбоос шаардлагагүй"><input id="meet-inapp" type="checkbox"> CyberMath дотор (Daily)</label>
             <button onclick="saveMeet()" style="background:linear-gradient(135deg,#7B52EE,#A855F7);border:0;color:#fff;border-radius:8px;padding:9px 18px;cursor:pointer;font-weight:800;font-size:0.85rem;">Хадгалах</button>
             <a href="/meet" target="_blank" rel="noopener" style="font-size:0.82rem;font-weight:800;color:#7B52EE;">Бүртгэлийн хуудас ↗</a>
+            <button onclick="meetHost()" title="Уулзалтыг хөтлөгчөөр (дуу хаах, хүн гаргах, дэлгэц хуваалцах эрхтэй) шинэ цонхонд нээнэ" style="background:linear-gradient(135deg,#0F9D58,#16a34a);border:0;color:#fff;border-radius:8px;padding:9px 16px;cursor:pointer;font-weight:800;font-size:0.85rem;">Хөтлөгчөөр нэгдэх</button>
+            <span id="meet-daily" style="font-size:0.78rem;font-weight:800;"></span>
             <span id="meet-msg" style="font-size:0.8rem;font-weight:700;"></span>
           </div>
           <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap;">
