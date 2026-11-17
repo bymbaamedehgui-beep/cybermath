@@ -6,7 +6,7 @@
 //        (нэг утсаар дахин бүртгүүлбэл шинэчилнэ; дууссан уулзалтад бүртгэхгүй)
 //   POST meet_me {id, key}   — бүртгүүлсэн хүнд Meet холбоос (админ дараа нь нэмсэн бол)
 //   POST meet_join {id, key} — CyberMath дотор уулзалт (inapp): бүртгүүлсэн хүнд Daily өрөөний URL + токен (30 минутын өмнөөс)
-//   POST meet_get · meet_set {title, at, mins, link, active, inapp} · meet_regs · meet_del {id} · meet_host — админ
+//   POST meet_get · meet_set {title, at, mins, link, active, inapp} · meet_regs · meet_del {id} · meet_host · meet_test — админ
 //        (meet_del: бүртгэлийг бүрмөсөн устгана — тэр хүний хуудсанд Meet холбоос гарахаа больж, маягт дахин харагдана;
 //         meet_host: хөтлөгчийн (is_owner) токен — уулзалтыг удирдана)
 // Тохиргоо ws_settings.skey='meet' (JSON); DB-д байхгүй бол DEFAULT. Meet холбоос зөвхөн бүртгүүлсэн хүнд очно.
@@ -94,6 +94,13 @@ async function daily(method, path, body) {
   if (!r.ok) { const e = new Error('daily ' + r.status + ' ' + (j.info || j.error || '')); e.status = r.status; throw e; }
   return j;
 }
+// Google Meet / Zoom-д байдаг боломжууд (эзэмшигч: «google meeting болон zoom-т байдаг бүх зүйлс байх ёстой») — Daily Prebuilt-ийн
+// нэрс docs.daily.co/reference/rest-api/rooms/create-room-оос (буруу нэр өгвөл өрөө үүсэхгүй): чат (эможи, GIF), эможи хариу,
+// гар өргөх, жижиг бүлгийн өрөө, оролцогчдын жагсаалт, PiP, сүлжээний мэдээлэл, чимээ дарах, арын дэвсгэр бүдэгрүүлэх.
+const roomProps = (exp) => ({ exp, eject_at_room_exp: true, max_participants: 200, enable_chat: true, enable_advanced_chat: true, enable_screenshare: true,
+  enable_prejoin_ui: true, start_video_off: true, start_audio_off: true, enable_emoji_reactions: true, enable_hand_raising: true,
+  enable_breakout_rooms: true, enable_people_ui: true, enable_pip_ui: true, enable_network_ui: true, enable_noise_cancellation_ui: true,
+  enable_video_processing_ui: true });
 // Өрөөг үүсгэнэ/шинэчилнэ. URL-ийг ws_settings 'meet_room'-д хадгалж, хүн бүр нэгдэхэд өрөөний API-г дахин дуудахгүй.
 async function ensureRoom(c, force) {
   const name = roomName(c), exp = roomExp(c);
@@ -103,13 +110,7 @@ async function ensureRoom(c, force) {
     try { s = r.rows.length ? JSON.parse(r.rows[0].sval || 'null') : null; } catch (e) { s = null; }
     if (s && s.name === name && s.exp === exp && s.url) return s.url;
   }
-  // Google Meet / Zoom-д байдаг боломжууд (эзэмшигч: «google meeting болон zoom-т байдаг бүх зүйлс байх ёстой») — Daily Prebuilt-ийн
-  // нэрс docs.daily.co/reference/rest-api/rooms/create-room-оос (буруу нэр өгвөл өрөө үүсэхгүй): чат (эможи, GIF), эможи хариу,
-  // гар өргөх, жижиг бүлгийн өрөө, оролцогчдын жагсаалт, PiP, сүлжээний мэдээлэл, чимээ дарах, арын дэвсгэр бүдэгрүүлэх.
-  const properties = { exp, eject_at_room_exp: true, max_participants: 200, enable_chat: true, enable_advanced_chat: true, enable_screenshare: true,
-    enable_prejoin_ui: true, start_video_off: true, start_audio_off: true, enable_emoji_reactions: true, enable_hand_raising: true,
-    enable_breakout_rooms: true, enable_people_ui: true, enable_pip_ui: true, enable_network_ui: true, enable_noise_cancellation_ui: true,
-    enable_video_processing_ui: true };
+  const properties = roomProps(exp);
   let room;
   try { room = await daily('POST', '/rooms/' + name, { properties }); } catch (e) {
     if (e.status !== 404) throw e;
@@ -225,6 +226,16 @@ async function handle(req, res) {
       if (Date.now() >= endMs(c)) return res.status(400).json({ ok: false, error: 'Уулзалт дууссан — шинэ огноо тавина уу' }), true;
       const url = await ensureRoom(c, true);
       return res.json({ ok: true, url, token: await meetToken(c, str(b.name, 60) || 'CyberMath', true) }), true;
+    }
+    // Туршилтын өрөө (эзэмшигч: «одоо нэгийг үүсгэж ашиглаж шалгамаар байна») — үндсэн уулзалт, бүртгэлд хүрэхгүй, 2 цаг хүчинтэй.
+    // Хөтлөгч (is_owner) ба оролцогчийн токен буцаана; холбоосыг админ /meet#room=…-ээр нээж, хуваалцана.
+    if (act === 'meet_test') {
+      if (!dailyKey()) return res.status(503).json({ ok: false, error: 'DAILY_API_KEY тохируулаагүй' }), true;
+      const name = 'cm-test-' + crypto.randomBytes(5).toString('hex'), exp = Math.floor(Date.now() / 1000) + 2 * 3600;
+      const room = await daily('POST', '/rooms', { name, privacy: 'private', properties: roomProps(exp) });
+      const tok = async (owner) => (await daily('POST', '/meeting-tokens', { properties: Object.assign({ room_name: name, is_owner: owner, exp,
+        enable_screenshare: true, start_video_off: !owner, start_audio_off: !owner }, owner ? { user_name: 'Хөтлөгч', enable_recording: 'local' } : {}) })).token;
+      return res.json({ ok: true, url: room.url, exp, host: await tok(true), guest: await tok(false) }), true;
     }
     if (act === 'meet_del') {
       const id = parseInt(b.id, 10) || 0;

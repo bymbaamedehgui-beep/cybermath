@@ -394,6 +394,13 @@
     mainAreaBg: '#0B0820', mainAreaBgAccent: '#2A2168', mainAreaText: '#FFFFFF', supportiveText: '#BEB3EE' } };
   var HOST = /[?&]host=1(&|$)/.test(location.search), ADM = null, call = null, joinedAt = 0, ctick = null, left = false, cerr = '';
   try { ADM = localStorage.getItem('cm_admin_token'); } catch (e) {}
+  // Туршилтын өрөө: /meet#room=<base64url {u: өрөөний URL, t: токен, e: дуусах unix, o: хөтлөгч эсэх}> — админ «Туршилтын өрөө үүсгэх»-ээс
+  var TEST = null;
+  try {
+    var hm = /^#room=([A-Za-z0-9_-]+)$/.exec(location.hash);
+    if (hm) { TEST = JSON.parse(atob(hm[1].replace(/-/g, '+').replace(/_/g, '/'))); if (!TEST || !/^https:\/\/[\w.-]+\.daily\.co\//.test(TEST.u) || !TEST.t) TEST = null; }
+  } catch (e) { TEST = null; }
+  var OWN = HOST || !!(TEST && TEST.o);
   var pad = function (n) { return (n < 10 ? '0' : '') + n; };
   function loadDaily() {
     if (window.Daily) return Promise.resolve(window.Daily);
@@ -427,12 +434,12 @@
     pill.className = 'pill' + (over ? ' end' : live ? ' live' : open ? ' open' : '');
     $('rPillT').textContent = over ? 'Уулзалт дууссан' : live ? 'Шууд явагдаж байна' : open ? 'Өрөө нээлттэй' : 'Удахгүй эхэлнэ';
     var b = $('rJoin');
-    if (!b.dataset.busy) { b.disabled = !open; $('rJoinT').textContent = HOST ? 'Хөтлөгчөөр нэгдэх' : left ? 'Дахин нэгдэх' : 'Уулзалтад нэгдэх'; }
+    if (!b.dataset.busy) { b.disabled = !open; $('rJoinT').textContent = left ? 'Дахин нэгдэх' : OWN ? 'Хөтлөгчөөр нэгдэх' : 'Уулзалтад нэгдэх'; }
     b.classList.toggle('go', open && !b.dataset.busy);
     $('rHint').textContent = over ? 'Уулзалт дууссан. Дараагийн уулзалтын мэдээг Дасгалын төвөөс харна уу.'
       : !open ? 'Өрөө эхлэхээс 30 минутын өмнө нээгдэнэ. Энэ хуудсыг хадгалаад цагтаа орж ирээрэй.'
       : left ? 'Уулзалтаас гарлаа — дахин нэгдэж болно.'
-      : HOST ? 'Та хөтлөгчөөр нэгдэнэ: бусдын дууг хаах, хүн гаргах, дэлгэцээ хуваалцах эрхтэй.'
+      : OWN ? 'Та хөтлөгчөөр нэгдэнэ: бусдын дууг хаах, хүн гаргах, дэлгэцээ хуваалцах эрхтэй.'
       : 'Товчийг дармагц камер, микрофоноо шалгаад өрөөнд орно.';
   }
   function hostPost() {
@@ -441,6 +448,7 @@
   }
   $('rJoin').addEventListener('click', function () {
     var b = $('rJoin'), msg = $('rMsg');
+    if (TEST) { msg.textContent = ''; openCall(TEST.u, TEST.t); return; }   // туршилтын өрөөний токен холбоост бий
     if (!HOST && !REG) return;
     b.dataset.busy = '1'; b.disabled = true; b.classList.remove('go'); msg.textContent = ''; $('rJoinT').textContent = 'Холбогдож байна…';
     (HOST ? hostPost() : post({ action: 'meet_join', id: REG.id, key: REG.key })).then(function (d) {
@@ -534,6 +542,13 @@
   });
   $('cErrClose').addEventListener('click', closeCall);
   /* ── эхлэл ── */
+  if (TEST) {                                             // туршилтын өрөө — үндсэн уулзалтын API-г дуудахгүй
+    M = { title: 'Туршилтын уулзалт', at: new Date(Date.now() - 60e3).toISOString(), end: new Date((+TEST.e || 0) * 1000).toISOString(), count: 0 };
+    $('hero').hidden = true;
+    if (Date.parse(M.end) <= Date.now()) { $('closed').hidden = false; return; }
+    showRoom(); $('rHeadT').textContent = OWN ? 'Туршилтын өрөө · хөтлөгч' : 'Туршилтын өрөө';
+    return;
+  }
   fetch('/api/worksheets?meet=1').then(function (r) { return r.json(); }).then(function (d) {
     M = d && d.meet;
     if (!M) { $('closed').hidden = false; return; }

@@ -677,6 +677,29 @@ window.saveMeet=async function(){
 };
 // CyberMath дотор уулзалт (Daily): /meet?host=1 — хөтлөгчийн өрөө (админы токеноор meet_host → is_owner, CyberMath загвартай)
 window.meetHost=function(){ window.open('/meet?host=1','_blank'); };
+// Туршилтын өрөө (meet_test): 2 цаг, үндсэн уулзалтад хүрэхгүй. Холбоос /meet#room=<base64url> — токен хаягийн # хэсэгт (серверт очихгүй)
+window.meetTest=async function(){
+  var box=document.getElementById('meet-test'),m=document.getElementById('meet-msg');
+  m.style.color='var(--muted)';m.textContent='Туршилтын өрөө үүсгэж байна…';
+  try{
+    var d=await wsPostW('meet_test',{}); if(!d||!d.ok)throw new Error((d&&d.error)||'алдаа');
+    var enc=function(o){return btoa(JSON.stringify(o)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');};
+    var host=location.origin+'/meet#room='+enc({u:d.url,t:d.host,e:d.exp,o:1}),guest=location.origin+'/meet#room='+enc({u:d.url,t:d.guest,e:d.exp});
+    var until=new Date(d.exp*1000+8*3600e3).toISOString().slice(11,16);
+    box.style.display='block';
+    box.innerHTML='<b>Туршилтын өрөө бэлэн</b> — '+until+' хүртэл (УБ) хүчинтэй. Үндсэн уулзалт, бүртгэлд хүрэхгүй.'
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">'
+      +'<a href="'+wsEsc(host)+'" target="_blank" rel="noopener" style="background:linear-gradient(135deg,#0F9D58,#16a34a);color:#fff;border-radius:8px;padding:8px 14px;font-weight:800;text-decoration:none;">Хөтлөгчөөр нээх</a>'
+      +'<button type="button" data-u="'+wsEsc(guest)+'" onclick="meetCopy(this)" style="background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:800;">Оролцогчийн холбоос хуулах</button></div>'
+      +'<div style="margin-top:8px;color:var(--muted);font-weight:700;">Оролцогчийн холбоосыг утсаараа нээх эсвэл найздаа явуулбал тэр нэрээ бичээд нэгдэнэ.</div>';
+    m.textContent='';
+  }catch(e){m.style.color='#dc2626';m.textContent='Алдаа: '+e.message;}
+};
+window.meetCopy=function(b){
+  var u=b.getAttribute('data-u'),ok=function(){b.textContent='Хууллаа';setTimeout(function(){b.textContent='Оролцогчийн холбоос хуулах';},2000);};
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(u).then(ok,function(){prompt('Оролцогчийн холбоос:',u);});
+  else prompt('Оролцогчийн холбоос:',u);
+};
 window.meetCopyEmails=function(){
   var seen={},list=_meetRegs.map(function(x){return (x.email||'').toLowerCase();}).filter(function(e){if(!e||seen[e])return false;seen[e]=1;return true;});
   var msg=document.getElementById('meet-copy-msg');
@@ -3603,8 +3626,11 @@ body.light .form-input { background:#ffffff; color:#1a1030; }
             <button onclick="saveMeet()" style="background:linear-gradient(135deg,#7B52EE,#A855F7);border:0;color:#fff;border-radius:8px;padding:9px 18px;cursor:pointer;font-weight:800;font-size:0.85rem;">Хадгалах</button>
             <a href="/meet" target="_blank" rel="noopener" style="font-size:0.82rem;font-weight:800;color:#7B52EE;">Бүртгэлийн хуудас ↗</a>
             <button onclick="meetHost()" title="Уулзалтыг хөтлөгчөөр (дуу хаах, хүн гаргах, дэлгэц хуваалцах эрхтэй) шинэ цонхонд нээнэ" style="background:linear-gradient(135deg,#0F9D58,#16a34a);border:0;color:#fff;border-radius:8px;padding:9px 16px;cursor:pointer;font-weight:800;font-size:0.85rem;">Хөтлөгчөөр нэгдэх</button>
+            <button onclick="meetTest()" title="Үндсэн уулзалт, бүртгэлд хүрэхгүй — 2 цаг хүчинтэй тусдаа өрөө" style="background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 14px;cursor:pointer;font-weight:800;font-size:0.85rem;">Туршилтын өрөө үүсгэх</button>
             <span id="meet-daily" style="font-size:0.78rem;font-weight:800;"></span>
             <span id="meet-msg" style="font-size:0.8rem;font-weight:700;"></span>
+          </div>
+          <div id="meet-test" style="display:none;margin-top:10px;padding:12px 14px;border:1.5px dashed #10B981;border-radius:10px;font-size:0.84rem;">
           </div>
           <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap;">
             <b id="meet-count" style="font-size:0.9rem;">Бүртгэл: —</b>

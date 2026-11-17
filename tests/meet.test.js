@@ -218,6 +218,27 @@ test('CyberMath дотор уулзалт (Daily): түлхүүргүй бол �
   delete process.env.DAILY_API_KEY;
 });
 
+test('туршилтын өрөө (meet_test): зөвхөн админ, тусдаа private өрөө 2 цаг, хөтлөгч/оролцогчийн токен, үндсэн уулзалтад хүрэхгүй', async () => {
+  assert.strictEqual((await post({ action: 'meet_test' })).code, 401);
+  delete process.env.DAILY_API_KEY;
+  assert.strictEqual((await post({ action: 'meet_test' }, true)).code, 503);
+  process.env.DAILY_API_KEY = 'test-daily-key';
+  const before = [db.settings.meet, db.settings.meet_room, db.regs.length], n0 = fcalls.length;
+  const r = await post({ action: 'meet_test' }, true);
+  assert.strictEqual(r.body.ok, true);
+  const calls = fcalls.slice(n0), room = calls.find((x) => /\/v1\/rooms$/.test(x.url));
+  assert.match(room.body.name, /^cm-test-[0-9a-f]{10}$/);
+  assert.strictEqual(room.body.privacy, 'private');
+  assert.strictEqual(room.body.properties.exp, Math.floor(now / 1000) + 7200, '2 цаг');
+  assert.strictEqual(room.body.properties.enable_hand_raising, true, 'үндсэн өрөөтэй ижил боломжууд');
+  assert.deepStrictEqual([r.body.url, r.body.exp], ['https://cm.daily.co/' + room.body.name, Math.floor(now / 1000) + 7200]);
+  const toks = calls.filter((x) => /meeting-tokens$/.test(x.url)).map((x) => x.body.properties);
+  assert.deepStrictEqual(toks.map((p) => [p.room_name, p.is_owner, p.enable_recording || null]), [[room.body.name, true, 'local'], [room.body.name, false, null]]);
+  assert.deepStrictEqual([r.body.host, r.body.guest], ['tok.' + room.body.name + '.owner', 'tok.' + room.body.name + '.guest']);
+  assert.deepStrictEqual([db.settings.meet, db.settings.meet_room, db.regs.length], before, 'үндсэн уулзалт, өрөө, бүртгэл хэвээр');
+  delete process.env.DAILY_API_KEY;
+});
+
 test('эхэлмэгц «live», дуусмагц нуугдаж бүртгэл хаагдана; идэвхгүй болговол нуугдана', async () => {
   now = Date.parse('2026-11-13T19:05:00+08:00');
   assert.strictEqual((await get()).body.meet.live, true);
@@ -244,7 +265,10 @@ test('холболт: worksheets.js, vercel.json, Дасгалын төвийн 
   assert.match(mh, /action: 'meet_register'/);
   assert.match(mh, /action: 'meet_me'/);
   const adm = R('admin.html');
-  ['meet_get', 'meet_set', 'meet_regs', 'meet_del'].forEach((a) => assert.match(adm, new RegExp("wsPostW\\('" + a + "'")));
+  ['meet_get', 'meet_set', 'meet_regs', 'meet_del', 'meet_test'].forEach((a) => assert.match(adm, new RegExp("wsPostW\\('" + a + "'")));
+  assert.match(adm, /'\/meet#room='\+enc\(\{u:d\.url,t:d\.host,e:d\.exp,o:1\}\)/, 'туршилтын хөтлөгчийн холбоос');
+  assert.match(mh, /\/\^#room=\(\[A-Za-z0-9_-\]\+\)\$\//, 'туршилтын өрөөний холбоосыг уншина');
+  assert.match(mh, /daily\\\.co\\\//, 'зөвхөн daily.co өрөөний URL-д нэгдэнэ');
   assert.match(adm, /id="meet-inapp" type="checkbox"/);
   assert.match(adm, /inapp:document\.getElementById\('meet-inapp'\)\.checked/);
   assert.match(adm, /window\.open\('\/meet\?host=1'/, 'хөтлөгч — /meet?host=1 (CyberMath загвартай өрөө)');
