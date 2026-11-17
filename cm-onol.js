@@ -14,7 +14,8 @@
   // ids нь onol/g9.js-ийн хичээлтэй ЯГ ижил байх — үгүй бол хуучин онол нь далдлагдаж шинэ нь ачаалагдахгүй).
   var PACKS = [{ lo: 601, hi: 621, src: '/onol/g12.js?v=1' }, { lo: 801, hi: 851, src: '/onol/g11.js?v=2' }, { lo: 401, hi: 473, src: '/onol/g10.js?v=2' },
     { ids: [1, 2, 3, 4, 6, 7, 8, 9, 10, 12, 13, 14, 15, 17, 18, 19, 20, 21, 23, 24], src: '/onol/g9.js?v=2', over: true },
-    { ids: [501, 502, 503, 504, 505, 506, 508, 509, 510, 512, 513, 514, 516, 517, 518, 519, 520, 521, 522, 524], src: '/onol/g8.js?v=1' }];
+    { ids: [501, 502, 503, 504, 505, 506, 508, 509, 510, 512, 513, 514, 516, 517, 518, 519, 520, 521, 522, 524], src: '/onol/g8.js?v=1' },
+    { ids: [701, 702, 703, 704, 705, 706, 707, 708, 709, 710], src: '/onol/g7.js?v=1' }];
   var DATA = {}, WG = {}, S = null, UID = 0;
 
   /* ════════ Туслах ════════ */
@@ -295,10 +296,12 @@
       ((o.p || []).length ? '<div class="cmo-sls">' + o.p.map(function (q) { return slider(q.k, q.lb || '$' + q.k + '$', q.min, q.max, q.step || 1, q.v); }).join('') + '</div>' : '') +
       '<div class="cmo-wi" aria-live="polite"></div>';
     var svg = host.querySelector('svg'), info = host.querySelector('.cmo-wi'), draw = frame(paint);
+    // Муруй (f[].fn) ба зураас (lines) нь чирэгддэг цэгийн x0-ийг 3/2 дахь аргументаар авна (marks, info шиг) — цэгийг дагаж хөдөлнө
+    function x0() { return pt ? pt.x : null; }
     function path(fn) {
-      var N = o.n || 420, h = '', pen = false, py = null, span = yb - ya;
+      var N = o.n || 420, h = '', pen = false, py = null, span = yb - ya, p0 = x0();
       for (var k = 0; k <= N; k++) {
-        var x = xa + (xb - xa) * k / N, y = fn(x, P);
+        var x = xa + (xb - xa) * k / N, y = fn(x, P, p0);
         if (!isFinite(y) || Math.abs(y) > 1e6) { pen = false; py = null; continue; }
         if (py !== null && Math.abs(y - py) > span * 1.6) pen = false;   // асимптотын үсрэлт
         h += (pen ? 'L' : 'M') + rnd(X(x), 1) + ' ' + rnd(clamp(Y(y), -2 * VH, 3 * VH), 1);
@@ -330,13 +333,13 @@
         (as.x || []).forEach(function (v) { cv += '<line class="as" x1="' + X(v) + '" y1="' + PD + '" x2="' + X(v) + '" y2="' + (VH - PD) + '"/>'; });
         (as.y || []).forEach(function (v) { cv += '<line class="as" x1="' + PD + '" y1="' + Y(v) + '" x2="' + (VW - PD) + '" y2="' + Y(v) + '"/>'; });
       }
-      (o.lines ? o.lines(P) : []).forEach(function (l) {
+      (o.lines ? o.lines(P, x0()) : []).forEach(function (l) {
         cv += '<line x1="' + X(l[0]) + '" y1="' + cY(l[1]) + '" x2="' + X(l[2]) + '" y2="' + cY(l[3]) + '" stroke="' + (l[4] || '#9A93C4') + '" stroke-width="2.5"' + (l[5] ? ' stroke-dasharray="7 7"' : '') + '/>';
       });
       o.f.forEach(function (f) {
         cv += '<path class="cv" d="' + path(f.fn) + '" stroke="' + (f.c || '#7B52EE') + '"' + (f.dash ? ' stroke-dasharray="8 8" stroke-width="3"' : '') + '/>';
       });
-      var f0 = pt ? o.f[o.pt.on || 0].fn : null, yv = pt ? f0(pt.x, P) : 0;
+      var f0 = pt ? o.f[o.pt.on || 0].fn : null, yv = pt ? f0(pt.x, P, pt.x) : 0;
       if (pt && o.pt.d && isFinite(yv)) {
         var m = o.pt.d(pt.x, P);
         cv += '<line class="tn" x1="' + X(xa) + '" y1="' + cY(yv + m * (xa - pt.x)) + '" x2="' + X(xb) + '" y2="' + cY(yv + m * (xb - pt.x)) + '"/>';
@@ -345,7 +348,7 @@
       h += '<g clip-path="url(#' + cid + ')">' + cv + '</g>' + t;   // тэмдэглэгээ муруйн дээр (цагаан хүрээтэй)
       o.f.forEach(function (f) {
         if (f.lb == null || f.lx == null) return;
-        var y = f.fn(f.lx, P);
+        var y = f.fn(f.lx, P, x0());
         if (isFinite(y)) h += '<text class="fl" x="' + X(f.lx) + '" y="' + clamp(Y(y) + (f.ly || -12), 18, VH - 8) + '" fill="' + (f.c || '#7B52EE') + '"' + (f.la ? ' style="text-anchor:' + f.la + '"' : '') + '>' + esc(f.lb) + '</text>';
       });
       (o.marks ? o.marks(P, pt && pt.x) : []).forEach(function (q) {
@@ -364,7 +367,7 @@
     if (pt) {
       svg.style.touchAction = 'pan-y';
       dragger(svg, VW, VH, function (p) {
-        var y = o.f[o.pt.on || 0].fn(pt.x, P);
+        var y = o.f[o.pt.on || 0].fn(pt.x, P, pt.x);
         return { who: 'pt', dist: isFinite(y) ? Math.hypot(p.x - X(pt.x), p.y - Y(y)) : 999 };
       }, function (p) { setX(XV(p.x)); });
     }

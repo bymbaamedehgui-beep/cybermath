@@ -10,7 +10,7 @@ const path = require('path');
 const vm = require('vm');
 
 const R = p => fs.readFileSync(path.join(__dirname, '..', p), 'utf8');
-const html = R('index.html'), js = R('cm-onol.js'), css = R('cm-onol.css'), g12 = R('onol/g12.js'), g11 = R('onol/g11.js'), g10 = R('onol/g10.js'), g9 = R('onol/g9.js'), g8 = R('onol/g8.js'), v = JSON.parse(R('vercel.json'));
+const html = R('index.html'), js = R('cm-onol.js'), css = R('cm-onol.css'), g12 = R('onol/g12.js'), g11 = R('onol/g11.js'), g10 = R('onol/g10.js'), g9 = R('onol/g9.js'), g8 = R('onol/g8.js'), g7 = R('onol/g7.js'), v = JSON.parse(R('vercel.json'));
 // Агуулгын багцууд: анги, онолын файл, хичээлийн замын node-ууд (нэр нь гарчигтай ижил байх ёстой)
 // n — бүх хичээлд онол бэлэн бол яг тэр тоо; 11-р ангийн онол хэсэгчлэн нэмэгдэж байгаа (null — онол бүр замын node-той л таарна)
 // 10-р анги: node жагсаалт (зам нь DB-д, бодлогын багцгүй) — онолын гарчиг node-ийн нэртэй (447, 453, 456 засагдсан нэрээр)
@@ -44,8 +44,13 @@ const G9 = { NODES: [[1, 'Рационал тоо'], [2, 'Үет бутарха�
   [15, 'Нэг гишүүнтээр олон гишүүнтийг үржүүлэх'], [17, 'Ерөнхий үржигдэхүүн хаалтаас гаргах'], [18, 'Олон гишүүнтийг олон гишүүнтээр үржүүлэх I'],
   [19, 'Квадратуудын ялгаврын томьёо'], [20, 'Нийлбэрийн квадратын томьёо'], [21, 'Ялгаврын квадратын томьёо'],
   [23, 'Олон гишүүнтийг олон гишүүнтээр үржүүлэх II'], [24, 'Олон гишүүнтийг үржигдэхүүн болгон задлах (бүлэглэх арга)']] };
+// 7-р анги: эхний 10 хичээл (node 701–710, бататгалгүй зам) — гарчиг DB-ийн нэртэй ижил
+const G7 = { NODES: [[701, 'Тооны модул'], [702, 'Бүхэл тооны нэмэх, хасах үйлдэл'], [703, 'Бүхэл тооны үржүүлэх, хуваах үйлдэл'],
+  [704, 'Тооны куб зэрэг ба куб язгуур'], [705, 'Тоог анхны тоон үржигдэхүүнд задлах'], [706, 'ХИЕХ, ХБЕХ'], [707, '10-ын натурал илтгэгчтэй зэрэг'],
+  [708, 'Аравтын бутархайг жиших, эрэмбэлэх'], [709, 'Тоог тоймлох'], [710, 'Хялбар аргаар тооцоолох']] };
 const PACKS = [{ g: '12', src: g12, path: '../api/_g12path.js', n: 21 }, { g: '11', src: g11, path: '../api/_g11path.js', n: null },
-  { g: '10', src: g10, nodes: G10, n: null }, { g: '9', src: g9, nodes: G9, n: null }, { g: '8', src: g8, nodes: G8, n: 20 }];
+  { g: '10', src: g10, nodes: G10, n: null }, { g: '9', src: g9, nodes: G9, n: null }, { g: '8', src: g8, nodes: G8, n: 20 },
+  { g: '7', src: g7, nodes: G7, n: 10 }];
 const J = x => JSON.parse(JSON.stringify(x));
 const EMOJI = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u;
 
@@ -104,10 +109,10 @@ test('index.html: intro_html давамгайлна (cmOnol.over-оос буса
 });
 
 test('cm-onol.js: синтакс, сайтын функцийг дарж бичихгүй, startLessonAfterIntro-оор эхлүүлнэ, эможигүй, .cmo- угтвар', () => {
-  new Function(js); new Function(g12); new Function(g11); new Function(g10); new Function(g9); new Function(g8);
+  new Function(js); new Function(g12); new Function(g11); new Function(g10); new Function(g9); new Function(g8); new Function(g7);
   assert.doesNotMatch(js, /\b(openLesson|continueOpenLesson|startLessonAfterIntro|showIntroAndStart|backToIntro|closeModal|renderQuestion|checkAnswer|getLessonProgress)\s*=(?!=)/);
   assert.match(js, /if \(typeof startLessonAfterIntro === 'function'\) startLessonAfterIntro\(id\);/);
-  [js, css, g12, g11, g10, g9, g8].forEach(s => assert.doesNotMatch(s, EMOJI, 'эможи бүү'));
+  [js, css, g12, g11, g10, g9, g8, g7].forEach(s => assert.doesNotMatch(s, EMOJI, 'эможи бүү'));
   const cls = new Set();
   css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\.([a-zA-Z][\w-]*)/g, (m, c) => { cls.add(c); return m; });
   // Сайтын ерөнхий класс зөвхөн .cmo / #quiz-modal.cmo-open дотор л; бусад нь .cmo- угтвартай эсвэл виджетийн дотоод богино класс
@@ -122,6 +127,9 @@ test('cm-onol.js: синтакс, сайтын функцийг дарж бич�
   // KaTeX-ийн дотоод span-д нөлөөлөхгүй: «… span {» биш, «> span»
   assert.doesNotMatch(css, /[\w)\]] span \{/);
   assert.match(css, /^\.cmo \[hidden\] \{ display: none !important; \}/m);
+  // Томьёоны гарчиг (f[].h) том үсгээр бичигддэг — доторх KaTeX-ийн хувьсагч ($x$, $m\gt n$) жижиг үсгээрээ үлдэнэ
+  assert.match(css, /^\.cmo-f \.h \{[^}]*text-transform: uppercase;/m);
+  assert.match(css, /^\.cmo-f \.h \.katex \{ text-transform: none;/m);
 });
 
 test('Тусгай өнцгийн яг утга (нэгж тойрог) — тоон утгатай таарна', () => {
@@ -166,6 +174,33 @@ test('8-р анги: PACKS ids = onol/g8.js-ийн хичээлүүд, over би
   assert.deepStrictEqual(m[1].split(',').map(Number), ids);
   ids.forEach(id => { assert.strictEqual(E.has(id), true, 'has ' + id); assert.strictEqual(E.over(id), false, 'over биш ' + id); });
   [507, 511, 515, 523, 525].forEach(id => assert.strictEqual(E.has(id), false, 'онолгүй ' + id));
+});
+
+test('7-р анги: PACKS ids = onol/g7.js-ийн хичээлүүд (701–710), over биш, дараагийн хичээлүүдэд онол хараахан үгүй', () => {
+  const E = engine(), ids = Object.keys(content(g7)).map(Number).sort((a, b) => a - b);
+  const m = /\{ ids: \[([\d, ]+)\], src: '\/onol\/g7\.js\?v=\d+' \}/.exec(js);
+  assert.ok(m, 'PACKS-д 7-р ангийн сав');
+  assert.deepStrictEqual(m[1].split(',').map(Number), ids);
+  assert.deepStrictEqual(ids, [701, 702, 703, 704, 705, 706, 707, 708, 709, 710]);
+  ids.forEach(id => { assert.strictEqual(E.has(id), true, 'has ' + id); assert.strictEqual(E.over(id), false, 'over биш ' + id); });
+  [700, 711, 730, 761].forEach(id => assert.strictEqual(E.has(id), false, 'онолгүй ' + id));
+});
+
+test('fx: чирэгддэг цэгийн x0-ийг муруй (fn 3 дахь) ба зураас (lines 2 дахь аргумент)-д дамжуулна — 709-ийн тоймлох шулуун цэгийг дагана', () => {
+  const body = js.slice(js.indexOf('WG.fx = function'), js.indexOf('WG.uc = function'));
+  assert.match(body, /function x0\(\) \{ return pt \? pt\.x : null; \}/);
+  assert.match(body, /y = fn\(x, P, p0\)/);
+  assert.match(body, /o\.lines \? o\.lines\(P, x0\(\)\) : \[\]/);
+  assert.match(body, /f\.fn\(f\.lx, P, x0\(\)\)/);
+  // 709: цэгийн байрлалаас хамаарах зураас — x0-гүй (тест, шалгагч) үед эхний байрлал 13.47
+  const w = content(g7)[709].cards.find(c => c.w && c.w.pt).w, P = {};
+  const near = (a, b) => a.every((l, i) => l.slice(0, 4).every((v, j) => Math.abs(v - b[i][j]) < 1e-9));
+  assert.ok(near(w.lines(P), w.lines(P, w.pt.x)), 'x0-гүй = эхний байрлал');
+  assert.ok(!near(w.lines(P, 1.4), w.lines(P, 9.6)), 'цэг хөдлөхөд зураас өөрчлөгдөнө');
+  // дээд ногоон сум цэгээс тоймлосон тоо хүртэл: 13.47 → 13 (зүүн тийш), 13.86 → 14 (баруун тийш)
+  const g = (x, x0) => isFinite(w.f[1].fn(x, P, x0));
+  assert.ok(g(1.2, 5.7) && !g(8, 5.7), '13.47 ≈ 13');
+  assert.ok(g(10, 9.6) && !g(8, 9.6), '13.86 ≈ 14');
 });
 
 test('md(): бичвэрийг escape хийнэ, **тод**, $…$ KaTeX-гүй үед ч эвдрэхгүй', () => {
