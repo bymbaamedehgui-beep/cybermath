@@ -91,13 +91,26 @@ async function daily(method, path, body) {
   const r = await fetch(DAILY_API + path, { method, headers: { Authorization: 'Bearer ' + dailyKey(), 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) { const e = new Error('daily ' + r.status + ' ' + (j.info || j.error || '')); e.status = r.status; throw e; }
+  if (!r.ok) { const e = new Error('daily ' + r.status + ' ' + (j.info || j.error || '')); e.status = r.status; e.info = String(j.info || j.error || ''); throw e; }
   return j;
+}
+// Daily багц (plan)-д хориотой property-г («property 'x' cannot be set … current plan») хасаад дахин оролдоно — өрөө заавал нээгдэнэ
+async function dailyPost(path, body) {
+  for (let i = 0; i < 8; i++) {
+    try { return await daily('POST', path, body); } catch (e) {
+      const m = /property '([a-z_]+)'/.exec(e.info || '');
+      if (e.status !== 400 || !m || !body.properties || !(m[1] in body.properties)) throw e;
+      console.warn('[meet] daily: ' + m[1] + ' хасав — ' + e.info);
+      delete body.properties[m[1]];
+    }
+  }
+  return daily('POST', path, body);
 }
 // Google Meet / Zoom-д байдаг боломжууд (эзэмшигч: «google meeting болон zoom-т байдаг бүх зүйлс байх ёстой») — Daily Prebuilt-ийн
 // нэрс docs.daily.co/reference/rest-api/rooms/create-room-оос (буруу нэр өгвөл өрөө үүсэхгүй): чат (эможи, GIF), эможи хариу,
 // гар өргөх, жижиг бүлгийн өрөө, оролцогчдын жагсаалт, PiP, сүлжээний мэдээлэл, чимээ дарах, арын дэвсгэр бүдэгрүүлэх.
-const roomProps = (exp) => ({ exp, eject_at_room_exp: true, max_participants: 200, enable_chat: true, enable_advanced_chat: true, enable_screenshare: true,
+// max_participants-ийг тавихгүй: үнэгүй багцад «cannot be set to that value with your current plan» (400) — анхдагч нь 200.
+const roomProps = (exp) => ({ exp, eject_at_room_exp: true, enable_chat: true, enable_advanced_chat: true, enable_screenshare: true,
   enable_prejoin_ui: true, start_video_off: true, start_audio_off: true, enable_emoji_reactions: true, enable_hand_raising: true,
   enable_breakout_rooms: true, enable_people_ui: true, enable_pip_ui: true, enable_network_ui: true, enable_noise_cancellation_ui: true,
   enable_video_processing_ui: true });
@@ -112,9 +125,9 @@ async function ensureRoom(c, force) {
   }
   const properties = roomProps(exp);
   let room;
-  try { room = await daily('POST', '/rooms/' + name, { properties }); } catch (e) {
+  try { room = await dailyPost('/rooms/' + name, { properties }); } catch (e) {
     if (e.status !== 404) throw e;
-    room = await daily('POST', '/rooms', { name, privacy: 'private', properties });
+    room = await dailyPost('/rooms', { name, privacy: 'private', properties: roomProps(exp) });
   }
   await pool.query(`INSERT INTO ws_settings (skey, sval, updated_at) VALUES ('meet_room',$1,NOW())
     ON CONFLICT (skey) DO UPDATE SET sval=EXCLUDED.sval, updated_at=NOW()`, [JSON.stringify({ name, exp, url: room.url })]);
@@ -124,7 +137,7 @@ async function meetToken(c, userName, owner) {
   // Дэлгэц хуваалцах — бүгдэд (эзэмшигч: «Дэлгэцээ share хийх ёстой»); оролцогч дуу, камер унтраалттай орж, өөрөө асаана
   const p = { room_name: roomName(c), user_name: userName, is_owner: !!owner, exp: roomExp(c), enable_screenshare: true, start_video_off: !owner, start_audio_off: !owner };
   if (owner) p.enable_recording = 'local';                       // хөтлөгч хөтөч дээрээ бичлэг хийж болно (Chrome, үнэгүй)
-  const t = await daily('POST', '/meeting-tokens', { properties: p });
+  const t = await dailyPost('/meeting-tokens', { properties: p });
   return t.token;
 }
 const regOut = (x) => ({ id: Number(x.id), name: x.name, phone: x.phone, email: x.email, school: x.school, aimag: x.aimag,
@@ -232,8 +245,8 @@ async function handle(req, res) {
     if (act === 'meet_test') {
       if (!dailyKey()) return res.status(503).json({ ok: false, error: 'DAILY_API_KEY тохируулаагүй' }), true;
       const name = 'cm-test-' + crypto.randomBytes(5).toString('hex'), exp = Math.floor(Date.now() / 1000) + 2 * 3600;
-      const room = await daily('POST', '/rooms', { name, privacy: 'private', properties: roomProps(exp) });
-      const tok = async (owner) => (await daily('POST', '/meeting-tokens', { properties: Object.assign({ room_name: name, is_owner: owner, exp,
+      const room = await dailyPost('/rooms', { name, privacy: 'private', properties: roomProps(exp) });
+      const tok = async (owner) => (await dailyPost('/meeting-tokens', { properties: Object.assign({ room_name: name, is_owner: owner, exp,
         enable_screenshare: true, start_video_off: !owner, start_audio_off: !owner }, owner ? { user_name: 'Хөтлөгч', enable_recording: 'local' } : {}) })).token;
       return res.json({ ok: true, url: room.url, exp, host: await tok(true), guest: await tok(false) }), true;
     }
@@ -246,6 +259,8 @@ async function handle(req, res) {
     return res.status(400).json({ ok: false, error: 'Тодорхойгүй үйлдэл' }), true;
   } catch (e) {
     console.error('[meet]', e.message);
+    // Daily-ийн алдааг шалтгаантай нь (ж: түлхүүр буруу, багцын хязгаар) — «Серверийн алдаа» гэхээс илүү ойлгомжтой
+    if (/^daily \d+/.test(e.message)) return res.status(502).json({ ok: false, error: 'Уулзалтын өрөө нээхэд алдаа гарлаа (Daily: ' + str(e.info, 200) + ')' }), true;
     return res.status(500).json({ ok: false, error: 'Серверийн алдаа' }), true;
   }
 }

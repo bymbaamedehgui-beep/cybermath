@@ -39,12 +39,14 @@ const pool = {
   },
 };
 // ── Daily REST API (санах ойд): өрөө үүсгэх/шинэчлэх, уулзалтын токен ──
-const fcalls = [], drooms = {};
+const fcalls = [], drooms = {}, PLAN = [];   // PLAN — Daily багцад хориотой property (жишээ: үнэгүй багц max_participants)
 global.fetch = async (url, opt) => {
   opt = opt || {};
   const body = opt.body ? JSON.parse(opt.body) : null;
   fcalls.push({ url, method: opt.method, headers: opt.headers || {}, body });
   const res = (status, j) => ({ ok: status < 400, status, json: async () => j });
+  const bad = body && body.properties && PLAN.find((k) => k in body.properties);
+  if (bad) return res(400, { error: 'invalid-request-error', info: "property '" + bad + "' cannot be set to that value with your current plan" });
   let m;
   if ((m = /\/v1\/rooms\/([\w-]+)$/.exec(url))) { const r = drooms[m[1]]; if (!r) return res(404, { error: 'not-found' }); Object.assign(r.config, body.properties); return res(200, r); }
   if (/\/v1\/rooms$/.test(url)) { const r = { name: body.name, privacy: body.privacy, url: 'https://cm.daily.co/' + body.name, config: body.properties }; drooms[body.name] = r; return res(200, r); }
@@ -236,6 +238,27 @@ test('туршилтын өрөө (meet_test): зөвхөн админ, тусд
   assert.deepStrictEqual(toks.map((p) => [p.room_name, p.is_owner, p.enable_recording || null]), [[room.body.name, true, 'local'], [room.body.name, false, null]]);
   assert.deepStrictEqual([r.body.host, r.body.guest], ['tok.' + room.body.name + '.owner', 'tok.' + room.body.name + '.guest']);
   assert.deepStrictEqual([db.settings.meet, db.settings.meet_room, db.regs.length], before, 'үндсэн уулзалт, өрөө, бүртгэл хэвээр');
+  delete process.env.DAILY_API_KEY;
+});
+
+test('Daily багцын хязгаар: хориотой property-г хасаад дахин үүсгэнэ; max_participants тавихгүй; бусад алдааг шалтгаантай нь', async () => {
+  process.env.DAILY_API_KEY = 'test-daily-key';
+  PLAN.push('enable_breakout_rooms', 'enable_recording');
+  const n0 = fcalls.length, r = await post({ action: 'meet_test' }, true);
+  assert.strictEqual(r.body.ok, true, 'багцын хязгаартай ч өрөө нээгдэнэ');
+  const calls = fcalls.slice(n0), rooms = calls.filter((x) => /\/v1\/rooms$/.test(x.url));
+  assert.strictEqual(rooms.length, 2, 'нэг удаа татгалзаад дахин');
+  assert.ok(!('enable_breakout_rooms' in rooms[1].body.properties) && rooms[1].body.properties.enable_hand_raising === true);
+  assert.ok(calls.every((x) => !x.body.properties || !('max_participants' in x.body.properties)), 'max_participants тавихгүй');
+  const host = calls.filter((x) => /meeting-tokens$/.test(x.url)).map((x) => x.body.properties).filter((p) => p.is_owner).pop();
+  assert.ok(!('enable_recording' in host) && host.is_owner === true, 'хөтлөгчийн токен бичлэггүйгээр');
+  PLAN.length = 0;
+  const realFetch = global.fetch;
+  global.fetch = async () => ({ ok: false, status: 401, json: async () => ({ error: 'authorization-error', info: 'invalid API key' }) });
+  const e = await post({ action: 'meet_test' }, true);
+  global.fetch = realFetch;
+  assert.strictEqual(e.code, 502);
+  assert.match(e.body.error, /Daily: invalid API key/, 'шалтгаан нь харагдана');
   delete process.env.DAILY_API_KEY;
 });
 
