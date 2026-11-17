@@ -103,8 +103,13 @@ async function ensureRoom(c, force) {
     try { s = r.rows.length ? JSON.parse(r.rows[0].sval || 'null') : null; } catch (e) { s = null; }
     if (s && s.name === name && s.exp === exp && s.url) return s.url;
   }
-  const properties = { exp, eject_at_room_exp: true, max_participants: 200, enable_chat: true, enable_screenshare: true,
-    enable_prejoin_ui: true, start_video_off: true, start_audio_off: true };
+  // Google Meet / Zoom-д байдаг боломжууд (эзэмшигч: «google meeting болон zoom-т байдаг бүх зүйлс байх ёстой») — Daily Prebuilt-ийн
+  // нэрс docs.daily.co/reference/rest-api/rooms/create-room-оос (буруу нэр өгвөл өрөө үүсэхгүй): чат (эможи, GIF), эможи хариу,
+  // гар өргөх, жижиг бүлгийн өрөө, оролцогчдын жагсаалт, PiP, сүлжээний мэдээлэл, чимээ дарах, арын дэвсгэр бүдэгрүүлэх.
+  const properties = { exp, eject_at_room_exp: true, max_participants: 200, enable_chat: true, enable_advanced_chat: true, enable_screenshare: true,
+    enable_prejoin_ui: true, start_video_off: true, start_audio_off: true, enable_emoji_reactions: true, enable_hand_raising: true,
+    enable_breakout_rooms: true, enable_people_ui: true, enable_pip_ui: true, enable_network_ui: true, enable_noise_cancellation_ui: true,
+    enable_video_processing_ui: true };
   let room;
   try { room = await daily('POST', '/rooms/' + name, { properties }); } catch (e) {
     if (e.status !== 404) throw e;
@@ -115,8 +120,10 @@ async function ensureRoom(c, force) {
   return room.url;
 }
 async function meetToken(c, userName, owner) {
-  const t = await daily('POST', '/meeting-tokens', { properties: { room_name: roomName(c), user_name: userName, is_owner: !!owner, exp: roomExp(c),
-    enable_screenshare: !!owner, start_video_off: !owner, start_audio_off: !owner } });
+  // Дэлгэц хуваалцах — бүгдэд (эзэмшигч: «Дэлгэцээ share хийх ёстой»); оролцогч дуу, камер унтраалттай орж, өөрөө асаана
+  const p = { room_name: roomName(c), user_name: userName, is_owner: !!owner, exp: roomExp(c), enable_screenshare: true, start_video_off: !owner, start_audio_off: !owner };
+  if (owner) p.enable_recording = 'local';                       // хөтлөгч хөтөч дээрээ бичлэг хийж болно (Chrome, үнэгүй)
+  const t = await daily('POST', '/meeting-tokens', { properties: p });
   return t.token;
 }
 const regOut = (x) => ({ id: Number(x.id), name: x.name, phone: x.phone, email: x.email, school: x.school, aimag: x.aimag,
@@ -131,7 +138,9 @@ async function handle(req, res) {
     if (req.method === 'GET') {
       const c = await config();
       res.setHeader('Cache-Control', 'public, s-maxage=30, max-age=0');
-      return res.json({ ok: true, meet: isOpen(c) ? pub(c) : null }), true;
+      if (!isOpen(c)) return res.json({ ok: true, meet: null }), true;
+      const n = await pool.query('SELECT COUNT(*)::int AS n FROM ws_meet_regs WHERE meet=$1', [meetKey(c)]);
+      return res.json({ ok: true, meet: Object.assign(pub(c), { count: n.rows[0].n }) }), true;   // count — өрөөнд «N багш бүртгүүлсэн»
     }
 
     if (act === 'meet_register') {

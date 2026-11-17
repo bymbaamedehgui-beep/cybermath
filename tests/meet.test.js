@@ -89,6 +89,7 @@ test('нийтийн тохиргоо: анхдагч уулзалт, Meet хо�
   assert.strictEqual(m.platform, 'Google Meet');
   assert.strictEqual(m.live, false);
   assert.strictEqual(m.hasLink, false);
+  assert.strictEqual(m.count, 0, 'бүртгүүлсэн хүний тоо');
   assert.ok(!('link' in m));
   assert.ok(fs.existsSync(path.join(__dirname, '..', m.poster.replace(/^\//, ''))), 'постер файл байх ёстой: ' + m.poster);
   assert.strictEqual(Date.parse(m.end) - Date.parse(m.at), 120 * 60e3);
@@ -194,9 +195,12 @@ test('CyberMath дотор уулзалт (Daily): түлхүүргүй бол �
   const create = fcalls.find((x) => /\/v1\/rooms$/.test(x.url));
   assert.deepStrictEqual([create.method, create.body.name, create.body.privacy], ['POST', 'cm-meet-2026-11-13', 'private']);
   assert.strictEqual(create.body.properties.exp, Date.parse('2026-11-13T20:30:00+08:00') / 1000 + 3600, 'уулзалт дуусгаад 1 цагийн дараа хаагдана');
+  ['enable_chat', 'enable_advanced_chat', 'enable_screenshare', 'enable_emoji_reactions', 'enable_hand_raising', 'enable_breakout_rooms', 'enable_people_ui',
+    'enable_pip_ui', 'enable_network_ui', 'enable_noise_cancellation_ui', 'enable_video_processing_ui', 'enable_prejoin_ui']
+    .forEach((k) => assert.strictEqual(create.body.properties[k], true, 'Meet/Zoom шиг боломж: ' + k));
   const tok = fcalls.filter((x) => /meeting-tokens$/.test(x.url)).pop();
-  assert.deepStrictEqual([tok.body.properties.room_name, tok.body.properties.user_name, tok.body.properties.is_owner, tok.body.properties.enable_screenshare],
-    ['cm-meet-2026-11-13', reg.name, false, false], 'токен бүртгэлийн нэртэй, хөтлөгч биш');
+  assert.deepStrictEqual([tok.body.properties.room_name, tok.body.properties.user_name, tok.body.properties.is_owner, tok.body.properties.enable_screenshare,
+    tok.body.properties.start_audio_off], ['cm-meet-2026-11-13', reg.name, false, true, true], 'токен бүртгэлийн нэртэй, хөтлөгч биш, дэлгэц хуваалцаж болно, дуу унтраалттай орно');
   assert.strictEqual(tok.headers.Authorization, 'Bearer test-daily-key');
   const rooms = () => fcalls.filter((x) => /\/v1\/rooms/.test(x.url)).length, n = rooms();
   assert.strictEqual((await post(me)).body.ok, true);
@@ -204,6 +208,9 @@ test('CyberMath дотор уулзалт (Daily): түлхүүргүй бол �
   assert.strictEqual((await post({ action: 'meet_host' })).code, 401, 'хөтлөгч — зөвхөн админ');
   const h = await post({ action: 'meet_host' }, true);
   assert.deepStrictEqual([h.body.ok, h.body.token], [true, 'tok.cm-meet-2026-11-13.owner']);
+  const ht = fcalls.filter((x) => /meeting-tokens$/.test(x.url)).pop().body.properties;
+  assert.deepStrictEqual([ht.is_owner, ht.enable_recording, ht.start_audio_off], [true, 'local', false], 'хөтлөгч: эзэн, бичлэг хийж болно, дуутай орно');
+  assert.ok(!('enable_recording' in tok.body.properties), 'оролцогч бичлэг хийхгүй');
   assert.strictEqual(rooms(), n + 1, 'хөтлөгч өрөөний тохиргоог шинэчилнэ');
   now = Date.parse('2026-11-13T20:31:00+08:00');
   assert.strictEqual((await post(me)).code, 400, 'дууссаны дараа нэгдэхгүй');
@@ -237,12 +244,22 @@ test('холболт: worksheets.js, vercel.json, Дасгалын төвийн 
   assert.match(mh, /action: 'meet_register'/);
   assert.match(mh, /action: 'meet_me'/);
   const adm = R('admin.html');
-  ['meet_get', 'meet_set', 'meet_regs', 'meet_del', 'meet_host'].forEach((a) => assert.match(adm, new RegExp("wsPostW\\('" + a + "'")));
+  ['meet_get', 'meet_set', 'meet_regs', 'meet_del'].forEach((a) => assert.match(adm, new RegExp("wsPostW\\('" + a + "'")));
   assert.match(adm, /id="meet-inapp" type="checkbox"/);
   assert.match(adm, /inapp:document\.getElementById\('meet-inapp'\)\.checked/);
+  assert.match(adm, /window\.open\('\/meet\?host=1'/, 'хөтлөгч — /meet?host=1 (CyberMath загвартай өрөө)');
   assert.match(mh, /action: 'meet_join'/);
-  assert.match(mh, /<iframe id="callFrame"[^>]*allow="camera; microphone;[^"]*display-capture/, 'камер, микрофон, дэлгэц хуваалцах зөвшөөрөл');
-  assert.match(mh, /'t=' \+ encodeURIComponent\(d\.token\)/, 'токенийг өрөөний URL-д');
+  assert.match(mh, /action: 'meet_host'/);
+  assert.match(mh, /Authorization: 'Bearer ' \+ ADM/, 'хөтлөгчийн хүсэлт админы токентой');
+  assert.match(mh, /daily-js@0\.94\.0\/dist\/daily\.js/, 'daily-js тогтмол хувилбар');
+  assert.match(mh, /DAILY_SRI = 'sha384-[A-Za-z0-9+/]{64}'/);
+  assert.match(mh, /s\.integrity = DAILY_SRI; s\.crossOrigin = 'anonymous'/, 'SRI шалгалттай ачаална');
+  assert.match(mh, /createFrame\(\$\('cStage'\), \{[^}]*theme: THEME/, 'CyberMath өнгөтэй');
+  assert.match(mh, /f\.allow = 'camera; microphone;[^']*display-capture/, 'нөөц iframe: камер, микрофон, дэлгэц хуваалцах');
+  assert.match(mh, /'t=' \+ encodeURIComponent\(token\)/, 'нөөц iframe: токенийг өрөөний URL-д');
+  assert.match(mh, /id="roomCard"/); assert.match(mh, /id="cLeave"/);
+  ['setLocalAudio(!call.localAudio())', 'setLocalVideo(!call.localVideo())', 'call.startScreenShare()', 'call.stopScreenShare()', "'local-screen-share-started'"]
+    .forEach((s) => assert.ok(mh.indexOf(s) > 0, 'микрофон, камер, дэлгэц хуваалцах товч: ' + s));
   assert.match(adm, /onclick="meetDel\('\+\(\+x\.id\)\+'\)"/, 'мөр бүрт устгах товч');
   assert.match(adm, /window\.meetDel=async function\(id\)\{[\s\S]{0,200}if\(!confirm\(/, 'устгахаас өмнө асууна');
   assert.match(mh, /d\.ok === false && !d\.error/, 'устгагдсан бол хуудас маягтаа дахин харуулна');
