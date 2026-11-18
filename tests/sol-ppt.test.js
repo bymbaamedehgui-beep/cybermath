@@ -196,7 +196,7 @@ test('орлогын тайлан: solppt нь Premium савд орохгүй (
 });
 
 // ── e1k.js: seed-ээр ижил бодлого, «Бодолтын PPT» товч зөвхөн бүх бодлого бодолттой хуудсанд ──
-function pageCtx(file, hash) {
+function pageCtx(file, hash, search) {
   const h = fs.readFileSync(path.join(F.WT, file), 'utf8');
   const main = /<script>\n?([\s\S]*?)<\/script>/.exec(h.replace(/\r\n/g, '\n'))[1];
   const els = {};
@@ -205,7 +205,7 @@ function pageCtx(file, hash) {
   let replaced = null;
   const ctx = vm.createContext({
     console: { log() {}, warn() {}, error() {}, info() {} },
-    location: { pathname: '/' + file, search: '', hash: hash || '' },
+    location: { pathname: '/' + file, search: search || '', hash: hash || '' },
     history: { state: null, replaceState(s, t, u) { replaced = u; } },
     localStorage: { getItem: () => null, setItem() {} }, sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
     document: { getElementById: el, createElement: () => el('x' + Math.random()), head: el('head'), fonts: { status: 'loaded' } },
@@ -249,6 +249,21 @@ test('e1k.js: «Бодолтын PPT» товч — 1-р хэсгийн 4 хуу
   assert.deepStrictEqual([ctx.slug, ctx.seed, ctx.title, ctx.first, ctx.probs.length], ['eesh1000-2', 'b00b', 'ЭЕШ 1000 1-2', 26, 25]);
 });
 
+test('e1k.js: PPT товч .btn биш (ws-store.js түгжээ «.bar .btn:not(.refresh)» = хэвлэх товчийг нууж, нээхдээ «.bar .btn»-ийг харуулдаг); QR горимд бодолт ба PPT байхгүй', () => {
+  const p = pageCtx('eesh1000-1.html', '#s=k3x9q2');
+  const tags = [...p.els.bar.innerHTML.matchAll(/<button class="([^"]*)"[^>]*>/g)].map(m => ({ tag: m[0], cls: m[1].split(/\s+/) }));
+  const sol = tags.find(t => /id="solBtn"/.test(t.tag));
+  assert.ok(sol && !sol.cls.includes('btn'), 'solBtn нь .btn классгүй');
+  assert.match(tags.find(t => t.cls.includes('btn') && !t.cls.includes('refresh')).tag, /onclick="window\.print\(\)"/);
+  assert.strictEqual(p.els.solBtn.style.display, '');
+  assert.match(p.els.sheet.innerHTML, /id="sols"/);
+  const q = pageCtx('eesh1000-1.html', '#s=k3x9q2', '?qr=1');
+  assert.strictEqual(q.ctx.E1K.sol.ready(), true);
+  assert.strictEqual(q.els.solBtn.style.display, 'none');
+  assert.strictEqual(q.els.ssl.style.display, 'none');
+  assert.doesNotMatch(q.els.sheet.innerHTML, /id="sols"|class="sol"/);
+});
+
 test('e1k-sol.js: бодолтын мөрийг алхмуудад хуваана (текст / $$…$$ / цэг таслал залгана / хүснэгт бүхэлдээ)', () => {
   const ctx = vm.createContext({ document: {}, window: {} });
   vm.runInContext('var window=this;', ctx);
@@ -258,6 +273,14 @@ test('e1k-sol.js: бодолтын мөрийг алхмуудад хуваан�
   assert.deepStrictEqual(B('А $$a=b$$ тул $$c=d$$.'), [{ k: 'tx', h: 'А' }, { k: 'eq', h: '$$a=b$$' }, { k: 'tx', h: 'тул' }, { k: 'eq', h: '$$c=d$$.' }]);
   assert.deepStrictEqual(B('Зөвхөн текст $x$.'), [{ k: 'tx', h: 'Зөвхөн текст $x$.' }]);
   assert.strictEqual(B('<table class="e1k-tbl"><tr><td>$$1$$</td></tr></table>').length, 1);
+  // Хариу: олон хэсэгтэйг таслалаар тусад нь мөр таслахгүй (KaTeX «g =» / «5» болгож хуваахгүй); хаалт/олонлог доторхыг хөндөхгүй
+  const A = (h) => ctx.E1KSOL.ansGroups(h);
+  assert.strictEqual(A('$a=1,\\ b=6,\\ g=5$'), '<span class="nw">$a=1$,</span> <span class="nw">$b=6$,</span> <span class="nw">$g=5$</span>');
+  assert.strictEqual(A('$a=1$, $b=6$, $g=5$'), '<span class="nw">$a=1$,</span> <span class="nw">$b=6$,</span> <span class="nw">$g=5$</span>');
+  assert.strictEqual(A('$5$ км/цаг'), '<span class="nw">$5$</span> км/цаг');
+  assert.strictEqual(A('$$a,b$$'), '$$a,b$$');
+  // хаалт/олонлог/аравтын доторх таслалаар хуваахгүй (томьёо бүтнээрээ үлдэнэ)
+  ['$\\{1,2\\}$', '$x\\in[1,2)$', '$(1;\\ 2]$', '$18\\,000$', '$\\left(1,\\ 2\\right)$', '$7{,}2$'].forEach((h) => assert.deepStrictEqual(A(h).match(/\$[^$]+\$/g), [h], h));
   // 1-р хэсгийн бодлогын бүх бодолт хоосон бус алхамд хуваагдана
   ['eesh1000-1.html', 'eesh1000-4.html'].forEach(f => {
     pageCtx(f, '#s=k3x9q2').ctx.E1K.cur().forEach((g, i) => g.s.forEach((s) => {
@@ -268,12 +291,12 @@ test('e1k-sol.js: бодолтын мөрийг алхмуудад хуваан�
   });
 });
 
-test('vercel.json: e1k-sol.js статикаар; хуудсууд e1k.js?v=3 (кэш шинэчлэгдэнэ)', () => {
+test('vercel.json: e1k-sol.js статикаар; хуудсууд e1k.js?v=4 (кэш шинэчлэгдэнэ)', () => {
   const v = JSON.parse(fs.readFileSync(path.join(F.WT, 'vercel.json'), 'utf8'));
   assert.ok(v.builds.some(b => b.src === 'e1k-sol.js' && b.use === '@vercel/static'));
   fs.readdirSync(F.WT).filter(f => /^eesh1000-.*\.html$/.test(f)).forEach(f => {
     const h = fs.readFileSync(path.join(F.WT, f), 'utf8');
-    assert.match(h, /\/e1k\.js\?v=3"/, f);
+    assert.match(h, /\/e1k\.js\?v=4"/, f);
   });
-  assert.match(fs.readFileSync(path.join(F.WT, 'e1k.js'), 'utf8'), /\/e1k-sol\.js\?v=1/);
+  assert.match(fs.readFileSync(path.join(F.WT, 'e1k.js'), 'utf8'), /\/e1k-sol\.js\?v=2/);
 });

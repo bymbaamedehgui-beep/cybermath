@@ -102,7 +102,8 @@
     '.e1s-sc{flex:1;min-width:0;line-height:1.45}',
     '.e1s-b{opacity:0;transform:translateY(8px);transition:opacity .45s ease,transform .45s ease}.e1s-b.on{opacity:1;transform:none}',
     '.e1s-b+.e1s-b{margin-top:.25em}',
-    '.e1s-eq{opacity:1;transform:none;clip-path:inset(-20% 100% -20% 0);transition:clip-path .75s cubic-bezier(.45,.2,.2,1)}.e1s-eq.on{clip-path:inset(-20% -2% -20% 0)}',
+    // wipe: босоо болон зүүн/баруун талд өргөн нөөц — өндөр хаалт, зэргийн бутархай, налуу үсэг тайрагдахгүй
+    '.e1s-eq{opacity:1;transform:none;clip-path:inset(-60% 100% -60% -4%);transition:clip-path .75s cubic-bezier(.45,.2,.2,1)}.e1s-eq.on{clip-path:inset(-60% -8% -60% -4%)}',
     '.e1s-eq .katex-display{margin:.1em 0;text-align:left}.e1s-eq .katex-display>.katex{text-align:left}',
     '.e1s-sc p{margin:0}.e1s-sc b{color:#5A32D6}',
     '.e1s-sfig{flex:none;max-width:40%;align-self:flex-start;background:#F7F5FC;border:1px solid #E3DCF3;border-radius:14px;padding:14px;opacity:0;transition:opacity .5s}.e1s-sfig.on{opacity:1}',
@@ -295,6 +296,30 @@
       + '<div class="hint"><kbd>→</kbd> эсвэл <kbd>Space</kbd> — дараагийн алхам · <kbd>←</kbd> — буцах · <kbd>F</kbd> — бүтэн дэлгэц</div></div>';
   }
 
+  // Хариуны мөр: KaTeX «=»-ийн ард мөр тасалдаг тул «g =» / «5» болж хуваагдахгүйгээр томьёо бүрийг (ард нь залгасан
+  // таслал/цэгтэй нь) нэг мөрөнд барина; «$a=1,\ b=6,\ …$» гэх нэг томьёог дээд түвшний таслалаар хэсэг болгоно
+  // (хаалт/олонлог доторх таслалд хүрэхгүй). Нүдтэй хариу «$a=1$, $b=6$, …» (Bx.key) ч мөн адил.
+  function ansGroups(h) {
+    h = String(h);
+    if (h.indexOf('$$') >= 0) return h;
+    var sp = /^(?:\s|\\[ ,;:!]|\\q?quad)+|(?:\s|\\[ ,;:!]|\\q?quad)+$/g;
+    return h.replace(/\$([^$]+)\$([.,;:]?)/g, function (m, t, tail) {
+      var parts = [], d = 0, s = 0, i, c;
+      for (i = 0; i < t.length; i++) {
+        c = t.charAt(i);
+        if (c === '\\') { c = t.charAt(i + 1); if (c === '{') d++; else if (c === '}') d--; i++; continue; }
+        if (c === '{' || c === '(' || c === '[') d++;
+        else if (c === '}' || c === ')' || c === ']') d--;
+        else if (c === ',' && d === 0) { parts.push(t.slice(s, i)); s = i + 1; }
+      }
+      parts.push(t.slice(s));
+      if (parts.length < 2 || d !== 0) return t.length > 40 ? m : '<span class="nw">' + m + '</span>';
+      return parts.map(function (p, k) {
+        return '<span class="nw">$' + p.replace(sp, '') + '$' + (k < parts.length - 1 ? ',' : tail) + '</span>';
+      }).join(' ');
+    });
+  }
+
   function slideProb(sd) {
     var i = sd.i, g = CTX.probs[i], n = num(i), N = CTX.probs.length, last = sd.b >= nSteps(i);
     // слайдад хэвтээ зай их тул бодлогын зургийг үргэлж текстийн баруун талд (өндөр нь хязгаартай)
@@ -308,7 +333,7 @@
         + bs.map(function (b) { return '<div class="e1s-b' + (b.k === 'eq' ? ' e1s-eq' : '') + '">' + b.h + '</div>'; }).join('')
         + '</div></div>';
     });
-    if (last) h += '<div class="e1s-ans"><b>Хариу:</b><span>' + CTX.ansTex(g.a) + '</span></div>';
+    if (last) h += '<div class="e1s-ans"><b>Хариу:</b><span>' + ansGroups(CTX.ansTex(g.a)) + '</span></div>';
     h += '</div>' + (g.sfig ? '<div class="e1s-sfig">' + g.sfig + '</div>' : '') + '</div>'
       + (full ? '' : '<div class="e1s-prev">Урьдчилж үзэх</div>')
       + '<div class="e1s-foot">cyber-math.com · ' + esc(CTX.title) + '</div></div>';
@@ -334,11 +359,26 @@
 
   // Слайдын агуулгыг 1280×720-д багтаана (бүх алхам орон зайгаа эзэлсэн байдлаар хэмжинэ):
   // үсгийн хэмжээ 24→17px; багтахгүй бол (бодолтын зураггүй үед) хоёр баганаар 22→15px. Багтвал true.
+  // Мөр/баганаас өргөн томьёог (өндрөөр багтсан ч баруун тал нь тайрагдана) тухайн мөрөнд нь ≥ 80% хүртэл жижигрүүлнэ.
   function fit(sl) {
     var body = sl.querySelector('.e1s-body');
     if (!body) return true;
-    var steps = body.querySelector('.e1s-steps'), sf = body.querySelector('.e1s-sfig');
-    function ok() {
+    var steps = body.querySelector('.e1s-steps'), sf = body.querySelector('.e1s-sfig'), bs = steps.querySelectorAll('.e1s-b');
+    function size(fs) { sl.style.setProperty('--fs', fs + 'px'); }
+    function narrow(minR) {
+      var i, b, r;
+      for (i = 0; i < bs.length; i++) bs[i].style.fontSize = '';
+      for (i = 0; i < bs.length; i++) {
+        b = bs[i];
+        if (b.scrollWidth <= b.clientWidth + 1) continue;
+        r = b.clientWidth / b.scrollWidth;
+        if (r < minR) return false;
+        b.style.fontSize = (Math.floor(r * 100) - 1) / 100 + 'em';
+      }
+      return true;
+    }
+    function ok(minR) {
+      if (!narrow(minR)) return false;
       // .e1s-s нь байрлалтай тул хүүхдүүдийн offsetTop нь слайдын дотор (масштабгүй). Алхмуудын (ба хариуны) бодит доод ирмэг
       // + бодолтын зураг; доод талд хөлийн зай үлдээнэ. Хоёр баганад илүүдэл нь гуравдах багана руу (scrollWidth) гарна.
       var bottom = 0;
@@ -347,10 +387,15 @@
       return bottom <= H - 34 && steps.scrollWidth <= steps.clientWidth + 1;
     }
     var fs;
-    for (fs = 24; fs >= 17; fs--) { sl.style.setProperty('--fs', fs + 'px'); if (ok()) return true; }
-    if (sf) { for (fs = 16; fs >= 15; fs--) { sl.style.setProperty('--fs', fs + 'px'); if (ok()) return true; } return false; }
-    steps.classList.add('two');
-    for (fs = 22; fs >= 15; fs--) { sl.style.setProperty('--fs', fs + 'px'); if (ok()) return true; }
+    for (fs = 24; fs >= 17; fs--) { size(fs); if (ok(0.8)) return true; }
+    if (sf) { for (fs = 16; fs >= 15; fs--) { size(fs); if (ok(0.8)) return true; } }
+    else {
+      steps.classList.add('two');
+      for (fs = 22; fs >= 15; fs--) { size(fs); if (ok(0.8)) return true; }
+      steps.classList.remove('two');
+    }
+    // Багтахгүй (дуудагч алхмуудыг хуваана; ганц алхам үлдвэл ийм хэвээр): нэг багана, өргөн томьёог хязгааргүй жижигрүүлнэ
+    for (fs = sf ? 15 : 17; fs >= 14; fs--) { size(fs); if (ok(0)) break; }
     return false;
   }
 
@@ -482,5 +527,5 @@
     try { if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { if (PL) { var st = step; renderSlide(false); for (var i = 0; i < st; i++) next(); } }); } catch (e) {}
   }
 
-  window.E1KSOL = { open: open, play: function (ctx, isFull) { CTX = ctx; play(isFull); }, beatsOf: beatsOf, close: function () { closePlayer(); closeOv(); } };
+  window.E1KSOL = { open: open, play: function (ctx, isFull) { CTX = ctx; play(isFull); }, beatsOf: beatsOf, ansGroups: ansGroups, close: function () { closePlayer(); closeOv(); } };
 })();

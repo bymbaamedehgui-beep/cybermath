@@ -421,7 +421,11 @@
     '.bar{max-width:820px;margin:0 auto 14px;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}',
     '.btn{font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.6rem 1.3rem;font-size:.9rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2));box-shadow:0 6px 16px -6px rgba(123,82,238,.6)}',
     '.btn:hover{filter:brightness(1.06)} .btn.refresh{background:linear-gradient(135deg,#16a34a,#22c55e)}',
-    '.btn.sol{background:linear-gradient(135deg,#1C1240,#5A32D6);box-shadow:0 6px 16px -6px rgba(28,18,64,.55)}',
+    // «Бодолтын PPT» — .btn БИШ: ws-store.js түгжээ «.bar .btn:not(.refresh)»-ийг хэвлэх товч гэж нууж, нээхдээ «.bar .btn» бүгдийг харуулдаг
+    '.e1k-solbtn{display:inline-flex;align-items:center;justify-content:center;gap:7px;font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.6rem 1.3rem;font-size:.9rem;color:#fff;background:linear-gradient(135deg,#1C1240,#5A32D6);box-shadow:0 6px 16px -6px rgba(28,18,64,.55)}',
+    '.e1k-solbtn:hover{filter:brightness(1.15)} .e1k-solbtn svg{flex:none}',
+    '@media screen{.bar.cmbar>.e1k-solbtn{order:3;height:40px;padding:0 14px;border-radius:12px;font-size:.87rem;line-height:1;white-space:nowrap;box-shadow:0 3px 0 #0E0826}}',
+    '@media screen and (max-width:640px){.bar.cmbar>.e1k-solbtn{flex:1 1 40%}}',
     '.bar label{font-weight:700;color:var(--purple);display:flex;align-items:center;gap:6px;font-size:.88rem}',
     '.sheet{background:#fff;width:210mm;max-width:100%;min-height:297mm;margin:0 auto;padding:11mm 12mm;box-shadow:0 12px 44px -18px rgba(0,0,0,.35)}',
     '.head{text-align:center;border-bottom:2.5px solid var(--purple);padding-bottom:7px;margin-bottom:7px}',
@@ -488,7 +492,7 @@
     bar.className = 'bar';
     var sw0 = lsGet('e1k_sw') !== '0';
     bar.innerHTML = '<button class="btn refresh" type="button" onclick="build()">' + ICO.ref + 'Шинэ бодлого</button>'
-      + '<button class="btn sol" type="button" id="solBtn" style="display:none">' + ICO.ppt + 'Бодолтын PPT</button>'
+      + '<button class="e1k-solbtn" type="button" id="solBtn" style="display:none">' + ICO.ppt + 'Бодолтын PPT</button>'
       + '<label><input type="checkbox" id="sw"' + (sw0 ? ' checked' : '') + '> Бодолтын зай</label>'
       + '<label><input type="checkbox" id="sa"> Хариу хавсаргах</label>'
       + '<label id="ssl" style="display:none"><input type="checkbox" id="ss"> Бодолт хавсаргах</label>'
@@ -503,6 +507,7 @@
     function valid(g) { return g && typeof g.q === 'string' && g.q && g.a != null && String(g.a) !== ''; }
     // Бодлогын багц = seed (хуудасны URL #s=…): ижил seed → ижил тоонууд. «Бодолтын PPT» нь тухайн багцынх (e1k-sol.js).
     var SEED = null, SLUG = (location.pathname.split('/').pop() || '').replace(/\.html$/i, ''), SOL_AUTO = false;
+    var IS_QR = /[?&]qr=1(&|$)/.test(location.search || '');   // сурагчийн QR горим (ws-store.js): бодолт ба PPT харагдахгүй
     function seedOk(s) { return typeof s === 'string' && /^[0-9a-z]{4,10}$/.test(s); }
     function seedNew() { return ('000000' + Math.floor(Math.random() * 2176782336).toString(36)).slice(-6); }
     function seedStart() {
@@ -535,7 +540,7 @@
     function loadSol() {
       if (root.E1KSOL) return Promise.resolve();
       if (!solLoading) solLoading = new Promise(function (ok, bad) {
-        var s = document.createElement('script'); s.src = '/e1k-sol.js?v=1';
+        var s = document.createElement('script'); s.src = '/e1k-sol.js?v=2';
         s.onload = ok; s.onerror = function () { solLoading = null; bad(); };
         document.head.appendChild(s);
       });
@@ -547,7 +552,7 @@
                rebuild: function (s) { window.build(s); return solCtx(); } };
     }
     function openSol() {
-      if (!solReady()) return;
+      if (IS_QR || !solReady()) return;
       loadSol().then(function () { root.E1KSOL.open(solCtx()); },
         function () { alert('Бодолтын PPT-г ачаалж чадсангүй. Сүлжээгээ шалгаад дахин оролдоно уу.'); });
     }
@@ -564,7 +569,7 @@
           + (WK ? '<div class="wk" style="height:' + (g.wk || 30) + 'mm"></div>' : '') + '</div>';
         var at = ansTex(g.a);
         ak += '<div class="a' + (g.wide || textLen(at) > 64 ? ' wide' : '') + '"><span class="an">' + n + '.</span><span>' + at + '</span></div>';
-        if (g.s) sl += solHTML(n, g);
+        if (g.s && !IS_QR) sl += solHTML(n, g);
       });
       html += '<div class="ans-page" id="answers"><h2>Хариунууд</h2><div class="ans-grid">' + ak + '</div></div>';
       if (sl) html += '<div class="sol-page" id="sols"><h2>Бодолтууд</h2>' + sl + '</div>';
@@ -572,7 +577,7 @@
       sh.innerHTML = html;
       sh.classList.toggle('e1k-p12', WK);
       render(sh); toggleAns(); toggleSol();
-      solBtn.style.display = solReady() ? '' : 'none';
+      solBtn.style.display = !IS_QR && solReady() ? '' : 'none';
       window.WS_TITLE = cfg.title; window.WS_ITEMS = [];
     }
     window.layout = layout;
