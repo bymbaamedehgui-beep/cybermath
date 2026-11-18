@@ -28,6 +28,7 @@ const WT = require('./_wstrial');
 const WDEV = require('./_wsdev');
 const { DDL } = require('./_wsppt_sql');
 const PP = require('./_wsppt_pay');
+const SOL = require('./_wssol');
 
 let ready = null;
 function ensure() {
@@ -154,6 +155,17 @@ module.exports = async function handler(req, res) {
       const email = guard.wsEmail(b.wstoken ? String(b.wstoken) : '');
       if (!email) return res.json({ ok: true, price: PP.pptPrice(), owned: {}, login: false });
       return res.json({ ok: true, price: PP.pptPrice(), owned: await PP.owned(email), login: true, all: PP.wsIncluded() || undefined });
+    }
+
+    // Бодолтын PPT (ЭЕШ ажлын хуудас, e1k-sol.js): тухайн бодлогын багцыг (slug + seed) худалдан авсан эсэх
+    // + энэ хуудсанд худалдан авсан бусад багцууд (дахин нээх). Админ бүгдийг үзнэ.
+    if (action === 'sol_has') {
+      const ref = SOL.normRef(b.slug, b.seed);
+      if (!ref) return res.status(400).json({ ok: false, error: 'Хуудас буруу байна' });
+      if (guard.requireAdmin(req)) return res.json({ ok: true, owned: true, admin: true, login: true, price: SOL.price(), mine: [] });
+      const email = guard.wsEmail(b.wstoken ? String(b.wstoken) : '');
+      if (!email) return res.json({ ok: true, owned: false, login: false, price: SOL.price(), mine: [] });
+      return res.json({ ok: true, owned: await SOL.has(email, ref), login: true, price: SOL.price(), mine: await SOL.mine(email, ref.slug) });
     }
 
     if (action === 'admin_grant') {

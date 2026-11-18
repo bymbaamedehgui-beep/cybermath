@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
-<script src="/e1k.js?v=2"></script>
+<script src="/e1k.js?v=3"></script>
 </head>
 <body>
 <div class="bar" id="bar"></div>
@@ -270,11 +270,21 @@ function p90() {
   var L = co[0] * P[0] + co[1] * P[1] + co[2] * P[2], k = rnd(1, 10) <= 8 ? rnd(2, 9) : -rnd(2, 6), R = L * k;
   if (Math.abs(L) < 2 || Math.abs(R) > 240) return null;
   var vi = rnd(1, 10) <= 6 ? 0 : rnd(1, 2), v = 'abc'.charAt(vi);
+  // Бодолт: a = p₁k, b = p₂k, c = p₃k → нөхцөлд орлуулж k → асуусан хувьсагч; шалгалт
+  var t3 = function (c, p, first) { var A = Math.abs(c); return (c < 0 ? '-' : first ? '' : '+') + (A === 1 ? '' : A + '\\cdot ') + p + 'k'; };
+  var tv = function (c, val, first) { var A = Math.abs(c); return (c < 0 ? '-' : first ? '' : '+') + (A === 1 ? par(val) : A + '\\cdot ' + par(val)); };
   return {
     q: '$\\dfrac{a}{' + P[0] + '}=\\dfrac{b}{' + P[1] + '}=\\dfrac{c}{' + P[2] + '}$ ба $' + tm(co[0], 'a', true) + tm(co[1], 'b') + tm(co[2], 'c') + '=' + R
       + '$ бол $' + v + '$-гийн утгыг олоорой.',
     a: '$' + v + '=' + P[vi] * k + '$',
     wk: 22,
+    s: [
+      'Тэнцүү харьцааг $k$ гэж тэмдэглэе: $$a=' + P[0] + 'k,\\quad b=' + P[1] + 'k,\\quad c=' + P[2] + 'k.$$',
+      'Нөхцөлд орлуулъя: $$' + t3(co[0], P[0], true) + t3(co[1], P[1]) + t3(co[2], P[2]) + '=' + R + '$$ $$'
+        + tm(co[0] * P[0], 'k', true) + tm(co[1] * P[1], 'k') + tm(co[2] * P[2], 'k') + '=' + R + '\\ \\Rightarrow\\ ' + tm(L, 'k', true) + '=' + R + '\\ \\Rightarrow\\ k=' + k + '.$$',
+      'Иймд $$' + v + '=' + P[vi] + 'k=' + P[vi] + '\\cdot ' + par(k) + '=' + P[vi] * k + '.$$',
+      'Шалгалт: $a=' + P[0] * k + '$, $b=' + P[1] * k + '$, $c=' + P[2] * k + '$ үед $' + tv(co[0], P[0] * k, true) + tv(co[1], P[1] * k) + tv(co[2], P[2] * k) + '=' + R + '$.'
+    ],
     t: { P: P, co: co, k: k }
   };
 }
@@ -320,6 +330,16 @@ function p92() {
 // 93. Нийт T бодлого: 1-р өдөр (p/q)·T, 2-р өдөр түүнээс r%-иар илүү (бага): (p/q)·T·(100 ± r)/100, сүүлийн өдөр L бодлого
 //     ⇒ T·(1 − (p/q)(1 + (100 ± r)/100)) = L. Өдөр бүрийн тоо бүхэл байхаар T-г сонгоно (L ≥ 3).
 var p93_F = [[1, 5], [1, 4], [1, 3], [1, 6], [2, 5], [3, 10], [1, 8], [3, 8], [2, 9], [1, 10], [2, 7]];
+function p93_sol(p, q, r, up, T, L) {
+  var g = 100 + (up ? r : -r), mlt = dec(g / 100), f1 = '\\dfrac{' + p + '}{' + q + '}', f2 = fr(p * g, q * 100), rest = fr(100 * q - 100 * p - p * g, 100 * q);
+  var d1 = T * p / q, d2 = d1 * g / 100;
+  return [
+    'Нийт бодлогыг $x$ гэе. Эхний өдөр $' + f1 + 'x$ бодлого бодсон.',
+    'Дараагийн өдөр $' + r + '\\%$-иар ' + (up ? 'илүү' : 'бага') + ', өөрөөр хэлбэл $' + mlt + '$ дахин: $$' + f1 + 'x\\cdot ' + mlt + '=' + f2 + 'x.$$',
+    'Гурван өдөр бодсон бодлогын нийлбэр нь $x$: $$' + f1 + 'x+' + f2 + 'x+' + L + '=x$$ $$\\Rightarrow\\ ' + rest + 'x=' + L + '\\ \\Rightarrow\\ x=' + T + '.$$',
+    'Шалгалт: $' + dec(d1) + '+' + dec(d2) + '+' + L + '=' + T + '$.'
+  ];
+}
 function p93() {
   var F = pick(p93_F), p = F[0], q = F[1], r = pick([10, 20, 20, 25, 30, 40, 50, 60, 75]), up = rnd(1, 10) <= 7, cs = [], T;
   for (T = q; T <= 120; T += q) {
@@ -333,6 +353,8 @@ function p93() {
       + (up ? 'илүү' : 'бага') + ', харин сүүлийн өдөр ' + c[1] + ' бодлого бодов. Нийт хэдэн бодлого бодсон бэ?',
     a: '$' + c[0] + '$ бодлого',
     wk: 26,
+    // Бодолт: 1-р өдөр (p/q)x, 2-р өдөр (p/q)x·(1 ± r/100), нийлбэр + L = x
+    s: p93_sol(p, q, r, up, c[0], c[1]),
     t: { p: p, q: q, r: r, up: up, T: c[0] }
   };
 }
@@ -428,6 +450,38 @@ function p96() {
 //     x + y-ийн хамгийн их (заримдаа бага) утгыг олно. Хариу 0 эсвэл 18 биш, x + y дор хаяж 3 өөр утга авдаг;
 //     хамгийн их нь ихэвчлэн 16–17 гардаг тул тэдгээрийг хэсэгчлэн татгалзаж хариуны тархалтыг жигдэлнэ.
 var p97_D = [36, 36, 36, 12, 72, 45, 18, 24, 15, 60];
+// Бодолт: D = L·m (харилцан анхны) — L нь сүүлийн цифрүүдийн шинж (2, 4, 5, 8, 20), m нь цифрийн нийлбэрийн шинж (3, 9).
+// Боломжит төгсгөлүүд ба z тус бүрийн x+y-ийн утгуудыг бүх (x, y, z)-ийг тоолж гаргана (санамсаргүй функц дуудахгүй).
+var p97_RULE = { 2: 'сүүлийн цифр нь тэгш байна', 4: 'сүүлийн хоёр цифрээс тогтох тоо $4$-т хуваагдана', 5: 'сүүлийн цифр нь $0$ эсвэл $5$ байна',
+  8: 'сүүлийн гурван цифрээс тогтох тоо $8$-д хуваагдана', 20: 'сүүлийн хоёр цифрээс тогтох тоо $20$-д хуваагдана ($4$-т ба $5$-д)' };
+function p97_th(n) { return String(n).replace(/\B(?=(\d{3})+$)/g, '\\,'); }
+function p97_ov(cs) { return cs.map(function (c, k) { return /[01]/.test(c) && k < cs.length - 1 && /[xyz]/.test(cs[k + 1]) ? '{' + c + '}' : c; }).join(''); }
+function p97_sol(pat, D, mx, ans) {
+  var m = D % 9 === 0 ? 9 : 3, L = D / m, nd = L === 8 ? 3 : (L === 4 || L === 20) ? 2 : 1;
+  var K = 0, tail = pat.slice(6 - nd), ends = {}, byZ = {}, ex = null, x, y, z, i;
+  pat.forEach(function (c) { if (/\d/.test(c)) K += +c; });
+  for (x = 0; x <= 9; x++) for (y = 0; y <= 9; y++) for (z = 0; z <= 9; z++) {
+    if ((pat[0] === 'x' && !x) || (pat[0] === 'y' && !y)) continue;
+    var dg = pat.map(function (c) { return c === 'x' ? x : c === 'y' ? y : c === 'z' ? z : +c; }), N = +dg.join('');
+    if (N % D) continue;
+    ends[dg.slice(6 - nd).join('')] = 1;
+    (byZ[z] = byZ[z] || {})[x + y] = 1;
+    if (x + y === ans && !ex) ex = { x: x, y: y, z: z, N: N };
+  }
+  var el = Object.keys(ends).sort(), num = function (o) { return Object.keys(o).map(Number).sort(function (u, v) { return u - v; }); };
+  var lst = el.length > 12 ? el.slice(0, 12).join(', ') + ', …' : el.slice(0, -1).join(', ') + (el.length > 1 ? ' эсвэл ' : '') + el[el.length - 1];
+  var endTxt = nd === 1 ? 'Иймд $z$ нь ' + lst + (el.length > 1 ? ' байж болно.' : ' байна.')
+    : 'Иймд $\\overline{' + p97_ov(tail) + '}$ нь ' + lst + (el.length > 1 ? ' байж болно.' : ' байна.');
+  var zs = num(byZ).map(function (zz) { var v = num(byZ[zz]); return '$z=' + zz + '$ үед $x+y$: $' + v.join(',\\ ') + '$'; });
+  return [
+    '$' + D + '=' + L + '\\cdot ' + m + '$ ба $' + L + '$, $' + m + '$ харилцан анхны тул тоо $' + L + '$-' + suf(L, 'д') + ' ба $' + m + '$-' + suf(m, 'д') + ' зэрэг хуваагдана.',
+    '$' + L + '$-' + suf(L, 'д') + ' хуваагдах шинж: ' + p97_RULE[L] + '. ' + endTxt,
+    '$' + m + '$-' + suf(m, 'д') + ' хуваагдах шинж: цифрүүдийн нийлбэр $' + m + '$-' + suf(m, 'д') + ' хуваагдана' + (pat.indexOf('0') >= 0 ? ' (0 цифрийг алгасав)' : '') + ': $$'
+      + pat.filter(function (c) { return c !== '0'; }).join('+') + '=' + K + '+x+y+z.$$',
+    'Боломжит тохиолдлуудыг шалгавал:<br>' + zs.join('<br>'),
+    'Иймд хамгийн ' + (mx ? 'их' : 'бага') + ' нь $x+y=' + ans + '$. Жишээ нь $x=' + ex.x + ',\\ y=' + ex.y + ',\\ z=' + ex.z + '$ үед $' + p97_th(ex.N) + '=' + D + '\\cdot ' + p97_th(ex.N / D) + '$.'
+  ];
+}
 function p97() {
   var D = pick(p97_D), mx = rnd(0, 4) > 0, pos = shuffle([0, 1, 2, 3, 4]).slice(0, 2).sort(function (u, v) { return u - v; });
   var pat = [], i;
@@ -450,6 +504,7 @@ function p97() {
     q: '$\\overline{' + tex + '}$ тоо ' + sfx(D, 'д') + ' хуваагддаг бол $x,y$ цифрүүдийн нийлбэрийн хамгийн ' + (mx ? 'их' : 'бага') + ' утгыг олоорой.',
     a: '$(x+y)_{\\' + (mx ? 'max' : 'min') + '}=' + ans + '$',
     wk: 26,
+    s: p97_sol(pat, D, mx, ans),
     t: { pat: pat.join(''), D: D, mx: mx }
   };
 }
@@ -593,10 +648,26 @@ function p102() {
   var kind = rnd(0, 4) ? 'cnt' : 'sum', plain = rnd(0, 3) === 0;
   if (A > 2000000 || cnt < 6 || (plain && A > 3000) || (kind === 'sum' && A > 6000)) return null;
   var tex = plain ? String(A) : P.map(function (p, i) { return E[i] > 1 ? p + '^' + E[i] : String(p); }).join('\\times ');
+  // Бодолт: хуваагч бүр p₁^{i₁}·p₂^{i₂}…, 0 ≤ iₖ ≤ eₖ → тоо (e₁+1)(e₂+1)…, нийлбэр Π(1 + p + … + pᵉ)
+  var LT = ['i', 'j', 'k', 'l'], fac = P.map(function (p, i) { return E[i] > 1 ? p + '^{' + E[i] + '}' : String(p); }).join('\\cdot ');
+  var form = P.map(function (p, i) { return p + '^{' + LT[i] + '}'; }).join('\\cdot ');
+  var rng = P.map(function (p, i) { return '$0\\le ' + LT[i] + '\\le ' + E[i] + '$'; }).join(', ');
+  var ss = [];
+  if (plain) ss.push('Эхлээд анхны үржигдэхүүнд задлая: $$A=' + A + '=' + fac + '.$$');
+  ss.push('Хуваагч бүр $' + form + '$ хэлбэртэй, энд ' + rng + '. Илтгэгч бүрийг бие даан сонгоно.');
+  if (kind === 'cnt') {
+    ss.push('Илтгэгч бүрийг $e+1$ янзаар сонгох тул хуваагчдын тоо: $$' + E.map(function (e) { return '(' + e + '+1)'; }).join('') + '='
+      + E.map(function (e) { return e + 1; }).join('\\cdot ') + '=' + cnt + '.$$');
+  } else {
+    var grp = P.map(function (p, i) { var t = ['1']; for (var e = 1; e <= E[i]; e++) t.push(e === 1 ? String(p) : p + '^{' + e + '}'); return '(' + t.join('+') + ')'; });
+    var vals = P.map(function (p, i) { var s0 = 0, t = 1; for (var e = 0; e <= E[i]; e++) { s0 += t; t *= p; } return s0; });
+    ss.push('Хаалт бүрээс нэг гишүүн авч үржүүлэхэд яг нэг хуваагч гарна. Иймд бүх хуваагчдын нийлбэр: $$' + grp.join('') + '$$ $$=' + vals.join('\\cdot ') + '=' + sum + '.$$');
+  }
   return {
     q: '$A=' + tex + '$ тооны ' + (kind === 'cnt' ? 'хуваагчдын тоог' : 'бүх хуваагчдын нийлбэрийг') + ' олоорой.',
     a: '$' + (kind === 'cnt' ? cnt : sum) + '$',
     wk: 20,
+    s: ss,
     t: { P: P, E: E, kind: kind, plain: plain }
   };
 }

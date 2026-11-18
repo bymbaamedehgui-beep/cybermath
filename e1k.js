@@ -411,7 +411,8 @@
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
   var ICO = {
     ref: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>',
-    prt: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>'
+    prt: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>',
+    ppt: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><rect x="2.5" y="3.5" width="19" height="13" rx="1.6"/><path d="M12 16.5V21M8 21h8"/><path d="M10 7.5v5l4.2-2.5z" fill="currentColor"/></svg>'
   };
   var CSS = [
     ':root{--purple:#7B52EE;--purple2:#A855F7;--ink:#1a1030;--soft:#7a7390}',
@@ -420,6 +421,7 @@
     '.bar{max-width:820px;margin:0 auto 14px;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}',
     '.btn{font-weight:800;border:0;cursor:pointer;border-radius:999px;padding:.6rem 1.3rem;font-size:.9rem;color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple2));box-shadow:0 6px 16px -6px rgba(123,82,238,.6)}',
     '.btn:hover{filter:brightness(1.06)} .btn.refresh{background:linear-gradient(135deg,#16a34a,#22c55e)}',
+    '.btn.sol{background:linear-gradient(135deg,#1C1240,#5A32D6);box-shadow:0 6px 16px -6px rgba(28,18,64,.55)}',
     '.bar label{font-weight:700;color:var(--purple);display:flex;align-items:center;gap:6px;font-size:.88rem}',
     '.sheet{background:#fff;width:210mm;max-width:100%;min-height:297mm;margin:0 auto;padding:11mm 12mm;box-shadow:0 12px 44px -18px rgba(0,0,0,.35)}',
     '.head{text-align:center;border-bottom:2.5px solid var(--purple);padding-bottom:7px;margin-bottom:7px}',
@@ -486,6 +488,7 @@
     bar.className = 'bar';
     var sw0 = lsGet('e1k_sw') !== '0';
     bar.innerHTML = '<button class="btn refresh" type="button" onclick="build()">' + ICO.ref + 'Шинэ бодлого</button>'
+      + '<button class="btn sol" type="button" id="solBtn" style="display:none">' + ICO.ppt + 'Бодолтын PPT</button>'
       + '<label><input type="checkbox" id="sw"' + (sw0 ? ' checked' : '') + '> Бодолтын зай</label>'
       + '<label><input type="checkbox" id="sa"> Хариу хавсаргах</label>'
       + '<label id="ssl" style="display:none"><input type="checkbox" id="ss"> Бодолт хавсаргах</label>'
@@ -498,14 +501,57 @@
     function toggleSol() { var el = document.getElementById('sols'); if (el) el.style.display = ss.checked ? 'block' : 'none'; }
     window.toggleAns = toggleAns; window.toggleSol = toggleSol;
     function valid(g) { return g && typeof g.q === 'string' && g.q && g.a != null && String(g.a) !== ''; }
-    window.build = function () {
-      CUR = cfg.probs.map(function (fn, i) {
-        var g = gen(fn, valid);
-        if (!g) { try { console.error('e1k: ' + (first + i) + '-р бодлогын генератор бүтэлгүй'); } catch (e) {} g = { q: '—', a: '—' }; }
-        return g;
-      });
+    // Бодлогын багц = seed (хуудасны URL #s=…): ижил seed → ижил тоонууд. «Бодолтын PPT» нь тухайн багцынх (e1k-sol.js).
+    var SEED = null, SLUG = (location.pathname.split('/').pop() || '').replace(/\.html$/i, ''), SOL_AUTO = false;
+    function seedOk(s) { return typeof s === 'string' && /^[0-9a-z]{4,10}$/.test(s); }
+    function seedNew() { return ('000000' + Math.floor(Math.random() * 2176782336).toString(36)).slice(-6); }
+    function seedStart() {
+      var m = /(?:^#|&)s=([0-9a-z]{4,10})(?:&|$)/.exec(location.hash || '');
+      if (m) return m[1];
+      // PPT худалдаж авахаар нэвтрэх хуудас руу шилжээд буцаж ирэхэд тэр багцаа сэргээнэ (30 мин)
+      try {
+        var p = JSON.parse(sessionStorage.getItem('e1k_sol_pending') || 'null');
+        sessionStorage.removeItem('e1k_sol_pending');
+        if (p && p.slug === SLUG && seedOk(p.seed) && Date.now() - p.t < 1800000) { SOL_AUTO = true; return p.seed; }
+      } catch (e) {}
+      return null;
+    }
+    window.build = function (seed) {
+      SEED = seedOk(seed) ? seed : seedNew();
+      setRng(mulberry(parseInt(SEED, 36)));
+      try {
+        CUR = cfg.probs.map(function (fn, i) {
+          var g = gen(fn, valid);
+          if (!g) { try { console.error('e1k: ' + (first + i) + '-р бодлогын генератор бүтэлгүй'); } catch (e) {} g = { q: '—', a: '—' }; }
+          return g;
+        });
+      } finally { setRng(null); }
+      try { history.replaceState(history.state, '', location.pathname + location.search + '#s=' + SEED); } catch (e) {}
       layout();
     };
+    // «Бодолтын PPT» — бүх бодлого алхамтай бодолттой (s) хуудсанд л; тоглуулагч/худалдан авалт e1k-sol.js (хэрэгтэй үед ачаална)
+    var solBtn = document.getElementById('solBtn'), solLoading = null;
+    function solReady() { return !!CUR && CUR.length > 0 && CUR.every(function (g) { return Array.isArray(g.s) && g.s.length > 0; }); }
+    function loadSol() {
+      if (root.E1KSOL) return Promise.resolve();
+      if (!solLoading) solLoading = new Promise(function (ok, bad) {
+        var s = document.createElement('script'); s.src = '/e1k-sol.js?v=1';
+        s.onload = ok; s.onerror = function () { solLoading = null; bad(); };
+        document.head.appendChild(s);
+      });
+      return solLoading;
+    }
+    function solCtx() {
+      return { slug: SLUG, seed: SEED, title: cfg.title, sub: cfg.sub || '', first: first, nums: cfg.nums || null, probs: CUR,
+               render: render, ansTex: ansTex, nwInline: nwInline,
+               rebuild: function (s) { window.build(s); return solCtx(); } };
+    }
+    function openSol() {
+      if (!solReady()) return;
+      loadSol().then(function () { root.E1KSOL.open(solCtx()); },
+        function () { alert('Бодолтын PPT-г ачаалж чадсангүй. Сүлжээгээ шалгаад дахин оролдоно уу.'); });
+    }
+    solBtn.addEventListener('click', openSol);
     function layout() {
       if (!CUR) return window.build();
       var WK = sw.checked, html = '', ak = '', sl = '';
@@ -526,13 +572,17 @@
       sh.innerHTML = html;
       sh.classList.toggle('e1k-p12', WK);
       render(sh); toggleAns(); toggleSol();
+      solBtn.style.display = solReady() ? '' : 'none';
       window.WS_TITLE = cfg.title; window.WS_ITEMS = [];
     }
     window.layout = layout;
     window.WS_PAGED = 'e1k-pages';      // ws-store: хэвлэхэд 1 хуудсанд шахахгүй
     root.E1K.cur = function () { return CUR; };
+    root.E1K.seed = function () { return SEED; };
+    root.E1K.sol = { ctx: solCtx, open: openSol, ready: solReady };
     try { if (document.fonts && document.fonts.status !== 'loaded') document.fonts.ready.then(function () { if (CUR) layout(); }); } catch (e) {}
-    window.build();
+    window.build(seedStart());
+    if (SOL_AUTO && solReady()) setTimeout(openSol, 300);
   }
   root.E1K = { page: page, H: H, render: render };
 })(typeof window !== 'undefined' ? window : this);

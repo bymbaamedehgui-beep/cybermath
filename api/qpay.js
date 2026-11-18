@@ -27,6 +27,8 @@ const WT = require('./_wstrial');
 const GM = require('./_games');
 // Слайд хичээл — 1 хичээл × 1 сар (PPT_PRICE), сагсаар олныг нэг нэхэмжлэхээр (plan='ppt', pay_pending.ppt_ids)
 const PP = require('./_wsppt_pay');
+// Бодолтын PPT — ЭЕШ ажлын хуудасны тухайн бодлогын багц (slug + seed), нэг удаа (plan='solppt', pay_pending.sol_ref)
+const SOL = require('./_wssol');
 // ЭЕШ шалгагч (eyeshcheck.com) — Дасгалын төвийн нэмэлт эрх 1 сар (EYESH_PRICE), plan='eyesh' (api/_eyesh.js, api/eyesh.js)
 const EY = require('./_eyesh');
 const WS_GRADE_PER_MONTH = parseInt(process.env.WS_GRADE_PRICE || '9900', 10);
@@ -210,7 +212,8 @@ async function revReport(opts) {
   // ЭЕШ шалгагч (plan='eyesh') мөн адил — ws_eyesh_purchases-аас «eyesh» савд.
   // ЭЕШ багц (plan='eeshpack') — дүн нь ws_purchases (анги 'ЭЕШ') ба ws_eyesh_purchases-д хуваагдан бичигдсэн тул prem-д ОРОХГҮЙ;
   // eeshpack нь зөвхөн мэдээлэл (тоо, дүн) — нийлбэрт нэмэгдэхгүй.
-  const NO_PREM_GAME = "granted = TRUE AND COALESCE(plan,'') NOT IN ('game','ppt','eyesh','eeshpack')";
+  // Бодолтын PPT (plan='solppt') — дүн нь ws_ppt_purchases-д ('sol:…') бичигдэх тул «ppt» савд л тоологдоно.
+  const NO_PREM_GAME = "granted = TRUE AND COALESCE(plan,'') NOT IN ('game','ppt','eyesh','eeshpack','solppt')";
   let pptOk = true;
   try { await PP.ensure(); } catch (e) { pptOk = false; console.error('[report ppt]', e.message); }
   let eyOk = true;
@@ -552,11 +555,13 @@ async function ensurePayPending() {
   await pool.query(`ALTER TABLE pay_pending ADD COLUMN IF NOT EXISTS game_grade TEXT`).catch(()=>{});
   // Слайдын сагс (plan='ppt'): хичээлийн id-ууд '2,3,6' — үнэ = PPT_PRICE × тоо (нэхэмжлэх үүсэх үеийн)
   await pool.query(`ALTER TABLE pay_pending ADD COLUMN IF NOT EXISTS ppt_ids TEXT`).catch(()=>{});
+  // Бодолтын PPT (plan='solppt'): 'slug|seed|гарчиг' — ямар хуудасны ямар бодлогын багц
+  await pool.query(`ALTER TABLE pay_pending ADD COLUMN IF NOT EXISTS sol_ref TEXT`).catch(()=>{});
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_pay_pending_email ON pay_pending(email, granted)`).catch(()=>{});
   payPendingReady = true;
 }
 // check/callback/reconcile гурвуулаа ИЖИЛ баганын жагсаалтаар уншина (game_key/realm дутвал тоглоом олгогдохгүй)
-const PAY_COLS = 'invoice_id, email, plan, months, amount, event_id, granted, promo_code, game_key, realm, game_grade, ppt_ids';
+const PAY_COLS = 'invoice_id, email, plan, months, amount, event_id, granted, promo_code, game_key, realm, game_grade, ppt_ids, sol_ref';
 async function payPendingRow(invoiceId) {
   if (!invoiceId) return null;
   await ensurePayPending();
@@ -758,6 +763,45 @@ async function settlePpt(row, email) {
     (ledgerOk ? '' : '\n<b>Анхаар:</b> борлуулалтын бүртгэл (ws_ppt_purchases) бичигдсэнгүй — ' + escTg(row.invoice_id)));
   return { granted: true, out: { ok: true, paid: true, ppt: exps } };
 }
+// Бодолтын PPT (plan='solppt'): claim + олголт (ws_sol_ppt) + борлуулалтын бүртгэл (ws_ppt_purchases, «Слайд» сав)
+// НЭГ транзакцад (settlePpt-тэй ижил загвар). Бүртгэл SAVEPOINT-оор тусгаарлагдана.
+async function settleSol(row, email) {
+  const ref = SOL.parseRef(row.sol_ref);
+  if (!ref) throw new Error('Бодолтын PPT-ийн нэхэмжлэх буруу');
+  await SOL.ensure();  // DDL транзакцаас ӨМНӨ
+  await PP.ensure();
+  const client = await pool.connect();
+  let claimed = false, ledgerOk = true;
+  try {
+    await client.query('BEGIN');
+    claimed = await claimPending('pay_pending', row.invoice_id, client);
+    if (claimed) {
+      await SOL.grant({ email: email, slug: ref.slug, seed: ref.seed, title: ref.title, invoice_id: row.invoice_id, amount: row.amount }, client);
+      await client.query('SAVEPOINT sol_ledger');
+      try {
+        await PP.record({ invoice_id: row.invoice_id, email: email, ids: [SOL.ledgerId(ref)], amount: row.amount, days: 0 }, client);
+        await client.query('RELEASE SAVEPOINT sol_ledger');
+      } catch (e) {
+        ledgerOk = false;
+        console.error('[sol ledger]', row.invoice_id, e.message);
+        await client.query('ROLLBACK TO SAVEPOINT sol_ledger');
+      }
+    }
+    await client.query('COMMIT');
+  } catch (e) {
+    let broken;
+    try { await client.query('ROLLBACK'); } catch (re) { broken = re; }
+    client.release(broken);
+    throw e;
+  }
+  client.release();
+  const sol = { slug: ref.slug, seed: ref.seed };
+  if (!claimed) return { granted: false, out: { ok: true, paid: true, sol: sol } };
+  await notifyTelegram('<b>Бодолтын PPT худалдан авлаа</b>\n' + escTg(ref.title || ref.slug) + ' · ' + escTg(ref.seed) + '\n' + escTg(email) +
+    '\n' + escTg(row.amount) + '₮' +
+    (ledgerOk ? '' : '\n<b>Анхаар:</b> борлуулалтын бүртгэл (ws_ppt_purchases) бичигдсэнгүй — ' + escTg(row.invoice_id)));
+  return { granted: true, out: { ok: true, paid: true, sol: sol } };
+}
 // ЭЕШ шалгагч (plan='eyesh'): claim + олголт (ws_eyesh_access +30 хоног, үлдсэн хоног дээр нэмэгдэнэ) + бүртгэл
 // (ws_eyesh_purchases) НЭГ транзакцад (settlePpt-тэй ижил загвар). Бүртгэл SAVEPOINT-оор тусгаарлагдана.
 async function settleEyesh(row, email) {
@@ -858,7 +902,7 @@ async function settleEeshPack(row, email) {
 async function settlePay(row) {
   const email = String(row.email).trim().toLowerCase();
   // Буруу/үл мэдэгдэх мөрийг claim хийхээс ӨМНӨ татгалзана — granted=FALSE хэвээр, админ тулгаж шалгана
-  if (row.plan !== 'event' && row.plan !== 'game' && row.plan !== 'ppt' && row.plan !== 'eyesh' && row.plan !== 'eeshpack' && PAY_PREMIUM_PLANS.indexOf(row.plan) < 0) {
+  if (row.plan !== 'event' && row.plan !== 'game' && row.plan !== 'ppt' && row.plan !== 'eyesh' && row.plan !== 'eeshpack' && row.plan !== 'solppt' && PAY_PREMIUM_PLANS.indexOf(row.plan) < 0) {
     console.error('[qpay settle] үл мэдэгдэх plan — эрх олгохгүй', row.invoice_id, row.plan);
     throw new Error('Тариф буруу (' + String(row.plan).slice(0, 20) + ')');
   }
@@ -868,6 +912,8 @@ async function settlePay(row) {
   }
   // Слайд: claim нь олголттой НЭГ транзакцад (settlePpt)
   if (row.plan === 'ppt') return settlePpt(row, email);
+  // Бодолтын PPT: мөн адил НЭГ транзакцад (settleSol)
+  if (row.plan === 'solppt') return settleSol(row, email);
   // ЭЕШ шалгагч: мөн адил НЭГ транзакцад (settleEyesh)
   if (row.plan === 'eyesh') return settleEyesh(row, email);
   // ЭЕШ багц (ажлын хуудас + шалгагч): мөн адил НЭГ транзакцад (settleEeshPack)
@@ -1035,8 +1081,10 @@ module.exports = async (req, res) => {
       const isPptPlan = plan === 'ppt';
       const isEyeshPlan = plan === 'eyesh';
       const isPackPlan = plan === 'eeshpack';   // ЭЕШ багц: ЭЕШ ажлын хуудас 1 сар + ЭЕШ шалгагч 30 хоног
+      const isSolPlan = plan === 'solppt';      // Бодолтын PPT: ЭЕШ ажлын хуудасны тухайн бодлогын багц, нэг удаа
       let email;
       let pptIds = null;
+      let solRef = null;
       // Тоглоом — 1 тоглоом × 30 хоног. realm-ээр имэйлийг ЗӨВХӨН тухайн сайтын токеноос авна:
       //   'ws' → body.wstoken (ws:true), 'cm' → Authorization: Bearer cm_token (tv шалгана).
       // body.email/amount/promo/ref/months-д огт итгэхгүй; game нь серверийн allowlist-д байх ёстой.
@@ -1099,6 +1147,23 @@ module.exports = async (req, res) => {
         }
         if (!(await rateLimit('ppt_inv:' + email.slice(0, 254), 20, 600)))
           return res.status(429).json({ ok: false, error: 'Хэт олон оролдлого. Түр хүлээгээд дахин оролдоно уу.' });
+      } else if (isSolPlan) {
+        // Бодолтын PPT — зөвхөн Дасгалын төвийн нэвтэрсэн данс (ws токен). Үнэ = SOL_PPT_PRICE (серверт), нэг удаа.
+        // Багц = хуудас (slug) + seed; аль хэдийн худалдан авсан бол дахин мөнгө авахгүй (409 owned).
+        const b = req.body || {};
+        email = GM.normEmail(emailFromToken(b.wstoken));
+        if (!email) return res.status(401).json({ ok: false, needLogin: true, error: 'Худалдан авахын тулд эхлээд нэвтэрнэ үү.' });
+        solRef = SOL.normRef(b.slug, b.seed);
+        if (!solRef) return res.status(400).json({ ok: false, error: 'Ажлын хуудас буруу байна' });
+        solRef.title = SOL.normTitle(b.title);
+        try {
+          if (await SOL.has(email, solRef)) return res.status(409).json({ ok: false, owned: true, error: 'Энэ PPT-г аль хэдийн худалдаж авсан байна.' });
+        } catch (e) {
+          console.error('[sol create]', e.message);
+          return res.status(503).json({ ok: false, error: 'Түр алдаа гарлаа. Дахин оролдоно уу.' });
+        }
+        if (!(await rateLimit('sol_inv:' + email.slice(0, 254), 20, 600)))
+          return res.status(429).json({ ok: false, error: 'Хэт олон оролдлого. Түр хүлээгээд дахин оролдоно уу.' });
       } else if (isEyeshPlan) {
         // ЭЕШ шалгагч — зөвхөн Дасгалын төвийн нэвтэрсэн данс (ws токен). Үнэ = EYESH_PRICE (серверт), 1 сар.
         // Аль хэдийн эрхтэй бол сунгана (үлдсэн хоног дээр нэмэгдэнэ).
@@ -1125,7 +1190,7 @@ module.exports = async (req, res) => {
       }
       const emailLc = email.trim().toLowerCase();
       const premiumPlan = premiumPlanNorm(plan);
-      if (!premiumPlan && ['wsyear', 'wsmonths', 'wsgrade', 'event', 'game', 'ppt', 'eyesh', 'eeshpack'].indexOf(plan) < 0)
+      if (!premiumPlan && ['wsyear', 'wsmonths', 'wsgrade', 'event', 'game', 'ppt', 'eyesh', 'eeshpack', 'solppt'].indexOf(plan) < 0)
         return res.status(400).json({ ok: false, error: 'Тариф буруу байна' });
 
       // Email-ыг богиносгож аюулгүй болгох — QPay-н sender_invoice_no/customer_code 45 тэмдэгт хязгаартай
@@ -1169,6 +1234,7 @@ module.exports = async (req, res) => {
       }
 
       const desc = isPptPlan ? `CyberMath слайд хичээл — ${pptIds.length} ш — 1 сар`
+                 : isSolPlan ? `CyberMath бодолтын PPT — ${solRef.title || solRef.slug}`.slice(0, 100)
                  : isEyeshPlan ? 'CyberMath ЭЕШ шалгагч — 1 сар'
                  : isPackPlan ? 'CyberMath ЭЕШ багц (ажлын хуудас + ЭЕШ шалгагч) — 1 сар'
                  : isGamePlan ? `CyberMath тоглоом — ${GM.GAMES[gameKey].title}${gameGrade ? ' — ' + gameGrade + '-р анги' : ''} — 1 сар`.slice(0, 100)
@@ -1200,6 +1266,8 @@ module.exports = async (req, res) => {
         invAmount = GM.gamePrice();   // хөнгөлөлт/промо/ref тоглоомд хамаарахгүй
       } else if (isPptPlan) {
         invAmount = PP.pptPrice() * pptIds.length;   // 1 хичээл × 1 сар; промо хамаарахгүй
+      } else if (isSolPlan) {
+        invAmount = SOL.price();                     // нэг PPT, нэг удаа; промо хамаарахгүй
       } else if (isEyeshPlan) {
         invAmount = EY.eyeshPrice();                 // 1 сар; промо хамаарахгүй
       } else if (isPackPlan) {
@@ -1241,6 +1309,12 @@ module.exports = async (req, res) => {
               `INSERT INTO pay_pending (invoice_id, email, plan, months, amount, event_id, ppt_ids) VALUES ($1,$2,'ppt',1,$3,NULL,$4)
                ON CONFLICT (invoice_id) DO NOTHING`,
               [invoice.invoice_id, emailLc, invAmount, pptIds.join(',')]);
+          } else if (isSolPlan) {
+            await ensurePayPending();
+            await pool.query(
+              `INSERT INTO pay_pending (invoice_id, email, plan, months, amount, event_id, sol_ref) VALUES ($1,$2,'solppt',1,$3,NULL,$4)
+               ON CONFLICT (invoice_id) DO NOTHING`,
+              [invoice.invoice_id, emailLc, invAmount, SOL.refStr(solRef)]);
           } else if (isEyeshPlan) {
             await ensurePayPending();
             await pool.query(
@@ -1282,6 +1356,7 @@ module.exports = async (req, res) => {
       // ws/game plan: аль данс руу худалдан авч буйг (токены имэйл) клиентэд буцаана — check-д энэ имэйлийг илгээнэ
       if (isGamePlan) return res.json({ ok: true, invoice, email: emailLc, game: gameKey, realm: gameRealm, amount: invAmount, grade: gameGrade });
       if (isPptPlan) return res.json({ ok: true, invoice, email: emailLc, ids: pptIds, amount: invAmount });
+      if (isSolPlan) return res.json({ ok: true, invoice, email: emailLc, amount: invAmount, sol: { slug: solRef.slug, seed: solRef.seed } });
       if (isEyeshPlan) return res.json({ ok: true, invoice, email: emailLc, amount: invAmount, days: EY.EYESH_DAYS });
       if (isPackPlan) return res.json({ ok: true, invoice, email: emailLc, amount: invAmount, days: EY.EYESH_DAYS, grade: EY.PACK_GRADE });
       return res.json(isWsPlan ? { ok: true, invoice, email: emailLc } : { ok: true, invoice });
@@ -1502,6 +1577,7 @@ module.exports = async (req, res) => {
               if (row.plan === 'event') g.event_id = row.event_id;
               if (row.plan === 'game') { g.game = row.game_key; g.realm = row.realm; if (GM.normGrade(row.game_grade)) g.grade = GM.normGrade(row.game_grade); }
               if (row.plan === 'ppt') g.ppt = row.ppt_ids;
+              if (row.plan === 'solppt') g.sol = row.sol_ref;
               if (row.plan === 'eyesh') g.eyesh = true;
               if (row.plan === 'eeshpack') { g.eyesh = true; g.grade = EY.PACK_GRADE; }
               granted.push(g);

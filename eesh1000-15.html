@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
-<script src="/e1k.js?v=2"></script>
+<script src="/e1k.js?v=3"></script>
 </head>
 <body>
 <div class="bar" id="bar"></div>
@@ -44,10 +44,18 @@ function p56() {
   var V = P.map(function (p) { return inv ? p / k : p * k; });
   var ord = [0, 1, 2].sort(function (i, j) { return V[i] - V[j]; });
   var eq = P.map(function (p, i) { return inv ? '\\frac{' + p + '}{' + N[i] + '}' : '\\frac{' + N[i] + '}{' + p + '}'; }).join('=');
+  // Бодолт: тэнцүү харьцааг k гэвэл a = pk (эсвэл p/k); a-гийн тэмдгээс k-ийн тэмдэг → эрэмбэ хадгалагдах/солигдох
+  var EX = P.map(function (p) { return inv ? (p < 0 ? '-' : '') + '\\dfrac{' + Math.abs(p) + '}{k}' : tm(p, 'k', true); });
   return {
     q: '$' + eq + '$ байх ' + (neg ? 'сөрөг' : 'эерэг') + ' бодит $a,b,c$ тоонуудыг өсөх эрэмбээр бичээрэй.',
     a: '$' + ord.map(function (i) { return N[i]; }).join('\\lt ') + '$',
     wk: 18,
+    s: [
+      'Тэнцүү харьцааг $k$ гэж тэмдэглэе: $$a=' + EX[0] + ',\\quad b=' + EX[1] + ',\\quad c=' + EX[2] + '.$$',
+      '$a$ ' + (neg ? 'сөрөг' : 'эерэг') + ' тул $' + EX[0] + (neg ? '\\lt 0' : '\\gt 0') + '$, өөрөөр хэлбэл $k' + (k > 0 ? '\\gt 0' : '\\lt 0') + '$.',
+      '$k' + (k > 0 ? '\\gt 0' : '\\lt 0') + '$ үед $$' + ord.map(function (i) { return EX[i]; }).join('\\lt ') + '$$ $$\\Rightarrow\\ '
+        + ord.map(function (i) { return N[i]; }).join('\\lt ') + '.$$'
+    ],
     t: { P: P, neg: neg, inv: inv }
   };
 }
@@ -266,6 +274,25 @@ function p65() {
       + '$ км/цаг-аар илүү хурдтайгаар тэр замаар араас нь хөдөлжээ. Тэд уулзангуут 2-р машин буцаж хоёулаа А, В хотуудад зэрэг хүрсэн бол 1-р машины хурд хэдэн км/цаг вэ?',
     a: '$' + c[0] + '$ км/цаг',
     wk: 36,
+    // Бодолт: (v+d)t = v(t+t₀) → t = t₀v/d; уулзсаны дараа хоёулаа t цаг: vt = S − (v+d)t → (2v+d)v = S·d/t₀ → квадрат тэгшитгэл
+    s: (function () {
+      var v = c[0], d = c[1], S = c[2], t0 = fr(T[0], T[1]), K = v * (2 * v + d), Dq = 4 * v + d, tv = v * T[0] / (T[1] * d), dist = (v + d) * tv;
+      var th = function (n) { return n >= 10000 ? String(n).replace(/\B(?=(\d{3})+$)/g, '\\,') : String(n); };
+      // t = t₀v/d — хураасан хэлбэрээр (2v/18 → v/9)
+      var g0 = gcd(T[0], T[1] * d), tn = T[0] / g0, tm0 = T[1] * d / g0;
+      var tEx = tm0 === 1 ? (tn === 1 ? 'v' : tn + 'v') : '\\dfrac{' + (tn === 1 ? '' : tn) + 'v}{' + tm0 + '}', t0v = T[1] === 1 ? (T[0] === 1 ? 'v' : T[0] + 'v') : t0 + 'v';
+      var nice = Math.abs(tv * 10 - Math.round(tv * 10)) < 1e-9;   // шалгалтын мөрийг зөвхөн t нь төгсгөлөг (≤ 1 орон) үед
+      return [
+        '1-р машины хурдыг $v$ км/цаг гэвэл 2-р машиных $v+' + d + '$ км/цаг. 2-р машин гарснаас хойш $t$ цагийн дараа гүйцэв гэе.',
+        'Уулзах хүртэл хоёулаа ижил зам туулсан (1-р машин ' + (T[1] === 1 ? T[2] : T[2] + ' буюу $' + t0 + '$ цаг') + ' илүү явсан): $$(v+' + d + ')\\,t=v\\left(t+' + t0 + '\\right)$$ $$\\Rightarrow\\ '
+          + d + 't=' + t0v + '\\ \\Rightarrow\\ t=' + tEx + '.$$',
+        'Уулзсаны дараа 2-р машин мөн $t$ цагт А хотод буцаж ирнэ (ижил зам, ижил хурд). Тэр $t$ цагт 1-р машин үлдсэн замыг туулна: $$v\\,t=' + S + '-(v+' + d + ')\\,t\\ \\Rightarrow\\ (2v+' + d + ')\\,t=' + S + '.$$',
+        '$t=' + tEx + '$ гэдгийг орлуулбал: $$(2v+' + d + ')\\cdot ' + tEx + '=' + S + '$$ $$\\Rightarrow\\ (2v+' + d + ')\\,v=' + th(K) + '\\ \\Rightarrow\\ 2v^2+' + d + 'v-' + th(K) + '=0.$$',
+        'Квадрат тэгшитгэлийг бодъё (хурд эерэг): $$D=' + d + '^2+8\\cdot ' + th(K) + '=' + th(Dq * Dq) + '=' + Dq + '^2$$ $$v=\\dfrac{-' + d + '+' + Dq + '}{4}=' + v + '.$$',
+        'Шалгалт: $t=' + dec(tv) + '$ цаг, уулзсан цэг А хотоос $' + (v + d) + '\\cdot ' + dec(tv) + '=' + dec(dist) + '$ км. 2-р машин мөн $' + dec(tv) + '$ цагт буцна, 1-р машин үлдсэн $'
+          + dec(S - dist) + '$ км-ийг $' + dec(S - dist) + ':' + v + '=' + dec(tv) + '$ цагт туулна.'
+      ].filter(function (x, i) { return i < 5 || nice; });
+    })(),
     t: { v: c[0], d: c[1], S: c[2], t0: T[0] / T[1] }
   };
 }
@@ -336,6 +363,17 @@ function p68() {
       + '$ кг болсон бол хэдэн кг ' + V[R[ask]][0] + ' авсан бэ?',
     a: '$' + dec(W[ask] / 10) + '$ кг',
     wk: 26,
+    // Бодолт: суурь ногоо x кг → илүү нь (1 + p/100)x, бага нь (1 − q/100)x; нийлбэрээс x → асуусан ногоо
+    s: (function () {
+      var mP = dec((100 + p) / 100), mQ = dec((100 - q) / 100), base = dec(x10 / 10), T = dec(tot / 10);
+      var nm = function (i) { return V[R[i]][0]; }, gn = function (i) { return V[R[i]][1]; };
+      return [
+        gn(0) + ' жинг $x$ кг гэе. $' + p + '\\%$-иар илүү бол $' + mP + '$ дахин, $' + q + '\\%$-иар бага бол $' + mQ + '$ дахин тул ' + nm(1) + ' $' + mP + 'x$ кг, '
+          + nm(2) + ' $' + mQ + 'x$ кг.',
+        'Нийт жин: $$x+' + mP + 'x+' + mQ + 'x=' + T + '$$ $$\\Rightarrow\\ ' + dec((300 + p - q) / 100) + 'x=' + T + '\\ \\Rightarrow\\ x=' + base + '.$$',
+        ask === 0 ? 'Иймд ' + nm(0) + ' $' + base + '$ кг.' : gn(ask) + ' жин: $' + (ask === 1 ? mP : mQ) + '\\cdot ' + base + '=' + dec(W[ask] / 10) + '$ кг.'
+      ];
+    })(),
     t: { R: R, p: p, q: q, x10: x10, ask: ask }
   };
 }
@@ -418,10 +456,20 @@ function p71() {
   if (E[1] === 1 || E[1] > 6 || !E[0] || Math.abs(E[0]) > 2.5 * E[1]) return null;
   var F1 = '\\left(' + b + '^{' + p71_ex(al) + '}\\right)^{' + p71_ex(be) + '}', F2 = N + '^{' + p71_ex(ga) + '}';
   var top = rnd(0, 3) ? F1 + '\\times ' + F2 : F2 + '\\times ' + F1;
+  // Бодолт: бүгдийг b суурьтай зэрэгт; (aˣ)ʸ = aˣʸ, үржихэд илтгэгч нэмэгдэж хуваахад хасагдана; илтгэгчийг ерөнхий хуваарьт
+  var X = p71_ex, pe = function (e) { return e[0] < 0 ? '\\left(' + X(e) + '\\right)' : X(e); };
+  var L = lcm(lcm(ab[1], kg[1]), de[1]), n1 = ab[0] * L / ab[1], n2 = kg[0] * L / kg[1], n3 = de[0] * L / de[1];
+  var esum = X(ab) + (kg[0] < 0 ? X(kg) : '+' + X(kg)) + (de[0] < 0 ? '+' + X([-de[0], de[1]]) : '-' + X(de));
   return {
     q: '$\\dfrac{' + top + '}{' + b + '^{' + p71_ex(de) + '}}=$ илэрхийллийн утгыг олоорой.',
     a: '$' + b + '^{' + p71_ex(E) + '}$',
     wk: 22,
+    s: [
+      '$(a^x)^y=a^{xy}$ чанараар: $$\\left(' + b + '^{' + X(al) + '}\\right)^{' + X(be) + '}=' + b + '^{' + X(al) + '\\cdot ' + pe(be) + '}=' + b + '^{' + X(ab) + '}.$$',
+      '$' + N + '=' + b + '^{' + k + '}$ тул $$' + N + '^{' + X(ga) + '}=\\left(' + b + '^{' + k + '}\\right)^{' + X(ga) + '}=' + b + '^{' + k + '\\cdot ' + pe(ga) + '}=' + b + '^{' + X(kg) + '}.$$',
+      'Ижил суурьтай зэргийг үржүүлэхэд илтгэгч нэмэгдэж, хуваахад хасагдана: $$\\dfrac{' + b + '^{' + X(ab) + '}\\cdot ' + b + '^{' + X(kg) + '}}{' + b + '^{' + X(de) + '}}=' + b + '^{' + esum + '}.$$',
+      'Илтгэгчийг ерөнхий хуваарьт оруулж бодъё: $$' + esum + '=\\frac{' + n1 + sgn(n2) + sgn(-n3) + '}{' + L + '}=' + X(E) + '.$$'
+    ],
     t: { b: b, N: N, al: al, be: be, ga: ga, de: de }
   };
 }
@@ -650,6 +698,14 @@ function p77() {
       + ' тулд $' + r + '$ хувийн концентрацитай хэчнээн грамм уусмал нэмж хийх шаардлагатай вэ?',
     a: '$' + x + '$ гр',
     wk: 26,
+    // Бодолт: цэвэр бодисын масс хадгалагдана: p·m + r·x = t·(m + x) → |r − t|·x = d·m
+    s: [
+      'Шинэ концентраци $' + p + '\\%' + (up ? '+' : '-') + d + '\\%=' + t + '\\%$ болно. Нэмэх уусмалыг $x$ гр гэе.',
+      'Холиход цэвэр бодисын масс нийлж нэмэгдэнэ: $$' + dec(p / 100) + '\\cdot ' + m + '+' + dec(r / 100) + 'x=' + dec(t / 100) + '\\,(' + m + '+x).$$',
+      'Хаалтыг задалж бодъё: $$' + dec(p * m / 100) + '+' + dec(r / 100) + 'x=' + dec(t * m / 100) + '+' + dec(t / 100) + 'x$$ $$\\Rightarrow\\ ' + dec(den / 100) + 'x='
+        + dec(d * m / 100) + '\\ \\Rightarrow\\ x=' + x + '.$$',
+      'Шалгалт: $\\dfrac{' + dec(p * m / 100) + '+' + dec(r * x / 100) + '}{' + (m + x) + '}=' + dec(t / 100) + '$, өөрөөр хэлбэл $' + t + '\\%$.'
+    ],
     t: { p: p, m: m, d: d, r: r, up: up }
   };
 }
