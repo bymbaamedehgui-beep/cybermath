@@ -19,8 +19,6 @@ const pool = {
     if (/^CREATE TABLE IF NOT EXISTS (ws_settings|ws_meet_regs)/.test(q)) return { rows: [] };
     if (q === "SELECT sval FROM ws_settings WHERE skey='meet'") return { rows: 'meet' in db.settings ? [{ sval: db.settings.meet }] : [] };
     if (q.startsWith("INSERT INTO ws_settings (skey, sval, updated_at) VALUES ('meet'")) { db.settings.meet = p[0]; return { rows: [] }; }
-    if (q === "SELECT sval FROM ws_settings WHERE skey='meet_room'") return { rows: 'meet_room' in db.settings ? [{ sval: db.settings.meet_room }] : [] };
-    if (q.startsWith("INSERT INTO ws_settings (skey, sval, updated_at) VALUES ('meet_room'")) { db.settings.meet_room = p[0]; return { rows: [] }; }
     if (q.startsWith('INSERT INTO ws_meet_regs')) {
       const [meet, rkey, name, phone, email, school, aimag, grades, usage, interests, question] = p;
       let r = db.regs.find((x) => x.meet === meet && x.phone === phone), fresh = !r;
@@ -37,21 +35,6 @@ const pool = {
     }
     throw new Error('тодорхойгүй SQL: ' + q);
   },
-};
-// ── Daily REST API (санах ойд): өрөө үүсгэх/шинэчлэх, уулзалтын токен ──
-const fcalls = [], drooms = {}, PLAN = [];   // PLAN — Daily багцад хориотой property (жишээ: үнэгүй багц max_participants)
-global.fetch = async (url, opt) => {
-  opt = opt || {};
-  const body = opt.body ? JSON.parse(opt.body) : null;
-  fcalls.push({ url, method: opt.method, headers: opt.headers || {}, body });
-  const res = (status, j) => ({ ok: status < 400, status, json: async () => j });
-  const bad = body && body.properties && PLAN.find((k) => k in body.properties);
-  if (bad) return res(400, { error: 'invalid-request-error', info: "property '" + bad + "' cannot be set to that value with your current plan" });
-  let m;
-  if ((m = /\/v1\/rooms\/([\w-]+)$/.exec(url))) { const r = drooms[m[1]]; if (!r) return res(404, { error: 'not-found' }); Object.assign(r.config, body.properties); return res(200, r); }
-  if (/\/v1\/rooms$/.test(url)) { const r = { name: body.name, privacy: body.privacy, url: 'https://cm.daily.co/' + body.name, config: body.properties }; drooms[body.name] = r; return res(200, r); }
-  if (/\/v1\/meeting-tokens$/.test(url)) return res(200, { token: 'tok.' + body.properties.room_name + '.' + (body.properties.is_owner ? 'owner' : 'guest') });
-  return res(500, { error: 'unexpected ' + url });
 };
 const stub = (file, exports) => { const id = path.join(API, file); require.cache[id] = { id, filename: id, loaded: true, exports }; };
 stub('_db.js', pool);
@@ -91,7 +74,6 @@ test('нийтийн тохиргоо: анхдагч уулзалт, Meet хо�
   assert.strictEqual(m.platform, 'Google Meet');
   assert.strictEqual(m.live, false);
   assert.strictEqual(m.hasLink, false);
-  assert.strictEqual(m.count, 0, 'бүртгүүлсэн хүний тоо');
   assert.ok(!('link' in m));
   assert.ok(fs.existsSync(path.join(__dirname, '..', m.poster.replace(/^\//, ''))), 'постер файл байх ёстой: ' + m.poster);
   assert.strictEqual(Date.parse(m.end) - Date.parse(m.at), 120 * 60e3);
@@ -172,96 +154,6 @@ test('админ: бүртгэлээс хүн устгах — тэр хүнд �
   assert.strictEqual(db.regs.length, 2);
 });
 
-test('CyberMath дотор уулзалт (Daily): түлхүүргүй бол идэвхгүй; зөвхөн бүртгүүлсэн хүнд 30 минутын өмнөөс токен; өрөө private', async () => {
-  const reg = db.regs.find((x) => x.phone === '99112233');
-  const me = { action: 'meet_join', id: reg.id, key: reg.rkey };
-  delete process.env.DAILY_API_KEY;
-  assert.strictEqual((await post(me)).code, 400, 'inapp асаагаагүй');
-  await post({ action: 'meet_set', title: 'x', at: '2026-11-13T19:00:00+08:00', mins: 90, link: 'https://meet.google.com/abc-defg-hij', active: true, inapp: true }, true);
-  assert.strictEqual(JSON.parse(db.settings.meet).inapp, true);
-  assert.deepStrictEqual([(await get()).body.meet.inapp, (await get()).body.meet.platform], [false, 'Google Meet'], 'түлхүүргүй бол Google Meet хэвээр');
-  assert.strictEqual((await post(me)).code, 400);
-  assert.strictEqual((await post({ action: 'meet_get' }, true)).body.daily, false);
-  assert.strictEqual((await post({ action: 'meet_host' }, true)).code, 503);
-  assert.strictEqual(fcalls.length, 0, 'түлхүүргүй үед Daily-г дуудахгүй');
-
-  process.env.DAILY_API_KEY = 'test-daily-key';
-  const g = await get();
-  assert.deepStrictEqual([g.body.meet.inapp, g.body.meet.platform], [true, 'CyberMath']);
-  assert.strictEqual((await post({ action: 'meet_get' }, true)).body.daily, true);
-  assert.match((await post(me)).body.error, /30 минутын өмнө/, 'өмнөх өдөр нэгдэхгүй');
-  now = Date.parse('2026-11-13T18:31:00+08:00');
-  assert.strictEqual((await post({ action: 'meet_join', id: reg.id, key: 'buruu' })).code, 403, 'буруу түлхүүр');
-  const j = await post(me);
-  assert.deepStrictEqual([j.code, j.body.ok, j.body.url, j.body.token], [200, true, 'https://cm.daily.co/cm-meet-2026-11-13', 'tok.cm-meet-2026-11-13.guest']);
-  const create = fcalls.find((x) => /\/v1\/rooms$/.test(x.url));
-  assert.deepStrictEqual([create.method, create.body.name, create.body.privacy], ['POST', 'cm-meet-2026-11-13', 'private']);
-  assert.strictEqual(create.body.properties.exp, Date.parse('2026-11-13T20:30:00+08:00') / 1000 + 3600, 'уулзалт дуусгаад 1 цагийн дараа хаагдана');
-  ['enable_chat', 'enable_advanced_chat', 'enable_screenshare', 'enable_emoji_reactions', 'enable_hand_raising', 'enable_breakout_rooms', 'enable_people_ui',
-    'enable_pip_ui', 'enable_network_ui', 'enable_noise_cancellation_ui', 'enable_video_processing_ui', 'enable_prejoin_ui']
-    .forEach((k) => assert.strictEqual(create.body.properties[k], true, 'Meet/Zoom шиг боломж: ' + k));
-  const tok = fcalls.filter((x) => /meeting-tokens$/.test(x.url)).pop();
-  assert.deepStrictEqual([tok.body.properties.room_name, tok.body.properties.user_name, tok.body.properties.is_owner, tok.body.properties.enable_screenshare,
-    tok.body.properties.start_audio_off], ['cm-meet-2026-11-13', reg.name, false, true, true], 'токен бүртгэлийн нэртэй, хөтлөгч биш, дэлгэц хуваалцаж болно, дуу унтраалттай орно');
-  assert.strictEqual(tok.headers.Authorization, 'Bearer test-daily-key');
-  const rooms = () => fcalls.filter((x) => /\/v1\/rooms/.test(x.url)).length, n = rooms();
-  assert.strictEqual((await post(me)).body.ok, true);
-  assert.strictEqual(rooms(), n, 'дахин нэгдэхэд өрөөний API-г дуудахгүй (DB-д хадгалсан)');
-  assert.strictEqual((await post({ action: 'meet_host' })).code, 401, 'хөтлөгч — зөвхөн админ');
-  const h = await post({ action: 'meet_host' }, true);
-  assert.deepStrictEqual([h.body.ok, h.body.token], [true, 'tok.cm-meet-2026-11-13.owner']);
-  const ht = fcalls.filter((x) => /meeting-tokens$/.test(x.url)).pop().body.properties;
-  assert.deepStrictEqual([ht.is_owner, ht.enable_recording, ht.start_audio_off], [true, 'local', false], 'хөтлөгч: эзэн, бичлэг хийж болно, дуутай орно');
-  assert.ok(!('enable_recording' in tok.body.properties), 'оролцогч бичлэг хийхгүй');
-  assert.strictEqual(rooms(), n + 1, 'хөтлөгч өрөөний тохиргоог шинэчилнэ');
-  now = Date.parse('2026-11-13T20:31:00+08:00');
-  assert.strictEqual((await post(me)).code, 400, 'дууссаны дараа нэгдэхгүй');
-  now = NOW0;
-  delete process.env.DAILY_API_KEY;
-});
-
-test('туршилтын өрөө (meet_test): зөвхөн админ, тусдаа private өрөө 2 цаг, хөтлөгч/оролцогчийн токен, үндсэн уулзалтад хүрэхгүй', async () => {
-  assert.strictEqual((await post({ action: 'meet_test' })).code, 401);
-  delete process.env.DAILY_API_KEY;
-  assert.strictEqual((await post({ action: 'meet_test' }, true)).code, 503);
-  process.env.DAILY_API_KEY = 'test-daily-key';
-  const before = [db.settings.meet, db.settings.meet_room, db.regs.length], n0 = fcalls.length;
-  const r = await post({ action: 'meet_test' }, true);
-  assert.strictEqual(r.body.ok, true);
-  const calls = fcalls.slice(n0), room = calls.find((x) => /\/v1\/rooms$/.test(x.url));
-  assert.match(room.body.name, /^cm-test-[0-9a-f]{10}$/);
-  assert.strictEqual(room.body.privacy, 'private');
-  assert.strictEqual(room.body.properties.exp, Math.floor(now / 1000) + 7200, '2 цаг');
-  assert.strictEqual(room.body.properties.enable_hand_raising, true, 'үндсэн өрөөтэй ижил боломжууд');
-  assert.deepStrictEqual([r.body.url, r.body.exp], ['https://cm.daily.co/' + room.body.name, Math.floor(now / 1000) + 7200]);
-  const toks = calls.filter((x) => /meeting-tokens$/.test(x.url)).map((x) => x.body.properties);
-  assert.deepStrictEqual(toks.map((p) => [p.room_name, p.is_owner, p.enable_recording || null]), [[room.body.name, true, 'local'], [room.body.name, false, null]]);
-  assert.deepStrictEqual([r.body.host, r.body.guest], ['tok.' + room.body.name + '.owner', 'tok.' + room.body.name + '.guest']);
-  assert.deepStrictEqual([db.settings.meet, db.settings.meet_room, db.regs.length], before, 'үндсэн уулзалт, өрөө, бүртгэл хэвээр');
-  delete process.env.DAILY_API_KEY;
-});
-
-test('Daily багцын хязгаар: хориотой property-г хасаад дахин үүсгэнэ; max_participants тавихгүй; бусад алдааг шалтгаантай нь', async () => {
-  process.env.DAILY_API_KEY = 'test-daily-key';
-  PLAN.push('enable_breakout_rooms', 'enable_recording');
-  const n0 = fcalls.length, r = await post({ action: 'meet_test' }, true);
-  assert.strictEqual(r.body.ok, true, 'багцын хязгаартай ч өрөө нээгдэнэ');
-  const calls = fcalls.slice(n0), rooms = calls.filter((x) => /\/v1\/rooms$/.test(x.url));
-  assert.strictEqual(rooms.length, 2, 'нэг удаа татгалзаад дахин');
-  assert.ok(!('enable_breakout_rooms' in rooms[1].body.properties) && rooms[1].body.properties.enable_hand_raising === true);
-  assert.ok(calls.every((x) => !x.body.properties || !('max_participants' in x.body.properties)), 'max_participants тавихгүй');
-  const host = calls.filter((x) => /meeting-tokens$/.test(x.url)).map((x) => x.body.properties).filter((p) => p.is_owner).pop();
-  assert.ok(!('enable_recording' in host) && host.is_owner === true, 'хөтлөгчийн токен бичлэггүйгээр');
-  PLAN.length = 0;
-  const realFetch = global.fetch;
-  global.fetch = async () => ({ ok: false, status: 401, json: async () => ({ error: 'authorization-error', info: 'invalid API key' }) });
-  const e = await post({ action: 'meet_test' }, true);
-  global.fetch = realFetch;
-  assert.strictEqual(e.code, 502);
-  assert.match(e.body.error, /Daily: invalid API key/, 'шалтгаан нь харагдана');
-  delete process.env.DAILY_API_KEY;
-});
-
 test('эхэлмэгц «live», дуусмагц нуугдаж бүртгэл хаагдана; идэвхгүй болговол нуугдана', async () => {
   now = Date.parse('2026-11-13T19:05:00+08:00');
   assert.strictEqual((await get()).body.meet.live, true);
@@ -288,28 +180,11 @@ test('холболт: worksheets.js, vercel.json, Дасгалын төвийн 
   assert.match(mh, /action: 'meet_register'/);
   assert.match(mh, /action: 'meet_me'/);
   const adm = R('admin.html');
-  ['meet_get', 'meet_set', 'meet_regs', 'meet_del', 'meet_test'].forEach((a) => assert.match(adm, new RegExp("wsPostW\\('" + a + "'")));
-  assert.match(adm, /'\/meet#room='\+enc\(\{u:d\.url,t:d\.host,e:d\.exp,o:1\}\)/, 'туршилтын хөтлөгчийн холбоос');
-  assert.match(mh, /\/\^#room=\(\[A-Za-z0-9_-\]\+\)\$\//, 'туршилтын өрөөний холбоосыг уншина');
-  assert.match(mh, /daily\\\.co\\\//, 'зөвхөн daily.co өрөөний URL-д нэгдэнэ');
-  assert.match(adm, /id="meet-inapp" type="checkbox"/);
-  assert.match(adm, /inapp:document\.getElementById\('meet-inapp'\)\.checked/);
-  assert.match(adm, /window\.open\('\/meet\?host=1'/, 'хөтлөгч — /meet?host=1 (CyberMath загвартай өрөө)');
-  assert.match(mh, /action: 'meet_join'/);
-  assert.match(mh, /action: 'meet_host'/);
-  assert.match(mh, /Authorization: 'Bearer ' \+ ADM/, 'хөтлөгчийн хүсэлт админы токентой');
-  assert.match(mh, /daily-js@0\.94\.0\/dist\/daily\.js/, 'daily-js тогтмол хувилбар');
-  assert.match(mh, /DAILY_SRI = 'sha384-[A-Za-z0-9+/]{64}'/);
-  assert.match(mh, /s\.integrity = DAILY_SRI; s\.crossOrigin = 'anonymous'/, 'SRI шалгалттай ачаална');
-  assert.match(mh, /createFrame\(\$\('cStage'\), \{[^}]*theme: THEME/, 'CyberMath өнгөтэй');
-  assert.match(mh, /f\.allow = 'camera; microphone;[^']*display-capture/, 'нөөц iframe: камер, микрофон, дэлгэц хуваалцах');
-  assert.match(mh, /'t=' \+ encodeURIComponent\(token\)/, 'нөөц iframe: токенийг өрөөний URL-д');
-  assert.match(mh, /id="roomCard"/); assert.match(mh, /id="cLeave"/);
-  ['setLocalAudio(!call.localAudio())', 'setLocalVideo(!call.localVideo())', 'call.startScreenShare()', 'call.stopScreenShare()', "'local-screen-share-started'"]
-    .forEach((s) => assert.ok(mh.indexOf(s) > 0, 'микрофон, камер, дэлгэц хуваалцах товч: ' + s));
+  ['meet_get', 'meet_set', 'meet_regs', 'meet_del'].forEach((a) => assert.match(adm, new RegExp("wsPostW\\('" + a + "'")));
   assert.match(adm, /onclick="meetDel\('\+\(\+x\.id\)\+'\)"/, 'мөр бүрт устгах товч');
   assert.match(adm, /window\.meetDel=async function\(id\)\{[\s\S]{0,200}if\(!confirm\(/, 'устгахаас өмнө асууна');
   assert.match(mh, /d\.ok === false && !d\.error/, 'устгагдсан бол хуудас маягтаа дахин харуулна');
+  ['daily', 'meet_join', 'meet_host', 'meet_test', 'inapp'].forEach((s) => assert.ok(!new RegExp(s, 'i').test(mh + R('api/_meet.js').replace(/\/\/[^\n]*/g, '')), 'Daily уулзалт хасагдсан: ' + s));
   [mh, ws.slice(ws.indexOf('Багш нарт зориулсан онлайн уулзалт'), ws.indexOf('<script src="/ppt-cart.js">')), R('api/_meet.js').split('async function handle')[0]]
     .forEach((s) => assert.doesNotMatch(s.replace(/📝|👤|📞|📧|🏫|📚/g, ''), /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u, 'UI-д эможи бүү'));
 });

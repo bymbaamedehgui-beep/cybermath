@@ -5,13 +5,10 @@
 //   POST meet_register {name, phone, email?, school?, aimag?, grades[], usage?, interests[], question?} → {id, key, link}
 //        (нэг утсаар дахин бүртгүүлбэл шинэчилнэ; дууссан уулзалтад бүртгэхгүй)
 //   POST meet_me {id, key}   — бүртгүүлсэн хүнд Meet холбоос (админ дараа нь нэмсэн бол)
-//   POST meet_join {id, key} — CyberMath дотор уулзалт (inapp): бүртгүүлсэн хүнд Daily өрөөний URL + токен (30 минутын өмнөөс)
-//   POST meet_get · meet_set {title, at, mins, link, active, inapp} · meet_regs · meet_del {id} · meet_host · meet_test — админ
-//        (meet_del: бүртгэлийг бүрмөсөн устгана — тэр хүний хуудсанд Meet холбоос гарахаа больж, маягт дахин харагдана;
-//         meet_host: хөтлөгчийн (is_owner) токен — уулзалтыг удирдана)
+//   POST meet_get · meet_set {title, at, mins, link, active} · meet_regs · meet_del {id} — админ
+//        (meet_del: бүртгэлийг бүрмөсөн устгана — тэр хүний хуудсанд Meet холбоос гарахаа больж, маягт дахин харагдана)
+// (2026-11-18: CyberMath доторх Daily уулзалтыг эзэмшигчийн хүсэлтээр хассан — Google Meet холбоосоор л)
 // Тохиргоо ws_settings.skey='meet' (JSON); DB-д байхгүй бол DEFAULT. Meet холбоос зөвхөн бүртгүүлсэн хүнд очно.
-// CyberMath дотор уулзалт (2026-11-17, эзэмшигч: «cybermath дотроосоо шууд meeting хийдэг болгож болох уу?» → «daily ашиглаяя»):
-// Daily Prebuilt, env DAILY_API_KEY (байхгүй бол inapp идэвхжихгүй — Google Meet хэвээр). Өрөө private — манай токенгүй хүн орохгүй.
 const pool = require('./_db');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
@@ -20,7 +17,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'cybermath-default-secret-change-in
 
 const DEFAULT = {
   title: 'CyberMath-ийг хичээлдээ хэрхэн ашиглах вэ?',
-  at: '2026-11-13T19:00:00+08:00', mins: 120, link: '', active: true, inapp: false,
+  at: '2026-11-13T19:00:00+08:00', mins: 120, link: '', active: true,
   poster: '/assets/meet/poster-2026-11-13b.jpg',
 };
 const USAGE = { using: 'Одоо ашиглаж байгаа', heard: 'Сонссон, ашиглаж үзээгүй', new: 'Анх удаа сонсож байна' };
@@ -76,69 +73,8 @@ const meetKey = (c) => new Date(Date.parse(c.at) + 8 * 3600e3).toISOString().sli
 const endMs = (c) => Date.parse(c.at) + (Math.max(15, +c.mins || 120)) * 60e3;
 const isOpen = (c) => c.active !== false && Number.isFinite(Date.parse(c.at)) && Date.now() < endMs(c);
 function pub(c) {
-  const inapp = !!(c.inapp && dailyKey());
-  return { key: meetKey(c), title: c.title, at: c.at, end: new Date(endMs(c)).toISOString(), platform: inapp ? 'CyberMath' : 'Google Meet', inapp,
+  return { key: meetKey(c), title: c.title, at: c.at, end: new Date(endMs(c)).toISOString(), platform: 'Google Meet',
     poster: c.poster || '', live: Date.now() >= Date.parse(c.at), hasLink: !!c.link };
-}
-
-// ── Daily (CyberMath дотор уулзалт) ──
-const DAILY_API = 'https://api.daily.co/v1';
-const JOIN_EARLY = 30 * 60e3;                                   // эхлэхээс 30 минутын өмнөөс нэгдэж болно
-const dailyKey = () => String(process.env.DAILY_API_KEY || '').trim();
-const roomName = (c) => 'cm-meet-' + meetKey(c);
-const roomExp = (c) => Math.floor(endMs(c) / 1000) + 3600;      // дуусгаад 1 цагийн дараа өрөө хаагдана
-async function daily(method, path, body) {
-  const r = await fetch(DAILY_API + path, { method, headers: { Authorization: 'Bearer ' + dailyKey(), 'Content-Type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) { const e = new Error('daily ' + r.status + ' ' + (j.info || j.error || '')); e.status = r.status; e.info = String(j.info || j.error || ''); throw e; }
-  return j;
-}
-// Daily багц (plan)-д хориотой property-г («property 'x' cannot be set … current plan») хасаад дахин оролдоно — өрөө заавал нээгдэнэ
-async function dailyPost(path, body) {
-  for (let i = 0; i < 8; i++) {
-    try { return await daily('POST', path, body); } catch (e) {
-      const m = /property '([a-z_]+)'/.exec(e.info || '');
-      if (e.status !== 400 || !m || !body.properties || !(m[1] in body.properties)) throw e;
-      console.warn('[meet] daily: ' + m[1] + ' хасав — ' + e.info);
-      delete body.properties[m[1]];
-    }
-  }
-  return daily('POST', path, body);
-}
-// Google Meet / Zoom-д байдаг боломжууд (эзэмшигч: «google meeting болон zoom-т байдаг бүх зүйлс байх ёстой») — Daily Prebuilt-ийн
-// нэрс docs.daily.co/reference/rest-api/rooms/create-room-оос (буруу нэр өгвөл өрөө үүсэхгүй): чат (эможи, GIF), эможи хариу,
-// гар өргөх, жижиг бүлгийн өрөө, оролцогчдын жагсаалт, PiP, сүлжээний мэдээлэл, чимээ дарах, арын дэвсгэр бүдэгрүүлэх.
-// max_participants-ийг тавихгүй: үнэгүй багцад «cannot be set to that value with your current plan» (400) — анхдагч нь 200.
-const roomProps = (exp) => ({ exp, eject_at_room_exp: true, enable_chat: true, enable_advanced_chat: true, enable_screenshare: true,
-  enable_prejoin_ui: true, start_video_off: true, start_audio_off: true, enable_emoji_reactions: true, enable_hand_raising: true,
-  enable_breakout_rooms: true, enable_people_ui: true, enable_pip_ui: true, enable_network_ui: true, enable_noise_cancellation_ui: true,
-  enable_video_processing_ui: true });
-// Өрөөг үүсгэнэ/шинэчилнэ. URL-ийг ws_settings 'meet_room'-д хадгалж, хүн бүр нэгдэхэд өрөөний API-г дахин дуудахгүй.
-async function ensureRoom(c, force) {
-  const name = roomName(c), exp = roomExp(c);
-  if (!force) {
-    const r = await pool.query(`SELECT sval FROM ws_settings WHERE skey='meet_room'`);
-    let s = null;
-    try { s = r.rows.length ? JSON.parse(r.rows[0].sval || 'null') : null; } catch (e) { s = null; }
-    if (s && s.name === name && s.exp === exp && s.url) return s.url;
-  }
-  const properties = roomProps(exp);
-  let room;
-  try { room = await dailyPost('/rooms/' + name, { properties }); } catch (e) {
-    if (e.status !== 404) throw e;
-    room = await dailyPost('/rooms', { name, privacy: 'private', properties: roomProps(exp) });
-  }
-  await pool.query(`INSERT INTO ws_settings (skey, sval, updated_at) VALUES ('meet_room',$1,NOW())
-    ON CONFLICT (skey) DO UPDATE SET sval=EXCLUDED.sval, updated_at=NOW()`, [JSON.stringify({ name, exp, url: room.url })]);
-  return room.url;
-}
-async function meetToken(c, userName, owner) {
-  // Дэлгэц хуваалцах — бүгдэд (эзэмшигч: «Дэлгэцээ share хийх ёстой»); оролцогч дуу, камер унтраалттай орж, өөрөө асаана
-  const p = { room_name: roomName(c), user_name: userName, is_owner: !!owner, exp: roomExp(c), enable_screenshare: true, start_video_off: !owner, start_audio_off: !owner };
-  if (owner) p.enable_recording = 'local';                       // хөтлөгч хөтөч дээрээ бичлэг хийж болно (Chrome, үнэгүй)
-  const t = await dailyPost('/meeting-tokens', { properties: p });
-  return t.token;
 }
 const regOut = (x) => ({ id: Number(x.id), name: x.name, phone: x.phone, email: x.email, school: x.school, aimag: x.aimag,
   grades: x.grades || [], usage: x.usage, interests: x.interests || [], question: x.question, created_at: x.created_at, updated_at: x.updated_at });
@@ -152,9 +88,7 @@ async function handle(req, res) {
     if (req.method === 'GET') {
       const c = await config();
       res.setHeader('Cache-Control', 'public, s-maxage=30, max-age=0');
-      if (!isOpen(c)) return res.json({ ok: true, meet: null }), true;
-      const n = await pool.query('SELECT COUNT(*)::int AS n FROM ws_meet_regs WHERE meet=$1', [meetKey(c)]);
-      return res.json({ ok: true, meet: Object.assign(pub(c), { count: n.rows[0].n }) }), true;   // count — өрөөнд «N багш бүртгүүлсэн»
+      return res.json({ ok: true, meet: isOpen(c) ? pub(c) : null }), true;
     }
 
     if (act === 'meet_register') {
@@ -199,31 +133,19 @@ async function handle(req, res) {
       return res.json({ ok: true, name: r.rows[0].name, link: c.link || null, meet: isOpen(c) ? pub(c) : null }), true;
     }
 
-    if (act === 'meet_join') {
-      const c = await config();
-      if (!pub(c).inapp) return res.status(400).json({ ok: false, error: 'Энэ уулзалт CyberMath дотор явагдахгүй' }), true;
-      if (!(await rateLimit('meetjoin:' + clientIp(req), 30, 3600))) return res.status(429).json({ ok: false, error: 'Түр хүлээгээд дахин оролдоно уу' }), true;
-      const r = await pool.query('SELECT name FROM ws_meet_regs WHERE id=$1 AND rkey=$2 AND meet=$3', [parseInt(b.id, 10) || 0, String(b.key || ''), meetKey(c)]);
-      if (!r.rows.length) return res.status(403).json({ ok: false, error: 'Бүртгэл олдсонгүй — дахин бүртгүүлнэ үү' }), true;
-      if (Date.now() < Date.parse(c.at) - JOIN_EARLY) return res.status(400).json({ ok: false, error: 'Уулзалт эхлэхээс 30 минутын өмнө нээгдэнэ' }), true;
-      if (!isOpen(c)) return res.status(400).json({ ok: false, error: 'Уулзалт дууссан' }), true;
-      const url = await ensureRoom(c);
-      return res.json({ ok: true, url, token: await meetToken(c, r.rows[0].name, false) }), true;
-    }
-
     // ── Админ ──
     if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'Зөвхөн админ' }), true;
     if (act === 'meet_get') {
       const c = await config();
       const n = await pool.query('SELECT COUNT(*)::int AS n FROM ws_meet_regs WHERE meet=$1', [meetKey(c)]);
-      return res.json({ ok: true, cfg: c, key: meetKey(c), open: isOpen(c), count: n.rows[0].n, daily: !!dailyKey() }), true;
+      return res.json({ ok: true, cfg: c, key: meetKey(c), open: isOpen(c), count: n.rows[0].n }), true;
     }
     if (act === 'meet_set') {
       const title = str(b.title, 200), at = String(b.at || '').trim(), link = String(b.link || '').trim();
       if (!title) return res.status(400).json({ ok: false, error: 'Гарчиг оруулна уу' }), true;
       if (!Number.isFinite(Date.parse(at)) || !/[+-]\d\d:\d\d$|Z$/.test(at)) return res.status(400).json({ ok: false, error: 'Огноо, цаг буруу' }), true;
       if (link && !/^https:\/\/[^\s<>"']+$/.test(link)) return res.status(400).json({ ok: false, error: 'Холбоос https:// -ээр эхэлнэ' }), true;
-      const c = { title, at, mins: Math.min(600, Math.max(15, parseInt(b.mins, 10) || 120)), link: link.slice(0, 300), active: b.active !== false, inapp: b.inapp === true };
+      const c = { title, at, mins: Math.min(600, Math.max(15, parseInt(b.mins, 10) || 120)), link: link.slice(0, 300), active: b.active !== false };
       await pool.query(`INSERT INTO ws_settings (skey, sval, updated_at) VALUES ('meet',$1,NOW())
         ON CONFLICT (skey) DO UPDATE SET sval=EXCLUDED.sval, updated_at=NOW()`, [JSON.stringify(c)]);
       return res.json({ ok: true, cfg: c, key: meetKey(c), open: isOpen(c) }), true;
@@ -232,23 +154,6 @@ async function handle(req, res) {
       const c = await config();
       const r = await pool.query('SELECT * FROM ws_meet_regs WHERE meet=$1 ORDER BY created_at, id', [String(b.meet || meetKey(c))]);
       return res.json({ ok: true, key: meetKey(c), regs: r.rows.map(regOut), usage: USAGE, interests: INTERESTS }), true;
-    }
-    if (act === 'meet_host') {
-      const c = await config();
-      if (!dailyKey()) return res.status(503).json({ ok: false, error: 'DAILY_API_KEY тохируулаагүй' }), true;
-      if (Date.now() >= endMs(c)) return res.status(400).json({ ok: false, error: 'Уулзалт дууссан — шинэ огноо тавина уу' }), true;
-      const url = await ensureRoom(c, true);
-      return res.json({ ok: true, url, token: await meetToken(c, str(b.name, 60) || 'CyberMath', true) }), true;
-    }
-    // Туршилтын өрөө (эзэмшигч: «одоо нэгийг үүсгэж ашиглаж шалгамаар байна») — үндсэн уулзалт, бүртгэлд хүрэхгүй, 2 цаг хүчинтэй.
-    // Хөтлөгч (is_owner) ба оролцогчийн токен буцаана; холбоосыг админ /meet#room=…-ээр нээж, хуваалцана.
-    if (act === 'meet_test') {
-      if (!dailyKey()) return res.status(503).json({ ok: false, error: 'DAILY_API_KEY тохируулаагүй' }), true;
-      const name = 'cm-test-' + crypto.randomBytes(5).toString('hex'), exp = Math.floor(Date.now() / 1000) + 2 * 3600;
-      const room = await dailyPost('/rooms', { name, privacy: 'private', properties: roomProps(exp) });
-      const tok = async (owner) => (await dailyPost('/meeting-tokens', { properties: Object.assign({ room_name: name, is_owner: owner, exp,
-        enable_screenshare: true, start_video_off: !owner, start_audio_off: !owner }, owner ? { user_name: 'Хөтлөгч', enable_recording: 'local' } : {}) })).token;
-      return res.json({ ok: true, url: room.url, exp, host: await tok(true), guest: await tok(false) }), true;
     }
     if (act === 'meet_del') {
       const id = parseInt(b.id, 10) || 0;
@@ -259,8 +164,6 @@ async function handle(req, res) {
     return res.status(400).json({ ok: false, error: 'Тодорхойгүй үйлдэл' }), true;
   } catch (e) {
     console.error('[meet]', e.message);
-    // Daily-ийн алдааг шалтгаантай нь (ж: түлхүүр буруу, багцын хязгаар) — «Серверийн алдаа» гэхээс илүү ойлгомжтой
-    if (/^daily \d+/.test(e.message)) return res.status(502).json({ ok: false, error: 'Уулзалтын өрөө нээхэд алдаа гарлаа (Daily: ' + str(e.info, 200) + ')' }), true;
     return res.status(500).json({ ok: false, error: 'Серверийн алдаа' }), true;
   }
 }
