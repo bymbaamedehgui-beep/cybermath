@@ -234,17 +234,21 @@ test('e1k.js: #s=seed → ижил бодлого (хуудсыг дахин а�
   assert.notStrictEqual(d.ctx.E1K.seed(), 'k3x9q2');
 });
 
-test('e1k.js: «Бодолтын PPT» товч — 1-р хэсгийн 4 хуудас ба «Тоо ба илэрхийлэл-1»-д харагдана, бодолтгүй бодлоготой хуудсанд нуугдана', () => {
-  ['eesh1000-1.html', 'eesh1000-2.html', 'eesh1000-3.html', 'eesh1000-4.html', 'eesh1000-too-1.html'].forEach(f => {
+test('e1k.js: «Бодолтын PPT» товч — 1–2-р хэсгийн 8 хуудас ба «Тоо ба илэрхийлэл-1»-д харагдана; бүх хуудсанд товч = бүх бодлого бодолттой', () => {
+  const OPEN = ['eesh1000-1.html', 'eesh1000-2.html', 'eesh1000-3.html', 'eesh1000-4.html', 'eesh1000-5.html', 'eesh1000-6.html', 'eesh1000-7.html', 'eesh1000-8.html', 'eesh1000-too-1.html'];
+  OPEN.forEach(f => {
     for (const s of ['aaaa', 'k3x9q2', 'zzzzzz']) {
       const p = pageCtx(f, '#s=' + s);
       assert.strictEqual(p.ctx.E1K.sol.ready(), true, f + ' ' + s);
       assert.strictEqual(p.els.solBtn.style.display, '', f);
     }
   });
-  const q = pageCtx('eesh1000-5.html', '#s=aaaa');
-  assert.strictEqual(q.ctx.E1K.sol.ready(), false);
-  assert.strictEqual(q.els.solBtn.style.display, 'none');
+  // бусад хуудас (хэсгийн ба сэдвийн): товч зөвхөн бүх бодлого s-тэй үед
+  fs.readdirSync(F.WT).filter(f => /^eesh1000-.*\.html$/.test(f) && !OPEN.includes(f)).forEach(f => {
+    const q = pageCtx(f, '#s=aaaa'), full = q.ctx.E1K.cur().every(g => Array.isArray(g.s) && g.s.length > 0);
+    assert.strictEqual(q.ctx.E1K.sol.ready(), full, f);
+    assert.strictEqual(q.els.solBtn.style.display, full ? '' : 'none', f);
+  });
   const ctx = pageCtx('eesh1000-2.html', '#s=b00b').ctx.E1K.sol.ctx();
   assert.deepStrictEqual([ctx.slug, ctx.seed, ctx.title, ctx.first, ctx.probs.length], ['eesh1000-2', 'b00b', 'ЭЕШ 1000 1-2', 26, 25]);
 });
@@ -298,5 +302,5 @@ test('vercel.json: e1k-sol.js статикаар; хуудсууд e1k.js?v=4 (�
     const h = fs.readFileSync(path.join(F.WT, f), 'utf8');
     assert.match(h, /\/e1k\.js\?v=4"/, f);
   });
-  assert.match(fs.readFileSync(path.join(F.WT, 'e1k.js'), 'utf8'), /\/e1k-sol\.js\?v=2/);
+  assert.match(fs.readFileSync(path.join(F.WT, 'e1k.js'), 'utf8'), /\/e1k-sol\.js\?v=3/);
 });

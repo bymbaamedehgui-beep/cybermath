@@ -325,7 +325,7 @@
     // слайдад хэвтээ зай их тул бодлогын зургийг үргэлж текстийн баруун талд (өндөр нь хязгаартай)
     var fig = g.fig ? '<div class="e1s-fig">' + g.fig + '</div>' : '';
     var h = '<div class="e1s-s"><div class="e1s-hd"><span class="e1s-badge">' + n + '</span><span class="e1s-ht">Бодлого ' + n + (sd.a > 0 ? ' (үргэлжлэл)' : '') + '</span><span class="e1s-pg">' + (i + 1) + ' / ' + N + '</span></div>'
-      + '<div class="e1s-q' + (sd.a > 0 ? ' mini' : '') + '"><div class="e1s-qm">' + g.q + '</div>' + (sd.a > 0 ? '' : fig) + '</div><div class="e1s-body"><div class="e1s-steps">';
+      + '<div class="e1s-q' + (sd.a > 0 ? ' mini' : '') + '"><div class="e1s-qm">' + (CTX.nwInline ? CTX.nwInline(g.q) : g.q) + '</div>' + (sd.a > 0 ? '' : fig) + '</div><div class="e1s-body"><div class="e1s-steps">';
     (Array.isArray(g.s) ? g.s : [g.s]).forEach(function (p, k) {
       if (k < sd.a || k >= sd.b) return;
       var bs = beatsOf(CTX.nwInline ? CTX.nwInline(p) : p);
