@@ -43,8 +43,20 @@ function p7() {
     q: '$' + s + '$ олон гишүүнтийн зэргийг олоорой.',
     a: '$' + D + '$',
     wk: 16,
+    s: p7_sol(terms, D),
     t: { terms: terms }
   };
+}
+// Бодолт: зэрэг = тэгээс ялгаатай коэффициенттэй гишүүдийн хамгийн их зэрэг; 0·x^k = 0 гишүүдийг хасаж, үлдсэнийг эрэмбэлнэ.
+function p7_sol(terms, D) {
+  var zr = terms.filter(function (t) { return t[0] === 0; });
+  var rest = terms.filter(function (t) { return t[0] !== 0; }).sort(function (u, v) { return v[1] - u[1]; });
+  return [
+    'Олон гишүүнтийн зэрэг нь тэгээс ялгаатай коэффициенттэй гишүүдийн хамгийн их зэрэг юм.',
+    zr.map(function (t) { return '$0\\cdot ' + (t[1] === 1 ? 'x' : 'x^' + t[1]) + '=0$'; }).join(', ') + (zr.length > 1 ? ' тул эдгээр гишүүдийг' : ' тул энэ гишүүнийг') + ' хасна. Үлдсэн гишүүдийг зэргээр нь буурах эрэмбээр бичвэл $$'
+      + rest.map(function (t, j) { return p7_t(t[0], t[1], j === 0); }).join('') + '.$$',
+    'Тэгээс ялгаатай коэффициенттэй хамгийн их зэргийн гишүүн нь $' + p7_t(rest[0][0], rest[0][1], true) + '$. Иймд олон гишүүнтийн зэрэг $' + D + '$.'
+  ];
 }
 return p7;
 })();
@@ -78,14 +90,38 @@ function p8() {
   var ks = shuffle(['sqrt', 'frac', 'neg', 'half', 'exp', 'abs', 'div']).slice(0, 3);
   if (ks.indexOf('sqrt') >= 0 && ks.indexOf('half') >= 0) return null;
   if (ks.indexOf('frac') >= 0 && ks.indexOf('div') >= 0) return null;
-  var good = p8_poly(), opts = shuffle([good].concat(ks.map(function (k) { return p8_NP[k](); }))), L = 'ABCD';
+  var good = p8_poly(), bad = ks.map(function (k) { return p8_NP[k](); }), opts = shuffle([good].concat(bad)), L = 'ABCD';   // санамсаргүй дуудлагын дараалал хэвээр
   return {
     q: 'Дараах алгебрийн илэрхийллүүдээс аль нь олон гишүүнт бэ?<div style="display:flex;flex-wrap:wrap;gap:4px 30px;margin:4px 0 0 1.2em">'
       + opts.map(function (o, i) { return '<span>' + L[i] + '. $' + o + '$</span>'; }).join('') + '</div>',
     a: '<span>' + L[opts.indexOf(good)] + '</span>',
     wk: 16,
+    s: p8_sol(opts, good, ks, bad, L),
     t: { opts: opts, good: good }
   };
+}
+// Бодолт: олон гишүүнт = a_n·x^n + … + a_0 (x-ийн зэрэг сөрөг биш бүхэл, коэффициент дурын тоо). Бусад сонголт бүрт
+//   шалтгааныг (бутархай/сөрөг зэрэг, хуваарьт x, илтгэгчид x, модуль) заана.
+var p8_WHY = {
+  sqrt: function () { return '$\\sqrt{x}=x^{\\frac{1}{2}}$ гишүүнтэй: $x$-ийн зэрэг бүхэл биш'; },
+  half: function (o) { var h = /x\^\{\\frac\{(\d)\}\{(\d)\}\}/.exec(o); return '$x^{\\frac{' + h[1] + '}{' + h[2] + '}}$ гишүүнтэй: $x$-ийн зэрэг бүхэл биш'; },
+  neg: function (o) { var h = /x\^\{-(\d)\}/.exec(o); return '$x^{-' + h[1] + '}$ гишүүнтэй: $x$-ийн зэрэг сөрөг'; },
+  div: function (o) { var h = /^\\dfrac\{(\d+)\}\{x\}/.exec(o); return '$\\dfrac{' + h[1] + '}{x}=' + h[1] + 'x^{-1}$ гишүүнтэй: $x$-ийн зэрэг сөрөг'; },
+  frac: function () { return 'бутархайн хуваарьт $x$ байна'; },
+  exp: function (o) { var h = /^(\d)\^\{x\}/.exec(o); return '$' + h[1] + '^{x}$ гишүүнтэй: $x$ илтгэгчид байна'; },
+  abs: function (o) { return '$' + /\|x[^|]*\|/.exec(o)[0] + '$ модуль агуулсан'; }
+};
+function p8_good(o) {
+  var m = /^\\dfrac\{x\^\{(\d)\}([+-]\d+)\}\{(\d)\}$/.exec(o), r = /^\\sqrt\{(\d)\}/.exec(o);
+  if (m) return '$' + o + '=' + tm([1, +m[3]], 'x^{' + m[1] + '}', true) + tm([+m[2], +m[3]], '') + '$ — тоонд хуваахад зөвхөн коэффициент өөрчлөгдөнө.';
+  return 'Бүх гишүүн нь $kx^n$ хэлбэртэй ($k$ — тоо, $n$ — сөрөг биш бүхэл тоо)'
+    + (r ? '; $\\sqrt{' + r[1] + '}$ нь тоон коэффициент ($x$ язгуурын дор ороогүй).' : '; коэффициент нь аравтын эсвэл энгийн бутархай байж болно.');
+}
+function p8_sol(opts, good, ks, bad, L) {
+  var gi = opts.indexOf(good), out = ['Олон гишүүнт гэдэг нь $a_nx^n+\\ldots+a_1x+a_0$ хэлбэрийн илэрхийлэл: $x$-ийн зэрэг сөрөг биш бүхэл тоо, коэффициентууд нь дурын тоо байна.'];
+  opts.forEach(function (o, i) { if (i !== gi) out.push('<b>' + L[i] + '.</b> ' + p8_WHY[ks[bad.indexOf(o)]](o) + ' — олон гишүүнт биш.'); });
+  out.push('<b>' + L[gi] + '.</b> ' + p8_good(good) + ' Иймд олон гишүүнт нь ' + L[gi] + '.');
+  return out;
 }
 return p8;
 })();
@@ -105,10 +141,19 @@ function p3() {
   var pf = al > 0 ? rnd(1, 4) > 1 : false;                 // ихэвчлэн P түрүүлнэ (сөрөг коэф. түрүүлэхгүй)
   var E = pf ? tm(al, 'P(x)', true) + tm(be, 'Q(x)') : tm(be, 'Q(x)', true) + tm(al, 'P(x)');
   if (!pf && be < 0) return null;
+  // Бодолт: орлуулж хаалтыг задлаад төсөөтэй гишүүдийг эмхэтгэнэ (x-ийн коэффициент, сул гишүүн).
+  var Pt = '(' + poly([a1, b1]) + ')', Qt = '(' + poly([a2, b2, c2]) + ')';
+  var sub = pf ? tm(al, Pt, true) + tm(be, Qt) : tm(be, Qt, true) + tm(al, Pt);
+  var eP = function (f) { return tm(al * a1, 'x', f) + tm(al * b1, ''); }, eQ = function (f) { return tm(be * a2, 'x^2', f) + tm(be * b2, 'x') + tm(be * c2, ''); };
+  var cx = pf ? (al * a1) + sgn(be * b2) : (be * b2) + sgn(al * a1), c0 = pf ? (al * b1) + sgn(be * c2) : (be * c2) + sgn(al * b1);
   return {
     q: '$P(x)=' + poly([a1, b1]) + ',\\ Q(x)=' + poly([a2, b2, c2]) + '$ олон гишүүнтүүд өгөгдсөн бол $' + E + '$ олон гишүүнтийг олоорой.',
     a: '$' + E + '=' + poly(R) + '$',
     wk: 22,
+    s: [
+      'Олон гишүүнтүүдийг орлуулж, хаалтыг задалъя: $$' + E + '=' + sub + '$$ $$=' + (pf ? eP(true) + eQ(false) : eQ(true) + eP(false)) + '.$$',
+      'Төсөөтэй гишүүдийг эмхэтгэвэл ($x$-ийн коэффициент $' + cx + '=' + R[1] + '$, сул гишүүн $' + c0 + '=' + R[2] + '$): $$' + E + '=' + poly(R) + '.$$'
+    ],
     t: { P: [a1, b1], Q: [a2, b2, c2], al: al, be: be }
   };
 }
@@ -140,8 +185,28 @@ function p9() {
     q: '$p(x)$ болон $q(x)$ олон гишүүнтүүд нь харгалзан $' + poly(P) + '$ ба $' + poly(Q) + '$ бол $' + o[2] + '$-ийг олоорой.',
     a: '$' + o[2] + '=' + poly(R) + '$',
     wk: 20,
+    s: p9_sol(P, Q, dp, dq, o[0], o[1], o[2], R),
     t: { P: P, Q: Q, op: o[2] }
   };
+}
+// Бодолт: орлуулж хаалт задална (хасах тэмдгийн ард тэмдэг солигдоно, 2p бол 2-оор үржүүлнэ) → ижил зэргийн гишүүдийг нэгтгэнэ.
+function p9_x(k) { return k === 0 ? '' : k === 1 ? 'x' : 'x^{' + k + '}'; }
+function p9_sol(P, Q, dp, dq, al, be, E, R) {
+  var n = Math.max(dp, dq), co = function (A, dA, k) { return dA - k >= 0 ? A[dA - k] : 0; }, op = '', gr = '', both = false, first = true, k, t;
+  for (k = dp; k >= 0; k--) { t = tm(al * P[dp - k], p9_x(k), first); if (t) { op += t; first = false; } }
+  for (k = dq; k >= 0; k--) { t = tm(be * Q[dq - k], p9_x(k), first); if (t) { op += t; first = false; } }
+  first = true;
+  for (k = n; k >= 0; k--) {
+    var u = al * co(P, dp, k), w = be * co(Q, dq, k);
+    if (u && w) { gr += (first ? '' : '+') + '(' + u + sgn(w) + ')' + p9_x(k); both = true; first = false; }
+    else if (u || w) { gr += tm(u || w, p9_x(k), first); first = false; }
+  }
+  var res = poly(R), out = ['Олон гишүүнтүүдийг орлуулъя: $$' + E + '=' + (al === 2 ? '2' : '') + '(' + poly(P) + ')' + (be < 0 ? '-' : '+') + '(' + poly(Q) + ').$$',
+    (al === 2 ? 'Эхний хаалтыг $2$-' + suf(2, 'аар') + ' үржүүлж, хаалтуудыг задалъя' : 'Хаалтуудыг задалъя')
+      + (be < 0 ? ' (хасах тэмдгийн ард байгаа хаалтын гишүүдийн тэмдэг эсрэгээр солигдоно)' : '') + ': $$=' + op + '.$$'];
+  if (both) out.push('Ижил зэргийн гишүүдийг нэгтгэвэл $$=' + gr + '$$ $$=' + res + '.$$');
+  out.push('Иймд $' + E + '=' + res + '$.');
+  return out;
 }
 return p9;
 })();
@@ -182,10 +247,30 @@ function p7() {
   while (deg >= 0 && !R[deg]) deg--;
   if (deg < 1) return null;
   var word = op === '+' ? 'нийлбэр' : op === '-' ? 'ялгавар' : 'үржвэр';
+  // Бодолт: орлуулж P(xᵐ), Q(xⁿ)-ийн зэрэг (dp·m, dq·n); үржвэрт ахлах гишүүд үржигдэнэ; нийлбэр/ялгаварт зэрэг ялгаатай бол
+  //         их зэргийн гишүүн үлдэнэ, тэнцүү бол ахлах гишүүдийг нэмж (хасаж) — уствал бүх гишүүнийг эмхэтгэнэ.
+  var dA = dp * m, dB = dq * n, lA = P[0], lB = Q[0], PX = 'P(x^' + m + ')', QX = 'Q(x^' + n + ')';
+  var dsc = function (a) { return poly(a.slice().reverse()); }, lt = function (c, d) { return tm(c, 'x^{' + d + '}', true); };
+  var pa = function (t) { return t.charAt(0) === '-' ? '\\left(' + t + '\\right)' : t; };
+  var ss = ['Орлуулбал $$' + PX + '=' + dsc(A) + ',$$ $$' + QX + '=' + dsc(B) + '.$$',
+    '$' + PX + '$ нь $' + dp + '\\cdot ' + m + '=' + dA + '$, $' + QX + '$ нь $' + dq + '\\cdot ' + n + '=' + dB + '$ зэргийн олон гишүүнт.'];
+  if (op === '\\cdot') {
+    ss.push('Үржвэрийн ахлах гишүүн нь ахлах гишүүдийн үржвэр: $$' + lt(lA, dA) + '\\cdot ' + pa(lt(lB, dB)) + '=' + lt(lA * lB, dA + dB) + '.$$');
+    ss.push('Иймд үржвэр $' + dA + '+' + dB + '=' + deg + '$ зэргийн олон гишүүнт.');
+  } else {
+    if (dA !== dB) ss.push('Зэргүүд нь ялгаатай тул ' + (op === '+' ? 'нийлбэрийн' : 'ялгаврын') + ' ахлах гишүүн нь их зэргийн гишүүн $' + lt(dA > dB ? lA : op === '+' ? lB : -lB, Math.max(dA, dB)) + '$ болно.');
+    else {
+      var L = lA + (op === '+' ? lB : -lB);
+      ss.push('Зэргүүд тэнцүү тул ахлах гишүүдийг ' + (op === '+' ? 'нэмье' : 'хасъя') + ': $$' + lt(lA, dA) + op + pa(lt(lB, dB)) + '=' + (L ? lt(L, dA) + '\\ne 0' : '0') + '.$$');
+      if (!L) ss.push('Ахлах гишүүд устах тул бусад гишүүдийг эмхэтгэе: $$' + PX + op + QX + '=' + dsc(R) + '.$$');
+    }
+    ss.push('Иймд ' + word + ' $' + deg + '$ зэргийн олон гишүүнт.');
+  }
   return {
     q: '$P(x)=' + poly(P) + ',\\ Q(x)=' + poly(Q) + '$ бол $P(x^' + m + ')' + op + (op === '\\cdot' ? ' ' : '') + 'Q(x^' + n + ')$ ' + word + ' олон гишүүнт хэдэн зэргийн байх вэ?',
     a: '$' + deg + '$',
     wk: 20,
+    s: ss,
     t: { P: P, Q: Q, m: m, n: n, op: op, cancel: cancel }
   };
 }
@@ -235,8 +320,35 @@ function p10() {
       + F.map(function (f, i) { return '<div><span style="display:inline-block;min-width:2.3em">' + p10_RM[i] + '.</span>$p(x)=' + f + '$</div>'; }).join('') + '</div>',
     a: '<span>' + p10_RM.filter(function (r, i) { return ok[i]; }).join(', ') + '</span>',
     wk: 20,
+    s: p10_sol(K, K1, a2, m2, c, s * d, m3, d, e3, ok),
     t: { c: c, sg: sg, tr: tr }
   };
+}
+// Бодолт: бичлэг бүрийг задалж x³ + K-тэй харьцуулна. (x + α)(x² − αx + α²) хэлбэр бол кубуудын нийлбэр/ялгаврын
+//   томьёо (= x³ + α³), бусад үед хаалтыг бүрэн задална.
+function p10_ex(al, be, ga, add) {   // (x + α)(x² + βx + γ) [+ add] → [задалсан, нэгтгэсэн]
+  return ['x^3' + tm(be, 'x^2') + tm(ga, 'x') + tm(al, 'x^2') + tm(al * be, 'x') + sgn(al * ga) + (add ? sgn(add) : ''),
+    'x^3' + tm(al + be, 'x^2') + tm(ga + al * be, 'x') + tm(al * ga + (add || 0), '')];
+}
+function p10_sol(K, K1, a2, m2, c, sd, m3, d, e3, ok) {
+  var vd = function (v) { return v ? ' Энэ нь $p(x)$-тэй тэнцүү тул үнэн.' : ' Энэ нь $p(x)$-тэй тэнцүү биш тул худал.'; };
+  var cube = function (al, ab, sq, add, tv) {   // (x + al)(x² − al·x + sq) [+ add], ab = |al|
+    var f = '(x' + sgn(al) + ')(x^2' + tm(-al, 'x') + '+' + sq + ')' + (add ? sgn(add) : '');
+    return 'Кубуудын ' + (al > 0 ? 'нийлбэрийн' : 'ялгаврын') + ' томьёогоор $$' + f + '=x^3' + (al > 0 ? '+' : '-') + ab + '^3' + (add ? sgn(add) : '') + '=x^3'
+      + tm(al * al * al + (add || 0), '') + '.$$' + vd(tv);
+  };
+  var full = function (al, be, ga, add, tv) {
+    var x = p10_ex(al, be, ga, add);
+    return 'Хаалтыг задалбал $$(x' + sgn(al) + ')(x^2' + tm(be, 'x') + '+' + ga + ')' + (add ? sgn(add) : '') + '=' + x[0] + '$$ $$=' + x[1] + '.$$' + vd(tv);
+  };
+  var T = p10_RM.filter(function (r, i) { return ok[i]; });
+  return [
+    '<b>I.</b> $0\\cdot x^2=0$, $0\\cdot x=0$ тул $$x^3+0\\cdot x^2+0\\cdot x' + sgn(K1) + '=x^3' + sgn(K1) + '.$$'
+      + (ok[0] ? vd(true) : ' $' + K1 + '\\ne ' + K + '$ тул худал.'),
+    '<b>II.</b> ' + (m2 === -a2 ? cube(a2, c, c * c, 0, ok[1]) : full(a2, m2, c * c, 0, ok[1])),
+    '<b>III.</b> ' + (m3 === -sd ? cube(sd, d, d * d, e3, ok[2]) : full(sd, m3, d * d, e3, ok[2])),
+    'Иймд ' + (T.length === 3 ? 'гурван бичлэг бүгд үнэн: I, II, III.' : T.length === 1 ? 'зөвхөн ' + T[0] + ' үнэн.' : T.join(', ') + ' бичлэгүүд үнэн.')
+  ];
 }
 return p10;
 })();
@@ -253,10 +365,27 @@ function p60() {
   if (m < 0 && n < 0 && b < 0) return null;
   var pos = rnd(1, 10) <= 7 ? 1 : 2;                       // c-ийн байр: 1 → x-ийн коэффициент, 2 → x²-ийн коэффициент
   var rhs = tm(C3, 'x^3', true) + (pos === 2 ? '+cx^2' : tm(C2, 'x^2')) + (pos === 1 ? '+cx' : tm(C1, 'x')) + sgn(C0);
+  // Бодолт: зүүн талыг задалж бүлэглэнэ: bx³ − (ab + n)x² + (na + mb)x − mn; x³-аас b, мэдэгдэх коэффициентээс a, дараа нь c
+  var X1c = tm(n, 'a', true) + tm(m, 'b'), na = tm(n, 'a', true);
+  var mul = function (co, v, first) {   // co·v тоогоор: 2\cdot 4, -3\cdot(-2), +5
+    return co === 1 ? (first ? '' : '+') + par(v) : co === -1 ? '-' + par(v) : (co < 0 ? '-' : first ? '' : '+') + Math.abs(co) + '\\cdot ' + par(v);
+  };
+  var ss = [
+    'Зүүн талын хаалтуудыг задалж, ижил зэргийн гишүүдийг бүлэглэе: $$(x^2-ax' + sgn(m) + ')(bx' + sgn(-n) + ')=bx^3' + tm(-n, 'x^2') + '-abx^2' + tm(n, 'ax') + tm(m, 'bx') + sgn(-m * n)
+      + '$$ $$=bx^3-(ab' + sgn(n) + ')x^2+(' + X1c + ')x' + sgn(-m * n) + '.$$',
+    'Олон гишүүнтүүд тэнцүү тул ижил зэргийн гишүүдийн коэффициентүүд тэнцүү. $x^3$-ийн коэффициентээс $b=' + b + '$.'
+  ];
+  if (pos === 1) ss.push(
+    '$x^2$-ийн коэффициентээс $$-(ab' + sgn(n) + ')=' + C2 + '\\ \\Rightarrow\\ ab=' + (-C2 - n) + '\\ \\Rightarrow\\ ' + tm(b, 'a', true) + '=' + (-C2 - n) + '\\ \\Rightarrow\\ a=' + a + '.$$',
+    'Иймд $x$-ийн коэффициент $$c=' + X1c + '=' + mul(n, a, true) + mul(m, b) + '=' + C1 + '.$$');
+  else ss.push(
+    '$x$-ийн коэффициентээс $$' + X1c + '=' + C1 + '\\ \\Rightarrow\\ ' + na + sgn(m * b) + '=' + C1 + '\\ \\Rightarrow\\ ' + (n === 1 ? '' : na + '=' + (C1 - m * b) + '\\ \\Rightarrow\\ ') + 'a=' + a + '.$$',
+    'Иймд $x^2$-ийн коэффициент $$c=-(ab' + sgn(n) + ')=-\\left(' + par(a) + '\\cdot ' + par(b) + sgn(n) + '\\right)=' + C2 + '.$$');
   return {
     q: '$(x^2-ax' + sgn(m) + ')(bx' + sgn(-n) + ')=' + rhs + '$ бол $c=?$',
     a: '$c=' + (pos === 1 ? C1 : C2) + '$',
     wk: 24,
+    s: ss,
     t: { a: a, b: b, m: m, n: n, pos: pos }
   };
 }
@@ -275,10 +404,26 @@ function p85() {
   if (m < 0 && n < 0 && b < 0) return null;
   var pos = rnd(1, 10) <= 7 ? 1 : 2;                       // c-ийн байр: 1 → x-ийн коэффициент, 2 → x²-ийн коэффициент
   var rhs = tm(C3, 'x^3', true) + (pos === 2 ? '+cx^2' : tm(C2, 'x^2')) + (pos === 1 ? '+cx' : tm(C1, 'x')) + sgn(C0);
+  // Бодолт: зүүн талыг задалж бүлэглэнэ → x³-ын коэффициентээс b, нөгөө мэдэгдэх коэффициентээс a → c
+  var lhs = '(x^2-ax' + sgn(m) + ')(bx' + sgn(-n) + ')', ba = tm(b, 'a', true), na = tm(n, 'a', true);
+  var ml = function (u, v) { return u === 1 ? par(v) : u === -1 ? '-' + par(v) : par(u) + '\\cdot ' + par(v); };   // u·v
+  var pl = function (s) { return s[0] === '-' ? s : '+' + s; };
+  var s2 = pos === 1
+    ? '$x^2$-ын коэффициентээс: $$-(' + ba + sgn(n) + ')=' + C2 + '\\ \\Rightarrow\\ ' + ba + '=' + (-C2 - n) + '\\ \\Rightarrow\\ a=' + a + '.$$'
+    : '$x$-ийн коэффициентээс: $$' + na + pl(ml(m, b)) + '=' + C1 + (n === 1 ? '' : '\\ \\Rightarrow\\ ' + na + '=' + (C1 - m * b)) + '\\ \\Rightarrow\\ a=' + a + '.$$';   // n = 1 бол «a = … ⇒ a = …» давхардахгүй
+  var c1m = ml(n, a) + pl(ml(m, b)), c1p = n * a + sgn(m * b);   // орлуулга ба үржвэрүүд (ижил бол нэг удаа: «3+2=3+2» биш)
+  var s3 = pos === 1
+    ? '$c$ нь $x$-ийн коэффициент тул $$c=' + na + tm(m, 'b') + '=' + c1m + (c1m === c1p ? '' : '=' + c1p) + '=' + C1 + '.$$'
+    : '$c$ нь $x^2$-ын коэффициент тул $$c=-(ab' + sgn(n) + ')=-(' + par(a) + '\\cdot ' + par(b) + sgn(n) + ')=-(' + a * b + sgn(n) + ')=' + C2 + '.$$';
   return {
     q: '$(x^2-ax' + sgn(m) + ')(bx' + sgn(-n) + ')=' + rhs + '$ бол $c=?$',
     a: '$c=' + (pos === 1 ? C1 : C2) + '$',
     wk: 24,
+    s: [
+      'Зүүн талыг задалж, $x$-ийн зэргээр бүлэглэе: $$' + lhs + '$$ $$=bx^3-(ab' + sgn(n) + ')x^2+(' + na + tm(m, 'b') + ')x' + sgn(C0) + '.$$',
+      'Адилтгалын хоёр талын харгалзах коэффициентүүд тэнцүү. $x^3$-ын коэффициентээс $b=' + b + '$ (сул гишүүн $-' + par(m) + '\\cdot ' + par(n) + '=' + C0 + '$ таарч байна); ' + s2,
+      s3
+    ],
     t: { a: a, b: b, m: m, n: n, pos: pos }
   };
 }
@@ -302,7 +447,35 @@ function p11() {
   var q = ask === 0 ? head + ' бол үлдэгдлийг олоорой.'
     : ask === 1 ? head + ' бөгөөд хуваагч нь $' + D + '$ бол ноогдворыг олоорой.'
     : head + ' бөгөөд ноогдвор нь $' + Q + '$ бол хуваагчийг олоорой.';
-  return { q: q, a: '$' + (ask === 0 ? r : ask === 1 ? Q : D) + '$', wk: 16, t: { d: d, a: a, b: b, c: c, r: r, ask: ask } };
+  // Бодолт: хуваалтын адилтгал P = D·Q + R (R-ийн зэрэг D-ийнхээс бага) → тогтмол r нь үлдэгдэл, бусад нь хуваагч/ноогдвор;
+  //   шалгалт: үлдэгдэл — Безугийн теоремоор P(−d) = r; ноогдвор/хуваагч — хаалтыг задалж P(x) гарна.
+  var x0 = -d, sub = p11_sub(P, x0), deg = '(тогтмол тоо, түүний зэрэг $0$ нь хуваагчийн зэрэг $1$-ээс бага)';
+  var s1 = 'Хуваалтын адилтгал: $P(x)=D(x)\\cdot Q(x)+R(x)$, энд $D(x)$ — хуваагч, $Q(x)$ — ноогдвор, $R(x)$ — үлдэгдэл бөгөөд $R(x)$-ийн зэрэг $D(x)$-ийнхээс бага.';
+  var sol = ask === 0 ? [
+    s1,
+    'Адилтгалын сүүлийн нэмэгдэхүүн $' + r + '$ нь тогтмол тоо (зэрэг $0$) бөгөөд үржигдэхүүнүүдийн ($' + D + '$ ба $' + Q + '$) аль алиных нь зэргээс бага тул үлдэгдэл болно.',
+    'Шалгалт: Безугийн теоремоор $' + D + '$-' + suf(Math.abs(d), 'д') + ' хуваахад гарах үлдэгдэл нь $P(' + x0 + ')$: $$P(' + x0 + ')=' + sub.lit + '$$ $$=' + sub.val + '=' + r + '.$$ '
+      + 'Иймд үлдэгдэл $' + r + '$.'
+  ] : [
+    s1,
+    (ask === 1 ? 'Хуваагч $' + D + '$ тул адилтгалын нөгөө үржигдэхүүн $' + Q + '$ нь ноогдвор'
+      : 'Ноогдвор $' + Q + '$ тул адилтгалын нөгөө үржигдэхүүн $' + D + '$ нь хуваагч') + ', $' + r + '$ нь үлдэгдэл ' + deg + '.',
+    'Шалгалт: хаалтыг задалбал $$(' + D + ')(' + Q + ')' + sgn(r) + '$$ $$=' + tm(a, 'x^{3}', true) + tm(b, 'x^{2}') + tm(c, 'x') + tm(a * d, 'x^{2}') + tm(b * d, 'x')
+      + tm(c * d, '') + sgn(r) + '$$ $$=' + poly(P) + '.$$ Иймд ' +(ask === 1 ? 'ноогдвор $' + Q : 'хуваагч $' + D) + '$.'
+  ];
+  return { q: q, a: '$' + (ask === 0 ? r : ask === 1 ? Q : D) + '$', wk: 16, s: sol, t: { d: d, a: a, b: b, c: c, r: r, ask: ask } };
+}
+// P(x₀) орлуулга: «2\cdot(-3)^3-(-3)+52» ба гишүүдийн утга «-54+3+52» (тэг коэффициентийг алгасна)
+function p11_sub(P, x0) {
+  var L = [], V = [];
+  P.forEach(function (c, i) {
+    var k = P.length - 1 - i;
+    if (!c) return;
+    var pw = k === 0 ? '' : k === 1 ? par(x0) : par(x0) + '^' + k, A = Math.abs(c);
+    L.push((c < 0 ? '-' : L.length ? '+' : '') + (k === 0 ? String(A) : (A === 1 ? '' : A + '\\cdot ') + pw));
+    V.push(c * Math.pow(x0, k));
+  });
+  return { lit: L.join(''), val: V.map(function (v, j) { return j ? sgn(v) : String(v); }).join('') };
 }
 return p11;
 })();
@@ -335,8 +508,28 @@ function p12() {
     q: '<span class="nw">$' + PT + '$-' + ps + '</span> <span class="nw">$' + poly(D) + '$-' + suf(Math.abs(q), 'д') + '</span> хуваахад гарах үлдэгдлийг олоорой.',
     a: '$' + poly(R) + '$',
     wk: 32,
+    s: p12_sol(P, D, R),
     t: { P: P, D: D }
   };
+}
+// Бодолт: булангаар хуваах — ахлах гишүүнийг x²-д хувааж ноогдворын гишүүн олоод, хуваагчаар үржүүлж хасна (тэг гишүүнийг
+//   алгасна); үлдэгдлийн зэрэг 1 < 2 болмогц зогсоно → P = D·Q + R.
+function p12_sol(P, D, R) {
+  var C = P.slice(), Qc = [], ss = [], DT = poly(D), n = P.length - 1;
+  for (var i = 0; i + D.length <= C.length; i++) {
+    var c = C[i], k = n - i - 2;                                 // ноогдворын гишүүн c·x^k
+    Qc.push(c);
+    if (!c) continue;
+    var before = poly(C.slice(i)), xk = k === 0 ? '' : k === 1 ? 'x' : 'x^{' + k + '}';
+    for (var j = 0; j < D.length; j++) C[i + j] -= c * D[j];
+    var line = before + (c > 0 ? '-' : '+') + (Math.abs(c) === 1 ? '' : Math.abs(c)) + xk + '(' + DT + ')=' + poly(C.slice(i + 1));
+    ss.push((ss.length ? '' : 'Булангаар хуваая: ахлах гишүүнийг хуваагчийн ахлах гишүүнээр хувааж ноогдворын гишүүнийг олоод, '
+      + 'түүнийг хуваагчаар үржүүлж хасна. ') + '$' + tm(c, 'x^{' + (k + 2) + '}', true) + ':x^2=' + tm(c, xk, true) + '$ тул $$' + line + '.$$');
+  }
+  var QT = poly(Qc), mono = Qc.filter(function (v) { return v; }).length === 1, RT = poly(R);
+  ss.push('Үлдэгдлийн зэрэг $1$ нь хуваагчийн зэрэг $2$-оос бага тул хуваалт дуусав. Иймд $$' + poly(P) + '='
+    + (mono ? QT + '(' + DT + ')' : '(' + DT + ')(' + QT + ')') + (RT.charAt(0) === '-' ? '' : '+') + RT + '$$ ба үлдэгдэл $' + RT + '$.');
+  return ss;
 }
 return p12;
 })();
@@ -351,10 +544,23 @@ function p13() {
   var P = [a, b - a * r, c - b * r, R0 - c * r];
   if (P.some(function (v) { return Math.abs(v) > 60; }) || !P[3]) return null;
   if (P.filter(function (v) { return v; }).length < 3) return null;
+  // Бодолт: Хорнерын схем (x = r): эхний коэффициентийг буулгаад, өмнөх тоог r-ээр үржүүлж дараагийн коэффициентийг нэмнэ →
+  //   a, b, c — ноогдворын коэффициент, сүүлийнх R₀ — үлдэгдэл. Хүснэгт (sfig) — самбарт зурдаг Хорнерын схем.
+  var H = [a, b, c, R0], ch = [], zi = P.indexOf(0), zw = ['', '$x^2$', '$x$'][zi] || '';
+  for (var i = 1; i < 4; i++) ch.push(H[i - 1] + '\\cdot ' + par(r) + (P[i] ? sgn(P[i]) : '') + '=' + H[i]);
+  var QT = poly([a, b, c]), DT = 'x' + sgn(-r);
   return {
     q: '$p(x)=' + poly(P) + '$ олон гишүүнтийг <span class="nw">$x' + sgn(-r) + '$-' + suf(Math.abs(r), 'д') + '</span> хуваахад гарах ноогдворыг олоорой.',
     a: '$' + poly([a, b, c]) + '$',
     wk: 28,
+    s: [
+      'Хорнерын схемээр $' + DT + '$-' + suf(Math.abs(r), 'д') + ' хуваая ($x=' + r + '$). Коэффициентүүд $' + P.join(',\\ ') + '$'
+        + (zw ? ' (' + zw + '-ийн коэффициент $0$)' : '') + '. Эхнийхийг буулгаад, өмнөх тоог $' + r + '$-' + suf(Math.abs(r), 'аар')
+        + ' үржүүлж дараагийн коэффициентийг нэмнэ: $$' + ch.join(',\\qquad ') + '.$$',
+      'Сүүлийн тоо $' + R0 + '$ нь үлдэгдэл, өмнөх $' + [a, b, c].join(',\\ ') + '$ нь ноогдворын коэффициентүүд. Иймд $$p(x)=(' + DT + ')(' + QT + ')'
+        + (R0 ? sgn(R0) : '') + '$$ ба ноогдвор $' + QT + '$.'
+    ],
+    sfig: tbl([[''].concat(P.map(function (v) { return '$' + v + '$'; })), ['$' + r + '$'].concat(H.map(function (v) { return '$' + v + '$'; }))]),
     t: { r: r, a: a, b: b, c: c, R0: R0 }
   };
 }
@@ -377,10 +583,26 @@ function p86() {
   P[P.length - 2] += R[0]; P[P.length - 1] += R[1];
   for (i = 0; i < P.length; i++) if (!P[i] || Math.abs(P[i]) > 40) return null;
   if (P[0] > 12) return null;
+  // Бодолт: булангаар хуваах — ахлах гишүүнийг хуваагчийн ахлах гишүүнд хувааж ноогдворын гишүүн, түүнийг хуваагчаар үржүүлж хасна (давтана)
+  var cur = P.slice(), ss = [], dg, k, mono = function (c, p) { return tm(c, p === 0 ? '' : p === 1 ? 'x' : 'x^{' + p + '}', true); };
+  var nth = ['Булангаар хуваая. Ноогдворын эхний гишүүн', 'Ноогдворын дараагийн гишүүн', 'Ноогдворын дараагийн гишүүн'];
+  for (k = 0; k < Q.length; k++) {
+    dg = cur.length - 1;
+    var qk = cur[0] / D[0], tq = mono(qk, dg - 2), prod = [qk * D[0], qk * D[1], qk * D[2]], nxt = cur.slice(1);
+    for (j = 3; j < cur.length; j++) prod.push(0);
+    nxt[0] -= prod[1]; nxt[1] -= prod[2];
+    ss.push(nth[k] + ': $\\dfrac{' + mono(cur[0], dg) + '}{' + mono(D[0], 2) + '}=' + tq + '$. $' + tq + '\\cdot(' + poly(D) + ')=' + poly(prod) + '$ үржвэрийг '
+      + (k ? 'өмнөх үлдэгдлээс' : 'хуваагдагчаас') + ' хасвал: $$(' + poly(cur) + ')-(' + poly(prod) + ')$$ $$=' + poly(nxt) + '.$$');
+    cur = nxt;
+  }
+  var Rz = !cur[0] && !cur[1];
+  ss.push((Rz ? 'Үлдэгдэл $0$ тул ' + 'хуваагдагч хуваагчид үлдэгдэлгүй хуваагдана.' : 'Гарсан $R(x)=' + poly(cur) + '$ олон гишүүнтийн зэрэг хуваагчийнхаас бага тул энэ нь үлдэгдэл болж, хуваалт дуусна.')
+    + ' Иймд ноогдвор олон гишүүнт: $' + poly(Q) + '$.');
   return {
     q: '$' + poly(P) + '$ олон гишүүнтийг $' + poly(D) + '$ олон гишүүнтэд хуваахад гарах ноогдвор олон гишүүнтийг ол.',
     a: '$' + poly(Q) + '$',
     wk: 28,
+    s: ss,
     t: { P: P, D: D, Q: Q, R: R }
   };
 }
@@ -429,11 +651,21 @@ function p14() {
   var P = p14_mul(D, Q), n = P.length;
   P[n - 2] += R[0]; P[n - 1] += R[1];
   if (P.some(function (v) { return Math.abs(v) > 40; }) || !P[n - 1] && rnd(0, 1)) return null;
+  // Бодолт: хуваалтын адилтгал p = D·Q + R → хаалтыг задалж (D-ийн гишүүн бүрийг Q-ийн гишүүн бүрээр), R-ийг нэмж эмхэтгэнэ.
+  var DT = poly(D), QT = poly(Q), RT = poly(R), DQ = p14_mul(D, Q), DQT = poly(DQ), raw = [];
+  var xp = function (k) { return k === 0 ? '' : k === 1 ? 'x' : 'x^{' + k + '}'; }, pl = function (t) { return t.charAt(0) === '-' ? t : '+' + t; };
+  D.forEach(function (u, i) { if (u) Q.forEach(function (w, j) { if (w) raw.push(tm(u * w, xp(D.length - 1 - i + Q.length - 1 - j), !raw.length)); }); });
+  var rawT = raw.join('');
   return {
     q: '$p(x)$ олон гишүүнтийг <span class="nw">$' + poly(D) + '$-' + suf(Math.abs(D[2]), 'аар') + '</span> хуваахад ноогдвор нь $' + poly(Q)
       + '$, үлдэгдэл $' + poly(R) + '$ байв. $p(x)$ олон гишүүнтийг олоорой.',
     a: '$p(x)=' + poly(P) + '$',
     wk: 24,
+    s: [
+      'Хуваалтын адилтгал $p(x)=D(x)\\cdot Q(x)+R(x)$ ($D$ — хуваагч, $Q$ — ноогдвор, $R$ — үлдэгдэл) ёсоор $$p(x)=(' + DT + ')(' + QT + ')' + pl(RT) + '.$$',
+      'Хаалтыг задалъя: ' + (rawT === DQT ? '$$(' + DT + ')(' + QT + ')=' + DQT + '.$$' : '$$(' + DT + ')(' + QT + ')$$ $$=' + rawT + '$$ $$=' + DQT + '.$$'),
+      'Үлдэгдлийг нэмж ижил гишүүдийг эмхэтгэвэл: $$p(x)=' + DQT + pl(RT) + (Q.length > 2 ? '$$ $$' : '') + '=' + poly(P) + '.$$'
+    ],
     t: { D: D, Q: Q, R: R }
   };
 }
@@ -458,11 +690,29 @@ function p22() {
   var P = p22_mul(D, Q), n = P.length;
   P[n - 2] += R[0]; P[n - 1] += R[1];
   if (P.some(function (v) { return Math.abs(v) > 40; }) || !P[n - 1] && rnd(0, 1)) return null;
+  // Бодолт: хуваагдагч = хуваагч · ноогдвор + үлдэгдэл; хаалтыг задалж (гишүүн бүрийг үржүүлж) төсөөтэй гишүүдийг нэгтгээд үлдэгдлийг нэмнэ
+  var DQ = p22_mul(D, Q), dq = Q.length - 1, raw = [], i, j;
+  for (i = 0; i < 3; i++) for (j = 0; j <= dq; j++) {
+    var cc = D[i] * Q[j], dg = 2 - i + dq - j;
+    if (cc) raw.push(tm(cc, dg === 0 ? '' : dg === 1 ? 'x' : 'x^{' + dg + '}', !raw.length));
+  }
+  var rawS = raw.join(''), dqS = poly(DQ), pr = '(' + poly(D) + ')(' + poly(Q) + ')';
+  var Rt = tm(R[0], 'x') + (R[1] ? sgn(R[1]) : ''), Rp = R[0] && R[1] ? '+(' + poly(R) + ')' : Rt;   // нэг гишүүнтэй үлдэгдэл хаалтгүй
+  var wd = function (s) { return s.replace(/\^\{\d+\}/g, '^').replace(/[{}\\]/g, '').length; };   // харагдах өргөн (ойролцоо)
+  var ex2 = rawS === dqS ? (wd(pr + rawS) > 46 ? '$$' + pr + '$$ $$=' + dqS + '.$$' : '$$' + pr + '=' + dqS + '.$$')
+    : (wd(pr + rawS) > 46 ? '$$' + pr + '$$ $$=' + rawS + '$$' : '$$' + pr + '=' + rawS + '$$') + ' $$=' + dqS + '.$$';
+  var sum = 'p(x)=' + dqS + Rt;
+  var sol = [
+    'Хуваагдагч нь хуваагч ба ноогдворын үржвэр дээр үлдэгдлийг нэмсэнтэй тэнцүү: $$p(x)=' + pr + Rp + '.$$',
+    (rawS === dqS ? 'Хаалтыг задалъя: ' : 'Хаалтыг задалж, төсөөтэй гишүүдийг нэгтгэе: ') + ex2,
+    'Үлдэгдлийг нэмбэл ' + (wd(sum + poly(P)) > 46 ? '$$' + sum + '$$ $$=' + poly(P) + '.$$' : '$$' + sum + '=' + poly(P) + '.$$')
+  ];
   return {
     q: '$p(x)$ олон гишүүнтийг <span class="nw">$' + poly(D) + '$-' + suf(Math.abs(D[2]), 'аар') + '</span> хуваахад ноогдвор нь $' + poly(Q)
       + '$, үлдэгдэл $' + poly(R) + '$ байв. $p(x)$ олон гишүүнтийг олоорой.',
     a: '$p(x)=' + poly(P) + '$',
     wk: 24,
+    s: sol,
     t: { D: D, Q: Q, R: R }
   };
 }
@@ -490,10 +740,22 @@ function p18() {
   var s = (rN ? -1 : 1) * (rD ? -1 : 1), A = s * p, B = s * (sum ? -q : q);   // хариу Ax + B
   var ans = A < 0 && B > 0 ? p18_asc([B, A]) : poly([A, B]);
   var num = rnd(0, 2) === 0 ? '(' + N2 + ')(' + N1 + ')' : '(' + N1 + ')(' + N2 + ')';
+  // Бодолт: u = px, v = q. Квадратуудын ялгавар u² − v² = (u − v)(u + v); кубуудын нийлбэр/ялгавар u³ ± v³ = (u ± v)(u² ∓ uv + v²)
+  //   (v² − u², v³ − u³ үед (v − u) хүчин зүйлтэй); ижил хүчин зүйлүүдийг хураана, v − u = −(u − v).
+  var U = tm(p, 'x', true), umv = U + '-' + q, upv = U + '+' + q, vmu = q + '-' + U;
+  var Fn = rN ? vmu : umv, Fd = sum ? upv : rD ? vmu : umv;
+  var res = sum ? Fn : rN === rD ? upv : '-(' + upv + ')';
+  var sol = [
+    'Квадратуудын ялгаврын $a^2-b^2=(a-b)(a+b)$ томьёогоор: $$' + N2 + '=(' + Fn + ')(' + upv + ').$$',
+    'Кубуудын ' + (sum ? 'нийлбэрийн $a^3+b^3=(a+b)(a^2-ab+b^2)$' : 'ялгаврын $a^3-b^3=(a-b)(a^2+ab+b^2)$') + ' томьёогоор: $$' + D + '=(' + Fd + ')(' + N1 + ').$$',
+    (!sum && rN !== rD ? '$' + vmu + '=-(' + umv + ')$ тул ижил' : 'Ижил') + ' хүчин зүйлүүдийг хураавал $$\\dfrac{(' + Fn + ')(' + upv + ')(' + N1 + ')}{(' + Fd + ')(' + N1 + ')}='
+      + res + (res === ans ? '' : '=' + ans) + '.$$'
+  ];
   return {
     q: '$\\dfrac{' + num + '}{' + D + '}$ бутархайг хураагаарай.',
     a: '$' + ans + '$',
     wk: 22,
+    s: sol,
     t: { p: p, q: q, sum: sum, rN: rN, rD: rD }
   };
 }
@@ -514,10 +776,20 @@ function p50() {
   var P = '\\dfrac{' + t1 + sg + t2 + '+' + t3 + '}{' + t1 + '+' + t3 + '}';
   var Q = '\\dfrac{' + v[0] + '^3' + (sg === '+' ? '-' : '+') + v[1] + '^3}{' + v[0] + '^4-' + v[1] + '^4}';
   var res = v[0] + sg + v[1];
+  // Бодолт: нийтлэг үржигдэхүүнээр хураах; кубуудын ялгавар/нийлбэр ба квадратуудын ялгаврын томьёо; хуваахыг урвуугаар үржүүлж хураана
+  var m0 = v[0], n0 = v[1], osg = sg === '+' ? '-' : '+', Ft = p50_mono(v, F[0], F[1]);
+  var tri = m0 + '^2' + sg + m0 + n0 + '+' + n0 + '^2', sqs = m0 + '^2+' + n0 + '^2', l1 = '(' + m0 + osg + n0 + ')', l2 = '(' + m0 + sg + n0 + ')';
+  var Ps = '\\dfrac{' + tri + '}{' + sqs + '}', Qs = '\\dfrac{' + tri + '}{' + l2 + '(' + sqs + ')}';
+  var sP = 'Хүртвэр, хуваарийн нийтлэг үржигдэхүүнийг хаалтны гадна гаргаж хураая: $$' + P + '=\\dfrac{' + Ft + '(' + tri + ')}{' + Ft + '(' + sqs + ')}=' + Ps + '.$$';
+  var sQ = 'Кубуудын ' + (sg === '+' ? 'ялгавар' : 'нийлбэр') + ' ба квадратуудын ялгаврын томьёогоор: $$' + Q + '=\\dfrac{' + l1 + '(' + tri + ')}{(' + m0 + '^2-' + n0 + '^2)(' + sqs + ')}$$ $$=\\dfrac{'
+    + l1 + '(' + tri + ')}{' + l1 + l2 + '(' + sqs + ')}=' + Qs + '.$$';
+  var sD = 'Хуваахыг урвуу бутархайгаар үржүүлэхээр сольж хураавал: $$' + (inv ? Qs + '\\cdot\\dfrac{' + sqs + '}{' + tri + '}=\\dfrac{1}{' + res + '}'
+    : Ps + '\\cdot\\dfrac{' + l2 + '(' + sqs + ')}{' + tri + '}=' + res) + '.$$';
   return {
     q: '$' + (inv ? Q + '\\div' + P : P + '\\div' + Q) + '$ илэрхийллийг хялбарчлаарай.',
     a: '$' + (inv ? '\\dfrac{1}{' + res + '}' : res) + '$',
     wk: 28,
+    s: inv ? [sQ, sP, sD] : [sP, sQ, sD],
     t: { v: v, sg: sg, F: F, inv: inv }
   };
 }
@@ -538,10 +810,20 @@ function p28() {
   var F = R + sgn(sq ? s * a : -s * a);                           // үржигдэхүүн √v ∓ a (эсвэл √v ± a)
   var E = rnd(1, 100) <= 70 ? '(' + N + ')\\times\\dfrac{' + F + '}{' + D + '}' : '\\dfrac{' + N + '}{' + D + '}\\times(' + F + ')';
   var ans = sq ? '(' + R + sgn(s * a) + ')^2=' + v + tm(2 * s * a, R) + sgn(a * a) : v + sgn(-a * a);
+  // Бодолт: √v = u орлуулга; хүртвэр u⁴ ± a³u = u(u ± a)(u² ∓ au + a²) (кубуудын нийлбэр/ялгавар), хуваарь u(u² ∓ au + a²) → u ± a
+  var Qu = 'u^2' + tm(-s * a, 'u') + sgn(a * a), Fu = 'u' + sgn(sq ? s * a : -s * a), Gu = 'u' + sgn(s * a);
+  var sol = [
+    'Муж: $' + v + '\\gt 0$. $' + R + '=u$ $(u\\gt 0)$ гэж орлуулбал $' + v + '=u^2$, $' + v + '^2=u^4$, $' + v + R + '=u^3$.',
+    'Кубуудын ' + (s > 0 ? 'нийлбэрийн' : 'ялгаврын') + ' томьёогоор хүртвэр: $$' + N + '=u^4' + tm(s * a * a * a, 'u') + '=u\\left(u^3' + (s > 0 ? '+' : '-') + (a === 1 ? '1' : a + '^3') + '\\right)$$ $$=u(' + Gu + ')(' + Qu + ').$$',
+    'Хуваарь: $$' + D + '=u^3' + tm(-s * a, 'u^2') + tm(a * a, 'u') + '=u(' + Qu + ').$$',
+    'Хураавал ($u(' + Qu + ')\\ne 0$): $$\\dfrac{u(' + Gu + ')(' + Qu + ')}{u(' + Qu + ')}\\cdot(' + Fu + ')=(' + Gu + ')(' + Fu + ')$$ $$='
+      + (sq ? '(' + Gu + ')^2=u^2' + tm(2 * s * a, 'u') + sgn(a * a) + '=' + v + tm(2 * s * a, R) + sgn(a * a) : 'u^2' + sgn(-a * a) + '=' + v + sgn(-a * a)) + '.$$'
+  ];
   return {
     q: '$' + E + '$ илэрхийллийг хялбарчлаарай.',
     a: '$' + ans + '$',
     wk: 26,
+    s: sol,
     t: { v: v, a: a, s: s, sq: sq }
   };
 }

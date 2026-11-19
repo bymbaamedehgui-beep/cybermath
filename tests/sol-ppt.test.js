@@ -234,8 +234,11 @@ test('e1k.js: #s=seed → ижил бодлого (хуудсыг дахин а�
   assert.notStrictEqual(d.ctx.E1K.seed(), 'k3x9q2');
 });
 
-test('e1k.js: «Бодолтын PPT» товч — 1–2-р хэсгийн 8 хуудас ба «Тоо ба илэрхийлэл-1»-д харагдана; бүх хуудсанд товч = бүх бодлого бодолттой', () => {
-  const OPEN = ['eesh1000-1.html', 'eesh1000-2.html', 'eesh1000-3.html', 'eesh1000-4.html', 'eesh1000-5.html', 'eesh1000-6.html', 'eesh1000-7.html', 'eesh1000-8.html', 'eesh1000-too-1.html'];
+test('e1k.js: «Бодолтын PPT» товч — ЭЕШ 1000-ийн бүх хуудас (4 хэсгийн 16 + сэдвийн 22) бүрэн бодолттой, товч харагдана', () => {
+  const ALL = fs.readdirSync(F.WT).filter(f => /^eesh1000-.*\.html$/.test(f));
+  const OPEN = ALL;
+  assert.strictEqual(ALL.filter(f => /^eesh1000-\d+\.html$/.test(f)).length, 16, '4 хэсэг × 4 хуудас');
+  assert.strictEqual(ALL.length, 16 + 22, 'сэдвийн 22 хуудас');
   OPEN.forEach(f => {
     for (const s of ['aaaa', 'k3x9q2', 'zzzzzz']) {
       const p = pageCtx(f, '#s=' + s);
@@ -302,5 +305,44 @@ test('vercel.json: e1k-sol.js статикаар; хуудсууд e1k.js?v=4 (�
     const h = fs.readFileSync(path.join(F.WT, f), 'utf8');
     assert.match(h, /\/e1k\.js\?v=4"/, f);
   });
-  assert.match(fs.readFileSync(path.join(F.WT, 'e1k.js'), 'utf8'), /\/e1k-sol\.js\?v=3/);
+  assert.match(fs.readFileSync(path.join(F.WT, 'e1k.js'), 'utf8'), /\/e1k-sol\.js\?v=4/);
+});
+
+test('e1k-sol.js: «(» мөрийн төгсгөлд ганцаараа үлдэхгүй — glue() нь богино томьёог өмнөх хаалттай нь nowrap болгоно', () => {
+  const js = fs.readFileSync(path.join(F.WT, 'e1k-sol.js'), 'utf8');
+  assert.match(js, /CTX\.render\(sl\);\s*unwrap\(sl\);\s*glue\(sl\);/, 'render-ийн дараа');
+  // Хуурамч DOM (бодит бүтэц): «… ≠ 0 (» + <span class="nw"><span><span class="katex">…</span></span>).</span>
+  //   (auto-render томьёог ангигүй <span>-д, nwInline түүнийг .nw-д ороодог) → хаалт томьёотой нэг nowrap-д
+  const mk = (tag, cls) => ({ nodeType: 1, tagName: String(tag).toUpperCase(), className: cls || '', childNodes: [], parentNode: null,
+    classList: { contains(c) { return (this.o.className || '').split(/\s+/).includes(c); } },
+    get firstChild() { return this.childNodes[0] || null; },
+    get previousSibling() { const p = this.parentNode; if (!p) return null; const i = p.childNodes.indexOf(this); return i > 0 ? p.childNodes[i - 1] : null; },
+    appendChild(n) { if (n.parentNode) n.parentNode.childNodes.splice(n.parentNode.childNodes.indexOf(n), 1); n.parentNode = this; this.childNodes.push(n); return n; },
+    insertBefore(n, ref) { if (n.parentNode) n.parentNode.childNodes.splice(n.parentNode.childNodes.indexOf(n), 1); n.parentNode = this; this.childNodes.splice(this.childNodes.indexOf(ref), 0, n); return n; },
+    closest(sel) { let e = this; while (e) { if (e.className && sel.split(',').some(s => (e.className || '').split(/\s+/).includes(s.trim().replace(/^\./, '')))) return e; e = e.parentNode; } return null; },
+    getClientRects() { return [{ width: this.w || 0 }]; }, getBoundingClientRect() { return { width: this.w || 0 }; } });
+  const fix = (n) => { n.classList.o = n; return n; };
+  const txt = (v) => ({ nodeType: 3, nodeValue: v, parentNode: null, get previousSibling() { const p = this.parentNode; const i = p.childNodes.indexOf(this); return i > 0 ? p.childNodes[i - 1] : null; } });
+  function slide(kw, bare) {
+    const box = fix(mk('div', 'e1s-b')); box.w = 600;
+    const t = txt('Хуваарь тэг биш байх ёстой ('); box.appendChild(t);
+    const nw = fix(mk('span', 'nw')), ar = fix(mk('span')), k = fix(mk('span', 'katex')); k.w = kw; ar.w = kw; nw.w = kw;
+    if (bare) { box.appendChild(k); } else { box.appendChild(nw); nw.appendChild(ar); ar.appendChild(k); nw.appendChild(txt(').')); }
+    const sl = { querySelectorAll: (s) => (s === '.katex' ? [k] : []) };
+    return { box, t, nw: bare ? k : nw, k, sl };
+  }
+  const doc = { createElement: (tag) => fix(mk(tag)), createTextNode: (v) => txt(v) };
+  const ctx = vm.createContext({ document: doc, window: {} });
+  vm.runInContext('var window=this;', ctx);
+  vm.runInContext(js, ctx);
+  ctx.__glue = ctx.E1KSOL.glue;
+  assert.strictEqual(typeof ctx.__glue, 'function');
+  const a = slide(200); ctx.__glue(a.sl);
+  assert.strictEqual(a.t.nodeValue, 'Хуваарь тэг биш байх ёстой ', 'хаалтыг текстээс салгана');
+  const g = a.box.childNodes[1];
+  assert.strictEqual(g.className, 'nw'); assert.strictEqual(g.childNodes[0].nodeValue, '('); assert.strictEqual(g.childNodes[1], a.nw, 'хаалт + томьёо нэг nowrap');
+  const b = slide(500); ctx.__glue(b.sl);                      // хайрцгийн 60%-иас урт → хүрэхгүй
+  assert.strictEqual(b.t.nodeValue, 'Хуваарь тэг биш байх ёстой ('); assert.strictEqual(b.box.childNodes[1], b.nw);
+  const c = slide(150, true); ctx.__glue(c.sl);                // бүрхүүлгүй .katex
+  assert.strictEqual(c.box.childNodes[1].className, 'nw'); assert.strictEqual(c.box.childNodes[1].childNodes[1], c.k);
 });

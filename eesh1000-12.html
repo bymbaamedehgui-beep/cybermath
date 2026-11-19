@@ -20,6 +20,32 @@
 //     = ln( |b − p|ᴬ·|b − q|ᴮ / (|a − p|ᴬ·|a − q|ᴮ) ) — нэг ln, хураасан бутархай; [a; b] нь p, q-г агуулахгүй
 //     (эх: ∫₃⁴ (x + 4)/(x² − x − 2) dx = ln 16/5).
 function p76_pw(n, e) { var r = 1; for (var i = 0; i < e; i++) r *= n; return r; }
+// Бодолт: хуваарь (x − p)(x − q) → A/(x − p) + B/(x − q) (язгуурыг орлуулж A, B) → A ln|x − p| + B ln|x − q| → F(b) − F(a)
+//   → логарифмын чанараар нэг ln (зэрэг эерэг хүчин зүйлсийг хүртвэр/хуваарьт хуваарилна; 1-ийг алгасна) = хариу
+function p76_sol(p, q, A, B, m, n, a, b, fin) {
+  var X = function (r) { return poly([1, -r]); }, F = function (r) { return r === 0 ? 'x' : '(' + X(r) + ')'; };
+  var den = poly([1, -(p + q), p * q]), num = poly([m, n]), lim = '_{' + a + '}^{' + (b === 1 ? '{1}' : b) + '}';
+  var fac = p * q === 0 ? 'x(' + X(p || q) + ')' : '(' + X(p) + ')(' + X(q) + ')';
+  var fr2 = function (c, r, first) { return (c < 0 ? '-' : first ? '' : '+') + '\\dfrac{' + Math.abs(c) + '}{' + X(r) + '}'; };
+  var at = function (x) { return tm(A, '\\ln ' + Math.abs(x - p), true) + tm(B, '\\ln ' + Math.abs(x - q)); };
+  var nf = [], df = [], one = false;
+  [[A, Math.abs(b - p), Math.abs(a - p)], [B, Math.abs(b - q), Math.abs(a - q)]].forEach(function (z) {
+    var e = Math.abs(z[0]), up = z[0] > 0 ? z[1] : z[2], dn = z[0] > 0 ? z[2] : z[1];
+    if (z[1] === 1 || z[2] === 1) one = true;
+    if (up !== 1) nf.push(e === 1 ? String(up) : up + '^' + e);
+    if (dn !== 1) df.push(e === 1 ? String(dn) : dn + '^' + e);
+  });
+  var NS = nf.length ? nf.join('\\cdot ') : '1', comb = df.length ? '\\ln\\dfrac{' + NS + '}{' + df.join('\\cdot ') + '}' : /\^|\\cdot/.test(NS) ? '\\ln\\left(' + NS + '\\right)' : '\\ln ' + NS;
+  return [
+    (p * q === 0 ? 'Хуваарийг үржигдэхүүнд задалъя ($x$-ийг хаалтны өмнө гаргана):'
+      : 'Хуваарийн язгуурууд Виетийн теоремоор $x_1=' + p + '$, $x_2=' + q + '$ ($x_1+x_2=' + (p + q) + '$, $x_1x_2=' + p * q + '$) тул') + ' $$' + den + '=' + fac + '.$$',
+    'Хялбар бутархайн нийлбэрт задалъя: $$\\dfrac{' + num + '}{' + fac + '}=\\dfrac{A}{' + X(p) + '}+\\dfrac{B}{' + X(q) + '}\\ \\Rightarrow\\ ' + num + '=A' + F(q) + '+B' + F(p) + '.$$'
+      + ' $x=' + p + '$ үед $' + (m * p + n) + '=' + tm(p - q, 'A', true) + '\\Rightarrow A=' + A + '$; $x=' + q + '$ үед $' + (m * q + n) + '=' + tm(q - p, 'B', true) + '\\Rightarrow B=' + B + '$.',
+    '$\\int\\frac{dx}{x-c}=\\ln|x-c|+C$ ба Ньютон–Лейбницийн томьёогоор $$\\int' + lim + '\\left(' + fr2(A, p, true) + fr2(B, q) + '\\right)dx=\\Big('
+      + tm(A, '\\ln|' + X(p) + '|', true) + tm(B, '\\ln|' + X(q) + '|') + '\\Big)\\Big|' + lim + '$$ $$=\\Big(' + at(b) + '\\Big)-\\Big(' + at(a) + '\\Big).$$',
+    'Логарифмын чанаруудаар (' + (one ? '$\\ln 1=0$, ' : '') + '$k\\ln u=\\ln u^k$, $\\ln u+\\ln v=\\ln(uv)$, $\\ln u-\\ln v=\\ln\\dfrac{u}{v}$) $$=' + comb + (comb === fin ? '' : '=' + fin) + '.$$'
+  ];
+}
 function p76() {
   var p = rnd(-4, 5), q = rnd(-4, 4);
   if (p <= q || p * q === 0 && rnd(0, 2)) return null;        // p > q; x² + kx хэлбэр цөөн
@@ -40,6 +66,7 @@ function p76() {
     q: '$\\displaystyle\\int_{' + a + '}^{' + (b === 1 ? '{1}' : b) + '}\\dfrac{' + poly([mm, n]) + '}{' + poly([1, -(p + q), p * q]) + '}\\,dx$ тодорхой интеграл бод.',
     a: '$\\ln' + (D === 1 ? ' ' + N : '\\dfrac{' + N + '}{' + D + '}') + '$',
     wk: 30,
+    s: p76_sol(p, q, A, B, mm, n, a, b, '\\ln' + (D === 1 ? ' ' + N : '\\dfrac{' + N + '}{' + D + '}')),
     t: { p: p, q: q, A: A, B: B, m: mm, n: n, a: a, b: b }
   };
 }
@@ -50,6 +77,24 @@ function p76() {
 //     (эх: y = eˣ, y = e, x = 0 → 1).
 function p77_lb(k) { return k === 4 ? [2, 2] : k === 8 ? [2, 3] : k === 9 ? [3, 2] : [k, 1]; }   // ln k = e·ln b
 function p77_E(j) { return 'e' + (j === 1 ? '' : '^' + j); }
+// Бодолтын зураг (x, y масштаб тусдаа): y = e^{px} муруй, y = H шулуун, y тэнхлэг; хашигдсан хэсэг будсан, x₀ тэнхлэг дээр.
+//   H > 1: хэсэг [0; x₀]-д шулууны доор; H < 1: [x₀; 0]-д шулууны дээр (y тэнхлэгийн зүүн талд).
+function p77_fig(p, Hv, Hl) {
+  var x0 = Math.log(Hv) / p, up = Hv > 1, L = Math.abs(x0), top = up ? Hv : 1, ex = function (x) { return Math.exp(p * x); };
+  var X0 = up ? -0.5 * L : -1.5 * L, X1 = up ? 1.5 * L : 0.5 * L, reg = [], i;
+  var f = Fig({ free: true, w: 200, h: 165, view: [X0, X1, -0.14 * top, 1.32 * top], padT: 14, padB: 18, padL: 12, padR: 18 });
+  for (i = 0; i <= 60; i++) { var x = up ? x0 * i / 60 : x0 * (1 - i / 60); reg.push([x, ex(x)]); }
+  reg.push([0, Hv]);
+  f.poly(reg, { fill: '#5a32d6', op: 0.22, c: 'none' }).axes({ ext: 8 })
+    .curve(ex, X0, up ? X1 : Math.min(X1, Math.log(1.18) / p), { w: 1.6 }).seg([X0, Hv], [X1, Hv], { w: 1.4 })   // H < 1: y тэнхлэгийн «y»-тэй давхцахгүй
+    .seg([x0, 0], [x0, Hv], { dash: '3 3', w: 0.9, c: '#666' }).dot([x0, Hv], { r: 2.3 })
+    .text([x0, 0], 'x_0', { pos: 's', size: 11, halo: true, off: 4 });
+  // муруйн нэр — муруйн зүүн дээд талд (хэсгийн гадна), шулууны нэр — хэсгээс зайдуу
+  var xc = up ? Math.log(1.16 * Hv) / p : x0 / 2;
+  f.text([xc, ex(xc)], p === 1 ? 'y=e^x' : 'y=e^{' + p + 'x}', { pos: 'nw', size: 11, halo: true, off: 5 });
+  f.text(up ? [X1, Hv] : [X0, Hv], 'y=' + Hl, up ? { pos: 'sw', size: 11, halo: true, off: 4 } : { pos: 'ne', size: 11, halo: true, off: 4 });
+  return f.svg();
+}
 function p77() {
   var w = rnd(1, 20), p = pick([1, 1, 1, 1, 2, 2, 3, 4]), H, S, g;
   if (w <= 7) {                                              // H = e^j
@@ -72,10 +117,53 @@ function p77() {
     H = '\\dfrac{1}{' + k2 + '}';
     S = '\\dfrac{' + (k2 - 1) + '-' + (lb2[1] === 1 ? '' : lb2[1]) + '\\ln ' + lb2[0] + '}{' + k2 * p + '}';
   }
+  // Бодолт: огтлолцол e^{px} = H ⇒ x₀ = ln H/p; e^{px} өсөх тул H > 1 бол [0; x₀]-д e^{px} ≤ H, H < 1 бол [x₀; 0]-д e^{px} ≥ H;
+  //   S = H·x₀ − ∫₀^{x₀}e^{px}dx  эсвэл  ∫_{x₀}^0 e^{px}dx − H·|x₀|  (∫e^{px}dx = e^{px}/p, e^{px₀} = H) — хариутай ижил хэлбэрт хураана
+  var E = p === 1 ? 'e^x' : 'e^{' + p + 'x}', PX = p === 1 ? 'x' : p + 'x', P1 = p === 1 ? '' : '\\dfrac{1}{' + p + '}';
+  var cs = w <= 7 ? 1 : w <= 14 ? 2 : w <= 16 ? 3 : 4, up = cs <= 2, Hv, Hl, x1, xd, xl, xa, mult, HX, ev, note = '', gg;
+  if (cs === 1) {
+    gg = gcd(j, p); var jn = j / gg, jd = p / gg;
+    Hv = Math.exp(j); Hl = p77_E(j); xd = fr(j, p); xl = jd === 1 ? (jn === 1 ? '{{1}}' : '{' + jn + '}') : '{\\frac{' + jn + '}{' + jd + '}}';
+    x1 = E + '=' + H + '\\Rightarrow ' + (p === 1 ? '' : PX + '=' + j + '\\Rightarrow ') + 'x=' + xd;
+    mult = xd === '1' ? H : H + '\\cdot ' + xd;
+    HX = jd === 1 ? (jn === 1 ? '' : jn) + H : '\\dfrac{' + (jn === 1 ? '' : jn) + H + '}{' + jd + '}';
+    ev = p === 1 ? '(' + H + '-1)' : '\\dfrac{' + H + '-1}{' + p + '}';
+  } else if (cs === 2) {
+    gg = gcd(k, p); var kn = k / gg, kd = p / gg;
+    Hv = k; Hl = String(k); xd = p === 1 ? '\\ln ' + k : '\\dfrac{\\ln ' + k + '}{' + p + '}'; xl = '{' + xd.replace('\\dfrac', '\\frac') + '}';
+    x1 = E + '=' + k + '\\Rightarrow ' + (p === 1 ? '' : PX + '=\\ln ' + k + '\\Rightarrow ') + 'x=' + xd;
+    mult = k + (p === 1 ? '' : '\\cdot ') + xd;
+    HX = kd === 1 ? (kn === 1 ? '' : kn) + '\\ln ' + k : '\\dfrac{' + (kn === 1 ? '' : kn) + '\\ln ' + k + '}{' + kd + '}';
+    ev = fr(k - 1, p);
+    note = ', $e^{\\ln ' + k + '}=' + k + '$' + (lb[1] > 1 ? ', $\\ln ' + k + '=' + lb[1] + '\\ln ' + lb[0] + '$' : '');
+  } else if (cs === 3) {
+    gg = gcd(j2, p);
+    Hv = Math.exp(-j2); Hl = 'e^{-' + j2 + '}'; xd = fr(-j2, p); xa = fr(j2, p); xl = '{' + xd.replace('\\dfrac', '\\frac') + '}';
+    x1 = E + '=' + H + '=e^{-' + j2 + '}\\Rightarrow ' + (p === 1 ? '' : PX + '=-' + j2 + '\\Rightarrow ') + 'x=' + xd;
+    mult = H + (xa === '1' ? '' : '\\cdot ' + xa);
+    HX = '\\dfrac{' + j2 / gg + '}{' + (p / gg === 1 ? '' : p / gg) + p77_E(j2) + '}';
+    ev = P1 + '\\left(1-' + H + '\\right)';
+  } else {
+    Hv = 1 / k2; Hl = '1/' + k2; xa = p === 1 ? '\\ln ' + k2 : '\\dfrac{\\ln ' + k2 + '}{' + p + '}'; xd = '-' + xa; xl = '{' + xd.replace('\\dfrac', '\\frac') + '}';
+    x1 = E + '=' + H + '\\Rightarrow ' + PX + '=\\ln' + H + '=-\\ln ' + k2 + (p === 1 ? '' : '\\Rightarrow x=' + xd);
+    mult = H + (p === 1 ? '' : '\\cdot ') + xa;
+    HX = '\\dfrac{\\ln ' + k2 + '}{' + k2 * p + '}';
+    ev = fr(k2 - 1, k2 * p);
+    note = ', $e^{-\\ln ' + k2 + '}=\\dfrac{1}{' + k2 + '}$' + (lb2[1] > 1 ? ', $\\ln ' + k2 + '=' + lb2[1] + '\\ln ' + lb2[0] + '$' : '');
+  }
+  var crv = P1 + E + '\\Big|' + (up ? '_0^' + xl : '_' + xl + '^0'), A2 = up ? HX + '-' + ev : ev + '-' + HX;
   return {
     q: '$y=' + (p === 1 ? 'e^x' : 'e^{' + p + 'x}') + '$, $y=' + H + '$, $x=0$ муруйнуудаар хүрээлэгдэх дүрсийн талбайг олоорой.',
     a: '$S=' + S + '$',
     wk: 26,
+    s: [
+      'Муруй ба шулууны огтлолцох цэгийн абсцисс: $$' + x1 + '.$$',
+      '$y=' + E + '$ өсөх функц тул ' + (up
+        ? '$0\\le x\\le ' + xd + '$ үед $' + E + '\\le ' + H + '$: дүрс муруйгаас дээш, $y=' + H + '$ шулуунаас доош оршино. Иймд $$S=\\int_0^' + xl + '\\left(' + H + '-' + E + '\\right)dx.$$'
+        : '$' + xd + '\\le x\\le 0$ үед $' + E + '\\ge ' + H + '$: дүрс $y=' + H + '$ шулуунаас дээш, муруйгаас доош оршино. Иймд $$S=\\int_' + xl + '^0\\left(' + E + '-' + H + '\\right)dx.$$'),
+      '$\\int ' + E + '\\,dx=' + P1.replace('dfrac', 'frac') + E + '+C$' + note + ' тул $$S=' + (up ? mult + '-' + crv : crv + '-' + mult) + '$$ $$=' + A2 + (A2 === S ? '' : '=' + S) + '.$$'
+    ],
+    sfig: p77_fig(p, Hv, Hl),
     t: { p: p, w: w }
   };
 }
@@ -97,11 +185,28 @@ function p78() {
     else { row.push('$' + L[at.length] + '$'); at.push(t); }
   }
   var E = xs[0] * P[0] + xs[1] * P[1] + xs[2] * P[2], k = rnd(1, 4) === 1 ? 1 : 0;   // 100·E(X); асуух үсэг
+  // Бодолт: Σp = 1 ⇒ a + b = 1 − p;  E(X) = Σx·p ⇒ x_a·a + x_b·b = E − x_p·p;  системээс асуусан үсгийг (зууны нэгжээр бүхэл тооцоо)
+  var xa = xs[at[0]], xb = xs[at[1]], xp = xs[kp], pp = P[kp], S1 = 100 - pp, S2 = E - xp * pp, Dx = xb - xa, Av = P[at[0]], Bv = P[at[1]];
+  var d2 = function (v) { return dec(v / 100); }, cols = [0, 1, 2];
+  var sumRow = cols.map(function (i) { return i === kp ? d2(pp) : L[at.indexOf(i)]; }).join('+');
+  var eRow = cols.map(function (i) { var x = xs[i]; return i === kp ? x + '\\cdot ' + d2(pp) : (x === 0 ? '0\\cdot ' : x === 1 ? '' : x) + L[at.indexOf(i)]; }).join('+');
+  var lhs = (xa ? tm(xa, 'a', true) : '') + tm(xb, 'b', !xa), rhs = xp ? d2(E) + '-' + (xp === 1 ? '' : xp + '\\cdot ') + d2(pp) + '=' + d2(S2) : d2(E), s3;
+  if (!xa) s3 = k ? (xb === 1 ? 'Иймд $b=' + d2(Bv) + '$.' : 'Эндээс $$b=' + d2(S2) + ':' + xb + '=' + d2(Bv) + '.$$')
+    : (xb === 1 ? 'Иймд' : 'Эндээс $b=' + d2(S2) + ':' + xb + '=' + d2(Bv) + '$, иймд') + ' эхний тэгшитгэлээс $$a=' + d2(S1) + '-' + d2(Bv) + '=' + d2(Av) + '.$$';
+  else if (!k) s3 = 'Эхний тэгшитгэлийг $' + xb + '$-' + suf(xb, 'аар') + ' үржүүлээд хоёр дахь тэгшитгэлийг хасвал $$' + (Dx === 1 ? '' : Dx) + 'a=' + xb + '\\cdot ' + d2(S1) + '-' + d2(S2)
+    + '=' + d2(Dx * Av) + (Dx === 1 ? '' : '\\Rightarrow a=' + d2(Av)) + '.$$';
+  else s3 = (xa === 1 ? 'Хоёр дахь тэгшитгэлээс эхний тэгшитгэлийг хасвал' : 'Эхний тэгшитгэлийг $' + xa + '$-' + suf(xa, 'аар') + ' үржүүлээд хоёр дахь тэгшитгэлээс хасвал') + ' $$'
+    + (Dx === 1 ? '' : Dx) + 'b=' + d2(S2) + '-' + (xa === 1 ? '' : xa + '\\cdot ') + d2(S1) + '=' + d2(Dx * Bv) + (Dx === 1 ? '' : '\\Rightarrow b=' + d2(Bv)) + '.$$';
   return {
     q: '$X$ санамсаргүй хувьсагчийн магадлалын тархалтыг хүснэгтээр өгөв. Хэрэв математик дундаж $E(X)=' + dec(E / 100) + '$ бол $' + L[k] + '$ тоог олоорой.',
     a: '$' + L[k] + '=' + dec(P[at[k]] / 100) + '$',
     fig: tbl([['$X$'].concat(xs), row]),
     wk: 26,
+    s: [
+      'Тархалтын хүснэгтийн бүх магадлалын нийлбэр $1$: $$' + sumRow + '=1\\Rightarrow a+b=1-' + d2(pp) + '=' + d2(S1) + '.$$',
+      'Математик дундаж $E(X)=x_1p_1+x_2p_2+x_3p_3$ тул $$' + eRow + '=' + d2(E) + '\\Rightarrow ' + lhs + '=' + rhs + '.$$',
+      s3
+    ],
     t: { xs: xs, P: P, kp: kp, ask: L[k] }
   };
 }
@@ -115,11 +220,30 @@ function p79() {
   for (k = 0; k <= n; k++) { xs.push(k); ps.push(fr(p79_C(n, k), Math.pow(2, n))); }   // \dfrac — array-д \frac хэт жижиг
   // \vphantom{\rule…} — үл үзэгдэх тулгуур: \dfrac-ийн хүртвэр \hline-д наалдахгүй
   var tb = '\\begin{array}{c|' + new Array(n + 2).join('c') + '}X&' + xs.join('&') + '\\\\\\hline P\\vphantom{\\rule{1pt}{1.8em}}&' + ps.join('&') + '\\end{array}';
+  // Бодолт: тал бүр ½, үл хамаарах ⇒ 2ⁿ тэнцүү үр дүнгийн C(n, k) нь X = k ⇒ P(X=k) = C(n, k)/2ⁿ; E(X), E(X²) хүснэгтээс (нийтлэг хуваарьтай);
+  //   D = E(X²) − (E(X))² = n/4 (бином: npq)
+  var N = Math.pow(2, n), C = xs.map(function (k) { return p79_C(n, k); }), S1 = 0, S2 = 0, pl = [], rows = [];
+  xs.forEach(function (k) {
+    var raw = '\\dfrac{' + C[k] + '}{' + N + '}';
+    S1 += k * C[k]; S2 += k * k * C[k];
+    pl.push('P(X=' + k + ')&=' + (ps[k] === raw ? raw : raw + '=' + ps[k]));
+  });
+  for (k = 0; k < pl.length; k += 2) rows.push(pl[k] + (k + 1 < pl.length ? ',&\\quad ' + pl[k + 1] : ''));
+  var E1 = fr(S1, N), E2 = fr(S2, N), sqE = S1 % N ? '\\left(' + E1 + '\\right)^2' : E1 + '^2';
+  var M2 = '\\dfrac{' + xs.map(function (k) { return k + '^2\\cdot ' + C[k]; }).join('+') + '}{' + N + '}';
   return {
     q: (w ? n + ' зоосыг нэгэн зэрэг орхих' : 'Зоосыг ' + n + ' удаа орхих') + ' туршилт хийв. Тоогүй (сүлд) талаар буусан зоосны тоог $X$ гэе. $X$ санамсаргүй хувьсагчийн магадлалын тархалтын хүснэгтийг байгуулж дисперсийг олоорой.',
     a: '$' + tb + '$, $D(X)=' + fr(n, 4) + '$',
     wide: n >= 4,
     wk: 34,
+    s: [
+      (w ? 'Зоос бүр' : 'Орхилт бүрд зоос') + ' тоогүй (сүлд) талаараа $\\dfrac{1}{2}$ магадлалтай буух ба ' + (w ? 'зоосууд' : 'орхилтууд') + ' хоорондоо хамааралгүй. '
+        + 'Нийт $2^' + n + '=' + N + '$ тэнцүү боломжит үр дүнгийн $C_' + n + '^k$ нь $X=k$ байх тул $$P(X=k)=\\dfrac{C_' + n + '^k}{' + N + '},\\quad k=' + (n <= 3 ? xs.join(',\\ ') : '0,\\ 1,\\ \\ldots,\\ ' + n) + '.$$',
+      'Тархалт: $$\\begin{aligned}' + rows.join(',\\\\') + '.\\end{aligned}$$',
+      'Математик дундаж: $$E(X)=\\dfrac{' + xs.map(function (k) { return k + '\\cdot ' + C[k]; }).join('+') + '}{' + N + '}=\\dfrac{' + S1 + '}{' + N + '}=' + E1 + '.$$',
+      '$X^2$-ийн дундаж: $$E(X^2)=' + M2 + (n >= 4 ? '$$ $$' : '') + '=\\dfrac{' + S2 + '}{' + N + '}=' + E2 + '.$$',
+      'Дисперс (бином тархалтын $D(X)=npq$ томьёогоор ч ижил гарна): $$D(X)=E(X^2)-\\big(E(X)\\big)^2=' + E2 + '-' + sqE + '=' + fr(n, 4) + '.$$'
+    ],
     t: { n: n }
   };
 }
@@ -146,10 +270,21 @@ function p80() {
   if (z1[0] < 0 && rnd(0, 3)) z1 = [-z1[0], -z1[1]];                                 // −1-ээр үржүүлэхэд модуль өөрчлөгдөхгүй:
   if (z2[0] < 0 && rnd(0, 3)) z2 = [-z2[0], -z2[1]];                                 // эх шиг бодит хэсэг голдуу эерэг
   var ex = '\\dfrac{' + p80_c(z1[0], z1[1]) + '}{' + p80_c(z2[0], z2[1]) + '}';
+  // Бодолт: |x + yi| = √(x² + y²) ба |z₁/z₂| = |z₁|/|z₂|; язгуурыг хялбарчилна (|z₁|² = P²·|z₂|² тул ижил язгууртай)
+  var md = function (z) {
+    var N = z[0] * z[0] + z[1] * z[1], r = surd(N).tex;
+    return { N: N, r: r, tex: '|' + p80_c(z[0], z[1]) + '|&=\\sqrt{' + par(z[0]) + '^2+' + par(z[1]) + '^2}=\\sqrt{' + N + '}' + (r === '\\sqrt{' + N + '}' ? '' : '=' + r) };
+  };
+  var M1 = md(z1), M2 = md(z2);
   return {
     q: '$' + ex + '$ комплекс тооны модулийг олоорой.',
     a: '$\\left|' + ex + '\\right|=' + fr(p * G, q) + '$',
     wk: 18,
+    s: [
+      'Комплекс тооны модуль $|x+yi|=\\sqrt{x^2+y^2}$, хуваалтын модуль нь модулиудын харьцаа: $$\\left|\\dfrac{z_1}{z_2}\\right|=\\dfrac{|z_1|}{|z_2|}.$$',
+      'Хүртвэр ба хуваарийн модуль: $$\\begin{aligned}' + M1.tex + ',\\\\' + M2.tex + '.\\end{aligned}$$',
+      'Иймд $$\\left|' + ex + '\\right|=\\dfrac{' + M1.r + '}{' + M2.r + '}=' + fr(p * G, q) + '.$$'
+    ],
     t: { z1: z1, z2: z2 }
   };
 }
@@ -168,10 +303,18 @@ function p81() {
   if (b > 0 && rnd(0, 2)) b = -b;
   var re = a * a - b * b, im = 2 * a * b;
   if (Math.abs(re) > 45 || Math.abs(im) > 70) return null;
+  // Бодолт: z = x + yi → x² − y² = Re, 2xy = Im; |z|² = |z²| → x² + y² = √(Re² + Im²); нэмж x², Re(z) > 0 → x, дараа нь y
+  var M = a * a + b * b, zs = p81_c(a, b);
   return {
     q: '$z^2=' + p81_c(re, im) + '$ ба $Re(z)\\gt 0$ байх $z$ комплекс тоог олоорой.',
-    a: '$z=' + p81_c(a, b) + '$',
+    a: '$z=' + zs + '$',
     wk: 26,
+    s: [
+      '$z=x+yi$ ($x$, $y$ — бодит тоо) гэвэл $z^2=x^2-y^2+2xyi$. Бодит ба хуурмаг хэсгүүдийг тэнцүүлбэл: $$x^2-y^2=' + re + ',\\qquad 2xy=' + im + '.$$',
+      'Модулийн чанараар $|z|^2=|z^2|$ тул $$x^2+y^2=\\sqrt{' + par(re) + '^2+' + par(im) + '^2}=\\sqrt{' + M * M + '}=' + M + '.$$',
+      'Эхний тэгшитгэлтэй нэмбэл $2x^2=' + M + sgn(re) + '=' + 2 * a * a + '$, $x^2=' + a * a + '$. $Re(z)=x\\gt 0$ тул $x=' + a + '$, эндээс $$y=\\dfrac{' + im + '}{2\\cdot ' + a + '}=' + b + '.$$',
+      'Шалгалт: $(' + zs + ')^2=' + a * a + tm(2 * a * b, 'i') + '-' + b * b + '=' + p81_c(re, im) + '$. Иймд $z=' + zs + '$.'
+    ],
     t: { a: a, b: b }
   };
 }
@@ -186,10 +329,28 @@ function p82() {
   var h = function (x) { return x + c - Math.exp(x + d); };
   if (Math.abs(h(L)) > H - 0.25 || Math.abs(h(R)) > H - 0.25) return null;
   var ln = 'y=x' + (c ? sgn(c) : ''), ex = 'y=e^{x' + (d ? sgn(d) : '') + '}', G = rnd(0, 3) ? [ln, ex] : [ex, ln];
+  // Бодолт: AB ∥ Oy → ижил абсцисс, AB = |h(x)|, h = x + c − e^{x+d}; h' = 1 − e^{x+d} → x₀ = −d (max, тэмдгийн шугам);
+  //   төгсгөлүүдэд |h(L)|, |h(R)| < H → |AB|-ийн хамгийн их нь H
+  var xc = 'x' + (c ? sgn(c) : ''), xd = 'x' + (d ? sgn(d) : ''), lnFirst = G[0] === ln;
+  var p82_e = function (k) { return k === 1 ? 'e' : 'e^{' + k + '}'; };
+  var hv = function (t) { return (t + c ? String(t + c) : '') + '-' + p82_e(t + d); };   // h(t) = (t + c) − e^{t+d}
+  var sum0 = x0 && c ? x0 + sgn(c) : String(x0 || c), hL = h(L), hR = h(R);
+  var ap = function (v) { return dec(v, Math.abs(v) < 0.1 ? 3 : 2); };   // ойролцоо утга (0-тэй ойр бол 3 орон)
   return {
     q: '$' + L + '\\le x\\le ' + R + '$ завсарт өгсөн $' + G[0] + '$, $' + G[1] + '$ функцийн графикууд дээр харгалзан $A,B$ цэгүүдийг $AB$ шулуун $y$ тэнхлэгтэй параллель байхаар авчээ. $AB$ хэрчмийн хамгийн их утгыг олоорой.',
     a: '$AB_{max}=' + H + '$ ($x=' + x0 + '$ үед)',
     wk: 30,
+    s: [
+      '$AB$ нь $y$ тэнхлэгтэй параллель тул $A$, $B$ цэгүүдийн абсцисс ижил: $A' + (lnFirst ? '(x;\\,' + xc + ')' : '(x;\\,e^{' + xd + '})') + '$, $B'
+        + (lnFirst ? '(x;\\,e^{' + xd + '})' : '(x;\\,' + xc + ')') + '$. Иймд $$AB=|h(x)|,\\qquad h(x)=' + xc + '-e^{' + xd + '}.$$',
+      'Уламжлалыг тэгтэй тэнцүүлье: $$h\'(x)=1-e^{' + xd + '}=0\\ \\Rightarrow\\ e^{' + xd + '}=1\\ \\Rightarrow\\ x=' + x0 + '.$$ $x\\lt ' + x0 + '$ үед $h\'(x)\\gt 0$, $x\\gt ' + x0
+        + '$ үед $h\'(x)\\lt 0$ тул $h(x)$ нь $[' + L + ';\\,' + x0 + ']$ завсарт өсөж, $[' + x0 + ';\\,' + R + ']$ завсарт буурна.',
+      'Иймд $x=' + x0 + '$ нь $h(x)$-ийн максимумын цэг: $$h(' + x0 + ')=' + sum0 + '-e^0=' + sum0 + '-1=' + H + '.$$',
+      'Тиймээс $h(x)$ хамгийн бага утгаа завсрын аль нэг төгсгөлд авна: $$h(' + L + ')=' + hv(L) + '\\approx ' + ap(hL) + ',$$ $$h(' + R + ')=' + hv(R) + '\\approx ' + ap(hR) + '.$$ '
+        + 'Эдгээрийн модуль $' + H + '$-' + suf(H, 'аас') + ' бага тул завсар дээр $|h(x)|\\le ' + H + '$.',
+      'Иймд $AB$ хэрчмийн хамгийн их утга $x=' + x0 + '$ үед: $AB_{max}=' + H + '$.'
+    ],
+    sfig: signLine({ pts: [String(x0)], sg: ['+', '-'], arr: true, tag: { 0: 'max' }, ends: [String(L), String(R)], fill: [0] }),
     t: { c: c, d: d, L: L, R: R }
   };
 }
@@ -198,6 +359,21 @@ function p82() {
 //     (k = 0: |1 − eˣ| ⇒ e^a + e^b − a − b − 2; эх: ∫₋₁¹ |1 − eˣ| dx = e + 1/e − 2).
 //     c бүхэл (k = ln c): ∫ₐᵇ |eˣ − c| dx = e^a + e^b + c(2 ln c − a − b − 2).
 function p83_E(j) { return j === 1 ? 'e' : 'e^' + j; }
+// Бодолтын туслахууд: e^j-ийн утга (TeX), {E: {j: коэф}, L: ln c-ийн коэф, C: тогтмол} шугаман эвлүүлэг ба түүний бичлэг (хариутай ижил дараалал)
+function p83_ex(j) { return j === 0 ? '1' : j > 0 ? p83_E(j) : '\\dfrac{1}{' + p83_E(-j) + '}'; }
+function p83_lin(o, j, v) { if (j === 0) o.C += v; else o.E[j] = (o.E[j] || 0) + v; return o; }
+function p83_fmt(o, c) {
+  var out = '', j;
+  for (j = 5; j >= 1; j--) if (o.E[j]) out += tm(o.E[j], p83_E(j), !out);
+  for (j = -1; j >= -5; j--) if (o.E[j]) out += (o.E[j] < 0 ? '-' : out ? '+' : '') + '\\dfrac{' + Math.abs(o.E[j]) + '}{' + p83_E(-j) + '}';
+  if (o.L) out += tm(o.L, '\\ln ' + c, !out);
+  if (o.C) out += out ? sgn(o.C) : String(o.C);
+  return out || '0';
+}
+function p83_par(s, first) {   // хасагдагч (эсвэл олон гишүүнтэй хасагч) хаалтад
+  var need = first ? /[+-]/.test(s.slice(1)) : /[+-]/.test(s);
+  return !need ? s : /frac/.test(s) ? '\\left(' + s + '\\right)' : '(' + s + ')';
+}
 function p83() {
   var w = rnd(1, 20), a, b, k = 0, c = 0, inner, E = {}, C = 0, L = 0, j;
   function add(p, v) { if (p === 0) C += v; else E[p] = (E[p] || 0) + v; }
@@ -219,10 +395,36 @@ function p83() {
   for (j = -1; j >= -5; j--) if (E[j]) out += (E[j] < 0 ? '-' : out ? '+' : '') + '\\dfrac{' + Math.abs(E[j]) + '}{' + p83_E(-j) + '}';
   if (L) out += tm(L, '\\ln ' + c, !out);
   if (C) out += out ? sgn(C) : String(C);
+  // Бодолт: модулийн доторх илэрхийлэл x₀-д (k эсвэл ln c) тэмдгээ солино → [a; x₀], [x₀; b] хэсгүүдэд задалж Ньютон–Лейбницийн томьёо.
+  //   F(t) = H·t − e^t ((H − eˣ)-ийн эх функц), I₁ = F(x₀) − F(a), I₂ = F(x₀) − F(b); нийлбэр нь хариутай ижил (2F(x₀) − F(a) − F(b))
+  var Hs = c ? String(c) : p83_ex(k), X0 = c ? '\\ln ' + c : String(k), Hx = c ? c + 'x' : k === 0 ? 'x' : p83_E(k) + 'x';
+  var lim = function (t) { return t === 1 ? '{1}' : String(t); };          // ^{1} → ^{{1}} (асуулттай адил)
+  var X0u = c ? X0 : lim(k), Iab = '\\int_{' + a + '}^{' + lim(b) + '}|' + inner + '|\\,dx';
+  var Ht = function (t) { return t === 'x0' ? (c ? c + '\\ln ' + c : tm(k, p83_E(k), true) || '') : c ? (c * t ? String(c * t) : '') : k === 0 ? (t ? String(t) : '') : tm(t, p83_E(k), true); };
+  var Et = function (t) { return t === 'x0' ? Hs : p83_ex(t); };
+  var Fs = function (t) { var h = Ht(t); return h ? h + '-' + Et(t) : '-' + Et(t); };                       // H·t − e^t
+  var Gs = function (t) { var h = Ht(t); return Et(t) + (h ? (h[0] === '-' ? '+' + h.slice(1) : '-' + h) : ''); };   // e^t − H·t
+  var Fl = function (t, sg, o) {                                                                       // o += sg·F(t)
+    if (t === 'x0') { if (c) { o.L += sg * c; o.C -= sg * c; } else p83_lin(o, k, sg * (k - 1)); }
+    else { if (c) o.C += sg * c * t; else p83_lin(o, k, sg * t); p83_lin(o, t, -sg); }
+    return o;
+  };
+  var I1 = Fl(a, -1, Fl('x0', 1, { E: {}, L: 0, C: 0 })), I2 = Fl(b, -1, Fl('x0', 1, { E: {}, L: 0, C: 0 }));
+  var i1 = p83_fmt(I1, c), i2 = p83_fmt(I2, c), sum = i1 + (i2[0] === '-' ? i2 : '+' + i2);
   return {
     q: '$\\displaystyle\\int_{' + a + '}^{' + (b === 1 ? '{1}' : b) + '}|' + inner + '|\\,dx$ тодорхой интегралыг бодоорой.',
     a: '$' + out + '$',
     wk: 30,
+    s: [
+      'Модулийн доторх илэрхийлэл $e^x=' + Hs + '$ буюу $x=' + X0 + '$' + (c ? ' $(\\ln ' + c + '\\approx ' + dec(Math.log(c), 2) + ')$' : '') + ' үед тэг болно. $e^x$ өсөх функц тул $x\\lt '
+        + X0 + '$ үед $e^x\\lt ' + Hs + '$, $x\\gt ' + X0 + '$ үед $e^x\\gt ' + Hs + '$. Иймд модулийг задалж интегралыг хоёр хэсэгт хуваая: $$' + Iab + '$$ $$=\\int_{' + a + '}^{' + X0u + '}('
+        + Hs + '-e^x)\\,dx+\\int_{' + X0 + '}^{' + lim(b) + '}(e^x-' + Hs + ')\\,dx.$$',
+      'Ньютон–Лейбницийн томьёогоор эхний интеграл: $$\\int_{' + a + '}^{' + X0u + '}(' + Hs + '-e^x)\\,dx=\\left(' + Hx + '-e^x\\right)\\Big|_{' + a + '}^{' + X0u + '}$$ $$='
+        + p83_par(Fs('x0'), true) + '-' + p83_par(Fs(a)) + '=' + i1 + '.$$',
+      'Хоёр дахь интеграл: $$\\int_{' + X0 + '}^{' + lim(b) + '}(e^x-' + Hs + ')\\,dx=\\left(e^x-' + Hx + '\\right)\\Big|_{' + X0 + '}^{' + lim(b) + '}$$ $$='
+        + p83_par(Gs(b), true) + '-' + p83_par(Gs('x0')) + '=' + i2 + '.$$',
+      'Иймд $$' + Iab + '=' + sum + (sum === out ? '' : '=' + out) + '.$$'
+    ],
     t: { a: a, b: b, k: k, c: c }
   };
 }
@@ -233,10 +435,18 @@ function p84() {
   var b = rnd(1, 5), p = nz(-8, 8);
   if (Math.abs(p) === 1 && rnd(0, 1)) return null;
   if (rnd(1, 6) === 1) b = -b;
+  // Бодолт: z = a + bi → z − z̄ = 2bi → b; бодит коэффициенттэй тул z̄ мөн шийд → Виет: z + z̄ = 2a = −2p, k = z·z̄ = a² + b²
+  //   (x нь тэгшитгэлийн хувьсагч тул бодит/хуурмаг хэсгийг a, b гэж тэмдэглэнэ)
+  var zc = function (re, im) { return (re ? String(re) : '') + (im < 0 ? '-' : re ? '+' : '') + (Math.abs(im) === 1 ? '' : Math.abs(im)) + 'i'; };
   return {
     q: '$z-\\bar z=' + 2 * b + 'i$ байх $z$ комплекс тоо $x^2' + tm(2 * p, 'x') + '+k=0$ тэгшитгэлийн шийд болно. Тэгвэл $k$ бодит тоог олоорой.',
     a: '$k=' + (p * p + b * b) + '$',
     wk: 26,
+    s: [
+      '$z=a+bi$ ($a$, $b$ — бодит тоо) гэвэл $\\bar z=a-bi$ ба $z-\\bar z=2bi$. Иймд $2bi=' + 2 * b + 'i$, $b=' + b + '$.',
+      'Тэгшитгэлийн коэффициентүүд бодит тул түүний комплекс шийдүүд хосмог: $z$ ба $\\bar z$. Виетийн теоремоор $$z+\\bar z=2a=' + -2 * p + '\\ \\Rightarrow\\ a=' + -p + '.$$',
+      'Иймд $z=' + zc(-p, b) + '$, $\\bar z=' + zc(-p, -b) + '$. Виетийн теоремоор $$k=z\\cdot\\bar z=a^2+b^2=' + par(-p) + '^2+' + par(b) + '^2=' + p * p + '+' + b * b + '=' + (p * p + b * b) + '.$$'
+    ],
     t: { b: b, p: p }
   };
 }
@@ -251,10 +461,26 @@ function p85() {
   if (m < 0 && n < 0 && b < 0) return null;
   var pos = rnd(1, 10) <= 7 ? 1 : 2;                       // c-ийн байр: 1 → x-ийн коэффициент, 2 → x²-ийн коэффициент
   var rhs = tm(C3, 'x^3', true) + (pos === 2 ? '+cx^2' : tm(C2, 'x^2')) + (pos === 1 ? '+cx' : tm(C1, 'x')) + sgn(C0);
+  // Бодолт: зүүн талыг задалж бүлэглэнэ → x³-ын коэффициентээс b, нөгөө мэдэгдэх коэффициентээс a → c
+  var lhs = '(x^2-ax' + sgn(m) + ')(bx' + sgn(-n) + ')', ba = tm(b, 'a', true), na = tm(n, 'a', true);
+  var ml = function (u, v) { return u === 1 ? par(v) : u === -1 ? '-' + par(v) : par(u) + '\\cdot ' + par(v); };   // u·v
+  var pl = function (s) { return s[0] === '-' ? s : '+' + s; };
+  var s2 = pos === 1
+    ? '$x^2$-ын коэффициентээс: $$-(' + ba + sgn(n) + ')=' + C2 + '\\ \\Rightarrow\\ ' + ba + '=' + (-C2 - n) + '\\ \\Rightarrow\\ a=' + a + '.$$'
+    : '$x$-ийн коэффициентээс: $$' + na + pl(ml(m, b)) + '=' + C1 + (n === 1 ? '' : '\\ \\Rightarrow\\ ' + na + '=' + (C1 - m * b)) + '\\ \\Rightarrow\\ a=' + a + '.$$';   // n = 1 бол «a = … ⇒ a = …» давхардахгүй
+  var c1m = ml(n, a) + pl(ml(m, b)), c1p = n * a + sgn(m * b);   // орлуулга ба үржвэрүүд (ижил бол нэг удаа: «3+2=3+2» биш)
+  var s3 = pos === 1
+    ? '$c$ нь $x$-ийн коэффициент тул $$c=' + na + tm(m, 'b') + '=' + c1m + (c1m === c1p ? '' : '=' + c1p) + '=' + C1 + '.$$'
+    : '$c$ нь $x^2$-ын коэффициент тул $$c=-(ab' + sgn(n) + ')=-(' + par(a) + '\\cdot ' + par(b) + sgn(n) + ')=-(' + a * b + sgn(n) + ')=' + C2 + '.$$';
   return {
     q: '$(x^2-ax' + sgn(m) + ')(bx' + sgn(-n) + ')=' + rhs + '$ бол $c=?$',
     a: '$c=' + (pos === 1 ? C1 : C2) + '$',
     wk: 24,
+    s: [
+      'Зүүн талыг задалж, $x$-ийн зэргээр бүлэглэе: $$' + lhs + '$$ $$=bx^3-(ab' + sgn(n) + ')x^2+(' + na + tm(m, 'b') + ')x' + sgn(C0) + '.$$',
+      'Адилтгалын хоёр талын харгалзах коэффициентүүд тэнцүү. $x^3$-ын коэффициентээс $b=' + b + '$ (сул гишүүн $-' + par(m) + '\\cdot ' + par(n) + '=' + C0 + '$ таарч байна); ' + s2,
+      s3
+    ],
     t: { a: a, b: b, m: m, n: n, pos: pos }
   };
 }
@@ -273,10 +499,26 @@ function p86() {
   P[P.length - 2] += R[0]; P[P.length - 1] += R[1];
   for (i = 0; i < P.length; i++) if (!P[i] || Math.abs(P[i]) > 40) return null;
   if (P[0] > 12) return null;
+  // Бодолт: булангаар хуваах — ахлах гишүүнийг хуваагчийн ахлах гишүүнд хувааж ноогдворын гишүүн, түүнийг хуваагчаар үржүүлж хасна (давтана)
+  var cur = P.slice(), ss = [], dg, k, mono = function (c, p) { return tm(c, p === 0 ? '' : p === 1 ? 'x' : 'x^{' + p + '}', true); };
+  var nth = ['Булангаар хуваая. Ноогдворын эхний гишүүн', 'Ноогдворын дараагийн гишүүн', 'Ноогдворын дараагийн гишүүн'];
+  for (k = 0; k < Q.length; k++) {
+    dg = cur.length - 1;
+    var qk = cur[0] / D[0], tq = mono(qk, dg - 2), prod = [qk * D[0], qk * D[1], qk * D[2]], nxt = cur.slice(1);
+    for (j = 3; j < cur.length; j++) prod.push(0);
+    nxt[0] -= prod[1]; nxt[1] -= prod[2];
+    ss.push(nth[k] + ': $\\dfrac{' + mono(cur[0], dg) + '}{' + mono(D[0], 2) + '}=' + tq + '$. $' + tq + '\\cdot(' + poly(D) + ')=' + poly(prod) + '$ үржвэрийг '
+      + (k ? 'өмнөх үлдэгдлээс' : 'хуваагдагчаас') + ' хасвал: $$(' + poly(cur) + ')-(' + poly(prod) + ')$$ $$=' + poly(nxt) + '.$$');
+    cur = nxt;
+  }
+  var Rz = !cur[0] && !cur[1];
+  ss.push((Rz ? 'Үлдэгдэл $0$ тул ' + 'хуваагдагч хуваагчид үлдэгдэлгүй хуваагдана.' : 'Гарсан $R(x)=' + poly(cur) + '$ олон гишүүнтийн зэрэг хуваагчийнхаас бага тул энэ нь үлдэгдэл болж, хуваалт дуусна.')
+    + ' Иймд ноогдвор олон гишүүнт: $' + poly(Q) + '$.');
   return {
     q: '$' + poly(P) + '$ олон гишүүнтийг $' + poly(D) + '$ олон гишүүнтэд хуваахад гарах ноогдвор олон гишүүнтийг ол.',
     a: '$' + poly(Q) + '$',
     wk: 28,
+    s: ss,
     t: { P: P, D: D, Q: Q, R: R }
   };
 }
@@ -296,10 +538,23 @@ function p87() {
   }
   if (!ok) return null;
   var fx = a + '^' + (p ? '{x' + sgn(p) + '}' : 'x') + sgn(q), G = 'g\\big(g(' + x0 + ')\\big)';
+  // Бодолт: y = a^{x+p} + q-ээс x-ийг илэрхийлж g(x) = log_a(x − q) − p; дотроос нь эхэлж g(x₀) = y₁, дараа нь g(y₁) = z
+  var ex = p ? '{x' + sgn(p) + '}' : 'x', sp = p ? sgn(-p) : '', lg = '\\log_' + a;
+  var gv = function (u, w) {   // g(u) = log_a(u − q) − p = w  (u − q = a^{w+p})
+    var e = w + p;
+    return '$$g(' + u + ')=' + lg + '(' + u + sgn(-q) + ')' + sp + '=' + lg + ' ' + (u - q) + sp + '=' + e + (p ? sp + '=' + w : '') + '.$$';
+  };
   return {
     q: '$f(x)=' + fx + '$ функцийн урвуу функц нь $y=g(x)$ бол $' + G + '=?$',
     a: '$' + G + '=' + z + '$',
     wk: 26,
+    s: [
+      'Урвуу функцийг олъё: $y=' + fx + '$ тэгшитгэлээс $x$-ийг илэрхийлбэл $$' + a + '^' + ex + '=y' + sgn(-q) + '\\ \\Rightarrow\\ ' + (p ? 'x' + sgn(p) + '=' + lg + '(y' + sgn(-q) + ')\\ \\Rightarrow\\ ' : '')
+        + 'x=' + lg + '(y' + sgn(-q) + ')' + sp + '.$$ $x$, $y$-ийн байрыг сольвол $g(x)=' + lg + '(x' + sgn(-q) + ')' + sp + '$ $(x\\gt ' + q + ')$.',
+      'Эхлээд дотор талын утга: ' + gv(x0, y1),
+      'Дараа нь: ' + gv(y1, z),
+      'Иймд $' + G + '=g(' + y1 + ')=' + z + '$.'
+    ],
     t: { a: a, p: p, q: q, x0: x0, y1: y1, z: z }
   };
 }
@@ -314,10 +569,28 @@ function p88() {
   if (k - j + v < 0 || k + u + v < 0) return null;
   var m = Math.pow(B, k - j + u) + Math.pow(B, k - j + v), n = Math.pow(B, k + u + v);
   if (m < 2 || m > 40 || n > 81) return null;
+  // Бодолт: t = B^x > 0 → B^k·t² − m·B^j·t + n = 0; бүхэл, хураасан коэффициенттэй болгож (×L эсвэл :g) дискриминантаар t₁ = B^u, t₂ = B^v
+  var pw = Math.pow, Bk = pw(B, k), Bs = pw(B, Math.abs(j)), L = 1, A2, A1, A0, g0, ss = [];
+  var T2 = (k ? Bk : '') + 't^2', T1 = j > 0 ? Bs + 't' : '\\dfrac{t}{' + Bs + '}';
+  if (j > 0) { A2 = Bk; A1 = -m * Bs; A0 = n; }
+  else { L = Bs / gcd(m, Bs); A2 = Bk * L; A1 = -m * L / Bs; A0 = n * L; }
+  g0 = gcd(gcd(A2, A1), A0); A2 /= g0; A1 /= g0; A0 /= g0;
+  var eq0 = T2 + (j > 0 ? tm(-m * Bs, 't') : '-' + m + '\\cdot\\dfrac{t}{' + Bs + '}') + '+' + n, eq1 = poly([A2, A1, A0], 't');
+  ss.push('$t=' + B + '^x$ $(t\\gt 0)$ гэвэл $' + B + '^{2x' + (k ? sgn(k) : '') + '}=' + T2 + '$, $' + B + '^{x' + sgn(j) + '}=' + T1 + '$. Тэгшитгэл: $$' + eq0 + '=0.$$');
+  if (L > 1) ss.push('Хоёр талыг $' + L + '$-' + suf(L, 'аар') + ' үржүүлбэл: $$' + eq1 + '=0.$$');
+  else if (g0 > 1) ss.push((j < 0 ? 'Хялбарчилж, хоёр талыг' : 'Хоёр талыг') + ' $' + g0 + '$-' + suf(g0, 'д') + ' хуваавал: $$' + eq1 + '=0.$$');
+  else if (j < 0) ss.push('Хялбарчилбал: $$' + eq1 + '=0.$$');
+  var D = A1 * A1 - 4 * A2 * A0, sq = Math.round(Math.sqrt(D)), den = A2 === 1 ? '2' : '2\\cdot ' + A2;
+  var tv = function (e) { return e >= 0 ? String(pw(B, e)) : '\\dfrac{1}{' + pw(B, -e) + '}'; };
+  var bk = function (e, ix) { return '$' + B + '^x=' + tv(e) + (e === 1 ? '' : '=' + B + '^{' + e + '}') + '\\ \\Rightarrow\\ x_' + ix + '=' + e + '$'; };
+  ss.push('Дискриминант: $$D=' + par(A1) + '^2-4\\cdot ' + A2 + '\\cdot ' + A0 + '=' + A1 * A1 + '-' + 4 * A2 * A0 + '=' + D + (sq > 1 ? '=' + sq + '^2' : '') + ',$$ $$t_1=\\dfrac{' + -A1 + '+' + sq + '}{' + den + '}='
+    + tv(u) + ',\\quad t_2=\\dfrac{' + -A1 + '-' + sq + '}{' + den + '}=' + tv(v) + '.$$ Хоёр язгуур хоёулаа эерэг тул $t\\gt 0$ нөхцөлийг хангана.');
+  ss.push(bk(u, 1) + ', ' + bk(v, 2) + '. Иймд $x_1+x_2=' + (v ? u + '+' + par(v) + '=' : '') + (u + v) + '$.');
   return {
     q: '$' + B + '^{2x' + (k ? sgn(k) : '') + '}-' + m + '\\times ' + B + '^{x' + sgn(j) + '}+' + n + '=0$ тэгшитгэлийн шийдүүдийн нийлбэрийг олоорой.',
     a: '$x_1+x_2=' + (u + v) + '$',
     wk: 26,
+    s: ss,
     t: { B: B, k: k, j: j, m: m, n: n, u: u, v: v }
   };
 }
@@ -340,10 +613,26 @@ function p89() {
   var rel = pick(['le', 'le', 'le', 'le', 'lt', 'ge', 'gt']);
   var ineq = '\\log_' + B + '(' + p + '-x)-\\log_' + B * B + (q ? '(x' + sgn(-q) + ')' : ' x') + '\\' + rel + ' ' + k;
   var ans = rel === 'le' ? r1 + '\\le x\\lt ' + p : rel === 'lt' ? r1 + '\\lt x\\lt ' + p : rel === 'ge' ? q + '\\lt x\\le ' + r1 : q + '\\lt x\\lt ' + r1;
+  // Бодолт: муж q < x < p; log_{B²}(x − q) = ½·log_B(x − q) → ×2 → log_B((p − x)²/(x − q)) ⋚ log_B K (K = B^{2k}) →
+  //   B > 1 ба x − q > 0 тул (p − x)² ⋚ K(x − q) → x² − (2p + K)x + (p² + Kq) ⋚ 0 → язгуур r₁, r₂ → мужтай огтлолцол
+  var R = '\\' + rel + ' ', xq = q ? 'x' + sgn(-q) : 'x', Xq = q ? '(' + xq + ')' : 'x', px = '(' + p + '-x)', lB = '\\log_' + B;
+  var b1 = 2 * p + K, c0 = p * p + K * q, r2 = p + (K + s) / 2, fx = function (r) { return r ? '(x' + sgn(-r) + ')' : 'x'; };
+  var quad = poly([1, -b1, c0]), le = rel === 'le' || rel === 'lt', w = rel === 'le' || rel === 'ge' ? '\\le' : '\\lt';
+  var sol = le ? '$' + r1 + w + ' x' + w + ' ' + r2 + '$' : '$x' + (rel === 'ge' ? '\\le ' : '\\lt ') + r1 + '$ эсвэл $x' + (rel === 'ge' ? '\\ge ' : '\\gt ') + r2 + '$';
   return {
     q: 'Логарифм тэнцэтгэл биш бодоорой.<br>&emsp;$' + ineq + '$',
     a: '$' + ans + '$',
     wk: 32,
+    s: [
+      'Тодорхойлогдох муж: $' + p + '-x\\gt 0$ ба $' + xq + '\\gt 0$, өөрөөр хэлбэл $' + q + '\\lt x\\lt ' + p + '$.',
+      'Логарифмын чанараар $\\log_{' + B * B + '}' + Xq + '=\\dfrac{1}{2}' + lB + Xq + '$. Хоёр талыг $2$-оор үржүүлбэл $$2' + lB + px + '-' + lB + Xq + R + 2 * k + '.$$ $'
+        + 2 * k + '=' + lB + ' ' + K + '$ гэж бичээд логарифмуудыг нэгтгэвэл $$' + lB + '\\dfrac{' + px + '^2}{' + xq + '}' + R + lB + ' ' + K + '.$$',
+      'Суурь $' + B + '\\gt 1$ (функц өсөх) ба $' + xq + '\\gt 0$ тул $$' + px + '^2' + R + (K === 1 ? xq : K + Xq) + '$$ $$\\Rightarrow\\ ' + quad + R + '0.$$',
+      (c0 ? 'Язгуурууд: $$D=' + b1 + '^2-4\\cdot ' + par(c0) + '=' + s * s + '=' + s + '^2,$$ $$x_{1,2}=\\dfrac{' + b1 + '\\mp ' + s + '}{2}\\ \\Rightarrow\\ x_1=' + r1 + ',\\ x_2=' + r2 + '.$$ '
+        : 'Үржигдэхүүнд задалбал $' + quad + '=x(x-' + r2 + ')$, язгуурууд $x_1=0$, $x_2=' + r2 + '$. ')
+        + 'Интервалын аргаар $' + fx(r1) + fx(r2) + R + '0$ тэнцэтгэл бишийн шийд: ' + sol + '.',
+      'Мужтай огтлолцуулбал ($' + q + '\\lt ' + r1 + '\\lt ' + p + '\\lt ' + r2 + '$): $' + ans + '$.'
+    ],
     t: { B: B, k: k, p: p, q: q, r1: r1, rel: rel }
   };
 }
@@ -365,10 +654,30 @@ function p90() {
   var deg = rnd(1, 5) <= 3 ? pick([90, 90, 180, 270, -90, -90, -180, -270])
     : pick([30, 45, 60, 120, 135, 150, 210, 225, 240, 300, 315, 330, -30, -45, -60, -120, -135, -150]);
   var cs = p90_cs(deg), M = [[cs[0], p90_neg(cs[1])], [cs[1], cs[0]]];
+  // Бодолт: R(θ) = (cos θ  −sin θ; sin θ  cos θ); cos, sin-ийг (сөрөг өнцөгт тэгш/сондгой чанар, бусад үед 180°/360°-аас) олж орлуулна
+  var D = function (t) { return t < 0 ? '(' + t + '^\\circ)' : t + '^\\circ'; }, df = function (s) { return s.replace(/\\frac/g, '\\dfrac'); };
+  var ad = Math.abs(deg), qd = ad % 90 === 0;
+  var red = function (fn) {   // θ > 90° (90-ийн үржвэр биш): θ = 180° − α, 180° + α, 360° − α
+    if (qd || ad < 90) return '';
+    var al = ad < 180 ? 180 - ad : ad < 270 ? ad - 180 : 360 - ad, sh = ad < 180 ? '180^\\circ-' : ad < 270 ? '180^\\circ+' : '360^\\circ-';
+    var sv = fn === 'cos' ? (ad < 270 ? '-' : '') : (ad < 180 ? '' : '-');
+    return '=\\' + fn + '(' + sh + al + '^\\circ)=' + sv + '\\' + fn + ' ' + al + '^\\circ';
+  };
+  var line = function (fn) {   // сөрөг өнцөгт: cos(−α) = cos α, sin(−α) = −sin α
+    var val = df(fn === 'cos' ? cs[0] : cs[1]);
+    if (deg > 0) return '\\' + fn + ' ' + D(deg) + red(fn) + '=' + val;
+    return '\\' + fn + D(deg) + '=' + (fn === 'cos' ? '' : '-') + '\\' + fn + ' ' + ad + '^\\circ=' + val;
+  };
   return {
     q: '$O(0;\\,0)$ төвтэй $' + deg + '^\\circ$ өнцгөөр эргүүлэх эргүүлэлтийг $A$ хувиргалтын матриц аль вэ?',
     a: '$A=' + p90_mx(M) + '$',
     wk: 20,
+    s: [
+      'Координатын эх дээр төвтэй $\\theta$ өнцгийн эргүүлэлтийн матриц $$A=\\begin{pmatrix}\\cos\\theta&-\\sin\\theta\\\\\\sin\\theta&\\cos\\theta\\end{pmatrix}.$$'
+        + (deg < 0 ? ' $\\theta=' + deg + '^\\circ$ нь цагийн зүүний дагуу $' + ad + '^\\circ$ эргүүлэлт.' : ' $\\theta=' + deg + '^\\circ\\gt 0$ — цагийн зүүний эсрэг эргүүлэлт.'),
+      '$\\theta=' + deg + '^\\circ$ үед $$' + line('cos') + ',$$ $$' + line('sin') + '.$$',
+      'Орлуулбал ($-\\sin\\theta=' + df(p90_neg(cs[1])) + '$) $$A=' + p90_mx(M) + '.$$'
+    ],
     t: { deg: deg }
   };
 }
@@ -390,10 +699,24 @@ function p91() {
     var ap = ord.slice().reverse();   // хийгдэх дараалал
     what = 'эхлээд $' + T[ap[0]] + '$, дараа нь $' + T[ap[1]] + '$' + (n === 3 ? ', эцэст нь $' + T[ap[2]] + '$' : '') + ' хувиргалт хийхэд гарах хувиргалтын матриц';
   }
+  // Бодолт: хувиргалт бүр координатын баганыг матрицаар (зүүнээс) үржүүлнэ; бичлэгийн баруун талынх эхэлж үйлчилнэ →
+  // F(E(v)) = B(Av) = (BA)v (бүлэх чанар); сүүлд хийсэн хувиргалтын матриц зүүн талд
+  var wr = what.charAt(0) === '$', ap0 = ord.slice().reverse(), mw = ord.map(function (j) { return M[j]; }).join('');
+  var nT = '\\vec v', nM = M[ord[n - 1]] + '\\vec v';
+  for (i = n - 1; i >= 0; i--) nT = T[ord[i]] + '(' + nT + ')';
+  for (i = n - 2; i >= 0; i--) nM = M[ord[i]] + '\\,(' + nM + ')';
+  var defs = T.map(function (t, j) { return '$' + t + '(\\vec v)=' + M[j] + '\\vec v$'; });
+  var seq = 'эхлээд $' + T[ap0[0]] + '$, дараа нь $' + T[ap0[1]] + '$' + (n === 3 ? ', эцэст нь $' + T[ap0[2]] + '$' : '');
+  var sol = ['Хувиргалт бүр цэгийн координатын $\\vec v=\\begin{pmatrix}x\\\\y\\end{pmatrix}$ баганыг өөрийн матрицаар зүүн талаас нь үржүүлнэ: '
+    + defs.slice(0, -1).join(', ') + ' ба ' + defs[n - 1] + '.'];
+  if (wr) sol.push('$' + ord.map(function (j) { return T[j]; }).join('') + '$ бичлэгт баруун талын хувиргалт эхэлж үйлчилнэ: ' + seq + '.');
+  sol.push((wr ? 'Иймд' : seq.charAt(0).toUpperCase() + seq.slice(1) + ' хувиргалт хийхэд') + ' $\\vec v$ цэг $$' + nT + '=' + nM + '=(' + mw + ')\\,\\vec v$$ цэгт шилжинэ (матрицын үржвэр бүлэх чанартай).');
+  sol.push('Сүүлд хийсэн хувиргалтын матриц зүүн талд бичигдэнэ. Матрицын үржвэр ерөнхийдөө солигдох чанаргүй тул энэ дараалал чухал. Иймд хувиргалтын матриц $' + mw + '$.');
   return {
     q: 'Хэрэв ' + lst(T) + ' хувиргалтын матриц харгалзан ' + lst(M) + ' бол ' + what + ' ... байна.',
     a: '$' + ord.map(function (j) { return M[j]; }).join('') + '$',
     wk: 14,
+    s: sol,
     t: { T: T, M: M, ord: ord }
   };
 }
@@ -409,11 +732,28 @@ function p92() {
   var w = fe ? [e, f] : [a * e + b * f, c * e + d * f];
   if (Math.abs(w[0]) > 30 || Math.abs(w[1]) > 30) return null;
   var M = mat([[a, b], [c, d]]);
+  // Бодолт: FE — эхлээд E (M·X), дараа нь F (+v) ⇒ X' = M·X + v;  EF — эхлээд F (X + v), дараа нь E ⇒ M(X + v) = M·X + M·v
+  var X = p92_col('x', 'y'), Xp = p92_col("x'", "y'"), V = p92_col(e, f), sol;
+  var dot = function (p, q, r, s) {   // p·q + r·s (тэг гишүүнийг бичихгүй)
+    var t1 = p ? dec(p) + '\\cdot ' + par(q) : '', t2 = r ? (r < 0 ? '-' : t1 ? '+' : '') + dec(Math.abs(r)) + '\\cdot ' + par(s) : '';
+    return t1 + t2;
+  };
+  if (fe) sol = [
+    '$FE$ гэдэг нь эхлээд $E$, дараа нь $F$ хувиргалт хийх (баруун талынх эхэлж үйлчилнэ). $E$ хувиргалт $(x;\\,y)$ цэгийг $$' + M + X + '$$ цэгт шилжүүлнэ.',
+    'Дараа нь $F$ хувиргалт уг цэгийг $' + V + '$ вектороор зөөнө, өөрөөр хэлбэл энэ векторыг нэмнэ. Иймд $$' + Xp + '=' + M + X + '+' + V + '.$$'
+  ];
+  else sol = [
+    '$EF$ гэдэг нь эхлээд $F$, дараа нь $E$ хувиргалт хийх (баруун талынх эхэлж үйлчилнэ). $F$ хувиргалт $(x;\\,y)$ цэгийг $$' + X + '+' + V + '$$ цэгт зөөнө.',
+    'Дараа нь $E$ хувиргалт уг цэгийн баганыг $E$-ийн матрицаар үржүүлнэ. Матрицын үржвэрийн хаалт задлах чанараар $$' + Xp + '=' + M + '\\left(' + X + '+' + V + '\\right)$$ $$=' + M + X + '+' + M + V + '.$$',
+    'Сүүлийн үржвэрийг бодъё: $$' + M + V + '=' + p92_col(dot(a, e, b, f), dot(c, e, d, f)) + '=' + p92_col(w[0], w[1]) + '.$$',
+    'Иймд $$' + Xp + '=' + M + X + '+' + p92_col(w[0], w[1]) + '.$$'
+  ];
   return {
     q: '$E$ нь $' + M + '$ матрицтай хувиргалт ба $F$ нь $' + p92_col(e, f) + '$ вектороор параллель зөөлт байг. $' + (fe ? 'FE' : 'EF')
       + '$ хувиргалтын томьёог матрицан хэлбэрт бичээрэй.',
     a: '$' + p92_col("x'", "y'") + '=' + M + p92_col('x', 'y') + '+' + p92_col(w[0], w[1]) + '$',
     wk: 28,
+    s: sol,
     t: { M: [[a, b], [c, d]], v: [e, f], fe: fe }
   };
 }
@@ -433,6 +773,36 @@ function p93_T() {
     { id: 'so', f: 'so', t: p93_O + 'тэгш хэмийн хувиргалтыг', M: [[-1, 0], [0, -1]] }];
 }
 function p93_mul(P, Q) { return [[P[0][0] * Q[0][0] + P[0][1] * Q[1][0], P[0][0] * Q[0][1] + P[0][1] * Q[1][1]], [P[1][0] * Q[0][0] + P[1][1] * Q[1][0], P[1][0] * Q[0][1] + P[1][1] * Q[1][1]]]; }
+// Бодолт: хувиргалт бүрийн матриц (эргүүлэлт — cos/sin томьёогоор, бусад — координатын өөрчлөлтөөр), эхлээд F, дараа нь S бол
+// S(F·v) = (S·F)·v ⇒ сүүлд хийсэн хувиргалтын матриц зүүн талд
+function p93_lin(cx, cy) {   // cx·x + cy·y
+  var s = tm(cx, 'x', true); s += tm(cy, 'y', !s);
+  return s || '0';
+}
+function p93_nm(o) {
+  if (o.f === 'rot') return '$O$ төвтэй $' + o.id.slice(1) + '^\\circ$ өнцгийн эргүүлэлт';
+  if (o.f === 'hom') return '$O$ төвтэй $k=' + o.M[0][0] + '$ коэффициенттэй гомотет';
+  if (o.f === 'so') return '$O$ төвтэй тэгш хэм';
+  return { ox: '$Ox$ тэнхлэгийн', oy: '$Oy$ тэнхлэгийн', yx: '$y=x$ шулууны', ymx: '$y=-x$ шулууны' }[o.id] + ' хувьд тэгш хэм';
+}
+function p93_one(L, o) {   // L — хувиргалтын нэр (A эсвэл B)
+  var M = o.M, h = '$' + L + '$ — ' + p93_nm(o);
+  if (o.f === 'rot') {
+    var d = +o.id.slice(1), D = d < 0 ? '(' + d + '^\\circ)' : ' ' + d + '^\\circ';
+    return h + '. Эргүүлэлтийн матрицын томьёогоор $$' + L + '=\\begin{pmatrix}\\cos' + D + '&-\\sin' + D + '\\\\\\sin' + D + '&\\cos' + D + '\\end{pmatrix}=' + mat(M) + '.$$';
+  }
+  return h + ': $(x;\\,y)\\mapsto(' + p93_lin(M[0][0], M[0][1]) + ';\\,' + p93_lin(M[1][0], M[1][1]) + ')$, иймд $$' + L + '=' + mat(M) + '.$$';
+}
+function p93_sol(X, Y, first, second, P) {
+  var F = first === 'A' ? X : Y, S = first === 'A' ? Y : X;
+  return [
+    p93_one('A', X),
+    p93_one('B', Y),
+    'Эхлээд $' + first + '$, дараа нь $' + second + '$ хувиргалт хийхэд цэгийн $\\vec v=\\begin{pmatrix}x\\\\y\\end{pmatrix}$ багана эхлээд $' + first + '$ матрицаар, дараа нь $' + second
+      + '$ матрицаар үржигдэнэ: $$' + second + '(' + first + '\\vec v)=(' + second + first + ')\\,\\vec v.$$ Сүүлд хийсэн хувиргалтын матриц зүүн талд бичигдэнэ.',
+    'Мөрийг баганаар үржүүлбэл $$' + second + first + '=' + mat(S.M) + mat(F.M) + '=' + mat(P) + '.$$'
+  ];
+}
 function p93() {
   var L = p93_T(), refl = L.filter(function (o) { return o.f === 'ref'; });
   // Эхийнх шиг «эргүүлэлт + тэгш хэм» голдуу; бусад нь тэгш хэм + тэгш хэм, гомотет, төвийн тэгш хэм
@@ -451,6 +821,7 @@ function p93() {
       + '$ хувиргалтыг хийх дараалсан хувиргалтын матрицыг ол.',
     a: '$' + second + first + '=' + mat(P) + '$',
     wk: 30,
+    s: p93_sol(X, Y, first, second, P),
     t: { A: X.id, B: Y.id, first: first }
   };
 }
@@ -472,6 +843,35 @@ function p94_hom(n, d) {
 }
 function p94_mul(P, Q) { return [[P[0][0] * Q[0][0] + P[0][1] * Q[1][0], P[0][0] * Q[0][1] + P[0][1] * Q[1][1]], [P[1][0] * Q[0][0] + P[1][1] * Q[1][0], P[1][0] * Q[0][1] + P[1][1] * Q[1][1]]]; }
 function p94_eq(P, Q) { return String(P) === String(Q); }
+// Бодолт: өгсөн хувиргалт ба сонголт бүрээр (x; y) цэгийн дүрийг бичиж (дараалсан бол хоёр алхмаар), ижил дүр = ижил матриц
+function p94_lin(cx, cy) {   // cx·x + cy·y (коэффициент бүхэл эсвэл ±1/2)
+  var f = function (c) { return c === Math.round(c) ? c : [Math.round(2 * c), 2]; };
+  var s = tm(f(cx), 'x', true); s += tm(f(cy), 'y', !s);
+  return s || '0';
+}
+function p94_img(M) { return '(' + p94_lin(M[0][0], M[0][1]) + ';\\,' + p94_lin(M[1][0], M[1][1]) + ')'; }
+function p94_nm(o) {
+  if (o.f === 'rot') return '$O$ төвтэй $' + o.id.slice(1) + '^\\circ$ эргүүлэлт';
+  if (o.f === 'so') return '$O$ төвтэй тэгш хэм';
+  if (o.f === 'hom') { var m = /^h(-?\d+)\/(\d+)$/.exec(o.id); return '$O$ төвтэй $k=' + (m[2] === '1' ? m[1] : frs(+m[1], +m[2])) + '$ гомотет'; }
+  return { ox: '$Ox$ тэнхлэгийн', oy: '$Oy$ тэнхлэгийн', yx: '$y=x$ шулууны', ymx: '$y=-x$ шулууны' }[o.id] + ' хувьд тэгш хэм';
+}
+function p94_sol(st, ops, ci, BY) {
+  var L = 'ABCDE', P0 = '(x;\\,y)';
+  var two = function (o) { var p = o.id.split('>'); return [BY[p[0]], BY[p[1]]]; };
+  var chain = function (o) { if (o.f !== 'comp') return P0 + '\\mapsto' + p94_img(o.M); var t = two(o); return P0 + '\\to' + p94_img(t[0].M) + '\\to' + p94_img(o.M); };
+  var s1;
+  if (st.f === 'comp') {
+    var t = two(st);
+    s1 = 'Өгсөн хувиргалт — эхлээд ' + p94_nm(t[0]) + ', дараа нь ' + p94_nm(t[1]) + ': $$' + chain(st) + ',$$ матриц нь $$' + mat(t[1].M) + mat(t[0].M) + '=' + mat(st.M) + '.$$';
+  } else s1 = 'Өгсөн хувиргалт — ' + p94_nm(st) + ': $' + chain(st) + '$, матриц нь $$' + mat(st.M) + '.$$';
+  return [
+    s1,
+    'Сонголт бүрийн хувиргалтаар $' + P0 + '$ цэг хаашаа шилжихийг бичье: $$\\begin{array}{ll}'
+      + ops.map(function (o, k) { return '\\text{' + L[k] + '.}&' + chain(o); }).join('\\\\') + '\\end{array}$$',
+    'Зөвхөн ' + L[ci] + ' сонголтод $' + P0 + '\\mapsto' + p94_img(st.M) + '$ буюу матриц нь мөн $' + mat(st.M) + '$, бусад сонголтын матриц өөр. Иймд зөв хариулт ' + L[ci] + '.'
+  ];
+}
 function p94() {
   var R90 = p94_rot(90, [[0, -1], [1, 0]]), R180 = p94_rot(180, [[-1, 0], [0, -1]]), R270 = p94_rot(270, [[0, 1], [-1, 0]]), Rm90 = p94_rot(-90, [[0, 1], [-1, 0]]);
   var SO = { id: 'so', f: 'so', N: p94_O + 'тэгш хэмийн хувиргалт', C: p94_O + 'тэгш хэмээр хувиргаад', F: p94_O + 'тэгш хэмийн хувиргалт', M: [[-1, 0], [0, -1]] };
@@ -521,10 +921,13 @@ function p94() {
     + '<div style="margin-top:3px">' + ops.map(function (o, k) {
       return '<div style="display:flex;gap:5px"><span style="flex:none;min-width:17px">' + L[k] + '.</span><span>' + o.N + '</span></div>';
     }).join('') + '</div>';
+  var BY = {};
+  B.forEach(function (o) { BY[o.id] = o; });
   return {
     q: q,
     a: L[ci] + ' (хоёулаа $' + mat(st.M) + '$ матрицтай)',
     wk: 16,
+    s: p94_sol(st, ops, ci, BY),
     t: { st: st.id, ops: ops.map(function (o) { return o.id; }), ci: ci }
   };
 }
@@ -545,11 +948,31 @@ function p95() {
   var Q = P.map(function (p) { return [S[0] + k * (p[0] - S[0]), S[1] + k * (p[1] - S[1])]; });
   if (Q.some(function (p) { return Math.abs(p[0]) > 18 || Math.abs(p[1]) > 18; })) return null;
   var nm = ['A', 'B', 'C'], ls = function (X, sub) { return X.map(function (p, j) { return '$' + nm[j] + sub + pt(p[0], p[1]) + '$'; }).join(', '); };
+  // Бодолт: SP₁ = k·SP (вектор) ⇒ O төвтэй үед (x; y) ↦ (kx; ky), M(x₀; y₀) төвтэй үед x' = x₀ + k(x − x₀), y' = y₀ + k(y − y₀)
+  var Kt = half ? (k < 0 ? '-' : '') + '\\dfrac{1}{2}' : String(k), Ka = half ? '\\dfrac{1}{2}' : String(Math.abs(k)), lr = half ? ['\\left(', '\\right)'] : ['(', ')'];
+  var co = function (c0, v) {   // c0 + k·(v − c0)
+    if (org) return k === -1 ? (v ? '-' + par(v) : '0') : (k < 0 ? '-' : '') + Ka + '\\cdot ' + par(v);
+    var df = '(' + v + sgn(-c0) + ')';
+    return c0 + (k === -1 ? '-' + df : (k < 0 ? '-' : '+') + Ka + '\\cdot' + df);
+  };
+  var img = P.map(function (p, j) {
+    var L = nm[j] + '_1' + lr[0] + co(S[0], p[0]) + ';\\,' + co(S[1], p[1]) + lr[1], R = nm[j] + '_1' + pt(Q[j][0], Q[j][1]);
+    return '$$' + L + (L === R ? '' : '=' + R) + (j < 2 ? ',' : '.') + '$$';
+  });
+  var kk = half ? [2 * k, 2] : k;
+  var sol = org ? [
+    'Гомотетын тодорхойлолтоор $\\overrightarrow{OA_1}=k\\cdot\\overrightarrow{OA}$. Төв нь координатын эх тул цэгийн координат бүр $k$ тоогоор үржигдэнэ: $$(x;\\,y)\\mapsto(kx;\\,ky).$$',
+    '$k=' + Kt + '$ үед $(x;\\,y)\\mapsto(' + tm(kk, 'x', true) + ';\\,' + tm(kk, 'y', true) + ')$. Иймд оройнуудын дүр ' + img.join(' ')
+  ] : [
+    'Гомотетын тодорхойлолтоор $\\overrightarrow{MA_1}=k\\cdot\\overrightarrow{MA}$. $M(x_0;\\,y_0)$ төвтэй үед $(x;\\,y)$ цэгийн дүрийн координат $$x\'=x_0+k\\,(x-x_0),\\qquad y\'=y_0+k\\,(y-y_0).$$',
+    'Энд $x_0=' + S[0] + '$, $y_0=' + S[1] + '$, $k=' + Kt + '$. Иймд оройнуудын дүр ' + img.join(' ')
+  ];
   return {
     q: ls(P, '') + ' цэгүүдэд оройтой гурвалжинг $' + (org ? 'O(0;\\,0)' : 'M' + pt(S[0], S[1])) + '$ төвтэй $k=' + p95_k(k)
       + '$ коэффициенттэй гомотет хувиргалтаар хувиргахад гарах дүрийн координатыг тодорхойл.',
     a: ls(Q, '_1'),
     wk: 26,
+    s: sol,
     t: { P: P, S: S, k: k }
   };
 }
@@ -577,10 +1000,29 @@ function p96() {
   var Q = P.map(function (p) { return p96_ap(Y.M, p96_ap(X.M, p)); });
   if (P.every(function (p, i) { return p[0] === Q[i][0] && p[1] === Q[i][1]; })) return null;
   var nm = ['A', 'B', 'C'], ls = function (Z, sub) { return Z.map(function (p, j) { return '$' + nm[j] + sub + pt(p[0], p[1]) + '$'; }).join(', '); };
+  // Бодолт: хувиргалт бүрийн координатын дүрэм → дараалан (хоёр дахийг эхнийхийн дүрд) → нийлмэл дүрэм → оройнуудад орлуулна
+  var C = [0, 1].map(function (i) { return [Y.M[i][0] * X.M[0][0] + Y.M[i][1] * X.M[1][0], Y.M[i][0] * X.M[0][1] + Y.M[i][1] * X.M[1][1]]; });
+  var lin = function (r) { var s = tm(r[0], 'x', true); s += tm(r[1], 'y', !s); return s || '0'; };
+  var im = function (M) { return '(' + lin(M[0]) + ';\\,' + lin(M[1]) + ')'; };
+  var nmT = function (o) {
+    if (o.f === 'rot') return '$O$ төвтэй $' + o.id.slice(1) + '^\\circ$ эргүүлэлт';
+    return { ox: '$Ox$ тэнхлэгийн', oy: '$Oy$ тэнхлэгийн', yx: '$y=x$ шулууны', ymx: '$y=-x$ шулууны' }[o.id] + ' хувьд тэгш хэм';
+  };
+  var sub = function (r, p) { var c = r[0] ? r[0] : r[1], v = r[0] ? p[0] : p[1]; return c > 0 || !v ? dec(v) : '-' + par(v); };   // ±x эсвэл ±y-д орлуулна
+  var img = P.map(function (p, j) {
+    var L = nm[j] + '_1(' + sub(C[0], p) + ';\\,' + sub(C[1], p) + ')', R = nm[j] + '_1' + pt(Q[j][0], Q[j][1]);
+    return '$$' + nm[j] + pt(p[0], p[1]) + '\\to ' + L + (L === R ? '' : '=' + R) + (j < 2 ? ',' : '.') + '$$';
+  });
+  var sol = [
+    'Эхний хувиргалт — ' + nmT(X) + ': $(x;\\,y)\\mapsto' + im(X.M) + '$. Хоёр дахь хувиргалт — ' + nmT(Y) + ': $(x;\\,y)\\mapsto' + im(Y.M) + '$.',
+    'Хоёр дахь хувиргалтыг эхнийхийн дүрд хэрэглэвэл $$(x;\\,y)\\to' + im(X.M) + '\\to' + im(C) + '.$$',
+    'Иймд нийлмэл хувиргалт $(x;\\,y)\\mapsto' + im(C) + '$, оройнуудын дүр ' + img.join(' ')
+  ];
   return {
     q: ls(P, '') + ' цэгүүдэд оройтой гурвалжинг эхлээд ' + X.C + ' дараа нь ' + Y.F + ' хийхэд гарах дүрийн координатыг тодорхойл.',
     a: ls(Q, '_1'),
     wk: 30,
+    s: sol,
     t: { P: P, X: X.id, Y: Y.id }
   };
 }
@@ -593,6 +1035,31 @@ function p96() {
 function p97_mx(rows) {   // бутархайтай матрицад мөр хооронд зай
   return '\\begin{pmatrix}' + rows.map(function (r) { return r.join('&'); }).join(/frac/.test(rows.join()) ? '\\\\[6pt]' : '\\\\') + '\\end{pmatrix}';
 }
+// Бодолт: Ox, Oy, y = ±x, O — цэгийн координатын өөрчлөлт → x', y'-ийн коэффициентүүд матрицын мөр болно;
+//   y = mx (tg φ = m) — шулууны тэгш хэмийн матриц (cos 2φ  sin 2φ; sin 2φ  −cos 2φ): 30°/60° бол яг утга, рационал m бол
+//   cos 2φ = (1 − tg²φ)/(1 + tg²φ), sin 2φ = 2tg φ/(1 + tg²φ)
+var p97_GEN = '\\begin{pmatrix}\\cos 2\\varphi&\\sin 2\\varphi\\\\\\sin 2\\varphi&-\\cos 2\\varphi\\end{pmatrix}';
+function p97_basic(L, Mt) {
+  var D = {
+    'Ox': ['$Ox$ тэнхлэгийн хувьд тэгш хэмтэй цэгүүдийн абсцисс тэнцүү, ординат нь эсрэг тэмдэгтэй', 'x', '-y'],
+    'Oy': ['$Oy$ тэнхлэгийн хувьд тэгш хэмтэй цэгүүдийн ординат тэнцүү, абсцисс нь эсрэг тэмдэгтэй', '-x', 'y'],
+    'y=x': ['$y=x$ шулууны хувьд тэгш хэмтэй цэгүүдийн координатууд байраа солино', 'y', 'x'],
+    'y=-x': ['$y=-x$ шулууны хувьд тэгш хэмтэй цэгүүдийн координатууд байраа сольж, эсрэг тэмдэгтэй болно', '-y', '-x'],
+    'O': ['$O(0;\\,0)$ цэгийн хувьд тэгш хэмтэй цэгүүдийг холбосон хэрчмийн дундаж цэг нь $O$ тул координат бүр эсрэг тэмдэгтэй болно', '-x', '-y']
+  }[L];
+  return [
+    D[0] + ': $(x;\\,y)\\mapsto(' + D[1] + ';\\,' + D[2] + ')$, өөрөөр хэлбэл $$\\begin{cases}x\'=' + D[1] + '\\\\y\'=' + D[2] + '\\end{cases}$$',
+    'Тэгшитгэл бүрийн $x$, $y$-ийн коэффициентүүд матрицын мөрүүд болно: $$\\begin{pmatrix}x\'\\\\y\'\\end{pmatrix}=' + Mt + '\\begin{pmatrix}x\\\\y\\end{pmatrix}.$$',
+    'Иймд хувиргалтын матриц $$' + Mt + '.$$'
+  ];
+}
+function p97_line(s2, Mt) {
+  return [
+    'Координатын эхийг дайрч $Ox$ тэнхлэгтэй $\\varphi$ өнцөг үүсгэх шулууны хувьд тэнхлэгийн тэгш хэмийн матриц $$' + p97_GEN + '.$$',
+    s2,
+    'Иймд $$' + p97_GEN + '=' + Mt + '.$$'
+  ];
+}
 function p97() {
   var u = rnd(1, 100), L, M, ax = 'шулууны';
   var h = '\\frac{1}{2}', r = '\\frac{\\sqrt{3}}{2}', n = function (t) { return '-' + t; };
@@ -602,7 +1069,7 @@ function p97() {
       ['y=-x', [['0', '-1'], ['-1', '0']]], ['O', [['-1', '0'], ['0', '-1']]]]);
     L = B[0]; M = B[1];
     if (L === 'O') {
-      return { q: '$O(0;\\,0)$ цэгийн хувьд төвийн тэгш хэмийн хувиргалтын матрицыг бич.', a: '$' + p97_mx(M) + '$', wk: 16, t: { L: L } };
+      return { q: '$O(0;\\,0)$ цэгийн хувьд төвийн тэгш хэмийн хувиргалтын матрицыг бич.', a: '$' + p97_mx(M) + '$', wk: 16, s: p97_basic(L, p97_mx(M)), t: { L: L } };
     }
     if (L[0] === 'O') ax = 'тэнхлэгийн';
   } else if (u <= 82) {   // 30°/60°-ын шулуун
@@ -615,10 +1082,25 @@ function p97() {
     var c = frs(q * q - p * p, D), s = frs(2 * p * q, D), cn = frs(p * p - q * q, D);
     L = 'y=' + tm(q === 1 ? p : [p, q], 'x', true); M = [[c, s], [s, cn]];
   }
+  var Mt = p97_mx(M), sol;
+  if (u <= 60) sol = p97_basic(L, Mt);
+  else if (u <= 82) {
+    var A = { 'y=\\sqrt{3}x': [60, '\\sqrt{3}'], 'y=-\\sqrt{3}x': [-60, '-\\sqrt{3}'], 'y=\\frac{1}{\\sqrt{3}}x': [30, '\\dfrac{1}{\\sqrt{3}}'],
+      'y=-\\frac{1}{\\sqrt{3}}x': [-30, '-\\dfrac{1}{\\sqrt{3}}'] }[L], d2 = 2 * A[0], Dg = d2 < 0 ? '(' + d2 + '^\\circ)' : ' ' + d2 + '^\\circ';
+    var cv = Math.abs(d2) === 120 ? '-\\dfrac{1}{2}' : '\\dfrac{1}{2}', sv = (d2 < 0 ? '-' : '') + '\\dfrac{\\sqrt{3}}{2}';
+    sol = p97_line('Шулууны өнцгийн коэффициент $\\operatorname{tg}\\varphi=' + A[1] + '$ тул $\\varphi=' + A[0] + '^\\circ$, $2\\varphi=' + d2 + '^\\circ$: $$\\cos' + Dg + '=' + cv
+      + ',\\qquad\\sin' + Dg + '=' + sv + '.$$', Mt);
+  } else {
+    var m2 = q === 1 ? String(p * p) : '\\frac{' + p * p + '}{' + q * q + '}', mP = q === 1 ? par(p) : p < 0 ? '\\left(-\\frac{' + -p + '}{' + q + '}\\right)' : '\\frac{' + p + '}{' + q + '}';
+    var tgT = '\\operatorname{tg}', den = '{1+' + tgT + '^2\\varphi}';
+    sol = p97_line('Шулууны өнцгийн коэффициент $' + tgT + '\\varphi=' + fr(p, q) + '$. Тангенсаар илэрхийлэх томьёогоор $$\\cos 2\\varphi=\\dfrac{1-' + tgT + '^2\\varphi}' + den
+      + '=\\dfrac{1-' + m2 + '}{1+' + m2 + '}=' + fr(q * q - p * p, D) + ',$$ $$\\sin 2\\varphi=\\dfrac{2' + tgT + '\\varphi}' + den + '=\\dfrac{2\\cdot ' + mP + '}{1+' + m2 + '}=' + fr(2 * p * q, D) + '.$$', Mt);
+  }
   return {
     q: '$' + L + '$ ' + ax + ' хувьд тэнхлэгийн тэгш хэмийн хувиргалтын матрицыг бич.',
     a: '$' + p97_mx(M) + '$',
     wk: 16,
+    s: sol,
     t: { L: L }
   };
 }
@@ -627,6 +1109,35 @@ function p97() {
 //     M: k·E (k бутархай/сөрөг), diag(s, t), эсвэл k·(90° эргүүлэлт / y = ±x тэгш хэм).
 //     Эх оройнууд хуваарийн (D) үржвэр координаттай → дүр бүхэл. Цэгийн бичлэг эх шиг таслалтай: A(x, y).
 function p98_r(n, d) { var g = gcd(n, d); return [n / g, d / g]; }
+// Бодолт: M = (a b; c d) ⇒ (x, y) ↦ (ax + by, cx + dy). Шугаман хамааралгүй хоёр оройгоос a, b ба c, d-гийн хоёр систем →
+// Крамерын дүрэм (Δ = x₁y₂ − x₂y₁); гурав дахь оройгоор шалгана.
+function p98_dt(p, q, r, s) {   // p·q − r·s (тэг үржвэрийг бичихгүй)
+  var t1 = p * q ? dec(p) + '\\cdot ' + par(q) : '', t2 = r * s ? par(r) + '\\cdot ' + par(s) : '';
+  return t1 && t2 ? t1 + '-' + t2 : t1 || (t2 ? '-' + t2 : '0');
+}
+function p98_sol(P, Q, Mt) {
+  var L = 'ABC', ij = [[0, 1], [0, 2], [1, 2]].filter(function (e) { return P[e[0]][0] * P[e[1]][1] - P[e[1]][0] * P[e[0]][1]; })[0];
+  var i = ij[0], j = ij[1], k = 3 - i - j, p1 = P[i], p2 = P[j], q1 = Q[i], q2 = Q[j], det = p1[0] * p2[1] - p2[0] * p1[1];
+  var eq = function (cx, cy, u, v, R) { var s = tm(cx, u, true); s += tm(cy, v, !s); return s + '=' + R; };
+  var cr = function (nm, p, q, r, s) {   // Δ_nm = p·q − r·s ⇒ nm = Δ_nm/Δ;  Δ сөрөг бол хуваарь эерэг, тэмдэг урд (12/−9 биш −12/9)
+    var ex = p98_dt(p, q, r, s), num = p * q - r * s, v = fr(num, det), Dn = '\\Delta_' + nm;
+    var head = Dn + '=' + (ex === '0' ? '' : ex + '=') + num + '\\ \\Rightarrow\\ ' + nm + '=\\dfrac{' + Dn + '}{\\Delta}=';
+    if (!num || Math.abs(det) === 1) return head + v;
+    var q0 = (num * det < 0 ? '-' : '') + '\\dfrac{' + Math.abs(num) + '}{' + Math.abs(det) + '}';
+    return head + (q0 === v ? v : q0 + '=' + v);
+  };
+  var col = function (u, v) { return '\\begin{pmatrix}' + u + '\\\\' + v + '\\end{pmatrix}'; };
+  return [
+    'Хувиргалтын матрицыг $M=\\begin{pmatrix}a&b\\\\c&d\\end{pmatrix}$ гэе. Тэгвэл $(x,\\,y)$ цэгийн дүр $(ax+by,\\,cx+dy)$ болно.',
+    '$' + L[i] + '\\to ' + L[i] + '_1$ ба $' + L[j] + '\\to ' + L[j] + '_1$ нөхцөлөөс хоёр систем гарна: $$\\begin{cases}' + eq(p1[0], p1[1], 'a', 'b', q1[0]) + '\\\\'
+      + eq(p2[0], p2[1], 'a', 'b', q2[0]) + '\\end{cases}\\qquad\\begin{cases}' + eq(p1[0], p1[1], 'c', 'd', q1[1]) + '\\\\' + eq(p2[0], p2[1], 'c', 'd', q2[1]) + '\\end{cases}$$',
+    'Эхний системийг Крамерын дүрмээр бодъё: $$\\Delta=' + p98_dt(p1[0], p2[1], p2[0], p1[1]) + '=' + det + ',$$ $$' + cr('a', q1[0], p2[1], q2[0], p1[1]) + ',$$ $$'
+      + cr('b', p1[0], q2[0], p2[0], q1[0]) + '.$$',
+    'Хоёр дахь систем ижил $\\Delta$-тай: $$' + cr('c', q1[1], p2[1], q2[1], p1[1]) + ',$$ $$' + cr('d', p1[0], q2[1], p2[0], q1[1]) + '.$$',
+    '$' + L[k] + '$ оройгоор шалгавал $$' + Mt + col(P[k][0], P[k][1]) + '=' + col(Q[k][0], Q[k][1]) + '$$ буюу $' + L[k] + '_1(' + Q[k][0] + ',\\,' + Q[k][1]
+      + ')$ гарч байна. Иймд хувиргалтын матриц $$' + Mt + '.$$'
+  ];
+}
 function p98() {
   var u = rnd(1, 10), M, Kf = [[-3, 4], [3, 4], [-1, 2], [1, 2], [-2, 3], [2, 3], [-3, 2], [3, 2], [-4, 3], [4, 3], [-2, 1], [2, 1], [-3, 1], [3, 1],
     [-1, 3], [1, 3], [-5, 4], [5, 4], [-1, 4], [5, 2], [-5, 2]];
@@ -659,10 +1170,12 @@ function p98() {
   if (zs > 1) return null;
   var ls = function (X, sub) { return '$' + X.map(function (p, j) { return 'ABC'[j] + sub + '(' + p[0] + ',\\,' + p[1] + ')'; }).join(';\\ ') + '$'; };
   var rows = M.map(function (row) { return row.map(function (e) { return frs(e[0], e[1]); }); });
+  var Mt = '\\begin{pmatrix}' + rows.map(function (r) { return r.join('&'); }).join(/frac/.test(rows.join()) ? '\\\\[6pt]' : '\\\\') + '\\end{pmatrix}';
   return {
     q: ls(P, '') + ' цэгүүд дээр оройтой гурвалжин дээр ямар хувиргалтын матриц ашиглавал ' + ls(Q, '_1') + ' цэгүүд дээр оройтой гурвалжин үүсэх вэ?',
-    a: '$\\begin{pmatrix}' + rows.map(function (r) { return r.join('&'); }).join(/frac/.test(rows.join()) ? '\\\\[6pt]' : '\\\\') + '\\end{pmatrix}$',
+    a: '$' + Mt + '$',
     wk: 30,
+    s: p98_sol(P, Q, Mt),
     t: { P: P, Q: Q }
   };
 }
@@ -676,10 +1189,17 @@ function p99() {
   if ([A[0], A[1], M[0], M[1], B[0], B[1]].filter(function (x) { return !x; }).length > 1) return null;
   var findA = rnd(1, 5) === 1, G = findA ? B : A, X = findA ? A : B, gn = findA ? 'B' : 'A', xn = findA ? 'A' : 'B';
   var c = function (p) { return '(' + p[0] + ',\\,' + p[1] + ')'; };
+  // Бодолт: дундаж цэгийн координат = төгсгөлүүдийн координатын арифметик дундаж ⇒ X = 2M − G; шалгалт (G + X)/2 = M
+  var tw = function (m, v) { return '2\\cdot ' + par(m) + (v ? '-' + par(v) : ''); };   // 2m − v (тэг хасагдахуунгүй)
   return {
     q: '$AB$ хэрчмийн дундаж цэг нь $M$ болно. Хэрэв $' + gn + c(G) + '$, $M' + c(M) + '$ бол $' + xn + '$ цэгийн координатыг олоорой.',
     a: '$' + xn + c(X) + '$',
     wk: 20,
+    s: [
+      'Хэрчмийн дундаж цэгийн координат нь төгсгөлүүдийн координатын арифметик дундаж: $$x_M=\\dfrac{x_A+x_B}{2},\\qquad y_M=\\dfrac{y_A+y_B}{2}.$$',
+      'Эндээс $x_' + xn + '=2x_M-x_' + gn + '$, $y_' + xn + '=2y_M-y_' + gn + '$: $$x_' + xn + '=' + tw(M[0], G[0]) + '=' + X[0] + ',\\qquad y_' + xn + '=' + tw(M[1], G[1]) + '=' + X[1] + '.$$',
+      'Шалгалт: $\\dfrac{' + G[0] + '+' + par(X[0]) + '}{2}=' + M[0] + '$, $\\dfrac{' + G[1] + '+' + par(X[1]) + '}{2}=' + M[1] + '$ — $M$ цэгийн координат. Иймд $' + xn + c(X) + '$.'
+    ],
     t: { A: A, B: B, M: M, findA: findA }
   };
 }
@@ -704,6 +1224,115 @@ function p100_inc(P) {   // багтсан тойргийн төв ба ради
   var a = Math.hypot(P[1][0] - P[2][0], P[1][1] - P[2][1]), b = Math.hypot(P[0][0] - P[2][0], P[0][1] - P[2][1]), c = Math.hypot(P[0][0] - P[1][0], P[0][1] - P[1][1]);
   var s = a + b + c, ar = Math.abs(p100_cr(P[0], P[1], P[2])) / 2;
   return { c: [(a * P[0][0] + b * P[1][0] + c * P[2][0]) / s, (a * P[0][1] + b * P[1][1] + c * P[2][1]) / s], r: 2 * ar / s };
+}
+// Бодолт: A_1, B_1 — тэгш өнцгийн орой, A_1A_2, B_1B_2 — хэвтээ катет (гомотет чиглэлийг хадгална, k < 0 бол эсрэг);
+//   k = (x_{B_2} − x_{B_1})/(x_{A_2} − x_{A_1});  SB_1 = k·SA_1 ⇒ x_0 = (x_{B_1} − k·x_{A_1})/(1 − k);  A_3 → B_3-аар шалгана.
+//   sfig: харгалзах оройнуудыг холбосон шулуунууд S төвд огтлолцоно (байгуулалт).
+function p100_sol(A, B, S, k) {
+  var kT = k === 0.5 ? '\\dfrac{1}{2}' : String(k), kP = k === 0.5 ? '\\frac{1}{2}' : par(k);
+  var P = function (n, p) { return n + pt(p[0], p[1]); };
+  var df = function (u, v) { return u + '-' + par(v); };   // u − v
+  var lx = A[1][0] - A[0][0], kl = k * lx;   // k = kl/lx — хуваарь сөрөг бол тэмдгийг урд нь (4/(−2) биш −4/2)
+  var kq = (kl * lx < 0 ? '-' : '') + '\\dfrac{' + Math.abs(kl) + '}{' + Math.abs(lx) + '}';
+  var cen = function (c) {   // x_0 эсвэл y_0
+    return '\\dfrac{' + B[0][c] + '-' + kP + '\\cdot ' + par(A[0][c]) + '}{1-' + kP + '}=' + S[c];
+  };
+  var sA = [A[2][0] - S[0], A[2][1] - S[1]], sB = [B[2][0] - S[0], B[2][1] - S[1]];
+  return [
+    'Зургаас оройнуудын координатыг уншъя ($A_1$, $B_1$ — тэгш өнцгийн оройнууд, $A_1A_2$ ба $B_1B_2$ — хэвтээ катетууд): $$' + P('A_1', A[0]) + ',\\quad ' + P('A_2', A[1]) + ',\\quad ' + P('A_3', A[2])
+      + ';$$ $$' + P('B_1', B[0]) + ',\\quad ' + P('B_2', B[1]) + ',\\quad ' + P('B_3', B[2]) + '.$$',
+    'Гомотет нь хэрчим бүрийг түүнтэй параллель хэрчимд шилжүүлж, $\\overrightarrow{B_1B_2}=k\\cdot\\overrightarrow{A_1A_2}$ байна. Иймд $$k=\\dfrac{x_{B_2}-x_{B_1}}{x_{A_2}-x_{A_1}}=\\dfrac{' + df(B[1][0], B[0][0]) + '}{'
+      + df(A[1][0], A[0][0]) + '}=' + kq + '=' + kT + '.$$'
+      + (k < 0 ? ' $k\\lt 0$ тул $B$ дүрс төвийн нөгөө талд, эсрэг чиглэлтэй байрлана.' : ''),
+    'Төвийг $S(x_0;\\,y_0)$ гэвэл $\\overrightarrow{SB_1}=k\\cdot\\overrightarrow{SA_1}$. Абсциссуудаар $$x_{B_1}-x_0=k\\,(x_{A_1}-x_0)\\ \\Rightarrow\\ x_0=\\dfrac{x_{B_1}-k\\,x_{A_1}}{1-k},$$ ординатуудаар мөн адил.',
+    'Тоог орлуулбал $$x_0=' + cen(0) + ',$$ $$y_0=' + cen(1) + '.$$',
+    'Шалгалт: $\\overrightarrow{SA_3}=' + pt(sA[0], sA[1]) + '$, $\\overrightarrow{SB_3}=' + pt(sB[0], sB[1]) + '=' + (k === 0.5 ? '\\frac{1}{2}\\cdot' : k === -1 ? '-' : kT + '\\cdot') + '\\overrightarrow{SA_3}$. Иймд гомотетын төв $'
+      + pt(S[0], S[1]) + '$, $k=' + kT + '$.'
+  ];
+}
+// ── sfig-ийн шошгууд (A_1 … B_3, S)-ыг дэлгэцийн (px) координатаар давхцалгүй байрлуулна. svg() дотор (бодит масштаб T-ээр)
+// дуудагдаж, text-үүдийн st объектын pos/off-ийг өөрчилнө. Эхлээд оройн 6 шошго (анхдагч — гурвалжны төвөөс гадагш; бусад
+// шошго, цэг, ирмэгтэй давхцвал / тасархай шулуун дээр бол эргүүлнэ; S цэгээс зайтай), дараа нь S-ийн шошго — оройн шошго ба
+// цэгтэй ДАВХЦАХГҮЙ, ирмэг, тасархай шулуунаас зайтай, бусад цэгээс S-д илт ойр, зурагт багтана.
+function p100_place(T, S, A, B, rays, sts, pad) {
+  var M = Math, mx = M.max, mn = M.min, hy = M.hypot, R = M.PI / 180, i, j, m;
+  // Шошгоны бэхний хүрээ [x0, y0, x1, y1]: Fig-ийн textAt-ийн тоон pos/off байрлуулалтыг давтана (KaTeX_Main-ийн хэмжээ):
+  //   sub — «A_1» (11px: үсэг + доод индекс), эс бөгөөс «S» (13px, налуу)
+  var lbox = function (X, Y, a, off, size, sub) {
+    var c = M.cos(a * R), s = M.sin(a * R), x = X + (off + size * 0.35) * c, y = Y - (off + size * 0.35) * s;
+    var an = c > 0.35 ? 1 : c < -0.35 ? -1 : 0, w = sub ? 1.1 * size : 0.58 * size, b = y + 0.35 * size;
+    if (an) x -= c * size * 0.3;
+    var x0 = an > 0 ? x : an < 0 ? x - w : x - w / 2;
+    return sub ? [x0 - 0.4, b - 0.75 * size, x0 + w + 0.4, b + 0.34 * size] : [x0 - 0.4, b - 0.75 * size, x0 + w + 1.6, b + 0.05 * size];
+  };
+  var gbb = function (a, b) {   // хоёр хүрээний зай (давхцвал сөрөг)
+    var dx = mx(a[0] - b[2], b[0] - a[2], 0), dy = mx(a[1] - b[3], b[1] - a[3], 0);
+    return dx || dy ? hy(dx, dy) : -mn(a[2] - b[0], b[2] - a[0], a[3] - b[1], b[3] - a[1]);
+  };
+  var gbp = function (b, p) { return hy(mx(b[0] - p[0], 0, p[0] - b[2]), mx(b[1] - p[1], 0, p[1] - b[3])); };   // хүрээ — цэг
+  var gbs = function (b, P, Q) {   // хүрээ — хэрчим (огтолбол 0; Лян–Барски)
+    var t0 = 0, t1 = 1, dx = Q[0] - P[0], dy = Q[1] - P[1], pp = [-dx, dx, -dy, dy], qq = [P[0] - b[0], b[2] - P[0], P[1] - b[1], b[3] - P[1]], hit = true, e;
+    for (e = 0; e < 4; e++) {
+      if (!pp[e]) { if (qq[e] < 0) hit = false; }
+      else if (pp[e] < 0) t0 = mx(t0, qq[e] / pp[e]);
+      else t1 = mn(t1, qq[e] / pp[e]);
+    }
+    if (hit && t0 <= t1) return 0;
+    var L = dx * dx + dy * dy, ds = function (x, y) { var t = L ? mx(0, mn(1, ((x - P[0]) * dx + (y - P[1]) * dy) / L)) : 0; return hy(x - P[0] - t * dx, y - P[1] - t * dy); };
+    return mn(ds(b[0], b[1]), ds(b[2], b[1]), ds(b[0], b[3]), ds(b[2], b[3]), gbp(b, P), gbp(b, Q));
+  };
+  var px = function (p) { return [T.X(p[0]), T.Y(p[1])]; }, V = A.concat(B).map(px), Sp = px(S), W = T.X(T.v.x1) + pad, Hh = T.Y(T.v.y0) + pad;
+  var segs = rays.map(function (r) { return [px(r[0]), px(r[1]), 1]; }), placed = [];   // [P, Q, тасархай эсэх]
+  [A, B].forEach(function (Tr) { for (var e = 0; e < 3; e++) segs.push([px(Tr[e]), px(Tr[(e + 1) % 3]), 0]); });
+  var out = function (b) { return mx(0, -b[0], -b[1], b[2] - W, b[3] - Hh); };
+  for (i = 0; i < 6; i++) {
+    var a0 = sts[i].pos, best = null;
+    [0, 25, -25, 50, -50, 80, -80, 115, -115, 150, -150, 180].forEach(function (da) {
+      [6, 9].forEach(function (off) {
+        var b = lbox(V[i][0], V[i][1], a0 + da, off, 11, true), c = M.abs(da) * 0.04 + (off - 6) * 0.3 + 3 * mx(0, out(b) - 2);
+        placed.forEach(function (q) { var g2 = gbb(b, q); if (g2 < 2) c += 100 + 10 * (2 - g2); });
+        V.forEach(function (p, i2) { if (i2 !== i && gbp(b, p) - 2 < 1.5) c += 100; });
+        var gs = gbp(b, Sp) - 2.8; if (gs < 4) c += 40 + 5 * (4 - gs);
+        segs.forEach(function (sg) { if (gbs(b, sg[0], sg[1]) < 0.8) c += sg[2] ? 4 : 25; });
+        if (!best || c < best.c) best = { c: c, a: a0 + da, off: off, b: b };
+      });
+    });
+    sts[i].pos = best.a; sts[i].off = best.off; placed.push(best.b);
+  }
+  var bs = null;
+  for (j = 0; j < 24; j++) for (m = 0; m < 7; m++) {
+    var a = j * 15, off = [4, 6, 8, 10, 13, 16, 20][m], b = lbox(Sp[0], Sp[1], a, off, 13, false), c = off * 0.6 + 50 * mx(0, out(b) - 0.5);
+    placed.forEach(function (q) { var g2 = gbb(b, q); if (g2 < 2.5) c += 1000 + 10 * (2.5 - g2); });
+    V.forEach(function (p) { if (gbp(b, p) - 2 < 2) c += 1000; });
+    if (gbp(b, Sp) - 2.8 < 0.8) c += 1000;
+    var cx = (b[0] + b[2]) / 2, cy = (b[1] + b[3]) / 2, dS = hy(cx - Sp[0], cy - Sp[1]);
+    if (V.some(function (p) { return hy(cx - p[0], cy - p[1]) < dS + 4; })) c += 500;
+    segs.forEach(function (sg) { var d = gbs(b, sg[0], sg[1]); if (sg[2]) { if (d < 2) c += 3 * (2 - d); } else if (d < 2.5) c += 8 * (2.5 - d); });
+    if (!bs || c < bs.c) bs = { c: c, a: a, off: off };
+  }
+  sts[6].pos = bs.a; sts[6].off = bs.off;
+}
+function p100_sfig(A, B, S, k) {
+  var pad = 18, g = Fig({ w: 230, h: 230, pad: pad }), rays = [], sts = [], i;
+  for (i = 0; i < 3; i++) {
+    var d = [A[i][0] - S[0], A[i][1] - S[1]], t0 = Math.min(0, 1, k), t1 = Math.max(0, 1, k);
+    rays.push([[S[0] + t0 * d[0], S[1] + t0 * d[1]], [S[0] + t1 * d[0], S[1] + t1 * d[1]]]);
+    g.seg(rays[i][0], rays[i][1], { dash: '4 3', w: 1, c: '#777' });
+  }
+  g.poly(A, { fill: '#dcdcdc', op: 0.6, w: 1.4 }).poly(B, { fill: '#dcdcdc', op: 0.6, w: 1.4 });
+  // Шошгоны байрлалыг svg() үед бодит масштабаар тооцоолж, доорх text-үүдийн st-ийн pos/off-ийг өөрчилнө (op-ууд дарааллаараа ажиллана)
+  g.raw(function (T) { p100_place(T, S, A, B, rays, sts, pad); return ''; });
+  [[A, 'A'], [B, 'B']].forEach(function (Tr) {
+    var cx = (Tr[0][0][0] + Tr[0][1][0] + Tr[0][2][0]) / 3, cy = (Tr[0][0][1] + Tr[0][1][1] + Tr[0][2][1]) / 3;
+    Tr[0].forEach(function (p, m) {
+      var st = { pos: Math.atan2(p[1] - cy, p[0] - cx) * 180 / Math.PI, size: 11 };
+      sts.push(st);
+      g.dot(p, { r: 2 }).text(p, Tr[1] + '_' + (m + 1), st);
+    });
+  });
+  sts.push({ pos: 0, size: 13 });
+  g.dot(S, { r: 2.8 }).text(S, 'S', sts[6]);
+  return g.svg();
 }
 function p100() {
   // жин нь шүүлтүүрийн (мужид багтах) магадлалыг нөхнө: гарах давтамж ≈ 2: 30%, −1: 20%, −2: 20%, ½: 15%, 3: 15%
@@ -762,6 +1391,8 @@ function p100() {
     q: 'Зурагт $A$ дүрсийг $B$ дүрсэд гомотетоор хувиргажээ. Гомотетын төв ба коэффициентийг олоорой.',
     a: 'Төв $' + pt(S[0], S[1]) + '$, $k=' + (k === 0.5 ? '\\dfrac{1}{2}' : k) + '$',
     fig: f.svg(), side: false, wk: 30,
+    s: p100_sol(A, B, S, k),
+    sfig: p100_sfig(A, B, S, k),
     t: { A: A, B: B }
   };
 }

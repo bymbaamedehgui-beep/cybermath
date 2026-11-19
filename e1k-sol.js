@@ -296,6 +296,50 @@
       + '<div class="hint"><kbd>→</kbd> эсвэл <kbd>Space</kbd> — дараагийн алхам · <kbd>←</kbd> — буцах · <kbd>F</kbd> — бүтэн дэлгэц</div></div>';
   }
 
+  // KaTeX inline томьёог «=»-ийн ард мөр хооронд тасалдаг: тасарсан томьёо хайрцагтаа бүтнээрээ багтах бол
+  // мөр таслахгүй болгоно (бүхэлдээ дараагийн мөрөнд шилжинэ). Бодлогын нөхцөл ба бодолтын алхамд аль алинд.
+  function unwrap(sl) {
+    [].forEach.call(sl.querySelectorAll('.katex'), function (k) {
+      if (k.closest('.katex-display')) return;
+      var rs = k.getClientRects(); if (rs.length < 2) return;
+      var w = 0, i, box = k.closest('.e1s-qm, .e1s-b, .e1s-ans'); if (!box) return;
+      for (i = 0; i < rs.length; i++) w += rs[i].width;
+      if (w < box.getBoundingClientRect().width - 6) k.style.whiteSpace = 'nowrap';
+    });
+  }
+
+  // «(» мөрийн төгсгөлд ганцаараа үлдэж томьёо нь дараагийн мөрөнд шилжихгүй: томьёоны (эсвэл .nw бүрхүүлийн) өмнөх
+  // нээх хаалт/хашилтыг томьёотой нь нэг nowrap хэсэг болгоно. Зөвхөн богино (хайрцгийн 60%-иас нарийн) томьёонд —
+  // урт томьёоны дотоод мөр таслалтыг хаахгүй.
+  function glue(sl) {
+    [].forEach.call(sl.querySelectorAll('.katex'), function (k) {
+      if (k.closest('.katex-display')) return;
+      var box = k.closest('.e1s-qm, .e1s-b, .e1s-ans'); if (!box) return;
+      // auto-render томьёог ангигүй <span>-д, nwInline түүнийг .nw-д ороодог: эхний хүүхэд байх хүртэл дээш
+      var el = k, p;
+      while ((p = el.parentNode) && p !== box && p.tagName === 'SPAN' && p.firstChild === el && (!p.className || p.classList.contains('nw'))) el = p;
+      var t = el.previousSibling;
+      if (!t || t.nodeType !== 3 || !/[(\[«]$/.test(t.nodeValue)) return;
+      var w = 0, rs = el.getClientRects(), i;
+      for (i = 0; i < rs.length; i++) w += rs[i].width;
+      if (w > box.getBoundingClientRect().width * 0.6) return;
+      var g = document.createElement('span'); g.className = 'nw';
+      g.appendChild(document.createTextNode(t.nodeValue.slice(-1)));
+      t.nodeValue = t.nodeValue.slice(0, -1);
+      el.parentNode.insertBefore(g, el); g.appendChild(el);
+    });
+  }
+
+  // Бодлогын нөхцөл: хайрцаг өргөн (≈1180px) тул 70 хүртэлх тэмдэгтийн inline томьёог (дагавартай нь) мөр таслахгүй
+  // (nwInline-ийн 40 нь бодолтын нарийн баганад зориулсан). $$…$$-д хүрэхгүй.
+  function qWrap(h) {
+    return String(h).split('$$').map(function (seg, k) {
+      return k % 2 ? seg : seg.replace(/\$([^$]+)\$((?:-[^\s$<.,;:!?)]+)?[.,;:!?)]*)/g, function (m, t, tail) {
+        return t.length > 70 ? m : '<span class="nw">$' + t + '$' + tail + '</span>';
+      });
+    }).join('$$');
+  }
+
   // Хариуны мөр: KaTeX «=»-ийн ард мөр тасалдаг тул «g =» / «5» болж хуваагдахгүйгээр томьёо бүрийг (ард нь залгасан
   // таслал/цэгтэй нь) нэг мөрөнд барина; «$a=1,\ b=6,\ …$» гэх нэг томьёог дээд түвшний таслалаар хэсэг болгоно
   // (хаалт/олонлог доторх таслалд хүрэхгүй). Нүдтэй хариу «$a=1$, $b=6$, …» (Bx.key) ч мөн адил.
@@ -325,7 +369,7 @@
     // слайдад хэвтээ зай их тул бодлогын зургийг үргэлж текстийн баруун талд (өндөр нь хязгаартай)
     var fig = g.fig ? '<div class="e1s-fig">' + g.fig + '</div>' : '';
     var h = '<div class="e1s-s"><div class="e1s-hd"><span class="e1s-badge">' + n + '</span><span class="e1s-ht">Бодлого ' + n + (sd.a > 0 ? ' (үргэлжлэл)' : '') + '</span><span class="e1s-pg">' + (i + 1) + ' / ' + N + '</span></div>'
-      + '<div class="e1s-q' + (sd.a > 0 ? ' mini' : '') + '"><div class="e1s-qm">' + (CTX.nwInline ? CTX.nwInline(g.q) : g.q) + '</div>' + (sd.a > 0 ? '' : fig) + '</div><div class="e1s-body"><div class="e1s-steps">';
+      + '<div class="e1s-q' + (sd.a > 0 ? ' mini' : '') + '"><div class="e1s-qm">' + qWrap(g.q) + '</div>' + (sd.a > 0 ? '' : fig) + '</div><div class="e1s-body"><div class="e1s-steps">';
     (Array.isArray(g.s) ? g.s : [g.s]).forEach(function (p, k) {
       if (k < sd.a || k >= sd.b) return;
       var bs = beatsOf(CTX.nwInline ? CTX.nwInline(p) : p);
@@ -408,6 +452,8 @@
     STAGE.innerHTML = h;
     var sl = STAGE.firstChild;
     CTX.render(sl);
+    unwrap(sl);
+    glue(sl);
     var lb = sl.querySelector('[data-buy]');
     if (lb) lb.onclick = function (e) { e.stopPropagation(); closePlayer(); info({ login: !!tok(), mine: [] }); };
     beatsNow = [];
@@ -432,6 +478,7 @@
         return renderSlide(revealAll);
       }
     }
+    unwrap(sl);   // fit() үсгийн хэмжээг өөрчилсний дараа мөр тасралтыг дахин засна
     step = revealAll ? beatsNow.length : 0;
     for (var i = 0; i < beatsNow.length; i++) beatsNow[i].forEach(function (el) { el.classList.toggle('on', i < step); });
     ui();
@@ -527,5 +574,5 @@
     try { if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { if (PL) { var st = step; renderSlide(false); for (var i = 0; i < st; i++) next(); } }); } catch (e) {}
   }
 
-  window.E1KSOL = { open: open, play: function (ctx, isFull) { CTX = ctx; play(isFull); }, beatsOf: beatsOf, ansGroups: ansGroups, close: function () { closePlayer(); closeOv(); } };
+  window.E1KSOL = { open: open, play: function (ctx, isFull) { CTX = ctx; play(isFull); }, beatsOf: beatsOf, ansGroups: ansGroups, glue: glue, close: function () { closePlayer(); closeOv(); } };
 })();

@@ -38,6 +38,11 @@ function p45() {
     a: '$a=' + dec(a / 100) + '$',
     fig: tbl([['$x$'].concat(xs), row]),
     wk: 16,
+    // Бодолт: тархалтын бүх магадлалын нийлбэр 1 ⇒ a = 1 − (бусдын нийлбэр)
+    s: [
+      'Тархалтын хүснэгтийн бүх магадлалын нийлбэр $1$-тэй тэнцүү: $$' + P.map(function (v) { return v == null ? 'a' : dec(v / 100); }).join('+') + '=1.$$',
+      'Эндээс $$a=1-(' + P.filter(function (v) { return v != null; }).map(function (v) { return dec(v / 100); }).join('+') + ')=1-' + dec(S / 100) + '=' + dec(a / 100) + '.$$'
+    ],
     t: { xs: xs, P: P, a: a }
   };
 }
@@ -61,11 +66,17 @@ function p69() {
   if (b < 5 || b > 60 || odd < 2) return null;
   var xs = [], row = ['$P(X=x)$'];
   for (t = 0; t < n; t++) { xs.push(x0 + t); row.push(P[t] == null ? '$b$' : dec(P[t] / 100)); }
+  // Бодолт: тархалтын бүх магадлалын нийлбэр 1 ⇒ b = 1 − (бусад магадлалын нийлбэр)
+  var all = P.map(function (v) { return v == null ? 'b' : dec(v / 100); }), oth = P.filter(function (v) { return v != null; }).map(function (v) { return dec(v / 100); });
   return {
     q: '$X$ санамсаргүй хувьсагчийн магадлалын тархалтыг хүснэгтээр өгсөн бол $b$ тоог олоорой.',
     a: '$b=' + dec(b / 100) + '$',
     fig: tbl([['$x$'].concat(xs), row]),
     wk: 16,
+    s: [
+      'Магадлалын тархалтын бүх магадлалын нийлбэр $1$-тэй тэнцүү: $$' + all.join('+') + '=1.$$',
+      'Иймд $$b=1-(' + oth.join('+') + ')=1-' + dec(S / 100) + '=' + dec(b / 100) + '.$$'
+    ],
     t: { xs: xs, P: P, b: b }
   };
 }
@@ -89,11 +100,17 @@ function p60() {
   if (a < 50) return null;
   if (step === 50 && P.every(function (v) { return v == null || v % 100 === 0; })) return null;   // 0.05-ын алхам харагдах
   var row = ['$P$'].concat(P.map(function (v) { return v == null ? '$a$' : dec(v / 1000); }));
+  // Бодолт: тархалтын хуулийн магадлалын нийлбэр 1 → a = 1 − Σ(мэдэгдэх)
+  var terms = P.map(function (v) { return v == null ? 'a' : dec(v / 1000); }), known = P.filter(function (v) { return v != null; }).map(function (v) { return dec(v / 1000); });
   return {
     q: 'Дискрет санамсаргүй хэмжигдэхүүн $X$-ийн тархалтын хууль өгөгдөв. $a=?$',
     a: '$a=' + dec(a / 1000) + '$',
     fig: tbl([['$X$'].concat(xs.map(function (x) { return x < 0 ? '−' + (-x) : x; })), row]),   // сөрөг утга: «−» (U+2212)
     wk: 16,
+    s: [
+      'Тархалтын хуулийн бүх магадлалын нийлбэр $1$-тэй тэнцүү ($X$-ийн утгууд нөлөөлөхгүй): $$' + terms.join('+') + '=1.$$',
+      'Иймд $$a=1-' + (known.length > 1 ? '(' + known.join('+') + ')=1-' + dec(S / 1000) : known[0]) + '=' + dec(a / 1000) + '.$$'
+    ],
     t: { xs: xs, P: P }
   };
 }
@@ -119,11 +136,23 @@ function p59() {
   var ask = rnd(1, 4) === 1 ? i : j;                        // ихэвчлэн p_j (эх шиг)
   var xs = [], row = ['$P$'];
   for (t = 1; t <= n; t++) { xs.push(t); row.push(P[t - 1] == null ? '$p_' + t + '$' : dec(P[t - 1] / 1000)); }
+  // Бодолт: Σp = 1 → p_i + p_j = 1 − Σ(мэдэгдэх) = R; p_i = k·p_j → (k + 1)p_j = R → p_j, p_i = k·p_j; шалгалт Σ = 1
+  var sum = [], chk = [], lo = Math.min(i, j), hi = Math.max(i, j), Rd = dec(R / 1000), pjd = dec(pj / 1000), pid = dec(pi / 1000);
+  for (t = 1; t <= n; t++) {
+    sum.push(P[t - 1] == null ? 'p_' + t : dec(P[t - 1] / 1000));
+    chk.push(t === i ? pid : t === j ? pjd : dec(P[t - 1] / 1000));
+  }
+  var sub = (i < j ? k + 'p_' + j + '+p_' + j : 'p_' + j + '+' + k + 'p_' + j);
   return {
     q: 'Дискрет санамсаргүй хэмжигдэхүүн $X$-ийн тархалтын хууль өгөгдөв. $p_' + i + '=' + k + 'p_' + j + '$ бол $p_' + ask + '=?$',
     a: '$p_' + ask + '=' + dec((ask === i ? pi : pj) / 1000) + '$',
     fig: tbl([['$X$'].concat(xs), row]),
     wk: 22,
+    s: [
+      'Тархалтын хуулийн бүх магадлалын нийлбэр $1$-тэй тэнцүү: $$' + sum.join('+') + '=1$$ $$\\Rightarrow\\ p_' + lo + '+p_' + hi + '=1-' + dec(S / 1000) + '=' + Rd + '.$$',
+      '$p_' + i + '=' + k + 'p_' + j + '$ нөхцөлийг орлуулбал $$' + sub + '=' + Rd + '\\ \\Rightarrow\\ ' + (k + 1) + 'p_' + j + '=' + Rd + '$$ $$\\Rightarrow\\ p_' + j + '=\\dfrac{' + Rd + '}{' + (k + 1) + '}=' + pjd + '.$$',
+      '$p_' + i + '=' + k + '\\cdot ' + pjd + '=' + pid + '$. Шалгалт: $' + chk.join('+') + '=1$. Иймд $p_' + ask + '=' + (ask === i ? pid : pjd) + '$.'
+    ],
     t: { P: P, i: i, j: j, k: k }
   };
 }
@@ -136,6 +165,18 @@ var e3_46 = (function () {
 //     (эх: k(4 − y), y ∈ {0,1,2,3} → 10k = 1, P(Y=2) = 2k = 0.2). f: k(m−y) (m > y₁), k(y+m), ky, ky², k(y²+m), k(2y+1);
 //     хариу аравтын бутархай (≤ 2 орон) байх хувилбарыг л сонгоно — эх шиг.  (Ихэр 70 — энгийн бутархай хариутай.)
 function p46_f(fam, m, y) { return [m - y, y + m, y, y * y, y * y + m, 2 * y + 1][fam]; }
+// Бодолт: Σ P(Y=y) = k·Σ f(y) = 1 ⇒ k = 1/S;  P(Y=j) = k·f(j) = f(j)/S
+function p46_sol(fam, m, ys, j, S) {
+  var vals = ys.map(function (y) { return p46_f(fam, m, y); }), f = p46_f(fam, m, j);
+  var ex = [m + '-y', 'y+' + m, 'y', 'y^2', 'y^2+' + m, '2y+1'][fam];
+  // k·f(j) орлуулга (j = 0 үед «4−0» мэт хэлбэр гаргахгүй)
+  var sub = fam === 2 || (fam === 0 && j === 0) ? '' : ['k(' + m + '-' + j + ')', 'k(' + j + '+' + m + ')', '', 'k\\cdot ' + j + '^2', 'k(' + j + '^2+' + m + ')', 'k(2\\cdot ' + j + '+1)'][fam] + '=';
+  return [
+    'Тархалтын бүх магадлалын нийлбэр $1$-тэй тэнцүү' + (fam === 2 ? ':' : '. $y=' + ys.join(',\\ ') + '$ үед $' + ex + '$ илэрхийлэл $' + vals.join(',\\ ') + '$ утгыг авах тул')
+      + ' $$k(' + vals.join('+') + ')=' + S + 'k=1\\ \\Rightarrow\\ k=\\dfrac{1}{' + S + '}.$$',
+    'Иймд $$P(Y=' + j + ')=' + sub + (f === 1 ? '' : f) + 'k=\\dfrac{' + f + '}{' + S + '}=' + dec(f / S) + '.$$'
+  ];
+}
 function p46() {
   var T = rnd(1, 20), fam = T <= 8 ? 0 : T <= 13 ? 1 : T <= 15 ? 2 : T <= 17 ? 3 : T <= 19 ? 4 : 5;
   var n = rnd(2, 5), lo = fam === 2 || fam === 3 ? 1 : 0, m = 0, ys = [], S = 0, y;
@@ -152,6 +193,7 @@ function p46() {
     q: '$Y$ дискрет санамсаргүй хувьсагчийн магадлалын тархалт ${P(Y=y)=' + tex + '}$, ${y\\in\\{' + ys.join(',') + '\\}}$ томьёогоор өгөв. $P(Y=' + j + ')=?$',
     a: '$P(Y=' + j + ')=' + dec(f / S) + '$',
     wk: 20,
+    s: p46_sol(fam, m, ys, j, S),
     t: { fam: fam, m: m, ys: ys, j: j, S: S }
   };
 }
@@ -178,11 +220,19 @@ function p70() {
   while (d % 5 === 0) d /= 5;
   if (d === 1) return null;                                 // аравтын төгсгөлтэй бол алгасна (тэр нь 46-д)
   var tex = ['k(' + m + '-y)', 'k(y+' + m + ')', 'ky', 'ky^2', 'k(y^2+' + m + ')', 'k\\cdot 2^y'][fam];
+  // Бодолт: P(Y=y) = k·f(y) утга бүрийг орлуулна; Σ P = S·k = 1 ⇒ k = 1/S ⇒ P(Y=j) = f(j)·k
+  var vs = ys.map(function (y) { return p70_f(fam, m, y); }), nzv = vs.filter(function (x) { return x; });
+  var sol = [
+    'Томьёонд $y$-ийн утгуудыг орлуулбал ' + ys.map(function (y, i) { return '$P(Y=' + y + ')=' + (vs[i] ? tm(vs[i], 'k', true) : '0') + '$'; }).join(', ') + '.',
+    'Бүх магадлалын нийлбэр $1$-тэй тэнцүү: $$' + nzv.map(function (x, i) { return tm(x, 'k', !i); }).join('') + '=1\\Rightarrow ' + S + 'k=1\\Rightarrow k=\\dfrac{1}{' + S + '}.$$',
+    'Иймд $$P(Y=' + j + ')=' + tm(f, 'k', true) + (f === 1 ? '' : '=' + f + '\\cdot\\dfrac{1}{' + S + '}') + '=' + fr(f, S) + '.$$'
+  ];
   return {
     // {…} — KaTeX бүлэг дотор мөр таслахгүй («y ∈» мөрийн төгсгөлд үлдэхгүй); таслал хоёр томьёоны хооронд
     q: '$Y$ дискрет санамсаргүй хувьсагчийн магадлалын тархалт ${P(Y=y)=' + tex + '}$, ${y\\in\\{' + ys.join(',') + '\\}}$ томьёогоор өгөв. $P(Y=' + j + ')=?$',
     a: '$P(Y=' + j + ')=' + fr(f, S) + '$',
     wk: 20,
+    s: sol,
     t: { fam: fam, m: m, ys: ys, j: j, S: S }
   };
 }
@@ -209,10 +259,31 @@ function p66() {
     ks.forEach(function (v) { S += p66_f(i, v); });
     C = fr(1, S);
   }
+  // Бодолт: тархалтын хуулийн бүх магадлалын нийлбэр 1 → k-ийн утгуудыг орлуулж C-г хаалтнаас гаргана: C·Σf(k) = 1.
+  //   1/k үед хаалтан доторх бутархайнуудыг ерөнхий хуваарь L-д шилжүүлж нэмнэ.
+  var pk = function (v) {
+    if (i <= 1) return 'C\\cdot ' + v + '^2';
+    if (i === 2) return 'C\\cdot ' + v;
+    if (i === 3) return 'C\\cdot ' + v + '^3';
+    if (i === 4) return 'C(' + v + '+1)';
+    if (i === 5) return 'C(' + v + '+2)';
+    if (i === 7) return v === 1 ? 'C' : '\\dfrac{C}{' + v + '}';
+    return 'C\\cdot ' + (i === 6 ? 2 : 3) + (v === 1 ? '' : '^' + v);       // 2^k, 3^k (2¹ = 2)
+  };
+  var ss = ['Тархалтын хуулийн бүх магадлалын нийлбэр $1$-тэй тэнцүү. $k=' + ks.join(',\\ ') + '$ утгуудыг орлуулбал $$' + ks.map(pk).join('+') + '=1.$$'];
+  if (i === 7) {
+    var Sf = fr(s, L), inv = ks.map(function (v) { return v === 1 ? '1' : '\\dfrac{1}{' + v + '}'; }).join('+');
+    ss.push('$C$-г хаалтнаас гаргавал $$C\\left(' + inv + '\\right)=1.$$ Хаалтан доторх нийлбэрийг ерөнхий хуваарь $' + L + '$-' + suf(L, 'д') + ' шилжүүлж бодъё: $$'
+      + inv + '=\\dfrac{' + ks.map(function (v) { return L / v; }).join('+') + '}{' + L + '}=' + Sf + '.$$');
+    ss.push('Иймд $$' + Sf + 'C=1\\Rightarrow C=' + C + '.$$');
+  } else {
+    ss.push('Нийтлэг үржигдэхүүн $C$-г хаалтнаас гаргавал $$C(' + ks.map(function (v) { return p66_f(i, v); }).join('+') + ')=1\\Rightarrow ' + S + 'C=1\\Rightarrow C=' + C + '.$$');
+  }
   return {
     q: 'Дискрет санамсаргүй хэмжигдэхүүн $X$ нь $P(X=k)=' + F[0] + ',\\ k=' + ks.join(',') + '$ тодорхойлогдсон бол $C$ тоог ол.',
     a: '$C=' + C + '$',
     wk: 18,
+    s: ss,
     t: { f: F[0], ks: ks }
   };
 }
@@ -234,11 +305,29 @@ function p52() {
   if (step === 5 && P.every(function (v) { return v % 10 === 0; })) return null;
   var E = xs[0] * P[0] + xs[1] * P[1] + xs[2] * P[2];                      // 100·E(X)
   var ask = rnd(1, 4) === 1 ? 'b' : 'a', ans = ask === 'a' ? P[1] : P[2];
+  // Бодолт: Σp = 1 ⇒ a + b = 1 − p;  E(X) = Σx·p ⇒ x₂a + x₃b = E − x₁p;  нэг үл мэдэгдэгчийг илэрхийлж орлуулна (зууны нэгжээр бүхэл)
+  var D = function (v) { return dec(v / 100); }, x1 = xs[1], x2 = xs[2], S1 = 100 - P[0], R = E - xs[0] * P[0], p0 = D(P[0]), ss;
+  ss = [
+    'Магадлалуудын нийлбэр $1$-тэй тэнцүү: $$' + p0 + '+a+b=1\\ \\Rightarrow\\ a+b=1-' + p0 + '=' + D(S1) + '.$$',
+    'Математик дунджийн томьёогоор $$E(X)=' + xs[0] + '\\cdot ' + p0 + '+' + x1 + '\\cdot a+' + x2 + '\\cdot b=' + D(E) + '$$ $$\\Rightarrow\\ '
+      + tm(x1, 'a', true) + tm(x2, 'b') + '=' + (xs[0] ? D(E) + '-' + xs[0] + '\\cdot ' + p0 + '=' : '') + D(R) + '.$$'
+  ];
+  if (ask === 'a') ss.push(
+    'Эхний тэгшитгэлээс $b=' + D(S1) + '-a$. Үүнийг орлуулбал $$' + tm(x1, 'a', true) + '+' + x2 + '(' + D(S1) + '-a)=' + D(R) + '\\ \\Rightarrow\\ '
+      + D(x2 * S1) + tm(x1 - x2, 'a') + '=' + D(R) + '$$ $$\\Rightarrow\\ ' + tm(x2 - x1, 'a', true) + '=' + D(x2 * S1) + '-' + D(R) + '=' + D(x2 * S1 - R)
+      + (x2 - x1 > 1 ? '\\ \\Rightarrow\\ a=' + D(P[1]) : '') + '.$$',
+    '$b=' + D(S1) + '-' + D(P[1]) + '=' + D(P[2]) + '\\gt 0$ тул нөхцөл хангагдана. Иймд $a=' + D(P[1]) + '$.');
+  else ss.push(
+    'Эхний тэгшитгэлээс $a=' + D(S1) + '-b$. Үүнийг орлуулбал $$' + (x1 === 1 ? '' : x1) + '(' + D(S1) + '-b)' + tm(x2, 'b') + '=' + D(R) + '\\ \\Rightarrow\\ '
+      + D(x1 * S1) + tm(x2 - x1, 'b') + '=' + D(R) + '$$ $$\\Rightarrow\\ ' + tm(x2 - x1, 'b', true) + '=' + D(R) + '-' + D(x1 * S1) + '=' + D(R - x1 * S1)
+      + (x2 - x1 > 1 ? '\\ \\Rightarrow\\ b=' + D(P[2]) : '') + '.$$',
+    '$a=' + D(S1) + '-' + D(P[2]) + '=' + D(P[1]) + '\\gt 0$ тул нөхцөл хангагдана. Иймд $b=' + D(P[2]) + '$.');
   return {
     q: '$X$ санамсаргүй хувьсагчийн магадлалын тархалтыг хүснэгтээр өгөв. Хэрэв математик дундаж $E(X)=' + dec(E / 100) + '$ бол $' + ask + '$ тоог олоорой.',
     a: '$' + ask + '=' + dec(ans / 100) + '$',
     fig: tbl([['$X$'].concat(xs), ['$P(X=x)$', dec(P[0] / 100), '$a$', '$b$']]),
     wk: 26,
+    s: ss,
     t: { xs: xs, P: P, ask: ask }
   };
 }
@@ -264,11 +353,28 @@ function p78() {
     else { row.push('$' + L[at.length] + '$'); at.push(t); }
   }
   var E = xs[0] * P[0] + xs[1] * P[1] + xs[2] * P[2], k = rnd(1, 4) === 1 ? 1 : 0;   // 100·E(X); асуух үсэг
+  // Бодолт: Σp = 1 ⇒ a + b = 1 − p;  E(X) = Σx·p ⇒ x_a·a + x_b·b = E − x_p·p;  системээс асуусан үсгийг (зууны нэгжээр бүхэл тооцоо)
+  var xa = xs[at[0]], xb = xs[at[1]], xp = xs[kp], pp = P[kp], S1 = 100 - pp, S2 = E - xp * pp, Dx = xb - xa, Av = P[at[0]], Bv = P[at[1]];
+  var d2 = function (v) { return dec(v / 100); }, cols = [0, 1, 2];
+  var sumRow = cols.map(function (i) { return i === kp ? d2(pp) : L[at.indexOf(i)]; }).join('+');
+  var eRow = cols.map(function (i) { var x = xs[i]; return i === kp ? x + '\\cdot ' + d2(pp) : (x === 0 ? '0\\cdot ' : x === 1 ? '' : x) + L[at.indexOf(i)]; }).join('+');
+  var lhs = (xa ? tm(xa, 'a', true) : '') + tm(xb, 'b', !xa), rhs = xp ? d2(E) + '-' + (xp === 1 ? '' : xp + '\\cdot ') + d2(pp) + '=' + d2(S2) : d2(E), s3;
+  if (!xa) s3 = k ? (xb === 1 ? 'Иймд $b=' + d2(Bv) + '$.' : 'Эндээс $$b=' + d2(S2) + ':' + xb + '=' + d2(Bv) + '.$$')
+    : (xb === 1 ? 'Иймд' : 'Эндээс $b=' + d2(S2) + ':' + xb + '=' + d2(Bv) + '$, иймд') + ' эхний тэгшитгэлээс $$a=' + d2(S1) + '-' + d2(Bv) + '=' + d2(Av) + '.$$';
+  else if (!k) s3 = 'Эхний тэгшитгэлийг $' + xb + '$-' + suf(xb, 'аар') + ' үржүүлээд хоёр дахь тэгшитгэлийг хасвал $$' + (Dx === 1 ? '' : Dx) + 'a=' + xb + '\\cdot ' + d2(S1) + '-' + d2(S2)
+    + '=' + d2(Dx * Av) + (Dx === 1 ? '' : '\\Rightarrow a=' + d2(Av)) + '.$$';
+  else s3 = (xa === 1 ? 'Хоёр дахь тэгшитгэлээс эхний тэгшитгэлийг хасвал' : 'Эхний тэгшитгэлийг $' + xa + '$-' + suf(xa, 'аар') + ' үржүүлээд хоёр дахь тэгшитгэлээс хасвал') + ' $$'
+    + (Dx === 1 ? '' : Dx) + 'b=' + d2(S2) + '-' + (xa === 1 ? '' : xa + '\\cdot ') + d2(S1) + '=' + d2(Dx * Bv) + (Dx === 1 ? '' : '\\Rightarrow b=' + d2(Bv)) + '.$$';
   return {
     q: '$X$ санамсаргүй хувьсагчийн магадлалын тархалтыг хүснэгтээр өгөв. Хэрэв математик дундаж $E(X)=' + dec(E / 100) + '$ бол $' + L[k] + '$ тоог олоорой.',
     a: '$' + L[k] + '=' + dec(P[at[k]] / 100) + '$',
     fig: tbl([['$X$'].concat(xs), row]),
     wk: 26,
+    s: [
+      'Тархалтын хүснэгтийн бүх магадлалын нийлбэр $1$: $$' + sumRow + '=1\\Rightarrow a+b=1-' + d2(pp) + '=' + d2(S1) + '.$$',
+      'Математик дундаж $E(X)=x_1p_1+x_2p_2+x_3p_3$ тул $$' + eRow + '=' + d2(E) + '\\Rightarrow ' + lhs + '=' + rhs + '.$$',
+      s3
+    ],
     t: { xs: xs, P: P, kp: kp, ask: L[k] }
   };
 }
@@ -295,11 +401,27 @@ function p62() {
   if (kind === 'M1') { var a = rnd(2, 10); lab = 'M(' + a + 'X)'; val = a * E / 1000; }
   else if (kind === 'M2') { var a2 = rnd(1, 6), b = nz(-9, 9); lab = 'M(' + (a2 === 1 ? '' : a2) + 'X' + sgn(b) + ')'; val = (a2 * E + 1000 * b) / 1000; }
   else { lab = 'D(X)'; val = (1000 * E2 - E * E) / 1e6; if (val <= 0) return null; }
+  // Бодолт: M(X) = Σ x·p;  M(aX + b) = a·M(X) + b (математик дунджийн чанар);  D(X) = M(X²) − (M(X))²
+  var pd = P.map(function (v) { return dec(v / 1000); }), EX = dec(E / 1000), rs = dec(val);
+  var row = function (sq) { return xs.map(function (x, j) { return x + (sq ? '^2' : '') + '\\cdot ' + pd[j]; }).join('+'); };
+  var ss = ['Математик дундаж нь утга бүрийг харгалзах магадлалаар нь үржүүлсэн үржвэрүүдийн нийлбэр: $$M(X)=' + row(false) + '=' + EX + '.$$'];
+  if (kind === 'M1') {
+    ss.push('Тогтмол үржигдэхүүнийг математик дунджийн тэмдгийн өмнө гаргаж болно: $M(aX)=a\\cdot M(X)$. Иймд $$' + lab + '=' + a + '\\cdot M(X)='
+      + a + '\\cdot ' + EX + '=' + rs + '.$$');
+  } else if (kind === 'M2') {
+    var A2 = a2 === 1 ? '' : a2 + '\\cdot ';
+    ss.push('Математик дунджийн чанараар $M(aX+b)=a\\cdot M(X)+b$. Иймд $$' + lab + '=' + A2 + 'M(X)' + sgn(b) + '=' + A2 + EX + sgn(b) + '=' + rs + '.$$');
+  } else {
+    var EX2 = dec(E2 / 1000);
+    ss.push('$X^2$ санамсаргүй хэмжигдэхүүний математик дундаж: $$M(X^2)=' + row(true) + '=' + EX2 + '.$$');
+    ss.push('Дисперсийн томьёогоор $$D(X)=M(X^2)-\\big(M(X)\\big)^2=' + EX2 + '-' + EX + '^2=' + EX2 + '-' + dec(E * E / 1e6) + '=' + rs + '.$$');
+  }
   return {
     q: 'Дискрет санамсаргүй хэмжигдэхүүн $X$-ийн тархалтын хууль өгөгдөв. $' + lab + '=?$',
     a: '$' + lab + '=' + dec(val) + '$',
     fig: tbl([['$X$'].concat(xs), ['$P$'].concat(P.map(function (v) { return dec(v / 1000); }))]),
     wk: 20,
+    s: ss,
     t: { xs: xs, P: P, lab: lab }
   };
 }
@@ -320,11 +442,19 @@ function p64() {
   cut.concat([20]).forEach(function (c) { P.push((c - prev) * 50); prev = c; });   // мянганы нэгжээр
   if (P.every(function (v) { return v % 100 === 0; }) && rnd(0, 2)) return null;    // эх шиг 0.15, 0.25 мэт утга голдуу
   for (t = 0; t < 4; t++) E += xs[t] * P[t];
+  // Бодолт: M(X) = x₁p₁ + x₂p₂ + x₃p₃ + x₄p₄ (утга бүрийг магадлалаар нь үржүүлж нэмнэ); 0 утгатай үржвэрийг 2-р мөрөнд бичихгүй
+  var pd = P.map(function (v) { return dec(v / 1000); }), pr = [], j;
+  for (j = 0; j < 4; j++) if (xs[j]) pr.push(dec(xs[j] * P[j] / 1000));
   return {
     q: 'Санамсаргүй хэмжигдэхүүн $X$-ийн тархалтын хуулийг хүснэгтээр үзүүлэв. Уг санамсаргүй хэмжигдэхүүний математик дунджийг ол.',
     a: '$M(X)=' + dec(E / 1000) + '$',
     fig: tbl([['$X$'].concat(xs, ['$\\sum$']), ['$P$'].concat(P.map(function (v) { return dec(v / 1000); }), [1])]),
     wk: 20,
+    s: [
+      'Дискрет санамсаргүй хэмжигдэхүүний математик дундаж нь утга бүрийг харгалзах магадлалаар нь үржүүлж нэмсэн нийлбэр: $M(X)=x_1p_1+x_2p_2+x_3p_3+x_4p_4$.',
+      'Хүснэгтийн утгуудыг орлуулбал $$\\begin{aligned}M(X)&=' + xs.map(function (x, i) { return x + '\\cdot ' + pd[i]; }).join('+')
+        + '\\\\&=' + pr.join('+') + '=' + dec(E / 1000) + '.\\end{aligned}$$'
+    ],
     t: { xs: xs, P: P }
   };
 }
@@ -344,7 +474,27 @@ function p61() {
     m = pick(p61_M); n = rnd(2, 12);
     q = 'Талууд нь 1-ээс ' + m + ' хүртэлх тоогоор дугаарлагдсан шоог ' + n + ' удаа орхив. Тусах тоонуудын нийлбэрийн математик дунджийг ол.';
   }
-  return { q: q, a: '$M=' + dec(n * (m + 1) / 2) + '$', wk: 18, t: { n: n, m: m } };
+  // Бодолт: S = X₁ + … + Xₙ (Xᵢ — i-р орхилтын/шооны тоо); M(Xᵢ) = (1 + 2 + … + m)/m (m > 6 үед арифметик прогрессийн нийлбэр);
+  //   нийлбэрийн математик дундаж = математик дунджуудын нийлбэр → M(S) = n·M(Xᵢ)
+  var Mi = dec((m + 1) / 2), Sm = m * (m + 1) / 2, ls = [], j;
+  for (j = 1; j <= m; j++) ls.push(j);
+  var Xs = n === 2 ? 'X_1+X_2' : n === 3 ? 'X_1+X_2+X_3' : 'X_1+X_2+\\ldots+X_{' + n + '}';
+  var Ms = n === 2 ? 'M(X_1)+M(X_2)' : n === 3 ? 'M(X_1)+M(X_2)+M(X_3)' : 'M(X_1)+M(X_2)+\\ldots+M(X_{' + n + '})';
+  var who = v <= 6 ? '$i$-р орхилтоор буусан нүдний тоо' : v <= 8 ? '$i$-р шоон дээр буусан нүдний тоо' : '$i$-р орхилтоор буусан тоо';
+  var vals = m === 4 ? '$1,\\ 2,\\ 3,\\ 4$' : '$1,\\ 2,\\ \\ldots,\\ ' + m + '$';
+  var top = m <= 6 ? ls.join('+') : '1+2+\\ldots+' + m;
+  return {
+    q: q, a: '$M=' + dec(n * (m + 1) / 2) + '$', wk: 18,
+    s: [
+      'Нийлбэрийг $S=' + Xs + '$ гэж тэмдэглэе, энд $X_i$ нь ' + who + '.',
+      '$X_i$ бүр ' + vals + ' утгуудыг тус бүр $\\dfrac{1}{' + m + '}$ магадлалтай авна'
+        + (m > 6 ? ' (арифметик прогрессийн нийлбэр $1+2+\\ldots+' + m + '=\\dfrac{' + m + '\\cdot ' + (m + 1) + '}{2}=' + Sm + '$)' : '')
+        + ': $$M(X_i)=\\dfrac{' + top + '}{' + m + '}=\\dfrac{' + Sm + '}{' + m + '}=' + Mi + '.$$',
+      'Нийлбэрийн математик дундаж нь нэмэгдэхүүнүүдийн математик дунджуудын нийлбэртэй тэнцүү тул $$M(S)=' + Ms + '=' + n + '\\cdot ' + Mi + '='
+        + dec(n * (m + 1) / 2) + '.$$'
+    ],
+    t: { n: n, m: m }
+  };
 }
 return p61;
 })();
@@ -361,11 +511,26 @@ function p53() {
   for (k = 0; k <= n; k++) { xs.push(k); ps.push(fr(p53_C(n, k), Math.pow(2, n))); }   // \dfrac — array-д \frac хэт жижиг
   // \vphantom{\rule…} — үл үзэгдэх тулгуур: \dfrac-ийн хүртвэр \hline-д наалдахгүй
   var tb = '\\begin{array}{c|' + new Array(n + 2).join('c') + '}X&' + xs.join('&') + '\\\\\\hline P\\vphantom{\\rule{1pt}{1.8em}}&' + ps.join('&') + '\\end{array}';
+  // Бодолт: Бернуллийн схем (p = q = ½) ⇒ P(X = k) = C_n^k/2ⁿ (Паскалийн гурвалжин); E(X), E(X²) ⇒ D(X) = E(X²) − (E(X))² = npq
+  var N2 = Math.pow(2, n), Cs = [], S1 = 0, S2 = 0, t1 = [], t2 = [], j;
+  for (j = 0; j <= n; j++) { Cs.push(p53_C(n, j)); S1 += j * Cs[j]; S2 += j * j * Cs[j]; }
+  for (j = 1; j <= n; j++) { t1.push(j + '\\cdot ' + Cs[j]); t2.push(j + '^2\\cdot ' + Cs[j]); }
+  var EX = fr(S1, N2), EX2 = fr(S2, N2), dl = function (v) { return '$' + v + '$'; };
   return {
     q: (w ? n + ' зоосыг нэгэн зэрэг орхих' : 'Зоосыг ' + n + ' удаа орхих') + ' туршилт хийв. Тоотой талаар буусан зоосны тоог $X$ гэе. $X$ санамсаргүй хувьсагчийн магадлалын тархалтын хүснэгтийг байгуулж дисперсийг олоорой.',
     a: '$' + tb + '$, $D(X)=' + fr(n, 4) + '$',
     wide: n >= 4,
     wk: 34,
+    s: [
+      (w ? 'Зоос бүр бусдаасаа' : 'Орхилт бүрт зоос өмнөх орхилтуудаас') + ' хамааралгүйгээр $\\dfrac{1}{2}$ магадлалтай тоотой талаараа буух тул $X$ нь $n=' + n
+        + '$, $p=\\dfrac{1}{2}$ параметртэй бином тархалттай, ' + xs.map(dl).join(', ') + ' утга авна. Бернуллийн томьёогоор $$P(X=k)=C_{' + n + '}^{k}\\left(\\dfrac{1}{2}\\right)^{k}\\left(\\dfrac{1}{2}\\right)^{'
+        + n + '-k}=\\dfrac{C_{' + n + '}^{k}}{' + N2 + '}.$$',
+      'Паскалийн гурвалжнаас $C_{' + n + '}^{k}$ коэффициентүүд: ' + Cs.map(dl).join(', ') + '. Иймд тархалтын хүснэгт: $$' + tb + '$$',
+      'Математик дундаж ба $X^2$-ийн дундаж: $$E(X)=\\dfrac{' + t1.join('+') + '}{' + N2 + '}=\\dfrac{' + S1 + '}{' + N2 + '}=' + EX + ',$$ $$E(X^2)=\\dfrac{' + t2.join('+') + '}{' + N2
+        + '}=\\dfrac{' + S2 + '}{' + N2 + '}=' + EX2 + '.$$',
+      'Дисперсийн томьёогоор $$D(X)=E(X^2)-\\big(E(X)\\big)^2=' + EX2 + '-' + (S1 % N2 ? '\\left(' + EX + '\\right)^2' : EX + '^2') + '=' + fr(n, 4) + '.$$'
+        + ' Бином тархалтын томьёогоор шалгавал: $$D(X)=npq=' + n + '\\cdot\\dfrac{1}{2}\\cdot\\dfrac{1}{2}=' + fr(n, 4) + '.$$'
+    ],
     t: { n: n }
   };
 }
@@ -383,11 +548,30 @@ function p79() {
   for (k = 0; k <= n; k++) { xs.push(k); ps.push(fr(p79_C(n, k), Math.pow(2, n))); }   // \dfrac — array-д \frac хэт жижиг
   // \vphantom{\rule…} — үл үзэгдэх тулгуур: \dfrac-ийн хүртвэр \hline-д наалдахгүй
   var tb = '\\begin{array}{c|' + new Array(n + 2).join('c') + '}X&' + xs.join('&') + '\\\\\\hline P\\vphantom{\\rule{1pt}{1.8em}}&' + ps.join('&') + '\\end{array}';
+  // Бодолт: тал бүр ½, үл хамаарах ⇒ 2ⁿ тэнцүү үр дүнгийн C(n, k) нь X = k ⇒ P(X=k) = C(n, k)/2ⁿ; E(X), E(X²) хүснэгтээс (нийтлэг хуваарьтай);
+  //   D = E(X²) − (E(X))² = n/4 (бином: npq)
+  var N = Math.pow(2, n), C = xs.map(function (k) { return p79_C(n, k); }), S1 = 0, S2 = 0, pl = [], rows = [];
+  xs.forEach(function (k) {
+    var raw = '\\dfrac{' + C[k] + '}{' + N + '}';
+    S1 += k * C[k]; S2 += k * k * C[k];
+    pl.push('P(X=' + k + ')&=' + (ps[k] === raw ? raw : raw + '=' + ps[k]));
+  });
+  for (k = 0; k < pl.length; k += 2) rows.push(pl[k] + (k + 1 < pl.length ? ',&\\quad ' + pl[k + 1] : ''));
+  var E1 = fr(S1, N), E2 = fr(S2, N), sqE = S1 % N ? '\\left(' + E1 + '\\right)^2' : E1 + '^2';
+  var M2 = '\\dfrac{' + xs.map(function (k) { return k + '^2\\cdot ' + C[k]; }).join('+') + '}{' + N + '}';
   return {
     q: (w ? n + ' зоосыг нэгэн зэрэг орхих' : 'Зоосыг ' + n + ' удаа орхих') + ' туршилт хийв. Тоогүй (сүлд) талаар буусан зоосны тоог $X$ гэе. $X$ санамсаргүй хувьсагчийн магадлалын тархалтын хүснэгтийг байгуулж дисперсийг олоорой.',
     a: '$' + tb + '$, $D(X)=' + fr(n, 4) + '$',
     wide: n >= 4,
     wk: 34,
+    s: [
+      (w ? 'Зоос бүр' : 'Орхилт бүрд зоос') + ' тоогүй (сүлд) талаараа $\\dfrac{1}{2}$ магадлалтай буух ба ' + (w ? 'зоосууд' : 'орхилтууд') + ' хоорондоо хамааралгүй. '
+        + 'Нийт $2^' + n + '=' + N + '$ тэнцүү боломжит үр дүнгийн $C_' + n + '^k$ нь $X=k$ байх тул $$P(X=k)=\\dfrac{C_' + n + '^k}{' + N + '},\\quad k=' + (n <= 3 ? xs.join(',\\ ') : '0,\\ 1,\\ \\ldots,\\ ' + n) + '.$$',
+      'Тархалт: $$\\begin{aligned}' + rows.join(',\\\\') + '.\\end{aligned}$$',
+      'Математик дундаж: $$E(X)=\\dfrac{' + xs.map(function (k) { return k + '\\cdot ' + C[k]; }).join('+') + '}{' + N + '}=\\dfrac{' + S1 + '}{' + N + '}=' + E1 + '.$$',
+      '$X^2$-ийн дундаж: $$E(X^2)=' + M2 + (n >= 4 ? '$$ $$' : '') + '=\\dfrac{' + S2 + '}{' + N + '}=' + E2 + '.$$',
+      'Дисперс (бином тархалтын $D(X)=npq$ томьёогоор ч ижил гарна): $$D(X)=E(X^2)-\\big(E(X)\\big)^2=' + E2 + '-' + sqE + '=' + fr(n, 4) + '.$$'
+    ],
     t: { n: n }
   };
 }
@@ -446,10 +630,25 @@ function p63() {
   var n = rnd(3, 6), pp = pick(p63_P), k = rnd(0, n), a = pp[0], d = pp[1];
   if ((k === 0 || k === n) && rnd(0, 3)) return null;       // захын k цөөн
   var num = p63_C(n, k) * Math.pow(a, k) * Math.pow(d - a, n - k), den = Math.pow(d, n);
+  // Бодолт: P(X = k) = C_n^k·p^k·q^{n−k}, q = 1 − p;  C_n^k = n!/(k!(n − k)!) (k, n − k ≥ 2 үед тусад нь бодно)
+  var b0 = d - a, C = p63_C(n, k), j = Math.min(k, n - k), res = fr(num, den), fs = [];
+  var pw = function (u, e) { return e === 1 ? fr(u, d) : '\\left(' + fr(u, d) + '\\right)^' + e; };   // (u/d)^e
+  var Ck = 'C_' + n + '^' + (k === 1 ? '{{1}}' : k), form = Ck + '\\cdot ' + pw(a, k) + '\\cdot ' + pw(b0, n - k);
+  if (C > 1) fs.push(String(C));
+  if (k) fs.push(fr(Math.pow(a, k), Math.pow(d, k)));
+  if (n - k) fs.push(fr(Math.pow(b0, n - k), Math.pow(d, n - k)));
+  var calc = fs.length > 1
+    ? '$$\\begin{aligned}P(X=' + k + ')&=' + form + '\\\\&=' + fs.join('\\cdot ') + (gcd(num, den) > 1 ? '=\\dfrac{' + num + '}{' + den + '}' : '') + '=' + res + '.\\end{aligned}$$'
+    : '$$P(X=' + k + ')=' + form + '=' + res + '.$$';
   return {
     q: 'Бином тархалт нь $X\\sim B\\left(' + n + ',\\ ' + fr(a, d) + '\\right)$ бол $P(X=' + k + ')$-' + suf(k, 'ыг') + ' олоорой.',
     a: '$P(X=' + k + ')=' + fr(num, den) + '$',
     wk: 22,
+    s: [
+      '$X\\sim B(n,\\,p)$ бином тархалтын хувьд $P(X=k)=C_n^k\\,p^k\\,q^{n-k}$, энд $q=1-p$. Энэ бодлогод $n=' + n + '$, $p=' + fr(a, d)
+        + '$, $q=1-' + fr(a, d) + '=' + fr(b0, d) + '$.',
+      'Томьёонд $k=' + k + '$ гэж орлуулбал' + (j >= 2 ? ' ($' + Ck + '=\\dfrac{' + n + '!}{' + k + '!\\cdot ' + (n - k) + '!}=' + C + '$)' : '') + ': ' + calc
+    ],
     t: { n: n, a: a, d: d, k: k }
   };
 }
@@ -465,10 +664,23 @@ function p65() {
   var p = rnd(6, 9), n = pick([2, 2, 3, 3, 4]), k = rnd(0, n);
   if ((k === 0 || k === n) && rnd(0, 2)) return null;
   var num = p65_C(n, k) * Math.pow(p, k) * Math.pow(10 - p, n - k);   // ·10⁻ⁿ
+  // Бодолт: Бернуллийн томьёо P(X = k) = C_n^k·p^k·q^{n−k}, q = 1 − p;  C_n^k = n!/(k!(n − k)!) (k, n − k ≥ 2 үед тусад нь)
+  var C = p65_C(n, k), j = Math.min(k, n - k), res = dec(num / Math.pow(10, n)), fs = [];
+  var pw = function (u, e) { return dec(u / 10) + (e === 1 ? '' : '^' + e); };                     // (u/10)^e
+  var Ck = 'C_' + n + '^' + (k === 1 ? '{{1}}' : k), form = Ck + '\\cdot ' + pw(p, k) + '\\cdot ' + pw(10 - p, n - k);
+  if (C > 1) fs.push(String(C));
+  if (k) fs.push(dec(Math.pow(p, k) / Math.pow(10, k)));
+  if (n - k) fs.push(dec(Math.pow(10 - p, n - k) / Math.pow(10, n - k)));
   return {
     q: 'Тамирчин буудах бүртээ бай онох магадлал ' + dec(p / 10) + ' байв. ' + n + ' удаа буудсан бөгөөд $X$-ээр суманд тусах тоог тэмдэглэе. $P(X=' + k + ')=?$',
     a: '$P(X=' + k + ')=' + dec(num / Math.pow(10, n)) + '$',
     wk: 20,
+    s: [
+      'Буудлагууд бие даасан: онох магадлал $p=' + dec(p / 10) + '$, онохгүй байх магадлал $q=1-' + dec(p / 10) + '=' + dec((10 - p) / 10)
+        + '$. Бернуллийн томьёогоор $$P(X=k)=C_n^k\\,p^k\\,q^{n-k}.$$',
+      '$n=' + n + '$, $k=' + k + '$ үед' + (j >= 2 ? ' ($' + Ck + '=\\dfrac{' + n + '!}{' + k + '!\\cdot ' + (n - k) + '!}=' + C + '$)' : '')
+        + ': $$P(X=' + k + ')=' + form + (fs.length > 1 ? '=' + fs.join('\\cdot ') : '') + '=' + res + '.$$'
+    ],
     t: { p: p, n: n, k: k }
   };
 }
@@ -486,10 +698,25 @@ function p67() {
   if ((k === 0 || k === n) && rnd(0, 2)) return null;
   if (d === 6 && n === 5) return null;                      // хуваарь хэт том (7776)
   var num = p67_C(n, k) * Math.pow(a, k) * Math.pow(d - a, n - k), den = Math.pow(d, n);
+  // Бодолт: Бернуллийн томьёо P(X = k) = C_n^k·p^k·q^{n−k}, q = 1 − p;  C_n^k = n!/(k!(n − k)!) (k, n − k ≥ 2 үед тусад нь)
+  var b0 = d - a, C = p67_C(n, k), j = Math.min(k, n - k), res = fr(num, den), fs = [];
+  var pw = function (u, e) { return e === 1 ? fr(u, d) : '\\left(' + fr(u, d) + '\\right)^' + e; };   // (u/d)^e
+  var Ck = 'C_' + n + '^' + (k === 1 ? '{{1}}' : k), form = Ck + '\\cdot ' + pw(a, k) + '\\cdot ' + pw(b0, n - k);
+  if (C > 1) fs.push(String(C));
+  if (k) fs.push(fr(Math.pow(a, k), Math.pow(d, k)));
+  if (n - k) fs.push(fr(Math.pow(b0, n - k), Math.pow(d, n - k)));
+  var calc = fs.length > 1
+    ? '$$\\begin{aligned}P(X=' + k + ')&=' + form + '\\\\&=' + fs.join('\\cdot ') + (gcd(num, den) > 1 ? '=\\dfrac{' + num + '}{' + den + '}' : '') + '=' + res + '.\\end{aligned}$$'
+    : '$$P(X=' + k + ')=' + form + '=' + res + '.$$';
   return {
     q: 'Нэгэн туршилт амжилттай явагдах магадлал $' + fr(a, d) + '$ байв. Туршилтыг ' + n + ' удаа хийсэн бөгөөд $X$-ээр уг туршилт амжилттай явагдсан тоог тэмдэглэе. $P(X=' + k + ')=?$',
     a: '$P(X=' + k + ')=' + fr(num, den) + '$',
     wk: 20,
+    s: [
+      'Туршилтууд бие даасан: амжилттай явагдах магадлал $p=' + fr(a, d) + '$, амжилтгүй байх магадлал $q=1-' + fr(a, d) + '=' + fr(b0, d)
+        + '$. Бернуллийн томьёогоор $$P(X=k)=C_n^k\\,p^k\\,q^{n-k}.$$',
+      '$n=' + n + '$, $k=' + k + '$ үед' + (j >= 2 ? ' ($' + Ck + '=\\dfrac{' + n + '!}{' + k + '!\\cdot ' + (n - k) + '!}=' + C + '$)' : '') + ': ' + calc
+    ],
     t: { a: a, d: d, n: n, k: k }
   };
 }

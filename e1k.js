@@ -540,7 +540,7 @@
     function loadSol() {
       if (root.E1KSOL) return Promise.resolve();
       if (!solLoading) solLoading = new Promise(function (ok, bad) {
-        var s = document.createElement('script'); s.src = '/e1k-sol.js?v=3';
+        var s = document.createElement('script'); s.src = '/e1k-sol.js?v=4';
         s.onload = ok; s.onerror = function () { solLoading = null; bad(); };
         document.head.appendChild(s);
       });

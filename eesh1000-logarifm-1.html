@@ -44,10 +44,16 @@ function p23() {
   var ex = ed === 1 ? '^{' + en + '}' : '^{' + (en < 0 ? '-' : '') + '\\frac{' + Math.abs(en) + '}{' + ed + '}}';
   var val = vd === 1 ? String(vn) : '\\dfrac{' + vn + '}{' + vd + '}';
   var lg = '\\log_{' + (inv ? '\\frac{1}{' + B + '}' : B) + '}' + (vd === 1 ? ' ' + vn : '\\dfrac{' + vn + '}{' + vd + '}');
+  // Бодолт: логарифмын тодорхойлолт aⁿ = b ⇔ log_a b = n — суурь, илтгэгч, утгыг тодорхойлж орлуулна
+  var aT = inv ? '\\dfrac{1}{' + B + '}' : String(B), nT = fr(en, ed);
   return {
     q: '$' + base + ex + '=' + val + '$ адилтгалыг логарифм хэлбэрт шилжүүл.',
     a: '$' + lg + '=' + fr(en, ed) + '$',
     wk: 14,
+    s: [
+      'Логарифмын тодорхойлолт: $a\\gt 0$, $a\\ne 1$ үед $$a^n=b\\ \\Leftrightarrow\\ \\log_a b=n,$$ өөрөөр хэлбэл $\\log_a b$ нь $b$ тоог гаргахын тулд $a$ суурийг зэрэг дэвшүүлэх илтгэгч юм.',
+      'Энд суурь $a=' + aT + '$, илтгэгч $n=' + nT + '$, $b=' + val + '$. Иймд $$' + lg + '=' + nT + '.$$'
+    ],
     t: { B: B, inv: inv, en: en, ed: ed, vn: vn, vd: vd }
   };
 }
@@ -82,10 +88,16 @@ function p24() {
   var base = inv ? '\\left(\\dfrac{1}{' + B + '}\\right)' : String(B);
   var ex = ed === 1 ? '^{' + en + '}' : '^{' + (en < 0 ? '-' : '') + '\\frac{' + Math.abs(en) + '}{' + ed + '}}';
   var val = vd === 1 ? String(vn) : '\\dfrac{' + vn + '}{' + vd + '}';
+  // Бодолт: логарифмын тодорхойлолт log_a b = n ⇔ aⁿ = b — суурь, аргумент, утгыг тодорхойлж орлуулна
+  var aT = inv ? '\\dfrac{1}{' + B + '}' : String(B), nT = fr(en, ed);
   return {
     q: '$' + lg + '=' + fr(en, ed) + '$ адилтгалыг зэрэг хэлбэрт шилжүүл.',
     a: '$' + base + ex + '=' + val + '$',
     wk: 14,
+    s: [
+      'Логарифмын тодорхойлолт: $a\\gt 0$, $a\\ne 1$, $b\\gt 0$ үед $$\\log_a b=n\\ \\Leftrightarrow\\ a^n=b,$$ өөрөөр хэлбэл $a$ суурийг логарифмын утга $n$-ээр зэрэг дэвшүүлэхэд $b$ тоо гарна.',
+      'Энд суурь $a=' + aT + '$, $b=' + val + '$, $n=' + nT + '$. Иймд $$' + base + ex + '=' + val + '.$$'
+    ],
     t: { B: B, inv: inv, en: en, ed: ed, vn: vn, vd: vd }
   };
 }
@@ -117,11 +129,35 @@ function p25() {
   var sh = shuffle(L), srt = L.slice().sort(function (x, y) { return x.v - y.v; });
   if (sh.every(function (o, i) { return o === srt[i]; })) return null;   // аль хэдийн эрэмбэлэгдсэн биш
   var LG = function (o) { return '\\log_' + o.b + ' ' + o.N; };
+  // Бодолт: суурь > 1 тул log өсөх функц; бүхэл утгатайг шууд, бусдыг bᵉ < N < bᵉ⁺¹ ⇒ e < log_b N < e + 1 завсарт байрлуулна;
+  // нэг завсарт орсон (суурь нь ижил — генератор баталгаажуулна) логарифмуудыг аргументаар жишнэ
+  var fl = function (o) { var e = 0, P = 1; while (P * o.b <= o.N) { P *= o.b; e++; } return e; };
+  var ints = sh.filter(function (o) { return o.k >= 0; }), nons = sh.filter(function (o) { return o.k < 0; }), grp = {}, cmp = [];
+  var itT = ints.map(function (o) { return o.k === 1 ? '$' + LG(o) + '=1$' : '$' + LG(o) + '=' + o.k + '$ ($' + o.b + '^{' + o.k + '}=' + o.N + '$)'; });
+  var nlT = nons.map(function (o) {
+    var e = fl(o), lo = Math.pow(o.b, e), hi = lo * o.b;
+    var left = e === 0 ? '1' : e === 1 ? String(o.b) : o.b + '^{' + e + '}=' + lo, right = e === 0 ? String(o.b) : hi + '=' + o.b + '^{' + (e + 1) + '}';
+    (grp[e] = grp[e] || []).push(o);
+    return '$' + left + '\\lt ' + o.N + '\\lt ' + right + '$ тул $' + e + '\\lt ' + LG(o) + '\\lt ' + (e + 1) + '$';
+  });
+  Object.keys(grp).forEach(function (e) {
+    var G = grp[e].slice().sort(function (x, y) { return x.N - y.N; });
+    if (G.length > 1) cmp.push(G.map(function (o) { return o.N; }).join('\\lt ') + '\\ \\Rightarrow\\ ' + G.map(LG).join('\\lt '));
+  });
+  cmp = cmp.map(function (x, i) { return '$$' + x + (i < cmp.length - 1 ? ',' : '.') + '$$'; });
+  var sol = [
+    'Суурь нь $1$-ээс их тул логарифм функц өснө: $b^k\\lt N\\lt b^{k+1}$ бол $k\\lt\\log_b N\\lt k+1$. Логарифм бүрийг ийм завсарт байрлуулъя.',
+    'Бүхэл утгатай нь: ' + itT.join(', ') + '.',
+    'Бусад нь: ' + nlT.join(';<br>') + '.'
+  ];
+  if (cmp.length) sol.push('Нэг завсарт орсон, суурь нь ижил логарифмуудыг аргументаар нь жишнэ: ' + cmp.join(' '));
+  sol.push('Иймд $$' + srt.map(LG).join('\\lt ') + '.$$');
   return {
     q: 'Дараах логарифмуудыг өсөх эрэмбээр байрлуул.<div style="margin:4px 0 0 1.4em">'
       + sh.map(function (o) { return '$\\boxed{' + LG(o) + '}$'; }).join('&thinsp;,&ensp; ') + '</div>',
     a: '$' + srt.map(LG).join('\\lt ') + '$',
     wk: 18, wide: true,
+    s: sol,
     t: { L: sh.map(function (o) { return [o.b, o.N]; }) }
   };
 }
@@ -152,10 +188,21 @@ function p26() {
   var gg = gcd(num, den); num /= gg; den /= gg;
   if (den > 9 || num > 400 || (ty === 0 && num === 1 && den === 1)) return null;
   if (a === 10 && ty === 0 && m === 1 && b === 5) return null;     // эх тоо тогтмол хувилбар болохгүй
+  // Бодолт: үндсэн адилтгал a^{log_a b} = b ба зэргийн чанар a^{x±y} = a^x·a^{±y}, a^{xy} = (a^x)^y.
+  //   Илтгэгчийн «1−…» хэлбэрийг {1}-ээр бичнэ (KaTeX-д ялгаагүй; «^1» хуурамч анхааруулгаас сэргийлнэ — src4/p97 шиг)
+  var LGb = LG(b), id = a + '^{' + LGb + '}', am = Math.pow(a, m), mm = m === 1 ? '{1}' : String(m), pwm = m === 1 ? String(a) : a + '^{' + m + '}', rule, ch;
+  if (ty === 2) { rule = 'a^{xy}=\\left(a^x\\right)^y'; ch = a + '^{' + ex + '}=\\left(' + id + '\\right)^{' + k + '}=' + b + '^{' + k + '}=' + fr(num, den); }
+  else if (ty === 0) { rule = 'a^{x-y}=\\dfrac{a^x}{a^y}'; ch = a + '^{' + mm + '-' + LGb + '}=\\dfrac{' + pwm + '}{' + id + '}=\\dfrac{' + am + '}{' + b + '}' + (gcd(am, b) > 1 ? '=' + fr(am, b) : ''); }
+  else if (ty === 1) { rule = 'a^{x+y}=a^x\\cdot a^y'; ch = a + '^{' + mm + '+' + LGb + '}=' + pwm + '\\cdot ' + id + '=' + am + '\\cdot ' + b + '=' + am * b; }
+  else { rule = 'a^{x-y}=\\dfrac{a^x}{a^y}'; ch = a + '^{' + LGb + '-' + m + '}=\\dfrac{' + id + '}{' + pwm + '}=\\dfrac{' + b + '}{' + am + '}' + (gcd(b, am) > 1 ? '=' + fr(b, am) : ''); }
   return {
     q: '$' + a + '^{' + ex + '}$ илэрхийллийн утгыг олоорой.',
     a: '$' + fr(num, den) + '$',
     wk: 18,
+    s: [
+      'Логарифмын үндсэн адилтгал: $$a^{\\log_a b}=b\\quad(a\\gt 0,\\ a\\ne 1,\\ b\\gt 0).$$' + (a === 10 ? ' Аравтын логарифмын хувьд $10^{\\lg b}=b$.' : ''),
+      'Зэргийн $' + rule + '$ чанар ба үндсэн адилтгалаар $$' + ch + '.$$'
+    ],
     t: { a: a, ty: ty, b: b, m: m, k: k }
   };
 }
@@ -186,10 +233,29 @@ function p20() {
   var vn = C * fn, vd = fd; g = gcd(vn, vd); vn /= g; vd /= g;
   if (vn / vd > 40 || (vd === 1 && vn === 1 && rnd(0, 1))) return null;
   if (rnd(0, 3) === 0) L = shuffle(L);
+  // Бодолт: log_{X^e}Y^f = (f/e)·log_X Y (зэргийн чанар); log_α β·log_β γ·log_γ α = 1 (суурь солих томьёо) ⇒ утга = C·Π(f/e)
+  var pp = function (N) { for (var b0 = 2; b0 <= 7; b0++) { var e0 = 0, m0 = N; while (m0 % b0 === 0) { m0 /= b0; e0++; } if (m0 === 1 && e0) return [b0, e0]; } return null; };
+  var pw = function (b0, e0) { return e0 === 1 ? String(b0) : b0 + '^' + e0; }, cf = function (s0) { return s0 === '1' ? '' : s0; };
+  var lines = [], cl = C > 1 ? [String(C)] : [];
+  L.forEach(function (s0) {
+    var m0 = /\\log_\{(\d+)\}(\d+)/.exec(s0), xb = pp(+m0[1]), ya = pp(+m0[2]), e0 = xb[1], f0 = ya[1], lg = '\\log_{' + xb[0] + '}' + ya[0];
+    var raw = e0 === 1 ? String(f0) : '\\dfrac{' + f0 + '}{' + e0 + '}', red = fr(f0, e0);
+    cl.push(red);
+    if (e0 === 1 && f0 === 1) return;
+    lines.push('$$' + s0 + '=\\log_{' + pw(xb[0], e0) + '}' + pw(ya[0], f0) + '=' + cf(raw) + lg + (raw !== red ? '=' + cf(red) + lg : '') + '$$');
+  });
+  var A0 = pr[0], B0 = pr[1], G0 = pr[2], val = fr(vn, vd);
+  var sol = [
+    'Логарифмын $\\log_{a^m}b^n=\\dfrac{n}{m}\\log_{a}b$ чанараар: ' + lines.join(' '),
+    'Суурь солих $\\log_{a}b=\\dfrac{\\lg b}{\\lg a}$ томьёогоор: $$\\log_{' + A0 + '}' + B0 + '\\cdot\\log_{' + B0 + '}' + G0 + '\\cdot\\log_{' + G0 + '}' + A0
+      + '=\\dfrac{\\lg ' + B0 + '}{\\lg ' + A0 + '}\\cdot\\dfrac{\\lg ' + G0 + '}{\\lg ' + B0 + '}\\cdot\\dfrac{\\lg ' + A0 + '}{\\lg ' + G0 + '}=1.$$',
+    'Логарифмуудын үржвэр $1$ тул илэрхийллийн утга нь коэффициентүүдийн үржвэртэй тэнцүү: $$' + cl.join('\\cdot ') + '=' + val + '.$$'
+  ];
   return {
     q: '$' + (C > 1 ? C + '\\times ' : '') + L.join('\\times ') + '=?$',
     a: '$' + fr(vn, vd) + '$',
     wk: 24,
+    s: sol,
     t: { pr: pr, C: C }
   };
 }
@@ -222,10 +288,20 @@ function p41() {
   var T2 = '\\log_{' + q + '}' + (f2 ? '\\dfrac{1}{' + Math.pow(q, n) + '}' : Math.pow(q, n)), v2 = f2 ? -n : n;
   var T3 = Math.pow(X[0], X[1]) + '^{\\log_{' + X[0] + '}' + X[2] + '}', v3 = Math.pow(X[2], X[1]), N = v1 * v2;
   var E = rnd(1, 100) <= 75 ? T1 + '\\times ' + T2 : T2 + '\\times ' + T1;
+  // Бодолт: логарифмын тодорхойлолтоор L₁, L₂ (суурийн зэрэг); (s^k)^{log_s t} = (s^{log_s t})^k = t^k (үндсэн адилтгал); эцэст нь L₁·L₂ / t^k.
+  var pm = Math.pow(p, m), qn = Math.pow(q, n), s = X[0], k = X[1], tt = X[2], first1 = E.indexOf(T1) === 0;
   return {
     q: '$' + E + '\\div ' + T3 + '$ үйлдлийг гүйцэтгээрэй.',
     a: '$' + fr(N, v3) + '$',
     wk: 22,
+    s: [
+      (f1 ? '$\\left(\\dfrac{1}{' + p + '}\\right)^{-' + m + '}=' + p + '^{' + m + '}=' + pm + '$ тул логарифмын тодорхойлолтоор $$' + T1 + '=-' + m + '.$$'
+        : '$\\left(\\dfrac{1}{' + p + '}\\right)^{' + m + '}=\\dfrac{1}{' + pm + '}$ тул логарифмын тодорхойлолтоор $$' + T1 + '=' + m + '.$$'),
+      (n > 1 ? '$' + qn + '=' + q + '^{' + n + '}$ тул ' : '') + '$$' + T2 + '=\\log_{' + q + '}' + q + '^{' + (f2 ? '-' : '') + n + '}=' + v2 + '.$$',
+      'Үндсэн логарифмын адилтгал $a^{\\log_a b}=b$ ашиглавал: $$' + T3 + '=\\left(' + s + '^{' + k + '}\\right)^{\\log_{' + s + '}' + tt + '}=\\left(' + s + '^{\\log_{' + s + '}' + tt
+        + '}\\right)^{' + k + '}=' + tt + '^{' + k + '}=' + v3 + '.$$',
+      'Иймд $$\\dfrac{' + (first1 ? par(v1) + '\\cdot ' + par(v2) : par(v2) + '\\cdot ' + par(v1)) + '}{' + v3 + '}=' + fr(N, v3) + '.$$'
+    ],
     t: { p: p, m: m, q: q, n: n, X: X }
   };
 }
@@ -245,10 +321,21 @@ function p37() {
   if (w <= 55) { E = K + sL + '+' + R; ans = lt ? K + 1 : K - 1; }                       // эх шиг
   else if (w <= 80) { E = R + sL + '+' + K; ans = lt ? K + 1 : K - 1; }
   else { E = (lt ? '' : '-') + L + '+' + R + '-' + K; ans = (lt ? 1 : -1) - K; }
+  // Бодолт: log(B·a) = 1 + L, log a⁴ = 4L ⇒ язгуурын доор (1 + L)² − 4L = (1 − L)²; √ = |1 − L| (a < B бол 1 − L, a > B бол L − 1).
+  var lgp = function (x) { return (B === 10 ? '\\lg' : '\\log_{' + B + '}') + '(' + x + ')'; }, rv = lt ? '1-' + L : L + '-1', fin;
+  if (w <= 55) fin = K + sL + '+(' + rv + ')';
+  else if (w <= 80) fin = '(' + rv + ')' + sL + '+' + K;
+  else fin = (lt ? '' : '-') + L + '+(' + rv + ')-' + K;
   return {
     q: '$' + E + '$ илэрхийллийг хялбарчлаарай.',
     a: '$' + ans + '$',
     wk: 26,
+    s: [
+      'Логарифмын чанараар: $$' + lg(B * a) + '=' + lgp(B + '\\cdot ' + a) + '=1+' + L + ',\\qquad ' + lg(Math.pow(a, 4)) + '=' + lg(a + '^4') + '=4' + L + '.$$',
+      'Язгуурын доорх илэрхийлэл бүтэн квадрат: $$' + lg(B * a, 1) + '-' + lg(Math.pow(a, 4)) + '=(1+' + L + ')^2-4' + L + '$$ $$=1-2' + L + '+' + lg(a, 1) + '=(1-' + L + ')^2.$$',
+      '$' + a + (lt ? '\\lt ' : '\\gt ') + B + '$ тул $' + L + (lt ? '\\lt ' : '\\gt ') + lg(B) + '=1$, иймд $$\\sqrt{(1-' + L + ')^2}=|1-' + L + '|=' + rv + '.$$',
+      'Бүгдийг орлуулбал $$' + fin + '=' + ans + '.$$'
+    ],
     t: { B: B, a: a, K: K }
   };
 }
@@ -298,8 +385,51 @@ function p72() {
     q: given + ' бол $\\lg ' + Nt + '$-' + suf(Nv, 'ын') + ' утгыг олоорой.',
     a: '$\\lg ' + Nt + '\\approx ' + p72_d4(K) + '$',
     wk: 22,
+    s: p72_sol(ex, d, G, Nt, K),
     t: { ex: ex, d: d, K: K }
   };
+}
+// Бодолт: N = Π pᵏ·10ᵈ (сөрөг зэрэгтэй хүчин зүйлс хуваарьт) ⇒ lg N = Σ k·lg p + d (логарифмын чанар) ⇒ өгсөн утгаар орлуулна.
+function p72_sol(ex, d, G, Nt, K) {
+  var num = [], den = [], An = 1, Bn = 1, T = [], ab = Math.abs, pw = Math.pow;
+  var f = function (p, k) { return p + (ab(k) === 1 ? '' : '^' + ab(k)); };
+  G.forEach(function (p) {
+    var k = ex[p];
+    if (k > 0) { num.push(f(p, k)); An *= pw(p, k); } else { den.push(f(p, k)); Bn *= pw(p, -k); }
+    T.push({ c: k, p: p });
+  });
+  var Ap = An;                                                          // 10-гүй хүртвэр
+  if (d > 0) { num.push(f(10, d)); An *= pw(10, d); } else if (d < 0) { den.push(f(10, d)); Bn *= pw(10, -d); }
+  if (d) T.push({ c: d, p: 10 });
+  // задаргаа: тоогоор → зэргээр
+  var pf = den.length ? '\\dfrac{' + (num.join('\\cdot ') || '1') + '}{' + den.join('\\cdot ') + '}' : num.join('\\cdot ');
+  var mid = den.length ? '\\dfrac{' + p72_num(An, 0) + '}{' + p72_num(Bn, 0) + '}' : d > 0 ? p72_num(Ap, 0) + '\\cdot ' + p72_num(1, d) : '';
+  var bs = G.map(String).concat(d ? ['10'] : []), last = bs.pop();
+  var s1 = 'Тоог ' + bs.map(function (p) { return '$' + p + '$'; }).join(', ') + (bs.length ? ' ба ' : '') + '$' + last + '$-' + suf(+last, 'ын')
+    + ' зэргээр илэрхийлье: $$' + Nt + '=' + (mid && mid !== pf ? mid + '=' : '') + pf + '.$$';
+  // lg N: эерэг гишүүд эхэнд
+  var ord = T.filter(function (t) { return t.c > 0; }).concat(T.filter(function (t) { return t.c < 0; }));
+  var lgf = ord.map(function (t, i) { return (t.c < 0 ? '-' : i ? '+' : '') + '\\lg ' + f(t.p, t.c); }).join('');
+  var sym = ord.map(function (t, i) { return t.p === 10 ? (i ? sgn(t.c) : String(t.c)) : tm(t.c, '\\lg ' + t.p, i === 0); }).join('');
+  var long = ord.length >= 3;
+  // зөвхөн хэрэглэсэн чанарууд: үржвэр (хүртвэр/хуваарьт ≥ 2 үржигдэхүүн), ноогдвор, зэрэг (|k| ≥ 2), lg 10 = 1 (d ≠ 0)
+  var props = [];
+  if (num.length >= 2 || den.length >= 2) props.push('$\\lg(ab)=\\lg a+\\lg b$');
+  if (den.length) props.push('$\\lg\\dfrac{a}{b}=\\lg a-\\lg b$');
+  if (T.some(function (t) { return ab(t.c) >= 2; })) props.push('$\\lg a^n=n\\lg a$');
+  if (d) props.push('$\\lg 10=1$');
+  var s2 = 'Логарифмын чанар ' + props.join(', ') + ' ашиглавал'
+    + ' $$\\lg ' + Nt + '=' + lgf + (lgf === sym ? '' : (long ? '$$ $$=' : '=') + sym) + '.$$';
+  // өгсөн утгыг орлуулна (10⁻⁴ нэгжээр бүхэл)
+  var L = p72_L, one = ord.length === 1 || ord.every(function (t) { return t.p === 10 || ab(t.c) === 1; });
+  var sub = ord.map(function (t, i) {
+    var sg = t.c < 0 ? '-' : i ? '+' : '';
+    return sg + (t.p === 10 ? ab(t.c) : (ab(t.c) === 1 ? '' : ab(t.c) + '\\cdot ') + '0.' + L[t.p]);
+  }).join('');
+  var prod = ord.map(function (t, i) { var sg = t.c < 0 ? '-' : i ? '+' : ''; return sg + (t.p === 10 ? ab(t.c) : p72_d4(ab(t.c) * L[t.p])); }).join('');
+  var res = p72_d4(K), ch = sub + (one ? '' : (long ? '$$ $$=' : '=') + prod) + (sub === res ? '' : '=' + res);
+  var s3 = 'Өгсөн утгуудыг орлуулъя: $$\\lg ' + Nt + '\\approx ' + ch + '.$$';
+  return [s1, s2, s3];
 }
 return p72;
 })();
@@ -335,7 +465,23 @@ function p31() {
     '$' + L1 + '=\\log_a' + X[0] + '-\\log_a y^' + c + '=\\dfrac{' + b('a', X[1]) + '}{' + b('b', X[2]) + '}\\log_a x-' + b('c', c) + '\\log_a y=' + b('d', d) + '$',
     '$' + L2 + '=\\log_a x^' + e + '+\\log_a' + Y[0] + '=' + b('e', e) + '\\log_a x+\\dfrac{' + b('f', Y[1]) + '}{' + b('g', Y[2]) + '}\\log_a y=' + b('h', h) + '$'
   ]);
-  return { q: q, a: b.key(), wide: true, wk: 60, t: { m: m, n: n } };
+  return { q: q, a: b.key(), wide: true, wk: 60, s: p31_sol(m, n, X, c, e, Y, d, h), t: { m: m, n: n } };
+}
+// Бодолт: язгуурыг зэргээр (∛x² = x^{2/3}), зэргийн логарифм log_a M^k = k·log_a M; ногдворын логарифм — ялгавар,
+// үржвэрийн логарифм — нийлбэр; log_a x = m, log_a y = n орлуулна. (α/β)·m ба (φ/γ)·n бүхэл (β | m, γ | n — генераторын нөхцөл).
+function p31_sol(m, n, X, c, e, Y, d, h) {
+  var al = X[1], be = X[2], ph = Y[1], ga = Y[2], P1 = al * m / be, Q1 = c * n, P2 = e * m, Q2 = ph * n / ga;
+  var fA = '\\dfrac{' + al + '}{' + be + '}', fB = '\\dfrac{' + ph + '}{' + ga + '}';
+  return [
+    '<b>a)</b> Ногдворын логарифм нь логарифмуудын ялгавар, зэргийн логарифмд илтгэгч нь өмнө гарна ($\\log_a M^k=k\\log_a M$): '
+      + '$$\\log_a' + X[0] + '=\\log_a x^{\\frac{' + al + '}{' + be + '}}=' + fA + '\\log_a x,\\qquad \\log_a y^' + c + '=' + c + '\\log_a y.$$'
+      + 'Өгөгдсөн утгуудыг орлуулбал $$' + fA + '\\log_a x-' + c + '\\log_a y=' + fA + '\\cdot ' + m + '-' + c + '\\cdot ' + par(n) + '=' + P1 + sgn(-Q1) + '=' + d + '.$$'
+      + 'Иймд $\\bx{a}=' + al + '$, $\\bx{b}=' + be + '$, $\\bx{c}=' + c + '$, $\\bx{d}=' + d + '$.',
+    '<b>b)</b> Үржвэрийн логарифм нь логарифмуудын нийлбэр: '
+      + '$$\\log_a x^' + e + '=' + e + '\\log_a x,\\qquad \\log_a' + Y[0] + '=\\log_a y^{\\frac{' + ph + '}{' + ga + '}}=' + fB + '\\log_a y.$$'
+      + 'Орлуулбал $$' + e + '\\log_a x+' + fB + '\\log_a y=' + e + '\\cdot ' + m + '+' + fB + '\\cdot ' + par(n) + '=' + P2 + sgn(Q2) + '=' + h + '.$$'
+      + 'Иймд $\\bx{e}=' + e + '$, $\\bx{f}=' + ph + '$, $\\bx{g}=' + ga + '$, $\\bx{h}=' + h + '$.'
+  ];
 }
 return p31;
 })();
@@ -351,7 +497,16 @@ function p30() {
   if (A === B && rnd(0, 1)) return null;
   var q = '$y=' + A + '\\cdot ' + B + '^{' + (k === 1 ? '' : k) + 'x}$ функцийг $\\ln y=\\ln' + b('a', A) + '+' + b('b', k) + 'x\\ln' + b('c', B)
     + '$ хэлбэрээр илэрхийлж болно. Иймд $(x,\\ \\ln y)$ хавтгайд энэ ________ байна.';
-  return { q: q, a: b.key() + '; шулуун', wk: 40, t: { A: A, B: B, k: k } };
+  // Бодолт: хоёр талаас ln авч ln(MN) = ln M + ln N, ln Mᵖ = p·ln M ⇒ ln y = ln A + k·x·ln B ⇒ a, b, c;
+  //   X = x, Y = ln y гэвэл Y = (k ln B)·X + ln A — шугаман функц ⇒ шулуун
+  var kx = (k === 1 ? '' : k) + 'x', kl = (k === 1 ? '' : k) + '\\ln ' + B;
+  var sol = [
+    'Хоёр талаас натурал логарифм авъя ($y\\gt 0$): $$\\ln y=\\ln\\left(' + A + '\\cdot ' + B + '^{' + kx + '}\\right).$$',
+    'Логарифмын $\\ln(MN)=\\ln M+\\ln N$ ба $\\ln M^p=p\\ln M$ чанараар $$\\ln y=\\ln ' + A + '+\\ln ' + B + '^{' + kx + '}=\\ln ' + A + '+' + (k === 1 ? '1\\cdot ' : k) + 'x\\ln ' + B + '.$$'
+      + ' $\\ln y=\\ln a+bx\\ln c$ хэлбэртэй жишвэл $a=' + A + '$, $b=' + k + '$, $c=' + B + '$.',
+    '$X=x$, $Y=\\ln y$ гэж тэмдэглэвэл $$Y=(' + kl + ')\\,X+\\ln ' + A + ',$$ өөрөөр хэлбэл $Y$ нь $X$-ийн шугаман функц (өнцгийн коэффициент нь $' + kl + '$). Иймд $(x,\\ \\ln y)$ хавтгайд энэ шулуун байна.'
+  ];
+  return { q: q, a: b.key() + '; шулуун', wk: 40, s: sol, t: { A: A, B: B, k: k } };
 }
 return p30;
 })();
@@ -375,10 +530,27 @@ function p29() {
   var L = '\\log_' + b + ' ';
   var T2 = { c: [s2, 2], t: L + h * h }, T3 = { c: [s3, 3], t: L + j * j * j }, rest = rnd(0, 1) ? [T2, T3] : [T3, T2];
   var rhs = c + L + n + rest.map(function (o) { return tm(o.c, o.t); }).join('');
+  // Бодолт: k·log M = log Mᵏ ⇒ гишүүн бүр log(тоо); log M ± log N = log(MN), log(M/N) ⇒ log x = log X ⇒ x = X (x > 0)
+  var nc = Math.pow(n, c), lb = '\\log_' + b, X = fr(N, D);
+  var Rs = rest.map(function (o) {
+    var two = o === T2;
+    return { sg: two ? s2 : s3, f: two ? '\\dfrac{1}{2}' : '\\dfrac{1}{3}', pf: two ? '\\frac{1}{2}' : '\\frac{1}{3}', arg: two ? h * h : j * j * j, v: two ? h : j };
+  });
+  var al = '\\begin{aligned}' + c + L + n + '&=' + L + n + '^{' + c + '}=' + L + nc
+    + Rs.map(function (o) { return '\\\\' + o.f + L + o.arg + '&=' + L + o.arg + '^{' + o.pf + '}=' + L + o.v; }).join('') + '\\end{aligned}';
+  var nf = [nc].concat(Rs.filter(function (o) { return o.sg > 0; }).map(function (o) { return o.v; })), df = Rs.filter(function (o) { return o.sg < 0; }).map(function (o) { return o.v; });
+  var comb = df.length ? lb + '\\dfrac{' + nf.join('\\cdot ') + '}{' + df.join('\\cdot ') + '}' : lb + '(' + nf.join('\\cdot ') + ')';
+  var sol = [
+    'Логарифмын $k\\log_a M=\\log_a M^k$ чанараар гишүүн бүрийг хувиргая: $$' + al + '$$',
+    '$\\log_a M+\\log_a N=\\log_a(MN)$ ба $\\log_a M-\\log_a N=\\log_a\\dfrac{M}{N}$ чанараар $$' + L + 'x=' + L + nc
+      + Rs.map(function (o) { return (o.sg > 0 ? '+' : '-') + L + o.v; }).join('') + '$$ $$=' + comb + '=' + L + X + '.$$',
+    'Суурь ижил логарифмууд тэнцүү бол аргументууд нь тэнцүү, мөн $x\\gt 0$ нөхцөл биелнэ. Иймд $x=' + X + '$.'
+  ];
   return {
     q: '$' + L + 'x=' + rhs + '$ тэгшитгэлийн шийдийг олоорой.',
     a: '$x=' + fr(N, D) + '$',
     wk: 24,
+    s: sol,
     t: { b: b, c: c, n: n, h: h, j: j, s2: s2, s3: s3 }
   };
 }
@@ -402,10 +574,28 @@ function p27() {
     num = form === 0 ? a * b - 1 : 1 - a * b; den = a * c;
     if (!num) return null;
   }
+  // Бодолт: тодорхойлолтоор аргумент = aᵏ → шугаман тэгшитгэл → шалгалт (аргумент = aᵏ > 0 тул муж хангагдана)
+  var ARG = form === 0 ? b + tm(-c, 'x') : poly([c, b]), cX = tm(c, 'x', true), X = fr(num, den), sv;
+  var Aex = k === 0 ? a + '^0=1' : k === 1 ? String(a) : k === 2 ? a + '^2=' + a * a : a + '^{-1}=\\dfrac{1}{' + a + '}';
+  var Av = k === -1 ? '\\dfrac{1}{' + a + '}' : String(Math.pow(a, k)), AK = Math.pow(a, k);
+  if (k >= 0) {
+    var rhs = form === 0 ? b + '-' + AK : AK + sgn(-b), rv = form === 0 ? b - AK : AK - b;
+    sv = '$$' + cX + '=' + rhs + '=' + rv + (c > 1 ? '\\ \\Rightarrow\\ x=' + fr(rv, c) : '') + '.$$';
+  } else {
+    var N1 = form === 0 ? a * b - 1 : 1 - a * b, rh1 = form === 0 ? b + '-\\dfrac{1}{' + a + '}' : '\\dfrac{1}{' + a + '}' + sgn(-b);
+    sv = '$$' + cX + '=' + rh1 + '=' + fr(N1, a) + (c > 1 ? '\\ \\Rightarrow\\ x=' + (N1 < 0 ? '-' : '') + '\\dfrac{' + Math.abs(N1) + '}{' + a + '\\cdot ' + c + '}=' + X : '') + '.$$';
+  }
+  var xv = den === 1 ? par(num) : num < 0 ? '\\left(' + X + '\\right)' : X, cx = c === 1 ? xv : c + '\\cdot ' + xv;
+  var sub = form === 0 ? b + '-' + cx : cx + sgn(b);
   return {
     q: '$\\log_{' + a + '}(' + (form === 0 ? b + tm(-c, 'x') : poly([c, b])) + ')=' + k + '$ тэгшитгэлийн шийдийг олоорой.',
     a: '$x=' + fr(num, den) + '$',
     wk: 20,
+    s: [
+      'Логарифмын тодорхойлолтоор $\\log_a M=k\\ \\Leftrightarrow\\ M=a^k$. Иймд $$' + ARG + '=' + Aex + '.$$',
+      'Шугаман тэгшитгэлийг бодъё: ' + sv,
+      'Шалгалт: $x=' + X + '$ үед $$' + sub + '=' + Av + '\\gt 0,$$ логарифмын аргумент эерэг тул шийд мужид орно. Иймд $x=' + X + '$.'
+    ],
     t: { a: a, k: k, b: b, c: c, form: form }
   };
 }
@@ -429,10 +619,21 @@ function p28() {
   if (r * num + s * den <= 0) return null;                       // L₂(x) ≤ 0 → мужид орохгүй
   if (den === 1 && rnd(1, 100) <= 45) return null;               // бутархай хариу давамгай (эх шиг)
   var L1 = neg ? q + tm(-p, 'x') : poly([p, q]), L2 = poly([r, s]);
+  // Бодолт: k = log_a aᵏ, log M + log N = log(MN) ⇒ L₁ = aᵏ·L₂ ⇒ шугаман; шалгалт: L₂(x₀) > 0, L₁(x₀) > 0
+  var la = '\\log_' + a, n0 = A * s - q, d0 = c1 - A * r, X = fr(num, den);
+  var v1 = fr(c1 * num + q * den, den), v2 = fr(r * num + s * den, den);
+  var sol = [
+    'Тодорхойлогдох муж: $' + L1 + '\\gt 0$, $' + L2 + '\\gt 0$.',
+    '$' + k + '=' + la + ' ' + A + '$ ба $\\log_a M+\\log_a N=\\log_a(MN)$ чанараар $$' + k + '+' + la + '(' + L2 + ')=' + la + ' ' + A + '+' + la + '(' + L2 + ')=' + la + '\\left(' + A + '(' + L2 + ')\\right).$$',
+    'Суурь ижил логарифмууд тэнцүү бол аргументууд нь тэнцүү: $$' + L1 + '=' + A + '(' + L2 + ')\\ \\Rightarrow\\ ' + L1 + '=' + poly([A * r, A * s]) + '$$ $$\\Rightarrow\\ '
+      + tm(c1, 'x', true) + tm(-A * r, 'x') + '=' + A * s + sgn(-q) + '\\ \\Rightarrow\\ ' + tm(d0, 'x', true) + '=' + n0 + (d0 === 1 ? '' : '\\ \\Rightarrow\\ x=' + X) + '.$$',
+    'Шалгалт: $x=' + X + '$ үед $$' + L1 + '=' + v1 + '\\gt 0,\\qquad ' + L2 + '=' + v2 + '\\gt 0,$$ шийд мужид орно. Иймд $x=' + X + '$.'
+  ];
   return {
     q: '$\\log_' + a + '(' + L1 + ')=' + k + '+\\log_' + a + '(' + L2 + ')$ тэгшитгэлийн шийдийг олоорой.',
     a: '$x=' + fr(num, den) + '$',
     wk: 26,
+    s: sol,
     t: { a: a, k: k, L1: [c1, q], L2: [r, s] }
   };
 }
@@ -468,8 +669,39 @@ function p32() {
     q: '$\\ln(x^2+' + c + ')=' + txt + '+2\\ln x$ тэгшитгэлийн шийдийг олоорой.',
     a: '$x=' + ans + '$',
     wk: 26,
+    s: m === undefined ? p32_solK(c, k, ans) : p32_solM(c, m, ans),
     t: { c: c }
   };
+}
+// Бодолт (I): муж x > 0; 2ln x = ln x² → ln((x² + c)/x²) = k → 1 + c/x² = eᵏ → x² = c/(eᵏ − 1) → x = √c/√(eᵏ − 1).
+function p32_solK(c, k, ans) {
+  var ek = k === 1 ? 'e' : 'e^' + k, S = surd(c), ch = ['\\sqrt{\\dfrac{' + c + '}{' + ek + '-1}}'];
+  if (S.r !== 1) ch.push('\\dfrac{\\sqrt{' + c + '}}{\\sqrt{' + ek + '-1}}');
+  if (ch[ch.length - 1] !== ans) ch.push(ans);
+  return [
+    'Тодорхойлогдох муж: $x\\gt 0$. Логарифмын чанараар $2\\ln x=\\ln x^2$ тул $$\\ln(x^2+' + c + ')-\\ln x^2=' + k + '\\ \\Rightarrow\\ \\ln\\dfrac{x^2+' + c + '}{x^2}=' + k + '.$$',
+    'Логарифмын тодорхойлолтоор $$\\dfrac{x^2+' + c + '}{x^2}=' + ek + '\\ \\Rightarrow\\ 1+\\dfrac{' + c + '}{x^2}=' + ek + '\\ \\Rightarrow\\ x^2=\\dfrac{' + c + '}{' + ek + '-1}.$$',
+    '$' + ek + '-1\\gt 0$ ба $x\\gt 0$ тул $$x=' + ch.join('=') + '.$$'
+  ];
+}
+// Бодолт (II): ln m + 2ln x = ln(m·x²) → x² + c = m·x² (ln монотон) → x² = c/(m − 1) = P/Q (хураасан);
+// √(P/Q): Q-ийн квадратгүй хэсэг t-ээр өргөтгөж √(P·t)/s (s² = Q·t), язгуурыг хялбарчилна.
+function p32_solM(c, m, ans) {
+  var g = gcd(c, m - 1), P = c / g, Q = (m - 1) / g, ch = [];
+  if (Q === 1) ch.push('\\sqrt{' + P + '}');
+  else {
+    var Sq = surd(Q), t = Sq.r, sd = Sq.k * Sq.r, Sn = surd(P * t);
+    ch.push('\\sqrt{\\dfrac{' + P + '}{' + Q + '}}');
+    if (t > 1) ch.push('\\sqrt{\\dfrac{' + P * t + '}{' + sd * sd + '}}');
+    if (Sn.r !== 1) ch.push('\\dfrac{\\sqrt{' + P * t + '}}{' + sd + '}');
+  }
+  if (ch[ch.length - 1] !== ans) ch.push(ans);
+  var lin = m - 1 === 1 ? 'x^2=' + c : tm(m - 1, 'x^2', true) + '=' + c + '\\ \\Rightarrow\\ x^2=' + fr(c, m - 1);
+  return [
+    'Тодорхойлогдох муж: $x\\gt 0$. Логарифмын чанараар $\\ln ' + m + '+2\\ln x=\\ln(' + m + 'x^2)$ тул $$\\ln(x^2+' + c + ')=\\ln(' + m + 'x^2).$$',
+    'Логарифм функц монотон тул $$x^2+' + c + '=' + m + 'x^2\\ \\Rightarrow\\ ' + lin + '.$$',
+    '$x\\gt 0$ тул $$x=' + ch.join('=') + '.$$'
+  ];
 }
 return p32;
 })();
@@ -509,8 +741,38 @@ function p33() {
     q: '$2\\log_' + a + ' x=' + k + '+\\log_' + a + '(x' + sgn(-m) + ')$ тэгшитгэлийн шийдийг олоорой.',
     a: '$' + ans + '$',
     wk: 28,
+    s: p33_sol(a, k, m, A, D, s, r, ans),
     t: { a: a, k: k, m: m }
   };
+}
+// Бодолт: муж x > max(0, m); 2log_a x = log_a x², k = log_a A ⇒ x² = A(x − m) ⇒ x² − Ax + Am = 0 (D = A² − 4Am = s²r);
+// m > 0: хоёр язгуур хоёулаа > m (бага язгуурыг ойролцоогоор шалгана), D = 0: x = A/2; m < 0: Виет x₁x₂ = Am < 0 → сөрөг язгуурыг хасна.
+function p33_sol(a, k, m, A, D, s, r, ans) {
+  var X = poly([1, -m]), L = '\\log_' + a, Am = A * m, sol = [];
+  sol.push('Тодорхойлогдох муж: $x\\gt 0$, $' + X + '\\gt 0$, өөрөөр хэлбэл $x\\gt ' + Math.max(0, m) + '$.');
+  sol.push('Логарифмын чанараар $2' + L + ' x=' + L + ' x^2$, $' + k + '=' + L + ' ' + (k === 1 ? a : a + '^' + k + '=' + L + ' ' + A) + '$ тул $$'
+    + L + ' x^2=' + L + '\\bigl(' + A + '(' + X + ')\\bigr).$$ Логарифм функц монотон тул $$x^2=' + A + '(' + X + ')\\ \\Rightarrow\\ ' + poly([1, -A, Am]) + '=0.$$');
+  // язгуурууд: x₁ < x₂ (TeX ба тоон утга)
+  var sq = Math.sqrt(D), half = A % 2 === 0 && s % 2 === 0, v1 = (A - sq) / 2, x1, x2;
+  if (r === 1) { x1 = fr(A - s, 2); x2 = fr(A + s, 2); }
+  else if (half) { x1 = A / 2 + '-' + rt(s / 2, r); x2 = A / 2 + '+' + rt(s / 2, r); }
+  else { x1 = '\\dfrac{' + A + '-' + rt(s, r) + '}{2}'; x2 = '\\dfrac{' + A + '+' + rt(s, r) + '}{2}'; }
+  var dl = 'D=' + A + '^2-4\\cdot ' + par(Am) + '=' + D;
+  if (D === 0) {
+    sol.push('Дискриминант $' + dl + '$ тул давхар язгууртай: $$x=\\dfrac{' + A + '}{2}=' + A / 2 + '.$$ $x=' + A / 2 + '\\gt ' + m + '$ тул муждаа орно.');
+  } else {
+    var rts = r === 1 ? 'x_{1,2}=\\dfrac{' + A + '\\pm ' + s + '}{2}\\ \\Rightarrow\\ x_1=' + x1 + ',\\quad x_2=' + x2
+      : 'x_{1,2}=\\dfrac{' + A + '\\pm\\sqrt{' + D + '}}{2}' + (s > 1 ? '=\\dfrac{' + A + '\\pm ' + rt(s, r) + '}{2}' : '') + (half ? '=' + A / 2 + '\\pm ' + rt(s / 2, r) : '');
+    sol.push('Дискриминант $' + dl + (r === 1 ? '=' + s + '^2' : '') + '\\gt 0$: $$' + rts + '.$$');
+    if (m > 0) {
+      sol.push(r === 1 ? '$x_1=' + x1 + '\\gt ' + m + '$, $x_2=' + x2 + '\\gt ' + m + '$ тул хоёр язгуур хоёулаа муждаа орно.'
+        : 'Бага язгуур $$x_1=' + x1 + '\\approx ' + dec(v1, 2) + '\\gt ' + m + ',$$ $x_2\\gt x_1$ тул хоёр язгуур хоёулаа муждаа орно.');
+    } else {
+      sol.push('Виетийн теоремоор $x_1x_2=' + Am + '\\lt 0$ тул язгуурууд эсрэг тэмдэгтэй: $$x_1=' + x1 + (r === 1 ? '' : '\\approx ' + dec(v1, 2)) + '\\lt 0$$ нь $x\\gt 0$ нөхцөлийг хангахгүй, $x_2\\gt 0$ нь шийд.');
+    }
+  }
+  sol.push('Иймд $' + ans + '$.');
+  return sol;
 }
 return p33;
 })();
@@ -525,6 +787,7 @@ var e4_62 = (function () {
 var p62_M = [[6, '\\lg 6'], [8, '3\\lg 2'], [8, '3\\lg 2'], [10, '1'], [12, '\\lg 12'], [16, '4\\lg 2'], [25, '2\\lg 5'], [27, '3\\lg 3'], [32, '5\\lg 2'], [36, '2\\lg 6'],
   [4, '2\\lg 2'], [9, '2\\lg 3'], [5, '\\lg 5'], [7, '\\lg 7']];
 function p62_L(c) { return c ? '\\lg(x' + sgn(c) + ')' : '\\lg x'; }
+function p62_F(c) { return c ? '(x' + sgn(c) + ')' : 'x'; }   // үржвэр дэх (x + c) хүчин зүйл
 function p62() {
   var both = rnd(1, 10) <= 6, Mo = pick(p62_M), M = Mo[0], C = [];
   for (var d = 1; d <= 14; d++) for (var u = -12; u <= 30; u++) {
@@ -542,10 +805,25 @@ function p62() {
   }
   if (!C.length) return null;
   var c = pick(C), lhs = rnd(1, 4) === 1 ? [c[1], c[0]] : [c[0], c[1]], ok = both ? [c[3], c[4]] : [c[4]];
+  // Бодолт: муж x > max(−α, −β, −γ); lg u + lg v = lg(uv), k·lg c = lg cᵏ (1 = lg 10) ⇒ (x + α)(x + β) = M(x + γ) ⇒ квадрат тэгшитгэл;
+  //   шийдүүдийг мужтай тулгана (r₁ мужид орохгүй бол гадны шийд)
+  var al = c[0], be = c[1], ga = c[2], r1 = c[3], r2 = c[4], x0 = Math.max(-al, -be, -ga);
+  var Mm = /^(\d)\\lg (\d+)$/.exec(Mo[1]), Mt = Mo[1] === '1' ? '1=\\lg 10' : Mm ? Mo[1] + '=\\lg ' + Mm[2] + '^{' + Mm[1] + '}=\\lg ' + M : '';
+  var cond = [lhs[0], lhs[1], ga].map(function (v) { return '$' + (v ? 'x' + sgn(v) : 'x') + '\\gt 0$'; }).join(', ');
+  var prod = p62_F(lhs[0]) + p62_F(lhs[1]), rhs = M + p62_F(ga);
   return {
     q: '$' + p62_L(lhs[0]) + '+' + p62_L(lhs[1]) + '=' + Mo[1] + '+' + p62_L(c[2]) + '$ тэгшитгэлийг бодоорой.',
     a: ok.map(function (r) { return '$x=' + r + '$'; }).join('; '),
     wk: 28,
+    s: [
+      'Тодорхойлогдох муж: ' + cond + ', өөрөөр хэлбэл $x\\gt ' + x0 + '$.',
+      'Логарифмын чанараар ($\\lg u+\\lg v=\\lg(uv)$' + (Mt ? ', $' + Mt + '$' : '') + '): $$\\lg\\left(' + prod + '\\right)=\\lg\\left(' + rhs + '\\right)\\ \\Rightarrow\\ '
+        + prod + '=' + rhs + '.$$',
+      'Хаалтыг задалбал: $$' + poly([1, al + be, al * be]) + '=' + poly([M, M * ga]) + '\\ \\Rightarrow\\ ' + poly([1, al + be - M, al * be - M * ga]) + '=0.$$'
+        + 'Виетийн теоремоор ($x_1+x_2=' + (r1 + r2) + '$, $x_1x_2=' + r1 * r2 + '$) $x_1=' + r1 + '$, $x_2=' + r2 + '$.',
+      both ? '$' + r1 + '\\gt ' + x0 + '$ ба $' + r2 + '\\gt ' + x0 + '$ тул хоёулаа мужид орно. Иймд $x=' + r1 + '$; $x=' + r2 + '$.'
+        : '$x=' + r1 + '$ нь $x\\gt ' + x0 + '$ нөхцөлийг хангахгүй (гадны шийд), харин $' + r2 + '\\gt ' + x0 + '$. Иймд $x=' + r2 + '$.'
+    ],
     t: { M: M, al: c[0], be: c[1], ga: c[2], r: [c[3], c[4]], both: both }
   };
 }
@@ -566,7 +844,17 @@ function p34() {
   var b = Bx();
   var qs = '$' + tm(p, 'e^{-x}', true) + '=' + tm(q, 'e^x', true) + sgn(r) + '$ тэгшитгэл $x=\\ln' + b('a', a) + '-\\ln' + b('b', bb)
     + '$ хэлбэрийн ганц шийдтэй болохыг харуулж, шийдийг олоорой.';
-  return { q: qs, a: b.key(), wk: 50, t: { p: p, q: q, r: r } };
+  // Бодолт: t = eˣ > 0 ⇒ qt² + rt − p = 0; Виет t₁t₂ = −p/q < 0 ⇒ яг нэг эерэг язгуур (ганц шийд);
+  // D = r² + 4pq = (b·s + a·u)² ⇒ t₁ = a/b, t₂ = −s/u < 0 ⇒ x = ln(a/b) = ln a − ln b.
+  var D = r * r + 4 * p * q, sq = bb * s + a * u, ab = fr(a, bb);
+  var sol = [
+    '$t=e^x$ гэж орлуулъя ($t\\gt 0$). $e^{-x}=\\dfrac{1}{t}$ тул тэгшитгэлийн хоёр талыг $t$-ээр үржүүлбэл $$' + p + '=' + poly([q, r, 0], 't') + '\\ \\Rightarrow\\ ' + poly([q, r, -p], 't') + '=0.$$',
+    'Виетийн теоремоор $t_1t_2=' + fr(-p, q) + '\\lt 0$ тул язгуурууд эсрэг тэмдэгтэй. $t=e^x\\gt 0$ байх язгуур яг нэг тул тэгшитгэл ганц шийдтэй.',
+    'Язгууруудыг олъё: $$D=' + par(r) + '^2+4\\cdot ' + q + '\\cdot ' + p + '=' + D + '=' + sq + '^2,$$ $$t_1=\\dfrac{' + (-r) + '+' + sq + '}{' + 2 * q + '}=' + ab
+      + ',\\qquad t_2=\\dfrac{' + (-r) + '-' + sq + '}{' + 2 * q + '}=' + fr(-s, u) + '\\lt 0.$$',
+    '$e^x=' + ab + '$ тул $$x=\\ln' + ab + '=\\ln ' + a + '-\\ln ' + bb + '.$$ Иймд $' + b('a') + '=' + a + '$, $' + b('b') + '=' + bb + '$.'
+  ];
+  return { q: qs, a: b.key(), wk: 50, s: sol, t: { p: p, q: q, r: r } };
 }
 return p34;
 })();
@@ -586,10 +874,29 @@ function p21() {
   else if (s > 0) x0 = (Math.pow(a, s) * r <= 999 ? L + (Math.pow(a, s) * r) + '=' : '') + s + '+' + L + r;
   else if (s === 0) x0 = L + r;
   else x0 = L + '\\dfrac{' + r + '}{' + Math.pow(a, -s) + '}=' + L + r + '-' + (-s);
+  // Бодолт: a^{x₀} = k·a^m. k = a^j бол a^{x₀} = a^{j+m} ⇒ x₀ = j + m; эс бөгөөс логарифмчилж x₀ = log_a k + m, k = a^j·r ⇒ log_a k = j + log_a r.
+  var P = function (e) { return e === 1 ? String(a) : a + '^{' + e + '}'; }, last = x0.split('=').pop(), shown;
+  var sol = ['$f(x_0)=' + a + '^{x_0}$, $f(' + m + ')=' + P(m) + '$ тул $$' + a + '^{x_0}=' + k + '\\cdot ' + P(m) + '.$$'];
+  if (r === 1) {
+    var pre = j > 1 ? '$' + k + '=' + P(j) + '$' : '';
+    sol.push(m ? (pre ? pre + ' тул зэргийн' : 'Зэргийн') + ' $a^m\\cdot a^n=a^{m+n}$ чанараар $$' + a + '^{x_0}=' + P(j) + '\\cdot ' + P(m) + '=' + P(s) + '.$$'
+      : (pre ? pre + ' ба ' : '') + '$' + a + '^{0}=1$ тул $$' + a + '^{x_0}=' + P(j) + '.$$');
+    sol.push('Суурь ижил зэргүүд тэнцүү тул илтгэгчүүд нь тэнцүү. Иймд $x_0=' + x0 + '$.');
+  } else {
+    sol.push(m ? 'Хоёр талыг $' + a + '$ суурьтай логарифмчилбал (үржвэрийн логарифм $\\log_{' + a + '}(MN)=\\log_{' + a + '}M+\\log_{' + a + '}N$): $$x_0=' + L + '\\left(' + k + '\\cdot ' + P(m) + '\\right)='
+      + L + k + sgn(m) + '.$$' : 'Логарифмын тодорхойлолтоор $$x_0=' + L + k + '.$$');
+    shown = m ? L + k + sgn(m) : L + k;
+    if (j) {
+      sol.push('$' + k + '=' + P(j) + '\\cdot ' + r + '$ тул $\\log_{' + a + '}' + k + '=' + j + '+' + L + r + '$, иймд $$x_0=' + j + '+' + L + r + (m ? sgn(m) + '=' + last : '') + '.$$');
+      shown = m ? last : j + '+' + L + r;
+    }
+    if (shown !== x0) sol.push('Иймд $x_0=' + x0 + '$.');
+  }
   return {
     q: '$f(x)=' + a + '^x$ ба $f(x_0)=' + k + 'f(' + m + ')$ бол $x_0$ утгыг олоорой.',
     a: '$x_0=' + x0 + '$',
     wk: 20,
+    s: sol,
     t: { a: a, k: k, m: m }
   };
 }
@@ -607,10 +914,29 @@ function p62() {
   if (k + v < 0 || k + u + v < 0) return null;
   var m = Math.pow(B, k + u) + Math.pow(B, k + v), n = Math.pow(B, k + u + v);
   if (m < 2 || m > 40 || n > 81) return null;
+  // Бодолт: t = B^x > 0 → αt² − βt + γ = 0 (k = −1 үед B-ээр үржүүлнэ) → D = (B^{k+u} − B^{k+v})² → t₁ = B^u, t₂ = B^v → x₁ = u, x₂ = v
+  var al = k >= 0 ? Math.pow(B, k) : 1, be = k >= 0 ? m : B * m, ga = k >= 0 ? n : B * n, sq = Math.round(Math.sqrt(be * be - 4 * al * ga));
+  var tx = 't=' + B + '^x\\gt 0', E = B + '^{2x' + (k ? sgn(k) : '') + '}', Q = poly([al, -be, ga], 't') + '=0';
+  var sub = !k ? E + '=(' + B + '^x)^2=t^2' : k > 0 ? E + '=' + B + (k > 1 ? '^{' + k + '}' : '') + '\\cdot(' + B + '^x)^2=' + al + 't^2'
+    : E + '=\\dfrac{(' + B + '^x)^2}{' + B + '}=\\dfrac{t^2}{' + B + '}';
+  var back = function (e, i) {   // B^x = B^e ⇒ x_i = e
+    return B + '^x=' + fr(be + (i === 1 ? sq : -sq), 2 * al) + (e === 1 ? '' : '=' + B + '^{' + e + '}') + '\\Rightarrow x_' + i + '=' + e;
+  };
+  var den = al === 1 ? '2' : '2\\cdot ' + al;
   return {
     q: '$' + B + '^{2x' + (k ? sgn(k) : '') + '}-' + m + '\\times ' + B + '^x+' + n + '=0$ тэгшитгэлийн шийдүүдийн нийлбэрийг олоорой.',
     a: '$x_1+x_2=' + (u + v) + '$',
     wk: 26,
+    s: [
+      '$' + tx + '$ гэж орлуулъя: $' + sub + '$ тул '
+        + (k >= 0 ? 'тэгшитгэл $$' + Q + '$$ болно.'
+          : 'тэгшитгэл $$\\dfrac{t^2}{' + B + '}-' + m + 't+' + n + '=0$$ болно. Хоёр талыг $' + B + '$-' + suf(B, 'аар') + ' үржүүлбэл $$' + Q + '.$$'),
+      'Квадрат тэгшитгэлийг бодъё: $$D=(-' + be + ')^2-4\\cdot ' + (al === 1 ? '' : al + '\\cdot ') + ga + '=' + be * be + '-' + 4 * al * ga + '=' + sq * sq
+        + ',\\quad \\sqrt{D}=' + sq + '$$ $$t_1=\\dfrac{' + be + '+' + sq + '}{' + den + '}=' + fr(be + sq, 2 * al) + ',\\qquad t_2=\\dfrac{' + be + '-' + sq + '}{' + den + '}='
+        + fr(be - sq, 2 * al) + '.$$',
+      'Хоёр язгуур хоёулаа эерэг тул $t\\gt 0$ нөхцөлийг хангана. Буцааж орлуулбал $$' + back(u, 1) + ',\\qquad ' + back(v, 2) + '.$$',
+      'Иймд $x_1+x_2=' + (u && v ? u + '+' + par(v) + '=' : '') + (u + v) + '$.'
+    ],
     t: { B: B, k: k, m: m, n: n, u: u, v: v }
   };
 }
@@ -629,10 +955,28 @@ function p88() {
   if (k - j + v < 0 || k + u + v < 0) return null;
   var m = Math.pow(B, k - j + u) + Math.pow(B, k - j + v), n = Math.pow(B, k + u + v);
   if (m < 2 || m > 40 || n > 81) return null;
+  // Бодолт: t = B^x > 0 → B^k·t² − m·B^j·t + n = 0; бүхэл, хураасан коэффициенттэй болгож (×L эсвэл :g) дискриминантаар t₁ = B^u, t₂ = B^v
+  var pw = Math.pow, Bk = pw(B, k), Bs = pw(B, Math.abs(j)), L = 1, A2, A1, A0, g0, ss = [];
+  var T2 = (k ? Bk : '') + 't^2', T1 = j > 0 ? Bs + 't' : '\\dfrac{t}{' + Bs + '}';
+  if (j > 0) { A2 = Bk; A1 = -m * Bs; A0 = n; }
+  else { L = Bs / gcd(m, Bs); A2 = Bk * L; A1 = -m * L / Bs; A0 = n * L; }
+  g0 = gcd(gcd(A2, A1), A0); A2 /= g0; A1 /= g0; A0 /= g0;
+  var eq0 = T2 + (j > 0 ? tm(-m * Bs, 't') : '-' + m + '\\cdot\\dfrac{t}{' + Bs + '}') + '+' + n, eq1 = poly([A2, A1, A0], 't');
+  ss.push('$t=' + B + '^x$ $(t\\gt 0)$ гэвэл $' + B + '^{2x' + (k ? sgn(k) : '') + '}=' + T2 + '$, $' + B + '^{x' + sgn(j) + '}=' + T1 + '$. Тэгшитгэл: $$' + eq0 + '=0.$$');
+  if (L > 1) ss.push('Хоёр талыг $' + L + '$-' + suf(L, 'аар') + ' үржүүлбэл: $$' + eq1 + '=0.$$');
+  else if (g0 > 1) ss.push((j < 0 ? 'Хялбарчилж, хоёр талыг' : 'Хоёр талыг') + ' $' + g0 + '$-' + suf(g0, 'д') + ' хуваавал: $$' + eq1 + '=0.$$');
+  else if (j < 0) ss.push('Хялбарчилбал: $$' + eq1 + '=0.$$');
+  var D = A1 * A1 - 4 * A2 * A0, sq = Math.round(Math.sqrt(D)), den = A2 === 1 ? '2' : '2\\cdot ' + A2;
+  var tv = function (e) { return e >= 0 ? String(pw(B, e)) : '\\dfrac{1}{' + pw(B, -e) + '}'; };
+  var bk = function (e, ix) { return '$' + B + '^x=' + tv(e) + (e === 1 ? '' : '=' + B + '^{' + e + '}') + '\\ \\Rightarrow\\ x_' + ix + '=' + e + '$'; };
+  ss.push('Дискриминант: $$D=' + par(A1) + '^2-4\\cdot ' + A2 + '\\cdot ' + A0 + '=' + A1 * A1 + '-' + 4 * A2 * A0 + '=' + D + (sq > 1 ? '=' + sq + '^2' : '') + ',$$ $$t_1=\\dfrac{' + -A1 + '+' + sq + '}{' + den + '}='
+    + tv(u) + ',\\quad t_2=\\dfrac{' + -A1 + '-' + sq + '}{' + den + '}=' + tv(v) + '.$$ Хоёр язгуур хоёулаа эерэг тул $t\\gt 0$ нөхцөлийг хангана.');
+  ss.push(bk(u, 1) + ', ' + bk(v, 2) + '. Иймд $x_1+x_2=' + (v ? u + '+' + par(v) + '=' : '') + (u + v) + '$.');
   return {
     q: '$' + B + '^{2x' + (k ? sgn(k) : '') + '}-' + m + '\\times ' + B + '^{x' + sgn(j) + '}+' + n + '=0$ тэгшитгэлийн шийдүүдийн нийлбэрийг олоорой.',
     a: '$x_1+x_2=' + (u + v) + '$',
     wk: 26,
+    s: ss,
     t: { B: B, k: k, j: j, m: m, n: n, u: u, v: v }
   };
 }
@@ -655,10 +999,25 @@ function p99() {
   var kind = pick(['sq', 'sq', 'sq', 'sq', 'sq', 'sum', 'prod']);
   var Q = { sq: 'квадратуудын нийлбэрийг', sum: 'нийлбэрийг', prod: 'үржвэрийг' }[kind];
   var A = { sq: 'x_1^2+x_2^2+x_3^2=' + (2 * b + k * k), sum: 'x_1+x_2+x_3=' + k, prod: 'x_1x_2x_3=' + (-b * k) }[kind];
+  // Бодолт: бүх гишүүнийг зүүн талд → бүлэглэж (x² − b)(c^x − c^k) = 0 → x = ±√b, x = k → асуусан хэмжигдэхүүн
+  var bc = j === 0 ? c + '^x' : b + '\\cdot ' + c + '^x', sb = surd(b), rb = sb.tex, ng = sb.r === 1 ? '(-' + rb + ')' : '\\left(-' + rb + '\\right)';
+  var fin = {
+    sq: 'x_1^2+x_2^2+x_3^2=' + ng + '^2+' + (sb.r === 1 ? rb : '\\left(' + rb + '\\right)') + '^2+' + k + '^2=' + b + '+' + b + '+' + k * k + '=' + (2 * b + k * k),
+    sum: 'x_1+x_2+x_3=-' + rb + '+' + rb + '+' + k + '=' + k,
+    prod: 'x_1x_2x_3=' + ng + '\\cdot ' + rb + '\\cdot ' + k + '=' + (-b * k)
+  }[kind];
   return {
     q: '$' + eq + '$ тэгшитгэлийн шийдүүдийн ' + Q + ' олоорой.',
     a: '$' + A + '$',
     wk: 28,
+    s: [
+      (j > 0 ? '$' + c + '^{x+' + j + '}=' + b + '\\cdot ' + c + '^x$ тул б' : 'Б') + 'үх гишүүнийг зүүн талд шилжүүлье: $$' + c + '^x\\cdot x^2-' + bc + '-' + ck + 'x^2+' + b * ck + '=0.$$',
+      'Эхний хоёр ба сүүлийн хоёр гишүүнийг бүлэглэвэл: $$' + c + '^x\\left(x^2-' + b + '\\right)-' + ck + '\\left(x^2-' + b + '\\right)=0$$ $$\\Rightarrow\\ \\left(x^2-' + b
+        + '\\right)\\left(' + c + '^x-' + ck + '\\right)=0.$$',
+      'Үржвэр тэг тул $x^2=' + b + '\\Rightarrow x=\\pm ' + rb + '$ эсвэл $' + c + '^x=' + ck + (k > 1 ? '=' + c + '^' + k : '') + '\\Rightarrow x=' + k + '$. Шийдүүд: $x_1=-' + rb
+        + '$, $x_2=' + rb + '$, $x_3=' + k + '$.',
+      'Иймд $$' + fin + '.$$'
+    ],
     t: { c: c, k: k, b: b, kind: kind }
   };
 }

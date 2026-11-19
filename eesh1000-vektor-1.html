@@ -463,9 +463,21 @@ function p30() {
   var A = [rnd(-6, 6), rnd(-6, 6), rnd(-6, 6)], B = [A[0] + D[0], A[1] + D[1], A[2] + D[2]];
   if (B.some(function (x) { return Math.abs(x) > 12; })) return null;
   var L = surd(D[0] * D[0] + D[1] * D[1] + D[2] * D[2]);
+  // Бодолт: |AB| = √(Δx² + Δy² + Δz²) — координатын ялгавар, квадратуудын нийлбэр, язгуурыг хялбарчилна
+  var S2 = D[0] * D[0] + D[1] * D[1] + D[2] * D[2], X = ['x', 'y', 'z'];
   return {
     q: '$A(' + A.join(',\\,') + '),\\ B(' + B.join(',\\,') + ')$ цэгүүдийн хоорондох зайг ол.',
-    a: '$|AB|=' + L.tex + '$', wk: 18, t: { A: A, B: B }
+    a: '$|AB|=' + L.tex + '$', wk: 18,
+    s: [
+      'Огторгуйн хоёр цэгийн хоорондох зайн томьёо: $$|AB|=\\sqrt{(x_B-x_A)^2+(y_B-y_A)^2+(z_B-z_A)^2}.$$',
+      'Координатын ялгаварууд: ' + X.map(function (v, i) { return '$' + v + '_B-' + v + '_A=' + B[i] + '-' + par(A[i]) + '=' + D[i] + '$'; }).join(', ') + '.',
+      (function () {   // хэт урт бол (харагдах өргөн > 40) хоёр мөрөнд: 2 дахь нь «=»-ээр эхэлнэ
+        var r1 = '|AB|=\\sqrt{' + D.map(function (x) { return par(x) + '^2'; }).join('+') + '}';
+        var r2 = '\\sqrt{' + D.map(function (x) { return x * x; }).join('+') + '}=\\sqrt{' + S2 + '}' + (L.tex !== '\\sqrt{' + S2 + '}' ? '=' + L.tex : '');
+        return 'Иймд $$' + r1 + ((r1 + r2).replace(/\\sqrt/g, 'V').replace(/[{}]/g, '').replace(/\^2/g, '.').length > 40 ? '$$ $$=' : '=') + r2 + '.$$';
+      })()
+    ],
+    t: { A: A, B: B }
   };
 }
 return p30;
@@ -481,9 +493,19 @@ function p27() {
   if (gcd(gcd(A, B), C) !== 1) return null;
   if ((A || B) < 0 && rnd(0, 3)) { A = -A; B = -B; C = -C; D = -D; }   // ихэвчлэн эхний коэффициент эерэг (эх шиг)
   [A, B, C].forEach(function (c, i) { lhs += tm(c, 'xyz'[i], lhs === ''); });
+  // Бодолт: хавтгайн дурын M₀, M цэгийн тэгшитгэлүүдийг хасвал A(x−x₀) + B(y−y₀) + C(z−z₀) = 0 ⇒ (A; B; C) ⟂ M₀M;
+  //   коэффициентүүдийг уншина (байхгүй хувьсагчийн коэффициент 0), сул гишүүн D нөлөөлөхгүй.
+  var zi = [A, B, C].indexOf(0);
   return {
     q: '$' + lhs + (D ? sgn(D) : '') + '=0$ хавтгайн нормал векторыг ол.',
-    a: '$\\vec n=' + pt(A, B, C) + '$', wk: 16, t: { A: A, B: B, C: C, D: D }
+    a: '$\\vec n=' + pt(A, B, C) + '$', wk: 16,
+    s: [
+      'Хавтгайн $Ax+By+Cz+D=0$ ерөнхий тэгшитгэлийн хувьд $\\vec n=(A;\\,B;\\,C)$ нь нормал вектор: хавтгайн дурын $M_0$, $M$ цэгийн тэгшитгэлүүдийг хасвал'
+        + ' $$A(x-x_0)+B(y-y_0)+C(z-z_0)=0,$$ өөрөөр хэлбэл $\\vec n\\perp\\overrightarrow{M_0M}$. Сул гишүүн $D$ нөлөөлөхгүй.',
+      '$x$, $y$, $z$-ийн өмнөх коэффициентүүд: $A=' + A + '$, $B=' + B + '$, $C=' + C + '$' + (zi >= 0 ? ' (тэгшитгэлд $' + 'xyz'[zi] + '$ байхгүй тул $' + 'ABC'[zi] + '=0$)' : '')
+        + '. Иймд $\\vec n=' + pt(A, B, C) + '$.'
+    ],
+    t: { A: A, B: B, C: C, D: D }
   };
 }
 return p27;
@@ -498,7 +520,16 @@ function p28() {
   var P = [rnd(-6, 6), rnd(-6, 6), rnd(-6, 6)], d = [pick(p28_S), pick(p28_S), pick(p28_S)];
   if (gcd(gcd(d[0], d[1]), d[2]) !== 1 || (!P[0] && !P[1] && !P[2])) return null;
   var q = ['x', 'y', 'z'].map(function (v, i) { return '\\dfrac{' + v + (P[i] ? sgn(-P[i]) : '') + '}{' + d[i] + '}'; }).join('=');
-  return { q: '$' + q + '$ шулууны чиглүүлэгч векторыг ол.', a: '$\\vec s=' + pt(d[0], d[1], d[2]) + '$', wk: 16, t: { P: P, d: d } };
+  // Бодолт: каноник тэгшитгэлийн харьцаа бүрийг t гэвэл M = M₀ + t·s ⇒ хуваарь = чиглүүлэгч векторын координат; M₀-ийг тоологчоос уншина.
+  return {
+    q: '$' + q + '$ шулууны чиглүүлэгч векторыг ол.', a: '$\\vec s=' + pt(d[0], d[1], d[2]) + '$', wk: 16,
+    s: [
+      'Шулууны каноник тэгшитгэл $$\\dfrac{x-x_0}{p}=\\dfrac{y-y_0}{q}=\\dfrac{z-z_0}{r}$$ нь $M_0(x_0;\\,y_0;\\,z_0)$ цэгийг дайрч $\\vec s=(p;\\,q;\\,r)$ векторт параллель шулуун:'
+        + ' харьцаа бүрийг $t$ гэвэл $\\overrightarrow{M_0M}=t\\,\\vec s$.',
+      'Хуваарийг уншвал $p=' + d[0] + '$, $q=' + d[1] + '$, $r=' + d[2] + '$ (шулуун $M_0' + pt(P[0], P[1], P[2]) + '$ цэгийг дайрна). Иймд $\\vec s=' + pt(d[0], d[1], d[2]) + '$.'
+    ],
+    t: { P: P, d: d }
+  };
 }
 return p28;
 })();
@@ -525,10 +556,24 @@ function p31() {
   var P = [rnd(-5, 5), rnd(-5, 5), rnd(-5, 5)], Q = [rnd(-5, 5), rnd(-5, 5), rnd(-5, 5)];
   var w = [Q[0] - P[0], Q[1] - P[1], Q[2] - P[2]];
   if (!(w[1] * d1[2] - w[2] * d1[1]) && !(w[2] * d1[0] - w[0] * d1[2]) && !(w[0] * d1[1] - w[1] * d1[0])) return null;   // давхцах
+  // Бодолт: хуваарь = чиглүүлэгч вектор; параллель ⇒ s₁ ∥ s₂ ⇒ координатууд пропорционал (харьцаа λ) ⇒ a = d₁[pos]·λ
+  var L = fr(lam[0], lam[1]), Dp = d1[pos], ans = fr(Dp * lam[0], lam[1]);
+  var prop = [0, 1, 2].map(function (k) { return '\\dfrac{' + d2[k] + '}{' + d1[k] + '}'; }).join('=');
   return {
     q: '$' + p31_line(P, d1) + '$ болон $' + p31_line(Q, d2) + '$ шулуунууд параллель бол $a$ тоог ол.',
-    a: '$a=' + fr(d1[pos] * lam[0], lam[1]) + '$', wk: 22, t: { d1: d1, pos: pos }
+    a: '$a=' + fr(d1[pos] * lam[0], lam[1]) + '$', wk: 22,
+    s: [
+      'Каноник тэгшитгэлийн хуваарь нь шулууны чиглүүлэгч векторын координатууд: $\\vec s_1=(' + d1.join(',\\,') + ')$, $\\vec s_2=(' + d2.join(',\\,') + ')$.',
+      'Шулуунууд параллель тул $\\vec s_1\\parallel\\vec s_2$, өөрөөр хэлбэл харгалзах координатууд нь пропорционал: $$' + prop + '.$$',
+      'Мэдэгдэх координатуудын харьцаа $' + L + '$ тул $$\\dfrac{a}{' + Dp + '}=' + L + '\\ \\Rightarrow\\ a=' + par(Dp) + '\\cdot ' + p31_pf(lam[0], lam[1]) + '=' + ans + '.$$'
+    ],
+    t: { d1: d1, pos: pos }
   };
+}
+// Бодолтын туслах: n/d бутархай, сөрөг бол хаалтанд — (−2), \left(−\dfrac{1}{2}\right)
+function p31_pf(n, d) {
+  var s = fr(n, d);
+  return n * d < 0 ? (s.indexOf('frac') >= 0 ? '\\left(' + s + '\\right)' : '(' + s + ')') : s;
 }
 return p31;
 })();
@@ -568,9 +613,30 @@ function p32() {
   var P = [rnd(-4, 5), rnd(-4, 5), rnd(-4, 5)];
   if (!perp && N[0] * P[0] + N[1] * P[1] + N[2] * P[2] + D === 0) return null;   // шулуун хавтгай дээр оршихгүй
   var line = [0, 1, 2].map(function (k) { return '\\dfrac{' + 'xyz'[k] + (P[k] ? sgn(-P[k]) : '') + '}{' + d[k] + '}'; }).join('=');
+  // Бодолт: s⃗ — хуваарь, n⃗ — коэффициентүүд. П: s⃗ ∥ n⃗ ⇒ s⃗ = λn⃗ (мэдэгдэх координатаас λ) ⇒ a = λ·n[pos].
+  //   Л: s⃗ ⊥ n⃗ ⇒ s⃗·n⃗ = 0 ⇒ шугаман тэгшитгэл; шулууны цэг хавтгай дээр биш ⇒ параллель (хавтгайд оршихгүй).
+  var ans = fr(an, ad), sol = ['Шулууны чиглүүлэгч вектор $\\vec s=(' + d.join(',\\,') + ')$, хавтгайн нормаль вектор $\\vec n=(' + N.join(',\\,')
+    + ')$ ($x$, $y$, $z$-ийн коэффициентүүд).'];
+  if (perp) {
+    var Lt = fr(lam[0], lam[1]), Lp = lam[0] * lam[1] < 0 ? (Lt.indexOf('frac') >= 0 ? '\\left(' + Lt + '\\right)' : '(' + Lt + ')') : Lt;
+    var eqs = [0, 1, 2].filter(function (k) { return k !== pos; }).map(function (k) { return d[k] + '=' + tm(N[k], '\\lambda', true); }).join(',\\quad ');
+    sol.push('Шулуун хавтгайд перпендикуляр бол $\\vec s\\parallel\\vec n$, өөрөөр хэлбэл $\\vec s=\\lambda\\vec n$. Мэдэгдэх координатуудаас: $$'
+      + eqs + '\\ \\Rightarrow\\ \\lambda=' + Lt + '.$$',
+      'Иймд $$a=' + tm(N[pos], '\\lambda', true) + (Math.abs(N[pos]) === 1 ? '' : '=' + N[pos] + '\\cdot ' + Lp) + '=' + ans + '.$$');
+  } else {
+    var prods = [0, 1, 2].map(function (k) { return (k === pos ? 'a' : par(d[k])) + '\\cdot ' + par(N[k]); }).join('+');
+    var aT = tm(N[pos], 'a', true), sub = '', pv = N[0] * P[0] + N[1] * P[1] + N[2] * P[2] + D;
+    N.forEach(function (c, k) { sub += (c < 0 ? '-' : sub === '' ? '' : '+') + Math.abs(c) + '\\cdot ' + par(P[k]); });
+    sub += D ? sgn(D) : '';
+    sol.push('Шулуун хавтгайтай параллель бол $\\vec s\\perp\\vec n$, өөрөөр хэлбэл скаляр үржвэр нь тэг: $$\\vec s\\cdot\\vec n=' + prods + '=0$$ $$\\Rightarrow\\ '
+      + aT + sgn(sm) + '=0' + (Math.abs(N[pos]) === 1 ? '' : '\\ \\Rightarrow\\ ' + aT + '=' + (-sm)) + '\\ \\Rightarrow\\ a=' + ans + '.$$',
+      'Шулууны $M_0(' + P.join(',\\,') + ')$ цэгийг хавтгайн тэгшитгэлд орлуулбал $$' + sub + '=' + pv + '\\ne 0,$$ тул шулуун хавтгай дээр оршихгүй, параллель байна. Иймд $a=' + ans + '$.');
+  }
   return {
     q: '$' + line + '$ шулуун $' + p32_lin(N) + (D ? sgn(D) : '') + '=0$ хавтгайтай ' + (perp ? 'перпендикуляр' : 'параллель') + ' бол $a=?$',
-    a: '$a=' + fr(an, ad) + '$', wk: 22, t: { N: N, D: D, perp: perp }
+    a: '$a=' + fr(an, ad) + '$', wk: 22,
+    s: sol,
+    t: { N: N, D: D, perp: perp }
   };
 }
 return p32;
@@ -628,8 +694,41 @@ function p29() {
   var line = function (C, d) { return [0, 1, 2].map(function (k) { return '\\dfrac{' + C[k].tex + '}{' + d[k] + '}'; }).join('='); };
   return {
     q: '$' + line(P, u) + ',\\ ' + line(Q, v) + '$ шулуунуудын хооронд үүсэх өнцгийг ол.',
-    a: ang ? '$' + ang + '^\\circ$' : '$0^\\circ$ (шулуунууд параллель)', wk: 24, t: { u: u, v: v }
+    a: ang ? '$' + ang + '^\\circ$' : '$0^\\circ$ (шулуунууд параллель)', wk: 24,
+    s: p29_sol(u, v, ang),
+    t: { u: u, v: v }
   };
+}
+// Бодолт: чиглүүлэгч векторууд u, v (хуваарь). 0° — v = λu (коллинеар); 90° — u·v = 0; бусад үед
+// cos φ = |u·v|/(|u|·|v|) = |u·v|/√(|u|²·|v|²), язгуурыг хялбарчилж 1/2, √2/2, √3/2-той тулгана.
+function p29_sol(u, v, ang) {
+  var V = function (w) { return pt(w[0], w[1], w[2]); };
+  var s1 = 'Шулуунуудын хоорондох өнцөг нь тэдгээрийн чиглүүлэгч векторуудын (каноник тэгшитгэлийн хуваарь) хоорондох өнцөг: $\\vec u=' + V(u) + '$, $\\vec v=' + V(v) + '$.'
+    + ' Тоологч дахь тогтмолууд (цэгийн координат) өнцөгт нөлөөлөхгүй.';
+  if (ang === 0) {
+    var lam = v[0] / u[0], m, big, small, rel;
+    if (lam === Math.round(lam)) { m = lam; big = v; small = u; rel = '\\vec v=' + (m === 1 ? '' : m === -1 ? '-' : m) + '\\vec u'; }
+    else { m = u[0] / v[0]; big = u; small = v; rel = '\\vec u=' + (m === -1 ? '-' : m) + '\\vec v'; }
+    return [s1, (Math.abs(m) === 1 ? 'Харгалзах координатууд ' + (m > 0 ? 'тэнцүү' : 'эсрэг тэмдэгтэй') + ': $' + rel + '$.'
+      : 'Харгалзах координатууд пропорциональ: $$' + V(big) + '=' + m + '\\cdot ' + V(small) + ',$$ өөрөөр хэлбэл $' + rel + '$.')
+      + ' Векторууд коллинеар тул шулуунууд параллель: $\\varphi=0^\\circ$.'];
+  }
+  var dot = u[0] * v[0] + u[1] * v[1] + u[2] * v[2], nu = u[0] * u[0] + u[1] * u[1] + u[2] * u[2], nv = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
+  var dA = '\\vec u\\cdot\\vec v=' + [0, 1, 2].map(function (i) { return par(u[i]) + '\\cdot ' + par(v[i]); }).join('+'), dB = u[0] * v[0] + sgn(u[1] * v[1]) + sgn(u[2] * v[2]) + '=' + dot;
+  // слайдад багтаах: харагдах өргөн (\vec, \cdot-гүй) их бол хоёр мөрөнд (2 дахь нь «=»-ээр эхэлнэ)
+  var dl = dA + ((dA + dB).replace(/\\vec /g, '').replace(/\\cdot /g, '.').length > 40 ? '$$ $$=' : '=') + dB;
+  if (ang === 90) return [s1, 'Скаляр үржвэр: $$' + dl + '.$$ Иймд $\\vec u\\perp\\vec v$ ба $\\varphi=90^\\circ$.'];
+  var sq = function (w) { return w.map(function (x) { return x * x; }).join('+'); };
+  var S = surd(nu * nv), ad = Math.abs(dot), g = gcd(ad, S.k), ch = ['\\dfrac{' + ad + '}{\\sqrt{' + nu + '\\cdot ' + nv + '}}', '\\dfrac{' + ad + '}{' + S.tex + '}'];
+  if (S.r !== 1 && g > 1) ch.push('\\dfrac{' + ad / g + '}{' + rt(S.k / g, S.r) + '}');
+  ch.push({ 60: '\\dfrac{1}{2}', 45: '\\dfrac{\\sqrt{2}}{2}', 30: '\\dfrac{\\sqrt{3}}{2}' }[ang]);
+  ch = ch.filter(function (x, i) { return !i || x !== ch[i - 1]; });
+  return [
+    s1,
+    'Скаляр үржвэр ба уртын квадратууд: $$' + dl + ',$$ $$|\\vec u|^2=' + sq(u) + '=' + nu + ',\\quad |\\vec v|^2=' + sq(v) + '=' + nv + '.$$',
+    'Шулуун хоорондын өнцөг мохоо байдаггүй тул скаляр үржвэрийн модулийг авна: $$\\cos\\varphi=\\dfrac{|\\vec u\\cdot\\vec v|}{|\\vec u|\\cdot|\\vec v|}=' + ch.join('=') + '.$$'
+      + ' Иймд $\\varphi=' + ang + '^\\circ$.'
+  ];
 }
 return p29;
 })();
@@ -651,9 +750,26 @@ function p33() {
     ans = dd === 1 ? rt(k, m2) : '\\dfrac{' + rt(k, m2) + '}{' + dd + '}';
   }
   N.forEach(function (c, i) { pl += tm(c, 'xyz'[i], pl === ''); });
+  // Бодолт: d = |Ax₀ + By₀ + Cz₀ + D| / √(A² + B² + C²) — хүртвэр: цэгийг тэгшитгэлийн зүүн талд орлуулсан утгын модуль, хуваарь: |n⃗|
+  var sv = N[0] * P[0] + N[1] * P[1] + N[2] * P[2] + D, sub = '', sq = [], rat = L * L === m2, last;
+  N.forEach(function (c, i) {
+    if (!c) return;
+    sub += (c < 0 ? '-' : sub === '' ? '' : '+') + Math.abs(c) + '\\cdot ' + par(P[i]);
+    sq.push(par(c) + '^2');
+  });
+  sub += D ? sgn(D) : '';
+  if (rat) last = 'Иймд $d=' + (gcd(num, L) > 1 ? '\\dfrac{' + num + '}{' + L + '}=' : '') + ans + '$.';
+  else last = 'Хуваарийг иррационалаас чөлөөлбөл $$d=\\dfrac{' + num + '}{\\sqrt{' + m2 + '}}=\\dfrac{' + rt(num, m2) + '}{' + m2 + '}' + (g > 1 ? '=' + ans : '') + '.$$';
   return {
     q: '$A(' + P.join(',\\,') + ')$ цэгээс $' + pl + (D ? sgn(D) : '') + '=0$ хавтгай хүртэлх зайг ол.',
-    a: '$d=' + ans + '$', wk: 20, t: { N: N, D: D, P: P }
+    a: '$d=' + ans + '$', wk: 20,
+    s: [
+      'Цэгээс хавтгай хүртэлх зай: хүртвэрт цэгийн координатыг хавтгайн тэгшитгэлийн зүүн талд орлуулсан утгын модуль, хуваарьт $\\vec n=('
+        + N.join(',\\,') + ')$ нормаль векторын урт байна.',
+      'Орлуулбал $$d=\\dfrac{|' + sub + '|}{\\sqrt{' + sq.join('+') + '}}=\\dfrac{' + (sv < 0 ? '|' + sv + '|' : sv) + '}{' + (rat ? L : '\\sqrt{' + m2 + '}') + '}.$$',
+      last
+    ],
+    t: { N: N, D: D, P: P }
   };
 }
 return p33;
@@ -683,9 +799,40 @@ function p34() {
   var B = [A[0] + u[0], A[1] + u[1], A[2] + u[2]], D = [C[0] + v[0], C[1] + v[1], C[2] + v[2]];
   if (A.join() === C.join() || B.join() === D.join() || A.join() === D.join() || B.join() === C.join()) return null;
   var P = function (nm, X) { return nm + '(' + X.join(',\\,') + ')'; };
+  // Бодолт: чиглүүлэгч векторууд AB⃗ = B − A, CD⃗ = D − C; шулуунуудын өнцөг 0°…90° ⇒ cos φ = |AB⃗·CD⃗| / (|AB⃗|·|CD⃗|)
+  var dif = function (X, Y) { return '(' + [0, 1, 2].map(function (i) { return Y[i] + '-' + par(X[i]); }).join(',\\,') + ')'; };
+  var dt = u[0] * v[0] + u[1] * v[1] + u[2] * v[2];
+  // x₁x₂ + y₁y₂ + z₁z₂ — эхний үржигдэхүүн 0 бол {0} (KaTeX-д ялгаагүй; «+0» анхааруулгаас сэргийлнэ)
+  var prs = [0, 1, 2].map(function (k) { return (u[k] ? par(u[k]) : '{0}') + '\\cdot ' + par(v[k]); });
+  var AB = '\\overrightarrow{AB}', CD = '\\overrightarrow{CD}';
+  var sol = [
+    'Шулуунуудын чиглүүлэгч векторууд (төгсгөлийн координатаас эхлэлийнхийг хасна): $$' + AB + '=' + dif(A, B) + '=(' + u.join(',\\,') + '),$$ $$'
+      + CD + '=' + dif(C, D) + '=(' + v.join(',\\,') + ').$$',
+    'Скаляр үржвэр: $$' + AB + '\\cdot' + CD + '=' + prs.join('+') + '=' + dt + '.$$'
+  ];
+  if (!dt) sol.push('Скаляр үржвэр тэг тул $' + AB + '\\perp' + CD + '$, өөрөөр хэлбэл $\\cos\\varphi=0$. Иймд $\\varphi=90^\\circ$.');
+  else {
+    var len = function (X) {
+      var n2 = X[0] * X[0] + X[1] * X[1] + X[2] * X[2], S = surd(n2);
+      return { r: S.r, tex: S.tex, ch: '\\sqrt{' + X.map(function (c) { return par(c) + '^2'; }).join('+') + '}=' + (S.k > 1 && S.r > 1 ? '\\sqrt{' + n2 + '}=' : '') + S.tex };
+    };
+    var L1 = len(u), L2 = len(v), SP = surd((u[0] * u[0] + u[1] * u[1] + u[2] * u[2]) * (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]));
+    var COS = { 30: '\\dfrac{\\sqrt{3}}{2}', 45: '\\dfrac{\\sqrt{2}}{2}', 60: '\\dfrac{1}{2}' }[ang], nm = dt < 0 ? '|' + dt + '|' : String(dt);
+    var den = [L1.tex, L2.tex].filter(function (x) { return x !== '1'; }).join('\\cdot ') || '1';
+    var ch = ['\\dfrac{' + nm + '}{' + den + '}'];
+    if (L1.r > 1 && L2.r > 1) ch.push('\\dfrac{' + Math.abs(dt) + '}{' + SP.tex + '}');   // язгууруудын үржвэрийг хялбарчилна
+    if (ang === 45) ch.push('\\dfrac{1}{\\sqrt{2}}');
+    ch.push(COS);
+    ch = ch.filter(function (x, i) { return !i || x !== ch[i - 1]; });
+    sol.push('Векторуудын урт: $$|' + AB + '|=' + L1.ch + ',$$ $$|' + CD + '|=' + L2.ch + '.$$',
+      'Шулуунуудын хоорондох өнцөг $0^\\circ\\le\\varphi\\le 90^\\circ$ тул скаляр үржвэрийн модулийг авна: $$\\cos\\varphi=\\dfrac{|' + AB + '\\cdot' + CD + '|}{|' + AB + '|\\cdot|' + CD
+        + '|}$$ $$=' + ch.join('=') + '.$$ Иймд $\\varphi=' + ang + '^\\circ$.');
+  }
   return {
     q: '$' + P('A', A) + ',\\ ' + P('B', B) + ',\\ ' + P('C', C) + ',\\ ' + P('D', D) + '$ байвал $AB,\\ CD$ шулуунуудын хоорондох өнцгийг ол.',
-    a: '$' + ang + '^\\circ$', wk: 24, t: { A: A, B: B, C: C, D: D }
+    a: '$' + ang + '^\\circ$', wk: 24,
+    s: sol,
+    t: { A: A, B: B, C: C, D: D }
   };
 }
 return p34;
@@ -704,9 +851,23 @@ function p35() {
   if (X.some(function (c) { return Math.abs(c[0] / c[1]) > 15; })) return null;
   var cs = X.map(function (c) { return fr(c[0], c[1]); }), frac = cs.some(function (s) { return s.indexOf('frac') >= 0; });
   var line = [0, 1, 2].map(function (i) { return '\\dfrac{' + 'xyz'[i] + (P[i] ? sgn(-P[i]) : '') + '}{' + d[i] + '}'; }).join('=');
+  // Бодолт: харьцааг t гэвэл x = x₀ + pt, y = y₀ + qt, z = z₀ + rt (параметрт тэгшитгэл); хавтгай дээр тухайн координат 0 → t → бусад координат
+  var VV = 'xyz', T = fr(-P[k], d[k]), Tp = -P[k] * d[k] < 0 ? (T.indexOf('frac') >= 0 ? '\\left(' + T + '\\right)' : '(' + T + ')') : T;
+  var prm = [0, 1, 2].map(function (i) { return VV[i] + '=' + (P[i] ? P[i] + tm(d[i], 't') : tm(d[i], 't', true)); }).join(',\\quad ');
+  var oth = [0, 1, 2].filter(function (i) { return i !== k; }).map(function (i, j) {
+    var A = Math.abs(d[i]);
+    return '$$' + VV[i] + '=' + (P[i] ? P[i] + (d[i] < 0 ? '-' : '+') : d[i] < 0 ? '-' : '') + (A === 1 ? '' : A + '\\cdot ') + Tp + '=' + cs[i] + (j ? '.' : ',') + '$$';
+  });
   return {
     q: '$' + line + '$ шулуун $' + ['Oyz', 'Oxz', 'Oxy'][k] + '$ хавтгайтай огтлолцох цэгийг ол.',
-    a: '$' + (frac ? '\\left(' + cs.join(';\\,') + '\\right)' : '(' + cs.join(';\\,') + ')') + '$', wk: 20, t: { P: P, d: d, k: k }
+    a: '$' + (frac ? '\\left(' + cs.join(';\\,') + '\\right)' : '(' + cs.join(';\\,') + ')') + '$', wk: 20,
+    s: [
+      'Харьцааг $t$ гэж тэмдэглэвэл шулууны параметрт тэгшитгэл: $$' + prm + '.$$',
+      '$' + ['Oyz', 'Oxz', 'Oxy'][k] + '$ хавтгайн бүх цэгийн хувьд $' + VV[k] + '=0$ тул $$' + P[k] + tm(d[k], 't') + '=0\\ \\Rightarrow\\ t=' + T + '.$$',
+      'Энэ утгыг параметрт тэгшитгэлд орлуулбал ' + oth.join(' '),
+      'Иймд огтлолцох цэг $$' + (frac ? '\\left(' + cs.join(';\\,') + '\\right)' : '(' + cs.join(';\\,') + ')') + '.$$'
+    ],
+    t: { P: P, d: d, k: k }
   };
 }
 return p35;
@@ -748,11 +909,22 @@ function p3() {
   p3_vl(f, O, B, 0.5, 'b', -16);
   f.ext([-0.45, -0.75]).ext([6.3, 3.85]);
   var dtxt = p === q ? '$D$ цэг нь $AB$ талын дундаж цэг бөгөөд ' : '$AB$ тал дээр $AD:DB=' + p + ':' + q + '$ байх $D$ цэг авав. ';
+  // Бодолт: OC⃗ = m/(m+n)·a⃗;  AD⃗ = p/(p+q)·AB⃗, AB⃗ = b⃗ − a⃗ → OD⃗ = OA⃗ + AD⃗;  CD⃗ = OD⃗ − OC⃗, a⃗-ийн коэффициентийг ерөнхий хуваарьт
+  var kC = fr(m, m + n), kA = fr(q, p + q), kB = fr(p, p + q), Ld = lcm(p + q, m + n);
+  var V = function (P, Q) { return '\\overrightarrow{' + P + Q + '}'; };
   return {
     q: '$OAB$ гурвалжны $OA$ тал дээр $OC:CA=' + m + ':' + n + '$ байх $C$ цэг' + (p === q ? ' авав. ' : ', ') + dtxt
       + '$\\overrightarrow{OA}=\\vec a$, $\\overrightarrow{OB}=\\vec b$ бол $\\overrightarrow{CD}$ векторыг $\\vec a$ ба $\\vec b$ векторуудаар илэрхийлээрэй.',
     a: '$\\overrightarrow{CD}=' + fr(an, ad) + '\\vec a+' + fr(p, p + q) + '\\vec b$',
     fig: f.svg(), side: true, wk: 30,
+    s: [
+      '$OC:CA=' + m + ':' + n + '$ тул $OC=' + kC + 'OA$ ба $' + V('O', 'C') + '$, $\\vec a$ ижил чиглэлтэй: $$' + V('O', 'C') + '=' + kC + '\\vec a.$$',
+      (p === q ? '$D$ нь $AB$ талын дундаж цэг тул' : '$AD:DB=' + p + ':' + q + '$ тул') + ' $AD=' + kB + 'AB$. Энд $' + V('A', 'B') + '=\\vec b-\\vec a$ тул гурвалжны дүрмээр '
+        + '$$' + V('O', 'D') + '=' + V('O', 'A') + '+' + V('A', 'D') + '=\\vec a+' + kB + '(\\vec b-\\vec a)$$ $$=' + kA + '\\vec a+' + kB + '\\vec b.$$',
+      'Иймд $$' + V('C', 'D') + '=' + V('O', 'D') + '-' + V('O', 'C') + '=\\left(' + kA + '-' + kC + '\\right)\\vec a+' + kB + '\\vec b.$$',
+      '$\\vec a$ векторын коэффициентийг ерөнхий хуваарьт оруулж бодъё: $$' + kA + '-' + kC + '=\\dfrac{' + q * Ld / (p + q) + '-' + m * Ld / (m + n) + '}{' + Ld + '}=' + fr(an, ad)
+        + '.$$ Эндээс $$' + V('C', 'D') + '=' + fr(an, ad) + '\\vec a+' + kB + '\\vec b.$$'
+    ],
     t: { m: m, n: n, p: p, q: q }
   };
 }
@@ -774,10 +946,22 @@ function p58() {
   if (Math.abs(x) === 1 && Math.abs(y) === 1) return null;
   var sum = rnd(1, 10) <= 3;
   var vec = function (V, k, nm) { return '(' + V.map(function (v, t) { return t === k ? nm : String(v); }).join(',\\,') + ')'; };
+  // Бодолт: a = λb — координат бүрээр систем; хоёулаа мэдэгдэх k-р координатаас λ = m/n, дараа нь x = λ·b_i, a_j = λ·y
+  var k = 3 - i - j, lam = fr(m, n), neg = m * n < 0, lamP = Math.abs(n) === 1 ? par(m * n) : neg ? '\\left(' + lam + '\\right)' : lam;
+  var lamY = Math.abs(n) === 1 ? tm(m * n, 'y', true) : (neg ? '-' : '') + '\\dfrac{' + Math.abs(m) + '}{' + Math.abs(n) + '}y';
+  var cL = function (c) { return tm(c, '\\lambda', true); };
+  var rows = [0, 1, 2].map(function (t) { return (t === i ? 'x' : String(A[t])) + '=' + (t === j ? '\\lambda y' : cL(B[t])); });
+  var ORD = ['Эхний', 'Хоёр дахь', 'Гурав дахь'];
   return {
     q: '$\\vec a=' + vec(A, i, 'x') + '$; $\\vec b=' + vec(B, j, 'y') + '$ векторууд коллинеар байх <span class="nw">$x,y$-ийн</span> ' + (sum ? 'нийлбэрийг' : 'үржвэрийг') + ' олоорой.',
     a: '$x=' + x + ',\\ y=' + y + '$; $' + (sum ? 'x+y=' + (x + y) : 'xy=' + x * y) + '$',
     wk: 22,
+    s: [
+      'Коллинеар векторуудын хувьд $\\vec a=\\lambda\\vec b$ ($\\lambda\\ne 0$). Координат бүрээр: $$\\begin{cases}' + rows.join('\\\\') + '\\end{cases}$$',
+      ORD[k] + ' тэгшитгэлээс ' + (B[k] === 1 ? '$\\lambda=' + lam + '$.' : '$' + A[k] + '=' + cL(B[k]) + '$, эндээс $\\lambda=' + lam + '$.'),
+      'Эндээс $$x=' + cL(B[i]) + (Math.abs(B[i]) === 1 ? '' : '=' + B[i] + '\\cdot ' + lamP) + '=' + x + ',\\qquad ' + A[j] + '=' + lamY + '\\ \\Rightarrow\\ y=' + y + '.$$',
+      'Иймд $' + (sum ? 'x+y=' + x + sgn(y) + '=' + (x + y) : 'xy=' + x + '\\cdot ' + par(y) + '=' + x * y) + '$.'
+    ],
     t: { A: A, B: B, i: i, j: j }
   };
 }
@@ -793,6 +977,52 @@ var p46_C = [[[1, 1], [2, 1]], [[1, 1], [2, 1]], [[1, 1], [1, -1]], [[1, -1], [2
   [[1, 1], [1, 2]], [[1, -1], [1, 1]], [[1, 1], [3, 1]], [[2, 1], [3, 1]], [[1, 2], [2, 3]], [[2, -1], [1, 1]]];
 function p46_lc(c) { return tm(c[0], '\\vec a', true) + tm(c[1], '\\vec b'); }
 function p46_dot(x, y) { return x[0] * y[0] + x[1] * y[1] + x[2] * y[2]; }
+// Бодолт: β₂·(1) − β₁·(2) хослолоор b⃗-г устгаж a⃗; |β| = 1 тэнцэтгэлд орлуулж b⃗; скаляр үржвэр, урт → cos φ (хуваарийг рационалчилна)
+function p46_v(x) { return '(' + x.join(',\\,') + ')'; }
+function p46_sol(cb, a, b, u, v, val) {
+  var E = [[cb[0][0], cb[0][1], u], [cb[1][0], cb[1][1], v]], g = gcd(E[0][1], E[1][1]);
+  var k1 = E[1][1] / g, k2 = -E[0][1] / g, ca = k1 * E[0][0] + k2 * E[1][0], op;
+  if (ca < 0) { k1 = -k1; k2 = -k2; ca = -ca; }
+  var mul = function (k) { return '$' + k + '$-' + suf(k, 'аар'); };
+  if (k1 > 0 && k2 > 0) op = 'Хоёр тэнцэтгэлийг нэмбэл';
+  else {
+    var f = k1 > 0, kp = f ? k1 : k2, km = f ? -k2 : -k1, P = f ? 'Эхний' : 'Хоёр дахь', M = f ? 'хоёр дахийг' : 'эхнийхийг';
+    if (kp === 1 && km === 1) op = P + ' тэнцэтгэлээс ' + M + ' хасвал';
+    else if (km === 1) op = P + ' тэнцэтгэлийг ' + mul(kp) + ' үржүүлээд ' + M + ' хасвал';
+    else if (kp === 1) op = P + ' тэнцэтгэлээс ' + mul(km) + ' үржүүлсэн ' + M + ' хасвал';
+    else op = P + ' тэнцэтгэлийг ' + mul(kp) + ', ' + M + ' ' + mul(km) + ' үржүүлж хасвал';
+  }
+  var T = [[k1, u], [k2, v]];
+  if (k1 < 0) T.reverse();                                            // эерэг коэффициенттэй нь эхэлнэ
+  var sy = T.map(function (t, i) { var A = Math.abs(t[0]); return (t[0] < 0 ? '-' : i ? '+' : '') + (A === 1 ? '' : A + '\\cdot ') + p46_v(t[1]); }).join('');
+  var sc = T.map(function (t, i) { var A = Math.abs(t[0]); return (t[0] < 0 ? '-' : i ? '+' : '') + p46_v(t[1].map(function (z) { return A * z; })); }).join('');
+  var lA = (ca === 1 ? '' : ca) + '\\vec a', rA = p46_v(a.map(function (z) { return ca * z; })) + (ca > 1 ? '$$ $$\\Rightarrow\\ \\vec a=' + p46_v(a) : '');
+  var s1 = op + ' $\\vec b$ устана: ' + (sy === sc ? '$$' + lA + '=' + sy + '=' + rA + '.$$' : '$$' + lA + '=' + sy + '$$ $$=' + sc + '=' + rA + '.$$');
+  // b⃗: |β| = 1 (эсвэл хамгийн бага |β|), дараа нь бага α-тай тэнцэтгэлээс
+  var ord = [0, 1].sort(function (i, j) {
+    var x = Math.abs(E[i][1]), y = Math.abs(E[j][1]);
+    return (x === 1 ? 0 : 1) - (y === 1 ? 0 : 1) || x - y || E[i][0] - E[j][0] || i - j;
+  });
+  var e = E[ord[0]], al = e[0], be = e[1], B = Math.abs(be), A1 = al === 1 ? '' : al, aa = p46_v(a.map(function (z) { return al * z; }));
+  var sym = be > 0 ? p46_v(e[2]) + '-' + A1 + '\\vec a' : A1 + '\\vec a-' + p46_v(e[2]), num = be > 0 ? p46_v(e[2]) + '-' + aa : aa + '-' + p46_v(e[2]);
+  var s2 = 'Олсон $\\vec a$ векторыг ' + (ord[0] ? 'хоёр дахь' : 'эхний') + ' тэнцэтгэлд орлуулбал: $$' + (B === 1 ? '' : B) + '\\vec b=' + sym + '$$ $$=' + num + '='
+    + p46_v(b.map(function (z) { return B * z; })) + (B > 1 ? '$$ $$\\Rightarrow\\ \\vec b=' + p46_v(b) : '') + '.$$';
+  // скаляр үржвэр ба урт
+  var D = p46_dot(a, b), A2 = p46_dot(a, a), B2 = p46_dot(b, b), LA = surd(A2), LB = surd(B2), S = surd(A2 * B2);
+  var pz = function (z) { return z === 0 ? '{0}' : par(z); };        // {0} — «+0» хэв анхааруулгаас (харагдац ижил)
+  var sq = function (x) { return x.map(function (z) { return pz(z) + '^2'; }).join('+'); };
+  var ln = function (x, N, L) { var t = '\\sqrt{' + N + '}'; return '\\sqrt{' + sq(x) + '}=' + t + (L.tex !== t ? '=' + L.tex : ''); };
+  var s3 = 'Скаляр үржвэр: $$\\vec a\\cdot\\vec b=' + [0, 1, 2].map(function (i) { return pz(a[i]) + '\\cdot ' + pz(b[i]); }).join('+') + '=' + D + '.$$';
+  var s4 = 'Векторуудын урт: $$|\\vec a|=' + ln(a, A2, LA) + ',$$ $$|\\vec b|=' + ln(b, B2, LB) + '.$$';
+  // cos φ = D / (|a|·|b|) = D / (k√r) = D√r / (kr) → хураана
+  var sg = D < 0 ? '-' : '', AD = Math.abs(D), ch = ['\\dfrac{' + D + '}{' + LA.tex + '\\cdot ' + LB.tex + '}'];
+  if (S.r === 1) ch.push(sg + '\\dfrac{' + AD + '}{' + S.k + '}');
+  else ch.push(sg + '\\dfrac{' + AD + '}{' + rt(S.k, S.r) + '}', sg + '\\dfrac{' + rt(AD, S.r) + '}{' + S.k * S.r + '}');
+  ch.push(val);
+  ch = ch.filter(function (x, i) { return !i || x !== ch[i - 1]; });
+  var s5 = 'Хоорондох өнцгийг $\\varphi$ гэвэл $$\\cos\\varphi=\\dfrac{\\vec a\\cdot\\vec b}{|\\vec a|\\cdot|\\vec b|}=' + ch[0] + '$$ $$=' + ch.slice(1).join('=') + '.$$';
+  return [s1, s2, s3, s4, s5];
+}
 function p46() {
   var a = [rnd(-3, 4), rnd(-3, 4), rnd(-3, 4)], b = [rnd(-3, 4), rnd(-3, 4), rnd(-3, 4)], cb = pick(p46_C);
   if (rnd(0, 2) === 0) cb = [cb[1], cb[0]];
@@ -812,6 +1042,7 @@ function p46() {
     q: '$' + p46_lc(cb[0]) + '=(' + u.join(',\\,') + ')$, $' + p46_lc(cb[1]) + '=(' + v.join(',\\,') + ')$ байх $\\vec a$ ба $\\vec b$ векторын хоорондох өнцгийн косинусыг олоорой.',
     a: '$' + val + '$',
     wk: 28,
+    s: p46_sol(cb, a, b, u, v, val),
     t: { a: a, b: b, cb: cb }
   };
 }
