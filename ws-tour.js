@@ -239,7 +239,8 @@
     (function wait() {
       if (++n > 240) return;                                  // ~2 мин хүлээгээд болино (зочинд нэвтрэх цонх гарч болно)
       if (busy() || !avail(k).length || (k === 'hub' && !d.querySelector('.wsb-main, .wsb-pick'))) return setTimeout(wait, 500);
-      setTimeout(function () { if (!busy() && due(k)) start(k); }, 600);
+      // нэвтрэх цонх хуудас ачаалсны дараа (API-ийн хариугаар) хоцорч гарч болно — тэр үед хүлээлтээ үргэлжлүүлнэ
+      setTimeout(function () { if (!due(k)) return; if (busy()) return wait(); start(k); }, 600);
     })();
   }
 
