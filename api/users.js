@@ -476,10 +476,19 @@ module.exports = async (req, res) => {
 
       // Багш ангид challenge оноох
       if (action === 'assignChallenge') {
-        const { classroomId, title, lessons, dueDate } = req.body || {};
+        const { classroomId, title, lessons, dueDate, startAt, endAt } = req.body || {};
         if (!classroomId || !title || !lessons) return res.json({ ok: false, error: 'Missing fields' });
         if (!(await ownsClassroom(access, email, classroomId))) {
           return res.status(403).json({ ok: false, error: 'Зөвшөөрөлгүй' });
+        }
+        // Цагийн хүрээ (заавал биш, ж: 10:10–11:00) — энэ хугацаанд api/presence.js-ээр сурагчдыг шууд хянана
+        let span = null;
+        if (startAt || endAt) {
+          const s = Date.parse(startAt), e = Date.parse(endAt);
+          if (!Number.isFinite(s) || !Number.isFinite(e) || e <= s || e - s > 8 * 3600e3 || s < Date.now() - 864e5) {
+            return res.json({ ok: false, error: 'Эхлэх, дуусах цаг буруу байна' });
+          }
+          span = { startAt: new Date(s).toISOString(), endAt: new Date(e).toISOString() };
         }
         // Анги доторх бүх сурагчдын challenges-руу нэмэх
         const m = await pool.query('SELECT student_email FROM class_members WHERE classroom_id=$1', [classroomId]);
@@ -492,6 +501,7 @@ module.exports = async (req, res) => {
           assignedAt: new Date().toISOString(),
           classroomId: classroomId
         };
+        if (span) { challenge.startAt = span.startAt; challenge.endAt = span.endAt; }
         for (const row of m.rows) {
           const u = await pool.query('SELECT challenges FROM users WHERE email=$1', [row.student_email]);
           if (u.rows.length) {

@@ -52149,6 +52149,7 @@ function toggleAvatarSection() {
   // ===== CLASSROOM SYSTEM =====
   var _myClassrooms = [];
   var _currentClassroomId = null;
+  window.cmCurClassroom = function () { return _currentClassroomId; };   // cm-live.js: багшийн «Шууд хяналт» самбар
 
   function initClassroom() {
     if (!_currentUser) return;
@@ -53725,6 +53726,7 @@ function toggleAvatarSection() {
             if (!challengesMap[c.id]) {
               challengesMap[c.id] = {
                 id: c.id, title: c.title, lessons: c.lessons || [], dueDate: c.dueDate,
+                startAt: c.startAt, endAt: c.endAt,
                 assignedAt: c.assignedAt, completedBy: 0, totalStudents: 0
               };
             }
@@ -53760,6 +53762,7 @@ function toggleAvatarSection() {
                   + '<div onclick="showChallengeOverview(\'' + c.id + '\')" style="cursor:pointer;display:flex;align-items:center;gap:8px;font-family:\'Baloo 2\',sans-serif;font-size:0.72rem;color:#888;">'
                   + '<span style="display:inline-flex;align-items:center;gap:3px;">' + ICON.book + ' ' + lessonsArr.length + ' хичээл</span>'
                   + (c.dueDate ? '<span>•</span><span style="display:inline-flex;align-items:center;gap:3px;">' + ICON.calendar + ' ' + c.dueDate + '</span>' : '')
+                  + (c.startAt && c.endAt && !isNaN(Date.parse(c.startAt)) && !isNaN(Date.parse(c.endAt)) ? '<span>•</span><span style="font-weight:800;">' + new Date(c.startAt).toTimeString().slice(0, 5) + '–' + new Date(c.endAt).toTimeString().slice(0, 5) + '</span>' : '')
                   + '<span style="margin-left:auto;color:#FF9600;font-weight:800;">' + pct + '% дуусгасан</span>'
                   + '</div>'
                   + '<div style="height:4px;background:#fff;border-radius:2px;margin-top:6px;overflow:hidden;">'
@@ -57687,6 +57690,7 @@ function toggleAvatarSection() {
     if (!_currentClassroomId) return;
     document.getElementById('ch-title').value = '';
     document.getElementById('ch-due').value = '';
+    ['ch-start', 'ch-end'].forEach(function (id) { var el = document.getElementById(id); if (el) el.value = ''; });
     document.getElementById('ch-lesson-search').value = '';
     _challengeSelected = new Set();
     document.getElementById('assign-challenge-modal').style.display = 'flex';
@@ -57781,6 +57785,17 @@ function toggleAvatarSection() {
       alert('Дор хаяж нэг хичээл сонгоно уу');
       return;
     }
+    // Даалгаврын цаг (ж: 10:10–11:00) — огноо сонгоогүй бол өнөөдөр; багшийн хөтчийн цагийн бүсээр
+    var tS = (document.getElementById('ch-start') || {}).value || '', tE = (document.getElementById('ch-end') || {}).value || '';
+    var startAt = null, endAt = null;
+    if (tS || tE) {
+      if (!tS || !tE) { alert('Эхлэх ба дуусах цагийг хоёуланг нь оруулна уу'); return; }
+      var dd = due;
+      if (!dd) { var n0 = new Date(); dd = n0.getFullYear() + '-' + ('0' + (n0.getMonth() + 1)).slice(-2) + '-' + ('0' + n0.getDate()).slice(-2); }
+      var s0 = new Date(dd + 'T' + tS + ':00'), e0 = new Date(dd + 'T' + tE + ':00');
+      if (!(e0 > s0)) { alert('Дуусах цаг эхлэх цагаас хойш байх ёстой'); return; }
+      startAt = s0.toISOString(); endAt = e0.toISOString(); due = dd;
+    }
     authFetch('/api/users', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -57790,7 +57805,9 @@ function toggleAvatarSection() {
         classroomId: _currentClassroomId,
         title: title,
         lessons: lessons,
-        dueDate: due || null
+        dueDate: due || null,
+        startAt: startAt,
+        endAt: endAt
       })
     }).then(function(r){ return r.json(); })
       .then(function(d){
@@ -59771,6 +59788,12 @@ function toggleAvatarSection() {
   }
 
   // Online статус — 60 секунд тутам heartbeat
+  // cm-live.js (даалгаврын хугацаат шууд хяналт): одоо нээлттэй хичээл ба асуултын дугаар
+  window.cmQuizState = function () {
+    var open = !!(currentLessonId && document.getElementById('quiz-modal')?.classList?.contains('open'));
+    var total = (currentLesson && currentLesson.questions) ? currentLesson.questions.length : 0;
+    return { open: open, lesson: open ? String(currentLessonId) : null, q: open && total ? (currentQ + 1) + '/' + total : '' };
+  };
   // Одоогийн дэлгэцийн нэрийг тогтоох (live class-ын хувьд багш харна)
   function getCurrentScreen() {
     // Lesson нээгдсэн бол түүнийг буцаана
@@ -64206,7 +64229,13 @@ function sendAppChat(text) {
     <div id="ch-lessons-list" style="max-height:240px;overflow-y:auto;border:1.5px solid #eee;border-radius:12px;padding:6px;margin-bottom:10px;background:#fafafa;"></div>
     <div id="ch-selected-count" style="font-family:'Baloo 2',sans-serif;font-size:0.78rem;color:#7B52EE;font-weight:800;margin-bottom:10px;">0 хичээл сонгогдсон</div>
     <div style="font-family:'Baloo 2',sans-serif;font-size:0.78rem;color:#888;margin-bottom:6px;">Эцсийн хугацаа (заавал биш):</div>
-    <input id="ch-due" type="date" style="width:100%;padding:11px 14px;background:#f5f5f5;border:1.5px solid #ddd;border-radius:12px;font-family:'Baloo 2',sans-serif;font-size:0.9rem;font-weight:700;color:#3C3C3C;margin-bottom:14px;box-sizing:border-box;">
+    <input id="ch-due" type="date" style="width:100%;padding:11px 14px;background:#f5f5f5;border:1.5px solid #ddd;border-radius:12px;font-family:'Baloo 2',sans-serif;font-size:0.9rem;font-weight:700;color:#3C3C3C;margin-bottom:12px;box-sizing:border-box;">
+    <div style="font-family:'Baloo 2',sans-serif;font-size:0.78rem;color:#888;margin-bottom:6px;">Даалгаврын цаг (заавал биш) — энэ хугацаанд сурагчдыг ангийн цонхноос шууд хянана:</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+      <input id="ch-start" type="time" aria-label="Эхлэх цаг" style="flex:1;min-width:0;padding:10px 12px;background:#f5f5f5;border:1.5px solid #ddd;border-radius:12px;font-family:'Baloo 2',sans-serif;font-size:0.9rem;font-weight:700;color:#3C3C3C;box-sizing:border-box;">
+      <span style="font-weight:800;color:#888;">–</span>
+      <input id="ch-end" type="time" aria-label="Дуусах цаг" style="flex:1;min-width:0;padding:10px 12px;background:#f5f5f5;border:1.5px solid #ddd;border-radius:12px;font-family:'Baloo 2',sans-serif;font-size:0.9rem;font-weight:700;color:#3C3C3C;box-sizing:border-box;">
+    </div>
     <button onclick="doAssignChallenge()" style="width:100%;padding:13px;background:linear-gradient(135deg,#FFC800,#FF9600);border:none;border-radius:100px;color:white;font-family:'Baloo 2',sans-serif;font-weight:900;font-size:1rem;cursor:pointer;">Илгээх →</button>
   </div>
 </div>
@@ -70116,5 +70145,6 @@ window.renderReactionBar = function(nodeId, container) {
 <!-- ═══ /Тоглоомын төв: туршилт ═══ -->
 <script src="/placement-ui.js?v=3" defer></script>
 <script src="/cm-track.js?v=1" defer></script>
+<script src="/cm-live.js?v=1" defer></script>
 </body>
 </html>

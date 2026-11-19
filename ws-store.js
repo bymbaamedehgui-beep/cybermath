@@ -2076,7 +2076,14 @@
     b.onclick=function(){ cmtPicker(b); };
     bar.appendChild(b);
   }
-  function init(){ tidyBar(); injectBrandCSS(); brandSheet(); watchSheet(); enhanceMeta(); loadInstr(); if(!IS_QR){addBtn();addBatchBtn();addWorkToggle();hookPrintAsk();vidBtn();boardBtn();applyBoardCode();} themeInit(); addRefreshShortcut(); applyQR(); enforcePaywall(); injectSocial(); applyWantWork(); addWorkResize(); try{wscApply();}catch(e){} }
+  /* ─── «Эхлэх заавар» (ws-tour.js): ажлын хуудсыг анх нээхэд хэрэгслийн мөрийн товчнуудыг сумаар зааварлана; «Заавар» товчоор дахин ─── */
+  function tourInit(){
+    if(IS_QR||window.CMTour)return;
+    var s=document.createElement('script'); s.src='/ws-tour.js?v=1'; s.async=true;
+    s.onload=function(){ try{ if(window.CMTour)window.CMTour.auto('ws'); }catch(e){} };
+    (document.head||document.body).appendChild(s);
+  }
+  function init(){ tidyBar(); injectBrandCSS(); brandSheet(); watchSheet(); enhanceMeta(); loadInstr(); if(!IS_QR){addBtn();addBatchBtn();addWorkToggle();hookPrintAsk();vidBtn();boardBtn();applyBoardCode();} themeInit(); addRefreshShortcut(); applyQR(); enforcePaywall(); injectSocial(); applyWantWork(); try{tourInit();}catch(e){} addWorkResize(); try{wscApply();}catch(e){} }
   if(document.readyState!=='loading')init();
   else document.addEventListener('DOMContentLoaded',init);
 })();
