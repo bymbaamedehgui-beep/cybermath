@@ -1,5 +1,5 @@
 /* CyberMath — утсан дээрх апп маягийн харагдац (≤768px). Хэв маяг: app-mobile.css
-   1) Апп (нэвтэрсэн/демо): доод таб (Зам · Тоглоом · Mathlet · Тэргүүлэгч · Цааш) ба «Цааш» хуудас.
+   1) Апп (нэвтэрсэн/демо): доод таб (Зам · Тоглоом · Mathlet · Анги · Цааш) ба «Цааш» хуудас (Тэргүүлэгч тэнд).
       Табыг сайтын жинхэнэ товчоор (.tabs .tab-btn → switchTab) сольдог тул табын логик хэвээр; замын SVG-д хүрэхгүй.
    2) Угтах дэлгэц (нэвтрээгүй landing): нэг дэлгэцтэй, «Дэлгэрэнгүй»-гээр маркетингийн хэсгүүд нээгдэнэ.
    3) «Апп болгож суулгах»: Android-д суулгах цонх, iPhone-д алхам алхмаар заавар.
@@ -29,11 +29,11 @@
     dots: S('<path d="M12 5h.01M12 12h.01M12 19h.01" stroke-width="3.2"/>'),
     down: S('<path d="M12 4v15M6 13l6 6 6-6"/>')
   };
-  var NAV = [['path', 'Зам', IC.path], ['games', 'Тоглоом', IC.games], ['mathlet', 'Mathlet', IC.mathlet], ['leaderboard', 'Тэргүүлэгч', IC.trophy], ['more', 'Цааш', IC.grid]];
-  // cm-ui.js «Нүүр» табыг (#tab-home) нэмсэн бол: Нүүр · Зам · Тоглоом · Тэргүүлэгч · Цааш (Mathlet «Цааш»-т шилжинэ)
+  var NAV = [['path', 'Зам', IC.path], ['games', 'Тоглоом', IC.games], ['mathlet', 'Mathlet', IC.mathlet], ['classroom', 'Анги', IC.cls], ['more', 'Цааш', IC.grid]];
+  // cm-ui.js «Нүүр» табыг (#tab-home) нэмсэн бол: Нүүр · Зам · Тоглоом · Анги · Цааш (Mathlet «Цааш»-т шилжинэ)
   function navFor() {
     return document.getElementById('tab-home')
-      ? [['home', 'Нүүр', IC.home], ['path', 'Зам', IC.path], ['games', 'Тоглоом', IC.games], ['leaderboard', 'Тэргүүлэгч', IC.trophy], ['more', 'Цааш', IC.grid]]
+      ? [['home', 'Нүүр', IC.home], ['path', 'Зам', IC.path], ['games', 'Тоглоом', IC.games], ['classroom', 'Анги', IC.cls], ['more', 'Цааш', IC.grid]]
       : NAV;
   }
   var app = null, land = null, nav = null, sheet = null, built = false;
@@ -46,6 +46,8 @@
 
   function go(k) {
     closeSheet();
+    // «Анги» таб зөвхөн нэвтэрсэн үед (initClassroom) — зочинд нэвтрэх цонх
+    if (k === 'classroom' && !visible(document.getElementById('tab-btn-classroom'))) { if (typeof window.openAuthModal === 'function') window.openAuthModal('login'); return; }
     var b = tabBtn(k); if (!b) return;
     if (activeTab() !== k) b.click();      // сайтын өөрийн switchTab (event.target = жинхэнэ товч)
     window.scrollTo(0, 0);
@@ -91,6 +93,7 @@
   function moreItems() {
     var exam = tabBtn('exam'), soon = exam && /SOON|удахгүй/i.test(exam.textContent);
     var L = [
+      ['Тэргүүлэгч', IC.trophy, function () { go('leaderboard'); }],
       ['Амжилт', IC.medal, function () { go('achievements'); }],
       ['Шалгалт', IC.exam, function () { go('exam'); }, soon ? 'Удахгүй' : ''],
       ['Найзууд', IC.friends, function () { closeSheet(); if (window.openFriends) window.openFriends(); }],
@@ -99,7 +102,6 @@
       // Тоглоомын төв · Дасгалын төвийн сонголт руу (index.html #cm-pick)
       ['Төв солих', IC.swap, function () { closeSheet(); if (window.cmShowPick) window.cmShowPick(); else location.href = '/?pick'; }]
     ];
-    if (visible(document.getElementById('tab-btn-classroom'))) L.splice(2, 0, ['Анги', IC.cls, function () { go('classroom'); }]);
     if (!NAV.some(function (n) { return n[0] === 'mathlet'; })) L.unshift(['Mathlet', IC.mathlet, function () { go('mathlet'); }]);
     if (!standalone()) L.push(['Апп суулгах', IC.install, function () { install(); }]);
     return L;

@@ -49,9 +49,9 @@
     crown: S('<path d="M3.5 8.5 7.8 12 12 5.5l4.2 6.5 4.3-3.5L18.6 19H5.4L3.5 8.5Z"/>', 1),
     balloon: S('<path d="M12 2a7 7 0 0 0-7 7c0 4.5 4 7.5 6 9h2c2-1.5 6-4.5 6-9a7 7 0 0 0-7-7Z"/><path d="M11 18v2h2v-2"/>')
   };
-  // Дээд цэс (компьютер) ба «Цааш» цэс. «@…» = таб биш үйлдэл
-  var TOP = [['home', 'Нүүр', IC.home], ['path', 'Зам', IC.map], ['games', 'Тоглоом', IC.games], ['mathlet', 'Mathlet', IC.bolt], ['leaderboard', 'Тэргүүлэгч', IC.trophy]];
-  var MORE = [['achievements', 'Амжилт', IC.medal], ['exam', 'Шалгалт', IC.exam, 'Шинэ'], ['classroom', 'Анги', IC.cls], ['@friends', 'Найзууд', IC.friends],
+  // Дээд цэс (компьютер) ба «Цааш» цэс. «@…» = таб биш үйлдэл. «Анги» дээд цэсэнд, «Тэргүүлэгч» «Цааш»-т (эзэмшигч 2026-11-19)
+  var TOP = [['home', 'Нүүр', IC.home], ['path', 'Зам', IC.map], ['games', 'Тоглоом', IC.games], ['mathlet', 'Mathlet', IC.bolt], ['classroom', 'Анги', IC.cls]];
+  var MORE = [['leaderboard', 'Тэргүүлэгч', IC.trophy], ['achievements', 'Амжилт', IC.medal], ['exam', 'Шалгалт', IC.exam, 'Шинэ'], ['@friends', 'Найзууд', IC.friends],
     ['@profile', 'Профайл', IC.profile], ['@tutorial', 'Зааварчилгаа', IC.video], ['@pick', 'Төв солих', IC.swap]];
   // Нүүрний тоглоом: [startGame түлхүүр, нэр, төрөл, зураг]
   var GAMES = [['mathmortal', 'MATH MORTAL', '3D тулаан · бодлого бодож баатраа хүчирхэгжүүл', '/assets/pick/game-hero.webp'],
@@ -79,7 +79,11 @@
   function tabBtn(k) { return d.querySelector('.tabs .tab-btn[onclick*="switchTab(\'' + k + '\')"]'); }
   function activeTab() { var c = d.querySelector('.tab-content[id^="tab-"].active'); return c ? c.id.replace(/^tab-/, '') : 'path'; }
   function hasClassroom() { var b = tabBtn('classroom'); return !!(b && b.style.display !== 'none'); }
-  function go(k) { var b = tabBtn(k); if (!b) return; if (activeTab() !== k) b.click(); window.scrollTo(0, 0); if (k === 'path') setTimeout(focusPath, 80); }
+  function go(k) {
+    // «Анги» таб зөвхөн нэвтэрсэн үед (initClassroom) — зочинд нэвтрэх цонх
+    if (k === 'classroom' && !hasClassroom()) { if (typeof window.openAuthModal === 'function') window.openAuthModal('login'); return; }
+    var b = tabBtn(k); if (!b) return; if (activeTab() !== k) b.click(); window.scrollTo(0, 0); if (k === 'path') setTimeout(focusPath, 80);
+  }
   function act(a) {
     if (a === '@friends') { if (window.openFriends) window.openFriends(); }
     else if (a === '@profile') { if (window.handleAvatarClick) window.handleAvatarClick(); }
@@ -587,7 +591,7 @@
       more.addEventListener('click', function (e) { var b = e.target.closest('[data-a]'); if (!b) return; closeMore(); act(b.getAttribute('data-a')); });
       d.body.appendChild(more);
     }
-    more.innerHTML = MORE.filter(function (m) { return m[0] !== 'classroom' || hasClassroom(); }).map(function (m) {
+    more.innerHTML = MORE.map(function (m) {
       return '<button type="button" role="menuitem" data-a="' + m[0] + '">' + m[2] + m[1] + (m[3] ? '<em>' + m[3] + '</em>' : '') + '</button>';
     }).join('');
     var r = moreBtn.getBoundingClientRect();

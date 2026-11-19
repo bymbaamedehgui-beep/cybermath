@@ -38,7 +38,8 @@ test('cm-ui.js: синтакс, embed хамгаалалт, ?ui=old унтраа
 test('cm-ui.js: сайтын функцийг шууд өөрчлөхгүй — табыг жинхэнэ товчоор, хичээл/тоглоомыг сайтын функцээр', () => {
   assert.doesNotMatch(js, /window\.(switchTab|tryOpenLesson|startGame|openFriends|handleAvatarClick|openTutorialModal)\s*=(?!=)/, 'сайтын функцийг дарж бичихгүй');
   assert.doesNotMatch(js, /switchTab\(\s*k\s*\)|window\.switchTab\(/, 'switchTab-ийг шууд дуудахгүй (event.target)');
-  assert.match(js, /function go\(k\) \{ var b = tabBtn\(k\); if \(!b\) return; if \(activeTab\(\) !== k\) b\.click\(\);/);
+  // (эхэнд зөвхөн зочны «Анги» → нэвтрэх шалгалт)
+  assert.match(js, /function go\(k\) \{[^{}]*\{[^{}]*\}\s*var b = tabBtn\(k\); if \(!b\) return; if \(activeTab\(\) !== k\) b\.click\(\);/);
   assert.match(js, /window\.tryOpenLesson\(s\)/);
   assert.match(js, /window\.startGame\(k\)/);
   // «Нүүр»-ийн далд товч switchTab('home')-ыг сайтын өөрийн switchTab-аар дуудна
@@ -54,8 +55,12 @@ test('Хуучин бүрхүүлийн агуулга «Нүүр»-т: уриа
   assert.match(js, /\['@pick', 'Төв солих'/);
   assert.match(js, /\['@friends', 'Найзууд'/);
   assert.match(js, /\['@profile', 'Профайл'/);
-  for (const k of ['achievements', 'exam', 'classroom']) assert.match(js, new RegExp("\\['" + k + "', "), k + ' «Цааш» цэсэнд');
-  for (const k of ['home', 'path', 'games', 'mathlet', 'leaderboard']) assert.match(js, new RegExp("\\['" + k + "', "), k + ' дээд цэсэнд');
+  // «Анги» дээд цэсэнд, «Тэргүүлэгч» «Цааш»-т (2026-11-19)
+  const top = /var TOP = (\[[^;]+\]);/.exec(js)[1], more = /var MORE = (\[[\s\S]+?\]\]);/.exec(js)[1];
+  for (const k of ['leaderboard', 'achievements', 'exam']) assert.match(more, new RegExp("\\['" + k + "', "), k + ' «Цааш» цэсэнд');
+  for (const k of ['home', 'path', 'games', 'mathlet', 'classroom']) assert.match(top, new RegExp("\\['" + k + "', "), k + ' дээд цэсэнд');
+  assert.doesNotMatch(top, /'leaderboard'/); assert.doesNotMatch(more, /'classroom'/);
+  assert.match(js, /if \(k === 'classroom' && !hasClassroom\(\)\) \{ if \(typeof window\.openAuthModal === 'function'\) window\.openAuthModal\('login'\); return; \}/, 'зочинд «Анги» → нэвтрэх');
   // hero, табын мөр, streak/XP баннерыг зөвхөн html.cmx үед нууна
   assert.match(css, /html\.cmx #cybermath-app \.hero,\s*html\.cmx #cybermath-app \.tabs,\s*html\.cmx #streak-section,\s*html\.cmx #cybermath-app \.xp-banner/);
 });
@@ -81,9 +86,12 @@ test('Үнэгүй тоглоомын жагсаалт index.html-ийн gate-т
   assert.strictEqual(norm(a[1]), b.slice().sort().join(','));
 });
 
-test('app-mobile.js: #tab-home байвал доод таб Нүүр·Зам·Тоглоом·Тэргүүлэгч·Цааш, Mathlet «Цааш»-т; байхгүй бол хуучнаараа', () => {
+test('app-mobile.js: #tab-home байвал доод таб Нүүр·Зам·Тоглоом·Анги·Цааш, Mathlet ба Тэргүүлэгч «Цааш»-т; байхгүй бол хуучнаараа', () => {
   new Function(mob);
-  assert.match(mob, /return document\.getElementById\('tab-home'\)\s*\?\s*\[\['home', 'Нүүр', IC\.home\], \['path', 'Зам', IC\.path\], \['games', 'Тоглоом', IC\.games\], \['leaderboard', 'Тэргүүлэгч', IC\.trophy\], \['more', 'Цааш', IC\.grid\]\]\s*:\s*NAV;/);
+  assert.match(mob, /return document\.getElementById\('tab-home'\)\s*\?\s*\[\['home', 'Нүүр', IC\.home\], \['path', 'Зам', IC\.path\], \['games', 'Тоглоом', IC\.games\], \['classroom', 'Анги', IC\.cls\], \['more', 'Цааш', IC\.grid\]\]\s*:\s*NAV;/);
+  assert.match(mob, /var NAV = \[\['path', 'Зам', IC\.path\], \['games', 'Тоглоом', IC\.games\], \['mathlet', 'Mathlet', IC\.mathlet\], \['classroom', 'Анги', IC\.cls\], \['more', 'Цааш', IC\.grid\]\];/);
+  assert.match(mob, /\['Тэргүүлэгч', IC\.trophy, function \(\) \{ go\('leaderboard'\); \}\]/, 'Тэргүүлэгч «Цааш» хуудсанд');
+  assert.match(mob, /if \(k === 'classroom' && !visible\(document\.getElementById\('tab-btn-classroom'\)\)\) \{ if \(typeof window\.openAuthModal === 'function'\) window\.openAuthModal\('login'\); return; \}/, 'зочинд «Анги» → нэвтрэх');
   assert.match(mob, /NAV = navFor\(\);/);
   assert.match(mob, /if \(!NAV\.some\(function \(n\) \{ return n\[0\] === 'mathlet'; \}\)\) L\.unshift\(\['Mathlet', IC\.mathlet/);
 });
