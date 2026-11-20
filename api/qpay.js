@@ -66,6 +66,10 @@ function wsGradePrices(grade) {
 }
 // 3/6 сарын багцад сонгож болох ангиуд — тусгай үнэтэй бүлгийг (ЭЕШ, Олимпиад) оруулахгүй
 function bundlePickList() { return WG.allGrades().filter(function (g) { return !specialMonthPrice(g); }); }
+// «Үнэ ба эрх» цонхны ЭЕШ / Олимпиад таб — тусгай бүлэг бүрийн 1 сарын үнэ (каталогт байгаа нь л)
+function specialList() {
+  return WG.allGrades().filter(function (g) { return specialMonthPrice(g); }).map(function (g) { return { grade: g, price: specialMonthPrice(g) }; });
+}
 // Ажлын хуудсын урамшууллын код (20% хөнгөлөлт). Кодыг env-ээр өөрчилж болно.
 const WS_PROMO_PCT = parseInt(process.env.WS_PROMO_PCT || '20', 10);
 const WS_PROMO_CODES = (process.env.WS_PROMO_CODES || 'BAGSH20,ZUN20,CYBER20')
@@ -1540,7 +1544,7 @@ module.exports = async (req, res) => {
         grade_prices: wsGradePrices(), grade_months: WS_GRADE_MONTHS,
         grade_per_month: WS_GRADE_PER_MONTH, grades: WG.allGrades(), pack_price: EY.packPrice(1),
         bundles: OF.view(true, WG.allGrades()), offer_days: OF.OFFER_DAYS, pick_list: bundlePickList(),
-        eesh_month_price: EY.eeshMonthPrice(), packs: EY.packs() });
+        eesh_month_price: EY.eeshMonthPrice(), packs: EY.packs(), specials: specialList() });
     }
 
     // Азтаны хүрд — нүднүүдийн шошго (клиент ижил дарааллаар зурна)
@@ -2126,7 +2130,8 @@ module.exports = async (req, res) => {
       const gradePrices = { grade: offerGrade, grade_prices: wsGradePrices(offerGrade),
         grade_months: WS_GRADE_MONTHS, grade_per_month: WS_GRADE_PER_MONTH, grade_month_price: gradeMonthPrice(offerGrade),
         prices: WS_PRICES, months: WS_MONTHS,
-        grade_list: gradeList, pick_list: bundlePickList(), bundles: OF.view(true, gradeList), offer: { eligible: true, anon: true, days: OF.OFFER_DAYS } };
+        grade_list: gradeList, pick_list: bundlePickList(), bundles: OF.view(true, gradeList), offer: { eligible: true, anon: true, days: OF.OFFER_DAYS },
+        specials: specialList(), packs: EY.packs() };   // «Үнэ ба эрх» цонхны ЭЕШ / Олимпиад таб
       // ЭЕШ бүлгийн хуудсанд «ЭЕШ багц» (ажлын хуудас + ЭЕШ шалгагч; 1/3/6 сар — packs) — price/days нь хуучин клиентэд (1 сар)
       if (offerGrade === EY.PACK_GRADE) gradePrices.pack = { price: EY.packPrice(1), days: EY.EYESH_DAYS, eyesh_price: EY.eyeshPrice(), packs: EY.packs() };
 

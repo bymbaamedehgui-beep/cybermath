@@ -1085,3 +1085,46 @@ test('ws-plans: Олимпиад хуудас — 1 сар 19,900₮ ба 12 с�
   const cr = P.log.filter((x) => x.action === 'create').pop();
   assert.deepStrictEqual(JSON.parse(JSON.stringify(cr.body)), { wstoken: TOK, plan: 'wsgrade', months: 1, grade: 'Олимпиад', promo: null });
 });
+
+test('ws-plans «Үнэ ба эрх» (hub): Анги · ЭЕШ · Олимпиад таб — ЭЕШ 1 сар 19,800, ЭЕШ багц 1/3/6, Олимпиад 19,900, 12 сар хоёуланд', () => {
+  const P = storePage({ srv: () => rPaid(P.C) });
+  const el = P.doc.createElement('div'); P.doc.body.appendChild(el);
+  const st = Object.assign(rBundles(P.C), { specials: [{ grade: 'ЭЕШ', price: 19800 }, { grade: 'Олимпиад', price: 19900 }],
+    packs: [{ months: 1, price: 29700, list: 29700, days: 30 }, { months: 3, price: 59400, list: 89100, days: 90 }, { months: 6, price: 118800, list: 178200, days: 180 }] });
+  const api = P.W.WSPLANS.mount(el, { st: st, hub: true });
+  const keys = () => el.querySelectorAll('.wpl-o').map((b) => b.getAttribute('data-k'));
+  const tab = (t) => el.querySelector('[data-tab="' + t + '"]');
+  assert.deepStrictEqual(el.querySelectorAll('.wpl-tab').map((t) => t.textContent), ['Анги', 'ЭЕШ', 'Олимпиад']);
+  assert.strictEqual(tab('grade').getAttribute('aria-selected'), 'true');
+  assert.deepStrictEqual(keys(), ['m1', 'm3', 'm6', 'm12']);
+  // ЭЕШ таб
+  tab('eesh').click();
+  assert.deepStrictEqual(keys(), ['e1', 'pack1', 'pack3', 'pack6', 'm12']);
+  assert.strictEqual(tab('eesh').getAttribute('aria-selected'), 'true');
+  assert.match(el.querySelector('[data-k="e1"]').textContent, /1 сар.*ЭЕШ ажлын хуудас.*19,800₮/);
+  let s = api.sel();
+  assert.deepStrictEqual([s.plan, s.grade, s.months, s.price, s.ready], ['wsgrade', 'ЭЕШ', 1, 19800, true]);
+  assert.match(el.textContent, /Ердөө \+39,600₮-өөр ЭЕШ багц · 3 сар — сард 19,800₮, ЭЕШ шалгагчтай/);
+  el.querySelector('[data-k="pack3"]').click();
+  s = api.sel();
+  assert.deepStrictEqual([s.plan, s.months, s.price], ['eeshpack', 3, 59400]);
+  // Олимпиад таб
+  tab('olymp').click();
+  assert.deepStrictEqual(keys(), ['o1', 'm12']);
+  s = api.sel();
+  assert.deepStrictEqual([s.plan, s.grade, s.months, s.price], ['wsgrade', 'Олимпиад', 1, 19900]);
+  assert.match(el.textContent, /Ердөө \+100,000₮-өөр 12 сар · бүх анги — нэг анги сард 908₮/);
+  // промо 1 сарын тусгай бүлэгт ч, урилга (багц %) биш
+  api.setPct(10, 15);
+  assert.strictEqual(api.sel().price, 17910);
+  api.destroy();
+});
+
+test('ws-plans hub: промо кодын багц (lockKey m3) — Анги таб тогтмол, бусад таб идэвхгүй', () => {
+  const P = storePage({ srv: () => rPaid(P.C) });
+  const el = P.doc.createElement('div'); P.doc.body.appendChild(el);
+  P.W.WSPLANS.mount(el, { st: rBundles(P.C), hub: true, key: 'm3', lockKey: 'm3' });
+  assert.notStrictEqual(el.querySelector('[data-tab="eesh"]').getAttribute('disabled'), null);
+  assert.notStrictEqual(el.querySelector('[data-tab="olymp"]').getAttribute('disabled'), null);
+  assert.strictEqual(el.querySelector('[data-tab="grade"]').getAttribute('aria-selected'), 'true');
+});

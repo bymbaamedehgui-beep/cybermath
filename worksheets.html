@@ -2490,14 +2490,17 @@ function openBuy(opts){
   function eff(){return Math.max(curPct,refPct);}
   function onPlan(s){
     curSel=s;
-    if(subEl)subEl.innerHTML=s.plan==='wsgrade'?(s.grade?'<b>'+esc(WSPLANS.gGen(s.grade))+'</b> бүх ажлын хуудсыг 1 сар <b>хязгааргүй</b>':'Сонгосон ангийн бүх ажлын хуудсыг 1 сар <b>хязгааргүй</b>')
+    if(subEl)subEl.innerHTML=s.plan==='eeshpack'?'<b>ЭЕШ-ийн</b> бүх ажлын хуудас + <b>ЭЕШ шалгагч</b> (eyeshcheck.com) '+s.months+' сар'
+      :s.plan==='wsgrade'?(s.grade?'<b>'+esc(WSPLANS.gGen(s.grade))+'</b> бүх ажлын хуудсыг 1 сар <b>хязгааргүй</b>':'Сонгосон ангийн бүх ажлын хуудсыг 1 сар <b>хязгааргүй</b>')
       :s.all?'<b>Бүх ангийн</b> ажлын хуудсыг '+s.months+' сар <b>хязгааргүй</b>'
       :'Сонгосон <b>'+s.count+' ангийн</b> ажлын хуудсыг '+s.months+' сар <b>хязгааргүй</b>';
+    // ЭЕШ багцад урамшууллын код хамаарахгүй (үнэ серверт тогтмол)
+    var po=s.plan!=='eeshpack'; if(promoIn&&promoIn.parentNode)promoIn.parentNode.style.display=po?'flex':'none'; if(promoMsg)promoMsg.style.display=po?'':'none';
   }
   function mountPlans(st){
     if(!window.WSPLANS){planEl.innerHTML='<div style="font-size:.86rem;color:#dc2626;font-weight:700;padding:10px 0">Ачаалж чадсангүй. Хуудсаа шинэчилнэ үү (F5).</div>';return;}
     if(plans)plans.update(st);
-    else plans=WSPLANS.mount(planEl,{st:st,key:PKEY,lockKey:LOCK,onChange:onPlan});
+    else plans=WSPLANS.mount(planEl,{st:st,key:PKEY,lockKey:LOCK,hub:true,onChange:onPlan});   // hub — Анги · ЭЕШ · Олимпиад таб
     if(eff())plans.setPct(curPct,eff());
   }
   // Үнэ: нэвтэрсэн бол ЭНЭ дансных (хямдрал эрхтэй эсэх — wsstatus), эс бөгөөс шинэ бүртгэлийн харагдац (wsprices)
@@ -2508,7 +2511,7 @@ function openBuy(opts){
       .catch(function(){mountPlans(WS_LAST);});
   } else {
     fetch('/api/qpay?action=wsprices').then(function(r){return r.json();})
-      .then(function(d){mountPlans(d&&d.bundles?{bundles:d.bundles,grade_list:d.grades,grade_per_month:d.grade_per_month,offer:{eligible:true,anon:true,days:d.offer_days||7}}:null);})
+      .then(function(d){mountPlans(d&&d.bundles?{bundles:d.bundles,grade_list:d.grades,grade_per_month:d.grade_per_month,pick_list:d.pick_list,specials:d.specials,packs:d.packs,offer:{eligible:true,anon:true,days:d.offer_days||7}}:null);})
       .catch(function(){mountPlans(null);});
   }
   promoBtn.onclick=function(){var code=(promoIn.value||'').trim().toUpperCase();if(!code){appliedPromo=null;curPct=0;if(plans)plans.setPct(curPct,eff());promoMsg.textContent='';promoIn.style.borderColor='#e7ddff';return;}promoBtn.disabled=true;var ot=promoBtn.textContent;promoBtn.textContent='…';
@@ -2534,7 +2537,7 @@ function openBuy(opts){
     if(!s.ready){msg.style.color='#db2777';msg.textContent=s.need+' анги сонгоно уу ('+s.have+'/'+s.need+').';return;}
     this.disabled=true;this.textContent='Нэхэмжлэх үүсгэж байна…';var btn=this;function resetBtn(){btn.disabled=false;btn.textContent='QPay-аар худалдан авах';}
     // Имэйл илгээхгүй — сервер ws токеноос тодорхойлно. Дүнг сервер тогтооно (хямдрал/промо/урилга)
-    var body={wstoken:wt,plan:s.plan,months:s.months,promo:appliedPromo,ref:refCode};
+    var body=s.plan==='eeshpack'?{wstoken:wt,plan:s.plan,months:s.months}:{wstoken:wt,plan:s.plan,months:s.months,promo:appliedPromo,ref:refCode};
     if(s.plan==='wsgrade')body.grade=s.grade;
     if(s.grades)body.grades=s.grades;
     fetch('/api/qpay?action=create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json().then(function(d){return {s:r.status,d:d};},function(){return {s:r.status,d:null};});}).then(function(x){var d=x.d;if(x.s===401||(d&&d.needLogin)){resetBtn();buNeedLogin();return;}var inv=d&&d.invoice;if(!inv||!inv.invoice_id){msg.style.color='#dc2626';msg.textContent=(d&&d.error)||'Нэхэмжлэх үүсгэж чадсангүй. Дахин оролдоно уу.';resetBtn();return;}

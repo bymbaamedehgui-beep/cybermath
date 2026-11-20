@@ -8,6 +8,10 @@
   if (window.WSPLANS) return;
   var DEF_GRADES = ['2-р анги', '3-р анги', '4-р анги', '5-р анги', '6-р анги', '7-р анги', '8-р анги', '9-р анги', '10-р анги', '11-р анги', '12-р анги', 'ЭЕШ', 'Олимпиад'];
   var DEF_PICK = DEF_GRADES.filter(function (g) { return g !== 'ЭЕШ' && g !== 'Олимпиад'; });   // тусгай үнэтэй бүлэг багцад орохгүй
+  var DEF_SPECIALS = [{ grade: 'ЭЕШ', price: 19800 }, { grade: 'Олимпиад', price: 19900 }];
+  var DEF_PACKS = [{ months: 1, price: 29700, list: 29700 }, { months: 3, price: 59400, list: 89100 }, { months: 6, price: 118800, list: 178200 }];
+  // «Үнэ ба эрх» цонхны таб (cfg.hub): Анги · ЭЕШ · Олимпиад — тусгай бүлгийн 1 сарын сонголтын түлхүүр
+  var TABS = [['grade', 'Анги'], ['eesh', 'ЭЕШ'], ['olymp', 'Олимпиад']], SPKEY = { 'ЭЕШ': 'e1', 'Олимпиад': 'o1' };
   var DEF_BUNDLES = [{ months: 3, grades: 3, price: 39900 }, { months: 6, grades: 6, price: 69900 }, { months: 12, grades: 'all', price: 119900 }];
   var CLOCK = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2"/><path d="M9.5 2.5h5"/></svg>';
   var GIFT = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12v10H4V12"/><path d="M2 7h20v5H2zM12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>';
@@ -43,6 +47,10 @@
     + '.wpl-tip{display:flex;align-items:center;gap:8px;margin-top:9px;font-size:.8rem;color:#3a2d5e;border:1px dashed #d9ccff;border-radius:11px;padding:7px 9px;text-align:left;line-height:1.4}'
     + '.wpl-tip>span{flex:1;min-width:0}'
     + '.wpl-tip button{flex:none;font-family:inherit;font-weight:800;font-size:.76rem;border:0;border-radius:999px;padding:.38rem .75rem;cursor:pointer;color:#fff;background:linear-gradient(135deg,#7B52EE,#A855F7)}'
+    + '.wpl-tabs{display:flex;gap:4px;background:#f4efff;border-radius:12px;padding:4px;margin:0 0 10px}'
+    + '.wpl-tab{flex:1;min-width:0;border:0;background:transparent;font-family:inherit;font-weight:800;font-size:.84rem;color:#7a7390;border-radius:9px;padding:.5rem .3rem;cursor:pointer;margin:0}'
+    + '.wpl-tab[aria-selected="true"]{background:#fff;color:#5a32d6;box-shadow:0 2px 8px -4px rgba(90,50,214,.55)}'
+    + '.wpl-tab[disabled]{opacity:.4;cursor:not-allowed}'
     + '@media (max-width:380px){.wpl-o{padding:.52rem .6rem}.wpl-t{font-size:.9rem}.wpl-p b{font-size:.92rem}.wpl-big{font-size:1.4rem}}';
 
   function fmt(n) { return String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
@@ -68,6 +76,8 @@
     // pct — промо (бүх сонголтод), pctB — багцад (промо ба найзын урилгын их нь; урилга 1 сарын эрхэд хамаарахгүй — сервертэй ижил)
     var S = null, key = cfg.key || null, pct = 0, pctB = 0, picks = {}, timer = null, dead = false, touched = false;
     var grade = cfg.grade || null, pack = cfg.pack || null;
+    function tabOf(k) { return !k ? 'grade' : (/^pack/.test(k) || k === 'e1') ? 'eesh' : k === 'o1' ? 'olymp' : 'grade'; }
+    var tab = tabOf(cfg.lockKey || cfg.key);
     function data(st) {
       st = st || {};
       var per = Number(st.grade_per_month) || 9900;
@@ -81,13 +91,32 @@
       var off = st.offer || { eligible: true, anon: true, days: 7 };
       var until = off.until ? Date.parse(off.until) : 0;
       var pick = (st.pick_list && st.pick_list.length) ? st.pick_list.slice() : DEF_PICK.slice();
-      return { per: per, gm: Number(st.grade_month_price) || per, list: list, pick: pick, bundles: bundles, eligible: !!off.eligible, anon: !!off.anon, customer: !!off.customer, until: until,
+      var specials = (st.specials && st.specials.length) ? st.specials : DEF_SPECIALS;
+      var packs = (st.packs && st.packs.length) ? st.packs : (st.pack && st.pack.packs && st.pack.packs.length) ? st.pack.packs : DEF_PACKS;
+      return { per: per, gm: Number(st.grade_month_price) || per, list: list, pick: pick, specials: specials, packs: packs, bundles: bundles, eligible: !!off.eligible, anon: !!off.anon, customer: !!off.customer, until: until,
         days: off.days || 7, skew: st.server_now ? Number(st.server_now) - Date.now() : 0 };
     }
     function left() { return S.until ? S.until - (Date.now() + S.skew) : 0; }
     // Хямдрал: нэвтрээгүй (шинэ бүртгэлд), худалдан авч байсан хэрэглэгч (тоолуургүй), шинэ хэрэглэгч (7 хоногийн тоолуур дуустал)
     function on() { return S.eligible && (S.anon || S.customer || left() > 0); }
+    function packOpts(list) {
+      return list.map(function (p) { return { k: 'pack' + p.months, months: p.months, count: 1, list: Math.max(p.list || 0, p.price), price: p.price, pack: true }; });
+    }
+    function bundleOpts() {
+      return S.bundles.map(function (b) { return { k: 'm' + b.months, months: b.months, count: b.count, all: b.all, list: b.list, price: on() ? Math.min(b.price, b.list) : b.list }; });
+    }
+    function specOpt(g) {
+      var sp = S.specials.filter(function (x) { return x.grade === g; })[0];
+      return sp ? [{ k: SPKEY[g], months: 1, count: 1, list: sp.price, price: sp.price, special: g }] : [];
+    }
+    function hubOpts() {                                    // «Үнэ ба эрх»: таб бүрийн сонголт (12 сар · бүх анги хоёуланд нь)
+      var b = bundleOpts(), m12 = b.filter(function (x) { return x.all; });
+      if (tab === 'eesh') return specOpt('ЭЕШ').concat(packOpts(S.packs), m12);
+      if (tab === 'olymp') return specOpt('Олимпиад').concat(m12);
+      return [{ k: 'm1', months: 1, count: 1, list: S.per, price: S.per }].concat(b);
+    }
     function opts() {
+      if (cfg.hub) return hubOpts();
       var m1 = grade ? S.gm : S.per;
       var o = [{ k: 'm1', months: 1, count: 1, list: m1, price: m1 }];
       // ЭЕШ багц (ажлын хуудас + ЭЕШ шалгагч) 1/3/6 сар — хуучин сервер packs өгөхгүй бол 1 сар
@@ -117,6 +146,7 @@
     }
     function title(o) {
       if (o.pack) return { t: 'ЭЕШ багц · ' + o.months + ' сар', s: 'ажлын хуудас + ЭЕШ шалгагч' };
+      if (o.special) return { t: '1 сар', s: o.special === 'ЭЕШ' ? 'ЭЕШ ажлын хуудас' : o.special };
       if (o.k === 'm1') return { t: '1 сар', s: grade ? grade : '1 анги сонгоно' };
       if (o.all) return { t: o.months + ' сар', s: 'Бүх анги' };
       return { t: o.months + ' сар', s: o.count + ' анги сонгоно' };
@@ -131,6 +161,13 @@
         + '<span class="wpl-p">' + (disc ? '<s>' + fmt(o.list) + '₮</s>' : '') + '<b>' + fmt(o.price) + '₮</b></span>'
         + (disc ? '<span class="wpl-u">' + (o.pack ? 'сард ' : '1 анги сард ') + fmt(unit(o)) + '₮ · −' + off + '%</span>' : '')
         + '</button>';
+    }
+    function tabsHtml() {
+      if (!cfg.hub) return '';
+      return '<div class="wpl-tabs" role="tablist">' + TABS.map(function (t) {
+        var lock = cfg.lockKey && tabOf(cfg.lockKey) !== t[0];
+        return '<button type="button" role="tab" class="wpl-tab" data-tab="' + t[0] + '" aria-selected="' + (tab === t[0] ? 'true' : 'false') + '"' + (lock ? ' disabled' : '') + '>' + t[1] + '</button>';
+      }).join('') + '</div>';
     }
     function offHtml() {
       if (!on()) return '';
@@ -158,7 +195,7 @@
     function sumHtml() {
       var o = find(key); if (!o) return '';
       var p = pctOf(o), base = o.price, fin = p > 0 ? Math.round(base * (100 - p) / 100) : base;
-      var per = o.k === 'm1' ? '1 сар' : o.pack ? o.months + ' сар · ЭЕШ багц' : o.months + ' сар · ' + (o.all ? 'бүх анги' : o.count + ' анги');
+      var per = o.special ? '1 сар · ' + o.special : o.k === 'm1' ? '1 сар' : o.pack ? o.months + ' сар · ЭЕШ багц' : o.months + ' сар · ' + (o.all ? 'бүх анги' : o.count + ' анги');
       var save = o.list - fin;
       return '<div class="wpl-sum"><div class="wpl-big">' + (p > 0 ? '<s>' + fmt(base) + '₮</s> ' : '') + fmt(fin) + '₮ <small>/ ' + per + '</small>'
         + (p > 0 ? ' <span class="wpl-pct">-' + p + '%</span>' : '') + '</div>'
@@ -167,9 +204,9 @@
     function tipHtml() {
       var o = find(key); if (!o) return '';
       var nx = null;
-      if (pack) nx = find({ m1: 'pack3', pack1: 'pack3', pack3: 'pack6' }[o.k]);
+      if (pack || (cfg.hub && tab === 'eesh')) nx = find({ m1: 'pack3', e1: 'pack3', pack1: 'pack3', pack3: 'pack6' }[o.k]);
       else {                                                  // дараагийн байгаа багц (Олимпиад хуудсанд 1 сар → 12 сар)
-        var order = ['m1', 'm3', 'm6', 'm12'], i = order.indexOf(o.k);
+        var order = (cfg.hub && tab === 'olymp') ? ['o1', 'm12'] : ['m1', 'm3', 'm6', 'm12'], i = order.indexOf(o.k);
         for (var j = i + 1; i >= 0 && j < order.length && !nx; j++) nx = find(order[j]);
       }
       if (nx && !nx.pack && !on()) nx = null;                 // анги/бүх ангийн багц — хямдралгүй бол санал болгохгүй
@@ -192,7 +229,7 @@
       var ae = document.activeElement, fk = null;
       if (ae && root.contains && root.contains(ae)) fk = ae.getAttribute('data-k') ? '[data-k="' + ae.getAttribute('data-k') + '"]'
         : ae.getAttribute('data-g') ? '[data-g="' + esc(ae.getAttribute('data-g')) + '"]' : null;
-      root.innerHTML = '<div class="wpl">' + offHtml() + '<div class="wpl-list">' + o.map(function (x) { return optHtml(x, b && b.k); }).join('') + '</div>'
+      root.innerHTML = '<div class="wpl">' + tabsHtml() + offHtml() + '<div class="wpl-list">' + o.map(function (x) { return optHtml(x, b && b.k); }).join('') + '</div>'
         + pickHtml() + sumHtml() + tipHtml() + '</div>';
       [].forEach.call(root.querySelectorAll('.wpl-o'), function (el) {
         el.onclick = function () { if (el.disabled) return; touched = true; key = el.getAttribute('data-k'); render(); fire(); };
@@ -204,6 +241,13 @@
           var g = el.getAttribute('data-g'), arr = picked(key), i = arr.indexOf(g);
           if (i >= 0) arr.splice(i, 1); else if (arr.length < need(key)) arr.push(g);
           render(); fire();
+        };
+      });
+      [].forEach.call(root.querySelectorAll('.wpl-tab'), function (el) {
+        el.onclick = function () {
+          if (el.disabled || cfg.lockKey) return;
+          var t = el.getAttribute('data-tab'); if (t === tab) return;
+          touched = true; tab = t; key = null; render(); fire();   // тухайн табын эхний сонголт
         };
       });
       var go = root.querySelector('[data-go]');
@@ -222,13 +266,13 @@
         if (cd) cd.textContent = cdText(left());
       }, 1000);
     }
-    function pctOf(o) { return o.pack ? 0 : o.k === 'm1' ? pct : pctB; }
+    function pctOf(o) { return o.pack ? 0 : (o.k === 'm1' || o.special) ? pct : pctB; }
     function sel() {
       var o = find(key) || {};
       var n = need(key), arr = (key === 'm3' || key === 'm6' || (key === 'm1' && !grade)) ? picked(key).slice() : [];
       var p = o.k ? pctOf(o) : 0;
-      return { key: key, months: o.months || 1, plan: o.pack ? 'eeshpack' : key === 'm1' ? 'wsgrade' : 'wsbundle',
-        grade: key === 'm1' ? (grade || arr[0] || null) : null, grades: (key === 'm3' || key === 'm6') ? arr : null,
+      return { key: key, months: o.months || 1, plan: o.pack ? 'eeshpack' : (key === 'm1' || o.special) ? 'wsgrade' : 'wsbundle',
+        grade: o.special ? o.special : key === 'm1' ? (grade || arr[0] || null) : null, grades: (key === 'm3' || key === 'm6') ? arr : null,
         all: !!o.all, count: o.count || 1, list: o.list || 0, base: o.price || 0,
         price: p > 0 ? Math.round((o.price || 0) * (100 - p) / 100) : (o.price || 0),
         need: n, have: arr.length, ready: !!o.k && (!n || arr.length === n), discount: on() && o.list > o.price };

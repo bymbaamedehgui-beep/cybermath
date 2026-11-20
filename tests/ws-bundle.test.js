@@ -336,3 +336,16 @@ test('Олимпиад: сард 19,900₮ (ЭЕШ шиг тусгай үнэ); 
   r = await Q('wsstatus', { wstoken: wsTok('b@x.mn'), slug: 'olimpiad-3.html' });
   assert.deepStrictEqual([r.body.active, r.body.scope], [true, 'all'], 'бүх ангийн эрх Олимпиадыг нээнэ');
 });
+
+test('«Үнэ ба эрх»: wsprices / wsstatus — тусгай бүлэг (ЭЕШ 19,800, Олимпиад 19,900) ба ЭЕШ багц 1/3/6', async () => {
+  let r = await Q('wsprices', {});
+  const sp = {}; r.body.specials.forEach((x) => { sp[x.grade] = x.price; });
+  assert.deepStrictEqual([r.body.specials.length, sp['ЭЕШ'], sp['Олимпиад']], [2, 19800, 19900]);
+  assert.deepStrictEqual(r.body.packs.map((p) => p.price), [29700, 59400, 118800]);
+  r = await Q('wsstatus', {});
+  assert.deepStrictEqual([r.body.specials.length, r.body.packs.length], [2, 3], 'зочин');
+  reg('a@x.mn', 1);
+  r = await Q('wsstatus', { wstoken: wsTok('a@x.mn') });
+  assert.deepStrictEqual(r.body.specials.map((x) => x.grade).sort(), ['ЭЕШ', 'Олимпиад'].sort(), 'нэвтэрсэн, хуудасгүй');
+  assert.strictEqual(r.body.packs[2].months, 6);
+});
