@@ -7,7 +7,7 @@
 (function () {
   if (window.WSPLANS) return;
   var DEF_GRADES = ['2-р анги', '3-р анги', '4-р анги', '5-р анги', '6-р анги', '7-р анги', '8-р анги', '9-р анги', '10-р анги', '11-р анги', '12-р анги', 'ЭЕШ', 'Олимпиад'];
-  var DEF_PICK = DEF_GRADES.filter(function (g) { return g !== 'ЭЕШ'; });
+  var DEF_PICK = DEF_GRADES.filter(function (g) { return g !== 'ЭЕШ' && g !== 'Олимпиад'; });   // тусгай үнэтэй бүлэг багцад орохгүй
   var DEF_BUNDLES = [{ months: 3, grades: 3, price: 39900 }, { months: 6, grades: 6, price: 69900 }, { months: 12, grades: 'all', price: 119900 }];
   var CLOCK = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2"/><path d="M9.5 2.5h5"/></svg>';
   var GIFT = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12v10H4V12"/><path d="M2 7h20v5H2zM12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>';
@@ -49,7 +49,7 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function short(g) { return String(g).replace(/ анги$/, ''); }
   // "6-р анги" → "6-р ангийн", "ЭЕШ" → "ЭЕШ-ийн" (харьяалахын тийн ялгал)
-  function gGen(g) { g = String(g || ''); if (/анги$/.test(g)) return g.replace(/анги$/, 'ангийн'); if (/хэл$/.test(g)) return g + 'ний'; return g ? g + '-ийн' : g; }
+  function gGen(g) { g = String(g || ''); if (/анги$/.test(g)) return g.replace(/анги$/, 'ангийн'); if (/хэл$/.test(g)) return g + 'ний'; if (g === 'Олимпиад') return 'Олимпиадын'; return g ? g + '-ийн' : g; }
   function injectCss() {
     if (document.getElementById('wpl-css')) return;
     var st = document.createElement('style'); st.id = 'wpl-css'; st.textContent = CSS;
@@ -99,8 +99,8 @@
       });
       // Ажлын хуудас ангигүй (каталог/богино замаар тодорхойгүй) — ангиар авсан эрх тэр хуудсыг нээхгүй тул зөвхөн бүх анги
       if (cfg.page && !grade) o = o.filter(function (x) { return x.all; });
-      // ЭЕШ хуудас: 3/6 сарын багцад ЭЕШ сонгогдохгүй (тэр хуудсыг нээхгүй) — ЭЕШ багц ба 12 сар (бүх анги) үлдэнэ
-      else if (pack) o = o.filter(function (x) { return x.k !== 'm3' && x.k !== 'm6'; });
+      // Тусгай үнэтэй бүлгийн хуудас (ЭЕШ, Олимпиад): 3/6 сарын багцад сонгогдохгүй (тэр хуудсыг нээхгүй) — 1 сар, ЭЕШ багц, 12 сар үлдэнэ
+      else if (grade && S.pick.indexOf(grade) < 0) o = o.filter(function (x) { return x.k !== 'm3' && x.k !== 'm6'; });
       return o;
     }
     function find(k) { var o = opts(); for (var i = 0; i < o.length; i++) if (o[i].k === k) return o[i]; return null; }
@@ -166,8 +166,12 @@
     }
     function tipHtml() {
       var o = find(key); if (!o) return '';
-      var eesh = !!pack, ladder = eesh ? { m1: 'pack3', pack1: 'pack3', pack3: 'pack6' } : { m1: 'm3', m3: 'm6', m6: 'm12' };
-      var nx = find(ladder[o.k]);
+      var nx = null;
+      if (pack) nx = find({ m1: 'pack3', pack1: 'pack3', pack3: 'pack6' }[o.k]);
+      else {                                                  // дараагийн байгаа багц (Олимпиад хуудсанд 1 сар → 12 сар)
+        var order = ['m1', 'm3', 'm6', 'm12'], i = order.indexOf(o.k);
+        for (var j = i + 1; i >= 0 && j < order.length && !nx; j++) nx = find(order[j]);
+      }
       if (nx && !nx.pack && !on()) nx = null;                 // анги/бүх ангийн багц — хямдралгүй бол санал болгохгүй
       if (!nx) {
         if (o.k === 'm12' && on()) return '<div class="wpl-tip"><span>Хамгийн ашигтай сонголт: нэг анги сард <b>' + fmt(unit(o)) + '₮</b></span></div>';

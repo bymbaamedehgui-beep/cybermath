@@ -1064,3 +1064,24 @@ test('ws-plans: ЭЕШ хуудас — 1 сар 19,800₮, ЭЕШ багц 1/3/
   const cr = P.log.filter((x) => x.action === 'create').pop();
   assert.deepStrictEqual(JSON.parse(JSON.stringify(cr.body)), { wstoken: TOK, plan: 'eeshpack', months: 3 });
 });
+
+test('ws-plans: Олимпиад хуудас — 1 сар 19,900₮ ба 12 сар · бүх анги (3/6 сарын ангийн багц алга); зөвлөмж 12 сар руу', async () => {
+  const OL = { grade: 'Олимпиад', grade_month_price: 19900,
+    pick_list: ['2-р анги', '3-р анги', '4-р анги', '5-р анги', '6-р анги', '7-р анги', '8-р анги', '9-р анги', '10-р анги', '11-р анги', '12-р анги'] };
+  const P = storePage({ slug: 'olimpiad-1.html' });
+  P.srv = () => Object.assign(rTrial(P.C, 300000), OL);
+  P.W.enforcePaywall();
+  await ticks();
+  P.srv = () => Object.assign(rEnded(P.C), rBundles(P.C), OL);
+  P.C.advance(300100);
+  await ticks();
+  const keys = P.$('wsPlan').querySelectorAll('.wpl-o').map((b) => b.getAttribute('data-k'));
+  assert.deepStrictEqual(keys, ['m1', 'm12']);
+  assert.match(optTxt(P, 'm1'), /1 сар.*Олимпиад.*19,900₮/);
+  assert.match(P.$('wsPlan').textContent, /Ердөө \+100,000₮-өөр 12 сар · бүх анги — нэг анги сард 908₮/);
+  assert.match(P.$('wsSubTitle').textContent, /Олимпиадын бүх ажлын хуудсыг 1 сар хязгааргүй/);
+  P.$('wsBuy').click();
+  await ticks();
+  const cr = P.log.filter((x) => x.action === 'create').pop();
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(cr.body)), { wstoken: TOK, plan: 'wsgrade', months: 1, grade: 'Олимпиад', promo: null });
+});

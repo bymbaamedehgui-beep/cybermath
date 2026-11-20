@@ -44,8 +44,16 @@ function wsGradeOk(g) {
   return /^\d{1,2}-р анги$/.test(g);
 }
 function wsGradeMonths(m) { m = parseInt(m, 10); return WS_GRADE_MONTHS.indexOf(m) >= 0 ? m : 1; }
-// Ангийн сарын үнэ: ЭЕШ — EY.eeshMonthPrice() (19,800₮), бусад — WS_GRADE_PER_MONTH (9,900₮)
-function gradeMonthPrice(grade) { return grade === EY.PACK_GRADE ? EY.eeshMonthPrice() : WS_GRADE_PER_MONTH; }
+// Тусгай үнэтэй бүлэг (сарын үнэ): ЭЕШ — EY.eeshMonthPrice() (19,800₮), Олимпиад — 19,900₮ (эзэмшигч 2026-11-20, env
+// OLYMP_MONTH_PRICE). Эдгээр нь 3/6 сарын ангийн багцад сонгогдохгүй (bundlePickList), 12 сарын бүх ангийн багцад багтана.
+const OLYMP_GRADE = 'Олимпиад';
+function olympMonthPrice() {
+  const n = parseInt(process.env.OLYMP_MONTH_PRICE, 10);
+  return Number.isFinite(n) && n >= 100 && n <= 1000000 ? n : 19900;
+}
+function specialMonthPrice(grade) { return grade === EY.PACK_GRADE ? EY.eeshMonthPrice() : grade === OLYMP_GRADE ? olympMonthPrice() : 0; }
+// Ангийн сарын үнэ: тусгай бүлэг — өөрийн үнэ, бусад — WS_GRADE_PER_MONTH (9,900₮)
+function gradeMonthPrice(grade) { return specialMonthPrice(grade) || WS_GRADE_PER_MONTH; }
 function wsGradeBase(months, grade) { return wsGradeMonths(months) * gradeMonthPrice(grade); }
 function wsGradePrice(pct, months, grade) {
   const base = wsGradeBase(months, grade);
@@ -56,8 +64,8 @@ function wsGradePrices(grade) {
   WS_GRADE_MONTHS.forEach(function (m) { o[m] = wsGradeBase(m, grade); });
   return o;
 }
-// 3/6 сарын багцад сонгож болох ангиуд — ЭЕШ-ийг (үнэ нь өөр, ЭЕШ багцаар зарна) оруулахгүй
-function bundlePickList() { return WG.allGrades().filter(function (g) { return g !== EY.PACK_GRADE; }); }
+// 3/6 сарын багцад сонгож болох ангиуд — тусгай үнэтэй бүлгийг (ЭЕШ, Олимпиад) оруулахгүй
+function bundlePickList() { return WG.allGrades().filter(function (g) { return !specialMonthPrice(g); }); }
 // Ажлын хуудсын урамшууллын код (20% хөнгөлөлт). Кодыг env-ээр өөрчилж болно.
 const WS_PROMO_PCT = parseInt(process.env.WS_PROMO_PCT || '20', 10);
 const WS_PROMO_CODES = (process.env.WS_PROMO_CODES || 'BAGSH20,ZUN20,CYBER20')

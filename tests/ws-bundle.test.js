@@ -318,3 +318,21 @@ test('3/6 сарын багцад ЭЕШ сонгож болохгүй (үнэ �
   r = await Q('wsstatus', { wstoken: wsTok('a@x.mn'), slug: 'eesh-2025.html' });
   assert.deepStrictEqual([r.body.active, r.body.scope], [true, 'all'], 'бүх ангийн эрх ЭЕШ хуудсыг нээнэ');
 });
+
+test('Олимпиад: сард 19,900₮ (ЭЕШ шиг тусгай үнэ); 3/6 сарын багцад сонгогдохгүй; 12 сарын бүх анги нээнэ', async () => {
+  reg('a@x.mn', 1);
+  let r = await Q('wsstatus', { wstoken: wsTok('a@x.mn'), slug: 'olimpiad-1.html' });
+  assert.deepStrictEqual([r.body.grade, r.body.grade_month_price, r.body.grade_prices[1], !!r.body.pack], ['Олимпиад', 19900, 19900, false]);
+  assert.ok(r.body.pick_list.indexOf('Олимпиад') < 0 && r.body.pick_list.indexOf('ЭЕШ') < 0 && r.body.pick_list.length === 11, JSON.stringify(r.body.pick_list));
+  r = await Q('create', { wstoken: wsTok('a@x.mn'), plan: 'wsbundle', months: 3, grades: ['Олимпиад', '7-р анги', '8-р анги'] });
+  assert.strictEqual(r.statusCode, 400);
+  const x = await buy('a@x.mn', { plan: 'wsgrade', grade: 'Олимпиад', months: 1 });
+  assert.strictEqual(x.create.amount, 19900);
+  near(daysLeft(grade('a@x.mn', 'Олимпиад').expires_at), 30);
+  r = await Q('wsstatus', { wstoken: wsTok('a@x.mn'), slug: 'olimpiad-2.html' });
+  assert.deepStrictEqual([r.body.active, r.body.scope], [true, 'grade']);
+  reg('b@x.mn', 1);
+  await buy('b@x.mn', { plan: 'wsbundle', months: 12 });
+  r = await Q('wsstatus', { wstoken: wsTok('b@x.mn'), slug: 'olimpiad-3.html' });
+  assert.deepStrictEqual([r.body.active, r.body.scope], [true, 'all'], 'бүх ангийн эрх Олимпиадыг нээнэ');
+});

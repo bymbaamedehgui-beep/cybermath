@@ -395,7 +395,7 @@
     var promoIn=o.querySelector('#wsPromo'),promoBtn=o.querySelector('#wsPromoBtn'),promoMsg=o.querySelector('#wsPromoMsg');
     var subEl=o.querySelector('#wsSubTitle');
     // "6-р анги" → "6-р ангийн", "ЭЕШ" → "ЭЕШ-ийн" (харьяалахын тийн ялгал)
-    function gGen(g){ g=String(g||''); if(/анги$/.test(g))return g.replace(/анги$/,'ангийн'); if(/хэл$/.test(g))return g+'ний'; return g?g+'-ийн':g; }
+    function gGen(g){ g=String(g||''); if(/анги$/.test(g))return g.replace(/анги$/,'ангийн'); if(/хэл$/.test(g))return g+'ний'; if(g==='Олимпиад')return 'Олимпиадын'; return g?g+'-ийн':g; }
     function onPlan(s){
       curSel=s;
       if(subEl)subEl.innerHTML=s.plan==='eeshpack'
