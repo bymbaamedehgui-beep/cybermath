@@ -7,6 +7,7 @@
 (function () {
   if (window.WSPLANS) return;
   var DEF_GRADES = ['2-р анги', '3-р анги', '4-р анги', '5-р анги', '6-р анги', '7-р анги', '8-р анги', '9-р анги', '10-р анги', '11-р анги', '12-р анги', 'ЭЕШ', 'Олимпиад'];
+  var DEF_PICK = DEF_GRADES.filter(function (g) { return g !== 'ЭЕШ'; });
   var DEF_BUNDLES = [{ months: 3, grades: 3, price: 39900 }, { months: 6, grades: 6, price: 69900 }, { months: 12, grades: 'all', price: 119900 }];
   var CLOCK = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2"/><path d="M9.5 2.5h5"/></svg>';
   var GIFT = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12v10H4V12"/><path d="M2 7h20v5H2zM12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>';
@@ -79,27 +80,34 @@
       });
       var off = st.offer || { eligible: true, anon: true, days: 7 };
       var until = off.until ? Date.parse(off.until) : 0;
-      return { per: per, list: list, bundles: bundles, eligible: !!off.eligible, anon: !!off.anon, customer: !!off.customer, until: until,
+      var pick = (st.pick_list && st.pick_list.length) ? st.pick_list.slice() : DEF_PICK.slice();
+      return { per: per, gm: Number(st.grade_month_price) || per, list: list, pick: pick, bundles: bundles, eligible: !!off.eligible, anon: !!off.anon, customer: !!off.customer, until: until,
         days: off.days || 7, skew: st.server_now ? Number(st.server_now) - Date.now() : 0 };
     }
     function left() { return S.until ? S.until - (Date.now() + S.skew) : 0; }
     // Хямдрал: нэвтрээгүй (шинэ бүртгэлд), худалдан авч байсан хэрэглэгч (тоолуургүй), шинэ хэрэглэгч (7 хоногийн тоолуур дуустал)
     function on() { return S.eligible && (S.anon || S.customer || left() > 0); }
     function opts() {
-      var o = [{ k: 'm1', months: 1, count: 1, list: S.per, price: S.per }];
-      if (pack) o.push({ k: 'pack', months: 1, count: 1, list: pack.price, price: pack.price, pack: true });
+      var m1 = grade ? S.gm : S.per;
+      var o = [{ k: 'm1', months: 1, count: 1, list: m1, price: m1 }];
+      // ЭЕШ багц (ажлын хуудас + ЭЕШ шалгагч) 1/3/6 сар — хуучин сервер packs өгөхгүй бол 1 сар
+      if (pack) (pack.packs && pack.packs.length ? pack.packs : [{ months: 1, price: pack.price, list: pack.price }]).forEach(function (p) {
+        o.push({ k: 'pack' + p.months, months: p.months, count: 1, list: Math.max(p.list || 0, p.price), price: p.price, pack: true });
+      });
       S.bundles.forEach(function (b) {
         o.push({ k: 'm' + b.months, months: b.months, count: b.count, all: b.all, list: b.list, price: on() ? Math.min(b.price, b.list) : b.list });
       });
       // Ажлын хуудас ангигүй (каталог/богино замаар тодорхойгүй) — ангиар авсан эрх тэр хуудсыг нээхгүй тул зөвхөн бүх анги
       if (cfg.page && !grade) o = o.filter(function (x) { return x.all; });
+      // ЭЕШ хуудас: 3/6 сарын багцад ЭЕШ сонгогдохгүй (тэр хуудсыг нээхгүй) — ЭЕШ багц ба 12 сар (бүх анги) үлдэнэ
+      else if (pack) o = o.filter(function (x) { return x.k !== 'm3' && x.k !== 'm6'; });
       return o;
     }
     function find(k) { var o = opts(); for (var i = 0; i < o.length; i++) if (o[i].k === k) return o[i]; return null; }
     function unit(o) { return o.price / (o.count * o.months); }
     function need(k) { return k === 'm1' ? (grade ? 0 : 1) : (k === 'm3' || k === 'm6') ? (find(k) || {}).count || 0 : 0; }
     function picked(k) {
-      if (!picks[k]) picks[k] = (grade && (k === 'm3' || k === 'm6') && S.list.indexOf(grade) >= 0) ? [grade] : [];
+      if (!picks[k]) picks[k] = (grade && (k === 'm3' || k === 'm6') && S.pick.indexOf(grade) >= 0) ? [grade] : [];
       return picks[k];
     }
     function best() {                                       // нэг анги × нэг сарын хамгийн хямд (9,900-аас хямд) багц
@@ -108,7 +116,7 @@
       return b;
     }
     function title(o) {
-      if (o.pack) return { t: 'ЭЕШ багц', s: 'ажлын хуудас + ЭЕШ шалгагч · 1 сар' };
+      if (o.pack) return { t: 'ЭЕШ багц · ' + o.months + ' сар', s: 'ажлын хуудас + ЭЕШ шалгагч' };
       if (o.k === 'm1') return { t: '1 сар', s: grade ? grade : '1 анги сонгоно' };
       if (o.all) return { t: o.months + ' сар', s: 'Бүх анги' };
       return { t: o.months + ' сар', s: o.count + ' анги сонгоно' };
@@ -121,7 +129,7 @@
         + (bestK === o.k ? '<span class="wpl-best">Хамгийн ашигтай</span>' : '')
         + '<span><span class="wpl-t">' + esc(tt.t) + '</span><span class="wpl-s">' + esc(tt.s) + '</span></span>'
         + '<span class="wpl-p">' + (disc ? '<s>' + fmt(o.list) + '₮</s>' : '') + '<b>' + fmt(o.price) + '₮</b></span>'
-        + (disc && !o.pack ? '<span class="wpl-u">1 анги сард ' + fmt(unit(o)) + '₮ · −' + off + '%</span>' : '')
+        + (disc ? '<span class="wpl-u">' + (o.pack ? 'сард ' : '1 анги сард ') + fmt(unit(o)) + '₮ · −' + off + '%</span>' : '')
         + '</button>';
     }
     function offHtml() {
@@ -137,7 +145,7 @@
       var n = need(key); if (!n) return '';
       var have = picked(key), full = have.length >= n;
       return '<div class="wpl-pick"><div class="wpl-pt"><span>' + n + ' анги сонгоно уу</span><span class="' + (full ? '' : 'wpl-need') + '">' + have.length + '/' + n + '</span></div>'
-        + '<div class="wpl-chips">' + S.list.map(function (g) {
+        + '<div class="wpl-chips">' + S.pick.map(function (g) {
           var on1 = have.indexOf(g) >= 0;
           return '<button type="button" class="wpl-c" data-g="' + esc(g) + '" aria-pressed="' + (on1 ? 'true' : 'false') + '"' + (!on1 && full ? ' disabled' : '') + '>' + esc(short(g)) + '</button>';
         }).join('') + '</div></div>';
@@ -150,19 +158,27 @@
     function sumHtml() {
       var o = find(key); if (!o) return '';
       var p = pctOf(o), base = o.price, fin = p > 0 ? Math.round(base * (100 - p) / 100) : base;
-      var per = o.k === 'm1' ? '1 сар' : o.pack ? '1 сар' : o.months + ' сар · ' + (o.all ? 'бүх анги' : o.count + ' анги');
+      var per = o.k === 'm1' ? '1 сар' : o.pack ? o.months + ' сар · ЭЕШ багц' : o.months + ' сар · ' + (o.all ? 'бүх анги' : o.count + ' анги');
       var save = o.list - fin;
       return '<div class="wpl-sum"><div class="wpl-big">' + (p > 0 ? '<s>' + fmt(base) + '₮</s> ' : '') + fmt(fin) + '₮ <small>/ ' + per + '</small>'
         + (p > 0 ? ' <span class="wpl-pct">-' + p + '%</span>' : '') + '</div>'
-        + (save > 0 && !o.pack ? '<div class="wpl-save">' + fmt(save) + '₮ хэмнэнэ</div>' : '') + '</div>';
+        + (save > 0 ? '<div class="wpl-save">' + fmt(save) + '₮ хэмнэнэ</div>' : '') + '</div>';
     }
     function tipHtml() {
-      var o = find(key); if (!o || o.pack || !on()) return '';
-      var ladder = { m1: 'm3', m3: 'm6', m6: 'm12' }, nx = find(ladder[o.k]);
-      if (!nx) return o.k === 'm12' ? '<div class="wpl-tip"><span>Хамгийн ашигтай сонголт: нэг анги сард <b>' + fmt(unit(o)) + '₮</b></span></div>' : '';
+      var o = find(key); if (!o) return '';
+      var eesh = !!pack, ladder = eesh ? { m1: 'pack3', pack1: 'pack3', pack3: 'pack6' } : { m1: 'm3', m3: 'm6', m6: 'm12' };
+      var nx = find(ladder[o.k]);
+      if (nx && !nx.pack && !on()) nx = null;                 // анги/бүх ангийн багц — хямдралгүй бол санал болгохгүй
+      if (!nx) {
+        if (o.k === 'm12' && on()) return '<div class="wpl-tip"><span>Хамгийн ашигтай сонголт: нэг анги сард <b>' + fmt(unit(o)) + '₮</b></span></div>';
+        if (o.pack && o.list > o.price) return '<div class="wpl-tip"><span>ЭЕШ багцын хамгийн ашигтай нь: сард <b>' + fmt(unit(o)) + '₮</b> (ЭЕШ шалгагчтай)</span></div>';
+        return '';
+      }
       var add = nx.price - o.price;
-      return '<div class="wpl-tip"><span>' + (add > 0 ? 'Ердөө <b>+' + fmt(add) + '₮</b>-өөр ' : '') + '<b>' + nx.months + ' сар · ' + (nx.all ? 'бүх анги' : nx.count + ' анги')
-        + '</b> — нэг анги сард ' + fmt(unit(nx)) + '₮</span><button type="button" data-go="' + nx.k + '">Сонгох</button></div>';
+      var what = nx.pack ? 'ЭЕШ багц · ' + nx.months + ' сар' : nx.months + ' сар · ' + (nx.all ? 'бүх анги' : nx.count + ' анги');
+      var per1 = nx.pack ? 'сард ' + fmt(unit(nx)) + '₮, ЭЕШ шалгагчтай' : 'нэг анги сард ' + fmt(unit(nx)) + '₮';
+      return '<div class="wpl-tip"><span>' + (add > 0 ? 'Ердөө <b>+' + fmt(add) + '₮</b>-өөр ' : '') + '<b>' + what
+        + '</b> — ' + per1 + '</span><button type="button" data-go="' + nx.k + '">Сонгох</button></div>';
     }
     function render() {
       if (dead || !S) return;

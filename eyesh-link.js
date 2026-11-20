@@ -483,12 +483,13 @@
       + '<li>Дүн, сэдвээрх тайлан, Excel</li></ul></div>'
       + '<button type="button" class="eyc-go" data-pay>' + ICO.qr + 'QPay-аар төлөх</button>'
       + '<div class="eyc-msg" data-msg></div>'
-      // ЭЕШ багц: ЭЕШ ажлын хуудас + ЭЕШ шалгагч 1 сар нэг төлбөрөөр (api/qpay.js plan='eeshpack') — зөвхөн ЭЕШ хуудсанд (бүлгийн шалгалтад биш)
-      + (S.st.pack_price && !WS ? '<div class="eyc-alt">ЭЕШ багц — ажлын хуудас + шалгагч, 1 сар · <b>' + fmt(S.st.pack_price) + '₮</b> '
-        + '<button type="button" class="eyc-link" data-pack>Багцаар авах</button></div>' : '')
+      // ЭЕШ багц: ЭЕШ ажлын хуудас + ЭЕШ шалгагч 1/3/6 сар нэг төлбөрөөр (api/qpay.js plan='eeshpack') — зөвхөн ЭЕШ хуудсанд (бүлгийн шалгалтад биш)
+      + (packsList().length && !WS ? '<div class="eyc-alt">ЭЕШ багц — ажлын хуудас + шалгагч: ' + packsList().map(function (p) {
+          return '<button type="button" class="eyc-link" data-pack="' + p.months + '">' + p.months + ' сар · ' + fmt(p.price) + '₮</button>';
+        }).join(' · ') + '</div>' : '')
       + '<div class="eyc-alt">eyeshcheck.com-д эрх нь идэвхтэй багш уу? <button type="button" class="eyc-link" data-free' + (canGo ? '' : ' disabled') + '>Шууд нэвтрэх</button></div>';
     a.querySelector('[data-pay]').onclick = function () { pay('eyesh'); };
-    var pk = a.querySelector('[data-pack]'); if (pk) pk.onclick = function () { pay('eeshpack'); };
+    [].forEach.call(a.querySelectorAll('[data-pack]'), function (pk) { pk.onclick = function () { pay('eeshpack', +pk.getAttribute('data-pack') || 1); }; });
     a.querySelector('[data-free]').onclick = go;
   }
   function buildExam() {
@@ -722,24 +723,31 @@
     return '<a class="eyc-bank" href="' + esc(link) + '">' + (okLogo ? '<img alt="" src="' + esc(logo) + '" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'">' : '')
       + '<i' + (okLogo ? ' style="display:none"' : '') + '>' + ICO.bank + '</i><span>' + esc(name) + '</span></a>';
   }
-  // plan: 'eyesh' (ЭЕШ шалгагч) | 'eeshpack' (ЭЕШ багц: ажлын хуудас + шалгагч) — үнийг сервер тогтооно
-  function pay(plan) {
+  // ЭЕШ багцын сонголтууд (api/eyesh.js status.packs: 1/3/6 сар) — хуучин сервер зөвхөн pack_price (1 сар) өгнө
+  function packsList() {
+    var st = S.st || {};
+    if (Array.isArray(st.packs) && st.packs.length) return st.packs.filter(function (p) { return p && p.price > 0 && p.months > 0; });
+    return st.pack_price ? [{ months: 1, price: st.pack_price }] : [];
+  }
+  // plan: 'eyesh' (ЭЕШ шалгагч) | 'eeshpack' (ЭЕШ багц: ажлын хуудас + шалгагч, months 1/3/6) — үнийг сервер тогтооно
+  function pay(plan, months) {
     if (S.busy) return;
     plan = plan === 'eeshpack' ? 'eeshpack' : 'eyesh';
+    months = plan === 'eeshpack' ? (months || 1) : 1;
     S.busy = true; msg('', 'Нэхэмжлэх үүсгэж байна…');
-    post('/api/qpay?action=create', { plan: plan, wstoken: tok() }).then(function (x) {
+    post('/api/qpay?action=create', { plan: plan, wstoken: tok(), months: months }).then(function (x) {
       S.busy = false;
       var d = x.d;
       if (x.s === 401 || d.needLogin) return drawLogin(true);
       if (!d.ok || !d.invoice || !d.invoice.invoice_id) return msg('err', esc(d.error || 'Нэхэмжлэх үүсгэж чадсангүй. Дахин оролдоно уу.'));
-      S.inv = d.invoice; S.invEmail = String(d.email || '').toLowerCase(); S.invPlan = plan;
+      S.inv = d.invoice; S.invEmail = String(d.email || '').toLowerCase(); S.invPlan = plan; S.invMonths = d.months || months;
       drawInvoice(d.amount);
     }).catch(function () { S.busy = false; msg('err', 'Сүлжээний алдаа. Дахин оролдоно уу.'); });
   }
   function drawInvoice(amount) {
     var inv = S.inv, img = typeof inv.qr_image === 'string' ? inv.qr_image.replace(/\s+/g, '') : '';
     var pack = S.invPlan === 'eeshpack';
-    var h = '<div class="eyc-sub">' + (pack ? 'ЭЕШ багц (ажлын хуудас + ЭЕШ шалгагч)' : 'ЭЕШ шалгагч') + ' · 1 сар — <b>'
+    var h = '<div class="eyc-sub">' + (pack ? 'ЭЕШ багц (ажлын хуудас + ЭЕШ шалгагч)' : 'ЭЕШ шалгагч') + ' · ' + (pack ? (S.invMonths || 1) : 1) + ' сар — <b>'
       + fmt(amount || (pack ? S.st && S.st.pack_price : S.st && S.st.price) || 9900) + '₮</b>. Төлбөр баталгаажмагц шалгалтаа үүсгэнэ.</div>'
       + '<div class="eyc-qr"><div class="cap">QPay эсвэл банкны аппаар уншуулж төлнө үү</div>';
     if (img && /^[A-Za-z0-9+\/=]+$/.test(img)) h += '<img class="q" alt="QPay QR" src="data:image/png;base64,' + img + '">';

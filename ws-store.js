@@ -399,7 +399,7 @@
     function onPlan(s){
       curSel=s;
       if(subEl)subEl.innerHTML=s.plan==='eeshpack'
-        ? ('<b>'+esc(gGen(GRADE||'ЭЕШ'))+'</b> бүх ажлын хуудас + <b>ЭЕШ шалгагч</b> (eyeshcheck.com) — хариултын хуудсыг утсаар уншуулж дүгнэнэ')
+        ? ('<b>'+esc(gGen(GRADE||'ЭЕШ'))+'</b> бүх ажлын хуудас + <b>ЭЕШ шалгагч</b> (eyeshcheck.com) '+s.months+' сар — хариултын хуудсыг утсаар уншуулж дүгнэнэ')
         : s.plan==='wsgrade'
         ? ('<b>'+esc(gGen(s.grade||GRADE||''))+'</b> бүх ажлын хуудсыг 1 сар <b>хязгааргүй</b>')
         : s.all ? ('<b>Бүх ангийн</b> ажлын хуудсыг '+s.months+' сар <b>хязгааргүй</b>')

@@ -863,7 +863,8 @@ test('ws-plans: 1 сар · энэ анги / 3·6·12 сарын багц — �
   assert.match(P.$('wsPlan').textContent, /3 анги сонгоно уу1\/3/);
   assert.strictEqual(P.$('wsPlan').querySelector('[data-g="6-р анги"]').getAttribute('aria-pressed'), 'true');
   P.$('wsPlan').querySelector('[data-g="7-р анги"]').click();
-  P.$('wsPlan').querySelector('[data-g="ЭЕШ"]').click();
+  assert.strictEqual(P.$('wsPlan').querySelector('[data-g="ЭЕШ"]'), null, 'ЭЕШ — багцад сонгогдохгүй (ЭЕШ багцаар)');
+  P.$('wsPlan').querySelector('[data-g="8-р анги"]').click();
   assert.match(P.$('wsPlan').textContent, /3\/3/);
   assert.notStrictEqual(P.$('wsPlan').querySelector('[data-g="9-р анги"]').getAttribute('disabled'), null, 'дүүрсэн бол бусад идэвхгүй');
   assert.match(P.$('wsSubTitle').textContent, /Сонгосон 3 ангийн ажлын хуудсыг 3 сар хязгааргүй/);
@@ -872,7 +873,7 @@ test('ws-plans: 1 сар · энэ анги / 3·6·12 сарын багц — �
   P.$('wsBuy').click();
   await ticks();
   const cr = P.log.filter((x) => x.action === 'create').pop();
-  assert.deepStrictEqual(JSON.parse(JSON.stringify(cr.body)), { wstoken: TOK, plan: 'wsbundle', months: 3, grades: ['6-р анги', '7-р анги', 'ЭЕШ'], promo: null });
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(cr.body)), { wstoken: TOK, plan: 'wsbundle', months: 3, grades: ['6-р анги', '7-р анги', '8-р анги'], promo: null });
 });
 
 test('ws-plans: анги дутуу бол нэхэмжлэх үүсгэхгүй; 12 сар — сонголтгүй; промо хувь; тоолуур 0 → жинхэнэ үнэ, тэмдэг алга', async () => {
@@ -1033,4 +1034,33 @@ test('сануулга: бүх ангийн эрх илүү удаан үргэ�
   const R = storePage({ srv: () => all(R.C) });
   R.W.enforcePaywall(); await ticks();
   assert.match(R.$('cmRemind').textContent, /Бүх анги — .* \(2 хоногийн дараа\)/, 'бүх ангийн эрх дуусах — сануулна');
+});
+
+test('ws-plans: ЭЕШ хуудас — 1 сар 19,800₮, ЭЕШ багц 1/3/6 сар (зурсан үнэ, сард 19,800₮), 12 сар; 3/6 сарын ангийн багц алга', async () => {
+  const EESH = (C) => ({ grade: 'ЭЕШ', grade_month_price: 19800,
+    pick_list: ['2-р анги', '3-р анги', '4-р анги', '5-р анги', '6-р анги', '7-р анги', '8-р анги', '9-р анги', '10-р анги', '11-р анги', '12-р анги', 'Олимпиад'],
+    pack: { price: 29700, days: 30, eyesh_price: 9900, packs: [{ months: 1, price: 29700, list: 29700, days: 30 }, { months: 3, price: 59400, list: 89100, days: 90 }, { months: 6, price: 118800, list: 178200, days: 180 }] } });
+  const P = storePage({ slug: 'eesh-2025.html' });
+  P.srv = () => Object.assign(rTrial(P.C, 300000), EESH(P.C));
+  P.W.enforcePaywall();
+  await ticks();
+  P.srv = () => Object.assign(rEnded(P.C), rBundles(P.C), EESH(P.C));
+  P.C.advance(300100);
+  await ticks();
+  const keys = P.$('wsPlan').querySelectorAll('.wpl-o').map((b) => b.getAttribute('data-k'));
+  assert.deepStrictEqual(keys, ['m1', 'pack1', 'pack3', 'pack6', 'm12']);
+  assert.match(optTxt(P, 'm1'), /1 сар.*ЭЕШ.*19,800₮/);
+  assert.match(optTxt(P, 'pack1'), /ЭЕШ багц · 1 сар.*ажлын хуудас \+ ЭЕШ шалгагч.*29,700₮/);
+  assert.doesNotMatch(optTxt(P, 'pack1'), /−/, '1 сарын багц — хямдралгүй');
+  assert.match(optTxt(P, 'pack3'), /ЭЕШ багц · 3 сар.*89,100₮.*59,400₮.*сард 19,800₮ · −33%/);
+  assert.match(optTxt(P, 'pack6'), /178,200₮.*118,800₮.*сард 19,800₮ · −33%/);
+  assert.match(P.$('wsPlan').textContent, /Ердөө \+39,600₮-өөр ЭЕШ багц · 3 сар — сард 19,800₮, ЭЕШ шалгагчтай/, '1 сараас 3 сарын ЭЕШ багц руу');
+  P.$('wsPlan').querySelector('[data-k="pack3"]').click();
+  assert.strictEqual(P.$('wsPromo').parentNode.style.display, 'none', 'ЭЕШ багцад промо хамаарахгүй');
+  assert.match(P.$('wsSubTitle').textContent, /ЭЕШ шалгагч \(eyeshcheck\.com\) 3 сар/);
+  assert.match(P.$('wsPlan').querySelector('.wpl-sum').textContent, /59,400₮ \/ 3 сар · ЭЕШ багц29,700₮ хэмнэнэ/);
+  P.$('wsBuy').click();
+  await ticks();
+  const cr = P.log.filter((x) => x.action === 'create').pop();
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(cr.body)), { wstoken: TOK, plan: 'eeshpack', months: 3 });
 });

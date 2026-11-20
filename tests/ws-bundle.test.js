@@ -266,3 +266,55 @@ test('ЭЕШ багц: ажлын хуудасны хэсэг ч үлдсэн х
   assert.strictEqual(c.body.paid, true, JSON.stringify(c.body));
   near(daysLeft(grade('a@x.mn', 'ЭЕШ').expires_at), 32, '2 + 30');
 });
+
+// ── ЭЕШ (эзэмшигч 2026-11-20): ажлын хуудас 1 сар 19,800; ЭЕШ багц (+ ЭЕШ шалгагч) 1/3/6 сар 29,700 / 59,400 / 118,800 ──
+test('ЭЕШ: ажлын хуудас 1 сар 19,800₮ (бусад анги 9,900); wsstatus — сарын үнэ, багцууд, сонгох ангиуд ЭЕШ-гүй', async () => {
+  reg('a@x.mn', 1);
+  let r = await Q('wsstatus', { wstoken: wsTok('a@x.mn'), slug: 'eesh-2025.html' });
+  assert.deepStrictEqual([r.body.grade, r.body.grade_month_price, r.body.grade_prices[1], r.body.grade_prices[3]], ['ЭЕШ', 19800, 19800, 59400]);
+  assert.deepStrictEqual(r.body.pack.packs.map((p) => [p.months, p.price, p.list, p.days]), [[1, 29700, 29700, 30], [3, 59400, 89100, 90], [6, 118800, 178200, 180]]);
+  assert.ok(r.body.pick_list.indexOf('ЭЕШ') < 0 && r.body.pick_list.indexOf('6-р анги') >= 0, 'багцад ЭЕШ сонгогдохгүй');
+  r = await Q('wsstatus', { wstoken: wsTok('a@x.mn'), slug: 'troichlen-zadlal-12.html' });
+  assert.deepStrictEqual([r.body.grade_month_price, r.body.grade_prices[1]], [9900, 9900]);
+  const x = await buy('a@x.mn', { plan: 'wsgrade', grade: 'ЭЕШ', months: 1 });
+  assert.strictEqual(x.create.amount, 19800);
+  near(daysLeft(grade('a@x.mn', 'ЭЕШ').expires_at), 30);
+  assert.deepStrictEqual(F.db.wsPurch.map((p) => [p.amount, p.grade, p.months]), [[19800, 'ЭЕШ', 1]]);
+});
+
+test('ЭЕШ багц 3 сар = 59,400₮ / 6 сар = 118,800₮: ажлын хуудас ба шалгагч хоёулаа 90 / 180 хоног; бүртгэл 2 : 1 харьцаагаар', async () => {
+  reg('a@x.mn', 1);
+  let r = await Q('create', { wstoken: wsTok('a@x.mn'), plan: 'eeshpack', months: 3, amount: 1, promo: 'BAGSH20' });
+  assert.deepStrictEqual([r.statusCode, r.body.amount, r.body.months, r.body.days], [200, 59400, 3, 90], JSON.stringify(r.body));
+  assert.match(F.qp.invoices[0].body.invoice_description, /ЭЕШ багц \(ажлын хуудас \+ ЭЕШ шалгагч\) — 3 сар/);
+  assert.strictEqual(F.db.pay.get(r.body.invoice.invoice_id).months, 3);
+  F.qp.paid.set(r.body.invoice.invoice_id, 59400);
+  let c = await Q('check', { invoice_id: r.body.invoice.invoice_id, email: 'a@x.mn' });
+  assert.strictEqual(c.body.paid, true, JSON.stringify(c.body));
+  near(daysLeft(grade('a@x.mn', 'ЭЕШ').expires_at), 90);
+  near(daysLeft(F.db.eyAccess.get('a@x.mn')), 90);
+  assert.deepStrictEqual(F.db.wsPurch.map((p) => [p.amount, p.months, p.grade]), [[39600, 3, 'ЭЕШ']]);
+  assert.deepStrictEqual(F.db.eyPurch.map((p) => [p.amount, p.days]), [[19800, 90]]);
+  // 6 сар — үлдсэн хоног дээр нэмэгдэнэ
+  r = await Q('create', { wstoken: wsTok('a@x.mn'), plan: 'eeshpack', months: 6 });
+  assert.deepStrictEqual([r.body.amount, r.body.days], [118800, 180]);
+  F.qp.paid.set(r.body.invoice.invoice_id, 118800);
+  c = await Q('check', { invoice_id: r.body.invoice.invoice_id, email: 'a@x.mn' });
+  assert.strictEqual(c.body.paid, true);
+  near(daysLeft(grade('a@x.mn', 'ЭЕШ').expires_at), 270, '90 + 180');
+  near(daysLeft(F.db.eyAccess.get('a@x.mn')), 270);
+  // буруу хугацаа → 1 сар (29,700)
+  r = await Q('create', { wstoken: wsTok('a@x.mn'), plan: 'eeshpack', months: 12 });
+  assert.deepStrictEqual([r.body.amount, r.body.months], [29700, 1]);
+});
+
+test('3/6 сарын багцад ЭЕШ сонгож болохгүй (үнэ нь өөр — ЭЕШ багцаар); 12 сар бүх анги ЭЕШ-тэй хэвээр', async () => {
+  reg('a@x.mn', 1);
+  let r = await Q('create', { wstoken: wsTok('a@x.mn'), plan: 'wsbundle', months: 3, grades: ['ЭЕШ', '11-р анги', '12-р анги'] });
+  assert.strictEqual(r.statusCode, 400);
+  assert.strictEqual(F.qp.invoices.length, 0);
+  const x = await buy('a@x.mn', { plan: 'wsbundle', months: 12 });
+  assert.strictEqual(x.create.amount, 119900);
+  r = await Q('wsstatus', { wstoken: wsTok('a@x.mn'), slug: 'eesh-2025.html' });
+  assert.deepStrictEqual([r.body.active, r.body.scope], [true, 'all'], 'бүх ангийн эрх ЭЕШ хуудсыг нээнэ');
+});

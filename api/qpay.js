@@ -44,16 +44,20 @@ function wsGradeOk(g) {
   return /^\d{1,2}-р анги$/.test(g);
 }
 function wsGradeMonths(m) { m = parseInt(m, 10); return WS_GRADE_MONTHS.indexOf(m) >= 0 ? m : 1; }
-function wsGradeBase(months) { return wsGradeMonths(months) * WS_GRADE_PER_MONTH; }
-function wsGradePrice(pct, months) {
-  const base = wsGradeBase(months);
+// Ангийн сарын үнэ: ЭЕШ — EY.eeshMonthPrice() (19,800₮), бусад — WS_GRADE_PER_MONTH (9,900₮)
+function gradeMonthPrice(grade) { return grade === EY.PACK_GRADE ? EY.eeshMonthPrice() : WS_GRADE_PER_MONTH; }
+function wsGradeBase(months, grade) { return wsGradeMonths(months) * gradeMonthPrice(grade); }
+function wsGradePrice(pct, months, grade) {
+  const base = wsGradeBase(months, grade);
   return pct > 0 ? Math.round(base * (100 - pct) / 100) : base;
 }
-function wsGradePrices() {
+function wsGradePrices(grade) {
   const o = {};
-  WS_GRADE_MONTHS.forEach(function (m) { o[m] = wsGradeBase(m); });
+  WS_GRADE_MONTHS.forEach(function (m) { o[m] = wsGradeBase(m, grade); });
   return o;
 }
+// 3/6 сарын багцад сонгож болох ангиуд — ЭЕШ-ийг (үнэ нь өөр, ЭЕШ багцаар зарна) оруулахгүй
+function bundlePickList() { return WG.allGrades().filter(function (g) { return g !== EY.PACK_GRADE; }); }
 // Ажлын хуудсын урамшууллын код (20% хөнгөлөлт). Кодыг env-ээр өөрчилж болно.
 const WS_PROMO_PCT = parseInt(process.env.WS_PROMO_PCT || '20', 10);
 const WS_PROMO_CODES = (process.env.WS_PROMO_CODES || 'BAGSH20,ZUN20,CYBER20')
@@ -128,7 +132,7 @@ async function logAdminGrant(email, grade, months, note, game) {
          game.game_key, game.realm, days]);
       return;
     }
-    const amt = grade ? wsGradeBase(months) : (wsBasePrice(months) || 0);
+    const amt = grade ? wsGradeBase(months, grade) : (wsBasePrice(months) || 0);
     await pool.query(
       'INSERT INTO ws_admin_grants (email, grade, months, amount, source, note) VALUES ($1,$2,$3,$4,$5,$6)',
       [String(email).trim().toLowerCase(), grade || null, months, amt, 'admin', note || null]);
@@ -604,7 +608,7 @@ async function settleWsTx(row) {
   const days = WG.monthsToDays(row.months);
   // DDL транзакцаас ӨМНӨ (ws_access, ws_grade_access, ws_purchases)
   await ensureWsTable(); await WG.ensureGradeTable(); await ensureWsExtra();
-  const amount = row.amount || (row.grade && !wsRowIsBundle(row) ? wsGradeBase(row.months) : priceFromPct(0, row.months));
+  const amount = row.amount || (row.grade && !wsRowIsBundle(row) ? wsGradeBase(row.months, row.grade) : priceFromPct(0, row.months));
   const ledgerGrade = row.grade || null;                 // багц: «6-р анги + 7-р анги + 8-р анги», бүх анги: NULL
   const client = await pool.connect();
   let claimed = false, exp = null, inserted = false;
@@ -893,16 +897,19 @@ async function settleEyesh(row, email) {
     (ledgerOk ? '' : '\n<b>Анхаар:</b> борлуулалтын бүртгэл (ws_eyesh_purchases) бичигдсэнгүй — ' + escTg(row.invoice_id)));
   return { granted: true, out: { ok: true, paid: true, eyesh: exp } };
 }
-// ЭЕШ багц (plan='eeshpack'): claim + ЭЕШ ажлын хуудас (ws_grade_access 'ЭЕШ', 1 сар) + ЭЕШ шалгагч (ws_eyesh_access +30 хоног)
-// НЭГ транзакцад — хоёулаа олгогдох эсвэл аль нь ч үгүй. Бүртгэл: дүнг хоёр савд хуваана — ws_eyesh_purchases (EYESH_PRICE,
-// дүнгээс хэтрэхгүй) ба ws_purchases (анги 'ЭЕШ', үлдэгдэл), нийлбэр = нэхэмжлэхийн дүн (prem-д орохгүй — NO_PREM_GAME).
+// ЭЕШ багц (plan='eeshpack', 1/3/6 сар = row.months): claim + ЭЕШ ажлын хуудас (ws_grade_access 'ЭЕШ', сар × 30 хоног) + ЭЕШ
+// шалгагч (ws_eyesh_access + сар × 30 хоног) НЭГ транзакцад — хоёулаа олгогдох эсвэл аль нь ч үгүй. Бүртгэл: дүнг хоёр савд
+// жинхэнэ үнийн харьцаагаар хуваана (шалгагч 9,900 : ажлын хуудас 19,800 → 1 сар 9,900 + 19,800), нийлбэр = нэхэмжлэхийн дүн
+// (prem-д орохгүй — NO_PREM_GAME).
 // Бүртгэл SAVEPOINT-оор тусгаарлагдана (мөнгө авсан тул эрх олгогдоно, дутсаныг Telegram-аар мэдэгдэнэ).
 const PACK_WS_SQL = `INSERT INTO ws_purchases (email, amount, promo, invoice_id, months, grade) VALUES ($1,$2,$3,$4,$5,$6)
      ON CONFLICT (invoice_id) DO NOTHING RETURNING id`;
 async function settleEeshPack(row, email) {
   // DDL транзакцаас ӨМНӨ (ws_purchases, ws_grade_access, ЭЕШ шалгагчийн хүснэгтүүд)
   await EY.ensure(); await WG.ensureGradeTable(); await ensureWsExtra();
-  const amount = row.amount | 0, eyAmt = Math.min(EY.eyeshPrice(), amount), wsAmt = amount - eyAmt;
+  const months = EY.packMonths(row.months), eyDays = EY.EYESH_DAYS * months;
+  const eyP = EY.eyeshPrice(), wsP = EY.eeshMonthPrice();
+  const amount = row.amount | 0, eyAmt = Math.min(amount, Math.round(amount * eyP / (eyP + wsP))), wsAmt = amount - eyAmt;
   const client = await pool.connect();
   let claimed = false, wsExp = null, eyExp = null, ledgerOk = true;
   try {
@@ -910,12 +917,12 @@ async function settleEeshPack(row, email) {
     claimed = await claimPending('pay_pending', row.invoice_id, client);
     if (claimed) {
       // ажлын хуудасны хэсэг ч одоогийн хугацаан ДЭЭР нэмэгдэнэ (сунгах цонхноос авахад үлдсэн хоног алдагдахгүй)
-      wsExp = new Date((await WG.extendGrades(email, [EY.PACK_GRADE], WG.monthsToDays(1), client))[0].expires_at).toISOString();
-      eyExp = await EY.grant(email, EY.EYESH_DAYS, client);
+      wsExp = new Date((await WG.extendGrades(email, [EY.PACK_GRADE], WG.monthsToDays(months), client))[0].expires_at).toISOString();
+      eyExp = await EY.grant(email, eyDays, client);
       await client.query('SAVEPOINT pack_ledger');
       try {
-        await client.query(PACK_WS_SQL, [email, wsAmt, null, row.invoice_id, 1, EY.PACK_GRADE]);
-        await EY.record({ invoice_id: row.invoice_id, email: email, amount: eyAmt, days: EY.EYESH_DAYS }, client);
+        await client.query(PACK_WS_SQL, [email, wsAmt, null, row.invoice_id, months, EY.PACK_GRADE]);
+        await EY.record({ invoice_id: row.invoice_id, email: email, amount: eyAmt, days: eyDays }, client);
         await client.query('RELEASE SAVEPOINT pack_ledger');
       } catch (e) {
         ledgerOk = false;
@@ -940,7 +947,7 @@ async function settleEeshPack(row, email) {
     } catch (e) { console.error('[eeshpack grade expiry]', e.message); }
     return { granted: false, out: { ok: true, paid: true, grade: EY.PACK_GRADE, expiry: ws, eyesh: ey } };
   }
-  await notifyTelegram('<b>ЭЕШ багц худалдан авлаа</b>\n' + escTg(email) + '\n' + escTg(amount) + '₮ · ажлын хуудас ' +
+  await notifyTelegram('<b>ЭЕШ багц худалдан авлаа</b> (' + months + ' сар)\n' + escTg(email) + '\n' + escTg(amount) + '₮ · ажлын хуудас ' +
     wsExp.slice(0, 10) + ' хүртэл · ЭЕШ шалгагч ' + eyExp.slice(0, 10) + ' хүртэл' +
     (ledgerOk ? '' : '\n<b>Анхаар:</b> борлуулалтын бүртгэл (ws_purchases, ws_eyesh_purchases) бичигдсэнгүй — ' + escTg(row.invoice_id)));
   return { granted: true, out: { ok: true, paid: true, grade: EY.PACK_GRADE, expiry: wsExp, eyesh: eyExp } };
@@ -1133,7 +1140,8 @@ module.exports = async (req, res) => {
       const isGamePlan = plan === 'game';
       const isPptPlan = plan === 'ppt';
       const isEyeshPlan = plan === 'eyesh';
-      const isPackPlan = plan === 'eeshpack';   // ЭЕШ багц: ЭЕШ ажлын хуудас 1 сар + ЭЕШ шалгагч 30 хоног
+      const isPackPlan = plan === 'eeshpack';   // ЭЕШ багц: ЭЕШ ажлын хуудас + ЭЕШ шалгагч, 1/3/6 сар (api/_eyesh.js packPrice)
+      const packM = isPackPlan ? EY.packMonths((req.body || {}).months) : 1;
       const isSolPlan = plan === 'solppt';      // Бодолтын PPT: ЭЕШ ажлын хуудасны тухайн бодлогын багц, нэг удаа
       let email;
       let pptIds = null;
@@ -1225,7 +1233,7 @@ module.exports = async (req, res) => {
         if (!(await rateLimit('eyesh_inv:' + email.slice(0, 254), 20, 600)))
           return res.status(429).json({ ok: false, error: 'Хэт олон оролдлого. Түр хүлээгээд дахин оролдоно уу.' });
       } else if (isPackPlan) {
-        // ЭЕШ багц — зөвхөн Дасгалын төвийн нэвтэрсэн данс (ws токен). Үнэ = EESH_PACK_PRICE (серверт), 1 сар; промо хамаарахгүй.
+        // ЭЕШ багц — зөвхөн Дасгалын төвийн нэвтэрсэн данс (ws токен). Үнэ = EY.packPrice(1/3/6 сар) (серверт); промо хамаарахгүй.
         // Каталогт «ЭЕШ» бүлэг байхгүй бол (олгож чадахгүй эрхэнд) мөнгө авахгүй.
         email = GM.normEmail(emailFromToken((req.body || {}).wstoken));
         if (!email) return res.status(401).json({ ok: false, needLogin: true, error: 'Худалдан авахын тулд эхлээд нэвтэрнэ үү.' });
@@ -1266,7 +1274,7 @@ module.exports = async (req, res) => {
         if (!bd) return res.status(400).json({ ok: false, error: 'Багц буруу байна' });
         wsMonths = bd.months;
         if (bd.grades) {
-          bundleGrades = OF.normGrades((req.body || {}).grades, bd.grades, WG.allGrades());
+          bundleGrades = OF.normGrades((req.body || {}).grades, bd.grades, bundlePickList());
           if (!bundleGrades) return res.status(400).json({ ok: false, needGrades: bd.grades, error: bd.grades + ' анги сонгоно уу' });
         }
       }
@@ -1304,7 +1312,7 @@ module.exports = async (req, res) => {
       const desc = isPptPlan ? `CyberMath слайд хичээл — ${pptIds.length} ш — 1 сар`
                  : isSolPlan ? `CyberMath бодолтын PPT — ${solRef.title || solRef.slug}`.slice(0, 100)
                  : isEyeshPlan ? 'CyberMath ЭЕШ шалгагч — 1 сар'
-                 : isPackPlan ? 'CyberMath ЭЕШ багц (ажлын хуудас + ЭЕШ шалгагч) — 1 сар'
+                 : isPackPlan ? 'CyberMath ЭЕШ багц (ажлын хуудас + ЭЕШ шалгагч) — ' + packM + ' сар'
                  : isGamePlan ? `CyberMath тоглоом — ${GM.GAMES[gameKey].title}${gameGrade ? ' — ' + gameGrade + '-р анги' : ''} — 1 сар`.slice(0, 100)
                  : wgGrade != null ? `CyberMath ${wgGrade} — ${wgMonths} сар`.slice(0, 100)
                  : bundleGrades ? `CyberMath ${wsMonths} сарын багц — ${bundleGrades.join(', ')}`.slice(0, 100)
@@ -1334,7 +1342,7 @@ module.exports = async (req, res) => {
         invAmount = pct > 0 ? Math.round(base * (100 - pct) / 100) : base;
       } else if (wgGrade != null) {
         const pi = await resolvePromo((req.body || {}).promo);
-        invAmount = wsGradePrice(pi.pct, wgMonths);
+        invAmount = wsGradePrice(pi.pct, wgMonths, wgGrade);   // ЭЕШ — сард 19,800₮
       } else if (plan === 'event') {
         invAmount = eventPrice;
       } else if (isGamePlan) {
@@ -1346,7 +1354,7 @@ module.exports = async (req, res) => {
       } else if (isEyeshPlan) {
         invAmount = EY.eyeshPrice();                 // 1 сар; промо хамаарахгүй
       } else if (isPackPlan) {
-        invAmount = EY.packPrice();                  // 1 сар; промо хамаарахгүй
+        invAmount = EY.packPrice(packM);             // 1/3/6 сар; промо хамаарахгүй
       }
 
       const token = await getToken();
@@ -1403,7 +1411,7 @@ module.exports = async (req, res) => {
             await pool.query(
               `INSERT INTO pay_pending (invoice_id, email, plan, months, amount, event_id) VALUES ($1,$2,$3,$4,$5,$6)
                ON CONFLICT (invoice_id) DO NOTHING`,
-              [invoice.invoice_id, emailLc, 'eeshpack', 1, invAmount, null]);
+              [invoice.invoice_id, emailLc, 'eeshpack', packM, invAmount, null]);
           } else if (isGamePlan) {
             await ensurePayPending();
             await pool.query(
@@ -1435,7 +1443,7 @@ module.exports = async (req, res) => {
       if (isPptPlan) return res.json({ ok: true, invoice, email: emailLc, ids: pptIds, amount: invAmount });
       if (isSolPlan) return res.json({ ok: true, invoice, email: emailLc, amount: invAmount, sol: { slug: solRef.slug, seed: solRef.seed } });
       if (isEyeshPlan) return res.json({ ok: true, invoice, email: emailLc, amount: invAmount, days: EY.EYESH_DAYS });
-      if (isPackPlan) return res.json({ ok: true, invoice, email: emailLc, amount: invAmount, days: EY.EYESH_DAYS, grade: EY.PACK_GRADE });
+      if (isPackPlan) return res.json({ ok: true, invoice, email: emailLc, amount: invAmount, days: EY.EYESH_DAYS * packM, months: packM, grade: EY.PACK_GRADE });
       if (isWsPlan) return res.json({ ok: true, invoice, email: emailLc, amount: invAmount, offer: wsMonths != null ? offerOn : undefined,
         months: wsMonths != null ? wsMonths : wgMonths, grades: bundleGrades || undefined });
       return res.json({ ok: true, invoice });
@@ -1522,8 +1530,9 @@ module.exports = async (req, res) => {
       // bundles — шинэ бүртгэлийн (хямдралтай) харагдац; нэвтэрсэн дансны бодит үнийг wsstatus өгнө
       return res.json({ ok: true, prices: WS_PRICES, months: WS_MONTHS,
         grade_prices: wsGradePrices(), grade_months: WS_GRADE_MONTHS,
-        grade_per_month: WS_GRADE_PER_MONTH, grades: WG.allGrades(), pack_price: EY.packPrice(),
-        bundles: OF.view(true, WG.allGrades()), offer_days: OF.OFFER_DAYS });
+        grade_per_month: WS_GRADE_PER_MONTH, grades: WG.allGrades(), pack_price: EY.packPrice(1),
+        bundles: OF.view(true, WG.allGrades()), offer_days: OF.OFFER_DAYS, pick_list: bundlePickList(),
+        eesh_month_price: EY.eeshMonthPrice(), packs: EY.packs() });
     }
 
     // Азтаны хүрд — нүднүүдийн шошго (клиент ижил дарааллаар зурна)
@@ -2104,13 +2113,14 @@ module.exports = async (req, res) => {
       }
       // bundles/offer — хугацаат багц (api/_wsoffer.js). Анхдагч нь «шинэ бүртгэл» (хямдралтай) харагдац; нэвтэрсэн дансанд доор
       // DB-ээр (худалдан авалт хийгээгүй + 7 хоногийн дотор) дахин тооцно. grade_list — багцад сонгох ангиуд.
+      // grade_month_price — ЭНЭ хуудасны ангийн нэг сарын үнэ (ЭЕШ 19,800₮), pick_list — багцад сонгох ангиуд (ЭЕШ-гүй)
       const gradeList = WG.allGrades();
-      const gradePrices = { grade: offerGrade, grade_prices: wsGradePrices(),
-        grade_months: WS_GRADE_MONTHS, grade_per_month: WS_GRADE_PER_MONTH,
+      const gradePrices = { grade: offerGrade, grade_prices: wsGradePrices(offerGrade),
+        grade_months: WS_GRADE_MONTHS, grade_per_month: WS_GRADE_PER_MONTH, grade_month_price: gradeMonthPrice(offerGrade),
         prices: WS_PRICES, months: WS_MONTHS,
-        grade_list: gradeList, bundles: OF.view(true, gradeList), offer: { eligible: true, anon: true, days: OF.OFFER_DAYS } };
-      // ЭЕШ бүлгийн хуудсанд «ЭЕШ багц» (ажлын хуудас + ЭЕШ шалгагч, 1 сар) — ws-store.js-ийн гурав дахь сонголт
-      if (offerGrade === EY.PACK_GRADE) gradePrices.pack = { price: EY.packPrice(), days: EY.EYESH_DAYS, eyesh_price: EY.eyeshPrice() };
+        grade_list: gradeList, pick_list: bundlePickList(), bundles: OF.view(true, gradeList), offer: { eligible: true, anon: true, days: OF.OFFER_DAYS } };
+      // ЭЕШ бүлгийн хуудсанд «ЭЕШ багц» (ажлын хуудас + ЭЕШ шалгагч; 1/3/6 сар — packs) — price/days нь хуучин клиентэд (1 сар)
+      if (offerGrade === EY.PACK_GRADE) gradePrices.pack = { price: EY.packPrice(1), days: EY.EYESH_DAYS, eyesh_price: EY.eyeshPrice(), packs: EY.packs() };
 
       /* ── Төхөөрөмж (api/_wsdev.js) ── анхдагчаар хязгааргүй: зөвхөн бүртгэнэ. env WS_DEVICE_LIMIT=on үед л нэг имэйл →
          дээд тал нь MAX_DEVICES төхөөрөмж, токенд dev байвал одоогийн төхөөрөмжтэй ТААРАХ ёстой (токен хуулахыг таслана). */

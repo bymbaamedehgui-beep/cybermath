@@ -21,12 +21,26 @@ function eyeshPrice() {
   const n = parseInt(process.env.EYESH_PRICE, 10);
   return Number.isFinite(n) && n >= 100 && n <= 1000000 ? n : 9900;
 }
-// ЭЕШ багц (api/qpay.js plan='eeshpack') — ЭЕШ ажлын хуудас (Дасгалын төвийн «ЭЕШ» бүлэг, ws_grade_access) 1 сар + ЭЕШ шалгагч
-// EYESH_DAYS хоног НЭГ нэхэмжлэхээр. Үнэ EESH_PACK_PRICE (анхдагч 19800₮ = 9900 + 9900). Тайланд дүнг хоёр савд хуваана.
+// ЭЕШ ажлын хуудас (Дасгалын төвийн «ЭЕШ» бүлэг, ws_grade_access) — сарын үнэ 19,800₮ (бусад анги 9,900₮; эзэмшигч 2026-11-20)
 const PACK_GRADE = 'ЭЕШ';
-function packPrice() {
-  const n = parseInt(process.env.EESH_PACK_PRICE, 10);
+function eeshMonthPrice() {
+  const n = parseInt(process.env.EESH_MONTH_PRICE, 10);
   return Number.isFinite(n) && n >= 100 && n <= 1000000 ? n : 19800;
+}
+// ЭЕШ багц (api/qpay.js plan='eeshpack') — ЭЕШ ажлын хуудас + ЭЕШ шалгагч, 1 / 3 / 6 сар НЭГ нэхэмжлэхээр:
+// 29,700 / 59,400 / 118,800₮ (эзэмшигч 2026-11-20). Жинхэнэ (зурсан) үнэ = сар × (ажлын хуудас + шалгагч).
+// env EESH_PACK_PRICES="29700,59400,118800" (хуучин EESH_PACK_PRICE-ийг уншихгүй — 19,800 үлдэж болзошгүй). Тайланд дүнг хоёр савд хуваана.
+const PACK_MONTHS = [1, 3, 6];
+const PACK_DEFAULT = { 1: 29700, 3: 59400, 6: 118800 };
+function packMonths(m) { m = parseInt(m, 10); return PACK_MONTHS.indexOf(m) >= 0 ? m : 1; }
+function packPrice(months) {
+  months = packMonths(months);
+  const n = parseInt(String(process.env.EESH_PACK_PRICES || '').split(',')[PACK_MONTHS.indexOf(months)], 10);
+  return Number.isFinite(n) && n >= 100 && n <= 10000000 ? n : PACK_DEFAULT[months];
+}
+function packList(months) { months = packMonths(months); return months * (eeshMonthPrice() + eyeshPrice()); }
+function packs() {
+  return PACK_MONTHS.map(function (m) { return { months: m, price: packPrice(m), list: packList(m), days: m * EYESH_DAYS }; });
 }
 
 let ready = null;
@@ -301,5 +315,6 @@ async function redeem(code) {
   return { email: row.email, exam: row.exam || null, material: row.material || null };
 }
 
-module.exports = { EYESH_DAYS, HANDOFF_SEC, SSO_URL, ADMIN_HANDOFF, ADMIN_URL, TOPICS, VAR_L, MATERIAL_MAX, eyeshPrice, PACK_GRADE, packPrice, ensure, expiry, grant, record,
+module.exports = { EYESH_DAYS, HANDOFF_SEC, SSO_URL, ADMIN_HANDOFF, ADMIN_URL, TOPICS, VAR_L, MATERIAL_MAX, eyeshPrice, PACK_GRADE, packPrice,
+                   eeshMonthPrice, PACK_MONTHS, packMonths, packList, packs, ensure, expiry, grant, record,
                    normExam, normS2Item, normMaterial, createHandoff, redeem, codeHash, wsRef, EYC_TOPICS };
