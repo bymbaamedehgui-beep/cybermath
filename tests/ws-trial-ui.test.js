@@ -29,6 +29,8 @@ function between(src, a, b) {
 // ws-store.js: эрх шалгах + түгжээ (checkAccess/showLock/unlockWs) + enforcePaywall + TRIAL блок (маркертай)
 const STORE_SRC = between(WSS, 'var WS_PRICE=39900;', '/* ═══ /TRIAL ═══ */');
 const STORE_ESC = (/function esc\(s\)\{[^\r\n]*\}/.exec(WSS) || [])[0];
+// Төлбөрийн цонхны багц сонгогч — ws-store.js түгжээ нээгдэхэд ачаалдаг (/ws-plans.js); энд урьдчилан ачаалсан гэж үзнэ
+const PLANS_SRC = fs.readFileSync(path.join(WT, 'ws-plans.js'), 'utf8');
 const TRIAL_SRC = between(WSS, '/* ═══ TRIAL (api/_wstrial.js) ═══', '/* ═══ /TRIAL ═══ */');
 // worksheets.html: толгойн данс + TRIAL блок (games-ws-ui.test.js-тэй ижил муж)
 const AUTH_SRC = between(WSH, '/* ── Хэрэглэгчийн нэвтрэлт (худалдан авсан имэйлээр) ── */', '/* ═══ /TRIAL ═══ */');
@@ -267,6 +269,7 @@ function storePage(o) {
     return { status: 200, ok: true, json: async () => JSON.parse(JSON.stringify(r)) };
   };
   vm.createContext(W);
+  vm.runInContext(PLANS_SRC, W, { filename: 'ws-plans.js' });
   vm.runInContext('var IS_QR=false;\n' + STORE_ESC + '\n' + STORE_SRC, W, { filename: 'ws-store.js#paywall+trial' });
   P.W = W; P.$ = (id) => doc.getElementById(id);
   P.fireDoc = (t) => (doc.ls[t] || []).forEach((f) => f({}));
@@ -815,4 +818,219 @@ test('worksheets.html: 0:00 үед PIN үүсгэх (#wsPin 210) / бусад ц
   assert.strictEqual(Q.W.buys.length, 1, 'давхар нээхгүй');
   assert.ok(Q.$('buTrialEnd'), 'баннер');
   assert.strictEqual(Q.$('wsBuyM').style.zIndex, '260');
+});
+
+// ───────── Хугацаат багц (ws-plans.js) + эрх дуусахаас 3 хоногийн өмнөх сануулга + «Миний эрх» (эзэмшигч 2026-11-20) ─────────
+const DAYMS = 864e5;
+// wsstatus-ийн багцын хэсэг (api/_wsoffer.js view) — хямдралтай / жинхэнэ үнэ
+function rBundles(C, o) {
+  o = o || {};
+  const on = o.eligible !== false;
+  return {
+    grade_per_month: 9900, server_now: C.server(),
+    grade_list: ['2-р анги', '3-р анги', '4-р анги', '5-р анги', '6-р анги', '7-р анги', '8-р анги', '9-р анги', '10-р анги', '11-р анги', '12-р анги', 'ЭЕШ', 'Олимпиад'],
+    bundles: [{ months: 3, grades: 3, count: 3, list: 89100, price: on ? 39900 : 89100 }, { months: 6, grades: 6, count: 6, list: 356400, price: on ? 69900 : 356400 },
+      { months: 12, grades: 'all', count: 11, list: 1306800, price: on ? 119900 : 1306800 }],
+    offer: !on ? { eligible: false, until: null, days: 7 }
+      : o.customer ? { eligible: true, customer: true, until: null, days: 7 }      // худалдан авч байсан — тоолуургүй
+      : { eligible: true, until: iso(C.server() + (o.leftMs || 2 * DAYMS)), days: 7 },
+  };
+}
+function rGradeSoon(C, leftMs, o) {
+  return Object.assign({ ok: true, enabled: true, active: true, scope: 'grade', email: E, account: E, expires_at: iso(C.server() + leftMs),
+    grades: [{ grade: '6-р анги', expires_at: iso(C.server() + leftMs) }], ws_token: TOK, grade: '6-р анги', all_expires_at: null }, rBundles(C, { customer: true }), o || {});
+}
+const optTxt = (P, k) => { const b = P.$('wsPlan').querySelector('[data-k="' + k + '"]'); return b ? b.textContent : null; };
+
+test('ws-plans: 1 сар · энэ анги / 3·6·12 сарын багц — зурсан үнэ, «Хамгийн ашигтай», тоолуур (серверийн цагаар), 3 анги сонголт', async () => {
+  const P = await startStore({ srv: null });
+  P.srv = () => Object.assign(rEnded(P.C), rBundles(P.C, { leftMs: 2 * DAYMS + 3723e3 }));
+  P.C.advance(300100);                                     // туршилт дуусаж түгжээ + цонх
+  await ticks();
+  assert.ok(P.locked());
+  assert.match(optTxt(P, 'm1'), /1 сар.*6-р анги.*9,900₮/);
+  assert.match(optTxt(P, 'm3'), /3 сар.*3 анги сонгоно.*89,100₮.*39,900₮.*1 анги сард 4,433₮ · −55%/);
+  assert.match(optTxt(P, 'm6'), /6 сар.*69,900₮.*1 анги сард 1,942₮/);
+  assert.match(optTxt(P, 'm12'), /Хамгийн ашигтай.*12 сар.*Бүх анги.*1,306,800₮.*119,900₮.*1 анги сард 908₮ · −91%/);
+  assert.doesNotMatch(optTxt(P, 'm3'), /Хамгийн ашигтай/);
+  assert.match(P.$('wsPlan').textContent, /Багцын хямдрал дуусахад 2 өдөр 01:02:0\d/);
+  assert.match(P.$('wsPlan').textContent, /Ердөө \+30,000₮-өөр 3 сар · 3 анги — нэг анги сард 4,433₮/, 'ашигтай сонголтын зөвлөмж');
+  const t0 = P.$('wsPlan').querySelector('.wpl-cd').textContent;
+  P.C.advance(1000);
+  assert.notStrictEqual(P.$('wsPlan').querySelector('.wpl-cd').textContent, t0, 'секунд бүр');
+  // 3 сар → энэ хуудасны анги урьдчилан сонгогдсон (1/3); дахиад 2 анги
+  P.$('wsPlan').querySelector('[data-k="m3"]').click();
+  assert.match(P.$('wsPlan').textContent, /3 анги сонгоно уу1\/3/);
+  assert.strictEqual(P.$('wsPlan').querySelector('[data-g="6-р анги"]').getAttribute('aria-pressed'), 'true');
+  P.$('wsPlan').querySelector('[data-g="7-р анги"]').click();
+  P.$('wsPlan').querySelector('[data-g="ЭЕШ"]').click();
+  assert.match(P.$('wsPlan').textContent, /3\/3/);
+  assert.notStrictEqual(P.$('wsPlan').querySelector('[data-g="9-р анги"]').getAttribute('disabled'), null, 'дүүрсэн бол бусад идэвхгүй');
+  assert.match(P.$('wsSubTitle').textContent, /Сонгосон 3 ангийн ажлын хуудсыг 3 сар хязгааргүй/);
+  assert.match(P.$('wsPlan').querySelector('.wpl-sum').textContent, /39,900₮ \/ 3 сар · 3 анги49,200₮ хэмнэнэ/);
+  // «QPay-аар худалдан авах» — сервер рүү зөвхөн сонголт (дүн биш)
+  P.$('wsBuy').click();
+  await ticks();
+  const cr = P.log.filter((x) => x.action === 'create').pop();
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(cr.body)), { wstoken: TOK, plan: 'wsbundle', months: 3, grades: ['6-р анги', '7-р анги', 'ЭЕШ'], promo: null });
+});
+
+test('ws-plans: анги дутуу бол нэхэмжлэх үүсгэхгүй; 12 сар — сонголтгүй; промо хувь; тоолуур 0 → жинхэнэ үнэ, тэмдэг алга', async () => {
+  const P = await startStore({ srv: null });
+  P.srv = () => Object.assign(rEnded(P.C), rBundles(P.C, { leftMs: 5000 }));
+  const f0 = P.W.fetch;                                    // promocheck — 20% (бусад нь хуучин mock)
+  P.W.fetch = async function (url, opts) {
+    if (/action=promocheck/.test(String(url))) { P.log.push({ action: 'promocheck', body: JSON.parse(opts.body) }); return { status: 200, ok: true, json: async () => ({ ok: true, valid: true, pct: 20 }) }; }
+    return f0(url, opts);
+  };
+  P.C.advance(300100);
+  await ticks();
+  P.$('wsPlan').querySelector('[data-k="m6"]').click();
+  P.$('wsBuy').click();
+  await ticks();
+  assert.strictEqual(P.log.filter((x) => x.action === 'create').length, 0);
+  assert.match(P.$('wsMsg').textContent, /6 анги сонгоно уу \(1\/6\)/);
+  P.$('wsPlan').querySelector('[data-k="m12"]').click();
+  assert.match(P.$('wsPlan').textContent, /Бүх анги \(2–12-р анги\), ЭЕШ, Олимпиад — сонгох шаардлагагүй/);
+  assert.match(P.$('wsPlan').textContent, /Хамгийн ашигтай сонголт: нэг анги сард 908₮/);
+  P.$('wsPromo').value = 'BAGSH20';
+  P.$('wsPromoBtn').click();
+  await ticks();
+  assert.strictEqual(P.log.filter((x) => x.action === 'promocheck').pop().body.months, 12);
+  assert.match(P.$('wsPlan').querySelector('.wpl-sum').textContent, /119,900₮ 95,920₮ \/ 12 сар · бүх анги -20%/);
+  P.C.advance(6000);                                       // хямдралын хугацаа дууслаа
+  assert.match(optTxt(P, 'm12'), /1,306,800₮/);
+  assert.doesNotMatch(optTxt(P, 'm12'), /119,900|Хамгийн ашигтай/);
+  assert.doesNotMatch(P.$('wsPlan').textContent, /дуусахад|Ердөө/);
+});
+
+test('ws-store: эрх дуусахаас 3 хоногийн өмнө хуудас нээх бүрт сануулга → «Сунгах» = хааж болдог сунгах цонх; 4 хоног / туршилт — гарахгүй', async () => {
+  const P = storePage({ srv: () => rGradeSoon(P.C, 2 * DAYMS - 60e3) });
+  P.W.enforcePaywall();
+  await ticks();
+  assert.strictEqual(P.locked(), false, 'эрхтэй — нээлттэй');
+  const b = P.$('cmRemind');
+  assert.ok(b, 'сануулга');
+  assert.match(b.textContent, /Таны эрх дуусах гэж байна\. 6-р анги — \d{4}\.\d{2}\.\d{2} \(2 хоногийн дараа\)/);
+  assert.match(b.innerHTML, /@media print\{#cmRemind\{display:none!important\}\}/, 'хэвлэхэд нуугдана');
+  assert.match(b.style.cssText, /border-left:3px solid #ec4899/, 'шар хайрцаггүй');
+  P.$('cmRemindGo').click();
+  await ticks();
+  assert.ok(P.locked(), 'сунгах цонх');
+  assert.match(P.$('wsLock').textContent, /Эрх сунгах/);
+  assert.strictEqual(P.$('wsFreeNote').style.display, 'none');
+  assert.strictEqual(P.sheet().style.filter || '', '', 'хуудсыг бүдгэрүүлэхгүй (soft)');
+  // Худалдан авч байсан хэрэглэгч — сунгахдаа хямдралтай (жинхэнэ үнээс хэд хямд нь харагдана), тоолуургүй
+  assert.match(optTxt(P, 'm3'), /89,100₮.*39,900₮.*−55%/);
+  assert.match(optTxt(P, 'm12'), /Хамгийн ашигтай.*1,306,800₮.*119,900₮/);
+  assert.match(P.$('wsPlan').textContent, /Байнгын хэрэглэгчийн хямдрал — багцыг жинхэнэ үнээс хямд авна/);
+  assert.doesNotMatch(P.$('wsPlan').textContent, /дуусахад/, 'тоолуургүй');
+  assert.match(P.$('wsBack').textContent, /Хаах/);
+  P.$('wsBack').click();
+  assert.strictEqual(P.locked(), false);
+  // 3 цагийн өмнө → «N цагийн дараа»
+  const H = storePage({ srv: () => rGradeSoon(H.C, 3 * 36e5) });
+  H.W.enforcePaywall(); await ticks();
+  assert.match(H.$('cmRemind').textContent, /\(3 цагийн дараа\)/);
+  for (const srv of [(C) => rGradeSoon(C, 4 * DAYMS), (C) => rTrial(C, 300000), (C) => rPaid(C)]) {
+    const Q = storePage({ srv: () => srv(Q.C) });
+    Q.W.enforcePaywall(); await ticks();
+    assert.strictEqual(Q.$('cmRemind'), null);
+  }
+});
+
+test('worksheets.html: «Миний эрх» — эрх бүрийн дуусах огноо, үлдсэн хоног (≤3 хоног ягаан + толгойн цэг); эрхгүй → «Эрх авах»', async () => {
+  const P = catPage({ srv: () => rGradeSoon(P.C, 2 * DAYMS, { grades: [{ grade: '6-р анги', expires_at: iso(P.C.server() + 2 * DAYMS) }, { grade: '7-р анги', expires_at: iso(P.C.server() + 40 * DAYMS) }] }) });
+  P.W.verifyUser();
+  await ticks();
+  const a = P.acct();
+  assert.match(a, /title="Эрх дуусах гэж байна"/);
+  assert.match(a, /МИНИЙ ЭРХ/);
+  assert.match(P.$('acctMenu').textContent, /6-р анги\d{4}\.\d{2}\.\d{2} хүртэл2 хоног үлдсэн7-р анги\d{4}\.\d{2}\.\d{2} хүртэл40 хоног үлдсэн/, 'эрт дуусах нь эхэнд');
+  assert.match(a, /#db2777/, 'ойрхон дуусах — ягаан');
+  assert.match(P.$('acctMenu').textContent, /Эрх сунгах/);
+  const Q = catPage({ srv: () => Object.assign(rEnded(Q.C), { trial: null }) });
+  Q.W.verifyUser();
+  await ticks();
+  assert.match(Q.$('acctMenu').textContent, /Идэвхтэй эрх алга.*Эрх авах/);
+  assert.doesNotMatch(Q.acct(), /Эрх дуусах гэж байна/);
+});
+
+test('worksheets.html: орох бүрт сануулгын цонх (өөр цонх нээлттэй бол хүлээнэ) → «Сунгах» = openBuy; «Дараа» хаана', async () => {
+  const REM = between(WSH, '/* ── Эрх дуусахаас 3 хоногийн өмнөөс Дасгалын төвд орох БҮРТ сануулга', '/* init */');
+  const P = catPage({ srv: () => rGradeSoon(P.C, 30 * 36e5) });
+  vm.runInContext(REM, P.W, { filename: 'worksheets.html#remind' });
+  P.W.verifyUser();
+  await ticks();
+  const pin = P.doc.createElement('div'); pin.id = 'wsPin'; P.doc.body.appendChild(pin);
+  P.W.wsRemind();
+  assert.strictEqual(P.$('wsRemind'), null, 'PIN цонх нээлттэй — хүлээнэ');
+  pin.remove();
+  P.C.advance(1000);
+  const m = P.$('wsRemind');
+  assert.ok(m, 'гарлаа');
+  assert.match(m.textContent, /Эрх дуусах гэж байна6-р анги2 хоног үлдсэн\d{4}\.\d{2}\.\d{2} хүртэл/);
+  assert.ok(Number(/z-index:(\d+)/.exec(m.style.cssText)[1]) < 260, 'туршилтын төлбөрийн цонхноос доор');
+  P.$('wsRemGo').click();
+  assert.strictEqual(P.$('wsRemind'), null);
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(P.W.buys)), [{}], 'openBuy');
+  P.$('wsBuyM').remove();                                  // худалдан авах цонхыг хаасан
+  P.W.wsRemind();
+  P.$('wsRemLater').click();
+  assert.strictEqual(P.$('wsRemind'), null);
+  // 4 хоног үлдсэн — гарахгүй
+  const Q = catPage({ srv: () => rGradeSoon(Q.C, 4 * DAYMS) });
+  vm.runInContext(REM, Q.W, { filename: 'worksheets.html#remind' });
+  Q.W.verifyUser(); await ticks();
+  Q.W.wsRemind();
+  assert.strictEqual(Q.$('wsRemind'), null);
+});
+
+test('ws-plans: ангигүй ажлын хуудас (каталог/богино замд тодорхойгүй) — зөвхөн 12 сар · бүх анги; анги ирвэл бүх сонголт', async () => {
+  const P = storePage({});
+  P.srv = () => Object.assign(rTrial(P.C, 300000), { grade: null });   // хуудасны анги эхнээсээ тодорхойгүй
+  P.W.enforcePaywall();
+  await ticks();
+  P.srv = () => Object.assign(rEnded(P.C), rBundles(P.C), { grade: null });
+  P.C.advance(300100);
+  await ticks();
+  const keys = () => P.$('wsPlan').querySelectorAll('.wpl-o').map((b) => b.getAttribute('data-k'));
+  assert.deepStrictEqual(keys(), ['m12'], 'ангиар авсан эрх энэ хуудсыг нээхгүй');
+  assert.strictEqual(P.$('wsPlan').querySelector('[data-k="m12"]').getAttribute('aria-pressed'), 'true');
+  P.srv = () => Object.assign(rEnded(P.C), rBundles(P.C));
+  P.W.checkAccess();
+  await ticks();
+  assert.deepStrictEqual(keys(), ['m1', 'm3', 'm6', 'm12']);
+  assert.strictEqual(P.$('wsPlan').querySelector('[data-k="m1"]').getAttribute('aria-pressed'), 'true', 'анги тодорхой болсон — 1 сар');
+});
+
+test('ws-plans: setPct(промо, багц) — найзын урилга зөвхөн багцад (1 сарын эрхэд серверт хамаарахгүй)', () => {
+  const P = storePage({ srv: () => rPaid(P.C) });
+  const el = P.doc.createElement('div'); P.doc.body.appendChild(el);
+  const api = P.W.WSPLANS.mount(el, { st: rBundles(P.C), grade: '6-р анги' });
+  api.setPct(0, 15);
+  assert.strictEqual(api.sel().price, 9900, '1 сар — урилгын хямдралгүй');
+  el.querySelector('[data-k="m12"]').click();
+  assert.strictEqual(api.sel().price, Math.round(119900 * 0.85));
+  api.setPct(20, 20);
+  assert.strictEqual(api.sel().price, Math.round(119900 * 0.8));
+  el.querySelector('[data-k="m1"]').click();
+  assert.strictEqual(api.sel().price, 7920, 'промо 1 сард ч');
+  api.destroy();
+});
+
+test('сануулга: бүх ангийн эрх илүү удаан үргэлжлэх бол ангийн эрх дуусах нь сануулахгүй (ажлын хуудас + нүүр)', async () => {
+  const cov = (C) => Object.assign(rGradeSoon(C, DAYMS), { scope: 'all', all_expires_at: iso(C.server() + 300 * DAYMS) });
+  const P = storePage({ srv: () => cov(P.C) });
+  P.W.enforcePaywall(); await ticks();
+  assert.strictEqual(P.locked(), false);
+  assert.strictEqual(P.$('cmRemind'), null);
+  const Q = catPage({ srv: () => cov(Q.C) });
+  Q.W.verifyUser(); await ticks();
+  assert.doesNotMatch(Q.acct(), /Эрх дуусах гэж байна|#db2777/, 'цэг/ягаан алга');
+  assert.match(Q.$('acctMenu').textContent, /6-р анги.*1 хоног үлдсэн.*Бүх анги.*300 хоног үлдсэн/, '«Миний эрх»-д харагдана');
+  const all = (C) => Object.assign(rGradeSoon(C, 30 * DAYMS), { scope: 'all', all_expires_at: iso(C.server() + 2 * DAYMS) });
+  const R = storePage({ srv: () => all(R.C) });
+  R.W.enforcePaywall(); await ticks();
+  assert.match(R.$('cmRemind').textContent, /Бүх анги — .* \(2 хоногийн дараа\)/, 'бүх ангийн эрх дуусах — сануулна');
 });

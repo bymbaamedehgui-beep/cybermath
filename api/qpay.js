@@ -31,6 +31,8 @@ const PP = require('./_wsppt_pay');
 const SOL = require('./_wssol');
 // ЭЕШ шалгагч (eyeshcheck.com) — Дасгалын төвийн нэмэлт эрх 1 сар (EYESH_PRICE), plan='eyesh' (api/_eyesh.js, api/eyesh.js)
 const EY = require('./_eyesh');
+// Хугацаат багц (3 сар → 3 анги, 6 сар → 6 анги, 12 сар → бүх анги) + шинэ хэрэглэгчийн 7 хоногийн хямдрал — api/_wsoffer.js
+const OF = require('./_wsoffer');
 const WS_GRADE_PER_MONTH = parseInt(process.env.WS_GRADE_PRICE || '9900', 10);
 const WS_GRADE_MONTHS = [1, 3, 6, 12];
 // catalog.js ачаалагдаагүй (жагсаалт хоосон) тохиолдолд "N-р анги" хэлбэрээр зөвшөөрнө
@@ -457,6 +459,8 @@ async function ensureWsExtra() {
   )`).catch(()=>{});
   await pool.query(`ALTER TABLE ws_pending ADD COLUMN IF NOT EXISTS ref TEXT`).catch(()=>{});
   await pool.query(`ALTER TABLE ws_pending ADD COLUMN IF NOT EXISTS grade TEXT`).catch(()=>{});
+  // Багцын (plan 'wsbundle', 3/6 сар) сонгосон ангиуд — JSON жагсаалт. grade-д тэдгээрийн нэрийг « + »-ээр (харуулахад)
+  await pool.query(`ALTER TABLE ws_pending ADD COLUMN IF NOT EXISTS grades TEXT`).catch(()=>{});
   await pool.query(`ALTER TABLE ws_purchases ADD COLUMN IF NOT EXISTS grade TEXT`).catch(()=>{});
   await pool.query(`ALTER TABLE ws_login ADD COLUMN IF NOT EXISTS ref_code TEXT`).catch(()=>{});
   await pool.query(`CREATE TABLE IF NOT EXISTS ws_referrals (
@@ -491,14 +495,6 @@ async function resolvePromo(code) {
   return { valid: false, pct: 0 };
 }
 function priceFromPct(pct, months) { const base = wsBasePrice(months); return pct > 0 ? Math.round(base * (100 - pct) / 100) : base; }
-async function recordPurchase(email, amount, promo, invoiceId, months, grade) {
-  await ensureWsExtra();
-  const r = await pool.query(
-    `INSERT INTO ws_purchases (email, amount, promo, invoice_id, months, grade) VALUES ($1,$2,$3,$4,$5,$6)
-     ON CONFLICT (invoice_id) DO NOTHING RETURNING id`,
-    [email, amount, promo || null, invoiceId || null, months || null, grade || null]);
-  return r.rows.length > 0;
-}
 // QPay payment/check — төлөгдсөн гүйлгээний тоо + нийт төлсөн дүн
 async function qpayPayment(invoiceId) {
   if (!invoiceId) return { count: 0, paid: 0 };
@@ -525,10 +521,12 @@ async function qpayInvoicePaid(invoiceId, needAmount) {
   if (p.paid < need) { console.warn('[qpay] дутуу төлбөр', invoiceId, p.paid, '<', need); return false; }
   return true;
 }
+// check/callback/reconcile гурвуулаа ИЖИЛ баганаар уншина (grades дутвал багц «бүх анги» болж олгогдохгүй — settleWsTx шалгана)
+const WS_PEND_COLS = 'invoice_id, email, months, promo, amount, grade, grades, granted';
 async function wsPendingRow(invoiceId) {
   if (!invoiceId) return null;
   await ensureWsExtra();
-  const r = await pool.query('SELECT invoice_id, email, months, promo, amount, grade, granted FROM ws_pending WHERE invoice_id=$1',
+  const r = await pool.query('SELECT ' + WS_PEND_COLS + ' FROM ws_pending WHERE invoice_id=$1',
     [String(invoiceId)]);
   return r.rows[0] || null;
 }
@@ -580,29 +578,85 @@ async function unclaimPending(table, invoiceId) {
   await pool.query(`UPDATE ${PENDING_TABLES[table]} SET granted=FALSE WHERE invoice_id=$1`, [String(invoiceId)])
     .catch(e => console.error('[qpay unclaim]', e.message));
 }
-// Төлөгдсөн нэхэмжлэхийг ХАДГАЛСАН мэдээллээр (имэйл/анги/сар/дүн) олгож бүртгэнэ.
-// Давтан дуудахад аюулгүй: эрх GREATEST-ээр сунгагдахгүй, худалдан авалт invoice_id-аар давхардахгүй.
-async function settleWsPending(row) {
-  const exp = row.grade ? await WG.grantGradeMonths(row.email, row.grade, row.months)
-                        : await grantWsMonths(row.email, row.months);
-  try {
-    const amount = row.amount || (row.grade ? wsGradeBase(row.months) : priceFromPct(0, row.months));
-    const inserted = await recordPurchase(row.email, amount, row.promo, row.invoice_id, row.months, row.grade);
-    if (inserted && row.promo) await pool.query('UPDATE ws_promos SET used_count=used_count+1 WHERE code=$1', [row.promo]).catch(()=>{});
-    await pool.query('UPDATE ws_pending SET granted=TRUE WHERE invoice_id=$1', [row.invoice_id]);
-    if (!row.grade) await processReferral(row.email, row.invoice_id);
-  } catch (e) { console.error('[ws settle]', e.message); }
-  return exp;
+// ws_pending мөрийн ангиуд: багц (grades JSON) → тэр жагсаалт; нэг анги → [grade]; бүх анги → [].
+// grades байгаа атлаа задрахгүй/хоосон бол ЮУ Ч олгохгүй (багцыг «бүх анги» эсвэл нэрийн мөрөөр олгохгүй).
+function wsRowGrades(row) {
+  if (row && row.grades != null && row.grades !== '') {
+    let a = null;
+    try { a = JSON.parse(row.grades); } catch (e) { a = null; }
+    if (!Array.isArray(a) || !a.length || a.some(function (g) { return typeof g !== 'string' || !g; }))
+      throw new Error('Багцын ангиуд буруу (' + String(row.invoice_id).slice(0, 40) + ')');
+    return a;
+  }
+  return row && row.grade ? [String(row.grade)] : [];
 }
-// Ажлын хуудасны нэхэмжлэхийг НЭГ УДАА олгоно (claim → settleWsPending). Аль хэдийн олгосон бол
-// дахин сунгахгүй — одоогийн дуусах хугацааг л буцаана. Олголт алдаа гарвал claim-ийг буцаана.
+function wsRowIsBundle(row) { return !!(row && row.grades != null && row.grades !== ''); }
+// Бүх ангийн эрх (ws_access) — одоогийн дуусах хугацаан ДЭЭР нэмнэ (транзакц дотор, claim-тай л)
+const WS_EXTEND_SQL = `INSERT INTO ws_access (email, expires_at, updated_at) VALUES ($1, NOW() + make_interval(days => $2::int), NOW())
+     ON CONFLICT (email) DO UPDATE SET expires_at = GREATEST(ws_access.expires_at, NOW()) + make_interval(days => $2::int), updated_at = NOW()
+     RETURNING expires_at`;
+// Ажлын хуудасны нэхэмжлэхийг НЭГ УДАА олгоно: claim + эрх + борлуулалтын бүртгэл НЭГ транзакцад (settleEeshPack шиг).
+// Эрх одоогийн дуусах хугацаан дээр НЭМЭГДЭНЭ (дуусахаас 3 хоногийн өмнөх сануулгаар сунгавал үлдсэн хоног алдагдахгүй) —
+// тиймээс claim-гүйгээр хэзээ ч олгохгүй. Бүртгэл SAVEPOINT-оор тусгаарлагдана (мөнгө авсан тул эрх олгогдоно).
+async function settleWsTx(row) {
+  const email = String(row.email).trim().toLowerCase();
+  const grades = wsRowGrades(row);                       // буруу багц → энд throw, claim хийхгүй
+  const days = WG.monthsToDays(row.months);
+  // DDL транзакцаас ӨМНӨ (ws_access, ws_grade_access, ws_purchases)
+  await ensureWsTable(); await WG.ensureGradeTable(); await ensureWsExtra();
+  const amount = row.amount || (row.grade && !wsRowIsBundle(row) ? wsGradeBase(row.months) : priceFromPct(0, row.months));
+  const ledgerGrade = row.grade || null;                 // багц: «6-р анги + 7-р анги + 8-р анги», бүх анги: NULL
+  const client = await pool.connect();
+  let claimed = false, exp = null, inserted = false;
+  try {
+    await client.query('BEGIN');
+    claimed = await claimPending('ws_pending', row.invoice_id, client);
+    if (claimed) {
+      if (grades.length) {
+        const rows = await WG.extendGrades(email, grades, days, client);
+        rows.forEach(function (x) { const t = new Date(x.expires_at); if (!exp || t < exp) exp = t; });
+      } else {
+        const r = await client.query(WS_EXTEND_SQL, [email, days]);
+        exp = new Date(r.rows[0].expires_at);
+      }
+      await client.query('SAVEPOINT ws_ledger');
+      try {
+        inserted = (await client.query(PACK_WS_SQL, [email, amount, row.promo || null, row.invoice_id, row.months || null, ledgerGrade])).rows.length > 0;
+        await client.query('RELEASE SAVEPOINT ws_ledger');
+      } catch (e) {
+        console.error('[ws ledger]', row.invoice_id, e.message);
+        await client.query('ROLLBACK TO SAVEPOINT ws_ledger');
+      }
+    }
+    await client.query('COMMIT');
+  } catch (e) {
+    let broken;
+    try { await client.query('ROLLBACK'); } catch (re) { broken = re; }
+    client.release(broken);
+    throw e;
+  }
+  client.release();
+  if (!claimed) return { already: true, exp: await wsCurrentExpiry(row) };
+  if (inserted && row.promo) await pool.query('UPDATE ws_promos SET used_count=used_count+1 WHERE code=$1', [row.promo]).catch(()=>{});
+  if (!row.grade || wsRowIsBundle(row)) await processReferral(email, row.invoice_id);   // найзын урилга: бүх анги ба багц
+  return { already: false, exp: exp || new Date() };
+}
+// Аль хэдийн олгосон нэхэмжлэх — одоогийн дуусах хугацааг л буцаана (дахин сунгахгүй). Багц: сонгосон ангиудын хамгийн эрт нь.
 async function wsCurrentExpiry(row) {
   let exp = null;
   try {
-    const r = row.grade
-      ? await pool.query('SELECT expires_at FROM ws_grade_access WHERE email=$1 AND grade=$2', [String(row.email).toLowerCase(), row.grade])
-      : await pool.query('SELECT expires_at FROM ws_access WHERE email=$1', [String(row.email).toLowerCase()]);
-    if (r.rows.length && r.rows[0].expires_at) exp = new Date(r.rows[0].expires_at);
+    if (wsRowIsBundle(row)) {
+      const want = wsRowGrades(row);
+      (await WG.activeGrades(row.email)).forEach(function (x) {
+        if (want.indexOf(x.grade) < 0) return;
+        const t = new Date(x.expires_at); if (!exp || t < exp) exp = t;
+      });
+    } else {
+      const r = row.grade
+        ? await pool.query('SELECT expires_at FROM ws_grade_access WHERE email=$1 AND grade=$2', [String(row.email).toLowerCase(), row.grade])
+        : await pool.query('SELECT expires_at FROM ws_access WHERE email=$1', [String(row.email).toLowerCase()]);
+      if (r.rows.length && r.rows[0].expires_at) exp = new Date(r.rows[0].expires_at);
+    }
   } catch (e) { console.error('[ws expiry]', e.message); }
   if (!exp) { exp = new Date(); exp.setDate(exp.getDate() + WG.monthsToDays(row.months)); }
   return exp;
@@ -616,9 +670,7 @@ async function settleWsOnce(row) {
       .catch(e => console.error('[ws legacy mark]', e.message));
     return { already: true, exp: await wsCurrentExpiry(row) };
   }
-  if (!(await claimPending('ws_pending', row.invoice_id))) return { already: true, exp: await wsCurrentExpiry(row) };
-  try { return { already: false, exp: await settleWsPending(row) }; }
-  catch (e) { await unclaimPending('ws_pending', row.invoice_id); throw e; }
+  return settleWsTx(row);
 }
 // pay_pending мөрийн plan-ийн allowlist. Үүнээс гадуурх plan ЮУ Ч олгохгүй (Premium руу чимээгүй унахгүй).
 // 'premium' — premiumPlanNorm-оос өмнөх хуучин мөрүүдийн нийцэл (1 сар).
@@ -857,7 +909,8 @@ async function settleEeshPack(row, email) {
     await client.query('BEGIN');
     claimed = await claimPending('pay_pending', row.invoice_id, client);
     if (claimed) {
-      wsExp = (await WG.grantGradeMonths(email, EY.PACK_GRADE, 1, client)).toISOString();
+      // ажлын хуудасны хэсэг ч одоогийн хугацаан ДЭЭР нэмэгдэнэ (сунгах цонхноос авахад үлдсэн хоног алдагдахгүй)
+      wsExp = new Date((await WG.extendGrades(email, [EY.PACK_GRADE], WG.monthsToDays(1), client))[0].expires_at).toISOString();
       eyExp = await EY.grant(email, EY.EYESH_DAYS, client);
       await client.query('SAVEPOINT pack_ledger');
       try {
@@ -1076,7 +1129,7 @@ module.exports = async (req, res) => {
     if (req.method === 'POST' && req.query.action === 'create') {
       // amount-ыг клиентээс АВАХГҮЙ — үнийг зөвхөн сервер тогтооно
       const plan = (req.body || {}).plan;
-      const isWsPlan = ['wsyear', 'wsmonths', 'wsgrade'].indexOf(plan) >= 0;
+      const isWsPlan = ['wsyear', 'wsmonths', 'wsgrade', 'wsbundle'].indexOf(plan) >= 0;
       const isGamePlan = plan === 'game';
       const isPptPlan = plan === 'ppt';
       const isEyeshPlan = plan === 'eyesh';
@@ -1184,13 +1237,15 @@ module.exports = async (req, res) => {
         // body.email-д огт итгэхгүй. Тоглоомын токен хүчингүй (emailFromToken нь ws:true шаардана).
         email = emailFromToken((req.body || {}).wstoken);
         if (!email) return res.status(401).json({ ok: false, needLogin: true, error: 'Худалдан авахын тулд эхлээд нэвтэрнэ үү.' });
+        if (!(await rateLimit('ws_inv:' + String(email).slice(0, 254), 20, 600)))
+          return res.status(429).json({ ok: false, error: 'Хэт олон оролдлого. Түр хүлээгээд дахин оролдоно уу.' });
       } else {
         email = (req.body || {}).email;
         if (!email || typeof email !== 'string') return res.status(400).json({ ok: false, error: 'Missing email' });
       }
       const emailLc = email.trim().toLowerCase();
       const premiumPlan = premiumPlanNorm(plan);
-      if (!premiumPlan && ['wsyear', 'wsmonths', 'wsgrade', 'event', 'game', 'ppt', 'eyesh', 'eeshpack', 'solppt'].indexOf(plan) < 0)
+      if (!premiumPlan && ['wsyear', 'wsmonths', 'wsgrade', 'wsbundle', 'event', 'game', 'ppt', 'eyesh', 'eeshpack', 'solppt'].indexOf(plan) < 0)
         return res.status(400).json({ ok: false, error: 'Тариф буруу байна' });
 
       // Email-ыг богиносгож аюулгүй болгох — QPay-н sender_invoice_no/customer_code 45 тэмдэгт хязгаартай
@@ -1198,10 +1253,23 @@ module.exports = async (req, res) => {
       const senderNo = `CM${emailHash}${Date.now()}`; // CM + 12 + 13 = 27 тэмдэгт
       const receiverCode = `cm_${emailHash}`; // 15 тэмдэгт, зөвхөн ASCII
 
-      // Ажлын хуудас — шаталсан сарын эрх (3/6/9/12)
-      let wsMonths = null;
+      // Ажлын хуудас — хугацаат багц (api/_wsoffer.js): 3 сар → 3 анги, 6 сар → 6 анги (сонгоно), 12 сар → бүх анги.
+      // Хуучин 'wsmonths' (бүх анги 3/6/9 сар) байхгүй болсон — 12 сар л багц руу шилжинэ, бусад нь хуудсаа шинэчлүүлнэ.
+      let wsMonths = null, bundleGrades = null, offerOn = false;
       if (plan === 'wsyear') wsMonths = 12;
-      else if (plan === 'wsmonths') wsMonths = wsNormMonths((req.body || {}).months);
+      else if (plan === 'wsmonths') {
+        if (wsNormMonths((req.body || {}).months) !== 12)
+          return res.status(400).json({ ok: false, refresh: true, error: 'Үнийн шинэ багц гарлаа. Хуудсаа шинэчлээд (F5) дахин сонгоно уу.' });
+        wsMonths = 12;
+      } else if (plan === 'wsbundle') {
+        const bd = OF.bundle((req.body || {}).months);
+        if (!bd) return res.status(400).json({ ok: false, error: 'Багц буруу байна' });
+        wsMonths = bd.months;
+        if (bd.grades) {
+          bundleGrades = OF.normGrades((req.body || {}).grades, bd.grades, WG.allGrades());
+          if (!bundleGrades) return res.status(400).json({ ok: false, needGrades: bd.grades, error: bd.grades + ' анги сонгоно уу' });
+        }
+      }
 
       // Ажлын хуудас — НЭГ АНГИ (сард 9900, 1/3/6/12 сар)
       let wgGrade = null, wgMonths = null;
@@ -1239,7 +1307,8 @@ module.exports = async (req, res) => {
                  : isPackPlan ? 'CyberMath ЭЕШ багц (ажлын хуудас + ЭЕШ шалгагч) — 1 сар'
                  : isGamePlan ? `CyberMath тоглоом — ${GM.GAMES[gameKey].title}${gameGrade ? ' — ' + gameGrade + '-р анги' : ''} — 1 сар`.slice(0, 100)
                  : wgGrade != null ? `CyberMath ${wgGrade} — ${wgMonths} сар`.slice(0, 100)
-                 : wsMonths != null ? `CyberMath Ажлын хуудас — ${wsMonths} сар`
+                 : bundleGrades ? `CyberMath ${wsMonths} сарын багц — ${bundleGrades.join(', ')}`.slice(0, 100)
+                 : wsMonths != null ? `CyberMath Бүх анги — ${wsMonths} сар`
                  : plan === 'event' ? ('Сургалт — ' + (eventTitle || 'CyberMath')).slice(0, 100)
                  : premiumPlan === 'friends' ? 'CyberMath Найзууд багц (3 хүн)'
                  : premiumPlan === 'yearly'  ? 'CyberMath Premium 1 жил'
@@ -1251,12 +1320,18 @@ module.exports = async (req, res) => {
       if (wsMonths != null) {
         const pi = await resolvePromo((req.body || {}).promo);
         let pct = pi.pct;
-        const refIn = ((req.body || {}).ref || '').trim().toUpperCase() || null;
+        const refIn = String((req.body || {}).ref || '').trim().toUpperCase() || null;
         if (refIn) {
           const owner = await refOwner(refIn);
           if (owner && owner !== emailLc) { refStore = refIn; if (REF_PCT > pct) pct = REF_PCT; }
         }
-        invAmount = priceFromPct(pct, wsMonths);
+        // Хямдралтай үнэ зөвхөн худалдан авалт хийгээгүй, 7 хоногийн хугацаандаа байгаа дансанд (DB-ийн цагаар) — бусад нь жинхэнэ үнэ
+        const of = await OF.offer(emailLc);
+        // Хямдралын эрхийг шалгаж чадсангүй — жинхэнэ үнээр нэхэмжлэхгүй, дахин оролдуулна
+        if (of.error) return res.status(503).json({ ok: false, error: 'Түр алдаа гарлаа. Дахин оролдоно уу.' });
+        offerOn = of.eligible;
+        const base = OF.price(wsMonths, offerOn, WG.allGrades());
+        invAmount = pct > 0 ? Math.round(base * (100 - pct) / 100) : base;
       } else if (wgGrade != null) {
         const pi = await resolvePromo((req.body || {}).promo);
         invAmount = wsGradePrice(pi.pct, wgMonths);
@@ -1297,12 +1372,14 @@ module.exports = async (req, res) => {
         try {
           if (wsMonths != null || wgGrade != null) {
             await ensureWsExtra();
-            const promo = String((req.body || {}).promo || '').trim().toUpperCase() || null;
+            const promo = String((req.body || {}).promo || '').trim().toUpperCase().slice(0, 40) || null;
+            // Багц: grade = ангиудын нэр (« + », админд харуулах), grades = JSON (олголт ЗӨВХӨН үүгээр — settleWsTx)
             await pool.query(
-              `INSERT INTO ws_pending (invoice_id, email, months, promo, amount, ref, grade) VALUES ($1,$2,$3,$4,$5,$6,$7)
+              `INSERT INTO ws_pending (invoice_id, email, months, promo, amount, ref, grade, grades) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
                ON CONFLICT (invoice_id) DO NOTHING`,
               [invoice.invoice_id, emailLc, wsMonths != null ? wsMonths : wgMonths,
-               promo, invAmount, refStore, wgGrade]);
+               promo, invAmount, refStore, bundleGrades ? bundleGrades.join(' + ') : wgGrade,
+               bundleGrades ? JSON.stringify(bundleGrades) : null]);
           } else if (isPptPlan) {
             await ensurePayPending();
             await pool.query(
@@ -1359,7 +1436,9 @@ module.exports = async (req, res) => {
       if (isSolPlan) return res.json({ ok: true, invoice, email: emailLc, amount: invAmount, sol: { slug: solRef.slug, seed: solRef.seed } });
       if (isEyeshPlan) return res.json({ ok: true, invoice, email: emailLc, amount: invAmount, days: EY.EYESH_DAYS });
       if (isPackPlan) return res.json({ ok: true, invoice, email: emailLc, amount: invAmount, days: EY.EYESH_DAYS, grade: EY.PACK_GRADE });
-      return res.json(isWsPlan ? { ok: true, invoice, email: emailLc } : { ok: true, invoice });
+      if (isWsPlan) return res.json({ ok: true, invoice, email: emailLc, amount: invAmount, offer: wsMonths != null ? offerOn : undefined,
+        months: wsMonths != null ? wsMonths : wgMonths, grades: bundleGrades || undefined });
+      return res.json({ ok: true, invoice });
     }
 
     // Төлбөр шалгах — invoice_id-г ЗААВАЛ серверийн pending мөртэй тулгана.
@@ -1388,7 +1467,8 @@ module.exports = async (req, res) => {
         // ws_token ХЭЗЭЭ Ч буцаахгүй (H6): төлбөр төлсөн нь имэйлийг эзэмшдэгийг батлахгүй. Клиент өөрийн
         // нэвтэрсэн токеноороо wsstatus-ийг дахин шалгаж хуудсаа нээнэ.
         const out = { ok: true, paid: true, expiry: s.exp.toISOString() };
-        if (wrow.grade) out.grade = wrow.grade;
+        if (wsRowIsBundle(wrow)) out.grades = wsRowGrades(wrow);
+        else if (wrow.grade) out.grade = wrow.grade;
         return res.json(out);
       }
       return res.json(await settlePayOnce(prow));
@@ -1407,7 +1487,7 @@ module.exports = async (req, res) => {
       try {
         await ensureWsExtra();
         const pend = await pool.query(
-          `SELECT invoice_id, email, months, promo, amount, grade, granted FROM ws_pending
+          `SELECT ${WS_PEND_COLS} FROM ws_pending
             WHERE email=$1 AND granted=FALSE AND created_at > NOW() - INTERVAL '3 days'
             ORDER BY created_at DESC LIMIT 10`, [email]);
         for (const row of pend.rows) {
@@ -1439,9 +1519,11 @@ module.exports = async (req, res) => {
 
     // Ажлын хуудсын үнийн жагсаалт (нээлттэй)
     if (req.query.action === 'wsprices') {
+      // bundles — шинэ бүртгэлийн (хямдралтай) харагдац; нэвтэрсэн дансны бодит үнийг wsstatus өгнө
       return res.json({ ok: true, prices: WS_PRICES, months: WS_MONTHS,
         grade_prices: wsGradePrices(), grade_months: WS_GRADE_MONTHS,
-        grade_per_month: WS_GRADE_PER_MONTH, grades: WG.allGrades(), pack_price: EY.packPrice() });
+        grade_per_month: WS_GRADE_PER_MONTH, grades: WG.allGrades(), pack_price: EY.packPrice(),
+        bundles: OF.view(true, WG.allGrades()), offer_days: OF.OFFER_DAYS });
     }
 
     // Азтаны хүрд — нүднүүдийн шошго (клиент ижил дарааллаар зурна)
@@ -1548,7 +1630,7 @@ module.exports = async (req, res) => {
       const b = req.body || {};
       // Төлбөр тулгах — хадгалсан нэхэмжлэхүүдийг QPay-тэй тулгаж, төлсөн атлаа олгогдоогүйг нөхөж олгоно
       if (req.query.action === 'ws_reconcile') {
-        const pend = await pool.query('SELECT invoice_id, email, months, promo, amount, grade, granted FROM ws_pending WHERE granted=FALSE ORDER BY created_at DESC LIMIT 200');
+        const pend = await pool.query('SELECT ' + WS_PEND_COLS + ' FROM ws_pending WHERE granted=FALSE ORDER BY created_at DESC LIMIT 200');
         let checked = 0, granted = [];
         for (const row of pend.rows) {
           checked++;
@@ -1556,10 +1638,11 @@ module.exports = async (req, res) => {
             if (await qpayInvoicePaid(row.invoice_id, row.amount)) {
               const s = await settleWsOnce(row);        // callback-тай зэрэгцвэл давхар олгохгүй
               if (s.already) continue;
-              granted.push(row.grade ? { email: row.email, plan: 'wsgrade', grade: row.grade, months: row.months, amount: row.amount }
+              granted.push(wsRowIsBundle(row) ? { email: row.email, plan: 'wsbundle', grades: wsRowGrades(row), months: row.months, amount: row.amount }
+                         : row.grade ? { email: row.email, plan: 'wsgrade', grade: row.grade, months: row.months, amount: row.amount }
                                      : { email: row.email, plan: 'wsmonths', months: row.months, amount: row.amount });
             }
-          } catch (e) { /* тухайн нэхэмжлэхийг алгасна */ }
+          } catch (e) { console.error('[reconcile ws row]', row.invoice_id, e.message); }
         }
         // Premium / friends / event — сүүлийн 30 хоногийн олгогдоогүй нэхэмжлэхүүд
         await ensurePayPending();
@@ -1774,15 +1857,18 @@ module.exports = async (req, res) => {
           `SELECT a.email, a.grade, a.expires_at, a.updated_at, (a.expires_at > NOW()) AS active,
                   COALESCE(p.cnt,0)::int AS paid_count, COALESCE(p.total,0)::int AS paid_sum
              FROM ws_grade_access a
-             LEFT JOIN (SELECT lower(email) AS em, grade, COUNT(*) AS cnt, SUM(amount) AS total
-                          FROM ws_purchases WHERE grade IS NOT NULL GROUP BY lower(email), grade) p
+             LEFT JOIN (SELECT lower(w.email) AS em, g AS grade, COUNT(*) AS cnt,
+                               SUM(w.amount / cardinality(string_to_array(w.grade, ' + '))) AS total
+                          FROM ws_purchases w, unnest(string_to_array(w.grade, ' + ')) AS g
+                         WHERE w.grade IS NOT NULL GROUP BY lower(w.email), g) p
                     ON p.em = lower(a.email) AND p.grade = a.grade
             ORDER BY a.updated_at DESC LIMIT 1000`);
         const act = await pool.query('SELECT COUNT(*)::int n FROM ws_grade_access WHERE expires_at > NOW()');
-        // Ангиар хураангуй: худалдан авалт/орлого (ws_purchases) + идэвхтэй эрх (ws_grade_access)
+        // Ангиар хураангуй: худалдан авалт/орлого (ws_purchases) + идэвхтэй эрх (ws_grade_access).
+        // Багцын мөр (grade = «6-р анги + 7-р анги + 8-р анги») анги бүрт тоологдоно; дүн нь ангиудад тэнцүү хуваагдана.
         const sales = await pool.query(
-          `SELECT grade, COUNT(*)::int AS sales
-             FROM ws_purchases WHERE grade IS NOT NULL GROUP BY grade`);
+          `SELECT g AS grade, COUNT(*)::int AS sales
+             FROM ws_purchases w, unnest(string_to_array(w.grade, ' + ')) AS g WHERE w.grade IS NOT NULL GROUP BY g`);
         const actBy = await pool.query(
           `SELECT grade, COUNT(*)::int AS active FROM ws_grade_access WHERE expires_at > NOW() GROUP BY grade`);
         const map = {};
@@ -2016,9 +2102,13 @@ module.exports = async (req, res) => {
           offerGrade = slugGrades.filter(function (g) { return buyable.indexOf(g) >= 0; })[0] || null;
         } catch (e) { console.error('[wsstatus grade]', e.message); }
       }
+      // bundles/offer — хугацаат багц (api/_wsoffer.js). Анхдагч нь «шинэ бүртгэл» (хямдралтай) харагдац; нэвтэрсэн дансанд доор
+      // DB-ээр (худалдан авалт хийгээгүй + 7 хоногийн дотор) дахин тооцно. grade_list — багцад сонгох ангиуд.
+      const gradeList = WG.allGrades();
       const gradePrices = { grade: offerGrade, grade_prices: wsGradePrices(),
         grade_months: WS_GRADE_MONTHS, grade_per_month: WS_GRADE_PER_MONTH,
-        prices: WS_PRICES, months: WS_MONTHS };
+        prices: WS_PRICES, months: WS_MONTHS,
+        grade_list: gradeList, bundles: OF.view(true, gradeList), offer: { eligible: true, anon: true, days: OF.OFFER_DAYS } };
       // ЭЕШ бүлгийн хуудсанд «ЭЕШ багц» (ажлын хуудас + ЭЕШ шалгагч, 1 сар) — ws-store.js-ийн гурав дахь сонголт
       if (offerGrade === EY.PACK_GRADE) gradePrices.pack = { price: EY.packPrice(), days: EY.EYESH_DAYS, eyesh_price: EY.eyeshPrice() };
 
@@ -2074,6 +2164,13 @@ module.exports = async (req, res) => {
       }
       const trialOn = !!(trial && trial.active);
       const active = allActive || !!gradeHit || trialOn;
+      // Энэ дансны багцын үнэ: худалдан авалт хийгээгүй + 7 хоногийн дотор бол хямдралтай (DB-ийн цагаар). server_now — тоолуур,
+      // «дуусахаас 3 хоногийн өмнөх сануулга»-ын цагийн зөрүүг засна. all_expires_at — бүх ангийн эрх («Миний эрх» хэсэг).
+      const of = await OF.offer(email);
+      gradePrices.bundles = OF.view(of.eligible, gradeList);
+      gradePrices.offer = { eligible: of.eligible, until: of.until, days: of.days, customer: !!of.customer };
+      gradePrices.server_now = of.server_now || Date.now();
+      gradePrices.all_expires_at = allActive ? r.rows[0].expires_at : null;
       return res.json(Object.assign({
         ok: true, enabled: true, active: active,
         scope: allActive ? 'all' : (gradeHit ? 'grade' : (trialOn ? 'trial' : null)),

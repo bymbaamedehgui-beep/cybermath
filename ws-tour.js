@@ -226,7 +226,7 @@
     return st[1] === 'later' && Date.now() - (+st[2] || 0) > 864e5;
   }
   // Нэвтрэх цонх, төлбөрийн түгжээ, PPT тоглуулагч, бусад цонх нээлттэй бол заавар хүлээнэ/түр нууна
-  var BLOCK = '#wsLogin, #wsLock, .e1s-pl, #modal.on, .modal.on, #cm-sheet.on, #bulkModal.on, #qrModal.on';
+  var BLOCK = '#wsLogin, #wsLock, .e1s-pl, #modal.on, .modal.on, #cm-sheet.on, #bulkModal.on, #qrModal.on, #wsBuyM, #wsRemind';
   function blocked() { var a = d.querySelectorAll(BLOCK); for (var i = 0; i < a.length; i++) if (vis(a[i])) return true; return false; }
   function busy() {
     if (d.getElementById('cmt') || blocked()) return true;

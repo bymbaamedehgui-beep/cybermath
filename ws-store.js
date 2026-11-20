@@ -324,13 +324,10 @@
       +'<button id="wsBack" style="position:absolute;top:14px;left:14px;display:inline-flex;align-items:center;gap:5px;border:1.4px solid #e7ddff;background:#faf7ff;color:#5a32d6;font-weight:800;font-size:.82rem;border-radius:999px;padding:.4rem .8rem;cursor:pointer;font-family:inherit"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>Буцах</button>'
       +'<div style="width:60px;height:60px;margin:2px auto 4px;background:linear-gradient(135deg,#7B52EE,#A855F7);border-radius:16px;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 18px -6px rgba(123,82,238,.6)"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10.5" rx="2.2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/><circle cx="12" cy="15" r="1.4" fill="#fff" stroke="none"/><path d="M12 16v2.2"/></svg></div>'
       +(opts.why==='trial'?trEndHtml((WS_ST&&WS_ST.trial)||null):'')
-      +'<h3 style="color:#5a32d6;font-size:1.25rem;font-weight:900;margin:6px 0 2px">Ажлын хуудсын эрх</h3>'
+      +'<h3 style="color:#5a32d6;font-size:1.25rem;font-weight:900;margin:6px 0 2px">'+(opts.why==='renew'?'Эрх сунгах':'Ажлын хуудсын эрх')+'</h3>'
       +'<p id="wsSubTitle" style="color:#7a7390;font-size:.9rem;margin-bottom:8px">Бүх ажлын хуудсыг сонгосон хугацаанд <b>хязгааргүй</b> ашиглах</p>'
       +'<div id="wsFreeNote" style="font-size:.8rem;color:#16a34a;font-weight:700;background:#eafff1;border:1px solid #b6f0cd;border-radius:9px;padding:6px 10px;margin-bottom:12px">Санамж: анги бүрийн <b>эхний хуудас үнэгүй</b> — эхлээд туршаад үзээрэй!</div>'
-      +'<div id="wsPlan" style="display:none;gap:6px;margin-bottom:10px"></div>'
-      +'<div id="wsDur" style="display:flex;gap:6px;margin-bottom:12px"></div>'
-      +'<div id="wsPriceBox" style="font-size:1.7rem;font-weight:900;color:#16a34a;margin-bottom:4px"></div>'
-      +'<div id="wsCmp" style="font-size:.82rem;margin-bottom:12px;min-height:1em"></div>'
+      +'<div id="wsPlan" style="margin-bottom:12px"><div id="wsPlanWait" style="font-size:.9rem;color:#b3a9cf;font-weight:700;padding:14px 0">Ачаалж байна…</div></div>'
       +'<input id="wsEmail" type="email" placeholder="Имэйл хаяг" style="width:100%;box-sizing:border-box;border:1.6px solid #e7ddff;border-radius:12px;padding:.7rem .9rem;font-size:.95rem;outline:none;margin-bottom:10px" />'
       +'<div style="display:flex;gap:6px;margin-bottom:4px">'
         +'<input id="wsPromo" type="text" placeholder="Урамшууллын код (заавал биш)" style="flex:1;min-width:0;border:1.6px solid #e7ddff;border-radius:12px;padding:.7rem .9rem;font-size:.9rem;outline:none;text-transform:uppercase" />'
@@ -344,6 +341,7 @@
       +'</div>';
     document.body.appendChild(o);
     if(pb&&!soft)pb.style.display='none';
+    if(opts.why==='renew'){ var rs0=o.querySelector('#wsRestore'); if(rs0)rs0.style.display='none'; }   // сунгах — эрх аль хэдийн бий
     if(soft){
       // Үнэгүй хуудас: зөвхөн цонхыг хаана (агуулга үнэгүй хэвээр)
       var bk=o.querySelector('#wsBack');
@@ -389,113 +387,39 @@
     }
     function valid(e){return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);}
     function fmt(n){return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,',');}
-    // ─── Хоёр багц: ЭНЭ АНГИ (сард 9900) / БҮХ АНГИ (3-12 сар) ───
-    var P_ALL={3:39900,6:69900,9:99900,12:119900}, M_ALL=[3,6,9,12];
-    var P_GR ={1:9900,3:29700,6:59400,12:118800},  M_GR =[1,3,6,12];
-    var LABEL={1:'1 сар',3:'3 сар',6:'6 сар',9:'9 сар',12:'1 жил'};
-    var LABD ={1:'1 сард',3:'3 сард',6:'6 сард',9:'9 сард',12:'1 жилд'};   // өгөх оршихын тийн ялгал
-    var PLAN='all', GRADE=null, applied=false, lastPlan=null;
-    // ЭЕШ багц (ЭЕШ ажлын хуудас + ЭЕШ шалгагч, 1 сар) — сервер зөвхөн ЭЕШ бүлгийн хуудсанд d.pack буцаана (api/qpay.js wsstatus)
-    var PACK=null;
-    // "6-р анги" → "6-р ангийн", "ЭЕШ" → "ЭЕШ-ийн" (харьяалахын тийн ялгал)
-    function gGen(g){ g=String(g||''); if(/анги$/.test(g))return g.replace(/анги$/,'ангийн'); if(/хэл$/.test(g))return g+'ний'; return g?g+'-ийн':g; }
-    var selMonths=3, appliedPromo=null, curPct=0;
-    var priceBox=o.querySelector('#wsPriceBox'), cmpBox=o.querySelector('#wsCmp');
-    var planRow=o.querySelector('#wsPlan'), durRow=o.querySelector('#wsDur');
+    // ─── Багц (ws-plans.js ↔ api/_wsoffer.js): 1 сар · энэ анги / 3 сар · 3 анги / 6 сар · 6 анги / 12 сар · бүх анги ───
+    // ЭЕШ бүлгийн хуудсанд «ЭЕШ багц» (ЭЕШ ажлын хуудас + ЭЕШ шалгагч, 1 сар) — сервер зөвхөн тэнд d.pack буцаана (api/qpay.js wsstatus)
+    var GRADE=null, PACK=null, applied=false, plans=null, curSel=null;
+    var appliedPromo=null, curPct=0;
+    var planEl=o.querySelector('#wsPlan');
     var promoIn=o.querySelector('#wsPromo'),promoBtn=o.querySelector('#wsPromoBtn'),promoMsg=o.querySelector('#wsPromoMsg');
     var subEl=o.querySelector('#wsSubTitle');
-    function prices(){ return PLAN==='pack'&&PACK?{1:PACK.price}:PLAN==='grade'?P_GR:P_ALL; }
-    function monthsList(){ return PLAN==='pack'?[1]:PLAN==='grade'?M_GR:M_ALL; }
-    function planBtnCss(on){
-      return 'flex:1;min-width:0;cursor:pointer;font-weight:800;font-size:.84rem;border-radius:12px;padding:.55rem .3rem;line-height:1.25;transition:.12s;'
-        +(on?'border:1.8px solid #7B52EE;background:#f4efff;color:#5a32d6;box-shadow:0 4px 12px -8px rgba(123,82,238,.9)'
-            :'border:1.6px solid #ece6fb;background:#fff;color:#9a92b5');
-    }
-    function buildPlans(){
-      if(!GRADE){ planRow.style.display='none'; return; }
-      planRow.style.display='flex';
-      planRow.innerHTML=''
-        +'<button type="button" class="wsp" data-p="grade">'+esc(GRADE)+'<div style="font-weight:700;font-size:.72rem;opacity:.8">сард '+fmt(P_GR[1]||9900)+'₮</div></button>'
-        +(PACK?'<button type="button" class="wsp" data-p="pack">ЭЕШ багц<div style="font-weight:700;font-size:.72rem;opacity:.8">'+fmt(PACK.price)+'₮ · +шалгагч</div></button>':'')
-        +'<button type="button" class="wsp" data-p="all">Бүх анги<div style="font-weight:700;font-size:.72rem;opacity:.8">6–12-р анги</div></button>';
-      [].forEach.call(planRow.querySelectorAll('.wsp'),function(b){
-        b.onclick=function(){ setPlan(b.getAttribute('data-p')); };
-      });
-      stylePlans();
-    }
-    function stylePlans(){
-      [].forEach.call(planRow.querySelectorAll('.wsp'),function(b){
-        b.style.cssText=planBtnCss(b.getAttribute('data-p')===PLAN);
-      });
-    }
-    function buildDur(){
-      durRow.innerHTML=monthsList().map(function(m){
-        return '<button type="button" class="wsd" data-m="'+m+'">'+LABEL[m]+'</button>';
-      }).join('');
-      [].forEach.call(durRow.querySelectorAll('.wsd'),function(b){
-        b.onclick=function(){ selMonths=+b.getAttribute('data-m'); styleDur(); renderPrice(); };
-      });
-      styleDur();
-    }
-    function styleDur(){
-      [].forEach.call(durRow.querySelectorAll('.wsd'),function(b){
-        var on=(+b.getAttribute('data-m')===selMonths);
-        b.style.cssText='flex:1;min-width:0;cursor:pointer;font-weight:800;font-size:.82rem;border-radius:11px;padding:.5rem .2rem;transition:.12s;'
-          +(on?'border:1.6px solid #7B52EE;background:linear-gradient(135deg,#7B52EE,#A855F7);color:#fff;box-shadow:0 6px 14px -8px rgba(123,82,238,.9)'
-              :'border:1.6px solid #e7ddff;background:#fff;color:#5a32d6');
-      });
-    }
-    function setPlan(p,m){
-      PLAN=p;
-      var ml=monthsList();
-      if(m!=null&&ml.indexOf(m)>=0)selMonths=m;              // тодорхой хугацаа зааж дуудсан
-      else if(p!==lastPlan)selMonths=ml[0];                   // багц солигдвол хамгийн богиноос эхэлнэ
-      else if(ml.indexOf(selMonths)<0)selMonths=ml[0];
-      lastPlan=p;
-      if(subEl)subEl.innerHTML=(PLAN==='pack'&&PACK)
+    // "6-р анги" → "6-р ангийн", "ЭЕШ" → "ЭЕШ-ийн" (харьяалахын тийн ялгал)
+    function gGen(g){ g=String(g||''); if(/анги$/.test(g))return g.replace(/анги$/,'ангийн'); if(/хэл$/.test(g))return g+'ний'; return g?g+'-ийн':g; }
+    function onPlan(s){
+      curSel=s;
+      if(subEl)subEl.innerHTML=s.plan==='eeshpack'
         ? ('<b>'+esc(gGen(GRADE||'ЭЕШ'))+'</b> бүх ажлын хуудас + <b>ЭЕШ шалгагч</b> (eyeshcheck.com) — хариултын хуудсыг утсаар уншуулж дүгнэнэ')
-        : (PLAN==='grade'&&GRADE)
-        ? ('<b>'+esc(gGen(GRADE))+'</b> бүх ажлын хуудсыг сонгосон хугацаанд <b>хязгааргүй</b>')
-        : 'Бүх ажлын хуудсыг сонгосон хугацаанд <b>хязгааргүй</b> ашиглах';
+        : s.plan==='wsgrade'
+        ? ('<b>'+esc(gGen(s.grade||GRADE||''))+'</b> бүх ажлын хуудсыг 1 сар <b>хязгааргүй</b>')
+        : s.all ? ('<b>Бүх ангийн</b> ажлын хуудсыг '+s.months+' сар <b>хязгааргүй</b>')
+        : ('Сонгосон <b>'+s.count+' ангийн</b> ажлын хуудсыг '+s.months+' сар <b>хязгааргүй</b>');
       // ЭЕШ багцад урамшууллын код хамаарахгүй (үнэ серверт тогтмол)
-      var promoOn=PLAN!=='pack';
+      var promoOn=s.plan!=='eeshpack';
       if(promoIn&&promoIn.parentNode)promoIn.parentNode.style.display=promoOn?'flex':'none';
       if(promoMsg)promoMsg.style.display=promoOn?'':'none';
-      stylePlans(); buildDur(); renderPrice();
     }
-    function renderPrice(){
-      var pct=PLAN==='pack'?0:curPct;
-      var base=prices()[selMonths]||0, price=pct>0?Math.round(base*(100-pct)/100):base;
-      var per='<span style="font-size:.86rem;color:#7a7390;font-weight:700">/ '+LABEL[selMonths]+'</span>';
-      if(pct>0){
-        priceBox.innerHTML='<span style="text-decoration:line-through;color:#b3a9cf;font-size:1.05rem;font-weight:800">'+fmt(base)+'₮</span> '+fmt(price)+'₮ '+per+' <span style="display:inline-block;background:#dcfce7;color:#16a34a;font-size:.72rem;font-weight:800;border-radius:999px;padding:2px 8px;vertical-align:middle">-'+curPct+'%</span>';
-      } else { priceBox.innerHTML=fmt(base)+'₮ '+per; }
-      renderCmp(price);
-    }
-    // Шударга харьцуулалт — ЯГ ИЖИЛ хугацаанд бүх анги хэдэд болохыг харуулна
-    function renderCmp(gradePrice){
-      if(!cmpBox)return;
-      if(PLAN==='pack'&&PACK){                                 // багцын бүрэлдэхүүн
-        var eyP=PACK.eyesh_price||0, wsP=Math.max(0,PACK.price-eyP);
-        cmpBox.innerHTML='<span style="display:inline-block;font-weight:800;border-radius:9px;padding:5px 9px;background:#f6f3ff;border:1px solid #e7ddff;color:#5a32d6">'
-          +'Ажлын хуудас '+fmt(wsP)+'₮ + ЭЕШ шалгагч '+fmt(eyP)+'₮</span>';
-        return;
+    // ws-plans.js — зөвхөн төлбөрийн цонх нээгдэхэд нэг удаа ачаална (алдаа гарвал 2 удаа дахин оролдоно)
+    function plansLib(cb){
+      if(window.WSPLANS){cb(window.WSPLANS);return;}
+      var q=plansLib.q=plansLib.q||[]; q.push(cb); if(q.length>1)return;
+      function load(n){
+        var s=document.createElement('script'); s.src='/ws-plans.js?v=1'+(n?'&r='+n:'');
+        s.onload=function(){ var a=plansLib.q||[]; plansLib.q=[]; if(window.WSPLANS)a.forEach(function(f){ try{f(window.WSPLANS);}catch(e){} }); };
+        s.onerror=function(){ if(n<2)setTimeout(function(){load(n+1);},1500); else { var w=o.querySelector('#wsPlanWait'); if(w)w.textContent='Ачаалж чадсангүй. Хуудсаа шинэчилнэ үү (F5).'; } };
+        (document.head||document.documentElement).appendChild(s);
       }
-      if(PLAN!=='grade'||!GRADE){ cmpBox.innerHTML=''; return; }
-      var allBase=P_ALL[selMonths];
-      if(!allBase){                                            // тэр хугацаанд бүх ангийн багц байхгүй
-        cmpBox.innerHTML='<span style="color:#7a7390">Зөвхөн '+esc(gGen(GRADE))+' хуудсууд нээгдэнэ</span>';
-        return;
-      }
-      var allPrice=curPct>0?Math.round(allBase*(100-curPct)/100):allBase;
-      var diff=allPrice-gradePrice;
-      var strong=diff<=Math.max(gradePrice*0.25,3000);         // бага зөрүүтэй бол тод сануулга
-      cmpBox.innerHTML='<span id="wsCmpGo" style="display:inline-block;cursor:pointer;font-weight:800;border-radius:9px;padding:5px 9px;'
-        +(strong?'background:#eafff1;border:1px solid #b6f0cd;color:#16a34a':'background:#f6f3ff;border:1px solid #e7ddff;color:#5a32d6')+'">'
-        +'Ижил '+LABD[selMonths]+' <b>бүх анги</b> '+fmt(allPrice)+'₮'
-        +(diff>0?' <span style="font-weight:700;opacity:.85">(+'+fmt(diff)+'₮)</span>':'')+'</span>';
-      var g=cmpBox.querySelector('#wsCmpGo');
-      if(g)g.onclick=function(){ setPlan('all',selMonths); };
+      load(0);
     }
     // Эрхийн төлөв ирэхэд багцуудыг эцэслэн угсарна (checkAccess дуудна)
     // Токенгүй (зөвхөн имэйлээр) шалгахад сервер needLogin буцаана — нууц үгээр нэвтрэх рүү чиглүүлнэ
@@ -519,7 +443,6 @@
       msg.style.color='#5a32d6'; msg.textContent='Худалдан авахын тулд эхлээд нэвтэрнэ үү.';
       loginHint('buy');
     }
-    var appliedData=false, userPicked=false;
     window.__wsLockApply=function(d){
       /* Үнэгүй туршилт дууссан (хожим нээсэн хуудас ч) эсвэл энэ төхөөрөмж/дугаарт өмнө нь ашиглагдсан — баннер */
       if(d&&d.trial&&(!d.trial.active||TR.done)&&!o.querySelector('#wsTrialEnd')){
@@ -538,43 +461,40 @@
         }
       }
       if(d&&d.needLogin&&!(d&&d.deviceBlocked))loginHint();
-      // 4с-ийн нөөц (өгөгдөлгүй) хэрэглэсний дараа серверийн хариу хожуу ирвэл ангийн багцыг дахин угсарна
-      if(applied&&(appliedData||!d))return;
-      var first=!applied;
-      applied=true; if(d)appliedData=true;
+      // 4с-ийн нөөц (өгөгдөлгүй) хэрэглэсний дараа серверийн хариу хожуу ирвэл багцыг дахин тооцно. Шинэ хариу бүр
+      // (ж: туршилт дуусах үеийн дахин шалгалт) үнэ/хямдралын хугацааг шинэчилнэ — хэрэглэгчийн сонголтыг ws-plans.js хадгална
+      if(applied&&!d)return;
+      applied=true;
       if(d){
-        if(d.prices)P_ALL=d.prices;
-        if(d.months&&d.months.length)M_ALL=d.months;
-        if(d.grade_prices)P_GR=d.grade_prices;
-        if(d.grade_months&&d.grade_months.length)M_GR=d.grade_months;
         if(d.grade)GRADE=d.grade;
         PACK=(d.pack&&d.pack.price>0)?d.pack:null;
       }
       // «Анги бүрийн эхний хуудас үнэгүй» — зөвхөн дугаартай ангид үнэн (ЭЕШ г.м. бүлэгт үнэгүй хуудас алга)
-      var fnote=o.querySelector('#wsFreeNote'); if(fnote)fnote.style.display=(GRADE&&!/\d/.test(GRADE))?'none':'';
-      buildPlans();
-      if(first||!userPicked)setPlan(GRADE?'grade':'all');   // хэрэглэгч аль хэдийн сонгосон бол багцыг нь солихгүй
-      else setPlan(PLAN,selMonths);
+      var fnote=o.querySelector('#wsFreeNote'); if(fnote)fnote.style.display=(opts.why==='renew'||(GRADE&&!/\d/.test(GRADE)))?'none':'';
+      // Хэрэглэгч аль хэдийн сонгосон бол (хожуу ирсэн хариуд) сонголтыг нь ws-plans.js хадгална
+      var st=d||null;
+      plansLib(function(L){
+        if(plans)plans.update(st,{grade:GRADE,pack:PACK});
+        else plans=L.mount(planEl,{st:st,grade:GRADE,pack:PACK,page:true,onChange:onPlan});   // page — ангигүй хуудсанд зөвхөн бүх анги
+        if(curPct)plans.setPct(curPct);
+      });
     };
-    // Хэрэглэгч багц/хугацаа сонгосон эсэхийг тэмдэглэнэ (хожуу ирсэн хариу сонголтыг дарахгүй)
-    if(planRow)planRow.addEventListener('click',function(){ userPicked=true; },true);
-    if(durRow)durRow.addEventListener('click',function(){ userPicked=true; },true);
-    // Хэрэв төлөв удаж ирвэл (эсвэл ирэхгүй бол) бүх ангийн багцаар эхэлнэ
+    // Хэрэв төлөв удаж ирвэл (эсвэл ирэхгүй бол) анхдагч үнээр эхэлнэ (сервер хариу ирмэгц дахин тооцно)
     setTimeout(function(){ if(!applied)window.__wsLockApply(WS_ST); },4000);
     if(WS_ST)window.__wsLockApply(WS_ST);
-    else { priceBox.innerHTML='<span style="font-size:.9rem;color:#b3a9cf;font-weight:700">Ачаалж байна…</span>'; }
+    function pctApply(){ if(plans)plans.setPct(curPct); }
     promoBtn.onclick=function(){
       var code=(promoIn.value||'').trim().toUpperCase();
-      if(!code){appliedPromo=null;curPct=0;renderPrice();promoMsg.textContent='';promoIn.style.borderColor='#e7ddff';return;}
+      if(!code){appliedPromo=null;curPct=0;pctApply();promoMsg.textContent='';promoIn.style.borderColor='#e7ddff';return;}
       promoBtn.disabled=true;var ot=promoBtn.textContent;promoBtn.textContent='…';
-      fetch('/api/qpay?action=promocheck',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({promo:code,months:selMonths})})
+      fetch('/api/qpay?action=promocheck',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({promo:code,months:curSel?curSel.months:1})})
         .then(function(r){return r.json();}).then(function(d){
           promoBtn.disabled=false;promoBtn.textContent=ot;
           if(d&&d.valid){
-            appliedPromo=code;curPct=d.pct;renderPrice();
+            appliedPromo=code;curPct=d.pct;pctApply();
             promoMsg.style.color='#16a34a';promoMsg.textContent='✓ '+d.pct+'% хөнгөлөлт хэрэгжлээ';promoIn.style.borderColor='#22c55e';
           }else{
-            appliedPromo=null;curPct=0;renderPrice();
+            appliedPromo=null;curPct=0;pctApply();
             promoMsg.style.color='#dc2626';promoMsg.textContent='Код буруу эсвэл хүчингүй байна';promoIn.style.borderColor='#fca5a5';
           }
         }).catch(function(){promoBtn.disabled=false;promoBtn.textContent=ot;promoMsg.style.color='#dc2626';promoMsg.textContent='Шалгах үед алдаа гарлаа';});
@@ -583,21 +503,29 @@
     o.querySelector('#wsBuy').onclick=function(){
       var wt=ls('cm_ws_token');
       if(!wt){ needLoginToBuy(); return; }                      // нэвтрээгүй — нэхэмжлэх үүсгэхгүй
+      var s=plans?plans.sel():null;
+      if(!s||!s.key){ msg.style.color='';msg.textContent='Үнэ ачаалж байна — түр хүлээнэ үү.'; return; }
+      if(!s.ready){ msg.style.color='#db2777';msg.textContent=s.need+' анги сонгоно уу ('+s.have+'/'+s.need+').'; return; }
       this.disabled=true;this.textContent='Нэхэмжлэх үүсгэж байна…';var btn=this;
       function resetBtn(){btn.disabled=false;btn.textContent='QPay-аар худалдан авах';}
-      var PAY=(PLAN==='pack'&&PACK)?{plan:'eeshpack'}:(PLAN==='grade'&&GRADE)?{plan:'wsgrade',grade:GRADE}:{plan:'wsmonths'};
-      // Имэйл илгээхгүй — сервер токеноос тодорхойлно (ЭЕШ багцад промо илгээхгүй)
-      fetch('/api/qpay?action=create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({wstoken:wt,plan:PAY.plan,grade:PAY.grade,months:selMonths,promo:PAY.plan==='eeshpack'?null:appliedPromo})})
+      // Имэйл илгээхгүй — сервер токеноос тодорхойлно. Дүнг сервер тогтооно (ЭЕШ багцад промо илгээхгүй)
+      var body={wstoken:wt,plan:s.plan,months:s.months};
+      if(s.plan==='wsgrade')body.grade=s.grade;
+      if(s.grades)body.grades=s.grades;
+      if(s.plan!=='eeshpack')body.promo=appliedPromo;
+      fetch('/api/qpay?action=create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
         .then(function(r){return r.json().then(function(d){return {s:r.status,d:d};},function(){return {s:r.status,d:null};});}).then(function(x){
           var d=x.d;
           if(x.s===401||(d&&d.needLogin)){ resetBtn(); needLoginToBuy(); return; }
           var inv=d&&d.invoice;
-          if(!inv||!inv.invoice_id){msg.style.color='';msg.textContent='Нэхэмжлэх үүсгэж чадсангүй. Дахин оролдоно уу.';resetBtn();return;}
+          if(!inv||!inv.invoice_id){msg.style.color='';msg.textContent=(d&&d.error)||'Нэхэмжлэх үүсгэж чадсангүй. Дахин оролдоно уу.';resetBtn();return;}
           var email=String(d.email||acctEmail||'').toLowerCase();
           if(email)showAcct(email);
+          if(planEl){planEl.style.pointerEvents='none';planEl.style.opacity='.6';}   // QR гарсны дараа багц солихгүй
           var img=inv.qr_image?('<img src="data:image/png;base64,'+inv.qr_image+'" style="display:block;margin:0 auto;width:190px;max-width:100%;height:auto;aspect-ratio:1" alt="QPay QR"/>'):'';
           var link=inv.qPay_shortUrl?('<div style="margin-top:8px"><a href="'+inv.qPay_shortUrl+'" target="_blank" style="display:inline-flex;align-items:center;gap:5px;color:#5a32d6;font-weight:700;font-size:.85rem;text-decoration:none"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg>Утаснаас төлөх</a></div>'):'';
-          qr.innerHTML='<div style="font-size:.82rem;color:#7a7390;margin-bottom:6px">QPay аппаар уншуулж төлнө үү</div>'+img+link;
+          var amt=d.amount>0?'<div style="font-size:.9rem;color:#3a2d5e;font-weight:800;margin-bottom:6px">Төлөх дүн: <span style="color:#16a34a">'+fmt(d.amount)+'₮</span></div>':'';
+          qr.innerHTML=amt+'<div style="font-size:.82rem;color:#7a7390;margin-bottom:6px">QPay аппаар уншуулж төлнө үү</div>'+img+link;
           /* Утасны жижиг дэлгэцэнд QR харагдах хэсэгт гүйлгэнэ */
           setTimeout(function(){try{qr.scrollIntoView({block:'center'});}catch(e){}},60);
           btn.style.display='none';
@@ -610,7 +538,7 @@
                   if(email)lset('cm_last_user',email);
                   msg.style.color='#16a34a';msg.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><polyline points="20 6 9 17 4 12"/></svg>Амжилттай! Нээгдэж байна…';
                   // Сервер ws_token буцаахгүй — одоогийн нэвтэрсэн токеноороо эрхээ дахин шалгаж нээнэ
-                  setTimeout(function(){ checkAccess().then(function(ok){ if(ok)unlockWs(); else location.reload(); }); },700);
+                  setTimeout(function(){ checkAccess().then(function(ok){ if(ok){ unlockWs(); var rb=document.getElementById('cmRemind'); if(rb&&rb.parentNode)rb.parentNode.removeChild(rb); } else location.reload(); }); },700);
                 }
               }).catch(function(){});
           },3000);
@@ -656,6 +584,38 @@
     s.innerHTML='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v10H4V12"/><path d="M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>Үнэгүй туршилт';
     bar.appendChild(s);
   }
+  /* ── Эрх дуусахаас 3 хоногийн өмнөөс хуудас нээх БҮРТ сануулга (эзэмшигч 2026-11-20) ──
+     WS_ST.all_expires_at (бүх анги) + WS_ST.grades (ангийн эрх). Хугацааг серверийн цагаар (server_now). Хуудсыг
+     хаахгүй — дээд талд нэг мөр, «Сунгах» → төлбөрийн цонх (хааж болдог). Хэвлэхэд нуугдана. Туршилт/самбарт биш. */
+  var REMIND_MS=3*864e5;
+  function expirySoon(d){
+    if(!d||!d.active||d.scope==='trial'||d.scope==='board')return [];
+    var now=Number(d.server_now)||Date.now(), out=[], allT=d.all_expires_at?Date.parse(d.all_expires_at):0;
+    function add(name,iso){ var t=Date.parse(iso); if(t>now&&t-now<=REMIND_MS)out.push({name:name,t:t,left:t-now}); }
+    if(allT)add('Бүх анги',d.all_expires_at);
+    // Бүх ангийн эрх нь илүү удаан үргэлжлэх бол тэр ангийн эрх дуусах нь хамаагүй (хуудас нээлттэй хэвээр) — сануулахгүй
+    (d.grades||[]).forEach(function(g){ if(g&&g.grade&&!(allT>Date.parse(g.expires_at)))add(g.grade,g.expires_at); });
+    return out.sort(function(a,b){return a.t-b.t;});
+  }
+  function leftTxt(ms){ var h=Math.ceil(ms/36e5); return h<24?h+' цагийн дараа':Math.ceil(ms/864e5)+' хоногийн дараа'; }
+  function ymd(t){ var x=new Date(t); return x.getFullYear()+'.'+('0'+(x.getMonth()+1)).slice(-2)+'.'+('0'+x.getDate()).slice(-2); }
+  function expiryRemind(){
+    if(IS_QR||inIframe()||ls('cm_admin_token')||document.getElementById('cmRemind'))return;
+    var list=expirySoon(WS_ST); if(!list.length)return;
+    var b=document.createElement('div'); b.id='cmRemind'; b.setAttribute('role','status');
+    b.style.cssText='display:flex;align-items:center;gap:10px;flex-wrap:wrap;box-sizing:border-box;max-width:960px;margin:10px auto;padding:9px 12px;background:transparent;border:1px solid #f3d5e6;border-left:3px solid #ec4899;border-radius:10px;font:600 .86rem/1.45 "Segoe UI",Arial,sans-serif;color:#3a2d5e';
+    b.innerHTML='<style>@media print{#cmRemind{display:none!important}}</style>'
+      +'<span style="flex:none;color:#ec4899;display:inline-flex">'+TR_ICO+'</span>'
+      +'<span style="flex:1;min-width:180px"><b>Таны эрх дуусах гэж байна.</b> '
+        +list.map(function(x){ return esc(x.name)+' — '+ymd(x.t)+' ('+leftTxt(x.left)+')'; }).join(' · ')
+        +'<span style="display:block;font-size:.78rem;color:#7a7390;font-weight:600">Одоо сунгавал үлдсэн хоног дээр нэмэгдэнэ.</span></span>'
+      +'<button type="button" id="cmRemindGo" style="flex:none;font:800 .82rem/1 inherit;font-family:inherit;border:0;border-radius:999px;padding:.55rem 1rem;cursor:pointer;color:#fff;background:linear-gradient(135deg,#7B52EE,#A855F7)">Сунгах</button>'
+      +'<button type="button" id="cmRemindX" aria-label="Хаах" style="flex:none;border:0;background:transparent;color:#9a92b5;cursor:pointer;padding:4px;display:inline-flex"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>';
+    var host=document.body; if(!host)return;
+    host.insertBefore(b,host.firstChild);
+    b.querySelector('#cmRemindGo').onclick=function(){ showLock({soft:true,why:'renew'}); };
+    b.querySelector('#cmRemindX').onclick=function(){ if(b.parentNode)b.parentNode.removeChild(b); };
+  }
   function enforcePaywall(){
     if(IS_QR)return;                                 // QR/сурагчийн горим — багшийн хуваалцсан ганц материал, төлбөргүй
     if(inIframe())return;                            // iframe доторх урьдчилан харах/танилцуулга — цоожгүй
@@ -663,12 +623,12 @@
       try{document.documentElement.classList.add('cm-free');}catch(e){}   // туршилтын хэвлэх хоригоос чөлөөтэй
       addFreeBadge();
       // Нэвтэрсэн бол туршилтын тоолуур харагдана; 0:00 үед хаагддаг (soft) худалдан авах цонх гарна, агуулга үнэгүй хэвээр
-      if(ls('cm_ws_token')&&!ls('cm_admin_token')){ TR.soft=true; checkAccess(); }
+      if(ls('cm_ws_token')&&!ls('cm_admin_token')){ TR.soft=true; checkAccess().then(function(ok){ if(ok)expiryRemind(); }); }
       return;
     }
     if(ls('cm_admin_token'))return;                 // админ — цоожгүй, flash-гүй
     showLock();                                      // нээмэгц шууд төлбөрийн хэсэг харуулна
-    checkAccess().then(function(ok){ if(ok)unlockWs(); }); // эрхтэй/алдаа бол буцааж нээнэ
+    checkAccess().then(function(ok){ if(ok){ unlockWs(); expiryRemind(); } }); // эрхтэй/алдаа бол буцааж нээнэ
   }
 
   /* ═══ TRIAL (api/_wstrial.js) ═══

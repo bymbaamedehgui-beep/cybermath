@@ -68,7 +68,9 @@ const db = {
   eyPurch: [],          // ws_eyesh_purchases [{invoice_id, email, amount, days}]
   eyHand: new Map(),    // ws_eyesh_handoff code_hash → {email, exam, material, expires_at(ms)}
   failEyLedger: false,  // ws_eyesh_purchases INSERT алдаа (SAVEPOINT шалгах)
-  failWsLedger: false,  // ws_purchases INSERT алдаа (ЭЕШ багцын бүртгэл, SAVEPOINT шалгах)
+  failWsLedger: false,
+  failOffer: false,     // api/_wsoffer.js OFFER_SQL алдаа (хямдрал fail-closed)
+  failGradeExtend: false, // settleWsTx-ийн ангийн олголт алдаа (ROLLBACK → claim буцна)  // ws_purchases INSERT алдаа (ЭЕШ багцын бүртгэл, SAVEPOINT шалгах)
 };
 // ws_trials / ws_trial_marks / ws_trial_cfg (tests/_trialfake.js): db.trial.trials, db.trial.marks, db.trial.cfgFrom,
 // db.trial.shift (DB NOW шилжилт), db.trial.fail. PRIOR: db.wsLogin (ижил утас) + db.devices (ws_devices).
@@ -152,11 +154,84 @@ async function query(sql, p, tx) {
   if (/^UPDATE ws_promos SET personal=TRUE WHERE/.test(q)) return { rows: [] };
   if (/^DELETE FROM ws_promos WHERE personal=TRUE/.test(q)) return { rows: [] };
 
-  // ── ws_pending ──
-  if (q === 'SELECT invoice_id, email, months, promo, amount, grade, granted FROM ws_pending WHERE invoice_id=$1') {
-    const r = db.wsPending.get(String(p[0])); return { rows: r ? [Object.assign({}, r)] : [] };
+  // ── ws_pending (api/qpay.js — ажлын хуудасны нэхэмжлэх: анги / бүх анги / багц (grades JSON)) ──
+  if ((m = q.match(/^SELECT ([a-z_, ]+) FROM ws_pending WHERE invoice_id=\$1$/))) {
+    const r = db.wsPending.get(String(p[0])); return { rows: r ? [pick(r, m[1])] : [] };
   }
-  if (/^SELECT invoice_id, email, months, promo, amount, grade, granted FROM ws_pending WHERE (email=\$1 AND )?granted=FALSE/.test(q)) return { rows: [] };
+  if ((m = q.match(/^SELECT ([a-z_, ]+) FROM ws_pending WHERE email=\$1 AND granted=FALSE AND created_at > NOW\(\) - INTERVAL '3 days' ORDER BY created_at DESC LIMIT 10$/))) {
+    const rows = Array.from(db.wsPending.values()).filter(r => r.email === p[0] && r.granted === false && r.created_at > now() - 3 * DAY);
+    return { rows: rows.reverse().slice(0, 10).map(r => pick(r, m[1])) };
+  }
+  if ((m = q.match(/^SELECT ([a-z_, ]+) FROM ws_pending WHERE granted=FALSE ORDER BY created_at DESC LIMIT 200$/))) {
+    return { rows: Array.from(db.wsPending.values()).filter(r => r.granted === false).reverse().slice(0, 200).map(r => pick(r, m[1])) };
+  }
+  if (q === 'INSERT INTO ws_pending (invoice_id, email, months, promo, amount, ref, grade, grades) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (invoice_id) DO NOTHING') {
+    if (!db.wsPending.has(p[0])) db.wsPending.set(p[0], { invoice_id: p[0], email: p[1], months: p[2], promo: p[3], amount: p[4], ref: p[5], grade: p[6], grades: p[7], granted: false, created_at: now() });
+    return { rows: [] };
+  }
+  if (q === 'UPDATE ws_pending SET granted=TRUE WHERE invoice_id=$1 AND granted=FALSE RETURNING invoice_id') {
+    const inv = String(p[0]);
+    db.claims.push(inv);
+    await waitRowLock(inv, tx);
+    const r = db.wsPending.get(inv);
+    if (!r || r.granted !== false) return { rows: [] };
+    r.granted = true; takeRowLock(inv, tx); undo(function () { r.granted = false; });
+    return { rows: [{ invoice_id: r.invoice_id }] };
+  }
+  if (q === 'UPDATE ws_pending SET granted=FALSE WHERE invoice_id=$1' || q === 'UPDATE ws_pending SET granted=TRUE WHERE invoice_id=$1') {
+    const inv = String(p[0]), v = /TRUE/.test(q);
+    await waitRowLock(inv, tx);
+    const r = db.wsPending.get(inv);
+    if (r) { const was = r.granted; r.granted = v; takeRowLock(inv, tx); undo(function () { r.granted = was; }); }
+    return { rows: [] };
+  }
+  if (q === 'SELECT ref FROM ws_pending WHERE invoice_id=$1') {
+    const r = db.wsPending.get(String(p[0])); return { rows: r ? [{ ref: r.ref == null ? null : r.ref }] : [] };
+  }
+  // api/_wsoffer.js — шинэ хэрэглэгчийн хямдрал: бүртгэлийн цаг + ажлын хуудасны худалдан авалт хийсэн эсэх
+  if (/^SELECT NOW\(\) AS now, \(SELECT created_at FROM ws_login WHERE email=\$1\) AS reg, \(EXISTS \(SELECT 1 FROM ws_purchases WHERE LOWER\(email\)=\$1\) OR EXISTS \(SELECT 1 FROM ws_pending WHERE LOWER\(email\)=\$1 AND granted\)\) AS bought$/.test(q)) {
+    if (db.failOffer) throw dbErr('db down');
+    const e = lc(p[0]), w = db.wsLogin.get(e);
+    const bought = db.wsPurch.some(r => lc(r.email) === e) || Array.from(db.wsPending.values()).some(r => lc(r.email) === e && r.granted);
+    return { rows: [{ now: new Date(now()), reg: w && w.created_at ? new Date(w.created_at) : null, bought: bought }] };
+  }
+  if (q === 'SELECT 1 FROM ws_purchases WHERE invoice_id=$1 LIMIT 1') {
+    return { rows: db.wsPurch.some(r => r.invoice_id === String(p[0])) ? [{ '?column?': 1 }] : [] };
+  }
+  // Худалдан авалтын олголт (api/qpay.js settleWsTx) — одоогийн дуусах хугацаан дээр НЭМНЭ (транзакц дотор)
+  if (q === 'INSERT INTO ws_grade_access (email, grade, expires_at, updated_at) SELECT $1, g, NOW() + make_interval(days => $3::int), NOW() FROM unnest($2::text[]) AS g ON CONFLICT (email, grade) DO UPDATE SET expires_at = GREATEST(ws_grade_access.expires_at, NOW()) + make_interval(days => $3::int), updated_at = NOW() RETURNING grade, expires_at') {
+    if (db.failGradeExtend) throw dbErr('grade extend failed', '40001');
+    const e = lc(p[0]), out = [];
+    (p[1] || []).forEach(function (g) {
+      g = String(g);
+      const old = db.wsGrade.find(function (r) { return r.email === e && r.grade === g; });
+      if (old) {
+        const was = old.expires_at;
+        old.expires_at = new Date(Math.max(new Date(was).getTime(), now()) + Number(p[2]) * DAY);
+        undo(function () { old.expires_at = was; });
+        out.push({ grade: g, expires_at: old.expires_at });
+      } else {
+        const row = { email: e, grade: g, expires_at: new Date(now() + Number(p[2]) * DAY) };
+        db.wsGrade.push(row); undo(function () { const i = db.wsGrade.indexOf(row); if (i >= 0) db.wsGrade.splice(i, 1); });
+        out.push({ grade: g, expires_at: row.expires_at });
+      }
+    });
+    return { rows: out };
+  }
+  if (q === 'INSERT INTO ws_access (email, expires_at, updated_at) VALUES ($1, NOW() + make_interval(days => $2::int), NOW()) ON CONFLICT (email) DO UPDATE SET expires_at = GREATEST(ws_access.expires_at, NOW()) + make_interval(days => $2::int), updated_at = NOW() RETURNING expires_at') {
+    const e = lc(p[0]), prev = db.wsAccess.get(e);
+    const exp = new Date(Math.max(prev ? new Date(prev).getTime() : 0, now()) + Number(p[1]) * DAY);
+    db.wsAccess.set(e, exp);
+    undo(function () { if (prev) db.wsAccess.set(e, prev); else db.wsAccess.delete(e); });
+    return { rows: [{ expires_at: exp }] };
+  }
+  if (q === 'SELECT expires_at FROM ws_access WHERE email=$1') {
+    const ex = db.wsAccess.get(lc(p[0])); return { rows: ex ? [{ expires_at: new Date(ex) }] : [] };
+  }
+  if (q === 'SELECT expires_at FROM ws_grade_access WHERE email=$1 AND grade=$2') {
+    const r = db.wsGrade.find(function (x) { return x.email === lc(p[0]) && x.grade === String(p[1]); });
+    return { rows: r ? [{ expires_at: new Date(r.expires_at) }] : [] };
+  }
 
   // ── pay_pending ──
   if ((m = q.match(/^SELECT ([a-z_, ]+) FROM pay_pending WHERE invoice_id=\$1$/))) {
@@ -633,7 +708,7 @@ function reset() {
   process.env.GAME_PAYWALL = 'on';
   process.env.GAME_PAYWALL_REALMS = 'ws,cm';
   db.wsLogin.clear(); db.wsGrade.length = 0; db.wsPurch.length = 0; db.admGrants.length = 0; db.trial.reset();
-  db.eyAccess.clear(); db.eyPurch.length = 0; db.eyHand.clear(); db.failEyLedger = false; db.failWsLedger = false;
+  db.eyAccess.clear(); db.eyPurch.length = 0; db.eyHand.clear(); db.failEyLedger = false; db.failWsLedger = false; db.failOffer = false; db.failGradeExtend = false; delete process.env.WS_OFFER_FROM;
   process.env.WS_TRIAL_SECONDS = '0'; delete process.env.WS_TRIAL_FROM; delete process.env.WS_TRIAL_IP_DAY; delete process.env.VERCEL_ENV; delete process.env.AWS_LAMBDA_FUNCTION_NAME;
 }
 function addUser(email, o) {

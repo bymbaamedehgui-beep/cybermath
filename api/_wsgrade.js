@@ -34,6 +34,18 @@ async function grantGradeMonths(email, grade, months, db) {
   return exp;
 }
 
+// Худалдан авалтын олголт (api/qpay.js settleWsTx): одоогийн дуусах хугацаан ДЭЭР нэмнэ — дуусахаас өмнө сунгавал үлдсэн
+// хоног алдагдахгүй. Тиймээс claim-тай транзакц дотор л (db) дууд. Олон ангийг нэг SQL-ээр. DDL-ийг транзакцаас өмнө.
+const EXTEND_SQL = `INSERT INTO ws_grade_access (email, grade, expires_at, updated_at)
+     SELECT $1, g, NOW() + make_interval(days => $3::int), NOW() FROM unnest($2::text[]) AS g
+     ON CONFLICT (email, grade) DO UPDATE
+       SET expires_at = GREATEST(ws_grade_access.expires_at, NOW()) + make_interval(days => $3::int), updated_at = NOW()
+     RETURNING grade, expires_at`;
+async function extendGrades(email, grades, days, db) {
+  const r = await (db || pool).query(EXTEND_SQL, [String(email).trim().toLowerCase(), grades, days]);
+  return r.rows;
+}
+
 async function revokeGrade(email, grade) {
   await ensureGradeTable();
   await pool.query('DELETE FROM ws_grade_access WHERE email=$1 AND grade=$2',
@@ -97,15 +109,41 @@ async function loadPlacements() {
   return out;
 }
 
+// vercel.json-ийн богино зам (ж: /negativ → /negativ-too-100.html). ws-store.js slug-ийг URL-ын сүүлийн хэсгээс авдаг тул
+// богино замаар нээсэн хуудсын ангийг жинхэнэ файлын нэрээр нь тодорхойлно (эс бөгөөс ангийн эрх тэр хуудсыг нээдэггүй).
+let aliasMap = null;
+function loadAliases() {
+  if (aliasMap) return aliasMap;
+  const m = {};
+  try {
+    const v = require('../vercel.json');
+    (v.routes || []).forEach(function (r) {
+      if (!r || typeof r.src !== 'string' || typeof r.dest !== 'string') return;
+      if (!/^\/[A-Za-z0-9_.-]+\/?$/.test(r.src)) return;
+      const d = r.dest.replace(/^\//, '').toLowerCase();
+      if (!/^[a-z0-9_.-]+\.html$/.test(d)) return;
+      const s = r.src.replace(/^\//, '').replace(/\/$/, '').toLowerCase();
+      if (s && s !== d) m[s] = d;
+    });
+  } catch (e) { console.error('[wsgrade aliases]', e.message); }
+  aliasMap = m;
+  return m;
+}
+
 // Тухайн хуудас ЯМАР ангиудад харагдаж байгааг буцаана (нэгээс олон байж болно)
 async function gradesForSlug(slug) {
   slug = String(slug || '').toLowerCase().replace(/^\//, '');
   if (!slug) return [];
   const cat = loadCatalog();
   const pl = await loadPlacements();
-  const set = new Set(cat[slug] || []);
-  const rm = pl.remove[slug]; if (rm) rm.forEach(g => set.delete(g));
-  const ad = pl.add[slug]; if (ad) ad.forEach(g => set.add(g));
+  function forSlug(s) {
+    const set = new Set(cat[s] || []);
+    const rm = pl.remove[s]; if (rm) rm.forEach(g => set.delete(g));
+    const ad = pl.add[s]; if (ad) ad.forEach(g => set.add(g));
+    return set;
+  }
+  let set = forSlug(slug);
+  if (!set.size) { const real = loadAliases()[slug]; if (real) set = forSlug(real); }
   return Array.from(set);
 }
 
@@ -120,6 +158,6 @@ function allGrades() {
 }
 
 module.exports = {
-  ensureGradeTable, grantGradeMonths, revokeGrade, activeGrades,
+  ensureGradeTable, grantGradeMonths, extendGrades, revokeGrade, activeGrades,
   gradesForSlug, allGrades, monthsToDays,
 };

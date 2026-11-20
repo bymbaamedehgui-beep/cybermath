@@ -61,6 +61,7 @@ const PRELUDE = [
   'function ensurePin(){window.pins++;}',
   'function initWelcomeOffer(cb){window.welcome++;cb(false);}',
   'function checkFbReplies(){} function wsInviteClear(){} function openInvite(){window.invites++;}',
+  'function wsRemind(){window.reminds=(window.reminds||0)+1;}',   // эрх дуусахын сануулга (tests/ws-bundle.test.js)
   'var WS_INVITE=null, LOGIN_REQ=null, PROMO_CODE=null;',
 ].join('\n');
 
